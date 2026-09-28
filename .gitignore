@@ -7,6 +7,8 @@ __pycache__/
 *.swp
 *~
 .DS_Store
+.projectatlas/
+artifacts/
 
 # Arch package build artifacts
 packaging/arch/pkg/
