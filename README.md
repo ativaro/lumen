@@ -20,6 +20,7 @@ gracefully on other setups.
 | **Git** | `lumen-gitmsg` drafts a Conventional-Commit message from the diff |
 | **KRunner runner** | Type `ai <question>` or `oc <question>` in KRunner |
 | **Plasma applet** | panel widget with agent status + quick actions (`org.lumen.agent`) |
+| **Lumen Files** | bundled file manager: fast recursive name search, previews (image/PDF/video/audio), tabs, gallery, KIO network folders |
 | **System watchdog** | systemd timer checks failed units, kernel errors, disk, GPU temp; automatic opencode analysis |
 | **Daily digest / nightly report** | scheduled summaries (`lumen-digest`, `lumen-nightly`) |
 | **MCP server `cachyos`** | read tools `systemctl`, `journal`, `pacman`, `disk`, `gpu`, `memory`, `sensors`, `kwin`, guarded `cmd` — plus **opt-in action tools** (`notify`, `restart_unit`, `media`, `wallpaper`, `screenshot`) behind `LUMEN_MCP_ACTIONS=1` |
@@ -147,6 +148,7 @@ askpass (`ksshaskpass`/GNOME/OpenSSH) in `/etc/sudo.conf` if none is set.
 bin/                      helper scripts + GUI backend (installed to PREFIX/bin)
 agent-app/ui/             Kirigami/QML desktop app
 plasmoid/                 Plasma panel applet (org.lumen.agent)
+files/                    Lumen Files file manager (PyQt5)
 shell/                    bash + fish integration (why/vix/sel)
 data/                     .desktop / krunner / dbus / autostart templates
 systemd/                  watchdog user units
