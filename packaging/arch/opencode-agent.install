@@ -7,13 +7,21 @@
 post_install() {
     systemctl enable --now opencode-agentd.service 2>/dev/null || true
     systemctl enable --now opencode-agent-watch.timer 2>/dev/null || true
+    # per-user unit enabled for all users (opt-out via --global disable)
+    systemctl --global enable opencode-agent-notify.path 2>/dev/null || true
+    # activate for the currently running user session, if any
+    for d in /run/user/*/; do
+        uid=$(basename "$d" 2>/dev/null); [ -z "$uid" ] && continue
+        systemctl --machine="${uid}@.host" --user enable --now opencode-agent-notify.path 2>/dev/null || true
+    done
 
     cat <<'EOF'
 opencode Agent installiert (Dateien systemweit unter /usr).
 
 Dienste (standardmäßig AKTIV):
-  opencode-agentd.service     - D-Bus org.opencode.Agent (Read-only-Systemstatus)
-  opencode-agent-watch.timer  - System-Wächter (alle 15 min)
+  opencode-agentd.service          - D-Bus org.opencode.Agent (Read-only-Systemstatus)
+  opencode-agent-watch.timer       - System-Wächter (alle 15 min)
+  opencode-agent-notify.path       - Desktop-Benachrichtigung (per Nutzer)
 
 Desktop-Integration unter /usr/share:
   - Anwendung "opencode Agent"
@@ -21,13 +29,11 @@ Desktop-Integration unter /usr/share:
   - KRunner-Runner (Trigger: ai <Frage>)
   - Global-Shortcuts: Meta+Shift+O (fragen), Meta+Shift+S (Zwischenablage)
 
-Pro-Nutzer-Benachrichtigung aktivieren (optional, pro Sitzung):
-  systemctl --user enable --now opencode-agent-notify.path
-
 Abschalten (opt-out):
   sudo systemctl disable --now opencode-agentd.service
   sudo systemctl disable --now opencode-agent-watch.timer
-  systemctl --user disable --now opencode-agent-notify.path
+  sudo systemctl --global disable opencode-agent-notify.path
+  systemctl --user disable --now opencode-agent-notify.path   # nur diese Sitzung
 
 opencode-Commands/Skill:
   /usr/share/opencode-agent/opencode-command/
@@ -54,6 +60,11 @@ EOF
 pre_remove() {
     systemctl disable --now opencode-agent-watch.timer 2>/dev/null || true
     systemctl disable --now opencode-agentd.service 2>/dev/null || true
+    systemctl --global disable opencode-agent-notify.path 2>/dev/null || true
+    for d in /run/user/*/; do
+        uid=$(basename "$d" 2>/dev/null); [ -z "$uid" ] && continue
+        systemctl --machine="${uid}@.host" --user disable --now opencode-agent-notify.path 2>/dev/null || true
+    done
     systemctl --user disable --now opencode-agent-notify.path 2>/dev/null || true
 }
 
