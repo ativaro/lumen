@@ -1,6 +1,0 @@
-[Unit]
-Description=opencode Agent system watchdog (checks)
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/opencode-agent-watch

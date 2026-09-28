@@ -33,7 +33,7 @@ Item {
     }
 
     function loadReport() {
-        executor.run("cat \"$HOME/.cache/opencode-agent/latest-analysis.md\" 2>/dev/null || echo '(kein Report vorhanden)'");
+        executor.run("cat \"$HOME/.cache/opencode-lumen/latest-analysis.md\" 2>/dev/null || echo '(kein Report vorhanden)'");
     }
 
     Connections {
@@ -154,7 +154,7 @@ Item {
                 PillButton { text: "Aktualisieren"; icon: "view-refresh"; onClicked: page.refresh() }
                 PillButton {
                     text: "Wächter prüfen"; icon: "security-high"
-                    onClicked: page.executor.run(Paths.binDir + "/opencode-watch; echo DONE")
+                    onClicked: page.executor.run(Paths.binDir + "/lumen-watch; echo DONE")
                 }
                 PillButton { text: "Report laden"; icon: "text-x-generic"; onClicked: page.loadReport() }
                 Item { Layout.fillWidth: true }

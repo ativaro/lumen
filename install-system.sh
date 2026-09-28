@@ -51,7 +51,7 @@ if ! grep -qE '^\s*Path\s+askpass' /etc/sudo.conf 2>/dev/null; then
     done
     if [ -n "$askpass" ]; then
         echo "==> Konfiguriere askpass: $askpass"
-        printf '\n# Added by opencode-agent\nPath askpass %s\n' "$askpass" >> /etc/sudo.conf
+        printf '\n# Added by opencode-lumen\nPath askpass %s\n' "$askpass" >> /etc/sudo.conf
     else
         echo "Hinweis: kein grafisches askpass gefunden – übersprungen." >&2
     fi

@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# lumen-agent-bridge — backend for the Lumen GUI.
+#
+# Keeps its own opencode session (separate from the user's terminal sessions),
+# streams the answer as plain text, and prints a final sentinel line.
+#
+# Usage:
+#   lumen-agent-bridge chat "<prompt>"     # continue/create the app session
+#   lumen-agent-bridge reset               # forget the session id
+#
+# Output: plain text chunks on stdout, then "__EXIT__<code>" on its own line.
+# The GUI polls this output file. This script is safe to run repeatedly.
+#
+# Overridable: LUMEN_OPENCODE_BIN, LUMEN_STATE
+
+set -uo pipefail
+
+LUMEN_OPENCODE_BIN="${LUMEN_OPENCODE_BIN:-$(command -v opencode || echo "$HOME/.opencode/bin/opencode")}"
+STATE_DIR="${LUMEN_STATE:-$HOME/.cache/opencode-lumen}"
+SIDFILE="$STATE_DIR/session-id"
+mkdir -p "$STATE_DIR"
+
+cmd="${1:-chat}"
+shift || true
+
+case "$cmd" in
+    reset)
+        rm -f "$SIDFILE"
+        echo "Session zurückgesetzt."
+        exit 0
+        ;;
+    chat)
+        prompt="${1:-}"
+        [ -z "$prompt" ] && { echo "Kein Prompt."; echo "__EXIT__2"; exit 2; }
+        ;;
+    *)
+        echo "Unbekannt: $cmd"; echo "__EXIT__2"; exit 2
+        ;;
+esac
+
+# opencode must run without inherited opencode-internal env (nesting protection)
+run_opencode() {
+    local sid="$1" p="$2"
+    if [ -n "$sid" ]; then
+        env -u OPENCODE -u OPENCODE_PID -u OPENCODE_SERVER_PASSWORD \
+            "$LUMEN_OPENCODE_BIN" run --session "$sid" --format json "$p" </dev/null 2>/dev/null
+    else
+        env -u OPENCODE -u OPENCODE_PID -u OPENCODE_SERVER_PASSWORD \
+            "$LUMEN_OPENCODE_BIN" run --format json "$p" </dev/null 2>/dev/null
+    fi
+}
+
+sid=""
+[ -f "$SIDFILE" ] && sid="$(cat "$SIDFILE" 2>/dev/null)"
+
+raw="$(mktemp)"
+trap 'rm -f "$raw"' EXIT
+
+if command -v jq >/dev/null 2>&1; then
+    run_opencode "$sid" "$prompt" | tee "$raw" \
+        | jq --unbuffered -rj 'select(.type=="text")|.part.text + ""' 2>/dev/null
+    newsid="$(head -c 200000 "$raw" | jq -r 'select(.sessionID!=null)|.sessionID' 2>/dev/null | head -1)"
+else
+    # fallback without jq: extract "text" fields crudely
+    run_opencode "$sid" "$prompt" | tee "$raw" \
+        | python3 -c 'import sys,json
+for l in sys.stdin:
+    try: d=json.loads(l)
+    except Exception: continue
+    if d.get("type")=="text": sys.stdout.write(d["part"]["text"])' 2>/dev/null
+    newsid="$(head -c 200000 "$raw" | python3 -c 'import sys,json
+for l in sys.stdin:
+    try: d=json.loads(l)
+    except Exception: continue
+    if d.get("sessionID"): print(d["sessionID"]); break' 2>/dev/null)"
+fi
+
+[ -n "$newsid" ] && echo "$newsid" > "$SIDFILE"
+
+echo
+echo "__EXIT__0"

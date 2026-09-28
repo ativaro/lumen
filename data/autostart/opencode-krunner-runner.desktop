@@ -1,9 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=opencode KRunner Runner
-Comment=KRunner DBus runner for opencode
-Exec=%INSTALL_BIN%/opencode_krunner.py
-Icon=opencode
-Terminal=false
-NoDisplay=true
-X-KDE-autostart-after=panel

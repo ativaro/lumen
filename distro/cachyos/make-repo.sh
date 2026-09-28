@@ -2,7 +2,7 @@
 # make-repo.sh — build the package and add it to a local pacman repository.
 #
 # Creates a pacman repo under distro/cachyos/repo/ and prints the pacman.conf
-# snippet so users can install/update via `pacman -Sy opencode-agent`.
+# snippet so users can install/update via `pacman -Sy opencode-lumen`.
 #
 # Usage:
 #   ./distro/cachyos/make-repo.sh            # build + repo-add
@@ -16,7 +16,7 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ARCHDIR="$REPO/packaging/arch"
 REPODIR="$REPO/distro/cachyos/repo"
-DBNAME="opencode-agent"
+DBNAME="opencode-lumen"
 
 say() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 
@@ -26,7 +26,7 @@ SIGN=0
 # 1) build
 say "Baue Paket"
 bash "$ARCHDIR/build-package.sh" >/dev/null
-PKG="$(ls -1 "$ARCHDIR"/opencode-agent-*.pkg.tar.zst | head -1)"
+PKG="$(ls -1 "$ARCHDIR"/opencode-lumen-*.pkg.tar.zst | head -1)"
 [ -n "$PKG" ] || { echo "Kein Paket gebaut." >&2; exit 1; }
 
 # 2) repo dir
@@ -49,13 +49,13 @@ Paket:  $(basename "$PKG")
 
 pacman.conf-Eintrag (Beispiel, lokal):
 
-  [opencode-agent]
+  [opencode-lumen]
   SigLevel = Optional TrustAll
   Server = file://$REPODIR
 
 Dann:
   sudo pacman -Sy
-  sudo pacman -S opencode-agent
+  sudo pacman -S opencode-lumen
 
 Hinweis: Für eine echte Distro-Integration muss $REPODIR auf einem
 Server/WebDAV liegen und die URL entsprechend gesetzt werden.

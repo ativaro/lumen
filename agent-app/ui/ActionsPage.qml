@@ -53,15 +53,15 @@ Item {
                         { t: "opencode öffnen", d: "Interaktives Terminal im Work-Ordner", i: "utilities-terminal",
                           c: "bash -lc 'cd \"$HOME/Documents/work\" && \"$HOME/.opencode/bin/opencode\" --continue'" },
                         { t: "Frage stellen", d: "Dialog-Eingabe → opencode", i: "comment-question",
-                          c: page.binDir + "/opencode-quick ask" },
+                          c: page.binDir + "/lumen-quick ask" },
                         { t: "Zwischenablage", d: "Clipboard-Inhalt an opencode", i: "edit-paste",
-                          c: page.binDir + "/opencode-quick ask-sel" },
+                          c: page.binDir + "/lumen-quick ask-sel" },
                         { t: "Systembericht", d: "Wächter prüfen + Analyse", i: "security-high",
-                          c: page.binDir + "/opencode-watch" },
+                          c: page.binDir + "/lumen-watch" },
                         { t: "Work-Ordner", d: "Dokumente/Work öffnen", i: "folder-open",
                           c: "bash -lc 'dolphin \"$HOME/Documents/work\"'" },
                         { t: "Watchdog-Log", d: "Ergebnisse ansehen", i: "text-x-generic",
-                          c: "bash -lc '\"$OPENCODE_TERM\" -e less -R \"$HOME/.cache/opencode-agent/watch-log.txt\"'" }
+                          c: "bash -lc '\"$LUMEN_TERM\" -e less -R \"$HOME/.cache/opencode-lumen/watch-log.txt\"'" }
                     ]
                     delegate: Rectangle {
                         Layout.fillWidth: true

@@ -1,10 +1,10 @@
-# Maintainer: opencode-agent
-pkgname=opencode-agent
+# Maintainer: Lumen
+pkgname=opencode-lumen
 pkgver=1.0.0
 pkgrel=6
 pkgdesc="OS integration for opencode: desktop app, watchdog, KRunner, Dolphin menus, MCP"
 arch=('any')
-url="https://github.com/opencode-agent/opencode-agent"
+url="https://github.com/opencode-lumen/opencode-lumen"
 license=('MIT')
 depends=('bash' 'python3')
 optdepends=(
@@ -18,7 +18,7 @@ optdepends=(
     'zenity: input dialogs (GTK fallback)'
     'wl-clipboard: clipboard quick action and selection input (Wayland)'
     'libnotify: watchdog/digest notifications'
-    'spectacle: screenshot → vision (opencode-vision)'
+    'spectacle: screenshot → vision (lumen-vision)'
     'nvidia-utils: GPU metrics'
     'python-dbus: KRunner runner'
     'python-gobject: KRunner runner'
@@ -27,7 +27,7 @@ optdepends=(
     'opencode: the agent itself (or install separately)'
 )
 backup=()
-install="$pkgname.install"
+install="lumen.install"
 source=("$pkgname-$pkgver.tar.gz")
 sha256sums=('SKIP')
 # Build from the local repo tree (git archive or the provided tarball).
@@ -35,7 +35,7 @@ sha256sums=('SKIP')
 prepare() {
     cd "$srcdir"
     # The tarball contains the repo tree under a single top dir; flatten if needed.
-    if [ -d "opencode-agent-$pkgver" ]; then
+    if [ -d "opencode-lumen-$pkgver" ]; then
         rm -rf "$pkgname-$pkgver.src" 2>/dev/null || true
     fi
 }
@@ -45,8 +45,8 @@ package() {
 
     # locate the extracted source root (tarball top dir)
     local srcroot
-    if [ -d "opencode-agent-$pkgver" ]; then
-        srcroot="opencode-agent-$pkgver"
+    if [ -d "opencode-lumen-$pkgver" ]; then
+        srcroot="opencode-lumen-$pkgver"
     else
         srcroot="$(find . -maxdepth 1 -type d -name "$pkgname-$pkgver" | head -1)"
         srcroot="${srcroot:-.}"
@@ -57,79 +57,79 @@ package() {
     install -m0755 "$srcroot/bin/"* "$pkgdir/usr/bin/"
 
     # system daemon + watchdog + notifier
-    install -m0755 "$srcroot/system/opencode-agentd.py" "$pkgdir/usr/bin/opencode-agentd"
-    install -m0755 "$srcroot/system/opencode-agent-watch" "$pkgdir/usr/bin/opencode-agent-watch"
-    install -m0755 "$srcroot/system/opencode-agent-notify" "$pkgdir/usr/bin/opencode-agent-notify"
+    install -m0755 "$srcroot/system/lumen-agentd.py" "$pkgdir/usr/bin/lumen-agentd"
+    install -m0755 "$srcroot/system/lumen-watch" "$pkgdir/usr/bin/lumen-watch"
+    install -m0755 "$srcroot/system/lumen-notify" "$pkgdir/usr/bin/lumen-notify"
 
     # ---- shared app data (QML) -------------------------------------------
-    install -d "$pkgdir/usr/share/opencode-agent/agent-app/ui"
-    install -m0644 "$srcroot/agent-app/ui/"* "$pkgdir/usr/share/opencode-agent/agent-app/ui/"
+    install -d "$pkgdir/usr/share/opencode-lumen/agent-app/ui"
+    install -m0644 "$srcroot/agent-app/ui/"* "$pkgdir/usr/share/opencode-lumen/agent-app/ui/"
 
     # ---- desktop integration (system-wide) --------------------------------
     # Templates use %INSTALL_BIN%; substitute to /usr/bin for a system install.
     sub() { sed 's|%INSTALL_BIN%|/usr/bin|g' "$1" > "$2"; }
 
     install -d "$pkgdir/usr/share/applications"
-    sub "$srcroot/data/applications/opencode-agent.desktop" "$pkgdir/usr/share/applications/opencode-agent.desktop"
-    sub "$srcroot/data/applications/opencode-ask.desktop" "$pkgdir/usr/share/applications/opencode-ask.desktop"
-    sub "$srcroot/data/applications/opencode-ask-sel.desktop" "$pkgdir/usr/share/applications/opencode-ask-sel.desktop"
-    sub "$srcroot/data/applications/opencode-vision.desktop" "$pkgdir/usr/share/applications/opencode-vision.desktop"
-    sub "$srcroot/data/applications/opencode-sel.desktop" "$pkgdir/usr/share/applications/opencode-sel.desktop"
+    sub "$srcroot/data/applications/lumen.desktop" "$pkgdir/usr/share/applications/lumen.desktop"
+    sub "$srcroot/data/applications/lumen-ask.desktop" "$pkgdir/usr/share/applications/lumen-ask.desktop"
+    sub "$srcroot/data/applications/lumen-ask-sel.desktop" "$pkgdir/usr/share/applications/lumen-ask-sel.desktop"
+    sub "$srcroot/data/applications/lumen-vision.desktop" "$pkgdir/usr/share/applications/lumen-vision.desktop"
+    sub "$srcroot/data/applications/lumen-sel.desktop" "$pkgdir/usr/share/applications/lumen-sel.desktop"
 
     install -d "$pkgdir/usr/share/kio/servicemenus"
-    sub "$srcroot/data/kio-servicemenus/opencode.desktop" "$pkgdir/usr/share/kio/servicemenus/opencode.desktop"
+    sub "$srcroot/data/kio-servicemenus/lumen.desktop" "$pkgdir/usr/share/kio/servicemenus/lumen.desktop"
 
     install -d "$pkgdir/usr/share/krunner/dbusplugins"
-    install -m0644 "$srcroot/data/krunner-dbusplugins/opencode-runner.desktop" "$pkgdir/usr/share/krunner/dbusplugins/"
+    install -m0644 "$srcroot/data/krunner-dbusplugins/lumen-runner.desktop" "$pkgdir/usr/share/krunner/dbusplugins/"
 
     install -d "$pkgdir/usr/share/dbus-1/services"
-    sub "$srcroot/data/dbus-1-services/org.kde.opencode-runner.service" "$pkgdir/usr/share/dbus-1/services/org.kde.opencode-runner.service"
+    sub "$srcroot/data/dbus-1-services/org.lumen.runner.service" "$pkgdir/usr/share/dbus-1/services/org.lumen.runner.service"
 
     install -d "$pkgdir/etc/xdg/autostart"
-    sub "$srcroot/data/autostart/opencode-krunner-runner.desktop" "$pkgdir/etc/xdg/autostart/opencode-krunner-runner.desktop"
+    sub "$srcroot/data/autostart/lumen-krunner-runner.desktop" "$pkgdir/etc/xdg/autostart/lumen-krunner-runner.desktop"
 
     # ---- systemd ----------------------------------------------------------
     install -d "$pkgdir/usr/lib/systemd/system"
-    install -m0644 "$srcroot/system/systemd/opencode-agentd.service" "$pkgdir/usr/lib/systemd/system/"
-    install -m0644 "$srcroot/system/systemd/opencode-agent-watch.service" "$pkgdir/usr/lib/systemd/system/"
-    install -m0644 "$srcroot/system/systemd/opencode-agent-watch.timer" "$pkgdir/usr/lib/systemd/system/"
+    install -m0644 "$srcroot/system/systemd/lumen-agentd.service" "$pkgdir/usr/lib/systemd/system/"
+    install -m0644 "$srcroot/system/systemd/lumen-watch.service" "$pkgdir/usr/lib/systemd/system/"
+    install -m0644 "$srcroot/system/systemd/lumen-watch.timer" "$pkgdir/usr/lib/systemd/system/"
 
     install -d "$pkgdir/usr/lib/systemd/user"
-    install -m0644 "$srcroot/system/systemd/user/opencode-agent-notify.service" "$pkgdir/usr/lib/systemd/user/"
-    install -m0644 "$srcroot/system/systemd/user/opencode-agent-notify.path" "$pkgdir/usr/lib/systemd/user/"
-    install -m0644 "$srcroot/system/systemd/user/opencode-digest.service" "$pkgdir/usr/lib/systemd/user/"
-    install -m0644 "$srcroot/system/systemd/user/opencode-digest.timer" "$pkgdir/usr/lib/systemd/user/"
-    install -m0644 "$srcroot/system/systemd/user/opencode-nightly.service" "$pkgdir/usr/lib/systemd/user/"
-    install -m0644 "$srcroot/system/systemd/user/opencode-nightly.timer" "$pkgdir/usr/lib/systemd/user/"
+    install -m0644 "$srcroot/system/systemd/user/lumen-notify.service" "$pkgdir/usr/lib/systemd/user/"
+    install -m0644 "$srcroot/system/systemd/user/lumen-notify.path" "$pkgdir/usr/lib/systemd/user/"
+    install -m0644 "$srcroot/system/systemd/user/lumen-digest.service" "$pkgdir/usr/lib/systemd/user/"
+    install -m0644 "$srcroot/system/systemd/user/lumen-digest.timer" "$pkgdir/usr/lib/systemd/user/"
+    install -m0644 "$srcroot/system/systemd/user/lumen-nightly.service" "$pkgdir/usr/lib/systemd/user/"
+    install -m0644 "$srcroot/system/systemd/user/lumen-nightly.timer" "$pkgdir/usr/lib/systemd/user/"
     # substitute %INSTALL_BIN% in the user unit templates we just copied
-    for u in opencode-digest.service opencode-nightly.service; do
+    for u in lumen-digest.service lumen-nightly.service; do
         sub "$srcroot/system/systemd/user/$u" "$pkgdir/usr/lib/systemd/user/$u"
     done
 
     # ---- shell integration ------------------------------------------------
-    install -d "$pkgdir/usr/share/opencode-agent/shell"
-    install -m0644 "$srcroot/shell/opencode.bash" "$pkgdir/usr/share/opencode-agent/shell/"
-    install -m0644 "$srcroot/shell/opencode.fish" "$pkgdir/usr/share/opencode-agent/shell/"
+    install -d "$pkgdir/usr/share/opencode-lumen/shell"
+    install -m0644 "$srcroot/shell/lumen.bash" "$pkgdir/usr/share/opencode-lumen/shell/"
+    install -m0644 "$srcroot/shell/lumen.fish" "$pkgdir/usr/share/opencode-lumen/shell/"
 
     # ---- Plasma applet (plasmoid) -----------------------------------------
-    install -d "$pkgdir/usr/share/plasma/plasmoids/org.opencode.agent/contents/ui"
-    install -m0644 "$srcroot/plasmoid/metadata.json" "$pkgdir/usr/share/plasma/plasmoids/org.opencode.agent/"
-    install -m0644 "$srcroot/plasmoid/contents/ui/main.qml" "$pkgdir/usr/share/plasma/plasmoids/org.opencode.agent/contents/ui/"
+    install -d "$pkgdir/usr/share/plasma/plasmoids/org.lumen.agent/contents/ui"
+    install -m0644 "$srcroot/plasmoid/metadata.json" "$pkgdir/usr/share/plasma/plasmoids/org.lumen.agent/"
+    install -m0644 "$srcroot/plasmoid/contents/ui/main.qml" "$pkgdir/usr/share/plasma/plasmoids/org.lumen.agent/contents/ui/"
 
     # ---- system D-Bus policy + activation ---------------------------------
     install -d "$pkgdir/usr/share/dbus-1/system.d"
-    install -m0644 "$srcroot/system/dbus-1/org.opencode.Agent.conf" "$pkgdir/usr/share/dbus-1/system.d/"
+    install -m0644 "$srcroot/system/dbus-1/org.lumen.Agent.conf" "$pkgdir/usr/share/dbus-1/system.d/"
     install -d "$pkgdir/usr/share/dbus-1/system-services"
-    install -m0644 "$srcroot/system/dbus-1/system-services/org.opencode.Agent.service" "$pkgdir/usr/share/dbus-1/system-services/"
+    install -m0644 "$srcroot/system/dbus-1/system-services/org.lumen.Agent.service" "$pkgdir/usr/share/dbus-1/system-services/"
 
     # ---- opencode commands / skill (system-wide share) --------------------
-    install -d "$pkgdir/usr/share/opencode-agent/opencode-command"
-    install -m0644 "$srcroot/opencode-command/"*.md "$pkgdir/usr/share/opencode-agent/opencode-command/" 2>/dev/null || true
-    install -d "$pkgdir/usr/share/opencode-agent/opencode-skill/cachyos-admin"
-    install -m0644 "$srcroot/opencode-skill/cachyos-admin/SKILL.md" "$pkgdir/usr/share/opencode-agent/opencode-skill/cachyos-admin/" 2>/dev/null || true
+    install -d "$pkgdir/usr/share/opencode-lumen/opencode-command"
+    install -m0644 "$srcroot/opencode-command/"*.md "$pkgdir/usr/share/opencode-lumen/opencode-command/" 2>/dev/null || true
+    install -d "$pkgdir/usr/share/opencode-lumen/opencode-skill/cachyos-admin"
+    install -m0644 "$srcroot/opencode-skill/cachyos-admin/SKILL.md" "$pkgdir/usr/share/opencode-lumen/opencode-skill/cachyos-admin/" 2>/dev/null || true
 
     # ---- state directory (owned by root, world-readable findings) ---------
-    install -d -m0755 "$pkgdir/var/lib/opencode-agent"
+    install -d -m0755 "$pkgdir/var/lib/opencode-lumen"
 
     # ---- license ----------------------------------------------------------
     install -d "$pkgdir/usr/share/licenses/$pkgname"

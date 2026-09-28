@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# lumen-quick — global quick actions for opencode.
+#
+# Usage:
+#   lumen-quick ask       # dialog input -> opencode run in terminal
+#   lumen-quick ask-sel   # use current clipboard as prompt
+#   lumen-quick open      # open interactive opencode in the work dir
+#
+# Designed to be used from a KDE global shortcut (.desktop command shortcut).
+#
+# Overridable: LUMEN_OPENCODE_BIN, LUMEN_TERM, LUMEN_WORKDIR
+
+set -euo pipefail
+
+LUMEN_OPENCODE_BIN="${LUMEN_OPENCODE_BIN:-$(command -v opencode || echo "$HOME/.opencode/bin/opencode")}"
+LUMEN_TERM="${LUMEN_TERM:-$(command -v alacritty || command -v konsole || command -v xterm)}"
+LUMEN_WORKDIR="${LUMEN_WORKDIR:-$HOME/Documents/work}"
+TERM_BIN="$(command -v "$LUMEN_TERM" 2>/dev/null || echo "$LUMEN_TERM")"
+
+action="${1:-ask}"
+
+term_run() {
+    local title="$1" prompt="$2"
+    export LUMEN_PROMPT="$prompt"
+    export LUMEN_OPENCODE_BIN
+    local shellcmd='"$LUMEN_OPENCODE_BIN" run --continue "$LUMEN_PROMPT"; printf "\n--- Fertig. Enter zum Schließen. ---\n"; read -r _'
+    case "$(basename "$TERM_BIN")" in
+        alacritty) exec "$TERM_BIN" --working-directory "$LUMEN_WORKDIR" -T "$title" -e bash -lc "$shellcmd" ;;
+        konsole)   exec "$TERM_BIN" --workdir "$LUMEN_WORKDIR" -p tabtitle="$title" -e bash -lc "$shellcmd" ;;
+        *)         exec "$TERM_BIN" -e bash -lc "cd '$LUMEN_WORKDIR' && $shellcmd" ;;
+    esac
+}
+
+ask_dialog() {
+    if command -v kdialog >/dev/null 2>&1; then
+        kdialog --title "opencode" --inputbox "Was soll opencode tun?" "" 2>/dev/null
+    else
+        zenity --entry --title "opencode" --text="Was soll opencode tun?" 2>/dev/null
+    fi
+}
+
+case "$action" in
+    open)
+        case "$(basename "$TERM_BIN")" in
+            alacritty) exec "$TERM_BIN" --working-directory "$LUMEN_WORKDIR" -T "opencode" -e "$LUMEN_OPENCODE_BIN" --continue ;;
+            konsole)   exec "$TERM_BIN" --workdir "$LUMEN_WORKDIR" -p tabtitle="opencode" -e "$LUMEN_OPENCODE_BIN" --continue ;;
+            *)         exec "$TERM_BIN" -e bash -lc "cd '$LUMEN_WORKDIR' && '$LUMEN_OPENCODE_BIN' --continue" ;;
+        esac
+        ;;
+
+    ask)
+        q=$(ask_dialog) || exit 0
+        [ -z "$q" ] && exit 0
+        term_run "opencode: ask" "$q"
+        ;;
+
+    ask-sel)
+        if command -v wl-paste >/dev/null 2>&1; then
+            q=$(wl-paste 2>/dev/null || true)
+            if [ -n "$q" ]; then
+                term_run "opencode: clipboard" "Beantworte/erkläre folgenden Inhalt:
+
+$q"
+                exit 0
+            fi
+        elif command -v xclip >/dev/null 2>&1; then
+            q=$(xclip -selection clipboard -o 2>/dev/null || true)
+            if [ -n "$q" ]; then
+                term_run "opencode: clipboard" "Beantworte/erkläre folgenden Inhalt:
+
+$q"
+                exit 0
+            fi
+        fi
+        exec "$0" ask
+        ;;
+
+    *)
+        echo "Unbekannte Aktion: $action" >&2
+        exit 2
+        ;;
+esac

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# install.sh — install the opencode Agent OS-integration suite for the current user.
+# install.sh — install the Lumen OS-integration suite for the current user.
 #
-# Everything lands under $XDG_DATA_HOME/opencode-agent (default ~/.local/share/opencode-agent)
+# Everything lands under $XDG_DATA_HOME/opencode-lumen (default ~/.local/share/opencode-lumen)
 # except the config files that must live in XDG dirs (~/.local/share/applications, etc).
 #
 # Usage:
 #   ./install.sh                # install for current user
-#   PREFIX=... ./install.sh     # override install prefix (default: ~/.local/share/opencode-agent)
+#   PREFIX=... ./install.sh     # override install prefix (default: ~/.local/share/opencode-lumen)
 #   ./install.sh --no-timer     # skip the systemd user timer
 #   ./install.sh --no-mcp       # skip opencode MCP/commands/skill wiring
 #
@@ -16,7 +16,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PREFIX="${PREFIX:-$HOME/.local/share/opencode-agent}"
+PREFIX="${PREFIX:-$HOME/.local/share/opencode-lumen}"
 BIN="$PREFIX/bin"
 
 SKIP_TIMER=0
@@ -50,9 +50,9 @@ mkdir -p "$BIN"
 install -m 0755 "$REPO/bin/"* "$BIN/"
 mkdir -p "$PREFIX/agent-app/ui"
 install -m 0644 "$REPO/agent-app/ui/"* "$PREFIX/agent-app/ui/"
-chmod 0755 "$BIN/opencode-agent-app" "$BIN/opencode-agent-bridge" \
-           "$BIN/opencode-context" "$BIN/opencode-quick" "$BIN/opencode-watch" \
-           "$BIN/opencode_krunner.py" "$BIN/cachyos_mcp.py"
+chmod 0755 "$BIN/lumen-agent-app" "$BIN/lumen-agent-bridge" \
+           "$BIN/lumen-context" "$BIN/lumen-quick" "$BIN/opencode-watch" \
+           "$BIN/lumen_krunner.py" "$BIN/lumen_mcp.py"
 
 # ---- XDG data files --------------------------------------------------------
 say "Installiere Desktop-Integration"
@@ -66,11 +66,11 @@ mkdir -p "$DATA_HOME/applications" "$DATA_HOME/kio/servicemenus" \
          "$CONFIG_HOME/autostart"
 
 subst "$REPO/data/kio-servicemenus/opencode.desktop" > "$DATA_HOME/kio/servicemenus/opencode.desktop"
-subst "$REPO/data/applications/opencode-agent.desktop" > "$DATA_HOME/applications/opencode-agent.desktop"
+subst "$REPO/data/applications/opencode-lumen.desktop" > "$DATA_HOME/applications/opencode-lumen.desktop"
 subst "$REPO/data/applications/opencode-ask.desktop"    > "$DATA_HOME/applications/opencode-ask.desktop"
 subst "$REPO/data/applications/opencode-ask-sel.desktop" > "$DATA_HOME/applications/opencode-ask-sel.desktop"
 subst "$REPO/data/krunner-dbusplugins/opencode-runner.desktop" > "$DATA_HOME/krunner/dbusplugins/opencode-runner.desktop"
-subst "$REPO/data/dbus-1-services/org.kde.opencode-runner.service" > "$DATA_HOME/dbus-1/services/org.kde.opencode-runner.service"
+subst "$REPO/data/dbus-1-services/org.lumen.runner.service" > "$DATA_HOME/dbus-1/services/org.lumen.runner.service"
 subst "$REPO/data/autostart/opencode-krunner-runner.desktop" > "$CONFIG_HOME/autostart/opencode-krunner-runner.desktop"
 
 # refresh caches
@@ -86,7 +86,7 @@ if [ "$SKIP_MCP" = 0 ] && { command -v opencode >/dev/null 2>&1 || [ -x "$HOME/.
     cp -r "$REPO/opencode-skill/cachyos-admin/." "$OPCFG/skill/cachyos-admin/" 2>/dev/null || true
 
     # MCP: write/merge a small JSON config next to the user's opencode.jsonc
-    python3 - "$OPCFG/opencode.jsonc" "$BIN/cachyos_mcp.py" <<'PY'
+    python3 - "$OPCFG/opencode.jsonc" "$BIN/lumen_mcp.py" <<'PY'
 import json, os, re, sys
 cfg_path, mcp_py = sys.argv[1], sys.argv[2]
 raw = ""
@@ -113,10 +113,10 @@ if [ "$SKIP_TIMER" = 0 ] && command -v systemctl >/dev/null 2>&1; then
     say "Richte systemd-User-Timer ein"
     UNITDIR="$CONFIG_HOME/systemd/user"
     mkdir -p "$UNITDIR"
-    subst "$REPO/systemd/opencode-watch.service" > "$UNITDIR/opencode-watch.service"
-    cp "$REPO/systemd/opencode-watch.timer" "$UNITDIR/opencode-watch.timer"
+    subst "$REPO/systemd/lumen-watch.service" > "$UNITDIR/lumen-watch.service"
+    cp "$REPO/systemd/lumen-watch.timer" "$UNITDIR/lumen-watch.timer"
     systemctl --user daemon-reload >/dev/null 2>&1 || true
-    systemctl --user enable --now opencode-watch.timer >/dev/null 2>&1 || warn "Timer konnte nicht aktiviert werden"
+    systemctl --user enable --now lumen-watch.timer >/dev/null 2>&1 || warn "Timer konnte nicht aktiviert werden"
 fi
 
 say "Fertig."
@@ -126,14 +126,14 @@ Nächste Schritte:
   1. opencode neu starten, damit MCP/Commands/Skill greifen.
   2. KRunner neu laden (falls der 'ai <Frage>'-Trigger fehlt):
        kquitapp6 krunner
-  3. App starten:  $BIN/opencode-agent-app
-     oder über das Startmenü: "opencode Agent"
+  3. App starten:  $BIN/lumen-agent-app
+     oder über das Startmenü: "Lumen"
 
 Konfiguration (optional, per Umgebungsvariablen):
-  OPENCODE_BIN        Pfad zur opencode-Binary
-  OPENCODE_TERM       Terminal (alacritty/konsole/xterm)
-  OPENCODE_WORKDIR    Standard-Arbeitsordner
-  OPENCODE_WATCH_ANALYZE=0   Auto-Analyse im Wächter aus
+  LUMEN_OPENCODE_BIN        Pfad zur opencode-Binary
+  LUMEN_TERM       Terminal (alacritty/konsole/xterm)
+  LUMEN_WORKDIR    Standard-Arbeitsordner
+  LUMEN_WATCH_ANALYZE=0   Auto-Analyse im Wächter aus
 
 Deinstallieren:  $REPO/uninstall.sh
 

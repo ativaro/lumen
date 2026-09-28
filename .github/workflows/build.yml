@@ -32,7 +32,7 @@ jobs:
 
       - name: Fish syntax
         run: |
-          if command -v fish >/dev/null 2>&1; then fish -n shell/opencode.fish; else echo "fish not installed, skip"; fi
+          if command -v fish >/dev/null 2>&1; then fish -n shell/lumen.fish; else echo "fish not installed, skip"; fi
 
       - name: JSON validity
         run: |
@@ -72,7 +72,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: opencode-agent-package
+          name: opencode-lumen-package
           path: out/
 
   release:
@@ -84,7 +84,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: opencode-agent-package
+          name: opencode-lumen-package
           path: out
       - name: Create release
         uses: softprops/action-gh-release@v2

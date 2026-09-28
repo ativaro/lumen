@@ -1,4 +1,4 @@
-# opencode Agent — OS integration for Linux desktops
+# Lumen — OS integration for Linux desktops
 
 Turn [opencode](https://opencode.ai) into an **agentic-OS layer**: a native desktop
 app, Dolphin context menus, global hotkeys, a KRunner runner, a system watchdog and
@@ -11,18 +11,18 @@ gracefully on other setups.
 
 | Component | What it does |
 |---|---|
-| **Desktop app** (`opencode Agent`) | Kirigami/QML GUI: streaming chat, system dashboard (CPU/RAM/GPU/disk), quick actions — **no PyQt needed** |
+| **Desktop app** (`Lumen`) | Kirigami/QML GUI: streaming chat, system dashboard (CPU/RAM/GPU/disk), quick actions — **no PyQt needed** |
 | **Dolphin service menu** | Right-click a file/folder → *open / explain / fix / review / ask* |
 | **Global shortcuts** | `Meta+Shift+O` ask · `Meta+Shift+S` explain clipboard · `Meta+Shift+V` vision · `Meta+Shift+E` explain selection |
-| **Vision** | capture a screen region → opencode analyses the image (`opencode-vision`) |
-| **Selection actions** | explain / translate / fix / summarize selected or copied text (`opencode-sel`) |
+| **Vision** | capture a screen region → opencode analyses the image (`lumen-vision`) |
+| **Selection actions** | explain / translate / fix / summarize selected or copied text (`lumen-sel`) |
 | **Shell integration** | `why` (explain last failed command), `vix`, `sel` — bash & fish (`shell/opencode.{bash,fish}`) |
-| **Git** | `opencode-gitmsg` drafts a Conventional-Commit message from the diff |
+| **Git** | `lumen-gitmsg` drafts a Conventional-Commit message from the diff |
 | **KRunner runner** | Type `ai <question>` or `oc <question>` in KRunner |
-| **Plasma applet** | panel widget with agent status + quick actions (`org.opencode.agent`) |
+| **Plasma applet** | panel widget with agent status + quick actions (`org.lumen.agent`) |
 | **System watchdog** | systemd timer checks failed units, kernel errors, disk, GPU temp; automatic opencode analysis |
-| **Daily digest / nightly report** | scheduled summaries (`opencode-digest`, `opencode-nightly`) |
-| **MCP server `cachyos`** | read tools `systemctl`, `journal`, `pacman`, `disk`, `gpu`, `memory`, `sensors`, `kwin`, guarded `cmd` — plus **opt-in action tools** (`notify`, `restart_unit`, `media`, `wallpaper`, `screenshot`) behind `OPENCODE_MCP_ACTIONS=1` |
+| **Daily digest / nightly report** | scheduled summaries (`lumen-digest`, `lumen-nightly`) |
+| **MCP server `cachyos`** | read tools `systemctl`, `journal`, `pacman`, `disk`, `gpu`, `memory`, `sensors`, `kwin`, guarded `cmd` — plus **opt-in action tools** (`notify`, `restart_unit`, `media`, `wallpaper`, `screenshot`) behind `LUMEN_MCP_ACTIONS=1` |
 | **opencode commands/skill** | `/sync`, `/sysreport`, `/fix` + `cachyos-admin` skill |
 
 ## Requirements
@@ -42,15 +42,15 @@ gracefully on other setups.
 ## Install
 
 ```bash
-git clone <this-repo> opencode-agent
-cd opencode-agent
+git clone <this-repo> opencode-lumen
+cd opencode-lumen
 ./install.sh
 ```
 
 Options:
 
 ```bash
-PREFIX=~/.local/share/opencode-agent ./install.sh   # custom install prefix
+PREFIX=~/.local/share/opencode-lumen ./install.sh   # custom install prefix
 ./install.sh --no-timer                             # skip systemd timer
 ./install.sh --no-mcp                               # skip opencode MCP/commands/skill
 ```
@@ -58,8 +58,8 @@ PREFIX=~/.local/share/opencode-agent ./install.sh   # custom install prefix
 Then:
 1. **Restart opencode** so MCP/commands/skill are picked up.
 2. Reload KRunner if the `ai …` trigger is missing: `kquitapp6 krunner`
-3. Launch the app from the menu (**opencode Agent**) or run
-   `~/.local/share/opencode-agent/bin/opencode-agent-app`.
+3. Launch the app from the menu (**Lumen**) or run
+   `~/.local/share/opencode-lumen/bin/lumen-agent-app`.
 
 ## Configuration
 
@@ -67,23 +67,23 @@ All scripts read these environment variables:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `OPENCODE_BIN` | `opencode` in `$PATH`, else `~/.opencode/bin/opencode` | opencode binary |
-| `OPENCODE_TERM` | `alacritty`, `konsole` or `xterm` | terminal emulator |
-| `OPENCODE_WORKDIR` | `~/Documents/work` | default working directory |
-| `OPENCODE_AGENT_STATE` | `~/.cache/opencode-agent` | state/report/cache dir |
-| `OPENCODE_WATCH_ANALYZE` | `1` | `0` disables the automatic watchdog analysis |
-| `OPENCODE_WATCH_MODEL` | *(provider default)* | model for the watchdog analysis |
-| `OPENCODE_MCP_ACTIONS` | `0` | `1` enables the writing MCP action tools |
-| `OPENCODE_SEL_LANG` | `Deutsch` | translate target for `opencode-sel translate` |
-| `OPENCODE_VISION_PROMPT` | *(built-in)* | override the vision prompt |
-| `OPENCODE_GITMSG_STYLE` | Conventional Commits | commit message style |
+| `LUMEN_OPENCODE_BIN` | `opencode` in `$PATH`, else `~/.opencode/bin/opencode` | opencode binary |
+| `LUMEN_TERM` | `alacritty`, `konsole` or `xterm` | terminal emulator |
+| `LUMEN_WORKDIR` | `~/Documents/work` | default working directory |
+| `LUMEN_STATE` | `~/.cache/opencode-lumen` | state/report/cache dir |
+| `LUMEN_WATCH_ANALYZE` | `1` | `0` disables the automatic watchdog analysis |
+| `LUMEN_WATCH_MODEL` | *(provider default)* | model for the watchdog analysis |
+| `LUMEN_MCP_ACTIONS` | `0` | `1` enables the writing MCP action tools |
+| `LUMEN_SEL_LANG` | `Deutsch` | translate target for `lumen-sel translate` |
+| `LUMEN_VISION_PROMPT` | *(built-in)* | override the vision prompt |
+| `LUMEN_GITMSG_STYLE` | Conventional Commits | commit message style |
 
 ### Shell integration
 
 Add to `~/.config/fish/config.fish` (fish) or `~/.bashrc` (bash):
 
 ```fish
-source /usr/share/opencode-agent/shell/opencode.fish
+source /usr/share/opencode-lumen/shell/lumen.fish
 ```
 
 Then `why` explains the last failed command, `vix` runs vision on a region and
@@ -114,7 +114,7 @@ askpass (`ksshaskpass`/GNOME/OpenSSH) in `/etc/sudo.conf` if none is set.
 ```
 bin/                      helper scripts + GUI backend (installed to PREFIX/bin)
 agent-app/ui/             Kirigami/QML desktop app
-plasmoid/                 Plasma panel applet (org.opencode.agent)
+plasmoid/                 Plasma panel applet (org.lumen.agent)
 shell/                    bash + fish integration (why/vix/sel)
 data/                     .desktop / krunner / dbus / autostart templates
 systemd/                  watchdog user units
@@ -147,32 +147,32 @@ MIT — see [LICENSE](LICENSE).
 For a system package instead of the per-user install:
 
 ```bash
-./packaging/arch/build-package.sh            # build opencode-agent-*.pkg.tar.zst
-sudo pacman -U packaging/arch/opencode-agent-*.pkg.tar.zst
+./packaging/arch/build-package.sh            # build opencode-lumen-*.pkg.tar.zst
+sudo pacman -U packaging/arch/opencode-lumen-*.pkg.tar.zst
 ```
 
 or via a local pacman repo:
 
 ```bash
 ./distro/cachyos/make-repo.sh
-# then add the printed [opencode-agent] block to /etc/pacman.conf
-sudo pacman -Sy && sudo pacman -S opencode-agent
+# then add the printed [opencode-lumen] block to /etc/pacman.conf
+sudo pacman -Sy && sudo pacman -S opencode-lumen
 ```
 
 The package installs to `/usr` and **enables its services by default
 (opt-out)** — install and it just works; disable anything you don't want:
 
 ```bash
-sudo systemctl disable --now opencode-agentd.service        # D-Bus service
-sudo systemctl disable --now opencode-agent-watch.timer     # system watchdog
-sudo systemctl --global disable opencode-agent-notify.path  # per-user notify
-systemctl --user disable --now opencode-agent-notify.path   # this session
+sudo systemctl disable --now lumen-agentd.service        # D-Bus service
+sudo systemctl disable --now lumen-watch.timer     # system watchdog
+sudo systemctl --global disable lumen-notify.path  # per-user notify
+systemctl --user disable --now lumen-notify.path   # this session
 ```
 
 Architecture: the **system watchdog** runs as root and writes findings to
-`/var/lib/opencode-agent/findings.md`; a **per-user path unit** picks that up,
+`/var/lib/opencode-lumen/findings.md`; a **per-user path unit** picks that up,
 notifies the desktop and runs the opencode analysis in the user's context.
-A small **D-Bus system service** (`org.opencode.Agent`) exposes read-only
+A small **D-Bus system service** (`org.lumen.Agent`) exposes read-only
 `GetSummary` / `GetFindings` / `RefreshWatch`.
 
 Upgrades keep your choice: if you disabled a service, `post_upgrade` does not

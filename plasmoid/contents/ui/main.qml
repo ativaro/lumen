@@ -1,4 +1,4 @@
-// opencode Agent plasmoid — panel status + quick actions.
+// Lumen plasmoid — panel status + quick actions.
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as QQC2
@@ -34,7 +34,7 @@ PlasmoidItem {
             anchors.right: parent.right
             anchors.top: parent.top
         }
-        QQC2.ToolTip.text: "opencode Agent — " + (root.failedUnits < 0 ? "Status unbekannt"
+        QQC2.ToolTip.text: "Lumen — " + (root.failedUnits < 0 ? "Status unbekannt"
             : (root.failedUnits > 0 ? root.failedUnits + " fehlgeschlagene Units" : "Alles in Ordnung"))
         QQC2.ToolTip.visible: containsMouse
     }
@@ -48,7 +48,7 @@ PlasmoidItem {
             anchors.margins: Kirigami.Units.smallSpacing
             spacing: Kirigami.Units.smallSpacing
 
-            Kirigami.Heading { text: "opencode Agent"; level: 3; Layout.fillWidth: true }
+            Kirigami.Heading { text: "Lumen"; level: 3; Layout.fillWidth: true }
 
             GridLayout {
                 columns: 2
@@ -65,7 +65,7 @@ PlasmoidItem {
             RowLayout {
                 Layout.fillWidth: true
                 spacing: Kirigami.Units.smallSpacing
-                ActionButton { label: "App öffnen"; onActivated: root.run("opencode-agent-app") }
+                ActionButton { label: "App öffnen"; onActivated: root.run("lumen-agent-app") }
                 ActionButton { label: "Systembericht"; onActivated: root.run("alacritty -e opencode-watch") }
                 Item { Layout.fillWidth: true }
             }
@@ -91,7 +91,7 @@ PlasmoidItem {
     }
 
     function refresh() {
-        runner.connectSource("busctl --system call org.opencode.Agent /org/opencode/Agent org.opencode.Agent GetSummary 2>/dev/null");
+        runner.connectSource("busctl --system call org.lumen.Agent /org/lumen/Agent org.lumen.Agent GetSummary 2>/dev/null");
     }
 
     P5Support.DataSource {

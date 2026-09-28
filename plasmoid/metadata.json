@@ -1,18 +1,18 @@
 {
     "KPlugin": {
         "Authors": [
-            { "Name": "opencode-agent" }
+            { "Name": "Lumen" }
         ],
         "Category": "System Information",
-        "Description": "opencode Agent status and quick actions",
-        "Description[de]": "opencode Agent Status und Schnellaktionen",
+        "Description": "Lumen: agent status and quick actions",
+        "Description[de]": "Lumen: Agent-Status und Schnellaktionen",
         "Icon": "opencode",
-        "Id": "org.opencode.agent",
+        "Id": "org.lumen.agent",
         "License": "MIT",
-        "Name": "opencode Agent",
-        "Name[de]": "opencode Agent",
+        "Name": "Lumen",
+        "Name[de]": "Lumen",
         "Version": "1.0.0",
-        "Website": "https://github.com/opencode-agent/opencode-agent"
+        "Website": "https://github.com/opencode-lumen/opencode-lumen"
     },
     "KPackageStructure": "Plasma/Applet",
     "X-Plasma-API-Minimum-Version": "6.0"

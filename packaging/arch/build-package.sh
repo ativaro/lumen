@@ -27,31 +27,31 @@ case "${1:-}" in
     *) echo "Unbekannte Option: $1" >&2; exit 2 ;;
 esac
 
-say "Erzeuge Quell-Tarball opencode-agent-$PKGVER.tar.gz"
-rm -f "$ARCHDIR/opencode-agent-$PKGVER.tar.gz"
+say "Erzeuge Quell-Tarball opencode-lumen-$PKGVER.tar.gz"
+rm -f "$ARCHDIR/opencode-lumen-$PKGVER.tar.gz"
 
 # Prefer git archive (only tracked files); fall back to tar with excludes.
 if git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1; then
     git -C "$REPO" archive --format=tar.gz \
-        --prefix="opencode-agent-$PKGVER/" \
-        -o "$ARCHDIR/opencode-agent-$PKGVER.tar.gz" HEAD
+        --prefix="opencode-lumen-$PKGVER/" \
+        -o "$ARCHDIR/opencode-lumen-$PKGVER.tar.gz" HEAD
 else
     tar --exclude='.git' --exclude='__pycache__' --exclude='distro' \
-        --transform "s,^,opencode-agent-$PKGVER/," \
-        -czf "$ARCHDIR/opencode-agent-$PKGVER.tar.gz" -C "$REPO" .
+        --transform "s,^,opencode-lumen-$PKGVER/," \
+        -czf "$ARCHDIR/opencode-lumen-$PKGVER.tar.gz" -C "$REPO" .
 fi
-say "Tarball: $(du -h "$ARCHDIR/opencode-agent-$PKGVER.tar.gz" | cut -f1)"
+say "Tarball: $(du -h "$ARCHDIR/opencode-lumen-$PKGVER.tar.gz" | cut -f1)"
 
 say "Baue Paket mit makepkg"
 cd "$ARCHDIR"
 makepkg -f --noconfirm
 
 echo
-ls -1 "$ARCHDIR"/opencode-agent-"$PKGVER"-*.pkg.tar.zst 2>/dev/null || true
+ls -1 "$ARCHDIR"/opencode-lumen-"$PKGVER"-*.pkg.tar.zst 2>/dev/null || true
 
 if [ "$DO_INSTALL" = 1 ]; then
     say "Installiere Paket (pacman)"
-    sudo -A pacman -U --noconfirm "$ARCHDIR"/opencode-agent-"$PKGVER"-*.pkg.tar.zst
+    sudo -A pacman -U --noconfirm "$ARCHDIR"/opencode-lumen-"$PKGVER"-*.pkg.tar.zst
 fi
 
 say "Fertig."

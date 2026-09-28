@@ -1,9 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=opencode: Zwischenablage erklären
-Exec=%INSTALL_BIN%/opencode-quick ask-sel
-NoDisplay=true
-StartupNotify=false
-Icon=opencode
-X-KDE-GlobalAccel-CommandShortcut=true
-X-KDE-Shortcuts=Meta+Shift+S

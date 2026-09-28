@@ -1,4 +1,0 @@
-[D-BUS Service]
-Name=org.opencode.Agent
-Exec=/usr/bin/opencode-agentd
-SystemdService=opencode-agentd.service

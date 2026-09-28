@@ -1,9 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=opencode: fragen
-Exec=%INSTALL_BIN%/opencode-quick ask
-NoDisplay=true
-StartupNotify=false
-Icon=opencode
-X-KDE-GlobalAccel-CommandShortcut=true
-X-KDE-Shortcuts=Meta+Shift+O

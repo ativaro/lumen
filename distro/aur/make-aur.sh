@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# make-aur.sh — prepare an AUR-ready source tree for opencode-agent.
+# make-aur.sh — prepare an AUR-ready source tree for opencode-lumen.
 #
 # Creates distro/aur/ containing PKGBUILD, .install, .SRCINFO and a source
 # tarball, ready to `makepkg --printsrcinfo` / push to the AUR.
@@ -21,19 +21,19 @@ say() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 
 mkdir -p "$AURDIR"
 cp "$ARCHDIR/PKGBUILD" "$AURDIR/PKGBUILD"
-cp "$ARCHDIR/opencode-agent.install" "$AURDIR/opencode-agent.install"
+cp "$ARCHDIR/opencode-lumen.install" "$AURDIR/opencode-lumen.install"
 
 # build source tarball (git archive = only tracked files)
 say "Erzeuge Quell-Tarball"
-rm -f "$AURDIR/opencode-agent-$PKGVER.tar.gz"
+rm -f "$AURDIR/opencode-lumen-$PKGVER.tar.gz"
 if git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1; then
     git -C "$REPO" archive --format=tar.gz \
-        --prefix="opencode-agent-$PKGVER/" \
-        -o "$AURDIR/opencode-agent-$PKGVER.tar.gz" HEAD
+        --prefix="opencode-lumen-$PKGVER/" \
+        -o "$AURDIR/opencode-lumen-$PKGVER.tar.gz" HEAD
 else
     tar --exclude='.git' --exclude='__pycache__' --exclude='distro' \
-        --transform "s,^,opencode-agent-$PKGVER/," \
-        -czf "$AURDIR/opencode-agent-$PKGVER.tar.gz" -C "$REPO" .
+        --transform "s,^,opencode-lumen-$PKGVER/," \
+        -czf "$AURDIR/opencode-lumen-$PKGVER.tar.gz" -C "$REPO" .
 fi
 
 # generate .SRCINFO
@@ -51,7 +51,7 @@ GitHub-Release-URL setzen und sha256sums aktualisieren:
   updpkgsums   # im AUR-Verzeichnis
 
 Dann (als AUR-Maintainer):
-  git clone ssh://aur@aur.archlinux.org/opencode-agent.git
-  cp $AURDIR/{PKGBUILD,.SRCINFO,opencode-agent.install} opencode-agent/
-  cd opencode-agent && git add -A && git commit -m 'Initial' && git push
+  git clone ssh://aur@aur.archlinux.org/opencode-lumen.git
+  cp $AURDIR/{PKGBUILD,.SRCINFO,opencode-lumen.install} opencode-lumen/
+  cd opencode-lumen && git add -A && git commit -m 'Initial' && git push
 EOF

@@ -1,0 +1,12 @@
+[Unit]
+Description=Lumen system helper daemon
+After=dbus.service
+
+[Service]
+Type=dbus
+BusName=org.lumen.Agent
+ExecStart=/usr/bin/lumen-agentd
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

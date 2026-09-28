@@ -1,0 +1,6 @@
+[Unit]
+Description=Lumen daily digest
+
+[Service]
+Type=oneshot
+ExecStart=%INSTALL_BIN%/lumen-digest

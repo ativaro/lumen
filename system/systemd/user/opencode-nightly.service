@@ -1,6 +1,0 @@
-[Unit]
-Description=opencode Agent nightly report
-
-[Service]
-Type=oneshot
-ExecStart=%INSTALL_BIN%/opencode-nightly

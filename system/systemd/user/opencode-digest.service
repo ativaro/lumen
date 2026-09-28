@@ -1,6 +1,0 @@
-[Unit]
-Description=opencode Agent daily digest
-
-[Service]
-Type=oneshot
-ExecStart=%INSTALL_BIN%/opencode-digest

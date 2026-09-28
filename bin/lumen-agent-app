@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Launch the Lumen app (Kirigami/QML, no PyQt needed).
+# Works both from a source checkout and from a system install (/usr/bin).
+set -euo pipefail
+
+SELF="$(readlink -f "$0")"
+SELF_DIR="$(dirname "$SELF")"
+
+# Find main.qml: repo layout (bin/../agent-app/ui) or system layout
+# (/usr/share/opencode-lumen/agent-app/ui).
+CANDIDATES=(
+    "$SELF_DIR/../agent-app/ui/main.qml"
+    "$SELF_DIR/../share/opencode-lumen/agent-app/ui/main.qml"
+    "/usr/share/opencode-lumen/agent-app/ui/main.qml"
+)
+
+MAIN=""
+for c in "${CANDIDATES[@]}"; do
+    if [ -f "$c" ]; then MAIN="$(readlink -f "$c")"; break; fi
+done
+
+if [ -z "$MAIN" ]; then
+    echo "lumen-agent-app: main.qml nicht gefunden (gesucht: ${CANDIDATES[*]})" >&2
+    exit 1
+fi
+
+QML_BIN="$(command -v qml6 || command -v qml || true)"
+if [ -z "$QML_BIN" ]; then
+    echo "lumen-agent-app: qml6 nicht gefunden (Paket qt6-declarative installieren)" >&2
+    exit 1
+fi
+
+exec "$QML_BIN" "$MAIN" -- --bindir "$SELF_DIR" "$@"

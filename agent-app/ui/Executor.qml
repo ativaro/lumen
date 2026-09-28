@@ -26,7 +26,7 @@ Item {
     }
 
     function stream(command, tag) {
-        var file = "/tmp/opencode-agent-" + tag + ".out";
+        var file = "/tmp/opencode-lumen-" + tag + ".out";
         _streams[tag] = { file: file, last: "" };
         busyTag = tag;
         // launch in background; append exit code sentinel

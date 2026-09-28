@@ -1,4 +1,4 @@
-// Lumen palette + metrics for the opencode Agent app.
+// Lumen palette + metrics for the Lumen app.
 .pragma library
 
 // base

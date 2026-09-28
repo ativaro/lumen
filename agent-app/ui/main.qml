@@ -1,4 +1,4 @@
-// opencode Agent — main window. Lumen-styled, modern.
+// Lumen — main window. Lumen-styled, modern.
 import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
@@ -8,7 +8,7 @@ import "Theme.js" as Theme
 
 Kirigami.ApplicationWindow {
     id: root
-    title: "opencode Agent"
+    title: "Lumen"
     width: 1080
     height: 760
     minimumWidth: 720

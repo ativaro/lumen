@@ -1,4 +1,4 @@
-// Modern sidebar navigation for the opencode Agent app.
+// Modern sidebar navigation for the Lumen app.
 import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts

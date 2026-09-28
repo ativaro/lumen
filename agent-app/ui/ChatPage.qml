@@ -30,7 +30,7 @@ Item {
         messages = m;
         input.text = "";
         live = "";
-        var bridge = Paths.binDir + "/opencode-agent-bridge";
+        var bridge = Paths.binDir + "/lumen-agent-bridge";
         executor.stream(bridge + " chat " + shq(q), "chat");
     }
 

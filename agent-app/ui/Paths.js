@@ -1,4 +1,4 @@
-// Paths.js — resolves repository/install locations for the opencode Agent app.
+// Paths.js — resolves repository/install locations for the Lumen app.
 // Works from a source checkout AND from a system install (/usr/share/...).
 .pragma library
 

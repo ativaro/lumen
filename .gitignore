@@ -19,3 +19,9 @@ packaging/arch/*.pkg.tar.zst.sig
 packaging/arch/*.tar.gz
 packaging/arch/.SRCINFO
 distro/cachyos/repo/
+
+# AUR generated tree
+distro/aur/PKGBUILD
+distro/aur/*.install
+distro/aur/.SRCINFO
+distro/aur/*.tar.gz

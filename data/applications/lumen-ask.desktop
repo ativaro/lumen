@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen: fragen
+Exec=%INSTALL_BIN%/lumen-quick ask
+NoDisplay=true
+StartupNotify=false
+Icon=opencode
+X-KDE-GlobalAccel-CommandShortcut=true
+X-KDE-Shortcuts=Meta+Shift+O
