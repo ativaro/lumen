@@ -10,3 +10,12 @@ __pycache__/
 
 # Local state
 *.local
+
+# Arch package build artifacts
+packaging/arch/pkg/
+packaging/arch/src/
+packaging/arch/*.pkg.tar.zst
+packaging/arch/*.pkg.tar.zst.sig
+packaging/arch/*.tar.gz
+packaging/arch/.SRCINFO
+distro/cachyos/repo/
