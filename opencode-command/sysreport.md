@@ -2,7 +2,7 @@
 description: Systemgesundheit prüfen (Units, Logs, Disk, GPU, RAM)
 ---
 
-Erstelle einen kompakten Systemgesundheits-Bericht für diesen CachyOS-Rechner.
+Erstelle einen kompakten Systemgesundheits-Bericht für dieses System.
 
 Nutze bevorzugt das MCP-Tool **`cachyos`** (Tools: `systemctl`, `journal`, `pacman`, `disk`, `gpu`, `memory`, `sensors`, `kwin`, `cmd`). Falle nur wenn nötig auf Bash zurück.
 
