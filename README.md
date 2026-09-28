@@ -13,10 +13,16 @@ gracefully on other setups.
 |---|---|
 | **Desktop app** (`opencode Agent`) | Kirigami/QML GUI: streaming chat, system dashboard (CPU/RAM/GPU/disk), quick actions — **no PyQt needed** |
 | **Dolphin service menu** | Right-click a file/folder → *open / explain / fix / review / ask* |
-| **Global shortcuts** | `Meta+Shift+O` ask · `Meta+Shift+S` explain clipboard |
+| **Global shortcuts** | `Meta+Shift+O` ask · `Meta+Shift+S` explain clipboard · `Meta+Shift+V` vision · `Meta+Shift+E` explain selection |
+| **Vision** | capture a screen region → opencode analyses the image (`opencode-vision`) |
+| **Selection actions** | explain / translate / fix / summarize selected or copied text (`opencode-sel`) |
+| **Shell integration** | `why` (explain last failed command), `vix`, `sel` — bash & fish (`shell/opencode.{bash,fish}`) |
+| **Git** | `opencode-gitmsg` drafts a Conventional-Commit message from the diff |
 | **KRunner runner** | Type `ai <question>` or `oc <question>` in KRunner |
-| **System watchdog** | systemd user timer checks failed units, kernel errors, disk, GPU temp; runs an automatic opencode analysis on findings |
-| **MCP server `cachyos`** | Structured tools: `systemctl`, `journal`, `pacman`, `disk`, `gpu`, `memory`, `sensors`, `kwin`, guarded `cmd` |
+| **Plasma applet** | panel widget with agent status + quick actions (`org.opencode.agent`) |
+| **System watchdog** | systemd timer checks failed units, kernel errors, disk, GPU temp; automatic opencode analysis |
+| **Daily digest / nightly report** | scheduled summaries (`opencode-digest`, `opencode-nightly`) |
+| **MCP server `cachyos`** | read tools `systemctl`, `journal`, `pacman`, `disk`, `gpu`, `memory`, `sensors`, `kwin`, guarded `cmd` — plus **opt-in action tools** (`notify`, `restart_unit`, `media`, `wallpaper`, `screenshot`) behind `OPENCODE_MCP_ACTIONS=1` |
 | **opencode commands/skill** | `/sync`, `/sysreport`, `/fix` + `cachyos-admin` skill |
 
 ## Requirements
@@ -67,6 +73,21 @@ All scripts read these environment variables:
 | `OPENCODE_AGENT_STATE` | `~/.cache/opencode-agent` | state/report/cache dir |
 | `OPENCODE_WATCH_ANALYZE` | `1` | `0` disables the automatic watchdog analysis |
 | `OPENCODE_WATCH_MODEL` | *(provider default)* | model for the watchdog analysis |
+| `OPENCODE_MCP_ACTIONS` | `0` | `1` enables the writing MCP action tools |
+| `OPENCODE_SEL_LANG` | `Deutsch` | translate target for `opencode-sel translate` |
+| `OPENCODE_VISION_PROMPT` | *(built-in)* | override the vision prompt |
+| `OPENCODE_GITMSG_STYLE` | Conventional Commits | commit message style |
+
+### Shell integration
+
+Add to `~/.config/fish/config.fish` (fish) or `~/.bashrc` (bash):
+
+```fish
+source /usr/share/opencode-agent/shell/opencode.fish
+```
+
+Then `why` explains the last failed command, `vix` runs vision on a region and
+`sel fix` corrects the selected text.
 
 ## Uninstall
 
@@ -93,11 +114,18 @@ askpass (`ksshaskpass`/GNOME/OpenSSH) in `/etc/sudo.conf` if none is set.
 ```
 bin/                      helper scripts + GUI backend (installed to PREFIX/bin)
 agent-app/ui/             Kirigami/QML desktop app
+plasmoid/                 Plasma panel applet (org.opencode.agent)
+shell/                    bash + fish integration (why/vix/sel)
 data/                     .desktop / krunner / dbus / autostart templates
 systemd/                  watchdog user units
+system/                   system daemon, watchdog, notify, dbus policy
 etc/sudoers.d/            optional system-wide sudo cache drop-in
 opencode-command/         /sync, /sysreport, /fix
 opencode-skill/           cachyos-admin skill
+packaging/arch/           PKGBUILD, build-package.sh
+distro/aur/               AUR tree tooling
+distro/cachyos/           local pacman repo tooling
+.github/workflows/        CI: lint + package build + release
 install.sh / uninstall.sh
 install-system.sh         optional root-only tweaks
 ```
