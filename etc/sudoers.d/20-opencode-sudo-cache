@@ -1,0 +1,7 @@
+# Cache sudo credentials user-wide (not tied to a TTY) so GUI askpass works,
+# and keep the timestamp for 15 minutes.
+#
+# Installed to /etc/sudoers.d/20-opencode-sudo-cache by install-system.sh.
+# Validate before installing:  visudo -cf <this-file>
+Defaults timestamp_type=global
+Defaults timestamp_timeout=15

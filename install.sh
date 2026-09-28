@@ -136,4 +136,7 @@ Konfiguration (optional, per Umgebungsvariablen):
   OPENCODE_WATCH_ANALYZE=0   Auto-Analyse im Wächter aus
 
 Deinstallieren:  $REPO/uninstall.sh
+
+Optional (braucht root, für den sudo-Credential-Cache):
+  sudo $REPO/install-system.sh
 EOF

@@ -74,6 +74,20 @@ All scripts read these environment variables:
 ./uninstall.sh
 ```
 
+## Optional: system-wide sudo helper
+
+opencode's non-TTY tool calls re-prompt for a password unless sudo caches
+credentials user-wide. This is **optional** and needs root:
+
+```bash
+sudo ./install-system.sh      # adds /etc/sudoers.d/20-opencode-sudo-cache
+sudo ./install-system.sh --uninstall
+```
+
+It sets `timestamp_type=global` and `timestamp_timeout=15`, validates the
+sudoers file with `visudo -cf` before installing, and configures a graphical
+askpass (`ksshaskpass`/GNOME/OpenSSH) in `/etc/sudo.conf` if none is set.
+
 ## Layout
 
 ```
@@ -81,9 +95,11 @@ bin/                      helper scripts + GUI backend (installed to PREFIX/bin)
 agent-app/ui/             Kirigami/QML desktop app
 data/                     .desktop / krunner / dbus / autostart templates
 systemd/                  watchdog user units
+etc/sudoers.d/            optional system-wide sudo cache drop-in
 opencode-command/         /sync, /sysreport, /fix
 opencode-skill/           cachyos-admin skill
 install.sh / uninstall.sh
+install-system.sh         optional root-only tweaks
 ```
 
 ## Notes
