@@ -37,9 +37,9 @@ def build_command(prompt):
     )
     base = os.path.basename(TERM)
     if base == "alacritty":
-        return [TERM, "--working-directory", WORKDIR, "-T", "opencode: krunner", "-e", "bash", "-lc", shellcmd]
+        return [TERM, "--working-directory", WORKDIR, "-T", "Lumen: krunner", "-e", "bash", "-lc", shellcmd]
     if base == "konsole":
-        return [TERM, "--workdir", WORKDIR, "-p", "tabtitle=opencode: krunner", "-e", "bash", "-lc", shellcmd]
+        return [TERM, "--workdir", WORKDIR, "-p", "tabtitle=Lumen: krunner", "-e", "bash", "-lc", shellcmd]
     return [TERM, "-e", "bash", "-lc", f"cd '{WORKDIR}' && {shellcmd}"]
 
 
@@ -62,7 +62,7 @@ class Runner(dbus.service.Object):
         return [
             (
                 prompt,
-                f"opencode: {prompt}",
+                f"Lumen: {prompt}",
                 "opencode",
                 100,  # QueryType (custom/free)
                 1.0,  # relevance
