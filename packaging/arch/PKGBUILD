@@ -1,7 +1,7 @@
 # Maintainer: opencode-agent
 pkgname=opencode-agent
 pkgver=1.0.0
-pkgrel=2
+pkgrel=3
 pkgdesc="OS integration for opencode: desktop app, watchdog, KRunner, Dolphin menus, MCP"
 arch=('any')
 url="https://github.com/opencode-agent/opencode-agent"

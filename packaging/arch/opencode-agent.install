@@ -1,24 +1,33 @@
 # opencode-agent.install — pacman install scriptlet
 #
-# Deliberately conservative: the package does NOT auto-enable services during
-# install. Starting/stopping D-Bus-sensitive or session-affecting services in a
-# package scriptlet can disrupt a running desktop session. The user (or an
-# admin) enables what they want. See the printed hint.
+# Services are ENABLED BY DEFAULT (opt-out). They are safe to enable: none of
+# them restart or stop shared system services (in particular, never D-Bus).
+# Disable any time with the commands shown below.
 
 post_install() {
+    systemctl enable --now opencode-agentd.service 2>/dev/null || true
+    systemctl enable --now opencode-agent-watch.timer 2>/dev/null || true
+
     cat <<'EOF'
 opencode Agent installiert (Dateien systemweit unter /usr).
 
-Verfügbare Dienste (NICHT automatisch aktiviert):
-  systemctl enable --now opencode-agentd.service        # D-Bus: org.opencode.Agent
-  systemctl enable --now opencode-agent-watch.timer     # System-Wächter (15 min)
-  systemctl --user enable --now opencode-agent-notify.path  # Desktop-Benachrichtigung
+Dienste (standardmäßig AKTIV):
+  opencode-agentd.service     - D-Bus org.opencode.Agent (Read-only-Systemstatus)
+  opencode-agent-watch.timer  - System-Wächter (alle 15 min)
 
-Desktop-Integration liegt unter /usr/share:
+Desktop-Integration unter /usr/share:
   - Anwendung "opencode Agent"
   - Dolphin-ServiceMenu "opencode"
   - KRunner-Runner (Trigger: ai <Frage>)
   - Global-Shortcuts: Meta+Shift+O (fragen), Meta+Shift+S (Zwischenablage)
+
+Pro-Nutzer-Benachrichtigung aktivieren (optional, pro Sitzung):
+  systemctl --user enable --now opencode-agent-notify.path
+
+Abschalten (opt-out):
+  sudo systemctl disable --now opencode-agentd.service
+  sudo systemctl disable --now opencode-agent-watch.timer
+  systemctl --user disable --now opencode-agent-notify.path
 
 opencode-Commands/Skill:
   /usr/share/opencode-agent/opencode-command/
@@ -31,19 +40,18 @@ EOF
 }
 
 post_upgrade() {
+    # Do NOT re-enable here: a user who opted out must stay opted out.
     cat <<'EOF'
-opencode Agent aktualisiert.
+opencode Agent aktualisiert (bestehender Dienst-Zustand bleibt erhalten).
 
-Hinweis: Bereits laufende Dienste müssen ggf. neu gestartet werden, damit sie
-die neuen Dateien verwenden:
-  systemctl restart opencode-agentd.service      # falls aktiv
+Falls der D-Bus-Dienst aktiv ist, neue Dateien übernehmen:
+  sudo systemctl restart opencode-agentd.service
   systemctl --user try-restart opencode-agent-notify.path
 Kein D-Bus-Neustart nötig – Policy-Änderungen werden automatisch geladen.
 EOF
 }
 
 pre_remove() {
-    # Stop/disable only what is actually enabled; never touch dbus itself.
     systemctl disable --now opencode-agent-watch.timer 2>/dev/null || true
     systemctl disable --now opencode-agentd.service 2>/dev/null || true
     systemctl --user disable --now opencode-agent-notify.path 2>/dev/null || true
