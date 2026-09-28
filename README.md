@@ -113,3 +113,38 @@ install-system.sh         optional root-only tweaks
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## System-wide install (Arch / CachyOS)
+
+For a system package instead of the per-user install:
+
+```bash
+./packaging/arch/build-package.sh            # build opencode-agent-*.pkg.tar.zst
+sudo pacman -U packaging/arch/opencode-agent-*.pkg.tar.zst
+```
+
+or via a local pacman repo:
+
+```bash
+./distro/cachyos/make-repo.sh
+# then add the printed [opencode-agent] block to /etc/pacman.conf
+sudo pacman -Sy && sudo pacman -S opencode-agent
+```
+
+The package installs to `/usr` and provides these services
+(**not auto-enabled** — this avoids disturbing a running session):
+
+```bash
+sudo systemctl enable --now opencode-agentd.service          # D-Bus: org.opencode.Agent
+sudo systemctl enable --now opencode-agent-watch.timer       # system watchdog
+systemctl --user enable --now opencode-agent-notify.path     # desktop notifications
+```
+
+Architecture: the **system watchdog** runs as root and writes findings to
+`/var/lib/opencode-agent/findings.md`; a **per-user path unit** picks that up,
+notifies the desktop and runs the opencode analysis in the user's context.
+A small **D-Bus system service** (`org.opencode.Agent`) exposes read-only
+`GetSummary` / `GetFindings` / `RefreshWatch`.
+
+> Note: never `systemctl restart dbus` to apply a policy change — the bus
+> reloads policies itself and a restart tears down the running desktop session.
