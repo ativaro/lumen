@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=opencode Agent
+GenericName=AI System Agent
+Comment=Chat, Systemstatus und Schnellaktionen für opencode
+Exec=%INSTALL_BIN%/opencode-agent-app
+Icon=opencode
+Terminal=false
+Categories=Utility;Development;
+Keywords=opencode;ai;agent;chat;system;dashboard;assistant;
+StartupNotify=true
+StartupWMClass=qml

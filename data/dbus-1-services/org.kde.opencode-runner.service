@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=org.kde.opencode-runner
+Exec=%INSTALL_BIN%/opencode_krunner.py

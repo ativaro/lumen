@@ -1,0 +1,6 @@
+[Unit]
+Description=opencode system watchdog (check)
+
+[Service]
+Type=oneshot
+ExecStart=%INSTALL_BIN%/opencode-watch

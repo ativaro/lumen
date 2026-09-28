@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=opencode
+Comment=Frag opencode: tippe "ai <Frage>"
+Type=Service
+Icon=opencode
+X-KDE-PluginInfo-Name=opencode-runner
+X-KDE-PluginInfo-EnabledByDefault=true
+X-KDE-PluginInfo-License=MIT
+X-KDE-PluginInfo-Author=opencode-agent
+X-Plasma-API=DBus
+X-Plasma-DBusRunner-Service=org.kde.opencode-runner
+X-Plasma-DBusRunner-Path=/runner
+X-Plasma-Runner-Min-Letter-Count=2

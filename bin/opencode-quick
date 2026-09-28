@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# opencode-quick — global quick actions for opencode.
+#
+# Usage:
+#   opencode-quick ask       # dialog input -> opencode run in terminal
+#   opencode-quick ask-sel   # use current clipboard as prompt
+#   opencode-quick open      # open interactive opencode in the work dir
+#
+# Designed to be used from a KDE global shortcut (.desktop command shortcut).
+#
+# Overridable: OPENCODE_BIN, OPENCODE_TERM, OPENCODE_WORKDIR
+
+set -euo pipefail
+
+OPENCODE_BIN="${OPENCODE_BIN:-$(command -v opencode || echo "$HOME/.opencode/bin/opencode")}"
+OPENCODE_TERM="${OPENCODE_TERM:-$(command -v alacritty || command -v konsole || command -v xterm)}"
+OPENCODE_WORKDIR="${OPENCODE_WORKDIR:-$HOME/Documents/work}"
+TERM_BIN="$(command -v "$OPENCODE_TERM" 2>/dev/null || echo "$OPENCODE_TERM")"
+
+action="${1:-ask}"
+
+term_run() {
+    local title="$1" prompt="$2"
+    export OPENCODE_PROMPT="$prompt"
+    export OPENCODE_BIN
+    local shellcmd='"$OPENCODE_BIN" run --continue "$OPENCODE_PROMPT"; printf "\n--- Fertig. Enter zum Schließen. ---\n"; read -r _'
+    case "$(basename "$TERM_BIN")" in
+        alacritty) exec "$TERM_BIN" --working-directory "$OPENCODE_WORKDIR" -T "$title" -e bash -lc "$shellcmd" ;;
+        konsole)   exec "$TERM_BIN" --workdir "$OPENCODE_WORKDIR" -p tabtitle="$title" -e bash -lc "$shellcmd" ;;
+        *)         exec "$TERM_BIN" -e bash -lc "cd '$OPENCODE_WORKDIR' && $shellcmd" ;;
+    esac
+}
+
+ask_dialog() {
+    if command -v kdialog >/dev/null 2>&1; then
+        kdialog --title "opencode" --inputbox "Was soll opencode tun?" "" 2>/dev/null
+    else
+        zenity --entry --title "opencode" --text="Was soll opencode tun?" 2>/dev/null
+    fi
+}
+
+case "$action" in
+    open)
+        case "$(basename "$TERM_BIN")" in
+            alacritty) exec "$TERM_BIN" --working-directory "$OPENCODE_WORKDIR" -T "opencode" -e "$OPENCODE_BIN" --continue ;;
+            konsole)   exec "$TERM_BIN" --workdir "$OPENCODE_WORKDIR" -p tabtitle="opencode" -e "$OPENCODE_BIN" --continue ;;
+            *)         exec "$TERM_BIN" -e bash -lc "cd '$OPENCODE_WORKDIR' && '$OPENCODE_BIN' --continue" ;;
+        esac
+        ;;
+
+    ask)
+        q=$(ask_dialog) || exit 0
+        [ -z "$q" ] && exit 0
+        term_run "opencode: ask" "$q"
+        ;;
+
+    ask-sel)
+        if command -v wl-paste >/dev/null 2>&1; then
+            q=$(wl-paste 2>/dev/null || true)
+            if [ -n "$q" ]; then
+                term_run "opencode: clipboard" "Beantworte/erkläre folgenden Inhalt:
+
+$q"
+                exit 0
+            fi
+        elif command -v xclip >/dev/null 2>&1; then
+            q=$(xclip -selection clipboard -o 2>/dev/null || true)
+            if [ -n "$q" ]; then
+                term_run "opencode: clipboard" "Beantworte/erkläre folgenden Inhalt:
+
+$q"
+                exit 0
+            fi
+        fi
+        exec "$0" ask
+        ;;
+
+    *)
+        echo "Unbekannte Aktion: $action" >&2
+        exit 2
+        ;;
+esac

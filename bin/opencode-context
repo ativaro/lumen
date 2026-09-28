@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# opencode-context — helper for KDE Dolphin service menus.
+# Opens a terminal running opencode with a prefilled prompt about the selected file(s).
+#
+# Usage:
+#   opencode-context <action> <path>...
+#   action: open | explain | fix | review | ask
+#
+# Overridable via environment / config:
+#   OPENCODE_BIN      path to the opencode binary (default: auto-detect)
+#   OPENCODE_TERM     terminal emulator (default: auto-detect)
+#   OPENCODE_WORKDIR  default working directory (default: ~/Documents/work)
+
+set -euo pipefail
+
+# ---- configuration --------------------------------------------------------
+OPENCODE_BIN="${OPENCODE_BIN:-$(command -v opencode || echo "$HOME/.opencode/bin/opencode")}"
+OPENCODE_TERM="${OPENCODE_TERM:-$(command -v alacritty || command -v konsole || command -v xterm)}"
+OPENCODE_WORKDIR="${OPENCODE_WORKDIR:-$HOME/Documents/work}"
+TERM_BIN="$(command -v "$OPENCODE_TERM" 2>/dev/null || echo "$OPENCODE_TERM")"
+TITLE_PREFIX="opencode"
+
+term_run() {
+    # $1 = title, $2 = shell command string
+    local title="$1" shellcmd="$2"
+    case "$(basename "$TERM_BIN")" in
+        alacritty) exec "$TERM_BIN" --working-directory "$OPENCODE_WORKDIR" -T "$title" -e bash -lc "$shellcmd" ;;
+        konsole)   exec "$TERM_BIN" --workdir "$OPENCODE_WORKDIR" -p tabtitle="$title" -e bash -lc "$shellcmd" ;;
+        xterm)     exec "$TERM_BIN" -T "$title" -e bash -lc "cd '$OPENCODE_WORKDIR' && $shellcmd" ;;
+        *)         exec "$TERM_BIN" -e bash -lc "cd '$OPENCODE_WORKDIR' && $shellcmd" ;;
+    esac
+}
+
+action="${1:-open}"
+shift || true
+paths=("$@")
+
+if [ ${#paths[@]} -eq 0 ]; then
+    paths=("$PWD")
+fi
+
+first="${paths[0]}"
+if [ -d "$first" ]; then
+    workdir="$first"
+    is_dir=1
+else
+    workdir="$(dirname "$first")"
+    is_dir=0
+fi
+OPENCODE_WORKDIR="$workdir"
+
+case "$action" in
+    open)
+        term_run "$TITLE_PREFIX: ${first##*/}" \
+            '"$OPENCODE_BIN" --continue'
+        ;;
+
+    explain)
+        if [ "$is_dir" = "1" ]; then
+            prompt="Erkläre den Inhalt dieses Ordners: Struktur, Zweck und wichtigste Dateien. Ordner: $first"
+        else
+            prompt="Erkläre diese Datei verständlich: Zweck, Aufbau und wichtige Stellen. Datei: $first"
+        fi
+        mode="explain"
+        ;;
+
+    fix)
+        if [ "$is_dir" = "1" ]; then
+            prompt="Analysiere diesen Ordner auf Fehler/Bugs und schlage konkrete Fixes vor. Ordner: $first"
+        else
+            prompt="Analysiere diese Datei auf Fehler/Bugs und schlage konkrete Fixes vor. Datei: $first"
+        fi
+        mode="fix"
+        ;;
+
+    review)
+        prompt="Reviewe die aktuellen git-Änderungen in diesem Repository (git diff + git status). Fasse Probleme und Verbesserungen zusammen. Verzeichnis: $workdir"
+        mode="review"
+        ;;
+
+    ask)
+        target="$first"
+        if command -v kdialog >/dev/null 2>&1; then
+            q=$(kdialog --title "opencode fragen" \
+                --inputbox "Was soll opencode mit '${target##*/}' machen?" \
+                "Fasse den Zweck von $target zusammen." 2>/dev/null) || exit 0
+        else
+            q=$(zenity --entry --title "opencode fragen" \
+                --text="Was soll opencode mit '${target##*/}' machen?" 2>/dev/null) || exit 0
+        fi
+        [ -z "$q" ] && exit 0
+        prompt="$q
+
+Kontext: $target"
+        mode="ask"
+        ;;
+
+    *)
+        echo "Unbekannte Aktion: $action" >&2
+        exit 2
+        ;;
+esac
+
+export OPENCODE_PROMPT="$prompt"
+export OPENCODE_BIN
+
+term_run "$TITLE_PREFIX: $mode ${first##*/}" \
+    '"$OPENCODE_BIN" run --continue "$OPENCODE_PROMPT"; printf "\n--- Fertig. Enter zum Schließen. ---\n"; read -r _'

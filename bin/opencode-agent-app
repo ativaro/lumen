@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Launch the opencode Agent app (Kirigami/QML, no PyQt needed).
+# Resolves its own location, so it works from any install directory.
+set -euo pipefail
+
+SELF="$(readlink -f "$0")"
+ROOT="$(dirname "$SELF")/.."
+MAIN="$ROOT/agent-app/ui/main.qml"
+
+if [ ! -f "$MAIN" ]; then
+    echo "opencode-agent-app: main.qml not found at $MAIN" >&2
+    exit 1
+fi
+
+QML_BIN="$(command -v qml6 || command -v qml || true)"
+if [ -z "$QML_BIN" ]; then
+    echo "opencode-agent-app: qml6 not found (install qt6-declarative)" >&2
+    exit 1
+fi
+
+exec "$QML_BIN" "$MAIN" "$@"

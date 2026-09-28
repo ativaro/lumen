@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+# opencode-watch — system watchdog with automatic opencode analysis.
+#
+# Checks for common problems; on findings it:
+#   1. sends a desktop notification,
+#   2. runs a short opencode analysis automatically (default ON),
+#   3. shows the analysis as a second notification and stores a full report,
+#   4. offers an "Öffnen" action to open the report in a terminal.
+#
+# Runs from a systemd user timer (opencode-watch.timer).
+# State in ~/.cache/opencode-agent/ to avoid repeat spam (30 min per signature).
+#
+# Environment:
+#   OPENCODE_WATCH_ANALYZE=0   disable the automatic opencode analysis
+#   OPENCODE_WATCH_MODEL=...   override the model used for analysis
+#   OPENCODE_BIN               path to the opencode binary
+#   OPENCODE_TERM              terminal emulator for reports
+
+set -uo pipefail
+
+OPENCODE_BIN="${OPENCODE_BIN:-$(command -v opencode || echo "$HOME/.opencode/bin/opencode")}"
+OPENCODE_TERM="${OPENCODE_TERM:-$(command -v alacritty || command -v konsole || command -v xterm)}"
+TERM_BIN="$(command -v "$OPENCODE_TERM" 2>/dev/null || echo "$OPENCODE_TERM")"
+
+CACHE="${OPENCODE_AGENT_STATE:-$HOME/.cache/opencode-agent}"
+mkdir -p "$CACHE"
+STATE="$CACHE/watch-last"
+NOW="$(date +%s)"
+NOTIFY=(notify-send -a opencode -i opencode)
+
+problems=()
+detail=""
+
+# 1) failed user + system units (ignore transient app-* launcher units)
+failed_user=$(systemctl --user --failed --no-legend --plain 2>/dev/null | awk '{print $1}' | grep -v '^$' | grep -vE '^app-' | head -20)
+failed_sys=$(systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $1}' | grep -v '^$' | head -20)
+if [ -n "$failed_user" ]; then
+    problems+=("User-Units fehlgeschlagen")
+    detail+="Fehlgeschlagene User-Units:\n$(echo "$failed_user" | sed 's/^/  - /')\n\n"
+fi
+if [ -n "$failed_sys" ]; then
+    problems+=("System-Units fehlgeschlagen")
+    detail+="Fehlgeschlagene System-Units:\n$(echo "$failed_sys" | sed 's/^/  - /')\n\n"
+fi
+
+# 2) root filesystem almost full (>90%)
+rootpct=$(df --output=pcent / 2>/dev/null | tail -1 | tr -dc '0-9')
+if [ -n "${rootpct:-}" ] && [ "$rootpct" -ge 90 ]; then
+    problems+=("Root fast voll (${rootpct}%)")
+    detail+="Root-Dateisystem zu ${rootpct}% belegt.\n\n"
+fi
+
+# 3) kernel errors in recent journal
+oops=$(journalctl -k -p err --since "10 min ago" --no-pager 2>/dev/null | tail -5)
+if [ -n "$oops" ]; then
+    problems+=("Kernel-Fehler kürzlich")
+    detail+="Kernel-Log (err, letzte 10 min):\n$oops\n\n"
+fi
+
+# 4) GPU temperature high (>=85C)
+if command -v nvidia-smi >/dev/null 2>&1; then
+    gt=$(nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -dc '0-9')
+    if [ -n "${gt:-}" ] && [ "$gt" -ge 85 ]; then
+        problems+=("GPU heiß (${gt}°C)")
+        detail+="GPU meldet ${gt}°C.\n\n"
+    fi
+fi
+
+# Nothing wrong -> exit quietly (and refresh heartbeat)
+if [ ${#problems[@]} -eq 0 ]; then
+    echo "$NOW" > "$STATE"
+    exit 0
+fi
+
+signature="$(printf '%s\n' "${problems[@]}" | md5sum | awk '{print $1}')"
+
+# Suppress identical notification within 30 minutes
+if [ -f "$STATE" ]; then
+    prev_ts=$(cut -d' ' -f1 "$STATE" 2>/dev/null || echo 0)
+    prev_sig=$(cut -d' ' -f2 "$STATE" 2>/dev/null || echo "")
+    if [ "$prev_sig" = "$signature" ] && [ $((NOW - prev_ts)) -lt 1800 ]; then
+        exit 0
+    fi
+fi
+
+body="$(printf '%s' "${problems[@]}" | paste -sd ', ' -)"
+
+# log raw findings
+{
+    echo "=== $(date) ==="
+    printf '%b' "$detail"
+} >> "$CACHE/watch-log.txt"
+
+# --- Automatic opencode analysis (default ON) -------------------------------
+report="$CACHE/analysis-$(date +%Y%m%d-%H%M%S).md"
+if [ "${OPENCODE_WATCH_ANALYZE:-1}" = "1" ] && { [ -x "$OPENCODE_BIN" ] || command -v "$OPENCODE_BIN" >/dev/null 2>&1; }; then
+
+    prompt="Systemwarnung auf diesem Rechner. Analysiere knapp: Ursache + konkreter Fix (max. 8 Zeilen). Fakten:
+$(printf '%b' "$detail")"
+
+    model_args=()
+    [ -n "${OPENCODE_WATCH_MODEL:-}" ] && model_args=(--model "$OPENCODE_WATCH_MODEL")
+
+    # run headless, capture plain output.
+    # Unset opencode-internal env so a nested invocation behaves like a fresh one.
+    analysis=$(env -u OPENCODE -u OPENCODE_PID -u OPENCODE_SERVER_PASSWORD \
+        timeout 120 "$OPENCODE_BIN" run "${model_args[@]}" "$prompt" </dev/null 2>/dev/null \
+        | sed -e 's/\x1b\[[0-9;]*m//g' | sed '/^[[:space:]]*$/d' | tail -n 20)
+
+    if [ -n "$analysis" ]; then
+        {
+            echo "# opencode Analyse — $(date)"
+            echo
+            echo "**Befund:** $body"
+            echo
+            printf '%b' "$detail"
+            echo
+            echo "## Analyse"
+            echo
+            echo "$analysis"
+        } > "$report"
+        ln -sf "$report" "$CACHE/latest-analysis.md"
+
+        short=$(printf '%s' "$analysis" | head -c 600)
+        chosen=$("${NOTIFY[@]}" -u critical --icon=dialog-warning \
+            -A "open=bash -c '$TERM_BIN -e less \"$report\"'" \
+            "⚠ Systemproblem (${#problems[@]})" "$short" 2>/dev/null || true)
+
+        if [ "$chosen" = "open" ] && command -v "$TERM_BIN" >/dev/null 2>&1; then
+            setsid "$TERM_BIN" -T "opencode: Systemanalyse" \
+                -e bash -lc "less -R \"$report\"" >/dev/null 2>&1 &
+        fi
+    else
+        "${NOTIFY[@]}" -u critical "⚠ Systemproblem (${#problems[@]})" "$body" 2>/dev/null || true
+    fi
+else
+    "${NOTIFY[@]}" -u critical "⚠ Systemproblem (${#problems[@]})" "$body" 2>/dev/null || true
+fi
+
+echo "$NOW $signature" > "$STATE"
