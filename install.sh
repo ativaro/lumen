@@ -52,7 +52,9 @@ fi
 # ---- copy files ------------------------------------------------------------
 say "Installiere Dateien nach $PREFIX"
 mkdir -p "$BIN"
-install -m 0755 "$REPO/bin/"* "$BIN/"
+for bin_file in "$REPO/bin/"*; do
+    [ -f "$bin_file" ] && install -m 0755 "$bin_file" "$BIN/"
+done
 mkdir -p "$PREFIX/agent-app"
 install -m 0644 "$REPO/agent-app/main.py" "$PREFIX/agent-app/"
 mkdir -p "$PREFIX/files"
