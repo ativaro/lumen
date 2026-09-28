@@ -8,9 +8,6 @@ __pycache__/
 *~
 .DS_Store
 
-# Local state
-*.local
-
 # Arch package build artifacts
 packaging/arch/pkg/
 packaging/arch/src/
@@ -18,10 +15,12 @@ packaging/arch/*.pkg.tar.zst
 packaging/arch/*.pkg.tar.zst.sig
 packaging/arch/*.tar.gz
 packaging/arch/.SRCINFO
-distro/cachyos/repo/
 
 # AUR generated tree
 distro/aur/PKGBUILD
 distro/aur/*.install
 distro/aur/.SRCINFO
 distro/aur/*.tar.gz
+
+# local pacman repo
+distro/cachyos/repo/

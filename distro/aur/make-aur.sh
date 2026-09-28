@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # make-aur.sh — prepare an AUR-ready source tree for opencode-lumen.
 #
-# Creates distro/aur/ containing PKGBUILD, .install, .SRCINFO and a source
-# tarball, ready to `makepkg --printsrcinfo` / push to the AUR.
+# Creates distro/aur/ containing PKGBUILD, lumen.install and .SRCINFO, ready
+# to push to the AUR. The PKGBUILD's remote source (_srcurl) is used, so the
+# AUR build fetches the release tarball from the git host — not a local file.
 #
 # Usage:
-#   ./distro/aur/make-aur.sh
+#   ./distro/aur/make-aur.sh            # prepare + generate .SRCINFO
+#   ./distro/aur/make-aur.sh --sums     # also run updpkgsums (needs the tag to exist)
 #
-# For the AUR, the PKGBUILD should point at a real source URL (GitHub tag).
-# This helper produces the layout and a .SRCINFO for review.
+# Before running, make sure you tagged the release (v$pkgver) and pushed it,
+# and that _srcurl in the PKGBUILD points at the real repository.
 
 set -euo pipefail
 
@@ -21,22 +23,14 @@ say() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 
 mkdir -p "$AURDIR"
 cp "$ARCHDIR/PKGBUILD" "$AURDIR/PKGBUILD"
-cp "$ARCHDIR/opencode-lumen.install" "$AURDIR/opencode-lumen.install"
+cp "$ARCHDIR/lumen.install" "$AURDIR/lumen.install"
 
-# build source tarball (git archive = only tracked files)
-say "Erzeuge Quell-Tarball"
-rm -f "$AURDIR/opencode-lumen-$PKGVER.tar.gz"
-if git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1; then
-    git -C "$REPO" archive --format=tar.gz \
-        --prefix="opencode-lumen-$PKGVER/" \
-        -o "$AURDIR/opencode-lumen-$PKGVER.tar.gz" HEAD
-else
-    tar --exclude='.git' --exclude='__pycache__' --exclude='distro' \
-        --transform "s,^,opencode-lumen-$PKGVER/," \
-        -czf "$AURDIR/opencode-lumen-$PKGVER.tar.gz" -C "$REPO" .
+# The AUR build fetches the remote release tarball. Fetch the real checksum.
+if [ "${1:-}" = "--sums" ]; then
+    say "updpkgsums (lädt Quell-Tarball von _srcurl)"
+    ( cd "$AURDIR" && updpkgsums )
 fi
 
-# generate .SRCINFO
 say "Erzeuge .SRCINFO"
 ( cd "$AURDIR" && makepkg --printsrcinfo > .SRCINFO )
 
@@ -46,12 +40,13 @@ $(say "AUR-Tree bereit: $AURDIR")
 Dateien:
 $(ls -1 "$AURDIR" | sed 's/^/  /')
 
-Vor dem AUR-Upload den 'source='-Eintrag im PKGBUILD auf die echte
-GitHub-Release-URL setzen und sha256sums aktualisieren:
-  updpkgsums   # im AUR-Verzeichnis
+Prüfe vor dem Upload:
+  - 'url=' und '_srcurl=' im PKGBUILD zeigen auf das echte Repo
+  - der Release-Tag v$PKGVER existiert und ist gepusht
+  - sha256sums gesetzt (./distro/aur/make-aur.sh --sums)
 
-Dann (als AUR-Maintainer):
+Upload (als AUR-Maintainer):
   git clone ssh://aur@aur.archlinux.org/opencode-lumen.git
-  cp $AURDIR/{PKGBUILD,.SRCINFO,opencode-lumen.install} opencode-lumen/
+  cp $AURDIR/{PKGBUILD,.SRCINFO,lumen.install} opencode-lumen/
   cd opencode-lumen && git add -A && git commit -m 'Initial' && git push
 EOF

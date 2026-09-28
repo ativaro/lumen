@@ -41,9 +41,25 @@ gracefully on other setups.
 
 ## Install
 
+### Arch / CachyOS — package (recommended)
+
 ```bash
-git clone <this-repo> opencode-lumen
-cd opencode-lumen
+# from a local build
+git clone <repo-url> opencode-lumen && cd opencode-lumen
+./packaging/arch/build-package.sh
+sudo pacman -U packaging/arch/opencode-lumen-*.pkg.tar.zst
+
+# later, once published to the AUR:
+yay -S opencode-lumen      # or: paru -S opencode-lumen
+```
+
+The package pulls in `opencode` (official repos), enables its services by
+default (opt-out) and drops the desktop integration in `/usr/share`.
+
+### Any distro — per-user install
+
+```bash
+git clone <repo-url> opencode-lumen && cd opencode-lumen
 ./install.sh
 ```
 
@@ -55,11 +71,25 @@ PREFIX=~/.local/share/opencode-lumen ./install.sh   # custom install prefix
 ./install.sh --no-mcp                               # skip opencode MCP/commands/skill
 ```
 
-Then:
-1. **Restart opencode** so MCP/commands/skill are picked up.
-2. Reload KRunner if the `ai …` trigger is missing: `kquitapp6 krunner`
-3. Launch the app from the menu (**Lumen**) or run
-   `~/.local/share/opencode-lumen/bin/lumen-agent-app`.
+After installing (either way):
+
+1. Register the opencode integration (system package does this automatically
+   for logged-in users; skip if you used `install.sh`):
+   ```bash
+   lumen-setup              # MCP 'cachyos' + /sync,/sysreport,/fix + lumen-admin skill
+   ```
+2. **Restart opencode** so MCP/commands/skill are picked up.
+3. Reload KRunner if the `ai …` trigger is missing: `kquitapp6 krunner`
+4. Launch the app from the menu (**Lumen**) or run `lumen-agent-app`.
+
+## Requirements
+
+- **Required:** `bash`, `python3`, and [opencode](https://opencode.ai)
+  (package `opencode` on Arch/CachyOS).
+- **For the full experience (optdepends):** `qt6-declarative`, `kirigami`,
+  `kirigami-addons` (app), `jq`, a terminal (`alacritty`/`konsole`),
+  `kdialog`/`zenity`, `wl-clipboard`, `libnotify`, `spectacle`,
+  `python-dbus`/`python-gobject` (KRunner), `dolphin`, `plasma-workspace`.
 
 ## Configuration
 
@@ -92,7 +122,9 @@ Then `why` explains the last failed command, `vix` runs vision on a region and
 ## Uninstall
 
 ```bash
-./uninstall.sh
+lumen-setup --uninstall     # opencode MCP/commands/skill (system package: do first)
+./uninstall.sh              # per-user install
+sudo pacman -R opencode-lumen   # system package
 ```
 
 ## Optional: system-wide sudo helper
