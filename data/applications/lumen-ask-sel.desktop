@@ -4,6 +4,6 @@ Name=Lumen: Zwischenablage erklären
 Exec=%INSTALL_BIN%/lumen-quick ask-sel
 NoDisplay=true
 StartupNotify=false
-Icon=opencode
+Icon=lumen
 X-KDE-GlobalAccel-CommandShortcut=true
 X-KDE-Shortcuts=Meta+Shift+S

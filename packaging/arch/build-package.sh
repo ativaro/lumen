@@ -37,14 +37,16 @@ if git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1; then
         -o "$ARCHDIR/opencode-lumen-$PKGVER.tar.gz" HEAD
 else
     tar --exclude='.git' --exclude='__pycache__' --exclude='distro' \
+        --exclude='packaging/arch/pkg' --exclude='packaging/arch/src' \
         --transform "s,^,opencode-lumen-$PKGVER/," \
         -czf "$ARCHDIR/opencode-lumen-$PKGVER.tar.gz" -C "$REPO" .
 fi
 say "Tarball: $(du -h "$ARCHDIR/opencode-lumen-$PKGVER.tar.gz" | cut -f1)"
 
-say "Baue Paket mit makepkg"
+say "Baue Paket mit makepkg (lokaler Quell-Tarball)"
 cd "$ARCHDIR"
-makepkg -f --noconfirm
+rm -rf src pkg
+LOCALSRC=1 makepkg -f --noconfirm
 
 echo
 ls -1 "$ARCHDIR"/opencode-lumen-"$PKGVER"-*.pkg.tar.zst 2>/dev/null || true

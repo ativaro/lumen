@@ -1,12 +1,16 @@
 # Maintainer: Lumen
 pkgname=opencode-lumen
 pkgver=1.0.0
-pkgrel=6
-pkgdesc="OS integration for opencode: desktop app, watchdog, KRunner, Dolphin menus, MCP"
+pkgrel=7
+pkgdesc="Lumen — OS integration for opencode: desktop app, watchdog, KRunner, Dolphin menus, MCP"
 arch=('any')
 url="https://github.com/opencode-lumen/opencode-lumen"
 license=('MIT')
 depends=('bash' 'python3')
+makedepends=()
+# The agent itself is required at runtime. It is in the official repos on
+# Arch/CachyOS as 'opencode'; on other setups install it separately.
+depends+=('opencode')
 optdepends=(
     'qt6-declarative: desktop app (qml6)'
     'kirigami: desktop app UI'
@@ -24,13 +28,25 @@ optdepends=(
     'python-gobject: KRunner runner'
     'dolphin: service menu integration'
     'plasma-workspace: KRunner integration'
-    'opencode: the agent itself (or install separately)'
 )
 backup=()
 install="lumen.install"
-source=("$pkgname-$pkgver.tar.gz")
-sha256sums=('SKIP')
-# Build from the local repo tree (git archive or the provided tarball).
+
+# ---- source -----------------------------------------------------------------
+# Two modes:
+#  * PUBLISHED  (default): fetch the release tarball from the git host.
+#  * LOCAL      (LOCALSRC=1): build from a tarball sitting next to this PKGBUILD.
+# When publishing, replace _srcurl/_sha256 with the real values from the release
+# (or run `updpkgsums`).
+_srcurl="https://github.com/opencode-lumen/opencode-lumen/archive/v$pkgver.tar.gz"
+
+if [ "${LOCALSRC:-0}" = "1" ]; then
+    source=("$pkgname-$pkgver.tar.gz")
+    sha256sums=('SKIP')
+else
+    source=("$pkgname-$pkgver.tar.gz::$_srcurl")
+    sha256sums=('SKIP')   # TODO: set the real checksum before publishing (updpkgsums)
+fi
 
 prepare() {
     cd "$srcdir"
@@ -125,8 +141,12 @@ package() {
     # ---- opencode commands / skill (system-wide share) --------------------
     install -d "$pkgdir/usr/share/opencode-lumen/opencode-command"
     install -m0644 "$srcroot/opencode-command/"*.md "$pkgdir/usr/share/opencode-lumen/opencode-command/" 2>/dev/null || true
-    install -d "$pkgdir/usr/share/opencode-lumen/opencode-skill/cachyos-admin"
-    install -m0644 "$srcroot/opencode-skill/cachyos-admin/SKILL.md" "$pkgdir/usr/share/opencode-lumen/opencode-skill/cachyos-admin/" 2>/dev/null || true
+    install -d "$pkgdir/usr/share/opencode-lumen/opencode-skill/lumen-admin"
+    install -m0644 "$srcroot/opencode-skill/lumen-admin/SKILL.md" "$pkgdir/usr/share/opencode-lumen/opencode-skill/lumen-admin/" 2>/dev/null || true
+
+    # ---- icons ------------------------------------------------------------
+    install -d "$pkgdir/usr/share/icons/hicolor/scalable/apps"
+    install -m0644 "$srcroot/icons/hicolor/scalable/apps/lumen.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/lumen.svg"
 
     # ---- state directory (owned by root, world-readable findings) ---------
     install -d -m0755 "$pkgdir/var/lib/opencode-lumen"

@@ -4,6 +4,6 @@ Name=Lumen: fragen
 Exec=%INSTALL_BIN%/lumen-quick ask
 NoDisplay=true
 StartupNotify=false
-Icon=opencode
+Icon=lumen
 X-KDE-GlobalAccel-CommandShortcut=true
 X-KDE-Shortcuts=Meta+Shift+O

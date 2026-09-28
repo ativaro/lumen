@@ -6,7 +6,7 @@
         "Category": "System Information",
         "Description": "Lumen: agent status and quick actions",
         "Description[de]": "Lumen: Agent-Status und Schnellaktionen",
-        "Icon": "opencode",
+        "Icon": "lumen",
         "Id": "org.lumen.agent",
         "License": "MIT",
         "Name": "Lumen",

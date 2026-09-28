@@ -66,7 +66,7 @@ PlasmoidItem {
                 Layout.fillWidth: true
                 spacing: Kirigami.Units.smallSpacing
                 ActionButton { label: "App öffnen"; onActivated: root.run("lumen-agent-app") }
-                ActionButton { label: "Systembericht"; onActivated: root.run("alacritty -e opencode-watch") }
+                ActionButton { label: "Systembericht"; onActivated: root.run("alacritty -e lumen-watch") }
                 Item { Layout.fillWidth: true }
             }
         }

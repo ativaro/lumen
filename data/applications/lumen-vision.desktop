@@ -4,6 +4,6 @@ Name=Lumen: Bildschirm erklären
 Exec=%INSTALL_BIN%/lumen-vision region
 NoDisplay=true
 StartupNotify=false
-Icon=opencode
+Icon=lumen
 X-KDE-GlobalAccel-CommandShortcut=true
 X-KDE-Shortcuts=Meta+Shift+V

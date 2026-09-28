@@ -2,59 +2,61 @@
 #
 # Services are ENABLED BY DEFAULT (opt-out). They are safe to enable: none of
 # them restart or stop shared system services (in particular, never D-Bus).
-# Disable any time with the commands shown below.
 
 post_install() {
+    # system services
     systemctl enable --now lumen-agentd.service 2>/dev/null || true
     systemctl enable --now lumen-watch.timer 2>/dev/null || true
     # per-user units enabled for all users (opt-out via --global disable)
     systemctl --global enable lumen-notify.path 2>/dev/null || true
     systemctl --global enable lumen-digest.timer 2>/dev/null || true
     systemctl --global enable lumen-nightly.timer 2>/dev/null || true
-    # activate for the currently running user session, if any
+
+    # wire opencode (MCP/commands/skill) + activate timers for running sessions
     for d in /run/user/*/; do
         uid=$(basename "$d" 2>/dev/null); [ -z "$uid" ] && continue
         systemctl --machine="${uid}@.host" --user enable --now lumen-notify.path 2>/dev/null || true
         systemctl --machine="${uid}@.host" --user enable --now lumen-digest.timer 2>/dev/null || true
         systemctl --machine="${uid}@.host" --user enable --now lumen-nightly.timer 2>/dev/null || true
+        # best effort: register MCP/commands/skill for the logged-in user
+        su -l "$(id -nu "$uid" 2>/dev/null)" -c 'lumen-setup' >/dev/null 2>&1 || true
     done
 
     cat <<'EOF'
 Lumen installiert (Dateien systemweit unter /usr).
 
 Dienste (standardmäßig AKTIV):
-  lumen-agentd.service          - D-Bus org.lumen.Agent (Read-only-Systemstatus)
+  lumen-agentd.service    - D-Bus org.lumen.Agent (Read-only-Systemstatus)
   lumen-watch.timer       - System-Wächter (alle 15 min)
   lumen-notify.path       - Desktop-Benachrichtigung (per Nutzer)
-  lumen-digest.timer            - Tages-Digest (08:00)
-  lumen-nightly.timer           - Nacht-Report (03:30)
+  lumen-digest.timer      - Tages-Digest (08:00)
+  lumen-nightly.timer     - Nacht-Report (03:30)
 
 Desktop-Integration unter /usr/share:
   - Anwendung "Lumen"
-  - Dolphin-ServiceMenu "opencode"
+  - Dolphin-ServiceMenu "Lumen"
   - KRunner-Runner (Trigger: ai <Frage>)
   - Plasma-Applet "Lumen" (Panel-Widget)
-  - Global-Shortcuts: Meta+Shift+O (fragen), Meta+Shift+S (Zwischenablage)
+  - Global-Shortcuts: Meta+Shift+O / +S / +V / +E
 
 Shell-Helfer (optional einbinden):
-  source /usr/share/opencode-lumen/shell/opencode.fish   # fish.config
-  source /usr/share/opencode-lumen/shell/opencode.bash   # ~/.bashrc
+  source /usr/share/opencode-lumen/shell/lumen.fish   # in config.fish
+  source /usr/share/opencode-lumen/shell/lumen.bash   # in ~/.bashrc
   -> why / vix / sel
+
+opencode-Integration (MCP/Commands/Skill) für den aktuellen Nutzer:
+  lumen-setup              # registriert mcp.cachyos + Commands + Skill
+  lumen-setup --uninstall
 
 Abschalten (opt-out):
   sudo systemctl disable --now lumen-agentd.service
   sudo systemctl disable --now lumen-watch.timer
-  sudo systemctl --global disable lumen-notify.path
-  sudo systemctl --global disable lumen-digest.timer lumen-nightly.timer
-  systemctl --user disable --now lumen-notify.path   # nur diese Sitzung
-
-opencode-Commands/Skill:
-  /usr/share/opencode-lumen/opencode-command/
-  /usr/share/opencode-lumen/opencode-skill/
+  sudo systemctl --global disable lumen-notify.path lumen-digest.timer lumen-nightly.timer
 
 Nächste Schritte:
-  1. opencode neu starten, damit Commands/Skill greifen.
-  2. KRunner ggf. neu laden:  kquitapp6 krunner
+  1. lumen-setup (falls nicht automatisch geschehen)
+  2. opencode neu starten, damit MCP/Commands/Skill greifen
+  3. KRunner ggf. neu laden:  kquitapp6 krunner
 EOF
 }
 
@@ -67,23 +69,24 @@ Falls der D-Bus-Dienst aktiv ist, neue Dateien übernehmen:
   sudo systemctl restart lumen-agentd.service
   systemctl --user try-restart lumen-notify.path
 Kein D-Bus-Neustart nötig – Policy-Änderungen werden automatisch geladen.
+
+opencode-Integration nach Update erneut anwenden:  lumen-setup
 EOF
 }
 
 pre_remove() {
     systemctl disable --now lumen-watch.timer 2>/dev/null || true
     systemctl disable --now lumen-agentd.service 2>/dev/null || true
-    systemctl --global disable lumen-notify.path 2>/dev/null || true
+    systemctl --global disable lumen-notify.path lumen-digest.timer lumen-nightly.timer 2>/dev/null || true
     for d in /run/user/*/; do
         uid=$(basename "$d" 2>/dev/null); [ -z "$uid" ] && continue
-        systemctl --machine="${uid}@.host" --user disable --now lumen-notify.path 2>/dev/null || true
+        systemctl --machine="${uid}@.host" --user disable --now lumen-notify.path lumen-digest.timer lumen-nightly.timer 2>/dev/null || true
     done
-    systemctl --user disable --now lumen-notify.path 2>/dev/null || true
 }
 
 post_remove() {
     rm -rf /var/lib/opencode-lumen 2>/dev/null || true
-    echo "Lumen entfernt."
+    echo "Lumen entfernt. opencode-Integration ggf. mit 'lumen-setup --uninstall' vor dem Entfernen bereinigen."
 }
 
 pre_install() { :; }

@@ -23,7 +23,7 @@ gracefully on other setups.
 | **System watchdog** | systemd timer checks failed units, kernel errors, disk, GPU temp; automatic opencode analysis |
 | **Daily digest / nightly report** | scheduled summaries (`lumen-digest`, `lumen-nightly`) |
 | **MCP server `cachyos`** | read tools `systemctl`, `journal`, `pacman`, `disk`, `gpu`, `memory`, `sensors`, `kwin`, guarded `cmd` — plus **opt-in action tools** (`notify`, `restart_unit`, `media`, `wallpaper`, `screenshot`) behind `LUMEN_MCP_ACTIONS=1` |
-| **opencode commands/skill** | `/sync`, `/sysreport`, `/fix` + `cachyos-admin` skill |
+| **opencode commands/skill** | `/sync`, `/sysreport`, `/fix` + `lumen-admin` skill |
 
 ## Requirements
 
@@ -121,7 +121,7 @@ systemd/                  watchdog user units
 system/                   system daemon, watchdog, notify, dbus policy
 etc/sudoers.d/            optional system-wide sudo cache drop-in
 opencode-command/         /sync, /sysreport, /fix
-opencode-skill/           cachyos-admin skill
+opencode-skill/           lumen-admin skill
 packaging/arch/           PKGBUILD, build-package.sh
 distro/aur/               AUR tree tooling
 distro/cachyos/           local pacman repo tooling

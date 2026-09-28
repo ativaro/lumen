@@ -6,7 +6,7 @@ Actions=lumenOpen;lumenExplain;lumenFix;lumenReview;lumenAsk;
 
 X-KDE-Priority=TopLevel
 X-KDE-Submenu=Lumen
-Icon=opencode
+Icon=lumen
 
 [Desktop Action lumenOpen]
 Name=Mit Lumen öffnen

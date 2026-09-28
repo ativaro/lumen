@@ -4,6 +4,6 @@ Name=Lumen: Auswahl erklären
 Exec=%INSTALL_BIN%/lumen-sel explain
 NoDisplay=true
 StartupNotify=false
-Icon=opencode
+Icon=lumen
 X-KDE-GlobalAccel-CommandShortcut=true
 X-KDE-Shortcuts=Meta+Shift+E

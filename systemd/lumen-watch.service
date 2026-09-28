@@ -3,4 +3,4 @@ Description=opencode system watchdog (check)
 
 [Service]
 Type=oneshot
-ExecStart=%INSTALL_BIN%/opencode-watch
+ExecStart=%INSTALL_BIN%/lumen-watch
