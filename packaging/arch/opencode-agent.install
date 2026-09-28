@@ -7,12 +7,16 @@
 post_install() {
     systemctl enable --now opencode-agentd.service 2>/dev/null || true
     systemctl enable --now opencode-agent-watch.timer 2>/dev/null || true
-    # per-user unit enabled for all users (opt-out via --global disable)
+    # per-user units enabled for all users (opt-out via --global disable)
     systemctl --global enable opencode-agent-notify.path 2>/dev/null || true
+    systemctl --global enable opencode-digest.timer 2>/dev/null || true
+    systemctl --global enable opencode-nightly.timer 2>/dev/null || true
     # activate for the currently running user session, if any
     for d in /run/user/*/; do
         uid=$(basename "$d" 2>/dev/null); [ -z "$uid" ] && continue
         systemctl --machine="${uid}@.host" --user enable --now opencode-agent-notify.path 2>/dev/null || true
+        systemctl --machine="${uid}@.host" --user enable --now opencode-digest.timer 2>/dev/null || true
+        systemctl --machine="${uid}@.host" --user enable --now opencode-nightly.timer 2>/dev/null || true
     done
 
     cat <<'EOF'
@@ -22,17 +26,26 @@ Dienste (standardmäßig AKTIV):
   opencode-agentd.service          - D-Bus org.opencode.Agent (Read-only-Systemstatus)
   opencode-agent-watch.timer       - System-Wächter (alle 15 min)
   opencode-agent-notify.path       - Desktop-Benachrichtigung (per Nutzer)
+  opencode-digest.timer            - Tages-Digest (08:00)
+  opencode-nightly.timer           - Nacht-Report (03:30)
 
 Desktop-Integration unter /usr/share:
   - Anwendung "opencode Agent"
   - Dolphin-ServiceMenu "opencode"
   - KRunner-Runner (Trigger: ai <Frage>)
+  - Plasma-Applet "opencode Agent" (Panel-Widget)
   - Global-Shortcuts: Meta+Shift+O (fragen), Meta+Shift+S (Zwischenablage)
+
+Shell-Helfer (optional einbinden):
+  source /usr/share/opencode-agent/shell/opencode.fish   # fish.config
+  source /usr/share/opencode-agent/shell/opencode.bash   # ~/.bashrc
+  -> why / vix / sel
 
 Abschalten (opt-out):
   sudo systemctl disable --now opencode-agentd.service
   sudo systemctl disable --now opencode-agent-watch.timer
   sudo systemctl --global disable opencode-agent-notify.path
+  sudo systemctl --global disable opencode-digest.timer opencode-nightly.timer
   systemctl --user disable --now opencode-agent-notify.path   # nur diese Sitzung
 
 opencode-Commands/Skill:

@@ -1,7 +1,7 @@
 # Maintainer: opencode-agent
 pkgname=opencode-agent
 pkgver=1.0.0
-pkgrel=5
+pkgrel=6
 pkgdesc="OS integration for opencode: desktop app, watchdog, KRunner, Dolphin menus, MCP"
 arch=('any')
 url="https://github.com/opencode-agent/opencode-agent"
@@ -73,6 +73,8 @@ package() {
     sub "$srcroot/data/applications/opencode-agent.desktop" "$pkgdir/usr/share/applications/opencode-agent.desktop"
     sub "$srcroot/data/applications/opencode-ask.desktop" "$pkgdir/usr/share/applications/opencode-ask.desktop"
     sub "$srcroot/data/applications/opencode-ask-sel.desktop" "$pkgdir/usr/share/applications/opencode-ask-sel.desktop"
+    sub "$srcroot/data/applications/opencode-vision.desktop" "$pkgdir/usr/share/applications/opencode-vision.desktop"
+    sub "$srcroot/data/applications/opencode-sel.desktop" "$pkgdir/usr/share/applications/opencode-sel.desktop"
 
     install -d "$pkgdir/usr/share/kio/servicemenus"
     sub "$srcroot/data/kio-servicemenus/opencode.desktop" "$pkgdir/usr/share/kio/servicemenus/opencode.desktop"
