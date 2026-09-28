@@ -1,0 +1,19 @@
+{
+    "KPlugin": {
+        "Authors": [
+            { "Name": "opencode-agent" }
+        ],
+        "Category": "System Information",
+        "Description": "opencode Agent status and quick actions",
+        "Description[de]": "opencode Agent Status und Schnellaktionen",
+        "Icon": "opencode",
+        "Id": "org.opencode.agent",
+        "License": "MIT",
+        "Name": "opencode Agent",
+        "Name[de]": "opencode Agent",
+        "Version": "1.0.0",
+        "Website": "https://github.com/opencode-agent/opencode-agent"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

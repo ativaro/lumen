@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# opencode-vision — capture a screen region (or whole screen) and let opencode
+# analyse it. Designed for a global shortcut.
+#
+# Usage:
+#   opencode-vision region    # select a region with Spectacle, then analyse
+#   opencode-vision screen    # whole screen, then analyse
+#   opencode-vision clip      # use an image path from the clipboard (file:// URI)
+#
+# Env: OPENCODE_BIN, OPENCODE_TERM, OPENCODE_WORKDIR, OPENCODE_VISION_PROMPT
+
+set -euo pipefail
+
+OPENCODE_BIN="${OPENCODE_BIN:-$(command -v opencode || echo "$HOME/.opencode/bin/opencode")}"
+OPENCODE_TERM="${OPENCODE_TERM:-$(command -v alacritty || command -v konsole || command -v xterm)}"
+OPENCODE_WORKDIR="${OPENCODE_WORKDIR:-$HOME/Documents/work}"
+TERM_BIN="$(command -v "$OPENCODE_TERM" 2>/dev/null || echo "$OPENCODE_TERM")"
+PROMPT="${OPENCODE_VISION_PROMPT:-Beschreibe, was auf dem Bild zu sehen ist. Wenn es ein Fehler, Dialog oder Problem ist: nenne Ursache und konkreten nächsten Schritt. Antworte knapp auf Deutsch.}"
+
+mode="${1:-region}"
+img="$(mktemp /tmp/opencode-vision-XXXXXX).png"
+
+case "$mode" in
+    region)
+        command -v spectacle >/dev/null 2>&1 || { echo "spectacle nicht gefunden" >&2; exit 1; }
+        spectacle -b -n -r -o "$img" || { rm -f "$img"; exit 0; }
+        ;;
+    screen)
+        command -v spectacle >/dev/null 2>&1 || { echo "spectacle nicht gefunden" >&2; exit 1; }
+        spectacle -b -n -o "$img" || { rm -f "$img"; exit 0; }
+        ;;
+    clip)
+        uri=""
+        if command -v wl-paste >/dev/null 2>&1; then
+            uri="$(wl-paste 2>/dev/null || true)"
+        fi
+        uri="${uri#file://}"
+        if [ -f "$uri" ]; then
+            cp "$uri" "$img"
+        else
+            echo "Kein Bildpfad in der Zwischenablage." >&2; exit 1
+        fi
+        ;;
+    *) echo "Unbekannter Modus: $mode" >&2; exit 2 ;;
+esac
+
+[ -s "$img" ] || { echo "Kein Bild aufgenommen." >&2; exit 1; }
+
+export OPENCODE_PROMPT="$PROMPT"
+export OPENCODE_IMG="$img"
+
+# NOTE: the message must come BEFORE -f <file> on the opencode CLI.
+case "$(basename "$TERM_BIN")" in
+    alacritty) exec "$TERM_BIN" --working-directory "$OPENCODE_WORKDIR" -T "opencode: vision" \
+        -e bash -lc '"$OPENCODE_BIN" run "$OPENCODE_PROMPT" -f "$OPENCODE_IMG"; printf "\n--- Fertig. Enter zum Schließen. ---\n"; read -r _' ;;
+    konsole)   exec "$TERM_BIN" --workdir "$OPENCODE_WORKDIR" -p tabtitle="opencode: vision" \
+        -e bash -lc '"$OPENCODE_BIN" run "$OPENCODE_PROMPT" -f "$OPENCODE_IMG"; printf "\n--- Fertig. Enter zum Schließen. ---\n"; read -r _' ;;
+    *)         exec "$TERM_BIN" -e bash -lc "cd '$OPENCODE_WORKDIR' && \"\$OPENCODE_BIN\" run \"\$OPENCODE_PROMPT\" -f \"\$OPENCODE_IMG\"; printf '\n--- Fertig. Enter zum Schließen. ---\n'; read -r _" ;;
+esac

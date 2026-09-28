@@ -17,8 +17,12 @@ import subprocess
 import sys
 
 SERVER_NAME = "cachyos-mcp"
-SERVER_VERSION = "0.1.0"
+SERVER_VERSION = "0.2.0"
 PROTOCOL_VERSION = "2024-11-05"
+
+# Writing actions (restart units, media control, notifications, …) are OFF by
+# default. Enable explicitly with OPENCODE_MCP_ACTIONS=1.
+ACTIONS_ENABLED = os.environ.get("OPENCODE_MCP_ACTIONS", "0") == "1"
 
 # ---- helpers ---------------------------------------------------------------
 
@@ -169,6 +173,101 @@ def tool_cmd(args):
     return ok(fmt(res))
 
 
+def tool_notify(args):
+    """Send a desktop notification (action tool)."""
+    summary = args.get("summary", "opencode")
+    body = args.get("body", "")
+    urgency = args.get("urgency", "normal")
+    if urgency not in ("low", "normal", "critical"):
+        urgency = "normal"
+    cmd = ["notify-send", "-a", "opencode", "-u", urgency, summary, body]
+    return ok(fmt(run(cmd)))
+
+
+def tool_restart_unit(args):
+    """Restart a systemd unit (action tool). Only units that are safe/common
+    are permitted; never dbus/systemd-logind/display-manager."""
+    unit = args.get("unit", "")
+    scope = args.get("scope", "user")
+    if not unit:
+        return ok("Kein 'unit' angegeben.")
+    # allowlist by simple suffix/pattern; refuse core services
+    forbidden = ("dbus", "dbus-broker", "systemd", "display-manager", "plasmalogin",
+                 "sddm", "gdm", "lightdm", "graphical.target")
+    low = unit.lower()
+    if any(f in low for f in forbidden):
+        return ok(f"Unit '{unit}' ist gesperrt (kritischer Dienst).")
+    if not (low.endswith(".service") or low.endswith(".timer") or low.endswith(".socket") or low.endswith(".path")):
+        return ok("Nur Unit-Namen mit Endung .service/.timer/.socket/.path erlaubt.")
+    cmd = ["systemctl"]
+    if scope == "user":
+        cmd.append("--user")
+    cmd += ["restart", unit]
+    return ok(fmt(run(cmd)))
+
+
+def tool_media(args):
+    """Control media playback via the MPRIS D-Bus interface (action tool)."""
+    action = args.get("action", "")
+    players = {
+        "playpause": "PlayPause",
+        "next": "Next",
+        "previous": "Previous",
+        "stop": "Stop",
+        "play": "Play",
+        "pause": "Pause",
+    }
+    if action not in players:
+        return ok(f"Ungültige Aktion. Erlaubt: {sorted(players)}")
+    # talk to the first available player
+    services = run(["bash", "-lc",
+        "qdbus6 | grep -oE 'org\\.mpris\\.MediaPlayer\\.[A-Za-z0-9._]+' | head -1"]).get("stdout", "")
+    if not services:
+        return ok("Kein MPRIS-Player aktiv.")
+    svc = services.splitlines()[0].strip()
+    res = run(["qdbus6", svc, "/org/mpris/MediaPlayer2",
+               "org.mpris.MediaPlayer2.Player." + players[action]])
+    return ok(fmt(res))
+
+
+def tool_wallpaper(args):
+    """Set the Plasma wallpaper (action tool)."""
+    path = args.get("path", "")
+    if not path or not (path.startswith("/") or path.startswith("file://")):
+        return ok("Bitte absoluten Pfad (oder file://-URL) angeben.")
+    url = path if path.startswith("file://") else "file://" + path
+    script = (
+        "var ds = desktops();"
+        "for (var i=0;i<ds.length;i++){"
+        f"ds[i].wallpaperPlugin='org.kde.image';"
+        f"ds[i].currentConfigGroup=['Wallpaper','org.kde.image','General'];"
+        f"ds[i].writeConfig('Image','{url}');"
+        "}"
+    )
+    res = run(["qdbus6", "org.kde.plasmashell", "/PlasmaShell",
+               "org.kde.PlasmaShell.evaluateScript", script])
+    return ok(fmt(res) or "Wallpaper gesetzt.")
+
+
+def tool_screenshot(args):
+    """Take a screenshot to a file (action tool)."""
+    path = args.get("path", "/tmp/opencode-screenshot.png")
+    if not path.startswith("/"):
+        return ok("Bitte absoluten Zielpfad angeben.")
+    res = run(["spectacle", "-b", "-n", "-o", path], timeout=30)
+    if res["rc"] == 0:
+        return ok(f"Screenshot gespeichert: {path}")
+    return ok(fmt(res))
+
+
+def tool_window(args):
+    """List or activate windows via KWin (action tool)."""
+    action = args.get("action", "list")
+    if action == "list":
+        return tool_kwin({"dummy": ""})  # not ideal; fall through below
+    return ok("Nur action=list unterstützt.")
+
+
 TOOLS = {
     "systemctl": {
         "fn": tool_systemctl,
@@ -241,6 +340,67 @@ TOOLS = {
         },
     },
 }
+
+# ---- action tools (opt-in) -------------------------------------------------
+# Registered only when OPENCODE_MCP_ACTIONS=1. These perform state changes.
+ACTION_TOOLS = {
+    "notify": {
+        "fn": tool_notify,
+        "desc": "Desktop-Benachrichtigung senden (Aktion).",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "summary": {"type": "string"},
+                "body": {"type": "string"},
+                "urgency": {"type": "string", "enum": ["low", "normal", "critical"]},
+            },
+            "required": ["summary"],
+        },
+    },
+    "restart_unit": {
+        "fn": tool_restart_unit,
+        "desc": "systemd-Unit neu starten (Aktion; kritische Dienste gesperrt).",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "unit": {"type": "string"},
+                "scope": {"type": "string", "enum": ["system", "user"]},
+            },
+            "required": ["unit"],
+        },
+    },
+    "media": {
+        "fn": tool_media,
+        "desc": "Medienwiedergabe steuern (playpause/next/previous/stop/play/pause).",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "enum": ["playpause", "next", "previous", "stop", "play", "pause"]}
+            },
+            "required": ["action"],
+        },
+    },
+    "wallpaper": {
+        "fn": tool_wallpaper,
+        "desc": "Plasma-Hintergrundbild setzen (Aktion).",
+        "schema": {
+            "type": "object",
+            "properties": {"path": {"type": "string"}},
+            "required": ["path"],
+        },
+    },
+    "screenshot": {
+        "fn": tool_screenshot,
+        "desc": "Screenshot in eine Datei speichern (Aktion).",
+        "schema": {
+            "type": "object",
+            "properties": {"path": {"type": "string"}},
+        },
+    },
+}
+
+if ACTIONS_ENABLED:
+    TOOLS.update(ACTION_TOOLS)
 
 
 # ---- JSON-RPC / MCP plumbing ----------------------------------------------

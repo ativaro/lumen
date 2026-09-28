@@ -1,7 +1,7 @@
 # Maintainer: opencode-agent
 pkgname=opencode-agent
 pkgver=1.0.0
-pkgrel=4
+pkgrel=5
 pkgdesc="OS integration for opencode: desktop app, watchdog, KRunner, Dolphin menus, MCP"
 arch=('any')
 url="https://github.com/opencode-agent/opencode-agent"
@@ -16,8 +16,9 @@ optdepends=(
     'konsole: terminal alternative'
     'kdialog: input dialogs'
     'zenity: input dialogs (GTK fallback)'
-    'wl-clipboard: clipboard quick action (Wayland)'
-    'libnotify: watchdog notifications'
+    'wl-clipboard: clipboard quick action and selection input (Wayland)'
+    'libnotify: watchdog/digest notifications'
+    'spectacle: screenshot → vision (opencode-vision)'
     'nvidia-utils: GPU metrics'
     'python-dbus: KRunner runner'
     'python-gobject: KRunner runner'
@@ -94,6 +95,24 @@ package() {
     install -d "$pkgdir/usr/lib/systemd/user"
     install -m0644 "$srcroot/system/systemd/user/opencode-agent-notify.service" "$pkgdir/usr/lib/systemd/user/"
     install -m0644 "$srcroot/system/systemd/user/opencode-agent-notify.path" "$pkgdir/usr/lib/systemd/user/"
+    install -m0644 "$srcroot/system/systemd/user/opencode-digest.service" "$pkgdir/usr/lib/systemd/user/"
+    install -m0644 "$srcroot/system/systemd/user/opencode-digest.timer" "$pkgdir/usr/lib/systemd/user/"
+    install -m0644 "$srcroot/system/systemd/user/opencode-nightly.service" "$pkgdir/usr/lib/systemd/user/"
+    install -m0644 "$srcroot/system/systemd/user/opencode-nightly.timer" "$pkgdir/usr/lib/systemd/user/"
+    # substitute %INSTALL_BIN% in the user unit templates we just copied
+    for u in opencode-digest.service opencode-nightly.service; do
+        sub "$srcroot/system/systemd/user/$u" "$pkgdir/usr/lib/systemd/user/$u"
+    done
+
+    # ---- shell integration ------------------------------------------------
+    install -d "$pkgdir/usr/share/opencode-agent/shell"
+    install -m0644 "$srcroot/shell/opencode.bash" "$pkgdir/usr/share/opencode-agent/shell/"
+    install -m0644 "$srcroot/shell/opencode.fish" "$pkgdir/usr/share/opencode-agent/shell/"
+
+    # ---- Plasma applet (plasmoid) -----------------------------------------
+    install -d "$pkgdir/usr/share/plasma/plasmoids/org.opencode.agent/contents/ui"
+    install -m0644 "$srcroot/plasmoid/metadata.json" "$pkgdir/usr/share/plasma/plasmoids/org.opencode.agent/"
+    install -m0644 "$srcroot/plasmoid/contents/ui/main.qml" "$pkgdir/usr/share/plasma/plasmoids/org.opencode.agent/contents/ui/"
 
     # ---- system D-Bus policy + activation ---------------------------------
     install -d "$pkgdir/usr/share/dbus-1/system.d"

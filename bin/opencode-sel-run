@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# opencode-sel-run — internal helper: run opencode on $OPENCODE_TEXT, optionally
+# copy the answer back to the clipboard. Invoked by opencode-sel in a terminal.
+#
+# Expects: OPENCODE_PROMPT, OPENCODE_TEXT, OPENCODE_COPY_BACK, OPENCODE_BIN.
+
+set -uo pipefail
+
+OPENCODE_BIN="${OPENCODE_BIN:-$(command -v opencode || echo "$HOME/.opencode/bin/opencode")}"
+out="/tmp/opencode-sel-out.txt"
+
+env -u OPENCODE -u OPENCODE_PID "$OPENCODE_BIN" run "${OPENCODE_PROMPT}
+
+---
+${OPENCODE_TEXT}" | tee "$out"
+
+if [ "${OPENCODE_COPY_BACK:-0}" = "1" ] && command -v wl-copy >/dev/null 2>&1; then
+    # drop the leading CLI banner: keep everything after the first blank line
+    awk 'f{print} /^$/{f=1}' "$out" | wl-copy 2>/dev/null || wl-copy < "$out"
+    echo "(Antwort in die Zwischenablage kopiert)"
+fi
+
+printf '\n--- Fertig. Enter zum Schließen. ---\n'
+read -r _
