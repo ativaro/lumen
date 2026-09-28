@@ -28,6 +28,12 @@ optdepends=(
     'python-gobject: KRunner runner'
     'dolphin: service menu integration'
     'plasma-workspace: KRunner integration'
+    'python-pyqt5: Lumen Files (file manager)'
+    'python-gobject: Lumen Files (GIO file operations)'
+    'poppler: Lumen Files PDF preview (pdfinfo, pdftoppm)'
+    'ffmpeg: Lumen Files video/audio preview (ffprobe, ffmpeg)'
+    'kio-fuse: Lumen Files network folders (SMB/SFTP/WebDAV/NFS)'
+    'kio-extras: Lumen Files network protocols'
 )
 backup=()
 install="lumen.install"
@@ -91,6 +97,7 @@ package() {
     sub "$srcroot/data/applications/lumen-ask-sel.desktop" "$pkgdir/usr/share/applications/lumen-ask-sel.desktop"
     sub "$srcroot/data/applications/lumen-vision.desktop" "$pkgdir/usr/share/applications/lumen-vision.desktop"
     sub "$srcroot/data/applications/lumen-sel.desktop" "$pkgdir/usr/share/applications/lumen-sel.desktop"
+    sub "$srcroot/data/applications/lumen-files.desktop" "$pkgdir/usr/share/applications/lumen-files.desktop"
 
     install -d "$pkgdir/usr/share/kio/servicemenus"
     sub "$srcroot/data/kio-servicemenus/lumen.desktop" "$pkgdir/usr/share/kio/servicemenus/lumen.desktop"
@@ -127,6 +134,13 @@ package() {
     install -m0644 "$srcroot/shell/lumen.bash" "$pkgdir/usr/share/opencode-lumen/shell/"
     install -m0644 "$srcroot/shell/lumen.fish" "$pkgdir/usr/share/opencode-lumen/shell/"
 
+    # ---- Lumen Files (file manager) ---------------------------------------
+    install -d "$pkgdir/usr/share/opencode-lumen/files"
+    install -m0644 "$srcroot/files/"*.py "$pkgdir/usr/share/opencode-lumen/files/"
+    install -m0644 "$srcroot/files/style.qss" "$pkgdir/usr/share/opencode-lumen/files/"
+    install -m0644 "$srcroot/files/lumen-files.svg" "$pkgdir/usr/share/opencode-lumen/files/"
+    install -m0755 "$srcroot/bin/lumen-files" "$pkgdir/usr/bin/lumen-files"
+
     # ---- Plasma applet (plasmoid) -----------------------------------------
     install -d "$pkgdir/usr/share/plasma/plasmoids/org.lumen.agent/contents/ui"
     install -m0644 "$srcroot/plasmoid/metadata.json" "$pkgdir/usr/share/plasma/plasmoids/org.lumen.agent/"
@@ -147,6 +161,7 @@ package() {
     # ---- icons ------------------------------------------------------------
     install -d "$pkgdir/usr/share/icons/hicolor/scalable/apps"
     install -m0644 "$srcroot/icons/hicolor/scalable/apps/lumen.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/lumen.svg"
+    install -m0644 "$srcroot/icons/hicolor/scalable/apps/lumen-files.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/lumen-files.svg"
 
     # ---- state directory (owned by root, world-readable findings) ---------
     install -d -m0755 "$pkgdir/var/lib/opencode-lumen"

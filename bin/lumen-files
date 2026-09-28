@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Launch the Lumen Files file manager (PyQt5).
+# Works from a source checkout and from a system install (/usr/bin).
+set -euo pipefail
+
+SELF="$(readlink -f "$0")"
+SELF_DIR="$(dirname "$SELF")"
+
+CANDIDATES=(
+    "$SELF_DIR/../files/app.py"
+    "$SELF_DIR/../share/opencode-lumen/files/app.py"
+    "/usr/share/opencode-lumen/files/app.py"
+)
+
+APP=""
+for c in "${CANDIDATES[@]}"; do
+    if [ -f "$c" ]; then APP="$(readlink -f "$c")"; break; fi
+done
+
+if [ -z "$APP" ]; then
+    echo "lumen-files: app.py nicht gefunden (gesucht: ${CANDIDATES[*]})" >&2
+    exit 1
+fi
+
+PY="$(command -v python3)"
+exec "$PY" "$APP" "$@"
