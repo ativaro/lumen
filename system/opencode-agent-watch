@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# opencode-agent-watch-system — system-wide watchdog checks (runs as root).
+#
+# Writes findings to /var/lib/opencode-agent/findings.md when a problem is
+# detected. A per-user path/service unit picks that up and notifies the desktop
+# (and optionally runs an opencode analysis in the user's context).
+#
+# Runs from the system timer opencode-agent-watch.timer.
+# Set OPENCODE_WATCH_ANALYZE=0 in the user notifier to skip analysis.
+
+set -uo pipefail
+
+STATE_DIR="/var/lib/opencode-agent"
+FINDINGS="$STATE_DIR/findings.md"
+HEARTBEAT="$STATE_DIR/heartbeat"
+mkdir -p "$STATE_DIR"
+
+NOW="$(date +%s)"
+problems=()
+detail=""
+
+# 1) failed system units
+failed_sys=$(systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $1}' | grep -v '^$' | head -20)
+if [ -n "$failed_sys" ]; then
+    problems+=("System-Units fehlgeschlagen")
+    detail+="Fehlgeschlagene System-Units:\n$(echo "$failed_sys" | sed 's/^/  - /')\n\n"
+fi
+
+# 2) root filesystem almost full (>90%)
+rootpct=$(df --output=pcent / 2>/dev/null | tail -1 | tr -dc '0-9')
+if [ -n "${rootpct:-}" ] && [ "$rootpct" -ge 90 ]; then
+    problems+=("Root fast voll (${rootpct}%)")
+    detail+="Root-Dateisystem zu ${rootpct}% belegt.\n\n"
+fi
+
+# 3) kernel errors in recent journal
+oops=$(journalctl -k -p err --since "15 min ago" --no-pager 2>/dev/null | tail -5)
+if [ -n "$oops" ]; then
+    problems+=("Kernel-Fehler kürzlich")
+    detail+="Kernel-Log (err, letzte 15 min):\n$oops\n\n"
+fi
+
+# 4) GPU temperature high (>=85C)
+if command -v nvidia-smi >/dev/null 2>&1; then
+    gt=$(nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -dc '0-9')
+    if [ -n "${gt:-}" ] && [ "$gt" -ge 85 ]; then
+        problems+=("GPU heiß (${gt}°C)")
+        detail+="GPU meldet ${gt}°C.\n\n"
+    fi
+fi
+
+# 5) failed user units of logged-in users (best effort)
+for d in /run/user/*/; do
+    uid=$(basename "$d" 2>/dev/null); [ -z "$uid" ] && continue
+    u=$(systemctl --machine="${uid}@.host" --user --failed --no-legend --plain 2>/dev/null | awk '{print $1}' | grep -vE '^app-' | head -10)
+    [ -n "$u" ] && { problems+=("User-Units fehlgeschlagen (uid $uid)"); detail+="uid $uid:\n$(echo "$u" | sed 's/^/  - /')\n\n"; }
+done
+
+DATE="$(date)"
+if [ ${#problems[@]} -eq 0 ]; then
+    # clear any stale findings, refresh heartbeat
+    rm -f "$FINDINGS"
+    echo "$NOW" > "$HEARTBEAT"
+    exit 0
+fi
+
+signature="$(printf '%s\n' "${problems[@]}" | md5sum | awk '{print $1}')"
+body="$(printf '%s; ' "${problems[@]}")"
+body="${body%; }"
+
+{
+    echo "# Systemwarnung — $DATE"
+    echo
+    echo "**Befund:** $body"
+    echo
+    printf '%b' "$detail"
+} > "$FINDINGS.tmp"
+mv "$FINDINGS.tmp" "$FINDINGS"
+chmod 0644 "$FINDINGS"
+echo "$NOW $signature" > "$HEARTBEAT"
+
+# also log to journal (visible via journalctl -u opencode-agent-watch)
+logger -t opencode-agent-watch "Systemwarnung: $body"

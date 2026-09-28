@@ -1,0 +1,58 @@
+# opencode-agent.install — pacman install scriptlet
+#
+# Deliberately conservative: the package does NOT auto-enable services during
+# install. Starting/stopping D-Bus-sensitive or session-affecting services in a
+# package scriptlet can disrupt a running desktop session. The user (or an
+# admin) enables what they want. See the printed hint.
+
+post_install() {
+    cat <<'EOF'
+opencode Agent installiert (Dateien systemweit unter /usr).
+
+Verfügbare Dienste (NICHT automatisch aktiviert):
+  systemctl enable --now opencode-agentd.service        # D-Bus: org.opencode.Agent
+  systemctl enable --now opencode-agent-watch.timer     # System-Wächter (15 min)
+  systemctl --user enable --now opencode-agent-notify.path  # Desktop-Benachrichtigung
+
+Desktop-Integration liegt unter /usr/share:
+  - Anwendung "opencode Agent"
+  - Dolphin-ServiceMenu "opencode"
+  - KRunner-Runner (Trigger: ai <Frage>)
+  - Global-Shortcuts: Meta+Shift+O (fragen), Meta+Shift+S (Zwischenablage)
+
+opencode-Commands/Skill:
+  /usr/share/opencode-agent/opencode-command/
+  /usr/share/opencode-agent/opencode-skill/
+
+Nächste Schritte:
+  1. opencode neu starten, damit Commands/Skill greifen.
+  2. KRunner ggf. neu laden:  kquitapp6 krunner
+EOF
+}
+
+post_upgrade() {
+    cat <<'EOF'
+opencode Agent aktualisiert.
+
+Hinweis: Bereits laufende Dienste müssen ggf. neu gestartet werden, damit sie
+die neuen Dateien verwenden:
+  systemctl restart opencode-agentd.service      # falls aktiv
+  systemctl --user try-restart opencode-agent-notify.path
+Kein D-Bus-Neustart nötig – Policy-Änderungen werden automatisch geladen.
+EOF
+}
+
+pre_remove() {
+    # Stop/disable only what is actually enabled; never touch dbus itself.
+    systemctl disable --now opencode-agent-watch.timer 2>/dev/null || true
+    systemctl disable --now opencode-agentd.service 2>/dev/null || true
+    systemctl --user disable --now opencode-agent-notify.path 2>/dev/null || true
+}
+
+post_remove() {
+    rm -rf /var/lib/opencode-agent 2>/dev/null || true
+    echo "opencode Agent entfernt."
+}
+
+pre_install() { :; }
+pre_upgrade() { :; }

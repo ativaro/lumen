@@ -1,0 +1,8 @@
+[Unit]
+Description=Watch for opencode Agent system findings
+
+[Path]
+PathModified=/var/lib/opencode-agent/findings.md
+
+[Install]
+WantedBy=default.target

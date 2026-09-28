@@ -1,0 +1,6 @@
+[Unit]
+Description=opencode Agent notification bridge (per user)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/opencode-agent-notify
