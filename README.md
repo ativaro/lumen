@@ -1,8 +1,9 @@
 # Lumen — OS integration for Linux desktops
 
-Turn [opencode](https://opencode.ai) into an **agentic-OS layer**: a native desktop
-app, Dolphin context menus, global hotkeys, a KRunner runner, a system watchdog and
-an MCP server that exposes your machine to the agent.
+Lumen is a native desktop assistant with a shared conversation panel in Lumen Files.
+[OpenCode](https://opencode.ai) runs as its background engine. Desktop actions,
+file context menus, hotkeys, image analysis and KRunner all open Lumen directly.
+System monitoring and MCP tools provide local machine context.
 
 Built for **KDE Plasma 6 on Wayland** (CachyOS/Arch), but written to degrade
 gracefully on other setups.
@@ -11,16 +12,16 @@ gracefully on other setups.
 
 | Component | What it does |
 |---|---|
-| **Desktop app** (`Lumen`) | Kirigami/QML GUI: streaming chat, system dashboard (CPU/RAM/GPU/disk), quick actions — **no PyQt needed** |
+| **Desktop app** (`Lumen`) | Native PyQt5 chat, conversation history, cancellation, permission/question forms, system dashboard and quick actions |
 | **Dolphin service menu** | Right-click a file/folder → *open / explain / fix / review / ask* |
 | **Global shortcuts** | `Meta+Shift+O` ask · `Meta+Shift+S` explain clipboard · `Meta+Shift+V` vision · `Meta+Shift+E` explain selection |
 | **Vision** | capture a screen region → opencode analyses the image (`lumen-vision`) |
 | **Selection actions** | explain / translate / fix / summarize selected or copied text (`lumen-sel`) |
-| **Shell integration** | `why` (explain last failed command), `vix`, `sel` — bash & fish (`shell/opencode.{bash,fish}`) |
+| **Shell integration** | `why` (explain last failed command), `vix`, `sel` — bash & fish (`shell/lumen.{bash,fish}`) |
 | **Git** | `lumen-gitmsg` drafts a Conventional-Commit message from the diff |
-| **KRunner runner** | Type `ai <question>` or `oc <question>` in KRunner |
+| **KRunner runner** | Type `lumen <question>`, `ai <question>` or `oc <question>` in KRunner |
 | **Plasma applet** | panel widget with agent status + quick actions (`org.lumen.agent`) |
-| **Lumen Files** | bundled file manager: fast recursive name search, previews (image/PDF/video/audio), tabs, gallery, KIO network folders |
+| **Lumen Files** | bundled file manager: fast recursive name search, previews (image/PDF/video/audio), tabs, gallery, disk analysis, KIO network folders, integrated Lumen panel |
 | **System watchdog** | systemd timer checks failed units, kernel errors, disk, GPU temp; automatic opencode analysis |
 | **Daily digest / nightly report** | scheduled summaries (`lumen-digest`, `lumen-nightly`) |
 | **MCP server `cachyos`** | read tools `systemctl`, `journal`, `pacman`, `disk`, `gpu`, `memory`, `sensors`, `kwin`, guarded `cmd` — plus **opt-in action tools** (`notify`, `restart_unit`, `media`, `wallpaper`, `screenshot`) behind `LUMEN_MCP_ACTIONS=1` |
@@ -28,14 +29,9 @@ gracefully on other setups.
 
 ## Requirements
 
-**Required:** `bash`, `python3`, a working [opencode](https://opencode.ai) install.
+**Required:** `bash`, Python 3, PyQt5, PyGObject/GIO, Pillow and a working [OpenCode](https://opencode.ai) installation with the server API.
 
 **Optional** (individual features need these):
-- `qml6` + `kirigami` / `kirigami-addons` — desktop app
-- `jq` — faster streaming in the app bridge
-- `alacritty` or `konsole` — terminal used for prompts
-- `kdialog` or `zenity` — input dialogs
-- `wl-clipboard` — clipboard quick action
 - `notify-send` (libnotify) — watchdog notifications
 - `nvidia-smi` — GPU metrics
 - KDE Plasma 6 + Dolphin + KRunner — for the KDE integrations
@@ -83,15 +79,6 @@ After installing (either way):
 3. Reload KRunner if the `ai …` trigger is missing: `kquitapp6 krunner`
 4. Launch the app from the menu (**Lumen**) or run `lumen-agent-app`.
 
-## Requirements
-
-- **Required:** `bash`, `python3`, and [opencode](https://opencode.ai)
-  (package `opencode` on Arch/CachyOS).
-- **For the full experience (optdepends):** `qt6-declarative`, `kirigami`,
-  `kirigami-addons` (app), `jq`, a terminal (`alacritty`/`konsole`),
-  `kdialog`/`zenity`, `wl-clipboard`, `libnotify`, `spectacle`,
-  `python-dbus`/`python-gobject` (KRunner), `dolphin`, `plasma-workspace`.
-
 ## Configuration
 
 All scripts read these environment variables:
@@ -99,7 +86,6 @@ All scripts read these environment variables:
 | Variable | Default | Purpose |
 |---|---|---|
 | `LUMEN_OPENCODE_BIN` | `opencode` in `$PATH`, else `~/.opencode/bin/opencode` | opencode binary |
-| `LUMEN_TERM` | `alacritty`, `konsole` or `xterm` | terminal emulator |
 | `LUMEN_WORKDIR` | `~/Documents/work` | default working directory |
 | `LUMEN_STATE` | `~/.cache/opencode-lumen` | state/report/cache dir |
 | `LUMEN_WATCH_ANALYZE` | `1` | `0` disables the automatic watchdog analysis |
@@ -146,7 +132,7 @@ askpass (`ksshaskpass`/GNOME/OpenSSH) in `/etc/sudo.conf` if none is set.
 
 ```
 bin/                      helper scripts + GUI backend (installed to PREFIX/bin)
-agent-app/ui/             Kirigami/QML desktop app
+agent-app/main.py         Native standalone Lumen window
 plasmoid/                 Plasma panel applet (org.lumen.agent)
 files/                    Lumen Files file manager (PyQt5)
 shell/                    bash + fish integration (why/vix/sel)
@@ -166,10 +152,21 @@ install-system.sh         optional root-only tweaks
 
 ## Notes
 
-- The desktop app keeps its **own** opencode session (separate from your terminal
-  sessions) so chats don't collide.
-- Nothing here modifies system files; everything is per-user. The only privileged
-  action you might take is installing optional packages.
+- Each window owns a password-protected OpenCode server on a random loopback port.
+  Lumen conversations are tagged and listed for the selected working directory;
+  existing terminal conversations are never continued implicitly.
+- The existing OpenCode configuration, provider login, instructions and MCP tools
+  remain in effect. Lumen does not rewrite that configuration.
+- Permission requests offer Allow once / Reject; questions use native forms.
+  The composer offers task mode or read-only analysis mode. Closing an active
+  conversation asks before stopping it. Images/PDFs selected as context are sent
+  as attachments; other paths are supplied as text context.
+- The shared panel uses the existing PyQt5 runtime. QML, terminal launchers and
+  the temporary text-file bridge are no longer used for conversations.
+- `lumen-sel translate|fix|summarize` copies successful answers back to the clipboard.
+  Every answer can also be copied from the panel.
+- Per-user installation writes under the user home. The pacman package installs
+  under `/usr` and keeps the existing system services on upgrade.
 - Tested on KDE Plasma 6.7 on Wayland with `nvidia-open`.
 
 ## License
@@ -214,3 +211,17 @@ re-enable it.
 
 > Note: never `systemctl restart dbus` to apply a policy change — the bus
 > reloads policies itself and a restart tears down the running desktop session.
+
+## Native UI checks
+
+```bash
+QT_QPA_PLATFORM=offscreen /usr/bin/python3 -m unittest discover -s files -v
+./bin/lumen-agent-app
+./bin/lumen-files
+```
+
+`files/test_assistant.py` exercises streaming messages, permission isolation,
+question forms, cancellation and authenticated API requests against a local fake
+server. Existing file/gallery/network tests run alongside it. The implementation
+uses the [OpenCode server API](https://opencode.ai/docs/server/); see
+[NATIVE-LUMEN.md](NATIVE-LUMEN.md) for the scope and runtime checks.

@@ -22,5 +22,4 @@ if [ -z "$APP" ]; then
     exit 1
 fi
 
-PY="$(command -v python3)"
-exec "$PY" "$APP" "$@"
+exec /usr/bin/python3 "$APP" "$@"

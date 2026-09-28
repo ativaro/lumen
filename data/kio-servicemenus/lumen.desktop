@@ -10,7 +10,7 @@ Icon=lumen
 
 [Desktop Action lumenOpen]
 Name=Mit Lumen öffnen
-Icon=utilities-terminal
+Icon=lumen
 Exec=%INSTALL_BIN%/lumen-context open %F
 
 [Desktop Action lumenExplain]

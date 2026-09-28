@@ -25,7 +25,7 @@ PlasmoidItem {
             id: icon
             anchors.fill: parent
             anchors.margins: 2
-            source: "opencode"
+            source: "lumen"
         }
         Rectangle {
             visible: root.failedUnits > 0
@@ -66,7 +66,7 @@ PlasmoidItem {
                 Layout.fillWidth: true
                 spacing: Kirigami.Units.smallSpacing
                 ActionButton { label: "App öffnen"; onActivated: root.run("lumen-agent-app") }
-                ActionButton { label: "Systembericht"; onActivated: root.run("alacritty -e lumen-watch") }
+                ActionButton { label: "Systembericht"; onActivated: root.run("lumen-agent-app --page system") }
                 Item { Layout.fillWidth: true }
             }
         }

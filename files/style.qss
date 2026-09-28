@@ -60,3 +60,10 @@ QMenu::item { padding: 9px 24px; border-radius: 4px; }
 QMenu::item:selected { background: #36575a; }
 QMenu::separator { height: 1px; background: #405065; margin: 5px; }
 QToolTip { background: #2b3949; color: #f1f5fa; border: 1px solid #607687; padding: 5px; }
+
+QTextBrowser { background: #18212d; border: 1px solid #304052; border-radius: 8px; padding: 16px; font-size: 14px; selection-background-color: #365d63; }
+QComboBox { background: #222d3b; border: 1px solid #354252; border-radius: 6px; padding: 8px; }
+QComboBox QAbstractItemView { background: #222d3b; selection-background-color: #365d63; }
+QPushButton#primary { background: #315c55; color: #e0fff5; border-color: #629b8c; }
+QLabel#error { color: #ffb6a8; }
+QDockWidget { color: #c3f0e4; }

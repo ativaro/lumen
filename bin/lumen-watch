@@ -5,7 +5,7 @@
 #   1. sends a desktop notification,
 #   2. runs a short opencode analysis automatically (default ON),
 #   3. shows the analysis as a second notification and stores a full report,
-#   4. offers an "Öffnen" action to open the report in a terminal.
+#   4. offers an "Öffnen" action to open the report in Lumen.
 #
 # Runs from a systemd user timer (lumen-watch.timer).
 # State in ~/.cache/opencode-lumen/ to avoid repeat spam (30 min per signature).
@@ -14,19 +14,16 @@
 #   LUMEN_WATCH_ANALYZE=0   disable the automatic opencode analysis
 #   LUMEN_WATCH_MODEL=...   override the model used for analysis
 #   LUMEN_OPENCODE_BIN               path to the opencode binary
-#   LUMEN_TERM              terminal emulator for reports
 
 set -uo pipefail
 
 LUMEN_OPENCODE_BIN="${LUMEN_OPENCODE_BIN:-$(command -v opencode || echo "$HOME/.opencode/bin/opencode")}"
-LUMEN_TERM="${LUMEN_TERM:-$(command -v alacritty || command -v konsole || command -v xterm)}"
-TERM_BIN="$(command -v "$LUMEN_TERM" 2>/dev/null || echo "$LUMEN_TERM")"
 
 CACHE="${LUMEN_STATE:-$HOME/.cache/opencode-lumen}"
 mkdir -p "$CACHE"
 STATE="$CACHE/watch-last"
 NOW="$(date +%s)"
-NOTIFY=(notify-send -a opencode -i opencode)
+NOTIFY=(notify-send -a Lumen -i lumen)
 
 problems=()
 detail=""
@@ -109,7 +106,7 @@ $(printf '%b' "$detail")"
 
     if [ -n "$analysis" ]; then
         {
-            echo "# opencode Analyse — $(date)"
+            echo "# Lumen Analyse — $(date)"
             echo
             echo "**Befund:** $body"
             echo
@@ -123,12 +120,11 @@ $(printf '%b' "$detail")"
 
         short=$(printf '%s' "$analysis" | head -c 600)
         chosen=$("${NOTIFY[@]}" -u critical --icon=dialog-warning \
-            -A "open=bash -c '$TERM_BIN -e less \"$report\"'" \
+        -A "open=In Lumen öffnen" \
             "⚠ Systemproblem (${#problems[@]})" "$short" 2>/dev/null || true)
 
-        if [ "$chosen" = "open" ] && command -v "$TERM_BIN" >/dev/null 2>&1; then
-            setsid "$TERM_BIN" -T "opencode: Systemanalyse" \
-                -e bash -lc "less -R \"$report\"" >/dev/null 2>&1 &
+        if [ "$chosen" = "open" ]; then
+            setsid "$(dirname "$(readlink -f "$0")")/lumen-agent-app" --page system >/dev/null 2>&1 &
         fi
     else
         "${NOTIFY[@]}" -u critical "⚠ Systemproblem (${#problems[@]})" "$body" 2>/dev/null || true

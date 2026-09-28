@@ -1,35 +1,23 @@
 # Maintainer: Lumen
 pkgname=opencode-lumen
 pkgver=1.0.0
-pkgrel=8
+pkgrel=9
 pkgdesc="Lumen — OS integration for opencode: desktop app, watchdog, KRunner, Dolphin menus, MCP"
 arch=('any')
 url="https://github.com/opencode-lumen/opencode-lumen"
 license=('MIT')
-depends=('bash' 'python3')
+depends=('bash' 'python3' 'python-pyqt5' 'python-gobject' 'python-pillow')
 makedepends=()
 # The agent itself is required at runtime. It is in the official repos on
 # Arch/CachyOS as 'opencode'; on other setups install it separately.
 depends+=('opencode')
 optdepends=(
-    'qt6-declarative: desktop app (qml6)'
-    'kirigami: desktop app UI'
-    'kirigami-addons: desktop app UI'
-    'jq: faster streaming in the app bridge'
-    'alacritty: terminal for prompts and reports'
-    'konsole: terminal alternative'
-    'kdialog: input dialogs'
-    'zenity: input dialogs (GTK fallback)'
-    'wl-clipboard: clipboard quick action and selection input (Wayland)'
     'libnotify: watchdog/digest notifications'
     'spectacle: screenshot → vision (lumen-vision)'
     'nvidia-utils: GPU metrics'
     'python-dbus: KRunner runner'
-    'python-gobject: KRunner runner'
     'dolphin: service menu integration'
     'plasma-workspace: KRunner integration'
-    'python-pyqt5: Lumen Files (file manager)'
-    'python-gobject: Lumen Files (GIO file operations)'
     'poppler: Lumen Files PDF preview (pdfinfo, pdftoppm)'
     'ffmpeg: Lumen Files video/audio preview (ffprobe, ffmpeg)'
     'kio-fuse: Lumen Files network folders (SMB/SFTP/WebDAV/NFS)'
@@ -83,9 +71,9 @@ package() {
     install -m0755 "$srcroot/system/lumen-watch" "$pkgdir/usr/bin/lumen-watch"
     install -m0755 "$srcroot/system/lumen-notify" "$pkgdir/usr/bin/lumen-notify"
 
-    # ---- shared app data (QML) -------------------------------------------
-    install -d "$pkgdir/usr/share/opencode-lumen/agent-app/ui"
-    install -m0644 "$srcroot/agent-app/ui/"* "$pkgdir/usr/share/opencode-lumen/agent-app/ui/"
+    # ---- native desktop app -------------------------------------------
+    install -d "$pkgdir/usr/share/opencode-lumen/agent-app"
+    install -m0644 "$srcroot/agent-app/main.py" "$pkgdir/usr/share/opencode-lumen/agent-app/"
 
     # ---- desktop integration (system-wide) --------------------------------
     # Templates use %INSTALL_BIN%; substitute to /usr/bin for a system install.

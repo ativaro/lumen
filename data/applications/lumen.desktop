@@ -2,11 +2,11 @@
 Type=Application
 Name=Lumen
 GenericName=AI System Agent
-Comment=Chat, Systemstatus und Schnellaktionen für opencode
+Comment=Dein Assistent für Dateien, Aufgaben und Systemstatus
 Exec=%INSTALL_BIN%/lumen-agent-app
 Icon=lumen
 Terminal=false
 Categories=Utility;Development;
 Keywords=opencode;ai;agent;chat;system;dashboard;assistant;
 StartupNotify=true
-StartupWMClass=qml
+StartupWMClass=Lumen

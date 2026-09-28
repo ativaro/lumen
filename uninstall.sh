@@ -35,7 +35,7 @@ say "Laufenden KRunner-Runner beenden"
 pkill -f lumen_krunner.py >/dev/null 2>&1 || true
 
 # stop any running app
-pkill -f 'agent-app/ui/main.qml' >/dev/null 2>&1 || true
+pkill -f "$PREFIX/agent-app/main.py" >/dev/null 2>&1 || true
 
 # opencode integration (MCP/commands/skill)
 if [ -x "$PREFIX/bin/lumen-setup" ]; then

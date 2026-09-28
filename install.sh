@@ -38,8 +38,10 @@ missing=()
 for c in bash python3; do command -v "$c" >/dev/null 2>&1 || missing+=("$c"); done
 [ ${#missing[@]} -gt 0 ] && { echo "Fehlende Pflicht-Abhängigkeiten: ${missing[*]}" >&2; exit 1; }
 
+/usr/bin/python3 -c "import PyQt5.QtWidgets, gi, PIL" || { echo "Benötigt: PyQt5, PyGObject und Pillow" >&2; exit 1; }
+
 optional_missing=()
-for c in jq qml6 notify-send kdialog wl-paste alacritty konsole dolphin spectacle; do
+for c in notify-send dolphin spectacle; do
     command -v "$c" >/dev/null 2>&1 || optional_missing+=("$c")
 done
 [ ${#optional_missing[@]} -gt 0 ] && warn "Optionale Tools fehlen (einzelne Features inaktiv): ${optional_missing[*]}"
@@ -51,8 +53,8 @@ fi
 say "Installiere Dateien nach $PREFIX"
 mkdir -p "$BIN"
 install -m 0755 "$REPO/bin/"* "$BIN/"
-mkdir -p "$PREFIX/agent-app/ui"
-install -m 0644 "$REPO/agent-app/ui/"* "$PREFIX/agent-app/ui/"
+mkdir -p "$PREFIX/agent-app"
+install -m 0644 "$REPO/agent-app/main.py" "$PREFIX/agent-app/"
 mkdir -p "$PREFIX/files"
 install -m 0644 "$REPO/files/"*.py "$REPO/files/style.qss" "$REPO/files/lumen-files.svg" "$PREFIX/files/"
 chmod 0755 "$BIN"/lumen-* "$BIN"/lumen_krunner.py "$BIN"/lumen_mcp.py 2>/dev/null || true
@@ -120,7 +122,6 @@ Nächste Schritte:
 
 Konfiguration (optional, per Umgebungsvariablen):
   LUMEN_OPENCODE_BIN      Pfad zur opencode-Binary
-  LUMEN_TERM              Terminal (alacritty/konsole/xterm)
   LUMEN_WORKDIR           Standard-Arbeitsordner
   LUMEN_WATCH_ANALYZE=0   Auto-Analyse im Wächter aus
 

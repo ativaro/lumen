@@ -1,59 +1,18 @@
 #!/usr/bin/env bash
-# lumen-vision — capture a screen region (or whole screen) and let opencode
-# analyse it. Designed for a global shortcut.
-#
-# Usage:
-#   lumen-vision region    # select a region with Spectacle, then analyse
-#   lumen-vision screen    # whole screen, then analyse
-#   lumen-vision clip      # use an image path from the clipboard (file:// URI)
-#
-# Env: LUMEN_OPENCODE_BIN, LUMEN_TERM, LUMEN_WORKDIR, LUMEN_VISION_PROMPT
-
+# Capture with Spectacle, discuss the image in Lumen, remove only our temporary image.
 set -euo pipefail
-
-LUMEN_OPENCODE_BIN="${LUMEN_OPENCODE_BIN:-$(command -v opencode || echo "$HOME/.opencode/bin/opencode")}"
-LUMEN_TERM="${LUMEN_TERM:-$(command -v alacritty || command -v konsole || command -v xterm)}"
-LUMEN_WORKDIR="${LUMEN_WORKDIR:-$HOME/Documents/work}"
-TERM_BIN="$(command -v "$LUMEN_TERM" 2>/dev/null || echo "$LUMEN_TERM")"
-PROMPT="${LUMEN_VISION_PROMPT:-Beschreibe, was auf dem Bild zu sehen ist. Wenn es ein Fehler, Dialog oder Problem ist: nenne Ursache und konkreten nächsten Schritt. Antworte knapp auf Deutsch.}"
-
+SELF_DIR="$(dirname "$(readlink -f "$0")")"
+PROMPT="${LUMEN_VISION_PROMPT:-Beschreibe das Bild. Wenn es ein Problem zeigt, erkläre die Ursache und sinnvolle nächste Schritte.}"
 mode="${1:-region}"
-img="$(mktemp /tmp/lumen-vision-XXXXXX).png"
-
+if [ "$mode" = clip ]; then
+    exec "$SELF_DIR/lumen-agent-app" --clipboard-image --prompt="$PROMPT"
+fi
+img="$(mktemp --suffix=.png /tmp/lumen-vision-XXXXXX)"
+trap 'rm -f "$img"' EXIT
 case "$mode" in
-    region)
-        command -v spectacle >/dev/null 2>&1 || { echo "spectacle nicht gefunden" >&2; exit 1; }
-        spectacle -b -n -r -o "$img" || { rm -f "$img"; exit 0; }
-        ;;
-    screen)
-        command -v spectacle >/dev/null 2>&1 || { echo "spectacle nicht gefunden" >&2; exit 1; }
-        spectacle -b -n -o "$img" || { rm -f "$img"; exit 0; }
-        ;;
-    clip)
-        uri=""
-        if command -v wl-paste >/dev/null 2>&1; then
-            uri="$(wl-paste 2>/dev/null || true)"
-        fi
-        uri="${uri#file://}"
-        if [ -f "$uri" ]; then
-            cp "$uri" "$img"
-        else
-            echo "Kein Bildpfad in der Zwischenablage." >&2; exit 1
-        fi
-        ;;
+    region) spectacle -b -n -r -o "$img" || exit 0 ;;
+    screen) spectacle -b -n -o "$img" || exit 0 ;;
     *) echo "Unbekannter Modus: $mode" >&2; exit 2 ;;
 esac
-
-[ -s "$img" ] || { echo "Kein Bild aufgenommen." >&2; exit 1; }
-
-export LUMEN_PROMPT="$PROMPT"
-export LUMEN_IMG="$img"
-
-# NOTE: the message must come BEFORE -f <file> on the opencode CLI.
-case "$(basename "$TERM_BIN")" in
-    alacritty) exec "$TERM_BIN" --working-directory "$LUMEN_WORKDIR" -T "opencode: vision" \
-        -e bash -lc '"$LUMEN_OPENCODE_BIN" run "$LUMEN_PROMPT" -f "$LUMEN_IMG"; printf "\n--- Fertig. Enter zum Schließen. ---\n"; read -r _' ;;
-    konsole)   exec "$TERM_BIN" --workdir "$LUMEN_WORKDIR" -p tabtitle="opencode: vision" \
-        -e bash -lc '"$LUMEN_OPENCODE_BIN" run "$LUMEN_PROMPT" -f "$LUMEN_IMG"; printf "\n--- Fertig. Enter zum Schließen. ---\n"; read -r _' ;;
-    *)         exec "$TERM_BIN" -e bash -lc "cd '$LUMEN_WORKDIR' && \"\$LUMEN_OPENCODE_BIN\" run \"\$LUMEN_PROMPT\" -f \"\$LUMEN_IMG\"; printf '\n--- Fertig. Enter zum Schließen. ---\n'; read -r _" ;;
-esac
+[ -s "$img" ] || exit 0
+"$SELF_DIR/lumen-agent-app" --file "$img" --prompt="$PROMPT"

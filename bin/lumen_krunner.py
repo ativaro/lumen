@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
-# opencode KRunner DBus runner.
-# Type "ai <question>" or "oc <question>" in KRunner to open a terminal
-# running opencode with that prompt.
-#
-# Overridable via environment: LUMEN_OPENCODE_BIN, LUMEN_TERM, LUMEN_WORKDIR
+# Lumen native desktop KRunner entry point.
 
 import os
-import shutil
 import subprocess
 
 import dbus.service
@@ -19,28 +14,14 @@ OBJPATH = "/runner"
 IFACE = "org.kde.krunner1"
 BUSNAME = "org.lumen.runner"
 
-LUMEN_OPENCODE_BIN = os.environ.get(
-    "LUMEN_OPENCODE_BIN", shutil.which("opencode") or os.path.expanduser("~/.opencode/bin/opencode")
-)
-TERM = os.environ.get(
-    "LUMEN_TERM", shutil.which("alacritty") or shutil.which("konsole") or "alacritty"
-)
 WORKDIR = os.environ.get("LUMEN_WORKDIR", os.path.expanduser("~/Documents/work"))
 
-TRIGGERS = ("ai ", "oc ", "opencode ", "? ")
+TRIGGERS = ("lumen ", "ai ", "oc ", "opencode ", "? ")
 
 
 def build_command(prompt):
-    shellcmd = (
-        f'"$LUMEN_OPENCODE_BIN" run --continue "$LUMEN_PROMPT"; '
-        'printf "\\n--- Fertig. Enter zum Schließen. ---\\n"; read -r _'
-    )
-    base = os.path.basename(TERM)
-    if base == "alacritty":
-        return [TERM, "--working-directory", WORKDIR, "-T", "Lumen: krunner", "-e", "bash", "-lc", shellcmd]
-    if base == "konsole":
-        return [TERM, "--workdir", WORKDIR, "-p", "tabtitle=Lumen: krunner", "-e", "bash", "-lc", shellcmd]
-    return [TERM, "-e", "bash", "-lc", f"cd '{WORKDIR}' && {shellcmd}"]
+    app = os.path.join(os.path.dirname(os.path.realpath(__file__)), "lumen-agent-app")
+    return [app, "--directory=" + WORKDIR, "--prompt=" + prompt]
 
 
 class Runner(dbus.service.Object):
@@ -63,10 +44,10 @@ class Runner(dbus.service.Object):
             (
                 prompt,
                 f"Lumen: {prompt}",
-                "opencode",
+                "lumen",
                 100,  # QueryType (custom/free)
                 1.0,  # relevance
-                {"subtext": "Ask opencode in a terminal", "category": "opencode"},
+                {"subtext": "Mit Lumen besprechen", "category": "Lumen"},
             )
         ]
 
@@ -76,11 +57,9 @@ class Runner(dbus.service.Object):
 
     @dbus.service.method(IFACE, in_signature="ss")
     def Run(self, matchId, actionId):
-        env = dict(os.environ)
-        env["LUMEN_PROMPT"] = matchId
-        env["LUMEN_OPENCODE_BIN"] = LUMEN_OPENCODE_BIN
-        subprocess.Popen(build_command(matchId), env=env)
+        subprocess.Popen(build_command(matchId))
 
 
-runner = Runner()
-GLib.MainLoop().run()
+if __name__ == '__main__':
+    runner = Runner()
+    GLib.MainLoop().run()

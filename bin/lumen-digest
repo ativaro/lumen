@@ -5,7 +5,7 @@
 # Output: ~/.cache/opencode-lumen/digest-YYYYMMDD.md (+ latest-digest.md link)
 # and a desktop notification with the headline.
 #
-# Env: LUMEN_OPENCODE_BIN, LUMEN_WATCH_ANALYZE (default 1), LUMEN_TERM
+# Env: LUMEN_OPENCODE_BIN, LUMEN_WATCH_ANALYZE (default 1)
 
 set -uo pipefail
 

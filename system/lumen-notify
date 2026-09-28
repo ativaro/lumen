@@ -9,7 +9,6 @@
 #   LUMEN_WATCH_ANALYZE=0   disable the automatic analysis
 #   LUMEN_WATCH_MODEL=...   model override
 #   LUMEN_OPENCODE_BIN               opencode binary
-#   LUMEN_TERM              terminal for the report viewer
 
 set -uo pipefail
 
@@ -19,9 +18,7 @@ mkdir -p "$STATE_DIR"
 SEEN="$STATE_DIR/notify-seen"
 
 LUMEN_OPENCODE_BIN="${LUMEN_OPENCODE_BIN:-$(command -v opencode || echo "$HOME/.opencode/bin/opencode")}"
-LUMEN_TERM="${LUMEN_TERM:-$(command -v alacritty || command -v konsole || command -v xterm)}"
-TERM_BIN="$(command -v "$LUMEN_TERM" 2>/dev/null || echo "$LUMEN_TERM")"
-NOTIFY=(notify-send -a opencode -i opencode)
+NOTIFY=(notify-send -a Lumen -i lumen)
 
 [ -r "$FINDINGS" ] || exit 0
 
@@ -46,7 +43,7 @@ $(cat "$FINDINGS")"
     {
         echo "$(cat "$FINDINGS")"
         echo
-        echo "## opencode Analyse"
+        echo "## Lumen Analyse"
         echo
         echo "${analysis:-(keine Analyse verfügbar)}"
     } > "$report"
@@ -54,10 +51,10 @@ $(cat "$FINDINGS")"
 
     short=$(printf '%s' "${analysis:-$body}" | head -c 500)
     chosen=$("${NOTIFY[@]}" -u critical --icon=dialog-warning \
-        -A "open=bash -c '$TERM_BIN -e less \"$report\"'" \
+        -A "open=In Lumen öffnen" \
         "⚠ Systemproblem" "$short" 2>/dev/null || true)
-    if [ "$chosen" = "open" ] && command -v "$TERM_BIN" >/dev/null 2>&1; then
-        setsid "$TERM_BIN" -T "opencode: Systemanalyse" -e bash -lc "less -R \"$report\"" >/dev/null 2>&1 &
+    if [ "$chosen" = "open" ]; then
+        setsid "$(dirname "$(readlink -f "$0")")/lumen-agent-app" --page system >/dev/null 2>&1 &
     fi
 else
     "${NOTIFY[@]}" -u critical "⚠ Systemproblem" "$body" 2>/dev/null || true

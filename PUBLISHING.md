@@ -1,6 +1,6 @@
 # Publishing Lumen
 
-Lumen is **publication-ready** but deliberately not published. When you decide
+Lumen is developed and tested locally but deliberately not published. When you decide
 to go public, this is the complete checklist. Nothing here is required for
 local use.
 
@@ -72,3 +72,18 @@ release URL otherwise. For publishing:
       confirm the app starts, `lumen-setup` wires opencode, and the services
       are active (`systemctl status lumen-agentd lumen-watch.timer`).
 - [ ] `lumen-setup --uninstall` and `pacman -R opencode-lumen` leave no residue.
+
+## Native UI (package revision 9)
+
+The desktop app and Files panel now require `python-pyqt5`, `python-gobject`
+and `python-pillow`; the old QML chat and text-file bridge have been removed.
+Before publishing, run the native tests:
+
+```bash
+QT_QPA_PLATFORM=offscreen /usr/bin/python3 -m unittest discover -s files -v
+```
+
+Also verify the installed launchers, permissions, questions,
+image attachments and cancellation on the target OpenCode version. Desktop
+context menus and hotkeys must open Lumen without a terminal. Existing services
+and OpenCode configuration must retain their settings on upgrade.

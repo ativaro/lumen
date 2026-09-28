@@ -7,10 +7,10 @@ Native Dateiverwaltung für Linux/KDE mit großer Vorschauleiste und laufender D
 Im Anwendungsmenü **Lumen Files** wählen, oder:
 
 ```bash
-/usr/bin/python3 /home/example/Documents/work/lumen-files/app.py
+lumen-files
 ```
 
-Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. `~/.local/bin/lumen-files` ist der zusätzliche Starter. Das Projektverzeichnis muss an seinem Platz bleiben, da beide Starter es verwenden.
+Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. Aus dem Checkout startet `./bin/lumen-files`, aus dem Paket `/usr/bin/lumen-files` mit den Quellen unter `/usr/share/opencode-lumen/files/`.
 
 ## Bedienung
 
@@ -23,16 +23,22 @@ Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. `~
 
 ## Lumen-Integration
 
-Rechtsklick auf eine Datei oder einen Ordner öffnet das Untermenü **Lumen**, sofern Lumen (Paket `opencode-lumen`) installiert ist:
+**Lumen** in der Werkzeugleiste oder **Strg+J** öffnet das native Seitenpanel.
+Rechtsklick → **Lumen** übernimmt alle ausgewählten Dateien:
 
-- **Mit Lumen öffnen** — interaktives opencode im enthaltenden Ordner.
-- **Erklären** / **Fehler suchen & fixen** — opencode analysiert die Auswahl.
-- **git-Diff reviewen** — nur bei Ordnern.
-- **Fragen …** — freie Frage im Dialog, die an Lumen geht.
+- **Mit Lumen öffnen:** eigene Frage eingeben.
+- **Erklären:** kurze Erklärung im Modus „Lesen & prüfen“.
+- **Fehler suchen & fixen:** untersuchen und bestätigte Fehler bearbeiten.
+- **Git-Diff prüfen:** Änderungen ohne Bearbeitung untersuchen.
 
-Lumen Files ruft dazu `lumen-context` auf und übergibt den Pfad; das Terminal öffnet
-sich separat. Lumen Files bleibt unabhängig und funktioniert auch ohne Lumen.
-Netzwerkpfade werden an die lokale KIO-FUSE-Adresse übergeben.
+Antworten, Abbrechen, einmalige Freigaben und Rückfragen erscheinen im Panel.
+**Strg+Enter** sendet; „Neues Gespräch“ und die Gesprächsauswahl verwalten
+Lumen-Unterhaltungen im Arbeitsordner. Der Kontext bleibt sichtbar, auch wenn
+man im Dateimanager weiter navigiert. Netzwerkdateien nutzen ihren lokalen
+KIO-FUSE-Pfad. Bilder/PDFs werden als Anhänge übergeben.
+
+OpenCode arbeitet als lokale Hintergrund-Engine mit der bestehenden
+Konfiguration. Dateien lassen sich auch ohne laufende Engine verwalten.
 
 ## Bildgalerie und einfache Bearbeitung
 
@@ -90,7 +96,7 @@ Einstellungen und Favoriten: `~/.config/Lumen/Files.conf`. Es werden keine Stand
 ## Prüfung
 
 ```bash
-cd /home/example/Documents/work/lumen-files
+cd /home/example/Documents/work/opencode-lumen/files
 QT_QPA_PLATFORM=offscreen /usr/bin/python3 -m unittest -v
 /usr/bin/python3 -m compileall -q .
 ```

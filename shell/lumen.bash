@@ -2,16 +2,12 @@
 # opencode-why — explain the last failed shell command (or a given one) and
 # suggest a fix. Intended to be sourced:
 #
-#   source /usr/share/opencode-lumen/shell/opencode.bash
+#   source /usr/share/opencode-lumen/shell/lumen.bash
 #   why                     # explain the previous command + its error
 #   why <command>           # explain an explicit command
 #
-# Env: LUMEN_OPENCODE_BIN, LUMEN_TERM, LUMEN_WORKDIR
 
-LUMEN_OPENCODE_BIN="${LUMEN_OPENCODE_BIN:-$(command -v opencode || echo "$HOME/.opencode/bin/opencode")}"
-LUMEN_TERM="${LUMEN_TERM:-$(command -v alacritty || command -v konsole || command -v xterm)}"
 LUMEN_WORKDIR="${LUMEN_WORKDIR:-$HOME/Documents/work}"
-TERM_BIN="$(command -v "$LUMEN_TERM" 2>/dev/null || echo "$LUMEN_TERM")"
 
 opencode_why() {
     local cmd_text="$*"
@@ -26,15 +22,9 @@ opencode_why() {
 Befehl:
 $cmd_text"
 
-    export LUMEN_PROMPT="$prompt"
-    case "$(basename "$TERM_BIN")" in
-        alacritty) "$TERM_BIN" --working-directory "$LUMEN_WORKDIR" -T "opencode: why" \
-            -e bash -lc '"$LUMEN_OPENCODE_BIN" run "$LUMEN_PROMPT"; printf "\n--- Fertig. Enter zum Schließen. ---\n"; read -r _' ;;
-        konsole)   "$TERM_BIN" --workdir "$LUMEN_WORKDIR" -p tabtitle="opencode: why" \
-            -e bash -lc '"$LUMEN_OPENCODE_BIN" run "$LUMEN_PROMPT"; printf "\n--- Fertig. Enter zum Schließen. ---\n"; read -r _' ;;
-        *)         "$TERM_BIN" -e bash -lc 'cd "'"$LUMEN_WORKDIR"'"; "$LUMEN_OPENCODE_BIN" run "$LUMEN_PROMPT"' ;;
-    esac
+    lumen-agent-app --directory="$LUMEN_WORKDIR" --prompt="$prompt"
+
 }
 
 # `??` is not a valid command name; use the `why` function instead.
-# For fish, see shell/opencode.fish.
+# For fish, see shell/lumen.fish.

@@ -1,24 +1,7 @@
 #!/usr/bin/env bash
-# lumen-sel-run — internal helper: run opencode on $LUMEN_TEXT, optionally
-# copy the answer back to the clipboard. Invoked by lumen-sel in a terminal.
-#
-# Expects: LUMEN_PROMPT, LUMEN_TEXT, LUMEN_COPY_BACK, LUMEN_OPENCODE_BIN.
+# Compatibility entry point for callers that already captured the text.
+set -euo pipefail
+SELF_DIR="$(dirname "$(readlink -f "$0")")"
+exec "$SELF_DIR/lumen-agent-app" --prompt="${LUMEN_PROMPT:-Erkläre diesen Text:}
 
-set -uo pipefail
-
-LUMEN_OPENCODE_BIN="${LUMEN_OPENCODE_BIN:-$(command -v opencode || echo "$HOME/.opencode/bin/opencode")}"
-out="/tmp/lumen-sel-out.txt"
-
-env -u OPENCODE -u OPENCODE_PID "$LUMEN_OPENCODE_BIN" run "${LUMEN_PROMPT}
-
----
-${LUMEN_TEXT}" | tee "$out"
-
-if [ "${LUMEN_COPY_BACK:-0}" = "1" ] && command -v wl-copy >/dev/null 2>&1; then
-    # drop the leading CLI banner: keep everything after the first blank line
-    awk 'f{print} /^$/{f=1}' "$out" | wl-copy 2>/dev/null || wl-copy < "$out"
-    echo "(Antwort in die Zwischenablage kopiert)"
-fi
-
-printf '\n--- Fertig. Enter zum Schließen. ---\n'
-read -r _
+${LUMEN_TEXT:-}"

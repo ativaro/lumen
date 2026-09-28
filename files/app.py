@@ -1,8 +1,6 @@
 #!/usr/bin/python3
 """Lumen Files — a preview-first native file manager for Linux."""
 import os
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 
@@ -10,7 +8,7 @@ from PyQt5.QtCore import (QDir, QEvent, QFileInfo, QItemSelectionModel, QMimeDat
                           QSettings, QSize, QSortFilterProxyModel, QStandardPaths,
                           QStorageInfo, Qt, QTimer, QTranslator, QLibraryInfo, QUrl)
 from PyQt5.QtGui import QDesktopServices, QIcon, QKeySequence, QPalette, QColor, QStandardItem, QStandardItemModel
-from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QDialog, QFileIconProvider,
+from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDockWidget, QFileIconProvider,
                              QFileSystemModel, QFrame, QHBoxLayout, QHeaderView, QInputDialog,
                              QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow,
                              QMenu, QMessageBox, QPushButton, QShortcut,
@@ -169,6 +167,7 @@ class Window(QMainWindow):
         self.network.failed.connect(self.network_failed)
         self.network.busy.connect(self.cancel_connect_button.setVisible)
         self.install_shortcuts()
+        QShortcut(QKeySequence("Ctrl+J"), self, activated=lambda: self.ask_lumen("open", self.selected_paths() or [self.current_path]))
         self.debounce = QTimer(self)
         self.debounce.setSingleShot(True)
         self.debounce.setInterval(250)
@@ -219,6 +218,7 @@ class Window(QMainWindow):
         self.search.addAction(QIcon.fromTheme('edit-find'), QLineEdit.LeadingPosition)
         row.addWidget(self.search, 1)
         row.addSpacing(16)
+        row.addWidget(button('Lumen', lambda: self.ask_lumen('open', self.selected_paths() or [self.current_path]), tip='Lumen öffnen · Strg+J'))
         row.addWidget(button('Neuer Ordner', self.mkdir, 'folder-new', 'Neuer Ordner · Strg+Umschalt+N'))
         menu_button = button('•••', self.show_menu, tip='Ansicht und Tastenkürzel')
         menu_button.setObjectName('iconButton')
@@ -809,69 +809,29 @@ class Window(QMainWindow):
         elif not QDesktopServices.openUrl(QUrl.fromLocalFile(path)):
             self.error('Die Datei konnte nicht geöffnet werden.', path)
 
-    def lumen_context_bin(self):
-        """Locate lumen-context (repo-relative, /usr/bin, or ~/.local/bin)."""
-        candidates = [
-            ROOT.parent / 'bin' / 'lumen-context',
-            Path('/usr/bin/lumen-context'),
-            Path.home() / '.local' / 'share' / 'opencode-lumen' / 'bin' / 'lumen-context',
-            Path.home() / '.local' / 'bin' / 'lumen-context',
-        ]
-        for cand in candidates:
-            if cand.is_file():
-                return str(cand)
-        return shutil.which('lumen-context')
-
     def ask_lumen(self, action, paths):
-        """Run lumen-context <action> <paths> detached (opens a terminal)."""
-        if not paths:
-            return
-        helper = self.lumen_context_bin()
-        if not helper:
-            self.error('Lumen ist nicht installiert.',
-                       'lumen-context wurde nicht gefunden. Paket opencode-lumen installieren.')
-            return
-        local = [self.network.remote(p) or p for p in paths]
-        try:
-            subprocess.Popen([helper, action, *local], start_new_session=True)
-        except Exception as exc:
-            self.error('Lumen konnte nicht gestartet werden.', str(exc))
-
-    def ask_lumen_dialog(self, paths):
-        """Ask a free-form question about the selection via a KDE dialog."""
-        if not paths:
-            return
-        helper = self.lumen_context_bin()
-        if not helper:
-            self.error('Lumen ist nicht installiert.',
-                       'lumen-context wurde nicht gefunden. Paket opencode-lumen installieren.')
-            return
-        target = self.network.remote(paths[0]) or paths[0]
-        prompt, ok = QInputDialog.getText(
-            self, 'Lumen fragen', f'Was soll Lumen mit „{Path(target).name}“ machen?')
-        if not ok or not prompt.strip():
-            return
-        try:
-            env = dict(os.environ)
-            env['LUMEN_ASK_PROMPT'] = prompt
-            subprocess.Popen([helper, 'ask', target], env=env, start_new_session=True)
-        except Exception as exc:
-            self.error('Lumen konnte nicht gestartet werden.', str(exc))
+        if not hasattr(self, 'assistant'):
+            from assistant import ChatPanel
+            self.assistant = ChatPanel(self.current_path, self)
+            self.assistant_dock = QDockWidget('Lumen', self)
+            self.assistant_dock.setObjectName('lumenDock')
+            self.assistant_dock.setWidget(self.assistant)
+            self.assistant_dock.setAllowedAreas(Qt.RightDockWidgetArea | Qt.LeftDockWidgetArea)
+            self.assistant_dock.visibilityChanged.connect(
+                lambda visible: self.preview.setVisible(not visible and self.preview_button.isChecked()))
+            self.addDockWidget(Qt.RightDockWidgetArea, self.assistant_dock)
+            self.resizeDocks([self.assistant_dock], [440], Qt.Horizontal)
+        self.assistant_dock.show()
+        self.assistant_dock.raise_()
+        self.assistant.begin_context(action, paths, directory=self.current_path)
 
     def lumen_menu(self, menu, paths):
-        """Append the Lumen submenu for the selected entries."""
         if not paths:
             return
-        if not self.lumen_context_bin():
-            return
         submenu = menu.addMenu(QIcon.fromTheme('lumen'), 'Lumen')
-        submenu.addAction('Mit Lumen öffnen', lambda: self.ask_lumen('open', [paths[0]]))
-        submenu.addAction('Erklären', lambda: self.ask_lumen('explain', [paths[0]]))
-        submenu.addAction('Fehler suchen & fixen', lambda: self.ask_lumen('fix', [paths[0]]))
-        if Path(paths[0]).is_dir():
-            submenu.addAction('git-Diff reviewen', lambda: self.ask_lumen('review', [paths[0]]))
-        submenu.addSeparator()
-        submenu.addAction('Fragen …', lambda: self.ask_lumen_dialog([paths[0]]))
+        for title, action in [('Mit Lumen öffnen', 'open'), ('Erklären', 'explain'),
+                              ('Fehler suchen & fixen', 'fix'), ('Git-Diff prüfen', 'review')]:
+            submenu.addAction(title, lambda _=False, a=action: self.ask_lumen(a, paths))
 
     def quicklook(self):
         paths = self.selected_paths()
@@ -1082,6 +1042,9 @@ class Window(QMainWindow):
             self.error('Es läuft noch ein Dateivorgang. Bitte vor dem Schließen abwarten.')
             event.ignore()
             return
+        if hasattr(self, 'assistant') and not self.assistant.can_close():
+            event.ignore()
+            return
         self.cancel_search()
         self.cancel_connection()
         self.preview.cancel()
@@ -1091,6 +1054,8 @@ class Window(QMainWindow):
                 self.activity.setText('Suche wird beendet. Bitte gleich erneut schließen.')
                 event.ignore()
                 return
+        if hasattr(self, 'assistant'):
+            self.assistant.backend.shutdown()
         self.settings.setValue('last_path', self.current_location)
         self.settings.setValue('geometry', self.saveGeometry())
         event.accept()

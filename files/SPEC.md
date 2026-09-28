@@ -13,9 +13,9 @@ Native Linux-Dateiverwaltung mit Schwerpunkt auf schneller Dateinamensuche und b
 ## Struktur und Befehle
 `app.py`: Oberfläche; `core.py`: Suche/Dateioperationen; `preview.py`: Vorschau; `test_lumen.py`: ausführbare Prüfungen; `style.qss`: Gestaltung.
 
-Start: `/usr/bin/python3 /home/example/Documents/work/lumen-files/app.py`
-Test: `cd /home/example/Documents/work/lumen-files && QT_QPA_PLATFORM=offscreen /usr/bin/python3 -m unittest -v`
-Prüfung: `/usr/bin/python3 -m compileall -q /home/example/Documents/work/lumen-files`
+Start: `/usr/bin/python3 /home/example/Documents/work/opencode-lumen/files/app.py`
+Test: `cd /home/example/Documents/work/opencode-lumen/files && QT_QPA_PLATFORM=offscreen /usr/bin/python3 -m unittest -v`
+Prüfung: `/usr/bin/python3 -m compileall -q /home/example/Documents/work/opencode-lumen/files`
 
 ## Stil und Grenzen
 Python, vier Leerzeichen, kleine direkte Funktionen: `def valid_name(name): ...`. Native Qt-Widgets und Standardbibliothek zuerst. Tests mit unittest und temporären Verzeichnissen, keine Nutzerdaten verändern. Decoder begrenzen Lesevolumen und Laufzeit. Keine Systemkonfiguration, Fremdprojekte oder Standardzuordnungen ändern. Versionskontrolle lokal.
@@ -35,3 +35,10 @@ Python, vier Leerzeichen, kleine direkte Funktionen: `def valid_name(name): ...`
 - Bearbeitung explizit speichern; JPEG/PNG/WebP, keine Animationen oder Symlinks überschreiben. Original vor jedem Speichern sichern; gleichzeitige Änderungen erkennen. Papierkorb nach Bestätigung, anschließend nächstes Bild. Kein permanentes Löschen.
 - Speicheranalyse für den aktuellen oder gewählten Ordner: sortierbarer Baum mit Größen und Anteilsbalken, Unterordner bei Bedarf analysieren, Abbruch, sichtbare Zugriffsfehler. GNU du für belegten Platz oder Dateigröße, keine Symlink-Rekursion und keine fremden Dateisysteme durchlaufen.
 - Prüfen: Layoutposition, Bildfolge/Cache, Rotation/Spiegelung/EXIF/Sicherungen/Kollisionen, Papierkorb, Größenwerte mit Sparse-/Hardlink-/Symlink-Dateien und Abbruch; Netzwerkregressionen erhalten.
+
+## Native Lumen-Integration
+- Gemeinsames Chat-Panel mit der eigenständigen Lumen-App; toolbar / Strg+J und Kontextmenü öffnen es im Dateimanager.
+- Sichtbarer Arbeitsordner und alle ausgewählten Pfade; native Antworten, Abbruch, Freigaben und Rückfragen.
+- „Lesen & prüfen“ nutzt den Plan-Agenten, „Aufgaben erledigen“ den Build-Agenten.
+- Bestehende OpenCode-Konfiguration und globale Anweisungen bleiben erhalten; keine Terminal-Fenster oder gemeinsamen temporären Chatdateien.
+- Gemeinsame Implementierung: `assistant.py` und `assistant_backend.py`; API-/Formulartest in `test_assistant.py`.
