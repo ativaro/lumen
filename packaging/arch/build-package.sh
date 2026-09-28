@@ -46,7 +46,9 @@ say "Tarball: $(du -h "$ARCHDIR/opencode-lumen-$PKGVER.tar.gz" | cut -f1)"
 say "Baue Paket mit makepkg (lokaler Quell-Tarball)"
 cd "$ARCHDIR"
 rm -rf src pkg
-LOCALSRC=1 makepkg -f --noconfirm
+# -d: skip dependency checks so maintainers using the standalone opencode
+# installer can build locally. Published builds use the real deps.
+LOCALSRC=1 makepkg -d -f --noconfirm
 
 echo
 ls -1 "$ARCHDIR"/opencode-lumen-"$PKGVER"-*.pkg.tar.zst 2>/dev/null || true
