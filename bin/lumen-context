@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
-# lumen-context — helper for KDE Dolphin service menus.
-# Opens a terminal running opencode with a prefilled prompt about the selected file(s).
+# lumen-context — helper for KDE Dolphin service menus and Lumen Files.
+# Opens a terminal running opencode ("Lumen") about the selected file(s).
 #
 # Usage:
 #   lumen-context <action> <path>...
 #   action: open | explain | fix | review | ask
 #
+# Design:
+#   * open   -> a NEW interactive session in the target directory (never --continue)
+#   * others -> interactive session prefilled with a short prompt, so permission
+#               prompts can be approved and the user can keep chatting
+#
 # Overridable via environment / config:
-#   LUMEN_OPENCODE_BIN      path to the opencode binary (default: auto-detect)
-#   LUMEN_TERM     terminal emulator (default: auto-detect)
-#   LUMEN_WORKDIR  default working directory (default: ~/Documents/work)
+#   LUMEN_OPENCODE_BIN   path to the opencode binary (default: auto-detect)
+#   LUMEN_TERM           terminal emulator (default: auto-detect)
+#   LUMEN_WORKDIR        default working directory (default: ~/Documents/work)
 
 set -euo pipefail
 
@@ -18,10 +23,10 @@ LUMEN_OPENCODE_BIN="${LUMEN_OPENCODE_BIN:-$(command -v opencode || echo "$HOME/.
 LUMEN_TERM="${LUMEN_TERM:-$(command -v alacritty || command -v konsole || command -v xterm)}"
 LUMEN_WORKDIR="${LUMEN_WORKDIR:-$HOME/Documents/work}"
 TERM_BIN="$(command -v "$LUMEN_TERM" 2>/dev/null || echo "$LUMEN_TERM")"
-TITLE_PREFIX="opencode"
+TITLE_PREFIX="Lumen"
 
 term_run() {
-    # $1 = title, $2 = shell command string
+    # $1 = title, $2 = shell command string (run in $LUMEN_WORKDIR)
     local title="$1" shellcmd="$2"
     case "$(basename "$TERM_BIN")" in
         alacritty) exec "$TERM_BIN" --working-directory "$LUMEN_WORKDIR" -T "$title" -e bash -lc "$shellcmd" ;;
@@ -51,48 +56,49 @@ LUMEN_WORKDIR="$workdir"
 
 case "$action" in
     open)
+        # Brand-new interactive session in the target directory.
         term_run "$TITLE_PREFIX: ${first##*/}" \
-            '"$LUMEN_OPENCODE_BIN" --continue'
+            '"$LUMEN_OPENCODE_BIN" "$PWD"'
         ;;
 
     explain)
         if [ "$is_dir" = "1" ]; then
-            prompt="Erkläre den Inhalt dieses Ordners: Struktur, Zweck und wichtigste Dateien. Ordner: $first"
+            prompt="Erkläre in 2–3 kurzen Sätzen, was dieser Ordner enthält und wozu er dient. Keine technischen Details. Beende deine Antwort mit genau einer Frage: „Soll ich mehr erklären?“  Ordner: $first"
         else
-            prompt="Erkläre diese Datei verständlich: Zweck, Aufbau und wichtige Stellen. Datei: $first"
+            prompt="Erkläre in 2–3 kurzen Sätzen, was diese Datei macht und wozu sie dient. Keine technischen Details. Beende deine Antwort mit genau einer Frage: „Soll ich mehr erklären?“  Datei: $first"
         fi
-        mode="explain"
+        mode="erklären"
         ;;
 
     fix)
         if [ "$is_dir" = "1" ]; then
-            prompt="Analysiere diesen Ordner auf Fehler/Bugs und schlage konkrete Fixes vor. Ordner: $first"
+            prompt="Prüfe diesen Ordner auf Fehler und behebe sie. Frage bei Unsicherheit nach. Fasse am Ende in 1–2 Sätzen zusammen, was du geändert hast. Ordner: $first"
         else
-            prompt="Analysiere diese Datei auf Fehler/Bugs und schlage konkrete Fixes vor. Datei: $first"
+            prompt="Prüfe diese Datei auf Fehler und behebe sie. Frage bei Unsicherheit nach. Fasse am Ende in 1–2 Sätzen zusammen, was du geändert hast. Datei: $first"
         fi
-        mode="fix"
+        mode="fixen"
         ;;
 
     review)
-        prompt="Reviewe die aktuellen git-Änderungen in diesem Repository (git diff + git status). Fasse Probleme und Verbesserungen zusammen. Verzeichnis: $workdir"
+        prompt="Reviewe die aktuellen git-Änderungen in diesem Repository (git diff + git status). Nenne kurz die wichtigsten Punkte. Verzeichnis: $workdir"
         mode="review"
         ;;
 
     ask)
         target="$first"
         if command -v kdialog >/dev/null 2>&1; then
-            q=$(kdialog --title "opencode fragen" \
-                --inputbox "Was soll opencode mit '${target##*/}' machen?" \
+            q=$(kdialog --title "Lumen fragen" \
+                --inputbox "Was soll Lumen mit '${target##*/}' machen?" \
                 "Fasse den Zweck von $target zusammen." 2>/dev/null) || exit 0
         else
-            q=$(zenity --entry --title "opencode fragen" \
-                --text="Was soll opencode mit '${target##*/}' machen?" 2>/dev/null) || exit 0
+            q=$(zenity --entry --title "Lumen fragen" \
+                --text="Was soll Lumen mit '${target##*/}' machen?" 2>/dev/null) || exit 0
         fi
         [ -z "$q" ] && exit 0
         prompt="$q
 
 Kontext: $target"
-        mode="ask"
+        mode="fragen"
         ;;
 
     *)
@@ -104,5 +110,7 @@ esac
 export LUMEN_PROMPT="$prompt"
 export LUMEN_OPENCODE_BIN
 
+# Interactive session with the prompt prefilled: approvals work and the user
+# can continue the conversation afterwards.
 term_run "$TITLE_PREFIX: $mode ${first##*/}" \
-    '"$LUMEN_OPENCODE_BIN" run --continue "$LUMEN_PROMPT"; printf "\n--- Fertig. Enter zum Schließen. ---\n"; read -r _'
+    '"$LUMEN_OPENCODE_BIN" --prompt "$LUMEN_PROMPT" "$PWD"'
