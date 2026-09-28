@@ -131,13 +131,14 @@ or via a local pacman repo:
 sudo pacman -Sy && sudo pacman -S opencode-agent
 ```
 
-The package installs to `/usr` and provides these services
-(**not auto-enabled** — this avoids disturbing a running session):
+The package installs to `/usr` and **enables its services by default
+(opt-out)** — install and it just works; disable anything you don't want:
 
 ```bash
-sudo systemctl enable --now opencode-agentd.service          # D-Bus: org.opencode.Agent
-sudo systemctl enable --now opencode-agent-watch.timer       # system watchdog
-systemctl --user enable --now opencode-agent-notify.path     # desktop notifications
+sudo systemctl disable --now opencode-agentd.service        # D-Bus service
+sudo systemctl disable --now opencode-agent-watch.timer     # system watchdog
+sudo systemctl --global disable opencode-agent-notify.path  # per-user notify
+systemctl --user disable --now opencode-agent-notify.path   # this session
 ```
 
 Architecture: the **system watchdog** runs as root and writes findings to
@@ -145,6 +146,9 @@ Architecture: the **system watchdog** runs as root and writes findings to
 notifies the desktop and runs the opencode analysis in the user's context.
 A small **D-Bus system service** (`org.opencode.Agent`) exposes read-only
 `GetSummary` / `GetFindings` / `RefreshWatch`.
+
+Upgrades keep your choice: if you disabled a service, `post_upgrade` does not
+re-enable it.
 
 > Note: never `systemctl restart dbus` to apply a policy change — the bus
 > reloads policies itself and a restart tears down the running desktop session.
