@@ -36,3 +36,11 @@ und Zugangsdaten werden weiter von OpenCode geladen, nicht von Lumen verändert.
 Die UI fragt den Verlauf derzeit alle 450 ms während aktiver Vorgänge ab und
 lädt die letzten 100 Nachrichten; bei sehr langen Gesprächen neues Gespräch
 beginnen. Modell-/Providerwahl erfolgt weiter über die bestehende OpenCode-Konfiguration.
+
+### Lebensdauer der Qt-Objekte
+Antworten werden zentral über `QNetworkAccessManager.finished` verarbeitet;
+Callback-Closures halten keine kurzlebigen Reply-/Timer-Objekte mehr. Nach
+Abbruch verhindert die Gesprächsgeneration weitere Poll-Schritte. Prozesssignale
+werden vor dem Aufräumen getrennt. Wiederholte separate Testprozesse prüfen das
+Schließen während des Engine-Starts (keine Modellaufrufe). Fehlerhafte Antworten
+lassen den ursprünglichen Entwurf für einen erneuten Versuch stehen.

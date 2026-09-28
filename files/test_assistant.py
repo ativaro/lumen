@@ -195,6 +195,33 @@ class AssistantTest(unittest.TestCase):
             result = subprocess.run(command + ['--help'], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_native_process_closes_during_engine_startup(self):
+        import os
+        import shutil
+        import subprocess
+        if not (shutil.which('opencode') or (Path.home() / '.opencode/bin/opencode').exists()):
+            self.skipTest('Real local engine not installed')
+        root = Path(__file__).resolve().parents[1]
+        script = """
+import sys,tempfile
+sys.path.insert(0,'files')
+from app import create_app,Window
+from PyQt5.QtCore import QSettings
+from PyQt5.QtTest import QTest
+app=create_app()
+with tempfile.TemporaryDirectory() as tmp:
+    window=Window(tmp,QSettings(tmp+'/ui.ini',QSettings.IniFormat))
+    window.show()
+    window.ask_lumen('open',[tmp])
+    QTest.qWait(int(sys.argv[1]))
+    window.close()
+"""
+        for delay in (0, 150, 500):
+            result = subprocess.run(['/usr/bin/python3', '-X', 'faulthandler', '-c', script, str(delay)],
+                                    cwd=root, env={**os.environ, 'QT_QPA_PLATFORM': 'offscreen'},
+                                    capture_output=True, text=True, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
 
 if __name__ == '__main__':
     unittest.main()

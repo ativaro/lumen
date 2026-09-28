@@ -9,7 +9,8 @@ import time
 import uuid
 from pathlib import Path
 
-from PyQt5.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, QUrl, QUrlQuery, pyqtSignal
+from PyQt5 import sip
+from PyQt5.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, QUrl, QUrlQuery, pyqtSignal, pyqtSlot
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 
 
@@ -29,8 +30,9 @@ class OpenCodeBackend(QObject):
         self.directory = str(Path(directory).expanduser().absolute())
         self.url, self.password = server_url, password or secrets.token_urlsafe(32)
         self.network = QNetworkAccessManager(self)
+        self.network.finished.connect(self.request_finished)
         self.proc = None
-        self.replies = set()
+        self.replies = {}
         self.waiting = []
         self.generation = 0
         self.session = ''
@@ -63,36 +65,40 @@ class OpenCodeBackend(QObject):
         token = base64.b64encode(('opencode:' + self.password).encode())
         request.setRawHeader(b'Authorization', b'Basic ' + token)
         request.setAttribute(QNetworkRequest.RedirectPolicyAttribute, QNetworkRequest.ManualRedirectPolicy)
+        request.setTransferTimeout(20000)
         reply = self.network.sendCustomRequest(request, method.encode(), json.dumps(body).encode() if body is not None else b'')
-        self.replies.add(reply)
-        generation = self.generation
-        timeout = QTimer(reply)
-        timeout.setSingleShot(True)
-        timeout.timeout.connect(reply.abort)
-        timeout.start(20000)
+        self.replies[reply] = (self.generation, callback, error)
 
-        def finished():
-            self.replies.discard(reply)
-            timeout.stop()
-            if generation != self.generation:
-                reply.deleteLater()
-                return
-            code = reply.attribute(QNetworkRequest.HttpStatusCodeAttribute) or 0
-            raw = bytes(reply.readAll())
-            try:
-                data = json.loads(raw) if raw else None
-            except (ValueError, UnicodeError):
-                data = None
-            if reply.error() != QNetworkReply.NoError or not 200 <= code < 300:
-                detail = (data.get('data', {}).get('message') or data.get('message')) if isinstance(data, dict) else ''
-                (error or self.fail)(detail or f'Verbindung zur Engine fehlgeschlagen ({code or reply.errorString()}).')
-            elif callback:
-                try:
-                    callback(data)
-                except (TypeError, ValueError, KeyError, AttributeError) as exc:
-                    self.fail('Unerwartete Antwort der Engine: ' + str(exc))
+    @pyqtSlot(QNetworkReply)
+    def request_finished(self, reply):
+        context = self.replies.pop(reply, None)
+        if sip.isdeleted(reply):
+            return
+        if context is None or context[0] != self.generation:
             reply.deleteLater()
-        reply.finished.connect(finished)
+            return
+        _generation, callback, error = context
+        code = reply.attribute(QNetworkRequest.HttpStatusCodeAttribute) or 0
+        failed = reply.error() != QNetworkReply.NoError or not 200 <= code < 300
+        description = reply.errorString()
+        raw = bytes(reply.readAll())
+        reply.deleteLater()
+        # No callback retains a reply/timer; nested UI events may delete the reply now.
+        try:
+            data = json.loads(raw) if raw else None
+        except (ValueError, UnicodeError):
+            data = None
+        if failed:
+            detail = ''
+            if isinstance(data, dict):
+                nested = data.get('data')
+                detail = (nested.get('message') if isinstance(nested, dict) else '') or data.get('message', '')
+            (error or self.fail)(detail or f'Verbindung zur Engine fehlgeschlagen ({code or description}).')
+        elif callback:
+            try:
+                callback(data)
+            except (TypeError, ValueError, KeyError, AttributeError) as exc:
+                self.fail('Unerwartete Antwort der Engine: ' + str(exc))
 
     def ensure_server(self, callback):
         if self.url:
@@ -204,10 +210,13 @@ class OpenCodeBackend(QObject):
         if self.polling or not self.session:
             return
         self.polling = True
+        generation = self.generation
 
         def messages(data):
             self.messages = data or []
             self.messagesChanged.emit(self.messages)
+            if generation != self.generation:
+                return
             self.request('GET', '/permission', callback=permissions)
 
         def permissions(data):
@@ -223,6 +232,8 @@ class OpenCodeBackend(QObject):
                     self.permissions = [p for p in permissions if p.get('sessionID') in allowed]
                     self.questions = [q for q in questions if q.get('sessionID') in allowed]
                     self.requestsChanged.emit(self.permissions, self.questions)
+                    if generation != self.generation:
+                        return
                     self.request('GET', '/session/status', callback=status)
                     return
                 def resolved(related):
@@ -331,10 +342,17 @@ class OpenCodeBackend(QObject):
         self.start_timer.stop()
         self.timer.stop()
         self.waiting.clear()
-        for reply in list(self.replies):
-            reply.abort()
+        pending, self.replies = self.replies, {}
+        for reply in pending:
+            if not sip.isdeleted(reply):
+                reply.abort()
+                if not sip.isdeleted(reply):
+                    reply.deleteLater()
         if self.proc:
             proc, self.proc = self.proc, None
+            proc.readyReadStandardOutput.disconnect()
+            proc.errorOccurred.disconnect()
+            proc.finished.disconnect()
             proc.terminate()
             if not proc.waitForFinished(2000):
                 proc.kill()

@@ -95,6 +95,8 @@ if [ "$SKIP_MCP" = 0 ] && { command -v opencode >/dev/null 2>&1 || [ -x "$HOME/.
     say "Verdrahte opencode (MCP / Commands / Skill)"
     LUMEN_MCP_PY="$BIN/lumen_mcp.py" LUMEN_SHARE="$REPO" \
         "$BIN/lumen-setup" || warn "lumen-setup fehlgeschlagen"
+elif [ "$SKIP_MCP" = 1 ]; then
+    say "OpenCode-Konfiguration unverändert (--no-mcp)"
 else
     warn "opencode nicht gefunden – MCP/Commands/Skill übersprungen"
 fi

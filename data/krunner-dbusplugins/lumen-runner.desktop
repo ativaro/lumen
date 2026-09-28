@@ -1,8 +1,8 @@
 [Desktop Entry]
 Name=Lumen
-Comment=Frag opencode: tippe "ai <Frage>"
+Comment=Frag Lumen: tippe "ai <Frage>"
 Type=Service
-Icon=opencode
+Icon=lumen
 X-KDE-PluginInfo-Name=lumen-runner
 X-KDE-PluginInfo-EnabledByDefault=true
 X-KDE-PluginInfo-License=MIT
