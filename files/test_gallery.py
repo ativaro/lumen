@@ -63,7 +63,8 @@ class GalleryTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from app import create_app
-        cls.app = create_app()
+        from PyQt5.QtWidgets import QApplication
+        cls.app = QApplication.instance() or create_app()
 
     def wait_until(self, condition, seconds=15):
         import time
@@ -90,6 +91,10 @@ class GalleryTest(unittest.TestCase):
             QTest.keyClick(gallery, Qt.Key_Right)
             self.assertEqual(gallery.path, paths[1])
             self.assertIsNotNone(gallery.data)  # Cached neighbor appears in this event.
+            QTest.mouseClick(gallery.canvas.viewport(), Qt.BackButton)
+            self.assertEqual(gallery.path, paths[0])
+            QTest.mouseClick(gallery.canvas.viewport(), Qt.ForwardButton)
+            self.assertEqual(gallery.path, paths[1])
             QTest.keyClick(gallery, Qt.Key_R)
             self.assertEqual(gallery.operations, ['right'])
             self.assertEqual(gallery.canvas.item.pixmap().width(), 40)
@@ -101,6 +106,16 @@ class GalleryTest(unittest.TestCase):
             with Image.open(paths[1]) as result:
                 self.assertEqual(result.size, (40, 61))
             self.assertEqual(len(list((Path(tmp) / '.lumen-originals').iterdir())), 1)
+            # A failed trash request keeps both the file and the current image.
+            class FailedTrash(FileWorker):
+                def run(self):
+                    self.completed.emit([], ['Kein Papierkorb auf diesem Laufwerk'])
+            with patch('gallery.FileWorker', FailedTrash), patch.object(QMessageBox, 'exec_', return_value=QMessageBox.Yes), patch.object(QMessageBox, 'warning') as warning:
+                gallery.trash()
+                self.wait_until(lambda: not gallery.busy)
+                warning.assert_called_once()
+            self.assertTrue(Path(paths[1]).exists())
+            self.assertEqual(gallery.path, paths[1])
             # GIO trash itself has an isolated end-to-end test in test_lumen.
             # Here a worker moves into our test bin to exercise the gallery lifecycle.
             class TestTrash(FileWorker):

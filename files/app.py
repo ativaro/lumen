@@ -1,10 +1,12 @@
 #!/usr/bin/python3
 """Lumen Files — a preview-first native file manager for Linux."""
 import os
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
-from PyQt5.QtCore import (QDir, QFileInfo, QItemSelectionModel, QMimeData, QModelIndex,
+from PyQt5.QtCore import (QDir, QEvent, QFileInfo, QItemSelectionModel, QMimeData, QModelIndex,
                           QSettings, QSize, QSortFilterProxyModel, QStandardPaths,
                           QStorageInfo, Qt, QTimer, QTranslator, QLibraryInfo, QUrl)
 from PyQt5.QtGui import QDesktopServices, QIcon, QKeySequence, QPalette, QColor, QStandardItem, QStandardItemModel
@@ -12,11 +14,12 @@ from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QDialog, QFileIcon
                              QFileSystemModel, QFrame, QHBoxLayout, QHeaderView, QInputDialog,
                              QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow,
                              QMenu, QMessageBox, QPushButton, QShortcut,
-                             QSplitter, QStackedWidget, QTabBar, QTreeView, QVBoxLayout, QWidget)
+                             QSplitter, QStackedWidget, QStyledItemDelegate, QTabBar, QTreeView, QVBoxLayout, QWidget)
 from core import FileWorker, SearchWorker, file_kind, size_text, valid_name
 from network import Network, ConnectDialog, display_url, is_network_address, normalize_url, server_label
 from preview import Preview, label
 from gallery import Gallery
+from disk_analysis import DiskAnalysis
 
 ROOT = Path(__file__).resolve().parent
 
@@ -78,6 +81,13 @@ class FileFilter(QSortFilterProxyModel):
             if a is not None and b is not None:
                 return a < b
         return super().lessThan(left, right)
+
+
+class PlacesDelegate(QStyledItemDelegate):
+    def sizeHint(self, option, index):
+        size = super().sizeHint(option, index)
+        size.setWidth(self.parent().viewport().width())
+        return size
 
 
 class FileView(QTreeView):
@@ -220,20 +230,33 @@ class Window(QMainWindow):
         sidebar.setObjectName('sidebar')
         sidebar.setFixedWidth(208)
         side = QVBoxLayout(sidebar)
-        side.setContentsMargins(14, 28, 14, 20)
-        side.setSpacing(12)
+        side.setContentsMargins(12, 14, 12, 12)
+        side.setSpacing(6)
         side.addWidget(label('DEINE ORTE', 'eyebrow'))
         self.places = QListWidget()
         self.places.setObjectName('places')
-        self.places.setIconSize(QSize(22, 22))
+        self.places.setIconSize(QSize(18, 18))
+        self.places.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.places.setTextElideMode(Qt.ElideRight)
+        self.places.setUniformItemSizes(True)
+        self.places.setItemDelegate(PlacesDelegate(self.places))
         self.places.itemClicked.connect(lambda item: self.navigate(item.data(Qt.UserRole)))
         self.places.setContextMenuPolicy(Qt.CustomContextMenu)
         self.places.customContextMenuRequested.connect(self.place_menu)
         self.populate_places()
         side.addWidget(self.places, 1)
-        side.addWidget(button('Server verbinden', self.connect_dialog, 'network-server'))
-        side.addWidget(button('Ort merken', self.add_favorite, 'bookmark-new'))
-        side.addSpacing(10)
+        connections = QHBoxLayout()
+        connections.setSpacing(6)
+        connect = button('Server verbinden', self.connect_dialog, 'network-server')
+        favorite = button('', self.add_favorite, 'bookmark-new', 'Diesen Ort merken')
+        favorite.setFixedWidth(30)
+        analysis = button('Speicheranalyse', self.open_analysis, 'drive-harddisk')
+        for action in (connect, favorite, analysis):
+            action.setObjectName('sideAction')
+        connections.addWidget(connect, 1)
+        connections.addWidget(favorite)
+        side.addLayout(connections)
+        side.addWidget(analysis)
         self.disk_label = label('', 'muted')
         side.addWidget(self.disk_label)
         self.location_badge = label('LOKAL AUF DEINEM RECHNER', 'tiny')
@@ -786,6 +809,70 @@ class Window(QMainWindow):
         elif not QDesktopServices.openUrl(QUrl.fromLocalFile(path)):
             self.error('Die Datei konnte nicht geöffnet werden.', path)
 
+    def lumen_context_bin(self):
+        """Locate lumen-context (repo-relative, /usr/bin, or ~/.local/bin)."""
+        candidates = [
+            ROOT.parent / 'bin' / 'lumen-context',
+            Path('/usr/bin/lumen-context'),
+            Path.home() / '.local' / 'share' / 'opencode-lumen' / 'bin' / 'lumen-context',
+            Path.home() / '.local' / 'bin' / 'lumen-context',
+        ]
+        for cand in candidates:
+            if cand.is_file():
+                return str(cand)
+        return shutil.which('lumen-context')
+
+    def ask_lumen(self, action, paths):
+        """Run lumen-context <action> <paths> detached (opens a terminal)."""
+        if not paths:
+            return
+        helper = self.lumen_context_bin()
+        if not helper:
+            self.error('Lumen ist nicht installiert.',
+                       'lumen-context wurde nicht gefunden. Paket opencode-lumen installieren.')
+            return
+        local = [self.network.remote(p) or p for p in paths]
+        try:
+            subprocess.Popen([helper, action, *local], start_new_session=True)
+        except Exception as exc:
+            self.error('Lumen konnte nicht gestartet werden.', str(exc))
+
+    def ask_lumen_dialog(self, paths):
+        """Ask a free-form question about the selection via a KDE dialog."""
+        if not paths:
+            return
+        helper = self.lumen_context_bin()
+        if not helper:
+            self.error('Lumen ist nicht installiert.',
+                       'lumen-context wurde nicht gefunden. Paket opencode-lumen installieren.')
+            return
+        target = self.network.remote(paths[0]) or paths[0]
+        prompt, ok = QInputDialog.getText(
+            self, 'Lumen fragen', f'Was soll Lumen mit „{Path(target).name}“ machen?')
+        if not ok or not prompt.strip():
+            return
+        try:
+            env = dict(os.environ)
+            env['LUMEN_ASK_PROMPT'] = prompt
+            subprocess.Popen([helper, 'ask', target], env=env, start_new_session=True)
+        except Exception as exc:
+            self.error('Lumen konnte nicht gestartet werden.', str(exc))
+
+    def lumen_menu(self, menu, paths):
+        """Append the Lumen submenu for the selected entries."""
+        if not paths:
+            return
+        if not self.lumen_context_bin():
+            return
+        submenu = menu.addMenu(QIcon.fromTheme('lumen'), 'Lumen')
+        submenu.addAction('Mit Lumen öffnen', lambda: self.ask_lumen('open', [paths[0]]))
+        submenu.addAction('Erklären', lambda: self.ask_lumen('explain', [paths[0]]))
+        submenu.addAction('Fehler suchen & fixen', lambda: self.ask_lumen('fix', [paths[0]]))
+        if Path(paths[0]).is_dir():
+            submenu.addAction('git-Diff reviewen', lambda: self.ask_lumen('review', [paths[0]]))
+        submenu.addSeparator()
+        submenu.addAction('Fragen …', lambda: self.ask_lumen_dialog([paths[0]]))
+
     def quicklook(self):
         paths = self.selected_paths()
         if len(paths) != 1:
@@ -807,12 +894,20 @@ class Window(QMainWindow):
         dialog.deleteLater()
 
     def open_gallery(self, path):
-        paths = [self.proxy.path(self.proxy.index(row, 0, self.view.rootIndex()))
-                 for row in range(self.proxy.rowCount(self.view.rootIndex()))]
-        images = [p for p in paths if file_kind(p) == 'image']
+        images = []
+        for row in range(self.proxy.rowCount(self.view.rootIndex())):
+            index = self.proxy.index(row, 0, self.view.rootIndex())
+            candidate = self.proxy.path(index)
+            if file_kind(candidate) != 'image':
+                continue
+            source = self.proxy.mapToSource(index)
+            directory = self.fs.isDir(source) if self.proxy.sourceModel() is self.fs else source.sibling(source.row(), 2).data() == 'Ordner'
+            if not directory:
+                images.append(candidate)
         if path not in images:
             images.append(path)
         self.preview.cancel()
+        self.preview_delay.stop()
         dialog = Gallery(images, path, self)
         dialog.exec_()
         for row in range(self.proxy.rowCount(self.view.rootIndex())):
@@ -822,6 +917,17 @@ class Window(QMainWindow):
                 break
         dialog.deleteLater()
         self.refresh()
+        self.preview_delay.stop()
+        self.preview_selection()
+
+    def open_analysis(self, path=None):
+        dialog = DiskAnalysis(path or self.current_path, self)
+        destination = []
+        dialog.openPath.connect(destination.append)
+        dialog.exec_()
+        dialog.deleteLater()
+        if destination:
+            self.navigate(destination[0])
 
     def copy(self, cut):
         paths = self.selected_paths()
@@ -913,11 +1019,14 @@ class Window(QMainWindow):
                 menu.addAction('Enthaltenden Ordner öffnen', lambda: self.navigate(Path(paths[0]).parent))
                 if Path(paths[0]).is_dir():
                     menu.addAction('In neuem Tab öffnen', lambda: self.new_tab(paths[0]))
+                    menu.addAction('Speicher analysieren', lambda: self.open_analysis(paths[0]))
                 menu.addAction('Umbenennen\tF2', self.rename)
             menu.addSeparator()
             menu.addAction('Kopieren\tStrg+C', lambda: self.copy(False))
             menu.addAction('Ausschneiden\tStrg+X', lambda: self.copy(True))
             menu.addAction('Pfad kopieren', lambda: QApplication.clipboard().setText('\n'.join(self.network.remote(p) or p for p in paths)))
+            menu.addSeparator()
+            self.lumen_menu(menu, paths)
             menu.addSeparator()
             menu.addAction('In den Papierkorb\tEntf', self.trash)
         menu.addAction('Hier einfügen\tStrg+V', self.paste)
@@ -946,15 +1055,18 @@ class Window(QMainWindow):
     def show_menu(self):
         menu = QMenu(self)
         menu.addAction('Mit Server verbinden\tStrg+K', self.connect_dialog)
+        menu.addAction('Speicher analysieren', self.open_analysis)
         menu.addAction('Aktualisieren\tF5', self.refresh)
         menu.addAction('Versteckte Dateien\tStrg+H', self.toggle_hidden)
         menu.addSeparator()
         menu.addAction('Tastenkürzel & Info', lambda: QMessageBox.information(self, 'Lumen Files',
-            'Lumen Files · 0.2\n\nStrg+F  Suchen\nStrg+L  Pfad eingeben\nStrg+K  Server verbinden\n'
+            'Lumen Files · 0.3\n\nStrg+F  Suchen\nStrg+L  Pfad eingeben\nStrg+K  Server verbinden\n'
             'Strg+T / Strg+W  Tab öffnen / schließen\nAlt+Pfeile  Navigation\n'
             'Leertaste  Große Vorschau\nF2  Umbenennen\nStrg+C / X / V  Kopieren / Ausschneiden / Einfügen\n'
             'Entf  Papierkorb\n\nSuche: Dateinamen im aktuellen Ordner und Unterordnern. '
             'Mehrere Wörter müssen alle im Namen vorkommen. Maximal 5.000 Treffer; kein Volltextindex.\n\n'
+            'Bilder: Pfeiltasten blättern, R / Umschalt+R drehen, H spiegeln, Strg+Z rückgängig, '
+            'Strg+S speichern, Entf Papierkorb, F11 Vollbild. Originale bleiben in .lumen-originals.\n\n'
             'PDFs sind blätterbar. Videos zeigen ein Standbild, Audio eine Wellenform. Wiedergabe in der Standard-App.'))
         menu.exec_(self.sender().mapToGlobal(self.sender().rect().bottomLeft()))
 
@@ -989,9 +1101,25 @@ class Window(QMainWindow):
             self.view.setColumnHidden(3, self.width() < 1180)
 
 
+class Application(QApplication):
+    def notify(self, receiver, event):
+        if (event.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick)
+                and event.button() in (Qt.BackButton, Qt.ForwardButton) and isinstance(receiver, QWidget)):
+            window = receiver.window()
+            modal = self.activeModalWidget()
+            if (not self.activePopupWidget() and (modal is None or modal is window)
+                    and isinstance(window, (Window, Gallery))):
+                if event.type() == QEvent.MouseButtonRelease:
+                    direction = -1 if event.button() == Qt.BackButton else 1
+                    window.history(direction) if isinstance(window, Window) else window.step(direction)
+                event.accept()
+                return True
+        return super().notify(receiver, event)
+
+
 def create_app():
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
-    app = QApplication(sys.argv)
+    app = Application(sys.argv)
     app.setApplicationName('Lumen Files')
     app.setDesktopFileName('lumen-files')
     app.translator = QTranslator(app)

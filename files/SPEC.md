@@ -4,6 +4,7 @@ Native Linux-Dateiverwaltung mit Schwerpunkt auf schneller Dateinamensuche und b
 
 ## Akzeptanz
 - Echte lokale Ordner, Favoriten, Tabs, Verlauf, versteckte Dateien und Typfilter.
+- Seitliche Maustasten navigieren über allen Fensterbereichen im Verlauf, in der Galerie durch Bilder; andere Dialoge lösen keine Hintergrundnavigation aus. Zehn Orte passen bei 1000 × 640 Pixeln ohne Scrollen in die Seitenleiste.
 - Suche ab 250 ms Eingabepause, rekursiv, laufende Treffer, abbrechbar; Dateinamen ohne Beachtung der Großschreibung. Keine Symlink-Rekursion. Maximal 5.000 Treffer mit sichtbarem Hinweis. Kein Hintergrundindex, keine Volltextsuche.
 - Auswahl zeigt Bilder, blätterbare PDFs, Text/Code und Video-Standbilder; Leertaste öffnet große Vorschau. Decoder laufen außerhalb der Oberfläche mit Zeitlimit. Keine automatische Ausführung, kein HTML-Rendering.
 - Öffnen, Ordner erstellen, Umbenennen, Kopieren, Ausschneiden/Einfügen, bestätigter Papierkorb. Kein stilles Überschreiben. Fehler sichtbar, große Kopien im Hintergrund.

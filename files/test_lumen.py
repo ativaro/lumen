@@ -57,7 +57,8 @@ class NativeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from app import create_app
-        cls.app = create_app()
+        from PyQt5.QtWidgets import QApplication
+        cls.app = QApplication.instance() or create_app()
 
     def wait_until(self, condition, seconds=15):
         import time
@@ -67,11 +68,69 @@ class NativeTest(unittest.TestCase):
             QTest.qWait(15)
         self.assertTrue(condition(), 'UI operation timed out')
 
+    def test_mouse_history_over_child_widgets_and_dialog_isolation(self):
+        from app import Window
+        from PyQt5.QtCore import QSettings, Qt
+        from PyQt5.QtTest import QTest
+        from PyQt5.QtWidgets import QDialog
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first, second = root / 'first', root / 'first' / 'second'
+            second.mkdir(parents=True)
+            window = Window(tmp, QSettings(str(root / 'settings.ini'), QSettings.IniFormat))
+            window.show()
+            try:
+                window.navigate(first)
+                window.navigate(second)
+                QTest.qWait(50)
+                for receiver in (window.view.viewport(), window.places.viewport(), window.preview.text.viewport(), window.search, window.tabs):
+                    QTest.mouseClick(receiver, Qt.BackButton)
+                    self.assertEqual(window.current_path, str(first))
+                    QTest.mouseClick(receiver, Qt.ForwardButton)
+                    self.assertEqual(window.current_path, str(second))
+                dialog = QDialog(window)
+                dialog.setModal(True)
+                dialog.show()
+                QTest.qWait(20)
+                QTest.mouseClick(dialog, Qt.BackButton)
+                QTest.mouseClick(window.search, Qt.BackButton)
+                self.assertEqual(window.current_path, str(second))
+                dialog.close()
+            finally:
+                window.close()
+                window.deleteLater()
+                QTest.qWait(100)
+
+    def test_places_fit_in_compact_window_and_long_names_elide(self):
+        from app import Window
+        from PyQt5.QtCore import QSettings
+        from PyQt5.QtTest import QTest
+        from PyQt5.QtGui import QIcon
+        with tempfile.TemporaryDirectory() as tmp:
+            window = Window(tmp, QSettings(str(Path(tmp) / 'settings.ini'), QSettings.IniFormat))
+            window.show()
+            try:
+                window.places.clear()
+                window.places.addItems(['Persönlicher Ordner', 'Schreibtisch', 'Downloads', 'Dokumente',
+                    'Bilder', 'Videos', 'Musik', 'Dateisystem', 'NAS', 'Ein sehr langer gemerkter Projektordner'])
+                for i in range(window.places.count()):
+                    window.places.item(i).setIcon(QIcon.fromTheme('folder'))
+                for size in ((1380, 860), (1024, 700), (1000, 640)):
+                    window.resize(*size)
+                    QTest.qWait(50)
+                    self.assertEqual(window.places.verticalScrollBar().maximum(), 0, size)
+                    self.assertFalse(window.places.horizontalScrollBar().isVisible())
+                    self.assertTrue(window.places.viewport().rect().contains(window.places.visualItemRect(window.places.item(9))), size)
+            finally:
+                window.close()
+                window.deleteLater()
+                QTest.qWait(100)
+
     def test_navigation_search_previews_and_file_actions(self):
         import os
         import subprocess
         from app import Window
-        from PyQt5.QtCore import QItemSelectionModel, QSettings, Qt
+        from PyQt5.QtCore import QItemSelectionModel, QPoint, QSettings, Qt
         from PyQt5.QtGui import QImage, QColor, QPainter, QPdfWriter
         from PyQt5.QtTest import QTest
         with tempfile.TemporaryDirectory() as tmp:
@@ -103,6 +162,15 @@ class NativeTest(unittest.TestCase):
             window = Window(tmp, settings)
             window.show()
             self.wait_until(lambda: window.proxy.rowCount(window.view.rootIndex()) >= 10)
+            self.assertLess(window.tabs.mapTo(window, QPoint()).y(), window.search.mapTo(window, QPoint()).y())
+            self.assertNotIn('/mnt/games', [window.places.item(i).data(Qt.UserRole) for i in range(window.places.count())])
+            from unittest.mock import patch
+            with patch('app.Gallery') as gallery:
+                gallery.return_value.path = str(root / 'vector.svg')
+                window.open_path(str(root / 'image.png'))
+                gallery.assert_called_once()
+                self.assertEqual(set(gallery.call_args.args[0]), {str(root / name) for name in ['image.png', 'invalid.png', 'vector.svg']})
+                self.assertEqual(window.selected_paths(), [str(root / 'vector.svg')])
             window.new_tab(str(nested))
             self.assertEqual(window.current_path, str(nested))
             window.navigate(root)

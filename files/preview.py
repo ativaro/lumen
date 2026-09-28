@@ -264,9 +264,14 @@ def preview_data(path, output, max_side=1600):
             original = reader.size()
             if original.width() * original.height() > 80_000_000:
                 return {'kind': 'other', 'message': 'Bild größer als 80 Megapixel. Bitte extern öffnen.'}
-            reader.setScaledSize(original.scaled(min(max_side, original.width()),
-                                                min(max_side, original.height()), Qt.KeepAspectRatio))
+            max_side = max(1, min(max_side, 4096))
+            target = original.scaled(min(max_side, original.width()), min(max_side, original.height()), Qt.KeepAspectRatio)
+            target.setWidth(max(1, target.width()))
+            target.setHeight(max(1, target.height()))
+            reader.setScaledSize(target)
             image = reader.read()
+            if image.width() > max_side or image.height() > max_side:
+                image = image.scaled(max_side, max_side, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             if image.isNull() or not image.save(output, 'PNG'):
                 return {'kind': 'other', 'message': 'Bildformat nicht unterstützt oder Datei beschädigt.'}
             from image_edit import file_stamp

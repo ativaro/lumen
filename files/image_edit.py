@@ -75,7 +75,7 @@ def save_image(path, operations, expected):
                     raise ValueError('Der Sicherungsordner ist keine reguläre Ablage.')
                 backup = backup_dir / f'{uuid.uuid4().hex[:12]}-{path.name}'
                 stream.seek(0)
-                with backup.open('xb') as output:
+                with os.fdopen(os.open(backup, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'wb') as output:
                     shutil.copyfileobj(stream, output)
                     output.flush()
                     os.fsync(output.fileno())

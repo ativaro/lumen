@@ -15,6 +15,7 @@ QPushButton:focus { border: 1px solid #9bdcca; }
 QPushButton:disabled { color: #657080; background: #202a37; border-color: #293340; }
 QPushButton#iconButton { border: none; background: transparent; font-size: 20px; min-width: 24px; padding: 5px; }
 QPushButton#iconButton:hover { background: #303e4e; }
+QPushButton#sideAction { padding: 5px 6px; font-size: 12px; }
 QPushButton#crumb { background: transparent; border: 1px solid transparent; padding: 7px 9px; color: #c9d5e2; }
 QPushButton#crumb:hover { background: #2c3949; }
 QPushButton#chip { background: transparent; border: 1px solid transparent; color: #afbdd0; padding: 6px 12px; border-radius: 12px; font-size: 11px; }
@@ -24,7 +25,7 @@ QLineEdit { background: #222d3b; border: 1px solid #354252; border-radius: 8px; 
 QLineEdit#search { padding: 11px 14px; font-size: 13px; }
 QLineEdit:focus { border-color: #81bfaf; background: #263342; }
 QListWidget#places { background: transparent; border: none; outline: none; }
-QListWidget#places::item { padding: 12px 8px; border-radius: 8px; margin: 2px 0; font-size: 12px; }
+QListWidget#places::item { padding: 4px 6px; border-radius: 6px; margin: 1px 0; font-size: 12px; }
 QListWidget#places::item:selected { background: #294347; color: #c3f0e4; }
 QListWidget#places::item:hover { background: #293848; }
 QTabBar::tab { background: transparent; color: #9cacc0; padding: 11px 17px; min-width: 110px; border-bottom: 2px solid transparent; }
@@ -35,6 +36,10 @@ QTreeView#files::item { height: 46px; padding: 0 5px; border-bottom: 1px solid #
 QTreeView#files::item:hover { background: #263544; }
 QTreeView#files::item:selected { background: #2d4a50; color: #f0fff9; }
 QTreeView#files::item:focus { border: 1px solid #85c9b6; }
+QTreeWidget#diskTree { background: #1c2430; border: 1px solid #354150; border-radius: 7px; outline: none; }
+QTreeWidget#diskTree::item { height: 36px; border-bottom: 1px solid #26313e; }
+QTreeWidget#diskTree::item:selected { background: #2d4a50; }
+QCheckBox { spacing: 8px; padding: 8px 0; }
 QHeaderView::section { background: #1c2430; color: #9eaec0; border: none; border-bottom: 1px solid #354150; padding: 8px 5px; font-size: 11px; text-align: left; }
 QWidget#preview { background: #18212d; border-left: 1px solid #2b3644; }
 QLabel#previewTitle { font-size: 18px; font-weight: 600; color: #eef4fa; }
