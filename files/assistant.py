@@ -3,10 +3,10 @@ import html
 import mimetypes
 from pathlib import Path
 
-from PyQt5.QtCore import Qt, QUrl
+from PyQt5.QtCore import Qt, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices, QKeySequence, QTextDocument
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame, QHBoxLayout,
-                             QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton,
+                             QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton,
                              QScrollArea, QShortcut, QTextBrowser, QVBoxLayout, QWidget)
 from assistant_backend import OpenCodeBackend
 from preview import label
@@ -24,10 +24,15 @@ class Transcript(QTextBrowser):
 
 
 class ChatPanel(QWidget):
+    actionChanged = pyqtSignal(str)
+    closeRequested = pyqtSignal()
+    action_titles = {'explain': 'Erklärung', 'fix': 'Fehler beheben', 'review': 'Änderungen prüfen'}
+
     def __init__(self, directory, parent=None, backend=None):
         super().__init__(parent)
         self.backend = backend or OpenCodeBackend(directory, self)
         self.paths = []
+        self.action = ''
         self.last_answer = ''
         self.last_prompt = ''
         self.rendered = None
@@ -37,7 +42,8 @@ class ChatPanel(QWidget):
         layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(12)
         top = QHBoxLayout()
-        top.addWidget(label('lumen', 'brand'))
+        self.heading = label('lumen', 'brand')
+        top.addWidget(self.heading)
         top.addStretch()
         self.new = QPushButton('Neues Gespräch')
         self.new.clicked.connect(self.new_conversation)
@@ -64,6 +70,26 @@ class ChatPanel(QWidget):
         self.transcript.anchorClicked.connect(lambda url: QDesktopServices.openUrl(url)
                                               if url.scheme() in ('https', 'http') else None)
         layout.addWidget(self.transcript, 1)
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 0)
+        self.progress.setTextVisible(False)
+        self.progress.setAccessibleName('Vorgang läuft')
+        self.progress.setFixedHeight(4)
+        self.progress.hide()
+        layout.addWidget(self.progress)
+        self.action_buttons = QWidget()
+        action_row = QHBoxLayout(self.action_buttons)
+        action_row.setContentsMargins(0, 0, 0, 0)
+        self.action_more = QPushButton('Mehr Details')
+        self.action_more.clicked.connect(self.expand_action)
+        action_row.addWidget(self.action_more)
+        self.retry = QPushButton('Erneut versuchen')
+        self.retry.clicked.connect(self.retry_action)
+        self.retry.hide()
+        action_row.addWidget(self.retry)
+        action_row.addStretch()
+        self.action_buttons.hide()
+        layout.addWidget(self.action_buttons)
         self.requests = QScrollArea()
         self.requests.setWidgetResizable(True)
         self.requests.setMaximumHeight(280)
@@ -95,6 +121,10 @@ class ChatPanel(QWidget):
         self.send_button.setObjectName('primary')
         self.send_button.clicked.connect(self.send)
         bottom.addWidget(self.send_button)
+        self.close_action = QPushButton('Schließen')
+        self.close_action.clicked.connect(self.closeRequested)
+        self.close_action.hide()
+        bottom.addWidget(self.close_action)
         layout.addLayout(bottom)
         QShortcut(QKeySequence('Ctrl+Return'), self, activated=self.send)
         self.backend.messagesChanged.connect(self.show_messages)
@@ -102,13 +132,16 @@ class ChatPanel(QWidget):
         self.backend.sessionsChanged.connect(self.show_sessions)
         self.backend.sessionChanged.connect(self.select_session_item)
         self.backend.busyChanged.connect(self.set_busy)
-        self.backend.statusChanged.connect(self.status.setText)
+        self.backend.statusChanged.connect(self.show_status)
         self.backend.failed.connect(self.request_failed)
         self.update_context()
         self.show_messages([])
 
     def request_failed(self, text):
-        if self.last_prompt and not self.composer.toPlainText():
+        if self.action:
+            self.retry.show()
+            self.action_more.setEnabled(False)
+        elif self.last_prompt and not self.composer.toPlainText():
             self.composer.setPlainText(self.last_prompt)
         self.show_error(text)
 
@@ -122,6 +155,52 @@ class ChatPanel(QWidget):
         self.mode.setEnabled(not busy)
         self.sessions.setEnabled(not busy)
         self.stop.setVisible(busy)
+        self.progress.setVisible(bool(self.action) and busy)
+        self.close_action.setEnabled(not busy)
+        self.action_more.setEnabled(not busy and bool(self.last_answer))
+        if busy:
+            self.retry.hide()
+
+    def show_status(self, text):
+        if self.action:
+            if text == 'Bereit' and not self.backend.busy:
+                text = 'Erklärung bereit' if self.action == 'explain' and self.last_answer else 'Ergebnis liegt vor' if self.last_answer else 'Bereit'
+            elif text in ('Lumen arbeitet …', 'Lumen wird bereit …', 'Bereit'):
+                text = {'explain': 'Auswahl wird erklärt …', 'fix': 'Ergebnis wird geprüft …' if self.mode.currentData() == 'plan' else 'Fehler werden gesucht und behoben …',
+                        'review': 'Änderungen werden geprüft …'}[self.action]
+            elif text in ('Abgebrochen', 'Anfrage fehlgeschlagen', 'Antwort nicht abgeschlossen'):
+                self.retry.show()
+                self.action_more.setEnabled(False)
+        self.status.setText(text)
+
+    def set_action(self, action):
+        self.action = action if action in self.action_titles else ''
+        self.heading.setText(self.action_titles.get(self.action, 'lumen'))
+        for widget in (self.new, self.sessions, self.mode, self.composer, self.send_button):
+            widget.setVisible(not self.action)
+        self.action_buttons.setVisible(bool(self.action))
+        self.close_action.setVisible(bool(self.action))
+        self.progress.setVisible(bool(self.action) and self.backend.busy)
+        self.action_more.setText('Mehr Details' if self.action == 'explain' else 'Ergebnis prüfen')
+        self.retry.hide()
+        self.rendered = None
+        self.show_messages(self.backend.messages)
+        self.actionChanged.emit(self.action)
+
+    def expand_action(self):
+        if self.backend.busy or not self.last_answer:
+            return
+        self.mode.setCurrentIndex(1)
+        self.submit('Erkläre die Auswahl genauer und verständlich.' if self.action == 'explain' else
+                    'Prüfe das vorliegende Ergebnis anhand der Dateien und geeigneter Tests. Ändere keine Dateien. '
+                    'Zeige knapp, was bestätigt wurde und was noch offen ist.')
+
+    def retry_action(self):
+        if self.backend.busy or not self.last_prompt:
+            return
+        prompt = self.last_prompt
+        self.backend.new_conversation()
+        self.submit(prompt)
 
     def show_sessions(self, sessions):
         self.sessions.clear()
@@ -165,25 +244,33 @@ class ChatPanel(QWidget):
         if directory is None and paths:
             first = Path(paths[0])
             directory = str(first if first.is_dir() else first.parent)
-        if directory and directory != self.backend.directory:
+        if action in self.action_titles or self.action or (directory and directory != self.backend.directory):
             self.backend.new_conversation(directory)
+            self.last_prompt = ''
         self.paths = paths
+        self.set_action(action)
         self.mode.setCurrentIndex(1 if action in ('explain', 'review') else 0)
         self.update_context()
         self.error.hide()
-        self.backend.refresh_sessions()
+        if not self.action:
+            self.backend.refresh_sessions()
         prompts = {
-            'explain': 'Erkläre die ausgewählten Dateien oder den Ordner in zwei bis drei verständlichen Sätzen. Ändere keine Dateien. Biete bei Bedarf eine genauere Erklärung an.',
+            'explain': 'Beschreibe Inhalt und Zweck der ausgewählten Dateien oder des Ordners in zwei bis drei verständlichen Sätzen. Gib nur die Erklärung aus, ohne Anrede, Rückfrage oder weitere Angebote. Ändere keine Dateien.',
             'review': 'Prüfe den aktuellen Git-Diff im ausgewählten Ordner auf Fehler und Risiken. Ändere keine Dateien.',
-            'fix': 'Untersuche die ausgewählten Dateien oder den Ordner auf Fehler. Behebe bestätigte Fehler und prüfe die Änderungen.'}
+            'fix': 'Untersuche die ausgewählten Dateien oder den Ordner auf Fehler. Behebe bestätigte Fehler und prüfe die Änderungen. '
+                   'Berichte knapp unter Ergebnis, Änderungen und Prüfung, was tatsächlich erledigt wurde und was noch offen ist.'}
         prompt = prompt or prompts.get(action, '')
         if prompt:
-            self.composer.setPlainText(prompt)
-            self.send()
-        self.composer.setFocus()
+            self.submit(prompt)
+        if not self.action:
+            self.composer.setFocus()
 
     def send(self):
-        text = self.composer.toPlainText().strip()
+        if not self.action:
+            self.submit(self.composer.toPlainText())
+
+    def submit(self, text):
+        text = text.strip()
         if not text or self.backend.busy:
             return
         self.error.hide()
@@ -195,14 +282,19 @@ class ChatPanel(QWidget):
                 mime = mimetypes.guess_type(path)[0] or ''
                 if Path(path).is_file() and (mime.startswith('image/') or mime == 'application/pdf'):
                     files.append((path, mime))
-        self.backend.send(text, files, self.mode.currentData())
-        self.composer.clear()
+        title = self.action_titles[self.action] + ' · ' + (Path(self.paths[0]).name if self.paths else Path(self.backend.directory).name) if self.action else None
+        self.backend.send(text, files, self.mode.currentData(), title=title)
+        if not self.action:
+            self.composer.clear()
 
     def show_messages(self, messages):
         entries = []
         self.last_answer = ''
         for message in messages:
-            role = message.get('info', {}).get('role')
+            info = message.get('info', {})
+            role = info.get('role')
+            if self.action and (role != 'assistant' or info.get('parentID') != self.backend.message_id):
+                continue
             if role not in ('assistant', 'user'):
                 continue
             parts = message.get('parts', [])
@@ -211,9 +303,10 @@ class ChatPanel(QWidget):
                         if p.get('type') == 'tool' and p.get('state', {}).get('status') in ('running', 'pending')]
             if role == 'assistant' and text:
                 self.last_answer = text
-            if text or activity:
-                entries.append((role, text, activity))
+            if text or (activity and not self.action):
+                entries.append((role, text, [] if self.action else activity))
         self.copy.setEnabled(bool(self.last_answer))
+        self.action_more.setEnabled(bool(self.last_answer) and not self.backend.busy)
         if entries == self.rendered:
             return
         self.rendered = entries
@@ -226,12 +319,15 @@ class ChatPanel(QWidget):
             md = SafeDocument()
             md.setMarkdown(text, QTextDocument.MarkdownFeatures(QTextDocument.MarkdownDialectGitHub | QTextDocument.MarkdownNoHTML))
             body = md.toHtml().split('<body', 1)[1].split('>', 1)[1].rsplit('</body>', 1)[0]
-            document.append('<p style="color:#9bdcca;font-size:11px"><b>' + ('DU' if role == 'user' else 'LUMEN') + '</b></p>')
+            if not self.action:
+                document.append('<p style="color:#9bdcca;font-size:11px"><b>' + ('DU' if role == 'user' else 'LUMEN') + '</b></p>')
             document.append(body)
             if activity:
                 document.append('<p style="color:#a3b0c2">' + html.escape(' · '.join(activity)) + ' …</p>')
-            document.append('<hr>')
-        self.transcript.setHtml(''.join(document) or '<h2>Wobei kann ich dir helfen?</h2><p>Dateien verstehen, etwas prüfen oder eine Aufgabe erledigen.</p>')
+            if not self.action:
+                document.append('<hr>')
+        empty = '<p>Das Ergebnis erscheint hier.</p>' if self.action else '<h2>Wobei kann ich dir helfen?</h2><p>Dateien verstehen, etwas prüfen oder eine Aufgabe erledigen.</p>'
+        self.transcript.setHtml(''.join(document) or empty)
         scroll.setValue(scroll.maximum() if bottom else position)
 
     def show_requests(self, permissions, questions):
@@ -242,7 +338,9 @@ class ChatPanel(QWidget):
         content = QWidget()
         layout = QVBoxLayout(content)
         for request in permissions:
-            title = label('Freigabe benötigt: ' + request['permission'])
+            permission = {'edit': 'Dateien ändern', 'bash': 'Befehl ausführen', 'external_directory': 'Auf Ordner zugreifen',
+                          'read': 'Dateien lesen', 'webfetch': 'Website abrufen', 'task': 'Teilaufgabe ausführen'}.get(request['permission'], 'Aktion ausführen')
+            title = label('Erlauben: ' + permission + '?')
             title.setWordWrap(True)
             layout.addWidget(title)
             detail = label('\n'.join(request.get('patterns', [])), 'muted')

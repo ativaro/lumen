@@ -67,3 +67,6 @@ QComboBox QAbstractItemView { background: #222d3b; selection-background-color: #
 QPushButton#primary { background: #315c55; color: #e0fff5; border-color: #629b8c; }
 QLabel#error { color: #ffb6a8; }
 QDockWidget { color: #c3f0e4; }
+
+QProgressBar { border: none; background: #293746; border-radius: 2px; }
+QProgressBar::chunk { background: #9bdcca; border-radius: 2px; }

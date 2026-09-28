@@ -35,7 +35,8 @@ class LumenWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         row = QHBoxLayout(central)
-        navigation = QVBoxLayout()
+        self.navigation = QWidget()
+        navigation = QVBoxLayout(self.navigation)
         navigation.setContentsMargins(10, 20, 10, 10)
         navigation.addWidget(label('DEIN ASSISTENT', 'eyebrow'))
         self.pages = QStackedWidget()
@@ -54,13 +55,25 @@ class LumenWindow(QMainWindow):
             self.nav_buttons.append(item)
         navigation.addStretch()
         navigation.addWidget(button('Ordner wählen', self.choose_directory, 'folder-open'))
-        navigation.addWidget(button('Dateien hinzufügen', self.choose_files, 'list-add'))
-        row.addLayout(navigation)
+        navigation.addWidget(button('Dateien hinzufügen', lambda: self.choose_files(), 'list-add'))
+        row.addWidget(self.navigation)
         row.addWidget(self.pages, 1)
         self.show_page(0)
+        self.chat.actionChanged.connect(self.present_action)
+        self.chat.closeRequested.connect(self.close)
         self.refresh_timer = QTimer(self)
         self.refresh_timer.timeout.connect(lambda: self.refresh_system() if self.pages.currentIndex() == 1 else None)
         self.refresh_timer.start(5000)
+
+    def present_action(self, action):
+        was_action = self.navigation.isHidden()
+        self.navigation.setVisible(not action)
+        self.setWindowTitle(self.chat.heading.text() + ' — Lumen' if action else 'Lumen')
+        self.setMinimumSize(560, 520) if action else self.setMinimumSize(760, 600)
+        if action:
+            self.resize(680, 740)
+        elif was_action:
+            self.resize(1050, 800)
 
     def show_page(self, index):
         self.pages.setCurrentIndex(index)
@@ -79,14 +92,14 @@ class LumenWindow(QMainWindow):
             self.chat.begin_context(directory=path)
             self.show_page(0)
 
-    def choose_files(self):
+    def choose_files(self, action='open'):
         if self.chat.backend.busy:
             self.show_page(0)
             self.chat.show_error('Bitte den laufenden Vorgang zuerst abschließen oder abbrechen.')
             return
         paths, _ = QFileDialog.getOpenFileNames(self, 'Dateien zu Lumen hinzufügen', self.chat.backend.directory)
         if paths:
-            self.chat.begin_context(paths=paths)
+            self.chat.begin_context(action, paths=paths)
             self.show_page(0)
 
     def build_system(self):
@@ -127,7 +140,8 @@ class LumenWindow(QMainWindow):
         layout.setContentsMargins(28, 24, 28, 24)
         layout.addWidget(label('Direkt loslegen', 'heading'))
         for title, callback in [
-            ('Dateien erklären lassen', self.choose_files),
+            ('Dateien erklären', lambda: self.choose_files('explain')),
+            ('Dateifehler beheben', lambda: self.choose_files('fix')),
             ('Zwischenablage besprechen', lambda: self.selection('explain')),
             ('Text korrigieren', lambda: self.selection('fix')),
             ('Text übersetzen', lambda: self.selection('translate')),
@@ -252,7 +266,8 @@ class LumenWindow(QMainWindow):
         for job in self.jobs[:]:
             job.kill()
             job.waitForFinished(1000)
-        self.settings.setValue('geometry', self.saveGeometry())
+        if not self.chat.action:
+            self.settings.setValue('geometry', self.saveGeometry())
         event.accept()
 
 
@@ -272,6 +287,8 @@ def main():
     app.setDesktopFileName('lumen')
     directory = Path(args.directory).expanduser()
     window = LumenWindow(str(directory if directory.is_dir() else Path.home()))
+    if args.action in window.chat.action_titles:
+        window.chat.set_action(args.action)
     window.show()
     def start():
         paths = [QUrl(p).toLocalFile() if p.startswith('file:') else p for p in args.context + args.file]

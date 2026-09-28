@@ -13,7 +13,7 @@ gracefully on other setups.
 | Component | What it does |
 |---|---|
 | **Desktop app** (`Lumen`) | Native PyQt5 chat, conversation history, cancellation, permission/question forms, system dashboard and quick actions |
-| **Dolphin service menu** | Right-click a file/folder → *open / explain / fix / review / ask* |
+| **File actions** | Explain / fix / review show a native result and progress view in Files or a compact standalone window; free chat remains separate |
 | **Global shortcuts** | `Meta+Shift+O` ask · `Meta+Shift+S` explain clipboard · `Meta+Shift+V` vision · `Meta+Shift+E` explain selection |
 | **Vision** | capture a screen region → opencode analyses the image (`lumen-vision`) |
 | **Selection actions** | explain / translate / fix / summarize selected or copied text (`lumen-sel`) |

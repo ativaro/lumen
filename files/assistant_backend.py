@@ -173,7 +173,7 @@ class OpenCodeBackend(QObject):
         self.sessionChanged.emit(session)
         self.ensure_server(self.poll)
 
-    def send(self, text, files=None, agent='build'):
+    def send(self, text, files=None, agent='build', title=None):
         if self.busy or not text.strip():
             return
         self.log = b'' if not self.url else self.log
@@ -189,6 +189,10 @@ class OpenCodeBackend(QObject):
                 'system': 'Du bist Lumen, der persönliche Desktop-Assistent. Antworte auf Deutsch, knapp und verständlich. '
                           'Nutze die bereitgestellten Werkzeuge. Zeige keine Terminal-Banner oder internen Protokolle. '
                           'Behaupte Änderungen nur, wenn die Werkzeuge sie bestätigt haben.'}
+        if title:
+            body['system'] += (' Die Antwort erscheint als Ergebnis einer Dateiaktion. Formuliere einen sachlichen Ergebnistext '
+                               'ohne Anrede oder Gesprächsangebote. Falls eine Rückfrage für die Aufgabe erforderlich ist, '
+                               'verwende das question-Werkzeug, damit sie als Formular erscheint.')
 
         def submit():
             self.request('POST', f'/session/{self.session}/prompt_async', body, lambda _: self.poll())
@@ -203,7 +207,7 @@ class OpenCodeBackend(QObject):
             if self.session:
                 submit()
             else:
-                self.request('POST', '/session', {'title': text.splitlines()[0][:70], 'metadata': {'client': 'lumen'}}, created)
+                self.request('POST', '/session', {'title': (title or text.splitlines()[0])[:70], 'metadata': {'client': 'lumen'}}, created)
         self.ensure_server(ready)
 
     def poll(self):

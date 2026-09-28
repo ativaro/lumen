@@ -195,6 +195,63 @@ class AssistantTest(unittest.TestCase):
             result = subprocess.run(command + ['--help'], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_file_actions_show_native_results_instead_of_chat(self):
+        from assistant import ChatPanel
+        with tempfile.TemporaryDirectory() as tmp:
+            backend = OpenCodeBackend(tmp)
+            calls = []
+            backend.refresh_sessions = lambda: None
+            def send(text, files=None, agent='build', title=None):
+                calls.append((text, agent, title))
+                backend.message_id = 'msg_action'
+                backend.set_busy(True)
+                backend.statusChanged.emit('Lumen arbeitet …')
+            backend.send = send
+            panel = ChatPanel(tmp, backend=backend)
+            panel.show()
+            try:
+                selection = [str(Path(tmp) / 'notiz.txt')]
+                panel.begin_context('explain', selection)
+                self.assertEqual(panel.heading.text(), 'Erklärung')
+                self.assertTrue(panel.composer.isHidden())
+                self.assertTrue(panel.sessions.isHidden())
+                self.assertTrue(panel.mode.isHidden())
+                self.assertTrue(panel.progress.isVisible())
+                self.assertEqual(calls[-1][1], 'plan')
+                self.assertEqual(calls[-1][2], 'Erklärung · notiz.txt')
+                backend.messages = [
+                    {'info': {'role': 'user'}, 'parts': [{'type': 'text', 'text': calls[-1][0]}]},
+                    {'info': {'role': 'assistant', 'parentID': 'msg_action'},
+                     'parts': [{'type': 'text', 'text': 'Diese Datei enthält persönliche Notizen.'}]}]
+                backend.messagesChanged.emit(backend.messages)
+                backend.set_busy(False)
+                backend.statusChanged.emit('Bereit')
+                result = panel.transcript.toPlainText()
+                self.assertIn('persönliche Notizen', result)
+                self.assertNotIn('Ausgewählte Pfade', result)
+                self.assertNotIn('LUMEN', result)
+                self.assertEqual(panel.status.text(), 'Erklärung bereit')
+                panel.action_more.click()
+                self.assertEqual(calls[-1][1], 'plan')
+                backend.set_busy(False)
+                panel.begin_context('fix', selection)
+                self.assertEqual(panel.heading.text(), 'Fehler beheben')
+                self.assertEqual(calls[-1][1], 'build')
+                backend.set_busy(False)
+                backend.failed.emit('Verbindung unterbrochen')
+                self.assertTrue(panel.retry.isVisible())
+                panel.retry.click()
+                self.assertIn(selection[0], calls[-1][0])
+                backend.set_busy(False)
+                panel.begin_context('open', selection)
+                self.assertFalse(panel.composer.isHidden())
+                self.assertFalse(panel.sessions.isHidden())
+                self.assertTrue(panel.progress.isHidden())
+            finally:
+                backend.set_busy(False)
+                backend.shutdown()
+                panel.close()
+
     def test_native_process_closes_during_engine_startup(self):
         import os
         import shutil
@@ -206,15 +263,15 @@ class AssistantTest(unittest.TestCase):
 import sys,tempfile
 sys.path.insert(0,'files')
 from app import create_app,Window
-from PyQt5.QtCore import QSettings
-from PyQt5.QtTest import QTest
+from PyQt5.QtCore import QSettings,QTimer
 app=create_app()
 with tempfile.TemporaryDirectory() as tmp:
     window=Window(tmp,QSettings(tmp+'/ui.ini',QSettings.IniFormat))
     window.show()
     window.ask_lumen('open',[tmp])
-    QTest.qWait(int(sys.argv[1]))
-    window.close()
+    # Run the real lifecycle so Qt handles deferred deletions before Python exits.
+    QTimer.singleShot(int(sys.argv[1]),window.close)
+    app.exec_()
 """
         for delay in (0, 150, 500):
             result = subprocess.run(['/usr/bin/python3', '-X', 'faulthandler', '-c', script, str(delay)],

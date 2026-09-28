@@ -44,3 +44,20 @@ Abbruch verhindert die Gesprächsgeneration weitere Poll-Schritte. Prozesssignal
 werden vor dem Aufräumen getrennt. Wiederholte separate Testprozesse prüfen das
 Schließen während des Engine-Starts (keine Modellaufrufe). Fehlerhafte Antworten
 lassen den ursprünglichen Entwurf für einen erneuten Versuch stehen.
+
+## Dateiaktionen als Produktfunktionen (2026-09-29)
+„Erklären“, „Fehler beheben“ und „Änderungen prüfen“ starten eigene Vorgänge mit
+passendem Titel, sichtbarer Auswahl und Fortschritt. Sie zeigen nur Ergebnisse,
+keine generierten Aufträge, Chatrollen, Moduswahl oder Gesprächsauswahl. Erklären
+bietet „Mehr Details“, Beheben/Prüfen bieten „Ergebnis prüfen“ (Plan-Agent), außerdem
+Abbrechen, erneuter Versuch nach Fehler, Kopieren und Schließen. Freigaben und
+Rückfragen bleiben sichtbar. Dateiaktionen beginnen jeweils ein eigenes Gespräch;
+der freie Chat bleibt über den bestehenden Lumen-Einstieg erreichbar.
+
+Im Dateimanager bleibt die Aktion im Seitenpanel; externe Kontextmenüs öffnen
+kompakte Ergebnisfenster ohne Navigationsleiste. Die Größen solcher Aktionsfenster
+überschreiben nicht die gespeicherte Größe der normalen Lumen-App.
+
+Geprüft: 22 Tests einschließlich Ergebnisansicht, verborgenem Auftragstext,
+Lesen-/Bearbeiten-Zuordnung, Fehler/erneutem Versuch und echtem Qt-Ereignisablauf
+beim Schließen. Zusätzlich eine temporäre Textdatei mit der echten Engine erklärt.

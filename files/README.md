@@ -27,11 +27,14 @@ Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. Au
 Rechtsklick → **Lumen** übernimmt alle ausgewählten Dateien:
 
 - **Mit Lumen öffnen:** eigene Frage eingeben.
-- **Erklären:** kurze Erklärung im Modus „Lesen & prüfen“.
-- **Fehler suchen & fixen:** untersuchen und bestätigte Fehler bearbeiten.
-- **Git-Diff prüfen:** Änderungen ohne Bearbeitung untersuchen.
+- **Erklären:** direkte Ergebnisansicht mit kurzer Erklärung und „Mehr Details“.
+- **Fehler beheben:** native Fortschrittsanzeige, anschließend Ergebnis, Änderungen und Prüfung. „Ergebnis prüfen“ untersucht das Resultat nochmals ohne Bearbeitung.
+- **Git-Diff prüfen:** eigene Ergebnisansicht für die Prüfung ohne Bearbeitung.
 
-Antworten, Abbrechen, einmalige Freigaben und Rückfragen erscheinen im Panel.
+Diese Dateiaktionen zeigen ihre Ergebnisse ohne Chat-Eingabe, Gesprächsauswahl,
+Moduswahl oder interne Auftragstexte. „Erneut versuchen“, „Kopieren“ und „Schließen“
+sind direkt verfügbar; Abbrechen, Freigaben und Rückfragen bleiben im selben Panel.
+Der freie Chat über **Lumen / Strg+J / Mit Lumen öffnen** bleibt separat erreichbar.
 **Strg+Enter** sendet; „Neues Gespräch“ und die Gesprächsauswahl verwalten
 Lumen-Unterhaltungen im Arbeitsordner. Der Kontext bleibt sichtbar, auch wenn
 man im Dateimanager weiter navigiert. Netzwerkdateien nutzen ihren lokalen

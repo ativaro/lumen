@@ -14,17 +14,17 @@ Icon=lumen
 Exec=%INSTALL_BIN%/lumen-context open %F
 
 [Desktop Action lumenExplain]
-Name=Lumen: erklären
+Name=Erklären
 Icon=help-contents
 Exec=%INSTALL_BIN%/lumen-context explain %F
 
 [Desktop Action lumenFix]
-Name=Lumen: Fehler suchen & fixen
+Name=Fehler beheben
 Icon=system-run
 Exec=%INSTALL_BIN%/lumen-context fix %F
 
 [Desktop Action lumenReview]
-Name=Lumen: git-Änderungen reviewen
+Name=Änderungen prüfen
 Icon=vcs-normal
 Exec=%INSTALL_BIN%/lumen-context review %F
 

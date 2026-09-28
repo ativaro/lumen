@@ -816,6 +816,8 @@ class Window(QMainWindow):
             self.assistant_dock = QDockWidget('Lumen', self)
             self.assistant_dock.setObjectName('lumenDock')
             self.assistant_dock.setWidget(self.assistant)
+            self.assistant.closeRequested.connect(self.assistant_dock.hide)
+            self.assistant.actionChanged.connect(lambda _: self.assistant_dock.setWindowTitle(self.assistant.heading.text() if self.assistant.action else 'Lumen'))
             self.assistant_dock.setAllowedAreas(Qt.RightDockWidgetArea | Qt.LeftDockWidgetArea)
             self.assistant_dock.visibilityChanged.connect(
                 lambda visible: self.preview.setVisible(not visible and self.preview_button.isChecked()))
@@ -830,7 +832,7 @@ class Window(QMainWindow):
             return
         submenu = menu.addMenu(QIcon.fromTheme('lumen'), 'Lumen')
         for title, action in [('Mit Lumen öffnen', 'open'), ('Erklären', 'explain'),
-                              ('Fehler suchen & fixen', 'fix'), ('Git-Diff prüfen', 'review')]:
+                              ('Fehler beheben', 'fix'), ('Git-Diff prüfen', 'review')]:
             submenu.addAction(title, lambda _=False, a=action: self.ask_lumen(a, paths))
 
     def quicklook(self):
