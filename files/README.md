@@ -182,6 +182,8 @@ Die Analyse nutzt GNU `du` und `find` in eigenen Prozessen, ist mit **Stoppen** 
 
 Tabs stehen oberhalb aller Bedienelemente. Der automatische Seitenleisteneintrag `/mnt/games` entfällt. Eigene Spieleordner können weiterhin über **Ort merken** hinzugefügt werden.
 
+Beim nächsten Start werden offene Tabs, der aktive Tab, Sortierung und die Breite der Vorschauleiste wiederhergestellt. Nicht mehr vorhandene lokale Ordner werden übersprungen; Netzwerk-Tabs verbinden sich erst beim Aktivieren. Ein ausdrücklich übergebener Startordner hat Vorrang. In den Einstellungen lässt sich die Tab-Wiederherstellung abschalten.
+
 ## Netzwerkserver
 
 **Server verbinden** in der Seitenleiste oder **Strg+K** öffnet den Verbindungsdialog. Unterstützt werden die installierten KDE-Protokolle SMB, SFTP, WebDAV, FTP und NFS. Beispiele:

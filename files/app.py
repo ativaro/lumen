@@ -180,13 +180,50 @@ class Window(QMainWindow):
         self.preview_delay.setSingleShot(True)
         self.preview_delay.setInterval(100)
         self.preview_delay.timeout.connect(self.preview_selection)
-        startup_key = 'last_path' if self.settings.value('restoreLastFolder', True, type=bool) else 'startFolder'
-        self.new_tab(start or self.settings.value(startup_key, str(Path.home())))
+        self.session_save = QTimer(self)
+        self.session_save.setSingleShot(True)
+        self.session_save.setInterval(500)
+        self.session_save.timeout.connect(self.save_session)
+        resume = self.settings.value('restoreLastFolder', True, type=bool)
+        saved_paths = self.settings.value('session/tabs', [], type=list) if resume and not start else []
+        paths = []
+        saved_active = self.settings.value('session/activeTab', 0, type=int)
+        restored_active = 0
+        for position, path in enumerate(saved_paths):
+            if isinstance(path, str):
+                try:
+                    if is_network_address(path):
+                        path = normalize_url(path)
+                    elif not Path(path).is_dir():
+                        continue
+                    if position == saved_active:
+                        restored_active = len(paths)
+                    paths.append(path)
+                except ValueError:
+                    pass
+        for path in paths:
+            self.new_tab(path, activate=False)
+        if paths:
+            index = restored_active
+            self.tabs.blockSignals(True)
+            self.tabs.setCurrentIndex(index)
+            self.tabs.blockSignals(False)
+            self.switch_tab(index)
+        else:
+            startup_key = 'last_path' if resume else 'startFolder'
+            self.new_tab(start or self.settings.value(startup_key, str(Path.home())))
         self.preview_button.setChecked(self.settings.value('previewVisible', True, type=bool))
         self.preview.setVisible(self.preview_button.isChecked())
         geometry = self.settings.value('geometry')
         if geometry:
             self.restoreGeometry(geometry)
+        splitter = self.settings.value('session/splitter')
+        if splitter:
+            self.splitter.restoreState(splitter)
+        self.view.sortByColumn(max(0, min(3, self.settings.value('session/sortColumn', 0, type=int))),
+                               Qt.DescendingOrder if self.settings.value('session/sortDescending', False, type=bool) else Qt.AscendingOrder)
+        self.view.header().sortIndicatorChanged.connect(lambda *_: self.session_save.start())
+        self.splitter.splitterMoved.connect(lambda *_: self.session_save.start())
 
     def build_ui(self):
         central = QWidget()
@@ -547,26 +584,41 @@ class Window(QMainWindow):
                               ('Ctrl+V', self.paste)]:
             self.shortcut(key, callback, local=True)
 
-    def new_tab(self, path):
+    def new_tab(self, path, activate=True):
         remote = str(path) if is_network_address(path) else self.network.remote(str(path))
         if remote:
+            try:
+                remote = normalize_url(remote)
+            except ValueError as error:
+                self.error(str(error))
+                remote = None
             path = str(Path.home())
         path = str(Path(path).expanduser())
         if not Path(path).is_dir():
             path = str(Path.home())
-        self.tabs_data.append({'history': [path], 'position': 0})
+        self.tabs_data.append({'history': [remote or path], 'position': 0})
         self.tabs.blockSignals(True)
-        index = self.tabs.addTab(Path(path).name or 'Dateisystem')
-        self.tabs.setCurrentIndex(index)
+        index = self.tabs.addTab(server_label(remote) if remote else Path(path).name or 'Dateisystem')
+        if activate:
+            self.tabs.setCurrentIndex(index)
         self.tabs.blockSignals(False)
-        self.switch_tab(index)
-        if remote:
-            self.connect_server(remote)
+        if activate:
+            self.switch_tab(index)
+        self.session_save.start()
+
+    def save_session(self):
+        self.settings.setValue('session/tabs', [tab['history'][tab['position']] for tab in self.tabs_data])
+        self.settings.setValue('session/activeTab', self.tabs.currentIndex())
+        self.settings.setValue('session/splitter', self.splitter.saveState())
+        self.settings.setValue('session/sortColumn', self.view.header().sortIndicatorSection())
+        self.settings.setValue('session/sortDescending', self.view.header().sortIndicatorOrder() == Qt.DescendingOrder)
+        self.settings.sync()
 
     def switch_tab(self, index):
         if index >= 0:
             tab = self.tabs_data[index]
             self.navigate(tab['history'][tab['position']], record=False)
+            self.session_save.start()
 
     def close_tab(self, index):
         if self.tabs.count() == 1:
@@ -638,6 +690,7 @@ class Window(QMainWindow):
             self.places.item(i).setSelected(self.places.item(i).data(Qt.UserRole) == self.current_location)
         self.update_count()
         self.view.setFocus()
+        self.session_save.start()
         return True
 
     def build_crumbs(self, path):
@@ -1135,6 +1188,8 @@ class Window(QMainWindow):
             self.assistant.backend.shutdown()
         self.settings.setValue('last_path', self.current_location)
         self.settings.setValue('geometry', self.saveGeometry())
+        self.session_save.stop()
+        self.save_session()
         event.accept()
 
     def resizeEvent(self, event):

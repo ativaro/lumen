@@ -223,7 +223,7 @@ class SettingsDialog(QDialog):
     def build_files(self):
         page = self.page('Lumen Files', 'Navigation, Vorschau und schnelle Suche')
         form = QFormLayout()
-        self.resume = QCheckBox('Zuletzt geöffneten Ordner wiederherstellen')
+        self.resume = QCheckBox('Geöffnete Tabs wiederherstellen')
         self.resume.setChecked(self.field(self.files, 'restoreLastFolder', True, bool))
         form.addRow('Beim Start', self.resume)
         self.startdir = self.folder_field(form, 'Startordner', self.files, 'startFolder', str(Path.home()))

@@ -68,6 +68,50 @@ class NativeTest(unittest.TestCase):
             QTest.qWait(15)
         self.assertTrue(condition(), 'UI operation timed out')
 
+    def test_tabs_sort_and_preview_width_survive_reopening(self):
+        from app import Window
+        from PyQt5.QtCore import QSettings, Qt
+        from PyQt5.QtTest import QTest
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first, second = root / 'first', root / 'second'
+            first.mkdir(); second.mkdir()
+            settings = QSettings(str(root / 'settings.ini'), QSettings.IniFormat)
+            window = Window(str(first), settings)
+            window.show()
+            window.new_tab(str(second))
+            window.view.sortByColumn(1, Qt.DescendingOrder)
+            window.splitter.setSizes([700, 340])
+            QTest.qWait(50)
+            sizes = window.splitter.sizes()
+            window.close()
+            window.deleteLater()
+            restored = Window(settings=settings)
+            restored.show(); QTest.qWait(50)
+            try:
+                self.assertEqual([t['history'][t['position']] for t in restored.tabs_data], [str(first), str(second)])
+                self.assertEqual(restored.current_path, str(second))
+                self.assertEqual(restored.view.header().sortIndicatorSection(), 1)
+                self.assertEqual(restored.view.header().sortIndicatorOrder(), Qt.DescendingOrder)
+                self.assertLess(abs(restored.splitter.sizes()[1] - sizes[1]), 5)
+            finally:
+                restored.close(); restored.deleteLater()
+            # A requested folder takes precedence over the saved workspace.
+            explicit = Window(str(first), settings)
+            self.assertEqual(explicit.tabs.count(), 1)
+            explicit.close(); explicit.deleteLater()
+            second.rmdir()
+            settings.setValue('session/tabs', [str(second), str(first), 'smb://server/share', 'smb://u:secret@server/share'])
+            settings.setValue('session/activeTab', 1)
+            from unittest.mock import patch
+            with patch('network.Network.mount') as mount:
+                recovered = Window(settings=settings)
+                self.assertEqual(recovered.tabs.count(), 2)
+                self.assertEqual(recovered.current_path, str(first))
+                mount.assert_not_called()
+                recovered.close(); recovered.deleteLater()
+            QTest.qWait(50)
+
     def test_system_colors_and_font_follow_light_and_dark_kde_settings(self):
         from app import Window, apply_system_appearance
         from PyQt5.QtCore import QSettings
