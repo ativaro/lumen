@@ -125,7 +125,7 @@ package() {
     # ---- Lumen Files (file manager) ---------------------------------------
     install -d "$pkgdir/usr/share/opencode-lumen/files"
     install -m0644 "$srcroot/files/"*.py "$pkgdir/usr/share/opencode-lumen/files/"
-    install -m0644 "$srcroot/files/style.qss" "$pkgdir/usr/share/opencode-lumen/files/"
+    install -m0644 "$srcroot/files/"*.qss "$pkgdir/usr/share/opencode-lumen/files/"
     install -m0644 "$srcroot/files/lumen-files.svg" "$pkgdir/usr/share/opencode-lumen/files/"
     install -m0755 "$srcroot/bin/lumen-files" "$pkgdir/usr/bin/lumen-files"
 

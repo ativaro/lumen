@@ -5,13 +5,13 @@ import sys
 from pathlib import Path
 
 from PyQt5.QtCore import (QDir, QEvent, QFileInfo, QItemSelectionModel, QMimeData, QModelIndex,
-                          QSettings, QSize, QSortFilterProxyModel, QStandardPaths,
+                          QSettings, QSize, QSortFilterProxyModel, QStandardPaths, QFileSystemWatcher,
                           QStorageInfo, Qt, QTimer, QTranslator, QLibraryInfo, QUrl)
-from PyQt5.QtGui import QDesktopServices, QIcon, QKeySequence, QPalette, QColor, QStandardItem, QStandardItemModel
+from PyQt5.QtGui import QDesktopServices, QIcon, QKeySequence, QPalette, QColor, QFont, QStandardItem, QStandardItemModel
 from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDockWidget, QFileIconProvider,
                              QFileSystemModel, QFrame, QHBoxLayout, QHeaderView, QInputDialog,
                              QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow,
-                             QMenu, QMessageBox, QPushButton, QShortcut,
+                             QMenu, QMessageBox, QPushButton, QShortcut, QSizePolicy,
                              QSplitter, QStackedWidget, QStyledItemDelegate, QTabBar, QTreeView, QVBoxLayout, QWidget)
 from core import FileWorker, SearchWorker, file_kind, size_text, valid_name
 from network import Network, ConnectDialog, display_url, is_network_address, normalize_url, server_label
@@ -137,6 +137,7 @@ class Window(QMainWindow):
         super().__init__()
         self.settings = settings or QSettings('Lumen', 'Files')
         self.setWindowTitle('Lumen Files')
+        self.setObjectName('filesWindow')
         self.setWindowIcon(QIcon(str(ROOT / 'lumen-files.svg')))
         self.resize(1380, 860)
         self.setMinimumSize(1000, 640)
@@ -194,40 +195,66 @@ class Window(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         tabrow = QHBoxLayout()
-        tabrow.setContentsMargins(25, 5, 24, 0)
-        brand = label('lumen', 'brand')
-        brand.setFixedWidth(170)
+        tabrow.setContentsMargins(16, 6, 16, 6)
+        brand = label('Lumen Files', 'brand')
+        brand.setFixedWidth(184)
         tabrow.addWidget(brand)
         self.tabs = QTabBar()
         self.tabs.setExpanding(False)
         self.tabs.setDrawBase(False)
+        self.tabs.setElideMode(Qt.ElideRight)
+        self.tabs.setUsesScrollButtons(True)
         self.tabs.setTabsClosable(True)
         self.tabs.currentChanged.connect(self.switch_tab)
         self.tabs.tabCloseRequested.connect(self.close_tab)
         tabrow.addWidget(self.tabs)
         tabrow.addWidget(button('+', lambda: self.new_tab(self.current_location), tip='Neuer Tab · Strg+T'))
         tabrow.addStretch()
-        tabrow.addWidget(button('Einstellungen', self.show_settings, 'configure', 'Einstellungen · Strg+Komma'))
+        tabrow.addWidget(button('', self.show_settings, 'configure', 'Einstellungen · Strg+Komma'))
         layout.addLayout(tabrow)
         header = QFrame()
         header.setObjectName('appHeader')
         row = QHBoxLayout(header)
-        row.setContentsMargins(25, 17, 24, 17)
-        caption = label('DATEIEN & ORDNER', 'eyebrow')
-        caption.setFixedWidth(170)
-        row.addWidget(caption)
+        row.setContentsMargins(16, 8, 16, 8)
+        row.setSpacing(8)
+        navigation = QWidget()
+        navigation.setFixedWidth(184)
+        nav_buttons = QHBoxLayout(navigation)
+        nav_buttons.setContentsMargins(0, 0, 0, 0)
+        nav_buttons.setSpacing(4)
+        self.back_button = button('‹', lambda: self.history(-1), tip='Zurück · Alt+Links')
+        self.forward_button = button('›', lambda: self.history(1), tip='Vorwärts · Alt+Rechts')
+        for item in (self.back_button, self.forward_button,
+                     button('↑', self.up, tip='Übergeordneter Ordner · Alt+Hoch')):
+            item.setObjectName('iconButton')
+            item.setFixedSize(32, 32)
+            nav_buttons.addWidget(item)
+        nav_buttons.addStretch()
+        row.addWidget(navigation)
+        self.heading = label('', 'heading')
+        self.heading.setWordWrap(False)
+        self.heading.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        row.addWidget(self.heading, 1)
         self.search = QLineEdit()
         self.search.setObjectName('search')
         self.search.setAccessibleName('Dateien im aktuellen Ordner und Unterordnern suchen')
-        self.search.setPlaceholderText('Dateien und Ordner finden …     Strg+F')
+        self.search.setPlaceholderText('Suchen')
+        self.search.setToolTip('Dateinamen in diesem Ordner und Unterordnern suchen · Strg+F')
         self.search.setClearButtonEnabled(True)
+        self.search.setMinimumWidth(180)
+        self.search.setMaximumWidth(280)
         self.search.addAction(QIcon.fromTheme('edit-find'), QLineEdit.LeadingPosition)
         row.addWidget(self.search, 1)
         row.addWidget(button('Inhalte', self.search_contents, tip='In Dateiinhalten suchen · Strg+Umschalt+F'))
-        row.addSpacing(16)
-        row.addWidget(button('Lumen', lambda: self.ask_lumen('open', self.selected_paths() or [self.current_path]), tip='Lumen öffnen · Strg+J'))
-        row.addWidget(button('Neuer Ordner', self.mkdir, 'folder-new', 'Neuer Ordner · Strg+Umschalt+N'))
-        menu_button = button('•••', self.show_menu, tip='Ansicht und Tastenkürzel')
+        row.addWidget(button('', self.mkdir, 'folder-new', 'Neuer Ordner · Strg+Umschalt+N'))
+        self.preview_button = button('', self.toggle_preview, 'view-preview', 'Vorschauleiste ein-/ausblenden')
+        self.preview_button.setCheckable(True)
+        self.preview_button.setChecked(True)
+        row.addWidget(self.preview_button)
+        lumen = button('Lumen', lambda: self.ask_lumen('open', self.selected_paths() or [self.current_path]), tip='Lumen öffnen · Strg+J')
+        lumen.setObjectName('assistantButton')
+        row.addWidget(lumen)
+        menu_button = button('···', self.show_menu, tip='Weitere Aktionen und Ansicht')
         menu_button.setObjectName('iconButton')
         row.addWidget(menu_button)
         layout.addWidget(header)
@@ -237,9 +264,9 @@ class Window(QMainWindow):
         sidebar.setObjectName('sidebar')
         sidebar.setFixedWidth(208)
         side = QVBoxLayout(sidebar)
-        side.setContentsMargins(12, 14, 12, 12)
+        side.setContentsMargins(12, 16, 12, 12)
         side.setSpacing(6)
-        side.addWidget(label('DEINE ORTE', 'eyebrow'))
+        side.addWidget(label('Favoriten', 'eyebrow'))
         self.places = QListWidget()
         self.places.setObjectName('places')
         self.places.setIconSize(QSize(18, 18))
@@ -273,14 +300,9 @@ class Window(QMainWindow):
         content.setSpacing(0)
         nav = QWidget()
         navrow = QHBoxLayout(nav)
-        navrow.setContentsMargins(16, 12, 20, 12)
+        nav.setObjectName('pathBar')
+        navrow.setContentsMargins(12, 6, 16, 6)
         navrow.setSpacing(6)
-        self.back_button = button('←', lambda: self.history(-1), tip='Zurück · Alt+Links')
-        self.forward_button = button('→', lambda: self.history(1), tip='Vorwärts · Alt+Rechts')
-        for widget in [self.back_button, self.forward_button,
-                       button('↑', self.up, tip='Übergeordneter Ordner · Alt+Hoch')]:
-            widget.setObjectName('iconButton')
-            navrow.addWidget(widget)
         self.path_stack = QStackedWidget()
         self.crumbs = QWidget()
         self.crumb_layout = QHBoxLayout(self.crumbs)
@@ -292,27 +314,14 @@ class Window(QMainWindow):
         self.path_stack.addWidget(self.crumbs)
         self.path_stack.addWidget(self.path_edit)
         navrow.addWidget(self.path_stack, 1)
-        navrow.addWidget(button('/', self.edit_path, tip='Pfad eingeben · Strg+L'))
+        navrow.addWidget(button('', self.edit_path, 'document-edit', 'Pfad eingeben · Strg+L'))
         content.addWidget(nav)
         self.splitter = QSplitter()
         file_area = QWidget()
         files = QVBoxLayout(file_area)
-        files.setContentsMargins(24, 22, 22, 8)
-        files.setSpacing(14)
-        title_row = QHBoxLayout()
-        self.heading = label('', 'heading')
-        title_row.addWidget(self.heading, 1)
-        self.hidden_button = button('Versteckte', self.toggle_hidden, tip='Versteckte Dateien · Strg+H')
-        self.hidden_button.setCheckable(True)
-        self.hidden_button.setChecked(self.hidden)
-        title_row.addWidget(self.hidden_button)
-        self.preview_button = button('Vorschau', self.toggle_preview, tip='Vorschauleiste ein-/ausblenden')
-        self.preview_button.setCheckable(True)
-        self.preview_button.setChecked(True)
-        title_row.addWidget(self.preview_button)
-        files.addLayout(title_row)
-        self.subtitle = label('Deine Dateien. Alles im Blick.', 'muted')
-        files.addWidget(self.subtitle)
+        files.setContentsMargins(16, 4, 16, 8)
+        files.setSpacing(8)
+        self.subtitle = label('', 'muted')
         filters = QHBoxLayout()
         filters.setSpacing(6)
         self.filter_buttons = {}
@@ -324,6 +333,10 @@ class Window(QMainWindow):
             self.filter_buttons[kind] = item
             filters.addWidget(item)
         filters.addStretch()
+        self.hidden_button = button('', self.toggle_hidden, 'view-hidden', 'Versteckte Dateien · Strg+H')
+        self.hidden_button.setCheckable(True)
+        self.hidden_button.setChecked(self.hidden)
+        filters.addWidget(self.hidden_button)
         files.addLayout(filters)
         self.view = FileView(self)
         self.view.setObjectName('files')
@@ -331,11 +344,11 @@ class Window(QMainWindow):
         self.view.setRootIsDecorated(False)
         self.view.setItemsExpandable(False)
         self.view.setUniformRowHeights(True)
-        self.view.setIconSize(QSize(26, 26))
+        self.view.setIconSize(QSize(20, 20))
         self.view.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.view.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.view.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.view.setAlternatingRowColors(False)
+        self.view.setAlternatingRowColors(True)
         self.view.setSortingEnabled(True)
         self.view.setModel(self.proxy)
         self.view.sortByColumn(0, Qt.AscendingOrder)
@@ -353,17 +366,20 @@ class Window(QMainWindow):
         self.splitter.addWidget(self.preview)
         self.splitter.setStretchFactor(0, 1)
         self.splitter.setStretchFactor(1, 0)
-        self.splitter.setSizes([650, 410])
+        self.splitter.setSizes([780, 320])
         content.addWidget(self.splitter, 1)
         body.addLayout(content, 1)
         layout.addLayout(body, 1)
         footer = QFrame()
         footer.setObjectName('footer')
         status = QHBoxLayout(footer)
-        status.setContentsMargins(24, 9, 24, 9)
+        status.setContentsMargins(16, 8, 16, 8)
         self.status = label('Bereit', 'muted')
-        status.addWidget(self.status, 1)
-        self.activity = label('Leertaste  Vorschau    ·    Strg+F  Suche', 'muted')
+        self.status.setWordWrap(False)
+        status.addWidget(self.status)
+        status.addWidget(self.subtitle, 1)
+        self.activity = label('Leertaste · Vorschau', 'muted')
+        self.activity.setWordWrap(False)
         status.addWidget(self.activity)
         self.cancel_connect_button = button('Abbrechen', self.cancel_connection)
         self.cancel_connect_button.hide()
@@ -405,7 +421,7 @@ class Window(QMainWindow):
             self.places.addItem(item)
         servers = self.saved_servers()
         if servers:
-            heading = QListWidgetItem('NETZWERK')
+            heading = QListWidgetItem('Netzwerk')
             heading.setFlags(Qt.NoItemFlags)
             self.places.addItem(heading)
             for address in servers:
@@ -608,8 +624,8 @@ class Window(QMainWindow):
         self.path_stack.setCurrentWidget(self.crumbs)
         self.build_crumbs(self.current_location)
         self.heading.setText(title)
-        self.subtitle.setText('Deine Dateien. Alles im Blick.')
-        self.search.setPlaceholderText(f'In {Path(path).name or "/"} und Unterordnern suchen …     Strg+F')
+        self.subtitle.clear()
+        self.search.setPlaceholderText('Suchen')
         self.back_button.setEnabled(tab['position'] > 0)
         self.forward_button.setEnabled(tab['position'] < len(tab['history']) - 1)
         if remote:
@@ -617,7 +633,7 @@ class Window(QMainWindow):
         else:
             storage = QStorageInfo(path)
             self.disk_label.setText(f'{size_text(storage.bytesAvailable())} frei\nauf {storage.displayName() or "diesem Laufwerk"}')
-        self.location_badge.setText('NETZWERKVERBINDUNG' if remote else 'LOKAL AUF DEINEM RECHNER')
+        self.location_badge.setText('Netzwerk' if remote else 'Lokales Laufwerk')
         for i in range(self.places.count()):
             self.places.item(i).setSelected(self.places.item(i).data(Qt.UserRole) == self.current_location)
         self.update_count()
@@ -646,7 +662,8 @@ class Window(QMainWindow):
             if i:
                 self.crumb_layout.addWidget(label('  /  ', 'muted'))
             text = (Path(QUrl(part).path()).name or QUrl(part).host()) if remote else ('~' if part == Path.home() else part.name or 'Rechner')
-            crumb = button(text, lambda _checked=False, p=part: self.navigate(p), tip=str(part))
+            crumb = button(self.fontMetrics().elidedText(text, Qt.ElideMiddle, 150),
+                           lambda _checked=False, p=part: self.navigate(p), tip=str(part))
             crumb.setObjectName('crumb')
             self.crumb_layout.addWidget(crumb)
         self.crumb_layout.addStretch()
@@ -715,7 +732,7 @@ class Window(QMainWindow):
             self.proxy.setSourceModel(self.fs)
             self.view.setRootIndex(self.proxy.mapFromSource(self.fs.index(self.current_path)))
             self.configure_columns()
-            self.subtitle.setText('Deine Dateien. Alles im Blick.')
+            self.subtitle.clear()
             self.update_count()
             return
         self.results.removeRows(0, self.results.rowCount())
@@ -1146,7 +1163,62 @@ class Application(QApplication):
         return False
 
 
-def create_app():
+def apply_system_appearance(app, path):
+    kde = QSettings(str(path), QSettings.IniFormat)
+    palette = QPalette(app.palette())
+    for role, group, key in [
+            (QPalette.Window, 'Window', 'BackgroundNormal'),
+            (QPalette.WindowText, 'Window', 'ForegroundNormal'),
+            (QPalette.Base, 'View', 'BackgroundNormal'),
+            (QPalette.AlternateBase, 'View', 'BackgroundAlternate'),
+            (QPalette.Text, 'View', 'ForegroundNormal'),
+            (QPalette.Button, 'Button', 'BackgroundNormal'),
+            (QPalette.ButtonText, 'Button', 'ForegroundNormal'),
+            (QPalette.Highlight, 'Selection', 'BackgroundNormal'),
+            (QPalette.HighlightedText, 'Selection', 'ForegroundNormal'),
+            (QPalette.ToolTipBase, 'Tooltip', 'BackgroundNormal'),
+            (QPalette.ToolTipText, 'Tooltip', 'ForegroundNormal'),
+            (QPalette.Link, 'View', 'ForegroundLink')]:
+        value = kde.value(f'Colors:{group}/{key}')
+        if value:
+            try:
+                palette.setColor(role, QColor(*map(int, value if isinstance(value, list) else value.split(','))))
+            except (TypeError, ValueError):
+                pass
+    base, text = palette.color(QPalette.Base), palette.color(QPalette.Text)
+    for role, weight in [(QPalette.Mid, .18), (QPalette.Midlight, .035),
+                         (QPalette.Dark, .65), (QPalette.PlaceholderText, .65)]:
+        palette.setColor(role, QColor(*(round(a + (b - a) * weight) for a, b in zip(base.getRgb()[:3], text.getRgb()[:3]))))
+    palette.setColor(QPalette.Disabled, QPalette.Text, palette.color(QPalette.PlaceholderText))
+    palette.setColor(QPalette.Disabled, QPalette.ButtonText, palette.color(QPalette.PlaceholderText))
+    changed = palette != app.palette()
+    if changed:
+        # Qt resolves palette(...) when polishing a stylesheet. Drop cached widget
+        # colors before applying a different system palette to already open windows.
+        app.setStyleSheet('')
+    app.setPalette(palette)
+    # QSettings exposes keys in the INI [General] section at the root.
+    description = kde.value('font')
+    if description:
+        parts = description if isinstance(description, list) else description.split(',')
+        try:
+            font = QFont(parts[0])
+            font.setPointSizeF(float(parts[1]))
+            app.setFont(font)
+        except (IndexError, ValueError):
+            pass
+    theme = kde.value('Icons/Theme', 'breeze-dark' if base.lightness() < 128 else 'breeze')
+    # Use the installed variant so a light icon pack stays legible on dark KDE colors.
+    if theme.endswith(('-light', '-dark')):
+        variant = theme.rsplit('-', 1)[0] + ('-dark' if base.lightness() < 128 else '-light')
+        if any((Path(root) / variant / 'index.theme').exists() for root in QIcon.themeSearchPaths()):
+            theme = variant
+    QIcon.setThemeName(theme)
+    if changed or not app.styleSheet():
+        app.setStyleSheet((ROOT / 'files.qss').read_text())
+
+
+def create_app(appearance='system'):
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
     app = Application(sys.argv)
     # An application event filter sees GUI-thread events only. Overriding notify
@@ -1162,7 +1234,17 @@ def create_app():
                              QStandardPaths.standardLocations(QStandardPaths.GenericDataLocation)]
                              + QIcon.themeSearchPaths())
     QIcon.setThemeName(kde.value('Icons/Theme', 'breeze-dark'))
-    if QSettings('Lumen', 'Assistant').value('appearance', 'lumen') == 'system':
+    if appearance == 'system':
+        path = Path.home() / '.config/kdeglobals'
+        app.setStyle('Fusion')
+        apply_system_appearance(app, path)
+        app.theme_watcher = QFileSystemWatcher([str(path.parent), str(path)], app)
+        def update_theme(_path):
+            apply_system_appearance(app, path)
+            if path.exists() and str(path) not in app.theme_watcher.files():
+                app.theme_watcher.addPath(str(path))
+        app.theme_watcher.fileChanged.connect(update_theme)
+        app.theme_watcher.directoryChanged.connect(update_theme)
         return app
     app.setStyle('Fusion')
     palette = QPalette()

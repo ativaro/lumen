@@ -58,7 +58,7 @@ done
 mkdir -p "$PREFIX/agent-app"
 install -m 0644 "$REPO/agent-app/main.py" "$PREFIX/agent-app/"
 mkdir -p "$PREFIX/files"
-install -m 0644 "$REPO/files/"*.py "$REPO/files/style.qss" "$REPO/files/lumen-files.svg" "$PREFIX/files/"
+install -m 0644 "$REPO/files/"*.py "$REPO/files/"*.qss "$REPO/files/lumen-files.svg" "$PREFIX/files/"
 chmod 0755 "$BIN"/lumen-* "$BIN"/lumen_krunner.py "$BIN"/lumen_mcp.py 2>/dev/null || true
 
 # ---- XDG data files --------------------------------------------------------

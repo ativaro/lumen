@@ -68,6 +68,37 @@ class NativeTest(unittest.TestCase):
             QTest.qWait(15)
         self.assertTrue(condition(), 'UI operation timed out')
 
+    def test_system_colors_and_font_follow_light_and_dark_kde_settings(self):
+        from app import Window, apply_system_appearance
+        from PyQt5.QtCore import QSettings
+        from PyQt5.QtTest import QTest
+        from PyQt5.QtGui import QIcon, QPalette
+        palette, font, theme, style = self.app.palette(), self.app.font(), QIcon.themeName(), self.app.styleSheet()
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / 'kdeglobals'
+                window = Window(tmp, QSettings(tmp + '/files.ini', QSettings.IniFormat))
+                window.show()
+                self.addCleanup(window.deleteLater)
+                self.addCleanup(window.close)
+                for background, foreground in [('16,25,37', '248,250,252'), ('255,255,255', '32,35,40')]:
+                    path.write_text('[General]\nfont=Noto Sans,9,-1,5,400,0\n'
+                        f'[Colors:Window]\nBackgroundNormal={background}\nForegroundNormal={foreground}\n'
+                        f'[Colors:View]\nBackgroundNormal={background}\nForegroundNormal={foreground}\n')
+                    apply_system_appearance(self.app, path)
+                    QTest.qWait(20)
+                    self.assertEqual(self.app.palette().color(QPalette.Base).getRgb()[:3], tuple(map(int, background.split(','))))
+                    self.assertEqual(self.app.palette().color(QPalette.Text).getRgb()[:3], tuple(map(int, foreground.split(','))))
+                    self.assertEqual(self.app.font().family(), 'Noto Sans')
+                    self.assertEqual(self.app.font().pointSizeF(), 9)
+                    self.assertEqual(window.view.palette().color(QPalette.Base).getRgb()[:3], tuple(map(int, background.split(','))))
+        finally:
+            self.app.setStyleSheet('')
+            self.app.setPalette(palette)
+            self.app.setFont(font)
+            QIcon.setThemeName(theme)
+            self.app.setStyleSheet(style)
+
     def test_mouse_history_over_child_widgets_and_dialog_isolation(self):
         from app import Window
         from PyQt5.QtCore import QSettings, Qt

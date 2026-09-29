@@ -291,7 +291,7 @@ def main():
     parser.add_argument('--clipboard-image', action='store_true')
     parser.add_argument('--page', choices=['chat', 'system', 'actions', 'settings'], default='chat')
     args = parser.parse_args()
-    app = create_app()
+    app = create_app(QSettings('Lumen', 'Assistant').value('appearance', 'lumen'))
     app.setApplicationName('Lumen')
     app.setDesktopFileName('lumen')
     directory = Path(args.directory).expanduser()

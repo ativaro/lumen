@@ -2,6 +2,13 @@
 
 Native Dateiverwaltung für Linux/KDE mit großer Vorschauleiste, laufender Dateinamensuche und Inhaltssuche, lokal und auf Netzwerkservern. Nutzt die bereits installierten Bibliotheken und Werkzeuge.
 
+Die Oberfläche orientiert sich an Apples [Werkzeugleisten](https://developer.apple.com/design/human-interface-guidelines/toolbars)
+und [Seitenleisten](https://developer.apple.com/design/human-interface-guidelines/sidebars):
+kompakte Navigation, dezente Typografie, klare Dateiliste und eine eigene Vorschau.
+KDE-Farben und Systemschrift werden automatisch übernommen, auch in offenen Fenstern.
+Bei Iconsets mit installierter Hell-/Dunkelvariante wählt Files die zu den Farben
+passende Variante. Die Desktop-Einstellungen selbst bleiben erhalten.
+
 ## Start
 
 Im Anwendungsmenü **Lumen Files** wählen, oder:
@@ -37,7 +44,8 @@ In beiden Apps über **Einstellungen** oder **Strg+Komma**; direkter Start mit
 - **Tastenkürzel:** die vier registrierten globalen Lumen-Aktionen direkt ändern
   oder durch Leeren deaktivieren, mit Prüfung auf bereits belegte Kombinationen.
   Lokale Files-/Galerie-Kürzel sind als Übersicht vorhanden.
-- **Darstellung:** Lumen Dunkel oder Systemstil für neue Fenster beider Apps.
+- **Darstellung:** Lumen Dunkel oder Systemstil für neue Fenster des Assistenten.
+  Files folgt automatisch den KDE-Farben, Symbolen und der Systemschrift.
   KDE-Farben, Themes, Icons, Schriften, Kvantum, Effekte und weitere Desktop-
   Einstellungen öffnen den jeweiligen nativen Editor.
 - **Leisten:** echte Panels nach Bildschirm, Position und ID auswählen. Größe,

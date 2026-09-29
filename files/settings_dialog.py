@@ -292,12 +292,14 @@ class SettingsDialog(QDialog):
 
     def build_appearance(self):
         page = self.page('Erscheinungsbild', 'Lumen und dein KDE-Desktop')
+        page.addWidget(text('Lumen Files folgt automatisch den KDE-Farben, Symbolen und der Systemschrift.'))
+        page.addWidget(text('Darstellung des Lumen-Assistenten:'))
         self.appearance = combo([('Lumen Dunkel', 'lumen'), ('Systemstil', 'system')], self.field(self.assistant, 'appearance', 'lumen'))
         page.addWidget(self.appearance)
         def save():
             try:
                 self.save(self.assistant, {'appearance': self.appearance.currentData()})
-                self.status.setText('Darstellung gespeichert. Sie gilt für neu gestartete Lumen- und Files-Fenster.')
+                self.status.setText('Darstellung gespeichert. Sie gilt für neu gestartete Lumen-Fenster. Files folgt dem System.')
             except (OSError, ValueError) as error:
                 self.status.setText(str(error))
         page.addWidget(button('Lumen-Darstellung übernehmen', save))
