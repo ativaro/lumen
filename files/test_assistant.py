@@ -89,9 +89,12 @@ class AssistantTest(unittest.TestCase):
             backend = OpenCodeBackend(tmp, server_url=f'http://127.0.0.1:{server.server_port}', password='test-token')
             try:
                 from assistant import ChatPanel
+                from PyQt5.QtCore import QSettings
                 from PyQt5.QtWidgets import QPushButton, QComboBox
-                panel = ChatPanel(tmp, backend=backend)
+                settings = QSettings(tmp + '/assistant.ini', QSettings.IniFormat)
+                panel = ChatPanel(tmp, backend=backend, settings=settings)
                 panel.show()
+                self.assertFalse(panel.dont_ask.isChecked())
                 panel.composer.setPlainText('Erkläre die Auswahl')
                 panel.send_button.click()
                 self.wait(lambda: bool(backend.permissions and backend.questions))
@@ -108,8 +111,36 @@ class AssistantTest(unittest.TestCase):
                 answer.click()
                 self.wait(lambda: not state['question'] and not state['permission'])
                 self.assertIn(('POST', '/permission/per_lumen/reply', {'reply': 'reject'}), [r[:3] for r in state['requests']])
+                self.wait(lambda: not backend.permissions and not backend.questions)
+                state['permission'] = state['question'] = True
+                self.wait(lambda: bool(backend.permissions))
+                panel.dont_ask.click()
+                backend.set_auto_approve(True)
+                backend.publish_requests()
+                self.wait(lambda: not state['permission'])
+                self.assertIn(('POST', '/permission/per_lumen/reply', {'reply': 'once'}), [r[:3] for r in state['requests']])
+                self.assertEqual(sum(path == '/permission/per_lumen/reply' and body == {'reply': 'once'}
+                                     for _, path, body, _ in state['requests']), 1)
+                self.assertTrue(state['question'])
+                self.assertFalse(any(path == '/permission/per_other/reply' for _, path, _, _ in state['requests']))
+                another = ChatPanel(tmp, settings=QSettings(tmp + '/assistant.ini', QSettings.IniFormat))
+                self.assertTrue(another.dont_ask.isChecked())
+                self.assertTrue(another.backend.auto_approve)
+                another.backend.shutdown()
+                another.close()
+                state['child_permission'] = True
+                self.wait(lambda: not state['child_permission'])
+                self.assertIn(('POST', '/permission/per_child/reply', {'reply': 'once'}), [r[:3] for r in state['requests']])
+                self.wait(lambda: not backend.permissions)
+                self.assertFalse(any(b.text() == 'Einmal erlauben' for b in panel.requests.findChildren(QPushButton)))
+                panel.requests.findChild(QComboBox).setCurrentIndex(1)
+                next(b for b in panel.requests.findChildren(QPushButton) if b.text() == 'Antwort senden').click()
+                self.wait(lambda: not state['question'])
+                panel.dont_ask.click()
+                self.assertFalse(settings.value('autoApproveTools', True, type=bool))
                 state['child_permission'] = True
                 self.wait(lambda: any(p['id'] == 'per_child' for p in backend.permissions))
+                self.assertTrue(state['child_permission'])
                 backend.permission_reply('per_child', False)
                 self.wait(lambda: not state['child_permission'])
                 self.assertIn(('POST', '/permission/per_child/reply', {'reply': 'reject'}), [r[:3] for r in state['requests']])
@@ -197,6 +228,7 @@ class AssistantTest(unittest.TestCase):
 
     def test_file_actions_show_native_results_instead_of_chat(self):
         from assistant import ChatPanel
+        from PyQt5.QtCore import QSettings
         with tempfile.TemporaryDirectory() as tmp:
             backend = OpenCodeBackend(tmp)
             calls = []
@@ -207,7 +239,7 @@ class AssistantTest(unittest.TestCase):
                 backend.set_busy(True)
                 backend.statusChanged.emit('Lumen arbeitet …')
             backend.send = send
-            panel = ChatPanel(tmp, backend=backend)
+            panel = ChatPanel(tmp, backend=backend, settings=QSettings(tmp + '/assistant.ini', QSettings.IniFormat))
             panel.show()
             try:
                 selection = [str(Path(tmp) / 'notiz.txt')]
@@ -216,6 +248,7 @@ class AssistantTest(unittest.TestCase):
                 self.assertTrue(panel.composer.isHidden())
                 self.assertTrue(panel.sessions.isHidden())
                 self.assertTrue(panel.mode.isHidden())
+                self.assertTrue(panel.dont_ask.isVisible())
                 self.assertTrue(panel.progress.isVisible())
                 self.assertEqual(calls[-1][1], 'plan')
                 self.assertEqual(calls[-1][2], 'Erklärung · notiz.txt')
@@ -251,6 +284,28 @@ class AssistantTest(unittest.TestCase):
                 backend.set_busy(False)
                 backend.shutdown()
                 panel.close()
+
+    def test_auto_permissions_keep_proposals_locked_and_clear_on_stop(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            backend = OpenCodeBackend(tmp)
+            calls = []
+            shown = []
+            backend.request = lambda method, path, body=None, callback=None, **kwargs: calls.append((method, path, body))
+            backend.ensure_server = lambda callback: callback()
+            backend.requestsChanged.connect(lambda permissions, questions: shown.append((permissions, questions)))
+            try:
+                backend.set_auto_approve(True)
+                backend.send('Vorschläge erstellen', proposal=True)
+                self.assertEqual(calls[-1][2]['permission'], [{'permission': '*', 'pattern': '*', 'action': 'deny'}])
+                backend.permissions = [{'id': 'per_proposal', 'permission': 'edit'}]
+                backend.publish_requests()
+                self.assertEqual(len(calls), 1)
+                backend.stop()
+                backend.set_auto_approve(True)
+                self.assertEqual(len(calls), 1)
+                self.assertEqual(shown[-1], ([], []))
+            finally:
+                backend.shutdown()
 
     def test_native_process_closes_during_engine_startup(self):
         import os

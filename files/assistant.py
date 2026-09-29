@@ -3,7 +3,7 @@ import html
 import mimetypes
 from pathlib import Path
 
-from PyQt5.QtCore import Qt, QUrl, pyqtSignal
+from PyQt5.QtCore import QSettings, Qt, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices, QKeySequence, QTextDocument
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame, QHBoxLayout,
                              QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton,
@@ -28,9 +28,10 @@ class ChatPanel(QWidget):
     closeRequested = pyqtSignal()
     action_titles = {'explain': 'Erklärung', 'fix': 'Fehler beheben', 'review': 'Änderungen prüfen'}
 
-    def __init__(self, directory, parent=None, backend=None):
+    def __init__(self, directory, parent=None, backend=None, settings=None):
         super().__init__(parent)
         self.backend = backend or OpenCodeBackend(directory, self)
+        self.settings = settings if settings is not None else QSettings('Lumen', 'Assistant')
         self.paths = []
         self.action = ''
         self.last_answer = ''
@@ -64,6 +65,12 @@ class ChatPanel(QWidget):
         self.mode.addItem('Lesen & prüfen', 'plan')
         self.mode.setToolTip('Lesen & prüfen analysiert, ohne Dateien zu bearbeiten.')
         layout.addWidget(self.mode)
+        self.dont_ask = QCheckBox('Nicht mehr nachfragen')
+        self.dont_ask.setToolTip('Werkzeugfreigaben in diesem Fenster automatisch erlauben, auch Befehle und Dateiänderungen. '
+                               'Inhaltliche Rückfragen bleiben erhalten. Die Auswahl wird für neue Lumen-Fenster und Files-Panels gespeichert.')
+        self.dont_ask.setChecked(self.settings.value('autoApproveTools', False, type=bool))
+        self.dont_ask.toggled.connect(self.set_auto_approve)
+        layout.addWidget(self.dont_ask)
         self.transcript = Transcript()
         self.transcript.setAccessibleName('Gespräch mit Lumen')
         self.transcript.setOpenLinks(False)
@@ -134,8 +141,14 @@ class ChatPanel(QWidget):
         self.backend.busyChanged.connect(self.set_busy)
         self.backend.statusChanged.connect(self.show_status)
         self.backend.failed.connect(self.request_failed)
+        self.backend.set_auto_approve(self.dont_ask.isChecked())
         self.update_context()
         self.show_messages([])
+
+    def set_auto_approve(self, enabled):
+        self.settings.setValue('autoApproveTools', enabled)
+        self.settings.sync()
+        self.backend.set_auto_approve(enabled)
 
     def request_failed(self, text):
         if self.action:

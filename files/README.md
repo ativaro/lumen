@@ -44,6 +44,19 @@ KIO-FUSE-Pfad. Bilder/PDFs werden als Anhänge übergeben.
 OpenCode arbeitet als lokale Hintergrund-Engine mit der bestehenden
 Konfiguration. Dateien lassen sich auch ohne laufende Engine verwalten.
 
+**Nicht mehr nachfragen** im Lumen-Bereich erlaubt Werkzeugfreigaben automatisch,
+auch Befehle und Dateiänderungen. Der Schalter ist im freien Chat und bei
+Erklären/Beheben/Prüfen sichtbar. Einschalten übernimmt bereits wartende
+Freigaben; Ausschalten fragt bei der nächsten noch nicht erteilten Freigabe
+wieder nach. Inhaltliche Rückfragen bleiben als Formular erhalten.
+
+Standardmäßig ausgeschaltet. Die Auswahl wird unter `~/.config/Lumen/Assistant.conf`
+für neue Lumen-Fenster und Files-Panels gespeichert; bereits offene Fenster
+behalten ihre sichtbare Einstellung. Automatische Freigaben gelten nur für das
+aktuelle Gespräch und dessen Unteraufgaben. Explizite OpenCode-Verbote und der
+Lesemodus bleiben wirksam; Umbenennen/Sortieren und Suchbegriffe behalten ihre
+Werkzeugsperre. Es werden keine globalen OpenCode-Regeln geändert.
+
 ## Intelligent umbenennen und sortieren
 
 Dateien markieren → Rechtsklick → **Lumen → Intelligent umbenennen …** oder

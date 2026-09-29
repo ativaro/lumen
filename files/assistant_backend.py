@@ -42,6 +42,9 @@ class OpenCodeBackend(QObject):
         self.busy = False
         self.polling = False
         self.permissions, self.questions = [], []
+        self.auto_approve = False
+        self.proposal = False
+        self.permission_replies = set()
         self.messages = []
         self.related_sessions = {}
         self.log = b''
@@ -169,6 +172,8 @@ class OpenCodeBackend(QObject):
         self.messages = []
         self.related_sessions = {}
         self.permissions, self.questions = [], []
+        self.permission_replies.clear()
+        self.proposal = False
         self.messagesChanged.emit([])
         self.requestsChanged.emit([], [])
         self.sessionChanged.emit('')
@@ -187,6 +192,7 @@ class OpenCodeBackend(QObject):
             return
         if proposal:
             self.new_conversation()
+        self.proposal = proposal
         self.log = b'' if not self.url else self.log
         self.set_busy(True)
         self.message_id = 'msg_' + uuid.uuid4().hex
@@ -256,7 +262,8 @@ class OpenCodeBackend(QObject):
                 if session is None:
                     self.permissions = [p for p in permissions if p.get('sessionID') in allowed]
                     self.questions = [q for q in questions if q.get('sessionID') in allowed]
-                    self.requestsChanged.emit(self.permissions, self.questions)
+                    self.permission_replies.intersection_update(p['id'] for p in self.permissions)
+                    self.publish_requests()
                     if generation != self.generation:
                         return
                     self.request('GET', '/session/status', callback=status)
@@ -291,7 +298,8 @@ class OpenCodeBackend(QObject):
                 else:
                     self.idle_since = None
                 self.set_busy(True)
-                self.statusChanged.emit('Deine Antwort wird benötigt' if self.permissions or self.questions else
+                needs_answer = self.questions or any(p['id'] not in self.permission_replies for p in self.permissions)
+                self.statusChanged.emit('Deine Antwort wird benötigt' if needs_answer else
                                         'Verbindung wird erneut versucht …' if state == 'retry' else 'Lumen arbeitet …')
                 self.timer.start(450)
         self.request('GET', f'/session/{self.session}/message?limit=100', callback=messages)
@@ -319,8 +327,19 @@ class OpenCodeBackend(QObject):
             return
         self.request('GET', '/session/' + session, callback=loaded, error=lambda _: resolved(False))
 
+    def set_auto_approve(self, enabled):
+        self.auto_approve = bool(enabled)
+        self.publish_requests()
+
+    def publish_requests(self):
+        if self.auto_approve and not self.proposal:
+            for permission in self.permissions:
+                self.permission_reply(permission['id'], True)
+        self.requestsChanged.emit([p for p in self.permissions if p['id'] not in self.permission_replies], self.questions)
+
     def permission_reply(self, request_id, allow):
-        if any(p['id'] == request_id for p in self.permissions):
+        if request_id not in self.permission_replies and any(p['id'] == request_id for p in self.permissions):
+            self.permission_replies.add(request_id)
             self.request('POST', f'/permission/{request_id}/reply', {'reply': 'once' if allow else 'reject'}, lambda _: self.poll())
 
     def question_reply(self, request_id, answers=None):
@@ -333,6 +352,9 @@ class OpenCodeBackend(QObject):
         self.timer.stop()
         self.polling = False
         self.waiting.clear()
+        self.permissions, self.questions = [], []
+        self.permission_replies.clear()
+        self.requestsChanged.emit([], [])
         if self.url and self.session:
             self.request('POST', f'/session/{self.session}/abort', {}, self.stopped)
             self.statusChanged.emit('Wird abgebrochen …')
@@ -364,6 +386,7 @@ class OpenCodeBackend(QObject):
 
     def shutdown(self):
         self.generation += 1
+        self.permission_replies.clear()
         self.start_timer.stop()
         self.timer.stop()
         self.waiting.clear()

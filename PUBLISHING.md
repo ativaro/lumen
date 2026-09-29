@@ -73,7 +73,7 @@ release URL otherwise. For publishing:
       are active (`systemctl status lumen-agentd lumen-watch.timer`).
 - [ ] `lumen-setup --uninstall` and `pacman -R opencode-lumen` leave no residue.
 
-## Native UI (package revision 12)
+## Native UI (package revision 13)
 
 The desktop app and Files panel now require `python-pyqt5`, `python-gobject`
 and `python-pillow`; the old QML chat and text-file bridge have been removed.
@@ -87,6 +87,13 @@ Also verify the installed launchers, permissions, questions,
 image attachments and cancellation on the target OpenCode version. Desktop
 context menus and hotkeys must open Lumen without a terminal. Existing services
 and OpenCode configuration must retain their settings on upgrade.
+
+Permission-mode smoke check: default **Nicht mehr nachfragen** off; enable it
+while a request is waiting, verify automatic one-time approval for this session
+and verified child tasks, then disable it and verify that the next permission
+waits. Questions remain manual. Check preference persistence for new windows,
+deduplicated replies, errors and cancellation. Proposal tools remain denied;
+no global OpenCode configuration is changed.
 
 File-action smoke check: explain/fix/review must show compact result windows (or the Files side panel), without a composer or generated prompts; free chat remains available.
 

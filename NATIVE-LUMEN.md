@@ -5,7 +5,7 @@ Lumen ist die sichtbare Anwendung; OpenCode arbeitet ausschließlich als lokale 
 ## Umsetzung
 - Gemeinsamer nativer Chat für Lumen und das Seitenpanel in Lumen Files, mit Kontext, lesbaren Antworten, Status und Abbrechen.
 - Headless OpenCode über seine lokale HTTP-API; eigener Server mit zufälligem Passwort und ausschließlich Loopback. Vorhandene Provider-/Modellkonfiguration bleibt erhalten, bestehende Terminal-Sessions werden nicht übernommen.
-- Berechtigungen und Rückfragen der Engine werden als native Bedienelemente angezeigt, niemals automatisch bestätigt.
+- Werkzeugfreigaben werden standardmäßig einzeln bestätigt oder abgelehnt. Der sichtbare Schalter „Nicht mehr nachfragen“ erlaubt sie optional automatisch; inhaltliche Rückfragen bleiben native Formulare.
 - Gespräche sind einem Arbeitsordner zugeordnet und lassen sich fortsetzen oder neu beginnen. Dateien werden nur mit explizitem Dateikontext an eine Anfrage angehängt.
 - Kontextmenüs, KRunner, Auswahl-/Zwischenablage- und Screenshot-Aktionen verwenden Lumen. Systemstatus und Berichte bleiben direkt lesbar.
 - Vorhandenes PyQt5 wird für beide Oberflächen genutzt; die bisherige QML-Shell und Textdatei-Polling-Bridge werden durch denselben Chat ersetzt.
@@ -14,6 +14,12 @@ Lumen ist die sichtbare Anwendung; OpenCode arbeitet ausschließlich als lokale 
 Native UI-Prüfungen, lokaler HTTP-Testserver für Antwortfortschritt, Fehler, Stoppen, Berechtigungen und Rückfragen; realer OpenCode-Server für API-/Session-Lebenszyklus sowie einen kurzen Modellaufruf. Bestehende Files-Tests bleiben erhalten. Launcher-Tests prüfen Argumente und dass keine Terminalprogramme gestartet werden.
 
 API-Grundlage: https://opencode.ai/docs/server/ und das OpenAPI-Schema der lokal installierten Version.
+
+## Nicht mehr nachfragen
+- Gemeinsamer Schalter im Chat und in nativen Dateiaktionen, in Lumen und Files. Standard aus; die Auswahl wird in `Lumen/Assistant.conf` für neu geöffnete Fenster/Panel gespeichert. Bereits offene Fenster behalten ihre sichtbare Einstellung.
+- Einschalten beantwortet auch bereits wartende Werkzeugfreigaben. Nur das aktuelle Gespräch und nachgewiesene Unteraufgaben; niemals andere Sitzungen. Jede Freigabe wird einzeln mit `once` beantwortet, ohne dauerhafte OpenCode-Regeln zu ändern. Ausschalten fragt ab der nächsten noch nicht erteilten Freigabe wieder nach.
+- Der Tooltip nennt automatische Freigaben einschließlich Befehlen und Dateiänderungen. Rückfragen zur Aufgabe bleiben sichtbar; explizite Engine-Verbote, Lesen-/Prüfen-Modus und gesperrte Werkzeuge der Vorschlagsdialoge bleiben wirksam.
+- Doppelte/überlappende Abfragen dürfen keine mehrfachen Antworten auslösen. Fehler bleiben sichtbar, alte Antworten nach Gesprächswechsel/Abbruch werden verworfen. Tests mit lokalem HTTP-Server für Ein/Aus, wartende Anfragen, Unteraufgaben/fremde Sitzungen, Fragen und Fehler; echte Engine und native Ansicht prüfen.
 
 ## Implementiert
 Gemeinsames PyQt5-Panel und native Einzelanwendung; lokale authentifizierte API,

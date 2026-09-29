@@ -157,7 +157,12 @@ install-system.sh         optional root-only tweaks
   existing terminal conversations are never continued implicitly.
 - The existing OpenCode configuration, provider login, instructions and MCP tools
   remain in effect. Lumen does not rewrite that configuration.
-- Permission requests offer Allow once / Reject; questions use native forms.
+- Permission requests offer Allow once / Reject. The visible **Nicht mehr nachfragen**
+  checkbox optionally approves tool permissions automatically, including commands
+  and file changes, for this conversation and its verified child tasks. It defaults
+  off and is remembered for newly opened Lumen windows and Files panels; existing
+  windows keep their visible setting. Explicit engine denials and locked proposal
+  tools remain in force. Questions still use native forms.
   The composer offers task mode or read-only analysis mode. Closing an active
   conversation asks before stopping it. Images/PDFs selected as context are sent
   as attachments; other paths are supplied as text context.
