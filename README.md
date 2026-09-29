@@ -80,6 +80,11 @@ After installing (either way):
 3. Reload KRunner if the `ai …` trigger is missing: `kquitapp6 krunner`
 4. Launch the app from the menu (**Lumen**) or run `lumen-agent-app`.
 
+Updates rebuild KDE's application cache without deleting live shortcut components.
+If an existing shortcut's `Exec` path changes, KDE may keep the previous path until
+the next login. Existing `plasma_icons/lumen.desktop` panel copies are updated with
+executable permissions so Plasma can launch them.
+
 ## Configuration
 
 All scripts read these environment variables:

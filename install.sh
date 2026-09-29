@@ -79,6 +79,10 @@ install -m 0644 "$REPO/icons/hicolor/scalable/apps/lumen-files.svg" "$DATA_HOME/
 
 subst "$REPO/data/kio-servicemenus/lumen.desktop" > "$DATA_HOME/kio/servicemenus/lumen.desktop"
 subst "$REPO/data/applications/lumen.desktop" > "$DATA_HOME/applications/lumen.desktop"
+# Plasma's icon widget launches its private copy, which must be executable.
+if [ -f "$DATA_HOME/plasma_icons/lumen.desktop" ]; then
+    install -m 0755 "$DATA_HOME/applications/lumen.desktop" "$DATA_HOME/plasma_icons/lumen.desktop"
+fi
 subst "$REPO/data/applications/lumen-ask.desktop" > "$DATA_HOME/applications/lumen-ask.desktop"
 subst "$REPO/data/applications/lumen-ask-sel.desktop" > "$DATA_HOME/applications/lumen-ask-sel.desktop"
 subst "$REPO/data/applications/lumen-vision.desktop" > "$DATA_HOME/applications/lumen-vision.desktop"

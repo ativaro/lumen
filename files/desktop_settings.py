@@ -101,24 +101,10 @@ def shortcuts():
 
 
 def refresh_shortcuts(_data):
-    import dbus
+    # Never cleanUp/recreate live components: KWin processes their key events.
+    # Cached Exec changes take effect on next login; stable launchers update now.
     run(['kbuildsycoca6', '--noincremental'])
-    if not dbus.SessionBus().name_has_owner('org.kde.kglobalaccel'):
-        return {'refreshed': 0}
-    accel = accelerator()
-    saved = [(action, accel.shortcutKeys(action)) for action in shortcut_actions(accel).values()]
-    path = backup('shortcuts', saved)
-    # KDE keeps the old Exec in each launch component even after rebuilding its
-    # desktop database. Recreate only Lumen components, preserving custom keys.
-    for action, keys in saved:
-        component = dbus.Interface(dbus.SessionBus().get_object('org.kde.kglobalaccel', accel.getComponent(action[0])),
-                                   'org.kde.kglobalaccel.Component')
-        component.cleanUp()
-        accel.doRegister(dbus.Array(action, signature='s'))
-        result = accel.setShortcutKeys(dbus.Array(action, signature='s'), keys, dbus.UInt32(4))
-        if {tuple(sequence[0]) for sequence in result} != {tuple(sequence[0]) for sequence in keys}:
-            raise RuntimeError(f'Tastenkürzel konnte nicht wiederhergestellt werden: {action[0]}. Sicherung: {path}')
-    return {'refreshed': len(saved), 'backup': str(path)}
+    return {'refreshed': True}
 
 
 def set_shortcut(data):
