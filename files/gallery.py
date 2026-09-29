@@ -18,8 +18,9 @@ class ImageLoader(QObject):
     ready = pyqtSignal(str, object, object)
     failed = pyqtSignal(str, str)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, max_side=2560, cache_limit=3):
         super().__init__(parent)
+        self.max_side, self.cache_limit = max_side, cache_limit
         self.cache = OrderedDict()
         self.pending = []
         self.proc = None
@@ -69,22 +70,25 @@ class ImageLoader(QObject):
                 if code:
                     raise ValueError('Das Bild konnte nicht gelesen werden.')
                 data = json.loads(bytes(proc.readAllStandardOutput()))
-                pixmap = QPixmap(output) if data['kind'] == 'image' else QPixmap()
+                pixmap = QPixmap()
+                if data['kind'] == 'image':
+                    # The worker reuses its output name; bypass Qt's filename cache.
+                    pixmap.loadFromData(Path(output).read_bytes())
                 if pixmap.isNull():
                     raise ValueError(data.get('message', 'Das Bild konnte nicht gelesen werden.'))
                 self.cache[path] = (pixmap, data)
-                # Three 2560 px previews keep memory bounded and cover both neighbors.
-                while len(self.cache) > 3:
+                # Bounded previews; the gallery keeps both neighbors, the grid small thumbnails.
+                while len(self.cache) > self.cache_limit:
                     self.cache.popitem(last=False)
                 self.ready.emit(path, pixmap, data)
-            except (ValueError, KeyError) as exc:
+            except (OSError, ValueError, KeyError) as exc:
                 self.failed.emit(path, str(exc))
             proc.deleteLater()
             self.advance()
 
         proc.finished.connect(finished)
         proc.errorOccurred.connect(lambda err: self.fail_start(proc, path) if err == QProcess.FailedToStart else None)
-        proc.start(sys.executable, [str(ROOT / 'preview.py'), '--data', path, output, '2560'])
+        proc.start(sys.executable, [str(ROOT / 'preview.py'), '--data', path, output, str(self.max_side)])
         self.timer.start(12000)
 
     def fail_start(self, proc, path):

@@ -39,6 +39,14 @@ QTreeView#files::item { height: 32px; padding: 0 6px; border: 1px solid transpar
 QTreeView#files::item:hover:!selected { background: palette(midlight); }
 QTreeView#files::item:selected { background: palette(highlight); color: palette(highlighted-text); }
 QTreeView#files::item:focus { border-color: palette(highlight); }
+QListView#fileGrid { background: palette(base); color: palette(text); border: none; outline: none; }
+QListView#fileGrid::item { padding: 8px; border: 1px solid transparent; border-radius: 8px; }
+QListView#fileGrid::item:hover:!selected { background: palette(midlight); }
+QListView#fileGrid::item:selected { background: palette(highlight); color: palette(highlighted-text); }
+QListView#fileGrid::item:focus { border-color: palette(highlight); }
+QSlider::groove:horizontal { height: 4px; background: palette(mid); border-radius: 2px; }
+QSlider::sub-page:horizontal { background: palette(highlight); border-radius: 2px; }
+QSlider::handle:horizontal { background: palette(text); width: 12px; margin: -4px 0; border-radius: 6px; }
 QHeaderView::section { color: palette(dark); background: palette(base); border: none; border-bottom: 1px solid palette(mid); padding: 8px 6px; font-size: 11px; }
 QWidget#preview { background: palette(window); border-left: 1px solid palette(mid); }
 QLabel#previewTitle { font-size: 16px; font-weight: 600; }

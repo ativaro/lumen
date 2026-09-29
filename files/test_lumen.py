@@ -112,6 +112,58 @@ class NativeTest(unittest.TestCase):
                 recovered.close(); recovered.deleteLater()
             QTest.qWait(50)
 
+    def test_grid_thumbnails_selection_search_and_settings(self):
+        from app import Window
+        from PyQt5.QtCore import QSettings, Qt
+        from PyQt5.QtTest import QTest
+        from PyQt5.QtWidgets import QApplication
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            photo = root / 'photo.png'
+            Image.new('RGB', (900, 600), 'red').save(photo)
+            broken = root / 'broken.png'
+            broken.write_bytes(b'not an image')
+            nested = root / 'nested'
+            nested.mkdir()
+            Image.new('RGB', (200, 300), 'blue').save(nested / 'other.png')
+            settings = QSettings(str(root / 'settings.ini'), QSettings.IniFormat)
+            window = Window(tmp, settings)
+            window.show()
+            try:
+                QTest.qWait(50)
+                QTest.keyClick(window, Qt.Key_2, Qt.ControlModifier)
+                self.assertIs(window.file_stack.currentWidget(), window.grid)
+                self.wait_until(lambda: str(photo) in window.grid.loader.cache and str(broken) in window.grid.failed)
+                pixmap = window.grid.loader.cache[str(photo)][0]
+                self.assertEqual((pixmap.width(), pixmap.height()), (256, 170))
+                index = window.proxy.mapFromSource(window.fs.index(str(photo)))
+                QTest.mouseClick(window.grid.viewport(), Qt.LeftButton, pos=window.grid.visualRect(index).center())
+                self.assertEqual(window.selected_paths(), [str(photo)])
+                QTest.keyClick(window.grid, Qt.Key_C, Qt.ControlModifier)
+                self.assertEqual(QApplication.clipboard().mimeData().urls()[0].toLocalFile(), str(photo))
+                window.set_view_mode('list')
+                self.assertEqual(window.selected_paths(), [str(photo)])
+                window.set_view_mode('grid')
+                window.thumbnail_size.setValue(192)
+                Image.new('RGB', (900, 600), 'green').save(photo)
+                self.wait_until(lambda: str(photo) in window.grid.loader.cache and
+                    window.grid.loader.cache[str(photo)][0].toImage().pixelColor(10, 10).green() == 128)
+                window.search.setText('other')
+                self.wait_until(lambda: window.proxy.sourceModel() is window.results and not window.search_jobs)
+                self.wait_until(lambda: str(nested / 'other.png') in window.grid.loader.cache)
+                self.assertEqual(window.grid.model().rowCount(window.grid.rootIndex()), 1)
+                window.navigate(nested)
+                self.wait_until(lambda: str(nested / 'other.png') in window.grid.loader.cache)
+                self.assertEqual(window.grid.rootIndex(), window.view.rootIndex())
+            finally:
+                window.close(); window.deleteLater()
+            restored = Window(settings=settings)
+            self.assertIs(restored.file_stack.currentWidget(), restored.grid)
+            self.assertEqual(restored.thumbnail_size.value(), 192)
+            restored.close(); restored.deleteLater()
+            QTest.qWait(50)
+
     def test_system_colors_and_font_follow_light_and_dark_kde_settings(self):
         from app import Window, apply_system_appearance
         from PyQt5.QtCore import QSettings

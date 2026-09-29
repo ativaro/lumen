@@ -184,6 +184,8 @@ Tabs stehen oberhalb aller Bedienelemente. Der automatische Seitenleisteneintrag
 
 Beim nächsten Start werden offene Tabs, der aktive Tab, Sortierung und die Breite der Vorschauleiste wiederhergestellt. Nicht mehr vorhandene lokale Ordner werden übersprungen; Netzwerk-Tabs verbinden sich erst beim Aktivieren. Ein ausdrücklich übergebener Startordner hat Vorrang. In den Einstellungen lässt sich die Tab-Wiederherstellung abschalten.
 
+**Strg+1 / Strg+2** oder die beiden Ansichtsschalter wechseln zwischen Liste und Bildraster. Auswahl, Suche, Typfilter, Ziehen/Kopieren und die Galerie funktionieren in beiden Ansichten. Der Regler unten passt die Miniaturgröße an; Ansicht und Größe bleiben gespeichert. Das Raster lädt sichtbare Bilder in einem separaten Prozess und hält höchstens 256 Miniaturen mit maximal 256 Pixeln im Speicher. Defekte Bilder behalten ihr Dateisymbol. **F5** lädt die Miniaturen neu, etwa bei verzögerten Änderungen auf Netzlaufwerken.
+
 ## Netzwerkserver
 
 **Server verbinden** in der Seitenleiste oder **Strg+K** öffnet den Verbindungsdialog. Unterstützt werden die installierten KDE-Protokolle SMB, SFTP, WebDAV, FTP und NFS. Beispiele:

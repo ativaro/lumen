@@ -10,13 +10,13 @@ from PyQt5.QtCore import (QDir, QEvent, QFileInfo, QItemSelectionModel, QMimeDat
 from PyQt5.QtGui import QDesktopServices, QIcon, QKeySequence, QPalette, QColor, QFont, QStandardItem, QStandardItemModel
 from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDockWidget, QFileIconProvider,
                              QFileSystemModel, QFrame, QHBoxLayout, QHeaderView, QInputDialog,
-                             QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow,
+                             QLabel, QLineEdit, QListView, QListWidget, QListWidgetItem, QMainWindow,
                              QMenu, QMessageBox, QPushButton, QShortcut, QSizePolicy,
-                             QSplitter, QStackedWidget, QStyledItemDelegate, QTabBar, QTreeView, QVBoxLayout, QWidget)
+                             QSlider, QSplitter, QStackedWidget, QStyledItemDelegate, QTabBar, QTreeView, QVBoxLayout, QWidget)
 from core import FileWorker, SearchWorker, file_kind, size_text, valid_name
 from network import Network, ConnectDialog, display_url, is_network_address, normalize_url, server_label
 from preview import Preview, label
-from gallery import Gallery
+from gallery import Gallery, ImageLoader
 from disk_analysis import DiskAnalysis
 
 ROOT = Path(__file__).resolve().parent
@@ -88,7 +88,7 @@ class PlacesDelegate(QStyledItemDelegate):
         return size
 
 
-class FileView(QTreeView):
+class FileDropMixin:
     def __init__(self, window):
         super().__init__()
         self.main_window = window
@@ -130,6 +130,79 @@ class FileView(QTreeView):
             self.main_window.run_operation('copy', paths, target)
             event.setDropAction(Qt.CopyAction)
             event.accept()
+
+
+class FileView(FileDropMixin, QTreeView):
+    pass
+
+
+class ThumbnailDelegate(QStyledItemDelegate):
+    def sizeHint(self, option, index):
+        return self.parent().gridSize()
+
+    def initStyleOption(self, option, index):
+        super().initStyleOption(option, index)
+        grid = self.parent()
+        path = grid.model().path(index)
+        cached = grid.loader.cache.get(path)
+        if cached:
+            grid.loader.cache.move_to_end(path)
+            option.icon = QIcon(cached[0])
+        elif (file_kind(path) == 'image' and path not in grid.failed
+              and path != grid.loader.loading and path not in grid.loader.pending):
+            if len(grid.loader.pending) < grid.loader.cache_limit:
+                grid.loader.pending.append(path)
+                grid.load_timer.start()
+
+
+class FileGrid(FileDropMixin, QListView):
+    def __init__(self, window):
+        super().__init__(window)
+        self.setObjectName('fileGrid')
+        self.setAccessibleName('Dateien als Bildraster')
+        self.setViewMode(QListView.IconMode)
+        self.setResizeMode(QListView.Adjust)
+        self.setMovement(QListView.Static)
+        self.setUniformItemSizes(True)
+        self.setWordWrap(False)
+        self.setTextElideMode(Qt.ElideMiddle)
+        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self.setItemDelegate(ThumbnailDelegate(self))
+        self.loader = ImageLoader(self, max_side=256, cache_limit=256)
+        self.failed = set()
+        self.load_timer = QTimer(self)
+        self.load_timer.setSingleShot(True)
+        self.load_timer.setInterval(20)
+        self.load_timer.timeout.connect(self.loader.advance)
+        self.loader.ready.connect(lambda *_: self.viewport().update())
+        self.loader.failed.connect(self.load_failed)
+
+    def load_failed(self, path, _message):
+        if len(self.failed) >= self.loader.cache_limit:
+            self.failed.clear()
+        self.failed.add(path)
+
+    def reset_thumbnails(self, *_):
+        self.load_timer.stop()
+        self.loader.pending.clear()
+        self.loader.cancel()
+        self.loader.cache.clear()
+        self.failed.clear()
+        self.viewport().update()
+
+    def paintEvent(self, event):
+        # Queue only visible items; scrolling abandons work that has not started.
+        self.loader.pending.clear()
+        super().paintEvent(event)
+
+    def hideEvent(self, event):
+        self.load_timer.stop()
+        self.loader.pending.clear()
+        self.loader.cancel()
+        super().hideEvent(event)
 
 
 class Window(QMainWindow):
@@ -224,6 +297,7 @@ class Window(QMainWindow):
                                Qt.DescendingOrder if self.settings.value('session/sortDescending', False, type=bool) else Qt.AscendingOrder)
         self.view.header().sortIndicatorChanged.connect(lambda *_: self.session_save.start())
         self.splitter.splitterMoved.connect(lambda *_: self.session_save.start())
+        self.set_view_mode(self.settings.value('viewMode', 'list'))
 
     def build_ui(self):
         central = QWidget()
@@ -370,6 +444,14 @@ class Window(QMainWindow):
             self.filter_buttons[kind] = item
             filters.addWidget(item)
         filters.addStretch()
+        self.view_buttons = {}
+        for mode, icon, tip in [('list', 'view-list-details', 'Listenansicht · Strg+1'),
+                                ('grid', 'view-list-icons', 'Bildraster · Strg+2')]:
+            item = button('', lambda _=False, m=mode: self.set_view_mode(m), icon, tip)
+            item.setCheckable(True)
+            item.setFixedWidth(30)
+            self.view_buttons[mode] = item
+            filters.addWidget(item)
         self.hidden_button = button('', self.toggle_hidden, 'view-hidden', 'Versteckte Dateien · Strg+H')
         self.hidden_button.setCheckable(True)
         self.hidden_button.setChecked(self.hidden)
@@ -394,7 +476,18 @@ class Window(QMainWindow):
         self.view.setContextMenuPolicy(Qt.CustomContextMenu)
         self.view.customContextMenuRequested.connect(self.context_menu)
         self.configure_columns()
-        files.addWidget(self.view, 1)
+        self.grid = FileGrid(self)
+        self.grid.setModel(self.proxy)
+        self.grid.setSelectionModel(self.view.selectionModel())
+        self.grid.doubleClicked.connect(self.open_index)
+        self.grid.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.grid.customContextMenuRequested.connect(self.context_menu)
+        self.proxy.dataChanged.connect(self.grid.reset_thumbnails)
+        self.fs.directoryLoaded.connect(lambda path: self.grid.reset_thumbnails() if path == self.current_path else None)
+        self.file_stack = QStackedWidget()
+        self.file_stack.addWidget(self.view)
+        self.file_stack.addWidget(self.grid)
+        files.addWidget(self.file_stack, 1)
         self.empty_label = label('', 'muted')
         self.empty_label.setAlignment(Qt.AlignCenter)
         files.addWidget(self.empty_label)
@@ -415,6 +508,15 @@ class Window(QMainWindow):
         self.status.setWordWrap(False)
         status.addWidget(self.status)
         status.addWidget(self.subtitle, 1)
+        self.thumbnail_size = QSlider(Qt.Horizontal)
+        self.thumbnail_size.setRange(96, 224)
+        self.thumbnail_size.setFixedWidth(100)
+        self.thumbnail_size.setAccessibleName('Größe der Miniaturen')
+        self.thumbnail_size.setToolTip('Miniaturen verkleinern oder vergrößern')
+        self.thumbnail_size.setValue(max(96, min(224, self.settings.value('thumbnailSize', 144, type=int))))
+        self.thumbnail_size.valueChanged.connect(self.set_thumbnail_size)
+        self.set_thumbnail_size(self.thumbnail_size.value())
+        status.addWidget(self.thumbnail_size)
         self.activity = label('Leertaste · Vorschau', 'muted')
         self.activity.setWordWrap(False)
         status.addWidget(self.activity)
@@ -563,14 +665,16 @@ class Window(QMainWindow):
         self.fs.setHeaderData(0, Qt.Horizontal, 'Name')
 
     def shortcut(self, key, callback, local=False):
-        shortcut = QShortcut(QKeySequence(key), self.view if local else self)
-        shortcut.setContext(Qt.WidgetShortcut if local else Qt.WindowShortcut)
+        shortcut = QShortcut(QKeySequence(key), self.file_stack if local else self)
+        shortcut.setContext(Qt.WidgetWithChildrenShortcut if local else Qt.WindowShortcut)
         shortcut.activated.connect(callback)
 
     def install_shortcuts(self):
         for key, callback in [('Ctrl+F', lambda: self.search.setFocus()), ('Ctrl+L', self.edit_path),
                               ('Ctrl+T', lambda: self.new_tab(self.current_location)),
                               ('Ctrl+K', self.connect_dialog),
+                              ('Ctrl+1', lambda: self.set_view_mode('list')),
+                              ('Ctrl+2', lambda: self.set_view_mode('grid')),
                               ('Ctrl+W', lambda: self.close_tab(self.tabs.currentIndex())),
                               ('Ctrl+Tab', lambda: self.tabs.setCurrentIndex((self.tabs.currentIndex() + 1) % self.tabs.count())),
                               ('Alt+Left', lambda: self.history(-1)), ('Alt+Right', lambda: self.history(1)),
@@ -583,6 +687,26 @@ class Window(QMainWindow):
                               ('Ctrl+C', lambda: self.copy(False)), ('Ctrl+X', lambda: self.copy(True)),
                               ('Ctrl+V', self.paste)]:
             self.shortcut(key, callback, local=True)
+
+    def set_view_mode(self, mode):
+        mode = 'grid' if mode == 'grid' else 'list'
+        self.file_stack.setCurrentWidget(self.grid if mode == 'grid' else self.view)
+        self.thumbnail_size.setVisible(mode == 'grid')
+        for name, item in self.view_buttons.items():
+            item.setChecked(name == mode)
+        self.settings.setValue('viewMode', mode)
+        self.file_stack.currentWidget().setFocus()
+        self.file_stack.currentWidget().scrollTo(self.view.currentIndex())
+
+    def set_thumbnail_size(self, size):
+        self.grid.setIconSize(QSize(size, size))
+        self.grid.setGridSize(QSize(size + 32, size + 48))
+        self.settings.setValue('thumbnailSize', size)
+
+    def set_file_root(self, index):
+        self.grid.reset_thumbnails()
+        self.view.setRootIndex(index)
+        self.grid.setRootIndex(index)
 
     def new_tab(self, path, activate=True):
         remote = str(path) if is_network_address(path) else self.network.remote(str(path))
@@ -668,7 +792,7 @@ class Window(QMainWindow):
         self.debounce.stop()
         self.cancel_search()
         self.proxy.setSourceModel(self.fs)
-        self.view.setRootIndex(self.proxy.mapFromSource(self.fs.setRootPath(path)))
+        self.set_file_root(self.proxy.mapFromSource(self.fs.setRootPath(path)))
         self.view.clearSelection()
         self.configure_columns()
         self.preview.clear()
@@ -689,7 +813,7 @@ class Window(QMainWindow):
         for i in range(self.places.count()):
             self.places.item(i).setSelected(self.places.item(i).data(Qt.UserRole) == self.current_location)
         self.update_count()
-        self.view.setFocus()
+        self.file_stack.currentWidget().setFocus()
         self.session_save.start()
         return True
 
@@ -783,14 +907,14 @@ class Window(QMainWindow):
         query = self.search.text().strip()
         if not query:
             self.proxy.setSourceModel(self.fs)
-            self.view.setRootIndex(self.proxy.mapFromSource(self.fs.index(self.current_path)))
+            self.set_file_root(self.proxy.mapFromSource(self.fs.index(self.current_path)))
             self.configure_columns()
             self.subtitle.clear()
             self.update_count()
             return
         self.results.removeRows(0, self.results.rowCount())
         self.proxy.setSourceModel(self.results)
-        self.view.setRootIndex(QModelIndex())
+        self.set_file_root(QModelIndex())
         self.configure_columns()
         self.preview.clear()
         self.search_errors = self.search_total = 0
@@ -975,6 +1099,7 @@ class Window(QMainWindow):
             index = self.proxy.index(row, 0, self.view.rootIndex())
             if self.proxy.path(index) == dialog.path:
                 self.view.setCurrentIndex(index)
+                self.file_stack.currentWidget().scrollTo(index)
                 break
         dialog.deleteLater()
         self.refresh()
@@ -1071,7 +1196,8 @@ class Window(QMainWindow):
             self.run_operation('trash', paths)
 
     def context_menu(self, position):
-        index = self.view.indexAt(position)
+        view = self.file_stack.currentWidget()
+        index = view.indexAt(position)
         if index.isValid() and not self.view.selectionModel().isSelected(index):
             self.view.selectionModel().select(index, QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows)
         paths = self.selected_paths()
@@ -1097,9 +1223,10 @@ class Window(QMainWindow):
         menu.addAction('Neuer Ordner', self.mkdir)
         menu.addSeparator()
         menu.addAction('Letzte Lumen-Dateiaktion rückgängig …', lambda: self.organize_files('undo'))
-        menu.exec_(self.view.viewport().mapToGlobal(position))
+        menu.exec_(view.viewport().mapToGlobal(position))
 
     def refresh(self):
+        self.grid.reset_thumbnails()
         if self.search.text().strip():
             self.start_search()
         else:
@@ -1113,10 +1240,10 @@ class Window(QMainWindow):
             self.cancel_connection()
         elif self.path_stack.currentWidget() is self.path_edit:
             self.path_stack.setCurrentWidget(self.crumbs)
-            self.view.setFocus()
+            self.file_stack.currentWidget().setFocus()
         elif self.search.text():
             self.search.clear()
-            self.view.setFocus()
+            self.file_stack.currentWidget().setFocus()
 
     def show_settings(self):
         from settings_dialog import SettingsDialog
@@ -1178,6 +1305,7 @@ class Window(QMainWindow):
         self.cancel_search()
         self.cancel_connection()
         self.preview.cancel()
+        self.grid.reset_thumbnails()
         for job in self.search_jobs[:]:
             job.stop.set()
             if not job.wait(1500):
