@@ -8,13 +8,41 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'files'))
-from PyQt5.QtCore import QProcess, QSettings, Qt, QTimer, QUrl
+from PyQt5.QtCore import QObject, Q_CLASSINFO, QProcess, QSettings, Qt, QTimer, QUrl, pyqtSlot
+from PyQt5.QtDBus import QDBus, QDBusConnection, QDBusMessage
 from PyQt5.QtGui import QIcon, QKeySequence, QTextDocument
 from PyQt5.QtWidgets import (QApplication, QFileDialog, QGridLayout, QHBoxLayout, QMainWindow,
                              QPushButton, QShortcut, QStackedWidget, QVBoxLayout, QWidget)
 from app import create_app, button
 from assistant import ChatPanel, Transcript
 from preview import label
+
+
+class DesktopActivation(QObject):
+    Q_CLASSINFO('D-Bus Interface', 'org.lumen.Desktop')
+
+    def __init__(self):
+        super().__init__()
+        self.window = None
+        self.pending = False
+
+    @pyqtSlot()
+    def Activate(self):
+        self.pending = True
+        if self.window is None:
+            return
+        # Refresh the X11 user timestamp for an explicit launcher/hotkey request.
+        try:
+            from PyQt5.QtX11Extras import QX11Info
+            if QX11Info.isPlatformX11():
+                QX11Info.setAppUserTime(QX11Info.getTimestamp())
+        except ImportError:
+            pass
+        window = QApplication.activeModalWidget() or self.window
+        self.window.setWindowState(self.window.windowState() & ~Qt.WindowMinimized)
+        self.window.show()
+        window.raise_()
+        window.activateWindow()
 
 
 class LumenWindow(QMainWindow):
@@ -282,7 +310,7 @@ class LumenWindow(QMainWindow):
 
 def main():
     parser = argparse.ArgumentParser(description='Lumen – dein Desktop-Assistent')
-    parser.add_argument('--directory', default=os.environ.get('LUMEN_WORKDIR', QSettings('Lumen', 'Assistant').value('workdir', str(Path.home() / 'Documents/work'))))
+    parser.add_argument('--directory')
     parser.add_argument('--prompt', default='')
     parser.add_argument('--action', choices=['open', 'ask', 'explain', 'fix', 'review'], default='open')
     parser.add_argument('--context', nargs='*', default=[])
@@ -294,11 +322,28 @@ def main():
     app = create_app(QSettings('Lumen', 'Assistant').value('appearance', 'lumen'))
     app.setApplicationName('Lumen')
     app.setDesktopFileName('lumen')
-    directory = Path(args.directory).expanduser()
+    activation = DesktopActivation()
+    plain_launch = (args.action == 'open' and args.page == 'chat' and not any(
+        (args.directory, args.prompt, args.context, args.file, args.selection,
+         args.clipboard_image, os.environ.get('LUMEN_ASK_PROMPT'))))
+    bus = QDBusConnection.sessionBus()
+    if plain_launch and bus.isConnected() and bus.registerObject('/Lumen', activation, QDBusConnection.ExportAllSlots):
+        if not bus.registerService('org.lumen.Desktop'):
+            request = QDBusMessage.createMethodCall('org.lumen.Desktop', '/Lumen', 'org.lumen.Desktop', 'Activate')
+            reply = bus.call(request, QDBus.Block, 3000)
+            if reply.type() == QDBusMessage.ErrorMessage:
+                print('Lumen: Das vorhandene Fenster antwortet nicht: ' + reply.errorMessage(), file=sys.stderr)
+                return 1
+            return 0
+    directory = Path(args.directory or os.environ.get('LUMEN_WORKDIR') or
+                     QSettings('Lumen', 'Assistant').value('workdir', str(Path.home() / 'Documents/work'))).expanduser()
     window = LumenWindow(str(directory if directory.is_dir() else Path.home()))
+    activation.window = window
     if args.action in window.chat.action_titles:
         window.chat.set_action(args.action)
     window.show()
+    if activation.pending:
+        activation.Activate()
     def start():
         if args.page == 'settings':
             window.show_settings()

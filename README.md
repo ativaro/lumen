@@ -80,6 +80,11 @@ After installing (either way):
 3. Reload KRunner if the `ai …` trigger is missing: `kquitapp6 krunner`
 4. Launch the app from the menu (**Lumen**) or run `lumen-agent-app`.
 
+Launching Lumen again from the menu, panel or main shortcut activates its existing
+window and keeps the current conversation and draft. Explicit file actions,
+prompts, selections, pages or working directories still open their own window.
+Activation uses the desktop session bus; without D-Bus the app opens normally.
+
 Updates rebuild KDE's application cache without deleting live shortcut components.
 If an existing shortcut's `Exec` path changes, KDE may keep the previous path until
 the next login. Existing `plasma_icons/lumen.desktop` panel copies are updated with
