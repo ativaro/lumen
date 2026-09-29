@@ -834,6 +834,20 @@ class Window(QMainWindow):
         for title, action in [('Mit Lumen öffnen', 'open'), ('Erklären', 'explain'),
                               ('Fehler beheben', 'fix'), ('Git-Diff prüfen', 'review')]:
             submenu.addAction(title, lambda _=False, a=action: self.ask_lumen(a, paths))
+        submenu.addSeparator()
+        submenu.addAction('Intelligent umbenennen …', lambda: self.organize_files('rename', paths))
+        submenu.addAction('Dateien sortieren …', lambda: self.organize_files('sort', paths))
+
+    def organize_files(self, mode, paths=None):
+        if self.file_job:
+            self.error('Bitte den laufenden Dateivorgang abwarten.')
+            return
+        from organize_dialog import OrganizeDialog
+        journal = Path(QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation)) / 'organize-undo.json'
+        dialog = OrganizeDialog(paths or self.selected_paths(), self.current_path, mode, journal, self)
+        dialog.exec_()
+        dialog.deleteLater()
+        self.refresh()
 
     def quicklook(self):
         paths = self.selected_paths()
@@ -951,6 +965,9 @@ class Window(QMainWindow):
 
     def rename(self):
         paths = self.selected_paths()
+        if len(paths) > 1:
+            self.organize_files('rename', paths)
+            return
         if len(paths) != 1:
             return
         path = Path(paths[0])
@@ -993,6 +1010,8 @@ class Window(QMainWindow):
             menu.addAction('In den Papierkorb\tEntf', self.trash)
         menu.addAction('Hier einfügen\tStrg+V', self.paste)
         menu.addAction('Neuer Ordner', self.mkdir)
+        menu.addSeparator()
+        menu.addAction('Letzte Lumen-Dateiaktion rückgängig …', lambda: self.organize_files('undo'))
         menu.exec_(self.view.viewport().mapToGlobal(position))
 
     def refresh(self):
@@ -1069,7 +1088,7 @@ class Window(QMainWindow):
 
 
 class Application(QApplication):
-    def notify(self, receiver, event):
+    def eventFilter(self, receiver, event):
         if (event.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick)
                 and event.button() in (Qt.BackButton, Qt.ForwardButton) and isinstance(receiver, QWidget)):
             window = receiver.window()
@@ -1081,12 +1100,15 @@ class Application(QApplication):
                     window.history(direction) if isinstance(window, Window) else window.step(direction)
                 event.accept()
                 return True
-        return super().notify(receiver, event)
+        return False
 
 
 def create_app():
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
     app = Application(sys.argv)
+    # An application event filter sees GUI-thread events only. Overriding notify
+    # also wraps objects from Qt's network threads in Python and races their deletion.
+    app.installEventFilter(app)
     app.setApplicationName('Lumen Files')
     app.setDesktopFileName('lumen-files')
     app.translator = QTranslator(app)

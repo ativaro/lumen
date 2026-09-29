@@ -43,6 +43,41 @@ KIO-FUSE-Pfad. Bilder/PDFs werden als Anhänge übergeben.
 OpenCode arbeitet als lokale Hintergrund-Engine mit der bestehenden
 Konfiguration. Dateien lassen sich auch ohne laufende Engine verwalten.
 
+## Intelligent umbenennen und sortieren
+
+Dateien markieren → Rechtsklick → **Lumen → Intelligent umbenennen …** oder
+**Dateien sortieren …**. Bei mehreren ausgewählten Dateien öffnet auch **F2**
+das intelligente Umbenennen. Eine optionale Vorgabe wie „Datum und Thema im
+Namen“ ergänzen und **Vorschläge erstellen** anklicken.
+
+Die native Tabelle zeigt bisherige Namen, editierbare Ziele und Begründungen.
+Ziele mit Doppelklick/F2 bearbeiten, unerwünschte Vorschläge abwählen.
+Erst **Änderungen anwenden** verändert Dateien. Umbenennen erhält den bisherigen
+Ordner und die Endung; Sortieren erhält den Namen und erstellt Unterordner im
+aktuellen Ordner. Belegte, doppelte, überlappende oder ungültige Ziele werden
+markiert. Nachträglich geänderte Dateien werden nicht verschoben.
+
+**Rückgängig** im Dialog oder **Letzte Lumen-Dateiaktion rückgängig …** im
+Datei-Kontextmenü stellt den letzten Durchlauf wieder her, auch nach einem
+Neustart. Ein neuer Durchlauf ersetzt die vorherige Rückgängig-Möglichkeit.
+Das Journal liegt unter `~/.local/share/Lumen Files/organize-undo.json` (bzw.
+unter dem entsprechenden XDG-Datenpfad). Bei Teilfehlern/Abbruch werden bereits
+ausgeführte Änderungen angezeigt; verbleibende Undo-Konflikte bleiben im
+Journal. Leere neu angelegte Zielordner bleiben erhalten. Auch Undo überschreibt
+keine Dateien und lässt inzwischen bearbeitete Dateien unangetastet.
+
+Bis zu 100 reguläre Dateien je Durchlauf, keine Ordnerauswahl oder Symlinks.
+Lumen erhält höchstens 4.096 Zeichen Text je Datei, Text aus den ersten drei
+PDF-Seiten und bis zu zwölf Bildvorschauen mit maximal 1.024 Pixeln Kantenlänge;
+sonst nur Namen/Größen. Gescannte PDFs benötigen Text, es gibt hier kein OCR.
+Inhalte werden über deine bestehende Modellkonfiguration verarbeitet. Die
+Vorschlagssitzung sperrt alle Werkzeuge über die
+[OpenCode-Berechtigungen](https://opencode.ai/docs/permissions/); Files führt
+bestätigte Änderungen selbst aus. Vorschläge erscheinen nicht im Chatverlauf.
+Verschieben erfordert einen nativen Move innerhalb desselben Dateisystems;
+Netzwerk-Backends ohne diese Unterstützung melden einen Fehler, ohne auf
+Kopieren/Löschen auszuweichen. Keine neuen Bibliotheken nötig.
+
 ## Bildgalerie und einfache Bearbeitung
 
 Ein Bild doppelklicken oder mit **Leertaste** öffnen. Die Galerie übernimmt die Bilder und Sortierung der aktuellen Ansicht, auch bei Suchergebnissen. **Links/Rechts** wechseln das Bild; Nachbarbilder werden vorgeladen. **Mausrad / + / −** zoomen, Ziehen verschiebt das Bild, **0** passt es ein, **F11** schaltet Vollbild um. **Esc / Leertaste** schließen die Galerie.

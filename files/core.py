@@ -86,11 +86,14 @@ def check_destination(source, destination):
             raise ValueError('Ein Ordner kann nicht in sich selbst kopiert oder verschoben werden.')
 
 
-def move_entry(source, destination):
+def move_entry(source, destination, atomic=False):
     source, destination = Path(source), Path(destination)
     check_destination(source, destination)
+    flags = Gio.FileCopyFlags.NOFOLLOW_SYMLINKS
+    if atomic:
+        flags |= Gio.FileCopyFlags.NO_FALLBACK_FOR_MOVE
     Gio.File.new_for_path(str(source)).move(
-        Gio.File.new_for_path(str(destination)), Gio.FileCopyFlags.NOFOLLOW_SYMLINKS, None, None)
+        Gio.File.new_for_path(str(destination)), flags, None, None)
     return destination
 
 

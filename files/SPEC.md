@@ -20,6 +20,15 @@ Prüfung: `/usr/bin/python3 -m compileall -q /home/example/Documents/work/openco
 ## Stil und Grenzen
 Python, vier Leerzeichen, kleine direkte Funktionen: `def valid_name(name): ...`. Native Qt-Widgets und Standardbibliothek zuerst. Tests mit unittest und temporären Verzeichnissen, keine Nutzerdaten verändern. Decoder begrenzen Lesevolumen und Laufzeit. Keine Systemkonfiguration, Fremdprojekte oder Standardzuordnungen ändern. Versionskontrolle lokal.
 
+## Intelligentes Umbenennen und Sortieren
+- Zwei Aktionen teilen eine native Vorschautabelle: Umbenennen ändert Namen im bisherigen Ordner; Sortieren verschiebt unterhalb des aktuellen Ordners und erhält Dateinamen. Keine Chatansicht.
+- Auswahl regulärer Dateien, höchstens 100 pro Durchlauf; keine rekursive Ordnerauswahl, Symlinks oder Spezialdateien. Textauszüge, bis zu drei PDF-Seiten und höchstens zwölf verkleinerte Bildvorschauen dienen als Kontext; sonst Metadaten. Begrenzte Decoder laufen außerhalb der Oberfläche.
+- Optionale Vorgabe, dann „Vorschläge erstellen“. Lumen liefert ausschließlich Daten; alle Werkzeuge sind für diese neue Sitzung gesperrt. Globale OpenCode-Einstellungen bleiben unverändert.
+- Tabelle mit Auswahl, bisherigem Pfad, editierbarem Ziel und Begründung/Fehler. Erst „Anwenden“ verändert Dateien. Erweiterungen bleiben erhalten; ungültige Pfade, doppelte oder belegte Ziele und veränderte Quellen sperren den Vorgang.
+- Dateioperationen laufen im Hintergrund über vorhandenes GIO ohne Überschreiben, innerhalb desselben Dateisystems. Teilfehler und Abbruch zeigen den tatsächlichen Stand. Ein vorab atomar gespeichertes Journal erlaubt das Rückgängigmachen des letzten Durchlaufs auch nach Neustart; neue Vorgänge ersetzen es. Neu entstandene leere Ordner bleiben bestehen.
+- Verifizieren: temporäre Dateien für Vorschlag → Bearbeiten/Abwählen → Anwenden → Undo, Pfadausbruch/Symlinks, Konflikte, geänderte Quellen, Teilfehler, Abbruch, fehlerhafte Modellantworten und echten Modellaufruf. Bestehende unittest-Prüfungen bleiben grün.
+- Reihenfolge: sichere Vorschlags-/Dateilogik → nativer Dialog und Kontextmenü → Modell-/UI-Prüfung → Benutzerinstallation und Dokumentation.
+
 ## Netzwerkverbindungen
 - Verbindungsdialog für SMB, SFTP, WebDAV (HTTP/HTTPS), FTP und NFS; UNC-Adressen und direkte URL-Eingabe über Strg+L.
 - Vorhandenes KIO-FUSE über asynchrones D-Bus nutzen. Keine Root-Mounts und keine neue Protokollimplementierung.

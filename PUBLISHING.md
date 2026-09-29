@@ -73,7 +73,7 @@ release URL otherwise. For publishing:
       are active (`systemctl status lumen-agentd lumen-watch.timer`).
 - [ ] `lumen-setup --uninstall` and `pacman -R opencode-lumen` leave no residue.
 
-## Native UI (package revision 10)
+## Native UI (package revision 11)
 
 The desktop app and Files panel now require `python-pyqt5`, `python-gobject`
 and `python-pillow`; the old QML chat and text-file bridge have been removed.
@@ -89,3 +89,10 @@ context menus and hotkeys must open Lumen without a terminal. Existing services
 and OpenCode configuration must retain their settings on upgrade.
 
 File-action smoke check: explain/fix/review must show compact result windows (or the Files side panel), without a composer or generated prompts; free chat remains available.
+
+Rename/sort smoke check: select disposable text/PDF/image files in Files, generate
+proposals, edit and deselect rows, apply, then undo after reopening the dialog.
+Check destination conflicts and changed sources. Proposals must use a fresh
+session with all tools denied; only Files performs the confirmed moves. Exercise
+repeated dialog open/close while the network backend is active (mouse navigation
+uses a GUI-thread event filter, not an application-wide notify override).
