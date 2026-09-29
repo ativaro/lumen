@@ -5,7 +5,7 @@ Native Linux-Dateiverwaltung mit Schwerpunkt auf schneller Dateinamensuche und b
 ## Akzeptanz
 - Echte lokale Ordner, Favoriten, Tabs, Verlauf, versteckte Dateien und Typfilter.
 - Seitliche Maustasten navigieren über allen Fensterbereichen im Verlauf, in der Galerie durch Bilder; andere Dialoge lösen keine Hintergrundnavigation aus. Zehn Orte passen bei 1000 × 640 Pixeln ohne Scrollen in die Seitenleiste.
-- Suche ab 250 ms Eingabepause, rekursiv, laufende Treffer, abbrechbar; Dateinamen ohne Beachtung der Großschreibung. Keine Symlink-Rekursion. Maximal 5.000 Treffer mit sichtbarem Hinweis. Kein Hintergrundindex, keine Volltextsuche.
+- Dateinamensuche ab 250 ms Eingabepause, rekursiv, laufende Treffer, abbrechbar; ohne Beachtung der Großschreibung. Keine Symlink-Rekursion. Maximal 5.000 Treffer mit sichtbarem Hinweis. Kein Hintergrundindex.
 - Auswahl zeigt Bilder, blätterbare PDFs, Text/Code und Video-Standbilder; Leertaste öffnet große Vorschau. Decoder laufen außerhalb der Oberfläche mit Zeitlimit. Keine automatische Ausführung, kein HTML-Rendering.
 - Öffnen, Ordner erstellen, Umbenennen, Kopieren, Ausschneiden/Einfügen, bestätigter Papierkorb. Kein stilles Überschreiben. Fehler sichtbar, große Kopien im Hintergrund.
 - Startmenüeintrag und Startbefehl. Standard-Dateimanager bleibt eine gesonderte Nutzereinstellung.
@@ -19,6 +19,14 @@ Prüfung: `/usr/bin/python3 -m compileall -q /home/example/Documents/work/openco
 
 ## Stil und Grenzen
 Python, vier Leerzeichen, kleine direkte Funktionen: `def valid_name(name): ...`. Native Qt-Widgets und Standardbibliothek zuerst. Tests mit unittest und temporären Verzeichnissen, keine Nutzerdaten verändern. Decoder begrenzen Lesevolumen und Laufzeit. Keine Systemkonfiguration, Fremdprojekte oder Standardzuordnungen ändern. Versionskontrolle lokal.
+
+## Inhaltssuche
+- „Inhalte“ neben der Suche oder Strg+Umschalt+F öffnet eine native Suchansicht für den aktuellen Ordner und Unterordner. Suchfeld, laufende Treffer mit echten Textausschnitten, Dateivorschau, Öffnen und „Ordner öffnen“; keine Chatoberfläche.
+- Text/Code und PDFs mit Textebene werden lokal durchsucht. Fragen wie „Die Rechnung für meinen Monitor“ werden auf wesentliche Suchwörter reduziert; alle Begriffe müssen im Inhalt vorkommen. Groß-/Kleinschreibung und übliche deutsche Endungen werden berücksichtigt.
+- „Mit Lumen erweitern“ ergänzt auf ausdrücklichen Klick alternative Suchbegriffe. Nur die Suchfrage wird als Anfrage übergeben, keine Suchtreffer oder Ordnerlisten. Ein leerer Arbeitsordner und deaktivierte Projektkonfiguration verhindern das automatische Laden von Anweisungen aus dem Suchordner; persönliche globale Lumen-/OpenCode-Anweisungen bleiben wie eingerichtet Teil des Modellkontexts und werden im Tooltip genannt. Backend mit gesperrten Werkzeugen wiederverwenden; Ergebnisse sind echte lokale Fundstellen. Begriffe sichtbar, Modellfehler lassen lokale Suche nutzbar.
+- Lesen und PDF-Extraktion in einem abbrechbaren Kindprozess; vorhandenes pdftotext nutzen. Keine Symlinks/Spezialdateien, versteckte Inhalte nur bei entsprechender Auswahl. Maximal 1 MiB Text je Datei, PDFs bis 128 MiB/12 Sekunden, 500 Treffer und 100.000 besuchte Einträge. Fehler und Teilabdeckung werden sichtbar gezählt. Keine Office-/OCR-Suche, kein dauerhafter Index, kein System-Indexer wird aktiviert.
+- Neue Anfrage/Abbruch/Schließen verwirft alte Antworten und beendet eigene Decoder. Beim Öffnen eines Treffers Existenz prüfen. Tests mit temporären Text/PDF-Dateien, tatsächlichen Zitaten/Seiten, Synonymen, Grenzen, Symlinks, Fehlern, Abbruch, veralteten Antworten und nativer UI. Bestehende Tests bleiben grün.
+- Reihenfolge: Suchkern und Prozessprotokoll → native Ansicht und Lumen-Begriffe → reale Modell-/UI-Prüfung → Installation/Dokumentation.
 
 ## Intelligentes Umbenennen und Sortieren
 - Zwei Aktionen teilen eine native Vorschautabelle: Umbenennen ändert Namen im bisherigen Ordner; Sortieren verschiebt unterhalb des aktuellen Ordners und erhält Dateinamen. Keine Chatansicht.

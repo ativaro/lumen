@@ -1,7 +1,7 @@
 # Maintainer: Lumen
 pkgname=opencode-lumen
 pkgver=1.0.0
-pkgrel=11
+pkgrel=12
 pkgdesc="Lumen — OS integration for opencode: desktop app, watchdog, KRunner, Dolphin menus, MCP"
 arch=('any')
 url="https://github.com/opencode-lumen/opencode-lumen"
@@ -18,7 +18,7 @@ optdepends=(
     'python-dbus: KRunner runner'
     'dolphin: service menu integration'
     'plasma-workspace: KRunner integration'
-    'poppler: Lumen Files PDF preview (pdfinfo, pdftoppm)'
+    'poppler: Lumen Files PDF preview and search (pdfinfo, pdftoppm, pdftotext)'
     'ffmpeg: Lumen Files video/audio preview (ffprobe, ffmpeg)'
     'kio-fuse: Lumen Files network folders (SMB/SFTP/WebDAV/NFS)'
     'kio-extras: Lumen Files network protocols'

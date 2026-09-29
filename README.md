@@ -21,7 +21,7 @@ gracefully on other setups.
 | **Git** | `lumen-gitmsg` drafts a Conventional-Commit message from the diff |
 | **KRunner runner** | Type `lumen <question>`, `ai <question>` or `oc <question>` in KRunner |
 | **Plasma applet** | panel widget with agent status + quick actions (`org.lumen.agent`) |
-| **Lumen Files** | file manager with fast search, previews, tabs, gallery, disk analysis, KIO network folders, native rename/sort proposals with editable preview and undo, integrated Lumen panel |
+| **Lumen Files** | file manager with fast filename search, local text/PDF content search with optional Lumen synonyms, previews, tabs, gallery, disk analysis, KIO network folders, native rename/sort proposals with editable preview and undo, integrated Lumen panel |
 | **System watchdog** | systemd timer checks failed units, kernel errors, disk, GPU temp; automatic opencode analysis |
 | **Daily digest / nightly report** | scheduled summaries (`lumen-digest`, `lumen-nightly`) |
 | **MCP server `cachyos`** | read tools `systemctl`, `journal`, `pacman`, `disk`, `gpu`, `memory`, `sensors`, `kwin`, guarded `cmd` — plus **opt-in action tools** (`notify`, `restart_unit`, `media`, `wallpaper`, `screenshot`) behind `LUMEN_MCP_ACTIONS=1` |

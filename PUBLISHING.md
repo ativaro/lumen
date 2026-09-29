@@ -73,7 +73,7 @@ release URL otherwise. For publishing:
       are active (`systemctl status lumen-agentd lumen-watch.timer`).
 - [ ] `lumen-setup --uninstall` and `pacman -R opencode-lumen` leave no residue.
 
-## Native UI (package revision 11)
+## Native UI (package revision 12)
 
 The desktop app and Files panel now require `python-pyqt5`, `python-gobject`
 and `python-pillow`; the old QML chat and text-file bridge have been removed.
@@ -96,3 +96,11 @@ Check destination conflicts and changed sources. Proposals must use a fresh
 session with all tools denied; only Files performs the confirmed moves. Exercise
 repeated dialog open/close while the network backend is active (mouse navigation
 uses a GUI-thread event filter, not an application-wide notify override).
+
+Content-search smoke check: use **Inhalte / Ctrl+Shift+F** with disposable text
+and multi-page PDFs. Verify literal excerpts and the matching PDF page, optional
+synonym expansion, malformed model responses and cancellation while decoding.
+Expansion uses an isolated empty directory with project config disabled and all
+tools denied; global personal instructions remain active and disclosed. No found
+document is attached. Existing local results survive model errors. PDFs need
+Poppler's `pdftotext`; scanned images and Office documents are not searched.

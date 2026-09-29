@@ -1,6 +1,6 @@
 # Lumen Files
 
-Native Dateiverwaltung für Linux/KDE mit großer Vorschauleiste und laufender Dateinamensuche, lokal und auf Netzwerkservern. Nutzt die bereits installierten Bibliotheken und Werkzeuge.
+Native Dateiverwaltung für Linux/KDE mit großer Vorschauleiste, laufender Dateinamensuche und Inhaltssuche, lokal und auf Netzwerkservern. Nutzt die bereits installierten Bibliotheken und Werkzeuge.
 
 ## Start
 
@@ -15,6 +15,7 @@ Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. Au
 ## Bedienung
 
 - **Strg+F:** aktueller Ordner einschließlich Unterordner durchsuchen. Alle eingegebenen Wörter müssen im Dateinamen vorkommen, Großschreibung ist egal. Treffer erscheinen laufend; **Esc** beendet die Suche. Typfilter begrenzen die Anzeige.
+- **Inhalte / Strg+Umschalt+F:** Text-, Code- und PDF-Inhalte im aktuellen Ordner einschließlich Unterordnern durchsuchen; Treffer zeigen echte Textstellen und eine Vorschau.
 - **Einmal auswählen:** Vorschauleiste. **Leertaste:** große Vorschau. Bilder, SVG, blätterbare PDFs, Text/Code, Video-Standbilder und Audio-Wellenformen. Medienwiedergabe über die Standard-App.
 - **Strg+L:** Pfad eingeben. **Alt+Links/Rechts/Hoch:** Verlauf / übergeordneter Ordner. Die seitlichen **Vor-/Zurück-Tasten der Maus** navigieren ebenfalls im Verlauf, unabhängig davon, über welchem Fensterbereich die Maus steht. In der Bildgalerie wechseln sie das Bild. **Strg+T / Strg+W:** Tab öffnen / schließen. **Strg+Tab:** nächster Tab.
 - **Strg+C / X / V:** kopieren / ausschneiden / einfügen. **F2:** umbenennen. **Strg+Umschalt+N:** Ordner erstellen. **Entf:** nach Bestätigung in den Systempapierkorb verschieben.
@@ -78,6 +79,32 @@ Verschieben erfordert einen nativen Move innerhalb desselben Dateisystems;
 Netzwerk-Backends ohne diese Unterstützung melden einen Fehler, ohne auf
 Kopieren/Löschen auszuweichen. Keine neuen Bibliotheken nötig.
 
+## Inhalte suchen
+
+**Inhalte** neben der Dateinamensuche oder **Strg+Umschalt+F** öffnet die native
+Suchansicht. Eine Frage wie „Die Rechnung für meinen Monitor“ sucht lokal nach
+den wichtigen Begriffen. Mehrere Begriffe müssen im Dokument vorkommen;
+Anführungszeichen verbinden Wörter zu einer Phrase. Treffer erscheinen laufend
+mit Originaltext, Zeile oder PDF-Seite. Auswählen zeigt die Fundstelle und springt
+in der PDF-Vorschau zur passenden Seite. **Datei öffnen** und **Ordner öffnen**
+führen direkt zum Ergebnis. **Stoppen**, eine neue Anfrage und Schließen beenden
+den Suchprozess einschließlich eines laufenden PDF-Decoders.
+
+Optional ergänzt **Mit Lumen erweitern** verwandte Begriffe, etwa „Bildschirm“
+für „Monitor“. Dafür gehen die Suchfrage und die eingerichteten persönlichen
+Lumen-Anweisungen an dein konfiguriertes Modell. Gefundene Dokumente werden
+nicht angehängt. Die Sitzung läuft mit gesperrten Werkzeugen in einem leeren
+Arbeitsordner; Projektanweisungen aus dem durchsuchten Ordner werden nicht
+automatisch geladen. Modellfehler lassen bisherige lokale Treffer erhalten.
+
+Ohne persistenten Index: bis zu 1 MiB Text pro Datei, PDF-Textextraktion mit
+`pdftotext` bis 128 MiB Dateigröße und 12 Sekunden pro PDF. Maximal 500 Treffer
+oder 100.000 besuchte Einträge je Suche. Teilweise durchsuchte, nicht lesbare und
+textlose Dateien werden im Ergebnisstatus gezählt. Versteckte Einträge sind
+optional, Symlinks und Spezialdateien werden ausgelassen. Keine OCR- oder
+Office-Inhaltssuche; gescannte PDFs brauchen bereits eine Textebene. Große Bäume
+und Netzwerkordner dauern länger und können Daten vom Server herunterladen.
+
 ## Bildgalerie und einfache Bearbeitung
 
 Ein Bild doppelklicken oder mit **Leertaste** öffnen. Die Galerie übernimmt die Bilder und Sortierung der aktuellen Ansicht, auch bei Suchergebnissen. **Links/Rechts** wechseln das Bild; Nachbarbilder werden vorgeladen. **Mausrad / + / −** zoomen, Ziehen verschiebt das Bild, **0** passt es ein, **F11** schaltet Vollbild um. **Esc / Leertaste** schließen die Galerie.
@@ -123,7 +150,7 @@ SMB/SFTP/NFS/FTP sind über die installierten KDE-Module angebunden. Der automat
 
 ## Verhalten und Grenzen der ersten Version
 
-Die Suche arbeitet direkt auf dem Dateisystem, **ohne Index und ohne Volltextsuche**. Sie folgt keinen Verzeichnis-Symlinks und endet bei 5.000 Treffern mit einem Hinweis. Bei großen Verzeichnisbäumen oder langsamen Netzlaufwerken dauert ein vollständiger Durchlauf länger. Nicht lesbare Einträge werden gezählt. Der Typfilter wirkt auf die gefundenen Treffer.
+Die Dateinamensuche arbeitet direkt auf dem Dateisystem, **ohne Index**. Sie folgt keinen Verzeichnis-Symlinks und endet bei 5.000 Treffern mit einem Hinweis. Bei großen Verzeichnisbäumen oder langsamen Netzlaufwerken dauert ein vollständiger Durchlauf länger. Nicht lesbare Einträge werden gezählt. Der Typfilter wirkt auf die gefundenen Treffer. Für Textinhalte gibt es die separate Inhaltssuche mit den oben genannten Grenzen.
 
 Textvorschauen lesen maximal 128 KB, Bilder maximal 128 MB / 80 Megapixel. Metadatenabfrage und Decoder laufen außerhalb der Oberfläche und werden jeweils nach 12 Sekunden beendet. Videos zeigen das erste Bild, Audio zeigt eine Wellenform der ersten 30 Sekunden. Keine Office-Vorschau oder integrierte Medienwiedergabe.
 
@@ -143,11 +170,17 @@ Die Prüfungen verwenden temporäre Dateien: rekursive Suche, versteckte Dateien
 
 Zusätzlich geprüft: Tabs oberhalb der Suche, Galerie-Aufruf und Bildfolge, vorgeladene Nachbarbilder, Drehen/Spiegeln, EXIF-Ausrichtung, Original-Sicherung, Änderungskonflikte, Schutz von Animationen und Symlinks, Papierkorb-Erfolg/Fehler in der Galerie sowie Speichergrößen, Sparse-Dateien, Hardlinks, Verzeichnis-Symlinks, Zugriffsfehler und Abbruch. Native Screenshots in normaler und kompakter Größe liegen unter `artifacts/`.
 
+Die Inhaltssuche prüft echte Text-/PDF-Fundstellen, deutsche Suchbegriffe,
+Synonyme, PDF-Seitensprung, Grenzen, versteckte Einträge, Symlink-Austausch,
+fehlerhafte Modellantworten und das Beenden laufender Decoder bei Abbruch oder
+Scanner-Ausfall. Zusätzlich wurde die Begriffserweiterung mit der echten Engine
+an temporären Text- und PDF-Dateien geprüft.
+
 Gemessener Suchkern: 30.000 kleine Dateien in 100 Ordnern, 100 Treffer, erster Treffer nach 0,0002 s und Abschluss nach 0,0176 s. Synthetischer warmer Cache auf diesem Rechner, ohne UI und ohne 250-ms-Eingabeverzögerung; kein allgemeines Leistungsversprechen.
 
 ## Voraussetzungen
 
-Python 3, PyQt5/Qt 5.15 einschließlich QtDBus, PyGObject/GIO, Pillow, GNU `du`/`find`, Poppler (`pdfinfo`, `pdftoppm`), FFmpeg (`ffprobe`, `ffmpeg`), KIO-FUSE und KIO-Extras. Sämtliche Komponenten waren auf diesem Rechner vorhanden. Dateioperationen nutzen die dokumentierte [GIO-Semantik](https://docs.gtk.org/gio/method.File.move.html); Bildvorschauen die [Qt-Bilddekodierung](https://doc.qt.io/qt-6/qimagereader.html), mit Prüfung gegen das lokal installierte Qt 5.15.
+Python 3, PyQt5/Qt 5.15 einschließlich QtDBus, PyGObject/GIO, Pillow, GNU `du`/`find`, Poppler (`pdfinfo`, `pdftoppm`, `pdftotext`), FFmpeg (`ffprobe`, `ffmpeg`), KIO-FUSE und KIO-Extras. Sämtliche Komponenten waren auf diesem Rechner vorhanden. Dateioperationen nutzen die dokumentierte [GIO-Semantik](https://docs.gtk.org/gio/method.File.move.html); Bildvorschauen die [Qt-Bilddekodierung](https://doc.qt.io/qt-6/qimagereader.html), mit Prüfung gegen das lokal installierte Qt 5.15.
 
 ## Entfernen
 

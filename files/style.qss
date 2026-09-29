@@ -72,3 +72,6 @@ QProgressBar { border: none; background: #293746; border-radius: 2px; }
 QProgressBar::chunk { background: #9bdcca; border-radius: 2px; }
 QTableWidget#organizeTable { background: #1c2430; alternate-background-color: #222d3b; border: 1px solid #354150; gridline-color: #2b3644; selection-background-color: #2d4a50; }
 QTableWidget#organizeTable::item { padding: 6px; }
+QTreeWidget#contentResults { background: #1c2430; alternate-background-color: #222d3b; border: 1px solid #354150; }
+QTreeWidget#contentResults::item { height: 44px; border-bottom: 1px solid #2b3644; }
+QTreeWidget#contentResults::item:selected { background: #2d4a50; }

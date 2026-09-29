@@ -112,13 +112,13 @@ class Preview(QWidget):
         self.open_button.setEnabled(False)
         self.show_message('Bilder, PDFs, Text und Video-Standbilder\ndirekt hier ansehen.')
 
-    def show_path(self, path, location=None):
+    def show_path(self, path, location=None, page=1):
         self.cancel()
         self.path = Path(path)
         self.title.setText(self.path.name or '/')
         self.location.setText(location or str(self.path.parent))
         self.pagebar.hide()
-        self.page = self.pages = 1
+        self.page, self.pages = max(1, page), 1
         self.note.setText('Leertaste für die große Vorschau')
         self.open_button.setEnabled(True)
         self.detail.setText('Dateiinformationen laden …')
@@ -195,6 +195,7 @@ class Preview(QWidget):
     def pdf_info(self, proc):
         lines = bytes(proc.readAllStandardOutput()).decode(errors='replace').splitlines()
         self.pages = next((int(line.split(':', 1)[1]) for line in lines if line.startswith('Pages:')), 1)
+        self.page = min(self.page, self.pages)
         self.render_pdf()
 
     def render_pdf(self):

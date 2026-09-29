@@ -168,6 +168,7 @@ class Window(QMainWindow):
         self.network.busy.connect(self.cancel_connect_button.setVisible)
         self.install_shortcuts()
         QShortcut(QKeySequence("Ctrl+J"), self, activated=lambda: self.ask_lumen("open", self.selected_paths() or [self.current_path]))
+        QShortcut(QKeySequence('Ctrl+Shift+F'), self, activated=self.search_contents)
         self.debounce = QTimer(self)
         self.debounce.setSingleShot(True)
         self.debounce.setInterval(250)
@@ -217,6 +218,7 @@ class Window(QMainWindow):
         self.search.setClearButtonEnabled(True)
         self.search.addAction(QIcon.fromTheme('edit-find'), QLineEdit.LeadingPosition)
         row.addWidget(self.search, 1)
+        row.addWidget(button('Inhalte', self.search_contents, tip='In Dateiinhalten suchen · Strg+Umschalt+F'))
         row.addSpacing(16)
         row.addWidget(button('Lumen', lambda: self.ask_lumen('open', self.selected_paths() or [self.current_path]), tip='Lumen öffnen · Strg+J'))
         row.addWidget(button('Neuer Ordner', self.mkdir, 'folder-new', 'Neuer Ordner · Strg+Umschalt+N'))
@@ -687,6 +689,13 @@ class Window(QMainWindow):
         if self.search_job:
             self.search_job.stop.set()
             self.search_job = None
+
+    def search_contents(self):
+        from content_search_dialog import ContentSearchDialog
+        dialog = ContentSearchDialog(self.current_path, self.search.text(), self.hidden, self)
+        dialog.folderRequested.connect(self.navigate)
+        dialog.exec_()
+        dialog.deleteLater()
 
     def queue_search(self, _text=None):
         self.cancel_search()
