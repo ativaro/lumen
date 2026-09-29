@@ -10,7 +10,7 @@ import uuid
 from pathlib import Path
 
 from PyQt5 import sip
-from PyQt5.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, QUrl, QUrlQuery, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import QObject, QProcess, QProcessEnvironment, QSettings, QTimer, QUrl, QUrlQuery, pyqtSignal, pyqtSlot
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 
 
@@ -25,6 +25,7 @@ class OpenCodeBackend(QObject):
 
     def __init__(self, directory, parent=None, server_url='', password='', project_config=True):
         super().__init__(parent)
+        self.settings = QSettings('Lumen', 'Assistant')
         if server_url and not re.fullmatch(r'http://127\.0\.0\.1:\d+', server_url):
             raise ValueError('Die Engine muss auf dem lokalen Rechner laufen.')
         self.directory = str(Path(directory).expanduser().absolute())
@@ -206,6 +207,12 @@ class OpenCodeBackend(QObject):
                 'system': 'Du bist Lumen, der persönliche Desktop-Assistent. Antworte auf Deutsch, knapp und verständlich. '
                           'Nutze die bereitgestellten Werkzeuge. Zeige keine Terminal-Banner oder internen Protokolle. '
                           'Behaupte Änderungen nur, wenn die Werkzeuge sie bestätigt haben.'}
+        self.settings.sync()
+        model = self.settings.value('model', '')
+        if isinstance(model, str) and '/' in model:
+            provider, identifier = model.split('/', 1)
+            if provider and identifier:
+                body['model'] = {'providerID': provider, 'modelID': identifier}
         if title:
             body['system'] += (' Die Antwort erscheint als Ergebnis einer Dateiaktion. Formuliere einen sachlichen Ergebnistext '
                                'ohne Anrede oder Gesprächsangebote. Falls eine Rückfrage für die Aufgabe erforderlich ist, '

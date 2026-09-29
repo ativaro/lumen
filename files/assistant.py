@@ -32,6 +32,7 @@ class ChatPanel(QWidget):
         super().__init__(parent)
         self.backend = backend or OpenCodeBackend(directory, self)
         self.settings = settings if settings is not None else QSettings('Lumen', 'Assistant')
+        self.backend.settings = self.settings
         self.paths = []
         self.action = ''
         self.last_answer = ''
@@ -63,6 +64,7 @@ class ChatPanel(QWidget):
         self.mode.setAccessibleName('Arbeitsweise von Lumen')
         self.mode.addItem('Aufgaben erledigen', 'build')
         self.mode.addItem('Lesen & prüfen', 'plan')
+        self.mode.setCurrentIndex(1 if self.settings.value('defaultMode', 'build') == 'plan' else 0)
         self.mode.setToolTip('Lesen & prüfen analysiert, ohne Dateien zu bearbeiten.')
         layout.addWidget(self.mode)
         self.dont_ask = QCheckBox('Nicht mehr nachfragen')
@@ -149,6 +151,12 @@ class ChatPanel(QWidget):
         self.settings.setValue('autoApproveTools', enabled)
         self.settings.sync()
         self.backend.set_auto_approve(enabled)
+
+    def reload_settings(self, filename, keys):
+        if filename != self.settings.fileName() or 'autoApproveTools' not in keys:
+            return
+        self.settings.sync()
+        self.dont_ask.setChecked(self.settings.value('autoApproveTools', False, type=bool))
 
     def request_failed(self, text):
         if self.action:
@@ -241,7 +249,7 @@ class ChatPanel(QWidget):
         if self.backend.new_conversation():
             self.error.hide()
             self.last_prompt = ''
-            self.mode.setCurrentIndex(0)
+            self.mode.setCurrentIndex(1 if self.settings.value('defaultMode', 'build') == 'plan' else 0)
             self.composer.setFocus()
 
     def update_context(self):
@@ -262,7 +270,8 @@ class ChatPanel(QWidget):
             self.last_prompt = ''
         self.paths = paths
         self.set_action(action)
-        self.mode.setCurrentIndex(1 if action in ('explain', 'review') else 0)
+        self.mode.setCurrentIndex(1 if action in ('explain', 'review') or
+                                 (action not in self.action_titles and self.settings.value('defaultMode', 'build') == 'plan') else 0)
         self.update_context()
         self.error.hide()
         if not self.action:

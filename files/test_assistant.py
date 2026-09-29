@@ -223,6 +223,7 @@ class AssistantTest(unittest.TestCase):
             spec.loader.exec_module(runner)
             command = runner.build_command('--help')
             self.assertIn('--prompt=--help', command)
+            self.assertFalse(any(argument.startswith('--directory') for argument in command))
             result = subprocess.run(command + ['--help'], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
 

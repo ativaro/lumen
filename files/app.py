@@ -169,16 +169,20 @@ class Window(QMainWindow):
         self.install_shortcuts()
         QShortcut(QKeySequence("Ctrl+J"), self, activated=lambda: self.ask_lumen("open", self.selected_paths() or [self.current_path]))
         QShortcut(QKeySequence('Ctrl+Shift+F'), self, activated=self.search_contents)
+        QShortcut(QKeySequence('Ctrl+,'), self, activated=self.show_settings)
         self.debounce = QTimer(self)
         self.debounce.setSingleShot(True)
-        self.debounce.setInterval(250)
+        self.debounce.setInterval(max(100, min(1500, self.settings.value('searchDelay', 250, type=int))))
         self.debounce.timeout.connect(self.start_search)
         self.search.textChanged.connect(self.queue_search)
         self.preview_delay = QTimer(self)
         self.preview_delay.setSingleShot(True)
         self.preview_delay.setInterval(100)
         self.preview_delay.timeout.connect(self.preview_selection)
-        self.new_tab(start or self.settings.value('last_path', str(Path.home())))
+        startup_key = 'last_path' if self.settings.value('restoreLastFolder', True, type=bool) else 'startFolder'
+        self.new_tab(start or self.settings.value(startup_key, str(Path.home())))
+        self.preview_button.setChecked(self.settings.value('previewVisible', True, type=bool))
+        self.preview.setVisible(self.preview_button.isChecked())
         geometry = self.settings.value('geometry')
         if geometry:
             self.restoreGeometry(geometry)
@@ -203,6 +207,7 @@ class Window(QMainWindow):
         tabrow.addWidget(self.tabs)
         tabrow.addWidget(button('+', lambda: self.new_tab(self.current_location), tip='Neuer Tab · Strg+T'))
         tabrow.addStretch()
+        tabrow.addWidget(button('Einstellungen', self.show_settings, 'configure', 'Einstellungen · Strg+Komma'))
         layout.addLayout(tabrow)
         header = QFrame()
         header.setObjectName('appHeader')
@@ -677,6 +682,7 @@ class Window(QMainWindow):
 
     def toggle_preview(self):
         self.preview.setVisible(self.preview_button.isChecked())
+        self.settings.setValue('previewVisible', self.preview_button.isChecked())
 
     def set_kind(self, kind):
         self.proxy.kind = kind
@@ -718,7 +724,7 @@ class Window(QMainWindow):
         self.configure_columns()
         self.preview.clear()
         self.search_errors = self.search_total = 0
-        job = SearchWorker(self.current_path, query, self.hidden)
+        job = SearchWorker(self.current_path, query, self.hidden, self.settings.value('searchLimit', 5000, type=int))
         self.search_job = job
         self.search_jobs.append(job)
         job.batch.connect(lambda paths: self.add_results(job, paths))
@@ -766,7 +772,7 @@ class Window(QMainWindow):
             self.search_job = None
             detail = f'{count:,} Treffer · {elapsed:.2f} s · Dateinamen in Unterordnern'
             if limited:
-                detail += ' · Limit 5.000 erreicht — Suche eingrenzen'
+                detail += f' · Limit {job.limit:,} erreicht — Suche eingrenzen'
             if self.search_errors:
                 detail += f' · {self.search_errors} nicht lesbare Einträge übersprungen'
             self.subtitle.setText(detail)
@@ -1042,8 +1048,32 @@ class Window(QMainWindow):
             self.search.clear()
             self.view.setFocus()
 
+    def show_settings(self):
+        from settings_dialog import SettingsDialog
+        dialog = SettingsDialog(self, files_settings=self.settings, page=1)
+        dialog.preferencesChanged.connect(self.reload_settings)
+        dialog.exec_()
+        dialog.deleteLater()
+
+    def reload_settings(self, filename=None, keys=None):
+        if hasattr(self, 'assistant') and filename:
+            self.assistant.reload_settings(filename, keys)
+        if filename and filename != self.settings.fileName():
+            return
+        self.settings.sync()
+        self.hidden = self.settings.value('hidden', False, type=bool)
+        self.hidden_button.setChecked(self.hidden)
+        self.apply_hidden()
+        self.preview_button.setChecked(self.settings.value('previewVisible', True, type=bool))
+        self.preview.setVisible(self.preview_button.isChecked() and not (hasattr(self, 'assistant_dock') and self.assistant_dock.isVisible()))
+        self.debounce.setInterval(max(100, min(1500, self.settings.value('searchDelay', 250, type=int))))
+        self.populate_places()
+        if self.search.text().strip():
+            self.queue_search()
+
     def show_menu(self):
         menu = QMenu(self)
+        menu.addAction('Einstellungen\tStrg+Komma', self.show_settings)
         menu.addAction('Mit Server verbinden\tStrg+K', self.connect_dialog)
         menu.addAction('Speicher analysieren', self.open_analysis)
         menu.addAction('Aktualisieren\tF5', self.refresh)
@@ -1054,7 +1084,7 @@ class Window(QMainWindow):
             'Strg+T / Strg+W  Tab öffnen / schließen\nAlt+Pfeile  Navigation\n'
             'Leertaste  Große Vorschau\nF2  Umbenennen\nStrg+C / X / V  Kopieren / Ausschneiden / Einfügen\n'
             'Entf  Papierkorb\n\nSuche: Dateinamen im aktuellen Ordner und Unterordnern. '
-            'Mehrere Wörter müssen alle im Namen vorkommen. Maximal 5.000 Treffer; kein Volltextindex.\n\n'
+            'Mehrere Wörter müssen alle im Namen vorkommen. Trefferlimit in den Einstellungen; kein Volltextindex.\n\n'
             'Bilder: Pfeiltasten blättern, R / Umschalt+R drehen, H spiegeln, Strg+Z rückgängig, '
             'Strg+S speichern, Entf Papierkorb, F11 Vollbild. Originale bleiben in .lumen-originals.\n\n'
             'PDFs sind blätterbar. Videos zeigen ein Standbild, Audio eine Wellenform. Wiedergabe in der Standard-App.'))
@@ -1132,6 +1162,8 @@ def create_app():
                              QStandardPaths.standardLocations(QStandardPaths.GenericDataLocation)]
                              + QIcon.themeSearchPaths())
     QIcon.setThemeName(kde.value('Icons/Theme', 'breeze-dark'))
+    if QSettings('Lumen', 'Assistant').value('appearance', 'lumen') == 'system':
+        return app
     app.setStyle('Fusion')
     palette = QPalette()
     for role, color in [(QPalette.Window, '#191f29'), (QPalette.WindowText, '#e6ebf2'),
@@ -1148,11 +1180,14 @@ def create_app():
 
 if __name__ == '__main__':
     app = create_app()
-    start = sys.argv[1] if len(sys.argv) > 1 else None
+    settings_requested = '--settings' in sys.argv[1:]
+    start = next((arg for arg in sys.argv[1:] if arg != '--settings'), None)
     if start and start.startswith('file:'):
         start = QUrl(start).toLocalFile()
     if start and Path(start).is_file():
         start = str(Path(start).parent)
     window = Window(start)
     window.show()
+    if settings_requested:
+        QTimer.singleShot(0, window.show_settings)
     sys.exit(app.exec_())

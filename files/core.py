@@ -132,9 +132,10 @@ class SearchWorker(QThread):
     progress = pyqtSignal(int, int)
     summary = pyqtSignal(int, bool, float)
 
-    def __init__(self, root, query, hidden):
+    def __init__(self, root, query, hidden, limit=5000):
         super().__init__()
         self.root, self.query, self.hidden = root, query, hidden
+        self.limit = max(100, min(50000, int(limit)))
         self.stop = threading.Event()
 
     def run(self):
@@ -146,11 +147,11 @@ class SearchWorker(QThread):
             if len(batch) >= 40 or time.monotonic() - last > .06:
                 self.batch.emit(batch)
                 batch, last = [], time.monotonic()
-            if count >= 5000:
+            if count >= self.limit:
                 break
         if batch:
             self.batch.emit(batch)
-        self.summary.emit(count, count >= 5000, time.monotonic() - start)
+        self.summary.emit(count, count >= self.limit, time.monotonic() - start)
 
 
 class FileWorker(QThread):

@@ -54,6 +54,10 @@ Python, vier Leerzeichen, kleine direkte Funktionen: `def valid_name(name): ...`
 - Prüfen: Layoutposition, Bildfolge/Cache, Rotation/Spiegelung/EXIF/Sicherungen/Kollisionen, Papierkorb, Größenwerte mit Sparse-/Hardlink-/Symlink-Dateien und Abbruch; Netzwerkregressionen erhalten.
 
 ## Native Lumen-Integration
+- Gemeinsame native Einstellungen über sichtbaren Button und Strg+Komma.
+  Akzeptanzkriterien und Systembereiche stehen in `../NATIVE-LUMEN.md`.
+  Öffnen liest nur; Änderungen explizit pro Bereich, konkurrierende Änderungen
+  nicht überschreiben. Keine sachfremde Aktivierung automatischer Werkzeugfreigaben.
 - Gemeinsames Chat-Panel mit der eigenständigen Lumen-App; toolbar / Strg+J und Kontextmenü öffnen es im Dateimanager.
 - Sichtbarer Arbeitsordner und alle ausgewählten Pfade; native Antworten, Abbruch, Freigaben und Rückfragen.
 - „Lesen & prüfen“ nutzt den Plan-Agenten, „Aufgaben erledigen“ den Build-Agenten.

@@ -14,14 +14,12 @@ OBJPATH = "/runner"
 IFACE = "org.kde.krunner1"
 BUSNAME = "org.lumen.runner"
 
-WORKDIR = os.environ.get("LUMEN_WORKDIR", os.path.expanduser("~/Documents/work"))
-
 TRIGGERS = ("lumen ", "ai ", "oc ", "opencode ", "? ")
 
 
 def build_command(prompt):
     app = os.path.join(os.path.dirname(os.path.realpath(__file__)), "lumen-agent-app")
-    return [app, "--directory=" + WORKDIR, "--prompt=" + prompt]
+    return [app, "--prompt=" + prompt]
 
 
 class Runner(dbus.service.Object):

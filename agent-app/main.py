@@ -9,9 +9,9 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'files'))
 from PyQt5.QtCore import QProcess, QSettings, Qt, QTimer, QUrl
-from PyQt5.QtGui import QIcon, QTextDocument
+from PyQt5.QtGui import QIcon, QKeySequence, QTextDocument
 from PyQt5.QtWidgets import (QApplication, QFileDialog, QGridLayout, QHBoxLayout, QMainWindow,
-                             QPushButton, QStackedWidget, QVBoxLayout, QWidget)
+                             QPushButton, QShortcut, QStackedWidget, QVBoxLayout, QWidget)
 from app import create_app, button
 from assistant import ChatPanel, Transcript
 from preview import label
@@ -54,6 +54,8 @@ class LumenWindow(QMainWindow):
             navigation.addWidget(item)
             self.nav_buttons.append(item)
         navigation.addStretch()
+        navigation.addWidget(button('Einstellungen', self.show_settings, 'configure', 'Strg+Komma'))
+        QShortcut(QKeySequence('Ctrl+,'), self, activated=self.show_settings)
         navigation.addWidget(button('Ordner wählen', self.choose_directory, 'folder-open'))
         navigation.addWidget(button('Dateien hinzufügen', lambda: self.choose_files(), 'list-add'))
         row.addWidget(self.navigation)
@@ -64,6 +66,13 @@ class LumenWindow(QMainWindow):
         self.refresh_timer = QTimer(self)
         self.refresh_timer.timeout.connect(lambda: self.refresh_system() if self.pages.currentIndex() == 1 else None)
         self.refresh_timer.start(5000)
+
+    def show_settings(self):
+        from settings_dialog import SettingsDialog
+        dialog = SettingsDialog(self, assistant_settings=self.settings)
+        dialog.preferencesChanged.connect(self.chat.reload_settings)
+        dialog.exec_()
+        dialog.deleteLater()
 
     def present_action(self, action):
         was_action = self.navigation.isHidden()
@@ -246,7 +255,7 @@ class LumenWindow(QMainWindow):
         prompts = {'explain': 'Erkläre den folgenden Text verständlich:',
                    'fix': 'Korrigiere Rechtschreibung und Grammatik. Gib nur den korrigierten Text aus:',
                    'summarize': 'Fasse den folgenden Text in höchstens drei Sätzen zusammen:',
-                   'translate': 'Übersetze den folgenden Text nach ' + os.environ.get('LUMEN_SEL_LANG', 'Deutsch') + '. Gib nur die Übersetzung aus:'}
+                   'translate': 'Übersetze den folgenden Text nach ' + os.environ.get('LUMEN_SEL_LANG', self.settings.value('translationLanguage', 'Deutsch')) + '. Gib nur die Übersetzung aus:'}
         if self.chat.backend.busy:
             self.chat.show_error("Bitte den laufenden Vorgang zuerst abschließen oder abbrechen.")
             return
@@ -273,14 +282,14 @@ class LumenWindow(QMainWindow):
 
 def main():
     parser = argparse.ArgumentParser(description='Lumen – dein Desktop-Assistent')
-    parser.add_argument('--directory', default=os.environ.get('LUMEN_WORKDIR', str(Path.home() / 'Documents/work')))
+    parser.add_argument('--directory', default=os.environ.get('LUMEN_WORKDIR', QSettings('Lumen', 'Assistant').value('workdir', str(Path.home() / 'Documents/work'))))
     parser.add_argument('--prompt', default='')
     parser.add_argument('--action', choices=['open', 'ask', 'explain', 'fix', 'review'], default='open')
     parser.add_argument('--context', nargs='*', default=[])
     parser.add_argument('--file', action='append', default=[])
     parser.add_argument('--selection')
     parser.add_argument('--clipboard-image', action='store_true')
-    parser.add_argument('--page', choices=['chat', 'system', 'actions'], default='chat')
+    parser.add_argument('--page', choices=['chat', 'system', 'actions', 'settings'], default='chat')
     args = parser.parse_args()
     app = create_app()
     app.setApplicationName('Lumen')
@@ -291,6 +300,9 @@ def main():
         window.chat.set_action(args.action)
     window.show()
     def start():
+        if args.page == 'settings':
+            window.show_settings()
+            return
         paths = [QUrl(p).toLocalFile() if p.startswith('file:') else p for p in args.context + args.file]
         if args.clipboard_image:
             clip = app.clipboard().mimeData()

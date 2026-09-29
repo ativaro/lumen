@@ -1,7 +1,7 @@
 # Maintainer: Lumen
 pkgname=opencode-lumen
 pkgver=1.0.0
-pkgrel=14
+pkgrel=15
 pkgdesc="Lumen — OS integration for opencode: desktop app, watchdog, KRunner, Dolphin menus, MCP"
 arch=('any')
 url="https://github.com/opencode-lumen/opencode-lumen"
@@ -15,7 +15,7 @@ optdepends=(
     'libnotify: watchdog/digest notifications'
     'spectacle: screenshot → vision (lumen-vision)'
     'nvidia-utils: GPU metrics'
-    'python-dbus: KRunner runner'
+    'python-dbus: KRunner runner and native Lumen shortcut settings'
     'dolphin: service menu integration'
     'plasma-workspace: KRunner integration'
     'poppler: Lumen Files PDF preview and search (pdfinfo, pdftoppm, pdftotext)'

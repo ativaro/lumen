@@ -88,6 +88,15 @@ image attachments and cancellation on the target OpenCode version. Desktop
 context menus and hotkeys must open Lumen without a terminal. Existing services
 and OpenCode configuration must retain their settings on upgrade.
 
+Settings smoke check: **Ctrl+,** opens the shared native dialog from both apps.
+Read actual panels, shortcut registrations, service states and configured models;
+do not change the personal desktop just to test writes. Use isolated QSettings
+and mocked native calls for saves, conflicts, service scopes and timer rollback.
+Files preferences must affect the current window; startup/appearance preferences
+apply to new windows. Saving a Files preference must never enable automatic tool
+approval in an existing chat. System editors remain KDE's own dialogs. Background
+report options use separate user-systemd drop-ins, not global engine config.
+
 Permission-mode smoke check: default **Nicht mehr nachfragen** off; enable it
 while a request is waiting, verify automatic one-time approval for this session
 and verified child tasks, then disable it and verify that the next permission

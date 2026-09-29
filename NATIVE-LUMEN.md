@@ -15,6 +15,33 @@ Native UI-Prüfungen, lokaler HTTP-Testserver für Antwortfortschritt, Fehler, S
 
 API-Grundlage: https://opencode.ai/docs/server/ und das OpenAPI-Schema der lokal installierten Version.
 
+## Gemeinsame Einstellungen (2026-09-29)
+Native Einstellungsansicht, erreichbar in beiden Anwendungen und mit Strg+Komma.
+Die Ansicht liest beim Öffnen; jede Änderung braucht einen sichtbaren Übernehmen-
+oder Dienstschalter. Keine Modellaufträge, Terminals oder Desktop-Neustarts.
+
+- Lumen: Startordner, Standard-Arbeitsweise, Werkzeugfreigaben, Übersetzungssprache
+  und Modellauswahl aus den eingerichteten Providern; bestehende Zugangsdaten bleiben erhalten.
+- Files: Startordner/letzter Ordner, versteckte Dateien, Vorschauleiste, Suchverzögerung
+  und Trefferlimit; gespeicherte Orte/Server sowie vorhandene native Dateiwerkzeuge.
+- Vier globale Lumen-Tastenkürzel mit Konfliktprüfung; lokale Files-/Galerie-Kürzel
+  nachschlagbar. Weitere globale Kürzel im KDE-Editor.
+- Erscheinungsbild: aktiven Zustand anzeigen; KDE-Editoren für globale Themes,
+  Farben, Icons, Mauszeiger, Schriften, Fenster, Effekte, Kvantum und Bildschirme.
+  Lumen selbst kann seine dunkle Gestaltung oder den Systemstil verwenden.
+- Leisten: tatsächlich vorhandene Panels nach Bildschirm/ID auswählen, Position,
+  Größe, Schweben und Ausblendverhalten ändern; native Widget-/Tray-Konfiguration.
+- Dienste: reale Zustände von Wächter, Benachrichtigungen, Tages-/Nachtberichten;
+  gezieltes Ein-/Ausschalten. Benutzerberichte mit Uhrzeit und optionaler Analyse.
+- Integrationen: KRunner, Autostart, Dateizuordnungen, Netzwerk und Systemanpassungen
+  über passende native Einstiege und die bestehende Referenz zugänglich.
+
+Prüfung: isolierte Einstellungen und gemockte Systemaufrufe für Schreibpfade,
+Konflikte, Fehler, unbekannte IDs und Werte; vorhandene Tests; echte read-only
+KDE-/Dienstabfragen und native Ansicht. Keine Änderung der persönlichen
+Desktop-Konfiguration allein zum Testen. Komplexe KDE-Einstellungen bleiben
+im nativen KDE-Editor, statt in Lumen dupliziert zu werden.
+
 ## Nicht mehr nachfragen
 - Gemeinsamer Schalter im Chat und in nativen Dateiaktionen, in Lumen und Files. Standard aus; die Auswahl wird in `Lumen/Assistant.conf` für neu geöffnete Fenster/Panel gespeichert. Bereits offene Fenster behalten ihre sichtbare Einstellung.
 - Einschalten beantwortet auch bereits wartende Werkzeugfreigaben. Nur das aktuelle Gespräch und nachgewiesene Unteraufgaben; niemals andere Sitzungen. Jede Freigabe wird einzeln mit `once` beantwortet, ohne dauerhafte OpenCode-Regeln zu ändern. Ausschalten fragt ab der nächsten noch nicht erteilten Freigabe wieder nach.
@@ -41,7 +68,8 @@ und Zugangsdaten werden weiter von OpenCode geladen, nicht von Lumen verändert.
 
 Die UI fragt den Verlauf derzeit alle 450 ms während aktiver Vorgänge ab und
 lädt die letzten 100 Nachrichten; bei sehr langen Gesprächen neues Gespräch
-beginnen. Modell-/Providerwahl erfolgt weiter über die bestehende OpenCode-Konfiguration.
+beginnen. Die neue Einstellungsansicht kann das Modell für Lumen auswählen;
+Provider und Zugangsdaten kommen weiter aus der bestehenden OpenCode-Konfiguration.
 
 ### Lebensdauer der Qt-Objekte
 Antworten werden zentral über `QNetworkAccessManager.finished` verarbeitet;

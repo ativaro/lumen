@@ -14,6 +14,7 @@ Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. Au
 
 ## Bedienung
 
+- **Einstellungen / Strg+Komma:** gemeinsame Einstellungen für Lumen und Files. Startordner, versteckte Dateien, Vorschau, Suchverzögerung und Trefferlimit; gespeicherte Orte/Server entfernen. Änderungen wirken im aktuellen Files-Fenster, der Startordner im nächsten Fenster.
 - **Strg+F:** aktueller Ordner einschließlich Unterordner durchsuchen. Alle eingegebenen Wörter müssen im Dateinamen vorkommen, Großschreibung ist egal. Treffer erscheinen laufend; **Esc** beendet die Suche. Typfilter begrenzen die Anzeige.
 - **Inhalte / Strg+Umschalt+F:** Text-, Code- und PDF-Inhalte im aktuellen Ordner einschließlich Unterordnern durchsuchen; Treffer zeigen echte Textstellen und eine Vorschau.
 - **Einmal auswählen:** Vorschauleiste. **Leertaste:** große Vorschau. Bilder, SVG, blätterbare PDFs, Text/Code, Video-Standbilder und Audio-Wellenformen. Medienwiedergabe über die Standard-App.
@@ -21,6 +22,41 @@ Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. Au
 - **Strg+C / X / V:** kopieren / ausschneiden / einfügen. **F2:** umbenennen. **Strg+Umschalt+N:** Ordner erstellen. **Entf:** nach Bestätigung in den Systempapierkorb verschieben.
 - **Strg+H:** versteckte Dateien. **Ort merken** über das Lesezeichen-Symbol neben „Server verbinden“ ergänzt einen Favoriten. Rechtsklick auf einen gemerkten Ort entfernt ihn wieder. Die kompakte Seitenleiste zeigt bis zu zehn Orte auch bei 1000 × 640 Pixeln ohne Scrollen; lange Namen werden gekürzt, vollständige Pfade stehen im Tooltip.
 - Ziehen von Dateien kopiert sie in den Zielordner. Bestehende Ziele werden mit einer Fehlermeldung beibehalten.
+
+## Gemeinsame Einstellungen
+
+In beiden Apps über **Einstellungen** oder **Strg+Komma**; direkter Start mit
+`lumen-files --settings` oder `lumen-agent-app --page settings`.
+
+- **Lumen:** Arbeitsordner, Standardmodus, Übersetzungssprache, Modell aus den
+  eingerichteten Providern und „Nicht mehr nachfragen“. Die Modellwahl gilt ab
+  der nächsten Anfrage auch für intelligente Dateiaktionen. Provider-/Auth-
+  Konfiguration bleibt erhalten. Werkzeugfreigaben ändern sich im aktuellen
+  Chat nur, wenn genau dieser Schalter im zugehörigen Einstellungsfenster
+  übernommen wird; andere offene Fenster behalten ihre sichtbare Wahl.
+- **Tastenkürzel:** die vier registrierten globalen Lumen-Aktionen direkt ändern
+  oder durch Leeren deaktivieren, mit Prüfung auf bereits belegte Kombinationen.
+  Lokale Files-/Galerie-Kürzel sind als Übersicht vorhanden.
+- **Darstellung:** Lumen Dunkel oder Systemstil für neue Fenster beider Apps.
+  KDE-Farben, Themes, Icons, Schriften, Kvantum, Effekte und weitere Desktop-
+  Einstellungen öffnen den jeweiligen nativen Editor.
+- **Leisten:** echte Panels nach Bildschirm, Position und ID auswählen. Größe,
+  Position, Schweben und Sichtbarkeit ändern; pro Element den nativen Editor
+  öffnen, etwa für Systemablage, Uhr, Startmenü oder Taskleiste. Vor Änderungen
+  wird der Panelzustand unter `~/.local/state/opencode-lumen/settings-backups/`
+  gesichert. Das ist eine Referenzkopie, kein automatischer Rückgängig-Knopf.
+- **Dienste & Berichte:** reale Aktivierungszustände, gezieltes Ein-/Ausschalten,
+  tägliche Uhrzeiten und automatische Analyse. Berichtsoptionen verwenden nur
+  eigene `lumen-settings.conf`-Drop-ins unter `~/.config/systemd/user/`.
+  Systemdienste benötigen gegebenenfalls die native Administratorabfrage.
+  Die D-Bus-Systemintegration kann trotz abgeschaltetem Autostart bei Bedarf
+  durch Lumen wieder starten.
+- **Integrationen:** KRunner, Autostart, Standardprogramme, Netzwerk,
+  Benachrichtigungen und die vorhandene Systemdokumentation.
+
+Beim Öffnen werden nur Werte gelesen. Änderungen brauchen den jeweiligen
+Übernehmen-Schalter; gleichzeitig in anderen Fenstern geänderte Werte werden
+nicht überschrieben. Umfangreiche KDE-Optionen werden im KDE-Editor gespeichert.
 
 ## Lumen-Integration
 
@@ -163,7 +199,7 @@ SMB/SFTP/NFS/FTP sind über die installierten KDE-Module angebunden. Der automat
 
 ## Verhalten und Grenzen der ersten Version
 
-Die Dateinamensuche arbeitet direkt auf dem Dateisystem, **ohne Index**. Sie folgt keinen Verzeichnis-Symlinks und endet bei 5.000 Treffern mit einem Hinweis. Bei großen Verzeichnisbäumen oder langsamen Netzlaufwerken dauert ein vollständiger Durchlauf länger. Nicht lesbare Einträge werden gezählt. Der Typfilter wirkt auf die gefundenen Treffer. Für Textinhalte gibt es die separate Inhaltssuche mit den oben genannten Grenzen.
+Die Dateinamensuche arbeitet direkt auf dem Dateisystem, **ohne Index**. Sie folgt keinen Verzeichnis-Symlinks und endet standardmäßig bei 5.000 Treffern mit einem Hinweis (in den Einstellungen 100–50.000). Bei großen Verzeichnisbäumen oder langsamen Netzlaufwerken dauert ein vollständiger Durchlauf länger. Nicht lesbare Einträge werden gezählt. Der Typfilter wirkt auf die gefundenen Treffer. Für Textinhalte gibt es die separate Inhaltssuche mit den oben genannten Grenzen.
 
 Textvorschauen lesen maximal 128 KB, Bilder maximal 128 MB / 80 Megapixel. Metadatenabfrage und Decoder laufen außerhalb der Oberfläche und werden jeweils nach 12 Sekunden beendet. Videos zeigen das erste Bild, Audio zeigt eine Wellenform der ersten 30 Sekunden. Keine Office-Vorschau oder integrierte Medienwiedergabe.
 
