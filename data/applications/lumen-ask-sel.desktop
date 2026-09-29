@@ -6,4 +6,4 @@ NoDisplay=true
 StartupNotify=false
 Icon=lumen
 X-KDE-GlobalAccel-CommandShortcut=true
-X-KDE-Shortcuts=Meta+Shift+S
+X-KDE-Shortcuts=Meta+Shift+C

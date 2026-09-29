@@ -97,6 +97,18 @@ apply to new windows. Saving a Files preference must never enable automatic tool
 approval in an existing chat. System editors remain KDE's own dialogs. Background
 report options use separate user-systemd drop-ins, not global engine config.
 
+Launcher upgrade check: KDE can retain the old `Exec` of a registered shortcut
+after the desktop file and KSycoca cache were updated. In the user's KDE session,
+run `/usr/bin/python3 <install>/files/desktop_settings.py refresh-shortcuts`
+with `{}` on stdin after replacing desktop files (the user installer does this).
+Only Lumen registrations are recreated, retaining custom/disabled keys and a
+backup. Invoke the registered Lumen launch and inspect the actual systemd user
+unit `ExecStart` and native window; inspecting shortcut key values alone is
+insufficient. A panel launcher may hold its own old desktop-file copy: update
+the selected widget URL/localPath to `lumen.desktop`, not `opencode.desktop`.
+Clipboard explanation defaults to **Meta+Shift+C**; **Meta+Shift+S** belongs to
+Spectacle on KDE. Preserve unrelated bindings.
+
 Permission-mode smoke check: default **Nicht mehr nachfragen** off; enable it
 while a request is waiting, verify automatic one-time approval for this session
 and verified child tasks, then disable it and verify that the next permission

@@ -8,6 +8,27 @@ import desktop_settings as desktop
 
 
 class DesktopSettingsTest(unittest.TestCase):
+    def test_refresh_recreates_lumen_launchers_without_resetting_custom_or_disabled_keys(self):
+        from unittest.mock import Mock
+        first = ['lumen-ask.desktop', '_launch', 'Lumen', 'Lumen']
+        second = ['lumen-sel.desktop', '_launch', 'Lumen', 'Lumen']
+        accel, bus, component = Mock(), Mock(), Mock()
+        keys = [([123, 456],), ([789],)]
+        accel.shortcutKeys.side_effect = [keys, []]
+        accel.getComponent.side_effect = ['/component/ask', '/component/sel']
+        accel.setShortcutKeys.side_effect = lambda action, keys, flags: list(reversed(keys))
+        with patch.object(desktop, 'run') as run, patch.object(desktop, 'backup') as backup, \
+                patch.object(desktop, 'accelerator', return_value=accel), \
+                patch.object(desktop, 'shortcut_actions', return_value={first[0]: first, second[0]: second}), \
+                patch('dbus.SessionBus', return_value=bus), patch('dbus.Interface', return_value=component):
+            result = desktop.refresh_shortcuts({})
+        run.assert_called_once_with(['kbuildsycoca6', '--noincremental'])
+        backup.assert_called_once_with('shortcuts', [(first, keys), (second, [])])
+        self.assertEqual(component.cleanUp.call_count, 2)
+        self.assertEqual([list(call.args[0]) for call in accel.doRegister.call_args_list], [first, second])
+        self.assertEqual([list(call.args[1]) for call in accel.setShortcutKeys.call_args_list], [keys, []])
+        self.assertEqual(result['refreshed'], 2)
+
     def test_panel_changes_are_scoped_and_validate_before_execution(self):
         panel = dict(id=98, screen=0, location='top', height=36, floating=True,
                      hiding='none', widgets=[])

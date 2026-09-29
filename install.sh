@@ -90,7 +90,14 @@ subst "$REPO/data/autostart/lumen-krunner-runner.desktop" > "$CONFIG_HOME/autost
 
 # refresh caches
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DATA_HOME/applications" >/dev/null 2>&1 || true
-command -v kbuildsycoca6 >/dev/null 2>&1 && kbuildsycoca6 >/dev/null 2>&1 || true
+if command -v kbuildsycoca6 >/dev/null 2>&1; then
+    if [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] && /usr/bin/python3 -c 'import dbus' 2>/dev/null; then
+        /usr/bin/python3 "$PREFIX/files/desktop_settings.py" refresh-shortcuts <<< '{}' \
+            || warn "Lumen-Tastenkürzel konnten nicht neu geladen werden; beim nächsten Anmelden erneut prüfen."
+    else
+        kbuildsycoca6 >/dev/null 2>&1 || true
+    fi
+fi
 
 # ---- opencode MCP / commands / skill --------------------------------------
 if [ "$SKIP_MCP" = 0 ] && { command -v opencode >/dev/null 2>&1 || [ -x "$HOME/.opencode/bin/opencode" ]; }; then
