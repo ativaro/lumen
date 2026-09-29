@@ -83,10 +83,15 @@ class NativeTest(unittest.TestCase):
                 window.navigate(first)
                 window.navigate(second)
                 QTest.qWait(50)
-                for receiver in (window.view.viewport(), window.places.viewport(), window.preview.text.viewport(), window.search, window.tabs):
+                self.assertIs(window.view.window(), window)
+                for receiver in (window.view, window.view.viewport(), window.places.viewport(), window.preview.text.viewport(), window.search, window.tabs):
                     QTest.mouseClick(receiver, Qt.BackButton)
                     self.assertEqual(window.current_path, str(first))
                     QTest.mouseClick(receiver, Qt.ForwardButton)
+                    self.assertEqual(window.current_path, str(second))
+                    QTest.keyClick(receiver, Qt.Key_Back)
+                    self.assertEqual(window.current_path, str(first))
+                    QTest.keyClick(receiver, Qt.Key_Forward)
                     self.assertEqual(window.current_path, str(second))
                 dialog = QDialog(window)
                 dialog.setModal(True)
@@ -94,6 +99,8 @@ class NativeTest(unittest.TestCase):
                 QTest.qWait(20)
                 QTest.mouseClick(dialog, Qt.BackButton)
                 QTest.mouseClick(window.search, Qt.BackButton)
+                QTest.keyClick(dialog, Qt.Key_Back)
+                QTest.keyClick(window.search, Qt.Key_Back)
                 self.assertEqual(window.current_path, str(second))
                 dialog.close()
             finally:

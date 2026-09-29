@@ -91,7 +91,7 @@ class PlacesDelegate(QStyledItemDelegate):
 class FileView(QTreeView):
     def __init__(self, window):
         super().__init__()
-        self.window = window
+        self.main_window = window
         self.setAcceptDrops(True)
         self.setDragEnabled(True)
         self.setDragDropMode(QAbstractItemView.DragDrop)
@@ -100,7 +100,7 @@ class FileView(QTreeView):
 
     def startDrag(self, supported):
         from PyQt5.QtGui import QDrag
-        paths = self.window.selected_paths()
+        paths = self.main_window.selected_paths()
         if not paths:
             return
         drag = QDrag(self)
@@ -121,13 +121,13 @@ class FileView(QTreeView):
     def dropEvent(self, event):
         paths = [url.toLocalFile() for url in event.mimeData().urls() if url.isLocalFile()]
         index = self.indexAt(event.pos())
-        target = self.window.current_path
+        target = self.main_window.current_path
         if index.isValid():
-            path = self.window.proxy.path(index)
+            path = self.main_window.proxy.path(index)
             if Path(path).is_dir():
                 target = path
         if paths:
-            self.window.run_operation('copy', paths, target)
+            self.main_window.run_operation('copy', paths, target)
             event.setDropAction(Qt.CopyAction)
             event.accept()
 
@@ -1098,14 +1098,18 @@ class Window(QMainWindow):
 
 class Application(QApplication):
     def eventFilter(self, receiver, event):
-        if (event.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick)
-                and event.button() in (Qt.BackButton, Qt.ForwardButton) and isinstance(receiver, QWidget)):
+        kind = event.type()
+        mouse = (kind in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick)
+                 and event.button() in (Qt.BackButton, Qt.ForwardButton))
+        key = kind in (QEvent.KeyPress, QEvent.KeyRelease) and event.key() in (Qt.Key_Back, Qt.Key_Forward)
+        if (mouse or key) and isinstance(receiver, QWidget):
             window = receiver.window()
             modal = self.activeModalWidget()
             if (not self.activePopupWidget() and (modal is None or modal is window)
                     and isinstance(window, (Window, Gallery))):
-                if event.type() == QEvent.MouseButtonRelease:
-                    direction = -1 if event.button() == Qt.BackButton else 1
+                if (mouse and kind == QEvent.MouseButtonRelease) or (key and kind == QEvent.KeyPress and not event.isAutoRepeat()):
+                    back = event.button() == Qt.BackButton if mouse else event.key() == Qt.Key_Back
+                    direction = -1 if back else 1
                     window.history(direction) if isinstance(window, Window) else window.step(direction)
                 event.accept()
                 return True

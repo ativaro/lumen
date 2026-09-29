@@ -17,7 +17,7 @@ Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. Au
 - **Strg+F:** aktueller Ordner einschließlich Unterordner durchsuchen. Alle eingegebenen Wörter müssen im Dateinamen vorkommen, Großschreibung ist egal. Treffer erscheinen laufend; **Esc** beendet die Suche. Typfilter begrenzen die Anzeige.
 - **Inhalte / Strg+Umschalt+F:** Text-, Code- und PDF-Inhalte im aktuellen Ordner einschließlich Unterordnern durchsuchen; Treffer zeigen echte Textstellen und eine Vorschau.
 - **Einmal auswählen:** Vorschauleiste. **Leertaste:** große Vorschau. Bilder, SVG, blätterbare PDFs, Text/Code, Video-Standbilder und Audio-Wellenformen. Medienwiedergabe über die Standard-App.
-- **Strg+L:** Pfad eingeben. **Alt+Links/Rechts/Hoch:** Verlauf / übergeordneter Ordner. Die seitlichen **Vor-/Zurück-Tasten der Maus** navigieren ebenfalls im Verlauf, unabhängig davon, über welchem Fensterbereich die Maus steht. In der Bildgalerie wechseln sie das Bild. **Strg+T / Strg+W:** Tab öffnen / schließen. **Strg+Tab:** nächster Tab.
+- **Strg+L:** Pfad eingeben. **Alt+Links/Rechts/Hoch:** Verlauf / übergeordneter Ordner. Die seitlichen **Vor-/Zurück-Tasten der Maus** navigieren ebenfalls im Verlauf, unabhängig davon, über welchem Fensterbereich die Maus steht. Als Browser-Tasten gemeldete Signale werden ebenfalls unterstützt. In der Bildgalerie wechseln sie das Bild. **Strg+T / Strg+W:** Tab öffnen / schließen. **Strg+Tab:** nächster Tab.
 - **Strg+C / X / V:** kopieren / ausschneiden / einfügen. **F2:** umbenennen. **Strg+Umschalt+N:** Ordner erstellen. **Entf:** nach Bestätigung in den Systempapierkorb verschieben.
 - **Strg+H:** versteckte Dateien. **Ort merken** über das Lesezeichen-Symbol neben „Server verbinden“ ergänzt einen Favoriten. Rechtsklick auf einen gemerkten Ort entfernt ihn wieder. Die kompakte Seitenleiste zeigt bis zu zehn Orte auch bei 1000 × 640 Pixeln ohne Scrollen; lange Namen werden gekürzt, vollständige Pfade stehen im Tooltip.
 - Ziehen von Dateien kopiert sie in den Zielordner. Bestehende Ziele werden mit einer Fehlermeldung beibehalten.
@@ -182,6 +182,12 @@ QT_QPA_PLATFORM=offscreen /usr/bin/python3 -m unittest -v
 Die Prüfungen verwenden temporäre Dateien: rekursive Suche, versteckte Dateien, Symlink-Schleife, ungültige Namen, Kopieren ohne Überschreiben, Tabs/Verlauf, Suchwechsel, Bild/SVG/PDF/Text/Video/Audio, defekte Dateien, Spezialdateien, Zwischenablage, Umbenennen/Verschieben und wiederherstellbarer Papierkorb. Der Papierkorb-Test hat ein isoliertes Datenverzeichnis.
 
 Zusätzlich geprüft: Tabs oberhalb der Suche, Galerie-Aufruf und Bildfolge, vorgeladene Nachbarbilder, Drehen/Spiegeln, EXIF-Ausrichtung, Original-Sicherung, Änderungskonflikte, Schutz von Animationen und Symlinks, Papierkorb-Erfolg/Fehler in der Galerie sowie Speichergrößen, Sparse-Dateien, Hardlinks, Verzeichnis-Symlinks, Zugriffsfehler und Abbruch. Native Screenshots in normaler und kompakter Größe liegen unter `artifacts/`.
+
+Vor/Zurück wird an der Dateiliste selbst und ihrer inneren Fläche, Seitenleiste,
+Vorschau, Suche, Tabs und Galerie geprüft, mit Mausklicks und Browser-Tasten.
+Zusätzlicher Laufzeittest über X11-Ereignisse: Buttons 8/9 und XF86Back/Forward.
+Die Dateiliste darf `QWidget.window()` nicht mit einem Instanzattribut verdecken;
+die frühere Kollision verursachte Fehler bei direkt an die Liste gelieferten Ereignissen.
 
 Die Inhaltssuche prüft echte Text-/PDF-Fundstellen, deutsche Suchbegriffe,
 Synonyme, PDF-Seitensprung, Grenzen, versteckte Einträge, Symlink-Austausch,

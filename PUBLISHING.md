@@ -73,7 +73,7 @@ release URL otherwise. For publishing:
       are active (`systemctl status lumen-agentd lumen-watch.timer`).
 - [ ] `lumen-setup --uninstall` and `pacman -R opencode-lumen` leave no residue.
 
-## Native UI (package revision 13)
+## Native UI (package revision 14)
 
 The desktop app and Files panel now require `python-pyqt5`, `python-gobject`
 and `python-pillow`; the old QML chat and text-file bridge have been removed.
@@ -103,6 +103,12 @@ Check destination conflicts and changed sources. Proposals must use a fresh
 session with all tools denied; only Files performs the confirmed moves. Exercise
 repeated dialog open/close while the network backend is active (mouse navigation
 uses a GUI-thread event filter, not an application-wide notify override).
+
+Mouse-navigation smoke check: Back/Forward over the file list itself, its viewport,
+other child widgets and the gallery; also test XF86Back/Forward browser keys.
+Modal dialogs must not navigate the underlying Files window. `FileView.window()`
+must remain the inherited Qt method, not an owner reference. Check native window
+events as well as directly delivered Qt test events.
 
 Content-search smoke check: use **Inhalte / Ctrl+Shift+F** with disposable text
 and multi-page PDFs. Verify literal excerpts and the matching PDF page, optional
