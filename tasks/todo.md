@@ -9,5 +9,5 @@
 - [x] Integrate Files, task center, knowledge and workflows into Lumen. Verify native UI and existing file-manager behavior.
 - [x] Add visible context and optional local dictation/learning mode. Verify optional-dependency errors and no implicit uploads.
 - [x] Run complete tests/build, independent review, documentation and three end-to-end scenarios. Fix found issues.
-- [ ] Install verified update where appropriate, push changes to renamed private GitHub repository and verify remote.
+- [x] Install verified update, push changes to renamed private GitHub repository and verify remote. GitHub-hosted CI is blocked before job execution by the account billing/spending limit; local checks pass.
 - [x] Detach network views and clean only known, confirmed-dead KIO-FUSE mounts; real WebDAV lifecycle and live-mount guard tests pass.

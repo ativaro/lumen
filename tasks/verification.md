@@ -12,4 +12,7 @@
 - Python/Bash syntax, JSON metadata and git whitespace checks pass. Arch package builds successfully.
 - Legacy installation migrated without its destructive uninstall scriptlets; captured service enabled/active states compare equal afterward. New jobs timer remains disabled.
 - Upgrade checks distinguish the actual legacy package from the new package providing its compatibility name; regression reproduces and prevents mistaken removal.
+- Installed `lumen 1.1.0-2`; installed modules match the verified source. Existing enabled/active service preferences remain unchanged; `lumen-jobs.timer` is disabled.
+- Pushed implementation commit `d38f788` to `main` in the renamed private repository `ativaro/lumen`; remote SHA verified.
+- [GitHub Actions run](https://github.com/ativaro/lumen/actions/runs/36737190133) could not start any test steps: GitHub reports failed account payments or an insufficient spending limit. This is an external CI blocker; the local full suite, syntax checks and package build passed.
 - Optional speech pipeline requires a local Whisper installation/model; dependency error behavior is present. No microphone recording or inference model download was performed during automated verification.
