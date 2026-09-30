@@ -48,7 +48,7 @@ if [ -n "${rootpct:-}" ] && [ "$rootpct" -ge 90 ]; then
 fi
 
 # 3) kernel errors in recent journal
-oops=$(journalctl -k -p err --since "10 min ago" --no-pager 2>/dev/null | tail -5)
+oops=$(journalctl -q -k -p err --since "10 min ago" --no-pager 2>/dev/null | tail -5)
 if [ -n "$oops" ]; then
     problems+=("Kernel-Fehler kürzlich")
     detail+="Kernel-Log (err, letzte 10 min):\n$oops\n\n"
