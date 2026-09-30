@@ -115,7 +115,7 @@ else
 fi
 
 # Preserve reports, keep legacy shell imports available, and install opt-in jobs.
-/usr/bin/python3 "$PREFIX/files/lumen_migrate.py"
+/usr/bin/python3 "$PREFIX/files/lumen_migrate.py" --bin "$BIN"
 mkdir -p "$PREFIX/shell" "$PREFIX/opencode-command" "$PREFIX/opencode-skill/lumen-admin"
 cp "$REPO/shell/"* "$PREFIX/shell/"
 cp "$REPO/opencode-command/"*.md "$PREFIX/opencode-command/"

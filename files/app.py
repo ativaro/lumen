@@ -1344,10 +1344,11 @@ class Window(QMainWindow):
         self.settings.setValue('geometry', self.saveGeometry())
         self.session_save.stop()
         self.save_session()
-        self.view.setModel(None); self.grid.setModel(None); self.proxy.setSourceModel(None)
-        self.fs.setOption(QFileSystemModel.DontWatchForChanges, True)
-        self.fs.setRootPath(str(Path.home()))
-        self.fs.deleteLater()
+        if self.network.mounts:
+            self.view.setModel(None); self.grid.setModel(None); self.proxy.setSourceModel(None)
+            self.fs.directoryLoaded.disconnect()
+            self.fs.setOption(QFileSystemModel.DontWatchForChanges, True)
+            self.fs.deleteLater()
         self.network.close()
         self._closed = True
         event.accept()
@@ -1443,6 +1444,13 @@ def create_app(appearance='system'):
     # An application event filter sees GUI-thread events only. Overriding notify
     # also wraps objects from Qt's network threads in Python and races their deletion.
     app.installEventFilter(app)
+    def dispose_windows():
+        # Qt processes deferred deletion after all aboutToQuit shutdown slots.
+        # Keep QObject owners out of interpreter-exit garbage collection.
+        app.removeEventFilter(app)
+        for window in app.topLevelWidgets():
+            window.deleteLater()
+    app.aboutToQuit.connect(dispose_windows)
     app.setApplicationName('Lumen — Dateien')
     app.setDesktopFileName('lumen-files')
     app.translator = QTranslator(app)

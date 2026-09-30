@@ -53,7 +53,7 @@ class DesktopActivation(QObject):
 
 
 class LumenWindow(QMainWindow):
-    def __init__(self, directory):
+    def __init__(self, directory, file_settings=None):
         super().__init__()
         self.setWindowTitle('Lumen')
         icon = ROOT / 'icons/hicolor/scalable/apps/lumen.svg'
@@ -61,6 +61,7 @@ class LumenWindow(QMainWindow):
         self.resize(1380, 860)
         self.setMinimumSize(760, 600)
         self.settings = QSettings('Lumen', 'Assistant')
+        self.file_settings = file_settings
         geometry = self.settings.value('geometry')
         if geometry:
             self.restoreGeometry(geometry)
@@ -75,7 +76,7 @@ class LumenWindow(QMainWindow):
         navigation.setContentsMargins(10, 20, 10, 10)
         navigation.addWidget(label('DEIN ASSISTENT', 'eyebrow'))
         self.pages = QStackedWidget()
-        self.chat = ChatPanel(directory)
+        self.chat = ChatPanel(directory, settings=self.settings)
         self.pages.addWidget(self.chat)
         self.chat.backend.busyChanged.connect(self.copy_answer_if_ready)
         self.chat.backend.failed.connect(lambda _: setattr(self, "copy_after_answer", False))
@@ -129,7 +130,7 @@ class LumenWindow(QMainWindow):
     def show_page(self, index):
         if index == 3 and self.file_window is None:
             from app import Window
-            self.file_window = Window(self.chat.backend.directory)
+            self.file_window = Window(self.chat.backend.directory, settings=self.file_settings)
             self.file_window.lumen_host = self
             for shortcut in self.file_window.findChildren(QShortcut):
                 shortcut.setContext(Qt.WidgetWithChildrenShortcut)

@@ -4,6 +4,40 @@ from pathlib import Path
 
 
 class LumenOSTest(unittest.TestCase):
+    def test_upgrade_ignores_virtual_legacy_package_provider(self):
+        from subprocess import CompletedProcess
+        from unittest.mock import patch
+        import lumen_upgrade
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.object(lumen_upgrade, 'STATE', Path(tmp) / 'upgrade.json'), \
+             patch.object(lumen_upgrade, 'run', return_value=CompletedProcess([], 0, 'lumen\n')), \
+             patch.object(lumen_upgrade, 'copy_missing') as copy:
+            lumen_upgrade.before()
+        copy.assert_not_called()
+
+    def test_quit_runs_shutdown_slots_before_deleting_windows(self):
+        import os
+        import subprocess
+        script = """
+from app import create_app
+from PyQt5.QtCore import QTimer
+from PyQt5.QtWidgets import QWidget
+app = create_app()
+window = QWidget()
+timer = QTimer(window)
+timer.start(100)
+app.aboutToQuit.connect(lambda: timer.stop())
+window.show()
+QTimer.singleShot(0, app.quit)
+app.exec_()
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            result = subprocess.run(['/usr/bin/python3', '-c', script],
+                                    cwd=Path(__file__).resolve().parent,
+                                    env={**os.environ, 'QT_QPA_PLATFORM': 'offscreen', 'XDG_CONFIG_HOME': tmp},
+                                    capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_persistent_tasks_changes_and_conflict_safe_undo(self):
         from lumen_store import Store
         from lumen_actions import execute, undo
@@ -95,11 +129,24 @@ class LumenOSTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp); old=root/'old';new=root/'new';old.mkdir();new.mkdir()
             (old/'report.md').write_text('old');(old/'missing.md').write_text('keep')
-            (new/'report.md').write_text('new');(old/'link').symlink_to(root)
+            (new/'report.md').write_text('new');(old/'link').symlink_to(root);(old/'latest').symlink_to(old/'missing.md')
             copy_missing(old,new);copy_missing(old,new)
             self.assertEqual((new/'report.md').read_text(),'new')
             self.assertEqual((new/'missing.md').read_text(),'keep')
+            self.assertEqual((new/'latest').read_text(),'keep')
             self.assertTrue((old/'missing.md').exists());self.assertFalse((new/'link').exists())
+            import os
+            from unittest.mock import patch
+            from lumen_migrate import migrate_launchers
+            data=root/'data';(data/'applications').mkdir(parents=True)
+            launcher=data/'applications/lumen.desktop'
+            launcher.write_text('[Desktop Entry]\nName=Mein Lumen\nExec='+str(data/'opencode-lumen/bin/lumen-agent-app')+'\n')
+            with patch.dict(os.environ, {'XDG_DATA_HOME':str(data),'XDG_CONFIG_HOME':str(root/'config')}):
+                self.assertEqual(migrate_launchers('/usr/bin'), [str(launcher)])
+                self.assertEqual(migrate_launchers('/usr/bin'), [])
+            self.assertIn('Name=Mein Lumen',launcher.read_text())
+            self.assertIn('Exec=/usr/bin/lumen-agent-app',launcher.read_text())
+            self.assertTrue(launcher.with_name('lumen.desktop.pre-lumen').exists())
 
     def test_model_policy_rejects_cloud_and_honors_limits(self):
         from lumen_models import select_model
@@ -132,7 +179,7 @@ class LumenIntegrationTest(unittest.TestCase):
         desktop = importlib.util.module_from_spec(spec); spec.loader.exec_module(desktop)
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp + '/state'}):
             settings = QSettings(tmp + '/desktop.ini', QSettings.IniFormat)
-            with patch.object(desktop, 'QSettings', return_value=settings): window = desktop.LumenWindow(tmp)
+            with patch.object(desktop, 'QSettings', return_value=settings): window = desktop.LumenWindow(tmp, file_settings=QSettings(tmp+'/files.ini', QSettings.IniFormat))
             window.chat.backend.refresh_sessions = lambda: None
             try:
                 window.show()

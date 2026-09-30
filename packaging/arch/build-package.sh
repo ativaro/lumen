@@ -51,19 +51,21 @@ rm -rf src pkg
 LOCALSRC=1 makepkg -d -f --noconfirm
 
 echo
-ls -1 "$ARCHDIR"/lumen-"$PKGVER"-*.pkg.tar.zst 2>/dev/null || true
+mapfile -t PACKAGES < <(LOCALSRC=1 makepkg --packagelist)
+ls -1 "${PACKAGES[@]}"
 
 if [ "$DO_INSTALL" = 1 ]; then
     say "Installiere Paket (pacman)"
     # Resolve dependencies before touching the existing installation.
-    sudo -A pacman -U --downloadonly --noconfirm "$ARCHDIR"/lumen-"$PKGVER"-*.pkg.tar.zst
+    sudo -A pacman -U --downloadonly --noconfirm "${PACKAGES[@]}"
     sudo -A /usr/bin/python3 "$REPO/files/lumen_upgrade.py" before
-    if pacman -Q opencode-lumen >/dev/null 2>&1; then
+    if [[ "$(pacman -Qq opencode-lumen 2>/dev/null || true)" == opencode-lumen ]]; then
         # Legacy scriptlets disable services and erase reports. Preserve both.
         sudo -A pacman -Rdd --noscriptlet --noconfirm opencode-lumen
     fi
-    sudo -A pacman -U --noconfirm "$ARCHDIR"/lumen-"$PKGVER"-*.pkg.tar.zst
+    sudo -A pacman -U --noconfirm "${PACKAGES[@]}"
     sudo -A /usr/bin/python3 "$REPO/files/lumen_upgrade.py" after
+    /usr/bin/python3 "$REPO/files/lumen_migrate.py" --bin /usr/bin
 fi
 
 say "Fertig."

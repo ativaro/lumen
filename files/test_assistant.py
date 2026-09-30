@@ -316,24 +316,34 @@ class AssistantTest(unittest.TestCase):
             self.skipTest('Real local engine not installed')
         root = Path(__file__).resolve().parents[1]
         script = """
-import sys,tempfile
+import sys,tempfile,os,importlib.util
 sys.path.insert(0,'files')
 from app import create_app,Window
 from PyQt5.QtCore import QSettings,QTimer
-app=create_app()
 with tempfile.TemporaryDirectory() as tmp:
-    window=Window(tmp,QSettings(tmp+'/ui.ini',QSettings.IniFormat))
+    os.environ['XDG_CONFIG_HOME']=tmp+'/config'
+    os.environ['LUMEN_DATA']=tmp+'/state'
+    app=create_app()
+    if sys.argv[2] == 'quit':
+        spec=importlib.util.spec_from_file_location('desktop','agent-app/main.py')
+        desktop=importlib.util.module_from_spec(spec);spec.loader.exec_module(desktop)
+        window=desktop.LumenWindow(tmp)
+        app.aboutToQuit.connect(window.chat.backend.shutdown)
+        window.chat.begin_context('open',[tmp])
+    else:
+        window=Window(tmp,QSettings(tmp+'/ui.ini',QSettings.IniFormat))
+        window.ask_lumen('open',[tmp])
     window.show()
-    window.ask_lumen('open',[tmp])
     # Run the real lifecycle so Qt handles deferred deletions before Python exits.
-    QTimer.singleShot(int(sys.argv[1]),window.close)
+    QTimer.singleShot(int(sys.argv[1]),app.quit if sys.argv[2] == 'quit' else window.close)
     app.exec_()
 """
-        for delay in (0, 150, 500):
-            result = subprocess.run(['/usr/bin/python3', '-X', 'faulthandler', '-c', script, str(delay)],
-                                    cwd=root, env={**os.environ, 'QT_QPA_PLATFORM': 'offscreen'},
-                                    capture_output=True, text=True, timeout=15)
-            self.assertEqual(result.returncode, 0, result.stderr)
+        for mode in ('close', 'quit'):
+            for delay in (0, 150, 500):
+                result = subprocess.run(['/usr/bin/python3', '-X', 'faulthandler', '-c', script, str(delay), mode],
+                                        cwd=root, env={**os.environ, 'QT_QPA_PLATFORM': 'offscreen'},
+                                        capture_output=True, text=True, timeout=15)
+                self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == '__main__':

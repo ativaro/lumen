@@ -16,7 +16,7 @@ def run(args):
 
 
 def before():
-    if run(['pacman', '-Q', 'opencode-lumen']).returncode: return
+    if run(['pacman', '-Qq', 'opencode-lumen']).stdout.strip() != 'opencode-lumen': return
     copy_missing('/var/lib/opencode-lumen', '/var/lib/lumen')
     scopes = [([], SYSTEM), (['--global'], USER)]
     scopes += [(['--machine=' + p.name + '@.host', '--user'], USER)
