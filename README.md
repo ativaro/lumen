@@ -164,13 +164,15 @@ opencode-skill/           lumen-admin skill
 packaging/arch/           PKGBUILD, build-package.sh
 distro/aur/               AUR tree tooling
 distro/cachyos/           local pacman repo tooling
-.github/workflows/        CI: lint + package build + release
 install.sh / uninstall.sh
 install-system.sh         optional root-only tweaks
 ```
 
 ## Notes
 
+- The private GitHub repository stores source and history only. GitHub Actions
+  are disabled. Tests and package builds run locally; future homelab automation
+  can use Forgejo. See [PUBLISHING.md](PUBLISHING.md) for local verification.
 - Each window owns a password-protected OpenCode server on a random loopback port.
   Lumen conversations are tagged and listed for the selected working directory;
   existing terminal conversations are never continued implicitly.

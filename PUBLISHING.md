@@ -1,8 +1,10 @@
 # Publishing Lumen
 
-Lumen is developed and tested locally but deliberately not published. When you decide
-to go public, this is the complete checklist. Nothing here is required for
-local use.
+Lumen is developed and tested locally. The private GitHub repository stores source
+and history only; GitHub Actions are disabled. Homelab automation can use Forgejo
+when needed; no Forgejo runner is configured by this repository yet.
+
+The public-release checklist below is optional and not required for local use.
 
 ## 1. Hosting
 
@@ -51,14 +53,16 @@ release URL otherwise. For publishing:
   ```
 - [ ] Publish the public key and set `SigLevel = Required DatabaseOptional`.
 
-## 5. CI
+## 5. Local verification and optional homelab automation
 
-`.github/workflows/build.yml` already:
-- lints shell/python/fish/json,
-- builds the package in an Arch container,
-- attaches the `.pkg.tar.zst` to a GitHub Release on `v*` tags.
+Run the native tests below locally, then build from the committed source:
 
-- [ ] Confirm the workflow runs green on the public repo.
+```bash
+./packaging/arch/build-package.sh
+```
+
+Pushes and tags do not start GitHub builds or publish releases. If automation is
+needed in the homelab, configure Forgejo to run the same tests and build command.
 
 ## 6. Documentation polish
 
@@ -80,7 +84,10 @@ and `python-pillow`; the old QML chat and text-file bridge have been removed.
 Before publishing, run the native tests:
 
 ```bash
-QT_QPA_PLATFORM=offscreen /usr/bin/python3 -m unittest discover -s files -v
+lumen_test_root="$(mktemp -d)"
+QT_QPA_PLATFORM=offscreen XDG_CONFIG_HOME="$lumen_test_root/config" \
+  LUMEN_DATA="$lumen_test_root/state" \
+  /usr/bin/python3 -m unittest discover -s files -v
 ```
 
 Also verify the installed launchers, permissions, questions,
