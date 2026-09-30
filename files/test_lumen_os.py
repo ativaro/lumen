@@ -147,6 +147,22 @@ app.exec_()
             self.assertIn('Name=Mein Lumen',launcher.read_text())
             self.assertIn('Exec=/usr/bin/lumen-agent-app',launcher.read_text())
             self.assertTrue(launcher.with_name('lumen.desktop.pre-lumen').exists())
+            files_launcher=data/'applications/lumen-files.desktop'
+            files_launcher.write_text('[Desktop Entry]\nName=Lumen — Dateien\nName[en]=Lumen — Files\nExec=/usr/bin/lumen-files %u\nStartupWMClass=Lumen\nComment=Meine Dateien\n')
+            with patch.dict(os.environ, {'XDG_DATA_HOME':str(data),'XDG_CONFIG_HOME':str(root/'config')}):
+                self.assertEqual(migrate_launchers('/usr/bin'), [str(files_launcher)])
+                self.assertEqual(migrate_launchers('/usr/bin'), [])
+            self.assertIn('Name=Lumen Files\n', files_launcher.read_text())
+            self.assertIn('Name[en]=Lumen Files\n', files_launcher.read_text())
+            self.assertIn('StartupWMClass=lumen-files\n', files_launcher.read_text())
+            self.assertIn('Comment=Meine Dateien\n', files_launcher.read_text())
+            applet=data/'plasma/plasmoids/org.lumen.agent/contents/ui/main.qml'
+            applet.parent.mkdir(parents=True)
+            applet.write_text('onClicked: root.expanded = !root.expanded\n// Meine Anpassung\n')
+            with patch.dict(os.environ, {'XDG_DATA_HOME':str(data),'XDG_CONFIG_HOME':str(root/'config')}):
+                self.assertEqual(migrate_launchers('/usr/bin'), [str(applet)])
+                self.assertEqual(migrate_launchers('/usr/bin'), [])
+            self.assertEqual(applet.read_text(), 'onClicked: root.run("lumen")\n// Meine Anpassung\n')
 
     def test_model_policy_rejects_cloud_and_honors_limits(self):
         from lumen_models import select_model

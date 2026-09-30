@@ -217,6 +217,18 @@ class AssistantTest(unittest.TestCase):
             self.assertEqual(invoke('lumen-quick', 'ask'), [])
             self.assertEqual(invoke('lumen-quick', 'ask-sel'), ['--selection', 'explain'])
             self.assertEqual(invoke('lumen-sel', 'translate'), ['--selection=translate'])
+            # The assistant and file manager have distinct entry points, even
+            # though both are distributed in the same Lumen package.
+            bins = target / 'bin'; bins.mkdir()
+            files = target / 'files'; files.mkdir()
+            shutil.copy2(stub, bins / 'lumen-agent-app')
+            for name in ('lumen', 'lumen-files'):
+                shutil.copy2(root / 'bin' / name, bins / name)
+            (files / 'app.py').write_text('import json,sys;print(json.dumps(["files", *sys.argv[1:]]))\n')
+            self.assertEqual(json.loads(subprocess.check_output([str(bins / 'lumen')], text=True)), [])
+            for args in ([], [paths[0]], ['sftp://example.test/home/user'], ['--settings']):
+                result = subprocess.check_output([str(bins / 'lumen-files'), *args], text=True)
+                self.assertEqual(json.loads(result), ['files', *args])
             import importlib.util
             spec = importlib.util.spec_from_file_location('lumen_runner_test', root / 'bin/lumen_krunner.py')
             runner = importlib.util.module_from_spec(spec)

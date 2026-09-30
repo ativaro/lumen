@@ -19,7 +19,7 @@ PlasmoidItem {
         implicitWidth: Kirigami.Units.iconSizes.smallMedium
         implicitHeight: Kirigami.Units.iconSizes.smallMedium
         hoverEnabled: true
-        onClicked: root.expanded = !root.expanded
+        onClicked: root.run("lumen")
 
         Kirigami.Icon {
             id: icon
@@ -65,8 +65,8 @@ PlasmoidItem {
             RowLayout {
                 Layout.fillWidth: true
                 spacing: Kirigami.Units.smallSpacing
-                ActionButton { label: "App öffnen"; onActivated: root.run("lumen-agent-app") }
-                ActionButton { label: "Systembericht"; onActivated: root.run("lumen-agent-app --page system") }
+                ActionButton { label: "Assistent öffnen"; onActivated: root.run("lumen") }
+                ActionButton { label: "Systembericht"; onActivated: root.run("lumen --page system") }
                 Item { Layout.fillWidth: true }
             }
         }

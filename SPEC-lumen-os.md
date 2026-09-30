@@ -1,8 +1,10 @@
 # Lumen: AI-first CachyOS desktop
 
 Approved scope: the user requested all eight proposed capabilities and one product
-named **Lumen**, with file management as an integrated page. OpenCode remains the
-model/tool engine. This is an extension of the existing PyQt5 application.
+named **Lumen**, with file management as an integrated page and the separately
+launchable **Lumen Files** window. The panel opens the assistant; both entry
+points share settings and integrations. OpenCode remains the model/tool engine.
+This is an extension of the existing PyQt5 application.
 
 ## Capability map and build order
 
@@ -21,7 +23,8 @@ model/tool engine. This is an extension of the existing PyQt5 application.
 
 - New packages/paths/repository use `lumen`. Existing settings and reports remain
   available; old package replacement and old launch commands are supported.
-- The file manager is a page in Lumen; its launcher opens that page.
+- The file manager is available as a page in Lumen and through its own Lumen Files
+  launcher. Opening Lumen from the panel activates the assistant.
 - Commands exposed as constrained tools never invoke a shell or accept arbitrary
   D-Bus methods. Inputs, target scope and action approval are enforced in code.
 - Tasks survive application restarts; running tasks interrupted by shutdown are

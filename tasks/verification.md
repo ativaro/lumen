@@ -7,6 +7,7 @@
 - Local-model guard: a remote provider is rejected before POST; the installed engine confirms forced main model, small model and provider allowlist through its actual `/config` API.
 - KWin: harmless script loads, runs and unloads through the actual D-Bus interface. User windows were not rearranged during verification.
 - All eight native pages rendered and inspected. Existing file-manager tests pass.
+- Separate entry points verified: Lumen opens the assistant, Lumen Files opens the standalone file manager (including file URLs). Both retain the shared Assistant/Files settings, and the assistant still offers its Files page. Launcher and existing-user migration regressions pass; both native windows render and close correctly.
 - Injection, changed-file/permissions undo, workflow approval, leases, recovery, deduplication, secret filenames and canonical root revocation covered by regression checks.
 - Independent foundation and integration review completed; reproduced findings fixed and rechecked.
 - Python/Bash syntax, JSON metadata and git whitespace checks pass. Arch package builds successfully.

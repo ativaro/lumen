@@ -1,9 +1,13 @@
 # Lumen benutzen
 
-Lumen ist eine Anwendung. `lumen` startet das Fenster, `lumen --page files`
-öffnet den integrierten Dateibereich. Der bisherige Befehl `lumen-files` bleibt
-kompatibel, auch für lokale Ordner und Netzwerkadressen. OpenCode bleibt die
-Engine; bestehende Anmeldungen und Anbieter werden weiterverwendet.
+Lumen ist die KI-Erweiterung für CachyOS mit gemeinsamen Einstellungen und
+Integrationen. **Lumen** im Panel oder `lumen` öffnet den Assistenten.
+**Lumen Files** beziehungsweise `lumen-files` öffnet den eigenständigen
+Dateimanager, auch direkt mit einem lokalen Ordner oder einer Netzwerkadresse.
+Der Assistent behält zusätzlich den Dateibereich unter `lumen --page files`.
+Beide verwenden dieselben Datei-Einstellungen, Modelle und KI-Funktionen;
+`Strg+,` öffnet den gemeinsamen Einstellungsdialog. OpenCode bleibt die Engine;
+bestehende Anmeldungen und Anbieter werden weiterverwendet.
 
 ## Aufträge und echte Ergebnisse
 

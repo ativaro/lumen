@@ -221,7 +221,7 @@ class SettingsDialog(QDialog):
         self.status.setText('Modelle konnten nicht geladen werden: ' + error)
 
     def build_files(self):
-        page = self.page('Lumen — Dateien', 'Navigation, Vorschau und schnelle Suche')
+        page = self.page('Lumen Files', 'Navigation, Vorschau und schnelle Suche')
         form = QFormLayout()
         self.resume = QCheckBox('Geöffnete Tabs wiederherstellen')
         self.resume.setChecked(self.field(self.files, 'restoreLastFolder', True, bool))
@@ -292,7 +292,7 @@ class SettingsDialog(QDialog):
 
     def build_appearance(self):
         page = self.page('Erscheinungsbild', 'Lumen und dein KDE-Desktop')
-        page.addWidget(text('Lumen — Dateien folgt automatisch den KDE-Farben, Symbolen und der Systemschrift.'))
+        page.addWidget(text('Lumen Files folgt automatisch den KDE-Farben, Symbolen und der Systemschrift.'))
         page.addWidget(text('Darstellung des Lumen-Assistenten:'))
         self.appearance = combo([('Lumen Dunkel', 'lumen'), ('Systemstil', 'system')], self.field(self.assistant, 'appearance', 'lumen'))
         page.addWidget(self.appearance)
@@ -387,7 +387,7 @@ class SettingsDialog(QDialog):
         self.launcher(page, 'Systemmonitor öffnen …', 'plasma-systemmonitor')
         page.addWidget(text('Lumen nutzt die vorhandene Engine-Konfiguration einschließlich Provider, MCP-Werkzeugen und persönlichen Anweisungen. '
             'Zugangsdaten werden hier weder angezeigt noch überschrieben.\n'
-            'Dateiaktionen sind über Lumen — Dateien und die installierten Dolphin-Kontextmenüs erreichbar. '
+            'Dateiaktionen sind über Lumen Files und die installierten Dolphin-Kontextmenüs erreichbar. '
             'Galerie, Speicheranalyse, Inhaltsuche sowie Umbenennen und Sortieren arbeiten in ihren nativen Dialogen.'))
         references = [('Systemreferenz', Path.home() / 'Documents/work/system.md'),
                       ('Änderungshistorie', Path.home() / 'Documents/work/sync.md'),

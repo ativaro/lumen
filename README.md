@@ -1,10 +1,11 @@
 # Lumen — AI-first desktop for CachyOS
 
-Lumen combines conversations, file management, durable tasks, selected knowledge,
-reusable workflows and system diagnostics in one native application.
+Lumen is an AI extension for CachyOS, combining conversations, file management,
+durable tasks, selected knowledge, reusable workflows and system diagnostics.
 [OpenCode](https://opencode.ai) is the background engine; the product and package
-are **Lumen**. The Files page is part of Lumen, and `lumen-files` remains a
-compatibility launcher for `lumen --page files`.
+are **Lumen**. Opening Lumen from the panel starts the assistant. **Lumen Files**
+(`lumen-files`) opens a separate file-manager window with the same settings and
+AI integrations. The assistant also keeps its integrated Files page.
 
 [Bedienung, Datenschutz und Migration](LUMEN-GUIDE.md) · [Implementation contract](SPEC-lumen-os.md)
 
@@ -29,7 +30,7 @@ gracefully on other setups.
 | **Git** | `lumen-gitmsg` drafts a Conventional-Commit message from the diff |
 | **KRunner runner** | Type `lumen <question>`, `ai <question>` or `oc <question>` in KRunner |
 | **Plasma applet** | panel widget with agent status + quick actions (`org.lumen.agent`) |
-| **Lumen — Dateien** | file manager with fast filename search, local text/PDF content search with optional Lumen synonyms, previews, tabs, gallery, disk analysis, KIO network folders, native rename/sort proposals with editable preview and undo, integrated Lumen panel |
+| **Lumen Files** (`lumen-files`) | standalone file manager within Lumen: fast filename search, local text/PDF content search with optional Lumen synonyms, previews, tabs, gallery, disk analysis, KIO network folders, native rename/sort proposals with editable preview and undo, integrated Lumen panel |
 | **System watchdog** | systemd timer checks failed units, kernel errors, disk, GPU temp; automatic opencode analysis |
 | **Daily digest / nightly report** | scheduled summaries (`lumen-digest`, `lumen-nightly`) |
 | **MCP server `cachyos`** | read tools `systemctl`, `journal`, `pacman`, `disk`, `gpu`, `memory`, `sensors`, `kwin`, guarded `cmd` — plus **opt-in action tools** (`notify`, `restart_unit`, `media`, `wallpaper`, `screenshot`) behind `LUMEN_MCP_ACTIONS=1` |
@@ -85,7 +86,8 @@ After installing (either way):
    ```
 2. **Restart opencode** so MCP/commands/skill are picked up.
 3. Reload KRunner if the `ai …` trigger is missing: `kquitapp6 krunner`
-4. Launch the app from the menu (**Lumen**) or run `lumen-agent-app`.
+4. Open the assistant from the panel/menu (**Lumen**) or run `lumen`.
+   Open the file manager with **Lumen Files** or `lumen-files [folder-or-URL]`.
 
 Launching Lumen again from the menu, panel or main shortcut activates its existing
 window and keeps the current conversation and draft. Explicit file actions,

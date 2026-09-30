@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
-# Compatibility launcher: file management is a page in Lumen.
+# Open the standalone file manager, sharing Lumen's settings and integrations.
 set -euo pipefail
-BIN="$(dirname "$(readlink -f "$0")")"
-if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then exec "$BIN/lumen" --help; fi
-if [[ "${1:-}" == --settings ]]; then exec "$BIN/lumen" --page settings; fi
-if [[ -n "${1:-}" ]]; then
-    TARGET="$1"
-    if [[ "$TARGET" == file:* ]]; then
-        TARGET="$(/usr/bin/python3 -c 'import sys; from urllib.parse import urlsplit,unquote; print(unquote(urlsplit(sys.argv[1]).path))' "$TARGET")"
+SELF_DIR="$(dirname "$(readlink -f "$0")")"
+for app in "$SELF_DIR/../files/app.py" "$SELF_DIR/../share/lumen/files/app.py" /usr/share/lumen/files/app.py; do
+    if [ -f "$app" ]; then
+        export LUMEN_BIN_DIR="$SELF_DIR"
+        exec /usr/bin/python3 "$app" "$@"
     fi
-    exec "$BIN/lumen" --page files --location "$TARGET"
-fi
-exec "$BIN/lumen" --page files
+done
+echo 'Lumen Files: Die Anwendung wurde nicht gefunden. Bitte die Installation prüfen.' >&2
+exit 1

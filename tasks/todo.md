@@ -7,6 +7,7 @@
 - [x] Add reusable workflows and explicit schedules/directory triggers. Verify deduplication, pause and unattended permissions.
 - [x] Integrate durable engine tasks, model/privacy/resource policies and real output files. Verify fake-engine and local runtime flows.
 - [x] Integrate Files, task center, knowledge and workflows into Lumen. Verify native UI and existing file-manager behavior.
+- [x] Keep Lumen Files separately launchable with shared settings/integrations; the Lumen panel entry opens the assistant.
 - [x] Add visible context and optional local dictation/learning mode. Verify optional-dependency errors and no implicit uploads.
 - [x] Run complete tests/build, independent review, documentation and three end-to-end scenarios. Fix found issues.
 - [x] Install verified update, push changes to renamed private GitHub repository and verify remote. Local checks pass; GitHub is used only for source storage.

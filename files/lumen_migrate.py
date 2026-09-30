@@ -37,17 +37,22 @@ def migrate_launchers(binary_directory):
     config = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config')))
     legacy = str(data / 'opencode-lumen' / 'bin')
     targets = list((data / 'applications').glob('lumen*.desktop'))
-    targets += [data / 'plasma_icons/lumen.desktop', data / 'dbus-1/services/org.lumen.runner.service',
+    targets += [data / 'plasma_icons/lumen.desktop', data / 'plasma_icons/lumen-files.desktop', data / 'dbus-1/services/org.lumen.runner.service',
                 data / 'kio/servicemenus/lumen.desktop', config / 'autostart/lumen-krunner-runner.desktop',
                 config / 'opencode/opencode.jsonc', config / 'opencode/opencode.json']
     targets += list((config / 'systemd/user').glob('lumen*.service'))
+    applet = data / 'plasma/plasmoids/org.lumen.agent/contents/ui/main.qml'
+    targets.append(applet)
     changed = []
     for path in targets:
         if not path.is_file() or path.is_symlink(): continue
         original = path.read_text()
         updated = original.replace(legacy + '/', str(Path(binary_directory)) + '/')
         if path.name == 'lumen-files.desktop':
-            updated = updated.replace('Name=Lumen Files\n','Name=Lumen — Dateien\n').replace('Name[en]=Lumen Files\n','Name[en]=Lumen — Files\n').replace('StartupWMClass=lumen-files\n','StartupWMClass=Lumen\n')
+            updated = updated.replace('Name=Lumen — Dateien\n','Name=Lumen Files\n').replace('Name[en]=Lumen — Files\n','Name[en]=Lumen Files\n').replace('StartupWMClass=Lumen\n','StartupWMClass=lumen-files\n')
+        if path == applet:
+            updated = updated.replace('onClicked: root.expanded = !root.expanded', 'onClicked: root.run("lumen")')
+            updated = updated.replace('label: "App öffnen"', 'label: "Assistent öffnen"').replace('root.run("lumen-agent-app', 'root.run("lumen')
         if updated == original: continue
         backup = path.with_name(path.name + '.pre-lumen')
         if not backup.exists(): shutil.copy2(path, backup)

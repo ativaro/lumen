@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Lumen — Dateien — a preview-first native file manager for Linux."""
+"""Lumen Files — a preview-first native file manager for Linux."""
 import os
 import sys
 from pathlib import Path
@@ -209,7 +209,7 @@ class Window(QMainWindow):
     def __init__(self, start=None, settings=None):
         super().__init__()
         self.settings = settings or QSettings('Lumen', 'Files')
-        self.setWindowTitle('Lumen — Dateien')
+        self.setWindowTitle('Lumen Files')
         self.setObjectName('filesWindow')
         self.setWindowIcon(QIcon(str(ROOT / 'lumen-files.svg')))
         self.resize(1380, 860)
@@ -307,7 +307,7 @@ class Window(QMainWindow):
         layout.setSpacing(0)
         tabrow = QHBoxLayout()
         tabrow.setContentsMargins(16, 6, 16, 6)
-        brand = label('Dateien', 'brand')
+        brand = label('Lumen Files', 'brand')
         brand.setFixedWidth(184)
         tabrow.addWidget(brand)
         self.tabs = QTabBar()
@@ -1298,8 +1298,8 @@ class Window(QMainWindow):
         menu.addAction('Aktualisieren\tF5', self.refresh)
         menu.addAction('Versteckte Dateien\tStrg+H', self.toggle_hidden)
         menu.addSeparator()
-        menu.addAction('Tastenkürzel & Info', lambda: QMessageBox.information(self, 'Lumen — Dateien',
-            'Lumen — Dateien · 0.3\n\nStrg+F  Suchen\nStrg+L  Pfad eingeben\nStrg+K  Server verbinden\n'
+        menu.addAction('Tastenkürzel & Info', lambda: QMessageBox.information(self, 'Lumen Files',
+            'Lumen Files · 0.3\n\nStrg+F  Suchen\nStrg+L  Pfad eingeben\nStrg+K  Server verbinden\n'
             'Strg+T / Strg+W  Tab öffnen / schließen\nAlt+Pfeile  Navigation\n'
             'Leertaste  Große Vorschau\nF2  Umbenennen\nStrg+C / X / V  Kopieren / Ausschneiden / Einfügen\n'
             'Entf  Papierkorb\n\nSuche: Dateinamen im aktuellen Ordner und Unterordnern. '
@@ -1310,7 +1310,7 @@ class Window(QMainWindow):
         menu.exec_(self.sender().mapToGlobal(self.sender().rect().bottomLeft()))
 
     def error(self, message, detail=''):
-        box = QMessageBox(QMessageBox.Warning, 'Lumen — Dateien', message, QMessageBox.Ok, self)
+        box = QMessageBox(QMessageBox.Warning, 'Lumen Files', message, QMessageBox.Ok, self)
         box.setTextFormat(Qt.PlainText)
         if detail:
             box.setDetailedText(detail)
@@ -1451,7 +1451,8 @@ def create_app(appearance='system'):
         for window in app.topLevelWidgets():
             window.deleteLater()
     app.aboutToQuit.connect(dispose_windows)
-    app.setApplicationName('Lumen — Dateien')
+    app.setApplicationName('lumen-files')
+    app.setApplicationDisplayName('Lumen Files')
     app.setDesktopFileName('lumen-files')
     app.translator = QTranslator(app)
     app.translator.load('qtbase_de', QLibraryInfo.location(QLibraryInfo.TranslationsPath))
@@ -1488,15 +1489,21 @@ def create_app(appearance='system'):
 
 
 if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description='Lumen Files – Dateimanager mit Lumen-Integration')
+    parser.add_argument('location', nargs='?', help='Datei, Ordner oder Netzwerkadresse')
+    parser.add_argument('--settings', action='store_true', help='Gemeinsame Lumen-Einstellungen öffnen')
+    args = parser.parse_args()
+    from lumen_migrate import migrate_user
+    migrate_user()
     app = create_app()
-    settings_requested = '--settings' in sys.argv[1:]
-    start = next((arg for arg in sys.argv[1:] if arg != '--settings'), None)
+    start = args.location
     if start and start.startswith('file:'):
         start = QUrl(start).toLocalFile()
     if start and Path(start).is_file():
         start = str(Path(start).parent)
     window = Window(start)
     window.show()
-    if settings_requested:
+    if args.settings:
         QTimer.singleShot(0, window.show_settings)
     sys.exit(app.exec_())

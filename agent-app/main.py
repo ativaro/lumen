@@ -209,7 +209,7 @@ class LumenWindow(QMainWindow):
             ('Text korrigieren', lambda: self.selection('fix')),
             ('Text übersetzen', lambda: self.selection('translate')),
             ('Systembericht ansehen', lambda: self.show_page(1)),
-            ('Lumen — Dateien öffnen', self.open_files)]:
+            ('Dateibereich öffnen', self.open_files)]:
             layout.addWidget(button(title, callback))
         layout.addStretch()
         return page
@@ -356,6 +356,7 @@ def main():
     migrate_user()
     app = create_app(QSettings('Lumen', 'Assistant').value('appearance', 'lumen'))
     app.setApplicationName('Lumen')
+    app.setApplicationDisplayName('Lumen')
     app.setDesktopFileName('lumen')
     activation = DesktopActivation()
     plain_launch = (args.action == 'open' and args.page != 'settings' and not any(
