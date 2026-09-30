@@ -22,6 +22,8 @@ class OpenCodeBackend(QObject):
     busyChanged = pyqtSignal(bool)
     statusChanged = pyqtSignal(str)
     failed = pyqtSignal(str)
+    started = pyqtSignal(str, list, str)
+    completed = pyqtSignal(bool, str)
 
     def __init__(self, directory, parent=None, server_url='', password='', project_config=True):
         super().__init__(parent)
@@ -49,6 +51,14 @@ class OpenCodeBackend(QObject):
         self.messages = []
         self.related_sessions = {}
         self.log = b''
+        self.model_policy = {}
+        self.engine_policy = ''
+        self.background_task = False
+        self.read_only = False
+        self.selected_model = ''
+        self.deadline = QTimer(self)
+        self.deadline.setSingleShot(True)
+        self.deadline.timeout.connect(lambda: self.fail('Das Zeitlimit für diesen Auftrag wurde erreicht.'))
         self.start_timer = QTimer(self)
         self.start_timer.setSingleShot(True)
         self.start_timer.timeout.connect(lambda: self.start_failed('Die Hintergrund-Engine antwortet nicht. Bitte erneut versuchen.'))
@@ -112,6 +122,13 @@ class OpenCodeBackend(QObject):
         QTimer.singleShot(0, dispatch)
 
     def ensure_server(self, callback):
+        from lumen_store import Store
+        self.model_policy = Store().setting('modelPolicy', {})
+        local = self.model_policy.get('local_model', '') if self.model_policy.get('privacy') == 'local' else ''
+        if self.model_policy.get('privacy') == 'local' and '/' not in local:
+            self.fail('Für lokale Verarbeitung zuerst ein lokales Modell auswählen.'); return
+        if self.proc and local != self.engine_policy:
+            self.shutdown()
         if self.url:
             callback()
             return
@@ -129,6 +146,16 @@ class OpenCodeBackend(QObject):
         environment.insert('OPENCODE_SERVER_USERNAME', 'opencode')
         if not self.project_config:
             environment.insert('OPENCODE_DISABLE_PROJECT_CONFIG', 'true')
+        if local:
+            try:
+                config = json.loads(environment.value('OPENCODE_CONFIG_CONTENT') or '{}')
+                config.update(model=local, small_model=local, enabled_providers=[local.split('/', 1)[0]])
+                environment.insert('OPENCODE_CONFIG_CONTENT', json.dumps(config))
+                environment.insert('OPENCODE_DISABLE_PROJECT_CONFIG', 'true')
+            except (ValueError, AttributeError):
+                self.proc = None; proc.deleteLater()
+                self.fail('Die vorhandene Laufzeitkonfiguration konnte nicht mit der lokalen Richtlinie verbunden werden.'); return
+        self.engine_policy = local
         proc.setProcessEnvironment(environment)
         proc.setWorkingDirectory(self.directory)
         proc.setProcessChannelMode(QProcess.MergedChannels)
@@ -194,8 +221,16 @@ class OpenCodeBackend(QObject):
         if proposal:
             self.new_conversation()
         self.proposal = proposal
+        from lumen_store import Store
+        self.model_policy = Store().setting('modelPolicy', {})
+        if not proposal:
+            self.tracking_error = ''
+            self.started.emit(text, files or [], agent)
+            if self.tracking_error:
+                self.fail(self.tracking_error); return
         self.log = b'' if not self.url else self.log
         self.set_busy(True)
+        self.deadline.start(max(30, min(7200, int(self.model_policy.get('timeout_seconds', 900)))) * 1000)
         self.message_id = 'msg_' + uuid.uuid4().hex
         self.idle_since = None
         self.statusChanged.emit('Lumen arbeitet …')
@@ -208,7 +243,7 @@ class OpenCodeBackend(QObject):
                           'Nutze die bereitgestellten Werkzeuge. Zeige keine Terminal-Banner oder internen Protokolle. '
                           'Behaupte Änderungen nur, wenn die Werkzeuge sie bestätigt haben.'}
         self.settings.sync()
-        model = self.settings.value('model', '')
+        model = self.selected_model or self.settings.value('model', '')
         if isinstance(model, str) and '/' in model:
             provider, identifier = model.split('/', 1)
             if provider and identifier:
@@ -217,6 +252,8 @@ class OpenCodeBackend(QObject):
             body['system'] += (' Die Antwort erscheint als Ergebnis einer Dateiaktion. Formuliere einen sachlichen Ergebnistext '
                                'ohne Anrede oder Gesprächsangebote. Falls eine Rückfrage für die Aufgabe erforderlich ist, '
                                'verwende das question-Werkzeug, damit sie als Formular erscheint.')
+        if self.read_only:
+            body['tools'] = {'*': False}
         if proposal:
             body['tools'] = {'*': False}
             body['system'] = ('Du erstellst ausschließlich Vorschläge für native Dateifunktionen. '
@@ -234,12 +271,43 @@ class OpenCodeBackend(QObject):
             self.refresh_sessions()
 
         def ready():
+            if self.model_policy.get('privacy') == 'local':
+                self.request('GET', '/config', callback=local_config)
+            else:
+                from lumen_models import select_model
+                choice = select_model(self.model_policy, [], model, self.background_task)
+                if choice and '/' in choice:
+                    provider, name = choice.split('/', 1)
+                    body['model'] = {'providerID': provider, 'modelID': name}
+                prepare_session()
+
+        def local_config(config):
+            def providers_loaded(data):
+                from lumen_models import select_model
+                providers = []
+                for provider in (data or {}).get('providers', []):
+                    provider = dict(provider)
+                    provider['options'] = (config or {}).get('provider', {}).get(provider['id'], {}).get('options', {})
+                    providers.append(provider)
+                try:
+                    choice = select_model(self.model_policy, providers, model, self.background_task)
+                except ValueError as exc:
+                    self.fail(str(exc)); return
+                provider, name = choice.split('/', 1)
+                if (config.get('model') != choice or config.get('small_model') != choice
+                        or config.get('enabled_providers') != [provider]):
+                    self.fail('Die Engine bestätigt die lokale Richtlinie für Haupt- und Hilfsmodelle nicht.'); return
+                body['model'] = {'providerID': provider, 'modelID': name}
+                prepare_session()
+            self.request('GET', '/config/providers', callback=providers_loaded)
+
+        def prepare_session():
             if self.session:
                 submit()
             else:
                 session = {'title': (title or text.splitlines()[0])[:70],
                            'metadata': {'client': 'lumen-files-proposal' if proposal else 'lumen'}}
-                if proposal:
+                if proposal or self.read_only:
                     session['permission'] = [{'permission': '*', 'pattern': '*', 'action': 'deny'}]
                 self.request('POST', '/session', session, created)
         self.ensure_server(ready)
@@ -289,6 +357,8 @@ class OpenCodeBackend(QObject):
                           and (not self.message_id or m['info'].get('parentID') == self.message_id)]
             completed = assistants and assistants[-1].get('time', {}).get('completed')
             if state == 'idle' and (completed or not self.busy) and not self.permissions and not self.questions:
+                self.deadline.stop()
+                was_busy = self.busy
                 self.set_busy(False)
                 error = assistants[-1].get('error') if assistants else None
                 if error:
@@ -296,6 +366,12 @@ class OpenCodeBackend(QObject):
                     self.failed.emit(error.get('data', {}).get('message') or error.get('name', 'Anfrage fehlgeschlagen.'))
                 else:
                     self.statusChanged.emit('Bereit')
+                if was_busy:
+                    answer = '\n\n'.join(part.get('text', '') for message in self.messages
+                        if message.get('info', {}).get('role') == 'assistant'
+                        and message['info'].get('parentID') == self.message_id
+                        for part in message.get('parts', []) if part.get('type') == 'text')
+                    self.completed.emit(not bool(error), (error.get('data', {}).get('message') or error.get('name', 'Anfrage fehlgeschlagen.')) if error else answer)
             else:
                 if state == 'idle' and not self.permissions and not self.questions:
                     self.idle_since = self.idle_since or time.monotonic()
@@ -369,12 +445,14 @@ class OpenCodeBackend(QObject):
             self.stopped()
 
     def stopped(self, _data=None):
+        self.deadline.stop()
         if self.proc:
             self.shutdown()
         self.set_busy(False)
         self.permissions, self.questions = [], []
         self.requestsChanged.emit([], [])
         self.statusChanged.emit('Abgebrochen')
+        self.completed.emit(False, 'Abgebrochen')
 
     def fail(self, message):
         self.timer.stop()
@@ -386,12 +464,14 @@ class OpenCodeBackend(QObject):
         self.requestsChanged.emit([], [])
         self.failed.emit(message)
         self.statusChanged.emit('Anfrage fehlgeschlagen')
+        self.completed.emit(False, message)
 
     def start_failed(self, message):
         self.shutdown()
         self.fail(message)
 
     def shutdown(self):
+        self.deadline.stop()
         self.generation += 1
         self.permission_replies.clear()
         self.start_timer.stop()

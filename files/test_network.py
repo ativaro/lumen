@@ -4,6 +4,24 @@ from network import normalize_url, remote_path
 
 
 class NetworkAddressTest(unittest.TestCase):
+    def test_cleanup_only_dead_known_mounts(self):
+        from unittest.mock import patch
+        from network_cleanup import cleanup, mount_records
+        text = '20 1 0:2 / /run/user/1000/kio-fuse-one rw - fuse.kio-fuse kio-fuse rw,user_id=1000,group_id=1000'
+        records = mount_records(text, 1000)
+        self.assertEqual(len(records), 1)
+        self.assertEqual(mount_records(text, 2000), {})
+        with patch('network_cleanup.mounts', return_value=records), patch('network_cleanup.probe', return_value=False) as probe, patch('network_cleanup.subprocess.run') as run:
+            cleanup(['/run/user/1000/kio-fuse-one/smb/server'])
+            run.assert_not_called()
+            probe.return_value = True
+            cleanup(['/run/user/1000/kio-fuse-other/smb/server'])
+            run.assert_not_called()
+            cleanup(['/run/user/1000/kio-fuse-one/smb/server'])
+            self.assertEqual(run.call_args.args[0], ['fusermount3', '-u', '--', '/run/user/1000/kio-fuse-one'])
+        with patch('network_cleanup.mounts', side_effect=[records, {}]), patch('network_cleanup.probe', return_value=True), patch('network_cleanup.subprocess.run') as run:
+            cleanup(['/run/user/1000/kio-fuse-one/smb/server']); run.assert_not_called()
+
     def test_normalizes_protocols_unc_and_unicode(self):
         cases = {
             r'\\nas\Freigabe\Bilder': 'smb://nas/Freigabe/Bilder',

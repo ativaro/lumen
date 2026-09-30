@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# make-aur.sh — prepare an AUR-ready source tree for opencode-lumen.
+# make-aur.sh — prepare an AUR-ready source tree for lumen.
 #
 # Creates distro/aur/ containing PKGBUILD, lumen.install and .SRCINFO, ready
 # to push to the AUR. The PKGBUILD's remote source (_srcurl) is used, so the
@@ -46,7 +46,7 @@ Prüfe vor dem Upload:
   - sha256sums gesetzt (./distro/aur/make-aur.sh --sums)
 
 Upload (als AUR-Maintainer):
-  git clone ssh://aur@aur.archlinux.org/opencode-lumen.git
-  cp $AURDIR/{PKGBUILD,.SRCINFO,lumen.install} opencode-lumen/
-  cd opencode-lumen && git add -A && git commit -m 'Initial' && git push
+  git clone ssh://aur@aur.archlinux.org/lumen.git
+  cp $AURDIR/{PKGBUILD,.SRCINFO,lumen.install} lumen/
+  cd lumen && git add -A && git commit -m 'Initial' && git push
 EOF

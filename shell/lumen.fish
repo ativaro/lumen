@@ -1,7 +1,7 @@
 # opencode — fish integration
 #
 # Source from config.fish:
-#   source /usr/share/opencode-lumen/shell/lumen.fish
+#   source /usr/share/lumen/shell/lumen.fish
 #
 # Then:
 #   why                 # explain the last failed command

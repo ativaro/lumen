@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # lumen-watch-system — system-wide watchdog checks (runs as root).
 #
-# Writes findings to /var/lib/opencode-lumen/findings.md when a problem is
+# Writes findings to /var/lib/lumen/findings.md when a problem is
 # detected. A per-user path/service unit picks that up and notifies the desktop
 # (and optionally runs an opencode analysis in the user's context).
 #
@@ -10,7 +10,7 @@
 
 set -uo pipefail
 
-STATE_DIR="/var/lib/opencode-lumen"
+STATE_DIR="/var/lib/lumen"
 FINDINGS="$STATE_DIR/findings.md"
 HEARTBEAT="$STATE_DIR/heartbeat"
 mkdir -p "$STATE_DIR"

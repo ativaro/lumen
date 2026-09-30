@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=Lumen Files
+Name=Lumen — Dateien
 GenericName=Dateimanager
-Name[en]=Lumen Files
+Name[en]=Lumen — Files
 Comment=Dateien finden und direkt ansehen
 Comment[en]=Find and preview files
 Exec=%INSTALL_BIN%/lumen-files %u
@@ -11,5 +11,5 @@ Terminal=false
 Categories=System;FileTools;FileManager;
 MimeType=inode/directory;
 StartupNotify=true
-StartupWMClass=lumen-files
+StartupWMClass=Lumen
 Keywords=Dateien;Suche;Vorschau;Files;Explorer;file;manager;

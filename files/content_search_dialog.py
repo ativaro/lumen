@@ -29,7 +29,7 @@ class ContentSearchDialog(QDialog):
         self.expanding = False
         self.completed = False
         self.active_query = ''
-        self.setWindowTitle('Inhalte suchen — Lumen Files')
+        self.setWindowTitle('Inhalte suchen — Lumen — Dateien')
         self.resize(1150, 780)
         self.setMinimumSize(850, 580)
         layout = QVBoxLayout(self)

@@ -2,7 +2,7 @@
 # opencode-why — explain the last failed shell command (or a given one) and
 # suggest a fix. Intended to be sourced:
 #
-#   source /usr/share/opencode-lumen/shell/lumen.bash
+#   source /usr/share/lumen/shell/lumen.bash
 #   why                     # explain the previous command + its error
 #   why <command>           # explain an explicit command
 #

@@ -42,7 +42,7 @@ $(printf '%s' "$diff" | head -c 12000)"
 model_args=()
 [ -n "${LUMEN_GITMSG_MODEL:-}" ] && model_args=(--model "$LUMEN_GITMSG_MODEL")
 
-msg="$(env -u OPENCODE -u OPENCODE_PID timeout 120 "$LUMEN_OPENCODE_BIN" run "${model_args[@]}" "$prompt" </dev/null 2>/dev/null \
+msg="$(env -u OPENCODE -u OPENCODE_PID timeout 120 "$(dirname "$(readlink -f "$0")")/lumen-run" --foreground "${model_args[@]}" "$prompt" </dev/null 2>/dev/null \
     | sed -e 's/\x1b\[[0-9;]*m//g' | sed '/^[[:space:]]*$/d')"
 
 [ -z "$msg" ] && { echo "Keine Message erzeugt." >&2; exit 1; }

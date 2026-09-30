@@ -12,7 +12,7 @@
         "Name": "Lumen",
         "Name[de]": "Lumen",
         "Version": "1.0.0",
-        "Website": "https://github.com/opencode-lumen/opencode-lumen"
+        "Website": "https://github.com/ativaro/lumen"
     },
     "KPackageStructure": "Plasma/Applet",
     "X-Plasma-API-Minimum-Version": "6.0"

@@ -1,4 +1,4 @@
-# Lumen Files
+# Lumen — Dateien
 
 Native Linux-Dateiverwaltung mit Schwerpunkt auf schneller Dateinamensuche und brauchbaren Vorschauen. Deutsch, dunkle ruhige Oberfläche, Systemschrift, vorhandenes PyQt5 und GIO; keine neuen Pakete.
 
@@ -13,9 +13,9 @@ Native Linux-Dateiverwaltung mit Schwerpunkt auf schneller Dateinamensuche und b
 ## Struktur und Befehle
 `app.py`: Oberfläche; `core.py`: Suche/Dateioperationen; `preview.py`: Vorschau; `test_lumen.py`: ausführbare Prüfungen; `style.qss`: Gestaltung.
 
-Start: `/usr/bin/python3 /home/example/Documents/work/opencode-lumen/files/app.py`
-Test: `cd /home/example/Documents/work/opencode-lumen/files && QT_QPA_PLATFORM=offscreen /usr/bin/python3 -m unittest -v`
-Prüfung: `/usr/bin/python3 -m compileall -q /home/example/Documents/work/opencode-lumen/files`
+Start: `/usr/bin/python3 /home/example/Documents/work/lumen/files/app.py`
+Test: `cd /home/example/Documents/work/lumen/files && QT_QPA_PLATFORM=offscreen /usr/bin/python3 -m unittest -v`
+Prüfung: `/usr/bin/python3 -m compileall -q /home/example/Documents/work/lumen/files`
 
 ## Stil und Grenzen
 Python, vier Leerzeichen, kleine direkte Funktionen: `def valid_name(name): ...`. Native Qt-Widgets und Standardbibliothek zuerst. Tests mit unittest und temporären Verzeichnissen, keine Nutzerdaten verändern. Decoder begrenzen Lesevolumen und Laufzeit. Keine Systemkonfiguration, Fremdprojekte oder Standardzuordnungen ändern. Versionskontrolle lokal.

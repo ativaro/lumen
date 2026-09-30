@@ -1,9 +1,12 @@
-# Lumen — OS integration for Linux desktops
+# Lumen — AI-first desktop for CachyOS
 
-Lumen is a native desktop assistant with a shared conversation panel in Lumen Files.
-[OpenCode](https://opencode.ai) runs as its background engine. Desktop actions,
-file context menus, hotkeys, image analysis and KRunner all open Lumen directly.
-System monitoring and MCP tools provide local machine context.
+Lumen combines conversations, file management, durable tasks, selected knowledge,
+reusable workflows and system diagnostics in one native application.
+[OpenCode](https://opencode.ai) is the background engine; the product and package
+are **Lumen**. The Files page is part of Lumen, and `lumen-files` remains a
+compatibility launcher for `lumen --page files`.
+
+[Bedienung, Datenschutz und Migration](LUMEN-GUIDE.md) · [Implementation contract](SPEC-lumen-os.md)
 
 Built for **KDE Plasma 6 on Wayland** (CachyOS/Arch), but written to degrade
 gracefully on other setups.
@@ -12,7 +15,11 @@ gracefully on other setups.
 
 | Component | What it does |
 |---|---|
-| **Desktop app** (`Lumen`) | Native PyQt5 chat, conversation history, cancellation, permission/question forms, system dashboard and quick actions |
+| **Desktop app** (`lumen`) | One PyQt5 window for conversations, files, system status, tasks, knowledge, workflows and models |
+| **Durable tasks** | SQLite task history, process leases, interruption recovery, pause/resume/cancel, results and native file undo with conflict checks |
+| **Knowledge** | Explicit folder selection, bounded local text/PDF index, source/page citations and editable memories |
+| **Workflows** | Approved native steps or AI tasks; manual, interval and direct-directory-change triggers; opt-in user timer |
+| **Models & context** | Main/background/local model policies, request timeout, GPU deferral, visible file/image/clipboard context, optional offline dictation and explanation mode |
 | **Shared settings** | Settings button / Ctrl+, in Lumen and Files: app preferences, models, global shortcuts, panels/tray, native KDE appearance editors, services and report schedules |
 | **File actions** | Explain / fix / review show a native result and progress view in Files or a compact standalone window; free chat remains separate |
 | **Global shortcuts** | `Meta+Shift+O` ask · `Meta+Shift+C` explain clipboard · `Meta+Shift+V` vision · `Meta+Shift+E` explain selection |
@@ -22,7 +29,7 @@ gracefully on other setups.
 | **Git** | `lumen-gitmsg` drafts a Conventional-Commit message from the diff |
 | **KRunner runner** | Type `lumen <question>`, `ai <question>` or `oc <question>` in KRunner |
 | **Plasma applet** | panel widget with agent status + quick actions (`org.lumen.agent`) |
-| **Lumen Files** | file manager with fast filename search, local text/PDF content search with optional Lumen synonyms, previews, tabs, gallery, disk analysis, KIO network folders, native rename/sort proposals with editable preview and undo, integrated Lumen panel |
+| **Lumen — Dateien** | file manager with fast filename search, local text/PDF content search with optional Lumen synonyms, previews, tabs, gallery, disk analysis, KIO network folders, native rename/sort proposals with editable preview and undo, integrated Lumen panel |
 | **System watchdog** | systemd timer checks failed units, kernel errors, disk, GPU temp; automatic opencode analysis |
 | **Daily digest / nightly report** | scheduled summaries (`lumen-digest`, `lumen-nightly`) |
 | **MCP server `cachyos`** | read tools `systemctl`, `journal`, `pacman`, `disk`, `gpu`, `memory`, `sensors`, `kwin`, guarded `cmd` — plus **opt-in action tools** (`notify`, `restart_unit`, `media`, `wallpaper`, `screenshot`) behind `LUMEN_MCP_ACTIONS=1` |
@@ -43,36 +50,36 @@ gracefully on other setups.
 
 ```bash
 # from a local build
-git clone <repo-url> opencode-lumen && cd opencode-lumen
-./packaging/arch/build-package.sh
-sudo pacman -U packaging/arch/opencode-lumen-*.pkg.tar.zst
+git clone https://github.com/ativaro/lumen.git lumen && cd lumen
+./packaging/arch/build-package.sh --install
 
 # later, once published to the AUR:
-yay -S opencode-lumen      # or: paru -S opencode-lumen
+yay -S lumen      # or: paru -S lumen
 ```
 
-The package pulls in `opencode` (official repos), enables its services by
-default (opt-out) and drops the desktop integration in `/usr/share`.
+The package supports repository or standalone OpenCode installations and installs the desktop integration
+in `/usr/share`. New schedules are opt-in. The build installer preserves legacy
+reports and service preferences when migrating `opencode-lumen`; direct installation over the old package stops
+on file conflicts instead of invoking its destructive uninstaller.
 
 ### Any distro — per-user install
 
 ```bash
-git clone <repo-url> opencode-lumen && cd opencode-lumen
+git clone https://github.com/ativaro/lumen.git lumen && cd lumen
 ./install.sh
 ```
 
 Options:
 
 ```bash
-PREFIX=~/.local/share/opencode-lumen ./install.sh   # custom install prefix
+PREFIX=~/.local/share/lumen ./install.sh   # custom install prefix
 ./install.sh --no-timer                             # skip systemd timer
 ./install.sh --no-mcp                               # skip opencode MCP/commands/skill
 ```
 
 After installing (either way):
 
-1. Register the opencode integration (system package does this automatically
-   for logged-in users; skip if you used `install.sh`):
+1. Register the engine integration (skip if you used `install.sh`):
    ```bash
    lumen-setup              # MCP 'cachyos' + /sync,/sysreport,/fix + lumen-admin skill
    ```
@@ -98,7 +105,8 @@ All scripts read these environment variables:
 |---|---|---|
 | `LUMEN_OPENCODE_BIN` | `opencode` in `$PATH`, else `~/.opencode/bin/opencode` | opencode binary |
 | `LUMEN_WORKDIR` | `~/Documents/work` | default working directory |
-| `LUMEN_STATE` | `~/.cache/opencode-lumen` | state/report/cache dir |
+| `LUMEN_DATA` | `~/.local/state/lumen` | private task/workflow/knowledge database |
+| `LUMEN_STATE` | `~/.cache/lumen` | state/report/cache dir |
 | `LUMEN_WATCH_ANALYZE` | `1` | `0` disables the automatic watchdog analysis |
 | `LUMEN_WATCH_MODEL` | *(provider default)* | model for the watchdog analysis |
 | `LUMEN_MCP_ACTIONS` | `0` | `1` enables the writing MCP action tools |
@@ -111,7 +119,7 @@ All scripts read these environment variables:
 Add to `~/.config/fish/config.fish` (fish) or `~/.bashrc` (bash):
 
 ```fish
-source /usr/share/opencode-lumen/shell/lumen.fish
+source /usr/share/lumen/shell/lumen.fish
 ```
 
 Then `why` explains the last failed command, `vix` runs vision on a region and
@@ -122,7 +130,7 @@ Then `why` explains the last failed command, `vix` runs vision on a region and
 ```bash
 lumen-setup --uninstall     # opencode MCP/commands/skill (system package: do first)
 ./uninstall.sh              # per-user install
-sudo pacman -R opencode-lumen   # system package
+sudo pacman -R lumen   # system package
 ```
 
 ## Optional: system-wide sudo helper
@@ -143,9 +151,9 @@ askpass (`ksshaskpass`/GNOME/OpenSSH) in `/etc/sudo.conf` if none is set.
 
 ```
 bin/                      helper scripts + GUI backend (installed to PREFIX/bin)
-agent-app/main.py         Native standalone Lumen window
+agent-app/main.py         Unified native Lumen window
 plasmoid/                 Plasma panel applet (org.lumen.agent)
-files/                    Lumen Files file manager (PyQt5)
+files/                    Integrated files, tasks, knowledge and assistant (PyQt5)
 shell/                    bash + fish integration (why/vix/sel)
 data/                     .desktop / krunner / dbus / autostart templates
 systemd/                  watchdog user units
@@ -194,16 +202,16 @@ MIT — see [LICENSE](LICENSE).
 For a system package instead of the per-user install:
 
 ```bash
-./packaging/arch/build-package.sh            # build opencode-lumen-*.pkg.tar.zst
-sudo pacman -U packaging/arch/opencode-lumen-*.pkg.tar.zst
+./packaging/arch/build-package.sh            # build lumen-*.pkg.tar.zst
+sudo pacman -U packaging/arch/lumen-*.pkg.tar.zst
 ```
 
 or via a local pacman repo:
 
 ```bash
 ./distro/cachyos/make-repo.sh
-# then add the printed [opencode-lumen] block to /etc/pacman.conf
-sudo pacman -Sy && sudo pacman -S opencode-lumen
+# then add the printed [lumen] block to /etc/pacman.conf
+sudo pacman -Sy && sudo pacman -S lumen
 ```
 
 The package installs to `/usr` and **enables its services by default
@@ -217,7 +225,7 @@ systemctl --user disable --now lumen-notify.path   # this session
 ```
 
 Architecture: the **system watchdog** runs as root and writes findings to
-`/var/lib/opencode-lumen/findings.md`; a **per-user path unit** picks that up,
+`/var/lib/lumen/findings.md`; a **per-user path unit** picks that up,
 notifies the desktop and runs the opencode analysis in the user's context.
 A small **D-Bus system service** (`org.lumen.Agent`) exposes read-only
 `GetSummary` / `GetFindings` / `RefreshWatch`.

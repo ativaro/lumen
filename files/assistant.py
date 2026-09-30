@@ -1,4 +1,4 @@
-"""The same native conversation surface in Lumen and Lumen Files."""
+"""The same native conversation surface in Lumen and Lumen — Dateien."""
 import html
 import mimetypes
 from pathlib import Path
@@ -33,6 +33,8 @@ class ChatPanel(QWidget):
         self.backend = backend or OpenCodeBackend(directory, self)
         self.settings = settings if settings is not None else QSettings('Lumen', 'Assistant')
         self.backend.settings = self.settings
+        from lumen_tracking import TaskTracker
+        self.tracker = TaskTracker(self.backend, self)
         self.paths = []
         self.action = ''
         self.last_answer = ''
@@ -114,6 +116,8 @@ class ChatPanel(QWidget):
         self.composer.setAccessibleName('Nachricht an Lumen')
         self.composer.setMaximumHeight(115)
         layout.addWidget(self.composer)
+        from lumen_context import ContextTools
+        self.context_tools = ContextTools(self, layout)
         bottom = QHBoxLayout()
         self.status = label('Bereit', 'muted')
         bottom.addWidget(self.status, 1)
@@ -305,6 +309,9 @@ class ChatPanel(QWidget):
                 if Path(path).is_file() and (mime.startswith('image/') or mime == 'application/pdf'):
                     files.append((path, mime))
         title = self.action_titles[self.action] + ' · ' + (Path(self.paths[0]).name if self.paths else Path(self.backend.directory).name) if self.action else None
+        self.backend.background_task = False
+        if self.context_tools.learn.isChecked():
+            text += '\n\nErkläre die wesentlichen Schritte, ihre Wirkung und wie ich sie selbst wiederholen kann.'
         self.backend.send(text, files, self.mode.currentData(), title=title)
         if not self.action:
             self.composer.clear()

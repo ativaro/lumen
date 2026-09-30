@@ -27,21 +27,21 @@ case "${1:-}" in
     *) echo "Unbekannte Option: $1" >&2; exit 2 ;;
 esac
 
-say "Erzeuge Quell-Tarball opencode-lumen-$PKGVER.tar.gz"
-rm -f "$ARCHDIR/opencode-lumen-$PKGVER.tar.gz"
+say "Erzeuge Quell-Tarball lumen-$PKGVER.tar.gz"
+rm -f "$ARCHDIR/lumen-$PKGVER.tar.gz"
 
 # Prefer git archive (only tracked files); fall back to tar with excludes.
 if git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1; then
     git -C "$REPO" archive --format=tar.gz \
-        --prefix="opencode-lumen-$PKGVER/" \
-        -o "$ARCHDIR/opencode-lumen-$PKGVER.tar.gz" HEAD
+        --prefix="lumen-$PKGVER/" \
+        -o "$ARCHDIR/lumen-$PKGVER.tar.gz" HEAD
 else
     tar --exclude='.git' --exclude='__pycache__' --exclude='distro' \
         --exclude='packaging/arch/pkg' --exclude='packaging/arch/src' \
-        --transform "s,^,opencode-lumen-$PKGVER/," \
-        -czf "$ARCHDIR/opencode-lumen-$PKGVER.tar.gz" -C "$REPO" .
+        --transform "s,^,lumen-$PKGVER/," \
+        -czf "$ARCHDIR/lumen-$PKGVER.tar.gz" -C "$REPO" .
 fi
-say "Tarball: $(du -h "$ARCHDIR/opencode-lumen-$PKGVER.tar.gz" | cut -f1)"
+say "Tarball: $(du -h "$ARCHDIR/lumen-$PKGVER.tar.gz" | cut -f1)"
 
 say "Baue Paket mit makepkg (lokaler Quell-Tarball)"
 cd "$ARCHDIR"
@@ -51,11 +51,19 @@ rm -rf src pkg
 LOCALSRC=1 makepkg -d -f --noconfirm
 
 echo
-ls -1 "$ARCHDIR"/opencode-lumen-"$PKGVER"-*.pkg.tar.zst 2>/dev/null || true
+ls -1 "$ARCHDIR"/lumen-"$PKGVER"-*.pkg.tar.zst 2>/dev/null || true
 
 if [ "$DO_INSTALL" = 1 ]; then
     say "Installiere Paket (pacman)"
-    sudo -A pacman -U --noconfirm "$ARCHDIR"/opencode-lumen-"$PKGVER"-*.pkg.tar.zst
+    # Resolve dependencies before touching the existing installation.
+    sudo -A pacman -U --downloadonly --noconfirm "$ARCHDIR"/lumen-"$PKGVER"-*.pkg.tar.zst
+    sudo -A /usr/bin/python3 "$REPO/files/lumen_upgrade.py" before
+    if pacman -Q opencode-lumen >/dev/null 2>&1; then
+        # Legacy scriptlets disable services and erase reports. Preserve both.
+        sudo -A pacman -Rdd --noscriptlet --noconfirm opencode-lumen
+    fi
+    sudo -A pacman -U --noconfirm "$ARCHDIR"/lumen-"$PKGVER"-*.pkg.tar.zst
+    sudo -A /usr/bin/python3 "$REPO/files/lumen_upgrade.py" after
 fi
 
 say "Fertig."

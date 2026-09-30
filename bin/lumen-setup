@@ -41,10 +41,10 @@ if [ -n "${LUMEN_SHARE:-}" ]; then
     SHARE="$LUMEN_SHARE"
 elif [ -d "$SELF_DIR/../opencode-command" ]; then
     SHARE="$(readlink -f "$SELF_DIR/..")"
-elif [ -d "$SELF_DIR/../share/opencode-lumen/opencode-command" ]; then
-    SHARE="$(readlink -f "$SELF_DIR/../share/opencode-lumen")"
-elif [ -d /usr/share/opencode-lumen/opencode-command ]; then
-    SHARE=/usr/share/opencode-lumen
+elif [ -d "$SELF_DIR/../share/lumen/opencode-command" ]; then
+    SHARE="$(readlink -f "$SELF_DIR/../share/lumen")"
+elif [ -d /usr/share/lumen/opencode-command ]; then
+    SHARE=/usr/share/lumen
 else
     SHARE=""
 fi

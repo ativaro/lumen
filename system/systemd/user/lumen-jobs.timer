@@ -1,0 +1,8 @@
+[Unit]
+Description=Lumen: Zeit- und Ordnerauslöser prüfen
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+Unit=lumen-jobs.service
+[Install]
+WantedBy=timers.target

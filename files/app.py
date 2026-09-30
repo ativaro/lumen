@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Lumen Files — a preview-first native file manager for Linux."""
+"""Lumen — Dateien — a preview-first native file manager for Linux."""
 import os
 import sys
 from pathlib import Path
@@ -209,7 +209,7 @@ class Window(QMainWindow):
     def __init__(self, start=None, settings=None):
         super().__init__()
         self.settings = settings or QSettings('Lumen', 'Files')
-        self.setWindowTitle('Lumen Files')
+        self.setWindowTitle('Lumen — Dateien')
         self.setObjectName('filesWindow')
         self.setWindowIcon(QIcon(str(ROOT / 'lumen-files.svg')))
         self.resize(1380, 860)
@@ -307,7 +307,7 @@ class Window(QMainWindow):
         layout.setSpacing(0)
         tabrow = QHBoxLayout()
         tabrow.setContentsMargins(16, 6, 16, 6)
-        brand = label('Lumen Files', 'brand')
+        brand = label('Dateien', 'brand')
         brand.setFixedWidth(184)
         tabrow.addWidget(brand)
         self.tabs = QTabBar()
@@ -666,7 +666,7 @@ class Window(QMainWindow):
 
     def shortcut(self, key, callback, local=False):
         shortcut = QShortcut(QKeySequence(key), self.file_stack if local else self)
-        shortcut.setContext(Qt.WidgetWithChildrenShortcut if local else Qt.WindowShortcut)
+        shortcut.setContext(Qt.WidgetWithChildrenShortcut)
         shortcut.activated.connect(callback)
 
     def install_shortcuts(self):
@@ -752,6 +752,24 @@ class Window(QMainWindow):
         self.tabs.removeTab(index)
         self.tabs.blockSignals(False)
         self.switch_tab(self.tabs.currentIndex())
+        self.release_unused_network()
+
+    def release_unused_network(self):
+        if self.file_job and self.file_job.isRunning(): return
+        if self.connection_request or any(is_network_address(t['history'][t['position']]) for t in self.tabs_data): return
+        if not self.network.mounts: return
+        self.cancel_search(); self.preview.clear(); self.grid.reset_thumbnails()
+        old = self.fs
+        old.setOption(QFileSystemModel.DontWatchForChanges, True)
+        self.fs = QFileSystemModel(self)
+        self.fs.setReadOnly(True); self.fs.setOption(QFileSystemModel.DontUseCustomDirectoryIcons, True)
+        self.apply_hidden()
+        self.fs.directoryLoaded.connect(lambda _path: self.update_count())
+        self.fs.directoryLoaded.connect(lambda path: self.grid.reset_thumbnails() if path == self.current_path else None)
+        self.proxy.setSourceModel(self.fs)
+        self.set_file_root(self.proxy.mapFromSource(self.fs.setRootPath(self.current_path)))
+        old.deleteLater()
+        self.network.release()
 
     def history(self, delta):
         tab = self.tabs_data[self.tabs.currentIndex()]
@@ -1019,6 +1037,10 @@ class Window(QMainWindow):
             self.error('Die Datei konnte nicht geöffnet werden.', path)
 
     def ask_lumen(self, action, paths):
+        if hasattr(self, 'lumen_host'):
+            self.lumen_host.chat.begin_context(action, paths, directory=self.current_path)
+            self.lumen_host.show_page(0)
+            return
         if not hasattr(self, 'assistant'):
             from assistant import ChatPanel
             self.assistant = ChatPanel(self.current_path, self)
@@ -1276,8 +1298,8 @@ class Window(QMainWindow):
         menu.addAction('Aktualisieren\tF5', self.refresh)
         menu.addAction('Versteckte Dateien\tStrg+H', self.toggle_hidden)
         menu.addSeparator()
-        menu.addAction('Tastenkürzel & Info', lambda: QMessageBox.information(self, 'Lumen Files',
-            'Lumen Files · 0.3\n\nStrg+F  Suchen\nStrg+L  Pfad eingeben\nStrg+K  Server verbinden\n'
+        menu.addAction('Tastenkürzel & Info', lambda: QMessageBox.information(self, 'Lumen — Dateien',
+            'Lumen — Dateien · 0.3\n\nStrg+F  Suchen\nStrg+L  Pfad eingeben\nStrg+K  Server verbinden\n'
             'Strg+T / Strg+W  Tab öffnen / schließen\nAlt+Pfeile  Navigation\n'
             'Leertaste  Große Vorschau\nF2  Umbenennen\nStrg+C / X / V  Kopieren / Ausschneiden / Einfügen\n'
             'Entf  Papierkorb\n\nSuche: Dateinamen im aktuellen Ordner und Unterordnern. '
@@ -1288,13 +1310,15 @@ class Window(QMainWindow):
         menu.exec_(self.sender().mapToGlobal(self.sender().rect().bottomLeft()))
 
     def error(self, message, detail=''):
-        box = QMessageBox(QMessageBox.Warning, 'Lumen Files', message, QMessageBox.Ok, self)
+        box = QMessageBox(QMessageBox.Warning, 'Lumen — Dateien', message, QMessageBox.Ok, self)
         box.setTextFormat(Qt.PlainText)
         if detail:
             box.setDetailedText(detail)
         box.exec_()
 
     def closeEvent(self, event):
+        if getattr(self, '_closed', False):
+            event.accept(); return
         if self.file_job and self.file_job.isRunning():
             self.error('Es läuft noch ein Dateivorgang. Bitte vor dem Schließen abwarten.')
             event.ignore()
@@ -1313,11 +1337,19 @@ class Window(QMainWindow):
                 event.ignore()
                 return
         if hasattr(self, 'assistant'):
+            self.assistant.tracker.interrupt()
+            self.assistant.context_tools.close()
             self.assistant.backend.shutdown()
         self.settings.setValue('last_path', self.current_location)
         self.settings.setValue('geometry', self.saveGeometry())
         self.session_save.stop()
         self.save_session()
+        self.view.setModel(None); self.grid.setModel(None); self.proxy.setSourceModel(None)
+        self.fs.setOption(QFileSystemModel.DontWatchForChanges, True)
+        self.fs.setRootPath(str(Path.home()))
+        self.fs.deleteLater()
+        self.network.close()
+        self._closed = True
         event.accept()
 
     def resizeEvent(self, event):
@@ -1333,9 +1365,13 @@ class Application(QApplication):
                  and event.button() in (Qt.BackButton, Qt.ForwardButton))
         key = kind in (QEvent.KeyPress, QEvent.KeyRelease) and event.key() in (Qt.Key_Back, Qt.Key_Forward)
         if (mouse or key) and isinstance(receiver, QWidget):
-            window = receiver.window()
+            top = receiver.window()
+            window = receiver
+            while window is not None and not isinstance(window, (Window, Gallery)):
+                if window is top: break
+                window = window.parentWidget()
             modal = self.activeModalWidget()
-            if (not self.activePopupWidget() and (modal is None or modal is window)
+            if (not self.activePopupWidget() and (modal is None or modal is top)
                     and isinstance(window, (Window, Gallery))):
                 if (mouse and kind == QEvent.MouseButtonRelease) or (key and kind == QEvent.KeyPress and not event.isAutoRepeat()):
                     back = event.button() == Qt.BackButton if mouse else event.key() == Qt.Key_Back
@@ -1407,7 +1443,7 @@ def create_app(appearance='system'):
     # An application event filter sees GUI-thread events only. Overriding notify
     # also wraps objects from Qt's network threads in Python and races their deletion.
     app.installEventFilter(app)
-    app.setApplicationName('Lumen Files')
+    app.setApplicationName('Lumen — Dateien')
     app.setDesktopFileName('lumen-files')
     app.translator = QTranslator(app)
     app.translator.load('qtbase_de', QLibraryInfo.location(QLibraryInfo.TranslationsPath))

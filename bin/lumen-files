@@ -1,25 +1,14 @@
 #!/usr/bin/env bash
-# Launch the Lumen Files file manager (PyQt5).
-# Works from a source checkout and from a system install (/usr/bin).
+# Compatibility launcher: file management is a page in Lumen.
 set -euo pipefail
-
-SELF="$(readlink -f "$0")"
-SELF_DIR="$(dirname "$SELF")"
-
-CANDIDATES=(
-    "$SELF_DIR/../files/app.py"
-    "$SELF_DIR/../share/opencode-lumen/files/app.py"
-    "/usr/share/opencode-lumen/files/app.py"
-)
-
-APP=""
-for c in "${CANDIDATES[@]}"; do
-    if [ -f "$c" ]; then APP="$(readlink -f "$c")"; break; fi
-done
-
-if [ -z "$APP" ]; then
-    echo "lumen-files: app.py nicht gefunden (gesucht: ${CANDIDATES[*]})" >&2
-    exit 1
+BIN="$(dirname "$(readlink -f "$0")")"
+if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then exec "$BIN/lumen" --help; fi
+if [[ "${1:-}" == --settings ]]; then exec "$BIN/lumen" --page settings; fi
+if [[ -n "${1:-}" ]]; then
+    TARGET="$1"
+    if [[ "$TARGET" == file:* ]]; then
+        TARGET="$(/usr/bin/python3 -c 'import sys; from urllib.parse import urlsplit,unquote; print(unquote(urlsplit(sys.argv[1]).path))' "$TARGET")"
+    fi
+    exec "$BIN/lumen" --page files --location "$TARGET"
 fi
-
-exec /usr/bin/python3 "$APP" "$@"
+exec "$BIN/lumen" --page files

@@ -2,7 +2,7 @@
 Description=Watch for Lumen system findings
 
 [Path]
-PathModified=/var/lib/opencode-lumen/findings.md
+PathModified=/var/lib/lumen/findings.md
 
 [Install]
 WantedBy=default.target

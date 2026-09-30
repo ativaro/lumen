@@ -1,27 +1,34 @@
 # Maintainer: Lumen
-pkgname=opencode-lumen
-pkgver=1.0.0
-pkgrel=16
-pkgdesc="Lumen — OS integration for opencode: desktop app, watchdog, KRunner, Dolphin menus, MCP"
+pkgname=lumen
+pkgver=1.1.0
+pkgrel=1
+pkgdesc="Lumen — AI desktop for CachyOS with files, tasks, knowledge and workflows"
+provides=('opencode-lumen')
+# No automatic conflict removal: the legacy package's uninstall script deletes reports.
+# The supported build installer migrates it first; direct installation fails safely
+# on file conflicts until the old package has been migrated.
 arch=('any')
-url="https://github.com/opencode-lumen/opencode-lumen"
+url="https://github.com/ativaro/lumen"
 license=('MIT')
 depends=('bash' 'python3' 'python-pyqt5' 'python-gobject' 'python-pillow')
 makedepends=()
-# The agent itself is required at runtime. It is in the official repos on
-# Arch/CachyOS as 'opencode'; on other setups install it separately.
-depends+=('opencode')
+# OpenCode may be installed through its own installer. Native files/tasks remain
+# useful without inference; the app explains a missing engine when AI is requested.
 optdepends=(
+    'opencode: AI engine (or existing standalone OpenCode installation)'
+    'whisper.cpp: optional offline dictation (whisper-cli and a local model)'
+    'pipewire-audio: microphone recording for offline dictation'
+    'qt6-tools: KWin window layout through qdbus6'
     'libnotify: watchdog/digest notifications'
     'spectacle: screenshot → vision (lumen-vision)'
     'nvidia-utils: GPU metrics'
     'python-dbus: KRunner runner and native Lumen shortcut settings'
     'dolphin: service menu integration'
     'plasma-workspace: KRunner integration'
-    'poppler: Lumen Files PDF preview and search (pdfinfo, pdftoppm, pdftotext)'
-    'ffmpeg: Lumen Files video/audio preview (ffprobe, ffmpeg)'
-    'kio-fuse: Lumen Files network folders (SMB/SFTP/WebDAV/NFS)'
-    'kio-extras: Lumen Files network protocols'
+    'poppler: Lumen — Dateien PDF preview and search (pdfinfo, pdftoppm, pdftotext)'
+    'ffmpeg: Lumen — Dateien video/audio preview (ffprobe, ffmpeg)'
+    'kio-fuse: Lumen — Dateien network folders (SMB/SFTP/WebDAV/NFS)'
+    'kio-extras: Lumen — Dateien network protocols'
 )
 backup=()
 install="lumen.install"
@@ -32,7 +39,7 @@ install="lumen.install"
 #  * LOCAL      (LOCALSRC=1): build from a tarball sitting next to this PKGBUILD.
 # When publishing, replace _srcurl/_sha256 with the real values from the release
 # (or run `updpkgsums`).
-_srcurl="https://github.com/opencode-lumen/opencode-lumen/archive/v$pkgver.tar.gz"
+_srcurl="https://github.com/ativaro/lumen/archive/v$pkgver.tar.gz"
 
 if [ "${LOCALSRC:-0}" = "1" ]; then
     source=("$pkgname-$pkgver.tar.gz")
@@ -45,7 +52,7 @@ fi
 prepare() {
     cd "$srcdir"
     # The tarball contains the repo tree under a single top dir; flatten if needed.
-    if [ -d "opencode-lumen-$pkgver" ]; then
+    if [ -d "lumen-$pkgver" ]; then
         rm -rf "$pkgname-$pkgver.src" 2>/dev/null || true
     fi
 }
@@ -55,8 +62,8 @@ package() {
 
     # locate the extracted source root (tarball top dir)
     local srcroot
-    if [ -d "opencode-lumen-$pkgver" ]; then
-        srcroot="opencode-lumen-$pkgver"
+    if [ -d "lumen-$pkgver" ]; then
+        srcroot="lumen-$pkgver"
     else
         srcroot="$(find . -maxdepth 1 -type d -name "$pkgname-$pkgver" | head -1)"
         srcroot="${srcroot:-.}"
@@ -72,8 +79,8 @@ package() {
     install -m0755 "$srcroot/system/lumen-notify" "$pkgdir/usr/bin/lumen-notify"
 
     # ---- native desktop app -------------------------------------------
-    install -d "$pkgdir/usr/share/opencode-lumen/agent-app"
-    install -m0644 "$srcroot/agent-app/main.py" "$pkgdir/usr/share/opencode-lumen/agent-app/"
+    install -d "$pkgdir/usr/share/lumen/agent-app"
+    install -m0644 "$srcroot/agent-app/main.py" "$pkgdir/usr/share/lumen/agent-app/"
 
     # ---- desktop integration (system-wide) --------------------------------
     # Templates use %INSTALL_BIN%; substitute to /usr/bin for a system install.
@@ -112,21 +119,25 @@ package() {
     install -m0644 "$srcroot/system/systemd/user/lumen-digest.timer" "$pkgdir/usr/lib/systemd/user/"
     install -m0644 "$srcroot/system/systemd/user/lumen-nightly.service" "$pkgdir/usr/lib/systemd/user/"
     install -m0644 "$srcroot/system/systemd/user/lumen-nightly.timer" "$pkgdir/usr/lib/systemd/user/"
+    install -m0644 "$srcroot/system/systemd/user/lumen-jobs.timer" "$pkgdir/usr/lib/systemd/user/"
+    sub "$srcroot/system/systemd/user/lumen-jobs.service" "$pkgdir/usr/lib/systemd/user/lumen-jobs.service"
     # substitute %INSTALL_BIN% in the user unit templates we just copied
     for u in lumen-digest.service lumen-nightly.service; do
         sub "$srcroot/system/systemd/user/$u" "$pkgdir/usr/lib/systemd/user/$u"
     done
 
     # ---- shell integration ------------------------------------------------
-    install -d "$pkgdir/usr/share/opencode-lumen/shell"
-    install -m0644 "$srcroot/shell/lumen.bash" "$pkgdir/usr/share/opencode-lumen/shell/"
-    install -m0644 "$srcroot/shell/lumen.fish" "$pkgdir/usr/share/opencode-lumen/shell/"
+    install -d "$pkgdir/usr/share/lumen/shell"
+    install -m0644 "$srcroot/shell/lumen.bash" "$pkgdir/usr/share/lumen/shell/"
+    install -m0644 "$srcroot/shell/lumen.fish" "$pkgdir/usr/share/lumen/shell/"
 
-    # ---- Lumen Files (file manager) ---------------------------------------
-    install -d "$pkgdir/usr/share/opencode-lumen/files"
-    install -m0644 "$srcroot/files/"*.py "$pkgdir/usr/share/opencode-lumen/files/"
-    install -m0644 "$srcroot/files/"*.qss "$pkgdir/usr/share/opencode-lumen/files/"
-    install -m0644 "$srcroot/files/lumen-files.svg" "$pkgdir/usr/share/opencode-lumen/files/"
+    ln -s lumen "$pkgdir/usr/share/opencode-lumen"
+
+    # ---- Lumen — Dateien (file manager) ---------------------------------------
+    install -d "$pkgdir/usr/share/lumen/files"
+    install -m0644 "$srcroot/files/"*.py "$pkgdir/usr/share/lumen/files/"
+    install -m0644 "$srcroot/files/"*.qss "$pkgdir/usr/share/lumen/files/"
+    install -m0644 "$srcroot/files/lumen-files.svg" "$pkgdir/usr/share/lumen/files/"
     install -m0755 "$srcroot/bin/lumen-files" "$pkgdir/usr/bin/lumen-files"
 
     # ---- Plasma applet (plasmoid) -----------------------------------------
@@ -141,10 +152,10 @@ package() {
     install -m0644 "$srcroot/system/dbus-1/system-services/org.lumen.Agent.service" "$pkgdir/usr/share/dbus-1/system-services/"
 
     # ---- opencode commands / skill (system-wide share) --------------------
-    install -d "$pkgdir/usr/share/opencode-lumen/opencode-command"
-    install -m0644 "$srcroot/opencode-command/"*.md "$pkgdir/usr/share/opencode-lumen/opencode-command/" 2>/dev/null || true
-    install -d "$pkgdir/usr/share/opencode-lumen/opencode-skill/lumen-admin"
-    install -m0644 "$srcroot/opencode-skill/lumen-admin/SKILL.md" "$pkgdir/usr/share/opencode-lumen/opencode-skill/lumen-admin/" 2>/dev/null || true
+    install -d "$pkgdir/usr/share/lumen/opencode-command"
+    install -m0644 "$srcroot/opencode-command/"*.md "$pkgdir/usr/share/lumen/opencode-command/" 2>/dev/null || true
+    install -d "$pkgdir/usr/share/lumen/opencode-skill/lumen-admin"
+    install -m0644 "$srcroot/opencode-skill/lumen-admin/SKILL.md" "$pkgdir/usr/share/lumen/opencode-skill/lumen-admin/" 2>/dev/null || true
 
     # ---- icons ------------------------------------------------------------
     install -d "$pkgdir/usr/share/icons/hicolor/scalable/apps"
@@ -152,7 +163,7 @@ package() {
     install -m0644 "$srcroot/icons/hicolor/scalable/apps/lumen-files.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/lumen-files.svg"
 
     # ---- state directory (owned by root, world-readable findings) ---------
-    install -d -m0755 "$pkgdir/var/lib/opencode-lumen"
+    install -d -m0755 "$pkgdir/var/lib/lumen"
 
     # ---- license ----------------------------------------------------------
     install -d "$pkgdir/usr/share/licenses/$pkgname"

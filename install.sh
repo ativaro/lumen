@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # install.sh — install the Lumen OS-integration suite for the current user.
 #
-# Everything lands under $XDG_DATA_HOME/opencode-lumen (default ~/.local/share/opencode-lumen)
+# Everything lands under $XDG_DATA_HOME/lumen (default ~/.local/share/lumen)
 # except the config files that must live in XDG dirs (~/.local/share/applications, etc).
 #
 # Usage:
 #   ./install.sh                # install for current user
-#   PREFIX=... ./install.sh     # override install prefix (default: ~/.local/share/opencode-lumen)
+#   PREFIX=... ./install.sh     # override install prefix (default: ~/.local/share/lumen)
 #   ./install.sh --no-timer     # skip the systemd user timer
 #   ./install.sh --no-mcp       # skip opencode MCP/commands/skill wiring
 #
@@ -16,7 +16,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PREFIX="${PREFIX:-$HOME/.local/share/opencode-lumen}"
+PREFIX="${PREFIX:-${XDG_DATA_HOME:-$HOME/.local/share}/lumen}"
 BIN="$PREFIX/bin"
 
 SKIP_TIMER=0
@@ -46,7 +46,7 @@ for c in notify-send dolphin spectacle; do
 done
 [ ${#optional_missing[@]} -gt 0 ] && warn "Optionale Tools fehlen (einzelne Features inaktiv): ${optional_missing[*]}"
 if ! command -v opencode >/dev/null 2>&1 && [ ! -x "$HOME/.opencode/bin/opencode" ]; then
-    warn "opencode nicht gefunden – Lumen ist ohne den Agenten nutzlos. Siehe https://opencode.ai"
+    warn "opencode nicht gefunden – KI-Funktionen benötigen die Engine; Dateien und native Aufträge bleiben verfügbar. Siehe https://opencode.ai"
 fi
 
 # ---- copy files ------------------------------------------------------------
@@ -114,6 +114,18 @@ else
     warn "opencode nicht gefunden – MCP/Commands/Skill übersprungen"
 fi
 
+# Preserve reports, keep legacy shell imports available, and install opt-in jobs.
+/usr/bin/python3 "$PREFIX/files/lumen_migrate.py"
+mkdir -p "$PREFIX/shell" "$PREFIX/opencode-command" "$PREFIX/opencode-skill/lumen-admin"
+cp "$REPO/shell/"* "$PREFIX/shell/"
+cp "$REPO/opencode-command/"*.md "$PREFIX/opencode-command/"
+cp "$REPO/opencode-skill/lumen-admin/SKILL.md" "$PREFIX/opencode-skill/lumen-admin/"
+UNITDIR="$CONFIG_HOME/systemd/user"
+mkdir -p "$UNITDIR"
+subst "$REPO/system/systemd/user/lumen-jobs.service" > "$UNITDIR/lumen-jobs.service"
+cp "$REPO/system/systemd/user/lumen-jobs.timer" "$UNITDIR/"
+systemctl --user daemon-reload >/dev/null 2>&1 || true
+
 # ---- systemd user timer ----------------------------------------------------
 if [ "$SKIP_TIMER" = 0 ] && command -v systemctl >/dev/null 2>&1; then
     say "Richte systemd-User-Timer ein"
@@ -122,7 +134,7 @@ if [ "$SKIP_TIMER" = 0 ] && command -v systemctl >/dev/null 2>&1; then
     subst "$REPO/systemd/lumen-watch.service" > "$UNITDIR/lumen-watch.service"
     cp "$REPO/systemd/lumen-watch.timer" "$UNITDIR/lumen-watch.timer"
     systemctl --user daemon-reload >/dev/null 2>&1 || true
-    systemctl --user enable --now lumen-watch.timer >/dev/null 2>&1 || warn "Timer konnte nicht aktiviert werden"
+    say "Timer installiert; bestehenden Aktivierungszustand beibehalten."
 fi
 
 say "Fertig."

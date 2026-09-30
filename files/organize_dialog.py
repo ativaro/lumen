@@ -60,7 +60,7 @@ class OrganizeDialog(QDialog):
         self.applied = False
         self.cancelled = False
         self.setWindowTitle({'rename': 'Intelligent umbenennen', 'sort': 'Dateien sortieren',
-                             'undo': 'Dateiaktion rückgängig machen'}[mode] + ' — Lumen Files')
+                             'undo': 'Dateiaktion rückgängig machen'}[mode] + ' — Lumen — Dateien')
         self.resize(980, 620)
         self.setMinimumSize(680, 440)
         layout = QVBoxLayout(self)

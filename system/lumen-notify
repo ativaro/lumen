@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # lumen-notify — per-user bridge for the system watchdog.
 #
-# Reads findings written by the root service (/var/lib/opencode-lumen/findings.md),
+# Reads findings written by the root service (/var/lib/lumen/findings.md),
 # notifies the desktop, and optionally runs an opencode analysis in the user's
 # context. Runs from a systemd **user** path unit that watches the findings file.
 #
@@ -12,8 +12,8 @@
 
 set -uo pipefail
 
-FINDINGS="/var/lib/opencode-lumen/findings.md"
-STATE_DIR="${LUMEN_STATE:-$HOME/.cache/opencode-lumen}"
+FINDINGS="/var/lib/lumen/findings.md"
+STATE_DIR="${LUMEN_STATE:-$HOME/.cache/lumen}"
 mkdir -p "$STATE_DIR"
 SEEN="$STATE_DIR/notify-seen"
 
@@ -37,7 +37,7 @@ if [ "${LUMEN_WATCH_ANALYZE:-1}" = "1" ] && { [ -x "$LUMEN_OPENCODE_BIN" ] || co
 $(cat "$FINDINGS")"
 
     analysis=$(env -u OPENCODE -u OPENCODE_PID -u OPENCODE_SERVER_PASSWORD \
-        timeout 120 "$LUMEN_OPENCODE_BIN" run "$prompt" </dev/null 2>/dev/null \
+        timeout 120 "$(dirname "$(readlink -f "$0")")/lumen-run" "$prompt" </dev/null 2>/dev/null \
         | sed -e 's/\x1b\[[0-9;]*m//g' | sed '/^[[:space:]]*$/d' | tail -n 20)
 
     {

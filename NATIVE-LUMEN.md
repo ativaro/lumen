@@ -3,7 +3,7 @@
 Lumen ist die sichtbare Anwendung; OpenCode arbeitet ausschließlich als lokale Hintergrund-Engine. Keine Desktop-Aktion öffnet eine Terminaloberfläche.
 
 ## Umsetzung
-- Gemeinsamer nativer Chat für Lumen und das Seitenpanel in Lumen Files, mit Kontext, lesbaren Antworten, Status und Abbrechen.
+- Gemeinsamer nativer Chat für Lumen und das Seitenpanel in Lumen — Dateien, mit Kontext, lesbaren Antworten, Status und Abbrechen.
 - Headless OpenCode über seine lokale HTTP-API; eigener Server mit zufälligem Passwort und ausschließlich Loopback. Vorhandene Provider-/Modellkonfiguration bleibt erhalten, bestehende Terminal-Sessions werden nicht übernommen.
 - Werkzeugfreigaben werden standardmäßig einzeln bestätigt oder abgelehnt. Der sichtbare Schalter „Nicht mehr nachfragen“ erlaubt sie optional automatisch; inhaltliche Rückfragen bleiben native Formulare.
 - Gespräche sind einem Arbeitsordner zugeordnet und lassen sich fortsetzen oder neu beginnen. Dateien werden nur mit explizitem Dateikontext an eine Anfrage angehängt.
@@ -63,7 +63,7 @@ und Zugangsdaten werden weiter von OpenCode geladen, nicht von Lumen verändert.
   Ordnerwechsel leert die alte Gesprächsauswahl sofort.
 - Echte installierte Engine: privater Server, Gespräch mit Metadaten anlegen/löschen;
   vollständiger Modellaufruf lieferte „Lumen bereit.“ ohne Fehler oder Werkzeuge.
-- Native Fenster von Lumen und Lumen Files offscreen gerendert und betrachtet.
+- Native Fenster von Lumen und Lumen — Dateien offscreen gerendert und betrachtet.
 - Bestehende Dateimanager-Prüfungen einschließlich lokaler WebDAV-Verbindung laufen mit.
 
 Die UI fragt den Verlauf derzeit alle 450 ms während aktiver Vorgänge ab und

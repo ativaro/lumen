@@ -20,7 +20,9 @@ Prefer the MCP tools over free-form shell:
 - `journal` — logs (unit / priority / lines)
 - `pacman` — package search/info (read-only)
 - `disk`, `gpu`, `memory`, `sensors`, `kwin`
-- `cmd` — restricted shell command (prefix allowlist)
+- `cmd` — explicitly validated read-only argv; shell syntax is rejected
+- `lumen_knowledge` — selected knowledge folders with file/page citations
+- `lumen_propose_task` — native task draft for the user to review in Lumen; never an execution approval
 
 Writing actions (`notify`, `restart_unit`, `media`, `wallpaper`, `screenshot`)
 are available only when the server runs with `LUMEN_MCP_ACTIONS=1`.

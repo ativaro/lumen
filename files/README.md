@@ -1,4 +1,6 @@
-# Lumen Files
+> This directory implements the integrated **Dateien** page and shared native components of Lumen. `lumen-files` opens the unified application. See [Lumen guide](../LUMEN-GUIDE.md).
+
+# Lumen — Dateien
 
 Native Dateiverwaltung für Linux/KDE mit großer Vorschauleiste, laufender Dateinamensuche und Inhaltssuche, lokal und auf Netzwerkservern. Nutzt die bereits installierten Bibliotheken und Werkzeuge.
 
@@ -11,13 +13,13 @@ passende Variante. Die Desktop-Einstellungen selbst bleiben erhalten.
 
 ## Start
 
-Im Anwendungsmenü **Lumen Files** wählen, oder:
+Im Anwendungsmenü **Lumen — Dateien** wählen, oder:
 
 ```bash
 lumen-files
 ```
 
-Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. Aus dem Checkout startet `./bin/lumen-files`, aus dem Paket `/usr/bin/lumen-files` mit den Quellen unter `/usr/share/opencode-lumen/files/`.
+Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. Aus dem Checkout startet `./bin/lumen-files`, aus dem Paket `/usr/bin/lumen-files` mit den Quellen unter `/usr/share/lumen/files/`.
 
 ## Bedienung
 
@@ -51,7 +53,7 @@ In beiden Apps über **Einstellungen** oder **Strg+Komma**; direkter Start mit
 - **Leisten:** echte Panels nach Bildschirm, Position und ID auswählen. Größe,
   Position, Schweben und Sichtbarkeit ändern; pro Element den nativen Editor
   öffnen, etwa für Systemablage, Uhr, Startmenü oder Taskleiste. Vor Änderungen
-  wird der Panelzustand unter `~/.local/state/opencode-lumen/settings-backups/`
+  wird der Panelzustand unter `~/.local/state/lumen/settings-backups/`
   gesichert. Das ist eine Referenzkopie, kein automatischer Rückgängig-Knopf.
 - **Dienste & Berichte:** reale Aktivierungszustände, gezieltes Ein-/Ausschalten,
   tägliche Uhrzeiten und automatische Analyse. Berichtsoptionen verwenden nur
@@ -118,7 +120,7 @@ markiert. Nachträglich geänderte Dateien werden nicht verschoben.
 **Rückgängig** im Dialog oder **Letzte Lumen-Dateiaktion rückgängig …** im
 Datei-Kontextmenü stellt den letzten Durchlauf wieder her, auch nach einem
 Neustart. Ein neuer Durchlauf ersetzt die vorherige Rückgängig-Möglichkeit.
-Das Journal liegt unter `~/.local/share/Lumen Files/organize-undo.json` (bzw.
+Das Journal liegt unter `~/.local/share/Lumen — Dateien/organize-undo.json` (bzw.
 unter dem entsprechenden XDG-Datenpfad). Bei Teilfehlern/Abbruch werden bereits
 ausgeführte Änderungen angezeigt; verbleibende Undo-Konflikte bleiben im
 Journal. Leere neu angelegte Zielordner bleiben erhalten. Auch Undo überschreibt
@@ -222,7 +224,7 @@ Einstellungen und Favoriten: `~/.config/Lumen/Files.conf`. Es werden keine Stand
 ## Prüfung
 
 ```bash
-cd /home/example/Documents/work/opencode-lumen/files
+cd /home/example/Documents/work/lumen/files
 QT_QPA_PLATFORM=offscreen /usr/bin/python3 -m unittest -v
 /usr/bin/python3 -m compileall -q .
 ```

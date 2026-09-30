@@ -35,7 +35,7 @@ except ImportError:
 BUS_NAME = "org.lumen.Agent"
 OBJ_PATH = "/org/lumen/Agent"
 IFACE = "org.lumen.Agent"
-FINDINGS = "/var/lib/opencode-lumen/findings.md"
+FINDINGS = "/var/lib/lumen/findings.md"
 WATCH_BIN = "/usr/bin/lumen-watch"
 
 

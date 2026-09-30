@@ -1,0 +1,8 @@
+[Unit]
+Description=Lumen: freigegebene Hintergrundaufträge
+[Service]
+Type=oneshot
+ExecStart=%INSTALL_BIN%/lumen-jobs --tick
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=20min

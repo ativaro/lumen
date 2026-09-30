@@ -1,62 +1,13 @@
-# opencode-lumen.install — pacman install scriptlet
+# lumen.install — pacman install scriptlet
 #
-# Services are ENABLED BY DEFAULT (opt-out). They are safe to enable: none of
-# them restart or stop shared system services (in particular, never D-Bus).
+# Service preferences are preserved. Newly introduced schedules are opt-in.
 
 post_install() {
-    # system services
-    systemctl enable --now lumen-agentd.service 2>/dev/null || true
-    systemctl enable --now lumen-watch.timer 2>/dev/null || true
-    # per-user units enabled for all users (opt-out via --global disable)
-    systemctl --global enable lumen-notify.path 2>/dev/null || true
-    systemctl --global enable lumen-digest.timer 2>/dev/null || true
-    systemctl --global enable lumen-nightly.timer 2>/dev/null || true
-
-    # wire opencode (MCP/commands/skill) + activate timers for running sessions
-    for d in /run/user/*/; do
-        uid=$(basename "$d" 2>/dev/null); [ -z "$uid" ] && continue
-        systemctl --machine="${uid}@.host" --user enable --now lumen-notify.path 2>/dev/null || true
-        systemctl --machine="${uid}@.host" --user enable --now lumen-digest.timer 2>/dev/null || true
-        systemctl --machine="${uid}@.host" --user enable --now lumen-nightly.timer 2>/dev/null || true
-        # best effort: register MCP/commands/skill for the logged-in user
-        su -l "$(id -nu "$uid" 2>/dev/null)" -c 'lumen-setup' >/dev/null 2>&1 || true
-    done
-
+    systemctl daemon-reload 2>/dev/null || true
     cat <<'EOF'
-Lumen installiert (Dateien systemweit unter /usr).
-
-Dienste (standardmäßig AKTIV):
-  lumen-agentd.service    - D-Bus org.lumen.Agent (Read-only-Systemstatus)
-  lumen-watch.timer       - System-Wächter (alle 15 min)
-  lumen-notify.path       - Desktop-Benachrichtigung (per Nutzer)
-  lumen-digest.timer      - Tages-Digest (08:00)
-  lumen-nightly.timer     - Nacht-Report (03:30)
-
-Desktop-Integration unter /usr/share:
-  - Anwendung "Lumen"
-  - Dolphin-ServiceMenu "Lumen"
-  - KRunner-Runner (Trigger: ai <Frage>)
-  - Plasma-Applet "Lumen" (Panel-Widget)
-  - Global-Shortcuts: Meta+Shift+O / +S / +V / +E
-
-Shell-Helfer (optional einbinden):
-  source /usr/share/opencode-lumen/shell/lumen.fish   # in config.fish
-  source /usr/share/opencode-lumen/shell/lumen.bash   # in ~/.bashrc
-  -> why / vix / sel
-
-opencode-Integration (MCP/Commands/Skill) für den aktuellen Nutzer:
-  lumen-setup              # registriert mcp.cachyos + Commands + Skill
-  lumen-setup --uninstall
-
-Abschalten (opt-out):
-  sudo systemctl disable --now lumen-agentd.service
-  sudo systemctl disable --now lumen-watch.timer
-  sudo systemctl --global disable lumen-notify.path lumen-digest.timer lumen-nightly.timer
-
-Nächste Schritte:
-  1. lumen-setup (falls nicht automatisch geschehen)
-  2. opencode neu starten, damit MCP/Commands/Skill greifen
-  3. KRunner ggf. neu laden:  kquitapp6 krunner
+Lumen installiert. Dateien, Aufträge, Wissen und Abläufe sind Bestandteile von Lumen.
+Starter: lumen · Dateien: lumen --page files · Engine-Anbindung: lumen-setup
+Dienste und Zeitpläne werden unter Einstellungen bzw. Abläufe bewusst aktiviert.
 EOF
 }
 
@@ -77,15 +28,15 @@ EOF
 pre_remove() {
     systemctl disable --now lumen-watch.timer 2>/dev/null || true
     systemctl disable --now lumen-agentd.service 2>/dev/null || true
-    systemctl --global disable lumen-notify.path lumen-digest.timer lumen-nightly.timer 2>/dev/null || true
+    systemctl --global disable lumen-notify.path lumen-digest.timer lumen-nightly.timer lumen-jobs.timer 2>/dev/null || true
     for d in /run/user/*/; do
         uid=$(basename "$d" 2>/dev/null); [ -z "$uid" ] && continue
-        systemctl --machine="${uid}@.host" --user disable --now lumen-notify.path lumen-digest.timer lumen-nightly.timer 2>/dev/null || true
+        systemctl --machine="${uid}@.host" --user disable --now lumen-notify.path lumen-digest.timer lumen-nightly.timer lumen-jobs.timer 2>/dev/null || true
     done
 }
 
 post_remove() {
-    rm -rf /var/lib/opencode-lumen 2>/dev/null || true
+    # State and reports deliberately survive package removal.
     echo "Lumen entfernt. opencode-Integration ggf. mit 'lumen-setup --uninstall' vor dem Entfernen bereinigen."
 }
 

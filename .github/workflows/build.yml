@@ -18,9 +18,11 @@ jobs:
         run: |
           set -e
           while IFS= read -r f; do
-            echo "checking $f"
-            bash -n "$f"
-          done < <(git ls-files 'bin/*' '*.sh' 'system/*' | grep -vE '\.py$' | grep -v '\.fish$')
+            if head -n 1 "$f" | grep -Eq '^#!.*(ba)?sh' || [[ "$f" == *.sh || "$f" == *.install || "$f" == *PKGBUILD ]]; then
+              echo "checking $f"
+              bash -n "$f"
+            fi
+          done < <(git ls-files 'bin/*' '*.sh' 'system/*' 'packaging/arch/PKGBUILD' '*.install' | grep -vE '\.py$' | grep -v '\.fish$')
 
       - name: Python syntax
         run: |
@@ -44,9 +46,25 @@ jobs:
             for f in $(git ls-files 'data/**/*.desktop'); do desktop-file-validate "$f" || true; done
           fi
 
+  native-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native test dependencies
+        run: sudo apt-get update && sudo apt-get install -y python3-pyqt5 python3-gi python3-pil
+      - name: Task, privacy, persistence and injection regressions
+        env:
+          QT_QPA_PLATFORM: offscreen
+          LUMEN_DATA: ${{ runner.temp }}/lumen-state
+          XDG_CONFIG_HOME: ${{ runner.temp }}/lumen-config
+        run: |
+          /usr/bin/python3 -m unittest discover -s files -p test_lumen_os.py -v
+          /usr/bin/python3 -m unittest discover -s files -p test_mcp.py -v
+          cd files && /usr/bin/python3 -m unittest test_network.NetworkAddressTest -v
+
   package:
     runs-on: ubuntu-latest
-    needs: lint
+    needs: [lint, native-tests]
     container: archlinux:latest
     steps:
       - uses: actions/checkout@v4
@@ -72,7 +90,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: opencode-lumen-package
+          name: lumen-package
           path: out/
 
   release:
@@ -84,7 +102,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: opencode-lumen-package
+          name: lumen-package
           path: out
       - name: Create release
         uses: softprops/action-gh-release@v2

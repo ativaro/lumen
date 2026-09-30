@@ -7,7 +7,7 @@
 
 set -uo pipefail
 
-STATE_DIR="${LUMEN_STATE:-$HOME/.cache/opencode-lumen}"
+STATE_DIR="${LUMEN_STATE:-$HOME/.cache/lumen}"
 mkdir -p "$STATE_DIR"
 LUMEN_OPENCODE_BIN="${LUMEN_OPENCODE_BIN:-$(command -v opencode || echo "$HOME/.opencode/bin/opencode")}"
 
@@ -24,8 +24,9 @@ out="$STATE_DIR/nightly-$(date +%Y%m%d).md"
 } > "$out"
 
 if [ "${LUMEN_NIGHTLY_ANALYZE:-1}" = "1" ] && { [ -x "$LUMEN_OPENCODE_BIN" ] || command -v "$LUMEN_OPENCODE_BIN" >/dev/null 2>&1; }; then
-    prompt="Erstelle einen knappen Nacht-Report (max. 10 Zeilen). Prüfe: fehlgeschlagene Units, Speicherplatz, verfügbare Updates, auffällige Logs. Nenne nur Risiken und Empfehlungen. Deutsch."
-    analysis="$(env -u OPENCODE -u OPENCODE_PID timeout 150 "$LUMEN_OPENCODE_BIN" run "$prompt" </dev/null 2>/dev/null \
+    prompt="Erstelle einen knappen Nacht-Report (max. 10 Zeilen). Prüfe: fehlgeschlagene Units, Speicherplatz, verfügbare Updates, auffällige Logs. Nenne nur Risiken und Empfehlungen. Deutsch. Fakten:
+$(cat "$out")"
+    analysis="$(env -u OPENCODE -u OPENCODE_PID timeout 150 "$(dirname "$(readlink -f "$0")")/lumen-run" "$prompt" </dev/null 2>/dev/null \
         | sed -e 's/\x1b\[[0-9;]*m//g' | sed '/^[[:space:]]*$/d' | tail -n 15)"
     { echo "## Analyse"; echo; echo "${analysis:-(keine Analyse)}"; } >> "$out"
     ln -sf "$out" "$STATE_DIR/latest-nightly.md"

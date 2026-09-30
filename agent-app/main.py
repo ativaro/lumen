@@ -25,6 +25,12 @@ class DesktopActivation(QObject):
         super().__init__()
         self.window = None
         self.pending = False
+        self.page = 0
+
+    @pyqtSlot(int)
+    def ActivatePage(self, page):
+        self.page = page
+        self.Activate()
 
     @pyqtSlot()
     def Activate(self):
@@ -40,6 +46,7 @@ class DesktopActivation(QObject):
             pass
         window = QApplication.activeModalWidget() or self.window
         self.window.setWindowState(self.window.windowState() & ~Qt.WindowMinimized)
+        self.window.show_page(self.page)
         self.window.show()
         window.raise_()
         window.activateWindow()
@@ -51,7 +58,7 @@ class LumenWindow(QMainWindow):
         self.setWindowTitle('Lumen')
         icon = ROOT / 'icons/hicolor/scalable/apps/lumen.svg'
         self.setWindowIcon(QIcon(str(icon)) if icon.exists() else QIcon.fromTheme('lumen'))
-        self.resize(1050, 800)
+        self.resize(1380, 860)
         self.setMinimumSize(760, 600)
         self.settings = QSettings('Lumen', 'Assistant')
         geometry = self.settings.value('geometry')
@@ -75,8 +82,15 @@ class LumenWindow(QMainWindow):
         self.system_page = self.build_system()
         self.pages.addWidget(self.system_page)
         self.pages.addWidget(self.build_actions())
+        self.files_page = QWidget()
+        self.file_window = None
+        self.pages.addWidget(self.files_page)
+        from lumen_workspace import Workspace
+        self.workspace = Workspace(self)
+        for page in (self.workspace.tasks_page, self.workspace.knowledge_page, self.workspace.flows_page, self.workspace.models_page):
+            self.pages.addWidget(page)
         self.nav_buttons = []
-        for index, title in enumerate(('Gespräche', 'Systemstatus', 'Aktionen')):
+        for index, title in enumerate(('Gespräche', 'Systemstatus', 'Aktionen', 'Dateien', 'Aufträge', 'Wissen', 'Abläufe', 'Modelle')):
             item = button(title, lambda _=False, i=index: self.show_page(i))
             item.setCheckable(True)
             navigation.addWidget(item)
@@ -110,9 +124,20 @@ class LumenWindow(QMainWindow):
         if action:
             self.resize(680, 740)
         elif was_action:
-            self.resize(1050, 800)
+            self.resize(1380, 860)
 
     def show_page(self, index):
+        if index == 3 and self.file_window is None:
+            from app import Window
+            self.file_window = Window(self.chat.backend.directory)
+            self.file_window.lumen_host = self
+            for shortcut in self.file_window.findChildren(QShortcut):
+                shortcut.setContext(Qt.WidgetWithChildrenShortcut)
+            self.file_window.setWindowFlags(Qt.Widget)
+            self.file_window.setMinimumSize(0, 0)
+            layout = QVBoxLayout(self.files_page); layout.setContentsMargins(0, 0, 0, 0)
+            layout.addWidget(self.file_window)
+            self.file_window.show()
         self.pages.setCurrentIndex(index)
         for i, item in enumerate(self.nav_buttons):
             item.setChecked(i == index)
@@ -183,7 +208,7 @@ class LumenWindow(QMainWindow):
             ('Text korrigieren', lambda: self.selection('fix')),
             ('Text übersetzen', lambda: self.selection('translate')),
             ('Systembericht ansehen', lambda: self.show_page(1)),
-            ('Lumen Files öffnen', self.open_files)]:
+            ('Lumen — Dateien öffnen', self.open_files)]:
             layout.addWidget(button(title, callback))
         layout.addStretch()
         return page
@@ -230,7 +255,7 @@ class LumenWindow(QMainWindow):
             for user, name in [(True, 'Benutzerdienste'), (False, 'Systemdienste')]:
                 self.run_job('systemctl', (['--user'] if user else []) + ['--failed', '--no-legend', '--plain'],
                              lambda code, out, n=name: self.metrics[n].setText(f'{len(out.splitlines())} fehlgeschlagen' if code == 0 else 'Nicht verfügbar'))
-        reports = [Path(os.environ.get('LUMEN_STATE', str(Path.home() / '.cache/opencode-lumen'))) / 'latest-analysis.md', Path('/var/lib/opencode-lumen/findings.md')]
+        reports = [Path(os.environ.get('LUMEN_STATE', str(Path.home() / '.cache/lumen'))) / 'latest-analysis.md', Path('/var/lib/lumen/findings.md')]
         self.report_text = ''
         for path in reports:
             try:
@@ -260,7 +285,7 @@ class LumenWindow(QMainWindow):
         self.chat.begin_context(prompt='Erkläre den folgenden Systembericht und priorisiere sinnvolle nächste Schritte.\n\n' + self.report_text)
 
     def open_files(self):
-        QProcess.startDetached(str(Path(os.environ.get('LUMEN_BIN_DIR', '/usr/bin')) / 'lumen-files'), [self.chat.backend.directory])
+        self.show_page(3)
 
     def copy_answer_if_ready(self, busy):
         if busy or not self.copy_after_answer:
@@ -291,6 +316,8 @@ class LumenWindow(QMainWindow):
         self.chat.begin_context(prompt=prompts.get(action, action) + '\n\n' + text)
 
     def closeEvent(self, event):
+        if not self.workspace.can_close():
+            event.ignore(); return
         if not self.chat.can_close():
             event.ignore()
             return
@@ -299,6 +326,10 @@ class LumenWindow(QMainWindow):
             self.show_page(1)
             event.ignore()
             return
+        if self.file_window is not None and not self.file_window.close():
+            event.ignore(); return
+        self.chat.tracker.interrupt()
+        self.chat.context_tools.close()
         self.chat.backend.shutdown()
         for job in self.jobs[:]:
             job.kill()
@@ -311,25 +342,31 @@ class LumenWindow(QMainWindow):
 def main():
     parser = argparse.ArgumentParser(description='Lumen – dein Desktop-Assistent')
     parser.add_argument('--directory')
+    parser.add_argument('--location', help='Datei- oder Netzwerkordner im Dateibereich')
     parser.add_argument('--prompt', default='')
     parser.add_argument('--action', choices=['open', 'ask', 'explain', 'fix', 'review'], default='open')
     parser.add_argument('--context', nargs='*', default=[])
     parser.add_argument('--file', action='append', default=[])
     parser.add_argument('--selection')
     parser.add_argument('--clipboard-image', action='store_true')
-    parser.add_argument('--page', choices=['chat', 'system', 'actions', 'settings'], default='chat')
+    parser.add_argument('--page', choices=['chat', 'system', 'actions', 'files', 'tasks', 'knowledge', 'workflows', 'models', 'settings'], default='chat')
     args = parser.parse_args()
+    from lumen_migrate import migrate_user
+    migrate_user()
     app = create_app(QSettings('Lumen', 'Assistant').value('appearance', 'lumen'))
     app.setApplicationName('Lumen')
     app.setDesktopFileName('lumen')
     activation = DesktopActivation()
-    plain_launch = (args.action == 'open' and args.page == 'chat' and not any(
-        (args.directory, args.prompt, args.context, args.file, args.selection,
+    plain_launch = (args.action == 'open' and args.page != 'settings' and not any(
+        (args.directory, args.location, args.prompt, args.context, args.file, args.selection,
          args.clipboard_image, os.environ.get('LUMEN_ASK_PROMPT'))))
+    page_index = {'chat': 0, 'system': 1, 'actions': 2, 'files': 3, 'tasks': 4, 'knowledge': 5, 'workflows': 6, 'models': 7}
+    activation.page = page_index.get(args.page, 0)
     bus = QDBusConnection.sessionBus()
     if plain_launch and bus.isConnected() and bus.registerObject('/Lumen', activation, QDBusConnection.ExportAllSlots):
         if not bus.registerService('org.lumen.Desktop'):
-            request = QDBusMessage.createMethodCall('org.lumen.Desktop', '/Lumen', 'org.lumen.Desktop', 'Activate')
+            request = QDBusMessage.createMethodCall('org.lumen.Desktop', '/Lumen', 'org.lumen.Desktop', 'ActivatePage')
+            request.setArguments([page_index[args.page]])
             reply = bus.call(request, QDBus.Block, 3000)
             if reply.type() == QDBusMessage.ErrorMessage:
                 print('Lumen: Das vorhandene Fenster antwortet nicht: ' + reply.errorMessage(), file=sys.stderr)
@@ -358,9 +395,12 @@ def main():
             return
         if args.selection:
             window.selection(args.selection)
-        else:
+        elif args.page == 'chat' or args.prompt or paths or args.action != 'open':
             window.chat.begin_context(args.action, paths, prompt=args.prompt or os.environ.get('LUMEN_ASK_PROMPT', ''))
-        window.show_page({'chat': 0, 'system': 1, 'actions': 2}[args.page])
+        window.show_page(page_index[args.page])
+        if args.location:
+            window.open_files()
+            window.file_window.navigate(args.location)
     QTimer.singleShot(0, start)
     app.aboutToQuit.connect(window.chat.backend.shutdown)
     return app.exec_()

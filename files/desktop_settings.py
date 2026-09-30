@@ -47,7 +47,7 @@ def panels():
 
 
 def backup(name, value):
-    directory = Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))) / 'opencode-lumen/settings-backups'
+    directory = Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))) / 'lumen/settings-backups'
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f'{name}-{time.time_ns()}.json'
     path.write_text(json.dumps(value, indent=2))

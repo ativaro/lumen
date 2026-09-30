@@ -9,11 +9,11 @@ local use.
 - [ ] Create a public repository (GitHub/GitLab/Codeberg).
 - [ ] Push the repo:
   ```bash
-  git remote add origin <repo-url>
+  git remote add origin https://github.com/ativaro/lumen.git
   git push -u origin master
   ```
 - [ ] Update `url=` and `_srcurl` in `packaging/arch/PKGBUILD` to the real repo.
-- [ ] Replace `<repo-url>` placeholders in `README.md`.
+- [ ] Replace `https://github.com/ativaro/lumen.git` placeholders in `README.md`.
 
 ## 2. Package source + checksums
 
@@ -40,8 +40,8 @@ release URL otherwise. For publishing:
   ./distro/aur/make-aur.sh
   ```
 - [ ] Review `distro/aur/.SRCINFO` (generated; not tracked).
-- [ ] Push to `ssh://aur@aur.archlinux.org/opencode-lumen.git`.
-- [ ] Users can then install with `yay -S opencode-lumen`.
+- [ ] Push to `ssh://aur@aur.archlinux.org/lumen.git`.
+- [ ] Users can then install with `yay -S lumen`.
 
 ## 4. Trust / signing
 
@@ -69,9 +69,9 @@ release URL otherwise. For publishing:
 ## 7. Final sanity
 
 - [ ] Fresh-machine test: install the package on a clean Arch/CachyOS VM and
-      confirm the app starts, `lumen-setup` wires opencode, and the services
-      are active (`systemctl status lumen-agentd lumen-watch.timer`).
-- [ ] `lumen-setup --uninstall` and `pacman -R opencode-lumen` leave no residue.
+      confirm the app starts, `lumen-setup` wires opencode, and existing service preferences
+      are preserved; new timers remain opt-in.
+- [ ] `lumen-setup --uninstall` and `pacman -R lumen` preserve user state and reports.
 
 ## Native UI (package revision 14)
 

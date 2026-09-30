@@ -1,9 +1,10 @@
 """Network folders through the existing KDE KIO-FUSE service."""
 import os
 import re
+import sys
 from pathlib import Path
 
-from PyQt5.QtCore import QObject, Qt, QUrl, pyqtSignal
+from PyQt5.QtCore import QObject, QProcess, Qt, QUrl, pyqtSignal
 from PyQt5.QtDBus import QDBusConnection, QDBusMessage, QDBusPendingCallWatcher, QDBusPendingReply
 from PyQt5.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox,
                              QFormLayout, QLabel, QLineEdit, QVBoxLayout)
@@ -72,8 +73,10 @@ class Network(QObject):
         self.mounts = {}
         self.pending = None
         self.watchers = set()
+        self.closed = False
 
     def mount(self, address):
+        if self.closed: return
         address = normalize_url(address)
         self.cancel()
         message = QDBusMessage.createMethodCall('org.kde.KIOFuse', '/org/kde/KIOFuse',
@@ -111,6 +114,22 @@ class Network(QObject):
         # KIO-FUSE has no per-request cancel method; ignore late replies, never unmount shared KIO sessions.
         self.pending = None
         self.busy.emit(False)
+
+    def release(self):
+        """Detach this client. KIO-FUSE has no per-URL unmount API."""
+        self.cancel()
+        paths = list(self.mounts)
+        self.mounts.clear()
+        if paths:
+            QProcess.startDetached(sys.executable, [str(Path(__file__).with_name('network_cleanup.py')), *paths])
+
+    def close(self):
+        self.closed = True
+        self.release()
+        for watcher in list(self.watchers):
+            watcher.finished.disconnect()
+            watcher.deleteLater()
+        self.watchers.clear()
 
     def remote(self, path):
         return remote_path(path, self.mounts)
