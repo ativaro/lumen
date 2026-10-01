@@ -33,6 +33,15 @@ class PanelTest(unittest.TestCase):
             self.assertIsNone(store.setting('tasks/dismissed/' + active))
             restarted.update_task(task, result='Neues Ergebnis')
             self.assertIn(task, [r['id'] for r in snapshot()['recent']])
+            cancelled = store.create_task('Abgebrochen', directory=tmp, status='cancelled')
+            store.event(cancelled, 'cancelled', 'Durch Nutzer abgebrochen')
+            before, events = store.task(cancelled), store.events(cancelled)
+            with patch('sys.argv', ['lumen-panel', '--dismiss-task', cancelled]), redirect_stdout(io.StringIO()): main()
+            self.assertNotIn(cancelled, [r['id'] for r in snapshot()['recent']])
+            self.assertNotIn(cancelled, [r['id'] for r in Store(tmp).tasks(False)])
+            self.assertEqual(store.task(cancelled), before)
+            self.assertEqual(store.events(cancelled), events)
+            store.dismiss_task(cancelled)
 
     def test_native_controls_validate_input_and_report_missing_services(self):
         from unittest.mock import patch

@@ -52,6 +52,11 @@ Rectangle {
             scene.width = 420;
             waitForRendering(panel);
             grabImage(scene).save("artifacts/panel/menu.png");
+            const cancelled = JSON.parse(JSON.stringify(panel.snapshot));
+            cancelled.recent[0].status = "cancelled"; cancelled.recent[0].state = "Abgebrochen";
+            panel.snapshot = cancelled; waitForRendering(panel);
+            verify(close.visible); close.forceActiveFocus(); keyClick(Qt.Key_Space);
+            compare(dismissed.count, 2); compare(dismissed.signalArguments[1][0], "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
             const running = JSON.parse(JSON.stringify(panel.snapshot));
             running.recent[0].status = "running"; panel.snapshot = running; waitForRendering(panel);
             verify(!close.visible);

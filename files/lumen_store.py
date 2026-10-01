@@ -12,7 +12,7 @@ STATES = {'draft': 'Entwurf', 'queued': 'Geplant', 'running': 'Läuft', 'paused'
           'interrupted': 'Unterbrochen', 'needs_input': 'Braucht dich', 'completed': 'Erledigt',
           'failed': 'Fehlgeschlagen', 'cancelled': 'Abgebrochen'}
 
-VISIBLE_TASKS = """NOT (status='completed' AND EXISTS (
+VISIBLE_TASKS = """NOT (status IN ('completed','cancelled') AND EXISTS (
     SELECT 1 FROM settings WHERE key='tasks/dismissed/' || tasks.id
     AND CAST(value AS REAL)=tasks.updated))"""
 
@@ -140,8 +140,8 @@ class Store:
     def dismiss_task(self, task):
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
-            row = db.execute("SELECT updated FROM tasks WHERE id=? AND status='completed'", (task,)).fetchone()
-            if row is None: raise ValueError('Nur erledigte Aufgaben können geschlossen werden.')
+            row = db.execute("SELECT updated FROM tasks WHERE id=? AND status IN ('completed','cancelled')", (task,)).fetchone()
+            if row is None: raise ValueError('Nur erledigte oder abgebrochene Aufgaben können geschlossen werden.')
             db.execute('INSERT OR REPLACE INTO settings VALUES (?,?)',
                        ('tasks/dismissed/' + task, json.dumps(row['updated'])))
 

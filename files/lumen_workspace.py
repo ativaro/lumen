@@ -177,7 +177,7 @@ class Workspace(QObject):
         buttons(box, [('Als Ablauf speichern', self.guarded(self.task_to_flow)), ('Ergebnis speichern', self.guarded(self.export_task)),
                       ('Änderung rückgängig', self.guarded(self.undo_change))])
         self.close_task = QPushButton('Schließen'); self.close_task.setEnabled(False)
-        self.close_task.setToolTip('Erledigte Aufgabe aus der Übersicht ausblenden. Ergebnis und Verlauf bleiben erhalten.')
+        self.close_task.setToolTip('Erledigte oder abgebrochene Aufgabe aus der Übersicht entfernen. Ergebnis und Verlauf bleiben erhalten.')
         self.close_task.clicked.connect(self.guarded(self.dismiss_task)); box.addWidget(self.close_task)
         return widget
 
@@ -192,7 +192,9 @@ class Workspace(QObject):
         if self.tasks.currentRow() < 0 and self.tasks.count(): self.tasks.setCurrentRow(0)
 
     def show_task(self, *_):
-        self.close_task.setEnabled(bool(self.tasks.currentItem()) and self.store.task(selected(self.tasks))['status'] == 'completed')
+        status = self.store.task(selected(self.tasks))['status'] if self.tasks.currentItem() else ''
+        self.close_task.setEnabled(status in ('completed', 'cancelled'))
+        self.close_task.setText('Löschen' if status == 'cancelled' else 'Schließen')
         if not self.tasks.currentItem(): self.detail.clear(); return
         task = self.store.task(selected(self.tasks)); events = self.store.events(task['id'])
         content = [task['title'], STATES.get(task['status'], task['status']), 'Arbeitsordner: ' + task['directory'],

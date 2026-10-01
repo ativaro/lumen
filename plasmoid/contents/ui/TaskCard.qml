@@ -70,12 +70,12 @@ ColumnLayout {
     }
     LumenButton {
         objectName: "taskClose-" + card.task.id
-        visible: card.task.status === "completed"
+        visible: card.task.status === "completed" || card.task.status === "cancelled"
         enabled: !card.dismissBusy
         Layout.alignment: Qt.AlignTop
         Layout.topMargin: 18
         flat: true; icon.name: "window-close"; symbolSize: 18
-        Accessible.name: "Erledigte Aufgabe schließen: " + card.task.title
+        Accessible.name: "Aufgabe aus der Übersicht entfernen: " + card.task.title
         PC.ToolTip.text: "Aus der Übersicht entfernen · Verlauf behalten"
         PC.ToolTip.visible: hovered
         onClicked: card.dismissTask(card.task.id)

@@ -67,8 +67,8 @@ and **Einstellungen** on the right (native controls, Lumen/Files preferences and
 Lumen themes and KDE settings). The middle opens `lumen-search`: one input finds installed apps and
 files in the home folder; a question continues as a conversation in the same window.
 Enter opens the selected result, Ctrl+Enter asks, and follow-up questions keep the
-conversation. Completed tasks have an **×** in the system overview and a
-**Schließen** button in the task page. Closing hides them across both displays
+conversation. Completed and cancelled tasks have an **×** in the system overview and a
+**Schließen** (completed) or **Löschen** (cancelled) button in the task page. This hides them across both displays
 and subsequent starts; result/history remain under **Geschlossene Aufgaben anzeigen**.
 A later task update makes it visible again. Active tasks cannot be dismissed. The scan is asynchronous, bounded to 100 results / 100,000 inspected
 entries and eight seconds. It starts no model until a question is submitted.

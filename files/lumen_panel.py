@@ -1,4 +1,4 @@
-"""Shared task overview and explicit completed-task dismissal for the Plasma applet."""
+"""Shared task overview and dismissal of completed/cancelled tasks for Plasma."""
 from contextlib import closing
 import fcntl
 import json
