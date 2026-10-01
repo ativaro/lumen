@@ -4,6 +4,48 @@ from pathlib import Path
 
 
 class LumenOSTest(unittest.TestCase):
+    def test_cached_vision_launcher_reaches_current_app_and_preserves_arguments(self):
+        import json
+        import os
+        import shutil
+        import subprocess
+        from unittest.mock import patch
+        from lumen_migrate import migrate_launchers
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); data = root / 'data'
+            legacy = data / 'opencode-lumen/bin'; legacy.mkdir(parents=True)
+            current = root / 'new install/bin'; current.mkdir(parents=True)
+            template = (repo / 'bin/lumen-agent-app').read_text()
+            target = current / 'lumen-agent-app'; target.write_text(template); target.chmod(0o755)
+            old = legacy / 'lumen-agent-app'
+            original = template.replace('/share/lumen/', '/share/opencode-lumen/')
+            old.write_text(original); old.chmod(0o755)
+            shutil.copy2(repo / 'bin/lumen-vision', legacy / 'lumen-vision')
+            main = current.parent / 'agent-app/main.py'; main.parent.mkdir()
+            main.write_text('import sys,json\nfrom pathlib import Path\n'
+                            'assert Path(sys.argv[sys.argv.index("--file")+1]).read_bytes()==b"test-image"\n'
+                            'print(json.dumps(sys.argv[1:]))\n')
+            capture = current / 'spectacle'
+            capture.write_text('#!/usr/bin/python3\nimport sys\nfrom pathlib import Path\n'
+                               'Path(sys.argv[sys.argv.index("-o")+1]).write_bytes(b"test-image")\n')
+            capture.chmod(0o755)
+            with patch.dict(os.environ, {'XDG_DATA_HOME':str(data), 'XDG_CONFIG_HOME':str(root/'config')}), \
+                 patch('pathlib.Path.home', return_value=root):
+                self.assertEqual(migrate_launchers(current), [str(old)])
+                self.assertEqual(migrate_launchers(current), [])
+                result = subprocess.run([str(legacy / 'lumen-vision'), 'screen'],
+                    env=os.environ | {'PATH':str(current)+':'+os.environ['PATH'], 'LUMEN_VISION_PROMPT':'Bild mit Leerzeichen erklären'},
+                    capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                arguments = json.loads(result.stdout)
+                self.assertIn('--prompt=Bild mit Leerzeichen erklären', arguments)
+                self.assertFalse(Path(arguments[arguments.index('--file')+1]).exists())
+                self.assertEqual(old.with_name('lumen-agent-app.pre-lumen').read_text(), original)
+                old.write_text('#!/bin/sh\necho custom-launcher\n')
+                self.assertEqual(migrate_launchers(current), [])
+                self.assertIn('custom-launcher', old.read_text())
+
     def test_upgrade_ignores_virtual_legacy_package_provider(self):
         from subprocess import CompletedProcess
         from unittest.mock import patch

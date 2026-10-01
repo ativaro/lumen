@@ -2,6 +2,7 @@
 import os
 from pathlib import Path
 import shutil
+import shlex
 
 
 def copy_missing(source, target):
@@ -36,6 +37,8 @@ def migrate_launchers(binary_directory):
     data = Path(os.environ.get('XDG_DATA_HOME', str(Path.home() / '.local/share')))
     config = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config')))
     legacy = str(data / 'opencode-lumen' / 'bin')
+    legacy_app = Path(legacy) / 'lumen-agent-app'
+    current_app = Path(binary_directory).resolve() / 'lumen-agent-app'
     targets = list((data / 'applications').glob('lumen*.desktop'))
     targets += [data / 'plasma_icons/lumen.desktop', data / 'plasma_icons/lumen-files.desktop', data / 'dbus-1/services/org.lumen.runner.service',
                 data / 'kio/servicemenus/lumen.desktop', config / 'autostart/lumen-krunner-runner.desktop',
@@ -44,6 +47,7 @@ def migrate_launchers(binary_directory):
     local_bin = Path.home() / '.local/bin'
     targets += [local_bin / name for name in ('lumen', 'lumen-files', 'lumen-agent-app',
                 'lumen-context', 'lumen-quick', 'lumen-sel', 'lumen-sel-run', 'lumen-vision')]
+    targets.append(legacy_app)
     applet = data / 'plasma/plasmoids/org.lumen.agent/contents/ui/main.qml'
     targets.append(applet)
     changed = []
@@ -53,6 +57,13 @@ def migrate_launchers(binary_directory):
         except UnicodeError: continue
         if path.parent == local_bin and not original.startswith('#!/bin/sh\nexec '): continue
         updated = original.replace(legacy + '/', str(Path(binary_directory)) + '/')
+        if path == legacy_app:
+            # KDE can cache the old vision command; it and an already-running
+            # legacy KRunner both eventually invoke this shared app launcher.
+            if current_app == legacy_app.resolve() or not current_app.is_file() or not os.access(current_app, os.X_OK): continue
+            template = current_app.read_text()
+            if original not in (template, template.replace('/share/lumen/', '/share/opencode-lumen/')): continue
+            updated = '#!/bin/sh\nexec ' + shlex.quote(str(current_app)) + ' "$@"\n'
         if path.name == 'lumen-files.desktop':
             updated = updated.replace('Name=Lumen — Dateien\n','Name=Lumen Files\n').replace('Name[en]=Lumen — Files\n','Name[en]=Lumen Files\n').replace('StartupWMClass=Lumen\n','StartupWMClass=lumen-files\n')
         if path == applet:

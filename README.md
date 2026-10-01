@@ -118,6 +118,9 @@ The package supports repository or standalone OpenCode installations and install
 in `/usr/share`. New schedules are opt-in. The build installer preserves legacy
 reports and service preferences when migrating `opencode-lumen`; direct installation over the old package stops
 on file conflicts instead of invoking its destructive uninstaller.
+Known legacy app launchers are backed up and redirected to the current installation,
+so cached screenshot shortcuts and an already-running KRunner use the current UI.
+Custom launchers are preserved.
 
 ### Any distro — per-user install
 
