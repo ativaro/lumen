@@ -1,0 +1,21 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Lumen"
+            }
+        ],
+        "Category": "System Information",
+        "Description": "Systemübersicht, Arbeitsplatz und Aufgaben",
+        "Description[de]": "Systemübersicht, Arbeitsplatz und Aufgaben",
+        "Icon": "lumen",
+        "Id": "org.lumen.system",
+        "License": "MIT",
+        "Name": "Lumen System",
+        "Name[de]": "Lumen System",
+        "Version": "1.2.0",
+        "Website": "https://github.com/ativaro/lumen"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

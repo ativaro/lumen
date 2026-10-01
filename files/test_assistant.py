@@ -1,8 +1,10 @@
 import json
+import os
 import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -10,6 +12,10 @@ from assistant_backend import OpenCodeBackend
 
 
 class AssistantTest(unittest.TestCase):
+    def setUp(self):
+        self.state_directory = self.enterContext(tempfile.TemporaryDirectory())
+        self.enterContext(patch.dict(os.environ, {'LUMEN_DATA': self.state_directory}))
+
     @classmethod
     def setUpClass(cls):
         from app import create_app
@@ -22,6 +28,36 @@ class AssistantTest(unittest.TestCase):
         while not condition() and time.monotonic() < deadline:
             QTest.qWait(10)
         self.assertTrue(condition(), 'Assistant request timed out')
+
+    def test_context_buttons_fit_a_narrow_files_panel(self):
+        from assistant import ChatPanel
+        from PyQt5.QtCore import QSettings
+        from PyQt5.QtTest import QTest
+        from PyQt5.QtWidgets import QPushButton
+        from appearance import apply_design
+        from PyQt5.QtGui import QPalette
+        with tempfile.TemporaryDirectory() as tmp:
+            panel = ChatPanel(tmp, settings=QSettings(tmp + '/assistant.ini', QSettings.IniFormat))
+            panel.resize(350, 800); panel.show(); QTest.qWait(30)
+            try:
+                for design in ('glass', 'graphite', 'atelier', 'midnight', 'clear', 'studio'):
+                    apply_design(self.app, design); QTest.qWait(30)
+                    buttons = [b for b in panel.findChildren(QPushButton)
+                               if b.isVisible() and b.y() > panel.composer.y()]
+                    self.assertTrue(buttons)
+                    for button in buttons:
+                        self.assertGreaterEqual(button.width(), button.sizeHint().width(), (design, button.text()))
+                    self.assertLessEqual(panel.width(), 350)
+                    def luminance(role):
+                        color = panel.palette().color(role)
+                        rgb = [c / 12.92 if c <= .04045 else ((c + .055) / 1.055) ** 2.4
+                               for c in (color.redF(), color.greenF(), color.blueF())]
+                        return sum(a * b for a, b in zip(rgb, (.2126, .7152, .0722)))
+                    first, second = luminance(QPalette.ButtonText), luminance(QPalette.Button)
+                    self.assertGreaterEqual((max(first, second) + .05) / (min(first, second) + .05), 4.5)
+            finally:
+                panel.context_tools.close(); panel.backend.shutdown()
+                panel.close(); panel.deleteLater(); QTest.qWait(10)
 
     def test_native_engine_messages_questions_permissions_and_abort(self):
         state = {'requests': [], 'messages': [], 'busy': True, 'permission': True, 'question': True}
@@ -93,6 +129,7 @@ class AssistantTest(unittest.TestCase):
                 from PyQt5.QtWidgets import QPushButton, QComboBox
                 settings = QSettings(tmp + '/assistant.ini', QSettings.IniFormat)
                 panel = ChatPanel(tmp, backend=backend, settings=settings)
+                self.assertEqual(panel.tracker.store.directory, Path(self.state_directory))
                 panel.show()
                 self.assertFalse(panel.dont_ask.isChecked())
                 panel.composer.setPlainText('Erkläre die Auswahl')
@@ -182,6 +219,7 @@ class AssistantTest(unittest.TestCase):
                 self.wait(lambda: bool(errors))
                 self.assertFalse(backend.busy)
                 self.assertIn('keine abgeschlossene Antwort', errors[-1])
+                self.assertEqual(len(panel.tracker.store.tasks()), 3)
             finally:
                 panel.close()
                 backend.shutdown()
@@ -291,6 +329,8 @@ class AssistantTest(unittest.TestCase):
                 backend.set_busy(False)
                 panel.begin_context('open', selection)
                 self.assertFalse(panel.composer.isHidden())
+                self.assertTrue(panel.sessions.isHidden())
+                panel.options.click()
                 self.assertFalse(panel.sessions.isHidden())
                 self.assertTrue(panel.progress.isHidden())
             finally:

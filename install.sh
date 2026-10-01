@@ -9,6 +9,7 @@
 #   PREFIX=... ./install.sh     # override install prefix (default: ~/.local/share/lumen)
 #   ./install.sh --no-timer     # skip the systemd user timer
 #   ./install.sh --no-mcp       # skip opencode MCP/commands/skill wiring
+#   ./install.sh --desktop      # activate themes/wallpaper and replace panels (with backup)
 #
 # Uninstall:
 #   ./uninstall.sh
@@ -21,10 +22,12 @@ BIN="$PREFIX/bin"
 
 SKIP_TIMER=0
 SKIP_MCP=0
+DESKTOP=0
 for arg in "$@"; do
     case "$arg" in
         --no-timer) SKIP_TIMER=1 ;;
         --no-mcp)   SKIP_MCP=1 ;;
+        --desktop)  DESKTOP=1 ;;
         *) echo "Unbekannte Option: $arg" >&2; exit 2 ;;
     esac
 done
@@ -38,7 +41,12 @@ missing=()
 for c in bash python3; do command -v "$c" >/dev/null 2>&1 || missing+=("$c"); done
 [ ${#missing[@]} -gt 0 ] && { echo "Fehlende Pflicht-Abhängigkeiten: ${missing[*]}" >&2; exit 1; }
 
-/usr/bin/python3 -c "import PyQt5.QtWidgets, gi, PIL" || { echo "Benötigt: PyQt5, PyGObject und Pillow" >&2; exit 1; }
+/usr/bin/python3 -c "import PyQt5.QtWidgets, PyQt5.QtSvg, gi, PIL" || { echo "Benötigt: PyQt5 mit QtSvg, PyGObject und Pillow" >&2; exit 1; }
+if [ "$DESKTOP" = 1 ]; then
+    for c in qdbus6 kreadconfig6 kwriteconfig6 plasma-apply-desktoptheme kbuildsycoca6; do
+        command -v "$c" >/dev/null || { echo "Desktop-Einrichtung benötigt $c und eine KDE-Plasma-6-Sitzung." >&2; exit 1; }
+    done
+fi
 
 optional_missing=()
 for c in notify-send dolphin spectacle; do
@@ -58,7 +66,28 @@ done
 mkdir -p "$PREFIX/agent-app"
 install -m 0644 "$REPO/agent-app/main.py" "$PREFIX/agent-app/"
 mkdir -p "$PREFIX/files"
-install -m 0644 "$REPO/files/"*.py "$REPO/files/"*.qss "$REPO/files/lumen-files.svg" "$PREFIX/files/"
+install -m 0644 "$REPO/files/"*.py "$REPO/files/"*.qss "$REPO/files/"*.svg "$PREFIX/files/"
+mkdir -p "$PREFIX/desktop"
+cp -R "$REPO/desktop/." "$PREFIX/desktop/"
+for plugin in agent islands system search control; do
+    APPLET="${XDG_DATA_HOME:-$HOME/.local/share}/plasma/plasmoids/org.lumen.$plugin"
+    mkdir -p "$APPLET/contents/ui" "$APPLET/contents/config"
+    METADATA=metadata.json
+    [ "$plugin" = agent ] || METADATA="$plugin-metadata.json"
+    install -m 0644 "$REPO/plasmoid/$METADATA" "$APPLET/metadata.json"
+    install -m 0644 "$REPO/plasmoid/contents/ui/"*.qml "$APPLET/contents/ui/"
+    install -m 0644 "$REPO/plasmoid/contents/config/"* "$APPLET/contents/config/"
+    case "$plugin" in system) SURFACE=home;; search|control) SURFACE="$plugin";; *) SURFACE=tasks;; esac
+    sed -i "s|<default>tasks</default>|<default>$SURFACE</default>|" "$APPLET/contents/config/main.xml"
+    # Plasma does not inherit additions to an interactive shell's PATH.
+    /usr/bin/python3 - "$APPLET/contents/ui/main.qml" "$BIN/lumen-panel" <<'PYCODE'
+import json, shlex, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+path.write_text(path.read_text().replace('property string helper: "/usr/bin/lumen-panel"',
+    'property string helper: ' + json.dumps(shlex.quote(sys.argv[2]))))
+PYCODE
+done
 chmod 0755 "$BIN"/lumen-* "$BIN"/lumen_krunner.py "$BIN"/lumen_mcp.py 2>/dev/null || true
 
 # ---- XDG data files --------------------------------------------------------
@@ -138,6 +167,11 @@ if [ "$SKIP_TIMER" = 0 ] && command -v systemctl >/dev/null 2>&1; then
 fi
 
 say "Fertig."
+if [ "$DESKTOP" = 1 ]; then
+    "$BIN/lumen-desktop-setup" --apply --replace-panels
+else
+    "$BIN/lumen-desktop-setup"
+fi
 cat <<EOF
 
 Nächste Schritte:
@@ -146,6 +180,8 @@ Nächste Schritte:
        kquitapp6 krunner
   3. App starten:  $BIN/lumen-agent-app
      oder über das Startmenü: "Lumen"
+  4. Desktop bewusst aktivieren (ersetzt Panels nach Sicherung):
+       $BIN/lumen-desktop-setup --apply --replace-panels
 
 Konfiguration (optional, per Umgebungsvariablen):
   LUMEN_OPENCODE_BIN      Pfad zur opencode-Binary

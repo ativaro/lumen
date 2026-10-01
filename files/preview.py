@@ -5,10 +5,10 @@ import stat
 import sys
 from pathlib import Path
 
-from PyQt5.QtCore import QProcess, QSize, Qt, QTemporaryDir, QTimer, QUrl
+from PyQt5.QtCore import QProcess, QSize, Qt, QTemporaryDir, QTimer, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices, QFontDatabase, QIcon, QImageReader, QPixmap
 from PyQt5.QtWidgets import (QHBoxLayout, QLabel, QPlainTextEdit, QPushButton,
-                             QStackedWidget, QVBoxLayout, QWidget)
+                             QSizePolicy, QStackedWidget, QVBoxLayout, QWidget)
 from core import file_kind, size_text
 
 
@@ -22,6 +22,8 @@ def label(text='', name=''):
 
 
 class Preview(QWidget):
+    openImage = pyqtSignal(str, bool)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName('preview')
@@ -43,6 +45,7 @@ class Preview(QWidget):
         self.image = QLabel()
         self.image.setAlignment(Qt.AlignCenter)
         self.image.setMinimumSize(100, 160)
+        self.image.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
         self.image.setObjectName('previewCanvas')
         self.message = label('Bilder, PDFs, Text und Medien', 'previewMessage')
         self.message.setAlignment(Qt.AlignCenter)
@@ -78,13 +81,32 @@ class Preview(QWidget):
         self.open_button.clicked.connect(self.open_file)
         self.open_button.setEnabled(False)
         self.layout.addWidget(self.open_button)
+        self.edit_button = QPushButton('Bild bearbeiten')
+        self.edit_button.clicked.connect(lambda: self.openImage.emit(str(self.path), True) if self.path else None)
+        self.layout.addWidget(self.edit_button)
+        self.photo_layout(False)
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.timeout)
 
     def open_file(self):
         if self.path:
-            QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.path)))
+            if self.photo and self.receivers(self.openImage):
+                self.openImage.emit(str(self.path), False)
+            else:
+                QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.path)))
+
+    def photo_layout(self, enabled):
+        self.photo = enabled
+        self.layout.removeWidget(self.stack)
+        self.layout.insertWidget(1 if enabled else 3, self.stack, 1)
+        native = enabled and self.receivers(self.openImage) > 0
+        self.open_button.setText('Groß öffnen' if native else 'Mit Standard-App öffnen  ↗')
+        self.open_button.setObjectName('primary' if native else '')
+        self.open_button.style().unpolish(self.open_button)
+        self.open_button.style().polish(self.open_button)
+        self.edit_button.setVisible(native)
+        self.edit_button.setEnabled(False)
 
     def cancel(self):
         self.timer.stop()
@@ -104,6 +126,7 @@ class Preview(QWidget):
 
     def clear(self):
         self.cancel()
+        self.photo_layout(False)
         self.path = None
         self.title.setText('Keine Auswahl')
         self.detail.setText('Wähle eine Datei für die Vorschau.')
@@ -114,9 +137,11 @@ class Preview(QWidget):
 
     def show_path(self, path, location=None, page=1):
         self.cancel()
+        self.photo_layout(False)
         self.path = Path(path)
         self.title.setText(self.path.name or '/')
         self.location.setText(location or str(self.path.parent))
+        self.location.setToolTip(location or str(self.path.parent))
         self.pagebar.hide()
         self.page, self.pages = max(1, page), 1
         self.note.setText('Leertaste für die große Vorschau')
@@ -139,6 +164,11 @@ class Preview(QWidget):
             self.show_message('Für diesen Dateityp gibt es keine Vorschau.')
             return
         kind = file_kind(self.path)
+        if kind == 'image':
+            self.photo_layout(True)
+            remote = QUrl(self.location.toolTip())
+            self.location.setText(('NAS · ' if remote.scheme() == 'smb' else 'Netzwerk · ') + remote.host()
+                                  if remote.host() else 'Dieser PC · ' + self.path.parent.name)
         if kind == 'pdf':
             self.start('pdfinfo', [str(self.path)], self.pdf_info)
         elif kind in {'video', 'audio'}:
@@ -185,6 +215,7 @@ class Preview(QWidget):
         if data['kind'] == 'image':
             self.display_image(data['output'])
             self.detail.setText(self.detail.text() + f"  ·  {data['width']} × {data['height']} px")
+            self.edit_button.setEnabled(not self.pixmap.isNull())
         elif data['kind'] == 'text':
             self.text.setPlainText(data['text'])
             self.stack.setCurrentWidget(self.text)
@@ -232,7 +263,8 @@ class Preview(QWidget):
                    lambda _proc: self.display_image(output))
 
     def display_image(self, filename):
-        self.pixmap = QPixmap(filename)
+        self.pixmap = QPixmap()
+        self.pixmap.loadFromData(Path(filename).read_bytes())
         if self.pixmap.isNull():
             self.show_message('Dieses Bild konnte nicht gelesen werden.')
         else:
@@ -295,6 +327,10 @@ elif __name__ == '__main__' and len(sys.argv) in {4, 5} and sys.argv[1] == '--da
     import resource
     resource.setrlimit(resource.RLIMIT_AS, (1536 * 1024 * 1024, 1536 * 1024 * 1024))
     os.environ['QT_QPA_PLATFORM'] = 'offscreen'
+    from PyQt5.QtCore import QThreadPool
     from PyQt5.QtGui import QGuiApplication
     application = QGuiApplication(sys.argv)
+    # Qt image scaling otherwise creates a CPU-sized pool whose stacks/arenas can
+    # exhaust RLIMIT_AS and stall large photos. Each image already has its own process.
+    QThreadPool.globalInstance().setMaxThreadCount(1)
     print(json.dumps(preview_data(sys.argv[2], sys.argv[3], int(sys.argv[4]) if len(sys.argv) == 5 else 1600)))

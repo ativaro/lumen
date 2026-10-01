@@ -10,7 +10,7 @@ class DesktopTest(unittest.TestCase):
     def test_relaunch_restores_window_and_preserves_busy_chat_and_draft(self):
         with tempfile.TemporaryDirectory() as tmp:
             environment = dict(os.environ, QT_QPA_PLATFORM='offscreen', XDG_CONFIG_HOME=tmp,
-                               LUMEN_OPENCODE_BIN='/nonexistent/lumen-test-engine')
+                               LUMEN_DATA=tmp + '/state', LUMEN_OPENCODE_BIN='/nonexistent/lumen-test-engine')
             environment.pop('LUMEN_ASK_PROMPT', None)
             program = str(Path(__file__).resolve().parents[1] / 'agent-app/main.py')
             script = r'''
@@ -44,6 +44,9 @@ class Probe(desktop.LumenWindow):
         QApplication.exit(0 if okay else 1)
 
     def probe(self):
+        self.task = self.workspace.store.create_task('Auftrag aus dem Panel', directory=directory,
+                                                      status='completed')
+        self.workspace.store.update_task(self.task, result='Konkretes Ergebnis')
         self.chat.composer.setPlainText('Entwurf bleibt erhalten')
         self.chat.backend.session = 'test-existing-conversation'
         self.chat.backend.busy = True
@@ -60,8 +63,20 @@ class Probe(desktop.LumenWindow):
         if not okay:
             self.finish(False)
             return
-        # An explicit working directory must still receive its own context window.
         self.child.finished.disconnect(self.relaunched)
+        self.child.finished.connect(self.task_opened)
+        self.child.start(sys.executable, [program, '--task', self.task])
+
+    def task_opened(self, code, status):
+        okay = (code == 0 and self.pages.currentIndex() == 4
+                and 'Konkretes Ergebnis' in self.workspace.detail.toPlainText()
+                and self.chat.composer.toPlainText() == 'Entwurf bleibt erhalten'
+                and self.chat.backend.busy)
+        if not okay:
+            self.finish(False)
+            return
+        # An explicit working directory must still receive its own context window.
+        self.child.finished.disconnect(self.task_opened)
         self.child.start(sys.executable, [program, '--directory', directory])
         QTimer.singleShot(500, lambda: self.finish(self.child.state() == QProcess.Running))
 

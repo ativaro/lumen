@@ -1,7 +1,7 @@
 # Maintainer: Lumen
 pkgname=lumen
-pkgver=1.1.0
-pkgrel=3
+pkgver=1.2.0
+pkgrel=21
 pkgdesc="Lumen — AI desktop for CachyOS with files, tasks, knowledge and workflows"
 provides=('opencode-lumen')
 # No automatic conflict removal: the legacy package's uninstall script deletes reports.
@@ -9,8 +9,8 @@ provides=('opencode-lumen')
 # on file conflicts until the old package has been migrated.
 arch=('any')
 url="https://github.com/ativaro/lumen"
-license=('MIT')
-depends=('bash' 'python3' 'python-pyqt5' 'python-gobject' 'python-pillow')
+license=('MIT' 'GPL-3.0-only')
+depends=('bash' 'python3' 'python-pyqt5' 'qt5-svg' 'python-gobject' 'python-pillow')
 makedepends=()
 # OpenCode may be installed through its own installer. Native files/tasks remain
 # useful without inference; the app explains a missing engine when AI is requested.
@@ -25,10 +25,15 @@ optdepends=(
     'python-dbus: KRunner runner and native Lumen shortcut settings'
     'dolphin: service menu integration'
     'plasma-workspace: KRunner integration'
+    'wireplumber: native volume controls in the Lumen bar'
+    'libpulse: selectable audio outputs and volume in Lumen work modes'
+    'networkmanager: connection status in the Lumen bar'
+    'systemsettings: native network, audio and display settings'
     'poppler: Lumen Files PDF preview and search (pdfinfo, pdftoppm, pdftotext)'
     'ffmpeg: Lumen Files video/audio preview (ffprobe, ffmpeg)'
     'kio-fuse: Lumen Files network folders (SMB/SFTP/WebDAV/NFS)'
     'kio-extras: Lumen Files network protocols'
+    'kde-cli-tools: native SMB authentication dialogs before KIO-FUSE mounting'
 )
 backup=()
 install="lumen.install"
@@ -137,13 +142,26 @@ package() {
     install -d "$pkgdir/usr/share/lumen/files"
     install -m0644 "$srcroot/files/"*.py "$pkgdir/usr/share/lumen/files/"
     install -m0644 "$srcroot/files/"*.qss "$pkgdir/usr/share/lumen/files/"
-    install -m0644 "$srcroot/files/lumen-files.svg" "$pkgdir/usr/share/lumen/files/"
+    install -m0644 "$srcroot/files/"*.svg "$pkgdir/usr/share/lumen/files/"
     install -m0755 "$srcroot/bin/lumen-files" "$pkgdir/usr/bin/lumen-files"
 
+    # Portable artwork and fresh-desktop setup; no developer-machine configuration.
+    install -d "$pkgdir/usr/share/lumen/desktop"
+    cp -R "$srcroot/desktop/." "$pkgdir/usr/share/lumen/desktop/"
+
     # ---- Plasma applet (plasmoid) -----------------------------------------
-    install -d "$pkgdir/usr/share/plasma/plasmoids/org.lumen.agent/contents/ui"
-    install -m0644 "$srcroot/plasmoid/metadata.json" "$pkgdir/usr/share/plasma/plasmoids/org.lumen.agent/"
-    install -m0644 "$srcroot/plasmoid/contents/ui/main.qml" "$pkgdir/usr/share/plasma/plasmoids/org.lumen.agent/contents/ui/"
+    for plugin in agent islands system search control; do
+        local applet="$pkgdir/usr/share/plasma/plasmoids/org.lumen.$plugin"
+        install -d "$applet/contents/ui" "$applet/contents/config"
+        local metadata=metadata.json
+        [[ "$plugin" == agent ]] || metadata="$plugin-metadata.json"
+        install -m0644 "$srcroot/plasmoid/$metadata" "$applet/metadata.json"
+        install -m0644 "$srcroot/plasmoid/contents/ui/"*.qml "$applet/contents/ui/"
+        install -m0644 "$srcroot/plasmoid/contents/config/"* "$applet/contents/config/"
+        local surface=tasks
+        case "$plugin" in system) surface=home;; search|control) surface="$plugin";; esac
+        sed -i "s|<default>tasks</default>|<default>$surface</default>|" "$applet/contents/config/main.xml"
+    done
 
     # ---- system D-Bus policy + activation ---------------------------------
     install -d "$pkgdir/usr/share/dbus-1/system.d"
@@ -168,4 +186,5 @@ package() {
     # ---- license ----------------------------------------------------------
     install -d "$pkgdir/usr/share/licenses/$pkgname"
     install -m0644 "$srcroot/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/"
+    install -m0644 "$srcroot/desktop/COPYING.GPL-3.0" "$srcroot/desktop/CREDITS.md" "$pkgdir/usr/share/licenses/$pkgname/"
 }

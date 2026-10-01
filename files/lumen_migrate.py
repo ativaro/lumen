@@ -41,17 +41,21 @@ def migrate_launchers(binary_directory):
                 data / 'kio/servicemenus/lumen.desktop', config / 'autostart/lumen-krunner-runner.desktop',
                 config / 'opencode/opencode.jsonc', config / 'opencode/opencode.json']
     targets += list((config / 'systemd/user').glob('lumen*.service'))
+    local_bin = Path.home() / '.local/bin'
+    targets += [local_bin / name for name in ('lumen', 'lumen-files', 'lumen-agent-app',
+                'lumen-context', 'lumen-quick', 'lumen-sel', 'lumen-sel-run', 'lumen-vision')]
     applet = data / 'plasma/plasmoids/org.lumen.agent/contents/ui/main.qml'
     targets.append(applet)
     changed = []
     for path in targets:
         if not path.is_file() or path.is_symlink(): continue
-        original = path.read_text()
+        try: original = path.read_text()
+        except UnicodeError: continue
+        if path.parent == local_bin and not original.startswith('#!/bin/sh\nexec '): continue
         updated = original.replace(legacy + '/', str(Path(binary_directory)) + '/')
         if path.name == 'lumen-files.desktop':
             updated = updated.replace('Name=Lumen — Dateien\n','Name=Lumen Files\n').replace('Name[en]=Lumen — Files\n','Name[en]=Lumen Files\n').replace('StartupWMClass=Lumen\n','StartupWMClass=lumen-files\n')
         if path == applet:
-            updated = updated.replace('onClicked: root.expanded = !root.expanded', 'onClicked: root.run("lumen")')
             updated = updated.replace('label: "App öffnen"', 'label: "Assistent öffnen"').replace('root.run("lumen-agent-app', 'root.run("lumen')
         if updated == original: continue
         backup = path.with_name(path.name + '.pre-lumen')

@@ -17,7 +17,7 @@ import subprocess
 import sys
 
 SERVER_NAME = "lumen-mcp"
-SERVER_VERSION = "1.1.0"
+SERVER_VERSION = "1.2.0"
 PROTOCOL_VERSION = "2024-11-05"
 
 # Writing actions (restart units, media control, notifications, …) are OFF by

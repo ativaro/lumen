@@ -54,7 +54,7 @@ def backup(name, value):
     return path
 
 
-def change_panel(data):
+def change_panel(data, journal=True):
     selected = next((p for p in panels() if p['id'] == data['id']), None)
     if selected is None:
         raise ValueError('Diese Leiste existiert nicht mehr. Bitte neu laden.')
@@ -73,6 +73,15 @@ def change_panel(data):
         script = f'var p=panelById({int(selected["id"])}); if (!p) throw new Error("Leiste fehlt"); '
         script += ' '.join(f'p.{key} = {json.dumps(value)};' for key, value in changes.items())
         run(PLASMA + [script])
+        current = next((p for p in panels() if p['id'] == selected['id']), {})
+        actual = {key: current.get(key) for key in changes}
+        if journal:
+            from lumen_history import record
+            from lumen_store import Store
+            record(Store(), 'Systemleiste angepasst', 'panel',
+                   {key: selected[key] for key in changes}, actual, selected['id'])
+        if actual != changes:
+            raise RuntimeError('Plasma hat nicht alle Leisteneinstellungen übernommen. Der Verlauf enthält den tatsächlichen Zustand.')
         return {'backup': str(saved)}
     return {}
 
@@ -107,7 +116,7 @@ def refresh_shortcuts(_data):
     return {'refreshed': True}
 
 
-def set_shortcut(data):
+def set_shortcut(data, journal=True):
     import dbus
     accel = accelerator()
     action = shortcut_actions(accel).get(data['component'])
@@ -125,6 +134,11 @@ def set_shortcut(data):
     result = list(map(int, accel.setShortcut(dbus.Array(action, signature='s'), dbus.Array(keys, signature='i'), dbus.UInt32(4))))
     if result != keys:
         raise RuntimeError('KDE hat das Tastenkürzel nicht übernommen. Bitte neu laden.')
+    if journal:
+        from lumen_history import record
+        from lumen_store import Store
+        record(Store(), SHORTCUTS[data['component']] + ': Tastenkürzel geändert',
+               'shortcut' if len(previous) <= 1 else 'activity', previous, result, data['component'])
     return result
 
 
@@ -208,13 +222,21 @@ def snapshot(_data):
     return result
 
 
-ACTIONS = {'snapshot': snapshot, 'panel': change_panel, 'widget': configure_widget,
+from lumen_desktop_theme import apply as apply_appearance
+
+ACTIONS = {'appearance': apply_appearance, 'snapshot': snapshot, 'panel': change_panel, 'widget': configure_widget,
            'shortcut': set_shortcut, 'refresh-shortcuts': refresh_shortcuts,
            'service': set_service, 'schedule': set_schedule, 'analysis': set_analysis}
 
 if __name__ == '__main__':
     try:
-        result = ACTIONS[sys.argv[1]](json.load(sys.stdin))
+        action, data = sys.argv[1], json.load(sys.stdin)
+        result = ACTIONS[action](data)
+        if action in ('service', 'schedule', 'analysis'):
+            from lumen_history import record
+            from lumen_store import Store
+            names = {'service': 'Dienst geändert', 'schedule': 'Zeitplan geändert', 'analysis': 'Automatische Analyse geändert'}
+            record(Store(), names[action] + ': ' + data['unit'])
         print(json.dumps(result))
     except Exception as error:
         print(str(error), file=sys.stderr)

@@ -3,16 +3,22 @@ from pathlib import Path
 import shutil
 import tempfile
 from PyQt5.QtCore import QObject, QProcess, QTimer
-from PyQt5.QtWidgets import QApplication, QFileDialog, QHBoxLayout, QPushButton, QCheckBox
+from PyQt5.QtWidgets import QApplication, QFileDialog, QHBoxLayout, QPushButton, QCheckBox, QMenu
 
 
 class ContextTools(QObject):
     def __init__(self, panel, layout):
         super().__init__(panel); self.panel = panel; self.process = None; self.temp = None; self.recording = False
         row = QHBoxLayout(); layout.addLayout(row)
-        for title, callback in [('Datei / Bild', self.files), ('Bildschirm', self.screenshot), ('Zwischenablage', self.clipboard), ('Kontext entfernen', self.clear)]:
+        for title, callback in [('Dateien', self.files), ('Bildschirm', self.screenshot)]:
             button = QPushButton(title); button.clicked.connect(callback); row.addWidget(button)
-        self.voice = QPushButton('Diktieren'); self.voice.clicked.connect(self.dictate); row.addWidget(self.voice)
+        more = QPushButton('···'); more.setAccessibleName('Weitere Kontextaktionen'); more.setToolTip('Mehr: Zwischenablage, Diktieren und Kontext entfernen')
+        menu = QMenu(more)
+        menu.addAction('Zwischenablage einfügen', self.clipboard)
+        self.voice = menu.addAction('Diktieren', self.dictate)
+        menu.addSeparator()
+        menu.addAction('Kontext entfernen', self.clear)
+        more.setMenu(menu); row.addWidget(more)
         self.learn = QCheckBox('Schritte erklären'); layout.addWidget(self.learn)
         self.limit = QTimer(self); self.limit.setSingleShot(True); self.limit.timeout.connect(self.finish_recording)
 

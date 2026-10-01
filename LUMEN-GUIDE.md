@@ -11,6 +11,29 @@ bestehende Anmeldungen und Anbieter werden weiterverwendet.
 
 ## Aufträge und echte Ergebnisse
 
+### Lumen-Menü in der Plasma-Leiste
+
+Das Widget **Lumen** öffnet ein kompaktes Menü mit gemeinsamen Aufträgen aus
+Lumen und Lumen Files. „Aktuell“ zeigt bis zu acht offene Aufträge, „Zuletzt“ die
+fünf letzten abgeschlossenen Vorgänge. Klick auf einen Eintrag klappt Ergebnis
+oder Fehler direkt auf; **Auftrag öffnen** zeigt die vollständigen Details.
+Native Schritte zeigen ihren tatsächlichen Fortschritt, KI-Aufträge einen
+laufenden Status. Rückfragen werden als **Braucht dich** gekennzeichnet.
+
+**Dateien**, **System**, **Alle Aufträge**, **Lumen** und **Einstellungen** bieten
+direkte Einstiege. Vorhandene aktuelle Hauptfenster werden wiederverwendet und
+Entwürfe bleiben erhalten; bei einem noch laufenden älteren Lumen öffnet ein
+Auftragslink ein separates Fenster. Das Menü führt Aufträge nicht automatisch aus.
+Die Liste liest ausschließlich die bestehende lokale Auftragsdatenbank; geöffnete
+Menüs aktualisieren alle zwei Sekunden, geschlossene alle 15 Sekunden.
+
+Hinzufügen über Plasma → Bearbeitungsmodus → Miniprogramme → **Lumen**. Der
+Paketinstaller liefert das Applet systemweit, `install.sh` für den aktuellen
+Benutzer. Ein altes persönliches Applet kann die Paketversion überlagern; vor
+dem Entfernen einer solchen Kopie eigene Anpassungen sichern. Die bestehende
+Lebensdauer der Aufträge bleibt unverändert: ein KI-Auftrag gehört weiterhin
+zu seinem Lumen-/Files-Fenster.
+
 Gespräche erzeugen automatisch gespeicherte Aufträge. Unter **Aufträge** stehen
 Status, Ergebnis, Fehler und Verlauf. Pausieren stoppt die Engine; Fortsetzen
 verwendet das gespeicherte Gespräch mit dem Auftrag, den bereits erreichten
@@ -92,6 +115,22 @@ entfernt; der Text bleibt ein Entwurf. Lumen lädt kein Modell automatisch herun
 
 ## Netzwerkverbindungen sauber beenden
 
+Für SMB den Server öffnen und die gewünschte Freigabe als Ordner auswählen.
+Es genügt `smb://nas/`; gespeicherte Verbindungen öffnen ohne zusätzliches
+Adressformular. Geschützte Freigaben fragen bei Bedarf direkt nach Benutzername
+und Passwort. Erst wenn die Ordnerliste gelesen werden kann, meldet Lumen eine
+erfolgreiche Verbindung.
+
+Unter **Dateien → Quellen …** lassen sich lokale und Netzwerkordner zu einer
+Bibliothek verbinden. Die Herkunft steht bei jeder Datei. Die Sammelfläche hält
+Verweise, **Arbeitsräume** halten Tabs, Auswahl, eigene Sammlung, Gespräch und
+Entwurf zusammen. Raumwechsel senden nichts an die Engine. Details und Grenzen
+stehen im [Files-Handbuch](files/README.md#bibliotheken-sammelfläche-und-arbeitsräume).
+
+Unter **Einstellungen → Darstellung** stehen **Klar & hell**, **Warmes Studio**,
+**Graphit** und der KDE-Systemstil für beide Apps bereit. Die Auswahl aktualisiert
+offene Fenster und lässt das Desktop-Theme unverändert.
+
 Lumen beendet Such-/Vorschauzugriffe und löst Dateimodell-Watcher beim Schließen.
 Nach dem Schließen des letzten Netzwerk-Tabs werden unbenutzte lokale
 Verbindungszuordnungen freigegeben. Gespeicherte Server und Tab-Adressen bleiben
@@ -141,3 +180,28 @@ Grundlagen: [OpenCode-Konfiguration](https://opencode.ai/docs/config/),
 [KWin-Scripting](https://develop.kde.org/docs/plasma/kwin/api/),
 [KIO-FUSE](https://github.com/KDE/kio-fuse),
 [CachyOS-Snapshots](https://wiki.cachyos.org/configuration/btrfs_snapshots/).
+
+## Lumen-Leiste: Inseln und Zentrale
+
+Die Erweiterung **Lumen Leiste** (`org.lumen.islands`) bietet drei Rollen:
+**Lumen und Dateien** links, **Suche** in der Mitte und **Lumen Zentrale** rechts.
+Die Rolle lässt sich über die Widget-Einstellungen ändern. Das bisherige
+Lumen-Aufgabenwidget bleibt verfügbar.
+
+Die Suche öffnet KRunner; `lumen <Frage>` nutzt den bestehenden Lumen-Runner.
+Die Zentrale zeigt gemeinsame Aufgaben und native Systemsteuerungen. Lautstärke
+und Stummschaltung betreffen das Standard-Ausgabegerät; Helligkeit verwendet KDEs
+globale Bildschirmsteuerung. **Audiogeräte** und **Bildschirme** öffnen die
+detaillierten KDE-Einstellungen. Fehlende Dienste ergeben deaktivierte Regler.
+**Nicht stören** lässt sich für eine Stunde einschalten und jederzeit ausschalten.
+Bestehende externe Zeitvorgaben werden beim bloßen Öffnen nicht verändert.
+
+Die obere Anordnung wird über normale Plasma-Leisten hergestellt. Vorhandene
+Systemablage, Uhr und Super-Anwendungsstarter werden übernommen; das Dock bleibt
+bestehen. Die Paketinstallation ändert das persönliche Panel-Layout nicht von selbst.
+
+Der optionale Plasma-Stil **Lumen Inseln** verwendet sichtbare runde Flächen und
+ruhige dunkle Menüs. Bei vorhandenem LumenDark erzeugt
+`python plasmoid/install-island-style.py` die Ableitung im Benutzerprofil;
+`plasma-apply-desktoptheme LumenIslands` aktiviert sie. LumenDark bleibt erhalten,
+die Zeichnungen des unteren Docks und die globalen Schriften werden nicht ersetzt.

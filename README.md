@@ -3,7 +3,7 @@
 Lumen is an AI extension for CachyOS, combining conversations, file management,
 durable tasks, selected knowledge, reusable workflows and system diagnostics.
 [OpenCode](https://opencode.ai) is the background engine; the product and package
-are **Lumen**. Opening Lumen from the panel starts the assistant. **Lumen Files**
+are **Lumen**. The desktop bar has a system overview on the left, unified search and conversation in the middle, and settings on the right. **Lumen Files**
 (`lumen-files`) opens a separate file-manager window with the same settings and
 AI integrations. The assistant also keeps its integrated Files page.
 
@@ -17,6 +17,7 @@ gracefully on other setups.
 | Component | What it does |
 |---|---|
 | **Desktop app** (`lumen`) | One PyQt5 window for conversations, files, system status, tasks, knowledge, workflows and models |
+| **Workplace** | Projects resume selected folders/NAS, apps, webpages and a continuation note; source availability/recent files, editable desktop modes, shared transfers and guarded history in Lumen and Files |
 | **Durable tasks** | SQLite task history, process leases, interruption recovery, pause/resume/cancel, results and native file undo with conflict checks |
 | **Knowledge** | Explicit folder selection, bounded local text/PDF index, source/page citations and editable memories |
 | **Workflows** | Approved native steps or AI tasks; manual, interval and direct-directory-change triggers; opt-in user timer |
@@ -30,15 +31,70 @@ gracefully on other setups.
 | **Git** | `lumen-gitmsg` drafts a Conventional-Commit message from the diff |
 | **KRunner runner** | Type `lumen <question>`, `ai <question>` or `oc <question>` in KRunner |
 | **Plasma applet** | panel widget with agent status + quick actions (`org.lumen.agent`) |
-| **Lumen Files** (`lumen-files`) | standalone file manager within Lumen: fast filename search, local text/PDF content search with optional Lumen synonyms, previews, tabs, gallery, disk analysis, KIO network folders, native rename/sort proposals with editable preview and undo, integrated Lumen panel |
+| **Lumen Files** (`lumen-files`) | file manager with combined local/NAS libraries and visible origins, per-room collection shelves and saved workspaces, fast search, previews, tabs, gallery, disk analysis, KIO network folders, native rename/sort with preview and undo, integrated Lumen panel |
+| **Application designs** | Glas by default, plus Graphit, Atelier and Mitternacht; shared live themes for Lumen, search, Files, the image viewer, desktop panels and their popups, with native previews in settings |
 | **System watchdog** | systemd timer checks failed units, kernel errors, disk, GPU temp; automatic opencode analysis |
 | **Daily digest / nightly report** | scheduled summaries (`lumen-digest`, `lumen-nightly`) |
 | **MCP server `cachyos`** | read tools `systemctl`, `journal`, `pacman`, `disk`, `gpu`, `memory`, `sensors`, `kwin`, guarded `cmd` — plus **opt-in action tools** (`notify`, `restart_unit`, `media`, `wallpaper`, `screenshot`) behind `LUMEN_MCP_ACTIONS=1` |
 | **opencode commands/skill** | `/sync`, `/sysreport`, `/fix` + `lumen-admin` skill |
 
+## Native workplace
+
+Open **Arbeitsplatz** in Lumen (`lumen --page workplace`) or the Files menu.
+Projects extend saved file rooms. Choose sources, programs and URLs explicitly;
+**Aktuellen Stand merken** saves the current Files tabs and assistant context.
+**Quellen prüfen** reads up to 5,000 entries per source in bounded subprocesses;
+unavailable sources retain their last successful recent-file listing with an offline label.
+**Alle Dateien gemeinsam** opens the existing origin-aware library view.
+
+Work modes use KDE window layout/notification settings and PipeWire's PulseAudio
+interface. They report individual failures and journal each changed component.
+History offers guarded undo for native task/file edits, Lumen preferences, panel
+settings, shortcuts and mode components. External edits block undo. Untracked AI
+shell commands and actions without a safe inverse are never presented as undoable.
+
+Transfers started by Lumen are shared across windows. Downloads continue after
+closing the overview; HTTP resume requires a matching validator and byte range.
+Copies/moves retry remaining entries without overwriting existing destinations.
+Browser downloads are not intercepted. Stalled workers stop after two minutes
+without progress; original files and staged destination data are preserved.
+Large directory operations beyond 5,000 metadata entries are logged without undo.
+
+The desktop has three purpose-specific surfaces: **Dein System** on the left
+(tasks, system status, workplace and files), **Suchen oder fragen …** in the middle,
+and **Einstellungen** on the right (native controls, Lumen/Files preferences and
+Lumen themes and KDE settings). The middle opens `lumen-search`: one input finds installed apps and
+files in the home folder; a question continues as a conversation in the same window.
+Enter opens the selected result, Ctrl+Enter asks, and follow-up questions keep the
+conversation. Completed tasks have an **×** in the system overview and a
+**Schließen** button in the task page. Closing hides them across both displays
+and subsequent starts; result/history remain under **Geschlossene Aufgaben anzeigen**.
+A later task update makes it visible again. Active tasks cannot be dismissed. The scan is asynchronous, bounded to 100 results / 100,000 inspected
+entries and eight seconds. It starts no model until a question is submitted.
+`lumen-settings` opens preferences directly. The existing KRunner shortcut remains
+available. The role-specific applets share their QML implementation and are installed
+as `org.lumen.system`, `org.lumen.search` and `org.lumen.control`.
+
+## Complete desktop installation
+
+The repository includes all Lumen applets, four matching Plasma/Aurorae themes,
+eleven wallpapers and a portable panel layout. No pre-existing Lumen or MacTahoe
+installation is required. See [INSTALL.md](INSTALL.md) for a fresh Arch/CachyOS
+setup and recovery instructions.
+
+`lumen-desktop-setup` installs the resources without changing the active desktop.
+`lumen-desktop-setup --apply --replace-panels` explicitly activates the Glas theme,
+Lichtstrom wallpaper, system/search/control panels and native task/pager docks.
+Existing desktop configuration is backed up first. Wide screens use three top
+islands; smaller screens combine the same controls into one top panel.
+Repeated setup does not duplicate Lumen panels. Application-drawn title bars remain
+controlled by their applications.
+
+Artwork and licenses are in [desktop/CREDITS.md](desktop/CREDITS.md).
+
 ## Requirements
 
-**Required:** `bash`, Python 3, PyQt5, PyGObject/GIO, Pillow and a working [OpenCode](https://opencode.ai) installation with the server API.
+**Required:** `bash`, Python 3, PyQt5 with QtSvg, PyGObject/GIO, Pillow. AI features additionally need [OpenCode](https://opencode.ai) with its server API.
 
 **Optional** (individual features need these):
 - `notify-send` (libnotify) — watchdog notifications
@@ -54,8 +110,8 @@ gracefully on other setups.
 git clone https://github.com/ativaro/lumen.git lumen && cd lumen
 ./packaging/arch/build-package.sh --install
 
-# later, once published to the AUR:
-yay -S lumen      # or: paru -S lumen
+# activate the full desktop as your normal user, inside Plasma:
+lumen-desktop-setup --apply --replace-panels
 ```
 
 The package supports repository or standalone OpenCode installations and installs the desktop integration

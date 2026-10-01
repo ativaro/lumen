@@ -141,7 +141,7 @@ app.exec_()
             data=root/'data';(data/'applications').mkdir(parents=True)
             launcher=data/'applications/lumen.desktop'
             launcher.write_text('[Desktop Entry]\nName=Mein Lumen\nExec='+str(data/'opencode-lumen/bin/lumen-agent-app')+'\n')
-            with patch.dict(os.environ, {'XDG_DATA_HOME':str(data),'XDG_CONFIG_HOME':str(root/'config')}):
+            with patch.dict(os.environ, {'XDG_DATA_HOME':str(data),'XDG_CONFIG_HOME':str(root/'config')}), patch('pathlib.Path.home', return_value=root):
                 self.assertEqual(migrate_launchers('/usr/bin'), [str(launcher)])
                 self.assertEqual(migrate_launchers('/usr/bin'), [])
             self.assertIn('Name=Mein Lumen',launcher.read_text())
@@ -149,7 +149,7 @@ app.exec_()
             self.assertTrue(launcher.with_name('lumen.desktop.pre-lumen').exists())
             files_launcher=data/'applications/lumen-files.desktop'
             files_launcher.write_text('[Desktop Entry]\nName=Lumen — Dateien\nName[en]=Lumen — Files\nExec=/usr/bin/lumen-files %u\nStartupWMClass=Lumen\nComment=Meine Dateien\n')
-            with patch.dict(os.environ, {'XDG_DATA_HOME':str(data),'XDG_CONFIG_HOME':str(root/'config')}):
+            with patch.dict(os.environ, {'XDG_DATA_HOME':str(data),'XDG_CONFIG_HOME':str(root/'config')}), patch('pathlib.Path.home', return_value=root):
                 self.assertEqual(migrate_launchers('/usr/bin'), [str(files_launcher)])
                 self.assertEqual(migrate_launchers('/usr/bin'), [])
             self.assertIn('Name=Lumen Files\n', files_launcher.read_text())
@@ -159,10 +159,19 @@ app.exec_()
             applet=data/'plasma/plasmoids/org.lumen.agent/contents/ui/main.qml'
             applet.parent.mkdir(parents=True)
             applet.write_text('onClicked: root.expanded = !root.expanded\n// Meine Anpassung\n')
-            with patch.dict(os.environ, {'XDG_DATA_HOME':str(data),'XDG_CONFIG_HOME':str(root/'config')}):
-                self.assertEqual(migrate_launchers('/usr/bin'), [str(applet)])
+            with patch.dict(os.environ, {'XDG_DATA_HOME':str(data),'XDG_CONFIG_HOME':str(root/'config')}), patch('pathlib.Path.home', return_value=root):
                 self.assertEqual(migrate_launchers('/usr/bin'), [])
-            self.assertEqual(applet.read_text(), 'onClicked: root.run("lumen")\n// Meine Anpassung\n')
+                self.assertEqual(migrate_launchers('/usr/bin'), [])
+            self.assertEqual(applet.read_text(), 'onClicked: root.expanded = !root.expanded\n// Meine Anpassung\n')
+            wrapper = root / '.local/bin/lumen-files'; wrapper.parent.mkdir(parents=True)
+            wrapper.write_text('#!/bin/sh\nexec "' + str(data / 'opencode-lumen/bin/lumen-files') + '" "$@"\n')
+            wrapper.chmod(0o755)
+            with patch.dict(os.environ, {'XDG_DATA_HOME':str(data),'XDG_CONFIG_HOME':str(root/'config')}), patch('pathlib.Path.home', return_value=root):
+                self.assertEqual(migrate_launchers('/usr/bin'), [str(wrapper)])
+                self.assertEqual(migrate_launchers('/usr/bin'), [])
+            self.assertEqual(wrapper.read_text(), '#!/bin/sh\nexec "/usr/bin/lumen-files" "$@"\n')
+            self.assertEqual(wrapper.stat().st_mode & 0o777, 0o755)
+            self.assertIn('opencode-lumen', wrapper.with_name(wrapper.name + '.pre-lumen').read_text())
 
     def test_model_policy_rejects_cloud_and_honors_limits(self):
         from lumen_models import select_model
@@ -210,6 +219,13 @@ class LumenIntegrationTest(unittest.TestCase):
                 self.assertFalse(space.processes)
                 self.assertEqual(Path(tmp+'/bericht.md').read_text(), 'Prüfung bestanden')
                 self.assertEqual(space.store.tasks()[0]['status'], 'completed')
+                space.refresh_tasks(); self.assertTrue(space.close_task.isEnabled())
+                completed_id = space.store.tasks()[0]['id']
+                space.close_task.click(); self.assertEqual(space.tasks.count(), 0)
+                self.assertFalse(space.close_task.isEnabled())
+                self.assertEqual(space.store.task(completed_id)['status'], 'completed')
+                space.show_closed.setChecked(True); self.assertEqual(space.tasks.count(), 1)
+                self.assertIn('Prüfung bestanden', Path(tmp+'/bericht.md').read_text())
                 index_root(space.store, tmp)
                 space.query.setText('bestanden'); space.search()
                 self.assertEqual(space.results.count(), 1)

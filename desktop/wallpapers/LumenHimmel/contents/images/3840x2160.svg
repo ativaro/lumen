@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2160" viewBox="0 0 3840 2160"><defs><linearGradient id="sky" x2="0" y2="1"><stop stop-color="#0b122e"/><stop offset=".72" stop-color="#292341"/><stop offset="1" stop-color="#10111f"/></linearGradient>
+            <radialGradient id="glow"><stop stop-color="#d2788c" stop-opacity=".2"/><stop offset="1" stop-color="#d2788c" stop-opacity="0"/></radialGradient></defs><rect width="3840" height="2160" fill="url(#sky)"/>
+            <ellipse cx="1920" cy="2160" rx="3494" ry="832" fill="url(#glow)"/></svg>

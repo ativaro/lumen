@@ -164,6 +164,106 @@ class NativeTest(unittest.TestCase):
             restored.close(); restored.deleteLater()
             QTest.qWait(50)
 
+    def test_compact_breadcrumb_keeps_current_folder_visible(self):
+        from app import Window
+        from PyQt5.QtCore import QPoint, QSettings, Qt
+        from PyQt5.QtTest import QTest
+        with tempfile.TemporaryDirectory() as tmp:
+            window = Window(tmp, QSettings(tmp + '/files.ini', QSettings.IniFormat))
+            window.show(); window.resize(1000, 640)
+            try:
+                path = str(Path.home() / 'a-long-project-folder' / 'another-long-folder' / 'current-folder-name')
+                window.build_crumbs(path); QTest.qWait(50)
+                last = window.crumb_layout.itemAt(window.crumb_layout.count() - 2).widget()
+                viewport = window.crumbs.viewport()
+                self.assertEqual(last.toolTip(), path)
+                self.assertGreaterEqual(last.mapTo(viewport, QPoint()).x(), 0)
+                self.assertLessEqual(last.mapTo(viewport, last.rect().topRight()).x(), viewport.width())
+                self.assertLessEqual(window.crumbs.height(), 40)
+                QTest.keyClick(window, Qt.Key_L, Qt.ControlModifier)
+                self.assertIs(window.path_stack.currentWidget(), window.path_edit)
+                from unittest.mock import patch
+                with patch('assistant_backend.OpenCodeBackend.refresh_sessions'):
+                    window.ask_lumen('open', [])
+                    QTest.qWait(50)
+                    self.assertGreaterEqual(window.centralWidget().width(), 1000)
+                    window.assistant_dock.hide(); QTest.qWait(50)
+                    self.assertEqual(window.minimumWidth(), 1000)
+            finally:
+                window.close(); window.deleteLater(); QTest.qWait(50)
+
+    def test_grid_renders_folder_icon_before_clearing_native_decoration(self):
+        from app import Window
+        from PyQt5.QtCore import QSettings, QRect, Qt
+        from PyQt5.QtGui import QImage, QPainter
+        from PyQt5.QtWidgets import QStyle, QStyleOptionViewItem
+        from PyQt5.QtTest import QTest
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); folder = root / 'Documents'; folder.mkdir()
+            document = root / 'Notes.txt'; document.write_text('Example')
+            window = Window(tmp, QSettings(tmp + '/files.ini', QSettings.IniFormat))
+            window.show(); window.set_view_mode('grid')
+            try:
+                self.wait_until(lambda: window.fs.index(str(folder)).isValid())
+                index = window.proxy.mapFromSource(window.fs.index(str(folder)))
+                image = QImage(224, 210, QImage.Format_ARGB32); image.fill(Qt.transparent)
+                option = QStyleOptionViewItem(); option.initFrom(window.grid)
+                option.rect = QRect(0, 0, 224, 210); option.state = QStyle.State_Enabled
+                painter = QPainter(image)
+                window.grid.itemDelegate().paint(painter, option, index); painter.end()
+                # A native folder has colored pixels inside the icon area; a blank
+                # tile or the selection border cannot satisfy this check.
+                colored = sum(image.pixelColor(x, y).saturation() > 90
+                              and image.pixelColor(x, y).alpha() > 128
+                              for x in range(40, 184) for y in range(30, 130))
+                self.assertGreater(colored, 100)
+                index = window.proxy.mapFromSource(window.fs.index(str(document)))
+                self.assertTrue(index.isValid())
+                image.fill(Qt.transparent)
+                painter = QPainter(image)
+                window.grid.itemDelegate().paint(painter, option, index); painter.end()
+                self.assertGreater(sum(image.pixelColor(x, y).alpha() > 128
+                                       for x in range(60, 164) for y in range(45, 125)), 50)
+
+            finally:
+                window.close(); window.deleteLater(); QTest.qWait(100)
+
+    def test_folder_badges_follow_configured_locations_in_list_grid_and_libraries(self):
+        from app import Window
+        from folder_icons import folder_icons
+        from PyQt5.QtCore import QSettings, QStandardPaths, Qt, QModelIndex
+        from PyQt5.QtGui import QStandardItem
+        from PyQt5.QtTest import QTest
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            document, picture, ordinary = (root / name for name in ('Meine Texte', 'Meine Fotos', 'Documents'))
+            for path in (document, picture, ordinary): path.mkdir()
+            link = root / 'Verknüpfung'; link.symlink_to(document, target_is_directory=True)
+            locations = {QStandardPaths.DocumentsLocation: str(document), QStandardPaths.PicturesLocation: str(picture)}
+            with patch.object(QStandardPaths, 'writableLocation', side_effect=lambda kind: locations.get(kind, '')):
+                icons = folder_icons()
+            window = Window(tmp, QSettings(tmp + '/files.ini', QSettings.IniFormat))
+            window.proxy.folder_icons = icons
+            window.show()
+            try:
+                self.wait_until(lambda: window.fs.index(str(link)).isValid())
+                def image(path):
+                    index = window.proxy.mapFromSource(window.fs.index(str(path)))
+                    return index.data(Qt.DecorationRole).pixmap(120, 104).toImage()
+                self.assertNotEqual(image(document), image(picture))
+                self.assertNotEqual(image(document), image(ordinary))
+                self.assertEqual(image(ordinary), icons[''].pixmap(120, 104).toImage())
+                self.assertEqual(image(link), window.fs.index(str(link)).data(Qt.DecorationRole).pixmap(120, 104).toImage())
+                expected = image(document)
+                item = QStandardItem('Meine Texte'); item.setData(str(document), Qt.UserRole)
+                window.results.appendRow([item, QStandardItem(''), QStandardItem('Ordner')])
+                window.proxy.setSourceModel(window.results)
+                window.set_file_root(QModelIndex()); window.set_view_mode('grid')
+                self.assertEqual(window.proxy.index(0, 0).data(Qt.DecorationRole).pixmap(120, 104).toImage(), expected)
+            finally:
+                window.close(); window.deleteLater(); QTest.qWait(100)
+
     def test_system_colors_and_font_follow_light_and_dark_kde_settings(self):
         from app import Window, apply_system_appearance
         from PyQt5.QtCore import QSettings

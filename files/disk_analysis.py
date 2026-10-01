@@ -39,8 +39,9 @@ class SizeBar(QStyledItemDelegate):
 
 class DiskAnalysis(QDialog):
     openPath = pyqtSignal(str)
+    sizesReady = pyqtSignal(object)
 
-    def __init__(self, path, parent=None):
+    def __init__(self, path, parent=None, apparent=False):
         super().__init__(parent)
         self.proc = None
         self.queue = []
@@ -67,6 +68,7 @@ class DiskAnalysis(QDialog):
         self.location.setTextInteractionFlags(Qt.TextSelectableByMouse)
         layout.addWidget(self.location)
         self.apparent = QCheckBox('Dateigröße statt belegtem Speicher')
+        self.apparent.setChecked(apparent)
         self.apparent.toggled.connect(self.restart)
         layout.addWidget(self.apparent)
         layout.addWidget(label('Ordner aufklappen für Details · Anteil am jeweiligen Elternordner · Größte Einträge zuerst', 'muted'))
@@ -251,6 +253,9 @@ class DiskAnalysis(QDialog):
         else:
             note = f' · nur die größten 5.000 von {self.entry_count:,} Einträgen angezeigt' if self.entry_count > 5000 else ''
             self.status.setText(f'{size_text(self.total or 0)} · {self.entry_count:,} direkte Einträge' + note)
+            if self.apparent.isChecked() and self.total is not None:
+                self.sizesReady.emit({self.scan_path: self.total, **{
+                    path: size for size, _order, path in self.entries if path in self.directories}})
         proc.deleteLater()
         if self.queue:
             self.scan(self.queue.pop(0))

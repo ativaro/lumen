@@ -10,11 +10,7 @@ from PyQt5.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QF
     QMessageBox, QPlainTextEdit, QPushButton, QSizePolicy, QSpinBox, QSplitter, QTextBrowser, QVBoxLayout, QWidget)
 from lumen_actions import ACTIONS, undo
 from lumen_knowledge import index_root, search
-from lumen_store import Store
-
-STATES = {'draft': 'Entwurf', 'queued': 'Geplant', 'running': 'Läuft', 'paused': 'Pausiert',
-          'interrupted': 'Unterbrochen', 'needs_input': 'Braucht dich', 'completed': 'Erledigt',
-          'failed': 'Fehlgeschlagen', 'cancelled': 'Abgebrochen'}
+from lumen_store import Store, STATES
 FIELDS = {'path': 'Zielpfad oder Webadresse', 'source': 'Quelldatei', 'text': 'Inhalt',
           'desktop': 'Anwendung (.desktop-Dateiname)', 'unit': 'Dienst (.service)',
           'scope': 'Dienstbereich', 'packages': 'Paketnamen (durch Leerzeichen getrennt)'}
@@ -170,6 +166,8 @@ class Workspace(QObject):
 
     def build_tasks(self):
         widget, box = page('Aufträge', 'Aufträge bleiben nach einem Neustart erhalten. Unterbrochene Schritte vor dem Fortsetzen prüfen.')
+        self.show_closed = QCheckBox('Geschlossene Aufgaben anzeigen')
+        self.show_closed.toggled.connect(self.refresh_tasks); box.addWidget(self.show_closed)
         split = QSplitter(); self.tasks = QListWidget(); self.tasks.setAccessibleName('Gespeicherte Aufträge')
         self.detail = QPlainTextEdit(); self.detail.setReadOnly(True); self.detail.setAccessibleName('Auftrag, Ergebnis und Verlauf')
         split.addWidget(self.tasks); split.addWidget(self.detail); split.setStretchFactor(1, 2); box.addWidget(split, 1)
@@ -178,10 +176,13 @@ class Workspace(QObject):
                       ('Pausieren', self.guarded(lambda: self.stop_task('paused'))), ('Abbrechen', self.guarded(lambda: self.stop_task('cancelled')))])
         buttons(box, [('Als Ablauf speichern', self.guarded(self.task_to_flow)), ('Ergebnis speichern', self.guarded(self.export_task)),
                       ('Änderung rückgängig', self.guarded(self.undo_change))])
+        self.close_task = QPushButton('Schließen'); self.close_task.setEnabled(False)
+        self.close_task.setToolTip('Erledigte Aufgabe aus der Übersicht ausblenden. Ergebnis und Verlauf bleiben erhalten.')
+        self.close_task.clicked.connect(self.guarded(self.dismiss_task)); box.addWidget(self.close_task)
         return widget
 
     def refresh_tasks(self):
-        rows = self.store.tasks(); signature = [(r['id'], r['status'], r['updated']) for r in rows]
+        rows = self.store.tasks(include_dismissed=self.show_closed.isChecked()); signature = [(r['id'], r['status'], r['updated']) for r in rows]
         if signature == self.task_signature: return
         previous = self.tasks.currentItem().data(Qt.UserRole) if self.tasks.currentItem() else None
         self.task_signature = signature; self.tasks.clear()
@@ -191,6 +192,7 @@ class Workspace(QObject):
         if self.tasks.currentRow() < 0 and self.tasks.count(): self.tasks.setCurrentRow(0)
 
     def show_task(self, *_):
+        self.close_task.setEnabled(bool(self.tasks.currentItem()) and self.store.task(selected(self.tasks))['status'] == 'completed')
         if not self.tasks.currentItem(): self.detail.clear(); return
         task = self.store.task(selected(self.tasks)); events = self.store.events(task['id'])
         content = [task['title'], STATES.get(task['status'], task['status']), 'Arbeitsordner: ' + task['directory'],
@@ -200,6 +202,24 @@ class Workspace(QObject):
                    task['prompt'], task['error'], task['result'], '\nVerlauf:']
         content += [e['kind'] + ': ' + e['detail'] for e in events if e['kind'] != 'input']
         self.detail.setPlainText('\n\n'.join(part for part in content if part))
+
+    def dismiss_task(self):
+        self.store.dismiss_task(selected(self.tasks))
+        self.show_closed.setChecked(False); self.refresh_tasks()
+
+    def select_task(self, task_id):
+        self.refresh_tasks()
+        for row in range(self.tasks.count()):
+            item = self.tasks.item(row)
+            if item.data(Qt.UserRole) == task_id:
+                self.tasks.setCurrentItem(item); self.tasks.scrollToItem(item)
+                return
+        try: task = self.store.task(task_id)
+        except ValueError:
+            self.tasks.setCurrentRow(-1); self.detail.setPlainText('Dieser Auftrag ist nicht mehr vorhanden.')
+            return
+        add_item(self.tasks, f"{STATES.get(task['status'], task['status'])} · {task['title']}", task_id)
+        self.tasks.setCurrentRow(self.tasks.count() - 1)
 
     def new_task(self):
         dialog = PlanDialog(self.window, {'roots': [self.window.chat.backend.directory]})

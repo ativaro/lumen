@@ -48,9 +48,10 @@ class OrganizeWorker(QThread):
 
 
 class OrganizeDialog(QDialog):
-    def __init__(self, paths, directory, mode, journal, parent=None, backend=None):
+    def __init__(self, paths, directory, mode, journal, parent=None, backend=None, per_source=False):
         super().__init__(parent)
         self.paths, self.root, self.mode = paths, Path(directory).resolve(), mode
+        self.scope_root = None if per_source else self.root
         self.journal = Path(journal)
         self.backend = backend or OpenCodeBackend(self.root, self)
         self.temp = tempfile.TemporaryDirectory(prefix='lumen-proposal-')
@@ -70,6 +71,8 @@ class OrganizeDialog(QDialog):
         layout.addWidget(label('Vorschläge prüfen, Ziele bei Bedarf bearbeiten und Änderungen auswählen.'
                                if mode != 'undo' else 'Die letzte Dateiaktion wird zurückgenommen. Belegte Namen bleiben geschützt.', 'muted'))
         self.location = label(str(self.root), 'fileLocation')
+        if per_source:
+            self.location.setText('Mehrere Quellen · Umbenennen und Sortieren bleiben im jeweiligen Herkunftsordner')
         self.location.setTextInteractionFlags(Qt.TextSelectableByMouse)
         layout.addWidget(self.location)
         request_row = QHBoxLayout()
@@ -202,7 +205,7 @@ class OrganizeDialog(QDialog):
         self.moves = []
         self.show_selection()
         self.notice.setText('Auswahl wird gelesen …')
-        self.start_worker('context', self.send_context, paths=self.paths, root=self.root, temp=self.temp.name)
+        self.start_worker('context', self.send_context, paths=self.paths, root=self.scope_root, temp=self.temp.name)
 
     def send_context(self, data):
         if self.cancelled:
@@ -274,7 +277,7 @@ class OrganizeDialog(QDialog):
             return
         rows = [{'id': self.table.item(row, 0).data(Qt.UserRole), 'target': self.table.item(row, 2).text()}
                 for row in range(self.table.rowCount()) if self.table.item(row, 0).checkState() == Qt.Checked]
-        self.moves, errors = validate_moves(self.items, rows, self.root, self.mode)
+        self.moves, errors = validate_moves(self.items, rows, self.scope_root, self.mode)
         self.table.blockSignals(True)
         for row in range(self.table.rowCount()):
             index = self.table.item(row, 0).data(Qt.UserRole)

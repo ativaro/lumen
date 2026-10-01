@@ -1,0 +1,12 @@
+{
+  "KPlugin": {
+    "Id": "LumenNachtfahrt",
+    "Name": "Lumen · Nachtfahrt",
+    "Authors": [
+      {
+        "Name": "Lumen contributors"
+      }
+    ],
+    "License": "MIT"
+  }
+}

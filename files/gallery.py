@@ -4,12 +4,10 @@ import sys
 from collections import OrderedDict
 from pathlib import Path
 
-from PyQt5.QtCore import QObject, QProcess, Qt, QTemporaryDir, QTimer, pyqtSignal
-from PyQt5.QtGui import QColor, QKeySequence, QPainter, QPixmap, QTransform
-from PyQt5.QtWidgets import (QDialog, QGraphicsScene, QGraphicsView, QHBoxLayout,
-                             QMessageBox, QPushButton, QShortcut, QVBoxLayout)
+from PyQt5.QtCore import QObject, QProcess, Qt, QTemporaryDir, QTimer, QUrl, pyqtSignal
+from PyQt5.QtGui import QColor, QPainter, QPixmap, QTransform
+from PyQt5.QtWidgets import QDialog, QGraphicsScene, QGraphicsView, QMessageBox
 from core import FileWorker
-from preview import label
 
 ROOT = Path(__file__).resolve().parent
 
@@ -109,7 +107,7 @@ class ImageCanvas(QGraphicsView):
         super().__init__()
         self.setScene(QGraphicsScene(self))
         self.item = self.scene().addPixmap(QPixmap())
-        self.setBackgroundBrush(QColor('#101720'))
+        self.setBackgroundBrush(QColor('#13171c'))
         self.setRenderHint(QPainter.SmoothPixmapTransform)
         self.setDragMode(QGraphicsView.ScrollHandDrag)
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
@@ -124,6 +122,10 @@ class ImageCanvas(QGraphicsView):
         self.fitted = True
         if not self.item.pixmap().isNull():
             self.fitInView(self.item, Qt.KeepAspectRatio)
+
+    def actual_size(self):
+        self.fitted = False
+        self.resetTransform()
 
     def zoom(self, factor):
         scale = self.transform().m11() * factor
@@ -154,55 +156,13 @@ class Gallery(QDialog):
         self.resize(1240, 850)
         self.setMinimumSize(900, 560)
         self.setWindowTitle('Lumen · Bilder')
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 18, 20, 14)
-        header = QHBoxLayout()
-        self.title = label('', 'previewTitle')
-        self.counter = label('', 'muted')
-        header.addWidget(self.title, 1)
-        header.addWidget(self.counter)
-        self.actions = []
-
-        def action(row, text, callback, shortcut=None, tip=None):
-            button = QPushButton(text)
-            button.setToolTip(tip or f'{text}' + (f' ({shortcut})' if shortcut else ''))
-            button.setAccessibleName(text)
-            button.clicked.connect(callback)
-            row.addWidget(button)
-            if shortcut:
-                QShortcut(QKeySequence(shortcut), self, activated=callback)
-            self.actions.append(button)
-            return button
-
-        action(header, 'Vollbild', self.fullscreen, 'F11')
-        action(header, 'Schließen', self.reject, 'Space')
-        layout.addLayout(header)
-        row = QHBoxLayout()
-        self.previous = action(row, '← Zurück', lambda: self.step(-1), 'Left')
-        self.next = action(row, 'Weiter →', lambda: self.step(1), 'Right')
-        row.addSpacing(12)
-        self.left = action(row, '↶ Links', lambda: self.edit('left'), 'Shift+R')
-        self.right = action(row, '↷ Rechts', lambda: self.edit('right'), 'R')
-        self.mirror = action(row, 'Spiegeln', lambda: self.edit('mirror'), 'H')
-        self.undo_button = action(row, 'Rückgängig', self.undo, 'Ctrl+Z')
-        row.addStretch()
-        self.save_button = action(row, 'Speichern', lambda: self.save(), 'Ctrl+S')
-        self.trash_button = action(row, 'Papierkorb', self.trash, 'Delete')
-        layout.addLayout(row)
-        self.canvas = ImageCanvas()
-        layout.addWidget(self.canvas, 1)
-        footer = QHBoxLayout()
-        self.status = label('', 'muted')
-        self.status.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        footer.addWidget(self.status, 1)
-        action(footer, '−', lambda: self.canvas.zoom(1 / 1.2), '-', 'Verkleinern')
-        action(footer, '+', lambda: self.canvas.zoom(1.2), '+', 'Vergrößern')
-        action(footer, 'Einpassen', self.canvas.fit, '0')
-        layout.addLayout(footer)
+        from gallery_widgets import build_gallery
         self.loader = ImageLoader(self)
+        build_gallery(self, ImageCanvas(), ImageLoader(self, max_side=192, cache_limit=48))
         self.loader.ready.connect(self.loaded)
         self.loader.failed.connect(self.failed)
         self.finished.connect(self.loader.cancel)
+        self.finished.connect(self.filmstrip.stop)
         QTimer.singleShot(0, self.load)
 
     @property
@@ -212,6 +172,7 @@ class Gallery(QDialog):
     def controls(self):
         for button in self.actions:
             button.setEnabled(not self.busy)
+        self.filmstrip.setEnabled(not self.busy)
         self.previous.setEnabled(not self.busy and self.index > 0)
         self.next.setEnabled(not self.busy and self.index < len(self.paths) - 1)
         for button in (self.left, self.right, self.mirror):
@@ -225,7 +186,15 @@ class Gallery(QDialog):
         self.original = QPixmap()
         self.canvas.display(QPixmap())
         self.title.setText(Path(self.path).name)
-        self.counter.setText(f'{self.index + 1} / {len(self.paths)}')
+        self.counter.setText(f'{self.index + 1} von {len(self.paths)}')
+        self.filmstrip.select(self.paths, self.index)
+        self.dimensions.clear()
+        self.title.setToolTip(self.path)
+        parent = self.parent()
+        remote = parent.network.remote(self.path) if parent and hasattr(parent, 'network') else None
+        self.source.setText(('NAS · ' if QUrl(remote).scheme() == 'smb' else 'Netzwerk · ') + QUrl(remote).host()
+                            if remote else 'Dieser PC')
+        self.source.setToolTip(remote or self.path)
         self.status.setText('Bild laden …')
         self.controls()
         neighbors = [self.path] + [self.paths[i] for i in (self.index + 1, self.index - 1)
@@ -236,6 +205,7 @@ class Gallery(QDialog):
         if path != self.path or self.data is not None:
             return
         self.original, self.data = pixmap, data
+        self.dimensions.setText(f"{data['width']} × {data['height']} px")
         self.canvas.display(pixmap)
         self.status.setText(f"{data['width']} × {data['height']} px · Ansicht bis 2560 px · Pfeiltasten blättern · Mausrad zoomt")
         self.controls()
@@ -245,17 +215,22 @@ class Gallery(QDialog):
             self.status.setText(message)
 
     def step(self, direction):
-        destination = self.index + direction
-        if self.busy or not 0 <= destination < len(self.paths):
+        self.jump(self.index + direction)
+
+    def jump(self, destination):
+        if self.busy or not 0 <= destination < len(self.paths) or destination == self.index:
+            self.filmstrip.select(self.paths, self.index)
             return
         def change():
             self.index = destination
             self.load()
         self.leave_edits(change)
+        self.filmstrip.select(self.paths, self.index)
 
     def edit(self, operation):
         if self.busy or self.data is None:
             return
+        self.editor_button.setChecked(True)
         self.operations.append(operation)
         self.render_edits()
 
@@ -306,6 +281,7 @@ class Gallery(QDialog):
                 if 'error' in result:
                     raise ValueError(result['error'])
                 self.loader.cache.pop(self.path, None)
+                self.filmstrip.invalidate(self.path)
                 self.load()
                 if after:
                     after()

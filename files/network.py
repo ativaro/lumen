@@ -1,6 +1,7 @@
 """Network folders through the existing KDE KIO-FUSE service."""
 import os
 import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -74,11 +75,45 @@ class Network(QObject):
         self.pending = None
         self.watchers = set()
         self.closed = False
+        self.probe = None
 
     def mount(self, address):
         if self.closed: return
         address = normalize_url(address)
         self.cancel()
+        helper = shutil.which('kioclient') or shutil.which('kioclient6')
+        if QUrl(address).scheme() == 'smb':
+            if not helper:
+                self.failed.emit('Für die native SMB-Anmeldung fehlt kioclient. Bitte das Paket kde-cli-tools installieren.')
+                return
+            # Older KIO-FUSE has no GUI job delegate and cannot ask for credentials.
+            # Listing covers server discovery and protected shares; stat alone may
+            # succeed without read access. KDE handles credentials outside Lumen.
+            from PyQt5.QtCore import QTimer
+            proc = QProcess(self); self.probe = proc
+            proc.setStandardOutputFile(QProcess.nullDevice())
+            proc.setStandardErrorFile(QProcess.nullDevice())
+            timer = QTimer(proc); timer.setSingleShot(True); timer.timeout.connect(proc.kill)
+            completed = []
+            def finished(code):
+                if completed: return
+                completed.append(True); timer.stop()
+                if self.probe is proc:
+                    self.probe = None
+                    if code == 0: self.mount_url(address)
+                    else:
+                        self.busy.emit(False)
+                        self.failed.emit('SMB-Anmeldung abgebrochen oder fehlgeschlagen. Freigabe, Benutzername und Passwort im KDE-Dialog prüfen.')
+                proc.deleteLater()
+            proc.finished.connect(finished)
+            proc.errorOccurred.connect(lambda error: finished(1) if error == QProcess.FailedToStart else None)
+            self.busy.emit(True)
+            proc.start(helper, ['--interactive', '--desktopfile', 'lumen-files', 'ls', address])
+            timer.start(120000)
+        else:
+            self.mount_url(address)
+
+    def mount_url(self, address):
         message = QDBusMessage.createMethodCall('org.kde.KIOFuse', '/org/kde/KIOFuse',
                                                'org.kde.KIOFuse.VFS', 'mountUrl')
         message.setArguments([address])
@@ -93,26 +128,51 @@ class Network(QObject):
                 watcher.deleteLater()
                 return
             self.pending = None
-            self.busy.emit(False)
             reply = QDBusPendingReply(watcher)
             if reply.isError():
+                self.busy.emit(False)
                 self.failed.emit('Verbindung fehlgeschlagen. Serveradresse, Netzwerk und Anmeldung prüfen.\n'
                                  + reply.error().message())
             else:
                 values = reply.reply().arguments()
                 path = values[0] if values else ''
                 if not isinstance(path, str) or not os.path.isabs(path) or '\x00' in path:
+                    self.busy.emit(False)
                     self.failed.emit('KDE hat keinen gültigen Ordnerpfad zurückgegeben.')
                 else:
                     path = os.path.normpath(path)
                     self.mounts[path] = address
-                    self.connected.emit(address, path)
+                    self.check_listing(address, path)
             watcher.deleteLater()
         watcher.finished.connect(finished)
+
+    def check_listing(self, address, path):
+        # KIO's mount/stat can succeed even when the directory cannot be listed.
+        # Trigger the real read (and KDE authentication) outside the GUI thread.
+        from PyQt5.QtCore import QTimer
+        proc = QProcess(self); self.probe = proc
+        timer = QTimer(proc); timer.setSingleShot(True); timer.timeout.connect(proc.kill)
+        finished_once = []
+        def finished(code):
+            if finished_once: return
+            finished_once.append(True); timer.stop()
+            if self.probe is proc:
+                self.probe = None; self.busy.emit(False)
+                if code == 0: self.connected.emit(address, path)
+                else:
+                    self.failed.emit('Der Netzwerkordner lässt sich nicht auflisten. Freigabe, Benutzername und Berechtigung prüfen. '
+                                     'Eine eventuell geöffnete KDE-Anmeldung abschließen und erneut verbinden.')
+            proc.deleteLater()
+        proc.finished.connect(finished)
+        proc.errorOccurred.connect(lambda error: finished(1) if error == QProcess.FailedToStart else None)
+        proc.start(sys.executable, [__file__, '--check-listing', path]); timer.start(120000)
 
     def cancel(self):
         # KIO-FUSE has no per-request cancel method; ignore late replies, never unmount shared KIO sessions.
         self.pending = None
+        if self.probe:
+            proc, self.probe = self.probe, None
+            proc.kill(); proc.waitForFinished(1000)
         self.busy.emit(False)
 
     def release(self):
@@ -136,7 +196,7 @@ class Network(QObject):
 
 
 class ConnectDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, address=''):
         super().__init__(parent)
         self.setWindowTitle('Mit Server verbinden')
         self.setMinimumWidth(540)
@@ -155,11 +215,10 @@ class ConnectDialog(QDialog):
         form.addRow('Verbindung', self.protocol)
         self.address = QLineEdit()
         self.address.setAccessibleName('Serveradresse')
-        self.address.setPlaceholderText('nas.local/Freigabe oder smb://nas.local/Freigabe')
         form.addRow('Adresse', self.address)
         layout.addLayout(form)
-        hint = QLabel('Auch vollständige Adressen wie sftp://name@server/ordner sind möglich.\n'
-                      'Benutzername und Passwort fragt KDE bei Bedarf ab.')
+        hint = QLabel('Bei SMB reicht der Servername. Danach die Freigabe per Klick öffnen.\n'
+                      'Benutzername und Passwort werden bei Bedarf abgefragt.')
         hint.setWordWrap(True)
         hint.setObjectName('muted')
         layout.addWidget(hint)
@@ -169,7 +228,6 @@ class ConnectDialog(QDialog):
         self.error = QLabel()
         self.error.setTextFormat(Qt.PlainText)
         self.error.setWordWrap(True)
-        self.error.setStyleSheet('color: #f1b3ad;')
         layout.addWidget(self.error)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.button(QDialogButtonBox.Ok).setText('Verbinden')
@@ -179,9 +237,11 @@ class ConnectDialog(QDialog):
         self.protocol.currentIndexChanged.connect(self.update_placeholder)
         self.address.setFocus()
         self.url = None
+        self.address.setText(address)
+        self.update_placeholder()
 
     def update_placeholder(self):
-        examples = {'smb': 'nas.local/Freigabe', 'sftp': 'name@server/ordner',
+        examples = {'smb': 'nas.local oder 192.168.1.10', 'sftp': 'name@server/ordner',
                     'webdavs': 'cloud.example/remote.php/dav/files/name/',
                     'webdav': 'server/ordner', 'nfs': 'server/export', 'ftp': 'server/ordner'}
         self.address.setPlaceholderText(examples[self.protocol.currentData()])
@@ -196,3 +256,11 @@ class ConnectDialog(QDialog):
             self.error.setText(str(exc))
             return
         self.accept()
+
+
+if __name__ == '__main__' and sys.argv[1:2] == ['--check-listing']:
+    try:
+        with os.scandir(sys.argv[2]) as entries:
+            next(entries, None)
+    except OSError:
+        sys.exit(1)

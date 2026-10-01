@@ -1,0 +1,18 @@
+{
+  "KPlugin": {
+    "Id": "LumenDock",
+    "Name": "Lumen Dock",
+    "Version": "1.2.0",
+    "Description": "Runde Glasinseln und ruhige Lumen-Systemmenüs",
+    "License": "GPL-3.0",
+    "Authors": [
+      {
+        "Name": "Vince Liuice (original MacTahoe artwork)"
+      },
+      {
+        "Name": "Lumen contributors"
+      }
+    ]
+  },
+  "X-Plasma-API": "5.0"
+}

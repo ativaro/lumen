@@ -1,59 +1,94 @@
-/* Native KDE palette and font; the same layout follows light and dark themes. */
+/* Shared native widgets; appearance.py supplies each theme’s shape and glass finish. */
+QWidget#workplace { background: palette(window); }
+QFrame#searchSurface { background: palette(window); border: 1px solid palette(mid); border-radius: 16px; }
+QListWidget#searchResults { background: transparent; color: palette(text); border: none; outline: none; }
+QListWidget#searchResults::item { padding: 12px; margin: 3px 0; border-radius: 8px; }
+QListWidget#searchResults::item:selected { background: palette(midlight); color: palette(text); }
+QWidget#workplace QTabWidget::pane { border: none; background: palette(window); }
+QWidget#workplacePage { background: palette(window); }
+QLabel#workplaceHeading { font-size: 30px; font-weight: 600; letter-spacing: -1px; }
+QFrame#workplaceCard { background: palette(base); border: 1px solid palette(mid); border-radius: 14px; padding: 14px; }
+QFrame#workplaceCard QLabel { border: none; padding: 0; }
+QTableWidget#workplaceTable { background: palette(base); color: palette(text); border: 1px solid palette(mid); border-radius: 10px; outline: none; }
+QTableWidget#workplaceTable::item { padding: 8px; border: none; }
+QTableWidget#workplaceTable::item:selected { background: palette(midlight); color: palette(text); }
+QProgressBar { background: palette(base); border: 1px solid palette(mid); border-radius: 6px; min-height: 12px; text-align: center; }
+QProgressBar::chunk { background: palette(highlight); border-radius: 5px; }
 QMainWindow, QDialog { background: palette(window); color: palette(window-text); }
+QWidget#filesSurface { background: palette(base); }
 QLabel { background: transparent; color: palette(window-text); }
-QLabel#brand { font-size: 15px; font-weight: 600; }
-QLabel#heading { font-size: 16px; font-weight: 600; }
+QLabel#brand { font-size: 15px; font-weight: 500; }
+QLabel#heading { font-size: 20px; font-weight: 600; }
 QLabel#eyebrow { color: palette(dark); font-size: 11px; font-weight: 600; padding: 4px 6px; }
 QLabel#muted, QLabel#fileLocation { color: palette(dark); font-size: 11px; }
 QLabel#tiny { color: palette(dark); font-size: 10px; }
-QFrame#appHeader { background: palette(window); border-bottom: 1px solid palette(mid); }
-QFrame#sidebar { background: palette(button); border-right: 1px solid palette(mid); }
-QWidget#pathBar { background: palette(base); }
-QPushButton { color: palette(button-text); background: palette(button); border: 1px solid transparent; border-radius: 6px; padding: 6px 10px; min-height: 16px; }
+QFrame#tabStrip { background: palette(window); border: none; }
+QFrame#appHeader { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 palette(window), stop:1 palette(base)); border-bottom: 1px solid palette(mid); }
+QFrame#sidebar { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 palette(window), stop:1 palette(base)); border-right: 1px solid palette(mid); }
+QWidget#fileArea { background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 palette(window), stop:0.55 palette(base), stop:1 palette(base)); }
+QPushButton { color: palette(button-text); background: palette(button); border: 1px solid palette(mid); border-radius: 7px; padding: 7px 12px; min-height: 16px; }
+QPushButton#primary { color: palette(highlighted-text); background: palette(highlight); border-color: palette(highlight); font-weight: 600; }
 QPushButton:hover { background: palette(midlight); border-color: palette(mid); }
 QPushButton:pressed, QPushButton:checked { background: palette(highlight); color: palette(highlighted-text); }
 QPushButton:focus { border: 1px solid palette(highlight); }
 QPushButton:disabled { color: palette(dark); background: transparent; }
-QPushButton#iconButton { background: transparent; font-size: 22px; padding: 0 4px; min-width: 24px; }
-QPushButton#sideAction { text-align: left; background: transparent; font-size: 11px; padding: 5px 6px; }
-QPushButton#sideAction:hover, QPushButton#iconButton:hover { background: palette(midlight); }
-QPushButton#assistantButton { color: palette(link); background: transparent; }
-QPushButton#crumb { background: transparent; color: palette(dark); border: 1px solid transparent; padding: 3px 6px; }
-QPushButton#crumb:hover { background: palette(midlight); color: palette(text); }
-QPushButton#chip { background: transparent; color: palette(dark); padding: 4px 10px; }
-QPushButton#chip:checked { background: palette(midlight); color: palette(text); border-color: palette(mid); }
-QPushButton#chip:focus { border-color: palette(highlight); }
+QPushButton#toolButton, QPushButton#iconButton { background: transparent; border: 1px solid transparent; border-radius: 7px; padding: 5px 8px; min-height: 20px; font-size: 13px; }
+QPushButton#iconButton { font-size: 20px; min-width: 24px; }
+QPushButton#toolButton:hover, QPushButton#iconButton:hover { background: palette(midlight); }
+QPushButton#toolButton:checked { background: palette(midlight); color: palette(text); }
+QPushButton#toolButton:focus, QPushButton#iconButton:focus { border-color: palette(link); }
+QPushButton#sideAction { text-align: left; background: transparent; border: 1px solid transparent; border-radius: 7px; padding: 7px 6px; font-size: 12px; }
+QPushButton#sideAction:hover { background: palette(midlight); }
+QPushButton#sideAction:focus { border-color: palette(link); }
+QPushButton#assistantButton { color: palette(link); background: transparent; border: 1px solid transparent; padding: 5px 10px; font-size: 13px; font-weight: 600; }
+QPushButton#assistantButton:hover { background: palette(midlight); }
+QPushButton#assistantButton:focus { border-color: palette(link); }
+QPushButton#crumb { background: transparent; color: palette(text); border: 1px solid transparent; padding: 5px 6px; font-size: 14px; }
+QPushButton#crumb:hover { background: palette(midlight); }
+QPushButton#crumb:focus { border-color: palette(link); }
+QPushButton#chip { background: transparent; color: palette(dark); border: 1px solid transparent; padding: 5px 10px; border-radius: 8px; font-size: 12px; }
+QPushButton#chip:checked { background: palette(midlight); color: palette(text); }
+QPushButton#chip:focus { border-color: palette(link); }
 QLineEdit, QComboBox { background: palette(base); color: palette(text); border: 1px solid palette(mid); border-radius: 6px; padding: 6px 8px; selection-background-color: palette(highlight); selection-color: palette(highlighted-text); }
 QLineEdit:focus, QComboBox:focus { border-color: palette(highlight); }
-QLineEdit#search { background: palette(midlight); }
-QListWidget#places { background: transparent; border: none; outline: none; }
-QListWidget#places::item { color: palette(text); padding: 4px 6px; margin: 1px 0; border-radius: 6px; }
-QListWidget#places::item:selected { background: palette(highlight); color: palette(highlighted-text); }
+QLineEdit#search { border: 1px solid transparent; border-radius: 9px; padding: 8px 10px; font-size: 13px; background: palette(base); }
+QLineEdit#search:focus { border-color: palette(link); }
+QListWidget#places { background: transparent; border: none; outline: none; font-size: 14px; }
+QListWidget#places::item { color: palette(text); padding: 3px 8px; margin: 1px 0; border: 1px solid transparent; border-radius: 7px; }
+QListWidget#places::item:selected { background: palette(midlight); color: palette(text); }
 QListWidget#places::item:hover:!selected { background: palette(midlight); }
-QListWidget#places::item:focus { border: 1px solid palette(highlight); }
-QTabBar::tab { color: palette(dark); background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 6px 12px; min-width: 100px; }
-QTabBar::tab:selected { color: palette(text); background: palette(midlight); border-color: palette(mid); }
+QListWidget#places::item:focus { border-color: palette(link); }
+QTabBar::tab { color: palette(dark); background: transparent; border: 1px solid transparent; border-radius: 7px; padding: 7px 14px; min-width: 112px; font-size: 13px; }
+QTabBar::tab:selected { color: palette(text); background: palette(base); }
 QTabBar::tab:hover { background: palette(midlight); }
-QTreeView#files { background: palette(base); alternate-background-color: palette(midlight); color: palette(text); border: none; outline: none; show-decoration-selected: 1; }
-QTreeView#files::item { height: 32px; padding: 0 6px; border: 1px solid transparent; }
+QTreeView#files { background: palette(base); color: palette(text); border: none; outline: none; show-decoration-selected: 1; font-size: 14px; }
+QTreeView#files::item { height: 38px; padding: 0 6px; border: 1px solid transparent; }
 QTreeView#files::item:hover:!selected { background: palette(midlight); }
-QTreeView#files::item:selected { background: palette(highlight); color: palette(highlighted-text); }
-QTreeView#files::item:focus { border-color: palette(highlight); }
-QListView#fileGrid { background: palette(base); color: palette(text); border: none; outline: none; }
-QListView#fileGrid::item { padding: 8px; border: 1px solid transparent; border-radius: 8px; }
+QTreeView#files::item:selected { background: palette(midlight); color: palette(text); }
+QTreeView#files::item:focus { border-color: palette(link); }
+QListView#fileGrid { background: transparent; color: palette(text); border: none; outline: none; font-size: 14px; }
+QListView#fileGrid::item { padding: 8px; border: 1px solid transparent; border-radius: 10px; }
 QListView#fileGrid::item:hover:!selected { background: palette(midlight); }
-QListView#fileGrid::item:selected { background: palette(highlight); color: palette(highlighted-text); }
-QListView#fileGrid::item:focus { border-color: palette(highlight); }
+QListView#fileGrid::item:selected { background: palette(midlight); color: palette(text); }
+QListView#fileGrid::item:focus { border-color: palette(link); }
 QSlider::groove:horizontal { height: 4px; background: palette(mid); border-radius: 2px; }
 QSlider::sub-page:horizontal { background: palette(highlight); border-radius: 2px; }
-QSlider::handle:horizontal { background: palette(text); width: 12px; margin: -4px 0; border-radius: 6px; }
-QHeaderView::section { color: palette(dark); background: palette(base); border: none; border-bottom: 1px solid palette(mid); padding: 8px 6px; font-size: 11px; }
-QWidget#preview { background: palette(window); border-left: 1px solid palette(mid); }
+QSlider::handle:horizontal { background: palette(text); width: 10px; margin: -3px 0; border-radius: 5px; }
+QHeaderView::section { color: palette(dark); background: palette(base); border: none; border-bottom: 1px solid palette(mid); padding: 10px 6px; font-size: 11px; }
+QWidget#preview { background: palette(base); border-left: 1px solid palette(mid); }
+QWidget#preview QPushButton { font-size: 13px; padding: 6px 8px; }
 QLabel#previewTitle { font-size: 16px; font-weight: 600; }
 QLabel#previewMessage { color: palette(dark); padding: 12px; }
-QLabel#previewCanvas { background: palette(base); border: 1px solid palette(mid); border-radius: 8px; }
+QLabel#previewCanvas { background: palette(window); border: 1px solid transparent; border-radius: 12px; }
 QPlainTextEdit, QTextBrowser { color: palette(text); background: palette(base); border: 1px solid palette(mid); border-radius: 6px; padding: 8px; selection-background-color: palette(highlight); }
-QFrame#footer { background: palette(window); border-top: 1px solid palette(mid); }
+QFrame#footer { background: palette(base); border-top: none; }
+QFrame#shelfBar { border: none; background: transparent; }
+QPushButton#shelfButton { background: transparent; border: 1px solid transparent; padding: 5px 8px; font-size: 12px; color: palette(dark); }
+QPushButton#shelfButton:hover { background: palette(midlight); color: palette(text); }
+QPushButton#shelfButton:focus { border-color: palette(link); }
+QWidget#chatPanel { background: palette(window); }
+QTextBrowser#transcript { background: palette(window); border: none; padding: 6px; }
+QDockWidget { border-left: 1px solid palette(mid); }
 QSplitter::handle { background: palette(mid); width: 1px; }
 QScrollBar:vertical { background: transparent; width: 8px; margin: 2px; }
 QScrollBar::handle:vertical { background: palette(mid); border-radius: 2px; min-height: 24px; }
@@ -66,3 +101,23 @@ QMenu::item { padding: 7px 24px; border-radius: 4px; }
 QMenu::item:selected { background: palette(highlight); color: palette(highlighted-text); }
 QMenu::separator { height: 1px; background: palette(mid); margin: 5px; }
 QToolTip { background: palette(tool-tip-base); color: palette(tool-tip-text); border: 1px solid palette(mid); padding: 6px; }
+
+/* A single search surface and composer, with quiet actions around the content. */
+QFrame#searchInput { background: palette(base); border: 1px solid palette(mid); }
+QPlainTextEdit#searchComposer { background: transparent; border: none; border-radius: 0; padding: 0; font-size: 16px; }
+QFrame#searchSurface QWidget#chatPanel, QFrame#searchSurface QTextBrowser#transcript { background: transparent; }
+QLabel#searchHeading { font-size: 24px; font-weight: 400; }
+QPushButton#searchSend { color: palette(highlighted-text); background: palette(highlight); border: 1px solid palette(highlight); padding: 0; font-size: 24px; min-height: 0; }
+QPushButton#searchSend:focus { border: 2px solid palette(text); }
+QPushButton#searchSend:disabled { color: palette(dark); background: palette(button); border-color: palette(mid); }
+QPushButton#quiet { color: palette(dark); background: transparent; border: 1px solid transparent; padding: 6px 8px; }
+QPushButton#quiet:hover { color: palette(text); background: palette(midlight); }
+QPushButton#quiet:focus { border-color: palette(highlight); }
+QPushButton#themeChoice { text-align: left; padding: 12px; }
+QPushButton#themeChoice:checked { background: palette(base); color: palette(text); border: 2px solid palette(highlight); padding: 11px; }
+QPushButton#primary:disabled { color: palette(dark); background: palette(button); border-color: palette(mid); }
+QListWidget#settingsNavigation { font-size: 13px; background: transparent; border: none; outline: none; }
+QListWidget#settingsNavigation::item { padding: 12px 8px; border-radius: 8px; color: palette(dark); }
+QListWidget#settingsNavigation::item:selected { background: palette(midlight); color: palette(text); }
+
+QPushButton#iconButton { padding: 0; min-width: 0; min-height: 0; }

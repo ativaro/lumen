@@ -21,8 +21,11 @@ class DesktopSettingsTest(unittest.TestCase):
     def test_panel_changes_are_scoped_and_validate_before_execution(self):
         panel = dict(id=98, screen=0, location='top', height=36, floating=True,
                      hiding='none', widgets=[])
-        with tempfile.TemporaryDirectory() as tmp, patch.object(desktop, 'panels', return_value=[panel]), \
+        with tempfile.TemporaryDirectory() as tmp, patch.object(desktop, 'panels', side_effect=lambda: [dict(panel)]), \
                 patch.object(desktop, 'run') as run, patch.object(desktop, 'backup', return_value=Path(tmp) / 'backup.json'):
+            def apply(argv):
+                if 'p.height = 40' in argv[-1]: panel['height'] = 40
+            run.side_effect = apply
             desktop.change_panel({'id': 98, 'before': panel, 'changes': {'height': 40}})
             script = run.call_args.args[0][-1]
             self.assertIn('p.height = 40', script)
@@ -95,6 +98,61 @@ class NativeSettingsTest(unittest.TestCase):
                 widget.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
         QTest.qWait(20)
+
+    def test_four_themes_persist_and_restyle_open_native_surfaces(self):
+        from app import Window
+        from appearance import DEFAULT_DESIGN, DESIGNS, apply_design, normalize_design
+        from settings_dialog import SettingsDialog
+        from lumen_search import SearchPalette
+        from PyQt5.QtCore import QSettings, Qt
+        from PyQt5.QtGui import QPalette
+        from PyQt5.QtTest import QTest
+        from PyQt5.QtWidgets import QDialog, QPushButton, QVBoxLayout
+        self.assertEqual(DEFAULT_DESIGN, 'glass')
+        self.assertEqual(normalize_design('studio'), 'atelier')
+        self.assertEqual(normalize_design('lumen'), 'graphite')
+        self.assertEqual(normalize_design('unknown'), 'glass')
+        def luminance(color):
+            channels = [v / 12.92 if v <= .04045 else ((v + .055) / 1.055) ** 2.4
+                        for v in (color.redF(), color.greenF(), color.blueF())]
+            return sum(a * b for a, b in zip(channels, (.2126, .7152, .0722)))
+        with tempfile.TemporaryDirectory() as tmp, patch.dict('os.environ', {'LUMEN_DATA': tmp + '/state'}):
+            settings = QSettings(tmp + '/assistant.ini', QSettings.IniFormat)
+            files = QSettings(tmp + '/files.ini', QSettings.IniFormat)
+            dialog = SettingsDialog(files_settings=files, assistant_settings=settings, page=3, load_system=False)
+            dialog.perform = lambda action, data, callback: callback({'desktop': True})
+            self.assertEqual(dialog.appearance.checkedButton().property('design'), 'glass')
+            search = SearchPalette(tmp, applications=[]); search.resize(540, 420); search.show()
+            gallery = QDialog(); gallery.setObjectName('gallery')
+            layout = QVBoxLayout(gallery); action = QPushButton('Speichern'); action.setObjectName('primary'); layout.addWidget(action)
+            gallery.show(); dialog.show()
+            try:
+                for _, name in DESIGNS:
+                    choice = dialog.theme_buttons[name]; choice.setFocus(); QTest.keyClick(choice, Qt.Key_Space)
+                    QTest.mouseClick(dialog.apply_appearance, Qt.LeftButton); QTest.qWait(30)
+                    self.assertEqual(settings.value('appearance', DEFAULT_DESIGN), name)
+                    self.assertEqual(self.app.property('lumenDesign'), name)
+                    self.assertEqual(gallery.palette().color(QPalette.Window), self.app.palette().color(QPalette.Window))
+                    palette = self.app.palette()
+                    for foreground, background in [(QPalette.Text, QPalette.Base), (QPalette.ButtonText, QPalette.Button),
+                            (QPalette.Dark, QPalette.Window), (QPalette.Dark, QPalette.AlternateBase),
+                            (QPalette.HighlightedText, QPalette.Highlight)]:
+                        light, dark = sorted((luminance(palette.color(foreground)), luminance(palette.color(background))))
+                        self.assertGreaterEqual((dark + .05) / (light + .05), 4.5, (name, foreground, background))
+                    self.assertIs(search.query.parentWidget(), search.go.parentWidget())
+                    self.assertGreater(search.go.x(), search.query.geometry().right())
+                    self.assertLessEqual(search.width(), 540)
+                dialog.done(0)
+                reopened = SettingsDialog(files_settings=files, assistant_settings=settings, page=3, load_system=False)
+                self.assertEqual(reopened.appearance.checkedButton().property('design'), 'midnight')
+                reopened.close()
+                window = Window(tmp, files)
+                self.assertEqual(window.palette().color(QPalette.Highlight), self.app.palette().color(QPalette.Highlight))
+                window.close()
+            finally:
+                search.shutdown(); search.hide(); search.deleteLater()
+                gallery.close(); dialog.close()
+                apply_design(self.app, DEFAULT_DESIGN)
 
     def test_preferences_apply_to_files_and_new_windows_without_system_writes(self):
         from app import Window

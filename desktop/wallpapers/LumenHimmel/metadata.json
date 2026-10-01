@@ -1,0 +1,12 @@
+{
+  "KPlugin": {
+    "Id": "LumenHimmel",
+    "Name": "Lumen · Himmel",
+    "Authors": [
+      {
+        "Name": "Lumen contributors"
+      }
+    ],
+    "License": "GPL-3.0"
+  }
+}

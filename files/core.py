@@ -2,6 +2,7 @@
 import mimetypes
 import os
 import shutil
+import stat
 import tempfile
 import threading
 import time
@@ -86,18 +87,18 @@ def check_destination(source, destination):
             raise ValueError('Ein Ordner kann nicht in sich selbst kopiert oder verschoben werden.')
 
 
-def move_entry(source, destination, atomic=False):
+def move_entry(source, destination, atomic=False, progress=None):
     source, destination = Path(source), Path(destination)
     check_destination(source, destination)
     flags = Gio.FileCopyFlags.NOFOLLOW_SYMLINKS
     if atomic:
         flags |= Gio.FileCopyFlags.NO_FALLBACK_FOR_MOVE
     Gio.File.new_for_path(str(source)).move(
-        Gio.File.new_for_path(str(destination)), flags, None, None)
+        Gio.File.new_for_path(str(destination)), flags, None, progress)
     return destination
 
 
-def copy_portable(source, destination):
+def copy_portable(source, destination, copy_file=None):
     """Copy content without POSIX metadata that WebDAV/SMB may reject."""
     # ponytail: server-default metadata; add per-protocol preservation if needed.
     if source.is_symlink():
@@ -105,19 +106,37 @@ def copy_portable(source, destination):
     elif source.is_dir():
         destination.mkdir()
         for child in source.iterdir():
-            copy_portable(child, destination / child.name)
+            copy_portable(child, destination / child.name, copy_file)
+    elif copy_file:
+        copy_file(source, destination)
     else:
         shutil.copyfile(source, destination, follow_symlinks=False)
 
 
-def copy_entry(source, target_dir, portable=False):
+def copy_entry(source, target_dir, portable=False, progress=None):
     source, target_dir = Path(source), Path(target_dir)
     destination = target_dir / source.name
     check_destination(source, destination)
     # Stage on the destination volume: failures never expose an incomplete final copy.
     with tempfile.TemporaryDirectory(prefix='.lumen-copy-', dir=target_dir) as temp:
         staged = Path(temp) / source.name
-        if portable:
+        if progress:
+            def copy_file(src, dest):
+                fd = os.open(src, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+                with os.fdopen(fd, 'rb') as reader:
+                    if not stat.S_ISREG(os.fstat(reader.fileno()).st_mode):
+                        raise ValueError('Nur reguläre Dateien werden kopiert.')
+                    with open(dest, 'xb') as writer:
+                        while chunk := reader.read(1024 * 1024):
+                            writer.write(chunk); progress(len(chunk))
+                if not portable: shutil.copystat(src, dest, follow_symlinks=False)
+                return dest
+            if source.is_symlink(): staged.symlink_to(os.readlink(source))
+            elif source.is_dir():
+                if portable: copy_portable(source, staged, copy_file)
+                else: shutil.copytree(source, staged, symlinks=True, copy_function=copy_file)
+            else: copy_file(source, staged)
+        elif portable:
             copy_portable(source, staged)
         elif source.is_dir() and not source.is_symlink():
             shutil.copytree(source, staged, symlinks=True)
@@ -164,22 +183,19 @@ class FileWorker(QThread):
         self.portable = portable
 
     def run(self):
-        done, errors = [], []
-        for source in self.sources:
-            path = Path(source)
-            self.progress.emit(path.name)
-            try:
-                if self.action == 'copy':
-                    copy_entry(path, self.target, self.portable)
-                elif self.action == 'move':
-                    move_entry(path, Path(self.target) / path.name)
-                elif self.action == 'rename':
-                    move_entry(path, self.target)
-                elif self.action == 'mkdir':
-                    path.mkdir()
-                elif self.action == 'trash':
-                    Gio.File.new_for_path(str(path)).trash(None)
-                done.append(source)
-            except Exception as exc:
-                errors.append(f'{path.name}: {exc}')
-        self.completed.emit(done, errors)
+        from lumen_store import Store
+        from lumen_transfers import create, start, PREFIX, ACTIVE
+        try:
+            store = Store()
+            value = create(store, self.action, list(map(str, self.sources)),
+                           str(self.target) if self.target else None, self.portable)
+            process = start(store, value)
+            while value['status'] in ACTIVE:
+                self.progress.emit(value['current'] or 'Übertragung wird vorbereitet …')
+                time.sleep(.3)
+                value = store.setting(PREFIX + value['id'])
+                if process.poll() is not None and value['status'] in ACTIVE:
+                    raise RuntimeError('Transferprozess wurde unterbrochen. Ziel vor erneutem Versuch prüfen.')
+            self.completed.emit(value['done'], value['errors'])
+        except Exception as error:
+            self.completed.emit([], [str(error)])

@@ -9,6 +9,15 @@ __pycache__/
 .DS_Store
 .projectatlas/
 artifacts/
+backups/
+.env
+.env.*
+*.pem
+*.key
+*.sqlite*
+*.db
+/system.md
+/sync.md
 
 # Arch package build artifacts
 packaging/arch/pkg/

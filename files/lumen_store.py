@@ -8,6 +8,14 @@ import sqlite3
 import time
 import uuid
 
+STATES = {'draft': 'Entwurf', 'queued': 'Geplant', 'running': 'Läuft', 'paused': 'Pausiert',
+          'interrupted': 'Unterbrochen', 'needs_input': 'Braucht dich', 'completed': 'Erledigt',
+          'failed': 'Fehlgeschlagen', 'cancelled': 'Abgebrochen'}
+
+VISIBLE_TASKS = """NOT (status='completed' AND EXISTS (
+    SELECT 1 FROM settings WHERE key='tasks/dismissed/' || tasks.id
+    AND CAST(value AS REAL)=tasks.updated))"""
+
 
 def state_path():
     return Path(os.environ.get('LUMEN_DATA', str(Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))) / 'lumen')))
@@ -125,8 +133,17 @@ class Store:
         value['approved'] = bool(value['approved'])
         return value
 
-    def tasks(self):
-        return self.rows('SELECT id,title,status,updated,error FROM tasks ORDER BY updated DESC LIMIT 200')
+    def tasks(self, include_dismissed=True):
+        return self.rows('SELECT id,title,status,updated,error FROM tasks' +
+                         ('' if include_dismissed else ' WHERE ' + VISIBLE_TASKS) + ' ORDER BY updated DESC LIMIT 200')
+
+    def dismiss_task(self, task):
+        with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            row = db.execute("SELECT updated FROM tasks WHERE id=? AND status='completed'", (task,)).fetchone()
+            if row is None: raise ValueError('Nur erledigte Aufgaben können geschlossen werden.')
+            db.execute('INSERT OR REPLACE INTO settings VALUES (?,?)',
+                       ('tasks/dismissed/' + task, json.dumps(row['updated'])))
 
     def update_task(self, task, **values):
         allowed = {'status', 'approved', 'session', 'model', 'cursor', 'result', 'error', 'title', 'prompt'}

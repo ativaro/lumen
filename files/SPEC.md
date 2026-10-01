@@ -3,6 +3,16 @@
 Native Linux-Dateiverwaltung mit Schwerpunkt auf schneller Dateinamensuche und brauchbaren Vorschauen. Deutsch, dunkle ruhige Oberfläche, Systemschrift, vorhandenes PyQt5 und GIO; keine neuen Pakete.
 
 ## Akzeptanz
+- Gestaltung gemäß freigegebenem Entwurf: Tabs oberhalb einer kompakten Navigation,
+  Graphitflächen mit türkisen Akzenten, sichtbare blaue Ordner und native Dateiicons,
+  klare Typografie, dezente Auswahl und kompakte Sammelfläche/Miniaturregler unten.
+  Vorschau, Größen/Herkunft, Suche und Netzwerkfunktionen bleiben erhalten. Lange
+  Pfade halten den aktuellen Ordner sichtbar; Strg+L erlaubt die vollständige Adresse.
+  Weiterer Entwurfsabgleich: dichteres Raster mit 144px Standardminiaturen, weiche
+  Verläufe, leisere Trennlinien und Fokusmarkierung am Dateinamen. Eigene Symbole
+  nur für konfigurierte XDG-Ordner, gemeinsam in Liste/Raster/Bibliothek; native
+  Symlinkmarkierungen erhalten. Netzwerk- und Bibliotheksherkunft bleibt sichtbar.
+  Keine fremden Fenster schließen oder den Desktopstil für den Abgleich ändern.
 - Echte lokale Ordner, Favoriten, Tabs, Verlauf, versteckte Dateien und Typfilter.
 - Seitliche Maustasten und Browser-Zurück/Vor-Tastensignale navigieren über allen Fensterbereichen im Verlauf, in der Galerie durch Bilder; andere Dialoge lösen keine Hintergrundnavigation aus. Dateiliste selbst und ihre innere Fläche prüfen; `QWidget.window()` bleibt aufrufbar. Zehn Orte passen bei 1000 × 640 Pixeln ohne Scrollen in die Seitenleiste.
 - Dateinamensuche ab 250 ms Eingabepause, rekursiv, laufende Treffer, abbrechbar; ohne Beachtung der Großschreibung. Keine Symlink-Rekursion. Maximal 5.000 Treffer mit sichtbarem Hinweis. Kein Hintergrundindex.
@@ -13,15 +23,15 @@ Native Linux-Dateiverwaltung mit Schwerpunkt auf schneller Dateinamensuche und b
 ## Struktur und Befehle
 `app.py`: Oberfläche; `core.py`: Suche/Dateioperationen; `preview.py`: Vorschau; `test_lumen.py`: ausführbare Prüfungen; `style.qss`: Gestaltung.
 
-Start: `/usr/bin/python3 /home/example/Documents/work/lumen/files/app.py`
-Test: `cd /home/example/Documents/work/lumen/files && QT_QPA_PLATFORM=offscreen /usr/bin/python3 -m unittest -v`
-Prüfung: `/usr/bin/python3 -m compileall -q /home/example/Documents/work/lumen/files`
+Start: `/usr/bin/python3 files/app.py`
+Test: `cd files && QT_QPA_PLATFORM=offscreen /usr/bin/python3 -m unittest -v`
+Prüfung: `/usr/bin/python3 -m compileall -q files`
 
 ## Stil und Grenzen
 Python, vier Leerzeichen, kleine direkte Funktionen: `def valid_name(name): ...`. Native Qt-Widgets und Standardbibliothek zuerst. Tests mit unittest und temporären Verzeichnissen, keine Nutzerdaten verändern. Decoder begrenzen Lesevolumen und Laufzeit. Keine Systemkonfiguration, Fremdprojekte oder Standardzuordnungen ändern. Versionskontrolle lokal.
 
 ## Inhaltssuche
-- „Inhalte“ neben der Suche oder Strg+Umschalt+F öffnet eine native Suchansicht für den aktuellen Ordner und Unterordner. Suchfeld, laufende Treffer mit echten Textausschnitten, Dateivorschau, Öffnen und „Ordner öffnen“; keine Chatoberfläche.
+- Das rechte Symbol im Suchfeld oder Strg+Umschalt+F öffnet eine native Suchansicht für den aktuellen Ordner und Unterordner. Suchfeld, laufende Treffer mit echten Textausschnitten, Dateivorschau, Öffnen und „Ordner öffnen“; keine Chatoberfläche.
 - Text/Code und PDFs mit Textebene werden lokal durchsucht. Fragen wie „Die Rechnung für meinen Monitor“ werden auf wesentliche Suchwörter reduziert; alle Begriffe müssen im Inhalt vorkommen. Groß-/Kleinschreibung und übliche deutsche Endungen werden berücksichtigt.
 - „Mit Lumen erweitern“ ergänzt auf ausdrücklichen Klick alternative Suchbegriffe. Nur die Suchfrage wird als Anfrage übergeben, keine Suchtreffer oder Ordnerlisten. Ein leerer Arbeitsordner und deaktivierte Projektkonfiguration verhindern das automatische Laden von Anweisungen aus dem Suchordner; persönliche globale Lumen-/OpenCode-Anweisungen bleiben wie eingerichtet Teil des Modellkontexts und werden im Tooltip genannt. Backend mit gesperrten Werkzeugen wiederverwenden; Ergebnisse sind echte lokale Fundstellen. Begriffe sichtbar, Modellfehler lassen lokale Suche nutzbar.
 - Lesen und PDF-Extraktion in einem abbrechbaren Kindprozess; vorhandenes pdftotext nutzen. Keine Symlinks/Spezialdateien, versteckte Inhalte nur bei entsprechender Auswahl. Maximal 1 MiB Text je Datei, PDFs bis 128 MiB/12 Sekunden, 500 Treffer und 100.000 besuchte Einträge. Fehler und Teilabdeckung werden sichtbar gezählt. Keine Office-/OCR-Suche, kein dauerhafter Index, kein System-Indexer wird aktiviert.
@@ -47,6 +57,8 @@ Python, vier Leerzeichen, kleine direkte Funktionen: `def valid_name(name): ...`
 - Prüfen: Adressvalidierung, Passwortschutz, Fehler/Abbruch, persistierte Orte und echte lokale WebDAV-Verbindung mit Lesen/Schreiben/Vorschau; keine fremden Server verändern.
 
 ## Bildarbeit und Speicheranalyse
+- Fotooberfläche gemäß freigegebenen Entwürfen vom 2026-10-01: großzügiges Bildraster mit unbeschnittenen Miniaturen, ruhiger Auswahlmarkierung und Herkunft; seitliche große Bildvorschau mit Name, Größe, Auflösung und lokalem/NAS-Ursprung, direkter Großansicht und Bearbeitung.
+- Galerie bleibt unabhängig vom Systemthema dunkel: Bild im Mittelpunkt, Filmstreifen mit sichtbaren Miniaturen und begrenztem Cache, Pfeiltasten/Maustasten und optionaler Bearbeitungsleiste. Auswahlwechsel schützt ungespeicherte Änderungen; bestehende Sicherungen und Papierkorbbestätigung bleiben erhalten. Keine neuen Abhängigkeiten, automatische NAS-Scans oder Änderung der Ordnergrößenfunktion.
 - Tabs stehen über Suche, Dateiaktionen und Pfadnavigation. Der automatische Eintrag `/mnt/games` entfällt; Dateien und Mount bleiben unverändert.
 - Bilder per Doppelklick oder Leertaste in einer großen Galerie öffnen. Pfeiltasten, Nachbarbilder vorladen, Zoom/Pan, Vollbild, Drehen, Spiegeln und Undo.
 - Bearbeitung explizit speichern; JPEG/PNG/WebP, keine Animationen oder Symlinks überschreiben. Original vor jedem Speichern sichern; gleichzeitige Änderungen erkennen. Papierkorb nach Bestätigung, anschließend nächstes Bild. Kein permanentes Löschen.

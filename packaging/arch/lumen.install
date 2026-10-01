@@ -7,6 +7,8 @@ post_install() {
     cat <<'EOF'
 Lumen installiert. Dateien, Aufträge, Wissen und Abläufe sind Bestandteile von Lumen.
 Starter: lumen · Dateien: lumen --page files · Engine-Anbindung: lumen-setup
+Desktop einrichten (als Benutzer in Plasma, ersetzt Panels nach Sicherung):
+  lumen-desktop-setup --apply --replace-panels
 Dienste und Zeitpläne werden unter Einstellungen bzw. Abläufe bewusst aktiviert.
 EOF
 }

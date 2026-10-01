@@ -68,6 +68,102 @@ class NetworkRuntimeTest(unittest.TestCase):
             QTest.qWait(15)
         self.assertTrue(condition(), 'Network operation timed out')
 
+    def test_smb_dialog_accepts_server_and_listing_rejects_missing_folder(self):
+        import tempfile
+        from network import ConnectDialog, Network
+        from PyQt5.QtWidgets import QDialog, QLineEdit
+        dialog = ConnectDialog(address='smb://nas/')
+        dialog.validate()
+        self.assertEqual(dialog.result(), QDialog.Accepted)
+        self.assertEqual(dialog.url, 'smb://nas/')
+        self.assertEqual(dialog.findChildren(QLineEdit), [dialog.address])
+        dialog.address.setText('smb://alice@nas/Fotos 2026'); dialog.validate()
+        self.assertEqual(dialog.url, 'smb://alice@nas/Fotos%202026')
+        dialog.deleteLater()
+        with tempfile.TemporaryDirectory() as tmp:
+            network = Network(); errors = []; connected = []
+            network.failed.connect(errors.append); network.connected.connect(lambda *args: connected.append(args))
+            network.check_listing('smb://nas/Fotos', tmp + '/missing')
+            self.wait_until(lambda: network.probe is None)
+            self.assertTrue(errors); self.assertFalse(connected)
+            network.check_listing('smb://nas/Fotos', tmp)
+            self.wait_until(lambda: network.probe is None)
+            self.assertEqual(len(connected), 1)
+            network.close(); network.deleteLater()
+
+    def test_smb_native_authentication_precedes_mount_and_cancel_prevents_late_mount(self):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        from PyQt5.QtTest import QTest
+        from network import Network
+        with tempfile.TemporaryDirectory() as tmp:
+            helper = Path(tmp) / 'kioclient'
+            helper.write_text('#!/bin/sh\nexit 0\n'); helper.chmod(0o755)
+            network = Network(); errors = []; network.failed.connect(errors.append)
+            with patch('network.shutil.which', return_value=str(helper)), patch.object(network, 'mount_url') as mount:
+                network.mount('smb://nas/')
+                self.assertEqual(network.probe.arguments(), ['--interactive', '--desktopfile', 'lumen-files', 'ls', 'smb://nas/'])
+                self.wait_until(lambda: network.probe is None)
+                mount.assert_called_once_with('smb://nas/')
+                mount.reset_mock()
+                network.mount('smb://alice@nas/Fotos')
+                self.assertEqual(network.probe.arguments()[-2:], ['ls', 'smb://alice@nas/Fotos'])
+                self.wait_until(lambda: network.probe is None)
+                mount.assert_called_once_with('smb://alice@nas/Fotos')
+                mount.reset_mock()
+                helper.write_text('#!/bin/sh\nexit 1\n')
+                network.mount('smb://alice@nas/Fotos')
+                self.wait_until(lambda: network.probe is None)
+                self.assertTrue(errors); mount.assert_not_called()
+                errors.clear(); helper.write_text('#!/bin/sh\nexec sleep 2\n')
+                network.mount('smb://alice@nas/Fotos'); network.cancel(); QTest.qWait(30)
+                self.assertFalse(errors); mount.assert_not_called()
+            with patch('network.shutil.which', return_value=None), patch.object(network, 'mount_url') as mount:
+                network.mount('smb://alice@nas/Fotos')
+                self.assertIn('kde-cli-tools', errors[-1]); mount.assert_not_called()
+            network.close(); network.deleteLater()
+
+    def test_saved_smb_server_browses_shares_without_address_dialog(self):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        from PyQt5.QtCore import QSettings
+        from PyQt5.QtTest import QTest
+        from app import Window
+        from file_spaces import Catalog
+        from lumen_store import Store
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); server = root / 'server'; share = server / 'Fotos 2026'
+            share.mkdir(parents=True)
+            settings = QSettings(str(root / 'settings.ini'), QSettings.IniFormat)
+            settings.setValue('network_servers', ['smb://nas/'])
+            catalog = Catalog(Store(root / 'state'))
+            window = Window(tmp, settings, catalog)
+            errors = []; window.error = lambda *args: errors.append(args)
+            def mounted(address):
+                path = str(server if address == 'smb://nas/' else share)
+                window.network.mounts[path] = address
+                window.network.connected.emit(address, path)
+            try:
+                with patch('app.ConnectDialog') as dialog, patch.object(window.network, 'mount', side_effect=mounted) as mount:
+                    window.connect_server(window.saved_servers()[0])
+                    self.assertEqual(window.current_location, 'smb://nas/')
+                    self.wait_until(lambda: window.proxy.rowCount(window.view.rootIndex()) == 1)
+                    window.open_index(window.proxy.index(0, 0, window.view.rootIndex()))
+                    self.assertEqual(window.current_location, 'smb://nas/Fotos%202026')
+                    mount.assert_called_with('smb://nas/Fotos%202026')
+                    window.up()
+                    self.assertEqual(window.current_location, 'smb://nas/')
+                    window.history(-1)
+                    self.assertEqual(window.current_location, 'smb://nas/Fotos%202026')
+                    dialog.assert_not_called()
+                library = catalog.save_library(None, 'Server', [{'label': 'NAS', 'location': 'smb://nas/'}])
+                self.assertEqual(library['sources'][0]['location'], 'smb://nas/')
+                self.assertFalse(errors, errors)
+            finally:
+                window.close(); window.deleteLater(); QTest.qWait(100)
+
     def test_real_webdav_connection_navigation_preview_and_transfer(self):
         import tempfile
         import threading
@@ -77,6 +173,8 @@ class NetworkRuntimeTest(unittest.TestCase):
         from urllib.parse import quote, urlsplit
         from xml.sax.saxutils import escape
         from app import Window
+        from file_spaces import Catalog, LIBRARY
+        from lumen_store import Store
         from PyQt5.QtCore import QSettings
         from PyQt5.QtTest import QTest
 
@@ -168,7 +266,8 @@ class NetworkRuntimeTest(unittest.TestCase):
             thread.start()
             address = f'webdav://127.0.0.1:{server.server_port}/'
             settings = QSettings(str(root / 'settings.ini'), QSettings.IniFormat)
-            window = Window(tmp, settings)
+            catalog = Catalog(Store(root / 'state'))
+            window = Window(tmp, settings, catalog)
             errors = []
             window.error = lambda *args: errors.append(args)
             window.show()
@@ -226,6 +325,28 @@ class NetworkRuntimeTest(unittest.TestCase):
                 window.run_operation('copy', [str(mounted / 'Notes.txt')], tmp)
                 self.wait_until(lambda: window.file_job is None)
                 self.assertEqual((root / 'Notes.txt').read_text(), 'Read from the network preview.')
+                library = catalog.save_library(None, 'PC und Netz', [
+                    {'label': 'PC', 'location': tmp}, {'label': 'Netz', 'location': address}])
+                window.navigate(LIBRARY + library['id'])
+                self.wait_until(lambda: window.spaces.pending == 0)
+                self.assertFalse(window.spaces.errors, window.spaces.errors)
+                notes = [window.results.item(i, 4).text() for i in range(window.results.rowCount())
+                         if window.results.item(i).text() == 'Notes.txt']
+                self.assertEqual(set(notes), {'PC', 'Netz'})
+                from unittest.mock import patch
+                with patch('assistant_backend.OpenCodeBackend.refresh_sessions'), patch('assistant_backend.OpenCodeBackend.send') as send:
+                    window.ask_lumen('open', [])
+                    window.assistant.backend.new_conversation(str(mounted))
+                    window.assistant.paths = [str(mounted / 'Notes.txt')]
+                    room = catalog.save_room(None, 'Netzraum', window.spaces.capture())
+                    self.assertEqual(room['state']['chat']['directory'], address)
+                    window.assistant.backend.new_conversation(tmp)
+                    window.spaces.open_room(room)
+                    self.wait_until(lambda: window.spaces.active_room is not None and window.spaces.pending == 0)
+                    self.assertEqual(window.spaces.reference(window.assistant.paths[0]), address + 'Notes.txt')
+                    self.assertEqual(window.spaces.reference(window.assistant.backend.directory), address)
+                    send.assert_not_called()
+                window.navigate(tmp)
                 # User moves elsewhere while a connect reply is in flight: no late navigation or saving.
                 window.connect_server(address + 'Sub%20%231', remember=True)
                 window.navigate(tmp)
@@ -248,7 +369,7 @@ class NetworkRuntimeTest(unittest.TestCase):
                 window.close()
                 window.deleteLater()
                 QTest.qWait(50)
-                window = Window(settings=settings)
+                window = Window(settings=settings, catalog=catalog)
                 window.error = lambda *args: errors.append(args)
                 window.show()
                 self.wait_until(lambda: window.connection_request is None)

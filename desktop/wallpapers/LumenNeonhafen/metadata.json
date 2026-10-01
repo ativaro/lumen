@@ -1,0 +1,12 @@
+{
+  "KPlugin": {
+    "Id": "LumenNeonhafen",
+    "Name": "Lumen · Neonhafen",
+    "Authors": [
+      {
+        "Name": "Lumen contributors"
+      }
+    ],
+    "License": "MIT"
+  }
+}

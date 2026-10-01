@@ -6,10 +6,10 @@ import re
 import shutil
 import sys
 
-from PyQt5.QtCore import QProcess, QSettings, Qt, QTimer, QTime, QUrl, pyqtSignal
+from PyQt5.QtCore import QProcess, QSettings, QSize, Qt, QTimer, QTime, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices, QKeySequence
-from PyQt5.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout,
-    QHBoxLayout, QKeySequenceEdit, QLabel, QLineEdit, QListWidget, QListWidgetItem,
+from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout,
+    QButtonGroup, QGridLayout, QHBoxLayout, QKeySequenceEdit, QLabel, QLineEdit, QListWidget, QListWidgetItem,
     QPushButton, QScrollArea, QSpinBox, QStackedWidget, QTimeEdit, QVBoxLayout, QWidget)
 from assistant_backend import OpenCodeBackend
 from desktop_settings import SHORTCUTS
@@ -54,7 +54,7 @@ class SettingsDialog(QDialog):
         root = QVBoxLayout(self)
         row = QHBoxLayout()
         self.nav = QListWidget()
-        self.nav.setAccessibleName('Einstellungsbereiche')
+        self.nav.setAccessibleName('Einstellungsbereiche'); self.nav.setObjectName('settingsNavigation')
         self.nav.setFixedWidth(205)
         self.nav.setSpacing(5)
         self.stack = QStackedWidget()
@@ -130,6 +130,12 @@ class SettingsDialog(QDialog):
         settings.sync()
         if settings.status() != QSettings.NoError:
             raise OSError('Einstellungen konnten nicht gespeichert werden.')
+        if changes:
+            from lumen_history import record
+            from lumen_store import Store
+            record(Store(), 'Lumen-Einstellungen angepasst', 'preferences',
+                   {key: self.original.get((settings.fileName(), key)) for key in changes},
+                   changes, settings.fileName())
         for key, value in values.items():
             self.original[(settings.fileName(), key)] = value
         self.preferencesChanged.emit(settings.fileName(), list(changes))
@@ -257,12 +263,30 @@ class SettingsDialog(QDialog):
                 item.setData(Qt.UserRole, key)
                 self.places.addItem(item)
         page.addWidget(self.places)
-        page.addWidget(button('Ausgewählten Eintrag entfernen', lambda: self.places.takeItem(self.places.currentRow()) if self.places.currentRow() >= 0 else None))
+        remove = button('Ausgewählten Eintrag entfernen', lambda: self.places.takeItem(self.places.currentRow()) if self.places.currentRow() >= 0 else None)
+        remove.setObjectName('danger'); page.addWidget(remove)
         page.addWidget(button('Files-Einstellungen übernehmen', self.save_files))
+        page.addWidget(button('Bibliotheken und Quellen verwalten …', self.manage_libraries))
         page.addWidget(text('Neue Server: Strg+K in Files (SMB, SFTP, WebDAV, NFS).\n'
             'Bilder bearbeiten: Leertaste auf einem Bild. Originale werden vor dem Speichern gesichert.\n'
             'Speicheranalyse: Menü ••• → Speicher analysieren. Umbenennen/Sortieren: Auswahl → Kontextmenü.'))
         page.addStretch()
+
+    def manage_libraries(self):
+        from file_spaces import Catalog
+        from file_spaces_ui import LibraryDialog
+        from PyQt5.QtWidgets import QMenu
+        catalog = self.parent().spaces.catalog if hasattr(self.parent(), 'spaces') else Catalog()
+        menu = QMenu(self)
+        def edit(library=None):
+            dialog = LibraryDialog(catalog, library, self)
+            if dialog.exec_() == QDialog.Accepted:
+                self.preferencesChanged.emit(self.files.fileName(), ['libraries'])
+            dialog.deleteLater()
+        for library in catalog.libraries():
+            menu.addAction(library['name'], lambda _=False, value=library: edit(value))
+        menu.addAction('Neue Bibliothek …', lambda: edit())
+        menu.exec_(self.mapToGlobal(self.rect().center()))
 
     def save_files(self):
         try:
@@ -292,27 +316,58 @@ class SettingsDialog(QDialog):
 
     def build_appearance(self):
         page = self.page('Erscheinungsbild', 'Lumen und dein KDE-Desktop')
-        page.addWidget(text('Lumen Files folgt automatisch den KDE-Farben, Symbolen und der Systemschrift.'))
-        page.addWidget(text('Darstellung des Lumen-Assistenten:'))
-        self.appearance = combo([('Lumen Dunkel', 'lumen'), ('Systemstil', 'system')], self.field(self.assistant, 'appearance', 'lumen'))
-        page.addWidget(self.appearance)
+        from appearance import DEFAULT_DESIGN, DESIGNS, DESCRIPTIONS, apply_design, normalize_design, theme_icon
+        page.addWidget(text('Ein Design für Lumen, Files, Leisten, Panels und Fensterdekorationen.'))
+        value = normalize_design(self.field(self.assistant, 'appearance', DEFAULT_DESIGN))
+        self.appearance = QButtonGroup(self)
+        choices = QGridLayout(); choices.setSpacing(12)
+        self.theme_buttons = {}
+        for index, (title, name) in enumerate(DESIGNS):
+            choice = QPushButton(title + ('\nStandard' if name == DEFAULT_DESIGN else ''))
+            choice.setObjectName('themeChoice'); choice.setCheckable(True)
+            choice.setProperty('design', name); choice.setIcon(theme_icon(name)); choice.setIconSize(QSize(100, 60))
+            choice.setMinimumHeight(90); choice.setAccessibleName(title + ': ' + DESCRIPTIONS[name])
+            choice.setToolTip(DESCRIPTIONS[name]); self.appearance.addButton(choice)
+            choice.setChecked(value == name); self.theme_buttons[name] = choice
+            choices.addWidget(choice, index // 2, index % 2)
+        page.addLayout(choices)
+        extras = QHBoxLayout()
+        for title, name in [('KDE-Systemstil', 'system')] + ([('Bisheriges helles Design', 'clear')] if value == 'clear' else []):
+            choice = QPushButton(title); choice.setObjectName('chip'); choice.setCheckable(True)
+            choice.setProperty('design', name); self.appearance.addButton(choice)
+            choice.setChecked(value == name); self.theme_buttons[name] = choice; extras.addWidget(choice)
+        extras.addStretch(); page.addLayout(extras)
+        description = text(DESCRIPTIONS.get(value, 'Die Farben deines KDE-Desktops.'))
+        page.addWidget(description)
+        self.appearance.buttonClicked.connect(lambda selected: description.setText(DESCRIPTIONS.get(selected.property('design'), 'Die Farben deines KDE-Desktops.')))
         def save():
             try:
-                self.save(self.assistant, {'appearance': self.appearance.currentData()})
-                self.status.setText('Darstellung gespeichert. Sie gilt für neu gestartete Lumen-Fenster. Files folgt dem System.')
+                design = self.appearance.checkedButton().property('design')
+                self.save(self.assistant, {'appearance': design})
+                apply_design(QApplication.instance(), design)
+                self.status.setText('App-Design übernommen. Leisten und Fenster werden angepasst …')
+                self.perform('appearance', {'design': design}, lambda result: self.status.setText(
+                    'Design übernommen — inklusive Leisten, Panels und Fensterdekoration.' if result.get('desktop')
+                    else 'App-Design übernommen. Der gewählte Plasma-Stil bleibt erhalten.'))
             except (OSError, ValueError) as error:
                 self.status.setText(str(error))
-        page.addWidget(button('Lumen-Darstellung übernehmen', save))
+        self.apply_appearance = button('Design übernehmen', save); self.apply_appearance.setObjectName('primary')
+        page.addWidget(self.apply_appearance, 0, Qt.AlignLeft)
+        desktop = QWidget(); desktop.hide(); desktop_layout = QVBoxLayout(desktop)
+        desktop_layout.setContentsMargins(0, 0, 0, 0)
+        advanced = QPushButton('KDE-Desktop anpassen …'); advanced.setObjectName('quiet'); advanced.setCheckable(True)
+        advanced.toggled.connect(desktop.setVisible); page.addWidget(advanced, 0, Qt.AlignLeft)
+        page.addWidget(desktop)
         self.theme_state = text('Aktuelles KDE-Design wird geladen …')
-        page.addWidget(self.theme_state)
+        desktop_layout.addWidget(self.theme_state)
         for title, module in [('Globales Design', 'kcm_lookandfeel'), ('Farben', 'kcm_colors'),
             ('Plasma-Stil', 'kcm_desktoptheme'), ('Symbole', 'kcm_icons'), ('Mauszeiger', 'kcm_cursortheme'),
             ('Schriften', 'kcm_fonts'), ('Anwendungsstil', 'kcm_style'), ('Fensterdekoration', 'kcm_kwindecoration'),
             ('Arbeitsflächeneffekte / Blur', 'kcm_kwin_effects'), ('Fensterregeln', 'kcm_kwinrules'),
             ('Bildschirme & Skalierung', 'kcm_kscreen')]:
-            self.launcher(page, title + ' …', 'kcmshell6', module)
-        self.launcher(page, 'Kvantum-Theme & Transparenz …', 'kvantummanager')
-        self.launcher(page, 'Hintergrundbild & Desktop bearbeiten …', 'qdbus6', 'org.kde.plasmashell', '/PlasmaShell', 'org.kde.PlasmaShell.editMode', 'true')
+            self.launcher(desktop_layout, title + ' …', 'kcmshell6', module)
+        self.launcher(desktop_layout, 'Kvantum-Theme & Transparenz …', 'kvantummanager')
+        self.launcher(desktop_layout, 'Hintergrundbild & Desktop bearbeiten …', 'qdbus6', 'org.kde.plasmashell', '/PlasmaShell', 'org.kde.PlasmaShell.editMode', 'true')
         page.addStretch()
 
     def build_panels(self):
@@ -534,3 +589,12 @@ class SettingsDialog(QDialog):
         if self.engine:
             self.engine.shutdown()
         super().done(result)
+
+
+if __name__ == '__main__':
+    from app import create_app
+    from PyQt5.QtGui import QIcon
+    app = create_app()
+    app.setApplicationName('lumen-settings'); app.setApplicationDisplayName('Lumen Einstellungen')
+    dialog = SettingsDialog(page=3 if '--appearance' in sys.argv else 0); dialog.setWindowIcon(QIcon.fromTheme('configure')); dialog.show()
+    sys.exit(app.exec_())

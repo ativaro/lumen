@@ -1,0 +1,18 @@
+{
+  "KPlugin": {
+    "Id": "LumenGraphite",
+    "Name": "Lumen Graphit",
+    "Version": "1.0.0",
+    "Description": "Graphitfarbene Fensterdekoration passend zu Lumen Files",
+    "License": "GPL-3.0",
+    "Authors": [
+      {
+        "Name": "Vince Liuice (original MacTahoe artwork)"
+      },
+      {
+        "Name": "Lumen contributors"
+      }
+    ]
+  },
+  "KPackageStructure": "aurorae"
+}

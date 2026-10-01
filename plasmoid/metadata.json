@@ -4,14 +4,14 @@
             { "Name": "Lumen" }
         ],
         "Category": "System Information",
-        "Description": "Lumen: agent status and quick actions",
-        "Description[de]": "Lumen: Agent-Status und Schnellaktionen",
+        "Description": "Shared tasks, results and quick actions from Lumen and Lumen Files",
+        "Description[de]": "Gemeinsame Aufgaben, Ergebnisse und Schnellaktionen aus Lumen und Lumen Files",
         "Icon": "lumen",
         "Id": "org.lumen.agent",
         "License": "MIT",
         "Name": "Lumen",
         "Name[de]": "Lumen",
-        "Version": "1.0.0",
+        "Version": "1.2.0",
         "Website": "https://github.com/ativaro/lumen"
     },
     "KPackageStructure": "Plasma/Applet",

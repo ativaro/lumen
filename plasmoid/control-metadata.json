@@ -1,0 +1,21 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Lumen"
+            }
+        ],
+        "Category": "System Information",
+        "Description": "Systemsteuerung, Einstellungen und Themes",
+        "Description[de]": "Systemsteuerung, Einstellungen und Themes",
+        "Icon": "configure",
+        "Id": "org.lumen.control",
+        "License": "MIT",
+        "Name": "Lumen Einstellungen",
+        "Name[de]": "Lumen Einstellungen",
+        "Version": "1.2.0",
+        "Website": "https://github.com/ativaro/lumen"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

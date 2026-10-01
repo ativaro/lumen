@@ -1,147 +1,67 @@
-# Publishing Lumen
+# Build and publish Lumen
 
-Lumen is developed and tested locally. The private GitHub repository stores source
-and history only; GitHub Actions are disabled. Homelab automation can use Forgejo
-when needed; no Forgejo runner is configured by this repository yet.
+GitHub stores distributable source, tests, documentation and desktop artwork.
+GitHub Actions are disabled. Personal system inventories, session logs, app data,
+credentials, backups and desktop screenshots do not belong in this repository.
+See [INSTALL.md](INSTALL.md) for installation and recovery.
 
-The public-release checklist below is optional and not required for local use.
+## Verify locally
 
-## 1. Hosting
+Use an isolated user profile:
 
-- [ ] Create a public repository (GitHub/GitLab/Codeberg).
-- [ ] Push the repo:
-  ```bash
-  git remote add origin https://github.com/ativaro/lumen.git
-  git push -u origin master
-  ```
-- [ ] Update `url=` and `_srcurl` in `packaging/arch/PKGBUILD` to the real repo.
-- [ ] Replace `https://github.com/ativaro/lumen.git` placeholders in `README.md`.
+```bash
+lumen_test_root="$(mktemp -d)"
+HOME="$lumen_test_root" XDG_CONFIG_HOME="$lumen_test_root/config" \
+  XDG_DATA_HOME="$lumen_test_root/data" XDG_STATE_HOME="$lumen_test_root/state" \
+  XDG_CACHE_HOME="$lumen_test_root/cache" QT_QPA_PLATFORM=offscreen \
+  dbus-run-session -- /usr/bin/python3 -m unittest discover -s files -v
+```
 
-## 2. Package source + checksums
+Create the ignored screenshot directories and run Qt 6's QML checks:
 
-The PKGBUILD builds from a local tarball by default (`LOCALSRC=1`) and from the
-release URL otherwise. For publishing:
+```bash
+mkdir -p artifacts/islands artifacts/panel artifacts/themes
+/usr/lib/qt6/bin/qmltestrunner -input plasmoid/tests -platform offscreen
+```
+Run the installed desktop in disposable virtual Plasma sessions:
 
-- [ ] Tag a release matching `pkgver`:
-  ```bash
-  git tag v1.0.0 && git push origin v1.0.0
-  ```
-- [ ] Fetch the real checksum:
-  ```bash
-  cd packaging/arch && updpkgsums
-  ```
-- [ ] Verify a clean build without `LOCALSRC`:
-  ```bash
-  makepkg -f
-  ```
+```bash
+python3 tests/check-desktop.py
+python3 tests/check-desktop.py --width 1280 --screens 1
+```
 
-## 3. AUR
+The check creates an empty HOME/XDG profile and separate D-Bus/compositor session. Verify all three desktop roles, Files/search launchers,
+four themes and Aurorae decorations, wallpaper selection and idempotent setup.
+Do not reset a developer's running Plasma session to test an installer.
 
-- [ ] Generate the AUR tree:
-  ```bash
-  ./distro/aur/make-aur.sh
-  ```
-- [ ] Review `distro/aur/.SRCINFO` (generated; not tracked).
-- [ ] Push to `ssh://aur@aur.archlinux.org/lumen.git`.
-- [ ] Users can then install with `yay -S lumen`.
+Review staged files and the commits that will be pushed for private information.
+Do not push local development history containing deployment logs or machine data;
+prepare a clean change on top of the remote branch when necessary. Generated design
+mockups and diagnostic artifacts are not needed to install Lumen.
 
-## 4. Trust / signing
+## Package
 
-- [ ] Sign packages for a hosted repo:
-  ```bash
-  ./distro/cachyos/make-repo.sh --sign
-  ```
-- [ ] Publish the public key and set `SigLevel = Required DatabaseOptional`.
-
-## 5. Local verification and optional homelab automation
-
-Run the native tests below locally, then build from the committed source:
+Commit the reviewed source, then run:
 
 ```bash
 ./packaging/arch/build-package.sh
 ```
 
-Pushes and tags do not start GitHub builds or publish releases. If automation is
-needed in the homelab, configure Forgejo to run the same tests and build command.
+The build uses `git archive HEAD` so only committed project files enter the source
+archive. Check the resulting package contains `usr/share/lumen/desktop`, all
+`org.lumen.*` applets and the three app/Files/search launchers. The package installs
+resources; each user explicitly activates their desktop using `lumen-desktop-setup`.
+Updates preserve existing service preferences and user data.
 
-## 6. Documentation polish
+A fresh-system clone build is supported. The PKGBUILD's release-tarball mode is
+for maintainers: create the matching version tag and replace `SKIP` with the
+verified archive checksum before distributing that PKGBUILD independently.
+No AUR release or binary repository is currently implied by this source repository.
 
-- [ ] Screenshots / short demo GIF in `README.md`.
-- [ ] `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` (optional).
-- [ ] Confirm the `LICENSE` (MIT) is correct for you.
+## Licenses
 
-## 7. Final sanity
-
-- [ ] Fresh-machine test: install the package on a clean Arch/CachyOS VM and
-      confirm the app starts, `lumen-setup` wires opencode, and existing service preferences
-      are preserved; new timers remain opt-in.
-- [ ] `lumen-setup --uninstall` and `pacman -R lumen` preserve user state and reports.
-
-## Native UI (package revision 14)
-
-The desktop app and Files panel now require `python-pyqt5`, `python-gobject`
-and `python-pillow`; the old QML chat and text-file bridge have been removed.
-Before publishing, run the native tests:
-
-```bash
-lumen_test_root="$(mktemp -d)"
-QT_QPA_PLATFORM=offscreen XDG_CONFIG_HOME="$lumen_test_root/config" \
-  LUMEN_DATA="$lumen_test_root/state" \
-  /usr/bin/python3 -m unittest discover -s files -v
-```
-
-Also verify the installed launchers, permissions, questions,
-image attachments and cancellation on the target OpenCode version. Desktop
-context menus and hotkeys must open Lumen without a terminal. Existing services
-and OpenCode configuration must retain their settings on upgrade.
-
-Settings smoke check: **Ctrl+,** opens the shared native dialog from both apps.
-Read actual panels, shortcut registrations, service states and configured models;
-do not change the personal desktop just to test writes. Use isolated QSettings
-and mocked native calls for saves, conflicts, service scopes and timer rollback.
-Files preferences must affect the current window; startup/appearance preferences
-apply to new windows. Saving a Files preference must never enable automatic tool
-approval in an existing chat. System editors remain KDE's own dialogs. Background
-report options use separate user-systemd drop-ins, not global engine config.
-
-Launcher upgrade check: KDE can retain the old `Exec` of a registered shortcut
-after the desktop file and KSycoca cache were updated. In the user's KDE session,
-run `/usr/bin/python3 <install>/files/desktop_settings.py refresh-shortcuts`
-with `{}` on stdin after replacing desktop files (the user installer does this).
-Only Lumen registrations are recreated, retaining custom/disabled keys and a
-backup. Invoke the registered Lumen launch and inspect the actual systemd user
-unit `ExecStart` and native window; inspecting shortcut key values alone is
-insufficient. A panel launcher may hold its own old desktop-file copy: update
-the selected widget URL/localPath to `lumen.desktop`, not `opencode.desktop`.
-Clipboard explanation defaults to **Meta+Shift+C**; **Meta+Shift+S** belongs to
-Spectacle on KDE. Preserve unrelated bindings.
-
-Permission-mode smoke check: default **Nicht mehr nachfragen** off; enable it
-while a request is waiting, verify automatic one-time approval for this session
-and verified child tasks, then disable it and verify that the next permission
-waits. Questions remain manual. Check preference persistence for new windows,
-deduplicated replies, errors and cancellation. Proposal tools remain denied;
-no global OpenCode configuration is changed.
-
-File-action smoke check: explain/fix/review must show compact result windows (or the Files side panel), without a composer or generated prompts; free chat remains available.
-
-Rename/sort smoke check: select disposable text/PDF/image files in Files, generate
-proposals, edit and deselect rows, apply, then undo after reopening the dialog.
-Check destination conflicts and changed sources. Proposals must use a fresh
-session with all tools denied; only Files performs the confirmed moves. Exercise
-repeated dialog open/close while the network backend is active (mouse navigation
-uses a GUI-thread event filter, not an application-wide notify override).
-
-Mouse-navigation smoke check: Back/Forward over the file list itself, its viewport,
-other child widgets and the gallery; also test XF86Back/Forward browser keys.
-Modal dialogs must not navigate the underlying Files window. `FileView.window()`
-must remain the inherited Qt method, not an owner reference. Check native window
-events as well as directly delivered Qt test events.
-
-Content-search smoke check: use **Inhalte / Ctrl+Shift+F** with disposable text
-and multi-page PDFs. Verify literal excerpts and the matching PDF page, optional
-synonym expansion, malformed model responses and cancellation while decoding.
-Expansion uses an isolated empty directory with project config disabled and all
-tools denied; global personal instructions remain active and disclosed. No found
-document is attached. Existing local results survive model errors. PDFs need
-Poppler's `pdftotext`; scanned images and Office documents are not searched.
+Application code is MIT. The bundled modified MacTahoe Plasma/Aurorae artwork and
+four SVG wallpapers use GPL-3.0. Keep `desktop/CREDITS.md`, `COPYING.GPL-3.0` and
+editable graphics with the distribution. Image-generated wallpapers are identified
+separately in the credits. Do not include third-party account credentials or private
+configuration to make a clean installation work.

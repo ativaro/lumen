@@ -26,15 +26,16 @@ def within_root(path, root):
 
 
 def snapshot(paths, root):
-    root = Path(root).resolve()
+    root = Path(root).resolve() if root is not None else None
     if not 1 <= len(paths) <= 100:
         raise ValueError('Bitte zwischen 1 und 100 Dateien auswählen.')
     items = []
     for path in dict.fromkeys(map(str, paths)):
         source = Path(path).absolute()
-        within_root(source, root)
+        source_root = root or source.parent
+        within_root(source, source_root)
         items.append({'id': len(items), 'source': str(source), 'name': source.name,
-                      'relative': str(source.relative_to(root)), 'stamp': stamp(source)})
+                      'relative': str(source.relative_to(source_root)), 'root': str(source_root), 'stamp': stamp(source)})
     return items
 
 
@@ -115,12 +116,13 @@ def validate_move(move):
 
 
 def validate_moves(items, rows, root, mode):
-    root = Path(root).resolve()
+    root = Path(root).resolve() if root is not None else None
     moves, errors, targets = [], {}, {}
     for row in rows:
         index, target = row['id'], row['target']
         try:
             source = Path(items[index]['source'])
+            source_root = root or Path(items[index]['root'])
             if (not target or len(target) > 4096 or target.startswith('/') or
                     any(ord(char) < 32 or ord(char) == 127 for char in target)):
                 raise ValueError('Bitte einen gültigen Namen eingeben.')
@@ -132,7 +134,7 @@ def validate_moves(items, rows, root, mode):
                 if destination.suffix != source.suffix:
                     raise ValueError('Die Dateiendung muss erhalten bleiben.')
             elif mode == 'sort':
-                destination = root / target
+                destination = source_root / target
                 if destination.name != source.name:
                     raise ValueError('Beim Sortieren bleibt der Dateiname erhalten.')
             else:
@@ -145,7 +147,7 @@ def validate_moves(items, rows, root, mode):
                 raise ValueError('Ziele überschneiden sich oder sind doppelt belegt.')
             targets[destination] = index
             move = {'id': index, 'source': str(source), 'destination': str(destination),
-                    'root': str(root), 'stamp': items[index]['stamp']}
+                    'root': str(source_root), 'stamp': items[index]['stamp']}
             validate_move(move)
             moves.append(move)
         except (OSError, ValueError) as exc:

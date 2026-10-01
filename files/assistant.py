@@ -3,8 +3,8 @@ import html
 import mimetypes
 from pathlib import Path
 
-from PyQt5.QtCore import QSettings, Qt, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices, QKeySequence, QTextDocument
+from PyQt5.QtCore import QEvent, QSettings, Qt, QUrl, pyqtSignal
+from PyQt5.QtGui import QDesktopServices, QKeySequence, QTextDocument, QPalette
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame, QHBoxLayout,
                              QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton,
                              QScrollArea, QShortcut, QTextBrowser, QVBoxLayout, QWidget)
@@ -30,6 +30,7 @@ class ChatPanel(QWidget):
 
     def __init__(self, directory, parent=None, backend=None, settings=None):
         super().__init__(parent)
+        self.setObjectName('chatPanel')
         self.backend = backend or OpenCodeBackend(directory, self)
         self.settings = settings if settings is not None else QSettings('Lumen', 'Assistant')
         self.backend.settings = self.settings
@@ -46,12 +47,25 @@ class ChatPanel(QWidget):
         layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(12)
         top = QHBoxLayout()
-        self.heading = label('lumen', 'brand')
+        self.heading = label('Lumen', 'heading')
         top.addWidget(self.heading)
         top.addStretch()
-        self.new = QPushButton('Neues Gespräch')
+        self.new = QPushButton('+')
+        self.new.setAccessibleName('Neues Gespräch'); self.new.setToolTip('Neues Gespräch')
+        self.new.setObjectName('iconButton'); self.new.setFixedSize(36, 36)
         self.new.clicked.connect(self.new_conversation)
         top.addWidget(self.new)
+        self.options = QPushButton('···')
+        self.options.setCheckable(True)
+        self.options.setAccessibleName('Gesprächsoptionen und Verlauf')
+        self.options.setToolTip('Verlauf, Arbeitsweise und Erklärungen')
+        self.options.setObjectName('iconButton'); self.options.setFixedSize(36, 36)
+        self.options.toggled.connect(self.show_options)
+        top.addWidget(self.options)
+        self.close_panel = QPushButton('×')
+        self.close_panel.setAccessibleName('Lumen schließen'); self.close_panel.setToolTip('Lumen schließen')
+        self.close_panel.setObjectName('iconButton'); self.close_panel.setFixedSize(36, 36); self.close_panel.clicked.connect(self.closeRequested)
+        top.addWidget(self.close_panel)
         layout.addLayout(top)
         self.sessions = QComboBox()
         self.sessions.setAccessibleName('Gespräch auswählen')
@@ -76,6 +90,7 @@ class ChatPanel(QWidget):
         self.dont_ask.toggled.connect(self.set_auto_approve)
         layout.addWidget(self.dont_ask)
         self.transcript = Transcript()
+        self.transcript.setObjectName('transcript')
         self.transcript.setAccessibleName('Gespräch mit Lumen')
         self.transcript.setOpenLinks(False)
         self.transcript.anchorClicked.connect(lambda url: QDesktopServices.openUrl(url)
@@ -150,11 +165,24 @@ class ChatPanel(QWidget):
         self.backend.set_auto_approve(self.dont_ask.isChecked())
         self.update_context()
         self.show_messages([])
+        self.show_options(False)
+
+    def show_options(self, visible):
+        if not hasattr(self, 'context_tools'): return
+        self.sessions.setVisible(visible and not self.action)
+        self.mode.setVisible(visible and not self.action)
+        self.context_tools.learn.setVisible(visible)
 
     def set_auto_approve(self, enabled):
         self.settings.setValue('autoApproveTools', enabled)
         self.settings.sync()
         self.backend.set_auto_approve(enabled)
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QEvent.PaletteChange and hasattr(self, 'close_action'):
+            self.rendered = None
+            self.show_messages(self.backend.messages)
 
     def reload_settings(self, filename, keys):
         if filename != self.settings.fileName() or 'autoApproveTools' not in keys:
@@ -200,7 +228,7 @@ class ChatPanel(QWidget):
 
     def set_action(self, action):
         self.action = action if action in self.action_titles else ''
-        self.heading.setText(self.action_titles.get(self.action, 'lumen'))
+        self.heading.setText(self.action_titles.get(self.action, 'Lumen'))
         for widget in (self.new, self.sessions, self.mode, self.composer, self.send_button):
             widget.setVisible(not self.action)
         self.action_buttons.setVisible(bool(self.action))
@@ -211,6 +239,7 @@ class ChatPanel(QWidget):
         self.rendered = None
         self.show_messages(self.backend.messages)
         self.actionChanged.emit(self.action)
+        self.show_options(self.options.isChecked())
 
     def expand_action(self):
         if self.backend.busy or not self.last_answer:
@@ -349,10 +378,12 @@ class ChatPanel(QWidget):
             md.setMarkdown(text, QTextDocument.MarkdownFeatures(QTextDocument.MarkdownDialectGitHub | QTextDocument.MarkdownNoHTML))
             body = md.toHtml().split('<body', 1)[1].split('>', 1)[1].rsplit('</body>', 1)[0]
             if not self.action:
-                document.append('<p style="color:#9bdcca;font-size:11px"><b>' + ('DU' if role == 'user' else 'LUMEN') + '</b></p>')
+                color = self.palette().color(QPalette.Link).name()
+                document.append(f'<p style="color:{color};font-size:11px"><b>' + ('DU' if role == 'user' else 'LUMEN') + '</b></p>')
             document.append(body)
             if activity:
-                document.append('<p style="color:#a3b0c2">' + html.escape(' · '.join(activity)) + ' …</p>')
+                color = self.palette().color(QPalette.Dark).name()
+                document.append(f'<p style="color:{color}">' + html.escape(' · '.join(activity)) + ' …</p>')
             if not self.action:
                 document.append('<hr>')
         empty = '<p>Das Ergebnis erscheint hier.</p>' if self.action else '<h2>Wobei kann ich dir helfen?</h2><p>Dateien verstehen, etwas prüfen oder eine Aufgabe erledigen.</p>'
