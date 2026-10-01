@@ -4,6 +4,10 @@ import os
 import sys
 from pathlib import Path
 
+if __name__ == '__main__':
+    from lumen_crash import supervise
+    supervise('files')
+
 from PyQt5.QtCore import (QDir, QEvent, QFileInfo, QItemSelectionModel, QMimeData, QModelIndex, QRect, QRectF,
                           QSettings, QSize, QSortFilterProxyModel, QStandardPaths, QFileSystemWatcher,
                           QStorageInfo, Qt, QTimer, QTranslator, QLibraryInfo, QUrl)
@@ -909,6 +913,28 @@ class Window(QMainWindow):
         self.settings.setValue('session/sortDescending', self.view.header().sortIndicatorOrder() == Qt.DescendingOrder)
         self.settings.sync()
 
+    def recovery_state(self):
+        return {'tabs': [tab['history'][tab['position']] for tab in self.tabs_data],
+                'active': self.tabs.currentIndex(), 'geometry': bytes(self.saveGeometry()).hex(),
+                'chat': self.assistant.recovery_state() if hasattr(self, 'assistant') else None}
+
+    def restore_recovery(self, state):
+        paths = state.get('tabs', [])
+        if not isinstance(paths, list) or not all(isinstance(p, str) for p in paths):
+            raise ValueError('Ungültige gespeicherte Tabs.')
+        if paths:
+            self.tabs.blockSignals(True)
+            self.tabs_data.clear()
+            while self.tabs.count(): self.tabs.removeTab(0)
+            self.tabs.blockSignals(False)
+            for path in paths[:100]: self.new_tab(path, activate=False)
+            index = max(0, min(len(self.tabs_data) - 1, int(state.get('active', 0))))
+            self.tabs.setCurrentIndex(index); self.switch_tab(index)
+        if state.get('geometry'): self.restoreGeometry(bytes.fromhex(state['geometry']))
+        if state.get('chat'):
+            self.ask_lumen('open', [], recovery=state['chat'])
+        self.save_session()
+
     def switch_tab(self, index):
         if index >= 0:
             tab = self.tabs_data[index]
@@ -1257,7 +1283,7 @@ class Window(QMainWindow):
         elif not QDesktopServices.openUrl(QUrl.fromLocalFile(path)):
             self.error('Die Datei konnte nicht geöffnet werden.', path)
 
-    def ask_lumen(self, action, paths):
+    def ask_lumen(self, action, paths, recovery=None):
         if hasattr(self, 'lumen_host'):
             self.lumen_host.chat.begin_context(action, paths, directory=self.current_path)
             self.lumen_host.show_page(0)
@@ -1281,7 +1307,8 @@ class Window(QMainWindow):
             self.resizeDocks([self.assistant_dock], [440], Qt.Horizontal)
         self.assistant_dock.show()
         self.assistant_dock.raise_()
-        self.assistant.begin_context(action, paths, directory=self.current_path)
+        if recovery is not None: self.assistant.restore_recovery(recovery)
+        else: self.assistant.begin_context(action, paths, directory=self.current_path)
 
     def lumen_menu(self, menu, paths):
         if not paths:
@@ -1786,6 +1813,8 @@ if __name__ == '__main__':
         start = str(Path(start).parent)
     window = Window(start)
     window.show()
+    from lumen_crash import attach
+    attach(app, window, 'files', offer_recovery=not start and not args.settings)
     if args.settings:
         QTimer.singleShot(0, window.show_settings)
     sys.exit(app.exec_())

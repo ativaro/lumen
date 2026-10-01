@@ -34,6 +34,7 @@ gracefully on other setups.
 | **Lumen Files** (`lumen-files`) | file manager with combined local/NAS libraries and visible origins, per-room collection shelves and saved workspaces, fast search, previews, tabs, gallery, disk analysis, KIO network folders, native rename/sort with preview and undo, integrated Lumen panel |
 | **Application designs** | Glas by default, plus Graphit, Atelier and Mitternacht; shared live themes for Lumen, search, Files, the image viewer, desktop panels and their popups, with native previews in settings |
 | **System watchdog** | systemd timer checks failed units, kernel errors, disk, GPU temp; automatic opencode analysis |
+| **App recovery** | Independent crash/hang detection for Lumen, Files and search; private reports and restoration of views and drafts |
 | **Daily digest / nightly report** | scheduled summaries (`lumen-digest`, `lumen-nightly`) |
 | **MCP server `cachyos`** | read tools `systemctl`, `journal`, `pacman`, `disk`, `gpu`, `memory`, `sensors`, `kwin`, guarded `cmd` — plus **opt-in action tools** (`notify`, `restart_unit`, `media`, `wallpaper`, `screenshot`) behind `LUMEN_MCP_ACTIONS=1` |
 | **opencode commands/skill** | `/sync`, `/sysreport`, `/fix` + `lumen-admin` skill |
@@ -91,6 +92,28 @@ Repeated setup does not duplicate Lumen panels. Application-drawn title bars rem
 controlled by their applications.
 
 Artwork and licenses are in [desktop/CREDITS.md](desktop/CREDITS.md).
+
+## Crash detection and recovery
+
+Lumen, Files and search run with a small independent supervisor. It records abnormal
+exits (including signals), captures Python fault traces and checks the Qt event loop
+through a pipe. After 60 seconds without a response, a desktop notification offers
+waiting or ending and reopening the application. It never kills a slow window on
+its own and never retries an action automatically.
+
+The next normal launch offers restoration of an interrupted view: Files tabs and
+active tab, Lumen page, search/conversation mode and conversation drafts. The last
+20 text messages are retained as a local preview; the engine keeps the full history.
+Restoration does not contact the engine or replay prompts, approvals or file operations.
+Unsaved image edits are not recovered. Each launch restores one interrupted session;
+other unacknowledged sessions remain available on subsequent launches.
+
+**Settings → Stabilität** controls monitoring for newly started apps and opens local
+reports under `$XDG_STATE_HOME/lumen/crashes` (normally `~/.local/state/lumen/crashes`).
+Reports and drafts are private to the user and are never uploaded automatically.
+Normal sessions are removed when closed; old inactive records are pruned on startup
+to leave room for at most 20 retained runs. Diagnostic logs are bounded to about 1 MB.
+Existing windows gain supervision when restarted. No additional system service is needed.
 
 ## Requirements
 

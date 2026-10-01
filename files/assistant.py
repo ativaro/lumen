@@ -167,6 +167,31 @@ class ChatPanel(QWidget):
         self.show_messages([])
         self.show_options(False)
 
+    def recovery_state(self):
+        # Keep the text view; omit backend credentials and structured tool results.
+        messages = [{'info': {'role': m.get('info', {}).get('role')},
+                     'parts': [{'type': 'text', 'text': '\n\n'.join(p.get('text', '')
+                               for p in m.get('parts', []) if p.get('type') == 'text')[:20000]}]}
+                    for m in self.backend.messages[-20:]]
+        return {'directory': self.backend.directory, 'session': self.backend.session,
+                'draft': self.composer.toPlainText()[:100000], 'messages': messages,
+                'paths': self.paths[:100], 'mode': self.mode.currentData()}
+
+    def restore_recovery(self, state):
+        if self.backend.busy:
+            raise ValueError('Bitte den laufenden Auftrag zuerst abschließen.')
+        self.backend.new_conversation(state.get('directory') or str(Path.home()))
+        self.set_action('open')
+        self.paths = [p for p in state.get('paths', []) if isinstance(p, str)][:100]
+        self.mode.setCurrentIndex(1 if state.get('mode') == 'plan' else 0)
+        self.backend.session = str(state.get('session', ''))
+        self.select_session_item(self.backend.session)
+        self.backend.messages = state.get('messages', [])
+        self.show_messages(self.backend.messages)
+        self.composer.setPlainText(str(state.get('draft', ''))[:100000])
+        self.update_context()
+        self.status.setText('Wiederhergestellt · Kein Auftrag wurde erneut gestartet')
+
     def show_options(self, visible):
         if not hasattr(self, 'context_tools'): return
         self.sessions.setVisible(visible and not self.action)

@@ -8,6 +8,9 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'files'))
+if __name__ == '__main__':
+    from lumen_crash import supervise
+    supervise('lumen')
 from PyQt5.QtCore import QObject, Q_CLASSINFO, QProcess, QSettings, Qt, QTimer, QUrl, pyqtSlot
 from PyQt5.QtDBus import QDBus, QDBusConnection, QDBusMessage
 from PyQt5.QtGui import QIcon, QKeySequence, QTextDocument
@@ -127,6 +130,19 @@ class LumenWindow(QMainWindow):
         self.refresh_timer = QTimer(self)
         self.refresh_timer.timeout.connect(lambda: self.refresh_system() if self.pages.currentIndex() == 1 else None)
         self.refresh_timer.start(5000)
+
+    def recovery_state(self):
+        return {'page': self.pages.currentIndex(), 'chat': self.chat.recovery_state(),
+                'geometry': bytes(self.saveGeometry()).hex(),
+                'files': self.file_window.recovery_state() if self.file_window is not None else None}
+
+    def restore_recovery(self, state):
+        self.chat.restore_recovery(state.get('chat', {}))
+        if state.get('files'):
+            self.show_page(3)
+            self.file_window.restore_recovery(state['files'])
+        self.show_page(int(state.get('page', 0)))
+        if state.get('geometry'): self.restoreGeometry(bytes.fromhex(state['geometry']))
 
     def show_settings(self):
         from settings_dialog import SettingsDialog
@@ -454,6 +470,8 @@ def main():
             window.open_files()
             window.file_window.navigate(args.location)
     QTimer.singleShot(0, start)
+    from lumen_crash import attach
+    attach(app, window, 'lumen', offer_recovery=plain_launch)
     app.aboutToQuit.connect(window.chat.backend.shutdown)
     return app.exec_()
 

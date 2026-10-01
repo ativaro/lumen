@@ -89,9 +89,36 @@ class SettingsDialog(QDialog):
         self.service_page.addLayout(self.service_rows)
         self.service_page.addStretch()
         self.build_integrations()
+        self.build_recovery()
         self.nav.setCurrentRow(page)
         if load_system:
             QTimer.singleShot(0, self.reload)
+
+    def build_recovery(self):
+        page = self.page('Stabilität', 'Abstürze erkennen und die letzte Ansicht wiederherstellen')
+        self.crash_detection = QCheckBox('Absturz- und Hängererkennung aktivieren')
+        self.crash_detection.setChecked(self.field(self.assistant, 'crashDetection', True, bool))
+        page.addWidget(self.crash_detection)
+        page.addWidget(text('Lumen, Files und Suche werden unabhängig überwacht. Antwortet ein Fenster eine Minute lang nicht, '
+            'kannst du weiter warten oder es beenden und neu öffnen. Beim nächsten Start werden letzte Ansichten und Entwürfe angeboten. '
+            'Dateiaktionen und KI-Aufträge werden nicht automatisch wiederholt.'))
+        page.addWidget(text('Berichte und Wiederherstellungsdaten bleiben lokal. Sie können Dateipfade und Gesprächsentwürfe enthalten. '
+            'Es werden höchstens 20 beendete Sitzungen aufbewahrt; normale Sitzungen werden beim Schließen entfernt. '
+            'Ungespeicherte Bildbearbeitungen werden nicht wiederhergestellt.'))
+        def open_reports():
+            from lumen_crash import directory
+            try:
+                if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(directory()))):
+                    self.status.setText('Der Berichtsordner konnte nicht geöffnet werden.')
+            except OSError as error: self.status.setText(str(error))
+        def save():
+            try:
+                self.save(self.assistant, {'crashDetection': self.crash_detection.isChecked()})
+                self.status.setText('Stabilität gespeichert. Gilt für neu gestartete Anwendungen.')
+            except (OSError, ValueError) as error: self.status.setText(str(error))
+        page.addWidget(button('Lokale Fehlerberichte öffnen', open_reports))
+        page.addWidget(button('Stabilität übernehmen', save))
+        page.addStretch()
 
     def page(self, title, subtitle):
         self.nav.addItem(title)

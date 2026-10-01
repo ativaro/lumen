@@ -5,6 +5,10 @@ from pathlib import Path
 import subprocess
 import sys
 
+if __name__ == '__main__':
+    from lumen_crash import supervise
+    supervise('search')
+
 from PyQt5.QtCore import QObject, Q_CLASSINFO, QEvent, QProcess, QRectF, QSize, QTimer, Qt, QUrl, pyqtSlot
 from PyQt5.QtDBus import QDBus, QDBusConnection, QDBusMessage
 from PyQt5.QtGui import QCursor, QDesktopServices, QIcon, QKeySequence, QPainter, QPalette
@@ -99,6 +103,16 @@ class SearchPalette(QWidget):
         self.applications = sorted(applications, key=lambda item: item[0].casefold())
         self.query.installEventFilter(self)
         self.search()
+
+    def recovery_state(self):
+        return {'conversation': self.conversation, 'chat': self.chat.recovery_state()}
+
+    def restore_recovery(self, state):
+        self.chat.restore_recovery(state.get('chat', {}))
+        self.conversation = bool(state.get('conversation'))
+        self.stack.setCurrentWidget(self.chat if self.conversation else self.results)
+        self.chat.options.setVisible(self.conversation)
+        if not self.conversation: self.search()
 
     def present(self):
         # Re-read on activation too: a hidden singleton can outlive config-file watches.
@@ -255,7 +269,10 @@ def main():
         if reply.type() != QDBusMessage.ErrorMessage: return 0
     window = SearchPalette(); activation = Activation(window)
     if bus.isConnected(): bus.registerObject('/Search', activation, QDBusConnection.ExportAllSlots)
-    app.aboutToQuit.connect(window.shutdown); window.present(); return app.exec_()
+    app.aboutToQuit.connect(window.shutdown); window.present()
+    from lumen_crash import attach
+    attach(app, window, 'search')
+    return app.exec_()
 
 
 if __name__ == '__main__': sys.exit(main())
