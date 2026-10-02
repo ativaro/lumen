@@ -6,4 +6,6 @@
 - [x] 4. Voice: continuous local audio pipeline; shared conversation; interruption/stop; setup; pipeline + UI checks; commit.
 - [x] 5. Actions: completed task → workflow; context-menu selection; preview + execution checks; commit.
 - [x] 6. Document workshop: preview/order/merge/extract/OCR/redact; safe export; content-removal + UI checks; commit.
-- [ ] Final: full isolated suite, docs/package release, install, public Git push, local system/sync notes.
+- [x] Final: 125 tests passed in an isolated profile; native UI rendered on KDE; package 1.2.0-26 built and installed with source comparison. Portable source published; local system/sync notes updated.
+
+Runtime note: an older resident search without checkpoints is left running until the user authorizes its restart. Existing main-app sessions are preserved. Audio synthesis/recognition was tested with a generated German sentence; live microphone input and cloud image inference were not sent during verification.
