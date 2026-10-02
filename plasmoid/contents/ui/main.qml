@@ -68,6 +68,7 @@ PlasmoidItem {
         onToggle: root.expanded = !root.expanded
         onLaunch: action => root.launch(action)
         onSearch: { root.expanded = false; runner.connectSource(root.helper + " --search"); }
+        onVoice: { root.expanded = false; runner.connectSource(root.helper + " --voice"); }
     }
     fullRepresentation: Loader {
         Layout.minimumWidth: Kirigami.Units.gridUnit * (root.surface === "control" ? 26 : 20)

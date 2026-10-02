@@ -188,7 +188,13 @@ Die Erweiterung **Lumen Leiste** (`org.lumen.islands`) bietet drei Rollen:
 Die Rolle lässt sich über die Widget-Einstellungen ändern. Das bisherige
 Lumen-Aufgabenwidget bleibt verfügbar.
 
-Die Suche öffnet KRunner; `lumen <Frage>` nutzt den bestehenden Lumen-Runner.
+Die Suche öffnet die native gemeinsame Datei-/App-Suche mit Gespräch. Das Mikrofon
+rechts in der oberen Suchleiste startet dort das Sprachgespräch (auch über
+`lumen-search --voice`). Sprechpausen senden den erkannten Text, Antworten werden
+lokal vorgelesen. „Beenden“ oder Schließen der Suche schaltet das Mikrofon aus.
+Fehlende Sprachkomponenten lassen sich direkt im Einrichtungsassistenten ergänzen.
+KRunner bleibt über sein eigenes Tastenkürzel erreichbar; `lumen <Frage>` nutzt
+dort den bestehenden Lumen-Runner.
 Die Zentrale zeigt gemeinsame Aufgaben und native Systemsteuerungen. Lautstärke
 und Stummschaltung betreffen das Standard-Ausgabegerät; Helligkeit verwendet KDEs
 globale Bildschirmsteuerung. **Audiogeräte** und **Bildschirme** öffnen die

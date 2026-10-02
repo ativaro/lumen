@@ -12,7 +12,7 @@ if __name__ == '__main__':
 from PyQt5.QtCore import QObject, Q_CLASSINFO, QEvent, QProcess, QRectF, QSize, QTimer, Qt, QUrl, pyqtSlot
 from PyQt5.QtDBus import QDBus, QDBusConnection, QDBusMessage
 from PyQt5.QtGui import QCursor, QDesktopServices, QIcon, QKeySequence, QPainter, QPalette
-from PyQt5.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton, QShortcut, QStackedWidget, QStyle, QStyledItemDelegate, QStyleOptionViewItem, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QShortcut, QStackedWidget, QStyle, QStyledItemDelegate, QStyleOptionViewItem, QVBoxLayout, QWidget
 
 from assistant import ChatPanel
 from lumen_actions import desktop_file
@@ -270,22 +270,33 @@ class Activation(QObject):
     def __init__(self, window): super().__init__(); self.window = window
     @pyqtSlot()
     def Activate(self): self.window.present()
+    @pyqtSlot()
+    def Voice(self):
+        self.window.present()
+        voice = self.window.chat.context_tools.conversation
+        if voice and not voice.active: voice.toggle()
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description='Lumen Suche')
+    parser.add_argument('--voice', action='store_true')
+    args = parser.parse_args()
     from app import create_app
     app = create_app(); app.setApplicationName('lumen-search'); app.setApplicationDisplayName('Lumen Suche'); app.setQuitOnLastWindowClosed(False)
     bus = QDBusConnection.sessionBus()
     if bus.isConnected() and not bus.registerService('org.lumen.Search'):
-        reply = bus.call(QDBusMessage.createMethodCall('org.lumen.Search', '/Search', 'org.lumen.Search', 'Activate'), QDBus.Block, 3000)
+        reply = bus.call(QDBusMessage.createMethodCall('org.lumen.Search', '/Search', 'org.lumen.Search', 'Voice' if args.voice else 'Activate'), QDBus.Block, 3000)
         if reply.type() != QDBusMessage.ErrorMessage: return 0
+        QMessageBox.warning(None, 'Lumen Suche', 'Die laufende Suche konnte nicht aktiviert werden. Nach einem Update bitte die Suche neu starten; zuvor ungesendeten Text sichern.')
+        return 1
     window = SearchPalette(); activation = Activation(window)
     if bus.isConnected(): bus.registerObject('/Search', activation, QDBusConnection.ExportAllSlots)
     app.aboutToQuit.connect(window.shutdown); window.present()
     from lumen_crash import attach
     attach(app, window, 'search')
     from setup_dialog import offer_setup
-    QTimer.singleShot(250, lambda: offer_setup(window))
+    QTimer.singleShot(250, activation.Voice if args.voice else lambda: offer_setup(window))
     return app.exec_()
 
 

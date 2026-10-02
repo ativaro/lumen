@@ -9,6 +9,7 @@ Rectangle {
     SignalSpy { id: toggles; target: bar; signalName: "toggle" }
     SignalSpy { id: launches; target: bar; signalName: "launch" }
     SignalSpy { id: searches; target: bar; signalName: "search" }
+    SignalSpy { id: voices; target: bar; signalName: "voice" }
     TestCase {
         name: "LumenCompactBar"; when: windowShown
         function verifyCentered(button) {
@@ -27,10 +28,15 @@ Rectangle {
             scene.width = 480; bar.surface = "search"; waitForRendering(bar);
             const search = findChild(bar, "searchButton"); search.forceActiveFocus(); keyClick(Qt.Key_Space);
             verifyCentered(search);
-            compare(searches.count, 1); verify(search.width > 440);
+            compare(searches.count, 1); verify(search.width > 370);
+            const voice = findChild(bar, "voiceButton"); verify(voice.visible); verifyCentered(voice);
+            verify(voice.mapToItem(scene, voice.width, 0).x <= scene.width);
+            voice.forceActiveFocus(); keyClick(Qt.Key_Space); compare(voices.count, 1);
+            compare(searches.count, 1);
             compare(findChild(bar, "askButton"), null); compare(launches.count, 1);
             grabImage(scene).save("artifacts/islands/bar-search.png");
             scene.width = 74; bar.surface = "control"; waitForRendering(bar);
+            verify(!voice.visible);
             const center = findChild(bar, "centerButton"); center.forceActiveFocus(); keyClick(Qt.Key_Space);
             verifyCentered(center);
             compare(toggles.count, 2); verify(center.mapToItem(scene, center.width, 0).x <= scene.width);

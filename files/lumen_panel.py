@@ -78,6 +78,7 @@ def main():
     group.add_argument('--dismiss-task', type=valid_task)
     group.add_argument('--open-page', choices=['chat', 'files', 'system', 'tasks', 'settings', 'workplace'])
     group.add_argument('--search', action='store_true')
+    group.add_argument('--voice', action='store_true')
     group.add_argument('--settings', action='store_true')
     args = parser.parse_args()
     if args.dismiss_task:
@@ -95,10 +96,10 @@ def main():
         except (OSError, subprocess.SubprocessError, ValueError):
             print(json.dumps({'error': 'Systemaktion fehlgeschlagen. Bitte erneut versuchen.'}))
         return
-    if args.open_task or args.open_page or args.search or args.settings:
-        name = 'lumen-search' if args.search else 'lumen-settings' if args.settings else 'lumen-agent-app'
+    if args.open_task or args.open_page or args.search or args.voice or args.settings:
+        name = 'lumen-search' if args.search or args.voice else 'lumen-settings' if args.settings else 'lumen-agent-app'
         binary = Path(os.environ.get('LUMEN_BIN_DIR', '/usr/bin')) / name
-        arguments = [] if args.search or args.settings else ['--task', args.open_task] if args.open_task else ['--page', args.open_page]
+        arguments = ['--voice'] if args.voice else [] if args.search or args.settings else ['--task', args.open_task] if args.open_task else ['--page', args.open_page]
         subprocess.Popen([str(binary), *arguments], start_new_session=True,
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return

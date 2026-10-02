@@ -111,7 +111,7 @@ class PanelTest(unittest.TestCase):
             self.assertEqual(launch.call_args.args[0], ['/tmp/Lumen with spaces/lumen-agent-app', '--task', 'a'*32])
             self.assertTrue(launch.call_args.kwargs['start_new_session'])
             self.assertNotIn('shell', launch.call_args.kwargs)
-        for flag, binary in [('--search', 'lumen-search'), ('--settings', 'lumen-settings')]:
+        for flag, binary in [('--search', 'lumen-search'), ('--voice', 'lumen-search'), ('--settings', 'lumen-settings')]:
             with patch('sys.argv', ['lumen-panel', flag]), patch('lumen_panel.subprocess.Popen') as launch:
                 main()
-                self.assertEqual(launch.call_args.args[0], ['/usr/bin/' + binary])
+                self.assertEqual(launch.call_args.args[0], ['/usr/bin/' + binary] + (['--voice'] if flag == '--voice' else []))

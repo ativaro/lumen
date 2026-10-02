@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import org.kde.kirigami as Kirigami
 import QtQuick.Layouts
+import org.kde.plasma.components as PC
 
 RowLayout {
     id: bar
@@ -11,6 +12,7 @@ RowLayout {
     signal toggle()
     signal launch(string action)
     signal search()
+    signal voice()
     spacing: 12
     Layout.minimumHeight: 28
     Layout.preferredWidth: surface === "home" ? 266 : surface === "search" ? 460 : 62
@@ -47,6 +49,19 @@ RowLayout {
         flat: true
         Accessible.name: "Dateien und Apps suchen oder ein Gespräch führen"
         onClicked: bar.search()
+    }
+    LumenButton {
+        visible: bar.surface === "search"
+        objectName: "voiceButton"
+        Layout.preferredWidth: 42
+        Layout.fillHeight: true
+        topPadding: 0; bottomPadding: 0
+        icon.name: "audio-input-microphone"
+        flat: true
+        Accessible.name: "Mit Lumen sprechen"
+        PC.ToolTip.text: "Mit Lumen sprechen"
+        PC.ToolTip.visible: hovered
+        onClicked: bar.voice()
     }
     LumenButton {
         visible: bar.surface === "control"

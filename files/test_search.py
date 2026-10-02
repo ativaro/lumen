@@ -12,13 +12,27 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtTest import QTest
 from PyQt5.QtWidgets import QApplication
 from app import create_app
-from lumen_search import SearchPalette
+from lumen_search import Activation, SearchPalette
 
 
 class SearchTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QApplication.instance() or create_app()
+
+    def test_panel_microphone_starts_same_search_without_toggling_active_voice(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp + '/state'}):
+            window = SearchPalette(tmp, applications=[]); activation = Activation(window)
+            voice = window.chat.context_tools.conversation
+            try:
+                with patch.object(voice, 'listen') as listen, patch('lumen_voice.executable', return_value='/local/voice'), patch('lumen_voice.Path.is_file', return_value=True):
+                    activation.Activate(); self.assertTrue(window.isVisible()); listen.assert_not_called()
+                    activation.Voice()
+                    self.assertTrue(voice.active); self.assertTrue(window.conversation)
+                    self.assertIs(window.stack.currentWidget(), window.chat); listen.assert_called_once()
+                    activation.Voice(); listen.assert_called_once(); self.assertTrue(voice.active)
+                    window.hide(); self.assertFalse(voice.active)
+            finally: window.shutdown(); window.hide()
 
     def test_resident_search_tracks_external_themes_and_refreshes_on_activation(self):
         # Separate process gives create_app its own real QSettings/file watcher.

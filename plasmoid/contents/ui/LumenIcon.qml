@@ -9,6 +9,7 @@ Image {
     readonly property var paths: ({
         "folder": "M3 7V5h6l2 2h10v13H3Z",
         "search": "M21 21l-5-5 M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0",
+        "audio-input-microphone": "M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1-6 0Z M5 10v2a7 7 0 0 0 14 0v-2 M12 19v3m-4 0h8",
         "configure": "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1Z",
         "adjustlevels": "M3 6h8m4 0h6M3 12h3m4 0h11M3 18h11m4 0h3 M11 3v6m-5 0v6m8 0v6",
         "view-refresh": "M20 8a8 8 0 1 0 0 8 M20 3v5h-5",
