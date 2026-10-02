@@ -174,7 +174,7 @@ class Workspace(QObject):
         self.tasks.currentItemChanged.connect(self.show_task)
         buttons(box, [('Neuer Auftrag', self.guarded(self.new_task)), ('Ausführen / Fortsetzen', self.guarded(self.run_task)),
                       ('Pausieren', self.guarded(lambda: self.stop_task('paused'))), ('Abbrechen', self.guarded(lambda: self.stop_task('cancelled')))])
-        buttons(box, [('Als Ablauf speichern', self.guarded(self.task_to_flow)), ('Ergebnis speichern', self.guarded(self.export_task)),
+        buttons(box, [('Als Ablauf speichern', self.guarded(self.task_to_flow)), ('Als Dateiaktion', self.guarded(self.task_to_file_action)), ('Ergebnis speichern', self.guarded(self.export_task)),
                       ('Änderung rückgängig', self.guarded(self.undo_change))])
         self.close_task = QPushButton('Schließen'); self.close_task.setEnabled(False)
         self.close_task.setToolTip('Erledigte oder abgebrochene Aufgabe aus der Übersicht entfernen. Ergebnis und Verlauf bleiben erhalten.')
@@ -270,6 +270,11 @@ class Workspace(QObject):
         process.finished.connect(done)
         process.errorOccurred.connect(lambda _: self.window.chat.show_error('Auftragsprozess konnte nicht gestartet werden.'))
         process.start(sys.executable, args)
+
+    def task_to_file_action(self):
+        from file_actions import save_action
+        save_action(self.window, self.store, self.store.task(selected(self.tasks)))
+        self.refresh_flows()
 
     def task_to_flow(self):
         task = self.store.task(selected(self.tasks)); self.flow_dialog(task)

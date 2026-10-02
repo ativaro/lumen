@@ -154,6 +154,10 @@ class ChatPanel(QWidget):
         self.close_action.hide()
         bottom.addWidget(self.close_action)
         layout.addLayout(bottom)
+        self.save_file_action = QPushButton('Als Dateiaktion speichern …'); self.save_file_action.hide()
+        layout.addWidget(self.save_file_action); self.save_file_action.clicked.connect(self.save_as_file_action)
+        self.backend.started.connect(lambda *_: self.save_file_action.hide())
+        self.backend.completed.connect(lambda success, _: self.save_file_action.setVisible(success))
         QShortcut(QKeySequence('Ctrl+Return'), self, activated=self.send)
         self.backend.messagesChanged.connect(self.show_messages)
         self.backend.requestsChanged.connect(self.show_requests)
@@ -166,6 +170,12 @@ class ChatPanel(QWidget):
         self.update_context()
         self.show_messages([])
         self.show_options(False)
+
+    def save_as_file_action(self):
+        try:
+            from file_actions import save_action
+            save_action(self, self.tracker.store, self.tracker.store.task(self.tracker.task_id), self.paths)
+        except (ValueError, OSError) as error: self.show_error(str(error))
 
     def recovery_state(self):
         # Keep the text view; omit backend credentials and structured tool results.

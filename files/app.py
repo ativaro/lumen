@@ -1525,6 +1525,8 @@ class Window(QMainWindow):
             menu.addAction('Pfad kopieren', lambda: QApplication.clipboard().setText('\n'.join(self.network.remote(p) or p for p in paths)))
             menu.addSeparator()
             self.lumen_menu(menu, paths)
+            from file_actions import menu as personal_actions_menu
+            personal_actions_menu(self, menu, paths)
             menu.addSeparator()
             menu.addAction('In den Papierkorb\tEntf', self.trash)
         menu.addAction('Hier einfügen\tStrg+V', self.paste)
