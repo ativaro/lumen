@@ -21,6 +21,9 @@ systemctl --user daemon-reload >/dev/null 2>&1 || true
 say "Entferne Desktop-Integration"
 rm -f "$DATA_HOME/kio/servicemenus/lumen.desktop"
 rm -f "$DATA_HOME/applications/lumen.desktop" "$DATA_HOME/applications/lumen-files.desktop"
+for tool in meetings household workbench radio; do
+    rm -f "$DATA_HOME/applications/lumen-$tool.desktop" "$DATA_HOME/icons/hicolor/scalable/apps/lumen-$tool.svg"
+done
 rm -f "$DATA_HOME/applications/lumen-ask.desktop"
 rm -f "$DATA_HOME/applications/lumen-ask-sel.desktop"
 rm -f "$DATA_HOME/applications/lumen-vision.desktop"

@@ -28,7 +28,7 @@ class Household(ToolWindow):
         scroll=QScrollArea(); scroll.setWidgetResizable(True); scroll.setFrameShape(QScrollArea.NoFrame)
         panel=QWidget(); body=QVBoxLayout(panel); body.setContentsMargins(0,0,8,0); body.setSpacing(12)
         scroll.setWidget(panel); self.content.addWidget(scroll,1)
-        form=QFormLayout(); form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow); body.addLayout(form)
+        form=QFormLayout(); form.setRowWrapPolicy(QFormLayout.WrapLongRows); form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow); body.addLayout(form)
         self.kind=QComboBox(); self.kind.addItems(['Gerät','Vertrag']); self.kind.currentIndexChanged.connect(self.edited); form.addRow('Art',self.kind)
         self.fields={}
         for key,title in [('provider','Hersteller / Anbieter'),('model','Modell / Vertragsnummer'),('serial','Seriennummer / Kundennummer')]:
@@ -38,7 +38,7 @@ class Household(ToolWindow):
             field=QDateEdit(); field.setCalendarPopup(True); field.setDisplayFormat('dd.MM.yyyy'); field.setMinimumDate(QDate(1900,1,1)); field.setSpecialValueText('Nicht gesetzt'); field.setDate(field.minimumDate())
             field.setAccessibleName(title); field.dateChanged.connect(self.edited); self.dates[key]=field
             form.addRow(title,row(field,button('Leeren',lambda _checked=False,f=field:f.setDate(f.minimumDate()),'edit-clear')))
-        self.due=label('Noch keine Fristen hinterlegt.'); self.due.setObjectName('heading'); body.addWidget(self.due)
+        self.due=label('Noch keine Fristen hinterlegt.'); self.due.setObjectName('muted'); body.addWidget(self.due)
         body.addWidget(label('Fristen werden hier angezeigt; es werden keine automatischen Benachrichtigungen versendet.', 'muted'))
         self.notes=QPlainTextEdit(); self.notes.setPlaceholderText('Notizen, Ansprechpartner, Zubehör …'); self.notes.setAccessibleName('Notizen'); self.notes.setMinimumHeight(100)
         self.notes.textChanged.connect(self.edited); body.addWidget(self.notes)

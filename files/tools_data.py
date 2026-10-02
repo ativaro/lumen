@@ -3,9 +3,9 @@ import json
 from contextlib import contextmanager
 import os
 from pathlib import Path
-import shutil
 import sqlite3
 import subprocess
+import sys
 import tempfile
 import time
 import uuid
@@ -44,7 +44,7 @@ class Library:
     def get(self, key):
         with self.connect() as db: row = db.execute('SELECT * FROM records WHERE id=?', (key,)).fetchone()
         if row is None: raise ValueError('Dieser Eintrag ist nicht mehr vorhanden.')
-        return dict(id=row['id'], title=row['title'], **json.loads(row['data']))
+        return dict(id=row['id'], title=row['title'], _archived=bool(row['archived']), **json.loads(row['data']))
 
     def create(self, title, **data):
         title = title.strip()
@@ -140,13 +140,13 @@ def document_text(path, job):
     path = Path(path); suffix = path.suffix.lower()
     if suffix == '.pdf':
         text = job.command(['pdftotext', '-enc', 'UTF-8', str(path), '-'], timeout=90).decode(errors='replace')
-        if len(text.strip()) < 20:
-            from lumen_ocr import visual_content
-            text, partial, _ = visual_content(path, text=text, ocr=True)
-            if partial: raise ValueError('Scan zu lang; bitte in Dokumente mit höchstens 80 Seiten teilen.')
+        pages=text.split('\f'); pages=pages[:-1] if pages[-1]=='' else pages
+        if any(len(page.strip())<20 for page in pages):
+            value=json.loads(job.command([sys.executable,str(Path(__file__)),'ocr',str(path)],data=text.encode(),timeout=3600))
+            text=value['text']
+            if value['partial']: raise ValueError('Scan zu lang; bitte in Dokumente mit höchstens 80 Seiten teilen.')
     elif suffix in {'.png', '.jpg', '.jpeg', '.webp', '.tif', '.tiff'}:
-        from lumen_ocr import image_text
-        text = image_text(path)
+        text=json.loads(job.command([sys.executable,str(Path(__file__)),'ocr',str(path)],timeout=120))['text']
     elif suffix in {'.txt', '.md', '.csv'}:
         if path.stat().st_size > 2*1024**2: raise ValueError('Textdatei zu groß (maximal 2 MB).')
         text = path.read_text(encoding='utf-8-sig', errors='replace')
@@ -245,3 +245,14 @@ def synthesize(text, library, job):
         path.chmod(0o600); return dict(audio=name, duration=duration)
     except BaseException:
         path.unlink(missing_ok=True); raise
+
+
+if __name__ == '__main__':
+    # Run existing OCR in a child group so cancelling also stops its decoders.
+    if len(sys.argv)!=3 or sys.argv[1]!='ocr': raise SystemExit('Nur interne Texterkennung.')
+    from lumen_ocr import image_text, visual_content
+    source=Path(sys.argv[2])
+    if source.suffix.lower()=='.pdf':
+        content,partial,_=visual_content(source,text=sys.stdin.read(),ocr=True)
+    else: content,partial=image_text(source),False
+    print(json.dumps(dict(text=content,partial=partial)))

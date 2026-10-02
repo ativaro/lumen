@@ -347,3 +347,9 @@ question forms, cancellation and authenticated API requests against a local fake
 server. Existing file/gallery/network tests run alongside it. The implementation
 uses the [OpenCode server API](https://opencode.ai/docs/server/); see
 [NATIVE-LUMEN.md](NATIVE-LUMEN.md) for the scope and runtime checks.
+
+## Eigenständige Werkzeuge
+
+Meeting-Werkstatt, digitaler Haushalt, Projekt-Werkbank und persönliches Radio
+werden mit eigenen Startern installiert. Funktionen, Speicherung, Einrichtung
+und Grenzen: [Desktop-Werkzeuge](TOOLS.md).

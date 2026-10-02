@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Projekt-Werkbank
+Comment=Dateien, Notizen, Webseiten und Fragen
+Exec=%INSTALL_BIN%/lumen-workbench
+Icon=lumen-workbench
+Terminal=false
+Categories=Office;
+StartupWMClass=lumen-workbench
+Keywords=Lumen;workbench;

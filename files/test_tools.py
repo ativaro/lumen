@@ -59,7 +59,8 @@ class ToolsTest(unittest.TestCase):
             self.assertEqual(w.transcript.item(0,1).text(),'Neu')
             with patch.object(w.player,'play_at') as play:
                 w.seek_segment(0,0); play.assert_called_once_with(100)
-            w.archive(); self.assertTrue(w.library.all(True)); w.close()
+            w.archive(); self.assertTrue(w.library.all(True)); w.archived.setChecked(True); w.focus_record(key)
+            self.assertTrue(w.archived.isChecked()); w.archive(); self.assertTrue(w.library.all()); w.close()
 
     def test_household_deadlines_and_document_persistence(self):
         from tools_household import Household, deadlines
@@ -110,5 +111,25 @@ class ToolsTest(unittest.TestCase):
             w.focus_record(key); self.assertEqual(w.script.toPlainText(),result['script'])
             w.script.setPlainText('Neuer Text'); w.save(); self.assertIn('vorherige',w.audio_note.text())
             w.close()
+
+    def test_jobs_cancel_running_processes_and_fetch_only_readable_pages(self):
+        import sys, threading, time
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        job=Job(lambda _:None); timer=threading.Timer(.1,job.cancelled.set); timer.start(); started=time.monotonic()
+        try:
+            with self.assertRaises(Cancelled): job.command([sys.executable,'-c','import time; time.sleep(60)'],timeout=2)
+        finally: timer.cancel()
+        self.assertLess(time.monotonic()-started,1.5)
+        class Page(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200); self.send_header('Content-Type','text/html; charset=utf-8' if self.path=='/article' else 'application/octet-stream'); self.end_headers()
+                self.wfile.write('<h1>Testartikel</h1><p>Lesbarer Text.</p><script>Ignorieren</script>'.encode())
+            def log_message(self,*args): pass
+        server=ThreadingHTTPServer(('127.0.0.1',0),Page); thread=threading.Thread(target=server.serve_forever,daemon=True); thread.start()
+        try:
+            job=Job(lambda _:None); url=f'http://127.0.0.1:{server.server_port}'
+            result=fetch_article(url+'/article',job); self.assertEqual(result['text'],'Testartikel\nLesbarer Text.')
+            with self.assertRaises(ValueError): fetch_article(url+'/binary',job)
+        finally: server.shutdown(); server.server_close(); thread.join()
 
 if __name__=='__main__': unittest.main()

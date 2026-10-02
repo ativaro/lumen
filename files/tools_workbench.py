@@ -22,7 +22,7 @@ class Workbench(ToolWindow):
         self.questions=QListWidget(); self.questions.setObjectName('searchResults'); self.questions.setAccessibleName('Offene Fragen'); self.questions.itemChanged.connect(self.edited); notes_layout.addWidget(self.questions,1)
         self.question=QLineEdit(); self.question.setPlaceholderText('Neue Frage …'); self.question.setAccessibleName('Neue Frage'); self.question.textEdited.connect(self.edited); self.question.returnPressed.connect(lambda:self.safe(self.add_question))
         notes_layout.addWidget(row(self.question,button('Hinzufügen',lambda:self.safe(self.add_question),'list-add'),button('Entfernen',lambda:self.safe(self.remove_question),'list-remove')))
-        self.tabs.addTab(notes_page,'Notizen & Fragen')
+        self.tabs.addTab(notes_page,'Notizen && Fragen')
         resources=QWidget(); resources_layout=QVBoxLayout(resources); resources_layout.setContentsMargins(0,12,0,0)
         resources_layout.addWidget(label('Dateien & Webseiten','heading'))
         resources_layout.addWidget(label('Dateien bleiben an ihrem Ort – auch auf eingebundenen Netzlaufwerken. Ein Doppelklick öffnet sie in ihrer Anwendung.', 'muted'))

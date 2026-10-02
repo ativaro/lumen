@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Digitaler Haushalt
+Comment=Geräte, Verträge, Belege und Fristen
+Exec=%INSTALL_BIN%/lumen-household
+Icon=lumen-household
+Terminal=false
+Categories=Office;
+StartupWMClass=lumen-household
+Keywords=Lumen;household;

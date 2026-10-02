@@ -1,5 +1,4 @@
 """Native shell, cancellable jobs and audio controls shared by four desktop apps."""
-import json
 import os
 from pathlib import Path
 import signal
@@ -58,7 +57,7 @@ class Job(QThread):
         # Files prevent large decoder/model stderr output from filling RAM or a pipe.
         with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr, tempfile.TemporaryFile() as stdin:
             if data: stdin.write(data); stdin.seek(0)
-            proc = subprocess.Popen(args, stdin=stdin, stdout=stdout, stderr=stderr)
+            proc = subprocess.Popen(args, stdin=stdin, stdout=stdout, stderr=stderr, start_new_session=True)
             started = time.monotonic()
             try:
                 while proc.poll() is None:
@@ -74,9 +73,13 @@ class Job(QThread):
                 return output
             finally:
                 if proc.poll() is None:
-                    proc.terminate()
+                    try: os.killpg(proc.pid, signal.SIGTERM)
+                    except ProcessLookupError: pass
                     try: proc.wait(timeout=2)
-                    except subprocess.TimeoutExpired: proc.kill(); proc.wait()
+                    except subprocess.TimeoutExpired:
+                        try: os.killpg(proc.pid, signal.SIGKILL)
+                        except ProcessLookupError: pass
+                        proc.wait()
 
     def run(self):
         try: self.result.emit(self.function(self))
@@ -86,13 +89,14 @@ class Job(QThread):
 class AudioPlayer(QFrame):
     """ffplay handles codecs; the controls remain native and do not open a terminal."""
     def __init__(self, parent=None):
-        super().__init__(parent); self.setObjectName('workplaceCard')
+        super().__init__(parent); self.setObjectName('toolAudio')
+        self.setStyleSheet('QFrame#toolAudio { background: palette(base); border: 1px solid palette(mid); border-radius: 12px; }')
         self.path = None; self.duration = 0; self.position = 0; self.proc = None; self.paused = False
         self.play_button = button('Abspielen', self.toggle, 'media-playback-start')
         self.seek = QSlider(Qt.Horizontal); self.seek.setAccessibleName('Wiedergabeposition')
         self.seek.sliderReleased.connect(lambda: self.play_at(self.seek.value()))
         self.time = label('00:00:00 / 00:00:00', 'muted')
-        layout = QHBoxLayout(self); layout.addWidget(self.play_button); layout.addWidget(self.seek,1); layout.addWidget(self.time)
+        layout = QHBoxLayout(self); layout.setContentsMargins(12,4,12,4); layout.addWidget(self.play_button); layout.addWidget(self.seek,1); layout.addWidget(self.time)
         self.timer = QTimer(self); self.timer.setInterval(150); self.timer.timeout.connect(self.tick)
         self.setEnabled(False)
 
@@ -155,6 +159,7 @@ class ToolWindow(QMainWindow):
         self.settings = QSettings('Lumen', 'Assistant')
         self.setWindowTitle(title); self.setWindowIcon(QIcon.fromTheme(icon)); self.resize(1180,800); self.setMinimumSize(840,600)
         shell = QWidget(); shell.setObjectName('workplace'); self.setCentralWidget(shell)
+        shell.setStyleSheet('QDateEdit, QSpinBox { background: palette(base); color: palette(text); border: 1px solid palette(mid); border-radius: 8px; padding: 8px; } QCheckBox::indicator { width: 16px; height: 16px; }')
         outer = QVBoxLayout(shell); outer.setContentsMargins(24,20,24,16); outer.setSpacing(16)
         title_area = QWidget(); tl = QVBoxLayout(title_area); tl.setContentsMargins(0,0,0,0)
         tl.addWidget(label(title, 'workplaceHeading')); tl.addWidget(label(tagline, 'muted'))
@@ -205,11 +210,13 @@ class ToolWindow(QMainWindow):
             if record['id'] == key: selected = item
         self.entries.setCurrentItem(selected); self.entries.blockSignals(False)
         self.archive_button.setEnabled(bool(key))
+        self.archive_button.setText('Wiederherstellen' if self.archived.isChecked() else 'Archivieren')
 
     def focus_record(self, key):
-        self.save_timer.stop(); self.current = key; self.search.clear(); self.archived.setChecked(False); self.refresh()
+        record = self.library.get(key)
+        self.save_timer.stop(); self.current = key; self.search.clear(); self.archived.setChecked(record['_archived']); self.refresh()
         self.loading = True
-        try: self.load(self.library.get(key))
+        try: self.load(record)
         finally: self.loading = False
         self.body.setEnabled(True)
 

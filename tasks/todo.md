@@ -37,10 +37,10 @@ Runtime note: the older resident search was restarted with the user's permission
 
 ## Eigenständige Desktop-Werkzeuge
 
-- [ ] Gemeinsame private Speicherung, abbrechbare Jobs, Audio und native Oberfläche.
-- [ ] Meeting-Werkstatt mit Transkript, Zeitstellen und strukturierten Ergebnissen.
-- [ ] Digitaler Haushalt mit Geräten/Verträgen, Belegen und Fristen.
-- [ ] Projekt-Werkbank mit Dateien, Links, Notizen und Fragen.
-- [ ] Persönliches Radio mit Quellen, Hörskript und lokaler Audio-Ausgabe.
-- [ ] Native UI, reale Sprachpipeline, Fehlerpfade, Persistenz, vollständige Tests.
+- [x] Gemeinsame private Speicherung, abbrechbare Jobs, Audio und native Oberfläche.
+- [x] Meeting-Werkstatt mit Transkript, Zeitstellen und strukturierten Ergebnissen.
+- [x] Digitaler Haushalt mit Geräten/Verträgen, Belegen und Fristen.
+- [x] Projekt-Werkbank mit Dateien, Links, Notizen und Fragen.
+- [x] Persönliches Radio mit Quellen, Hörskript und lokaler Audio-Ausgabe.
+- [x] Native UI, reale Sprachpipeline, Fehlerpfade, Persistenz, vollständige Tests.
 - [ ] Portable Installation und Paket, Git-Veröffentlichung, lokale Dokumentation.
