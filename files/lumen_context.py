@@ -94,7 +94,8 @@ class ContextTools(QObject):
         wav = Path(self.temp.name) / 'audio.wav'
         if not wav.exists() or wav.stat().st_size <= 44:
             self.panel.show_error('Keine Audioaufnahme vorhanden.'); self.cleanup(); return
-        self.start(self.binary, ['-m', self.model, '-f', str(wav), '-l', 'auto', '-otxt', '-of', str(Path(self.temp.name) / 'transcript'), '-nt'], self.transcribed)
+        from lumen_speech import transcription_arguments
+        self.start(self.binary, transcription_arguments(self.panel.settings, wav, Path(self.temp.name) / 'transcript', self.model), self.transcribed)
         self.limit.timeout.disconnect(); self.limit.timeout.connect(self.timeout); self.limit.start(120000)
 
     def timeout(self):

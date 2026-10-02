@@ -25,6 +25,39 @@ class VoiceTest(unittest.TestCase):
         self.assertTrue(any(detector.feed(quiet) for _ in range(40)))
         self.assertGreater(len(detector.frames), 30)
 
+    def test_shared_recognition_preferences_reach_voice_and_dictation(self):
+        from PyQt5.QtCore import QSettings
+        from PyQt5.QtWidgets import QComboBox, QFormLayout, QLineEdit, QWidget
+        from assistant import ChatPanel
+        from lumen_speech import add_recognition_fields, transcription_arguments
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA':tmp+'/state'}):
+            settings = QSettings(tmp+'/settings.ini',QSettings.IniFormat); settings.setValue('speechModel',tmp+'/model')
+            widget = QWidget(); form = QFormLayout(widget); save = add_recognition_fields(form,settings)
+            self.assertFalse(settings.contains('speechLanguage'))
+            language = widget.findChild(QComboBox); language.setCurrentIndex(language.findData('en'))
+            widget.findChild(QLineEdit).setText('WebDAV, MyProject')
+            self.assertFalse(settings.contains('speechLanguage')); save()
+            panel = ChatPanel(tmp,settings=settings); voice = panel.context_tools.conversation; context = panel.context_tools
+            try:
+                voice.temp = tempfile.TemporaryDirectory(); context.temp = tempfile.TemporaryDirectory()
+                context.model = tmp+'/model'; context.binary = '/existing/whisper'
+                (Path(context.temp.name)/'audio.wav').write_bytes(b'0'*100)
+                with patch.object(voice,'run') as run, patch.object(context,'start') as start:
+                    voice.recorded(0,''); context.recorded(0,'')
+                    for args in (run.call_args.args[1],start.call_args.args[1]):
+                        self.assertEqual(args[args.index('-l')+1],'en')
+                        self.assertEqual(args[args.index('--prompt')+1],'WebDAV, MyProject')
+                settings.setValue('speechLanguage','auto'); settings.setValue('speechVocabulary','')
+                args=transcription_arguments(settings,'audio','output')
+                self.assertEqual(args[args.index('-l')+1],'auto'); self.assertNotIn('--prompt',args)
+                settings.setValue('speechLanguage','invalid'); settings.setValue('speechVocabulary','x'*600)
+                args=transcription_arguments(settings,'audio','output')
+                self.assertEqual(args[args.index('-l')+1],'de'); self.assertEqual(len(args[-1]),500)
+                settings.setValue('speechUseGPU',False)
+                self.assertIn('-ng',transcription_arguments(settings,'audio','output'))
+            finally:
+                context.close(); panel.backend.shutdown(); panel.close(); widget.close(); self.app.processEvents()
+
     def test_capture_worker_reports_levels_without_changing_recorded_audio(self):
         import subprocess, sys
         with tempfile.TemporaryDirectory() as tmp:

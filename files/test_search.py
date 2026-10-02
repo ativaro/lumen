@@ -20,6 +20,35 @@ class SearchTest(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QApplication.instance() or create_app()
 
+    def test_update_restores_search_state_without_resending(self):
+        script = '''
+import json,sys,tempfile
+from pathlib import Path
+from unittest.mock import patch
+from PyQt5.QtCore import QTimer
+from app import create_app
+from assistant_backend import OpenCodeBackend
+from lumen_search import SearchPalette, main
+app=create_app()
+with tempfile.TemporaryDirectory() as tmp:
+ state=Path(tmp)/'state.json'
+ state.write_text(json.dumps({'conversation':True,'chat':{'directory':tmp,'session':'saved-session','draft':'Entwurf bleibt erhalten','messages':[],'paths':[]}}))
+ sys.argv=['lumen-search','--restore-state',str(state)]
+ checks=[]
+ def verify():
+  window=next(w for w in app.topLevelWidgets() if isinstance(w,SearchPalette))
+  checks.extend([window.query.toPlainText()=='Entwurf bleibt erhalten',window.chat.backend.session=='saved-session',window.conversation,not window.chat.backend.busy])
+  app.quit()
+ QTimer.singleShot(350,verify)
+ with patch('app.create_app',return_value=app),patch('setup_dialog.offer_setup'),patch.object(OpenCodeBackend,'send',side_effect=AssertionError('Do not resend restored state')):
+  assert main()==0
+ assert checks==[True]*4,checks
+'''
+        with tempfile.TemporaryDirectory() as tmp:
+            result = subprocess.run(['dbus-run-session','--',sys.executable,'-c',script],cwd=Path(__file__).parent,
+                env=os.environ|{'XDG_CONFIG_HOME':tmp+'/config','LUMEN_DATA':tmp+'/state','QT_QPA_PLATFORM':'offscreen'},capture_output=True,text=True,timeout=15)
+            self.assertEqual(result.returncode,0,result.stderr)
+
     def test_panel_microphone_starts_same_search_without_toggling_active_voice(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp + '/state'}):
             window = SearchPalette(tmp, applications=[]); activation = Activation(window)

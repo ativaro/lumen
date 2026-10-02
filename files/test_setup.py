@@ -45,6 +45,19 @@ class SetupTest(unittest.TestCase):
             binary.chmod(0o644)
             self.assertFalse(setup.executable('whisper-cli'))
 
+    def test_quality_model_is_verified_and_preserves_existing_model(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); small = root / 'ggml-small-q5_1.bin'; small.write_bytes(b'old')
+            def download(url, path, checksum, size):
+                self.assertTrue(url.endswith('/' + setup.QUALITY_MODEL))
+                self.assertEqual((checksum,size),(setup.QUALITY_HASH,setup.QUALITY_SIZE))
+                path.write_bytes(b'quality')
+            with patch.object(setup,'speech_root',return_value=root), patch.object(setup,'executable',return_value='/existing/tool'), \
+                    patch.object(setup,'download',side_effect=download) as fetch, patch.object(setup,'report') as report:
+                setup.install_dictation(str(small),quality=True)
+                fetch.assert_called_once(); self.assertEqual(small.read_bytes(),b'old')
+                self.assertEqual(report.call_args.kwargs['model'],str(root/setup.QUALITY_MODEL))
+
 
 class SetupDialogTest(unittest.TestCase):
     @classmethod

@@ -28,6 +28,9 @@ MODEL_URL = ('https://huggingface.co/ggerganov/whisper.cpp/resolve/'
              '5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small-q5_1.bin')
 MODEL_HASH = 'ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb'
 MODEL_SIZE = 190085487
+QUALITY_MODEL = 'ggml-large-v3-turbo-q8_0.bin'
+QUALITY_HASH = '317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1'
+QUALITY_SIZE = 874188075
 
 
 def speech_root():
@@ -126,7 +129,7 @@ def download(url, destination, checksum, size):
             partial.unlink(missing_ok=True)
 
 
-def install_dictation(existing_model=''):
+def install_dictation(existing_model='', quality=False):
     if existing_model and not Path(existing_model).is_file():
         raise ValueError('Das gewählte Sprachmodell ist nicht mehr erreichbar.')
     packages = []
@@ -144,23 +147,27 @@ def install_dictation(existing_model=''):
             with tarfile.open(archive) as source: source.extractall(folder, filter='data')
             report('Spracherkennung für diesen Rechner vorbereiten …')
             build = folder / 'build'
+            # Reuse an installed Vulkan development stack; CPU remains the default elsewhere.
+            vulkan = bool(shutil.which('glslc') and all(Path(path).is_file() for path in
+                ('/usr/share/cmake/SPIRV-Headers/SPIRV-HeadersConfig.cmake', '/usr/include/vulkan/vulkan.h', '/usr/lib/libvulkan.so')))
             run(['cmake', '-S', str(folder / f'whisper.cpp-{VERSION}'), '-B', str(build),
                  '-DCMAKE_BUILD_TYPE=Release', '-DBUILD_SHARED_LIBS=OFF', '-DWHISPER_BUILD_TESTS=OFF',
-                 '-DWHISPER_CURL=OFF', '-DGGML_NATIVE=OFF'])
+                 '-DWHISPER_CURL=OFF', '-DGGML_NATIVE=OFF', '-DGGML_VULKAN=' + ('ON' if vulkan else 'OFF')])
             run(['cmake', '--build', str(build), '--target', 'whisper-cli', '-j', str(min(4, os.cpu_count() or 1))])
             binary = build / 'bin/whisper-cli'
             run([str(binary), '--help'], timeout=20)
             binary.chmod(0o755); os.replace(binary, root / f'whisper-{VERSION}')
-    if existing_model:
+    if existing_model and not quality:
         report('Spracherkennung bereit · dein vorhandenes Modell bleibt ausgewählt.', 100, model=existing_model)
         return
-    model = root / 'ggml-small-q5_1.bin'
-    valid = model.is_file() and model.stat().st_size == MODEL_SIZE
+    model = root / (QUALITY_MODEL if quality else 'ggml-small-q5_1.bin')
+    checksum, size = (QUALITY_HASH, QUALITY_SIZE) if quality else (MODEL_HASH, MODEL_SIZE)
+    valid = model.is_file() and model.stat().st_size == size
     if valid:
-        with model.open('rb') as file: valid = hashlib.file_digest(file, 'sha256').hexdigest() == MODEL_HASH
+        with model.open('rb') as file: valid = hashlib.file_digest(file, 'sha256').hexdigest() == checksum
     if not valid:
-        report('Mehrsprachiges Diktiermodell herunterladen · 190 MB')
-        download(MODEL_URL, model, MODEL_HASH, MODEL_SIZE)
+        report('Whisper Large v3 Turbo herunterladen · 874 MB' if quality else 'Mehrsprachiges Diktiermodell herunterladen · 190 MB')
+        download(MODEL_URL.rsplit('/', 1)[0] + '/' + model.name, model, checksum, size)
     report('Lokales Diktieren ist vorbereitet.', 100, model=str(model))
 
 
@@ -186,7 +193,7 @@ def install_voice(existing_model=''):
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=('packages', 'dictation', 'voice'))
+    parser.add_argument('action', choices=('packages', 'dictation', 'dictation-quality', 'voice'))
     parser.add_argument('groups', nargs='*', choices=tuple(FEATURES))
     parser.add_argument('--existing-model', default='')
     args = parser.parse_args()
@@ -194,6 +201,7 @@ def main():
     signal.signal(signal.SIGTERM, interrupted)
     try:
         if args.action == 'dictation': install_dictation(args.existing_model)
+        elif args.action == 'dictation-quality': install_dictation(quality=True)
         elif args.action == 'voice': install_voice(args.existing_model)
         else:
             install_packages(missing_packages(args.groups))

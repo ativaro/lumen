@@ -282,6 +282,7 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description='Lumen Suche')
     parser.add_argument('--voice', action='store_true')
+    parser.add_argument('--restore-state', type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
     from app import create_app
     app = create_app(); app.setApplicationName('lumen-search'); app.setApplicationDisplayName('Lumen Suche'); app.setQuitOnLastWindowClosed(False)
@@ -292,6 +293,14 @@ def main():
         QMessageBox.warning(None, 'Lumen Suche', 'Die laufende Suche konnte nicht aktiviert werden. Nach einem Update bitte die Suche neu starten; zuvor ungesendeten Text sichern.')
         return 1
     window = SearchPalette(); activation = Activation(window)
+    if args.restore_state:
+        from lumen_crash import read_json
+        try:
+            state = read_json(args.restore_state)
+            if not state or not isinstance(state.get('chat'), dict): raise ValueError('Keine gültige Sitzungssicherung.')
+            window.restore_recovery(state)
+        except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
+            QMessageBox.warning(window, 'Sitzung wiederherstellen', str(error)); window.shutdown(); return 1
     if bus.isConnected(): bus.registerObject('/Search', activation, QDBusConnection.ExportAllSlots)
     app.aboutToQuit.connect(window.shutdown); window.present()
     from lumen_crash import attach

@@ -124,11 +124,18 @@ class SetupDialog(QDialog):
         self.setup_speech = button('Diktieren einrichten · 190 MB Modell', lambda: self.start_job('dictation'))
         page.addWidget(self.setup_speech)
         page.addWidget(text('Mehrsprachiges Whisper Small, platzsparend gespeichert. Unterstützt Deutsch. '
-            'Die Erkennung nutzt zunächst die CPU. Falls nötig werden Build-Werkzeuge über die Paketverwaltung ergänzt; '
+            'Die Erkennung läuft auf CPU oder verfügbarer GPU. Falls nötig werden Build-Werkzeuge über die Paketverwaltung ergänzt; '
             'das Vorbereiten kann einige Minuten dauern.'))
+        page.addWidget(button('Genauere Erkennung einrichten · 874 MB Modell', lambda: self.start_job('dictation-quality')))
+        page.addWidget(text('Whisper Large v3 Turbo: größeres Modell für anspruchsvollere Sprache. '
+            'Auf der CPU langsamer; das bisherige Modell bleibt für einen Wechsel zurück erhalten.'))
         page.addWidget(button('Vorhandenes Sprachmodell auswählen …', self.choose_model))
         page.addWidget(button('Sprachgespräch einrichten · zusätzlich ca. 65 MB Stimme und Laufzeit', lambda: self.start_job('voice')))
         page.addWidget(text('Deutsche Piper-Stimme Thorsten (CC0), lokal. Nur erkannter Text geht an deinen Lumen-Modellanbieter.'))
+        from lumen_speech import add_recognition_fields
+        form = QFormLayout(); page.addLayout(form)
+        save_recognition = add_recognition_fields(form, self.settings)
+        page.addWidget(button('Erkennungseinstellungen speichern', save_recognition))
         self.speech_test = DictationTest(self.settings, self); page.addWidget(self.speech_test)
         page.addWidget(text('Der Mikrofontest startet nur auf Klick und stoppt nach spätestens 60 Sekunden. '
             'Für Gespräche mit automatischen Runden zusätzlich die lokale Sprachausgabe einrichten.'))

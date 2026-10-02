@@ -198,6 +198,16 @@ bleibt sie kompakt. „Ich höre zu“, Spracherkennung, Nachdenken, Stimmvorber
 und „Lumen spricht“ sind getrennte Zustände. Die Wiedergabewelle folgt der lokalen
 Audiodatei zeitlich ungefähr; sie misst nicht die Lautsprecherlautstärke.
 Fehlende Sprachkomponenten lassen sich direkt im Einrichtungsassistenten ergänzen.
+Unter **Einstellungen → Einrichtung → Mit deiner Stimme** lässt sich statt des
+kleinen Modells **Whisper Large v3 Turbo Q8** installieren (874 MB). Das alte Modell
+bleibt erhalten und kann über „Vorhandenes Sprachmodell auswählen“ wieder gewählt werden.
+Deutsch ist die Vorgabe für die Erkennung; Englisch und weitere Sprachen sowie
+automatische Spracherkennung sind auswählbar. Eine kurze Liste eigener Namen und
+Fachbegriffe hilft bei Schreibweisen, ersetzt aber keine Prüfung des erkannten Texts.
+Sprache, Begriffsliste und GPU-Nutzung gelten gemeinsam für Diktat, Mikrofontest
+und Sprachgespräch; auch unter „Sprachgespräch einstellen“ erreichbar. Vorhandene
+Vulkan-Bauwerkzeuge werden bei einer neuen lokalen Whisper-Installation genutzt,
+andernfalls wird eine CPU-Version erstellt. CPU-Betrieb ist jederzeit auswählbar.
 KRunner bleibt über sein eigenes Tastenkürzel erreichbar; `lumen <Frage>` nutzt
 dort den bestehenden Lumen-Runner.
 Die Zentrale zeigt gemeinsame Aufgaben und native Systemsteuerungen. Lautstärke

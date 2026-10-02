@@ -100,11 +100,13 @@ else:
 
         def controls(self):
             dialog = QDialog(self.panel); dialog.setWindowTitle('Sprachgespräch'); layout = QVBoxLayout(dialog); form = QFormLayout(); layout.addLayout(form)
+            from lumen_speech import add_recognition_fields
+            self.panel.settings.sync(); save_recognition = add_recognition_fields(form, self.panel.settings)
             threshold = QSpinBox(); threshold.setRange(50,15000); threshold.setValue(self.panel.settings.value('voiceThreshold',450,type=int)); form.addRow('Mikrofonschwelle (kleiner = empfindlicher)', threshold)
             silence = QDoubleSpinBox(); silence.setRange(.3,4); silence.setSingleStep(.1); silence.setValue(self.panel.settings.value('voiceSilence',.9,type=float)); form.addRow('Sprechpause vor dem Senden (Sekunden)',silence)
             save = QPushButton('Speichern'); layout.addWidget(save)
             def apply():
-                self.panel.settings.setValue('voiceThreshold',threshold.value()); self.panel.settings.setValue('voiceSilence',silence.value()); dialog.accept()
+                self.panel.settings.setValue('voiceThreshold',threshold.value()); self.panel.settings.setValue('voiceSilence',silence.value()); save_recognition(); dialog.accept()
             save.clicked.connect(apply); dialog.exec_()
 
         def toggle(self):
@@ -154,7 +156,8 @@ else:
         def recorded(self, code, output):
             if code: self.fail(output or 'Mikrofonaufnahme fehlgeschlagen.'); return
             self.say_status('transcribing', 'Sprache wird lokal erkannt …')
-            self.run(executable('whisper-cli'), ['-m', self.panel.settings.value('speechModel',''), '-f', str(Path(self.temp.name) / 'speech.wav'), '-l', 'auto', '-nt', '-otxt', '-of', str(Path(self.temp.name) / 'words')], self.transcribed)
+            from lumen_speech import transcription_arguments
+            self.run(executable('whisper-cli'), transcription_arguments(self.panel.settings, Path(self.temp.name) / 'speech.wav', Path(self.temp.name) / 'words'), self.transcribed)
 
         def transcribed(self, code, output):
             textfile = Path(self.temp.name) / 'words.txt'

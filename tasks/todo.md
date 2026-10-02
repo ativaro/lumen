@@ -25,3 +25,11 @@ Runtime note: the older resident search was restarted with the user's permission
 - [x] Render listening/thinking/speaking on KDE in all four themes and verify the 350px Files layout.
 - [x] Full isolated suite: 128 tests passed, including real capture-worker output using synthetic PCM and fragmented QProcess meter output.
 - [x] Package 1.2.0-28 installed and sources compared; idle search restarted after verifying no draft/messages/session or active subprocess, with a local checkpoint backup.
+
+## Recognition quality
+
+- [x] Share explicit language, vocabulary and GPU preferences across dictation, microphone tests and voice conversation; native editable settings.
+- [x] Add opt-in, checksum-verified Large v3 Turbo Q8 installation; preserve the smaller model.
+- [x] Compare locally generated German samples with the previous configuration; verify the Vulkan build on local hardware without recording the microphone.
+- [x] Provide checkpoint restoration on a fresh search start, without resending any restored prompt, so updates preserve an existing conversation.
+- [x] Full isolated suite: 131 tests passed; native setup and recognition settings rendered on KDE.
