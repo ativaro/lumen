@@ -343,7 +343,7 @@ class Window(QMainWindow):
         self.build_ui()
         from offline_ui import Offline
         self.offline = Offline(self)
-        self.offline.changed.connect(self.populate_places)
+        self.offline.catalogChanged.connect(self.populate_places)
         self.network.connected.connect(self.network_connected)
         self.network.failed.connect(self.network_failed)
         self.network.busy.connect(self.cancel_connect_button.setVisible)
@@ -1504,6 +1504,9 @@ class Window(QMainWindow):
         menu = QMenu(self)
         if paths:
             menu.addAction('Öffnen', self.open_selected)
+            if all(Path(p).suffix.lower() == '.pdf' for p in paths):
+                from document_workshop_ui import open_workshop
+                menu.addAction('Dokumentenwerkstatt …', lambda: open_workshop(self, paths))
             menu.addAction('Zur Sammelfläche hinzufügen', lambda: self.spaces.collect(paths))
             menu.addAction('In Ordner kopieren …', self.spaces.copy_to)
             if self.current_location == SHELF:
@@ -1586,6 +1589,8 @@ class Window(QMainWindow):
         menu.addAction('Transfers', lambda: self.show_workplace(2))
         menu.addAction('Offline verfügbare Ordner …', self.offline.show)
         menu.addAction('Dateiversionen …', self.show_versions)
+        from document_workshop_ui import open_workshop
+        menu.addAction('Dokumentenwerkstatt …', lambda: open_workshop(self))
         menu.addAction('Einstellungen\tStrg+Komma', self.show_settings)
         menu.addAction('Bibliotheken verwalten …', self.spaces.library_manager)
         menu.addAction('Arbeitsräume …', self.spaces.room_menu)

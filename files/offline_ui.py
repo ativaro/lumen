@@ -13,6 +13,7 @@ from network import Network
 
 class Offline(QObject):
     changed = pyqtSignal()
+    catalogChanged = pyqtSignal()
 
     def __init__(self, window):
         super().__init__(window)
@@ -26,7 +27,7 @@ class Offline(QObject):
 
     def add(self, address):
         try:
-            item = pin(self.store, address); self.changed.emit(); self.show(); self.start(item, manual=True)
+            item = pin(self.store, address); self.catalogChanged.emit(); self.changed.emit(); self.show(); self.start(item, manual=True)
         except (ValueError, OSError) as error: self.window.error(str(error))
 
     def refresh(self):
@@ -149,7 +150,7 @@ class OfflineDialog(QDialog):
         if self.current() and not self.owner.active:
             # Remove registration only: local edits and archives are never discarded.
             with self.owner.store.connect() as db: db.execute('DELETE FROM settings WHERE key=?', (PREFIX + self.current()['id'],))
-            self.owner.changed.emit()
+            self.owner.catalogChanged.emit(); self.owner.changed.emit()
 
     def open_conflict(self, local):
         item, conflict = self.current(), self.conflicts.currentItem()

@@ -405,3 +405,11 @@ Der Einrichtungsassistent installiert Whisper sowie Piper 1.8.0 in einer private
 Nach einer erfolgreichen Lumen-Aufgabe erscheint **Als Dateiaktion speichern**; dieselbe Funktion gibt es in der Aufgabenansicht. Der vorhandene Ablaufeditor zeigt Namen, Schritte beziehungsweise KI-Auftrag und Platzhalter: `{{datei}}`, `{{ordner}}`, `{{name}}`, `{{stamm}}`, `{{endung}}`, `{{auswahl}}`. Gespeicherte Aktionen erscheinen in Files unter **Kontextmenü → Eigene Aktionen** und lassen sich unter **Abläufe** entfernen.
 
 Vor jeder Anwendung werden die neue Auswahl und die daraus erzeugten Schritte beziehungsweise der Auftrag im nativen Editor gezeigt. Gleichnamige Ausgabeziele für mehrere Dateien werden abgelehnt. Native Dateischritte verwenden den bestehenden geprüften Auftragsrunner; KI-Arbeiten wie „Bilder verkleinern, benennen und zippen“ verwenden die gespeicherte Anweisung im normalen Lumen-Gespräch mit den bisherigen Werkzeugfreigaben. Systemschritte bleiben normale Abläufe. Persönliche Aktionen und ihre Eingaben werden nicht veröffentlicht.
+
+### Dokumentenwerkstatt
+
+PDFs auswählen und **Kontextmenü → Dokumentenwerkstatt** öffnen (oder über das Files-Menü). Weitere PDFs hinzufügen, Seiten durch Ziehen umordnen, drehen oder aus der Arbeitsmappe entfernen. **Auswahl als PDF** extrahiert markierte Seiten, **Alles als PDF** verbindet die gesamte Reihenfolge. Jede Ausgabe erhält einen neuen Namen; vorhandene Dateien werden nicht überschrieben.
+
+**Schwärzen** aktivieren und Bereiche in der großen Vorschau aufziehen. Beim Export werden Inhalte tatsächlich entfernt und betroffene Seiten anschließend als neues Bild aufgebaut, damit alte Inhalte und versteckte Textebenen dieser Seiten nicht enthalten bleiben. Die optionale lokale Texterkennung erzeugt danach eine neue Textebene aus dem sichtbaren Ergebnis. Die Qualität ist mit 150/200/300 dpi wählbar. Originale bleiben unangetastet. Strg+Mausrad vergrößert die Vorschau.
+
+Benötigt das optionale Paket `python-pymupdf`, für OCR außerdem Tesseract-Sprachdaten; beides im Setup verfügbar. Unterstützt unverschlüsselte PDFs bis 512 MiB und Arbeitsmappen bis 2.000 Seiten. Quelldateien werden gegen Änderungen während der Bearbeitung geprüft; Exporte werden vor der Veröffentlichung erneut geöffnet und geprüft. Grundlage: [PyMuPDF-Seitenbearbeitung](https://pymupdf.readthedocs.io/en/latest/page.html).

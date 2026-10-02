@@ -17,6 +17,7 @@ FEATURES = {
     'documents': ('PDF-Vorschau und Inhaltsuche', ('pdfinfo', 'pdftoppm', 'pdftotext'), ('poppler',)),
     'media': ('Video- und Audiovorschau', ('ffmpeg', 'ffprobe'), ('ffmpeg',)),
     'network': ('NAS und Netzwerkordner', ('kio-fuse', 'kioclient', 'kio-smb'), ('kio-fuse', 'kio-extras', 'kde-cli-tools')),
+    'workshop': ('PDF-Dokumentenwerkstatt', ('pymupdf',), ('python-pymupdf',)),
     'ocr': ('Texterkennung in Bildern und Scans', ('tesseract', 'tessdata-deu', 'tessdata-eng'), ('tesseract', 'tesseract-data-deu', 'tesseract-data-eng')),
     'capture': ('Bildschirmaufnahme', ('spectacle',), ('spectacle',)),
 }
@@ -34,6 +35,9 @@ def speech_root():
 
 
 def executable(name):
+    if name == 'pymupdf':
+        import importlib.util
+        return 'python-pymupdf' if importlib.util.find_spec('pymupdf') else ''
     if name.startswith('tessdata-'):
         path = Path('/usr/share/tessdata') / (name.removeprefix('tessdata-') + '.traineddata')
         return str(path) if path.is_file() else ''
