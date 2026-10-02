@@ -65,3 +65,16 @@ four SVG wallpapers use GPL-3.0. Keep `desktop/CREDITS.md`, `COPYING.GPL-3.0` an
 editable graphics with the distribution. Image-generated wallpapers are identified
 separately in the credits. Do not include third-party account credentials or private
 configuration to make a clean installation work.
+
+Real image-model smoke (after explicitly installing the optional image search):
+
+```bash
+/usr/bin/python3 tests/check-photos.py
+```
+
+It uses synthetic colored images and a temporary index, verifies German motif
+queries, vector reuse and removed-file filtering. No personal image folders are
+read. The normal suite tests preview invalidation, cleanup suggestions, sensor
+units, activity deferral, stale-file trash refusal and the native review workflow.
+Models, indexes, sensor output and UI captures are private runtime/test artifacts;
+never include them in a source release.

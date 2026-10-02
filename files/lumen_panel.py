@@ -72,7 +72,7 @@ def main():
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--snapshot', action='store_true')
     group.add_argument('--system-snapshot', action='store_true')
-    group.add_argument('--control', choices=['volume', 'brightness', 'mute', 'search', 'network', 'audio', 'display', 'appearance', 'desktop-settings', 'lock'])
+    group.add_argument('--control', choices=['volume', 'brightness', 'mute', 'search', 'network', 'audio', 'display', 'appearance', 'hardware', 'desktop-settings', 'lock'])
     parser.add_argument('--value', type=int)
     group.add_argument('--open-task', type=valid_task)
     group.add_argument('--dismiss-task', type=valid_task)

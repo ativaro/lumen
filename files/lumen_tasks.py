@@ -42,17 +42,8 @@ def _run_steps(store, task_id):
 
 
 def defer_background(store):
-    policy = store.setting('modelPolicy', {})
-    if policy.get('pause_background', False): return 'Hintergrundaufträge sind pausiert.'
-    limit = int(policy.get('gpu_limit', 90))
-    if limit >= 100: return ''
-    try:
-        result = subprocess.run(['nvidia-smi', '--query-gpu=utilization.gpu', '--format=csv,noheader,nounits'],
-                                capture_output=True, text=True, timeout=3)
-        if result.returncode == 0 and any(int(value.strip()) >= limit for value in result.stdout.splitlines()):
-            return 'Auftrag wartet, bis die Grafikkarte weniger ausgelastet ist.'
-    except (OSError, ValueError, subprocess.TimeoutExpired): pass
-    return ''
+    from lumen_hardware import background_reason
+    return background_reason(store)
 
 
 def tick(store):

@@ -49,3 +49,10 @@ Runtime note: the older resident search was restarted with the user's permission
 - [x] Native UI, reale Sprachpipeline, Fehlerpfade, Persistenz, vollständige Tests.
 - [x] Portable Installation und Paket, Git-Veröffentlichung, lokale Dokumentation.
 - [x] Ohne Passwort: vier Werkzeuge im Benutzerprofil installiert, 68 Laufzeitdateien verglichen, alle Starter kalt und mit bestehendem Fenster geprüft. Systempaket bleibt 1.2.0-29; gebautes Paket30 ist optional für später.
+# Foto- und Systemfunktionen
+
+- [x] Persistente Vorschauen und schnelle Galerie mit sicherer Invalidierung.
+- [x] Hardware-Anzeige und konfigurierbare Schonung bei Spielen/Aufnahmeprogrammen.
+- [x] Lokale semantische Bildsuche, Einrichtung und reale Modellprüfung.
+- [x] Foto-Aufräumhilfe mit Vorschau, Auswahl und bestehendem Papierkorb.
+- [ ] Integration, vollständige Tests, Dokumentation, Paket und Benutzerinstallation.

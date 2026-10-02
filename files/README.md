@@ -418,3 +418,45 @@ Die Dokumentenwerkstatt ist standardmäßig ausgeschaltet. Unter **Einstellungen
 Lumen Files → PDF-Bearbeitung → Dokumentenwerkstatt aktivieren** einschalten und
 „Files-Einstellungen übernehmen“ wählen. Erst dann erscheint sie im Menü und im
 PDF-Kontextmenü. PDF-Vorschau und Öffnen mit der Standard-App bleiben verfügbar.
+
+### Local photo tools and hardware
+
+- `••• → Bilder nach Motiv suchen` (also from content search): describe an image
+  in German or another supported language. The first run prepares a local index
+  for the selected folder and its subfolders; later runs reuse unchanged vectors.
+  Results show relative motif similarity, not a probability or certainty score.
+- Set up the optional image search once in Settings → Einrichtung. The wizard
+  downloads a CPU runtime and multilingual CLIP models into the user profile
+  (roughly 2 GB download / 2.5 GB installed). Photos and queries stay local.
+- `••• → Fotos aufräumen`: review capture-time series, low-detail images and
+  screenshots. Nothing is preselected or deleted automatically. Double-click for
+  the existing gallery/editor. The normal trash worker rechecks each file's
+  identity before moving it. Missing network trash support keeps the original.
+- Gallery previews persist locally at 192/640/full-view sizes. A small preview
+  appears while the detailed view loads; both neighbors are prefetched. The cache
+  is invalidated by file identity/size/timestamps and capped at 512 MiB / 2048
+  images. It is disposable under `$XDG_CACHE_HOME/lumen/previews`.
+- Settings → Hardware & Aktivität shows available temperatures, fans and power.
+  It does not change hardware settings. Game/recorder deferral is enabled by
+  default and configurable there, including extra process names. Steam detection
+  uses process metadata independent of game/library location; Gamescope, active
+  GameMode and common recorder programs are also recognized. An open recorder is
+  conservatively treated as busy; Lumen does not claim to know whether it records.
+- Scheduled jobs, knowledge indexing and photo analysis honor that policy and the
+  existing GPU/pause settings. Photo analysis can explicitly bypass it for one run.
+  Interactive file navigation and previews remain available.
+
+Photo analysis skips hidden folders, symlinks, animations and unsupported formats.
+It processes regular images up to 128 MiB / 80 MP, at most 10,000 enumerated files
+per search or 3,000 per cleanup review. Limits/skipped files are reported. Burst
+suggestions require compatible capture metadata and a similar visual fingerprint;
+low-detail suggestions can include intentionally soft or plain images. No face
+recognition or automatic library import is performed.
+
+Implementation/provenance: Lumen's own native Python code applies the cache and
+review concepts explored in Pictus and the Linux telemetry/activity concepts in
+Numen. No Numen source was copied (its LICENSE and README disagree). Models are
+optional upstream downloads at pinned revisions: [CLIP image encoder](https://huggingface.co/sentence-transformers/clip-ViT-B-32)
+and [multilingual text encoder](https://huggingface.co/sentence-transformers/clip-ViT-B-32-multilingual-v1).
+Their model cards/licenses are downloaded alongside the safe-tensor weights.
+No PostgreSQL, server, Node/Electron runtime or private Pictus/Numen data is needed.

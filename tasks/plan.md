@@ -35,3 +35,24 @@ Download-/Paketbefehlen, echte Benutzerinstallation und Wizard-Rendering im Test
 `/usr/bin/python3 -m unittest discover -s files -v`; keine Installation oder
 Paneländerung im aktiven Benutzerprofil zum Testen. Danach portable Quellen und
 Anleitung veröffentlichen. Keine neue Distribution-Unterstützung oder KI-Zugangsdaten.
+# Lokale Foto- und Systemfunktionen, 2026-10-03
+
+Angenommener Umfang: persistente mehrstufige Bildvorschauen mit Nachbar-Prefetch;
+lokale semantische Bildsuche mit expliziter Ordnerwahl; Foto-Aufräumvorschläge
+(Serien, Unschärfe, Screenshots); Hardware-Sensoren; automatische Schonung bei
+Spielen/Aufnahmeprogrammen. Native Qt-Oberflächen, vorhandene Themes und
+Papierkorb-/Jobpfade wiederverwenden. Keine automatische Löschung oder private
+Ordnerindizierung. Modelle und Indizes bleiben im Benutzerprofil.
+
+Reihenfolge: Vorschaucache → gemeinsame Aktivitäts-/Hardware-Erkennung → lokale
+Bildsuche samt Einrichtung → Foto-Aufräumhilfe → integrierte Prüfung und Auslieferung.
+Numen hat widersprüchliche Lizenzangaben; seine Konzepte werden eigenständig über
+Linux-Schnittstellen umgesetzt. Keine Übernahme von AGPL-Quelltext. Pictus dient
+als Referenz für Cachegrößen, lokale Vektorsuche und erklärbare Fotovorschläge.
+
+Abnahme: Cacheinvalidierung nach Bearbeitung, begrenzter Speicher, unveränderte
+Originale; echte lokale Modellinferenz; abbrechbare Suche/Analyse mit sichtbarem
+Wartegrund; keine vorselektierten Löschungen; fehlende Sensoren nicht als Null;
+Fixtures für Prozess-/Sensorparser, synthetische Fotos, native UI-Rendering,
+vollständige isolierte Suite und portables Paket. Laufende Benutzerfenster bleiben
+offen. Daten, Modelle und Messwerte werden nicht eingecheckt.

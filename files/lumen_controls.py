@@ -13,6 +13,7 @@ ACTIONS = {
     'display': ['systemsettings', 'kcm_kscreen'],
     'appearance': ['lumen-settings', '--appearance'],
     'desktop-settings': ['systemsettings'],
+    'hardware': ['lumen-settings', '--hardware'],
     'lock': ['qdbus6', 'org.freedesktop.ScreenSaver', '/ScreenSaver', 'org.freedesktop.ScreenSaver.Lock'],
 }
 
@@ -59,6 +60,9 @@ def control(action, value=None):
             brightness('setBrightnessSilent', max(minimum, round(value * maximum / 100)))
     elif action == 'mute': run(['wpctl', 'set-mute', '@DEFAULT_AUDIO_SINK@', 'toggle'])
     elif action in ACTIONS:
-        subprocess.Popen(ACTIONS[action], start_new_session=True, stdin=subprocess.DEVNULL,
+        arguments = list(ACTIONS[action])
+        if arguments[0].startswith('lumen-') and os.environ.get('LUMEN_BIN_DIR'):
+            arguments[0] = os.path.join(os.environ['LUMEN_BIN_DIR'], arguments[0])
+        subprocess.Popen(arguments, start_new_session=True, stdin=subprocess.DEVNULL,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     else: raise ValueError('Unbekannte Systemaktion.')

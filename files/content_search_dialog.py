@@ -52,6 +52,7 @@ class ContentSearchDialog(QDialog):
         self.search_button.setObjectName('primary')
         self.search_button.clicked.connect(self.start)
         row.addWidget(self.search_button)
+        local_photos = QPushButton('Bildmotive · lokal'); local_photos.clicked.connect(self.local_photos); row.addWidget(local_photos)
         self.expand_button = QPushButton('Mit Lumen erweitern')
         self.expand_button.setToolTip('Verwandte Begriffe ergänzen. Deine Suchfrage und die eingerichteten persönlichen '
                                       'Lumen-Anweisungen gehen an dein Modell. Gefundene Dokumente werden nicht angehängt.')
@@ -143,6 +144,11 @@ class ContentSearchDialog(QDialog):
         self.query.setFocus()
         if query.strip():
             QTimer.singleShot(0, self.start)
+
+    def local_photos(self):
+        from photo_tools_ui import PhotoToolsDialog
+        dialog = PhotoToolsDialog(self.root, query=self.query.text(), parent=self)
+        dialog.folderRequested.connect(self.folderRequested); dialog.exec_(); dialog.deleteLater()
 
     def buttons(self):
         selected = self.results.currentItem() is not None

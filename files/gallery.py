@@ -38,6 +38,8 @@ class ImageLoader(QObject):
         self.loading = None
 
     def want(self, paths):
+        # Revalidate through the worker; mounted NAS stat calls never block the UI.
+        self.cache.pop(paths[0], None)
         self.pending = list(dict.fromkeys(paths))
         current = paths[0]
         if current in self.cache:
@@ -158,6 +160,12 @@ class Gallery(QDialog):
         self.setWindowTitle('Lumen · Bilder')
         from gallery_widgets import build_gallery
         self.loader = ImageLoader(self)
+        self.quick = ImageLoader(self, max_side=640)
+        self.detail_delay = QTimer(self); self.detail_delay.setSingleShot(True)
+        self.detail_delay.timeout.connect(lambda: self.loader.want(self.neighbors))
+        self.quick.ready.connect(self.quick_loaded)
+        self.finished.connect(self.quick.cancel)
+        self.finished.connect(self.detail_delay.stop)
         build_gallery(self, ImageCanvas(), ImageLoader(self, max_side=192, cache_limit=48))
         self.loader.ready.connect(self.loaded)
         self.loader.failed.connect(self.failed)
@@ -199,10 +207,20 @@ class Gallery(QDialog):
         self.controls()
         neighbors = [self.path] + [self.paths[i] for i in (self.index + 1, self.index - 1)
                                    if 0 <= i < len(self.paths)]
-        self.loader.want(neighbors)
+        self.neighbors = neighbors
+        self.loader.cancel(); self.detail_delay.stop()
+        if self.path in self.loader.cache:
+            self.loaded(self.path, *self.loader.cache[self.path])
+        self.quick.want(neighbors)
+        self.detail_delay.start(160)
+
+    def quick_loaded(self, path, pixmap, data):
+        if path == self.path and self.data is None:
+            self.canvas.display(pixmap)
+            self.status.setText('Vorschau · Details werden geladen …')
 
     def loaded(self, path, pixmap, data):
-        if path != self.path or self.data is not None:
+        if path != self.path or self.operations or (self.data is not None and self.data.get('stamp') == data.get('stamp')):
             return
         self.original, self.data = pixmap, data
         self.dimensions.setText(f"{data['width']} × {data['height']} px")

@@ -19,6 +19,10 @@ ColumnLayout {
 
     Kirigami.Heading { text: "System"; level: 3; font.pixelSize: 19; font.weight: Font.DemiBold; color: Kirigami.Theme.textColor; Layout.bottomMargin: 8 }
     LumenButton {
+        Layout.fillWidth: true; flat: true; text: "Hardware"; hint: "Temperatur · Lüfter · Leistung  ›"
+        icon.name: "utilities-system-monitor"; onClicked: controls.control("hardware", 0)
+    }
+    LumenButton {
         Layout.fillWidth: true; implicitHeight: 50; flat: true; prominent: true
         icon.name: "network-wired"; symbolSize: 27
         text: "Netzwerk"; hint: controls.systemState.network

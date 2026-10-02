@@ -91,6 +91,9 @@ class SettingsDialog(QDialog):
         self.build_integrations()
         self.build_recovery()
         self.build_setup()
+        from hardware_ui import HardwareView
+        hardware = self.page('Hardware & Aktivität', 'Temperaturen, Lüfter und Leistungsaufnahme · nur lesend')
+        hardware.addWidget(HardwareView(self))
         self.nav.setCurrentRow(page)
         if load_system:
             QTimer.singleShot(0, self.reload)
@@ -646,5 +649,5 @@ if __name__ == '__main__':
     from PyQt5.QtGui import QIcon
     app = create_app()
     app.setApplicationName('lumen-settings'); app.setApplicationDisplayName('Lumen Einstellungen')
-    dialog = SettingsDialog(page=3 if '--appearance' in sys.argv else 0); dialog.setWindowIcon(QIcon.fromTheme('configure')); dialog.show()
+    dialog = SettingsDialog(page=9 if '--hardware' in sys.argv else 3 if '--appearance' in sys.argv else 0); dialog.setWindowIcon(QIcon.fromTheme('configure')); dialog.show()
     sys.exit(app.exec_())

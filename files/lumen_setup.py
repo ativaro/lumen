@@ -13,6 +13,7 @@ import tempfile
 import urllib.request
 
 FEATURES = {
+    'hardware': ('Hardware-Messwerte', ('sensors',), ('lm_sensors',)),
     'engine': ('Lumen-Assistent', ('opencode',), ('opencode',)),
     'documents': ('PDF-Vorschau und Inhaltsuche', ('pdfinfo', 'pdftoppm', 'pdftotext'), ('poppler',)),
     'media': ('Video- und Audiovorschau', ('ffmpeg', 'ffprobe'), ('ffmpeg',)),
@@ -190,10 +191,22 @@ def install_voice(existing_model=''):
     report('Sprachgespräch eingerichtet · Whisper und deutsche Piper-Stimme lokal.', 100)
 
 
+def install_image_search():
+    from photo_tools import runtime
+    environment = runtime() / 'env-v1'; python = str(environment / 'bin/python')
+    report('Lokale Bildsuche vorbereiten · CPU-Laufzeit und mehrsprachige CLIP-Modelle, ca. 2 GB Download')
+    if not Path(python).is_file(): run([sys.executable, '-m', 'venv', str(environment)])
+    run([python, '-m', 'pip', '--disable-pip-version-check', 'install', 'torch==2.14.1', '--index-url', 'https://download.pytorch.org/whl/cpu'])
+    run([python, '-m', 'pip', '--disable-pip-version-check', 'install', 'sentence-transformers==6.1.0', 'Pillow==12.3.0'])
+    report('Bildmodelle herunterladen und mit lokaler Inferenz prüfen …')
+    run([python, str(Path(__file__).with_name('photo_tools.py')), 'install'], timeout=1800)
+    report('Lokale Bildsuche ist bereit. In Files über „Bilder nach Motiv suchen“.', 100)
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=('packages', 'dictation', 'dictation-quality', 'voice', 'desktop'))
+    parser.add_argument('action', choices=('packages', 'dictation', 'dictation-quality', 'voice', 'desktop', 'image-search'))
     parser.add_argument('groups', nargs='*', choices=tuple(FEATURES))
     parser.add_argument('--existing-model', default='')
     from appearance import DESIGNS
@@ -210,6 +223,7 @@ def main():
         elif args.action == 'dictation': install_dictation(args.existing_model)
         elif args.action == 'dictation-quality': install_dictation(quality=True)
         elif args.action == 'voice': install_voice(args.existing_model)
+        elif args.action == 'image-search': install_image_search()
         else:
             install_packages(missing_packages(args.groups))
             missing = missing_packages(args.groups)

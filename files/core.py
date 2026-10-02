@@ -177,10 +177,11 @@ class FileWorker(QThread):
     progress = pyqtSignal(str)
     completed = pyqtSignal(list, list)
 
-    def __init__(self, action, sources, target=None, portable=False):
+    def __init__(self, action, sources, target=None, portable=False, expected=None):
         super().__init__()
         self.action, self.sources, self.target = action, sources, target
         self.portable = portable
+        self.expected = expected
 
     def run(self):
         from lumen_store import Store
@@ -188,7 +189,7 @@ class FileWorker(QThread):
         try:
             store = Store()
             value = create(store, self.action, list(map(str, self.sources)),
-                           str(self.target) if self.target else None, self.portable)
+                           str(self.target) if self.target else None, self.portable, expected=self.expected)
             process = start(store, value)
             while value['status'] in ACTIVE:
                 self.progress.emit(value['current'] or 'Übertragung wird vorbereitet …')

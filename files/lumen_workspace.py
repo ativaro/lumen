@@ -143,7 +143,14 @@ class Indexer(QThread):
         super().__init__(parent); self.store = store; self.root = root
     def run(self):
         try:
-            result = index_root(self.store, self.root, self.isInterruptionRequested)
+            from lumen_hardware import background_reason
+            def pause():
+                while reason := background_reason(self.store):
+                    self.outcome.emit(reason + ' · wird automatisch fortgesetzt')
+                    for _ in range(20):
+                        if self.isInterruptionRequested(): raise InterruptedError('Indexierung abgebrochen.')
+                        self.msleep(250)
+            result = index_root(self.store, self.root, self.isInterruptionRequested, pause)
             self.outcome.emit(f"{result['documents']} Dokumente aufgenommen; {result['errors']} nicht lesbar." +
                               (' Größenlimit erreicht; kleinere Ordner wählen.' if result['limited'] else ''))
         except Exception as exc: self.outcome.emit(str(exc))
@@ -434,7 +441,8 @@ class Workspace(QObject):
         backend.ensure_server(lambda: backend.request('GET','/config/providers',callback=loaded))
 
     def save_models(self):
-        policy = {key: c.currentText().strip() for key,c in self.model_controls.items()}
+        policy = self.store.setting('modelPolicy', {})
+        policy.update({key: c.currentText().strip() for key,c in self.model_controls.items()})
         if self.privacy.currentData() == 'local' and '/' not in policy['local_model']: raise ValueError('Lokales Modell als anbieter/modell auswählen.')
         policy.update(privacy=self.privacy.currentData(),timeout_seconds=self.timeout.value()*60,gpu_limit=self.gpu.value(),pause_background=self.pause_background.isChecked())
         self.store.set_setting('modelPolicy',policy)

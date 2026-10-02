@@ -1164,6 +1164,13 @@ class Window(QMainWindow):
         dialog.exec_()
         dialog.deleteLater()
 
+    def photo_tools(self, mode='search'):
+        from photo_tools_ui import PhotoToolsDialog
+        root = self.spaces.choose_target() if virtual(self.current_location) else self.current_path
+        if not root: return
+        dialog = PhotoToolsDialog(root, mode, self.search.text(), self)
+        dialog.folderRequested.connect(self.navigate); dialog.exec_(); dialog.deleteLater(); self.refresh()
+
     def queue_search(self, _text=None):
         self.cancel_search()
         self.spaces.cancel()
@@ -1600,6 +1607,8 @@ class Window(QMainWindow):
         menu.addAction('Arbeitsräume …', self.spaces.room_menu)
         menu.addAction('Mit Server verbinden\tStrg+K', self.connect_dialog)
         menu.addAction('Speicher analysieren', self.open_analysis)
+        menu.addAction('Bilder nach Motiv suchen …', lambda: self.photo_tools('search'))
+        menu.addAction('Fotos aufräumen …', lambda: self.photo_tools('tidy'))
         menu.addAction('Aktualisieren\tF5', self.refresh)
         menu.addAction('Versteckte Dateien\tStrg+H', self.toggle_hidden)
         menu.addSeparator()

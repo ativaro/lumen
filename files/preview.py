@@ -290,6 +290,14 @@ def preview_data(path, output, max_side=1600):
         if not stat.S_ISREG(info.st_mode):
             return {'kind': 'other', 'message': 'Keine Vorschau für Spezialdateien.'}
         if file_kind(path) == 'image':
+            from image_edit import file_stamp
+            import image_cache
+            max_side = max(1, min(max_side, 4096))
+            stamp = file_stamp(info)
+            try:
+                cached = image_cache.read(path, stamp, max_side, output)
+                if cached and stamp == file_stamp(path.stat()): return cached
+            except OSError: pass
             if info.st_size > 128 * 1024 * 1024:
                 return {'kind': 'other', 'message': 'Bild größer als 128 MB. Bitte extern öffnen.'}
             reader = QImageReader(str(path))
@@ -310,8 +318,18 @@ def preview_data(path, output, max_side=1600):
             from image_edit import file_stamp
             if file_stamp(info) != file_stamp(path.stat()):
                 return {'kind': 'other', 'message': 'Die Datei wurde während des Ladens geändert.'}
-            return {'kind': 'image', 'output': output, 'width': original.width(), 'height': original.height(),
-                    'stamp': file_stamp(info), 'format': bytes(reader.format()).decode('ascii', errors='replace')}
+            data = {'kind': 'image', 'output': output, 'width': original.width(), 'height': original.height(),
+                    'stamp': stamp, 'format': bytes(reader.format()).decode('ascii', errors='replace')}
+            try:
+                image_cache.write(path, stamp, max_side, Path(output).read_bytes(), data)
+                if max_side > 640:
+                    from PyQt5.QtCore import QBuffer, QByteArray, QIODevice
+                    for side in (192, 640):
+                        encoded = QByteArray(); buffer = QBuffer(encoded); buffer.open(QIODevice.WriteOnly)
+                        image.scaled(side, side, Qt.KeepAspectRatio, Qt.SmoothTransformation).save(buffer, 'PNG')
+                        image_cache.write(path, stamp, side, bytes(encoded), data)
+            except OSError: pass  # A full/read-only cache must not break viewing.
+            return data
         data = stream.read(128 * 1024 + 1)
         if b'\0' in data or (data and sum(b < 9 or 13 < b < 32 for b in data) / len(data) > .03):
             return {'kind': 'other', 'message': 'Keine integrierte Vorschau für dieses Dateiformat.\nMit der Standard-App öffnen.'}

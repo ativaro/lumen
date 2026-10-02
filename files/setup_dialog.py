@@ -87,6 +87,9 @@ class SetupDialog(QDialog):
         for item in self.features.values(): item.toggled.connect(self.update_install)
         page.addWidget(text('Systempakete: Arch/CachyOS mit grafischer Passwortabfrage. '
             'Dateien lassen sich auch ohne KI-Anbindung verwenden.'))
+        page.addWidget(button('Lokale Bildsuche einrichten · ca. 2 GB', lambda: self.start_job('image-search')))
+        page.addWidget(text('Mehrsprachige CLIP-Bildsuche inklusive deutscher Suchbegriffe. Modelle werden einmalig '
+            'heruntergeladen; Fotos und Suchbegriffe bleiben danach auf diesem Rechner. Kein Administratorpasswort nötig.'))
         page.addStretch()
 
     def build_engine(self):

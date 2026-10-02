@@ -49,7 +49,7 @@ def web_url(url):
     return url
 
 
-def create(store, action, sources, target=None, portable=False):
+def create(store, action, sources, target=None, portable=False, expected=None):
     if action not in ('copy', 'move', 'rename', 'mkdir', 'trash', 'download') or not sources:
         raise ValueError('Ungültiger Dateivorgang.')
     if action == 'download':
@@ -61,7 +61,7 @@ def create(store, action, sources, target=None, portable=False):
         raise ValueError('Ein absoluter Zielpfad ist erforderlich.')
     value = dict(id=uuid.uuid4().hex, action=action, sources=sources, target=target,
                  portable=portable, status='queued', created=time.time(), updated=time.time(),
-                 done=[], errors=[], current='', bytes=0, total=0, cancel=False)
+                 done=[], errors=[], current='', bytes=0, total=0, cancel=False, expected=expected)
     store.set_setting(PREFIX + value['id'], value)
     return value
 
@@ -158,6 +158,10 @@ def execute(store, identity):
         update(store, identity, current=path.name)
         try:
             action = value['action']
+            if value.get('expected') is not None:
+                from image_edit import file_stamp
+                if path.resolve() != path or file_stamp(path.lstat()) != value['expected'].get(source):
+                    raise ValueError('Datei seit der Vorschau verändert. Bitte erneut prüfen.')
             if action == 'copy': destination = copy_entry(path, value['target'], value['portable'], progress)
             elif action in ('move', 'rename'):
                 destination = Path(value['target']) / path.name if action == 'move' else Path(value['target'])

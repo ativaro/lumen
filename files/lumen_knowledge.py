@@ -9,12 +9,13 @@ EXCLUDED = {'node_modules', 'vendor', '__pycache__', 'credentials', 'secrets', '
 SUFFIXES = {'.txt', '.md', '.rst', '.pdf', '.csv', '.py', '.js', '.ts', '.html', '.odt.txt', '.log'}
 
 
-def index_root(store, directory, cancelled=lambda: False):
+def index_root(store, directory, cancelled=lambda: False, pause=lambda: None):
     root = Path(directory).expanduser().resolve(strict=True)
     root_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     queue = [Path('.')]; documents = []; count = size = errors = 0
     try:
         while queue and count < 10000 and size < 32 * 1024 * 1024:
+            pause()
             if cancelled(): raise InterruptedError('Indexierung abgebrochen; bisheriger Index bleibt erhalten.')
             relative = queue.pop(); parent = folder_fd(root_fd, relative)
             try:
@@ -22,6 +23,7 @@ def index_root(store, directory, cancelled=lambda: False):
                     for entry in entries:
                         if cancelled(): raise InterruptedError('Indexierung abgebrochen.')
                         count += 1
+                        if count % 20 == 0: pause()
                         if count > 10000 or size >= 32 * 1024 * 1024: break
                         if entry.name.startswith('.') or (entry.name.lower() in EXCLUDED or Path(entry.name.lower()).stem in EXCLUDED) or entry.is_symlink(): continue
                         if entry.is_dir(follow_symlinks=False): queue.append(relative / entry.name); continue
