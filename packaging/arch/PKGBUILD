@@ -115,6 +115,8 @@ package() {
     install -d "$pkgdir/etc/xdg/autostart"
     sub "$srcroot/data/autostart/lumen-krunner-runner.desktop" "$pkgdir/etc/xdg/autostart/lumen-krunner-runner.desktop"
 
+    sub "$srcroot/data/autostart/lumen-versions.desktop" "$pkgdir/etc/xdg/autostart/lumen-versions.desktop"
+
     # ---- systemd ----------------------------------------------------------
     install -d "$pkgdir/usr/lib/systemd/system"
     install -m0644 "$srcroot/system/systemd/lumen-agentd.service" "$pkgdir/usr/lib/systemd/system/"

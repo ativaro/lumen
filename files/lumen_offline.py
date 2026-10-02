@@ -86,7 +86,7 @@ def replace_file(source, target, expected_source, expected_target, archive, prog
                 output.flush(); os.fsync(output.fileno())
             if digest(staged, progress) != expected_source: raise ValueError('Quelldatei während Kopieren verändert.')
             shutil.copystat(source, staged)
-        if expected_target is not None:
+        if expected_target is not None and archive is not None:
             archive.mkdir(parents=True, exist_ok=True, mode=0o700)
             backup = archive / (str(time.time_ns()) + '-' + target.name)
             shutil.copy2(target, backup)

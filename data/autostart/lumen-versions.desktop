@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen Dateiversionen
+Exec=%INSTALL_BIN%/lumen-versions
+Icon=lumen-files
+NoDisplay=true
+X-KDE-autostart-phase=2

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+[[ -f "$root/files/lumen_versions.py" ]] || root=/usr/share/lumen
+exec /usr/bin/python3 "$root/files/lumen_versions.py" --watch

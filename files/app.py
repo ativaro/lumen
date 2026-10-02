@@ -1510,6 +1510,7 @@ class Window(QMainWindow):
                 menu.addAction('Aus Sammelfläche entfernen (Dateien behalten)', lambda: self.spaces.remove_shelf(paths))
             if len(paths) == 1:
                 menu.addAction('Große Vorschau\tLeertaste', self.quicklook)
+                menu.addAction('Dateiversionen …', lambda: self.show_versions(paths[0]))
                 menu.addAction('Enthaltenden Ordner öffnen', lambda: self.navigate(Path(paths[0]).parent))
                 if Path(paths[0]).is_dir():
                     menu.addAction('In neuem Tab öffnen', lambda: self.new_tab(paths[0]))
@@ -1582,6 +1583,7 @@ class Window(QMainWindow):
         menu.addAction('Arbeitsplatz · Projekte & Verlauf', self.show_workplace)
         menu.addAction('Transfers', lambda: self.show_workplace(2))
         menu.addAction('Offline verfügbare Ordner …', self.offline.show)
+        menu.addAction('Dateiversionen …', self.show_versions)
         menu.addAction('Einstellungen\tStrg+Komma', self.show_settings)
         menu.addAction('Bibliotheken verwalten …', self.spaces.library_manager)
         menu.addAction('Arbeitsräume …', self.spaces.room_menu)
@@ -1600,6 +1602,10 @@ class Window(QMainWindow):
             'Strg+S speichern, Entf Papierkorb, F11 Vollbild. Originale bleiben in .lumen-originals.\n\n'
             'PDFs sind blätterbar. Videos zeigen ein Standbild, Audio eine Wellenform. Wiedergabe in der Standard-App.'))
         menu.exec_(self.sender().mapToGlobal(self.sender().rect().bottomLeft()))
+
+    def show_versions(self, path=None):
+        from versions_ui import VersionsDialog
+        dialog = VersionsDialog(self, path if isinstance(path, str) else None); dialog.exec_(); dialog.deleteLater()
 
     def show_workplace(self, tab=0):
         if hasattr(self, 'lumen_host'):
