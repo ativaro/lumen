@@ -4,6 +4,7 @@ import shutil
 import tempfile
 from PyQt5.QtCore import QObject, QProcess, QTimer
 from PyQt5.QtWidgets import QApplication, QFileDialog, QHBoxLayout, QPushButton, QCheckBox, QMenu
+from lumen_setup import executable
 
 
 class ContextTools(QObject):
@@ -48,7 +49,7 @@ class ContextTools(QObject):
     def dictate(self):
         if self.recording: self.finish_recording(); return
         if self.process is not None or self.panel.backend.busy: return
-        binary = shutil.which('whisper-cli')
+        binary = executable('whisper-cli')
         if not binary or not shutil.which('pw-record'):
             self.panel.show_error('Für lokales Diktieren werden whisper-cli (whisper.cpp), pw-record und ein lokales Whisper-Modell benötigt. Es wird nichts automatisch heruntergeladen.'); return
         model = self.panel.settings.value('speechModel', '')
