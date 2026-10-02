@@ -341,6 +341,9 @@ class Window(QMainWindow):
         self.proxy = FileFilter(self)
         self.proxy.setSourceModel(self.fs)
         self.build_ui()
+        from offline_ui import Offline
+        self.offline = Offline(self)
+        self.offline.changed.connect(self.populate_places)
         self.network.connected.connect(self.network_connected)
         self.network.failed.connect(self.network_failed)
         self.network.busy.connect(self.cancel_connect_button.setVisible)
@@ -710,6 +713,10 @@ class Window(QMainWindow):
         for path in self.settings.value('favorites', [], type=list):
             if path not in [p[1] for p in places]:
                 places.append((Path(path).name or path, path, 'folder-favorites'))
+        if hasattr(self, 'offline'):
+            from lumen_offline import folders
+            for folder in folders(self.offline.store):
+                places.append((folder['name'] + ' · Offline', folder['local'], 'folder-download'))
         places.append(('Dateisystem', '/', 'drive-harddisk'))
         seen = {path for _, path, _ in places}
         for storage in QStorageInfo.mountedVolumes():
@@ -814,6 +821,8 @@ class Window(QMainWindow):
         menu.addAction('In neuem Tab öffnen', lambda: self.new_tab(path))
         if path.startswith(LIBRARY):
             self.spaces.library_menu(menu, path)
+        if is_network_address(path):
+            menu.addAction('Offline verfügbar machen …', lambda: self.offline.add(path))
         menu.addAction('Neue Bibliothek …', self.spaces.edit_library)
         key = 'network_servers' if is_network_address(path) else 'favorites'
         favorites = self.settings.value(key, [], type=list)
@@ -1504,6 +1513,8 @@ class Window(QMainWindow):
                 menu.addAction('Enthaltenden Ordner öffnen', lambda: self.navigate(Path(paths[0]).parent))
                 if Path(paths[0]).is_dir():
                     menu.addAction('In neuem Tab öffnen', lambda: self.new_tab(paths[0]))
+                    remote = self.network.remote(paths[0])
+                    if remote: menu.addAction('Offline verfügbar machen …', lambda: self.offline.add(remote))
                     menu.addAction('Ordnergröße berechnen', lambda: self.open_analysis(paths[0], apparent=True))
                     menu.addAction('Speicher analysieren', lambda: self.open_analysis(paths[0]))
                 menu.addAction('Umbenennen\tF2', self.rename)
@@ -1570,6 +1581,7 @@ class Window(QMainWindow):
         menu = QMenu(self)
         menu.addAction('Arbeitsplatz · Projekte & Verlauf', self.show_workplace)
         menu.addAction('Transfers', lambda: self.show_workplace(2))
+        menu.addAction('Offline verfügbare Ordner …', self.offline.show)
         menu.addAction('Einstellungen\tStrg+Komma', self.show_settings)
         menu.addAction('Bibliotheken verwalten …', self.spaces.library_manager)
         menu.addAction('Arbeitsräume …', self.spaces.room_menu)
@@ -1655,6 +1667,7 @@ class Window(QMainWindow):
             self.fs.directoryLoaded.disconnect()
             self.fs.setOption(QFileSystemModel.DontWatchForChanges, True)
             self.fs.deleteLater()
+        self.offline.close()
         self.network.close()
         self._closed = True
         event.accept()

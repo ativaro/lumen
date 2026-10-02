@@ -373,3 +373,9 @@ Palette; laufende aktuelle App-Versionen wechseln mit. Die Suche liest das Desig
 auch beim erneuten Öffnen ein; Gespräch und Entwurf bleiben erhalten.
 Alte App-Prozesse nach einem Programmupdate benötigen einmal die neue Version.
 KDE-Systemstil und die nativen Desktop-Einstellungen bleiben verfügbar.
+
+### Offline-NAS-Ordner
+
+Im Kontextmenü eines verbundenen Netzwerkordners oder gemerkten Servers **Offline verfügbar machen** wählen. Die lokale Arbeitskopie erscheint unter den Orten und ist auch ohne NAS erreichbar. **Menü → Offline verfügbare Ordner** zeigt Status, Konflikte und Sicherungen. Während Files läuft, wird im Hintergrund jede Minute versucht abzugleichen; **Jetzt abgleichen** öffnet bei Bedarf die native KDE-Anmeldung.
+
+Unabhängige Änderungen werden in beide Richtungen übernommen. Bei konkurrierenden Änderungen oder Löschen/Ändern wird keine Fassung automatisch gewählt. Beide Fassungen können geöffnet werden; eine Entscheidung wird nur bei unveränderten Inhalten übernommen. Ersetzte und gelöschte Dateien bleiben im privaten Sicherungsordner. „Nicht mehr abgleichen“ entfernt nur die Registrierung, niemals lokale Daten. Symlinks werden abgelehnt; pro Ordner gilt ein ausdrücklich gemeldetes Limit von 50.000 Dateien. Zugangsdaten werden nicht im Offline-Katalog gespeichert.
