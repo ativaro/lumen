@@ -43,4 +43,5 @@ Runtime note: the older resident search was restarted with the user's permission
 - [x] Projekt-Werkbank mit Dateien, Links, Notizen und Fragen.
 - [x] Persönliches Radio mit Quellen, Hörskript und lokaler Audio-Ausgabe.
 - [x] Native UI, reale Sprachpipeline, Fehlerpfade, Persistenz, vollständige Tests.
-- [ ] Portable Installation und Paket, Git-Veröffentlichung, lokale Dokumentation.
+- [x] Portable Installation und Paket, Git-Veröffentlichung, lokale Dokumentation.
+- [x] Ohne Passwort: vier Werkzeuge im Benutzerprofil installiert, 68 Laufzeitdateien verglichen, alle Starter kalt und mit bestehendem Fenster geprüft. Systempaket bleibt 1.2.0-29; gebautes Paket30 ist optional für später.

@@ -11,6 +11,24 @@ Sie verwenden die vier Lumen-Themes und die vorhandene Einrichtung.
 | Projekt-Werkbank | `lumen-workbench` | Projekt anlegen → Notizen und Fragen festhalten → Dateien, Ordner und Webseiten verknüpfen |
 | Persönliches Radio | `lumen-radio` | Ausgabe anlegen → Artikel/Dokumente/Text auswählen → Hörskript erzeugen und prüfen → lokal vertonen → abspielen/exportieren |
 
+## Ohne Administratorrechte installieren
+
+Wenn die Lumen-Abhängigkeiten bereits vorhanden sind, nur die vier Werkzeuge
+für den aktuellen Benutzer installieren:
+
+```bash
+./install-tools.py
+```
+
+Dies installiert eine eigene Laufzeitkopie unter
+`~/.local/share/lumen-tools/runtime/`, vier Starter in `~/.local/bin/` und
+Menüeinträge samt Icons. Bibliotheken, Panels und die laufenden Lumen-Fenster
+werden dabei nicht verändert. Die vorhandenen Sprachmodelle und Einstellungen
+werden weiterverwendet. Nach einer späteren Systeminstallation rufen die lokalen
+Starter automatisch die jeweilige Anwendung unter `/usr/bin/` auf.
+Die vollständige Installation auf einem frischen System benötigt weiterhin die
+im Haupt-README beschriebenen Systemabhängigkeiten.
+
 ## Speicherung und Verhalten
 
 - Private Bibliotheken liegen unter `$XDG_DATA_HOME/lumen-tools/` bzw.
