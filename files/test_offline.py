@@ -38,6 +38,20 @@ class OfflineTest(unittest.TestCase):
             with self.assertRaises(ValueError): sync(store, item['id'], remote)
             self.assertNotIn('new.txt', store.setting(PREFIX + item['id'])['base'])
 
+    def test_disconnected_replaced_root_never_advances_sync_baseline(self):
+        import lumen_offline
+        with tempfile.TemporaryDirectory() as tmp:
+            store=Store(Path(tmp)/'state'); remote=Path(tmp)/'nas'; remote.mkdir(); (remote/'a.txt').write_text('original')
+            item=pin(store,'smb://example.test/files'); sync(store,item['id'],remote)
+            local=Path(item['local']); (local/'a.txt').write_text('offline edit')
+            original=store.setting(PREFIX+item['id'])['base'].copy(); replace=lumen_offline.replace_file
+            def replaced(*args,**kwargs):
+                replace(*args,**kwargs); remote.rename(Path(tmp)/'disconnected'); remote.mkdir()
+            with patch.object(lumen_offline,'replace_file',side_effect=replaced):
+                with self.assertRaises(ValueError): sync(store,item['id'],remote)
+            self.assertEqual(store.setting(PREFIX+item['id'])['base'],original)
+            self.assertEqual((local/'a.txt').read_text(),'offline edit')
+
     def test_worker_and_native_folder_view(self):
         from PyQt5.QtWidgets import QApplication
         from PyQt5.QtCore import QSettings

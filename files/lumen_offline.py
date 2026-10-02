@@ -71,7 +71,7 @@ def safe_path(root, relative):
     return path
 
 
-def replace_file(source, target, expected_source, expected_target, archive, progress=lambda _: None):
+def replace_file(source, target, expected_source, expected_target, archive, progress=lambda _: None, portable=False):
     """Stage first; preserve overwritten content; recheck both sides before committing."""
     target.parent.mkdir(parents=True, exist_ok=True)
     if digest(target, progress) != expected_target: raise ValueError('Zieldatei inzwischen verändert: ' + target.name)
@@ -85,10 +85,10 @@ def replace_file(source, target, expected_source, expected_target, archive, prog
                     while chunk := stream.read(1024 * 1024): output.write(chunk); progress(source.name)
                 output.flush(); os.fsync(output.fileno())
             if digest(staged, progress) != expected_source: raise ValueError('Quelldatei während Kopieren verändert.')
-            shutil.copystat(source, staged)
+            if not portable: shutil.copystat(source, staged)
         if expected_target is not None and archive is not None:
             archive.mkdir(parents=True, exist_ok=True, mode=0o700)
-            backup = archive / (str(time.time_ns()) + '-' + target.name)
+            backup = archive / (str(time.time_ns()) + '-' + target.name.encode()[:160].decode(errors='ignore'))
             shutil.copy2(target, backup)
             if digest(backup, progress) != expected_target: raise ValueError('Zieldatei während Sicherung verändert.')
         if digest(source, progress) != expected_source: raise ValueError('Quelldatei inzwischen verändert.')
@@ -104,11 +104,22 @@ def sync(store, identity, remote_root, choices=None, progress=lambda _: None):
     try:
         item = store.setting(PREFIX + identity)
         local, remote = Path(item['local']), Path(remote_root)
+        def root_ids():
+            try:
+                infos = [p.stat() for p in (local, remote)]
+                if not all(stat.S_ISDIR(info.st_mode) for info in infos): raise ValueError('Ordner nicht verfügbar.')
+                return [(info.st_dev, info.st_ino) for info in infos]
+            except OSError as error: raise ValueError('Ordner nicht verfügbar: ' + str(error)) from error
+        root_signatures = root_ids()
+        def check_roots():
+            if root_ids() != root_signatures:
+                raise ValueError('Ein Ordner wurde während des Abgleichs getrennt oder ersetzt.')
         # Complete both scans before deriving deletions; an unavailable share is never empty.
         local_dirs, remote_dirs = set(), set()
         ours, theirs = scan(local, progress, local_dirs), scan(remote, progress, remote_dirs)
         base = item['base']; conflicts = []
         for name in sorted(set(base) | set(ours) | set(theirs)):
+            check_roots()
             left, right, old = ours.get(name), theirs.get(name), base.get(name)
             progress(name)
             if left == right: winner = left
@@ -119,11 +130,17 @@ def sync(store, identity, remote_root, choices=None, progress=lambda _: None):
                 elif left == old: use_local = False
                 elif right == old: use_local = True
                 else:
-                    conflicts.append(dict(path=name, local=left, remote=right)); continue
+                    from datetime import datetime
+                    def detail(root, checksum):
+                        if checksum is None: return 'Gelöscht'
+                        info = safe_path(root,name).stat()
+                        return f'{info.st_size:,} Bytes · ' + datetime.fromtimestamp(info.st_mtime).strftime('%d.%m.%Y %H:%M')
+                    conflicts.append(dict(path=name, local=left, remote=right, localInfo=detail(local,left), remoteInfo=detail(remote,right))); continue
                 src, dst = (local, remote) if use_local else (remote, local)
                 winner, previous = (left, right) if use_local else (right, left)
                 replace_file(safe_path(src, name), safe_path(dst, name), winner, previous,
-                             store.directory / 'offline' / identity / 'replaced', progress)
+                             store.directory / 'offline' / identity / 'replaced', progress, portable=use_local)
+            check_roots()
             if winner is None: base.pop(name, None)
             else: base[name] = winner
             # Crash-safe checkpoint after every committed file.
@@ -131,6 +148,7 @@ def sync(store, identity, remote_root, choices=None, progress=lambda _: None):
         # Mirror empty folders as well; only remove directories that are still empty.
         kept = local_dirs | remote_dirs
         for name in sorted(kept, key=lambda n: len(Path(n).parts), reverse=True):
+            check_roots()
             removed = name in item.get('directories', []) and (name not in local_dirs or name not in remote_dirs)
             if removed:
                 for root in (local, remote):

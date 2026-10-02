@@ -120,6 +120,7 @@ subst "$REPO/data/applications/lumen-files.desktop" > "$DATA_HOME/applications/l
 subst "$REPO/data/krunner-dbusplugins/lumen-runner.desktop" > "$DATA_HOME/krunner/dbusplugins/lumen-runner.desktop"
 subst "$REPO/data/dbus-1-services/org.lumen.runner.service" > "$DATA_HOME/dbus-1/services/org.lumen.runner.service"
 subst "$REPO/data/autostart/lumen-krunner-runner.desktop" > "$CONFIG_HOME/autostart/lumen-krunner-runner.desktop"
+subst "$REPO/data/autostart/lumen-versions.desktop" > "$CONFIG_HOME/autostart/lumen-versions.desktop"
 
 # refresh caches
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DATA_HOME/applications" >/dev/null 2>&1 || true

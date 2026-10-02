@@ -40,7 +40,8 @@ class VersionsDialog(QDialog):
         for version in self.versions.history(self.path):
             item = QListWidgetItem(Path(version['path']).name + ' · ' + datetime.fromtimestamp(version['created']).strftime('%d.%m.%Y %H:%M:%S') + (' · Gelöscht' if not version['hash'] else f" · {version['size']:,} Bytes"))
             item.setData(Qt.UserRole, version); item.setToolTip(version['path']); self.list.addItem(item)
-        self.status.setText(f'{self.list.count()} gespeicherte Fassungen · ' + str(self.versions.objects.parent))
+        statuses = [Path(root).name + ': ' + self.versions.store.setting('versions/status/' + root, {}).get('status','Erste Sicherung steht aus') for root in self.versions.config()['roots']]
+        self.status.setText(f'{self.list.count()} gespeicherte Fassungen · ' + str(self.versions.objects.parent) + '\n' + '\n'.join(statuses))
 
     def add_root(self):
         path = QFileDialog.getExistingDirectory(self, 'Versionen für Ordner aktivieren', str(Path(self.path).parent) if self.path else str(Path.home()))

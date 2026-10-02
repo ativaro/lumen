@@ -28,7 +28,7 @@ rm -f "$DATA_HOME/applications/lumen-sel.desktop"
 rm -f "$DATA_HOME/krunner/dbusplugins/lumen-runner.desktop"
 rm -f "$DATA_HOME/dbus-1/services/org.lumen.runner.service"
 rm -f "$DATA_HOME/icons/hicolor/scalable/apps/lumen.svg"
-rm -f "$CONFIG_HOME/autostart/lumen-krunner-runner.desktop"
+rm -f "$CONFIG_HOME/autostart/lumen-krunner-runner.desktop" "$CONFIG_HOME/autostart/lumen-versions.desktop"
 
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DATA_HOME/applications" >/dev/null 2>&1 || true
 command -v kbuildsycoca6 >/dev/null 2>&1 && kbuildsycoca6 >/dev/null 2>&1 || true

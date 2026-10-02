@@ -131,7 +131,7 @@ class OfflineDialog(QDialog):
     def selected(self, *_):
         self.conflicts.clear()
         for conflict in (self.current() or {}).get('conflicts', []):
-            item = QTreeWidgetItem([conflict['path'], 'Vorhanden' if conflict['local'] else 'Gelöscht', 'Vorhanden' if conflict['remote'] else 'Gelöscht'])
+            item = QTreeWidgetItem([conflict['path'], conflict.get('localInfo', 'Vorhanden' if conflict['local'] else 'Gelöscht'), conflict.get('remoteInfo', 'Vorhanden' if conflict['remote'] else 'Gelöscht')])
             item.setData(0, Qt.UserRole, conflict); self.conflicts.addTopLevelItem(item)
         self.conflicts.resizeColumnToContents(0)
 

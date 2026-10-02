@@ -48,6 +48,11 @@ with a verified local speech engine/model and a microphone test. Installs and
 downloads require an explicit selection; the test sends no text to a provider.
 See [installation and setup](INSTALL.md#ai-engine-and-personal-settings).
 
+Files now includes offline NAS working copies with conflict choices, OCR and opt-in
+image-content search, independent file versions, reusable personal actions and a
+PDF page workshop with real redaction. The shared search/chat has continuous voice
+turns with local Whisper and Piper. See [feature details and limits](files/README.md).
+
 Open **Arbeitsplatz** in Lumen (`lumen --page workplace`) or the Files menu.
 Projects extend saved file rooms. Choose sources, programs and URLs explicitly;
 **Aktuellen Stand merken** saves the current Files tabs and assistant context.

@@ -58,8 +58,16 @@ threads; missing cmake/gcc/make/PipeWire packages require native authorization.
 Downloads/builds can be cancelled; package transactions must finish first.
 The microphone test records only on a click, for at most 60 seconds, and never sends
 its transcription. Dictation is available through the shared conversation's **··· →
-Diktieren** menu. Missing speech components open this setup step. Continuous spoken
-conversation and text-to-speech are not included in this setup feature.
+Diktieren** menu. Missing speech components open this setup step. The **Sprachgespräch einrichten** button also installs Piper 1.8.0 in a private
+Python virtual environment and a checksum-verified German Thorsten voice (63 MB).
+Continuous turns use the existing OpenCode provider; speech recognition and speech
+output stay local. Interrupt output with the native button. Microphone sensitivity
+and pause duration are configurable from the conversation menu.
+
+OCR (`tesseract`, German/English data) and the PDF workshop (`python-pymupdf`) are
+additional dependency choices. Offline NAS copies and file versions are enabled
+per folder from Files; their contents and settings remain in private user state.
+The version watcher starts on login only when folders have been selected.
 
 The wizard requires Lumen's Python/Qt dependencies, installed by the Lumen package
 or checked by `install.sh`. It does not bootstrap its own graphical runtime.

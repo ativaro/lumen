@@ -126,7 +126,7 @@ def watch():
     try: lease = versions.store.acquire('versions-watch')
     except BlockingIOError: return
     try:
-        while versions.config()['roots']:
+        while Path(__file__).is_file() and versions.config()['roots']:
             for root in versions.config()['roots']:
                 try:
                     result = subprocess.run([sys.executable, str(Path(__file__)), '--capture', root], capture_output=True, text=True, timeout=300)

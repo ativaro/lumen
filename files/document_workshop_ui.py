@@ -5,7 +5,7 @@ from pathlib import Path
 import signal
 import sys
 import tempfile
-from PyQt5.QtCore import QProcess, QTimer, Qt, QRectF
+from PyQt5.QtCore import QProcess, QTimer, Qt, QRectF, QSize
 from PyQt5.QtGui import QColor, QPen, QPixmap
 from PyQt5.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QFileDialog,
     QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
@@ -64,13 +64,15 @@ class DocumentWorkshop(QDialog):
     def __init__(self, paths=(), parent=None):
         super().__init__(parent); self.proc = None; self.temp = tempfile.TemporaryDirectory(prefix='lumen-workshop-')
         self.setWindowTitle('Dokumentenwerkstatt'); self.resize(1150,850)
-        layout = QVBoxLayout(self); row = QHBoxLayout(); layout.addLayout(row)
+        layout = QVBoxLayout(self); layout.setContentsMargins(24,20,24,18); layout.setSpacing(14)
+        title = QLabel('Dokumentenwerkstatt'); title.setObjectName('heading'); layout.addWidget(title)
+        row = QHBoxLayout(); layout.addLayout(row)
         self.controls = []
         for title, callback in [('PDFs hinzufügen …', self.add), ('Seite entfernen', self.remove), ('Drehen', self.rotate), ('Markierungen löschen', self.clear_boxes)]:
             button = QPushButton(title); button.clicked.connect(callback); row.addWidget(button); self.controls.append(button)
         self.redact = QCheckBox('Schwärzen'); row.addWidget(self.redact); self.controls.append(self.redact)
         splitter = QSplitter(); layout.addWidget(splitter,1)
-        self.pages = QListWidget(); self.pages.setSelectionMode(QAbstractItemView.ExtendedSelection); self.pages.setDragDropMode(QAbstractItemView.InternalMove)
+        self.pages = QListWidget(); self.pages.setObjectName('workshopPages'); self.pages.setSpacing(5); self.pages.setSelectionMode(QAbstractItemView.ExtendedSelection); self.pages.setDragDropMode(QAbstractItemView.InternalMove)
         self.pages.setAccessibleName('PDF-Seiten · ziehen zum Umordnen · mehrere markieren zum Extrahieren'); splitter.addWidget(self.pages)
         self.canvas = PageCanvas(self); splitter.addWidget(self.canvas); splitter.setSizes([290,850])
         self.pages.currentItemChanged.connect(self.preview)
@@ -93,7 +95,7 @@ class DocumentWorkshop(QDialog):
     def load(self, paths):
         def loaded(pages):
             for page in pages:
-                item = QListWidgetItem(Path(page['path']).name + f" · Seite {page['page'] + 1}"); item.setData(Qt.UserRole,page); item.setToolTip(page['path']); self.pages.addItem(item)
+                item = QListWidgetItem(Path(page['path']).name + f" · Seite {page['page'] + 1}"); item.setSizeHint(QSize(240,48)); item.setData(Qt.UserRole,page); item.setToolTip(page['path']); self.pages.addItem(item)
             self.status.setText(f'{self.pages.count()} Seiten · Originaldateien unverändert')
             if self.pages.currentRow() < 0: self.pages.setCurrentRow(0)
         self.run(dict(action='inspect', paths=paths), loaded)
