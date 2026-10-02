@@ -55,4 +55,8 @@ Runtime note: the older resident search was restarted with the user's permission
 - [x] Hardware-Anzeige und konfigurierbare Schonung bei Spielen/Aufnahmeprogrammen.
 - [x] Lokale semantische Bildsuche, Einrichtung und reale Modellprüfung.
 - [x] Foto-Aufräumhilfe mit Vorschau, Auswahl und bestehendem Papierkorb.
-- [ ] Integration, vollständige Tests, Dokumentation, Paket und Benutzerinstallation.
+- [x] Integration, vollständige Tests, Dokumentation, Paket und Benutzerinstallation.
+  149 Python-Tests, 12 QML-Checks, echte mehrsprachige CLIP-Inferenz, native Ansichten
+  und virtueller Plasma-Installationslauf bestanden. Paket 1.2.0-33 gebaut;
+  vollständige Benutzerinstallation mit Quellvergleich, gesicherten Startern und
+  unveränderten Plasma-/KWin-Einstellungen. Laufende Fenster bleiben geöffnet.
