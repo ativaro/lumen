@@ -19,6 +19,12 @@ class ContextTools(QObject):
         self.voice = menu.addAction('Diktieren', self.dictate)
         menu.addSeparator()
         menu.addAction('Kontext entfernen', self.clear)
+        self.conversation = None
+        if hasattr(panel, 'submit'):
+            from lumen_voice import VoiceConversation
+            voice_row = QHBoxLayout(); layout.addLayout(voice_row)
+            self.conversation = VoiceConversation(panel, voice_row)
+            menu.addAction('Sprachgespräch einstellen …', self.conversation.controls)
         more.setMenu(menu); row.addWidget(more)
         self.learn = QCheckBox('Schritte erklären'); layout.addWidget(self.learn)
         self.limit = QTimer(self); self.limit.setSingleShot(True); self.limit.timeout.connect(self.finish_recording)
@@ -47,6 +53,7 @@ class ContextTools(QObject):
         if not self.panel.backend.busy: self.panel.composer.insertPlainText(QApplication.clipboard().text())
 
     def dictate(self):
+        if self.conversation and self.conversation.active: self.conversation.stop()
         if self.recording: self.finish_recording(); return
         if self.process is not None or self.panel.backend.busy: return
         binary = executable('whisper-cli')
@@ -106,6 +113,7 @@ class ContextTools(QObject):
         if self.temp: self.temp.cleanup(); self.temp = None
 
     def close(self):
+        if self.conversation: self.conversation.stop()
         if self.process:
             proc = self.process; self.process = None; proc.kill(); proc.waitForFinished(1000); proc.deleteLater()
         self.recording = False; self.cleanup()

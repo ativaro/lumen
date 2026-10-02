@@ -7,6 +7,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import sys
 import tarfile
 import tempfile
 import urllib.request
@@ -42,6 +43,8 @@ def executable(name):
     if name == 'opencode':
         from assistant_backend import opencode_binary
         return shutil.which(opencode_binary()) or ''
+    if name == 'piper-tts':
+        return _executable(speech_root() / 'piper-env/bin/piper')
     if name == 'whisper-cli':
         return shutil.which(name) or _executable(speech_root() / f'whisper-{VERSION}')
     return shutil.which(name) or next((_executable(Path(folder) / name) for folder in
@@ -157,10 +160,29 @@ def install_dictation(existing_model=''):
     report('Lokales Diktieren ist vorbereitet.', 100, model=str(model))
 
 
+def install_voice(existing_model=''):
+    install_dictation(existing_model)
+    root = speech_root(); environment = root / 'piper-env'
+    report('Lokale Sprachausgabe vorbereiten · Piper')
+    if not (environment / 'bin/python').is_file(): run([sys.executable, '-m', 'venv', str(environment)])
+    run([str(environment / 'bin/python'), '-m', 'pip', '--disable-pip-version-check', 'install', 'piper-tts==1.8.0'])
+    base = 'https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/de/de_DE/thorsten/medium/'
+    for name, checksum, size in [
+        ('de_DE-thorsten-medium.onnx', '7e64762d8e5118bb578f2eea6207e1a35a8e0c30595010b666f983fc87bb7819', 63201294),
+        ('de_DE-thorsten-medium.onnx.json', '974adee790533adb273a1ac88f49027d2a1b8f0f2cf4905954a4791e79264e85', 4819),
+        ('MODEL_CARD', '5196b5ab0794e6056263a1f37c18bec407b61ac187529bee29d1c366871e5c9e', 285)]:
+        target = root / name
+        valid = target.is_file() and target.stat().st_size == size
+        if valid:
+            with target.open('rb') as stream: valid = hashlib.file_digest(stream, 'sha256').hexdigest() == checksum
+        if not valid: download(base + name, target, checksum, size)
+    report('Sprachgespräch eingerichtet · Whisper und deutsche Piper-Stimme lokal.', 100)
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=('packages', 'dictation'))
+    parser.add_argument('action', choices=('packages', 'dictation', 'voice'))
     parser.add_argument('groups', nargs='*', choices=tuple(FEATURES))
     parser.add_argument('--existing-model', default='')
     args = parser.parse_args()
@@ -168,6 +190,7 @@ def main():
     signal.signal(signal.SIGTERM, interrupted)
     try:
         if args.action == 'dictation': install_dictation(args.existing_model)
+        elif args.action == 'voice': install_voice(args.existing_model)
         else:
             install_packages(missing_packages(args.groups))
             missing = missing_packages(args.groups)

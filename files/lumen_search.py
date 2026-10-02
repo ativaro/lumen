@@ -71,6 +71,10 @@ class SearchPalette(QWidget):
         input_surface = QFrame(); input_surface.setObjectName('searchInput')
         input_row = QHBoxLayout(input_surface); input_row.setContentsMargins(20, 8, 8, 8); input_row.setSpacing(12)
         input_row.addWidget(self.query, 1)
+        voice = self.chat.context_tools.conversation
+        if voice:
+            input_row.addWidget(voice.button); input_row.addWidget(voice.interrupt_button)
+            voice.started.connect(self.start_voice)
         self.go = QPushButton('↑'); self.go.setObjectName('searchSend'); self.go.setFixedSize(40, 40)
         self.go.setAccessibleName('Ausgewählten Treffer öffnen oder Nachricht senden')
         self.go.clicked.connect(self.submit); input_row.addWidget(self.go); box.addWidget(input_surface)
@@ -103,6 +107,14 @@ class SearchPalette(QWidget):
         self.applications = sorted(applications, key=lambda item: item[0].casefold())
         self.query.installEventFilter(self)
         self.search()
+
+    def start_voice(self):
+        self.cancel_scan(); self.conversation = True; self.stack.setCurrentWidget(self.chat); self.chat.options.show()
+        self.hint.setText('Sprachgespräch · automatische Gesprächsrunden · Mikrofon beendet sich beim Schließen')
+
+    def hideEvent(self, event):
+        if self.chat.context_tools.conversation: self.chat.context_tools.conversation.stop()
+        super().hideEvent(event)
 
     def recovery_state(self):
         return {'conversation': self.conversation, 'chat': self.chat.recovery_state()}

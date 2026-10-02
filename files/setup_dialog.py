@@ -127,9 +127,11 @@ class SetupDialog(QDialog):
             'Die Erkennung nutzt zunächst die CPU. Falls nötig werden Build-Werkzeuge über die Paketverwaltung ergänzt; '
             'das Vorbereiten kann einige Minuten dauern.'))
         page.addWidget(button('Vorhandenes Sprachmodell auswählen …', self.choose_model))
+        page.addWidget(button('Sprachgespräch einrichten · zusätzlich ca. 65 MB Stimme und Laufzeit', lambda: self.start_job('voice')))
+        page.addWidget(text('Deutsche Piper-Stimme Thorsten (CC0), lokal. Nur erkannter Text geht an deinen Lumen-Modellanbieter.'))
         self.speech_test = DictationTest(self.settings, self); page.addWidget(self.speech_test)
         page.addWidget(text('Der Mikrofontest startet nur auf Klick und stoppt nach spätestens 60 Sekunden. '
-            'Ein laufender Sprachdialog mit gesprochenen Antworten ist hier noch nicht enthalten.'))
+            'Für Gespräche mit automatischen Runden zusätzlich die lokale Sprachausgabe einrichten.'))
         page.addStretch()
 
     def build_summary(self):
@@ -182,7 +184,7 @@ class SetupDialog(QDialog):
         self.set_busy(True); self.status.setText('Einrichtung wird gestartet …')
         arguments = [str(Path(__file__).with_name('lumen_setup.py')), action, *groups]
         model = self.settings.value('speechModel', '')
-        if action == 'dictation' and Path(model).is_file(): arguments.extend(['--existing-model', model])
+        if action in ('dictation', 'voice') and Path(model).is_file(): arguments.extend(['--existing-model', model])
         proc.start(sys.executable, arguments)
 
     def read_job(self):
