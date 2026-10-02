@@ -78,6 +78,7 @@ class SearchPalette(QWidget):
         self.go = QPushButton('↑'); self.go.setObjectName('searchSend'); self.go.setFixedSize(40, 40)
         self.go.setAccessibleName('Ausgewählten Treffer öffnen oder Nachricht senden')
         self.go.clicked.connect(self.submit); input_row.addWidget(self.go); box.addWidget(input_surface)
+        if voice: box.addWidget(voice.indicator)
         self.hint = QLabel('Enter öffnet den Treffer · Strg+Enter beginnt ein Gespräch hier'); self.hint.setObjectName('muted'); self.hint.setWordWrap(True)
         self.stack = QStackedWidget(); box.addWidget(self.stack, 1)
         self.results = QListWidget(); self.results.setObjectName('searchResults'); self.results.setAccessibleName('Suchtreffer')

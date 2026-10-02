@@ -24,6 +24,7 @@ class ContextTools(QObject):
             from lumen_voice import VoiceConversation
             voice_row = QHBoxLayout(); layout.addLayout(voice_row)
             self.conversation = VoiceConversation(panel, voice_row)
+            layout.addWidget(self.conversation.indicator)
             menu.addAction('Sprachgespräch einstellen …', self.conversation.controls)
         more.setMenu(menu); row.addWidget(more)
         self.learn = QCheckBox('Schritte erklären'); layout.addWidget(self.learn)

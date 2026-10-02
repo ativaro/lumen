@@ -192,6 +192,11 @@ Die Suche öffnet die native gemeinsame Datei-/App-Suche mit Gespräch. Das Mikr
 rechts in der oberen Suchleiste startet dort das Sprachgespräch (auch über
 `lumen-search --voice`). Sprechpausen senden den erkannten Text, Antworten werden
 lokal vorgelesen. „Beenden“ oder Schließen der Suche schaltet das Mikrofon aus.
+Ein animierter Blob zeigt den Gesprächszustand und reagiert auf den Audiopegel.
+In der breiten Suche ergänzt eine Pegelwelle die Anzeige; im schmalen Files-Panel
+bleibt sie kompakt. „Ich höre zu“, Spracherkennung, Nachdenken, Stimmvorbereitung
+und „Lumen spricht“ sind getrennte Zustände. Die Wiedergabewelle folgt der lokalen
+Audiodatei zeitlich ungefähr; sie misst nicht die Lautsprecherlautstärke.
 Fehlende Sprachkomponenten lassen sich direkt im Einrichtungsassistenten ergänzen.
 KRunner bleibt über sein eigenes Tastenkürzel erreichbar; `lumen <Frage>` nutzt
 dort den bestehenden Lumen-Runner.
