@@ -61,4 +61,54 @@ class ToolsTest(unittest.TestCase):
                 w.seek_segment(0,0); play.assert_called_once_with(100)
             w.archive(); self.assertTrue(w.library.all(True)); w.close()
 
+    def test_household_deadlines_and_document_persistence(self):
+        from tools_household import Household, deadlines
+        from datetime import date
+        from PyQt5.QtCore import QDate
+        with tempfile.TemporaryDirectory() as root:
+            w=Household(root); key=w.library.create('Waschmaschine',attachments=[],notes='')
+            w.focus_record(key); w.notes.setPlainText('Handbuch im Karton'); w.fields['model'].setText('W-100')
+            w.dates['until'].setDate(QDate(2030,1,2)); w.save(); w.close()
+            w=Household(root); w.focus_record(key)
+            self.assertEqual(w.fields['model'].text(),'W-100'); self.assertIn('Handbuch',w.notes.toPlainText())
+            self.assertIn('heute',deadlines({'remind':'2030-01-02'},date(2030,1,2)))
+            self.assertIn('überschritten',deadlines({'until':'2029-01-02'},date(2030,1,2)))
+            self.assertEqual(len(w.library.all(query='W-100')),1); w.close()
+
+    def test_workbench_switch_keeps_notes_questions_and_original_files(self):
+        from tools_workbench import Workbench
+        from PyQt5.QtCore import Qt
+        with tempfile.TemporaryDirectory() as root:
+            source=Path(root)/'sketch.txt'; source.write_text('Original')
+            w=Workbench(root); first=w.library.create('Renovierung',notes='',questions=[],resources=[])
+            second=w.library.create('Reise',notes='',questions=[],resources=[]); w.focus_record(first)
+            w.notes.setPlainText('Wand ausmessen'); w.question.setText('Welche Farbe?'); w.add_question()
+            w.questions.item(0).setCheckState(Qt.Checked); w.add_resource('file',str(source),source.name)
+            w.question.setText('Offener Entwurf'); w.switch_record(second); w.switch_record(first)
+            self.assertEqual(w.notes.toPlainText(),'Wand ausmessen'); self.assertEqual(w.question.text(),'Offener Entwurf')
+            self.assertEqual(w.questions.item(0).checkState(),Qt.Checked)
+            w.resources.setCurrentRow(0); w.remove_resource(); self.assertTrue(source.exists())
+            w.close(); w=Workbench(root); w.focus_record(first)
+            self.assertEqual(w.notes.toPlainText(),'Wand ausmessen'); self.assertEqual(w.resources.count(),0); w.close()
+
+    def test_radio_source_selection_script_references_and_stale_audio(self):
+        from tools_radio import Radio, radio_result
+        from PyQt5.QtCore import Qt
+        import hashlib
+        with tempfile.TemporaryDirectory() as root:
+            w=Radio(root); key=w.library.create('Testausgabe',sources=[],script='')
+            w.focus_record(key); w.append_source(dict(title='A',text='Erster Artikel',url='https://example.com/a'))
+            w.append_source(dict(title='B',text='Zweiter Artikel',url='https://example.com/b'))
+            w.sources.setCurrentRow(0); w.source_text.setPlainText('Korrigiert'); w.sources.setCurrentRow(1)
+            w.sources.item(1).setCheckState(Qt.Unchecked); w.save()
+            r=w.library.get(key); self.assertEqual(r['sources'][0]['text'],'Korrigiert')
+            chosen=selected_sources(r['sources']); self.assertEqual(len(chosen),1)
+            result=radio_result(json.dumps({'sections':[{'source':0,'text':'Das ist die Ausgabe.'}]}),chosen)
+            self.assertEqual(result['edition_sources'][0]['url'],'https://example.com/a')
+            with self.assertRaises(ValueError): radio_result('{"sections":[{"source":9,"text":"falsch"}]}',chosen)
+            w.library.update(key,**result,audio='sample.wav',duration=2000,audio_hash=hashlib.sha256(result['script'].encode()).hexdigest())
+            w.focus_record(key); self.assertEqual(w.script.toPlainText(),result['script'])
+            w.script.setPlainText('Neuer Text'); w.save(); self.assertIn('vorherige',w.audio_note.text())
+            w.close()
+
 if __name__=='__main__': unittest.main()
