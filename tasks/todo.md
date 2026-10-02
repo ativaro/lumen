@@ -33,3 +33,4 @@ Runtime note: the older resident search was restarted with the user's permission
 - [x] Compare locally generated German samples with the previous configuration; verify the Vulkan build on local hardware without recording the microphone.
 - [x] Provide checkpoint restoration on a fresh search start, without resending any restored prompt, so updates preserve an existing conversation.
 - [x] Full isolated suite: 131 tests passed; native setup and recognition settings rendered on KDE.
+- [x] Package 1.2.0-29 installed and sources compared; local quality model/GPU runtime selected with backups; current search conversation restored without sending. Installed recognition verified with synthetic speech.
