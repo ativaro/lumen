@@ -1,0 +1,247 @@
+"""Private records and bounded local media jobs for the standalone tools."""
+import json
+from contextlib import contextmanager
+import os
+from pathlib import Path
+import shutil
+import sqlite3
+import subprocess
+import tempfile
+import time
+import uuid
+from urllib.parse import urlsplit
+from html.parser import HTMLParser
+
+
+class Cancelled(Exception):
+    pass
+
+
+class Library:
+    def __init__(self, name, root=None):
+        self.root = Path(root or os.environ.get('LUMEN_TOOLS_DATA') or
+                         Path(os.environ.get('XDG_DATA_HOME', str(Path.home()/'.local/share'))) / 'lumen-tools') / name
+        self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        self.assets = self.root / 'assets'; self.assets.mkdir(exist_ok=True, mode=0o700)
+        self.db = self.root / 'library.sqlite'
+        with self.connect() as db:
+            db.execute('CREATE TABLE IF NOT EXISTS records (id TEXT PRIMARY KEY, title TEXT NOT NULL, data TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0, updated REAL NOT NULL)')
+        self.db.chmod(0o600)
+
+    @contextmanager
+    def connect(self):
+        db = sqlite3.connect(self.db, timeout=10); db.row_factory = sqlite3.Row
+        try:
+            with db: yield db
+        finally: db.close()
+
+    def all(self, archived=False, query=''):
+        with self.connect() as db:
+            rows = db.execute('SELECT * FROM records WHERE archived=? ORDER BY updated DESC', (int(archived),)).fetchall()
+        records = [dict(id=r['id'], title=r['title'], **json.loads(r['data'])) for r in rows]
+        return [r for r in records if query.casefold() in json.dumps(r, ensure_ascii=False).casefold()]
+
+    def get(self, key):
+        with self.connect() as db: row = db.execute('SELECT * FROM records WHERE id=?', (key,)).fetchone()
+        if row is None: raise ValueError('Dieser Eintrag ist nicht mehr vorhanden.')
+        return dict(id=row['id'], title=row['title'], **json.loads(row['data']))
+
+    def create(self, title, **data):
+        title = title.strip()
+        if not title: raise ValueError('Bitte einen Namen angeben.')
+        key = uuid.uuid4().hex
+        with self.connect() as db:
+            db.execute('INSERT INTO records VALUES (?,?,?,?,?)', (key, title, json.dumps(data), 0, time.time()))
+        return key
+
+    def update(self, key, **changes):
+        with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            row = db.execute('SELECT * FROM records WHERE id=?', (key,)).fetchone()
+            if row is None: raise ValueError('Dieser Eintrag ist nicht mehr vorhanden.')
+            title = changes.pop('title', row['title']).strip()
+            if not title: raise ValueError('Bitte einen Namen angeben.')
+            data = json.loads(row['data']); data.update(changes)
+            db.execute('UPDATE records SET title=?, data=?, updated=? WHERE id=?', (title, json.dumps(data), time.time(), key))
+
+    def archive(self, key, value=True):
+        with self.connect() as db: db.execute('UPDATE records SET archived=? WHERE id=?', (int(value), key))
+
+    def asset(self, name):
+        if Path(name).name != name or not name: raise ValueError('Ungültige lokale Datei.')
+        return self.assets / name
+
+    def import_file(self, path, job, limit=2*1024**3):
+        path = Path(path).expanduser()
+        if not path.is_file(): raise ValueError('Bitte eine reguläre Datei auswählen.')
+        if path.stat().st_size > limit: raise ValueError(f'Datei zu groß (maximal {limit//1024**2} MB).')
+        name = uuid.uuid4().hex + path.suffix.lower()[:12]
+        target = self.asset(name)
+        try:
+            with path.open('rb') as src, target.open('xb') as dst:
+                total = 0
+                while chunk := src.read(1024*1024):
+                    job.check(); total += len(chunk)
+                    if total > limit: raise ValueError('Datei überschreitet das Importlimit.')
+                    dst.write(chunk)
+                dst.flush(); os.fsync(dst.fileno())
+            target.chmod(0o600)
+            return dict(name=path.name, asset=name)
+        except BaseException:
+            target.unlink(missing_ok=True); raise
+
+
+def clock_text(milliseconds):
+    s = max(0, int(milliseconds)//1000)
+    return f'{s//3600:02d}:{s//60%60:02d}:{s%60:02d}'
+
+
+def validate_segments(value):
+    result = []; previous = 0
+    if not isinstance(value, list) or len(value) > 40000: raise ValueError('Ungültiges Transkript.')
+    for item in value:
+        start, end = item['offsets']['from'], item['offsets']['to']
+        text = item['text']
+        if not isinstance(start, int) or not isinstance(end, int) or start < previous or end < start or end > 8*3600000 or not isinstance(text, str):
+            raise ValueError('Ungültige Zeitmarken im Transkript.')
+        previous = start
+        if text.strip(): result.append(dict(start=start, end=end, text=text.strip()))
+    if not result: raise ValueError('Keine Sprache erkannt. Aufnahme und Sprache prüfen.')
+    return result
+
+
+def media_duration(path, job):
+    data = json.loads(job.command(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'json', str(path)]))
+    duration = float(data['format']['duration'])
+    if not 0 < duration <= 8*3600: raise ValueError('Aufnahmen dürfen höchstens acht Stunden lang sein.')
+    return round(duration*1000)
+
+
+def transcribe(path, settings, job):
+    from lumen_setup import executable
+    from lumen_speech import transcription_arguments
+    model = settings.value('speechModel', '')
+    binary = executable('whisper-cli')
+    if not binary or not model or not Path(model).is_file():
+        raise ValueError('Die lokale Spracherkennung fehlt. Über Einrichtung das Diktat installieren.')
+    with tempfile.TemporaryDirectory(prefix='lumen-meeting-') as tmp:
+        wav, output = Path(tmp)/'audio.wav', Path(tmp)/'transcript'
+        job.progress.emit('Audio wird für die lokale Erkennung vorbereitet …')
+        job.command(['ffmpeg', '-v', 'error', '-nostdin', '-i', str(path), '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', str(wav)], timeout=1800)
+        args = transcription_arguments(settings, wav, output, model)
+        # Whisper's -nt suppresses segment timestamps in inference, not just logs.
+        args.remove('-nt'); args.remove('-otxt'); args += ['-oj']
+        job.progress.emit('Sprache wird lokal erkannt … Bei langen Aufnahmen kann das dauern.')
+        job.command([binary] + args, timeout=8*3600)
+        return validate_segments(json.loads(output.with_suffix('.json').read_text())['transcription'])
+
+
+def document_text(path, job):
+    path = Path(path); suffix = path.suffix.lower()
+    if suffix == '.pdf':
+        text = job.command(['pdftotext', '-enc', 'UTF-8', str(path), '-'], timeout=90).decode(errors='replace')
+        if len(text.strip()) < 20:
+            from lumen_ocr import visual_content
+            text, partial, _ = visual_content(path, text=text, ocr=True)
+            if partial: raise ValueError('Scan zu lang; bitte in Dokumente mit höchstens 80 Seiten teilen.')
+    elif suffix in {'.png', '.jpg', '.jpeg', '.webp', '.tif', '.tiff'}:
+        from lumen_ocr import image_text
+        text = image_text(path)
+    elif suffix in {'.txt', '.md', '.csv'}:
+        if path.stat().st_size > 2*1024**2: raise ValueError('Textdatei zu groß (maximal 2 MB).')
+        text = path.read_text(encoding='utf-8-sig', errors='replace')
+    else:
+        raise ValueError('Textimport unterstützt PDF, TXT, Markdown und Bilder mit Texterkennung.')
+    job.check()
+    if len(text) > 120000: raise ValueError('Mehr als 120.000 Zeichen; bitte einen kürzeren Auszug importieren.')
+    if not text.strip(): raise ValueError('Kein lesbarer Text gefunden.')
+    return text.strip()
+
+
+def web_url(value):
+    value = value.strip(); url = urlsplit(value)
+    if url.scheme not in ('http', 'https') or not url.hostname or url.username or url.password:
+        raise ValueError('Bitte eine HTTP(S)-Adresse ohne Zugangsdaten angeben.')
+    return value
+
+
+class ArticleParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True); self.hidden = 0; self.parts = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ('script', 'style', 'noscript', 'svg'): self.hidden += 1
+        if tag in ('p', 'div', 'article', 'section', 'h1', 'h2', 'li', 'br'): self.parts.append('\n')
+
+    def handle_endtag(self, tag):
+        if tag in ('script', 'style', 'noscript', 'svg'): self.hidden = max(0, self.hidden-1)
+        if tag in ('p', 'div', 'article', 'section', 'li'): self.parts.append('\n')
+
+    def handle_data(self, text):
+        if not self.hidden: self.parts.append(text)
+
+    def text(self):
+        return '\n'.join(line.strip() for line in ''.join(self.parts).splitlines() if line.strip())
+
+
+def fetch_article(address, job):
+    from urllib.request import Request, build_opener, HTTPRedirectHandler
+    class Redirect(HTTPRedirectHandler):
+        def redirect_request(self, request, fp, code, msg, headers, target):
+            web_url(target)
+            return super().redirect_request(request, fp, code, msg, headers, target)
+    address = web_url(address)
+    with build_opener(Redirect()).open(Request(address, headers={'User-Agent':'Lumen-Radio/1.0', 'Accept':'text/html,text/plain'}), timeout=20) as response:
+        mime = response.headers.get_content_type()
+        if mime not in ('text/html', 'text/plain'): raise ValueError('Keine Artikelseite. Dokument stattdessen als Datei importieren.')
+        raw = response.read(2*1024**2+1); job.check()
+        if len(raw) > 2*1024**2: raise ValueError('Seite zu groß. Bitte relevanten Text einfügen.')
+        text = raw.decode(response.headers.get_content_charset() or 'utf-8', errors='replace')
+        if mime == 'text/html':
+            parser = ArticleParser(); parser.feed(text); text = parser.text()
+        if not text.strip() or len(text) > 120000: raise ValueError('Kein geeigneter Artikeltext. Bitte einen Auszug einfügen.')
+        return dict(title=urlsplit(address).hostname, url=response.geturl(), text=text.strip(), selected=True)
+
+
+def selected_sources(sources):
+    chosen = [s for s in sources if s.get('selected', True)]
+    if not chosen: raise ValueError('Bitte mindestens eine Quelle auswählen.')
+    if sum(len(s['text']) for s in chosen) > 70000:
+        raise ValueError('Die gewählten Quellen enthalten mehr als 70.000 Zeichen. Bitte weniger Quellen wählen oder kürzen.')
+    return chosen
+
+
+def parse_answer(answer):
+    value = answer.strip()
+    if value.startswith('```'):
+        value = value.split('\n', 1)[1].rsplit('```', 1)[0]
+    data = json.loads(value)
+    if not isinstance(data, dict): raise ValueError('Die KI-Antwort hat kein gültiges Format.')
+    return data
+
+
+def meeting_result(answer, count):
+    data = parse_answer(answer)
+    if not isinstance(data.get('summary'), str): raise ValueError('Zusammenfassung fehlt.')
+    for name in ('decisions', 'actions'):
+        if not isinstance(data.get(name), list) or len(data[name]) > 200: raise ValueError('Ungültige Ergebnisliste.')
+        for row in data[name]:
+            if not isinstance(row, dict) or not isinstance(row.get('text'), str) or not isinstance(row.get('segment'), int) or not 0 <= row['segment'] < count:
+                raise ValueError('Ergebnis ohne gültige Transkriptstelle; bitte erneut erzeugen.')
+    return data
+
+
+def synthesize(text, library, job):
+    from lumen_setup import executable, speech_root
+    import wave
+    voice = speech_root() / 'de_DE-thorsten-medium.onnx'; binary = executable('piper-tts')
+    if not binary or not voice.is_file(): raise ValueError('Die lokale Stimme fehlt. Über Einrichtung den Sprachdialog installieren.')
+    if not text.strip() or len(text) > 24000: raise ValueError('Das Hörskript muss 1 bis 24.000 Zeichen enthalten.')
+    name = uuid.uuid4().hex + '.wav'; path = library.asset(name)
+    try:
+        job.command([binary, '-m', str(voice), '-f', str(path)], data=(text+'\n').encode(), timeout=1800)
+        with wave.open(str(path)) as audio: duration = round(audio.getnframes()/audio.getframerate()*1000)
+        if duration <= 0: raise ValueError('Keine Audiodaten erzeugt.')
+        path.chmod(0o600); return dict(audio=name, duration=duration)
+    except BaseException:
+        path.unlink(missing_ok=True); raise

@@ -34,3 +34,13 @@ Runtime note: the older resident search was restarted with the user's permission
 - [x] Provide checkpoint restoration on a fresh search start, without resending any restored prompt, so updates preserve an existing conversation.
 - [x] Full isolated suite: 131 tests passed; native setup and recognition settings rendered on KDE.
 - [x] Package 1.2.0-29 installed and sources compared; local quality model/GPU runtime selected with backups; current search conversation restored without sending. Installed recognition verified with synthetic speech.
+
+## Eigenständige Desktop-Werkzeuge
+
+- [ ] Gemeinsame private Speicherung, abbrechbare Jobs, Audio und native Oberfläche.
+- [ ] Meeting-Werkstatt mit Transkript, Zeitstellen und strukturierten Ergebnissen.
+- [ ] Digitaler Haushalt mit Geräten/Verträgen, Belegen und Fristen.
+- [ ] Projekt-Werkbank mit Dateien, Links, Notizen und Fragen.
+- [ ] Persönliches Radio mit Quellen, Hörskript und lokaler Audio-Ausgabe.
+- [ ] Native UI, reale Sprachpipeline, Fehlerpfade, Persistenz, vollständige Tests.
+- [ ] Portable Installation und Paket, Git-Veröffentlichung, lokale Dokumentation.

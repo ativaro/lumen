@@ -12,3 +12,7 @@ Use existing Qt widgets, KIO credentials, Store, OpenCode sessions, workflow val
 6. Documents: native PDF page preview, select/reorder/merge/extract, OCR, rectangle redaction that removes content. Always export a new file atomically; verify output and never overwrite source PDFs silently.
 
 Verification: focused data-integrity tests per feature; offscreen native UI event-loop smoke checks; final isolated full suite; committed-source package build, installation/source comparison. No real personal NAS files modified during tests.
+
+
+## Eigenständige Desktop-Werkzeuge, 2026-10-02
+Siehe CAPABILITIES-tools.md und SPEC-meetings/household/workbench/radio.md. Die vier angenommenen Anwendungen werden in dieser Reihenfolge als eigene native Fenster gebaut, mit privater SQLite-Speicherung, gemeinsamen Themes und vorhandener Sprach-/KI-Laufzeit. Jede Scheibe erhält Funktionsprüfung und UI-Rendering; anschließend Portable Installer und Arch-Paket aktualisieren.
