@@ -1,5 +1,9 @@
 # Ordered implementation
 
+- [ ] Einzeiler: HTTPS-Download, Basisabhängigkeiten, Benutzerinstallation und Wizard-Start; Fehlerpfade prüfen.
+- [ ] Wizard: explizite Desktop-Aktivierung mit vorhandenem Backup und vier Themes; native UI prüfen.
+- [ ] Installation: isolierter vollständiger Durchlauf, Dokumentation und öffentliche Veröffentlichung.
+
 - [x] 1. Offline NAS: pin/open local copy; reconcile add/edit/delete; conflict comparison; reconnect; integrity + UI checks; commit.
 - [x] 2. Search: OCR documents/images; natural image descriptions; source/page results; dependency UI; focused + UI checks; commit.
 - [x] 3. Versions: watched folders and durable snapshots; compare/restore; retention; external-edit + UI checks; commit.

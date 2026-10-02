@@ -16,3 +16,22 @@ Verification: focused data-integrity tests per feature; offscreen native UI even
 
 ## Eigenständige Desktop-Werkzeuge, 2026-10-02
 Siehe CAPABILITIES-tools.md und SPEC-meetings/household/workbench/radio.md. Die vier angenommenen Anwendungen werden in dieser Reihenfolge als eigene native Fenster gebaut, mit privater SQLite-Speicherung, gemeinsamen Themes und vorhandener Sprach-/KI-Laufzeit. Jede Scheibe erhält Funktionsprüfung und UI-Rendering; anschließend Portable Installer und Arch-Paket aktualisieren.
+
+## Einzeiler → lokale Installation → Wizard, 2026-10-02
+
+Ziel: Ein Befehl lädt Lumen über HTTPS, ergänzt auf Arch/CachyOS die native
+Basis und installiert die Anwendungen im Benutzerprofil. Anschließend öffnet der
+vorhandene Qt-Wizard auch dann, wenn er früher schon abgeschlossen wurde.
+Plasma 6 muss bereits laufen; root-/Headless-Aufrufe scheitern vor Änderungen.
+Abgebrochene Downloads/Paketinstallationen dürfen keinen Wizard-Erfolg vortäuschen.
+Persönliche Einstellungen und Modelle bleiben erhalten. Desktop-Aktivierung mit
+Theme/Wallpaper/Panel-Sicherung erfolgt ausschließlich per Schaltfläche im Wizard.
+
+Umsetzung: `bootstrap.sh` verwendet `install.sh`; `setup_dialog.py` ergänzt eine
+Desktop-Seite, `lumen_setup.py` verwendet die vorhandene Desktop-Einrichtung.
+Stil: vorhandene Bash-Funktionen und Qt-Widgets, etwa `if groups: self.start_job('packages', groups)`.
+Prüfung: `bash -n bootstrap.sh install.sh`; isolierte unittest-Tests mit simulierten
+Download-/Paketbefehlen, echte Benutzerinstallation und Wizard-Rendering im Testprofil,
+`/usr/bin/python3 -m unittest discover -s files -v`; keine Installation oder
+Paneländerung im aktiven Benutzerprofil zum Testen. Danach portable Quellen und
+Anleitung veröffentlichen. Keine neue Distribution-Unterstützung oder KI-Zugangsdaten.

@@ -60,6 +60,7 @@ fi
 # ---- copy files ------------------------------------------------------------
 say "Installiere Dateien nach $PREFIX"
 mkdir -p "$BIN"
+install -m 0755 "$REPO/uninstall.sh" "$PREFIX/uninstall.sh"
 for bin_file in "$REPO/bin/"*; do
     [ -f "$bin_file" ] && install -m 0755 "$bin_file" "$BIN/"
 done
@@ -140,14 +141,12 @@ if command -v kbuildsycoca6 >/dev/null 2>&1; then
 fi
 
 # ---- opencode MCP / commands / skill --------------------------------------
-if [ "$SKIP_MCP" = 0 ] && { command -v opencode >/dev/null 2>&1 || [ -x "$HOME/.opencode/bin/opencode" ]; }; then
+if [ "$SKIP_MCP" = 0 ]; then
     say "Verdrahte opencode (MCP / Commands / Skill)"
     LUMEN_MCP_PY="$BIN/lumen_mcp.py" LUMEN_SHARE="$REPO" \
         "$BIN/lumen-setup" || warn "lumen-setup fehlgeschlagen"
-elif [ "$SKIP_MCP" = 1 ]; then
-    say "OpenCode-Konfiguration unverändert (--no-mcp)"
 else
-    warn "opencode nicht gefunden – MCP/Commands/Skill übersprungen"
+    say "OpenCode-Konfiguration unverändert (--no-mcp)"
 fi
 
 # Preserve reports, keep legacy shell imports available, and install opt-in jobs.
@@ -195,7 +194,7 @@ Konfiguration (optional, per Umgebungsvariablen):
   LUMEN_WORKDIR           Standard-Arbeitsordner
   LUMEN_WATCH_ANALYZE=0   Auto-Analyse im Wächter aus
 
-Deinstallieren:  $BIN/lumen-setup --uninstall && $REPO/uninstall.sh
+Deinstallieren:  $PREFIX/uninstall.sh
 
 Optional (braucht root, für den sudo-Credential-Cache):
   sudo $REPO/install-system.sh
