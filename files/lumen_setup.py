@@ -16,6 +16,7 @@ FEATURES = {
     'documents': ('PDF-Vorschau und Inhaltsuche', ('pdfinfo', 'pdftoppm', 'pdftotext'), ('poppler',)),
     'media': ('Video- und Audiovorschau', ('ffmpeg', 'ffprobe'), ('ffmpeg',)),
     'network': ('NAS und Netzwerkordner', ('kio-fuse', 'kioclient', 'kio-smb'), ('kio-fuse', 'kio-extras', 'kde-cli-tools')),
+    'ocr': ('Texterkennung in Bildern und Scans', ('tesseract', 'tessdata-deu', 'tessdata-eng'), ('tesseract', 'tesseract-data-deu', 'tesseract-data-eng')),
     'capture': ('Bildschirmaufnahme', ('spectacle',), ('spectacle',)),
 }
 VERSION = '1.9.4'
@@ -32,6 +33,9 @@ def speech_root():
 
 
 def executable(name):
+    if name.startswith('tessdata-'):
+        path = Path('/usr/share/tessdata') / (name.removeprefix('tessdata-') + '.traineddata')
+        return str(path) if path.is_file() else ''
     if name == 'kio-smb':
         path = Path('/usr/lib/qt6/plugins/kf6/kio/smb.so')
         return str(path) if path.is_file() else ''

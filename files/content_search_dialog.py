@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QDialog, QHeaderView, QHBo
                              QLineEdit, QPushButton, QSplitter, QTextBrowser, QTreeWidget,
                              QTreeWidgetItem, QVBoxLayout, QWidget)
 from assistant_backend import OpenCodeBackend
-from content_search import parse_groups, query_groups
+from content_search import parse_groups, query_groups, find_passage
 from preview import Preview, label
 
 
@@ -29,6 +29,7 @@ class ContentSearchDialog(QDialog):
         self.expanding = False
         self.completed = False
         self.active_query = ''
+        self.image_queue = []; self.image_active = None
         self.setWindowTitle('Inhalte suchen — Lumen — Dateien')
         self.resize(1150, 780)
         self.setMinimumSize(850, 580)
@@ -61,7 +62,14 @@ class ContentSearchDialog(QDialog):
         self.hidden.setChecked(hidden)
         self.hidden.toggled.connect(self.edited)
         layout.addWidget(self.hidden)
-        self.terms = label('Text, Code und PDFs mit Textebene · Suche lokal auf deinem Rechner', 'muted')
+        row = QHBoxLayout(); layout.addLayout(row)
+        self.ocr = QCheckBox('Text in Bildern und Scans erkennen · lokal'); self.ocr.setChecked(True); row.addWidget(self.ocr)
+        setup = QPushButton('Texterkennung einrichten …'); row.addWidget(setup)
+        setup.clicked.connect(self.setup_ocr)
+        self.vision = QCheckBox('Bildinhalte mit Lumen erkennen · bis zu 100 neue Bilder pro Suche an den Modellanbieter senden')
+        self.vision.setToolTip('Benötigt ein Modell mit Bildverständnis. Verkleinerte Bilder werden an den konfigurierten Anbieter gesendet; Beschreibungen bleiben lokal gespeichert.')
+        layout.addWidget(self.vision)
+        self.terms = label('Text, PDFs, Scans und Bilder · Treffer mit Vorschau und Herkunft', 'muted')
         self.terms.setTextInteractionFlags(Qt.TextSelectableByMouse)
         layout.addWidget(self.terms)
         splitter = QSplitter()
@@ -125,9 +133,10 @@ class ContentSearchDialog(QDialog):
         self.backend.failed.connect(self.model_failed)
         self.backend.busyChanged.connect(lambda _: self.buttons())
         self.backend.requestsChanged.connect(self.reject_requests)
+        self.backend.completed.connect(self.image_completed)
         self.model_timeout = QTimer(self)
         self.model_timeout.setSingleShot(True)
-        self.model_timeout.timeout.connect(lambda: self.model_failed('Die Begriffserweiterung dauert zu lange. Bitte erneut versuchen.'))
+        self.model_timeout.timeout.connect(lambda: self.model_failed('Die Modellanfrage dauert zu lange. Bitte erneut versuchen.'))
         self.buttons()
         self.query.setFocus()
         if query.strip():
@@ -138,7 +147,7 @@ class ContentSearchDialog(QDialog):
         self.open_button.setEnabled(selected)
         self.folder_button.setEnabled(selected)
         self.expand_button.setEnabled(bool(self.query.text().strip()) and not self.proc and not self.backend.busy)
-        self.cancel_button.setVisible(bool(self.proc or self.expanding))
+        self.cancel_button.setVisible(bool(self.proc or self.expanding or self.image_active))
 
     def show_error(self, text):
         self.error.setText(text)
@@ -164,6 +173,7 @@ class ContentSearchDialog(QDialog):
         proc.kill()
 
     def cancel(self):
+        self.image_queue = []; self.image_active = None
         self.stop_process()
         self.model_timeout.stop()
         self.expanding = False
@@ -178,7 +188,7 @@ class ContentSearchDialog(QDialog):
         self.results.clear()
         self.preview.clear()
         self.passage.clear()
-        self.terms.setText('Text, Code und PDFs mit Textebene · Suche lokal auf deinem Rechner')
+        self.terms.setText('Text, PDFs, Scans und Bilder · Treffer mit Vorschau und Herkunft')
         self.status.setText('Suchen starten, um die neue Anfrage anzuwenden.')
         self.error.hide()
         self.buttons()
@@ -192,7 +202,7 @@ class ContentSearchDialog(QDialog):
         except ValueError as exc:
             self.show_error(str(exc))
             return
-        self.active_query = self.query.text().strip()
+        self.active_query = self.query.text().strip(); self.active_groups = groups
         self.results.clear()
         self.preview.clear()
         self.passage.clear()
@@ -207,7 +217,7 @@ class ContentSearchDialog(QDialog):
         proc.finished.connect(proc.deleteLater)
         proc.errorOccurred.connect(lambda error: self.failed_scan(proc) if error == QProcess.FailedToStart else None)
         proc.start('/usr/bin/python3', [str(Path(__file__).with_name('content_search.py')), '--scan'])
-        proc.write((json.dumps({'root': self.root, 'groups': groups, 'hidden': self.hidden.isChecked()}) + '\n').encode())
+        proc.write((json.dumps({'root': self.root, 'groups': groups, 'hidden': self.hidden.isChecked(), 'ocr': self.ocr.isChecked(), 'thumbnail_dir': self.model_context.name if self.vision.isChecked() else None}) + '\n').encode())
         proc.closeWriteChannel()
         self.status.setText('Dateiinhalte werden durchsucht …')
         self.buttons()
@@ -231,9 +241,11 @@ class ContentSearchDialog(QDialog):
             except ValueError:
                 continue
             kind = event.get('type')
-            if kind == 'hit':
+            if kind == 'image':
+                self.image_queue.append(event)
+            elif kind == 'hit':
                 path = Path(event['path'])
-                place = f"Seite {event['page']}" if event['pdf'] else f"Zeile {event['line']}"
+                place = f"Seite {event['page']}" if event['pdf'] else 'Bildinhalt' if event.get('image') else f"Zeile {event['line']}"
                 item = QTreeWidgetItem([path.name, place + ' · ' + ' '.join(event['snippet'].split()),
                                        os.path.relpath(path.parent, self.root)])
                 item.setData(0, Qt.UserRole, event)
@@ -267,13 +279,14 @@ class ContentSearchDialog(QDialog):
             self.kill_scanner(proc)
             self.show_error('Suche nicht vollständig abgeschlossen. Bisherige Treffer bleiben sichtbar.')
         self.buttons()
+        if code == 0 and self.image_queue: self.next_image()
 
     def select_result(self, item, *_):
         self.buttons()
         if not item:
             return
         hit = item.data(0, Qt.UserRole)
-        place = f"Seite {hit['page']}" if hit['pdf'] else f"Zeile {hit['line']}"
+        place = f"Seite {hit['page']}" if hit['pdf'] else 'Bildinhalt' if hit.get('image') else f"Zeile {hit['line']}"
         self.passage.setHtml('<b>' + place + '</b>' + (' · Nur ein Teil der Datei wurde durchsucht' if hit['partial'] else '') +
                              '<pre style="white-space:pre-wrap">' + html.escape(hit['snippet']) + '</pre>')
         self.preview.show_path(hit['path'], page=hit['page'] if hit['pdf'] else 1)
@@ -337,10 +350,46 @@ class ContentSearchDialog(QDialog):
         self.buttons()
 
     def model_failed(self, text):
-        if self.expanding:
+        if self.expanding or self.image_active:
             self.cancel()
             self.show_error(text)
             self.status.setText('Lokale Suche verfügbar · Begriffserweiterung fehlgeschlagen')
+
+    def setup_ocr(self):
+        from setup_dialog import open_setup
+        open_setup(self)
+
+    def next_image(self):
+        if not self.image_queue:
+            self.status.setText(f'{self.results.topLevelItemCount()} Treffer · Bildanalyse abgeschlossen')
+            self.buttons(); return
+        self.image_active = self.image_queue.pop(0)
+        self.status.setText('Bildinhalt erkennen · ' + Path(self.image_active['path']).name)
+        self.backend.send('Beschreibe ausschließlich sichtbare Motive, Objekte, Farben und lesbare Beschriftungen auf Deutsch. '
+                          'Gib zusätzlich passende englische Suchwörter an. Höchstens 150 Wörter. '
+                          'Antworte als JSON: {"caption":"..."}. Keine Werkzeuge.',
+                          [(self.image_active['thumbnail'], 'image/jpeg')], agent='plan', title='Bildinhalt', proposal=True)
+        self.model_timeout.start(90000); self.buttons()
+
+    def image_completed(self, success, answer):
+        if not self.image_active: return
+        image, self.image_active = self.image_active, None; self.model_timeout.stop()
+        try:
+            if not success: raise ValueError(answer)
+            from lumen_ocr import save_cache
+            if answer.strip().startswith('```'): answer = '\n'.join(answer.strip().splitlines()[1:-1])
+            caption = json.loads(answer)['caption']
+            if not isinstance(caption, str) or not caption.strip() or len(caption) > 10000: raise ValueError('Keine gültige Bildbeschreibung.')
+            save_cache(image['path'], image['stamp'], caption=caption)
+            passage = find_passage(caption, self.active_groups)
+            if passage and not any(self.results.topLevelItem(i).data(0, Qt.UserRole)['path'] == image['path'] for i in range(self.results.topLevelItemCount())):
+                event = dict(passage, path=image['path'], partial=False, pdf=False, image=True)
+                item = QTreeWidgetItem([Path(image['path']).name, 'Bildinhalt · ' + caption[:200], str(Path(image['path']).parent)])
+                item.setData(0, Qt.UserRole, event); self.results.addTopLevelItem(item)
+        except (ValueError, KeyError, TypeError, OSError) as error:
+            self.image_queue.clear(); self.show_error(str(error)); self.status.setText('Bildanalyse angehalten · lokale Treffer bleiben erhalten'); self.buttons(); return
+        finally: Path(image['thumbnail']).unlink(missing_ok=True)
+        QTimer.singleShot(0, self.next_image)
 
     def reject_requests(self, permissions, questions):
         for request in permissions:

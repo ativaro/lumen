@@ -144,20 +144,20 @@ def folder_fd(root_fd, relative):
         raise
 
 
-def scan(root, groups, hidden=False, max_hits=500, max_entries=100000):
+def scan(root, groups, hidden=False, max_hits=500, max_entries=100000, ocr=False, thumbnail_dir=None):
     root = Path(root).resolve()
     root_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
-        yield from scan_tree(root, root_fd, groups, hidden, max_hits, max_entries)
+        yield from scan_tree(root, root_fd, groups, hidden, max_hits, max_entries, ocr, thumbnail_dir)
     finally:
         os.close(root_fd)
 
 
-def scan_tree(root, root_fd, groups, hidden, max_hits, max_entries):
+def scan_tree(root, root_fd, groups, hidden, max_hits, max_entries, ocr=False, thumbnail_dir=None):
     root = Path(root).resolve()
     queue = deque([Path('.')])
     visited = scanned = hits = errors = partial = empty = 0
-    limit = ''
+    limit = ''; images = 0
     started = last_report = time.monotonic()
     while queue and not limit:
         relative = queue.popleft()
@@ -179,20 +179,28 @@ def scan_tree(root, root_fd, groups, hidden, max_hits, max_entries):
                             continue
                         if entry.is_dir(follow_symlinks=False):
                             queue.append(relative / entry.name)
-                        elif entry.is_file(follow_symlinks=False) and file_kind(path) in {'text', 'pdf'}:
+                        elif entry.is_file(follow_symlinks=False) and file_kind(path) in {'text', 'pdf', 'image'}:
                             scanned += 1
-                            text, incomplete = read_content(path, descriptor)
+                            kind = file_kind(path)
+                            text, incomplete = read_content(path, descriptor) if kind != 'image' else ('', False)
+                            if kind in {'image', 'pdf'}:
+                                from lumen_ocr import visual_content
+                                text, cut, image = visual_content(path, descriptor, text, ocr, thumbnail_dir if images < 100 else None)
+                                incomplete = incomplete or cut
+                                if image:
+                                    images += 1
+                                    yield dict(image, type='image')
                             partial += int(incomplete)
                             empty += int(not text.strip())
                             passage = find_passage(text, groups) if text else None
                             if passage:
                                 hits += 1
                                 yield dict(passage, type='hit', path=str(path), partial=incomplete,
-                                           pdf=path.suffix.lower() == '.pdf')
+                                           pdf=path.suffix.lower() == '.pdf', image=kind == 'image')
                                 if hits >= max_hits:
                                     limit = 'Trefferlimit'
                                     break
-                    except (OSError, ValueError):
+                    except (OSError, ValueError, subprocess.SubprocessError):
                         errors += 1
                     if time.monotonic() - last_report > .15:
                         yield {'type': 'progress', 'scanned': scanned, 'visited': visited, 'hits': hits}
@@ -210,11 +218,11 @@ if __name__ == '__main__' and sys.argv[1:] == ['--scan']:
     import resource
     os.setsid()
     resource.setrlimit(resource.RLIMIT_AS, (1024 * 1024 * 1024, 1024 * 1024 * 1024))
-    resource.setrlimit(resource.RLIMIT_FSIZE, (2 * MAX_TEXT, 2 * MAX_TEXT))
+    resource.setrlimit(resource.RLIMIT_FSIZE, (32 * MAX_TEXT, 32 * MAX_TEXT))
     try:
         request = json.loads(sys.stdin.buffer.readline(16384))
         groups = parse_groups(json.dumps({'groups': request['groups']}))
-        for event in scan(request['root'], groups, bool(request.get('hidden'))):
+        for event in scan(request['root'], groups, bool(request.get('hidden')), ocr=bool(request.get('ocr')), thumbnail_dir=request.get('thumbnail_dir')):
             print(json.dumps(event, ensure_ascii=True), flush=True)
     except Exception as exc:
         print(json.dumps({'type': 'error', 'message': str(exc)}), flush=True)
