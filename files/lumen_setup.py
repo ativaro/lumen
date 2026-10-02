@@ -193,14 +193,21 @@ def install_voice(existing_model=''):
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=('packages', 'dictation', 'dictation-quality', 'voice'))
+    parser.add_argument('action', choices=('packages', 'dictation', 'dictation-quality', 'voice', 'desktop'))
     parser.add_argument('groups', nargs='*', choices=tuple(FEATURES))
     parser.add_argument('--existing-model', default='')
+    from appearance import DESIGNS
+    parser.add_argument('--theme', choices=[name for _, name in DESIGNS], default='glass')
     args = parser.parse_args()
     def interrupted(*_): raise InterruptedError('Einrichtung abgebrochen. Bereits fertige Bestandteile bleiben verfügbar.')
     signal.signal(signal.SIGTERM, interrupted)
     try:
-        if args.action == 'dictation': install_dictation(args.existing_model)
+        if args.action == 'desktop':
+            from lumen_desktop_setup import configure_desktop
+            report('Desktop-Konfiguration sichern und Lumen-Desktop aktivieren …', cancellable=False)
+            configure_desktop(args.theme, replace_panels=True)
+            report('Lumen-Desktop eingerichtet. Die vorherige Konfiguration wurde lokal gesichert.', 100, cancellable=False)
+        elif args.action == 'dictation': install_dictation(args.existing_model)
         elif args.action == 'dictation-quality': install_dictation(quality=True)
         elif args.action == 'voice': install_voice(args.existing_model)
         else:

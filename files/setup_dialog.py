@@ -5,7 +5,7 @@ import sys
 from types import SimpleNamespace
 from urllib.parse import quote
 
-from PyQt5.QtCore import QLockFile, QProcess, QSettings, QStandardPaths, QUrl
+from PyQt5.QtCore import QLockFile, QProcess, QSettings, QSize, QStandardPaths, QUrl
 from PyQt5.QtGui import QDesktopServices, QIcon
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFileDialog,
     QFormLayout, QHBoxLayout, QLineEdit, QPlainTextEdit, QProgressBar,
@@ -55,8 +55,8 @@ class SetupDialog(QDialog):
         self.step = text(''); self.step.setObjectName('eyebrow'); root.addWidget(self.step)
         self.heading = text(''); self.heading.setObjectName('heading'); root.addWidget(self.heading)
         self.stack = QStackedWidget(); root.addWidget(self.stack, 1)
-        self.titles = ('Willkommen bei Lumen', 'Deine KI-Anbindung', 'Mit deiner Stimme', 'Deine Einrichtung im Überblick')
-        self.build_dependencies(); self.build_engine(); self.build_speech(); self.build_summary()
+        self.titles = ('Willkommen bei Lumen', 'Deine KI-Anbindung', 'Mit deiner Stimme', 'Dein Desktop', 'Deine Einrichtung im Überblick')
+        self.build_dependencies(); self.build_engine(); self.build_speech(); self.build_desktop(); self.build_summary()
         self.progress = QProgressBar(); self.progress.hide(); self.progress.setAccessibleName('Einrichtungsfortschritt')
         root.addWidget(self.progress)
         self.status = text('Du entscheidest, welche Erweiterungen du nutzen möchtest.'); root.addWidget(self.status)
@@ -141,6 +141,26 @@ class SetupDialog(QDialog):
             'Für Gespräche mit automatischen Runden zusätzlich die lokale Sprachausgabe einrichten.'))
         page.addStretch()
 
+    def build_desktop(self):
+        from appearance import DEFAULT_DESIGN, DESIGNS, theme_icon
+        page = self.page()
+        page.addWidget(text('Lumen ist installiert. Du kannst deinen aktuellen Desktop behalten oder '
+            'die Lumen-Leisten mit Suche, Systemübersicht und Einstellungen aktivieren.'))
+        self.desktop_theme = QComboBox(); self.desktop_theme.setAccessibleName('Design für den Lumen-Desktop')
+        self.desktop_theme.setIconSize(QSize(96, 60))
+        for title, name in DESIGNS: self.desktop_theme.addItem(theme_icon(name), title, name)
+        self.desktop_theme.setCurrentIndex(max(0, self.desktop_theme.findData(self.settings.value('appearance', DEFAULT_DESIGN))))
+        form = QFormLayout(); form.addRow('Design', self.desktop_theme); page.addLayout(form)
+        page.addWidget(text('Das gewählte Design gilt für Panels und Fensterrahmen. Dazu kommt das '
+            'Lumen-Hintergrundbild. Deine bisherigen Panels werden ersetzt; zuvor wird ihre '
+            'Konfiguration lokal gesichert. Deine Dateien und Programme bleiben erhalten.'))
+        self.apply_desktop = button('Lumen-Desktop aktivieren', lambda: self.start_job('desktop'))
+        self.apply_desktop.setAutoDefault(False); page.addWidget(self.apply_desktop)
+        self.desktop_status = text('Ohne Aktivierung bleibt dein aktueller Desktop erhalten.')
+        page.addWidget(self.desktop_status)
+        page.addWidget(text('Mit „Weiter“ kannst du diesen Schritt überspringen und Lumen trotzdem nutzen.'))
+        page.addStretch()
+
     def build_summary(self):
         page = self.page(); self.summary = text(''); page.addWidget(self.summary)
         page.addWidget(text('Du findest diesen Assistenten jederzeit unter Einstellungen → Einrichtung. '
@@ -160,7 +180,7 @@ class SetupDialog(QDialog):
         self.speech_status.setText('Diktieren verfügbar · ' + Path(model).name if ready else 'Diktieren ist noch nicht vollständig eingerichtet.')
         self.speech_test.record.setEnabled(ready)
         self.summary.setText('\n\n'.join([item.text() for item in self.features.values()] +
-            [self.engine_status.text(), self.speech_status.text()]))
+            [self.engine_status.text(), self.speech_status.text(), self.desktop_status.text()]))
 
     def install_selected(self):
         groups = [key for key, item in self.features.items() if item.isChecked() and item.isEnabled()]
@@ -183,6 +203,8 @@ class SetupDialog(QDialog):
                 self.settings.setValue('speechModel', self.result_model); self.settings.sync()
                 if self.settings.status() != QSettings.NoError:
                     self.last_message = 'Installiert, aber die Modellwahl konnte nicht gespeichert werden.'
+            if code == 0 and action == 'desktop':
+                self.desktop_status.setText('Lumen-Desktop aktiviert · ' + self.desktop_theme.currentText())
             self.set_busy(False); self.refresh()
             self.status.setText((self.last_message or 'Einrichtung abgeschlossen.') if code == 0 else
                 'Einrichtung nicht abgeschlossen. ' + (self.last_message or 'Bitte erneut versuchen.'))
@@ -190,6 +212,7 @@ class SetupDialog(QDialog):
         proc.errorOccurred.connect(lambda error: finished(1) if error == QProcess.FailedToStart else None)
         self.set_busy(True); self.status.setText('Einrichtung wird gestartet …')
         arguments = [str(Path(__file__).with_name('lumen_setup.py')), action, *groups]
+        if action == 'desktop': arguments.extend(['--theme', self.desktop_theme.currentData()])
         model = self.settings.value('speechModel', '')
         if action in ('dictation', 'voice') and Path(model).is_file(): arguments.extend(['--existing-model', model])
         proc.start(sys.executable, arguments)

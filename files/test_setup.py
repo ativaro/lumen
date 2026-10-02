@@ -11,6 +11,16 @@ import lumen_setup as setup
 
 
 class SetupTest(unittest.TestCase):
+    def test_desktop_job_uses_existing_backup_flow_and_reports_failure(self):
+        with patch('sys.argv', ['lumen_setup.py', 'desktop', '--theme', 'atelier']), \
+                patch('lumen_desktop_setup.configure_desktop') as configure, patch.object(setup, 'report') as report:
+            self.assertEqual(setup.main(), 0)
+            configure.assert_called_once_with('atelier', replace_panels=True)
+            self.assertFalse(report.call_args.kwargs['cancellable'])
+            configure.side_effect = RuntimeError('Plasma nicht erreichbar')
+            self.assertEqual(setup.main(), 1)
+            self.assertIn('Plasma nicht erreichbar', report.call_args.args[0])
+
     def test_download_is_verified_and_atomic(self):
         data = b'a multilingual speech model'
         with tempfile.TemporaryDirectory() as tmp:
@@ -100,10 +110,26 @@ class SetupDialogTest(unittest.TestCase):
                 offer_setup(None); opened.assert_not_called()
                 settings.setValue('setupSeen', False)
                 offer_setup(None); opened.assert_called_once()
-            reopened = SetupDialog(settings=settings, page=3)
+            reopened = SetupDialog(settings=settings, page=4)
             reopened.next.click()
             self.assertTrue(settings.value('setupCompleted', type=bool))
             dialog.deleteLater(); reopened.deleteLater()
+
+    def test_desktop_is_only_changed_after_explicit_activation(self):
+        from PyQt5.QtCore import QSettings
+        from setup_dialog import SetupDialog
+        with tempfile.TemporaryDirectory() as tmp:
+            settings = QSettings(tmp + '/preferences.ini', QSettings.IniFormat)
+            settings.setValue('appearance', 'midnight')
+            dialog = SetupDialog(settings=settings, page=3)
+            with patch.object(dialog, 'start_job') as start:
+                self.assertEqual(dialog.desktop_theme.currentData(), 'midnight')
+                dialog.desktop_theme.setCurrentIndex(dialog.desktop_theme.findData('atelier'))
+                dialog.next.click(); start.assert_not_called()
+                dialog.back.click(); dialog.apply_desktop.click()
+                start.assert_called_once_with('desktop')
+                self.assertEqual(settings.value('appearance'), 'midnight')
+            dialog.reject(); dialog.deleteLater()
 
     def test_microphone_test_uses_shared_process_flow_without_sending(self):
         from PyQt5.QtCore import QSettings

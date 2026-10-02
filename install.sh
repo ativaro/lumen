@@ -54,7 +54,7 @@ for c in notify-send dolphin spectacle; do
 done
 [ ${#optional_missing[@]} -gt 0 ] && warn "Optionale Tools fehlen (einzelne Features inaktiv): ${optional_missing[*]}"
 if ! command -v opencode >/dev/null 2>&1 && [ ! -x "$HOME/.opencode/bin/opencode" ]; then
-    warn "opencode nicht gefunden – KI-Funktionen benötigen die Engine; Dateien und native Aufträge bleiben verfügbar. Siehe https://opencode.ai"
+    warn "OpenCode kann anschließend im Einrichtungsassistenten ergänzt werden; Dateien und native Aufträge sind bereits verfügbar."
 fi
 
 # ---- copy files ------------------------------------------------------------
