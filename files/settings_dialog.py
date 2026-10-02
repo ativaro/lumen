@@ -286,6 +286,10 @@ class SettingsDialog(QDialog):
         self.preview = QCheckBox('Vorschauleiste anzeigen')
         self.preview.setChecked(self.field(self.files, 'previewVisible', True, bool))
         form.addRow('Vorschau', self.preview)
+        self.document_workshop = QCheckBox('Dokumentenwerkstatt aktivieren')
+        self.document_workshop.setChecked(self.field(self.files, 'documentWorkshopEnabled', False, bool))
+        self.document_workshop.setToolTip('PDF-Seiten zusammenstellen, drehen, schwärzen und mit Texterkennung exportieren. Standardmäßig ausgeschaltet.')
+        form.addRow('PDF-Bearbeitung', self.document_workshop)
         self.delay = QSpinBox()
         self.delay.setRange(100, 1500)
         self.delay.setSingleStep(50)
@@ -340,6 +344,7 @@ class SettingsDialog(QDialog):
                 raise ValueError('Bitte einen erreichbaren Startordner wählen.')
             values = {'restoreLastFolder': self.resume.isChecked(), 'startFolder': str(folder),
                 'hidden': self.hidden.isChecked(), 'previewVisible': self.preview.isChecked(),
+                'documentWorkshopEnabled': self.document_workshop.isChecked(),
                 'searchDelay': self.delay.value(), 'searchLimit': self.limit.value()}
             for key in ('favorites', 'network_servers'):
                 values[key] = [self.places.item(i).text() for i in range(self.places.count()) if self.places.item(i).data(Qt.UserRole) == key]

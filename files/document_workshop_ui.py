@@ -5,7 +5,7 @@ from pathlib import Path
 import signal
 import sys
 import tempfile
-from PyQt5.QtCore import QProcess, QTimer, Qt, QRectF, QSize
+from PyQt5.QtCore import QProcess, QSettings, QTimer, Qt, QRectF, QSize
 from PyQt5.QtGui import QColor, QPen, QPixmap
 from PyQt5.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QFileDialog,
     QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
@@ -173,6 +173,10 @@ class DocumentWorkshop(QDialog):
 
 
 def open_workshop(parent, paths=()):
+    settings = getattr(parent, 'settings', None)
+    if not isinstance(settings, QSettings): settings = QSettings('Lumen', 'Files')
+    settings.sync()
+    if not settings.value('documentWorkshopEnabled', False, type=bool): return
     from lumen_setup import executable
     if not executable('pymupdf'):
         from setup_dialog import open_setup

@@ -192,6 +192,39 @@ class NativeSettingsTest(unittest.TestCase):
             self.assertEqual(files.value('favorites', [], type=list), [str(folder)])
             other.close()
 
+    def test_document_workshop_is_opt_in_and_stale_actions_cannot_open_it(self):
+        from app import Window
+        from settings_dialog import SettingsDialog
+        from document_workshop_ui import open_workshop
+        from PyQt5.QtCore import QSettings
+        from PyQt5.QtWidgets import QMenu
+        with tempfile.TemporaryDirectory() as tmp, patch.dict('os.environ', {'LUMEN_DATA': tmp+'/state'}):
+            files = QSettings(tmp+'/files.ini', QSettings.IniFormat)
+            assistant = QSettings(tmp+'/assistant.ini', QSettings.IniFormat)
+            window = Window(tmp, files)
+            dialog = SettingsDialog(window, files, assistant, load_system=False)
+            self.assertFalse(dialog.document_workshop.isChecked())
+            self.assertFalse(files.contains('documentWorkshopEnabled'))
+            menu = QMenu(window); window.add_workshop_action(menu)
+            self.assertFalse(menu.actions())
+            with patch('document_workshop_ui.DocumentWorkshop') as workshop, patch('lumen_setup.executable') as executable:
+                open_workshop(window)
+                workshop.assert_not_called(); executable.assert_not_called()
+                dialog.document_workshop.setChecked(True); dialog.save_files()
+                paths = [tmp+'/document.pdf']
+                window.add_workshop_action(menu, paths); self.assertEqual(len(menu.actions()),1)
+                executable.return_value = True
+                menu.actions()[0].trigger(); workshop.assert_called_once_with(paths,window)
+                workshop.reset_mock(); executable.reset_mock()
+                reopened = SettingsDialog(window, QSettings(files.fileName(),QSettings.IniFormat), assistant, load_system=False)
+                self.assertTrue(reopened.document_workshop.isChecked())
+                reopened.document_workshop.setChecked(False); reopened.save_files()
+                menu.actions()[0].trigger(); workshop.assert_not_called(); executable.assert_not_called()
+                fresh = QMenu(window); window.add_workshop_action(fresh)
+                self.assertFalse(fresh.actions())
+                reopened.reject()
+            dialog.reject(); window.close()
+
     def test_lumen_preferences_preserve_explicit_read_and_fix_actions(self):
         from assistant import ChatPanel
         from settings_dialog import SettingsDialog

@@ -413,3 +413,8 @@ PDFs auswählen und **Kontextmenü → Dokumentenwerkstatt** öffnen (oder über
 **Schwärzen** aktivieren und Bereiche in der großen Vorschau aufziehen. Beim Export werden Inhalte tatsächlich entfernt und betroffene Seiten anschließend als neues Bild aufgebaut, damit alte Inhalte und versteckte Textebenen dieser Seiten nicht enthalten bleiben. Die optionale lokale Texterkennung erzeugt danach eine neue Textebene aus dem sichtbaren Ergebnis. Die Qualität ist mit 150/200/300 dpi wählbar. Originale bleiben unangetastet. Strg+Mausrad vergrößert die Vorschau.
 
 Benötigt das optionale Paket `python-pymupdf`, für OCR außerdem Tesseract-Sprachdaten; beides im Setup verfügbar. Unterstützt unverschlüsselte PDFs bis 512 MiB und Arbeitsmappen bis 2.000 Seiten. Quelldateien werden gegen Änderungen während der Bearbeitung geprüft; Exporte werden vor der Veröffentlichung erneut geöffnet und geprüft. Grundlage: [PyMuPDF-Seitenbearbeitung](https://pymupdf.readthedocs.io/en/latest/page.html).
+
+Die Dokumentenwerkstatt ist standardmäßig ausgeschaltet. Unter **Einstellungen →
+Lumen Files → PDF-Bearbeitung → Dokumentenwerkstatt aktivieren** einschalten und
+„Files-Einstellungen übernehmen“ wählen. Erst dann erscheint sie im Menü und im
+PDF-Kontextmenü. PDF-Vorschau und Öffnen mit der Standard-App bleiben verfügbar.
