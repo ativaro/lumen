@@ -50,13 +50,13 @@ class ContextTools(QObject):
         if self.recording: self.finish_recording(); return
         if self.process is not None or self.panel.backend.busy: return
         binary = executable('whisper-cli')
-        if not binary or not shutil.which('pw-record'):
-            self.panel.show_error('Für lokales Diktieren werden whisper-cli (whisper.cpp), pw-record und ein lokales Whisper-Modell benötigt. Es wird nichts automatisch heruntergeladen.'); return
+        self.panel.settings.sync()
         model = self.panel.settings.value('speechModel', '')
-        if not Path(model).is_file():
-            model, _ = QFileDialog.getOpenFileName(self.panel, 'Lokales Whisper-Modell auswählen', str(Path.home()), 'Whisper-Modell (*.bin)')
-            if not model: return
-            self.panel.settings.setValue('speechModel', model)
+        if not binary or not shutil.which('pw-record') or not Path(model).is_file():
+            from setup_dialog import open_setup
+            open_setup(self.panel, self.panel.settings, page=2)
+            self.panel.status.setText('Einrichtung geschlossen · zum Aufnehmen erneut „Diktieren“ wählen.')
+            return
         self.temp = tempfile.TemporaryDirectory(prefix='lumen-voice-'); self.binary = binary; self.model = model
         self.recording = True; self.voice.setText('Aufnahme beenden'); self.panel.status.setText('Mikrofon aktiv · maximal 60 Sekunden · Verarbeitung lokal')
         self.start('pw-record', ['--rate', '16000', '--channels', '1', str(Path(self.temp.name) / 'audio.wav')], self.recorded)

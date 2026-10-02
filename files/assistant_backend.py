@@ -15,9 +15,7 @@ from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkRepl
 
 
 def opencode_binary():
-    candidate = os.environ.get('LUMEN_OPENCODE_BIN') or shutil.which('opencode') or str(Path.home() / '.opencode/bin/opencode')
-    resolved = shutil.which(candidate)
-    return resolved or ''
+    return os.environ.get('LUMEN_OPENCODE_BIN') or shutil.which('opencode') or str(Path.home() / '.opencode/bin/opencode')
 
 
 class OpenCodeBackend(QObject):
@@ -141,7 +139,7 @@ class OpenCodeBackend(QObject):
         self.waiting.append((self.generation, callback))
         if self.proc:
             return
-        binary = opencode_binary() or 'opencode'
+        binary = opencode_binary()
         self.statusChanged.emit('Lumen wird bereit …')
         proc = QProcess(self)
         self.proc = proc

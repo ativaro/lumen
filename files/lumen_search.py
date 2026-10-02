@@ -272,6 +272,8 @@ def main():
     app.aboutToQuit.connect(window.shutdown); window.present()
     from lumen_crash import attach
     attach(app, window, 'search')
+    from setup_dialog import offer_setup
+    QTimer.singleShot(250, lambda: offer_setup(window))
     return app.exec_()
 
 

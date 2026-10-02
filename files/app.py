@@ -1817,4 +1817,7 @@ if __name__ == '__main__':
     attach(app, window, 'files', offer_recovery=not start and not args.settings)
     if args.settings:
         QTimer.singleShot(0, window.show_settings)
+    else:
+        from setup_dialog import offer_setup
+        QTimer.singleShot(250, lambda: offer_setup(window))
     sys.exit(app.exec_())

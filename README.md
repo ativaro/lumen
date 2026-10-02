@@ -41,6 +41,13 @@ gracefully on other setups.
 
 ## Native workplace
 
+First launch offers **Lumen einrichten**, also available from **Einstellungen →
+Einrichtung** and `lumen-setup-wizard`. It checks optional dependencies, reuses
+OpenCode/provider settings, connects API-key providers and prepares offline dictation
+with a verified local speech engine/model and a microphone test. Installs and
+downloads require an explicit selection; the test sends no text to a provider.
+See [installation and setup](INSTALL.md#ai-engine-and-personal-settings).
+
 Open **Arbeitsplatz** in Lumen (`lumen --page workplace`) or the Files menu.
 Projects extend saved file rooms. Choose sources, programs and URLs explicitly;
 **Aktuellen Stand merken** saves the current Files tabs and assistant context.

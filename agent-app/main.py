@@ -472,6 +472,9 @@ def main():
     QTimer.singleShot(0, start)
     from lumen_crash import attach
     attach(app, window, 'lumen', offer_recovery=plain_launch)
+    if plain_launch:
+        from setup_dialog import offer_setup
+        QTimer.singleShot(250, lambda: offer_setup(window))
     app.aboutToQuit.connect(window.chat.backend.shutdown)
     return app.exec_()
 

@@ -15,7 +15,7 @@ FEATURES = {
     'engine': ('Lumen-Assistent', ('opencode',), ('opencode',)),
     'documents': ('PDF-Vorschau und Inhaltsuche', ('pdfinfo', 'pdftoppm', 'pdftotext'), ('poppler',)),
     'media': ('Video- und Audiovorschau', ('ffmpeg', 'ffprobe'), ('ffmpeg',)),
-    'network': ('NAS und Netzwerkordner', ('kio-fuse', 'kioclient'), ('kio-fuse', 'kio-extras', 'kde-cli-tools')),
+    'network': ('NAS und Netzwerkordner', ('kio-fuse', 'kioclient', 'kio-smb'), ('kio-fuse', 'kio-extras', 'kde-cli-tools')),
     'capture': ('Bildschirmaufnahme', ('spectacle',), ('spectacle',)),
 }
 VERSION = '1.9.4'
@@ -32,9 +32,12 @@ def speech_root():
 
 
 def executable(name):
+    if name == 'kio-smb':
+        path = Path('/usr/lib/qt6/plugins/kf6/kio/smb.so')
+        return str(path) if path.is_file() else ''
     if name == 'opencode':
         from assistant_backend import opencode_binary
-        return opencode_binary()
+        return shutil.which(opencode_binary()) or ''
     if name == 'whisper-cli':
         return shutil.which(name) or _executable(speech_root() / f'whisper-{VERSION}')
     return shutil.which(name) or next((_executable(Path(folder) / name) for folder in
@@ -112,7 +115,9 @@ def download(url, destination, checksum, size):
             partial.unlink(missing_ok=True)
 
 
-def install_dictation():
+def install_dictation(existing_model=''):
+    if existing_model and not Path(existing_model).is_file():
+        raise ValueError('Das gewählte Sprachmodell ist nicht mehr erreichbar.')
     packages = []
     if not executable('pw-record'): packages.append('pipewire-audio')
     if not executable('whisper-cli'):
@@ -135,6 +140,9 @@ def install_dictation():
             binary = build / 'bin/whisper-cli'
             run([str(binary), '--help'], timeout=20)
             binary.chmod(0o755); os.replace(binary, root / f'whisper-{VERSION}')
+    if existing_model:
+        report('Spracherkennung bereit · dein vorhandenes Modell bleibt ausgewählt.', 100, model=existing_model)
+        return
     model = root / 'ggml-small-q5_1.bin'
     valid = model.is_file() and model.stat().st_size == MODEL_SIZE
     if valid:
@@ -150,11 +158,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('action', choices=('packages', 'dictation'))
     parser.add_argument('groups', nargs='*', choices=tuple(FEATURES))
+    parser.add_argument('--existing-model', default='')
     args = parser.parse_args()
     def interrupted(*_): raise InterruptedError('Einrichtung abgebrochen. Bereits fertige Bestandteile bleiben verfügbar.')
     signal.signal(signal.SIGTERM, interrupted)
     try:
-        if args.action == 'dictation': install_dictation()
+        if args.action == 'dictation': install_dictation(args.existing_model)
         else:
             install_packages(missing_packages(args.groups))
             missing = missing_packages(args.groups)

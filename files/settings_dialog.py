@@ -90,9 +90,27 @@ class SettingsDialog(QDialog):
         self.service_page.addStretch()
         self.build_integrations()
         self.build_recovery()
+        self.build_setup()
         self.nav.setCurrentRow(page)
         if load_system:
             QTimer.singleShot(0, self.reload)
+
+    def build_setup(self):
+        page = self.page('Einrichtung', 'Lumen und optionale Erweiterungen vorbereiten')
+        page.addWidget(text('Der Einrichtungsassistent prüft OpenCode, Vorschauen und Netzwerkfunktionen. '
+            'Du kannst Anbieter verbinden, ein Modell auswählen und lokales Diktieren installieren und testen.'))
+        def launch():
+            from setup_dialog import open_setup
+            open_setup(self, self.assistant)
+            self.assistant.sync()
+            # Refresh the existing model control so a later Apply cannot revert the wizard choice.
+            selected = self.assistant.value('model', '')
+            if self.model.findData(selected) < 0: self.model.addItem(selected, selected)
+            self.model.setCurrentIndex(max(0, self.model.findData(selected)))
+            self.original[(self.assistant.fileName(), 'model')] = selected
+            self.preferencesChanged.emit(self.assistant.fileName(), ['model', 'speechModel'])
+        page.addWidget(button('Einrichtungsassistent öffnen', launch))
+        page.addStretch()
 
     def build_recovery(self):
         page = self.page('Stabilität', 'Abstürze erkennen und die letzte Ansicht wiederherstellen')

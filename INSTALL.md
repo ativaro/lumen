@@ -40,8 +40,31 @@ The corresponding setup command is then
 
 ## AI engine and personal settings
 
-Install [OpenCode](https://opencode.ai) separately, connect your own model provider,
-then run `lumen-setup` (user install: `~/.local/share/lumen/bin/lumen-setup`).
+On first launch, the native **Lumen einrichten** wizard checks the installed
+components. Reopen it in **Einstellungen → Einrichtung** or with
+`lumen-setup-wizard` (user install: `~/.local/share/lumen/bin/lumen-setup-wizard`).
+On Arch/CachyOS it can install OpenCode and selected preview/network tools through
+pacman and the desktop's password dialog. Existing standalone OpenCode installations
+are reused. The **KI-Anbindung** step reads configured providers and models; API-key
+providers, including Ollama Cloud, can be connected without a terminal. OAuth and
+other login methods still use OpenCode's existing provider setup. Listing configured
+models does not verify a cloud account's credentials or send a test prompt.
+
+The optional **Mit deiner Stimme** step installs a pinned, checksum-verified
+whisper.cpp executable and a multilingual Small Q5 model (190 MB) into
+`$XDG_DATA_HOME/lumen/speech` (default `~/.local/share/lumen/speech`). Existing tools
+and selected local models are reused. The build uses the CPU and at most four build
+threads; missing cmake/gcc/make/PipeWire packages require native authorization.
+Downloads/builds can be cancelled; package transactions must finish first.
+The microphone test records only on a click, for at most 60 seconds, and never sends
+its transcription. Dictation is available through the shared conversation's **··· →
+Diktieren** menu. Missing speech components open this setup step. Continuous spoken
+conversation and text-to-speech are not included in this setup feature.
+
+The wizard requires Lumen's Python/Qt dependencies, installed by the Lumen package
+or checked by `install.sh`. It does not bootstrap its own graphical runtime.
+`lumen-setup` remains the separate MCP/commands integration helper (user install:
+`~/.local/share/lumen/bin/lumen-setup`); it is not renamed or replaced by the wizard.
 Files, native search, desktop controls and themes also work without an AI provider.
 Saved NAS connections, knowledge folders, tasks, conversations, API credentials
 and model choices are configured by each user; none are included in the repository.
