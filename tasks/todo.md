@@ -24,3 +24,4 @@ Runtime note: the older resident search was restarted with the user's permission
 - [x] Stop animation and playback metering on hide/stop; reject malformed meter values and decay stale levels.
 - [x] Render listening/thinking/speaking on KDE in all four themes and verify the 350px Files layout.
 - [x] Full isolated suite: 128 tests passed, including real capture-worker output using synthetic PCM and fragmented QProcess meter output.
+- [x] Package 1.2.0-28 installed and sources compared; idle search restarted after verifying no draft/messages/session or active subprocess, with a local checkpoint backup.
