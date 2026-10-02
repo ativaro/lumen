@@ -5,6 +5,35 @@ normal user. Install Plasma and a display manager through your distribution firs
 Lumen supplies its applications, applets, themes, decorations and wallpapers;
 it uses KDE's compositor, tray, clock, task manager and pager.
 
+## One-command installation
+
+Inside your Plasma session, run this as your normal user (do not prefix it with sudo):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ativaro/lumen/main/bootstrap.sh | bash
+```
+
+The script downloads the current public source from GitHub over HTTPS, installs
+missing base dependencies through pacman/sudo, copies Lumen into
+`~/.local/share/lumen` (`$XDG_DATA_HOME/lumen` when set), then opens **Lumen einrichten**.
+The downloaded source is extracted into a temporary directory and removed afterward;
+the installed application files stay local. The bootstrap requests elevated rights
+only for missing base system packages. No Git checkout, compiler or manual package build is needed for Lumen itself.
+`curl`, sudo access for missing packages and an existing KDE Plasma 6 session are required.
+It does not install a Linux distribution, display manager or Plasma session.
+
+In the wizard, set up OpenCode and the provider, optionally add local speech,
+then choose **Lumen-Desktop aktivieren** under **Dein Desktop** to apply the selected
+theme, window decorations, wallpaper and panels. This uses the existing desktop
+backup mechanism. **Weiter** leaves the current desktop in place. Existing provider
+settings and speech models are reused; the document workshop remains disabled until
+enabled in Files settings. The wizard can be closed and resumed later from
+**Einstellungen → Einrichtung** or `~/.local/share/lumen/bin/lumen-setup-wizard`.
+Re-running the one-liner updates the user installation and opens the wizard even
+if it was previously completed. Download or package errors stop before launching it.
+
+The Arch package workflow below is an alternative for a system-wide installation.
+
 ## Install the package
 
 ```bash
@@ -69,8 +98,9 @@ additional dependency choices. Offline NAS copies and file versions are enabled
 per folder from Files; their contents and settings remain in private user state.
 The version watcher starts on login only when folders have been selected.
 
-The wizard requires Lumen's Python/Qt dependencies, installed by the Lumen package
-or checked by `install.sh`. It does not bootstrap its own graphical runtime.
+The wizard requires Lumen's Python/Qt dependencies, installed by the one-command
+installer or the Lumen package, or checked by `install.sh`. The bootstrap installs
+these before opening the wizard.
 `lumen-setup` remains the separate MCP/commands integration helper (user install:
 `~/.local/share/lumen/bin/lumen-setup`); it is not renamed or replaced by the wizard.
 Files, native search, desktop controls and themes also work without an AI provider.

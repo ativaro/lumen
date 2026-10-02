@@ -28,8 +28,10 @@ def session():
         else:
             raise RuntimeError('Disposable Plasma did not start')
         snapshots = []
-        for _ in range(2):
-            subprocess.run([str(root / 'data/lumen/bin/lumen-desktop-setup'), '--apply', '--replace-panels'],
+        for attempt in range(2):
+            command_setup = (['/usr/bin/python3', str(root / 'data/lumen/files/lumen_setup.py'), 'desktop', '--theme', 'glass']
+                             if attempt == 0 else [str(root / 'data/lumen/bin/lumen-desktop-setup'), '--apply', '--replace-panels'])
+            subprocess.run(command_setup,
                            check=True, timeout=40)
             time.sleep(2)
             script = '''print(JSON.stringify(panels().map(function(p){return {

@@ -195,7 +195,4 @@ Konfiguration (optional, per Umgebungsvariablen):
   LUMEN_WATCH_ANALYZE=0   Auto-Analyse im Wächter aus
 
 Deinstallieren:  $PREFIX/uninstall.sh
-
-Optional (braucht root, für den sudo-Credential-Cache):
-  sudo $REPO/install-system.sh
 EOF

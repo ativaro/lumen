@@ -1,8 +1,8 @@
 # Ordered implementation
 
-- [ ] Einzeiler: HTTPS-Download, Basisabhängigkeiten, Benutzerinstallation und Wizard-Start; Fehlerpfade prüfen.
-- [ ] Wizard: explizite Desktop-Aktivierung mit vorhandenem Backup und vier Themes; native UI prüfen.
-- [ ] Installation: isolierter vollständiger Durchlauf, Dokumentation und öffentliche Veröffentlichung.
+- [x] Einzeiler: HTTPS-Download, Basisabhängigkeiten, Benutzerinstallation und Wizard-Start; Fehlerpfade prüfen.
+- [x] Wizard: explizite Desktop-Aktivierung mit vorhandenem Backup und vier Themes; native UI prüfen.
+- [x] Installation: isolierter vollständiger Durchlauf und native Wizard-Ansicht; 144 Tests bestanden. Desktop-Worker und wiederholte Einrichtung in virtueller Plasma-Sitzung geprüft; Einzeiler und Anleitung zur Veröffentlichung fertig.
 
 - [x] 1. Offline NAS: pin/open local copy; reconcile add/edit/delete; conflict comparison; reconnect; integrity + UI checks; commit.
 - [x] 2. Search: OCR documents/images; natural image descriptions; source/page results; dependency UI; focused + UI checks; commit.

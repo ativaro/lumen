@@ -138,7 +138,24 @@ Existing windows gain supervision when restarted. No additional system service i
 
 ## Install
 
-### Arch / CachyOS — package (recommended)
+### One command → setup wizard (Arch / CachyOS)
+
+Run in a logged-in KDE Plasma 6 session, as your normal user:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ativaro/lumen/main/bootstrap.sh | bash
+```
+
+This downloads Lumen, installs missing Python/Qt dependencies (with sudo when
+needed), copies the applications into `~/.local/share/lumen`, and opens the native
+setup wizard. No Git checkout or build tools are needed. The wizard completes
+OpenCode/provider setup, optional speech features and desktop activation. Choose
+a theme and **Lumen-Desktop aktivieren** to apply panels, wallpaper and decorations
+after a backup; skipping this step keeps the current desktop. The script needs
+`curl`, internet access and an existing Plasma desktop. Re-running opens the wizard
+again and preserves personal settings and models. See [INSTALL.md](INSTALL.md).
+
+### Arch / CachyOS — system-wide package
 
 ```bash
 # from a local build
