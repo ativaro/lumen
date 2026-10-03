@@ -410,6 +410,6 @@ uses the [OpenCode server API](https://opencode.ai/docs/server/); see
 
 ## Eigenständige Werkzeuge
 
-Lumen Meeting-Werkstatt, Lumen Digitaler Haushalt, Lumen Projekt-Werkbank und Lumen Persönliches Radio
+Meeting-Werkstatt, digitaler Haushalt, Projekt-Werkbank und persönliches Radio
 werden mit eigenen Startern installiert. Funktionen, Speicherung, Einrichtung
 und Grenzen: [Desktop-Werkzeuge](TOOLS.md).
