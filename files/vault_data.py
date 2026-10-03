@@ -66,13 +66,28 @@ def verify(plan, password, job):
         raise ValueError(tr('Am Ziel liegt eine andere Sicherung. Den richtigen Datenträger verbinden.'))
 
 
-def create(library, title, repository, sources, password, job):
+def create(library, title, repository, sources, password, job, app_sources=None, source_ref=None, handoff=None):
     if not title.strip():raise ValueError(tr('Bitte einen Namen angeben.'))
     existing = (Path(repository).expanduser()/'config').is_file()
     if existing and not sources: repository, sources = str(Path(repository).expanduser().resolve(strict=True)), []
     else: repository, sources = paths(repository, sources)
     if not existing and len(password) < 12: raise ValueError(tr('Bitte mindestens 12 Zeichen für das Sicherungspasswort verwenden.'))
     plan = dict(repository=repository, sources=sources, interval=0, next_run=0)
+    if app_sources:
+        from interop_vault import APP_NAMES, _slot
+        plan['app_sources'] = []
+        for row in app_sources:
+            canonical = str(Path(row['path']).expanduser().resolve(strict=True))
+            if canonical not in sources: raise ValueError(tr('Die geprüfte Lumen-Quelle fehlt im Sicherungsplan.'))
+            if row.get('app') in APP_NAMES and row.get('slot'):
+                _slot(row['slot']); plan['app_sources'].append(dict(row, path=canonical))
+    if source_ref: plan['interop_sources'] = [source_ref]
+    if handoff:
+        from interop_vault import handoff_receipt
+        for token, signature in handoff.items():
+            previous = handoff_receipt(library, token, signature)
+            if previous: return previous['id']
+        plan['interop_handoffs'] = handoff
     # An existing restic repository is adopted, never reset. A new one must be empty.
     if not (Path(repository)/'config').is_file():
         if any(Path(repository).iterdir()): raise ValueError(tr('Für eine neue Sicherung einen leeren Zielordner wählen.'))
@@ -95,13 +110,23 @@ def run(library, identity, action, job, snapshot='', selected='', destination=''
             _, sources = paths(plan['repository'], plan['sources'])
             args=['backup','--tag','lumen-vault','--exclude-caches']
             if action == 'preview': args.append('--dry-run')
-            text=command(plan,password,[*args,'--',*sources],job,86400)
+            from interop_flush import flush_for_plan
+            flushes=flush_for_plan(library.root.parent,plan,job) if action=='backup' else []
+            from interop_vault import prepared_sources
+            started=time.time()
+            with prepared_sources(dict(plan,sources=sources,flush_acknowledgements=flushes),job,root=library.root.parent) as (prepared,excluded,manifest):
+                # Application copies use SQLite's online backup API; ordinary
+                # parent sources exclude their live application directories.
+                exclude_args=[arg for path in excluded for arg in ('--exclude',path)]
+                text=command(plan,password,[*args,*exclude_args,'--',*prepared],job,86400)
             events=[json.loads(line) for line in text.splitlines() if line.strip()]
             result=next((e for e in reversed(events) if e.get('message_type')=='summary'),None)
             if not result: raise ValueError(tr('Restic meldet keinen abgeschlossenen Sicherungslauf.'))
             if action=='backup':
                 if not result.get('snapshot_id'): raise ValueError(tr('Kein neuer Sicherungsstand bestätigt.'))
-                library.update(identity,last_backup=time.time(),last_error='',next_run=time.time()+plan.get('interval',0),summary=result)
+                library.update(identity,last_backup=time.time(),backup_started=started,backup_sources=sources,
+                    last_error='',next_run=time.time()+plan.get('interval',0),summary=result,
+                    backup_consistency=manifest['consistency'] if manifest else 'saved-files',backup_flushes=flushes)
             return result
         if action=='snapshots': return json.loads(command(plan,password,['snapshots'],job,60)) or []
         if action=='check':
@@ -111,6 +136,13 @@ def run(library, identity, action, job, snapshot='', selected='', destination=''
         if action=='files':
             output=command(plan,password,['ls',snapshot],job,120)
             return [v for line in output.splitlines() if (v:=json.loads(line)).get('struct_type')=='node']
+        if action=='manifest':
+            path=PurePosixPath(selected)
+            if not path.is_absolute() or '..' in path.parts or path.name!='lumen-app-backup.json' or any(c in selected for c in '\0\r\n'):
+                raise ValueError(tr('Ungültiger Pfad im Lumen-Sicherungspaket.'))
+            output=command(plan,password,['dump',snapshot,selected],job,120)
+            if len(output)>512*1024:raise ValueError(tr('Lumen-Sicherungsbeschreibung ist zu groß.'))
+            return json.loads(output)
         if action=='restore':
             parent=Path(destination).expanduser().resolve(strict=True)
             if not parent.is_dir() or parent.is_relative_to(Path(plan['repository']).resolve()):

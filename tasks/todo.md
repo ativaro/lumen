@@ -222,6 +222,34 @@ working authenticated clone/local-bootstrap route, tested without public downloa
 Current LICENSE remains MIT; LICENSE-PLAN.md records the proposed noncommercial
 and separately agreed commercial model, including unresolved PyQt constraints.
 
+## Lumen interoperability
+
+- [x] Shared reference/dispatch/history contract, validation and replay tests.
+- [x] Files context actions and native source capture.
+- [x] Target adapters, review and cold/warm delivery.
+- [x] Wissen/Vault and application-aware backup paths.
+- [x] Cross-app links, backlinks, tags, search, object activation.
+- [x] Project, calendar, mail, reading and meeting specialized workflows.
+- [x] Audio identity, interruption and routing.
+- [x] Requirement-by-requirement acceptance, complete isolated suite, bilingual native checks and local installation.
+
+334 Python checks: 332 passed, two optional calendar checks skipped in the system
+runtime and covered by five passing Inbox-runtime checks. 25 English checks and
+12 QML checks passed. The complete suite caught and fixed a Qt focus/event-filter
+callback during window teardown; review also fixed fast snapshot activation.
+
+Package 1.2.0-41 built. 42 production resources plus the URI launcher match source,
+package and installed user bundle. All nine installed tools passed cold/warm
+activation; installed URI/handoff/save-barrier/replay checks passed. Private
+program backups and consistent copies of ten SQLite databases precede the update.
+Optional runtimes and existing user windows were preserved. No push/publication.
+
+The 100-item ledger documents remaining limits explicitly: offline backup status
+requires exact-version checking; restored audio devices require manual assignment;
+workspace context reopens up to eight references rather than a full desktop session.
+Strict no-fallback audio is limited to the proven PipeWire/WirePlumber and device
+configuration. Usage and evidence: docs/interop/USAGE.md and COVERAGE.md.
+
 ## Qt 6 / QML search pilot
 
 - [x] Scope, isolated checkout, runtime and existing dependency boundaries.

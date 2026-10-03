@@ -35,20 +35,30 @@ class Meetings(ToolWindow):
         self.results = QTableWidget(0,3); self.results.setHorizontalHeaderLabels([tr('Art'), tr('Ergebnis · editierbar'), tr('Quelle')])
         self.results.horizontalHeader().setSectionResizeMode(1,QHeaderView.Stretch); self.results.verticalHeader().hide()
         self.results.itemChanged.connect(self.edited); self.results.cellClicked.connect(self.seek_result); rl.addWidget(self.results,2)
-        self.tabs.addTab(result,tr('Ergebnisse')); self.body.setEnabled(False); self.refresh()
+        self.tabs.addTab(result,tr('Ergebnisse'))
+        self.agenda = QPlainTextEdit(); self.agenda.setAccessibleName(tr('Meeting-Agenda')); self.agenda.setPlaceholderText(tr('Themen und offene Fragen für diese Besprechung.'))
+        self.agenda.textChanged.connect(self.edited); self.tabs.addTab(self.agenda,tr('Agenda'))
+        self.body.setEnabled(False); self.refresh()
 
     def create(self):
         path, _ = QFileDialog.getOpenFileName(self, tr('Aufnahme importieren'), str(Path.home()), tr('Audio / Video (*.wav *.mp3 *.m4a *.ogg *.flac *.opus *.mp4 *.mkv *.webm);;Alle Dateien (*)'))
         if not path: return
+        self.save()
+        key = self.current if self.current and not self.library.get(self.current).get('recording') else ''
         def run(job):
             duration = media_duration(path,job); asset = self.library.import_file(path,job)
-            try: return self.library.create(Path(path).stem, recording=asset, duration=duration, segments=[], summary='', results=[])
-            except Exception: self.library.asset(asset['asset']).unlink(missing_ok=True); raise
+            try:
+                job.check()
+                if key: self.library.update(key,recording=asset,duration=duration); return key
+                return self.library.create(Path(path).stem, recording=asset, duration=duration, segments=[], summary='', results=[])
+            except BaseException: self.library.asset(asset['asset']).unlink(missing_ok=True); raise
         self.work(tr('Aufnahme wird importiert …'), run, self.focus_record)
 
     def load(self, record):
-        self.title.setText(record['title']); self.meta.setText(record['recording']['name']+'  ·  '+clock_text(record['duration'])+tr('  ·  Lokale Kopie'))
-        self.player.load(self.library.asset(record['recording']['asset']), record['duration'])
+        self.title.setText(record['title']); recording=record.get('recording')
+        self.meta.setText(recording['name']+'  ·  '+clock_text(record['duration'])+tr('  ·  Lokale Kopie') if recording else tr('Agenda vorbereitet · Eine Aufnahme kann später hinzugefügt werden.'))
+        self.player.load(self.library.asset(recording['asset']) if recording else None, record.get('duration',0))
+        self.agenda.setPlainText(record.get('agenda',''))
         self.transcript.setRowCount(0)
         for i, part in enumerate(record.get('segments', [])):
             self.transcript.insertRow(i); stamp = QTableWidgetItem(clock_text(part['start'])); stamp.setData(Qt.UserRole,part)
@@ -58,7 +68,7 @@ class Meetings(ToolWindow):
         self.results.setRowCount(0)
         for i, part in enumerate(record.get('results',[])):
             self.results.insertRow(i); kind = QTableWidgetItem(tr('Aufgabe') if part['kind']=='actions' else tr('Entscheidung'))
-            kind.setData(Qt.UserRole, part['kind']); kind.setFlags(kind.flags() & ~Qt.ItemIsEditable)
+            kind.setData(Qt.UserRole, part['kind']); kind.setData(Qt.UserRole+1, {key:part[key] for key in ('due','source','source_url') if key in part}); kind.setFlags(kind.flags() & ~Qt.ItemIsEditable)
             if part['kind']=='actions': kind.setCheckState(Qt.Checked if part.get('done') else Qt.Unchecked)
             source = QTableWidgetItem(clock_text(record['segments'][part['segment']]['start'])); source.setData(Qt.UserRole,part['segment']); source.setFlags(source.flags() & ~Qt.ItemIsEditable)
             self.results.setItem(i,0,kind); self.results.setItem(i,1,QTableWidgetItem(part['text'])); self.results.setItem(i,2,source)
@@ -68,8 +78,8 @@ class Meetings(ToolWindow):
         super().save()
         if not self.current or self.loading: return
         segments = [dict(self.transcript.item(i,0).data(Qt.UserRole), text=self.transcript.item(i,1).text()) for i in range(self.transcript.rowCount())]
-        results = [dict(kind=self.results.item(i,0).data(Qt.UserRole), text=self.results.item(i,1).text(), segment=self.results.item(i,2).data(Qt.UserRole), done=self.results.item(i,0).checkState()==Qt.Checked) for i in range(self.results.rowCount())]
-        self.library.update(self.current, title=self.title.text(), segments=segments, summary=self.summary.toPlainText(), results=results)
+        results = [dict(self.results.item(i,0).data(Qt.UserRole+1) or {}, kind=self.results.item(i,0).data(Qt.UserRole), text=self.results.item(i,1).text(), segment=self.results.item(i,2).data(Qt.UserRole), done=self.results.item(i,0).checkState()==Qt.Checked) for i in range(self.results.rowCount())]
+        self.library.update(self.current, title=self.title.text(), segments=segments, summary=self.summary.toPlainText(), results=results, agenda=self.agenda.toPlainText())
         self.status.setText(tr('Lokal gespeichert')); self.refresh()
 
     def seek_segment(self, i, column):
@@ -82,6 +92,7 @@ class Meetings(ToolWindow):
 
     def recognize(self):
         self.save(); record = self.library.get(self.current); self.player.stop()
+        if not record.get('recording'): raise ValueError(tr('Zuerst eine Aufnahme zu dieser Agenda hinzufügen.'))
         # Existing edited text/results survive cancellation; replacement is explicit.
         if record.get('segments'):
             from PyQt5.QtWidgets import QMessageBox
@@ -105,6 +116,7 @@ class Meetings(ToolWindow):
     def export(self):
         self.save(); r=self.library.get(self.current)
         text='# '+r['title']+'\n\n'+r.get('summary','')+'\n\n'
+        if r.get('agenda'): text+=tr('## Agenda\n\n')+r['agenda']+'\n\n'
         for item in r.get('results',[]):
             prefix = ('- [x] ' if item.get('done') else '- [ ] ') if item['kind']=='actions' else tr('- Entscheidung: ')
             text += prefix+item['text']+' ('+clock_text(r['segments'][item['segment']]['start'])+')\n'

@@ -1452,6 +1452,14 @@ class Window(QMainWindow):
         job.progress.connect(lambda name: self.activity.setText(tr('Dateivorgang: {0}', name)))
         def completed(done, errors):
             self.activity.setText(tr('{0} Einträge verarbeitet', len(done)) + (tr(' · {0} Fehler', len(errors)) if errors else ''))
+            if action in ('move', 'rename') and done:
+                from interop_data import Registry
+                registry = Registry()
+                for source in done:
+                    destination = str(Path(target) / Path(source).name) if action == 'move' else target
+                    from interop_paths import relocate
+                    try:relocate(source, destination,registry.library.root.parent)
+                    except Exception as exc:errors.append(tr('Verknüpfungen für {0} nicht aktualisiert: {1}',source,str(exc)))
             if action == 'move' and done:
                 mime = QApplication.clipboard().mimeData()
                 current = [u.toLocalFile() for u in mime.urls()] if mime else []
@@ -1513,6 +1521,8 @@ class Window(QMainWindow):
         menu = QMenu(self)
         if paths:
             menu.addAction(tr('Öffnen'), self.open_selected)
+            from interop_ui import files_menu
+            files_menu(self, menu, paths)
             if all(Path(p).suffix.lower() == '.pdf' for p in paths):
                 self.add_workshop_action(menu, paths)
             menu.addAction(tr('Zur Sammelfläche hinzufügen'), lambda: self.spaces.collect(paths))
@@ -1834,6 +1844,7 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description=tr('Lumen Files – Dateimanager mit Lumen-Integration'))
     parser.add_argument('location', nargs='?', help=tr('Datei, Ordner oder Netzwerkadresse'))
+    parser.add_argument('--select', action='store_true')
     parser.add_argument('--settings', action='store_true', help=tr('Gemeinsame Lumen-Einstellungen öffnen'))
     args = parser.parse_args()
     from lumen_migrate import migrate_user
@@ -1845,7 +1856,16 @@ if __name__ == '__main__':
     if start and Path(start).is_file():
         start = str(Path(start).parent)
     window = Window(start)
+    from interop_ui import install
+    install(window)
     window.show()
+    if args.select and args.location:
+        def select_requested():
+            index = window.proxy.mapFromSource(window.fs.index(args.location))
+            if index.isValid():
+                window.view.selectionModel().select(index, QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows)
+                window.view.scrollTo(index)
+        QTimer.singleShot(500, select_requested)
     from lumen_crash import attach
     attach(app, window, 'files', offer_recovery=not start and not args.settings)
     if args.settings:

@@ -84,6 +84,8 @@ class Wissen(ToolWindow):
             self.status.setText(tr('Ordnerregel gespeichert. Individuelle Notizregeln haben Vorrang.'))
         self.work(tr('Ordnerfreigabe speichern …'),lambda job:memory.worker(job,self.store,'share',path=path,allow=allow,directory=True),done)
     def initialize(self,root=None):
+        pending=getattr(self,'interop_pending_collection',None)
+        if pending and pending[1]==self.area and self.area=='user':root=pending[0]
         if self.area=='lumen':
             self.work(tr('Lumen-Gedächtnis öffnen …'),lambda job:memory.worker(job,self.store,'scan'),lambda result:(self.activated(result['root']),self.scanned(result)))
         else:self.work(tr('Wissensordner öffnen und vorhandene Einträge übernehmen …'),lambda job:data.worker(job,self.store,'activate',root),self.activated)
@@ -206,6 +208,12 @@ class Wissen(ToolWindow):
                 self.banner.setText(tr('Lokaler Entwurf wiederhergestellt.')+(tr(' Die Datei wurde inzwischen verändert.') if self.conflict else tr(' Zum Übernehmen speichern.')));self.banner.show();self.recovery.setVisible(self.conflict)
         finally:self.loading=False
         self.status.setText(tr('Lokaler Entwurf wiederhergestellt · zum Übernehmen speichern') if self.dirty else tr('Lokal gespeichert'))
+        pending=getattr(self,'interop_pending_position',None)
+        if pending and pending[0]==note['path']:
+            self.interop_pending_position=None
+            if pending[1]:
+                from interop_open import focus_text
+                self.tabs.setCurrentIndex(0);self.views.setCurrentIndex(0);self.safe(focus_text,self.editor,pending[1])
     def update_source(self,note):
         source=tr('Quelle: ')+note['source'] if note['source'] else tr('Eigene Notiz')
         if self.area=='lumen':
@@ -216,7 +224,8 @@ class Wissen(ToolWindow):
             details+='\n'+(tr('Projekt: ')+meta['scope'] if meta.get('scope') else tr('Übergreifend'))
             if meta.get('evidence'):details+=tr('\n\nDeine Aussage: „')+meta['evidence']+'“'
             source=details+'\n\n'+source
-        self.source.setText(source)
+        from interop_ui import source_markup
+        self.source.setText(source_markup(source))
     def select(self,item,old):
         if item and not self.loading:self.safe(self.open_note,item.data(Qt.UserRole))
     def open_note(self,path):
@@ -301,6 +310,11 @@ class Wissen(ToolWindow):
             if last in self.notes and self.in_collection(self.notes[last]):self.show_note(self.notes[last])
             elif visible:self.show_note(max(visible,key=lambda n:n.get('modified',0)))
         self.update_collections()
+        pending=getattr(self,'interop_pending_collection',None)
+        if pending and pending[1]==self.area and (self.area=='lumen' or not pending[0] or Path(pending[0])==self.book.root):
+            self.interop_pending_collection=None
+            from interop_open import focus_collection
+            self.safe(focus_collection,self,pending[2])
         self.connections()
         if result['limited'] or result['errors']:self.status.setText(tr('{0} Notizen · {1} nicht lesbar' , len(self.notes), result['errors'])+(tr(' · Scanlimit erreicht') if result['limited'] else ''))
         elif not self.dirty:self.status.setText(tr('Lokal gespeichert · ')+str(len(self.notes))+tr(' Notizen'))
@@ -311,8 +325,20 @@ class Wissen(ToolWindow):
         for paths,prefix in [(outgoing,'→ '),(incoming,'← ')]:
             for path in sorted(p for p in paths if p and p in self.notes and p!=current):
                 item=QListWidgetItem(prefix+self.notes[path]['title']);item.setData(Qt.UserRole,path);self.links.addItem(item)
+        external=self.external_connections()
+        for value in external:
+            item=QListWidgetItem(('← ' if value.get('direction')=='in' else '→ ')+value['app_title']+' · '+value['title']);item.setData(Qt.UserRole,value['url']);self.links.addItem(item)
         self.details_button.setText(tr('Herkunft und Optionen') if self.area=='lumen' else str(self.links.count())+tr(' Verbindungen · Herkunft'))
-        if self.tabs.currentIndex()==2:self.map.display(self.notes,current)
+        if self.tabs.currentIndex()==2:self.map.display(self.notes,current,external)
+    def external_connections(self):
+        if not self.doc or not self.book:return []
+        from interop_graph import neighbors
+        return neighbors(self.book,self.doc,self.library.root.parent,self.area)
+    def follow_connection(self,target):
+        if target.startswith('lumen://'):
+            from interop_open import open_url
+            self.save_note(lambda:open_url(target,self.library.root.parent))
+        else:self.open_note(target)
     def toggle_view(self):
         if self.views.currentIndex():self.views.setCurrentIndex(0);self.view_button.hide();self.title.show();return
         self.prepare_preview()
@@ -323,7 +349,7 @@ class Wissen(ToolWindow):
         self.action('preview',done,path=note['path'],text=note['text'])
     def tab_changed(self,index):
         self.questions_button.setCheckable(True);self.questions_button.setChecked(index==1);self.map_button.setCheckable(True);self.map_button.setChecked(index==2)
-        if index==2:self.map.display(self.notes,self.doc['path'] if self.doc else '')
+        if index==2:self.map.display(self.notes,self.doc['path'] if self.doc else '',self.external_connections())
     def focus_mode(self):
         visible=self.sidebar.isVisible();self.sidebar.setVisible(not visible);self.navigation.setVisible(not visible)
     def toggle_details(self):self.rail.setVisible(self.details_button.isChecked())
