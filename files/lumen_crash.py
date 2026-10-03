@@ -207,9 +207,7 @@ def supervise(kind):
 def attach(app, window, kind, offer_recovery=True):
     """Checkpoint an idle UI, not backend operations, and offer explicit recovery."""
     if RUN is None: return
-    from PyQt5.QtCore import QTimer, QUrl
-    from PyQt5.QtGui import QDesktopServices
-    from PyQt5.QtWidgets import QMessageBox
+    from lumen_qt import QTimer, QUrl
     timer = QTimer(app); timer.setInterval(1000)
     previous = None
     def checkpoint():
@@ -225,6 +223,8 @@ def attach(app, window, kind, offer_recovery=True):
             # A full disk or a closing window must not itself crash the app.
             return False
     def offer():
+        from PyQt5.QtGui import QDesktopServices
+        from PyQt5.QtWidgets import QMessageBox
         for path, report in recoveries(kind):
             lock = (path / 'lock').open('a')
             try: fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)

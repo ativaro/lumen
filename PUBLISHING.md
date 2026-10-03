@@ -13,7 +13,7 @@ Use an isolated user profile:
 lumen_test_root="$(mktemp -d)"
 HOME="$lumen_test_root" XDG_CONFIG_HOME="$lumen_test_root/config" \
   XDG_DATA_HOME="$lumen_test_root/data" XDG_STATE_HOME="$lumen_test_root/state" \
-  XDG_CACHE_HOME="$lumen_test_root/cache" QT_QPA_PLATFORM=offscreen \
+  XDG_CACHE_HOME="$lumen_test_root/cache" QT_QPA_PLATFORM=offscreen LUMEN_LANGUAGE=de \
   dbus-run-session -- /usr/bin/python3 -m unittest discover -s files -v
 ```
 

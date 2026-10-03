@@ -77,6 +77,8 @@ mkdir -p "$PREFIX/files"
 install -m 0644 "$REPO/files/"*.py "$REPO/files/"*.qss "$REPO/files/"*.svg "$PREFIX/files/"
 mkdir -p "$PREFIX/files/translations"
 cp -R "$REPO/files/translations/." "$PREFIX/files/translations/"
+mkdir -p "$PREFIX/files/qml"
+cp -R "$REPO/files/qml/." "$PREFIX/files/qml/"
 mkdir -p "$PREFIX/desktop"
 cp -R "$REPO/desktop/." "$PREFIX/desktop/"
 for plugin in agent islands system search control; do

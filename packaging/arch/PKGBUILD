@@ -15,6 +15,7 @@ makedepends=()
 # OpenCode may be installed through its own installer. Native files/tasks remain
 # useful without inference; the app explains a missing engine when AI is requested.
 optdepends=(
+    'python-pyside6: optional Qt 6/QML search preview (or use its local runtime)'
     'opencode: AI engine (or existing standalone OpenCode installation)'
     'whisper.cpp: existing offline dictation engine (or use the setup wizard)'
     'pipewire-audio: microphone recording for offline dictation'
@@ -161,6 +162,7 @@ package() {
     install -m0644 "$srcroot/files/"*.qss "$pkgdir/usr/share/lumen/files/"
     install -m0644 "$srcroot/files/"*.svg "$pkgdir/usr/share/lumen/files/"
     cp -R "$srcroot/files/translations" "$pkgdir/usr/share/lumen/files/"
+    cp -R "$srcroot/files/qml" "$pkgdir/usr/share/lumen/files/"
     install -m0755 "$srcroot/bin/lumen-files" "$pkgdir/usr/bin/lumen-files"
 
     # Portable artwork and fresh-desktop setup; no developer-machine configuration.

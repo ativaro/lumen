@@ -1,14 +1,12 @@
 """Native shell, cancellable jobs and audio controls shared by four desktop apps."""
-from lumen_i18n import worker_environment, worker_process, tr
+from lumen_i18n import worker_process, tr
 import os
 from pathlib import Path
 import signal
-import subprocess
 import tempfile
-import threading
 import time
 
-from PyQt5.QtCore import Qt, QProcess, QTimer, QThread, QSettings, QUrl, pyqtSignal
+from PyQt5.QtCore import Qt, QProcess, QTimer, QSettings, QUrl
 from PyQt5.QtGui import QDesktopServices, QIcon
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabel, QLineEdit,
     QPushButton, QHBoxLayout, QVBoxLayout, QListWidget, QListWidgetItem, QSplitter,

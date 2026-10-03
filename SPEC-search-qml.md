@@ -23,7 +23,7 @@ while the pilot is evaluated. No license replacement or broader app rewrite.
 - Pilot: `bin/lumen-search-preview`
 - Install optional runtime: `bin/lumen-search-preview --install-runtime`
 - Qt 6 tests: `QT_QPA_PLATFORM=offscreen ~/.local/share/lumen/qt6-env/bin/python -m unittest discover -s files -p test_search_qml.py`
-- Qt 5 regression: `QT_QPA_PLATFORM=offscreen /usr/bin/python3 -m unittest discover -s files -p 'test_*.py'`
+- Qt 5 regression: use the isolated profile/D-Bus command in `PUBLISHING.md` with `LUMEN_LANGUAGE=de`; set `LUMEN_QT6_PYTHON` to the optional runtime to include the pilot checks.
 - Benchmark: `tests/benchmark-search.py` (isolated settings/data, synthetic directory;
   reports first frame, resident memory and input-to-results separately).
 
