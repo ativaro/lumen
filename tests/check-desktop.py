@@ -1,4 +1,3 @@
-import sys
 #!/usr/bin/python3
 """Exercise the installed desktop in a disposable, headless Plasma session."""
 import argparse
@@ -9,6 +8,7 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+import sys
 import time
 
 REPO = Path(__file__).resolve().parent.parent
@@ -74,7 +74,7 @@ def main():
         env = {k: v for k, v in os.environ.items() if k not in
                ('DISPLAY', 'WAYLAND_DISPLAY', 'XAUTHORITY', 'DBUS_SESSION_BUS_ADDRESS', 'PREFIX', 'OPENCODE_HOME')
                and not k.startswith(('LUMEN_', 'OPENCODE_'))}
-        env.update(HOME=str(root), XDG_CONFIG_HOME=str(root / 'config'), XDG_DATA_HOME=str(root / 'data'),
+        env.update(LUMEN_PYTHON=sys.executable, HOME=str(root), XDG_CONFIG_HOME=str(root / 'config'), XDG_DATA_HOME=str(root / 'data'),
                    XDG_STATE_HOME=str(root / 'state'), XDG_CACHE_HOME=str(root / 'cache'),
                    XDG_RUNTIME_DIR=str(root / 'runtime'), QT_QPA_PLATFORM='offscreen',
                    DBUS_SESSION_BUS_ADDRESS='unix:path=' + str(root / 'runtime/no-bus'))
@@ -85,7 +85,7 @@ def main():
         env.update(QT_QPA_PLATFORM='wayland', WAYLAND_DISPLAY='lumen-test', KWIN_COMPOSE='QPainter',
                    XDG_CURRENT_DESKTOP='KDE', XDG_SESSION_TYPE='wayland', KDE_FULL_SESSION='true', KDE_SESSION_VERSION='6')
         helper = root / 'session'
-        helper.write_text('#!/bin/sh\nexec /usr/bin/python3 ' + shlex.quote(str(Path(__file__).resolve())) + ' --session\n')
+        helper.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' ' + shlex.quote(str(Path(__file__).resolve())) + ' --session\n')
         helper.chmod(0o755)
         with (logs / 'session.log').open('w') as log:
             subprocess.run(['dbus-run-session', '--', 'kwin_wayland', '--virtual', '--xwayland',

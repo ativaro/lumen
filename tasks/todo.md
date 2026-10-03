@@ -369,3 +369,12 @@ Existing user windows were left open; reopening them loads the new UI.
 - [x] Regression suite:349 tests,344 passed,5 optional integrations skipped.
 - [x] Native DE/EN rendering, Wayland, cold/warm launches, crash/draft recovery.
 - [x] Separate review of nonmechanical runtime and installation changes.
+- [x] Package1.2.0-43 built;219 packaged entries and237 installed resources verified.
+- [x] Current user bundle updated after program/settings/SQLite backups; native
+  Lumen, Files and the production search run with PySide6. Search state and the
+  preview alias were checked after handover. Existing desktop configuration kept.
+- [x] Fresh-profile Plasma installation and repeated setup passed. Installed tools
+  passed cold/warm activation, file forwarding, handoff, save and replay checks.
+- [x] Setup/shortcut refresh and newly generated Sound/Vault services use the chosen
+  interpreter; known existing service templates migrate with a backup. Their
+  focused regression checks passed after the full349-test suite.

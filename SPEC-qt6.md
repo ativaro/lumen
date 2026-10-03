@@ -52,3 +52,7 @@ honestly; a binding migration alone is not a full QML rewrite of every screen.
 - Offscreen clipboard data is explicitly released by its test; preview-width
   persistence is measured at equal window dimensions because Qt 6 constrains
   restored geometry to the test screen.
+- Final installation checks also covered a fresh, isolated Plasma session and
+  repeated desktop setup. Existing service templates retain custom fields and
+  backups when their interpreter is migrated. Installed launchers and package
+  payloads were verified separately from the source tests.
