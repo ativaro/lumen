@@ -14,7 +14,7 @@ from PyQt5.QtCore import (QDir, QEvent, QFileInfo, QItemSelectionModel, QMimeDat
                           QSettings, QSize, QSortFilterProxyModel, QStandardPaths, QFileSystemWatcher,
                           QStorageInfo, Qt, QTimer, QUrl)
 from PyQt5.QtGui import QDesktopServices, QIcon, QKeySequence, QPalette, QColor, QFont, QPainterPath, QStandardItem, QStandardItemModel
-from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDockWidget, QFileIconProvider,
+from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDockWidget,
                              QFileSystemModel, QFrame, QHBoxLayout, QHeaderView, QInputDialog,
                              QLabel, QLineEdit, QListView, QListWidget, QListWidgetItem, QMainWindow,
                              QMenu, QMessageBox, QPushButton, QScrollArea, QShortcut, QSizePolicy,
@@ -329,8 +329,10 @@ class Window(QMainWindow):
         self.spaces = FileSpaces(self, catalog)
         self.connection_request = None
         self.hidden = self.settings.value('hidden', False, type=bool)
-        self.icon_provider = QFileIconProvider()
+        from file_icons import FileIcons
+        self.icon_provider = FileIcons()
         self.fs = QFileSystemModel(self)
+        self.fs.setIconProvider(self.icon_provider)
         self.fs.setReadOnly(True)
         self.fs.setOption(QFileSystemModel.DontUseCustomDirectoryIcons, True)
         self.apply_hidden()
@@ -970,6 +972,7 @@ class Window(QMainWindow):
         old = self.fs
         old.setOption(QFileSystemModel.DontWatchForChanges, True)
         self.fs = QFileSystemModel(self)
+        self.fs.setIconProvider(self.icon_provider)
         self.fs.setReadOnly(True); self.fs.setOption(QFileSystemModel.DontUseCustomDirectoryIcons, True)
         self.apply_hidden()
         self.fs.directoryLoaded.connect(lambda _path: self.update_count())

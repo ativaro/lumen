@@ -275,3 +275,27 @@ commands, boundaries and a five-sample benchmark: Qt 6 first frame 134.8 ms vers
 109.4 ms, RSS 119.9 versus 91.1 MiB, completed search 267.8 versus 263.9 ms.
 This is presentation flexibility with a measured startup/memory cost, not a
 claimed speedup. No personal state, test captures or runtime wheels enter Git.
+
+## Files startup responsiveness
+
+- [x] Reproduce the standalone restored-folder stall on the native desktop.
+- [x] Replace native per-file icon content detection with filename-only MIME
+  matching and a bounded, theme-aware cache; retain link markers and bundled
+  fallbacks for unavailable themes.
+- [x] Use the same provider in listings, search and rebuilt network models.
+- [x] Regression checks: three new tests, 16 focused tests passing; complete
+  isolated suite: 335 passed, six optional CalDAV/Qt 6 checks skipped (341 total).
+
+The native large-directory icon benchmark fell from 12.54 s to 0.11 s for roughly
+9,500 entries. With restored settings the three-second window check now fires on
+time with 22 GUI heartbeats, versus 13.19 s and one heartbeat before. The taskbar
+launcher resolves to the current user bundle; the embedded Files page explicitly
+starts at the assistant working directory instead of restoring the standalone
+tabs. Diagnostic data and screenshots stay outside Git.
+
+The three production files were installed into the existing user bundle after a
+private program backup. The installed native window renders the affected folder
+and responds normally (27 heartbeats by the three-second check). The exact command
+used by the taskbar entry also starts successfully with the real profile and
+records its first responsive-state checkpoint within one second. Existing user
+settings and the optional search-preview bundle were preserved. No publication.

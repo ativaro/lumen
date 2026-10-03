@@ -11,6 +11,12 @@ KDE-Farben und Systemschrift werden automatisch übernommen, auch in offenen Fen
 Bei Iconsets mit installierter Hell-/Dunkelvariante wählt Files die zu den Farben
 passende Variante. Die Desktop-Einstellungen selbst bleiben erhalten.
 
+Dateisymbole werden anhand des Dateinamens ermittelt und nach Typ zwischengespeichert.
+So bleibt auch das Wiederöffnen großer, gemischter Ordner bedienbar. Unbekannte
+Dateitypen erhalten ein allgemeines Symbol; die Vorschau liest Inhalte weiterhin
+bei Bedarf. Der eigenständige Starter stellt gespeicherte Tabs wieder her, während
+die eingebettete Dateien-Seite im aktuellen Lumen-Arbeitsordner beginnt.
+
 Der aktuelle Entwurf nutzt eine gemeinsame Navigationszeile unter den Tabs,
 ruhige Flächen und gut lesbare Ortsnamen. Graphit verbindet dunkles Anthrazit mit
 türkisen Akzenten und blauen Ordnersymbolen. Miniaturregler und Sammelfläche sitzen
