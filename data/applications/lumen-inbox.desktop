@@ -1,7 +1,8 @@
 [Desktop Entry]
 Type=Application
 Name=Lumen Inbox
-Comment=Mail, Kalender und Aufgaben an einem Ort
+Comment=Mail, calendar and tasks in one place
+Comment[de]=Mail, Kalender und Aufgaben an einem Ort
 Exec=%INSTALL_BIN%/lumen-inbox
 Icon=lumen-inbox
 Terminal=false

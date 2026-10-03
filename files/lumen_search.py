@@ -9,6 +9,8 @@ if __name__ == '__main__':
     from lumen_crash import supervise
     supervise('search')
 
+from lumen_i18n import worker_process, tr
+
 from PyQt5.QtCore import QObject, Q_CLASSINFO, QEvent, QProcess, QRectF, QSize, QTimer, Qt, QUrl, pyqtSlot
 from PyQt5.QtDBus import QDBus, QDBusConnection, QDBusMessage
 from PyQt5.QtGui import QCursor, QDesktopServices, QIcon, QKeySequence, QPainter, QPalette
@@ -48,7 +50,7 @@ class SearchResultDelegate(QStyledItemDelegate):
 class SearchPalette(QWidget):
     def __init__(self, directory=None, backend=None, applications=None):
         super().__init__()
-        self.setWindowTitle('Lumen Suche'); self.setWindowIcon(QIcon.fromTheme('system-search'))
+        self.setWindowTitle(tr('Lumen Suche')); self.setWindowIcon(QIcon.fromTheme('system-search'))
         self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.resize(820, 640); self.setMinimumSize(540, 420)
@@ -57,17 +59,17 @@ class SearchPalette(QWidget):
         outer = QVBoxLayout(self); outer.setContentsMargins(0, 0, 0, 0)
         surface = QFrame(); surface.setObjectName('searchSurface'); outer.addWidget(surface)
         box = QVBoxLayout(surface); box.setContentsMargins(26, 20, 26, 18); box.setSpacing(16)
-        heading = QHBoxLayout(); title = QLabel('Suche'); title.setObjectName('searchHeading'); heading.addWidget(title); heading.addStretch()
-        self.reset_button = QPushButton('Neue Suche'); self.reset_button.setObjectName('quiet')
+        heading = QHBoxLayout(); title = QLabel(tr('Suche')); title.setObjectName('searchHeading'); heading.addWidget(title); heading.addStretch()
+        self.reset_button = QPushButton(tr('Neue Suche')); self.reset_button.setObjectName('quiet')
         self.reset_button.setIcon(QIcon.fromTheme('view-refresh')); self.reset_button.clicked.connect(self.reset)
-        close = QPushButton('×'); close.setObjectName('iconButton'); close.setFixedSize(36, 36); close.setToolTip('Suche schließen · Esc'); close.setAccessibleName('Suche schließen'); close.clicked.connect(self.hide); heading.addWidget(close)
+        close = QPushButton('×'); close.setObjectName('iconButton'); close.setFixedSize(36, 36); close.setToolTip(tr('Suche schließen · Esc')); close.setAccessibleName(tr('Suche schließen')); close.clicked.connect(self.hide); heading.addWidget(close)
         box.addLayout(heading)
         self.chat = ChatPanel(self.directory, backend=backend)
         self.chat.layout().setContentsMargins(0, 0, 0, 0)
         self.query = self.chat.composer
         self.chat.layout().removeWidget(self.query)
-        self.query.setObjectName('searchComposer'); self.query.setFixedHeight(42); self.query.setPlaceholderText('Dateien, Apps oder eine Frage …')
-        self.query.setAccessibleName('Suchen oder mit Lumen sprechen')
+        self.query.setObjectName('searchComposer'); self.query.setFixedHeight(42); self.query.setPlaceholderText(tr('Dateien, Apps oder eine Frage …'))
+        self.query.setAccessibleName(tr('Suchen oder mit Lumen sprechen'))
         input_surface = QFrame(); input_surface.setObjectName('searchInput')
         input_row = QHBoxLayout(input_surface); input_row.setContentsMargins(20, 8, 8, 8); input_row.setSpacing(12)
         input_row.addWidget(self.query, 1)
@@ -76,12 +78,12 @@ class SearchPalette(QWidget):
             input_row.addWidget(voice.button); input_row.addWidget(voice.interrupt_button)
             voice.started.connect(self.start_voice)
         self.go = QPushButton('↑'); self.go.setObjectName('searchSend'); self.go.setFixedSize(40, 40)
-        self.go.setAccessibleName('Ausgewählten Treffer öffnen oder Nachricht senden')
+        self.go.setAccessibleName(tr('Ausgewählten Treffer öffnen oder Nachricht senden'))
         self.go.clicked.connect(self.submit); input_row.addWidget(self.go); box.addWidget(input_surface)
         if voice: box.addWidget(voice.indicator)
-        self.hint = QLabel('Enter öffnet den Treffer · Strg+Enter beginnt ein Gespräch hier'); self.hint.setObjectName('muted'); self.hint.setWordWrap(True)
+        self.hint = QLabel(tr('Enter öffnet den Treffer · Strg+Enter beginnt ein Gespräch hier')); self.hint.setObjectName('muted'); self.hint.setWordWrap(True)
         self.stack = QStackedWidget(); box.addWidget(self.stack, 1)
-        self.results = QListWidget(); self.results.setObjectName('searchResults'); self.results.setAccessibleName('Suchtreffer')
+        self.results = QListWidget(); self.results.setObjectName('searchResults'); self.results.setAccessibleName(tr('Suchtreffer'))
         self.results.setItemDelegate(SearchResultDelegate(self.results))
         self.results.installEventFilter(self)
         self.stack.addWidget(self.results); self.stack.addWidget(self.chat)
@@ -96,7 +98,7 @@ class SearchPalette(QWidget):
         self.chat.backend.busyChanged.connect(self.busy_changed)
         self.chat.backend.failed.connect(lambda message: self.hint.setText(message))
         # The existing permission and question widgets remain part of the conversation.
-        self.chat.options.setToolTip('Gesprächsoptionen')
+        self.chat.options.setToolTip(tr('Gesprächsoptionen'))
         heading.insertWidget(2, self.chat.options); self.chat.options.hide()
         self.chat.layout().takeAt(0).layout().deleteLater()
         self.chat.dont_ask.hide(); self.chat.options.toggled.connect(self.chat.dont_ask.setVisible)
@@ -111,7 +113,7 @@ class SearchPalette(QWidget):
 
     def start_voice(self):
         self.cancel_scan(); self.conversation = True; self.stack.setCurrentWidget(self.chat); self.chat.options.show()
-        self.hint.setText('Sprachgespräch · automatische Gesprächsrunden · Mikrofon beendet sich beim Schließen')
+        self.hint.setText(tr('Sprachgespräch · automatische Gesprächsrunden · Mikrofon beendet sich beim Schließen'))
 
     def hideEvent(self, event):
         if self.chat.context_tools.conversation: self.chat.context_tools.conversation.stop()
@@ -158,22 +160,22 @@ class SearchPalette(QWidget):
         query = self.query.toPlainText().strip()
         self.last_query = query; self.navigated = False
         if not query:
-            self.hint.setText('Apps und Dateien finden. Fragen werden im selben Fenster beantwortet.')
-            for title, identity in self.applications[:6]: self.item(title, 'Anwendung', 'app', identity, identity.removesuffix('.desktop'))
+            self.hint.setText(tr('Apps und Dateien finden. Fragen werden im selben Fenster beantwortet.'))
+            for title, identity in self.applications[:6]: self.item(title, tr('Anwendung'), 'app', identity, identity.removesuffix('.desktop'))
             self.results.setCurrentRow(0)
             return
         query = query[:300]
-        self.hint.setText('Enter öffnet den Treffer · Strg+Enter beginnt ein Gespräch hier')
-        question = '?' in query or query.lower().split()[0] in ('wie', 'warum', 'was', 'welche', 'welcher', 'wieso', 'kannst', 'erkläre', 'how', 'why')
+        self.hint.setText(tr('Enter öffnet den Treffer · Strg+Enter beginnt ein Gespräch hier'))
+        question = '?' in query or query.lower().split()[0] in ('wie', 'warum', 'was', 'welche', 'welcher', 'wieso', 'kannst', 'erkläre', 'how', 'why', 'what', 'which', 'who', 'where', 'when', 'can', 'could', 'explain')
         if question:
-            self.item(query, 'Hier mit Lumen besprechen', 'question', query, 'lumen')
+            self.item(query, tr('Hier mit Lumen besprechen'), 'question', query, 'lumen')
         for title, identity in self.applications:
-            if all(term in title.casefold() for term in query.casefold().split()): self.item(title, 'Anwendung', 'app', identity, identity.removesuffix('.desktop'))
+            if all(term in title.casefold() for term in query.casefold().split()): self.item(title, tr('Anwendung'), 'app', identity, identity.removesuffix('.desktop'))
             if self.results.count() >= 20: break
         if not any(self.results.item(i).data(Qt.UserRole)[0] == 'question' for i in range(self.results.count())):
-            self.item(query, 'Hier mit Lumen besprechen', 'question', query, 'lumen')
+            self.item(query, tr('Hier mit Lumen besprechen'), 'question', query, 'lumen')
         self.results.setCurrentRow(0)
-        generation = self.generation; process = QProcess(self); self.process = process; self.scan_jobs.append(process)
+        generation = self.generation; process = worker_process(self); self.process = process; self.scan_jobs.append(process)
         buffer = bytearray(); timer = QTimer(process); timer.setSingleShot(True)
         finished = False
         timer.timeout.connect(process.kill)
@@ -196,8 +198,8 @@ class SearchPalette(QWidget):
             if process in self.scan_jobs: self.scan_jobs.remove(process)
             if self.process is process:
                 self.process = None
-                self.hint.setText('Enter öffnet · Strg+Enter fragt · Dateisuche in deinem persönlichen Ordner (begrenzt)')
-                if code: self.hint.setText('Dateisuche unterbrochen. Apps und Gespräch sind weiterhin verfügbar.')
+                self.hint.setText(tr('Enter öffnet · Strg+Enter fragt · Dateisuche in deinem persönlichen Ordner (begrenzt)'))
+                if code: self.hint.setText(tr('Dateisuche unterbrochen. Apps und Gespräch sind weiterhin verfügbar.'))
                 if self.results.count() and self.results.currentRow() < 0: self.results.setCurrentRow(0)
             process.deleteLater()
         process.readyReadStandardOutput.connect(read); process.finished.connect(done)
@@ -212,7 +214,7 @@ class SearchPalette(QWidget):
             if not query: return
             self.cancel_scan(); self.conversation = True; self.stack.setCurrentWidget(self.chat)
             self.chat.options.show()
-            self.hint.setText('Gespräch · Antworten und Rückfragen bleiben in dieser Suche.')
+            self.hint.setText(tr('Gespräch · Antworten und Rückfragen bleiben in dieser Suche.'))
             self.chat.submit(query); self.query.setFocus(); return
         item = self.results.currentItem()
         if item is None:
@@ -223,7 +225,7 @@ class SearchPalette(QWidget):
             try:
                 if kind == 'app':
                     subprocess.Popen(['gio', 'launch', str(desktop_file(value))], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-                elif not QDesktopServices.openUrl(QUrl.fromLocalFile(value)): raise ValueError('Der Treffer konnte nicht geöffnet werden.')
+                elif not QDesktopServices.openUrl(QUrl.fromLocalFile(value)): raise ValueError(tr('Der Treffer konnte nicht geöffnet werden.'))
                 self.hide()
             except Exception as error: self.hint.setText(str(error))
 
@@ -280,27 +282,27 @@ class Activation(QObject):
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description='Lumen Suche')
+    parser = argparse.ArgumentParser(description=tr('Lumen Suche'))
     parser.add_argument('--voice', action='store_true')
     parser.add_argument('--restore-state', type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
     from app import create_app
-    app = create_app(); app.setApplicationName('lumen-search'); app.setApplicationDisplayName('Lumen Suche'); app.setQuitOnLastWindowClosed(False)
+    app = create_app(); app.setApplicationName('lumen-search'); app.setApplicationDisplayName(tr('Lumen Suche')); app.setQuitOnLastWindowClosed(False)
     bus = QDBusConnection.sessionBus()
     if bus.isConnected() and not bus.registerService('org.lumen.Search'):
         reply = bus.call(QDBusMessage.createMethodCall('org.lumen.Search', '/Search', 'org.lumen.Search', 'Voice' if args.voice else 'Activate'), QDBus.Block, 3000)
         if reply.type() != QDBusMessage.ErrorMessage: return 0
-        QMessageBox.warning(None, 'Lumen Suche', 'Die laufende Suche konnte nicht aktiviert werden. Nach einem Update bitte die Suche neu starten; zuvor ungesendeten Text sichern.')
+        QMessageBox.warning(None, tr('Lumen Suche'), tr('Die laufende Suche konnte nicht aktiviert werden. Nach einem Update bitte die Suche neu starten; zuvor ungesendeten Text sichern.'))
         return 1
     window = SearchPalette(); activation = Activation(window)
     if args.restore_state:
         from lumen_crash import read_json
         try:
             state = read_json(args.restore_state)
-            if not state or not isinstance(state.get('chat'), dict): raise ValueError('Keine gültige Sitzungssicherung.')
+            if not state or not isinstance(state.get('chat'), dict): raise ValueError(tr('Keine gültige Sitzungssicherung.'))
             window.restore_recovery(state)
         except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
-            QMessageBox.warning(window, 'Sitzung wiederherstellen', str(error)); window.shutdown(); return 1
+            QMessageBox.warning(window, tr('Sitzung wiederherstellen'), str(error)); window.shutdown(); return 1
     if bus.isConnected(): bus.registerObject('/Search', activation, QDBusConnection.ExportAllSlots)
     app.aboutToQuit.connect(window.shutdown); window.present()
     from lumen_crash import attach

@@ -1,4 +1,5 @@
 """Bounded native desktop operations, run outside the GUI process. No shell commands."""
+from lumen_i18n import tr
 import json
 import os
 from pathlib import Path
@@ -9,17 +10,17 @@ import time
 
 CONFIG = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config')))
 SHORTCUTS = {
-    'lumen-ask.desktop': 'Lumen öffnen',
-    'lumen-ask-sel.desktop': 'Zwischenablage erklären',
-    'lumen-sel.desktop': 'Auswahl erklären',
-    'lumen-vision.desktop': 'Bildschirm erklären',
+    'lumen-ask.desktop': tr('Lumen öffnen'),
+    'lumen-ask-sel.desktop': tr('Zwischenablage erklären'),
+    'lumen-sel.desktop': tr('Auswahl erklären'),
+    'lumen-vision.desktop': tr('Bildschirm erklären'),
 }
 SERVICES = {
-    ('system', 'lumen-watch.timer'): 'Systemwächter',
-    ('system', 'lumen-agentd.service'): 'Systemintegration',
-    ('user', 'lumen-notify.path'): 'Benachrichtigungen',
-    ('user', 'lumen-digest.timer'): 'Tagesbericht',
-    ('user', 'lumen-nightly.timer'): 'Nachtbericht',
+    ('system', 'lumen-watch.timer'): tr('Systemwächter'),
+    ('system', 'lumen-agentd.service'): tr('Systemintegration'),
+    ('user', 'lumen-notify.path'): tr('Benachrichtigungen'),
+    ('user', 'lumen-digest.timer'): tr('Tagesbericht'),
+    ('user', 'lumen-nightly.timer'): tr('Nachtbericht'),
 }
 ANALYSIS = {
     'lumen-notify.service': 'LUMEN_WATCH_ANALYZE',
@@ -32,7 +33,7 @@ PLASMA = ['qdbus6', 'org.kde.plasmashell', '/PlasmaShell', 'org.kde.PlasmaShell.
 def run(arguments):
     result = subprocess.run(arguments, capture_output=True, text=True, timeout=90 if arguments[0] == 'pkexec' else 20)
     if result.returncode:
-        raise RuntimeError((result.stderr or result.stdout or 'Aktion fehlgeschlagen.').strip()[:1200])
+        raise RuntimeError((result.stderr or result.stdout or tr('Aktion fehlgeschlagen.')).strip()[:1200])
     return result.stdout.strip()
 
 
@@ -42,7 +43,7 @@ def panels():
         'widgets:p.widgets().map(function(w){return {id:w.id,type:w.type};})};})));']))
     if not isinstance(result, list) or any(not isinstance(p, dict) or
             not {'id', 'screen', 'location', 'height', 'floating', 'hiding', 'widgets'} <= p.keys() for p in result):
-        raise ValueError('Diese Plasma-Version liefert nicht alle Leisteneinstellungen.')
+        raise ValueError(tr('Diese Plasma-Version liefert nicht alle Leisteneinstellungen.'))
     return result
 
 
@@ -57,7 +58,7 @@ def backup(name, value):
 def change_panel(data, journal=True):
     selected = next((p for p in panels() if p['id'] == data['id']), None)
     if selected is None:
-        raise ValueError('Diese Leiste existiert nicht mehr. Bitte neu laden.')
+        raise ValueError(tr('Diese Leiste existiert nicht mehr. Bitte neu laden.'))
     changes = data['changes']
     for key, value in changes.items():
         valid = ((key == 'height' and type(value) is int and 20 <= value <= 160)
@@ -65,12 +66,12 @@ def change_panel(data, journal=True):
                  or (key == 'location' and value in ('top', 'bottom', 'left', 'right'))
                  or (key == 'hiding' and value in ('none', 'autohide', 'dodgewindows', 'windowsgobelow')))
         if not valid:
-            raise ValueError('Ungültige Leisteneinstellung.')
+            raise ValueError(tr('Ungültige Leisteneinstellung.'))
         if selected.get(key) != data['before'].get(key):
-            raise ValueError('Die Leiste wurde inzwischen geändert. Bitte neu laden.')
+            raise ValueError(tr('Die Leiste wurde inzwischen geändert. Bitte neu laden.'))
     if changes:
         saved = backup('panel', selected)
-        script = f'var p=panelById({int(selected["id"])}); if (!p) throw new Error("Leiste fehlt"); '
+        script = f'var p=panelById({int(selected["id"])}); if (!p) throw new Error({json.dumps(tr("Leiste fehlt"))}); '
         script += ' '.join(f'p.{key} = {json.dumps(value)};' for key, value in changes.items())
         run(PLASMA + [script])
         current = next((p for p in panels() if p['id'] == selected['id']), {})
@@ -78,10 +79,10 @@ def change_panel(data, journal=True):
         if journal:
             from lumen_history import record
             from lumen_store import Store
-            record(Store(), 'Systemleiste angepasst', 'panel',
+            record(Store(), tr('Systemleiste angepasst'), 'panel',
                    {key: selected[key] for key in changes}, actual, selected['id'])
         if actual != changes:
-            raise RuntimeError('Plasma hat nicht alle Leisteneinstellungen übernommen. Der Verlauf enthält den tatsächlichen Zustand.')
+            raise RuntimeError(tr('Plasma hat nicht alle Leisteneinstellungen übernommen. Der Verlauf enthält den tatsächlichen Zustand.'))
         return {'backup': str(saved)}
     return {}
 
@@ -89,7 +90,7 @@ def change_panel(data, journal=True):
 def configure_widget(data):
     panel = next((p for p in panels() if p['id'] == data['panel']), None)
     if panel is None or data['widget'] not in [w['id'] for w in panel['widgets']]:
-        raise ValueError('Dieses Element ist nicht mehr vorhanden.')
+        raise ValueError(tr('Dieses Element ist nicht mehr vorhanden.'))
     run(PLASMA + [f'panelById({int(panel["id"])}).widgetById({int(data["widget"])}).showConfigurationInterface();'])
 
 
@@ -121,23 +122,23 @@ def set_shortcut(data, journal=True):
     accel = accelerator()
     action = shortcut_actions(accel).get(data['component'])
     if action is None:
-        raise ValueError('Dieses Lumen-Tastenkürzel ist nicht registriert.')
+        raise ValueError(tr('Dieses Lumen-Tastenkürzel ist nicht registriert.'))
     previous = list(map(int, accel.shortcut(action)))
     if previous != data['before']:
-        raise ValueError('Das Tastenkürzel wurde inzwischen geändert. Bitte neu laden.')
+        raise ValueError(tr('Das Tastenkürzel wurde inzwischen geändert. Bitte neu laden.'))
     key = data['key']
     if type(key) is not int or key < 0 or key > 0x7fffffff:
-        raise ValueError('Ungültiges Tastenkürzel.')
+        raise ValueError(tr('Ungültiges Tastenkürzel.'))
     if key and key not in previous and not accel.isGlobalShortcutAvailable(key, data['component']):
-        raise ValueError('Dieses Tastenkürzel ist bereits belegt. Bitte ein anderes wählen.')
+        raise ValueError(tr('Dieses Tastenkürzel ist bereits belegt. Bitte ein anderes wählen.'))
     keys = [key] if key else []
     result = list(map(int, accel.setShortcut(dbus.Array(action, signature='s'), dbus.Array(keys, signature='i'), dbus.UInt32(4))))
     if result != keys:
-        raise RuntimeError('KDE hat das Tastenkürzel nicht übernommen. Bitte neu laden.')
+        raise RuntimeError(tr('KDE hat das Tastenkürzel nicht übernommen. Bitte neu laden.'))
     if journal:
         from lumen_history import record
         from lumen_store import Store
-        record(Store(), SHORTCUTS[data['component']] + ': Tastenkürzel geändert',
+        record(Store(), SHORTCUTS[data['component']] + tr(': Tastenkürzel geändert'),
                'shortcut' if len(previous) <= 1 else 'activity', previous, result, data['component'])
     return result
 
@@ -156,7 +157,7 @@ def services():
 def set_service(data):
     scope, unit = data['scope'], data['unit']
     if (scope, unit) not in SERVICES or type(data['enabled']) is not bool:
-        raise ValueError('Unbekannter Lumen-Dienst.')
+        raise ValueError(tr('Unbekannter Lumen-Dienst.'))
     # System units use KDE's existing authentication agent, only after a user click.
     command = ['systemctl', '--user'] if scope == 'user' else ['pkexec', '/usr/bin/systemctl']
     run(command + ['enable' if data['enabled'] else 'disable', '--now', unit])
@@ -183,7 +184,7 @@ def write_dropin(unit, text):
 def set_schedule(data):
     unit, clock = data['unit'], data['time']
     if unit not in ('lumen-digest.timer', 'lumen-nightly.timer') or not re.fullmatch(r'(?:[01]\d|2[0-3]):[0-5]\d', clock):
-        raise ValueError('Ungültige Berichtszeit.')
+        raise ValueError(tr('Ungültige Berichtszeit.'))
     active = unit_state('user', unit).get('ActiveState') == 'active'
     write_dropin(unit, f'[Timer]\nOnCalendar=\nOnCalendar=*-*-* {clock}:00\n')
     if active:
@@ -198,12 +199,12 @@ def analysis():
 def set_analysis(data):
     unit = data['unit']
     if unit not in ANALYSIS or type(data['enabled']) is not bool:
-        raise ValueError('Unbekannte Analyse-Einstellung.')
+        raise ValueError(tr('Unbekannte Analyse-Einstellung.'))
     write_dropin(unit, f'[Service]\nEnvironment={ANALYSIS[unit]}={int(data["enabled"])}\n')
 
 
 def themes():
-    return {title: run(['kreadconfig6', '--file', file, '--group', group, '--key', key, '--default', 'Systemstandard'])
+    return {title: run(['kreadconfig6', '--file', file, '--group', group, '--key', key, '--default', tr('Systemstandard')])
             for title, file, group, key in [
                 ('Plasma-Stil', 'plasmarc', 'Theme', 'name'),
                 ('Farbschema', 'kdeglobals', 'General', 'ColorScheme'),
@@ -235,7 +236,7 @@ if __name__ == '__main__':
         if action in ('service', 'schedule', 'analysis'):
             from lumen_history import record
             from lumen_store import Store
-            names = {'service': 'Dienst geändert', 'schedule': 'Zeitplan geändert', 'analysis': 'Automatische Analyse geändert'}
+            names = {'service': tr('Dienst geändert'), 'schedule': tr('Zeitplan geändert'), 'analysis': tr('Automatische Analyse geändert')}
             record(Store(), names[action] + ': ' + data['unit'])
         print(json.dumps(result))
     except Exception as error:

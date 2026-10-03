@@ -2,7 +2,8 @@
 Type=Application
 Name=Lumen
 GenericName=AI System Agent
-Comment=Dein Assistent für Dateien, Aufgaben und Systemstatus
+Comment=Your assistant for files, tasks and system status
+Comment[de]=Dein Assistent für Dateien, Aufgaben und Systemstatus
 Exec=%INSTALL_BIN%/lumen
 Icon=lumen
 Terminal=false

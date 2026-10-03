@@ -20,6 +20,15 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PREFIX="${PREFIX:-${XDG_DATA_HOME:-$HOME/.local/share}/lumen}"
 BIN="$PREFIX/bin"
 
+message() {
+    case "${LUMEN_LANGUAGE:-${LC_ALL:-${LC_MESSAGES:-${LANG:-en}}}}" in
+        de*) printf '%s\n' "$1";;
+        *) printf '%s\n' "$2";;
+    esac
+}
+say() { printf '\033[1;36m==>\033[0m %s\n' "$(message "$1" "$2")"; }
+warn() { printf '\033[1;33m%s:\033[0m %s\n' "$(message Warnung Warning)" "$(message "$1" "$2")"; }
+
 SKIP_TIMER=0
 SKIP_MCP=0
 DESKTOP=0
@@ -28,23 +37,21 @@ for arg in "$@"; do
         --no-timer) SKIP_TIMER=1 ;;
         --no-mcp)   SKIP_MCP=1 ;;
         --desktop)  DESKTOP=1 ;;
-        *) echo "Unbekannte Option: $arg" >&2; exit 2 ;;
+        *) message "Unbekannte Option: $arg" "Unknown option: $arg" >&2; exit 2 ;;
     esac
 done
 
-say() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
-warn() { printf '\033[1;33mWarnung:\033[0m %s\n' "$*"; }
 
 # ---- dependency check ------------------------------------------------------
-say "Prüfe Abhängigkeiten"
+say "Prüfe Abhängigkeiten" "Checking dependencies"
 missing=()
 for c in bash python3; do command -v "$c" >/dev/null 2>&1 || missing+=("$c"); done
-[ ${#missing[@]} -gt 0 ] && { echo "Fehlende Pflicht-Abhängigkeiten: ${missing[*]}" >&2; exit 1; }
+[ ${#missing[@]} -gt 0 ] && { message "Fehlende Pflicht-Abhängigkeiten: ${missing[*]}" "Missing required dependencies: ${missing[*]}" >&2; exit 1; }
 
-/usr/bin/python3 -c "import PyQt5.QtWidgets, PyQt5.QtSvg, gi, PIL" || { echo "Benötigt: PyQt5 mit QtSvg, PyGObject und Pillow" >&2; exit 1; }
+/usr/bin/python3 -c "import PyQt5.QtWidgets, PyQt5.QtSvg, gi, PIL" || { message "Benötigt: PyQt5 mit QtSvg, PyGObject und Pillow" "Required: PyQt5 with QtSvg, PyGObject and Pillow" >&2; exit 1; }
 if [ "$DESKTOP" = 1 ]; then
     for c in qdbus6 kreadconfig6 kwriteconfig6 plasma-apply-desktoptheme kbuildsycoca6; do
-        command -v "$c" >/dev/null || { echo "Desktop-Einrichtung benötigt $c und eine KDE-Plasma-6-Sitzung." >&2; exit 1; }
+        command -v "$c" >/dev/null || { message "Desktop-Einrichtung benötigt $c und eine KDE-Plasma-6-Sitzung." "Desktop setup requires $c and a KDE Plasma 6 session." >&2; exit 1; }
     done
 fi
 
@@ -52,13 +59,13 @@ optional_missing=()
 for c in notify-send dolphin spectacle; do
     command -v "$c" >/dev/null 2>&1 || optional_missing+=("$c")
 done
-[ ${#optional_missing[@]} -gt 0 ] && warn "Optionale Tools fehlen (einzelne Features inaktiv): ${optional_missing[*]}"
+[ ${#optional_missing[@]} -gt 0 ] && warn "Optionale Tools fehlen (einzelne Features inaktiv): ${optional_missing[*]}" "Optional tools missing (some features unavailable): ${optional_missing[*]}"
 if ! command -v opencode >/dev/null 2>&1 && [ ! -x "$HOME/.opencode/bin/opencode" ]; then
-    warn "OpenCode kann anschließend im Einrichtungsassistenten ergänzt werden; Dateien und native Aufträge sind bereits verfügbar."
+    warn "OpenCode kann anschließend im Einrichtungsassistenten ergänzt werden; Dateien und native Aufträge sind bereits verfügbar." "OpenCode can be added in the setup wizard; files and native tasks are already available."
 fi
 
 # ---- copy files ------------------------------------------------------------
-say "Installiere Dateien nach $PREFIX"
+say "Installiere Dateien nach $PREFIX" "Installing files into $PREFIX"
 mkdir -p "$BIN"
 install -m 0755 "$REPO/uninstall.sh" "$PREFIX/uninstall.sh"
 for bin_file in "$REPO/bin/"*; do
@@ -68,6 +75,8 @@ mkdir -p "$PREFIX/agent-app"
 install -m 0644 "$REPO/agent-app/main.py" "$PREFIX/agent-app/"
 mkdir -p "$PREFIX/files"
 install -m 0644 "$REPO/files/"*.py "$REPO/files/"*.qss "$REPO/files/"*.svg "$PREFIX/files/"
+mkdir -p "$PREFIX/files/translations"
+cp -R "$REPO/files/translations/." "$PREFIX/files/translations/"
 mkdir -p "$PREFIX/desktop"
 cp -R "$REPO/desktop/." "$PREFIX/desktop/"
 for plugin in agent islands system search control; do
@@ -76,23 +85,24 @@ for plugin in agent islands system search control; do
     METADATA=metadata.json
     [ "$plugin" = agent ] || METADATA="$plugin-metadata.json"
     install -m 0644 "$REPO/plasmoid/$METADATA" "$APPLET/metadata.json"
-    install -m 0644 "$REPO/plasmoid/contents/ui/"*.qml "$APPLET/contents/ui/"
+    install -m 0644 "$REPO/plasmoid/contents/ui/"*.qml "$REPO/plasmoid/contents/ui/"*.js "$APPLET/contents/ui/"
     install -m 0644 "$REPO/plasmoid/contents/config/"* "$APPLET/contents/config/"
     case "$plugin" in system) SURFACE=home;; search|control) SURFACE="$plugin";; *) SURFACE=tasks;; esac
     sed -i "s|<default>tasks</default>|<default>$SURFACE</default>|" "$APPLET/contents/config/main.xml"
     # Plasma does not inherit additions to an interactive shell's PATH.
-    /usr/bin/python3 - "$APPLET/contents/ui/main.qml" "$BIN/lumen-panel" <<'PYCODE'
+    /usr/bin/python3 - "$APPLET/contents/ui" "$BIN/lumen-panel" <<'PYCODE'
 import json, shlex, sys
 from pathlib import Path
-path = Path(sys.argv[1])
-path.write_text(path.read_text().replace('property string helper: "/usr/bin/lumen-panel"',
-    'property string helper: ' + json.dumps(shlex.quote(sys.argv[2]))))
+for name in ('main.qml', 'ConfigGeneral.qml'):
+    path = Path(sys.argv[1]) / name
+    path.write_text(path.read_text().replace('property string helper: "/usr/bin/lumen-panel"',
+        'property string helper: ' + json.dumps(shlex.quote(sys.argv[2]))))
 PYCODE
 done
 chmod 0755 "$BIN"/lumen-* "$BIN"/lumen_krunner.py "$BIN"/lumen_mcp.py 2>/dev/null || true
 
 # ---- XDG data files --------------------------------------------------------
-say "Installiere Desktop-Integration"
+say "Installiere Desktop-Integration" "Installing desktop integration"
 DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 
@@ -134,7 +144,7 @@ command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$
 if command -v kbuildsycoca6 >/dev/null 2>&1; then
     if [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] && /usr/bin/python3 -c 'import dbus' 2>/dev/null; then
         /usr/bin/python3 "$PREFIX/files/desktop_settings.py" refresh-shortcuts <<< '{}' \
-            || warn "Lumen-Tastenkürzel konnten nicht neu geladen werden; beim nächsten Anmelden erneut prüfen."
+            || warn "Lumen-Tastenkürzel konnten nicht neu geladen werden; beim nächsten Anmelden erneut prüfen." "Lumen shortcuts could not be reloaded; check again after your next login."
     else
         kbuildsycoca6 >/dev/null 2>&1 || true
     fi
@@ -142,11 +152,11 @@ fi
 
 # ---- opencode MCP / commands / skill --------------------------------------
 if [ "$SKIP_MCP" = 0 ]; then
-    say "Verdrahte opencode (MCP / Commands / Skill)"
+    say "Verdrahte opencode (MCP / Commands / Skill)" "Configuring OpenCode (MCP / commands / skill)"
     LUMEN_MCP_PY="$BIN/lumen_mcp.py" LUMEN_SHARE="$REPO" \
-        "$BIN/lumen-setup" || warn "lumen-setup fehlgeschlagen"
+        "$BIN/lumen-setup" || warn "lumen-setup fehlgeschlagen" "lumen-setup failed"
 else
-    say "OpenCode-Konfiguration unverändert (--no-mcp)"
+    say "OpenCode-Konfiguration unverändert (--no-mcp)" "OpenCode configuration unchanged (--no-mcp)"
 fi
 
 # Preserve reports, keep legacy shell imports available, and install opt-in jobs.
@@ -163,21 +173,22 @@ systemctl --user daemon-reload >/dev/null 2>&1 || true
 
 # ---- systemd user timer ----------------------------------------------------
 if [ "$SKIP_TIMER" = 0 ] && command -v systemctl >/dev/null 2>&1; then
-    say "Richte systemd-User-Timer ein"
+    say "Richte systemd-User-Timer ein" "Installing systemd user timer"
     UNITDIR="$CONFIG_HOME/systemd/user"
     mkdir -p "$UNITDIR"
     subst "$REPO/systemd/lumen-watch.service" > "$UNITDIR/lumen-watch.service"
     cp "$REPO/systemd/lumen-watch.timer" "$UNITDIR/lumen-watch.timer"
     systemctl --user daemon-reload >/dev/null 2>&1 || true
-    say "Timer installiert; bestehenden Aktivierungszustand beibehalten."
+    say "Timer installiert; bestehenden Aktivierungszustand beibehalten." "Timer installed; existing activation state preserved."
 fi
 
-say "Fertig."
+say "Fertig." "Done."
 if [ "$DESKTOP" = 1 ]; then
     "$BIN/lumen-desktop-setup" --apply --replace-panels
 else
     "$BIN/lumen-desktop-setup"
 fi
+case "${LUMEN_LANGUAGE:-${LC_ALL:-${LC_MESSAGES:-${LANG:-en}}}}" in de*)
 cat <<EOF
 
 Nächste Schritte:
@@ -196,3 +207,25 @@ Konfiguration (optional, per Umgebungsvariablen):
 
 Deinstallieren:  $PREFIX/uninstall.sh
 EOF
+;;
+*)
+cat <<EOF
+
+Next steps:
+  1. Restart OpenCode to load MCP, commands and skill.
+  2. Reload KRunner if the 'ai <question>' trigger is missing:
+       kquitapp6 krunner
+  3. Start the app:  $BIN/lumen-agent-app
+     or choose "Lumen" in the application menu.
+  4. Activate the desktop when ready (replaces panels after a backup):
+       $BIN/lumen-desktop-setup --apply --replace-panels
+
+Optional environment variables:
+  LUMEN_OPENCODE_BIN      Path to the OpenCode executable
+  LUMEN_WORKDIR           Default working directory
+  LUMEN_WATCH_ANALYZE=0   Disable automatic watcher analysis
+
+Uninstall:  $PREFIX/uninstall.sh
+EOF
+;;
+esac

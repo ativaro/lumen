@@ -21,9 +21,10 @@ def install(repo, data, binaries):
         raise ValueError('Das Starterverzeichnis enthält nicht unterstützte Sonderzeichen.')
     sources = sorted(p for p in (repo/'files').iterdir()
                      if p.suffix in ('.py', '.qss', '.svg') and not p.name.startswith('test_'))
+    sources += sorted((repo/'files/translations').rglob('*.json'))
     if not (repo/'files/tools_app.py').is_file(): raise ValueError('Anwendungsquellen fehlen.')
     digest = hashlib.sha256()
-    for p in sources: digest.update(p.name.encode()); digest.update(p.read_bytes())
+    for p in sources: digest.update(str(p.relative_to(repo/'files')).encode()); digest.update(p.read_bytes())
     runtime = data/'lumen-tools/runtime'/digest.hexdigest()[:20]
     writes = {}
     for tool in TOOLS:
@@ -44,7 +45,9 @@ def install(repo, data, binaries):
     if not runtime.exists():
         with tempfile.TemporaryDirectory(prefix='.install-', dir=runtime.parent) as tmp:
             staged = Path(tmp)/'files'; staged.mkdir()
-            for p in sources: shutil.copy2(p, staged/p.name)
+            for p in sources:
+                target = staged/p.relative_to(repo/'files'); target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(p, target)
             staged.rename(runtime)
     for path, (content, mode) in writes.items():
         path.parent.mkdir(parents=True, exist_ok=True)

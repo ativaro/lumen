@@ -1,6 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=Lumen: Zwischenablage erklären
+Name=Lumen: explain clipboard
+Name[de]=Lumen: Zwischenablage erklären
 Exec=%INSTALL_BIN%/lumen-quick ask-sel
 NoDisplay=true
 StartupNotify=false

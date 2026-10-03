@@ -1,4 +1,5 @@
 """Local OCR and private image-description cache, shared with document tools."""
+from lumen_i18n import tr
 import hashlib
 import json
 import os
@@ -38,7 +39,7 @@ def languages():
     result = subprocess.run(['tesseract', '--list-langs'], capture_output=True, text=True, timeout=10, check=True)
     available = (result.stdout + result.stderr).splitlines()
     selected = [name for name in ('deu', 'eng') if name in available]
-    if not selected: raise ValueError('OCR-Sprachdaten fehlen. In der Einrichtung Deutsch/Englisch installieren.')
+    if not selected: raise ValueError(tr('OCR-Sprachdaten fehlen. In der Einrichtung Deutsch/Englisch installieren.'))
     return '+'.join(selected)
 
 
@@ -85,7 +86,7 @@ def visual_content(path, directory_fd=None, text='', ocr=False, thumbnail_dir=No
             image.convert('RGB').save(thumbnail, quality=85)
         current = os.stat(path.name if directory_fd is not None else path, dir_fd=directory_fd, follow_symlinks=False)
         if signature != stamp(current) or signature != stamp(os.fstat(source.fileno())):
-            raise ValueError('Datei während der Inhaltssuche verändert.')
+            raise ValueError(tr('Datei während der Inhaltssuche verändert.'))
         if cache: save_cache(path, signature, **{k: v for k, v in cache.items() if k != 'stamp'})
         content = cache.get('ocr', text)
         if cache.get('caption'): content += '\n' + cache['caption']

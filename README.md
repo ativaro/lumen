@@ -1,5 +1,37 @@
 # Lumen — AI-first desktop for CachyOS
 
+## Install → setup wizard
+
+**Arch/CachyOS · KDE Plasma 6 · run as your normal user.**
+This repository is currently **private**. With Git installed and your GitHub
+account authorized to access `ativaro/lumen`, run from a directory without a
+`lumen` checkout:
+
+```bash
+git clone https://github.com/ativaro/lumen.git && bash lumen/bootstrap.sh --local
+```
+
+The installer prepares missing dependencies, installs Lumen locally and opens
+the graphical wizard for AI, speech and desktop setup. Git authentication is
+handled by your Git credential helper; never put a token in the command or README.
+For an existing checkout: `git -C lumen pull --ff-only && bash lumen/bootstrap.sh --local`.
+See [installation and recovery](INSTALL.md).
+
+**Deutsch / English:** choose **Settings → Lumen → Interface language**, or select
+a language in the setup wizard. System language is the default. Reopen apps to
+apply a change; desktop panels pick it up when Plasma starts again.
+
+<details>
+<summary>Public download command — available only after the repository becomes public</summary>
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ativaro/lumen/main/bootstrap.sh | bash
+```
+
+This unauthenticated command cannot download a private repository. It is shown
+here for a future public release; the repository remains private.
+</details>
+
 Lumen is an AI extension for CachyOS, combining conversations, file management,
 durable tasks, selected knowledge, reusable workflows and system diagnostics.
 [OpenCode](https://opencode.ai) is the background engine; the product and package
@@ -145,19 +177,20 @@ Existing windows gain supervision when restarted. No additional system service i
 
 ### One command → setup wizard (Arch / CachyOS)
 
-Run in a logged-in KDE Plasma 6 session, as your normal user:
+For the current private repository, use the authenticated clone command at the
+top of this README. Inside a logged-in Plasma session, an existing clone needs:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ativaro/lumen/main/bootstrap.sh | bash
+bash lumen/bootstrap.sh --local
 ```
 
-This downloads Lumen, installs missing Python/Qt dependencies (with sudo when
+This uses your local checkout, installs missing Python/Qt dependencies (with sudo when
 needed), copies the applications into `~/.local/share/lumen`, and opens the native
-setup wizard. No Git checkout or build tools are needed. The wizard completes
+setup wizard. No build tools are needed for Lumen itself. The wizard completes
 OpenCode/provider setup, optional speech features and desktop activation. Choose
 a theme and **Lumen-Desktop aktivieren** to apply panels, wallpaper and decorations
 after a backup; skipping this step keeps the current desktop. The script needs
-`curl`, internet access and an existing Plasma desktop. Re-running opens the wizard
+internet access and an existing Plasma desktop. Re-running opens the wizard
 again and preserves personal settings and models. See [INSTALL.md](INSTALL.md).
 
 ### Arch / CachyOS — system-wide package
@@ -315,7 +348,10 @@ install-system.sh         optional root-only tweaks
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+The current license for Lumen-authored code is MIT — see [LICENSE](LICENSE).
+The repository remains private. The maintainer is evaluating noncommercial use
+with separately agreed commercial rights; this is not yet a license change.
+See [the licensing plan and dependency constraints](LICENSE-PLAN.md).
 
 ## System-wide install (Arch / CachyOS)
 

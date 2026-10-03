@@ -1,4 +1,5 @@
 """Bounded local image indexing and explainable review candidates; never deletes."""
+from lumen_i18n import tr
 import argparse
 from datetime import datetime
 import json
@@ -39,7 +40,7 @@ class BackgroundGate:
         if self.override or time.monotonic() - self.checked < 5: return
         from lumen_hardware import background_reason
         while reason := background_reason(self.store):
-            emit(status=reason + ' · wird automatisch fortgesetzt', paused=True)
+            emit(status=reason + tr(' · wird automatisch fortgesetzt'), paused=True)
             time.sleep(5)
         self.checked = time.monotonic()
 
@@ -47,14 +48,14 @@ class BackgroundGate:
 def images(root, limit=10000):
     """No hidden folders/symlinks, bounded enumeration, errors are reported."""
     count = 0
-    def error(exc): emit(status='Ordner nicht lesbar: ' + str(exc.filename))
+    def error(exc): emit(status=tr('Ordner nicht lesbar: ') + str(exc.filename))
     for folder, dirs, files in os.walk(root, followlinks=False, onerror=error):
         count += len(dirs)
         dirs[:] = sorted(d for d in dirs if not d.startswith('.') and not (Path(folder) / d).is_symlink())
         for name in sorted(files):
             count += 1
             if count > limit:
-                emit(status=f'Grenze von {limit} Dateien erreicht. Bitte einen kleineren Unterordner wählen.', limited=True)
+                emit(status=tr('Grenze von {0} Dateien erreicht. Bitte einen kleineren Unterordner wählen.', limit), limited=True)
                 return
             path = Path(folder) / name
             if not name.startswith('.') and path.suffix.lower() in SUFFIXES and not path.is_symlink(): yield path
@@ -62,13 +63,13 @@ def images(root, limit=10000):
 
 def read_image(path):
     from PIL import Image, ImageOps
-    if path.resolve() != path: raise ValueError('Verknüpfung übersprungen')
+    if path.resolve() != path: raise ValueError(tr('Verknüpfung übersprungen'))
     with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
         info = os.fstat(stream.fileno()); stamp = file_stamp(info)
-        if not stat.S_ISREG(info.st_mode) or info.st_size > 128 * 1024 * 1024: raise ValueError('Bild zu groß')
+        if not stat.S_ISREG(info.st_mode) or info.st_size > 128 * 1024 * 1024: raise ValueError(tr('Bild zu groß'))
         with Image.open(stream) as source:
             if source.width * source.height > 80_000_000 or getattr(source, 'n_frames', 1) != 1:
-                raise ValueError('Bild zu groß oder animiert')
+                raise ValueError(tr('Bild zu groß oder animiert'))
             exif = source.getexif()
             try: details = exif.get_ifd(34665)
             except (ValueError, KeyError, TypeError): details = {}
@@ -79,7 +80,7 @@ def read_image(path):
                     'camera': str(exif.get(272, '')), 'software': str(exif.get(305, ''))}
             source.thumbnail((1024, 1024))
             image = ImageOps.exif_transpose(source).convert('RGB')
-        if stamp != file_stamp(path.stat()): raise ValueError('Bild inzwischen verändert')
+        if stamp != file_stamp(path.stat()): raise ValueError(tr('Bild inzwischen verändert'))
     return image, meta
 
 
@@ -104,7 +105,7 @@ def tidy(root, gate):
             photos.append(dict(meta, path=str(path), score=score, fingerprint=fingerprint))
             image.close()
         except (OSError, ValueError): errors += 1
-        if len(photos) % 20 == 0: emit(status=f'{len(photos)} Bilder geprüft · {errors} übersprungen')
+        if len(photos) % 20 == 0: emit(status=tr('{0} Bilder geprüft · {1} übersprungen', len(photos), errors))
     ordered = sorted((p for p in photos if p['taken'] is not None), key=lambda p:p['taken'])
     groups = []
     for p in ordered:
@@ -116,13 +117,13 @@ def tidy(root, gate):
     for i, group in enumerate(g for g in groups if len(g) > 1):
         best = max(group, key=lambda p:p['score'])
         for p in group:
-            emit(item={**p, 'group': f'Bildserie {i+1}', 'reason': 'Höchster Detailwert der Serie · behalten prüfen' if p is best else 'Ähnliches Motiv innerhalb von 3 Sekunden'})
+            emit(item={**p, 'group': tr('Bildserie {0}', i + 1), 'reason': tr('Höchster Detailwert der Serie · behalten prüfen') if p is best else tr('Ähnliches Motiv innerhalb von 3 Sekunden')})
     for p in photos:
         if p['score'] < 35:
-            emit(item={**p, 'group': 'Wenig Details', 'reason': 'Möglicherweise unscharf · ruhige Motive können ebenfalls hier erscheinen'})
+            emit(item={**p, 'group': tr('Wenig Details'), 'reason': tr('Möglicherweise unscharf · ruhige Motive können ebenfalls hier erscheinen')})
         if any(s in (Path(p['path']).name + ' ' + p['software']).casefold() for s in ('screenshot', 'bildschirmfoto', 'spectacle', 'screencapture')):
-            emit(item={**p, 'group': 'Screenshots', 'reason': 'Dateiname oder Metadaten weisen auf eine Bildschirmaufnahme hin'})
-    emit(done=True, status=f'{len(photos)} Bilder geprüft · {errors} übersprungen · nichts automatisch ausgewählt')
+            emit(item={**p, 'group': tr('Screenshots'), 'reason': tr('Dateiname oder Metadaten weisen auf eine Bildschirmaufnahme hin')})
+    emit(done=True, status=tr('{0} Bilder geprüft · {1} übersprungen · nichts automatisch ausgewählt', len(photos), errors))
 
 
 def model(kind):
@@ -136,21 +137,21 @@ def model(kind):
 def install_models():
     from huggingface_hub import snapshot_download
     for kind, name, revision in MODELS:
-        emit(status='Lokales Bildsuchmodell herunterladen: ' + kind)
+        emit(status=tr('Lokales Bildsuchmodell herunterladen: ') + kind)
         snapshot_download(name, revision=revision, local_dir=runtime()/kind,
                           allow_patterns=['*.json', '*.txt', '*.safetensors', 'README.md', 'LICENSE*'],
                           ignore_patterns=['onnx/*', 'openvino/*'])
     from PIL import Image
     image = model('image').encode([Image.new('RGB', (224,224), 'blue')], normalize_embeddings=True)
     text = model('text').encode(['Ein blaues Bild'], normalize_embeddings=True)
-    if image.shape != text.shape or image.shape != (1, 512): raise ValueError('Bildmodellprüfung fehlgeschlagen')
+    if image.shape != text.shape or image.shape != (1, 512): raise ValueError(tr('Bildmodellprüfung fehlgeschlagen'))
     (runtime()/'ready-v1').write_text(MODEL_VERSION)
-    emit(done=True, status='Lokale Bildsuche mit deutschen Suchbegriffen ist bereit.')
+    emit(done=True, status=tr('Lokale Bildsuche mit deutschen Suchbegriffen ist bereit.'))
 
 
 def search(root, query, gate):
     import numpy as np
-    gate.wait(); emit(status='Lokale Bildmodelle laden …')
+    gate.wait(); emit(status=tr('Lokale Bildmodelle laden …'))
     encoder = model('image')
     directory = state_path(); directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     dbpath = directory / 'photos.sqlite3'
@@ -171,17 +172,17 @@ def search(root, query, gate):
                     with db: db.execute('INSERT OR REPLACE INTO images VALUES (?,?,?,?)', (str(path), json.dumps(stamp), MODEL_VERSION, vector.tobytes()))
                 if vector.shape == (512,) and np.isfinite(vector).all(): candidates.append((str(path), stamp, vector))
             except (OSError, ValueError): errors += 1
-            if len(candidates) % 10 == 0: emit(status=f'{len(candidates)} Bilder im lokalen Index · {errors} übersprungen')
+            if len(candidates) % 10 == 0: emit(status=tr('{0} Bilder im lokalen Index · {1} übersprungen', len(candidates), errors))
         del encoder
-        gate.wait(); emit(status='Bildmotive vergleichen …')
+        gate.wait(); emit(status=tr('Bildmotive vergleichen …'))
         needle = model('text').encode([query], normalize_embeddings=True)[0]
         ranked = sorted(((float(vector @ needle), path, stamp) for path, stamp, vector in candidates), reverse=True)
         for score, path, stamp in ranked[:100]:
             try:
                 if file_stamp(Path(path).stat()) != stamp or Path(path).resolve() != Path(path): continue
             except OSError: continue
-            emit(item={'path':path, 'stamp':stamp, 'group':f'Ähnlichkeit {score:.2f}', 'reason':'Motivähnlichkeit · kein Sicherheitswert'})
-        emit(done=True, status=f'{len(candidates)} Bilder lokal verglichen · {errors} übersprungen · beste Motive zuerst')
+            emit(item={'path':path, 'stamp':stamp, 'group':tr('Ähnlichkeit {0:.2f}', score), 'reason':tr('Motivähnlichkeit · kein Sicherheitswert')})
+        emit(done=True, status=tr('{0} Bilder lokal verglichen · {1} übersprungen · beste Motive zuerst', len(candidates), errors))
     finally: db.close()
 
 
@@ -194,11 +195,11 @@ def main():
         except OSError: pass
         if args.action == 'install': install_models(); return 0
         root = Path(args.directory).expanduser().resolve(strict=True)
-        if not root.is_dir(): raise ValueError('Bitte einen erreichbaren Ordner auswählen.')
+        if not root.is_dir(): raise ValueError(tr('Bitte einen erreichbaren Ordner auswählen.'))
         gate = BackgroundGate(args.override)
         if args.action == 'tidy': tidy(root, gate)
         else:
-            if not args.query.strip(): raise ValueError('Bitte ein Bildmotiv eingeben.')
+            if not args.query.strip(): raise ValueError(tr('Bitte ein Bildmotiv eingeben.'))
             search(root, args.query[:500], gate)
         return 0
     except Exception as error:

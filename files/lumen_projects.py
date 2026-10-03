@@ -1,4 +1,5 @@
 """Desktop projects extend the existing file-room document, without copying files."""
+from lumen_i18n import tr
 import time
 import uuid
 
@@ -13,12 +14,12 @@ def projects(store):
 
 
 def save_project(store, previous, name, sources, applications, urls, note, state=None):
-    if not 1 <= len(sources) <= 24: raise ValueError('Bitte 1 bis 24 Projektordner angeben.')
+    if not 1 <= len(sources) <= 24: raise ValueError(tr('Bitte 1 bis 24 Projektordner angeben.'))
     sources = [dict(label=title(s['label']), location=canonical(s['location'])) for s in sources]
     if any(virtual(s['location']) for s in sources) or len({s['location'] for s in sources}) != len(sources):
-        raise ValueError('Bitte unterschiedliche lokale Ordner oder Netzwerkordner verwenden.')
+        raise ValueError(tr('Bitte unterschiedliche lokale Ordner oder Netzwerkordner verwenden.'))
     if len(applications) > 20 or len(urls) > 20 or len(note) > 10000:
-        raise ValueError('Bis zu 20 Programme, 20 Webseiten und 10.000 Zeichen Notiz sind möglich.')
+        raise ValueError(tr('Bis zu 20 Programme, 20 Webseiten und 10.000 Zeichen Notiz sind möglich.'))
     for app in applications: desktop_file(app)
     urls = list(dict.fromkeys(web_url(url) for url in urls))
     value = dict(previous or {}, id=previous['id'] if previous else uuid.uuid4().hex,
@@ -27,7 +28,7 @@ def save_project(store, previous, name, sources, applications, urls, note, state
     value['state'] = state if state is not None else (previous or {}).get('state', {
         'tabs': [s['location'] for s in sources], 'active': 0, 'shelf': []})
     Catalog(store).put('room', value, previous)
-    record(store, 'Projekt gespeichert: ' + value['name'], 'store-setting', previous, value,
+    record(store, tr('Projekt gespeichert: ') + value['name'], 'store-setting', previous, value,
            'files/spaces/room/' + value['id'])
     return value
 

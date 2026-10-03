@@ -5,6 +5,8 @@ from pathlib import Path
 import signal
 import sys
 import tempfile
+from lumen_i18n import worker_process, tr
+
 from PyQt5.QtCore import QProcess, QSettings, QTimer, Qt, QRectF, QSize
 from PyQt5.QtGui import QColor, QPen, QPixmap
 from PyQt5.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QFileDialog,
@@ -15,7 +17,7 @@ from PyQt5.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, Q
 class PageCanvas(QGraphicsView):
     def __init__(self, parent):
         super().__init__(parent); self.owner = parent; self.setScene(QGraphicsScene(self)); self.page = None; self.origin = None; self.rubber = None
-        self.setAccessibleName('PDF-Seitenvorschau · Schwärzungsbereiche mit der Maus aufziehen')
+        self.setAccessibleName(tr('PDF-Seitenvorschau · Schwärzungsbereiche mit der Maus aufziehen'))
 
     def display(self, path, item):
         self.scene().clear(); self.page = item; self.rubber = None; self.origin = None
@@ -54,7 +56,7 @@ class PageCanvas(QGraphicsView):
             if rect.width() > 3 and rect.height() > 3:
                 value = self.page.data(Qt.UserRole); value['boxes'].append([rect.left()/self.area.width(),rect.top()/self.area.height(),rect.right()/self.area.width(),rect.bottom()/self.area.height()]); self.page.setData(Qt.UserRole,value)
                 self.rubber.setBrush(QColor(0,0,0,225)); self.rubber.setPen(QPen(QColor('#111111')))
-                self.owner.status.setText('Bereich markiert. Erst der PDF-Export entfernt den Inhalt dauerhaft.')
+                self.owner.status.setText(tr('Bereich markiert. Erst der PDF-Export entfernt den Inhalt dauerhaft.'))
             else: self.scene().removeItem(self.rubber)
             self.rubber = None; return
         super().mouseReleaseEvent(event)
@@ -63,48 +65,47 @@ class PageCanvas(QGraphicsView):
 class DocumentWorkshop(QDialog):
     def __init__(self, paths=(), parent=None):
         super().__init__(parent); self.proc = None; self.temp = tempfile.TemporaryDirectory(prefix='lumen-workshop-')
-        self.setWindowTitle('Dokumentenwerkstatt'); self.resize(1150,850)
+        self.setWindowTitle(tr('Dokumentenwerkstatt')); self.resize(1150,850)
         layout = QVBoxLayout(self); layout.setContentsMargins(24,20,24,18); layout.setSpacing(14)
-        title = QLabel('Dokumentenwerkstatt'); title.setObjectName('heading'); layout.addWidget(title)
+        title = QLabel(tr('Dokumentenwerkstatt')); title.setObjectName('heading'); layout.addWidget(title)
         row = QHBoxLayout(); layout.addLayout(row)
         self.controls = []
-        for title, callback in [('PDFs hinzufügen …', self.add), ('Seite entfernen', self.remove), ('Drehen', self.rotate), ('Markierungen löschen', self.clear_boxes)]:
+        for title, callback in [(tr('PDFs hinzufügen …'), self.add), (tr('Seite entfernen'), self.remove), (tr('Drehen'), self.rotate), (tr('Markierungen löschen'), self.clear_boxes)]:
             button = QPushButton(title); button.clicked.connect(callback); row.addWidget(button); self.controls.append(button)
-        self.redact = QCheckBox('Schwärzen'); row.addWidget(self.redact); self.controls.append(self.redact)
+        self.redact = QCheckBox(tr('Schwärzen')); row.addWidget(self.redact); self.controls.append(self.redact)
         splitter = QSplitter(); layout.addWidget(splitter,1)
         self.pages = QListWidget(); self.pages.setObjectName('workshopPages'); self.pages.setSpacing(5); self.pages.setSelectionMode(QAbstractItemView.ExtendedSelection); self.pages.setDragDropMode(QAbstractItemView.InternalMove)
-        self.pages.setAccessibleName('PDF-Seiten · ziehen zum Umordnen · mehrere markieren zum Extrahieren'); splitter.addWidget(self.pages)
+        self.pages.setAccessibleName(tr('PDF-Seiten · ziehen zum Umordnen · mehrere markieren zum Extrahieren')); splitter.addWidget(self.pages)
         self.canvas = PageCanvas(self); splitter.addWidget(self.canvas); splitter.setSizes([290,850])
         self.pages.currentItemChanged.connect(self.preview)
         row = QHBoxLayout(); layout.addLayout(row)
-        self.ocr = QCheckBox('Scans durchsuchbar machen · lokal'); row.addWidget(self.ocr)
-        self.dpi = QComboBox(); self.dpi.addItems(['150 dpi','200 dpi','300 dpi']); self.dpi.setCurrentIndex(1); self.dpi.setAccessibleName('Qualität für Schwärzungen und Texterkennung'); row.addWidget(self.dpi)
-        for title, callback in [('Auswahl als PDF …', lambda: self.save(True)), ('Alles als PDF …', lambda: self.save(False))]:
+        self.ocr = QCheckBox(tr('Scans durchsuchbar machen · lokal')); row.addWidget(self.ocr)
+        self.dpi = QComboBox(); self.dpi.addItems(['150 dpi','200 dpi','300 dpi']); self.dpi.setCurrentIndex(1); self.dpi.setAccessibleName(tr('Qualität für Schwärzungen und Texterkennung')); row.addWidget(self.dpi)
+        for title, callback in [(tr('Auswahl als PDF …'), lambda: self.save(True)), (tr('Alles als PDF …'), lambda: self.save(False))]:
             button = QPushButton(title); button.clicked.connect(callback); row.addWidget(button); self.controls.append(button)
-        self.cancel = QPushButton('Abbrechen'); self.cancel.clicked.connect(self.cancel_process); self.cancel.hide(); row.addWidget(self.cancel)
-        hint = QLabel('Seiten ziehen zum Ordnen · Strg+Mausrad zum Zoomen · Export immer als neue PDF.\n'
-                      'Geschwärzte Seiten werden neu als Bild aufgebaut; mit Texterkennung erhalten sie eine neue Textebene.'); hint.setWordWrap(True); layout.addWidget(hint)
-        self.status = QLabel('PDFs hinzufügen, um zu beginnen.'); self.status.setWordWrap(True); layout.addWidget(self.status)
+        self.cancel = QPushButton(tr('Abbrechen')); self.cancel.clicked.connect(self.cancel_process); self.cancel.hide(); row.addWidget(self.cancel)
+        hint = QLabel(tr('Seiten ziehen zum Ordnen · Strg+Mausrad zum Zoomen · Export immer als neue PDF.\nGeschwärzte Seiten werden neu als Bild aufgebaut; mit Texterkennung erhalten sie eine neue Textebene.')); hint.setWordWrap(True); layout.addWidget(hint)
+        self.status = QLabel(tr('PDFs hinzufügen, um zu beginnen.')); self.status.setWordWrap(True); layout.addWidget(self.status)
         self.timer = QTimer(self); self.timer.setSingleShot(True); self.timer.timeout.connect(self.timeout)
         if paths: QTimer.singleShot(0, lambda: self.load(list(paths)))
 
     def add(self):
-        paths, _ = QFileDialog.getOpenFileNames(self, 'PDFs hinzufügen', str(Path.home()), 'PDF (*.pdf)')
+        paths, _ = QFileDialog.getOpenFileNames(self, tr('PDFs hinzufügen'), str(Path.home()), 'PDF (*.pdf)')
         if paths: self.load(paths)
 
     def load(self, paths):
         def loaded(pages):
             for page in pages:
-                item = QListWidgetItem(Path(page['path']).name + f" · Seite {page['page'] + 1}"); item.setSizeHint(QSize(240,48)); item.setData(Qt.UserRole,page); item.setToolTip(page['path']); self.pages.addItem(item)
-            self.status.setText(f'{self.pages.count()} Seiten · Originaldateien unverändert')
+                item = QListWidgetItem(Path(page['path']).name + tr(' · Seite {0}', page['page'] + 1)); item.setSizeHint(QSize(240,48)); item.setData(Qt.UserRole,page); item.setToolTip(page['path']); self.pages.addItem(item)
+            self.status.setText(tr('{0} Seiten · Originaldateien unverändert', self.pages.count()))
             if self.pages.currentRow() < 0: self.pages.setCurrentRow(0)
         self.run(dict(action='inspect', paths=paths), loaded)
 
     def run(self, request, callback):
         if self.proc: return
-        proc = QProcess(self); self.proc = proc; self.buffer = b''; self.result = None; self.error = ''
+        proc = worker_process(self); self.proc = proc; self.buffer = b''; self.result = None; self.error = ''
         for widget in self.controls + [self.pages, self.ocr, self.dpi]: widget.setEnabled(False)
-        self.cancel.show(); self.canvas.setEnabled(False); self.status.setText('PDF wird verarbeitet …')
+        self.cancel.show(); self.canvas.setEnabled(False); self.status.setText(tr('PDF wird verarbeitet …'))
         def read():
             self.buffer += bytes(proc.readAllStandardOutput())
             while b'\n' in self.buffer:
@@ -120,7 +121,7 @@ class DocumentWorkshop(QDialog):
             read(); self.proc = None; self.timer.stop(); self.cancel.hide(); self.canvas.setEnabled(True)
             for widget in self.controls + [self.pages, self.ocr, self.dpi]: widget.setEnabled(True)
             proc.deleteLater()
-            if code or self.result is None: self.status.setText(self.error or 'Vorgang unterbrochen. Originale sind unverändert.')
+            if code or self.result is None: self.status.setText(self.error or tr('Vorgang unterbrochen. Originale sind unverändert.'))
             else: callback(self.result)
         proc.readyReadStandardOutput.connect(read); proc.finished.connect(done)
         proc.errorOccurred.connect(lambda e: done(1) if e == QProcess.FailedToStart else None)
@@ -151,11 +152,11 @@ class DocumentWorkshop(QDialog):
 
     def save(self, selected):
         pages = [self.pages.item(i).data(Qt.UserRole) for i in range(self.pages.count()) if not selected or self.pages.item(i).isSelected()]
-        if not pages: self.status.setText('Bitte mindestens eine Seite auswählen.'); return
-        path, _ = QFileDialog.getSaveFileName(self, 'Neue PDF speichern', str(Path(pages[0]['path']).with_name('Bearbeitet.pdf')), 'PDF (*.pdf)')
+        if not pages: self.status.setText(tr('Bitte mindestens eine Seite auswählen.')); return
+        path, _ = QFileDialog.getSaveFileName(self, tr('Neue PDF speichern'), str(Path(pages[0]['path']).with_name(tr('Bearbeitet.pdf'))), 'PDF (*.pdf)')
         if not path: return
         if not path.lower().endswith('.pdf'): path += '.pdf'
-        self.run(dict(action='export',pages=pages,target=path,ocr=self.ocr.isChecked(),dpi=int(self.dpi.currentText().split()[0])), lambda target: self.status.setText('Gespeichert und geprüft: ' + target))
+        self.run(dict(action='export',pages=pages,target=path,ocr=self.ocr.isChecked(),dpi=int(self.dpi.currentText().split()[0])), lambda target: self.status.setText(tr('Gespeichert und geprüft: ') + target))
 
     def cancel_process(self):
         if self.proc:
@@ -166,7 +167,7 @@ class DocumentWorkshop(QDialog):
             else: self.proc.kill()
             self.proc.waitForFinished(1000)
 
-    def timeout(self): self.error = 'Zeitlimit erreicht. Originale bleiben unverändert.'; self.cancel_process()
+    def timeout(self): self.error = tr('Zeitlimit erreicht. Originale bleiben unverändert.'); self.cancel_process()
 
     def done(self, result):
         self.cancel_process(); self.temp.cleanup(); super().done(result)

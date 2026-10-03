@@ -1,4 +1,5 @@
 """Generate native Plasma variants from the installed Lumen artwork and app palette."""
+from lumen_i18n import tr
 import configparser
 import gzip
 import json
@@ -15,19 +16,19 @@ ARTWORK = Path(__file__).resolve().parent.parent / 'desktop'
 
 def prepare(name, destination=None, source=None):
     if name not in dict((value, title) for title, value in DESIGNS):
-        raise ValueError('Unbekanntes Lumen-Theme.')
+        raise ValueError(tr('Unbekanntes Lumen-Theme.'))
     destination = Path(destination or Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local/share')) / 'plasma/desktoptheme')
     identity = 'org.lumen.' + name
     target = destination / identity
     if target.exists():
         metadata = json.loads((target / 'metadata.json').read_text())
         if metadata.get('X-Lumen-Generated') != 1:
-            raise ValueError('Vorhandenes eigenes Plasma-Theme wird nicht überschrieben: ' + str(target))
+            raise ValueError(tr('Vorhandenes eigenes Plasma-Theme wird nicht überschrieben: ') + str(target))
         return target
     source = Path(source) if source else next((path for path in [ARTWORK / 'plasma/LumenDock', destination / 'LumenDock',
         Path('/usr/share/plasma/desktoptheme/default')] if path.is_dir()), None)
     if source is None:
-        raise ValueError('Die native Plasma-Theme-Vorlage wurde nicht gefunden.')
+        raise ValueError(tr('Die native Plasma-Theme-Vorlage wurde nicht gefunden.'))
     destination.mkdir(parents=True, exist_ok=True)
     window, base, alternate, text, button, border, muted, accent, on_accent = COLORS[name]
     with tempfile.TemporaryDirectory(prefix='.lumen-theme-', dir=destination) as temporary:
@@ -35,7 +36,7 @@ def prepare(name, destination=None, source=None):
         shutil.copytree(source, stage)
         metadata = json.loads((stage / 'metadata.json').read_text())
         metadata['KPlugin'].update(Id=identity, Name='Lumen · ' + dict((value, title) for title, value in DESIGNS)[name],
-                                  Description='Gemeinsames Lumen-Theme für Leisten und Panels', Version='1.2.0')
+                                  Description=tr('Gemeinsames Lumen-Theme für Leisten und Panels'), Version='1.2.0')
         metadata['X-Lumen-Generated'] = 1
         (stage / 'metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
         config = configparser.ConfigParser(); config.optionxform = str
@@ -84,24 +85,24 @@ def apply(data):
     selected_decoration = {'library': 'org.kde.kwin.aurorae.v2', 'theme': '__aurorae__svg__' + decoration.name}
     previous = run(['kreadconfig6', '--file', 'plasmarc', '--group', 'Theme', '--key', 'name', '--default', 'default'])
     if data.get('expected') and previous != data['expected']:
-        raise ValueError('Der Plasma-Stil wurde inzwischen geändert. Rückgängig wurde nicht ausgeführt.')
+        raise ValueError(tr('Der Plasma-Stil wurde inzwischen geändert. Rückgängig wurde nicht ausgeführt.'))
     if data.get('expected') and previous_decoration != {
             'library': selected_decoration['library'], 'theme': '__aurorae__svg__' + data['expected']}:
-        raise ValueError('Die Fensterdekoration wurde inzwischen geändert. Rückgängig wurde nicht ausgeführt.')
+        raise ValueError(tr('Die Fensterdekoration wurde inzwischen geändert. Rückgängig wurde nicht ausgeführt.'))
     if previous != target.name or previous_decoration != selected_decoration:
         backup('appearance', {'before': previous, 'after': target.name,
                               'decoration_before': previous_decoration, 'decoration_after': selected_decoration})
     if previous != target.name:
         subprocess.run(['plasma-apply-desktoptheme', target.name], check=True, capture_output=True, text=True, timeout=15)
         current = run(['kreadconfig6', '--file', 'plasmarc', '--group', 'Theme', '--key', 'name'])
-        if current != target.name: raise ValueError('Plasma hat das Theme nicht übernommen.')
+        if current != target.name: raise ValueError(tr('Plasma hat das Theme nicht übernommen.'))
     if previous_decoration != selected_decoration:
         try:
             for key, value in selected_decoration.items():
                 run(['kwriteconfig6'] + group + ['--key', key, value])
             run(['qdbus6', 'org.kde.KWin', '/KWin', 'org.kde.KWin.reconfigure'])
             if any(run(['kreadconfig6'] + group + ['--key', key]) != value for key, value in selected_decoration.items()):
-                raise ValueError('KWin hat die Fensterdekoration nicht übernommen.')
+                raise ValueError(tr('KWin hat die Fensterdekoration nicht übernommen.'))
         except Exception:
             for key, value in previous_decoration.items():
                 run(['kwriteconfig6'] + group + ['--key', key, value])
@@ -114,18 +115,18 @@ def prepare_decoration(name, destination=None, source=None):
     """Keep the installed Aurorae geometry/buttons; match active and inactive colors."""
     titles = {value: title for title, value in DESIGNS}
     if name not in titles:
-        raise ValueError('Unbekanntes Lumen-Theme.')
+        raise ValueError(tr('Unbekanntes Lumen-Theme.'))
     destination = Path(destination or Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local/share')) / 'aurorae/themes')
     identity = 'org.lumen.' + name
     target = destination / identity
     if target.exists():
         if json.loads((target / 'metadata.json').read_text()).get('X-Lumen-Generated') != 1:
-            raise ValueError('Vorhandene eigene Fensterdekoration wird nicht überschrieben: ' + str(target))
+            raise ValueError(tr('Vorhandene eigene Fensterdekoration wird nicht überschrieben: ') + str(target))
         return target
     source = Path(source) if source else next((path for path in [ARTWORK / 'aurorae/LumenGraphite',
         destination / 'LumenGraphite', destination / 'LumenDark'] if path.is_dir()), None)
     if source is None:
-        raise ValueError('Die Lumen-Fensterdekoration muss zuerst installiert sein.')
+        raise ValueError(tr('Die Lumen-Fensterdekoration muss zuerst installiert sein.'))
     window, _, _, text, _, _, muted, _, _ = COLORS[name]
     destination.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.lumen-decoration-', dir=destination) as temporary:
@@ -133,7 +134,7 @@ def prepare_decoration(name, destination=None, source=None):
         shutil.copytree(source, stage)
         metadata = json.loads((stage / 'metadata.json').read_text())
         metadata['KPlugin'].update(Id=identity, Name='Lumen · ' + titles[name],
-                                  Description='Fensterdekoration passend zum Lumen-Theme')
+                                  Description=tr('Fensterdekoration passend zum Lumen-Theme'))
         metadata['X-Lumen-Generated'] = 1
         (stage / 'metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
         desktop = stage / 'metadata.desktop'

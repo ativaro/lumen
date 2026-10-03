@@ -1,4 +1,5 @@
 """Shared task overview and dismissal of completed/cancelled tasks for Plasma."""
+from lumen_i18n import tr, language
 from contextlib import closing
 import fcntl
 import json
@@ -13,7 +14,7 @@ from lumen_store import STATES, VISIBLE_TASKS, Store, state_path
 
 def valid_task(value):
     if not re.fullmatch('[0-9a-f]{32}', value):
-        raise ValueError('Ungültige Auftragskennung.')
+        raise ValueError(tr('Ungültige Auftragskennung.'))
     return value
 
 
@@ -32,7 +33,7 @@ def running(directory, task):
 
 def snapshot(directory=None):
     directory = Path(directory) if directory is not None else state_path()
-    result = {'active': [], 'recent': [], 'busy': False, 'attention': False, 'error': ''}
+    result = {'active': [], 'recent': [], 'busy': False, 'attention': False, 'error': '', 'language': language()}
     path = directory / 'lumen.sqlite3'
     if not path.exists(): return result
     try:
@@ -40,7 +41,7 @@ def snapshot(directory=None):
             db.row_factory = sqlite3.Row
             db.execute('BEGIN')
             if db.execute('PRAGMA user_version').fetchone()[0] > 2:
-                raise ValueError('Die Auftragsdaten benötigen eine neuere Lumen-Version.')
+                raise ValueError(tr('Die Auftragsdaten benötigen eine neuere Lumen-Version.'))
             columns = '''id, substr(title,1,200) AS title, status, updated, cursor,
                 json_array_length(steps) AS total, substr(result,1,1600) AS result,
                 length(result)>1600 AS truncated, substr(error,1,500) AS error,
@@ -54,7 +55,7 @@ def snapshot(directory=None):
                     valid_task(row['id'])
                     if (row['status'] == 'running' or row['status'] == 'needs_input' and row['engine']) and not running(directory, row['id']):
                         row['status'] = 'interrupted'
-                        row['error'] = 'Ausführung beendet. Letzten Stand in Lumen prüfen.'
+                        row['error'] = tr('Ausführung beendet. Letzten Stand in Lumen prüfen.')
                     row['state'] = STATES[row['status']]
                     row['cursor'] = max(0, min(row['cursor'], row['total']))
                     result[key].append(row)
@@ -62,7 +63,7 @@ def snapshot(directory=None):
             result['attention'] = any(row['status'] == 'needs_input' for row in result['active'])
     except (OSError, sqlite3.Error, ValueError) as exc:
         result.update(active=[], recent=[], busy=False, attention=False,
-                      error='Aufträge gerade nicht lesbar. ' + str(exc)[:200])
+                      error=tr('Aufträge gerade nicht lesbar. ') + str(exc)[:200])
     return result
 
 
@@ -70,6 +71,7 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description='Lumen-Panel')
     group = parser.add_mutually_exclusive_group()
+    group.add_argument('--language', action='store_true')
     group.add_argument('--snapshot', action='store_true')
     group.add_argument('--system-snapshot', action='store_true')
     group.add_argument('--control', choices=['volume', 'brightness', 'mute', 'search', 'network', 'audio', 'display', 'appearance', 'hardware', 'desktop-settings', 'lock'])
@@ -81,10 +83,12 @@ def main():
     group.add_argument('--voice', action='store_true')
     group.add_argument('--settings', action='store_true')
     args = parser.parse_args()
+    if args.language:
+        print(json.dumps({'language': language()})); return
     if args.dismiss_task:
         error = ''
         try: Store().dismiss_task(args.dismiss_task)
-        except (OSError, sqlite3.Error, ValueError) as exc: error = 'Aufgabe konnte nicht geschlossen werden. ' + str(exc)[:200]
+        except (OSError, sqlite3.Error, ValueError) as exc: error = tr('Aufgabe konnte nicht geschlossen werden. ') + str(exc)[:200]
         result = snapshot()
         if error: result['error'] = error
         print(json.dumps(result, ensure_ascii=False)); return
@@ -92,9 +96,9 @@ def main():
         from lumen_controls import snapshot as system_snapshot, control
         try:
             if args.control: control(args.control, args.value)
-            print(json.dumps({'system': system_snapshot(), 'error': ''}, ensure_ascii=False))
+            print(json.dumps({'system': system_snapshot(), 'error': '', 'language': language()}, ensure_ascii=False))
         except (OSError, subprocess.SubprocessError, ValueError):
-            print(json.dumps({'error': 'Systemaktion fehlgeschlagen. Bitte erneut versuchen.'}))
+            print(json.dumps({'error': tr('Systemaktion fehlgeschlagen. Bitte erneut versuchen.')}))
         return
     if args.open_task or args.open_page or args.search or args.voice or args.settings:
         name = 'lumen-search' if args.search or args.voice else 'lumen-settings' if args.settings else 'lumen-agent-app'

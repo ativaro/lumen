@@ -37,9 +37,14 @@ elif name=='qdbus6': sys.exit(1 if os.environ.get('TEST_FAIL')=='desktop' else 0
             for name in ('id', 'curl', 'pacman', 'sudo', 'qdbus6'):
                 path = mock / name; path.write_text(helper); path.chmod(0o755)
             script = (REPO / 'bootstrap.sh').read_text()
+            with tarfile.open(fixture) as archive:
+                archive.extractall(root, filter='data')
+            checkout = root / 'lumen-main'
+            (checkout / 'bootstrap.sh').write_text(script)
             cases = ({}, {'TEST_PACKAGES': 'ready'}, {'TEST_FAIL': 'download'},
                      {'TEST_FAIL': 'packages'}, {'TEST_FAIL': 'desktop'},
-                     {'TEST_UID': '0'}, {'XDG_CURRENT_DESKTOP': 'GNOME'}, {'DISPLAY': ''})
+                     {'TEST_UID': '0'}, {'XDG_CURRENT_DESKTOP': 'GNOME'}, {'DISPLAY': ''},
+                     {'TEST_LOCAL': '1', 'TEST_FAIL': 'download', 'TEST_PACKAGES': 'ready'})
             for index, overrides in enumerate(cases):
                 with self.subTest(overrides=overrides):
                     folder = root / str(index); folder.mkdir(); scratch = folder / 'tmp'; scratch.mkdir()
@@ -51,14 +56,20 @@ elif name=='qdbus6': sys.exit(1 if os.environ.get('TEST_FAIL')=='desktop' else 0
                                XDG_CURRENT_DESKTOP='KDE', DISPLAY=':test', WAYLAND_DISPLAY='',
                                DBUS_SESSION_BUS_ADDRESS='unix:path=/test/not-a-real-bus')
                     env.update(overrides)
-                    result = subprocess.run(['bash'], input=script, text=True, env=env,
+                    local = overrides.get('TEST_LOCAL') == '1'
+                    command = ['bash', str(checkout / 'bootstrap.sh'), '--local'] if local else ['bash']
+                    result = subprocess.run(command, input=None if local else script, text=True, env=env,
                                             capture_output=True, timeout=20)
                     log = events.read_text() if events.exists() else ''
-                    success = index < 2
+                    success = index < 2 or local
                     self.assertEqual(result.returncode == 0, success, result.stderr)
                     self.assertEqual('wizard\n' in log, success, log)
                     self.assertEqual(personal.read_bytes(), b'personal')
                     self.assertEqual(list(scratch.iterdir()), [])
+                    if local:
+                        self.assertNotIn('"curl"', log)
+                        self.assertNotIn('"sudo"', log)
+                        self.assertTrue((checkout / 'install.sh').is_file())
                     if index == 0:
                         self.assertIn('"--noconfirm"', log)
                     elif index in (1, 2, 5, 6, 7):

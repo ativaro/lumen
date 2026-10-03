@@ -1,4 +1,5 @@
 """Local, inspectable memory and explicitly shared notebook context."""
+from lumen_i18n import tr
 import hashlib
 import json
 import os
@@ -8,7 +9,7 @@ import sys
 import time
 from wissen_data import Notebook,clear_draft,excerpt,search
 
-KINDS={'preference':'Vorliebe','fact':'Fakt','decision':'Entscheidung'}
+KINDS={'preference':tr('Vorliebe'),'fact':tr('Fakt'),'decision':tr('Entscheidung')}
 DEFAULTS={'enabled':False,'learn':False}
 
 
@@ -42,15 +43,15 @@ class Memory:
         for note in result['notes']:note['memory']=records.get(note['path'],dict(kind='fact',scope='',automatic=False,updated=0))
         return dict(result,options=options(self.store))
 
-    def remember(self,title,text='',source='Von mir',kind='fact',scope='',automatic=False,evidence='',path='',expected=''):
-        if kind not in KINDS or not isinstance(text,str) or (automatic and not text.strip()) or len(text)>20000:raise ValueError('Gültiger Gedächtniseintrag erforderlich (maximal 20.000 Zeichen).')
+    def remember(self,title,text='',source=tr('Von mir'),kind='fact',scope='',automatic=False,evidence='',path='',expected=''):
+        if kind not in KINDS or not isinstance(text,str) or (automatic and not text.strip()) or len(text)>20000:raise ValueError(tr('Gültiger Gedächtniseintrag erforderlich (maximal 20.000 Zeichen).'))
         with self.book.lock('memory-state.lock'):
             return self._remember(title,text,source,kind,scope,automatic,evidence,path,expected)
 
     def _remember(self,title,text,source,kind,scope,automatic,evidence,path,expected):
         records=self.store.setting('memory/records',{});old=records.get(path,{})
         if path:
-            if automatic and (not old.get('automatic') or old.get('hash')!=expected):raise ValueError('Manuell bearbeitete Erinnerung bleibt erhalten.')
+            if automatic and (not old.get('automatic') or old.get('hash')!=expected):raise ValueError(tr('Manuell bearbeitete Erinnerung bleibt erhalten.'))
             note=self.book.write(path,'# '+title.strip()+'\n\n'+text,expected,source)
         else:note=self.book.create(title,text,source)
         records[note['path']]=dict(kind=kind,scope=scope,automatic=automatic,evidence=evidence[:500],created=old.get('created',time.time()),updated=time.time(),hash=note['hash'])
@@ -72,7 +73,7 @@ class Memory:
     def forget(self,path,expected):
         with self.book.lock('memory-state.lock'):
             note=self.book.read(path)
-            if note['hash']!=expected:raise ValueError('CONFLICT: Erinnerung wurde geändert. Neu laden, bevor sie vergessen wird.')
+            if note['hash']!=expected:raise ValueError(tr('CONFLICT: Erinnerung wurde geändert. Neu laden, bevor sie vergessen wird.'))
             records=self.store.setting('memory/records',{});meta=records.pop(path,{})
             blocked=set(self.store.setting('memory/forgotten',[]))
             blocked.update(fingerprint(t) for t in (note['title'],note['text'],meta.get('evidence','')) if t)
@@ -92,7 +93,7 @@ class Memory:
         with self.book.lock('memory-state.lock'):
             rules=self.store.setting('memory/shares',[])
             rules=[r for r in rules if (r['root'],r['path'],r['directory'])!=(str(book.root),str(relative),bool(directory))]
-            if len(rules)>=500:raise ValueError('Maximal 500 individuelle Freigaben. Bitte vorhandene Regeln zusammenfassen.')
+            if len(rules)>=500:raise ValueError(tr('Maximal 500 individuelle Freigaben. Bitte vorhandene Regeln zusammenfassen.'))
             rules.append(dict(root=str(book.root),identity=book.identity,path=str(relative),allow=bool(allow),directory=bool(directory)))
             self.store.set_setting('memory/shares',rules);self.changed(True)
         return rules
@@ -109,19 +110,19 @@ class Memory:
         blocked=set(self.store.setting('memory/forgotten',[]))
         notes=[n for n in self.scan()['notes'] if fingerprint(n['title']) not in blocked and (not n['memory'].get('scope') or Path(directory).is_relative_to(n['memory']['scope']))]
         ranked=search(notes,query,6);ranked+=[n for n in notes if n not in ranked and n['memory'].get('kind')=='preference']
-        selected=[dict(n,text=excerpt(n['text'],query,1600),origin='Lumen-Gedächtnis') for n in ranked[:6]]
+        selected=[dict(n,text=excerpt(n['text'],query,1600),origin=tr('Lumen-Gedächtnis')) for n in ranked[:6]]
         result['candidates']=[dict(path=n['path'],title=n['title'],text=n['text'][:1800],hash=n['hash'],memory=n['memory']) for n in ranked[:8]]
         if self.store.setting('knowledge/notebook','') and self.store.setting('memory/shares',[]):
             try:
                 book=Notebook(self.store);shared=[n for n in book.scan()['notes'] if self.shared(book,n['path'])]
-                selected.extend(dict(n,text=excerpt(n['text'],query,1600),origin='Freigegebene Notiz') for n in search(shared,query,4))
-            except (OSError,ValueError) as error:result['warning']='Freigegebene Notizen nicht erreichbar: '+str(error)
+                selected.extend(dict(n,text=excerpt(n['text'],query,1600),origin=tr('Freigegebene Notiz')) for n in search(shared,query,4))
+            except (OSError,ValueError) as error:result['warning']=tr('Freigegebene Notizen nicht erreichbar: ')+str(error)
         selected=selected[:10];result['notes']=[dict(path=n['path'],title=n['title'],origin=n['origin']) for n in selected]
-        result['context']='\n\n'.join(f"[{i+1}] {n['origin']} · {n['title']}\nHerkunft: {n['source'][:250]}\n{n['text']}" for i,n in enumerate(selected))[:18000]
+        result['context']='\n\n'.join(tr('[{0}] {1} · {2}\nHerkunft: {3}\n{4}' , i+1, n['origin'], n['title'], n['source'][:250], n['text']) for i,n in enumerate(selected))[:18000]
         return result
 
     def apply(self,items,user_text,directory,source,candidates,revision):
-        if not isinstance(items,list) or len(items)>3:raise ValueError('Ungültiger Gedächtnisvorschlag.')
+        if not isinstance(items,list) or len(items)>3:raise ValueError(tr('Ungültiger Gedächtnisvorschlag.'))
         if not options(self.store)['enabled'] or not options(self.store)['learn']:return 0
         allowed={n['path']:n for n in candidates};saved=0
         with self.book.lock('memory-state.lock'):
@@ -155,7 +156,7 @@ def worker(job,store,action,**values):
 def main():
     from lumen_store import Store
     request=json.load(sys.stdin);memory=Memory(Store(request.pop('store')));action=request.pop('action')
-    if action not in ('configure','scan','remember','write','restore','forget','share','prepare','apply'):raise ValueError('Ungültige Gedächtnisaktion.')
+    if action not in ('configure','scan','remember','write','restore','forget','share','prepare','apply'):raise ValueError(tr('Ungültige Gedächtnisaktion.'))
     print(json.dumps(getattr(memory,action)(**request),ensure_ascii=False))
 
 

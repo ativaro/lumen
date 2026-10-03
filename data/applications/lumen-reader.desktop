@@ -1,7 +1,8 @@
 [Desktop Entry]
 Type=Application
 Name=Lumen Reader
-Comment=Bücher, Dokumente und Artikel mit Notizen und lokaler Stimme
+Comment=Books, documents and articles with notes and a local voice
+Comment[de]=Bücher, Dokumente und Artikel mit Notizen und lokaler Stimme
 Exec=%INSTALL_BIN%/lumen-reader %f
 Icon=lumen-reader
 Terminal=false

@@ -1,6 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=Lumen Dateiversionen
+Name=Lumen file versions
+Name[de]=Lumen Dateiversionen
 Exec=%INSTALL_BIN%/lumen-versions
 Icon=lumen-files
 NoDisplay=true

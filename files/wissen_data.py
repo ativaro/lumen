@@ -1,4 +1,5 @@
 """Portable Markdown notebooks. Local drafts/history are private recovery data."""
+from lumen_i18n import tr
 from contextlib import contextmanager
 import base64
 import fcntl
@@ -41,7 +42,7 @@ def parse(path,raw):
 def encode(text,source='',legacy=''):
     prefix='<!-- lumen: '+json.dumps(dict(source=source,legacy=legacy),ensure_ascii=False)+' -->\n' if source or legacy else ''
     raw=(prefix+text).encode()
-    if len(raw)>MAX_NOTE:raise ValueError('Notiz größer als 1 MiB. Bitte aufteilen.')
+    if len(raw)>MAX_NOTE:raise ValueError(tr('Notiz größer als 1 MiB. Bitte aufteilen.'))
     return raw
 
 
@@ -79,7 +80,7 @@ class Notebook:
     def __init__(self,store,root=None,create=False,identity=None):
         self.store=store
         chosen=root or store.setting('knowledge/notebook','')
-        if not chosen:raise ValueError('Lumen Wissen zuerst öffnen und einen Notizordner wählen.')
+        if not chosen:raise ValueError(tr('Lumen Wissen zuerst öffnen und einen Notizordner wählen.'))
         self.root=Path(chosen).expanduser()
         if create:self.root.mkdir(parents=True,exist_ok=True,mode=0o700)
         self.root=self.root.resolve(strict=True)
@@ -87,7 +88,7 @@ class Notebook:
         self.history=Library('wissen-history',store.directory)
 
     def context(self,paths,query):
-        if not 1<=len(paths)<=8:raise ValueError('Eine bis acht Quellen auswählen.')
+        if not 1<=len(paths)<=8:raise ValueError(tr('Eine bis acht Quellen auswählen.'))
         return [dict(note,text=excerpt(note['text'],query)) for note in (self.read(p) for p in dict.fromkeys(paths))]
 
     @contextmanager
@@ -95,9 +96,9 @@ class Notebook:
         fd=os.open(self.root,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
         try:
             st=os.fstat(fd)
-            if [st.st_dev,st.st_ino]!=self.identity:raise ValueError('Der Notizordner wurde ersetzt oder getrennt. Erneut auswählen.')
+            if [st.st_dev,st.st_ino]!=self.identity:raise ValueError(tr('Der Notizordner wurde ersetzt oder getrennt. Erneut auswählen.'))
             part=Path(relative)
-            if part.is_absolute() or '..' in part.parts:raise ValueError('Pfad außerhalb des Notizordners.')
+            if part.is_absolute() or '..' in part.parts:raise ValueError(tr('Pfad außerhalb des Notizordners.'))
             child=folder_fd(fd,part)
             try:yield child
             finally:os.close(child)
@@ -111,7 +112,7 @@ class Notebook:
 
     def relative(self,path):
         path=Path(path)
-        if path.is_absolute() or '..' in path.parts or not path.parts or any(p.startswith('.') for p in path.parts) or path.suffix.lower()!='.md':raise ValueError('Bitte eine Markdown-Notiz innerhalb des gewählten Ordners wählen.')
+        if path.is_absolute() or '..' in path.parts or not path.parts or any(p.startswith('.') for p in path.parts) or path.suffix.lower()!='.md':raise ValueError(tr('Bitte eine Markdown-Notiz innerhalb des gewählten Ordners wählen.'))
         return path
 
     def raw(self,path):
@@ -119,9 +120,9 @@ class Notebook:
         with self.directory(path.parent) as parent:
             fd=os.open(path.name,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=parent)
             try:
-                if not stat.S_ISREG(os.fstat(fd).st_mode):raise ValueError('Keine reguläre Notizdatei.')
+                if not stat.S_ISREG(os.fstat(fd).st_mode):raise ValueError(tr('Keine reguläre Notizdatei.'))
                 with os.fdopen(os.dup(fd),'rb') as stream:raw=stream.read(MAX_NOTE+1)
-                if len(raw)>MAX_NOTE:raise ValueError('Notiz größer als 1 MiB.')
+                if len(raw)>MAX_NOTE:raise ValueError(tr('Notiz größer als 1 MiB.'))
                 return raw
             finally:os.close(fd)
 
@@ -129,21 +130,21 @@ class Notebook:
 
     def image(self,path):
         path=Path(path)
-        if path.is_absolute() or '..' in path.parts or any(p.startswith('.') for p in path.parts) or path.suffix.lower() not in ('.png','.jpg','.jpeg','.webp','.gif'):raise ValueError('Kein lokales Notizbild.')
+        if path.is_absolute() or '..' in path.parts or any(p.startswith('.') for p in path.parts) or path.suffix.lower() not in ('.png','.jpg','.jpeg','.webp','.gif'):raise ValueError(tr('Kein lokales Notizbild.'))
         with self.directory(path.parent) as parent:
             fd=os.open(path.name,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=parent)
             with os.fdopen(fd,'rb') as stream:
-                if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):raise ValueError('Kein reguläres Bild.')
+                if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):raise ValueError(tr('Kein reguläres Bild.'))
                 raw=stream.read(16*1024**2+1)
-        if len(raw)>16*1024**2:raise ValueError('Bild größer als 16 MiB.')
+        if len(raw)>16*1024**2:raise ValueError(tr('Bild größer als 16 MiB.'))
         return raw
 
     def add_image(self,path):
         from PIL import Image,ImageOps
         source=Path(path)
-        if source.stat().st_size>20*1024**2:raise ValueError('Bild größer als 20 MiB.')
+        if source.stat().st_size>20*1024**2:raise ValueError(tr('Bild größer als 20 MiB.'))
         with Image.open(source) as image:
-            if image.width*image.height>36_000_000:raise ValueError('Bild größer als 36 Megapixel.')
+            if image.width*image.height>36_000_000:raise ValueError(tr('Bild größer als 36 Megapixel.'))
             image=ImageOps.exif_transpose(image);image.thumbnail((2400,2400));image=image.convert('RGBA')
             with self.directory() as root:
                 try:os.mkdir('attachments',0o700,dir_fd=root)
@@ -201,7 +202,7 @@ class Notebook:
         with self.lock():
             try:before=self.raw(path)
             except FileNotFoundError:before=None
-            if (digest(before) if before is not None else '')!=expected:raise ValueError('CONFLICT: Die Datei wurde außerhalb dieses Fensters geändert. Entwurf bleibt erhalten.')
+            if (digest(before) if before is not None else '')!=expected:raise ValueError(tr('CONFLICT: Die Datei wurde außerhalb dieses Fensters geändert. Entwurf bleibt erhalten.'))
             old=parse(str(path),before) if before is not None else {}
             raw=encode(text,old.get('source','') if source is None else source,old.get('legacy','') if legacy is None else legacy)
             if before==raw:return parse(str(path),raw)
@@ -213,7 +214,7 @@ class Notebook:
                     with os.fdopen(fd,'wb') as stream:stream.write(raw);stream.flush();os.fsync(stream.fileno())
                     try:latest=self.raw(path)
                     except FileNotFoundError:latest=None
-                    if latest!=before:raise ValueError('CONFLICT: Die Datei wurde während des Speicherns geändert.')
+                    if latest!=before:raise ValueError(tr('CONFLICT: Die Datei wurde während des Speicherns geändert.'))
                     os.replace(temporary,path.name,src_dir_fd=parent,dst_dir_fd=parent);os.fsync(parent)
                 finally:
                     try:os.unlink(temporary,dir_fd=parent)
@@ -223,14 +224,14 @@ class Notebook:
     def create_collection(self,name):
         name=name.strip()
         if not name or name.startswith('.') or re.search(r'[/\\\x00-\x1f\x7f]',name) or len(name.encode())>200 or name=='attachments':
-            raise ValueError('Bitte einen Sammlungsnamen ohne Schrägstriche eingeben (nicht versteckt oder „attachments“).')
+            raise ValueError(tr('Bitte einen Sammlungsnamen ohne Schrägstriche eingeben (nicht versteckt oder „attachments“).'))
         with self.lock(),self.directory() as parent:
             os.mkdir(name,mode=0o700,dir_fd=parent);os.fsync(parent)
         return name
 
     def create(self,title,text='',source='',legacy='',folder='.'):
         title=' '.join(title.split()).strip()[:200]
-        if not title:raise ValueError('Bitte einen Titel eingeben.')
+        if not title:raise ValueError(tr('Bitte einen Titel eingeben.'))
         stem=re.sub(r'[^\w .-]','-',title).strip('. ')[:100] or 'Notiz'
         path=str(Path(folder)/(stem+'-'+uuid.uuid4().hex[:8]+'.md'))
         return self.write(path,'# '+title+'\n\n'+text,'',source,legacy)
@@ -238,7 +239,7 @@ class Notebook:
     def remove(self,path,expected):
         with self.lock():
             raw=self.raw(path)
-            if digest(raw)!=expected:raise ValueError('CONFLICT: Die Notiz wurde geändert. Neu laden, bevor sie entfernt wird.')
+            if digest(raw)!=expected:raise ValueError(tr('CONFLICT: Die Notiz wurde geändert. Neu laden, bevor sie entfernt wird.'))
             key=self.backup(path,raw);path=self.relative(path)
             with self.directory(path.parent) as parent:os.unlink(path.name,dir_fd=parent)
             return key
@@ -248,7 +249,7 @@ class Notebook:
 
     def restore(self,key,expected):
         row=self.history.get(key)
-        if row['root']!=str(self.root):raise ValueError('Die Sicherung gehört zu einem anderen Ordner.')
+        if row['root']!=str(self.root):raise ValueError(tr('Die Sicherung gehört zu einem anderen Ordner.'))
         note=parse(row['path'],self.history.asset(row['asset']).read_bytes())
         return self.write(row['path'],note['text'],expected,note['source'],note['legacy'])
 
@@ -261,7 +262,7 @@ class Notebook:
     def memory_path(self,memory):
         if memory.endswith('.md'):return memory
         imported=self.store.setting('knowledge/imports',{}).get(memory,{})
-        if imported.get('root')!=str(self.root):raise ValueError('Die alte Erinnerung zuerst in Lumen Wissen öffnen.')
+        if imported.get('root')!=str(self.root):raise ValueError(tr('Die alte Erinnerung zuerst in Lumen Wissen öffnen.'))
         return imported['path']
 
     def migrate(self):
@@ -318,7 +319,7 @@ def main():
         book=Notebook(store,root,identity=request.pop('identity',None))
         if action=='scan':book.migrate();result=book.scan()
         elif action in ('read','write','create','create_collection','remove','versions','restore','capture','add_image','preview','context'):result=getattr(book,action)(**request)
-        else:raise ValueError('Unbekannte Notizaktion.')
+        else:raise ValueError(tr('Unbekannte Notizaktion.'))
     print(json.dumps(result,ensure_ascii=False))
 
 

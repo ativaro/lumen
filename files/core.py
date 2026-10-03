@@ -1,4 +1,5 @@
 """Local search and filesystem operations; no shell or permanent deletion."""
+from lumen_i18n import tr
 import mimetypes
 import os
 import shutil
@@ -42,7 +43,7 @@ def size_text(size):
 
 def valid_name(name):
     if not name or name in {'.', '..'} or '/' in name or '\x00' in name:
-        raise ValueError('Bitte einen gültigen Namen ohne / eingeben.')
+        raise ValueError(tr('Bitte einen gültigen Namen ohne / eingeben.'))
     return name
 
 
@@ -81,10 +82,10 @@ def search_paths(root, query, hidden, stop, progress=None):
 
 def check_destination(source, destination):
     if os.path.lexists(destination):
-        raise FileExistsError(f'„{destination.name}“ existiert bereits. Nichts überschrieben.')
+        raise FileExistsError(tr('„{0}“ existiert bereits. Nichts überschrieben.', destination.name))
     if source.is_dir() and not source.is_symlink():
         if destination.resolve().is_relative_to(source.resolve()):
-            raise ValueError('Ein Ordner kann nicht in sich selbst kopiert oder verschoben werden.')
+            raise ValueError(tr('Ein Ordner kann nicht in sich selbst kopiert oder verschoben werden.'))
 
 
 def move_entry(source, destination, atomic=False, progress=None):
@@ -125,7 +126,7 @@ def copy_entry(source, target_dir, portable=False, progress=None):
                 fd = os.open(src, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
                 with os.fdopen(fd, 'rb') as reader:
                     if not stat.S_ISREG(os.fstat(reader.fileno()).st_mode):
-                        raise ValueError('Nur reguläre Dateien werden kopiert.')
+                        raise ValueError(tr('Nur reguläre Dateien werden kopiert.'))
                     with open(dest, 'xb') as writer:
                         while chunk := reader.read(1024 * 1024):
                             writer.write(chunk); progress(len(chunk))
@@ -192,11 +193,11 @@ class FileWorker(QThread):
                            str(self.target) if self.target else None, self.portable, expected=self.expected)
             process = start(store, value)
             while value['status'] in ACTIVE:
-                self.progress.emit(value['current'] or 'Übertragung wird vorbereitet …')
+                self.progress.emit(value['current'] or tr('Übertragung wird vorbereitet …'))
                 time.sleep(.3)
                 value = store.setting(PREFIX + value['id'])
                 if process.poll() is not None and value['status'] in ACTIVE:
-                    raise RuntimeError('Transferprozess wurde unterbrochen. Ziel vor erneutem Versuch prüfen.')
+                    raise RuntimeError(tr('Transferprozess wurde unterbrochen. Ziel vor erneutem Versuch prüfen.'))
             self.completed.emit(value['done'], value['errors'])
         except Exception as error:
             self.completed.emit([], [str(error)])

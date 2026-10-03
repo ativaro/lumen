@@ -1,4 +1,5 @@
 """Safe local Markdown and a small, native notebook connection map."""
+from lumen_i18n import tr
 import math
 import base64
 from pathlib import Path
@@ -21,7 +22,7 @@ class NotePreview(QTextBrowser):
     def __init__(self,parent=None):
         super().__init__(parent);self.book=None;self.notes={};self.origin='';self.images={};self.setDocument(NoteDocument(self))
         self.setOpenLinks(False);self.setOpenExternalLinks(False);self.anchorClicked.connect(self.follow)
-        self.setAccessibleName('Notizvorschau mit lokalen Verknüpfungen')
+        self.setAccessibleName(tr('Notizvorschau mit lokalen Verknüpfungen'))
         self.fit_timer=QTimer(self);self.fit_timer.setSingleShot(True);self.fit_timer.setInterval(80);self.fit_timer.timeout.connect(self.fit_images)
 
     def display(self,book,note,notes,images=None):
@@ -98,7 +99,7 @@ class KnowledgeMap(QGraphicsView):
     noteRequested=pyqtSignal(str)
     def __init__(self):
         super().__init__();self.setScene(QGraphicsScene(self));self.setRenderHints(self.renderHints()|QPainter.Antialiasing)
-        self.setDragMode(QGraphicsView.ScrollHandDrag);self.setAccessibleName('Wissenskarte; dieselben Verbindungen sind in der Notizliste per Tastatur erreichbar')
+        self.setDragMode(QGraphicsView.ScrollHandDrag);self.setAccessibleName(tr('Wissenskarte; dieselben Verbindungen sind in der Notizliste per Tastatur erreichbar'))
     def display(self,notes,current):
         scene=self.scene();scene.clear()
         if not notes:return

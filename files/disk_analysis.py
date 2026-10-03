@@ -3,6 +3,8 @@ import heapq
 import os
 from pathlib import Path
 
+from lumen_i18n import worker_process, tr
+
 from PyQt5.QtCore import QFileInfo, QProcess, QRectF, Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QIcon
 from PyQt5.QtWidgets import (QCheckBox, QDialog, QFileDialog, QHBoxLayout, QHeaderView,
@@ -49,32 +51,32 @@ class DiskAnalysis(QDialog):
         self.path = os.path.abspath(path)
         self.resize(1000, 740)
         self.setMinimumSize(720, 480)
-        self.setWindowTitle('Lumen · Speicheranalyse')
+        self.setWindowTitle(tr('Lumen · Speicheranalyse'))
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 20, 24, 18)
         heading = QHBoxLayout()
-        heading.addWidget(label('Was braucht Platz?', 'heading'), 1)
-        choose = QPushButton('Ordner wählen')
+        heading.addWidget(label(tr('Was braucht Platz?'), 'heading'), 1)
+        choose = QPushButton(tr('Ordner wählen'))
         choose.clicked.connect(self.choose)
         heading.addWidget(choose)
-        self.refresh_button = QPushButton('Neu analysieren')
+        self.refresh_button = QPushButton(tr('Neu analysieren'))
         self.refresh_button.clicked.connect(self.restart)
         heading.addWidget(self.refresh_button)
-        self.stop_button = QPushButton('Stoppen')
+        self.stop_button = QPushButton(tr('Stoppen'))
         self.stop_button.clicked.connect(self.stop)
         heading.addWidget(self.stop_button)
         layout.addLayout(heading)
         self.location = label(self.path, 'fileLocation')
         self.location.setTextInteractionFlags(Qt.TextSelectableByMouse)
         layout.addWidget(self.location)
-        self.apparent = QCheckBox('Dateigröße statt belegtem Speicher')
+        self.apparent = QCheckBox(tr('Dateigröße statt belegtem Speicher'))
         self.apparent.setChecked(apparent)
         self.apparent.toggled.connect(self.restart)
         layout.addWidget(self.apparent)
-        layout.addWidget(label('Ordner aufklappen für Details · Anteil am jeweiligen Elternordner · Größte Einträge zuerst', 'muted'))
+        layout.addWidget(label(tr('Ordner aufklappen für Details · Anteil am jeweiligen Elternordner · Größte Einträge zuerst'), 'muted'))
         self.tree = QTreeWidget()
         self.tree.setObjectName('diskTree')
-        self.tree.setHeaderLabels(['Ordner / Datei', 'Belegt', 'Anteil'])
+        self.tree.setHeaderLabels([tr('Ordner / Datei'), tr('Belegt'), tr('Anteil')])
         self.tree.setRootIsDecorated(True)
         self.tree.setUniformRowHeights(True)
         self.tree.setColumnWidth(0, 480)
@@ -93,21 +95,20 @@ class DiskAnalysis(QDialog):
         row = QHBoxLayout()
         self.status = label('', 'muted')
         row.addWidget(self.status, 1)
-        self.error_button = QPushButton('Fehler ansehen')
+        self.error_button = QPushButton(tr('Fehler ansehen'))
         self.error_button.clicked.connect(self.show_errors)
         self.error_button.hide()
         row.addWidget(self.error_button)
-        open_button = QPushButton('Ordner öffnen')
+        open_button = QPushButton(tr('Ordner öffnen'))
         open_button.clicked.connect(lambda: self.open_item(self.tree.currentItem()))
         row.addWidget(open_button)
         layout.addLayout(row)
-        layout.addWidget(label('Versteckte Dateien sind enthalten. Verknüpfungen und andere Dateisysteme werden nicht durchlaufen. '
-                               'Komprimierung und gemeinsam genutzte Datenblöcke können die tatsächliche Belegung abweichen lassen.', 'muted'))
+        layout.addWidget(label(tr('Versteckte Dateien sind enthalten. Verknüpfungen und andere Dateisysteme werden nicht durchlaufen. Komprimierung und gemeinsam genutzte Datenblöcke können die tatsächliche Belegung abweichen lassen.'), 'muted'))
         self.finished.connect(self.stop)
         self.restart()
 
     def choose(self):
-        path = QFileDialog.getExistingDirectory(self, 'Speicher analysieren', self.path)
+        path = QFileDialog.getExistingDirectory(self, tr('Speicher analysieren'), self.path)
         if path:
             self.path = path
             self.restart()
@@ -116,7 +117,7 @@ class DiskAnalysis(QDialog):
         self.stop()
         self.tree.clear()
         self.location.setText(self.path)
-        self.tree.setHeaderLabels(['Ordner / Datei', 'Dateigröße' if self.apparent.isChecked() else 'Belegt', 'Anteil'])
+        self.tree.setHeaderLabels([tr('Ordner / Datei'), tr('Dateigröße') if self.apparent.isChecked() else tr('Belegt'), tr('Anteil')])
         self.root_item = SizeItem(self.tree, [Path(self.path).name or '/', '…', ''])
         self.root_item.setData(0, PATH, self.path)
         self.root_item.setIcon(0, QIcon.fromTheme('folder'))
@@ -145,9 +146,9 @@ class DiskAnalysis(QDialog):
         self.total = None
         self.errors = ''
         self.error_button.hide()
-        self.status.setText('Analysiere ' + self.scan_path + ' …')
+        self.status.setText(tr('Analysiere ') + self.scan_path + ' …')
         self.stop_button.setEnabled(True)
-        proc = QProcess(self)
+        proc = worker_process(self)
         self.proc = proc
         proc.readyReadStandardOutput.connect(self.read_output)
         proc.readyReadStandardError.connect(self.read_errors)
@@ -176,7 +177,7 @@ class DiskAnalysis(QDialog):
                     heapq.heappush(self.entries, entry)
                 else:
                     heapq.heappushpop(self.entries, entry)
-        self.status.setText(f'Analysiere … {self.entry_count:,} direkte Einträge gefunden')
+        self.status.setText(tr('Analysiere … {0:,} direkte Einträge gefunden', self.entry_count))
 
     def read_errors(self):
         if self.proc:
@@ -194,7 +195,7 @@ class DiskAnalysis(QDialog):
             # Metadata on a network mount can block too: keep even type checks off the UI.
             self.visible_paths = {entry[2] for entry in self.entries}
             self.buffer = b''
-            types = QProcess(self)
+            types = worker_process(self)
             self.proc = types
             types.readyReadStandardOutput.connect(self.read_types)
             types.readyReadStandardError.connect(self.read_errors)
@@ -247,12 +248,12 @@ class DiskAnalysis(QDialog):
         self.stop_button.setEnabled(False)
         if code:
             self.errors = self.errors or proc.errorString()
-            self.status.setText('Unvollständig: Einige Einträge konnten nicht gelesen werden. Neu analysieren versucht es erneut.')
+            self.status.setText(tr('Unvollständig: Einige Einträge konnten nicht gelesen werden. Neu analysieren versucht es erneut.'))
             self.error_button.show()
             self.queue.clear()
         else:
-            note = f' · nur die größten 5.000 von {self.entry_count:,} Einträgen angezeigt' if self.entry_count > 5000 else ''
-            self.status.setText(f'{size_text(self.total or 0)} · {self.entry_count:,} direkte Einträge' + note)
+            note = tr(' · nur die größten 5.000 von {0:,} Einträgen angezeigt', self.entry_count) if self.entry_count > 5000 else ''
+            self.status.setText(tr('{0} · {1:,} direkte Einträge', size_text(self.total or 0), self.entry_count) + note)
             if self.apparent.isChecked() and self.total is not None:
                 self.sizesReady.emit({self.scan_path: self.total, **{
                     path: size for size, _order, path in self.entries if path in self.directories}})
@@ -268,7 +269,7 @@ class DiskAnalysis(QDialog):
             proc.waitForFinished(1000)
             proc.deleteLater()
             self.scanning = None
-            self.status.setText('Analyse abgebrochen. Angezeigte Werte können unvollständig sein.')
+            self.status.setText(tr('Analyse abgebrochen. Angezeigte Werte können unvollständig sein.'))
         self.stop_button.setEnabled(False)
 
     def open_item(self, item):
@@ -279,7 +280,7 @@ class DiskAnalysis(QDialog):
             self.accept()
 
     def show_errors(self):
-        box = QMessageBox(QMessageBox.Warning, 'Analyse unvollständig',
-                          'Nicht alle Daten konnten gelesen werden.', QMessageBox.Ok, self)
+        box = QMessageBox(QMessageBox.Warning, tr('Analyse unvollständig'),
+                          tr('Nicht alle Daten konnten gelesen werden.'), QMessageBox.Ok, self)
         box.setDetailedText(self.errors)
         box.exec_()

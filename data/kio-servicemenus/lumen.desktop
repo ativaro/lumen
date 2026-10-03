@@ -9,26 +9,31 @@ X-KDE-Submenu=Lumen
 Icon=lumen
 
 [Desktop Action lumenOpen]
-Name=Mit Lumen öffnen
+Name=Open with Lumen
+Name[de]=Mit Lumen öffnen
 Icon=lumen
 Exec=%INSTALL_BIN%/lumen-context open %F
 
 [Desktop Action lumenExplain]
-Name=Erklären
+Name=Explain
+Name[de]=Erklären
 Icon=help-contents
 Exec=%INSTALL_BIN%/lumen-context explain %F
 
 [Desktop Action lumenFix]
-Name=Fehler beheben
+Name=Fix issues
+Name[de]=Fehler beheben
 Icon=system-run
 Exec=%INSTALL_BIN%/lumen-context fix %F
 
 [Desktop Action lumenReview]
-Name=Änderungen prüfen
+Name=Review changes
+Name[de]=Änderungen prüfen
 Icon=vcs-normal
 Exec=%INSTALL_BIN%/lumen-context review %F
 
 [Desktop Action lumenAsk]
-Name=Lumen: fragen …
+Name=Lumen: ask …
+Name[de]=Lumen: fragen …
 Icon=system-search
 Exec=%INSTALL_BIN%/lumen-context ask %F

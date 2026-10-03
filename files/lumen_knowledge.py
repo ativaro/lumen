@@ -1,4 +1,5 @@
 """Explicit-root local knowledge search, reusing Lumen's bounded text/PDF reader."""
+from lumen_i18n import tr
 import os
 from pathlib import Path
 import time
@@ -16,12 +17,12 @@ def index_root(store, directory, cancelled=lambda: False, pause=lambda: None):
     try:
         while queue and count < 10000 and size < 32 * 1024 * 1024:
             pause()
-            if cancelled(): raise InterruptedError('Indexierung abgebrochen; bisheriger Index bleibt erhalten.')
+            if cancelled(): raise InterruptedError(tr('Indexierung abgebrochen; bisheriger Index bleibt erhalten.'))
             relative = queue.pop(); parent = folder_fd(root_fd, relative)
             try:
                 with os.scandir(parent) as entries:
                     for entry in entries:
-                        if cancelled(): raise InterruptedError('Indexierung abgebrochen.')
+                        if cancelled(): raise InterruptedError(tr('Indexierung abgebrochen.'))
                         count += 1
                         if count % 20 == 0: pause()
                         if count > 10000 or size >= 32 * 1024 * 1024: break

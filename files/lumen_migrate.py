@@ -1,4 +1,5 @@
 """Non-destructive, idempotent migration of legacy Lumen reports."""
+from lumen_i18n import tr
 import os
 from pathlib import Path
 import shutil
@@ -84,8 +85,8 @@ def migrate_launchers(binary_directory):
 
 if __name__ == '__main__':
     import argparse
-    parser = argparse.ArgumentParser(description='Lumen-Benutzerdaten übernehmen')
+    parser = argparse.ArgumentParser(description=tr('Lumen-Benutzerdaten übernehmen'))
     parser.add_argument('--bin')
     args = parser.parse_args(); migrate_user()
     if args.bin:
-        for path in migrate_launchers(args.bin): print('Starter aktualisiert: ' + path)
+        for path in migrate_launchers(args.bin): print(tr('Starter aktualisiert: ') + path)

@@ -1,4 +1,5 @@
 """Shared Lumen transfer tickets and bounded, independently supervised workers."""
+from lumen_i18n import worker_environment, tr
 import json
 import os
 from pathlib import Path
@@ -14,8 +15,8 @@ from lumen_store import Store
 
 PREFIX = 'workplace/transfer/'
 ACTIVE = ('queued', 'running', 'cancelling')
-LABELS = {'queued': 'Wartet', 'running': 'Läuft', 'cancelling': 'Wird angehalten',
-          'paused': 'Angehalten', 'failed': 'Fehlgeschlagen', 'completed': 'Fertig'}
+LABELS = {'queued': tr('Wartet'), 'running': tr('Läuft'), 'cancelling': tr('Wird angehalten'),
+          'paused': tr('Angehalten'), 'failed': tr('Fehlgeschlagen'), 'completed': tr('Fertig')}
 
 
 def tickets(store):
@@ -26,7 +27,7 @@ def tickets(store):
             try: lease = store.acquire('transfer-' + value['id'])
             except BlockingIOError: continue
             try:
-                value.update(update(store, value['id'], status='paused', errors=['Transferprozess wurde unterbrochen. Ziel vor erneutem Versuch prüfen.']))
+                value.update(update(store, value['id'], status='paused', errors=[tr('Transferprozess wurde unterbrochen. Ziel vor erneutem Versuch prüfen.')]))
             finally: os.close(lease)
     return sorted(values, key=lambda v: v['created'], reverse=True)
 
@@ -36,7 +37,7 @@ def update(store, identity, **fields):
     with store.connect() as db:
         db.execute('BEGIN IMMEDIATE')
         row = db.execute('SELECT value FROM settings WHERE key=?', (PREFIX + identity,)).fetchone()
-        if not row: raise ValueError('Transfer nicht gefunden.')
+        if not row: raise ValueError(tr('Transfer nicht gefunden.'))
         value = json.loads(row[0]); value.update(fields, updated=time.time())
         db.execute('UPDATE settings SET value=? WHERE key=?', (json.dumps(value), PREFIX + identity))
     return value
@@ -45,20 +46,20 @@ def update(store, identity, **fields):
 def web_url(url):
     value = urlsplit(url)
     if value.scheme not in ('http', 'https') or not value.hostname or value.username or value.password or any(ord(c) < 32 for c in url):
-        raise ValueError('Bitte eine HTTP(S)-Adresse ohne Zugangsdaten eingeben.')
+        raise ValueError(tr('Bitte eine HTTP(S)-Adresse ohne Zugangsdaten eingeben.'))
     return url
 
 
 def create(store, action, sources, target=None, portable=False, expected=None):
     if action not in ('copy', 'move', 'rename', 'mkdir', 'trash', 'download') or not sources:
-        raise ValueError('Ungültiger Dateivorgang.')
+        raise ValueError(tr('Ungültiger Dateivorgang.'))
     if action == 'download':
-        if len(sources) != 1: raise ValueError('Ein Download benötigt genau eine Adresse.')
+        if len(sources) != 1: raise ValueError(tr('Ein Download benötigt genau eine Adresse.'))
         web_url(sources[0])
     elif any(not os.path.isabs(p) or '\x00' in p for p in sources):
-        raise ValueError('Absolute Dateipfade sind erforderlich.')
+        raise ValueError(tr('Absolute Dateipfade sind erforderlich.'))
     if action in ('copy', 'move', 'rename', 'download') and (not target or not os.path.isabs(target) or '\x00' in target):
-        raise ValueError('Ein absoluter Zielpfad ist erforderlich.')
+        raise ValueError(tr('Ein absoluter Zielpfad ist erforderlich.'))
     value = dict(id=uuid.uuid4().hex, action=action, sources=sources, target=target,
                  portable=portable, status='queued', created=time.time(), updated=time.time(),
                  done=[], errors=[], current='', bytes=0, total=0, cancel=False, expected=expected)
@@ -67,7 +68,7 @@ def create(store, action, sources, target=None, portable=False, expected=None):
 
 
 def start(store, value):
-    env = dict(os.environ, LUMEN_DATA=str(store.directory))
+    env = worker_environment(LUMEN_DATA=str(store.directory))
     return subprocess.Popen([sys.executable, str(Path(__file__)), '--supervise', value['id']],
                             env=env, start_new_session=True, stdin=subprocess.DEVNULL,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -80,7 +81,7 @@ def pause(store, identity):
 def retry(store, identity):
     value = store.setting(PREFIX + identity)
     if not value or value['status'] in ACTIVE or value['status'] == 'completed':
-        raise ValueError('Dieser Transfer kann gerade nicht fortgesetzt werden.')
+        raise ValueError(tr('Dieser Transfer kann gerade nicht fortgesetzt werden.'))
     # Only the supervisor holding this lease may transition the job to running.
     value = update(store, identity, status='queued', cancel=False, errors=[])
     start(store, value)
@@ -88,16 +89,16 @@ def retry(store, identity):
 
 def download(store, value):
     target = Path(value['target'])
-    if os.path.lexists(target): raise FileExistsError('Das Ziel existiert bereits. Nichts überschrieben.')
+    if os.path.lexists(target): raise FileExistsError(tr('Das Ziel existiert bereits. Nichts überschrieben.'))
     if target.parent.resolve() != target.parent:
-        raise ValueError('Das Downloadziel darf nicht durch einen symbolischen Ordner verweisen.')
+        raise ValueError(tr('Das Downloadziel darf nicht durch einen symbolischen Ordner verweisen.'))
     part = target.with_name('.lumen-download-' + value['id'] + '.part')
     validator = value.get('validator', '')
     offset = 0
     if part.exists():
         from lumen_history import fingerprint
         if value.get('partial') != fingerprint(part):
-            raise ValueError('Die unvollständige Datei wurde verändert. Bitte einen neuen Download starten.')
+            raise ValueError(tr('Die unvollständige Datei wurde verändert. Bitte einen neuen Download starten.'))
         offset = part.stat().st_size if validator else 0
     headers = {'Accept-Encoding': 'identity', 'User-Agent': 'Lumen/1.2'}
     if offset: headers.update(Range=f'bytes={offset}-', **{'If-Range': validator})
@@ -109,12 +110,12 @@ def download(store, value):
         if offset and response.status == 206:
             match = re.fullmatch(r'bytes (\d+)-(\d+)/(\d+)', response.headers.get('Content-Range', ''))
             if not match or int(match[1]) != offset or new_validator != validator:
-                raise ValueError('Der Server bestätigt die Fortsetzung nicht. Download wurde angehalten.')
+                raise ValueError(tr('Der Server bestätigt die Fortsetzung nicht. Download wurde angehalten.'))
             total = int(match[3])
         elif response.status == 200:
             offset = 0
             total = int(response.headers.get('Content-Length', '0'))
-        else: raise ValueError('Unerwartete Antwort des Downloadservers.')
+        else: raise ValueError(tr('Unerwartete Antwort des Downloadservers.'))
         flags = os.O_WRONLY | os.O_NOFOLLOW | (os.O_APPEND if offset else os.O_TRUNC)
         flags |= 0 if part.exists() else os.O_CREAT | os.O_EXCL
         fd = os.open(part, flags, 0o600)
@@ -128,7 +129,7 @@ def download(store, value):
                     update(store, value['id'], bytes=offset)
                     last = time.monotonic()
             stream.flush(); os.fsync(stream.fileno())
-        if total and offset != total: raise ValueError('Download unvollständig; Fortsetzen ist möglich.')
+        if total and offset != total: raise ValueError(tr('Download unvollständig; Fortsetzen ist möglich.'))
     from core import move_entry
     move_entry(part, target, atomic=True)
     update(store, value['id'], bytes=offset, done=value['sources'])
@@ -161,7 +162,7 @@ def execute(store, identity):
             if value.get('expected') is not None:
                 from image_edit import file_stamp
                 if path.resolve() != path or file_stamp(path.lstat()) != value['expected'].get(source):
-                    raise ValueError('Datei seit der Vorschau verändert. Bitte erneut prüfen.')
+                    raise ValueError(tr('Datei seit der Vorschau verändert. Bitte erneut prüfen.'))
             if action == 'copy': destination = copy_entry(path, value['target'], value['portable'], progress)
             elif action in ('move', 'rename'):
                 destination = Path(value['target']) / path.name if action == 'move' else Path(value['target'])
@@ -184,18 +185,18 @@ def supervise(store, identity):
         value = store.setting(PREFIX + identity)
         if not value or value['status'] not in ACTIVE: return
         if value['cancel']:
-            update(store, identity, status='paused', errors=['Angehalten.'])
+            update(store, identity, status='paused', errors=[tr('Angehalten.')])
             return
         update(store, identity, status='running')
         child = subprocess.Popen([sys.executable, str(Path(__file__)), '--execute', identity],
-                                 env=dict(os.environ, LUMEN_DATA=str(store.directory)),
+                                 env=worker_environment(LUMEN_DATA=str(store.directory)),
                                  pass_fds=(lease,),
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         interrupted = ''
         while child.poll() is None:
             value = store.setting(PREFIX + identity)
             if value['cancel'] or time.time() - value['updated'] > 120:
-                interrupted = 'Angehalten.' if value['cancel'] else 'Keine Antwort seit zwei Minuten. Verbindung prüfen und erneut versuchen.'
+                interrupted = tr('Angehalten.') if value['cancel'] else tr('Keine Antwort seit zwei Minuten. Verbindung prüfen und erneut versuchen.')
                 child.kill(); child.wait(timeout=3)
                 break
             time.sleep(.25)
@@ -211,7 +212,7 @@ def supervise(store, identity):
             except (subprocess.TimeoutExpired, ValueError): fields['partial'] = None
         errors = value['errors']
         if interrupted: errors = [interrupted]
-        elif child.returncode and not errors: errors = ['Übertragung wurde unterbrochen. Vor erneutem Versuch das Ziel prüfen.']
+        elif child.returncode and not errors: errors = [tr('Übertragung wurde unterbrochen. Vor erneutem Versuch das Ziel prüfen.')]
         update(store, identity, status='paused' if interrupted else 'failed' if errors else 'completed', errors=errors, **fields)
     finally:
         if child and child.poll() is None: child.kill(); child.wait(timeout=3)

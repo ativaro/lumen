@@ -8,9 +8,11 @@ if __name__ == '__main__':
     from lumen_crash import supervise
     supervise('files')
 
+from lumen_i18n import tr
+
 from PyQt5.QtCore import (QDir, QEvent, QFileInfo, QItemSelectionModel, QMimeData, QModelIndex, QRect, QRectF,
                           QSettings, QSize, QSortFilterProxyModel, QStandardPaths, QFileSystemWatcher,
-                          QStorageInfo, Qt, QTimer, QTranslator, QLibraryInfo, QUrl)
+                          QStorageInfo, Qt, QTimer, QUrl)
 from PyQt5.QtGui import QDesktopServices, QIcon, QKeySequence, QPalette, QColor, QFont, QPainterPath, QStandardItem, QStandardItemModel
 from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDockWidget, QFileIconProvider,
                              QFileSystemModel, QFrame, QHBoxLayout, QHeaderView, QInputDialog,
@@ -58,10 +60,9 @@ class FileFilter(QSortFilterProxyModel):
         if index.column() == 1 and role in (Qt.DisplayRole, Qt.ToolTipRole, Qt.ForegroundRole) and self.directory(index):
             value = self.folder_sizes.get(self.path(index))
             if role == Qt.DisplayRole:
-                return size_text(value) if value is not None else 'Berechnen'
+                return size_text(value) if value is not None else tr('Berechnen')
             if role == Qt.ToolTipRole:
-                return ('Klick: Ordnergröße einschließlich Unterordnern berechnen. '
-                        'Berechnete Werte sind eine Momentaufnahme; F5 setzt sie zurück.')
+                return (tr('Klick: Ordnergröße einschließlich Unterordnern berechnen. Berechnete Werte sind eine Momentaufnahme; F5 setzt sie zurück.'))
             if value is None:
                 return QApplication.palette().brush(QPalette.Link)
         if role == Qt.DisplayRole and index.column() == 3 and isinstance(self.sourceModel(), QFileSystemModel):
@@ -77,7 +78,7 @@ class FileFilter(QSortFilterProxyModel):
         if not index.isValid(): return False
         source = self.mapToSource(index)
         model = self.sourceModel()
-        return model.isDir(source) if isinstance(model, QFileSystemModel) else source.sibling(source.row(), 2).data() == 'Ordner'
+        return model.isDir(source) if isinstance(model, QFileSystemModel) else bool(source.sibling(source.row(), 0).data(Qt.UserRole + 3))
 
     def filterAcceptsRow(self, row, parent):
         if self.kind == 'all':
@@ -90,7 +91,7 @@ class FileFilter(QSortFilterProxyModel):
             path = model.filePath(index)
         else:
             path = index.data(Qt.UserRole)
-            if index.sibling(row, 2).data() == 'Ordner':
+            if bool(index.sibling(row, 0).data(Qt.UserRole + 3)):
                 return True
         kind = file_kind(path)
         return kind in {'pdf', 'text'} if self.kind == 'document' else kind == self.kind
@@ -110,9 +111,9 @@ class FileFilter(QSortFilterProxyModel):
         else:
             a, b = left.data(Qt.UserRole + 1), right.data(Qt.UserRole + 1)
             if left.column() == 1:
-                if left.sibling(left.row(), 2).data() == 'Ordner':
+                if bool(left.sibling(left.row(), 0).data(Qt.UserRole + 3)):
                     a = self.folder_sizes.get(left.sibling(left.row(), 0).data(Qt.UserRole), -1)
-                if right.sibling(right.row(), 2).data() == 'Ordner':
+                if bool(right.sibling(right.row(), 0).data(Qt.UserRole + 3)):
                     b = self.folder_sizes.get(right.sibling(right.row(), 0).data(Qt.UserRole), -1)
             if a is not None and b is not None:
                 return a < b
@@ -250,7 +251,7 @@ class FileGrid(FileDropMixin, QListView):
     def __init__(self, window):
         super().__init__(window)
         self.setObjectName('fileGrid')
-        self.setAccessibleName('Dateien als Bildraster')
+        self.setAccessibleName(tr('Dateien als Bildraster'))
         self.setViewMode(QListView.IconMode)
         self.setResizeMode(QListView.Adjust)
         self.setMovement(QListView.Static)
@@ -337,7 +338,7 @@ class Window(QMainWindow):
         self.fs.directoryLoaded.connect(lambda _path: self.update_count())
         self.fs.directoryLoaded.connect(self.spaces.directory_loaded)
         self.results = QStandardItemModel(self)
-        self.results.setHorizontalHeaderLabels(['Name', 'Größe', 'Typ', 'Geändert', 'Ordner'])
+        self.results.setHorizontalHeaderLabels([tr('Name'), tr('Größe'), tr('Typ'), tr('Geändert'), tr('Ordner')])
         self.proxy = FileFilter(self)
         self.proxy.setSourceModel(self.fs)
         self.build_ui()
@@ -419,7 +420,7 @@ class Window(QMainWindow):
         tabstrip = QFrame(); tabstrip.setObjectName('tabStrip')
         tabrow = QHBoxLayout(tabstrip)
         tabrow.setContentsMargins(20, 9, 16, 9)
-        brand = label('Dateien', 'brand')
+        brand = label(tr('Dateien'), 'brand')
         brand.setFixedWidth(202)
         tabrow.addWidget(brand)
         self.tabs = QTabBar()
@@ -431,15 +432,15 @@ class Window(QMainWindow):
         self.tabs.currentChanged.connect(self.switch_tab)
         self.tabs.tabCloseRequested.connect(self.close_tab)
         tabrow.addWidget(self.tabs)
-        new_tab = button('+', lambda: self.new_tab(self.current_location), tip='Neuer Tab · Strg+T')
+        new_tab = button('+', lambda: self.new_tab(self.current_location), tip=tr('Neuer Tab · Strg+T'))
         new_tab.setObjectName('toolButton'); new_tab.setFixedSize(30, 30)
         tabrow.addWidget(new_tab)
         tabrow.addStretch()
-        self.room_button = button('Arbeitsräume', self.spaces.room_menu, 'folder-favorites')
+        self.room_button = button(tr('Arbeitsräume'), self.spaces.room_menu, 'folder-favorites')
         self.room_button.setObjectName('toolButton')
         self.room_button.setMaximumWidth(200)
         tabrow.addWidget(self.room_button)
-        settings_button = button('', self.show_settings, 'configure', 'Einstellungen · Strg+Komma')
+        settings_button = button('', self.show_settings, 'configure', tr('Einstellungen · Strg+Komma'))
         settings_button.setObjectName('toolButton')
         tabrow.addWidget(settings_button)
         layout.addWidget(tabstrip)
@@ -453,10 +454,10 @@ class Window(QMainWindow):
         nav_buttons = QHBoxLayout(navigation)
         nav_buttons.setContentsMargins(0, 0, 0, 0)
         nav_buttons.setSpacing(4)
-        self.back_button = button('', lambda: self.history(-1), 'go-previous', 'Zurück · Alt+Links')
-        self.forward_button = button('', lambda: self.history(1), 'go-next', 'Vorwärts · Alt+Rechts')
+        self.back_button = button('', lambda: self.history(-1), 'go-previous', tr('Zurück · Alt+Links'))
+        self.forward_button = button('', lambda: self.history(1), 'go-next', tr('Vorwärts · Alt+Rechts'))
         for item in (self.back_button, self.forward_button,
-                     button('', self.up, 'go-up', 'Übergeordneter Ordner · Alt+Hoch')):
+                     button('', self.up, 'go-up', tr('Übergeordneter Ordner · Alt+Hoch'))):
             item.setObjectName('iconButton')
             item.setFixedSize(32, 32)
             nav_buttons.addWidget(item)
@@ -483,39 +484,39 @@ class Window(QMainWindow):
         self.crumb_layout.setContentsMargins(6, 0, 0, 0)
         self.crumb_layout.setSpacing(0)
         self.path_edit = QLineEdit()
-        self.path_edit.setAccessibleName('Ordnerpfad')
+        self.path_edit.setAccessibleName(tr('Ordnerpfad'))
         self.path_edit.returnPressed.connect(lambda: self.navigate(self.path_edit.text()))
         self.path_stack.addWidget(self.crumbs)
         self.path_stack.addWidget(self.path_edit)
         self.path_stack.setMinimumWidth(80)
         self.path_stack.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         row.addWidget(self.path_stack, 1)
-        edit_path = button('', self.edit_path, 'document-edit', 'Pfad eingeben · Strg+L')
+        edit_path = button('', self.edit_path, 'document-edit', tr('Pfad eingeben · Strg+L'))
         edit_path.setObjectName('toolButton'); row.addWidget(edit_path)
         self.search = QLineEdit()
         self.search.setObjectName('search')
-        self.search.setAccessibleName('Dateien im aktuellen Ordner und Unterordnern suchen')
-        self.search.setPlaceholderText('Suchen')
-        self.search.setToolTip('Dateinamen in diesem Ordner und Unterordnern suchen · Strg+F')
+        self.search.setAccessibleName(tr('Dateien im aktuellen Ordner und Unterordnern suchen'))
+        self.search.setPlaceholderText(tr('Suchen'))
+        self.search.setToolTip(tr('Dateinamen in diesem Ordner und Unterordnern suchen · Strg+F'))
         self.search.setClearButtonEnabled(True)
         self.search.setMinimumWidth(180)
         self.search.setMaximumWidth(280)
         self.search.addAction(QIcon.fromTheme('edit-find'), QLineEdit.LeadingPosition)
         row.addWidget(self.search, 1)
         contents = self.search.addAction(QIcon.fromTheme('edit-find-replace'), QLineEdit.TrailingPosition)
-        contents.setToolTip('In Dateiinhalten suchen · Strg+Umschalt+F')
+        contents.setToolTip(tr('In Dateiinhalten suchen · Strg+Umschalt+F'))
         contents.triggered.connect(self.search_contents)
-        new_folder = button('', self.mkdir, 'folder-new', 'Neuer Ordner · Strg+Umschalt+N')
+        new_folder = button('', self.mkdir, 'folder-new', tr('Neuer Ordner · Strg+Umschalt+N'))
         new_folder.setObjectName('toolButton'); row.addWidget(new_folder)
-        self.preview_button = button('', self.toggle_preview, 'view-preview', 'Vorschauleiste ein-/ausblenden')
+        self.preview_button = button('', self.toggle_preview, 'view-preview', tr('Vorschauleiste ein-/ausblenden'))
         self.preview_button.setObjectName('toolButton')
         self.preview_button.setCheckable(True)
         self.preview_button.setChecked(True)
         row.addWidget(self.preview_button)
-        lumen = button('Lumen', lambda: self.ask_lumen('open', self.context_paths()), tip='Lumen öffnen · Strg+J')
+        lumen = button('Lumen', lambda: self.ask_lumen('open', self.context_paths()), tip=tr('Lumen öffnen · Strg+J'))
         lumen.setObjectName('assistantButton')
         row.addWidget(lumen)
-        menu_button = button('···', self.show_menu, tip='Weitere Aktionen und Ansicht')
+        menu_button = button('···', self.show_menu, tip=tr('Weitere Aktionen und Ansicht'))
         menu_button.setObjectName('iconButton')
         row.addWidget(menu_button)
         layout.addWidget(header)
@@ -527,7 +528,7 @@ class Window(QMainWindow):
         side = QVBoxLayout(sidebar)
         side.setContentsMargins(14, 14, 14, 10)
         side.setSpacing(4)
-        side.addWidget(label('Favoriten', 'eyebrow'))
+        side.addWidget(label(tr('Favoriten'), 'eyebrow'))
         self.places = QListWidget()
         self.places.setObjectName('places')
         self.places.setIconSize(QSize(20, 20))
@@ -542,10 +543,10 @@ class Window(QMainWindow):
         side.addWidget(self.places, 1)
         connections = QHBoxLayout()
         connections.setSpacing(6)
-        connect = button('Server verbinden', self.connect_dialog, 'network-server')
-        favorite = button('', self.add_favorite, 'bookmark-new', 'Diesen Ort merken')
+        connect = button(tr('Server verbinden'), self.connect_dialog, 'network-server')
+        favorite = button('', self.add_favorite, 'bookmark-new', tr('Diesen Ort merken'))
         favorite.setFixedWidth(30)
-        analysis = button('Speicheranalyse', self.open_analysis, 'drive-harddisk')
+        analysis = button(tr('Speicheranalyse'), self.open_analysis, 'drive-harddisk')
         for action in (connect, favorite, analysis):
             action.setObjectName('sideAction')
         connections.addWidget(connect, 1)
@@ -554,7 +555,7 @@ class Window(QMainWindow):
         side.addWidget(analysis)
         self.disk_label = label('', 'muted')
         side.addWidget(self.disk_label)
-        self.location_badge = label('LOKAL AUF DEINEM RECHNER', 'tiny')
+        self.location_badge = label(tr('LOKAL AUF DEINEM RECHNER'), 'tiny')
         side.addWidget(self.location_badge)
         body.addWidget(sidebar)
         content = QVBoxLayout()
@@ -562,12 +563,12 @@ class Window(QMainWindow):
         self.source_bar = QWidget()
         source_row = QHBoxLayout(self.source_bar)
         source_row.setContentsMargins(18, 4, 16, 4)
-        self.sources_button = button('Quellen …', self.spaces.sources_action)
+        self.sources_button = button(tr('Quellen …'), self.spaces.sources_action)
         self.source_status = button('', self.spaces.source_details)
         self.source_status.setObjectName('crumb')
         source_row.addWidget(self.sources_button)
         source_row.addWidget(self.source_status, 1)
-        self.stop_sources = button('Stoppen', self.spaces.stop_loading)
+        self.stop_sources = button(tr('Stoppen'), self.spaces.stop_loading)
         source_row.addWidget(self.stop_sources)
         self.source_bar.hide()
         content.addWidget(self.source_bar)
@@ -581,7 +582,7 @@ class Window(QMainWindow):
         filters = QHBoxLayout()
         filters.setSpacing(6)
         self.filter_buttons = {}
-        for text, kind in [('Alles', 'all'), ('Bilder', 'image'), ('Dokumente', 'document'), ('Videos', 'video'), ('Audio', 'audio')]:
+        for text, kind in [(tr('Alles'), 'all'), (tr('Bilder'), 'image'), (tr('Dokumente'), 'document'), (tr('Videos'), 'video'), ('Audio', 'audio')]:
             item = button(text, lambda _checked=False, k=kind: self.set_kind(k))
             item.setObjectName('chip')
             item.setCheckable(True)
@@ -590,15 +591,15 @@ class Window(QMainWindow):
             filters.addWidget(item)
         filters.addStretch()
         self.view_buttons = {}
-        for mode, icon, tip in [('list', 'view-list-details', 'Listenansicht · Strg+1'),
-                                ('grid', 'view-list-icons', 'Bildraster · Strg+2')]:
+        for mode, icon, tip in [('list', 'view-list-details', tr('Listenansicht · Strg+1')),
+                                ('grid', 'view-list-icons', tr('Bildraster · Strg+2'))]:
             item = button('', lambda _=False, m=mode: self.set_view_mode(m), icon, tip)
             item.setObjectName('toolButton')
             item.setCheckable(True)
             item.setFixedWidth(32)
             self.view_buttons[mode] = item
             filters.addWidget(item)
-        self.hidden_button = button('', self.toggle_hidden, 'view-hidden', 'Versteckte Dateien · Strg+H')
+        self.hidden_button = button('', self.toggle_hidden, 'view-hidden', tr('Versteckte Dateien · Strg+H'))
         self.hidden_button.setObjectName('toolButton')
         self.hidden_button.setCheckable(True)
         self.hidden_button.setChecked(self.hidden)
@@ -606,7 +607,7 @@ class Window(QMainWindow):
         files.addLayout(filters)
         self.view = FileView(self)
         self.view.setObjectName('files')
-        self.view.setAccessibleName('Dateiliste')
+        self.view.setAccessibleName(tr('Dateiliste'))
         self.view.setRootIsDecorated(False)
         self.view.setItemsExpandable(False)
         self.view.setUniformRowHeights(True)
@@ -655,21 +656,21 @@ class Window(QMainWindow):
         shelf_row.setContentsMargins(0, 0, 0, 0); shelf_row.setSpacing(4)
         self.spaces.shelf_button = ShelfButton(self.spaces)
         self.spaces.shelf_button.setObjectName('shelfButton')
-        self.spaces.shelf_button.setToolTip('Dateien hier sammeln · Ziehen oder aus der Auswahl hinzufügen')
+        self.spaces.shelf_button.setToolTip(tr('Dateien hier sammeln · Ziehen oder aus der Auswahl hinzufügen'))
         shelf_row.addWidget(self.spaces.shelf_button)
-        self.spaces.shelf_summary = QLabel('Dateien hier sammeln — Originale bleiben an ihrem Ort')
+        self.spaces.shelf_summary = QLabel(tr('Dateien hier sammeln — Originale bleiben an ihrem Ort'))
         self.spaces.shelf_summary.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         self.spaces.shelf_summary.setParent(self.shelf_bar); self.spaces.shelf_summary.hide()
-        collect = button('', lambda: self.spaces.collect(self.selected_paths()), 'list-add', 'Auswahl zur Sammelfläche hinzufügen')
+        collect = button('', lambda: self.spaces.collect(self.selected_paths()), 'list-add', tr('Auswahl zur Sammelfläche hinzufügen'))
         collect.setObjectName('toolButton'); shelf_row.addWidget(collect)
-        shelf_actions = button('···', self.spaces.shelf_menu, tip='Aktionen für die Sammelfläche')
+        shelf_actions = button('···', self.spaces.shelf_menu, tip=tr('Aktionen für die Sammelfläche'))
         shelf_actions.setObjectName('toolButton'); shelf_row.addWidget(shelf_actions)
         self.spaces.update_shelf()
         footer = QFrame()
         footer.setObjectName('footer')
         status = QHBoxLayout(footer)
         status.setContentsMargins(16, 8, 16, 8)
-        self.status = label('Bereit', 'muted')
+        self.status = label(tr('Bereit'), 'muted')
         self.status.setWordWrap(False)
         status.addWidget(self.status)
         status.addWidget(self.subtitle, 1)
@@ -677,21 +678,21 @@ class Window(QMainWindow):
         self.thumbnail_size = QSlider(Qt.Horizontal)
         self.thumbnail_size.setRange(96, 224)
         self.thumbnail_size.setFixedWidth(100)
-        self.thumbnail_size.setAccessibleName('Größe der Miniaturen')
-        self.thumbnail_size.setToolTip('Miniaturen verkleinern oder vergrößern')
+        self.thumbnail_size.setAccessibleName(tr('Größe der Miniaturen'))
+        self.thumbnail_size.setToolTip(tr('Miniaturen verkleinern oder vergrößern'))
         self.thumbnail_size.setValue(max(96, min(224, self.settings.value('thumbnailSize', 144, type=int))))
         self.thumbnail_size.valueChanged.connect(self.set_thumbnail_size)
         self.set_thumbnail_size(self.thumbnail_size.value())
         self.photo_bar = QWidget()
         photo_row = QHBoxLayout(self.photo_bar)
         photo_row.setContentsMargins(10, 2, 10, 2)
-        photo_row.addWidget(label('Miniaturen', 'muted'))
+        photo_row.addWidget(label(tr('Miniaturen'), 'muted'))
         photo_row.addWidget(self.thumbnail_size)
         status.addWidget(self.photo_bar)
-        self.activity = label('Leertaste · Vorschau', 'muted')
+        self.activity = label(tr('Leertaste · Vorschau'), 'muted')
         self.activity.setWordWrap(False)
         status.addWidget(self.activity)
-        self.cancel_connect_button = button('Abbrechen', self.cancel_connection)
+        self.cancel_connect_button = button(tr('Abbrechen'), self.cancel_connection)
         self.cancel_connect_button.hide()
         status.addWidget(self.cancel_connect_button)
         layout.addWidget(footer)
@@ -701,8 +702,8 @@ class Window(QMainWindow):
 
     def populate_places(self):
         self.places.clear()
-        places = [('Persönlicher Ordner', str(Path.home()), 'user-home')]
-        for text, location, icon in [('Schreibtisch', QStandardPaths.DesktopLocation, 'user-desktop'),
+        places = [(tr('Persönlicher Ordner'), str(Path.home()), 'user-home')]
+        for text, location, icon in [(tr('Schreibtisch'), QStandardPaths.DesktopLocation, 'user-desktop'),
                                      ('Downloads', QStandardPaths.DownloadLocation, 'folder-download'),
                                      ]:
             path = QStandardPaths.writableLocation(location)
@@ -716,8 +717,8 @@ class Window(QMainWindow):
         if hasattr(self, 'offline'):
             from lumen_offline import folders
             for folder in folders(self.offline.store):
-                places.append((folder['name'] + ' · Offline', folder['local'], 'folder-download'))
-        places.append(('Dateisystem', '/', 'drive-harddisk'))
+                places.append((folder['name'] + tr(' · Offline'), folder['local'], 'folder-download'))
+        places.append((tr('Dateisystem'), '/', 'drive-harddisk'))
         seen = {path for _, path, _ in places}
         for storage in QStorageInfo.mountedVolumes():
             path = storage.rootPath()
@@ -734,7 +735,7 @@ class Window(QMainWindow):
             self.places.addItem(item)
         servers = self.saved_servers()
         if servers:
-            heading = QListWidgetItem('Netzwerk')
+            heading = QListWidgetItem(tr('Netzwerk'))
             heading.setFlags(Qt.NoItemFlags)
             self.places.addItem(heading)
             for address in servers:
@@ -773,14 +774,14 @@ class Window(QMainWindow):
             self.error(str(exc))
             return
         self.connection_request = (self.tabs_data[self.tabs.currentIndex()], record, remember, history_position)
-        self.activity.setText(f'Verbinde mit {QUrl(address).host()} …')
+        self.activity.setText(tr('Verbinde mit {0} …', QUrl(address).host()))
         self.network.mount(address)
 
     def cancel_connection(self):
         if self.connection_request:
             self.network.cancel()
             self.connection_request = None
-            self.activity.setText('Verbindungsversuch verworfen')
+            self.activity.setText(tr('Verbindungsversuch verworfen'))
 
     def network_connected(self, address, path):
         request, self.connection_request = self.connection_request, None
@@ -788,14 +789,14 @@ class Window(QMainWindow):
             if self.show_folder(path, request[1], address, request[3]):
                 if request[2]:
                     self.remember_server(address)
-                self.activity.setText(f'Verbunden mit {QUrl(address).host()}')
+                self.activity.setText(tr('Verbunden mit {0}', QUrl(address).host()))
             else:
-                self.activity.setText('Netzwerkordner nicht erreichbar')
+                self.activity.setText(tr('Netzwerkordner nicht erreichbar'))
 
     def network_failed(self, message):
         self.connection_request = None
-        self.activity.setText('Netzwerkverbindung fehlgeschlagen')
-        self.error('Verbindung fehlgeschlagen', message)
+        self.activity.setText(tr('Netzwerkverbindung fehlgeschlagen'))
+        self.error(tr('Verbindung fehlgeschlagen'), message)
 
     def add_favorite(self):
         if virtual(self.current_location):
@@ -818,26 +819,26 @@ class Window(QMainWindow):
         if not path:
             return
         menu = QMenu(self)
-        menu.addAction('In neuem Tab öffnen', lambda: self.new_tab(path))
+        menu.addAction(tr('In neuem Tab öffnen'), lambda: self.new_tab(path))
         if path.startswith(LIBRARY):
             self.spaces.library_menu(menu, path)
         if is_network_address(path):
-            menu.addAction('Offline verfügbar machen …', lambda: self.offline.add(path))
-        menu.addAction('Neue Bibliothek …', self.spaces.edit_library)
+            menu.addAction(tr('Offline verfügbar machen …'), lambda: self.offline.add(path))
+        menu.addAction(tr('Neue Bibliothek …'), self.spaces.edit_library)
         key = 'network_servers' if is_network_address(path) else 'favorites'
         favorites = self.settings.value(key, [], type=list)
         if path in favorites:
             def remove():
                 self.settings.setValue(key, [p for p in favorites if p != path])
                 self.populate_places()
-            menu.addAction('Aus gemerkten Orten entfernen', remove)
+            menu.addAction(tr('Aus gemerkten Orten entfernen'), remove)
         menu.exec_(self.places.viewport().mapToGlobal(position))
 
     def configure_columns(self):
         header = self.view.header()
         header.setStretchLastSection(False)
         header.setSectionResizeMode(0, QHeaderView.Stretch)
-        size_width = max(130, self.view.fontMetrics().horizontalAdvance('Berechnen') + 32)
+        size_width = max(130, self.view.fontMetrics().horizontalAdvance(tr('Berechnen')) + 32)
         for column, width in [(1, size_width), (2, 112), (3, 140), (4, 230)]:
             if column < self.proxy.columnCount():
                 header.setSectionResizeMode(column, QHeaderView.Interactive)
@@ -845,7 +846,7 @@ class Window(QMainWindow):
         # Type is already visible in the icon/preview; save space in the default list.
         self.view.setColumnHidden(2, True)
         self.view.setColumnHidden(3, self.width() < 1180)
-        self.fs.setHeaderData(0, Qt.Horizontal, 'Name')
+        self.fs.setHeaderData(0, Qt.Horizontal, tr('Name'))
 
     def shortcut(self, key, callback, local=False):
         shortcut = QShortcut(QKeySequence(key), self.file_stack if local else self)
@@ -906,7 +907,7 @@ class Window(QMainWindow):
             path = str(Path.home())
         self.tabs_data.append({'history': [collection or remote or path], 'position': 0})
         self.tabs.blockSignals(True)
-        index = self.tabs.addTab(self.spaces.name(collection) if collection else server_label(remote) if remote else Path(path).name or 'Dateisystem')
+        index = self.tabs.addTab(self.spaces.name(collection) if collection else server_label(remote) if remote else Path(path).name or tr('Dateisystem'))
         if activate:
             self.tabs.setCurrentIndex(index)
         self.tabs.blockSignals(False)
@@ -930,7 +931,7 @@ class Window(QMainWindow):
     def restore_recovery(self, state):
         paths = state.get('tabs', [])
         if not isinstance(paths, list) or not all(isinstance(p, str) for p in paths):
-            raise ValueError('Ungültige gespeicherte Tabs.')
+            raise ValueError(tr('Ungültige gespeicherte Tabs.'))
         if paths:
             self.tabs.blockSignals(True)
             self.tabs_data.clear()
@@ -1001,12 +1002,12 @@ class Window(QMainWindow):
     def show_folder(self, path, record=True, location=None, history_position=None):
         path = os.path.abspath(os.path.expanduser(str(path)))
         if not os.path.isdir(path) or not os.access(path, os.R_OK | os.X_OK):
-            self.error('Der Ordner ist nicht erreichbar oder nicht lesbar.', path)
+            self.error(tr('Der Ordner ist nicht erreichbar oder nicht lesbar.'), path)
             return False
         self.spaces.cancel()
         self.proxy.folder_sizes.clear()
         self.source_bar.hide()
-        self.results.setHorizontalHeaderLabels(['Name', 'Größe', 'Typ', 'Geändert', 'Ordner'])
+        self.results.setHorizontalHeaderLabels([tr('Name'), tr('Größe'), tr('Typ'), tr('Geändert'), tr('Ordner')])
         self.current_path = path
         self.current_location = location or path
         remote = location is not None
@@ -1016,7 +1017,7 @@ class Window(QMainWindow):
         if record and tab['history'][tab['position']] != self.current_location:
             tab['history'] = tab['history'][:tab['position'] + 1] + [self.current_location]
             tab['position'] += 1
-        title = server_label(location) if remote else Path(path).name or 'Dateisystem'
+        title = server_label(location) if remote else Path(path).name or tr('Dateisystem')
         self.tabs.setTabText(self.tabs.currentIndex(), title)
         self.tabs.setTabToolTip(self.tabs.currentIndex(), display_url(location) if remote else path)
         self.search.blockSignals(True)
@@ -1034,15 +1035,15 @@ class Window(QMainWindow):
         self.build_crumbs(self.current_location)
         self.heading.setText(title)
         self.subtitle.clear()
-        self.search.setPlaceholderText('Suchen')
+        self.search.setPlaceholderText(tr('Suchen'))
         self.back_button.setEnabled(tab['position'] > 0)
         self.forward_button.setEnabled(tab['position'] < len(tab['history']) - 1)
         if remote:
-            self.disk_label.setText(f'{QUrl(location).host()}\n{QUrl(location).scheme().upper()} verbunden')
+            self.disk_label.setText(tr('{0}\n{1} verbunden', QUrl(location).host(), QUrl(location).scheme().upper()))
         else:
             storage = QStorageInfo(path)
-            self.disk_label.setText(f'{size_text(storage.bytesAvailable())} frei\nauf {storage.displayName() or "diesem Laufwerk"}')
-        self.location_badge.setText('Netzwerk' if remote else 'Lokales Laufwerk')
+            self.disk_label.setText(tr('{0} frei\nauf {1}', size_text(storage.bytesAvailable()), storage.displayName() or tr('diesem Laufwerk')))
+        self.location_badge.setText(tr('Netzwerk') if remote else tr('Lokales Laufwerk'))
         for i in range(self.places.count()):
             self.places.item(i).setSelected(self.places.item(i).data(Qt.UserRole) == self.current_location)
         self.update_count()
@@ -1063,7 +1064,7 @@ class Window(QMainWindow):
         self.tabs.setTabText(self.tabs.currentIndex(), title)
         self.tabs.setTabToolTip(self.tabs.currentIndex(), title)
         self.search.blockSignals(True); self.search.clear(); self.search.blockSignals(False)
-        self.search.setPlaceholderText('In allen Quellen suchen')
+        self.search.setPlaceholderText(tr('In allen Quellen suchen'))
         self.preview.clear(); self.heading.setText(title); self.subtitle.clear()
         self.path_edit.setText(location); self.path_stack.setCurrentWidget(self.crumbs)
         while self.crumb_layout.count():
@@ -1072,8 +1073,8 @@ class Window(QMainWindow):
         self.crumb_layout.addWidget(label(title, 'muted')); self.crumb_layout.addStretch()
         self.back_button.setEnabled(tab['position'] > 0)
         self.forward_button.setEnabled(tab['position'] < len(tab['history']) - 1)
-        self.disk_label.setText('Dateien bleiben an ihrem Ort')
-        self.location_badge.setText('Sammelfläche' if location == SHELF else 'Gemeinsame Ansicht')
+        self.disk_label.setText(tr('Dateien bleiben an ihrem Ort'))
+        self.location_badge.setText(tr('Sammelfläche') if location == SHELF else tr('Gemeinsame Ansicht'))
         for i in range(self.places.count()):
             self.places.item(i).setSelected(self.places.item(i).data(Qt.UserRole) == location)
         self.source_bar.show(); self.spaces.reload(); self.session_save.start()
@@ -1101,7 +1102,7 @@ class Window(QMainWindow):
         for i, part in enumerate(parts):
             if i:
                 self.crumb_layout.addWidget(label('  ›  ', 'muted'))
-            text = (Path(QUrl(part).path()).name or QUrl(part).host()) if remote else ('Persönlich' if part == Path.home() else part.name or 'Rechner')
+            text = (Path(QUrl(part).path()).name or QUrl(part).host()) if remote else (tr('Persönlich') if part == Path.home() else part.name or tr('Rechner'))
             crumb = button(self.fontMetrics().elidedText(text, Qt.ElideMiddle, 150),
                            lambda _checked=False, p=part: self.navigate(p), tip=str(part))
             crumb.setObjectName('crumb')
@@ -1174,7 +1175,7 @@ class Window(QMainWindow):
     def queue_search(self, _text=None):
         self.cancel_search()
         self.spaces.cancel()
-        self.subtitle.setText('Suche wird aktualisiert …')
+        self.subtitle.setText(tr('Suche wird aktualisiert …'))
         self.debounce.start()
 
     def start_search(self):
@@ -1203,7 +1204,7 @@ class Window(QMainWindow):
         job.progress.connect(lambda count, errors: self.search_progress(job, count, errors))
         job.summary.connect(lambda count, limited, elapsed: self.search_done(job, count, limited, elapsed))
         job.finished.connect(lambda: self.release_search(job))
-        self.subtitle.setText('Suche läuft · Dateinamen · einschließlich Unterordnern')
+        self.subtitle.setText(tr('Suche läuft · Dateinamen · einschließlich Unterordnern'))
         job.start()
 
     def release_search(self, job):
@@ -1219,11 +1220,12 @@ class Window(QMainWindow):
             info = QFileInfo(path)
             items = [QStandardItem(value) for value in [info.fileName(),
                      '—' if info.isDir() else size_text(info.size()),
-                     'Ordner' if info.isDir() else info.suffix().upper(),
+                     tr('Ordner') if info.isDir() else info.suffix().upper(),
                      info.lastModified().toString('dd.MM.yy HH:mm'),
                      os.path.relpath(info.absolutePath(), self.current_path)]]
             items[0].setIcon(self.icon_provider.icon(info))
             items[0].setData(path, Qt.UserRole)
+            items[0].setData(info.isDir(), Qt.UserRole + 3)
             items[0].setToolTip(path)
             items[1].setData(info.size(), Qt.UserRole + 1)
             items[3].setData(info.lastModified().toMSecsSinceEpoch(), Qt.UserRole + 1)
@@ -1237,16 +1239,16 @@ class Window(QMainWindow):
     def search_progress(self, job, count, errors):
         if self.search_job is job:
             self.search_errors, self.search_total = errors, count
-            self.subtitle.setText(f'Suche läuft · {count:,} Einträge geprüft · Unterordner einbezogen')
+            self.subtitle.setText(tr('Suche läuft · {0:,} Einträge geprüft · Unterordner einbezogen', count))
 
     def search_done(self, job, count, limited, elapsed):
         if self.search_job is job:
             self.search_job = None
-            detail = f'{count:,} Treffer · {elapsed:.2f} s · Dateinamen in Unterordnern'
+            detail = tr('{0:,} Treffer · {1:.2f} s · Dateinamen in Unterordnern', count, elapsed)
             if limited:
-                detail += f' · Limit {job.limit:,} erreicht — Suche eingrenzen'
+                detail += tr(' · Limit {0:,} erreicht — Suche eingrenzen', job.limit)
             if self.search_errors:
-                detail += f' · {self.search_errors} nicht lesbare Einträge übersprungen'
+                detail += tr(' · {0} nicht lesbare Einträge übersprungen', self.search_errors)
             self.subtitle.setText(detail)
             self.update_count()
 
@@ -1255,8 +1257,8 @@ class Window(QMainWindow):
             return
         count = self.proxy.rowCount(self.view.rootIndex())
         selected = len(self.selected_paths())
-        self.status.setText(f'{count:,} Einträge' + (f'  ·  {selected} ausgewählt' if selected else ''))
-        self.empty_label.setText(('Suche läuft …' if self.search_job else 'Keine Einträge. Suche oder Filter anpassen.') if count == 0 else '')
+        self.status.setText(tr('{0:,} Einträge', count) + (tr('  ·  {0} ausgewählt', selected) if selected else ''))
+        self.empty_label.setText((tr('Suche läuft …') if self.search_job else tr('Keine Einträge. Suche oder Filter anpassen.')) if count == 0 else '')
         self.empty_label.setVisible(count == 0)
 
     def selected_paths(self):
@@ -1278,8 +1280,8 @@ class Window(QMainWindow):
         else:
             self.preview.clear()
             if paths:
-                self.preview.title.setText(f'{len(paths)} ausgewählt')
-                self.preview.show_message('Eine einzelne Datei auswählen,\num die Vorschau zu sehen.')
+                self.preview.title.setText(tr('{0} ausgewählt', len(paths)))
+                self.preview.show_message(tr('Eine einzelne Datei auswählen,\num die Vorschau zu sehen.'))
 
     def open_index(self, index):
         path = self.proxy.path(index)
@@ -1297,7 +1299,7 @@ class Window(QMainWindow):
         elif file_kind(path) == 'image':
             self.open_gallery(path)
         elif not QDesktopServices.openUrl(QUrl.fromLocalFile(path)):
-            self.error('Die Datei konnte nicht geöffnet werden.', path)
+            self.error(tr('Die Datei konnte nicht geöffnet werden.'), path)
 
     def ask_lumen(self, action, paths, recovery=None):
         if hasattr(self, 'lumen_host'):
@@ -1330,16 +1332,16 @@ class Window(QMainWindow):
         if not paths:
             return
         submenu = menu.addMenu(QIcon.fromTheme('lumen'), 'Lumen')
-        for title, action in [('Mit Lumen öffnen', 'open'), ('Erklären', 'explain'),
-                              ('Fehler beheben', 'fix'), ('Git-Diff prüfen', 'review')]:
+        for title, action in [(tr('Mit Lumen öffnen'), 'open'), (tr('Erklären'), 'explain'),
+                              (tr('Fehler beheben'), 'fix'), (tr('Git-Diff prüfen'), 'review')]:
             submenu.addAction(title, lambda _=False, a=action: self.ask_lumen(a, paths))
         submenu.addSeparator()
-        submenu.addAction('Intelligent umbenennen …', lambda: self.organize_files('rename', paths))
-        submenu.addAction('Dateien sortieren …', lambda: self.organize_files('sort', paths))
+        submenu.addAction(tr('Intelligent umbenennen …'), lambda: self.organize_files('rename', paths))
+        submenu.addAction(tr('Dateien sortieren …'), lambda: self.organize_files('sort', paths))
 
     def organize_files(self, mode, paths=None):
         if self.file_job:
-            self.error('Bitte den laufenden Dateivorgang abwarten.')
+            self.error(tr('Bitte den laufenden Dateivorgang abwarten.'))
             return
         from organize_dialog import OrganizeDialog
         journal = Path(QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation)) / 'organize-undo.json'
@@ -1358,7 +1360,7 @@ class Window(QMainWindow):
             self.open_gallery(paths[0])
             return
         dialog = QDialog(self)
-        dialog.setWindowTitle(Path(paths[0]).name + ' — Vorschau')
+        dialog.setWindowTitle(Path(paths[0]).name + tr(' — Vorschau'))
         dialog.resize(980, 780)
         layout = QVBoxLayout(dialog)
         preview = Preview()
@@ -1378,7 +1380,7 @@ class Window(QMainWindow):
             if file_kind(candidate) != 'image':
                 continue
             source = self.proxy.mapToSource(index)
-            directory = self.fs.isDir(source) if self.proxy.sourceModel() is self.fs else source.sibling(source.row(), 2).data() == 'Ordner'
+            directory = self.fs.isDir(source) if self.proxy.sourceModel() is self.fs else bool(source.sibling(source.row(), 0).data(Qt.UserRole + 3))
             if not directory:
                 images.append(candidate)
         if path not in images:
@@ -1429,7 +1431,7 @@ class Window(QMainWindow):
         mime.setData('x-special/gnome-copied-files', (('cut' if cut else 'copy') + '\n' +
                      '\n'.join(QUrl.fromLocalFile(path).toString() for path in paths)).encode())
         QApplication.clipboard().setMimeData(mime)
-        self.activity.setText(f'{len(paths)} zum {"Verschieben" if cut else "Kopieren"} vorgemerkt')
+        self.activity.setText(tr('{0} zum Verschieben vorgemerkt', len(paths)) if cut else tr('{0} zum Kopieren vorgemerkt', len(paths)))
 
     def paste(self):
         mime = QApplication.clipboard().mimeData()
@@ -1443,13 +1445,13 @@ class Window(QMainWindow):
 
     def run_operation(self, action, paths, target=None):
         if self.file_job:
-            self.error('Bitte den laufenden Dateivorgang abwarten.')
+            self.error(tr('Bitte den laufenden Dateivorgang abwarten.'))
             return
         job = FileWorker(action, paths, target, portable=bool(target and self.network.remote(target)))
         self.file_job = job
-        job.progress.connect(lambda name: self.activity.setText(f'Dateivorgang: {name}'))
+        job.progress.connect(lambda name: self.activity.setText(tr('Dateivorgang: {0}', name)))
         def completed(done, errors):
-            self.activity.setText(f'{len(done)} Einträge verarbeitet' + (f' · {len(errors)} Fehler' if errors else ''))
+            self.activity.setText(tr('{0} Einträge verarbeitet', len(done)) + (tr(' · {0} Fehler', len(errors)) if errors else ''))
             if action == 'move' and done:
                 mime = QApplication.clipboard().mimeData()
                 current = [u.toLocalFile() for u in mime.urls()] if mime else []
@@ -1460,7 +1462,7 @@ class Window(QMainWindow):
                     replacement.setData('application/x-kde-cutselection', b'1')
                     QApplication.clipboard().setMimeData(replacement)
             if errors:
-                self.error('Nicht alle Einträge konnten verarbeitet werden.', '\n\n'.join(errors))
+                self.error(tr('Nicht alle Einträge konnten verarbeitet werden.'), '\n\n'.join(errors))
             self.refresh()
         def finished():
             self.file_job = None
@@ -1472,7 +1474,7 @@ class Window(QMainWindow):
     def mkdir(self):
         target = self.spaces.choose_target() if virtual(self.current_location) else self.current_path
         if not target: return
-        name, ok = QInputDialog.getText(self, 'Neuer Ordner', 'Name des Ordners:')
+        name, ok = QInputDialog.getText(self, tr('Neuer Ordner'), tr('Name des Ordners:'))
         if ok:
             try:
                 path = Path(target) / valid_name(name)
@@ -1488,7 +1490,7 @@ class Window(QMainWindow):
         if len(paths) != 1:
             return
         path = Path(paths[0])
-        name, ok = QInputDialog.getText(self, 'Umbenennen', 'Neuer Name:', text=path.name)
+        name, ok = QInputDialog.getText(self, tr('Umbenennen'), tr('Neuer Name:'), text=path.name)
         if ok and name != path.name:
             try:
                 self.run_operation('rename', paths, str(path.with_name(valid_name(name))))
@@ -1497,8 +1499,8 @@ class Window(QMainWindow):
 
     def trash(self):
         paths = self.selected_paths()
-        if paths and QMessageBox.question(self, 'In den Papierkorb',
-                f'{len(paths)} ausgewählte Einträge in den Papierkorb verschieben?',
+        if paths and QMessageBox.question(self, tr('In den Papierkorb'),
+                tr('{0} ausgewählte Einträge in den Papierkorb verschieben?', len(paths)),
                 QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes:
             self.run_operation('trash', paths)
 
@@ -1510,38 +1512,38 @@ class Window(QMainWindow):
         paths = self.selected_paths()
         menu = QMenu(self)
         if paths:
-            menu.addAction('Öffnen', self.open_selected)
+            menu.addAction(tr('Öffnen'), self.open_selected)
             if all(Path(p).suffix.lower() == '.pdf' for p in paths):
                 self.add_workshop_action(menu, paths)
-            menu.addAction('Zur Sammelfläche hinzufügen', lambda: self.spaces.collect(paths))
-            menu.addAction('In Ordner kopieren …', self.spaces.copy_to)
+            menu.addAction(tr('Zur Sammelfläche hinzufügen'), lambda: self.spaces.collect(paths))
+            menu.addAction(tr('In Ordner kopieren …'), self.spaces.copy_to)
             if self.current_location == SHELF:
-                menu.addAction('Aus Sammelfläche entfernen (Dateien behalten)', lambda: self.spaces.remove_shelf(paths))
+                menu.addAction(tr('Aus Sammelfläche entfernen (Dateien behalten)'), lambda: self.spaces.remove_shelf(paths))
             if len(paths) == 1:
-                menu.addAction('Große Vorschau\tLeertaste', self.quicklook)
-                menu.addAction('Dateiversionen …', lambda: self.show_versions(paths[0]))
-                menu.addAction('Enthaltenden Ordner öffnen', lambda: self.navigate(Path(paths[0]).parent))
+                menu.addAction(tr('Große Vorschau\tLeertaste'), self.quicklook)
+                menu.addAction(tr('Dateiversionen …'), lambda: self.show_versions(paths[0]))
+                menu.addAction(tr('Enthaltenden Ordner öffnen'), lambda: self.navigate(Path(paths[0]).parent))
                 if Path(paths[0]).is_dir():
-                    menu.addAction('In neuem Tab öffnen', lambda: self.new_tab(paths[0]))
+                    menu.addAction(tr('In neuem Tab öffnen'), lambda: self.new_tab(paths[0]))
                     remote = self.network.remote(paths[0])
-                    if remote: menu.addAction('Offline verfügbar machen …', lambda: self.offline.add(remote))
-                    menu.addAction('Ordnergröße berechnen', lambda: self.open_analysis(paths[0], apparent=True))
-                    menu.addAction('Speicher analysieren', lambda: self.open_analysis(paths[0]))
-                menu.addAction('Umbenennen\tF2', self.rename)
+                    if remote: menu.addAction(tr('Offline verfügbar machen …'), lambda: self.offline.add(remote))
+                    menu.addAction(tr('Ordnergröße berechnen'), lambda: self.open_analysis(paths[0], apparent=True))
+                    menu.addAction(tr('Speicher analysieren'), lambda: self.open_analysis(paths[0]))
+                menu.addAction(tr('Umbenennen\tF2'), self.rename)
             menu.addSeparator()
-            menu.addAction('Kopieren\tStrg+C', lambda: self.copy(False))
-            menu.addAction('Ausschneiden\tStrg+X', lambda: self.copy(True))
-            menu.addAction('Pfad kopieren', lambda: QApplication.clipboard().setText('\n'.join(self.network.remote(p) or p for p in paths)))
+            menu.addAction(tr('Kopieren\tStrg+C'), lambda: self.copy(False))
+            menu.addAction(tr('Ausschneiden\tStrg+X'), lambda: self.copy(True))
+            menu.addAction(tr('Pfad kopieren'), lambda: QApplication.clipboard().setText('\n'.join(self.network.remote(p) or p for p in paths)))
             menu.addSeparator()
             self.lumen_menu(menu, paths)
             from file_actions import menu as personal_actions_menu
             personal_actions_menu(self, menu, paths)
             menu.addSeparator()
-            menu.addAction('In den Papierkorb\tEntf', self.trash)
-        menu.addAction('Hier einfügen\tStrg+V', self.paste)
-        menu.addAction('Neuer Ordner', self.mkdir)
+            menu.addAction(tr('In den Papierkorb\tEntf'), self.trash)
+        menu.addAction(tr('Hier einfügen\tStrg+V'), self.paste)
+        menu.addAction(tr('Neuer Ordner'), self.mkdir)
         menu.addSeparator()
-        menu.addAction('Letzte Lumen-Dateiaktion rückgängig …', lambda: self.organize_files('undo'))
+        menu.addAction(tr('Letzte Lumen-Dateiaktion rückgängig …'), lambda: self.organize_files('undo'))
         menu.exec_(view.viewport().mapToGlobal(position))
 
     def refresh(self):
@@ -1593,34 +1595,27 @@ class Window(QMainWindow):
         self.settings.sync()
         if self.settings.value('documentWorkshopEnabled', False, type=bool):
             from document_workshop_ui import open_workshop
-            menu.addAction('Dokumentenwerkstatt …', lambda: open_workshop(self, paths))
+            menu.addAction(tr('Dokumentenwerkstatt …'), lambda: open_workshop(self, paths))
 
     def show_menu(self):
         menu = QMenu(self)
-        menu.addAction('Arbeitsplatz · Projekte & Verlauf', self.show_workplace)
+        menu.addAction(tr('Arbeitsplatz · Projekte & Verlauf'), self.show_workplace)
         menu.addAction('Transfers', lambda: self.show_workplace(2))
-        menu.addAction('Offline verfügbare Ordner …', self.offline.show)
-        menu.addAction('Dateiversionen …', self.show_versions)
+        menu.addAction(tr('Offline verfügbare Ordner …'), self.offline.show)
+        menu.addAction(tr('Dateiversionen …'), self.show_versions)
         self.add_workshop_action(menu)
-        menu.addAction('Einstellungen\tStrg+Komma', self.show_settings)
-        menu.addAction('Bibliotheken verwalten …', self.spaces.library_manager)
-        menu.addAction('Arbeitsräume …', self.spaces.room_menu)
-        menu.addAction('Mit Server verbinden\tStrg+K', self.connect_dialog)
-        menu.addAction('Speicher analysieren', self.open_analysis)
-        menu.addAction('Bilder nach Motiv suchen …', lambda: self.photo_tools('search'))
-        menu.addAction('Fotos aufräumen …', lambda: self.photo_tools('tidy'))
-        menu.addAction('Aktualisieren\tF5', self.refresh)
-        menu.addAction('Versteckte Dateien\tStrg+H', self.toggle_hidden)
+        menu.addAction(tr('Einstellungen\tStrg+Komma'), self.show_settings)
+        menu.addAction(tr('Bibliotheken verwalten …'), self.spaces.library_manager)
+        menu.addAction(tr('Arbeitsräume …'), self.spaces.room_menu)
+        menu.addAction(tr('Mit Server verbinden\tStrg+K'), self.connect_dialog)
+        menu.addAction(tr('Speicher analysieren'), self.open_analysis)
+        menu.addAction(tr('Bilder nach Motiv suchen …'), lambda: self.photo_tools('search'))
+        menu.addAction(tr('Fotos aufräumen …'), lambda: self.photo_tools('tidy'))
+        menu.addAction(tr('Aktualisieren\tF5'), self.refresh)
+        menu.addAction(tr('Versteckte Dateien\tStrg+H'), self.toggle_hidden)
         menu.addSeparator()
-        menu.addAction('Tastenkürzel & Info', lambda: QMessageBox.information(self, 'Lumen Files',
-            'Lumen Files · 0.3\n\nStrg+F  Suchen\nStrg+L  Pfad eingeben\nStrg+K  Server verbinden\n'
-            'Strg+T / Strg+W  Tab öffnen / schließen\nAlt+Pfeile  Navigation\n'
-            'Leertaste  Große Vorschau\nF2  Umbenennen\nStrg+C / X / V  Kopieren / Ausschneiden / Einfügen\n'
-            'Entf  Papierkorb\n\nSuche: Dateinamen im aktuellen Ordner und Unterordnern. '
-            'Mehrere Wörter müssen alle im Namen vorkommen. Trefferlimit in den Einstellungen; kein Volltextindex.\n\n'
-            'Bilder: Pfeiltasten blättern, R / Umschalt+R drehen, H spiegeln, Strg+Z rückgängig, '
-            'Strg+S speichern, Entf Papierkorb, F11 Vollbild. Originale bleiben in .lumen-originals.\n\n'
-            'PDFs sind blätterbar. Videos zeigen ein Standbild, Audio eine Wellenform. Wiedergabe in der Standard-App.'))
+        menu.addAction(tr('Tastenkürzel & Info'), lambda: QMessageBox.information(self, 'Lumen Files',
+            tr('Lumen Files · 0.3\n\nStrg+F  Suchen\nStrg+L  Pfad eingeben\nStrg+K  Server verbinden\nStrg+T / Strg+W  Tab öffnen / schließen\nAlt+Pfeile  Navigation\nLeertaste  Große Vorschau\nF2  Umbenennen\nStrg+C / X / V  Kopieren / Ausschneiden / Einfügen\nEntf  Papierkorb\n\nSuche: Dateinamen im aktuellen Ordner und Unterordnern. Mehrere Wörter müssen alle im Namen vorkommen. Trefferlimit in den Einstellungen; kein Volltextindex.\n\nBilder: Pfeiltasten blättern, R / Umschalt+R drehen, H spiegeln, Strg+Z rückgängig, Strg+S speichern, Entf Papierkorb, F11 Vollbild. Originale bleiben in .lumen-originals.\n\nPDFs sind blätterbar. Videos zeigen ein Standbild, Audio eine Wellenform. Wiedergabe in der Standard-App.')))
         menu.exec_(self.sender().mapToGlobal(self.sender().rect().bottomLeft()))
 
     def show_versions(self, path=None):
@@ -1636,10 +1631,10 @@ class Window(QMainWindow):
             class WorkplaceDialog(QDialog):
                 def reject(dialog):
                     if dialog.page.busy:
-                        dialog.page.status.setText('Bitte die laufende Systemaktion abschließen lassen.'); return
+                        dialog.page.status.setText(tr('Bitte die laufende Systemaktion abschließen lassen.')); return
                     super().reject()
             self.workplace_dialog = WorkplaceDialog(self)
-            self.workplace_dialog.setWindowTitle('Arbeitsplatz — Lumen Files'); self.workplace_dialog.resize(1120, 800)
+            self.workplace_dialog.setWindowTitle(tr('Arbeitsplatz — Lumen Files')); self.workplace_dialog.resize(1120, 800)
             layout = QVBoxLayout(self.workplace_dialog)
             self.workplace_dialog.page = Workplace(self.workplace_dialog, files_provider=lambda: self)
             layout.addWidget(self.workplace_dialog.page)
@@ -1656,11 +1651,11 @@ class Window(QMainWindow):
 
     def closeEvent(self, event):
         if hasattr(self, 'workplace_dialog') and self.workplace_dialog.page.busy:
-            self.error('Bitte die laufende Systemaktion zuerst abschließen lassen.'); event.ignore(); return
+            self.error(tr('Bitte die laufende Systemaktion zuerst abschließen lassen.')); event.ignore(); return
         if getattr(self, '_closed', False):
             event.accept(); return
         if self.file_job and self.file_job.isRunning():
-            self.error('Es läuft noch ein Dateivorgang. Bitte vor dem Schließen abwarten.')
+            self.error(tr('Es läuft noch ein Dateivorgang. Bitte vor dem Schließen abwarten.'))
             event.ignore()
             return
         if hasattr(self, 'assistant') and not self.assistant.can_close():
@@ -1677,7 +1672,7 @@ class Window(QMainWindow):
         for job in self.search_jobs[:]:
             job.stop.set()
             if not job.wait(1500):
-                self.activity.setText('Suche wird beendet. Bitte gleich erneut schließen.')
+                self.activity.setText(tr('Suche wird beendet. Bitte gleich erneut schließen.'))
                 event.ignore()
                 return
         if hasattr(self, 'assistant'):
@@ -1802,9 +1797,8 @@ def create_app(appearance=None):
     app.setApplicationName('lumen-files')
     app.setApplicationDisplayName('Lumen Files')
     app.setDesktopFileName('lumen-files')
-    app.translator = QTranslator(app)
-    app.translator.load('qtbase_de', QLibraryInfo.location(QLibraryInfo.TranslationsPath))
-    app.installTranslator(app.translator)
+    from lumen_i18n import install
+    install(app)
     kde = QSettings(str(Path.home() / '.config/kdeglobals'), QSettings.IniFormat)
     QIcon.setThemeSearchPaths([str(Path(path) / 'icons') for path in
                              QStandardPaths.standardLocations(QStandardPaths.GenericDataLocation)]
@@ -1838,9 +1832,9 @@ def create_app(appearance=None):
 
 if __name__ == '__main__':
     import argparse
-    parser = argparse.ArgumentParser(description='Lumen Files – Dateimanager mit Lumen-Integration')
-    parser.add_argument('location', nargs='?', help='Datei, Ordner oder Netzwerkadresse')
-    parser.add_argument('--settings', action='store_true', help='Gemeinsame Lumen-Einstellungen öffnen')
+    parser = argparse.ArgumentParser(description=tr('Lumen Files – Dateimanager mit Lumen-Integration'))
+    parser.add_argument('location', nargs='?', help=tr('Datei, Ordner oder Netzwerkadresse'))
+    parser.add_argument('--settings', action='store_true', help=tr('Gemeinsame Lumen-Einstellungen öffnen'))
     args = parser.parse_args()
     from lumen_migrate import migrate_user
     migrate_user()

@@ -1,4 +1,5 @@
 """Small durable journal; an inverse is available only with a checked postcondition."""
+from lumen_i18n import tr
 import json
 import os
 from pathlib import Path
@@ -31,7 +32,7 @@ def fingerprint(path):
     """Bounded metadata tree; never follow symlinks, including parent directories."""
     path = Path(path).absolute()
     if path.parent.resolve() != path.parent:
-        raise ValueError('Ein übergeordneter Ordner ist ein symbolischer Link.')
+        raise ValueError(tr('Ein übergeordneter Ordner ist ein symbolischer Link.'))
     pending, result = [path], []
     while pending:
         item = pending.pop()
@@ -40,15 +41,15 @@ def fingerprint(path):
                        info.st_mode, info.st_size, info.st_mtime_ns, info.st_ctime_ns,
                        os.readlink(item) if stat.S_ISLNK(info.st_mode) else None])
         if len(result) > 5000:
-            raise ValueError('Für diese große Ordnerstruktur ist Rückgängig nicht verfügbar.')
+            raise ValueError(tr('Für diese große Ordnerstruktur ist Rückgängig nicht verfügbar.'))
         if stat.S_ISDIR(info.st_mode):
             pending.extend(sorted(item.iterdir(), reverse=True))
     return result
 
 
 def file_change(store, action, source, destination=None):
-    names = {'copy': 'Kopiert', 'move': 'Verschoben', 'rename': 'Umbenannt',
-             'mkdir': 'Ordner erstellt', 'trash': 'In den Papierkorb verschoben'}
+    names = {'copy': tr('Kopiert'), 'move': tr('Verschoben'), 'rename': tr('Umbenannt'),
+             'mkdir': tr('Ordner erstellt'), 'trash': tr('In den Papierkorb verschoben')}
     kind, after = 'activity', None
     if action in ('copy', 'move', 'rename', 'mkdir'):
         try:
@@ -68,23 +69,23 @@ def can_undo(value):
 def undo_record(store, identity):
     value = next((v for v in entries(store) if v['id'] == identity), None)
     if value is None or not can_undo(value):
-        raise ValueError('Diese Änderung kann nicht zurückgenommen werden.')
+        raise ValueError(tr('Diese Änderung kann nicht zurückgenommen werden.'))
     if value['kind'] == 'task-file':
         from lumen_actions import undo
         undo(store, identity)
         return
     try: lease = store.acquire('history-' + identity)
-    except BlockingIOError: raise ValueError('Rückgängig läuft bereits in einem anderen Fenster.')
+    except BlockingIOError: raise ValueError(tr('Rückgängig läuft bereits in einem anderen Fenster.'))
     try:
         value = store.setting(PREFIX + identity)
-        if not can_undo(value): raise ValueError('Die Änderung wurde bereits zurückgenommen.')
+        if not can_undo(value): raise ValueError(tr('Die Änderung wurde bereits zurückgenommen.'))
         kind, target, before, after = (value[k] for k in ('kind', 'target', 'before', 'after'))
         if kind == 'store-setting':
             with store.connect() as db:
                 db.execute('BEGIN IMMEDIATE')
                 row = db.execute('SELECT value FROM settings WHERE key=?', (target,)).fetchone()
                 if (json.loads(row[0]) if row else None) != after:
-                    raise ValueError('Der Eintrag wurde inzwischen geändert.')
+                    raise ValueError(tr('Der Eintrag wurde inzwischen geändert.'))
                 if before is None: db.execute('DELETE FROM settings WHERE key=?', (target,))
                 else: db.execute('INSERT OR REPLACE INTO settings VALUES (?,?)', (target, json.dumps(before)))
                 value['status'] = 'undone'
@@ -92,11 +93,11 @@ def undo_record(store, identity):
             return
         if kind in ('file-move', 'file-create'):
             if fingerprint(target) != after:
-                raise ValueError('Dateien wurden inzwischen geändert. Rückgängig wurde nicht ausgeführt.')
+                raise ValueError(tr('Dateien wurden inzwischen geändert. Rückgängig wurde nicht ausgeführt.'))
             if kind == 'file-move':
                 from core import move_entry
                 if Path(before).parent.resolve() != Path(before).parent:
-                    raise ValueError('Der ursprüngliche Ordner hat sich geändert.')
+                    raise ValueError(tr('Der ursprüngliche Ordner hat sich geändert.'))
                 move_entry(target, before, atomic=True)
             else:
                 from gi.repository import Gio
@@ -109,7 +110,7 @@ def undo_record(store, identity):
                 current = settings.value(key)
                 # INI values are textual in a fresh process; use the recorded type.
                 if expected is not None: current = settings.value(key, type=type(expected))
-                if current != expected: raise ValueError('Einstellungen wurden inzwischen geändert.')
+                if current != expected: raise ValueError(tr('Einstellungen wurden inzwischen geändert.'))
             if 'appearance' in before and settings.fileName() == QSettings('Lumen', 'Assistant').fileName():
                 from appearance import normalize_design
                 from lumen_desktop_theme import apply
@@ -119,7 +120,7 @@ def undo_record(store, identity):
                 if previous is None: settings.remove(key)
                 else: settings.setValue(key, previous)
             settings.sync()
-            if settings.status() != QSettings.NoError: raise OSError('Einstellungen konnten nicht gespeichert werden.')
+            if settings.status() != QSettings.NoError: raise OSError(tr('Einstellungen konnten nicht gespeichert werden.'))
         elif kind == 'panel':
             from desktop_settings import change_panel
             change_panel({'id': target, 'before': after, 'changes': before}, journal=False)

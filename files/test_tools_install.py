@@ -20,6 +20,8 @@ class ToolsInstallTest(unittest.TestCase):
             self.assertEqual(installer.install(REPO,data,binaries),runtime)
             self.assertEqual(library.read_text(),'Meine Notiz')
             self.assertEqual((runtime/'tools_app.py').read_bytes(),(REPO/'files/tools_app.py').read_bytes())
+            for catalog in (REPO/'files/translations/en').glob('*.json'):
+                self.assertEqual((runtime/'translations/en'/catalog.name).read_bytes(),catalog.read_bytes())
             for tool in installer.TOOLS:
                 name='lumen-'+tool; binary=binaries/name
                 desktop=data/'applications'/f'{name}.desktop'

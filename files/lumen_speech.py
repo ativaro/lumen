@@ -1,8 +1,9 @@
 """One recognition configuration for dictation, microphone tests and voice turns."""
+from lumen_i18n import tr
 import os
 
-LANGUAGES = [('Deutsch', 'de'), ('Automatisch erkennen', 'auto'), ('Englisch', 'en'),
-             ('Französisch', 'fr'), ('Italienisch', 'it'), ('Spanisch', 'es')]
+LANGUAGES = [(tr('Deutsch'), 'de'), (tr('Automatisch erkennen'), 'auto'), (tr('Englisch'), 'en'),
+             (tr('Französisch'), 'fr'), (tr('Italienisch'), 'it'), (tr('Spanisch'), 'es')]
 VOCABULARY = 'Lumen, Lumen Files, OpenCode, Ollama, NAS, SMB, SFTP, WebDAV'
 
 
@@ -21,16 +22,16 @@ def transcription_arguments(settings, audio, output, model=None):
 def add_recognition_fields(form, settings):
     """Return an explicit save action; merely opening settings changes nothing."""
     from PyQt5.QtWidgets import QCheckBox, QComboBox, QLineEdit
-    language = QComboBox(); language.setAccessibleName('Erkennungssprache')
+    language = QComboBox(); language.setAccessibleName(tr('Erkennungssprache'))
     for label, code in LANGUAGES: language.addItem(label, code)
     language.setCurrentIndex(max(0, language.findData(settings.value('speechLanguage', 'de'))))
-    language.setToolTip('Eine feste Sprache hilft bei kurzen Sätzen. Deutsch gilt auch für Schweizerdeutsch; englische Fachbegriffe bleiben möglich.')
+    language.setToolTip(tr('Eine feste Sprache hilft bei kurzen Sätzen. Deutsch gilt auch für Schweizerdeutsch; englische Fachbegriffe bleiben möglich.'))
     words = QLineEdit(str(settings.value('speechVocabulary', VOCABULARY))); words.setMaxLength(500)
-    words.setAccessibleName('Namen und Fachbegriffe'); words.setPlaceholderText('Eigene Namen und Begriffe, mit Komma getrennt')
-    words.setToolTip('Schreibweisen als Erkennungshilfe, keine automatischen Textersetzungen. Bei falschen Ergänzungen die Liste kürzen oder leeren.')
-    form.addRow('Erkennungssprache', language); form.addRow('Namen und Fachbegriffe', words)
-    gpu = QCheckBox('GPU nutzen, falls verfügbar'); gpu.setChecked(settings.value('speechUseGPU', True, type=bool))
-    gpu.setToolTip('Ohne GPU-Unterstützung wird der Prozessor verwendet. Ausschalten erzwingt die CPU.'); form.addRow('', gpu)
+    words.setAccessibleName(tr('Namen und Fachbegriffe')); words.setPlaceholderText(tr('Eigene Namen und Begriffe, mit Komma getrennt'))
+    words.setToolTip(tr('Schreibweisen als Erkennungshilfe, keine automatischen Textersetzungen. Bei falschen Ergänzungen die Liste kürzen oder leeren.'))
+    form.addRow(tr('Erkennungssprache'), language); form.addRow(tr('Namen und Fachbegriffe'), words)
+    gpu = QCheckBox(tr('GPU nutzen, falls verfügbar')); gpu.setChecked(settings.value('speechUseGPU', True, type=bool))
+    gpu.setToolTip(tr('Ohne GPU-Unterstützung wird der Prozessor verwendet. Ausschalten erzwingt die CPU.')); form.addRow('', gpu)
     def save():
         settings.setValue('speechLanguage', language.currentData())
         settings.setValue('speechVocabulary', words.text().strip()); settings.setValue('speechUseGPU', gpu.isChecked()); settings.sync()

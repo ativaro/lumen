@@ -4,6 +4,8 @@ import sys
 from collections import OrderedDict
 from pathlib import Path
 
+from lumen_i18n import worker_process, tr
+
 from PyQt5.QtCore import QObject, QProcess, Qt, QTemporaryDir, QTimer, QUrl, pyqtSignal
 from PyQt5.QtGui import QColor, QPainter, QPixmap, QTransform
 from PyQt5.QtWidgets import QDialog, QGraphicsScene, QGraphicsView, QMessageBox
@@ -58,7 +60,7 @@ class ImageLoader(QObject):
         path = self.pending.pop(0)
         self.loading = path
         output = str(Path(self.temp.path()) / 'image.png')
-        proc = QProcess(self)
+        proc = worker_process(self)
         self.proc = proc
 
         def finished(code, _status):
@@ -68,14 +70,14 @@ class ImageLoader(QObject):
             self.proc = self.loading = None
             try:
                 if code:
-                    raise ValueError('Das Bild konnte nicht gelesen werden.')
+                    raise ValueError(tr('Das Bild konnte nicht gelesen werden.'))
                 data = json.loads(bytes(proc.readAllStandardOutput()))
                 pixmap = QPixmap()
                 if data['kind'] == 'image':
                     # The worker reuses its output name; bypass Qt's filename cache.
                     pixmap.loadFromData(Path(output).read_bytes())
                 if pixmap.isNull():
-                    raise ValueError(data.get('message', 'Das Bild konnte nicht gelesen werden.'))
+                    raise ValueError(data.get('message', tr('Das Bild konnte nicht gelesen werden.')))
                 self.cache[path] = (pixmap, data)
                 # Bounded previews; the gallery keeps both neighbors, the grid small thumbnails.
                 while len(self.cache) > self.cache_limit:
@@ -94,13 +96,13 @@ class ImageLoader(QObject):
     def fail_start(self, proc, path):
         if self.proc is proc:
             self.cancel()
-            self.failed.emit(path, 'Der Bildprozess konnte nicht gestartet werden.')
+            self.failed.emit(path, tr('Der Bildprozess konnte nicht gestartet werden.'))
             self.advance()
 
     def timeout(self):
         path = self.loading
         self.cancel()
-        self.failed.emit(path, 'Das Laden hat zu lange gedauert. Du kannst zum nächsten Bild wechseln.')
+        self.failed.emit(path, tr('Das Laden hat zu lange gedauert. Du kannst zum nächsten Bild wechseln.'))
         self.advance()
 
 
@@ -157,7 +159,7 @@ class Gallery(QDialog):
         self.save_proc = self.worker = None
         self.resize(1240, 850)
         self.setMinimumSize(900, 560)
-        self.setWindowTitle('Lumen · Bilder')
+        self.setWindowTitle(tr('Lumen · Bilder'))
         from gallery_widgets import build_gallery
         self.loader = ImageLoader(self)
         self.quick = ImageLoader(self, max_side=640)
@@ -194,16 +196,16 @@ class Gallery(QDialog):
         self.original = QPixmap()
         self.canvas.display(QPixmap())
         self.title.setText(Path(self.path).name)
-        self.counter.setText(f'{self.index + 1} von {len(self.paths)}')
+        self.counter.setText(tr('{0} von {1}', self.index + 1, len(self.paths)))
         self.filmstrip.select(self.paths, self.index)
         self.dimensions.clear()
         self.title.setToolTip(self.path)
         parent = self.parent()
         remote = parent.network.remote(self.path) if parent and hasattr(parent, 'network') else None
-        self.source.setText(('NAS · ' if QUrl(remote).scheme() == 'smb' else 'Netzwerk · ') + QUrl(remote).host()
-                            if remote else 'Dieser PC')
+        self.source.setText(('NAS · ' if QUrl(remote).scheme() == 'smb' else tr('Netzwerk · ')) + QUrl(remote).host()
+                            if remote else tr('Dieser PC'))
         self.source.setToolTip(remote or self.path)
-        self.status.setText('Bild laden …')
+        self.status.setText(tr('Bild laden …'))
         self.controls()
         neighbors = [self.path] + [self.paths[i] for i in (self.index + 1, self.index - 1)
                                    if 0 <= i < len(self.paths)]
@@ -217,7 +219,7 @@ class Gallery(QDialog):
     def quick_loaded(self, path, pixmap, data):
         if path == self.path and self.data is None:
             self.canvas.display(pixmap)
-            self.status.setText('Vorschau · Details werden geladen …')
+            self.status.setText(tr('Vorschau · Details werden geladen …'))
 
     def loaded(self, path, pixmap, data):
         if path != self.path or self.operations or (self.data is not None and self.data.get('stamp') == data.get('stamp')):
@@ -225,7 +227,7 @@ class Gallery(QDialog):
         self.original, self.data = pixmap, data
         self.dimensions.setText(f"{data['width']} × {data['height']} px")
         self.canvas.display(pixmap)
-        self.status.setText(f"{data['width']} × {data['height']} px · Ansicht bis 2560 px · Pfeiltasten blättern · Mausrad zoomt")
+        self.status.setText(tr('{0} × {1} px · Ansicht bis 2560 px · Pfeiltasten blättern · Mausrad zoomt', data['width'], data['height']))
         self.controls()
 
     def failed(self, path, message):
@@ -263,15 +265,15 @@ class Gallery(QDialog):
             transform = QTransform().scale(-1, 1) if operation == 'mirror' else QTransform().rotate(90 if operation == 'right' else -90)
             pixmap = pixmap.transformed(transform)
         self.canvas.display(pixmap)
-        self.title.setText(Path(self.path).name + (' · Ungespeichert' if self.operations else ''))
-        self.status.setText('Speichern: volle Auflösung + Original in .lumen-originals. JPEG wird neu komprimiert.'
-                            if self.operations else 'Keine ungespeicherten Änderungen.')
+        self.title.setText(Path(self.path).name + (tr(' · Ungespeichert') if self.operations else ''))
+        self.status.setText(tr('Speichern: volle Auflösung + Original in .lumen-originals. JPEG wird neu komprimiert.')
+                            if self.operations else tr('Keine ungespeicherten Änderungen.'))
         self.controls()
 
     def leave_edits(self, action):
         if self.operations:
-            choice = QMessageBox.question(self, 'Änderungen speichern?',
-                'Änderungen vor dem Verlassen dieses Bildes speichern?',
+            choice = QMessageBox.question(self, tr('Änderungen speichern?'),
+                tr('Änderungen vor dem Verlassen dieses Bildes speichern?'),
                 QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel, QMessageBox.Cancel)
             if choice == QMessageBox.Cancel:
                 return
@@ -285,8 +287,8 @@ class Gallery(QDialog):
             return
         self.busy = True
         self.controls()
-        self.status.setText('Original sichern und Änderungen speichern …')
-        proc = QProcess(self)
+        self.status.setText(tr('Original sichern und Änderungen speichern …'))
+        proc = worker_process(self)
         self.save_proc = proc
 
         def finished(_code, _status):
@@ -304,8 +306,8 @@ class Gallery(QDialog):
                 if after:
                     after()
             except (ValueError, KeyError):
-                message = result.get('error') if 'result' in locals() else 'Der Bildprozess wurde beendet. Bitte Original und Sicherung prüfen.'
-                QMessageBox.warning(self, 'Speichern fehlgeschlagen', message)
+                message = result.get('error') if 'result' in locals() else tr('Der Bildprozess wurde beendet. Bitte Original und Sicherung prüfen.')
+                QMessageBox.warning(self, tr('Speichern fehlgeschlagen'), message)
             proc.deleteLater()
             self.controls()
 
@@ -319,21 +321,21 @@ class Gallery(QDialog):
         self.busy = False
         proc.deleteLater()
         self.controls()
-        self.status.setText('Der Bildprozess konnte nicht gestartet werden. Änderungen sind nicht gespeichert.')
+        self.status.setText(tr('Der Bildprozess konnte nicht gestartet werden. Änderungen sind nicht gespeichert.'))
 
     def trash(self):
         if self.busy or not self.path:
             return
-        box = QMessageBox(QMessageBox.Question, 'Bild in den Papierkorb', '',
+        box = QMessageBox(QMessageBox.Question, tr('Bild in den Papierkorb'), '',
                           QMessageBox.Yes | QMessageBox.Cancel, self)
         box.setTextFormat(Qt.PlainText)
-        box.setText(f'„{Path(self.path).name}“ in den Papierkorb verschieben?\nUngespeicherte Änderungen werden verworfen.')
+        box.setText(tr('„{0}“ in den Papierkorb verschieben?\nUngespeicherte Änderungen werden verworfen.', Path(self.path).name))
         box.setDefaultButton(QMessageBox.Cancel)
         if box.exec_() != QMessageBox.Yes:
             return
         self.busy = True
         self.controls()
-        self.status.setText('In den Papierkorb verschieben …')
+        self.status.setText(tr('In den Papierkorb verschieben …'))
         self.loader.cancel()
         path = self.path
         worker = FileWorker('trash', [path])
@@ -345,7 +347,7 @@ class Gallery(QDialog):
             self.worker = None
             self.busy = False
             if result[1]:
-                QMessageBox.warning(self, 'Papierkorb nicht verfügbar', '\n'.join(result[1]))
+                QMessageBox.warning(self, tr('Papierkorb nicht verfügbar'), '\n'.join(result[1]))
             elif path in result[0]:
                 self.loader.cache.pop(path, None)
                 self.paths.remove(path)

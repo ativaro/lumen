@@ -191,3 +191,14 @@ geöffnet; es musste kein vorhandenes Benutzerfenster beendet werden.
 Checks bestanden. Vier Themes, kompakte Ansicht und nativer Linkdialog gerendert.
 Zusätzlicher Test bestätigt: Wechsel in eine leere Sammlung sichert den Text
 und bleibt auch nach Scan leer. Keine Benutzernotizen für Tests verwendet.
+
+# English localization and visible GitHub installation
+
+- [x] Shared language setting, runtime API and catalog validation.
+- [x] Main Lumen/Files/search interfaces in English and German.
+- [x] Native companion tools, settings/setup and Plasma controls localized.
+- [x] User text, storage keys, paths and commands remain unchanged.
+- [ ] German suite and English native checks, package/catalog installation.
+- [x] README opening shows installation and accurate private access requirements.
+- [x] Explain license/control tradeoffs; apply only the user's chosen direction.
+- [ ] Reviewed source pushed; remote and installed resources verified.

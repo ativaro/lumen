@@ -1,12 +1,23 @@
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 from lumen_store import Store
 from lumen_tasks import run_steps
 from file_actions import expand, template
 
 
 class FileActionsTest(unittest.TestCase):
+    def test_saved_context_is_removed_after_switching_language(self):
+        for locale in ('de', 'en'):
+            for marker in ('Ausgewählte Pfade (Kontext):', 'Selected paths (context):'):
+                with self.subTest(locale=locale, marker=marker), patch('lumen_i18n.language', return_value=locale):
+                    task = dict(directory='/example', prompt='Mein eigener Auftrag\n\n' + marker + '\n/old/file.jpg', steps=[])
+                    result = template(task)
+                    self.assertNotIn('/old/', result['prompt'])
+                    self.assertTrue(result['prompt'].startswith('Mein eigener Auftrag'))
+                    self.assertIn('/old/', task['prompt'])
+
     def test_template_selection_preview_and_native_workflow_execution(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); first = root / 'one.txt'; second = root / 'two.txt'

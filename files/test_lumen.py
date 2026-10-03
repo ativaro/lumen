@@ -232,7 +232,6 @@ class NativeTest(unittest.TestCase):
         from app import Window
         from folder_icons import folder_icons
         from PyQt5.QtCore import QSettings, QStandardPaths, Qt, QModelIndex
-        from PyQt5.QtGui import QStandardItem
         from PyQt5.QtTest import QTest
         from unittest.mock import patch
         with tempfile.TemporaryDirectory() as tmp:
@@ -256,8 +255,10 @@ class NativeTest(unittest.TestCase):
                 self.assertEqual(image(ordinary), icons[''].pixmap(120, 104).toImage())
                 self.assertEqual(image(link), window.fs.index(str(link)).data(Qt.DecorationRole).pixmap(120, 104).toImage())
                 expected = image(document)
-                item = QStandardItem('Meine Texte'); item.setData(str(document), Qt.UserRole)
-                window.results.appendRow([item, QStandardItem(''), QStandardItem('Ordner')])
+                window.spaces.add_entry(
+                    {'path': str(document), 'name': document.name, 'directory': True,
+                     'size': 0, 'modified': document.stat().st_mtime},
+                    {'label': 'Local test', 'location': tmp}, tmp, 100)
                 window.proxy.setSourceModel(window.results)
                 window.set_file_root(QModelIndex()); window.set_view_mode('grid')
                 self.assertEqual(window.proxy.index(0, 0).data(Qt.DecorationRole).pixmap(120, 104).toImage(), expected)

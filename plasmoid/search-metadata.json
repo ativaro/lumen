@@ -6,12 +6,12 @@
             }
         ],
         "Category": "System Information",
-        "Description": "Dateien, Apps und Gespräche in einer Suche",
+        "Description": "Files, apps and conversations in one search",
         "Description[de]": "Dateien, Apps und Gespräche in einer Suche",
         "Icon": "system-search",
         "Id": "org.lumen.search",
         "License": "MIT",
-        "Name": "Lumen Suche",
+        "Name": "Lumen Search",
         "Name[de]": "Lumen Suche",
         "Version": "1.2.0",
         "Website": "https://github.com/ativaro/lumen"

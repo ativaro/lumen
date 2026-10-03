@@ -338,6 +338,26 @@ class AssistantTest(unittest.TestCase):
                 backend.shutdown()
                 panel.close()
 
+    def test_english_cancellation_exposes_retry_and_keeps_tracking_sentinel(self):
+        from assistant import ChatPanel
+        from PyQt5.QtCore import QSettings
+        with tempfile.TemporaryDirectory() as tmp, patch('lumen_i18n.language', return_value='en'):
+            backend = OpenCodeBackend(tmp)
+            panel = ChatPanel(tmp, backend=backend, settings=QSettings(tmp + '/assistant.ini', QSettings.IniFormat))
+            completed = []
+            backend.completed.connect(lambda ok, message: completed.append((ok, message)))
+            try:
+                panel.set_action('explain')
+                backend.set_busy(True)
+                self.assertTrue(panel.retry.isHidden())
+                backend.stopped()
+                self.assertEqual(panel.status.text(), 'Cancelled')
+                self.assertFalse(panel.retry.isHidden())
+                self.assertFalse(panel.action_more.isEnabled())
+                self.assertEqual(completed, [(False, 'Abgebrochen')])
+            finally:
+                backend.shutdown(); panel.close()
+
     def test_auto_permissions_keep_proposals_locked_and_clear_on_stop(self):
         with tempfile.TemporaryDirectory() as tmp:
             backend = OpenCodeBackend(tmp)

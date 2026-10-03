@@ -1,4 +1,5 @@
 """Bounded IMAP/SMTP, local mail storage and calendar worker. No automatic sending."""
+from lumen_i18n import tr
 from datetime import datetime, timedelta, timezone
 from email import policy
 from email.parser import BytesParser
@@ -28,7 +29,7 @@ MAX_HTTP = 8*1024**2
 
 def calendar_python():
     path=Path(os.environ.get('XDG_DATA_HOME',str(Path.home()/'.local/share')))/'lumen/inbox-env-v1/bin/python'
-    if not path.is_file():raise ValueError('Kalenderanbindung fehlt. In der Einrichtung Inbox vorbereiten.')
+    if not path.is_file():raise ValueError(tr('Kalenderanbindung fehlt. In der Einrichtung Inbox vorbereiten.'))
     return str(path)
 
 
@@ -52,19 +53,19 @@ def loopback(host):
 
 def validate_account(account):
     kind=account.get('kind')
-    if kind not in ('imap','bridge','caldav','ics'):raise ValueError('Unbekannte Kontoart.')
+    if kind not in ('imap','bridge','caldav','ics'):raise ValueError(tr('Unbekannte Kontoart.'))
     if kind in ('imap','bridge'):
         for key in ('host','smtp_host'):
             host=account.get(key,'').strip()
-            if not host or any(c.isspace() or c in '/\\\0' for c in host):raise ValueError('Ungültiger Servername.')
-            if kind=='bridge' and not loopback(host):raise ValueError('Proton Bridge muss auf diesem Rechner laufen.')
+            if not host or any(c.isspace() or c in '/\\\0' for c in host):raise ValueError(tr('Ungültiger Servername.'))
+            if kind=='bridge' and not loopback(host):raise ValueError(tr('Proton Bridge muss auf diesem Rechner laufen.'))
         for key in ('port','smtp_port'):
-            if type(account.get(key)) is not int or not 1<=account[key]<=65535:raise ValueError('Ungültiger Server-Port.')
+            if type(account.get(key)) is not int or not 1<=account[key]<=65535:raise ValueError(tr('Ungültiger Server-Port.'))
         if account.get('tls') not in ('ssl','starttls') or account.get('smtp_tls') not in ('ssl','starttls'):
-            raise ValueError('TLS ist erforderlich.')
-        if not account.get('username') or any(c in account['username'] for c in '\0\r\n'):raise ValueError('Gültiger Benutzername fehlt.')
+            raise ValueError(tr('TLS ist erforderlich.'))
+        if not account.get('username') or any(c in account['username'] for c in '\0\r\n'):raise ValueError(tr('Gültiger Benutzername fehlt.'))
         if kind=='bridge' and not re.fullmatch('[a-f0-9]{64}',account.get('fingerprint','')):
-            raise ValueError('Zuerst das exportierte Bridge-Zertifikat auswählen.')
+            raise ValueError(tr('Zuerst das exportierte Bridge-Zertifikat auswählen.'))
     else: secure_url(account.get('url',''))
     return account
 
@@ -72,7 +73,7 @@ def validate_account(account):
 def secure_url(value):
     parsed=urlsplit(value)
     if parsed.scheme!='https' or not parsed.hostname or parsed.username or parsed.password or parsed.fragment:
-        raise ValueError('Eine HTTPS-Adresse ohne eingebettete Zugangsdaten eingeben.')
+        raise ValueError(tr('Eine HTTPS-Adresse ohne eingebettete Zugangsdaten eingeben.'))
     return value
 
 
@@ -85,9 +86,9 @@ def trust_context(account):
 
 def verify_peer(account,sock):
     if account['kind']=='bridge':
-        if not ipaddress.ip_address(sock.getpeername()[0]).is_loopback:raise ValueError('Bridge-Verbindung verlässt diesen Rechner.')
+        if not ipaddress.ip_address(sock.getpeername()[0]).is_loopback:raise ValueError(tr('Bridge-Verbindung verlässt diesen Rechner.'))
         if hashlib.sha256(sock.getpeercert(binary_form=True)).hexdigest()!=account['fingerprint']:
-            raise ValueError('Bridge-Zertifikat geändert. Das aktuelle Zertifikat erneut in der Kontoeinrichtung auswählen.')
+            raise ValueError(tr('Bridge-Zertifikat geändert. Das aktuelle Zertifikat erneut in der Kontoeinrichtung auswählen.'))
 
 
 def connect_mail(account):
@@ -100,7 +101,7 @@ def connect_mail(account):
         verify_peer(account,client.sock)
         original_read=client.read
         def bounded_read(size):
-            if size>MAX_MAIL:raise ValueError('Nachricht überschreitet die Grenze von 20 MiB.')
+            if size>MAX_MAIL:raise ValueError(tr('Nachricht überschreitet die Grenze von 20 MiB.'))
             return original_read(size)
         client.read=bounded_read
         client.login(account['username'],secret('inbox',account['id']))
@@ -122,21 +123,21 @@ def text_message(raw):
             parser=ArticleParser();parser.feed(content[:1024**2]);text=parser.text()
         else:text=str(content)
     ids=re.findall(r'<[^<>\s]{1,500}>',str(message.get('References','')) or str(message.get('In-Reply-To','')) or str(message.get('Message-ID','')))
-    return dict(subject=str(message.get('Subject','(Ohne Betreff)'))[:1000],sender=str(message.get('From',''))[:1000],
+    return dict(subject=str(message.get('Subject',tr('(Ohne Betreff)')))[:1000],sender=str(message.get('From',''))[:1000],
         sent=str(message.get('Date',''))[:100],body=text[:120000],thread=ids[0] if ids else hashlib.sha256(raw).hexdigest())
 
 
 def sync_mail(library,account,job,folder='INBOX'):
-    if not folder or '\r' in folder or '\n' in folder:raise ValueError('Ungültiger Postfachordner.')
+    if not folder or '\r' in folder or '\n' in folder:raise ValueError(tr('Ungültiger Postfachordner.'))
     client=connect_mail(account)
     try:
         status,_=client.select('"'+folder.replace('\\','\\\\').replace('"','\\"')+'"',readonly=True)
-        if status!='OK':raise ValueError('Postfachordner nicht erreichbar.')
+        if status!='OK':raise ValueError(tr('Postfachordner nicht erreichbar.'))
         response=client.response('UIDVALIDITY')[1]
         validity=response[0].decode() if response and response[0] else ''
-        if not validity.isdecimal():raise ValueError('Der Server liefert keine stabile Postfachkennung.')
+        if not validity.isdecimal():raise ValueError(tr('Der Server liefert keine stabile Postfachkennung.'))
         status,result=client.uid('search',None,'ALL')
-        if status!='OK':raise ValueError('Nachrichtenliste konnte nicht gelesen werden.')
+        if status!='OK':raise ValueError(tr('Nachrichtenliste konnte nicht gelesen werden.'))
         # ponytail: bounded recent cache; paginated history only when older mail is needed.
         uids=result[0].split()[-200:];fetched=[];skipped=0;total=0
         for uid in reversed(uids):
@@ -153,13 +154,13 @@ def sync_mail(library,account,job,folder='INBOX'):
             if total>64*1024**2:skipped+=1;continue
             item=text_message(raw)
             fetched.append((account['id'],folder,validity,uid.decode(),item['thread'],item['subject'],item['sender'],item['sent'],item['body'],raw,int(b'\\Seen' not in meta)))
-            job.progress.emit(f'{len(fetched)} Nachrichten geladen · {skipped} übersprungen')
+            job.progress.emit(tr('{0} Nachrichten geladen · {1} übersprungen' , len(fetched), skipped))
         job.check()
         with library.connect() as db:
             db.execute('DELETE FROM messages WHERE account=? AND folder=?',(account['id'],folder))
             db.executemany('INSERT INTO messages VALUES (?,?,?,?,?,?,?,?,?,?,?)',fetched)
         library.update(account['id'],synced=time.time(),last_error='')
-        return f'{len(fetched)} Nachrichten · {skipped} übersprungen · maximal 200 / 64 MiB pro Ordner'
+        return tr('{0} Nachrichten · {1} übersprungen · maximal 200 / 64 MiB pro Ordner' , len(fetched), skipped)
     finally:
         try:client.logout()
         except (OSError,imaplib.IMAP4.error):client.shutdown()
@@ -169,7 +170,7 @@ def folders(account):
     client=connect_mail(account)
     try:
         status,values=client.list()
-        if status!='OK':raise ValueError('Ordner konnten nicht gelesen werden.')
+        if status!='OK':raise ValueError(tr('Ordner konnten nicht gelesen werden.'))
         result=[]
         for value in values[:200]:
             match=re.match(rb'\([^)]*\) (?:"[^"]*"|NIL) (.+)',value)
@@ -191,9 +192,9 @@ def folder_title(name):
 
 def save_attachment(raw,index,destination):
     message=BytesParser(policy=policy.default).parsebytes(raw);parts=list(message.iter_attachments())
-    if type(index) is not int or not 0<=index<len(parts):raise ValueError('Anhang nicht mehr verfügbar.')
+    if type(index) is not int or not 0<=index<len(parts):raise ValueError(tr('Anhang nicht mehr verfügbar.'))
     payload=parts[index].get_payload(decode=True)
-    if payload is None or len(payload)>MAX_MAIL:raise ValueError('Anhang zu groß oder nicht lesbar.')
+    if payload is None or len(payload)>MAX_MAIL:raise ValueError(tr('Anhang zu groß oder nicht lesbar.'))
     path=Path(destination)
     with path.open('xb') as stream:os.fchmod(stream.fileno(),0o600);stream.write(payload)
     return str(path)
@@ -201,11 +202,11 @@ def save_attachment(raw,index,destination):
 
 def save_draft(library,account,values,identity=None):
     allowed={key:str(values.get(key,'')) for key in ('to','subject','body','reply_to')}
-    if len(allowed['body'])>120000:raise ValueError('Entwurf zu lang.')
+    if len(allowed['body'])>120000:raise ValueError(tr('Entwurf zu lang.'))
     identity=identity or uuid.uuid4().hex
     with library.connect() as db:
         row=db.execute('SELECT status FROM drafts WHERE id=?',(identity,)).fetchone()
-        if row and row['status']!='draft':raise ValueError('Bereits versandten oder unklaren Entwurf zuerst als neuen Entwurf kopieren.')
+        if row and row['status']!='draft':raise ValueError(tr('Bereits versandten oder unklaren Entwurf zuerst als neuen Entwurf kopieren.'))
         db.execute('INSERT OR REPLACE INTO drafts VALUES (?,?,?,?)',(identity,account,json.dumps(allowed),'draft'))
     return identity
 
@@ -213,14 +214,14 @@ def save_draft(library,account,values,identity=None):
 def send_draft(library,identity,job):
     with library.connect() as db:
         db.execute('BEGIN IMMEDIATE');row=db.execute('SELECT * FROM drafts WHERE id=?',(identity,)).fetchone()
-        if not row or row['status']!='draft':raise ValueError('Entwurf wurde bereits versandt oder muss geprüft werden.')
+        if not row or row['status']!='draft':raise ValueError(tr('Entwurf wurde bereits versandt oder muss geprüft werden.'))
         values=json.loads(row['data']);account=validate_account(library.get(row['account']))
         for key in ('to','subject','reply_to'):
-            if any(c in values[key] for c in '\r\n\0'):raise ValueError('Ungültige Nachrichtenkopfzeile.')
+            if any(c in values[key] for c in '\r\n\0'):raise ValueError(tr('Ungültige Nachrichtenkopfzeile.'))
         recipients=[address for _,address in getaddresses([values['to']])]
-        if not recipients or len(recipients)>20 or any('@' not in a for a in recipients):raise ValueError('Gültige Empfängeradresse erforderlich.')
+        if not recipients or len(recipients)>20 or any('@' not in a for a in recipients):raise ValueError(tr('Gültige Empfängeradresse erforderlich.'))
         sender=account.get('address','')
-        if not sender or any(c in sender for c in '\r\n\0') or '@' not in sender:raise ValueError('Absenderadresse in den Kontoeinstellungen ergänzen.')
+        if not sender or any(c in sender for c in '\r\n\0') or '@' not in sender:raise ValueError(tr('Absenderadresse in den Kontoeinstellungen ergänzen.'))
         message=EmailMessage();message['From']=sender;message['To']=', '.join(recipients);message['Subject']=values['subject']
         message['Date']=formatdate(localtime=True);message['Message-ID']=make_msgid()
         if values['reply_to']:message['In-Reply-To']=values['reply_to'];message['References']=values['reply_to']
@@ -234,9 +235,9 @@ def send_draft(library,identity,job):
         verify_peer(account,smtp.sock);smtp.login(account.get('smtp_username') or account['username'],secret('inbox',account['id']))
         job.check();submitted=True
         refused=smtp.send_message(message,from_addr=sender,to_addrs=recipients)
-        if refused:raise ValueError('Mindestens ein Empfänger wurde abgewiesen. Gesendet-Ordner prüfen, nicht blind erneut senden.')
+        if refused:raise ValueError(tr('Mindestens ein Empfänger wurde abgewiesen. Gesendet-Ordner prüfen, nicht blind erneut senden.'))
         with library.connect() as db:db.execute("UPDATE drafts SET status='sent' WHERE id=?",(identity,))
-        return 'Nachricht vom Mailserver angenommen.'
+        return tr('Nachricht vom Mailserver angenommen.')
     except BaseException:
         with library.connect() as db:db.execute('UPDATE drafts SET status=? WHERE id=?',('uncertain' if submitted else 'draft',identity))
         raise
@@ -253,15 +254,15 @@ def calendar_client(account):
     def bounded(method,url,**kwargs):
         target=urlsplit(str(url));secure_url(str(url))
         if (target.scheme,target.hostname,target.port)!=(origin.scheme,origin.hostname,origin.port):
-            raise ValueError('Der Kalender verweist auf einen anderen Server. Dessen Adresse als eigenes Konto einrichten.')
+            raise ValueError(tr('Der Kalender verweist auf einen anderen Server. Dessen Adresse als eigenes Konto einrichten.'))
         kwargs.update(allow_redirects=False,stream=True)
         response=original(method,url,**kwargs)
-        if 300<=response.status_code<400:response.close();raise ValueError('Bitte die endgültige Kalenderadresse eingeben (Weiterleitung abgelehnt).')
+        if 300<=response.status_code<400:response.close();raise ValueError(tr('Bitte die endgültige Kalenderadresse eingeben (Weiterleitung abgelehnt).'))
         data=bytearray()
         try:
             for chunk in response.iter_content(65536):
                 data.extend(chunk)
-                if len(data)>MAX_HTTP:raise ValueError('Kalenderantwort zu groß.')
+                if len(data)>MAX_HTTP:raise ValueError(tr('Kalenderantwort zu groß.'))
         finally:response.close()
         response._content=bytes(data);response._content_consumed=True
         return response
@@ -288,7 +289,7 @@ def parse_calendar(data,expand=False):
         body=Calendar();body.add('version','2.0');body.add('prodid','-//Lumen Inbox//DE')
         for zone in calendar.walk('VTIMEZONE'):body.add_component(zone)
         body.add_component(original)
-        result.append(dict(uid=str(event.get('uid',''))[:500],title=str(event.get('summary','(Ohne Titel)'))[:1000],
+        result.append(dict(uid=str(event.get('uid',''))[:500],title=str(event.get('summary',tr('(Ohne Titel)')))[:1000],
             start=start.isoformat() if start else '',end=end.isoformat() if end else '',
             description=str(event.get('description',''))[:120000],location=str(event.get('location',''))[:1000],
             recurring=str(event.get('uid','')) in series,
@@ -298,7 +299,7 @@ def parse_calendar(data,expand=False):
 
 def calendar_operation(account,action,values):
     if account['kind']=='ics':
-        if action!='sync':raise ValueError('Kalender-Abonnements sind nur lesbar.')
+        if action!='sync':raise ValueError(tr('Kalender-Abonnements sind nur lesbar.'))
         import urllib.request
         class NoRedirect(urllib.request.HTTPRedirectHandler):
             def redirect_request(self,*args,**kwargs):return None
@@ -306,13 +307,13 @@ def calendar_operation(account,action,values):
         url=secure_url(secret('inbox',account['id']))
         opener=urllib.request.build_opener(NoRedirect,urllib.request.HTTPSHandler(context=ssl.create_default_context()))
         with opener.open(url,timeout=20) as response:data=response.read(MAX_HTTP+1)
-        if len(data)>MAX_HTTP:raise ValueError('Kalender-Abonnement zu groß.')
+        if len(data)>MAX_HTTP:raise ValueError(tr('Kalender-Abonnement zu groß.'))
         return parse_calendar(data,expand=True)
     client=calendar_client(account)
     try:
         if action=='calendars':return [{'url':str(c.url),'name':str(c.get_display_name())} for c in client.principal().calendars()[:100]]
         url=values.get('calendar') or account.get('calendar')
-        if not url:raise ValueError('Zuerst einen Kalender auswählen.')
+        if not url:raise ValueError(tr('Zuerst einen Kalender auswählen.'))
         calendar=client.calendar(url=url)
         if action=='sync':
             start=datetime.now(timezone.utc)-timedelta(days=30);end=start+timedelta(days=395)
@@ -320,24 +321,24 @@ def calendar_operation(account,action,values):
             for event in calendar.search(start=start,end=end,event=True,expand=False)[:1000]:
                 etag=event.etag;etag=getattr(etag,'text',etag)
                 for item in parse_calendar(event.data,expand=True):result.append(dict(item,url=str(event.url),etag=str(etag) if etag is not None else ''))
-                if len(result)>1000:raise ValueError('Mehr als 1000 Termine im Zeitraum. Kleineren Kalender auswählen.')
+                if len(result)>1000:raise ValueError(tr('Mehr als 1000 Termine im Zeitraum. Kleineren Kalender auswählen.'))
             return result
         if action=='save':
             from icalendar import Calendar, Event
-            if values.get('recurring') or values.get('invited'):raise ValueError('Serien oder Einladungen im ursprünglichen Kalender bearbeiten.')
+            if values.get('recurring') or values.get('invited'):raise ValueError(tr('Serien oder Einladungen im ursprünglichen Kalender bearbeiten.'))
             start=datetime.fromisoformat(values['start']);end=datetime.fromisoformat(values['end'])
-            if start.tzinfo is None or end.tzinfo is None or end<=start:raise ValueError('Gültigen Zeitraum mit Zeitzone wählen.')
-            if not values.get('title','').strip():raise ValueError('Termintitel fehlt.')
+            if start.tzinfo is None or end.tzinfo is None or end<=start:raise ValueError(tr('Gültigen Zeitraum mit Zeitzone wählen.'))
+            if not values.get('title','').strip():raise ValueError(tr('Termintitel fehlt.'))
             uid=values.get('uid') or uuid.uuid4().hex+'@lumen.local'
             body=Calendar();body.add('version','2.0');body.add('prodid','-//Lumen Inbox//DE')
             if values.get('url') and values.get('ics'):
                 body=Calendar.from_ical(values['ics'])
-                if len(body.walk('VEVENT'))!=1:raise ValueError('Mehrteiligen Termin im ursprünglichen Kalender bearbeiten.')
+                if len(body.walk('VEVENT'))!=1:raise ValueError(tr('Mehrteiligen Termin im ursprünglichen Kalender bearbeiten.'))
                 event=body.walk('VEVENT')[0]
             else:event=Event();body.add_component(event)
-            if values.get('url') and not values.get('ics'):raise ValueError('Originaltermin fehlt. Kalender erneut laden.')
+            if values.get('url') and not values.get('ics'):raise ValueError(tr('Originaltermin fehlt. Kalender erneut laden.'))
             if any(key in event for key in ('rrule','rdate','exdate','recurrence-id','attendee','organizer')):
-                raise ValueError('Serien oder Einladungen im ursprünglichen Kalender bearbeiten.')
+                raise ValueError(tr('Serien oder Einladungen im ursprünglichen Kalender bearbeiten.'))
             for key in ('uid','dtstamp','dtstart','dtend','duration','summary','description','location'):event.pop(key,None)
             event.add('uid',uid);event.add('dtstamp',datetime.now(timezone.utc));event.add('dtstart',start);event.add('dtend',end)
             for key,field in [('summary','title'),('description','description'),('location','location')]:event.add(key,str(values.get(field,''))[:120000])
@@ -345,14 +346,14 @@ def calendar_operation(account,action,values):
             url=values.get('url') or urljoin(str(calendar.url).rstrip('/')+'/',uuid.uuid4().hex+'.ics')
             headers={'Content-Type':'text/calendar; charset=utf-8'}
             if values.get('url'):
-                if not values.get('etag'):raise ValueError('Kalender liefert keinen Änderungsschutz. Termin erneut laden.')
+                if not values.get('etag'):raise ValueError(tr('Kalender liefert keinen Änderungsschutz. Termin erneut laden.'))
                 headers['If-Match']=values['etag']
             else:headers['If-None-Match']='*'
             response=client.request(url,'PUT',body.to_ical(),headers)
-            if response.status==412:raise ValueError('Der Termin wurde inzwischen geändert. Kalender erneut laden.')
-            if response.status not in (200,201,204):raise ValueError('Kalender hat die Änderung nicht bestätigt.')
-            return 'Termin gespeichert.'
-        raise ValueError('Unbekannte Kalenderaktion.')
+            if response.status==412:raise ValueError(tr('Der Termin wurde inzwischen geändert. Kalender erneut laden.'))
+            if response.status not in (200,201,204):raise ValueError(tr('Kalender hat die Änderung nicht bestätigt.'))
+            return tr('Termin gespeichert.')
+        raise ValueError(tr('Unbekannte Kalenderaktion.'))
     finally:client.close()
 
 
@@ -362,7 +363,7 @@ def main():
         result=calendar_operation(account,payload['action'],payload.get('values',{}));print(json.dumps(result,ensure_ascii=False));return 0
     except Exception as error:
         # Never echo URLs carrying subscription tokens or server response bodies.
-        print(str(error) if isinstance(error,ValueError) else 'Kalender nicht erreichbar. Adresse, Zugang und Zertifikat prüfen.',file=sys.stderr);return 1
+        print(str(error) if isinstance(error,ValueError) else tr('Kalender nicht erreichbar. Adresse, Zugang und Zertifikat prüfen.'),file=sys.stderr);return 1
 
 
 if __name__=='__main__':sys.exit(main())

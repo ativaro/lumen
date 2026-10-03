@@ -1,4 +1,5 @@
 """Preserve legacy package reports and service preferences around pacman replacement."""
+from lumen_i18n import tr
 import json
 import os
 from pathlib import Path
@@ -52,7 +53,7 @@ def after():
 
 
 if __name__ == '__main__':
-    if os.geteuid() != 0: raise SystemExit('Paketmigration benötigt root.')
+    if os.geteuid() != 0: raise SystemExit(tr('Paketmigration benötigt root.'))
     if sys.argv[1:] == ['before']: before()
     elif sys.argv[1:] == ['after']: after()
-    else: raise SystemExit('Aufruf: lumen_upgrade.py before|after')
+    else: raise SystemExit(tr('Aufruf: lumen_upgrade.py before|after'))

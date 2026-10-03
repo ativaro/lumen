@@ -1,4 +1,5 @@
 """Task lifecycle shared by the desktop and the opt-in user timer."""
+from lumen_i18n import tr
 import fcntl
 import json
 import os
@@ -17,13 +18,13 @@ def run_steps(store, task_id):
 
 def _run_steps(store, task_id):
     task = store.task(task_id)
-    if not task['steps']: raise ValueError('Dieser Auftrag benötigt Lumen im Vordergrund.')
-    if not task['approved']: raise PermissionError('Auftrag zuerst freigeben.')
+    if not task['steps']: raise ValueError(tr('Dieser Auftrag benötigt Lumen im Vordergrund.'))
+    if not task['approved']: raise PermissionError(tr('Auftrag zuerst freigeben.'))
     if task['status'] not in ('queued', 'draft', 'paused', 'interrupted', 'failed', 'needs_input'):
-        raise ValueError('Auftrag kann in diesem Zustand nicht gestartet werden.')
+        raise ValueError(tr('Auftrag kann in diesem Zustand nicht gestartet werden.'))
     with store.connect() as db:
         changed = db.execute("UPDATE tasks SET status='running',error='' WHERE id=? AND status=?", (task_id, task['status'])).rowcount
-        if changed != 1: raise ValueError('Auftragsstatus wurde inzwischen geändert.')
+        if changed != 1: raise ValueError(tr('Auftragsstatus wurde inzwischen geändert.'))
     try:
         for position in range(task['cursor'], len(task['steps'])):
             status = store.task(task_id)['status']
@@ -59,7 +60,7 @@ def tick(store):
             if reason:
                 store.update_task(task['id'], error=reason); continue
             if not task['steps'] or any(s['action'] in ('snapshot', 'install_packages', 'restart_service', 'launch', 'layout', 'open') for s in task['steps']):
-                store.update_task(task['id'], status='needs_input', error='Lumen öffnen, um diesen Auftrag mit Werkzeugfreigaben fortzusetzen.')
+                store.update_task(task['id'], status='needs_input', error=tr('Lumen öffnen, um diesen Auftrag mit Werkzeugfreigaben fortzusetzen.'))
                 continue
             try: run_steps(store, task['id'])
             except Exception: pass  # The task stores the error; other approved tasks remain independent.
@@ -68,7 +69,7 @@ def tick(store):
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description='Lumen-Aufträge')
+    parser = argparse.ArgumentParser(description=tr('Lumen-Aufträge'))
     parser.add_argument('--tick', action='store_true')
     parser.add_argument('--task')
     parser.add_argument('--list', action='store_true')

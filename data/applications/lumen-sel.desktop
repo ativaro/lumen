@@ -1,6 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=Lumen: Auswahl erklären
+Name=Lumen: explain selection
+Name[de]=Lumen: Auswahl erklären
 Exec=%INSTALL_BIN%/lumen-sel explain
 NoDisplay=true
 StartupNotify=false

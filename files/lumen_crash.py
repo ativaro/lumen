@@ -1,4 +1,5 @@
 """Local process supervision and opt-in restoration; never replay an operation."""
+from lumen_i18n import tr
 import configparser
 import faulthandler
 import fcntl
@@ -14,7 +15,7 @@ import time
 
 from lumen_store import state_path
 
-NAMES = {'lumen': 'Lumen', 'files': 'Lumen Files', 'search': 'Lumen Suche'}
+NAMES = {'lumen': 'Lumen', 'files': 'Lumen Files', 'search': tr('Lumen Suche')}
 RUN = None
 LOCK = None
 HEARTBEAT = None
@@ -24,7 +25,7 @@ def directory():
     path = state_path() / 'crashes'
     path.mkdir(parents=True, exist_ok=True, mode=0o700)
     if path.is_symlink():
-        raise OSError('Diagnoseverzeichnis darf kein Symlink sein.')
+        raise OSError(tr('Diagnoseverzeichnis darf kein Symlink sein.'))
     path.chmod(0o700)
     return path
 
@@ -91,13 +92,12 @@ def enabled():
 
 def notify(kind, hung=False):
     if not shutil.which('notify-send'): return None
-    text = ('Die Oberfläche antwortet seit mindestens einer Minute nicht. Du kannst weiter warten. '
-            'Beim Beenden können laufende Vorgänge unterbrochen werden.' if hung else
-            'Die Anwendung wurde unerwartet beendet. Beim nächsten Start kannst du die letzte Ansicht wiederherstellen.')
+    text = (tr('Die Oberfläche antwortet seit mindestens einer Minute nicht. Du kannst weiter warten. Beim Beenden können laufende Vorgänge unterbrochen werden.') if hung else
+            tr('Die Anwendung wurde unerwartet beendet. Beim nächsten Start kannst du die letzte Ansicht wiederherstellen.'))
     try:
         return subprocess.Popen(['notify-send', '--wait', '-a', 'Lumen', '-i', 'lumen',
-            '-A', 'restart=' + ('Beenden und neu öffnen' if hung else 'Erneut öffnen'),
-            '-A', 'wait=Weiter warten' if hung else 'wait=Später', NAMES[kind], text],
+            '-A', 'restart=' + (tr('Beenden und neu öffnen') if hung else tr('Erneut öffnen')),
+            '-A', tr('wait=Weiter warten') if hung else tr('wait=Später'), NAMES[kind], text],
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     except OSError:
         return None
@@ -233,29 +233,29 @@ def attach(app, window, kind, offer_recovery=True):
             if read_json(path / 'report.json').get('acknowledged'):
                 lock.close(); continue
             box = QMessageBox(window)
-            box.setWindowTitle('Sitzung wiederherstellen')
-            box.setText(NAMES[kind] + ' wurde unerwartet beendet.' if report.get('status') == 'crashed'
-                        else 'Eine vorherige Sitzung von ' + NAMES[kind] + ' wurde unterbrochen.')
-            box.setInformativeText('Letzte Ansicht und Entwurf wiederherstellen? Laufende Dateiaktionen und KI-Aufträge werden nicht erneut gestartet.')
-            restore = box.addButton('Wiederherstellen', QMessageBox.AcceptRole)
-            later = box.addButton('Später', QMessageBox.RejectRole)
-            discard = box.addButton('Verwerfen', QMessageBox.DestructiveRole)
-            details = box.addButton('Fehlerbericht', QMessageBox.ActionRole)
+            box.setWindowTitle(tr('Sitzung wiederherstellen'))
+            box.setText(NAMES[kind] + tr(' wurde unerwartet beendet.') if report.get('status') == 'crashed'
+                        else tr('Eine vorherige Sitzung von ') + NAMES[kind] + tr(' wurde unterbrochen.'))
+            box.setInformativeText(tr('Letzte Ansicht und Entwurf wiederherstellen? Laufende Dateiaktionen und KI-Aufträge werden nicht erneut gestartet.'))
+            restore = box.addButton(tr('Wiederherstellen'), QMessageBox.AcceptRole)
+            later = box.addButton(tr('Später'), QMessageBox.RejectRole)
+            discard = box.addButton(tr('Verwerfen'), QMessageBox.DestructiveRole)
+            details = box.addButton(tr('Fehlerbericht'), QMessageBox.ActionRole)
             box.setDefaultButton(restore); box.setEscapeButton(later)
             details.clicked.connect(lambda _=False, p=path: QDesktopServices.openUrl(QUrl.fromLocalFile(str(p))))
             try:
                 box.exec_()
                 if box.clickedButton() is restore:
                     state = read_json(path / 'state.json')
-                    if not state: raise ValueError('Für diese Sitzung wurde keine lesbare Ansicht gespeichert. Der Fehlerbericht bleibt verfügbar.')
+                    if not state: raise ValueError(tr('Für diese Sitzung wurde keine lesbare Ansicht gespeichert. Der Fehlerbericht bleibt verfügbar.'))
                     window.restore_recovery(state)
-                    if not checkpoint(): raise OSError('Die wiederhergestellte Ansicht konnte nicht gesichert werden. Die bisherige Sicherung bleibt erhalten.')
+                    if not checkpoint(): raise OSError(tr('Die wiederhergestellte Ansicht konnte nicht gesichert werden. Die bisherige Sicherung bleibt erhalten.'))
                     acknowledge(path)
                     break
                 elif box.clickedButton() is discard: acknowledge(path)
                 else: break
             except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
-                QMessageBox.warning(window, 'Wiederherstellung nicht möglich', str(error))
+                QMessageBox.warning(window, tr('Wiederherstellung nicht möglich'), str(error))
                 break
             finally:
                 lock.close(); box.deleteLater()

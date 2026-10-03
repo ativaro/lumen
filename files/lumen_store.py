@@ -1,4 +1,5 @@
 """Private durable state for Lumen tasks, changes, workflows and knowledge."""
+from lumen_i18n import tr
 from contextlib import contextmanager
 import json
 import fcntl
@@ -8,9 +9,9 @@ import sqlite3
 import time
 import uuid
 
-STATES = {'draft': 'Entwurf', 'queued': 'Geplant', 'running': 'Läuft', 'paused': 'Pausiert',
-          'interrupted': 'Unterbrochen', 'needs_input': 'Braucht dich', 'completed': 'Erledigt',
-          'failed': 'Fehlgeschlagen', 'cancelled': 'Abgebrochen'}
+STATES = {'draft': tr('Entwurf'), 'queued': tr('Geplant'), 'running': tr('Läuft'), 'paused': tr('Pausiert'),
+          'interrupted': tr('Unterbrochen'), 'needs_input': tr('Braucht dich'), 'completed': tr('Erledigt'),
+          'failed': tr('Fehlgeschlagen'), 'cancelled': tr('Abgebrochen')}
 
 VISIBLE_TASKS = """NOT (status IN ('completed','cancelled') AND EXISTS (
     SELECT 1 FROM settings WHERE key='tasks/dismissed/' || tasks.id
@@ -32,7 +33,7 @@ class Store:
         self.path = self.directory / 'lumen.sqlite3'
         with self.connect() as db:
             if db.execute('PRAGMA user_version').fetchone()[0] > 2:
-                raise ValueError('Diese Lumen-Datenbank benötigt eine neuere Version.')
+                raise ValueError(tr('Diese Lumen-Datenbank benötigt eine neuere Version.'))
             db.executescript('''
                 CREATE TABLE IF NOT EXISTS tasks (
                     id TEXT PRIMARY KEY, title TEXT NOT NULL, prompt TEXT NOT NULL,
@@ -92,9 +93,9 @@ class Store:
             try:
                 with self.connect() as db:
                     changed = db.execute("UPDATE tasks SET status='interrupted',error=?,updated=? WHERE id=? AND (status='running' OR (status='needs_input' AND EXISTS (SELECT 1 FROM events WHERE task=tasks.id AND kind='input')))",
-                        ('Ausführung wurde unterbrochen. Vor dem Fortsetzen den letzten Schritt prüfen.', time.time(), row['id'])).rowcount
+                        (tr('Ausführung wurde unterbrochen. Vor dem Fortsetzen den letzten Schritt prüfen.'), time.time(), row['id'])).rowcount
                     if changed: db.execute('INSERT INTO events (task,kind,detail,created) VALUES (?,?,?,?)',
-                        (row['id'], 'interrupted', 'Ausführungsprozess ist nicht mehr aktiv.', time.time()))
+                        (row['id'], 'interrupted', tr('Ausführungsprozess ist nicht mehr aktiv.'), time.time()))
             finally: os.close(lease)
 
     def rows(self, sql, args=()):
@@ -111,11 +112,11 @@ class Store:
 
     def create_task(self, title, prompt='', directory=None, roots=None, steps=None, model='', approved=False, status='draft'):
         if not isinstance(title, str) or not title.strip() or len(title) > 200:
-            raise ValueError('Ein Titel mit höchstens 200 Zeichen ist erforderlich.')
+            raise ValueError(tr('Ein Titel mit höchstens 200 Zeichen ist erforderlich.'))
         directory = str(Path(directory or Path.home()).resolve(strict=True))
-        if not Path(directory).is_dir(): raise ValueError('Arbeitsordner nicht gefunden.')
+        if not Path(directory).is_dir(): raise ValueError(tr('Arbeitsordner nicht gefunden.'))
         roots = [str(Path(p).resolve(strict=True)) for p in roots or []]
-        if any(not Path(p).is_dir() for p in roots): raise ValueError('Freigaben müssen Ordner sein.')
+        if any(not Path(p).is_dir() for p in roots): raise ValueError(tr('Freigaben müssen Ordner sein.'))
         if steps:
             from lumen_actions import validate_steps
             validate_steps(steps)
@@ -127,7 +128,7 @@ class Store:
 
     def task(self, task):
         rows = self.rows('SELECT * FROM tasks WHERE id=?', (task,))
-        if not rows: raise ValueError('Auftrag nicht gefunden.')
+        if not rows: raise ValueError(tr('Auftrag nicht gefunden.'))
         value = rows[0]
         value['steps'] = json.loads(value['steps']); value['roots'] = json.loads(value['roots'])
         value['approved'] = bool(value['approved'])
@@ -141,13 +142,13 @@ class Store:
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             row = db.execute("SELECT updated FROM tasks WHERE id=? AND status IN ('completed','cancelled')", (task,)).fetchone()
-            if row is None: raise ValueError('Nur erledigte oder abgebrochene Aufgaben können geschlossen werden.')
+            if row is None: raise ValueError(tr('Nur erledigte oder abgebrochene Aufgaben können geschlossen werden.'))
             db.execute('INSERT OR REPLACE INTO settings VALUES (?,?)',
                        ('tasks/dismissed/' + task, json.dumps(row['updated'])))
 
     def update_task(self, task, **values):
         allowed = {'status', 'approved', 'session', 'model', 'cursor', 'result', 'error', 'title', 'prompt'}
-        if not values or not set(values) <= allowed: raise ValueError('Ungültige Auftragsfelder.')
+        if not values or not set(values) <= allowed: raise ValueError(tr('Ungültige Auftragsfelder.'))
         values['updated'] = time.time()
         with self.connect() as db:
             db.execute('UPDATE tasks SET ' + ','.join(k + '=?' for k in values) + ' WHERE id=?', (*values.values(), task))
@@ -163,8 +164,8 @@ class Store:
         return self.rows('SELECT id,task,path,after_hash,mode,status,created FROM changes' +
                          (' WHERE task=?' if task else '') + ' ORDER BY created DESC LIMIT 200', (task,) if task else ())
 
-    def save_memory(self, title, text, source='Von mir', memory=None):
-        if not title.strip() or not text.strip() or len(text) > 20000: raise ValueError('Titel und Text (max. 20.000 Zeichen) erforderlich.')
+    def save_memory(self, title, text, source=tr('Von mir'), memory=None):
+        if not title.strip() or not text.strip() or len(text) > 20000: raise ValueError(tr('Titel und Text (max. 20.000 Zeichen) erforderlich.'))
         if self.setting('knowledge/notebook',''):
             from wissen_data import Notebook
             return Notebook(self).capture(title,text,source,memory)
@@ -195,16 +196,16 @@ class Store:
     def save_workflow(self, name, steps, roots, trigger='manual', interval=3600, watch='', enabled=False, now=None, workflow=None, approved=False, prompt=''):
         from lumen_actions import validate_steps
         if steps: validate_steps(steps)
-        elif not prompt.strip(): raise ValueError('Schritte oder ein Auftrag sind erforderlich.')
-        if enabled and not approved: raise PermissionError('Den Ablauf zuerst ausdrücklich freigeben.')
-        if not name.strip() or len(name) > 200: raise ValueError('Ein gültiger Name ist erforderlich.')
-        if trigger not in ('manual', 'interval', 'directory'): raise ValueError('Unbekannter Auslöser.')
-        if not 60 <= int(interval) <= 31536000: raise ValueError('Intervall: 60 Sekunden bis ein Jahr.')
+        elif not prompt.strip(): raise ValueError(tr('Schritte oder ein Auftrag sind erforderlich.'))
+        if enabled and not approved: raise PermissionError(tr('Den Ablauf zuerst ausdrücklich freigeben.'))
+        if not name.strip() or len(name) > 200: raise ValueError(tr('Ein gültiger Name ist erforderlich.'))
+        if trigger not in ('manual', 'interval', 'directory'): raise ValueError(tr('Unbekannter Auslöser.'))
+        if not 60 <= int(interval) <= 31536000: raise ValueError(tr('Intervall: 60 Sekunden bis ein Jahr.'))
         roots = [str(Path(p).resolve(strict=True)) for p in roots]
         if trigger == 'directory':
             watch = str(Path(watch).resolve(strict=True))
             if not Path(watch).is_dir() or not any(Path(watch).is_relative_to(Path(p)) for p in roots):
-                raise ValueError('Beobachteter Ordner muss freigegeben sein.')
+                raise ValueError(tr('Beobachteter Ordner muss freigegeben sein.'))
         workflow = workflow or identifier(); now = time.time() if now is None else now
         fingerprint = directory_fingerprint(watch) if watch else ''
         with self.connect() as db:
@@ -221,7 +222,7 @@ class Store:
     def set_workflow_enabled(self, workflow, enabled):
         with self.connect() as db:
             if enabled and not db.execute('SELECT approved FROM workflows WHERE id=?', (workflow,)).fetchone()[0]:
-                raise PermissionError('Den Ablauf zuerst freigeben.')
+                raise PermissionError(tr('Den Ablauf zuerst freigeben.'))
             db.execute('UPDATE workflows SET enabled=?, next_run=?+interval WHERE id=?', (int(enabled), time.time(), workflow))
 
     def enqueue_due(self, now=None):
@@ -250,7 +251,7 @@ class Store:
 def directory_fingerprint(directory):
     import hashlib
     root = Path(directory)
-    if root.is_symlink() or root.resolve() != root: raise OSError('Beobachteter Ordner wurde ersetzt.')
+    if root.is_symlink() or root.resolve() != root: raise OSError(tr('Beobachteter Ordner wurde ersetzt.'))
     # ponytail: watch immediate children only, add explicit recursive subscriptions if needed.
     entries = []
     with os.scandir(root) as scan:
@@ -258,5 +259,5 @@ def directory_fingerprint(directory):
             if entry.name.startswith('.') or entry.is_symlink(): continue
             info = entry.stat(follow_symlinks=False)
             entries.append((entry.name, info.st_size, info.st_mtime_ns))
-            if len(entries) > 10000: raise OSError('Zu viele Einträge im beobachteten Ordner.')
+            if len(entries) > 10000: raise OSError(tr('Zu viele Einträge im beobachteten Ordner.'))
     return hashlib.sha256(json.dumps(sorted(entries)).encode()).hexdigest()

@@ -1,3 +1,4 @@
+import "Translations.js" as I18n
 import QtQuick
 import QtQuick.Layouts
 import org.kde.plasma.components as PC
@@ -5,6 +6,8 @@ import org.kde.kirigami as Kirigami
 
 ColumnLayout {
     id: card
+    property string uiLanguage: Qt.locale().name.toLowerCase().indexOf("de") === 0 ? "de" : "en"
+    function tr(source, args) { return I18n.tr(source, uiLanguage, args); }
     required property var task
     property bool expanded: false
     property bool dismissBusy: false
@@ -20,7 +23,7 @@ ColumnLayout {
         objectName: "taskToggle-" + card.task.id
         Layout.fillWidth: true
         Accessible.name: card.task.title + ", " + card.task.state
-        Accessible.description: card.expanded ? "Ergebnis einklappen" : "Ergebnis anzeigen"
+        Accessible.description: card.expanded ? card.tr("Ergebnis einklappen") : card.tr("Ergebnis anzeigen")
         onClicked: card.toggle()
         Keys.onReturnPressed: card.toggle()
         Keys.onEnterPressed: card.toggle()
@@ -53,7 +56,7 @@ ColumnLayout {
                 }
                 PC.Label {
                     Layout.fillWidth: true
-                    text: card.task.state + (card.task.total > 0 ? " · " + card.task.cursor + " von " + card.task.total + " Schritten" : "")
+                    text: card.task.state + (card.task.total > 0 ? " · " + card.tr("{0} von {1} Schritten", [card.task.cursor, card.task.total]) : "")
                     textFormat: Text.PlainText
                     font: Kirigami.Theme.smallFont
                     color: Kirigami.Theme.disabledTextColor
@@ -75,8 +78,8 @@ ColumnLayout {
         Layout.alignment: Qt.AlignTop
         Layout.topMargin: 18
         flat: true; icon.name: "window-close"; symbolSize: 18
-        Accessible.name: "Aufgabe aus der Übersicht entfernen: " + card.task.title
-        PC.ToolTip.text: "Aus der Übersicht entfernen · Verlauf behalten"
+        Accessible.name: card.tr("Aufgabe aus der Übersicht entfernen: ") + card.task.title
+        PC.ToolTip.text: card.tr("Aus der Übersicht entfernen · Verlauf behalten")
         PC.ToolTip.visible: hovered
         onClicked: card.dismissTask(card.task.id)
     }
@@ -88,7 +91,7 @@ ColumnLayout {
         from: 0
         to: Math.max(1, card.task.total)
         value: card.task.cursor
-        Accessible.name: "Fortschritt: " + card.task.title
+        Accessible.name: card.tr("Fortschritt: ") + card.task.title
     }
     ColumnLayout {
         visible: card.expanded
@@ -100,20 +103,20 @@ ColumnLayout {
             objectName: "taskResult-" + card.task.id
             Layout.fillWidth: true
             text: card.task.error || card.task.result || (card.task.status === "needs_input"
-                ? "Dieser Auftrag braucht deine Eingabe in Lumen." : "Noch kein Ergebnis vorhanden.")
+                ? card.tr("Dieser Auftrag braucht deine Eingabe in Lumen.") : card.tr("Noch kein Ergebnis vorhanden."))
             textFormat: Text.PlainText
             wrapMode: Text.Wrap
         }
         PC.Label {
             Layout.fillWidth: true
             visible: !!card.task.truncated
-            text: "Auszug · Vollständiges Ergebnis im Auftrag"
+            text: card.tr("Auszug · Vollständiges Ergebnis im Auftrag")
             font: Kirigami.Theme.smallFont
             color: Kirigami.Theme.disabledTextColor
             wrapMode: Text.Wrap
         }
         LumenButton {
-            text: "Auftrag öffnen"
+            text: card.tr("Auftrag öffnen")
             icon.name: "document-open"
             icon.color: Kirigami.Theme.textColor
             onClicked: card.openTask(card.task.id)

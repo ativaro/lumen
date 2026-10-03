@@ -1,4 +1,5 @@
 pragma ComponentBehavior: Bound
+import "Translations.js" as I18n
 import QtQuick
 import org.kde.kirigami as Kirigami
 import QtQuick.Layouts
@@ -6,6 +7,8 @@ import org.kde.plasma.components as PC
 
 RowLayout {
     id: bar
+    property string uiLanguage: Qt.locale().name.toLowerCase().indexOf("de") === 0 ? "de" : "en"
+    function tr(source, args) { return I18n.tr(source, uiLanguage, args); }
     property string surface: "home"
     property var snapshot: ({active: [], attention: false, busy: false})
     property bool expanded: false
@@ -26,7 +29,7 @@ RowLayout {
         icon.name: "lumen"; symbolSize: 28
         font.pixelSize: 19; font.weight: Font.DemiBold
         flat: true; checkable: true; checked: bar.expanded
-        Accessible.name: "Lumen Systemübersicht"
+        Accessible.name: bar.tr("Lumen Systemübersicht")
         onClicked: bar.toggle()
     }
     Rectangle { visible: bar.surface === "home"; color: Kirigami.Theme.disabledTextColor; opacity: 0.65; implicitWidth: 1; implicitHeight: 26 }
@@ -35,7 +38,7 @@ RowLayout {
         objectName: "filesButton"
         Layout.fillHeight: true
         topPadding: 0; bottomPadding: 0
-        text: "Dateien"; icon.name: "folder"; font.pixelSize: 16
+        text: bar.tr("Dateien"); icon.name: "folder"; font.pixelSize: 16
         flat: true; onClicked: bar.launch("files")
     }
     LumenButton {
@@ -44,10 +47,10 @@ RowLayout {
         Layout.fillHeight: true
         topPadding: 0; bottomPadding: 0
         objectName: "searchButton"
-        text: "Suchen oder fragen …"; icon.name: "search"
+        text: bar.tr("Suchen oder fragen …"); icon.name: "search"
         font.pixelSize: 16
         flat: true
-        Accessible.name: "Dateien und Apps suchen oder ein Gespräch führen"
+        Accessible.name: bar.tr("Dateien und Apps suchen oder ein Gespräch führen")
         onClicked: bar.search()
     }
     LumenButton {
@@ -58,8 +61,8 @@ RowLayout {
         topPadding: 0; bottomPadding: 0
         icon.name: "audio-input-microphone"
         flat: true
-        Accessible.name: "Mit Lumen sprechen"
-        PC.ToolTip.text: "Mit Lumen sprechen"
+        Accessible.name: bar.tr("Mit Lumen sprechen")
+        PC.ToolTip.text: bar.tr("Mit Lumen sprechen")
         PC.ToolTip.visible: hovered
         onClicked: bar.voice()
     }
@@ -71,7 +74,7 @@ RowLayout {
         objectName: "centerButton"
         icon.name: "adjustlevels"; symbolSize: 24
         flat: true; checkable: true; checked: bar.expanded
-        Accessible.name: "Einstellungen, Systemsteuerung und Themes"
+        Accessible.name: bar.tr("Einstellungen, Systemsteuerung und Themes")
         onClicked: bar.toggle()
     }
 }

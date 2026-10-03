@@ -11,6 +11,8 @@ sys.path.insert(0, str(ROOT / 'files'))
 if __name__ == '__main__':
     from lumen_crash import supervise
     supervise('lumen')
+from lumen_i18n import tr, language
+
 from PyQt5.QtCore import QObject, Q_CLASSINFO, QProcess, QSettings, Qt, QTimer, QUrl, pyqtSlot
 from PyQt5.QtDBus import QDBus, QDBusConnection, QDBusMessage
 from PyQt5.QtGui import QIcon, QKeySequence, QTextDocument
@@ -91,7 +93,7 @@ class LumenWindow(QMainWindow):
         self.navigation = QWidget()
         navigation = QVBoxLayout(self.navigation)
         navigation.setContentsMargins(10, 20, 10, 10)
-        navigation.addWidget(label('DEIN ASSISTENT', 'eyebrow'))
+        navigation.addWidget(label(tr('DEIN ASSISTENT'), 'eyebrow'))
         self.pages = QStackedWidget()
         self.chat = ChatPanel(directory, settings=self.settings)
         self.pages.addWidget(self.chat)
@@ -111,17 +113,17 @@ class LumenWindow(QMainWindow):
         self.workplace = Workplace(self, self.workspace.store, self.workplace_files)
         self.pages.addWidget(self.workplace)
         self.nav_buttons = []
-        for index, title in enumerate(('Gespräche', 'Systemstatus', 'Aktionen', 'Dateien', 'Aufträge', 'Wissen', 'Abläufe', 'Modelle', 'Arbeitsplatz')):
+        for index, title in enumerate((tr('Gespräche'), tr('Systemstatus'), tr('Aktionen'), tr('Dateien'), tr('Aufträge'), tr('Wissen'), tr('Abläufe'), tr('Modelle'), tr('Arbeitsplatz'))):
             item = button(title, lambda _=False, i=index: self.show_page(i))
             item.setCheckable(True)
             navigation.addWidget(item)
             self.nav_buttons.append(item)
         navigation.addStretch()
-        navigation.addWidget(button('Arbeitsräume', self.show_rooms, 'folder-favorites'))
-        navigation.addWidget(button('Einstellungen', self.show_settings, 'configure', 'Strg+Komma'))
+        navigation.addWidget(button(tr('Arbeitsräume'), self.show_rooms, 'folder-favorites'))
+        navigation.addWidget(button(tr('Einstellungen'), self.show_settings, 'configure', tr('Strg+Komma')))
         QShortcut(QKeySequence('Ctrl+,'), self, activated=self.show_settings)
-        navigation.addWidget(button('Ordner wählen', self.choose_directory, 'folder-open'))
-        navigation.addWidget(button('Dateien hinzufügen', lambda: self.choose_files(), 'list-add'))
+        navigation.addWidget(button(tr('Ordner wählen'), self.choose_directory, 'folder-open'))
+        navigation.addWidget(button(tr('Dateien hinzufügen'), lambda: self.choose_files(), 'list-add'))
         row.addWidget(self.navigation)
         row.addWidget(self.pages, 1)
         self.show_page(0)
@@ -199,9 +201,9 @@ class LumenWindow(QMainWindow):
     def choose_directory(self):
         if self.chat.backend.busy:
             self.show_page(0)
-            self.chat.show_error('Bitte den laufenden Vorgang zuerst abschließen oder abbrechen.')
+            self.chat.show_error(tr('Bitte den laufenden Vorgang zuerst abschließen oder abbrechen.'))
             return
-        path = QFileDialog.getExistingDirectory(self, 'Arbeitsordner wählen', self.chat.backend.directory)
+        path = QFileDialog.getExistingDirectory(self, tr('Arbeitsordner wählen'), self.chat.backend.directory)
         if path:
             self.chat.begin_context(directory=path)
             self.show_page(0)
@@ -209,9 +211,9 @@ class LumenWindow(QMainWindow):
     def choose_files(self, action='open'):
         if self.chat.backend.busy:
             self.show_page(0)
-            self.chat.show_error('Bitte den laufenden Vorgang zuerst abschließen oder abbrechen.')
+            self.chat.show_error(tr('Bitte den laufenden Vorgang zuerst abschließen oder abbrechen.'))
             return
-        paths, _ = QFileDialog.getOpenFileNames(self, 'Dateien zu Lumen hinzufügen', self.chat.backend.directory)
+        paths, _ = QFileDialog.getOpenFileNames(self, tr('Dateien zu Lumen hinzufügen'), self.chat.backend.directory)
         if paths:
             self.chat.begin_context(action, paths=paths)
             self.show_page(0)
@@ -220,14 +222,16 @@ class LumenWindow(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(20, 20, 20, 20)
-        layout.addWidget(label('Systemstatus', 'heading'))
-        layout.addWidget(label('Auslastung und der letzte Wächter-Bericht', 'muted'))
+        layout.addWidget(label(tr('Systemstatus'), 'heading'))
+        layout.addWidget(label(tr('Auslastung und der letzte Wächter-Bericht'), 'muted'))
         grid = QGridLayout()
         self.metrics = {}
-        for i, name in enumerate(('CPU', 'Arbeitsspeicher', 'Laufwerk /', 'Grafikkarte', 'Benutzerdienste', 'Systemdienste')):
+        for i, (name, title) in enumerate((('CPU', 'CPU'), ('Arbeitsspeicher', tr('Arbeitsspeicher')),
+                ('Laufwerk /', tr('Laufwerk /')), ('Grafikkarte', tr('Grafikkarte')),
+                ('Benutzerdienste', tr('Benutzerdienste')), ('Systemdienste', tr('Systemdienste')))):
             card = QWidget()
             box = QVBoxLayout(card)
-            box.addWidget(label(name, 'muted'))
+            box.addWidget(label(title, 'muted'))
             value = label('…', 'previewTitle')
             value.setWordWrap(True)
             box.addWidget(value)
@@ -235,16 +239,16 @@ class LumenWindow(QMainWindow):
             grid.addWidget(card, i // 3, i % 3)
         layout.addLayout(grid)
         self.report = Transcript()
-        self.report.setAccessibleName('Letzter Systembericht')
+        self.report.setAccessibleName(tr('Letzter Systembericht'))
         layout.addWidget(self.report, 1)
         self.report_status = label('', 'muted')
         self.report_status.setWordWrap(True)
         layout.addWidget(self.report_status)
         actions = QHBoxLayout()
-        actions.addWidget(button('Aktualisieren', self.refresh_system))
-        self.watch_button = button('Wächter prüfen', self.run_watch)
+        actions.addWidget(button(tr('Aktualisieren'), self.refresh_system))
+        self.watch_button = button(tr('Wächter prüfen'), self.run_watch)
         actions.addWidget(self.watch_button)
-        actions.addWidget(button('Mit Lumen besprechen', self.discuss_report))
+        actions.addWidget(button(tr('Mit Lumen besprechen'), self.discuss_report))
         layout.addLayout(actions)
         return page
 
@@ -252,15 +256,15 @@ class LumenWindow(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(28, 24, 28, 24)
-        layout.addWidget(label('Direkt loslegen', 'heading'))
+        layout.addWidget(label(tr('Direkt loslegen'), 'heading'))
         for title, callback in [
-            ('Dateien erklären', lambda: self.choose_files('explain')),
-            ('Dateifehler beheben', lambda: self.choose_files('fix')),
-            ('Zwischenablage besprechen', lambda: self.selection('explain')),
-            ('Text korrigieren', lambda: self.selection('fix')),
-            ('Text übersetzen', lambda: self.selection('translate')),
-            ('Systembericht ansehen', lambda: self.show_page(1)),
-            ('Dateibereich öffnen', self.open_files)]:
+            (tr('Dateien erklären'), lambda: self.choose_files('explain')),
+            (tr('Dateifehler beheben'), lambda: self.choose_files('fix')),
+            (tr('Zwischenablage besprechen'), lambda: self.selection('explain')),
+            (tr('Text korrigieren'), lambda: self.selection('fix')),
+            (tr('Text übersetzen'), lambda: self.selection('translate')),
+            (tr('Systembericht ansehen'), lambda: self.show_page(1)),
+            (tr('Dateibereich öffnen'), self.open_files)]:
             layout.addWidget(button(title, callback))
         layout.addStretch()
         return page
@@ -298,15 +302,15 @@ class LumenWindow(QMainWindow):
             mem = {line.split(':')[0]: int(line.split()[1]) for line in Path('/proc/meminfo').read_text().splitlines()}
             self.metrics['Arbeitsspeicher'].setText(f"{(mem['MemTotal'] - mem['MemAvailable']) / 1048576:.1f} / {mem['MemTotal'] / 1048576:.1f} GiB")
             disk = shutil.disk_usage('/')
-            self.metrics['Laufwerk /'].setText(f'{100 * disk.used / disk.total:.0f} % belegt')
+            self.metrics['Laufwerk /'].setText(tr('{0:.0f} % belegt', 100 * disk.used / disk.total))
         except (OSError, ValueError, KeyError):
-            self.report_status.setText('Einige Systemwerte sind nicht verfügbar.')
+            self.report_status.setText(tr('Einige Systemwerte sind nicht verfügbar.'))
         if not self.jobs:
             self.run_job('nvidia-smi', ['--query-gpu=utilization.gpu,temperature.gpu', '--format=csv,noheader,nounits'],
-                         lambda code, out: self.metrics['Grafikkarte'].setText(out.replace(',', ' % ·') + ' °C' if code == 0 else 'Nicht verfügbar'))
+                         lambda code, out: self.metrics['Grafikkarte'].setText(out.replace(',', ' % ·') + ' °C' if code == 0 else tr('Nicht verfügbar')))
             for user, name in [(True, 'Benutzerdienste'), (False, 'Systemdienste')]:
                 self.run_job('systemctl', (['--user'] if user else []) + ['--failed', '--no-legend', '--plain'],
-                             lambda code, out, n=name: self.metrics[n].setText(f'{len(out.splitlines())} fehlgeschlagen' if code == 0 else 'Nicht verfügbar'))
+                             lambda code, out, n=name: self.metrics[n].setText(tr('{0} fehlgeschlagen', len(out.splitlines())) if code == 0 else tr('Nicht verfügbar')))
         reports = [Path(os.environ.get('LUMEN_STATE', str(Path.home() / '.cache/lumen'))) / 'latest-analysis.md', Path('/var/lib/lumen/findings.md')]
         self.report_text = ''
         for path in reports:
@@ -314,18 +318,18 @@ class LumenWindow(QMainWindow):
                 self.report_text += f'## {path.name}\n\n' + path.read_text() + '\n\n'
             except OSError:
                 pass
-        self.report.document().setMarkdown(self.report_text or 'Noch kein Systembericht vorhanden.', QTextDocument.MarkdownFeatures(QTextDocument.MarkdownDialectGitHub | QTextDocument.MarkdownNoHTML))
+        self.report.document().setMarkdown(self.report_text or tr('Noch kein Systembericht vorhanden.'), QTextDocument.MarkdownFeatures(QTextDocument.MarkdownDialectGitHub | QTextDocument.MarkdownNoHTML))
 
     def run_watch(self):
         self.watch_button.setEnabled(False)
-        self.report_status.setText('Wächter-Prüfung wird angefordert …')
+        self.report_status.setText(tr('Wächter-Prüfung wird angefordert …'))
         system_install = Path('/usr/share/dbus-1/system-services/org.lumen.Agent.service').exists()
         def finished(code, out):
             self.watch_button.setEnabled(True)
             self.refresh_system()
             okay = code == 0 and (not system_install or out == 'b true')
-            self.report_status.setText('Prüfung angefordert. Der Bericht wird automatisch aktualisiert.' if okay
-                                       else 'Prüfung konnte nicht gestartet werden. Der Wächter-Dienst ist möglicherweise nicht verfügbar.')
+            self.report_status.setText(tr('Prüfung angefordert. Der Bericht wird automatisch aktualisiert.') if okay
+                                       else tr('Prüfung konnte nicht gestartet werden. Der Wächter-Dienst ist möglicherweise nicht verfügbar.'))
         if system_install:
             self.run_job('busctl', ['--system', '--timeout=10s', 'call', 'org.lumen.Agent',
                                   '/org/lumen/Agent', 'org.lumen.Agent', 'RefreshWatch'], finished)
@@ -334,7 +338,7 @@ class LumenWindow(QMainWindow):
 
     def discuss_report(self):
         self.show_page(0)
-        self.chat.begin_context(prompt='Erkläre den folgenden Systembericht und priorisiere sinnvolle nächste Schritte.\n\n' + self.report_text)
+        self.chat.begin_context(prompt=tr('Erkläre den folgenden Systembericht und priorisiere sinnvolle nächste Schritte.\n\n') + self.report_text)
 
     def open_files(self):
         self.show_page(3)
@@ -355,14 +359,14 @@ class LumenWindow(QMainWindow):
         text = text or clipboard.text()
         self.show_page(0)
         if not text:
-            self.chat.show_error('Die Zwischenablage enthält keinen Text.')
+            self.chat.show_error(tr('Die Zwischenablage enthält keinen Text.'))
             return
-        prompts = {'explain': 'Erkläre den folgenden Text verständlich:',
-                   'fix': 'Korrigiere Rechtschreibung und Grammatik. Gib nur den korrigierten Text aus:',
-                   'summarize': 'Fasse den folgenden Text in höchstens drei Sätzen zusammen:',
-                   'translate': 'Übersetze den folgenden Text nach ' + os.environ.get('LUMEN_SEL_LANG', self.settings.value('translationLanguage', 'Deutsch')) + '. Gib nur die Übersetzung aus:'}
+        prompts = {'explain': tr('Erkläre den folgenden Text verständlich:'),
+                   'fix': tr('Korrigiere Rechtschreibung und Grammatik. Gib nur den korrigierten Text aus:'),
+                   'summarize': tr('Fasse den folgenden Text in höchstens drei Sätzen zusammen:'),
+                   'translate': tr('Übersetze den folgenden Text nach {0}. Gib nur die Übersetzung aus:', os.environ.get('LUMEN_SEL_LANG', self.settings.value('translationLanguage', 'Deutsch' if language() == 'de' else 'English')))}
         if self.chat.backend.busy:
-            self.chat.show_error("Bitte den laufenden Vorgang zuerst abschließen oder abbrechen.")
+            self.chat.show_error(tr('Bitte den laufenden Vorgang zuerst abschließen oder abbrechen.'))
             return
         self.copy_after_answer = action in ("translate", "fix", "summarize")
         self.chat.begin_context(prompt=prompts.get(action, action) + '\n\n' + text)
@@ -370,7 +374,7 @@ class LumenWindow(QMainWindow):
     def closeEvent(self, event):
         if self.workplace.busy:
             self.show_page(8)
-            self.workplace.status.setText('Bitte die laufende Systemaktion zuerst abschließen lassen.')
+            self.workplace.status.setText(tr('Bitte die laufende Systemaktion zuerst abschließen lassen.'))
             event.ignore(); return
         if not self.workspace.can_close():
             event.ignore(); return
@@ -378,7 +382,7 @@ class LumenWindow(QMainWindow):
             event.ignore()
             return
         if self.jobs and not self.watch_button.isEnabled():
-            self.report_status.setText('Bitte die laufende Wächter-Prüfung vor dem Schließen abwarten.')
+            self.report_status.setText(tr('Bitte die laufende Wächter-Prüfung vor dem Schließen abwarten.'))
             self.show_page(1)
             event.ignore()
             return
@@ -397,11 +401,11 @@ class LumenWindow(QMainWindow):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Lumen – dein Desktop-Assistent')
+    parser = argparse.ArgumentParser(description=tr('Lumen – dein Desktop-Assistent'))
     parser.add_argument('--directory')
     from lumen_panel import valid_task
-    parser.add_argument('--task', type=valid_task, help='Gespeicherten Auftrag anzeigen')
-    parser.add_argument('--location', help='Datei- oder Netzwerkordner im Dateibereich')
+    parser.add_argument('--task', type=valid_task, help=tr('Gespeicherten Auftrag anzeigen'))
+    parser.add_argument('--location', help=tr('Datei- oder Netzwerkordner im Dateibereich'))
     parser.add_argument('--prompt', default='')
     parser.add_argument('--action', choices=['open', 'ask', 'explain', 'fix', 'review'], default='open')
     parser.add_argument('--context', nargs='*', default=[])
@@ -431,7 +435,7 @@ def main():
             reply = bus.call(request, QDBus.Block, 3000)
             if reply.type() == QDBusMessage.ErrorMessage:
                 if not (args.task and reply.errorName() == 'org.freedesktop.DBus.Error.UnknownMethod'):
-                    print('Lumen: Das vorhandene Fenster antwortet nicht: ' + reply.errorMessage(), file=sys.stderr)
+                    print(tr('Lumen: Das vorhandene Fenster antwortet nicht: ') + reply.errorMessage(), file=sys.stderr)
                     return 1
                 # An older running window stays untouched; this context opens separately.
             else:
@@ -459,7 +463,7 @@ def main():
             paths = [u.toLocalFile() for u in clip.urls() if u.isLocalFile()] if clip.hasUrls() else [app.clipboard().text().strip()]
         invalid = [p for p in paths if not Path(p).exists()]
         if invalid:
-            window.chat.show_error('Pfad nicht erreichbar: ' + ', '.join(invalid))
+            window.chat.show_error(tr('Pfad nicht erreichbar: ') + ', '.join(invalid))
             return
         if args.selection:
             window.selection(args.selection)

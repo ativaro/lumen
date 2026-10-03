@@ -1,4 +1,4 @@
 import org.kde.plasma.configuration
 ConfigModel {
-    ConfigCategory { name: "Darstellung"; icon: "preferences-desktop"; source: "ConfigGeneral.qml" }
+    ConfigCategory { name: i18n("Appearance"); icon: "preferences-desktop"; source: "ConfigGeneral.qml" }
 }

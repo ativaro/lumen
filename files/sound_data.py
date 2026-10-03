@@ -1,4 +1,5 @@
 """Pulse-compatible stream controls and opt-in rules; never captures audio samples."""
+from lumen_i18n import tr
 from contextlib import contextmanager
 import fcntl
 import hashlib
@@ -22,7 +23,7 @@ def locked(library):
 
 def settings(library):
     rows=library.all()
-    return rows[0] if rows else library.get(library.create('Audio',rules={},duck=False,level=25,mode='off',ducked={},overrides=[],applied={}))
+    return rows[0] if rows else library.get(library.create(tr('Audio'),rules={},duck=False,level=25,mode='off',ducked={},overrides=[],applied={}))
 
 
 def app_key(properties):
@@ -37,7 +38,7 @@ def snapshot():
         values=json.loads(run(['pactl','-f','json','list',kind]))
         for value in values:
             properties=value.get('properties',{});value['app']=app_key(properties)
-            value['title']=str(properties.get('application.name') or properties.get('application.process.binary') or value.get('description') or value.get('name') or 'Unbekannte Anwendung')[:200]
+            value['title']=str(properties.get('application.name') or properties.get('application.process.binary') or value.get('description') or value.get('name') or tr('Unbekannte Anwendung'))[:200]
             value['token']=cookie+':'+str(value['index'])+':'+str(properties.get('object.serial') or str(value.get('client',''))+':'+str(properties.get('application.process.id','')))
             value['levels']=[int(v['value']) for v in value.get('volume',{}).values()]
             value['percent']=round(max(value['levels'],default=0)*100/65536);result[field].append(value)
@@ -45,37 +46,37 @@ def snapshot():
 
 
 def scaled(levels,percent):
-    if type(percent) is not int or not 0<=percent<=100:raise ValueError('Lautstärke zwischen 0 und 100 wählen.')
+    if type(percent) is not int or not 0<=percent<=100:raise ValueError(tr('Lautstärke zwischen 0 und 100 wählen.'))
     maximum=max(levels,default=0);target=round(65536*percent/100)
     return [round(v/maximum*target) if maximum else target for v in levels]
 
 
 def set_levels(stream,levels):
-    if not levels or len(levels)!=len(stream['levels']):raise ValueError('Audiokanäle haben sich geändert.')
+    if not levels or len(levels)!=len(stream['levels']):raise ValueError(tr('Audiokanäle haben sich geändert.'))
     run(['pactl','set-sink-input-volume',str(stream['index']),*map(str,levels)])
 
 
 def change(library,token,action,value):
     with locked(library):
         data=snapshot();stream=next((s for s in data['streams'] if s['token']==token),None)
-        if stream is None:raise ValueError('Dieser Audiostream wurde beendet. Ansicht aktualisieren.')
+        if stream is None:raise ValueError(tr('Dieser Audiostream wurde beendet. Ansicht aktualisieren.'))
         if action=='volume':set_levels(stream,scaled(stream['levels'],value))
         elif action=='mute':run(['pactl','set-sink-input-mute',str(stream['index']),'1' if value else '0'])
         elif action=='sink':
-            if value not in {s['name'] for s in data['sinks']}:raise ValueError('Ausgabegerät nicht mehr verbunden.')
+            if value not in {s['name'] for s in data['sinks']}:raise ValueError(tr('Ausgabegerät nicht mehr verbunden.'))
             run(['pactl','move-sink-input',str(stream['index']),value])
-        else:raise ValueError('Unbekannte Audioaktion.')
+        else:raise ValueError(tr('Unbekannte Audioaktion.'))
         if action=='volume':
             config=settings(library);ducked=config.get('ducked',{});ducked.pop(token,None)
             library.update(config['id'],ducked=ducked,overrides=list(set(config.get('overrides',[])+[token])))
 
 
 def save_rule(library,key,title,volume,sink,mute,role):
-    if not key or len(key)>600 or role not in ('none','music','call'):raise ValueError('Keine stabile App-Kennung oder ungültige Rolle.')
+    if not key or len(key)>600 or role not in ('none','music','call'):raise ValueError(tr('Keine stabile App-Kennung oder ungültige Rolle.'))
     scaled([65536],volume)
     with locked(library):
         config=settings(library);rules=config['rules']
-        if sink and sink not in {s['name'] for s in snapshot()['sinks']} and rules.get(key,{}).get('sink')!=sink:raise ValueError('Ausgabegerät fehlt.')
+        if sink and sink not in {s['name'] for s in snapshot()['sinks']} and rules.get(key,{}).get('sink')!=sink:raise ValueError(tr('Ausgabegerät fehlt.'))
         rules[key]=dict(title=title[:200],volume=volume,sink=sink,mute=bool(mute),role=role)
         library.update(config['id'],rules=rules)
 
@@ -100,7 +101,7 @@ def cycle(library,stop=False):
     with locked(library):
         config=settings(library);data=snapshot();identity=config['id']
         if stop or config['mode']=='off':
-            restore(library,data,config);library.update(identity,applied={},overrides=[],activity='Automatik aus',heartbeat=time.time());return
+            restore(library,data,config);library.update(identity,applied={},overrides=[],activity=tr('Automatik aus'),heartbeat=time.time());return
         rules=config['rules'];available={s['name'] for s in data['sinks']};applied=config.get('applied',{});tokens={s['token'] for s in data['streams']}
         applied={k:v for k,v in applied.items() if k in tokens};changed=False;missing=set()
         for stream in data['streams']:
@@ -146,15 +147,15 @@ def cycle(library,stop=False):
                 ducked[token]=dict(before=stream['levels'],after=after,level=config['level'])
                 library.update(identity,ducked=ducked);set_levels(stream,after)
         else:overrides.clear()
-        activity=('Gespräch aktiv · Musik abgesenkt' if talking else 'Bereit · App-Regeln aktiv')+(' · Gerät fehlt: '+', '.join(sorted(missing)) if missing else '')
+        activity=(tr('Gespräch aktiv · Musik abgesenkt') if talking else tr('Bereit · App-Regeln aktiv'))+(tr(' · Gerät fehlt: ')+', '.join(sorted(missing)) if missing else '')
         library.update(identity,ducked=ducked,overrides=list(overrides),activity=activity,last_error='',heartbeat=time.time())
 
 
 def service(library,mode):
-    if mode not in ('off','session','login'):raise ValueError('Ungültiger Automatikmodus.')
+    if mode not in ('off','session','login'):raise ValueError(tr('Ungültiger Automatikmodus.'))
     config=settings(library);old=config['mode'];directory=Path(os.environ.get('XDG_CONFIG_HOME',str(Path.home()/'.config')))/'systemd/user'
     directory.mkdir(parents=True,exist_ok=True);script=str(Path(__file__).resolve())
-    if any(c in script for c in '\n\r%"\\'):raise ValueError('Installationspfad für Benutzer-Dienst nicht unterstützt.')
+    if any(c in script for c in '\n\r%"\\'):raise ValueError(tr('Installationspfad für Benutzer-Dienst nicht unterstützt.'))
     unit='[Unit]\nDescription=Lumen Sound App-Regeln\nAfter=pipewire-pulse.service\n[Service]\nType=simple\nExecStart=/usr/bin/python3 "'+script+'" --run\nRestart=on-failure\nRestartSec=3\nTimeoutStopSec=30\n[Install]\nWantedBy=default.target\n'
     (directory/'lumen-sound.service').write_text(unit);run(['systemctl','--user','daemon-reload'])
     try:
@@ -179,13 +180,13 @@ def daemon():
     # One worker per library, including manually launched workers.
     fd=os.open(library.root/'worker.lock',os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW,0o600)
     try:fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
-    except BlockingIOError:os.close(fd);raise SystemExit('Lumen Sound arbeitet bereits.')
+    except BlockingIOError:os.close(fd);raise SystemExit(tr('Lumen Sound arbeitet bereits.'))
     try:
         cycle(library,stop=True)
         while not stop.is_set():
             try:cycle(library)
             except Exception:
-                config=settings(library);library.update(config['id'],last_error='Audioserver nicht erreichbar oder Stream geändert; erneuter Versuch folgt.',heartbeat=time.time())
+                config=settings(library);library.update(config['id'],last_error=tr('Audioserver nicht erreichbar oder Stream geändert; erneuter Versuch folgt.'),heartbeat=time.time())
             stop.wait(2)
     finally:
         try:cycle(library,stop=True)

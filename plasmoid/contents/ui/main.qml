@@ -1,4 +1,5 @@
 pragma ComponentBehavior: Bound
+import "Translations.js" as I18n
 import QtQuick
 import QtQuick.Layouts
 import org.kde.plasma.plasmoid
@@ -7,6 +8,8 @@ import org.kde.kirigami as Kirigami
 
 PlasmoidItem {
     id: root
+    property string uiLanguage: Qt.locale().name.toLowerCase().indexOf("de") === 0 ? "de" : "en"
+    function tr(source, args) { return I18n.tr(source, uiLanguage, args); }
     property var snapshot: ({active: [], recent: [], error: "", busy: false, attention: false})
     property bool loading: false
     property string signature: ""
@@ -14,14 +17,14 @@ PlasmoidItem {
     property bool discardSnapshot: false
     property string helper: "/usr/bin/lumen-panel"
     readonly property string surface: Plasmoid.configuration.surface || "tasks"
-    property var systemState: ({volume: null, muted: false, brightness: null, network: "Wird geladen …"})
+    property var systemState: ({volume: null, muted: false, brightness: null, network: root.tr("Wird geladen …")})
     property string systemError: ""
     property bool systemBusy: false
     property string systemCommand: ""
     preferredRepresentation: compactRepresentation
-    toolTipMainText: surface === "search" ? "Suchen oder fragen" : surface === "control" ? "Einstellungen" : "Dein System"
-    toolTipSubText: surface === "search" ? "Dateien, Apps und Gespräche in einer Suche" : surface === "control" ? "Systemregler, Einstellungen und Themes" : snapshot.error || (snapshot.attention ? "Braucht deine Rückmeldung"
-        : snapshot.busy ? "Aufträge laufen" : "Aufträge, Ergebnisse und Schnellaktionen")
+    toolTipMainText: surface === "search" ? root.tr("Suchen oder fragen") : surface === "control" ? root.tr("Einstellungen") : root.tr("Dein System")
+    toolTipSubText: surface === "search" ? root.tr("Dateien, Apps und Gespräche in einer Suche") : surface === "control" ? root.tr("Systemregler, Einstellungen und Themes") : snapshot.error || (snapshot.attention ? root.tr("Braucht deine Rückmeldung")
+        : snapshot.busy ? root.tr("Aufträge laufen") : root.tr("Aufträge, Ergebnisse und Schnellaktionen"))
 
     function refresh() {
         if (loading || dismissCommand || surface === "search" || surface === "control") return;
@@ -61,9 +64,11 @@ PlasmoidItem {
         dismissCommand = helper + " --dismiss-task " + taskId;
         runner.connectSource(dismissCommand);
     }
+    Component.onCompleted: runner.connectSource(helper + " --language")
     onExpandedChanged: { if (root.expanded) { refresh(); refreshSystem(); } }
 
     compactRepresentation: CompactBar {
+        uiLanguage: root.uiLanguage
         surface: root.surface; snapshot: root.snapshot; expanded: root.expanded
         onToggle: root.expanded = !root.expanded
         onLaunch: action => root.launch(action)
@@ -77,6 +82,7 @@ PlasmoidItem {
         sourceComponent: root.surface === "control" ? centerView : taskView
     }
     Component { id: taskView; PanelView {
+        uiLanguage: root.uiLanguage
         snapshot: root.snapshot
         dismissBusy: root.dismissCommand !== ""
         onRefresh: root.refresh()
@@ -85,6 +91,7 @@ PlasmoidItem {
         onDismissTask: taskId => root.dismissTask(taskId)
     } }
     Component { id: centerView; ControlCenter {
+        uiLanguage: root.uiLanguage
         systemState: root.systemState; busy: root.systemBusy; error: root.systemError
         onRefresh: root.refreshSystem()
         onLaunch: action => root.launch(action)
@@ -96,6 +103,15 @@ PlasmoidItem {
         connectedSources: []
         onNewData: (source, data) => {
             disconnectSource(source);
+            if (source === root.helper + " --language") {
+                try {
+                    if (data["exit code"] === 0) {
+                        const response = JSON.parse(data["stdout"]);
+                        if (response.language === "de" || response.language === "en") root.uiLanguage = response.language;
+                    }
+                } catch (error) { /* Keep the desktop locale if the helper is unavailable. */ }
+                return;
+            }
             if (source === root.systemCommand) {
                 root.systemBusy = false;
                 try {
@@ -103,7 +119,7 @@ PlasmoidItem {
                     const response = JSON.parse(data["stdout"]);
                     root.systemError = response.error || "";
                     if (response.system) root.systemState = response.system;
-                } catch (error) { root.systemError = "Systemsteuerung gerade nicht erreichbar."; }
+                } catch (error) { root.systemError = root.tr("Systemsteuerung gerade nicht erreichbar."); }
                 return;
             }
             if (source === root.dismissCommand) root.dismissCommand = "";
@@ -113,9 +129,9 @@ PlasmoidItem {
                 if (root.dismissCommand) return;
             } else return;
             try {
-                if (data["exit code"] !== 0) throw new Error("Panel-Helfer nicht erreichbar.");
+                if (data["exit code"] !== 0) throw new Error(root.tr("Panel-Helfer nicht erreichbar."));
                 const next = JSON.parse(data["stdout"]);
-                if (!Array.isArray(next.active) || !Array.isArray(next.recent)) throw new Error("Ungültiger Auftragsstatus.");
+                if (!Array.isArray(next.active) || !Array.isArray(next.recent)) throw new Error(root.tr("Ungültiger Auftragsstatus."));
                 const signature = JSON.stringify(next);
                 if (signature !== root.signature) {
                     root.signature = signature;
@@ -124,7 +140,7 @@ PlasmoidItem {
             } catch (error) {
                 root.signature = "";
                 root.snapshot = {active: [], recent: [], busy: false, attention: false,
-                    error: "Aufträge gerade nicht verfügbar. Bitte erneut aktualisieren."};
+                    error: root.tr("Aufträge gerade nicht verfügbar. Bitte erneut aktualisieren.")};
             }
         }
     }

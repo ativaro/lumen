@@ -1,4 +1,5 @@
 pragma ComponentBehavior: Bound
+import "Translations.js" as I18n
 import QtQuick
 import QtQuick.Layouts
 import org.kde.plasma.components as PC
@@ -6,9 +7,11 @@ import org.kde.kirigami as Kirigami
 
 ColumnLayout {
     id: panel
+    property string uiLanguage: Qt.locale().name.toLowerCase().indexOf("de") === 0 ? "de" : "en"
+    function tr(source, args) { return I18n.tr(source, uiLanguage, args); }
     property var snapshot: ({active: [], recent: [], error: "", busy: false, attention: false})
     property string expandedTask: ""
-    property string title: "Dein System"
+    property string title: panel.tr("Dein System")
     property bool navigation: true
     property bool dismissBusy: false
     signal launch(string action)
@@ -42,7 +45,7 @@ ColumnLayout {
             visible: panel.navigation
             icon.name: "view-refresh"
             icon.color: Kirigami.Theme.textColor
-            text: "Aktualisieren"
+            text: panel.tr("Aktualisieren")
             display: PC.AbstractButton.IconOnly
             Accessible.name: text
             PC.ToolTip.text: text
@@ -53,8 +56,8 @@ ColumnLayout {
     PC.Label {
         Layout.fillWidth: true
         visible: panel.navigation || panel.snapshot.error !== "" || panel.snapshot.attention || panel.snapshot.busy
-        text: panel.snapshot.error || (panel.snapshot.attention ? "Lumen braucht deine Rückmeldung"
-            : panel.snapshot.busy ? "Lumen arbeitet für dich" : "Deine Aufgaben im Blick")
+        text: panel.snapshot.error || (panel.snapshot.attention ? panel.tr("Lumen braucht deine Rückmeldung")
+            : panel.snapshot.busy ? panel.tr("Lumen arbeitet für dich") : panel.tr("Deine Aufgaben im Blick"))
         textFormat: Text.PlainText
         wrapMode: Text.Wrap
         color: panel.snapshot.error ? Kirigami.Theme.negativeTextColor : Kirigami.Theme.textColor
@@ -71,12 +74,12 @@ ColumnLayout {
             PC.Label {
                 Layout.fillWidth: true
                 visible: !panel.snapshot.error && panel.snapshot.active.length === 0 && panel.snapshot.recent.length === 0
-                text: "Keine Aufgaben in dieser Übersicht. Den Verlauf findest du unter „Alle Aufgaben“."
+                text: panel.tr("Keine Aufgaben in dieser Übersicht. Den Verlauf findest du unter „Alle Aufgaben“.")
                 wrapMode: Text.Wrap
                 Layout.topMargin: Kirigami.Units.largeSpacing
             }
             Kirigami.Heading {
-                text: "Aktuell"; font.pixelSize: 12; color: Kirigami.Theme.disabledTextColor
+                text: panel.tr("Aktuell"); font.pixelSize: 12; color: Kirigami.Theme.disabledTextColor
                 level: 4
                 visible: panel.snapshot.active.length > 0
             }
@@ -84,6 +87,7 @@ ColumnLayout {
                 model: activeTasks
                 TaskCard {
                     required property var record
+                    uiLanguage: panel.uiLanguage
                     task: record
                     dismissBusy: panel.dismissBusy
                     Layout.fillWidth: true
@@ -94,7 +98,7 @@ ColumnLayout {
                 }
             }
             Kirigami.Heading {
-                text: "Zuletzt"; font.pixelSize: 12; color: Kirigami.Theme.disabledTextColor
+                text: panel.tr("Zuletzt"); font.pixelSize: 12; color: Kirigami.Theme.disabledTextColor
                 level: 4
                 visible: panel.snapshot.recent.length > 0
                 Layout.topMargin: Kirigami.Units.smallSpacing
@@ -103,6 +107,7 @@ ColumnLayout {
                 model: recentTasks
                 TaskCard {
                     required property var record
+                    uiLanguage: panel.uiLanguage
                     task: record
                     dismissBusy: panel.dismissBusy
                     Layout.fillWidth: true
@@ -117,7 +122,7 @@ ColumnLayout {
     LumenButton {
         Layout.fillWidth: true
         flat: true
-        text: "Alle Aufgaben"
+        text: panel.tr("Alle Aufgaben")
         hint: "›"
         icon.name: "view-task"
         icon.color: Kirigami.Theme.textColor
@@ -130,7 +135,7 @@ ColumnLayout {
         LumenButton {
             Layout.fillWidth: true
             flat: true
-            text: "Dateien"
+            text: panel.tr("Dateien")
             icon.name: "folder"
             icon.color: Kirigami.Theme.textColor
             onClicked: panel.launch("files")
@@ -138,7 +143,7 @@ ColumnLayout {
         LumenButton {
             Layout.fillWidth: true
             flat: true
-            text: "Systemstatus"
+            text: panel.tr("Systemstatus")
             icon.name: "utilities-system-monitor"
             icon.color: Kirigami.Theme.textColor
             onClicked: panel.launch("system")
@@ -146,7 +151,7 @@ ColumnLayout {
         LumenButton {
             Layout.fillWidth: true
             flat: true
-            text: "Arbeitsplatz"
+            text: panel.tr("Arbeitsplatz")
             objectName: "workplaceButton"
             icon.name: "user-desktop"
             icon.color: Kirigami.Theme.textColor

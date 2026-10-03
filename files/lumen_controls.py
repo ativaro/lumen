@@ -1,4 +1,5 @@
 """Small native desktop controls for the Plasma popup; never starts AI work."""
+from lumen_i18n import tr
 import os
 import re
 import subprocess
@@ -28,7 +29,7 @@ def brightness(method, *args):
 
 
 def snapshot():
-    value = {'volume': None, 'muted': False, 'brightness': None, 'network': 'Nicht verfügbar'}
+    value = {'volume': None, 'muted': False, 'brightness': None, 'network': tr('Nicht verfügbar')}
     try:
         volume = run(['wpctl', 'get-volume', '@DEFAULT_AUDIO_SINK@'])
         match = re.fullmatch(r'Volume: (\d+(?:\.\d+)?)\s*(\[MUTED\])?', volume)
@@ -41,9 +42,9 @@ def snapshot():
     except (OSError, subprocess.SubprocessError, ValueError): pass
     try:
         state = run(['nmcli', '-t', '-f', 'STATE', 'general'])
-        value['network'] = {'connected': 'Verbunden', 'connected (local only)': 'Lokales Netzwerk',
-                            'connected (site only)': 'Lokales Netzwerk', 'connecting': 'Verbindet …',
-                            'disconnected': 'Nicht verbunden', 'asleep': 'Deaktiviert'}.get(state, 'Nicht verfügbar')
+        value['network'] = {'connected': tr('Verbunden'), 'connected (local only)': tr('Lokales Netzwerk'),
+                            'connected (site only)': tr('Lokales Netzwerk'), 'connecting': tr('Verbindet …'),
+                            'disconnected': tr('Nicht verbunden'), 'asleep': tr('Deaktiviert')}.get(state, tr('Nicht verfügbar'))
     except (OSError, subprocess.SubprocessError): pass
     return value
 
@@ -51,11 +52,11 @@ def snapshot():
 def control(action, value=None):
     if action in ('volume', 'brightness'):
         if type(value) is not int or not 0 <= value <= 100:
-            raise ValueError('Ein Wert zwischen 0 und 100 ist erforderlich.')
+            raise ValueError(tr('Ein Wert zwischen 0 und 100 ist erforderlich.'))
         if action == 'volume': run(['wpctl', 'set-volume', '-l', '1', '@DEFAULT_AUDIO_SINK@', f'{value}%'])
         else:
             maximum = int(brightness('brightnessMax'))
-            if maximum <= 0: raise ValueError('Bildschirmhelligkeit ist nicht verfügbar.')
+            if maximum <= 0: raise ValueError(tr('Bildschirmhelligkeit ist nicht verfügbar.'))
             minimum = int(brightness('knownSafeBrightnessMin'))
             brightness('setBrightnessSilent', max(minimum, round(value * maximum / 100)))
     elif action == 'mute': run(['wpctl', 'set-mute', '@DEFAULT_AUDIO_SINK@', 'toggle'])
@@ -65,4 +66,4 @@ def control(action, value=None):
             arguments[0] = os.path.join(os.environ['LUMEN_BIN_DIR'], arguments[0])
         subprocess.Popen(arguments, start_new_session=True, stdin=subprocess.DEVNULL,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    else: raise ValueError('Unbekannte Systemaktion.')
+    else: raise ValueError(tr('Unbekannte Systemaktion.'))

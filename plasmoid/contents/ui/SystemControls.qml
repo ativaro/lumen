@@ -1,4 +1,5 @@
 pragma ComponentBehavior: Bound
+import "Translations.js" as I18n
 import QtQuick
 import QtQuick.Layouts
 import org.kde.plasma.components as PC
@@ -7,7 +8,9 @@ import org.kde.notificationmanager as Notifications
 
 ColumnLayout {
     id: controls
-    property var systemState: ({volume: null, muted: false, brightness: null, network: "Wird geladen …"})
+    property string uiLanguage: Qt.locale().name.toLowerCase().indexOf("de") === 0 ? "de" : "en"
+    function tr(source, args) { return I18n.tr(source, uiLanguage, args); }
+    property var systemState: ({volume: null, muted: false, brightness: null, network: controls.tr("Wird geladen …")})
     property bool busy: false
     property var settingsOverride: null
     readonly property var notificationSettings: settingsOverride || notifications
@@ -19,24 +22,24 @@ ColumnLayout {
 
     Kirigami.Heading { text: "System"; level: 3; font.pixelSize: 19; font.weight: Font.DemiBold; color: Kirigami.Theme.textColor; Layout.bottomMargin: 8 }
     LumenButton {
-        Layout.fillWidth: true; flat: true; text: "Hardware"; hint: "Temperatur · Lüfter · Leistung  ›"
+        Layout.fillWidth: true; flat: true; text: "Hardware"; hint: controls.tr("Temperatur · Lüfter · Leistung  ›")
         icon.name: "utilities-system-monitor"; onClicked: controls.control("hardware", 0)
     }
     LumenButton {
         Layout.fillWidth: true; implicitHeight: 50; flat: true; prominent: true
         icon.name: "network-wired"; symbolSize: 27
-        text: "Netzwerk"; hint: controls.systemState.network
+        text: controls.tr("Netzwerk"); hint: controls.systemState.network
         onClicked: controls.control("network", 0)
     }
     RowLayout {
         Layout.fillWidth: true; spacing: 18
         LumenIcon { name: "moon"; Layout.preferredWidth: 26; Layout.preferredHeight: 26; Layout.leftMargin: 12 }
-        PC.Label { text: "Nicht stören"; font.pixelSize: 15; color: Kirigami.Theme.textColor; Layout.fillWidth: true }
+        PC.Label { text: controls.tr("Nicht stören"); font.pixelSize: 15; color: Kirigami.Theme.textColor; Layout.fillWidth: true }
         PC.Switch {
             id: dnd
             objectName: "doNotDisturb"
-            Accessible.name: "Nicht stören für eine Stunde"
-            PC.ToolTip.text: "Für eine Stunde"; PC.ToolTip.visible: hovered
+            Accessible.name: controls.tr("Nicht stören für eine Stunde")
+            PC.ToolTip.text: controls.tr("Für eine Stunde"); PC.ToolTip.visible: hovered
             checked: controls.notificationSettings.notificationsInhibitedUntil > controls.now
             onClicked: {
                 controls.notificationSettings.notificationsInhibitedUntil = checked ? new Date(Date.now() + 3600000) : new Date(0);
@@ -54,7 +57,7 @@ ColumnLayout {
     PC.Label {
         visible: controls.notificationSettings.notificationsInhibitedByApplication
         Layout.fillWidth: true
-        text: "Eine Anwendung unterdrückt zusätzlich Benachrichtigungen."
+        text: controls.tr("Eine Anwendung unterdrückt zusätzlich Benachrichtigungen.")
         wrapMode: Text.Wrap
     }
     Kirigami.Separator { Layout.fillWidth: true }
@@ -66,11 +69,11 @@ ColumnLayout {
             icon.name: controls.systemState.muted ? "audio-volume-muted" : "audio-volume-high"
             icon.color: Kirigami.Theme.textColor
             enabled: controls.systemState.volume !== null && !controls.busy
-            Accessible.name: controls.systemState.muted ? "Ton einschalten" : "Stummschalten"
+            Accessible.name: controls.systemState.muted ? controls.tr("Ton einschalten") : controls.tr("Stummschalten")
             onClicked: controls.control("mute", 0)
         }
-        PC.Label { text: "Lautstärke"; font.pixelSize: 15; color: Kirigami.Theme.textColor; Layout.fillWidth: true }
-        PC.Label { text: controls.systemState.volume === null ? "Nicht verfügbar" : controls.systemState.muted ? "Stumm" : controls.systemState.volume + " %" }
+        PC.Label { text: controls.tr("Lautstärke"); font.pixelSize: 15; color: Kirigami.Theme.textColor; Layout.fillWidth: true }
+        PC.Label { text: controls.systemState.volume === null ? controls.tr("Nicht verfügbar") : controls.systemState.muted ? controls.tr("Stumm") : controls.systemState.volume + " %" }
     }
     LumenSlider {
         id: volume
@@ -78,7 +81,7 @@ ColumnLayout {
         Layout.fillWidth: true
         from: 0; to: 100; stepSize: 1
         enabled: controls.systemState.volume !== null && !controls.busy
-        Accessible.name: "Lautstärke"
+        Accessible.name: controls.tr("Lautstärke")
         property int requestedValue: 0
         onMoved: { requestedValue = Math.round(value); if (!pressed) controls.control("volume", requestedValue); }
         onPressedChanged: {
@@ -90,8 +93,8 @@ ColumnLayout {
     RowLayout {
         Layout.fillWidth: true
         LumenIcon { name: "brightness-high"; Layout.preferredWidth: 24; Layout.preferredHeight: 24; Layout.leftMargin: 12 }
-        PC.Label { id: brightnessLabel; text: "Helligkeit"; font.pixelSize: 15; color: Kirigami.Theme.textColor; Layout.fillWidth: true }
-        PC.Label { text: controls.systemState.brightness === null ? "Nicht verfügbar" : controls.systemState.brightness + " %" }
+        PC.Label { id: brightnessLabel; text: controls.tr("Helligkeit"); font.pixelSize: 15; color: Kirigami.Theme.textColor; Layout.fillWidth: true }
+        PC.Label { text: controls.systemState.brightness === null ? controls.tr("Nicht verfügbar") : controls.systemState.brightness + " %" }
     }
     LumenSlider {
         id: brightness
@@ -99,7 +102,7 @@ ColumnLayout {
         Layout.fillWidth: true
         from: 1; to: 100; stepSize: 1
         enabled: controls.systemState.brightness !== null && !controls.busy
-        Accessible.name: "Bildschirmhelligkeit"
+        Accessible.name: controls.tr("Bildschirmhelligkeit")
         property int requestedValue: 0
         onMoved: { requestedValue = Math.round(value); if (!pressed) controls.control("brightness", requestedValue); }
         onPressedChanged: {
@@ -110,8 +113,8 @@ ColumnLayout {
     }
     RowLayout {
         Layout.fillWidth: true
-        LumenButton { Layout.fillWidth: true; implicitHeight: 32; flat: true; text: "Audiogeräte"; onClicked: controls.control("audio", 0) }
-        LumenButton { Layout.fillWidth: true; implicitHeight: 32; flat: true; text: "Bildschirme"; onClicked: controls.control("display", 0) }
+        LumenButton { Layout.fillWidth: true; implicitHeight: 32; flat: true; text: controls.tr("Audiogeräte"); onClicked: controls.control("audio", 0) }
+        LumenButton { Layout.fillWidth: true; implicitHeight: 32; flat: true; text: controls.tr("Bildschirme"); onClicked: controls.control("display", 0) }
     }
     Item { Layout.fillHeight: true }
 }

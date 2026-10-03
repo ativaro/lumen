@@ -1,4 +1,5 @@
 """Opt-in, content-addressed file history, sampled independently of the UI."""
+from lumen_i18n import worker_environment, tr
 import hashlib
 import json
 import os
@@ -33,14 +34,14 @@ class Versions:
 
     def configure(self, roots, interval=30, copies=20, days=90, size_gib=5):
         if not 10 <= interval <= 3600 or not 2 <= copies <= 1000 or not 1 <= days <= 3650 or not 1 <= size_gib <= 1000:
-            raise ValueError('Ungültige Aufbewahrungseinstellung.')
+            raise ValueError(tr('Ungültige Aufbewahrungseinstellung.'))
         clean = []
         for value in roots:
             path = Path(value).expanduser().absolute()
             if not path.is_dir() or path.is_symlink() or self.store.directory.resolve().is_relative_to(path.resolve()) or path.resolve().is_relative_to(self.store.directory.resolve()):
-                raise ValueError('Bitte einen vorhandenen Ordner außerhalb des Lumen-Datenspeichers wählen.')
+                raise ValueError(tr('Bitte einen vorhandenen Ordner außerhalb des Lumen-Datenspeichers wählen.'))
             if any(path.is_relative_to(Path(r)) or Path(r).is_relative_to(path) for r in clean):
-                raise ValueError('Überlappende Ordner bitte nur einmal hinzufügen.')
+                raise ValueError(tr('Überlappende Ordner bitte nur einmal hinzufügen.'))
             clean.append(str(path))
         self.store.set_setting(KEY, dict(roots=clean, interval=interval, copies=copies, days=days, bytes=size_gib * 1024**3))
 
@@ -53,14 +54,14 @@ class Versions:
             blob = self.objects / checksum
             if not blob.exists():
                 size = path.stat().st_size
-                if size > self.config()['bytes']: raise ValueError('Datei überschreitet die Speichergrenze: ' + str(path))
-                if shutil.disk_usage(self.objects).free < size + 64 * 1024**2: raise ValueError('Nicht genug freier Speicher für die nächste Version.')
+                if size > self.config()['bytes']: raise ValueError(tr('Datei überschreitet die Speichergrenze: ') + str(path))
+                if shutil.disk_usage(self.objects).free < size + 64 * 1024**2: raise ValueError(tr('Nicht genug freier Speicher für die nächste Version.'))
                 with tempfile.NamedTemporaryFile(dir=self.objects, delete=False) as out:
                     staged = Path(out.name)
                     try:
                         with path.open('rb') as src: shutil.copyfileobj(src, out, 1024 * 1024)
                         out.flush(); os.fsync(out.fileno())
-                        if digest(staged) != checksum: raise ValueError('Datei während Sicherung verändert: ' + str(path))
+                        if digest(staged) != checksum: raise ValueError(tr('Datei während Sicherung verändert: ') + str(path))
                         os.replace(staged, blob)
                     finally: staged.unlink(missing_ok=True)
             self.add(str(root), str(path), checksum, blob.stat().st_size)
@@ -99,16 +100,16 @@ class Versions:
 
     def restore(self, identity, expected):
         row = self.store.rows('SELECT * FROM file_versions WHERE id=?', (identity,))
-        if not row or not row[0]['hash']: raise ValueError('Bitte eine gespeicherte Dateifassung wählen.')
+        if not row or not row[0]['hash']: raise ValueError(tr('Bitte eine gespeicherte Dateifassung wählen.'))
         row = row[0]; path = Path(row['path'])
         from lumen_offline import safe_path
         safe_path(Path(row['root']), str(path.relative_to(row['root'])))
         current = digest(path)
-        if current != expected: raise ValueError('Die aktuelle Datei wurde inzwischen verändert. Vergleich neu öffnen.')
+        if current != expected: raise ValueError(tr('Die aktuelle Datei wurde inzwischen verändert. Vergleich neu öffnen.'))
         if current is not None:
             blob = self.objects / current
             if not blob.exists(): shutil.copy2(path, blob)
-            if digest(blob) != current: raise ValueError('Datei während Sicherung verändert.')
+            if digest(blob) != current: raise ValueError(tr('Datei während Sicherung verändert.'))
             self.add(row['root'], str(path), current, blob.stat().st_size)
         replace_file(self.objects / row['hash'], path, row['hash'], expected, None)
         path.chmod(row['mode'])
@@ -117,7 +118,7 @@ class Versions:
 
 
 def start(store):
-    return subprocess.Popen([sys.executable, str(Path(__file__)), '--watch'], env=dict(os.environ, LUMEN_DATA=str(store.directory)),
+    return subprocess.Popen([sys.executable, str(Path(__file__)), '--watch'], env=worker_environment(LUMEN_DATA=str(store.directory)),
                             start_new_session=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
@@ -130,8 +131,8 @@ def watch():
             for root in versions.config()['roots']:
                 try:
                     result = subprocess.run([sys.executable, str(Path(__file__)), '--capture', root], capture_output=True, text=True, timeout=300)
-                    status = 'Aktuell' if result.returncode == 0 else result.stdout[-1000:] or 'Sicherung fehlgeschlagen'
-                except subprocess.TimeoutExpired: status = 'Ordner antwortet nicht · später erneut versuchen'
+                    status = tr('Aktuell') if result.returncode == 0 else result.stdout[-1000:] or tr('Sicherung fehlgeschlagen')
+                except subprocess.TimeoutExpired: status = tr('Ordner antwortet nicht · später erneut versuchen')
                 versions.store.set_setting('versions/status/' + root, dict(status=status, time=time.time()))
             time.sleep(versions.config()['interval'])
     finally: os.close(lease)
@@ -160,8 +161,8 @@ if __name__ == '__main__':
                     if row['hash'] and len(sys.argv) > 3:
                         preview = str(Path(sys.argv[3]) / target.name); shutil.copyfile(versions.objects / row['hash'], preview)
                     if b'\0' in old + current:
-                        detail = 'Binäre Datei · Vorschau der gespeicherten Fassung verwenden. Aktuelle Größe: ' + str(target.stat().st_size if checksum else 0) + ' Bytes'
-                    else: detail = ''.join(difflib.unified_diff(old.decode(errors='replace').splitlines(True), current.decode(errors='replace').splitlines(True), 'Gespeicherte Fassung', 'Aktuelle Datei')) or 'Inhalte identisch.'
+                        detail = tr('Binäre Datei · Vorschau der gespeicherten Fassung verwenden. Aktuelle Größe: ') + str(target.stat().st_size if checksum else 0) + tr(' Bytes')
+                    else: detail = ''.join(difflib.unified_diff(old.decode(errors='replace').splitlines(True), current.decode(errors='replace').splitlines(True), tr('Gespeicherte Fassung'), tr('Aktuelle Datei'))) or tr('Inhalte identisch.')
                     print(json.dumps({'expected': checksum, 'detail': detail[:50000], 'preview': preview}))
             finally: os.close(lease)
         except Exception as error: print(json.dumps({'error': str(error)})); sys.exit(1)

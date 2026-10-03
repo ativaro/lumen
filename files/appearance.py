@@ -1,15 +1,16 @@
 """Shared native application themes; never writes KDE settings."""
+from lumen_i18n import tr
 from pathlib import Path
 from PyQt5.QtCore import QRectF, Qt
 from PyQt5.QtGui import QColor, QIcon, QPainter, QPalette, QPixmap
 
 DEFAULT_DESIGN = 'glass'
-DESIGNS = [('Glas', 'glass'), ('Graphit', 'graphite'), ('Atelier', 'atelier'), ('Mitternacht', 'midnight')]
+DESIGNS = [(tr('Glas'), 'glass'), (tr('Graphit'), 'graphite'), (tr('Atelier'), 'atelier'), (tr('Mitternacht'), 'midnight')]
 DESCRIPTIONS = {
-    'glass': 'Rauchblau, Mint und weiche Konturen · Standard',
-    'graphite': 'Matte Flächen, Jade und ruhige Kontraste',
-    'atelier': 'Warmes Elfenbein, Oliv und feine Kanten',
-    'midnight': 'Tiefes Nachtblau und klare Linien',
+    'glass': tr('Rauchblau, Mint und weiche Konturen · Standard'),
+    'graphite': tr('Matte Flächen, Jade und ruhige Kontraste'),
+    'atelier': tr('Warmes Elfenbein, Oliv und feine Kanten'),
+    'midnight': tr('Tiefes Nachtblau und klare Linien'),
 }
 # Window, content, hover, text, button, border, muted, accent, on-accent.
 COLORS = {

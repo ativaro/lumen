@@ -3,6 +3,8 @@ import html
 import mimetypes
 from pathlib import Path
 
+from lumen_i18n import tr
+
 from PyQt5.QtCore import QEvent, QSettings, Qt, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices, QKeySequence, QTextDocument, QPalette
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame, QHBoxLayout,
@@ -26,7 +28,7 @@ class Transcript(QTextBrowser):
 class ChatPanel(QWidget):
     actionChanged = pyqtSignal(str)
     closeRequested = pyqtSignal()
-    action_titles = {'explain': 'Erklärung', 'fix': 'Fehler beheben', 'review': 'Änderungen prüfen'}
+    action_titles = {'explain': tr('Erklärung'), 'fix': tr('Fehler beheben'), 'review': tr('Änderungen prüfen')}
 
     def __init__(self, directory, parent=None, backend=None, settings=None):
         super().__init__(parent)
@@ -51,25 +53,25 @@ class ChatPanel(QWidget):
         top.addWidget(self.heading)
         top.addStretch()
         self.new = QPushButton('+')
-        self.new.setAccessibleName('Neues Gespräch'); self.new.setToolTip('Neues Gespräch')
+        self.new.setAccessibleName(tr('Neues Gespräch')); self.new.setToolTip(tr('Neues Gespräch'))
         self.new.setObjectName('iconButton'); self.new.setFixedSize(36, 36)
         self.new.clicked.connect(self.new_conversation)
         top.addWidget(self.new)
         self.options = QPushButton('···')
         self.options.setCheckable(True)
-        self.options.setAccessibleName('Gesprächsoptionen und Verlauf')
-        self.options.setToolTip('Verlauf, Arbeitsweise und Erklärungen')
+        self.options.setAccessibleName(tr('Gesprächsoptionen und Verlauf'))
+        self.options.setToolTip(tr('Verlauf, Arbeitsweise und Erklärungen'))
         self.options.setObjectName('iconButton'); self.options.setFixedSize(36, 36)
         self.options.toggled.connect(self.show_options)
         top.addWidget(self.options)
         self.close_panel = QPushButton('×')
-        self.close_panel.setAccessibleName('Lumen schließen'); self.close_panel.setToolTip('Lumen schließen')
+        self.close_panel.setAccessibleName(tr('Lumen schließen')); self.close_panel.setToolTip(tr('Lumen schließen'))
         self.close_panel.setObjectName('iconButton'); self.close_panel.setFixedSize(36, 36); self.close_panel.clicked.connect(self.closeRequested)
         top.addWidget(self.close_panel)
         layout.addLayout(top)
         self.sessions = QComboBox()
-        self.sessions.setAccessibleName('Gespräch auswählen')
-        self.sessions.addItem('Neues Gespräch', '')
+        self.sessions.setAccessibleName(tr('Gespräch auswählen'))
+        self.sessions.addItem(tr('Neues Gespräch'), '')
         self.sessions.activated.connect(self.open_session)
         layout.addWidget(self.sessions)
         self.context = label('', 'muted')
@@ -77,21 +79,20 @@ class ChatPanel(QWidget):
         self.context.setTextInteractionFlags(Qt.TextSelectableByMouse)
         layout.addWidget(self.context)
         self.mode = QComboBox()
-        self.mode.setAccessibleName('Arbeitsweise von Lumen')
-        self.mode.addItem('Aufgaben erledigen', 'build')
-        self.mode.addItem('Lesen & prüfen', 'plan')
+        self.mode.setAccessibleName(tr('Arbeitsweise von Lumen'))
+        self.mode.addItem(tr('Aufgaben erledigen'), 'build')
+        self.mode.addItem(tr('Lesen & prüfen'), 'plan')
         self.mode.setCurrentIndex(1 if self.settings.value('defaultMode', 'build') == 'plan' else 0)
-        self.mode.setToolTip('Lesen & prüfen analysiert, ohne Dateien zu bearbeiten.')
+        self.mode.setToolTip(tr('Lesen & prüfen analysiert, ohne Dateien zu bearbeiten.'))
         layout.addWidget(self.mode)
-        self.dont_ask = QCheckBox('Nicht mehr nachfragen')
-        self.dont_ask.setToolTip('Werkzeugfreigaben in diesem Fenster automatisch erlauben, auch Befehle und Dateiänderungen. '
-                               'Inhaltliche Rückfragen bleiben erhalten. Die Auswahl wird für neue Lumen-Fenster und Files-Panels gespeichert.')
+        self.dont_ask = QCheckBox(tr('Nicht mehr nachfragen'))
+        self.dont_ask.setToolTip(tr('Werkzeugfreigaben in diesem Fenster automatisch erlauben, auch Befehle und Dateiänderungen. Inhaltliche Rückfragen bleiben erhalten. Die Auswahl wird für neue Lumen-Fenster und Files-Panels gespeichert.'))
         self.dont_ask.setChecked(self.settings.value('autoApproveTools', False, type=bool))
         self.dont_ask.toggled.connect(self.set_auto_approve)
         layout.addWidget(self.dont_ask)
         self.transcript = Transcript()
         self.transcript.setObjectName('transcript')
-        self.transcript.setAccessibleName('Gespräch mit Lumen')
+        self.transcript.setAccessibleName(tr('Gespräch mit Lumen'))
         self.transcript.setOpenLinks(False)
         self.transcript.anchorClicked.connect(lambda url: QDesktopServices.openUrl(url)
                                               if url.scheme() in ('https', 'http') else None)
@@ -99,17 +100,17 @@ class ChatPanel(QWidget):
         self.progress = QProgressBar()
         self.progress.setRange(0, 0)
         self.progress.setTextVisible(False)
-        self.progress.setAccessibleName('Vorgang läuft')
+        self.progress.setAccessibleName(tr('Vorgang läuft'))
         self.progress.setFixedHeight(4)
         self.progress.hide()
         layout.addWidget(self.progress)
         self.action_buttons = QWidget()
         action_row = QHBoxLayout(self.action_buttons)
         action_row.setContentsMargins(0, 0, 0, 0)
-        self.action_more = QPushButton('Mehr Details')
+        self.action_more = QPushButton(tr('Mehr Details'))
         self.action_more.clicked.connect(self.expand_action)
         action_row.addWidget(self.action_more)
-        self.retry = QPushButton('Erneut versuchen')
+        self.retry = QPushButton(tr('Erneut versuchen'))
         self.retry.clicked.connect(self.retry_action)
         self.retry.hide()
         action_row.addWidget(self.retry)
@@ -127,39 +128,39 @@ class ChatPanel(QWidget):
         self.error.hide()
         layout.addWidget(self.error)
         self.composer = QPlainTextEdit()
-        self.composer.setPlaceholderText('Was möchtest du tun?\nStrg+Enter zum Senden')
-        self.composer.setAccessibleName('Nachricht an Lumen')
+        self.composer.setPlaceholderText(tr('Was möchtest du tun?\nStrg+Enter zum Senden'))
+        self.composer.setAccessibleName(tr('Nachricht an Lumen'))
         self.composer.setMaximumHeight(115)
         layout.addWidget(self.composer)
         from lumen_context import ContextTools
         self.context_tools = ContextTools(self, layout)
         bottom = QHBoxLayout()
-        self.status = label('Bereit', 'muted')
+        self.status = label(tr('Bereit'), 'muted')
         bottom.addWidget(self.status, 1)
-        self.copy = QPushButton('Kopieren')
-        self.copy.setToolTip('Letzte Antwort kopieren')
+        self.copy = QPushButton(tr('Kopieren'))
+        self.copy.setToolTip(tr('Letzte Antwort kopieren'))
         self.copy.setEnabled(False)
         self.copy.clicked.connect(lambda: QApplication.clipboard().setText(self.last_answer))
         bottom.addWidget(self.copy)
-        self.stop = QPushButton('Abbrechen')
+        self.stop = QPushButton(tr('Abbrechen'))
         self.stop.clicked.connect(self.backend.stop)
         self.stop.hide()
         bottom.addWidget(self.stop)
-        self.send_button = QPushButton('Senden')
+        self.send_button = QPushButton(tr('Senden'))
         self.send_button.setObjectName('primary')
         self.send_button.clicked.connect(self.send)
         bottom.addWidget(self.send_button)
-        self.close_action = QPushButton('Schließen')
+        self.close_action = QPushButton(tr('Schließen'))
         self.close_action.clicked.connect(self.closeRequested)
         self.close_action.hide()
         bottom.addWidget(self.close_action)
         layout.addLayout(bottom)
-        self.save_file_action = QPushButton('Als Dateiaktion speichern …'); self.save_file_action.hide()
+        self.save_file_action = QPushButton(tr('Als Dateiaktion speichern …')); self.save_file_action.hide()
         layout.addWidget(self.save_file_action); self.save_file_action.clicked.connect(self.save_as_file_action)
         self.backend.started.connect(lambda *_: self.save_file_action.hide())
         self.backend.completed.connect(lambda success, _: self.save_file_action.setVisible(success))
         self.memory_capture_job=None
-        memory_row=QHBoxLayout();self.save_note_button=QPushButton('Für mich speichern');self.remember_button=QPushButton('Merk dir das')
+        memory_row=QHBoxLayout();self.save_note_button=QPushButton(tr('Für mich speichern'));self.remember_button=QPushButton(tr('Merk dir das'))
         for control in (self.save_note_button,self.remember_button):control.setObjectName('toolButton');control.setEnabled(False);memory_row.addWidget(control)
         self.save_note_button.clicked.connect(lambda:self.capture_knowledge(False));self.remember_button.clicked.connect(lambda:self.capture_knowledge(True));layout.addLayout(memory_row)
         self.memory_status=label('','muted');self.memory_status.hide();layout.addWidget(self.memory_status)
@@ -187,13 +188,13 @@ class ChatPanel(QWidget):
         if self.memory_capture_job:return
         text=self.transcript.textCursor().selectedText().replace('\u2029','\n') or self.last_answer
         if not text.strip():return
-        if len(text)>20000:self.show_error('Bitte einen Abschnitt bis 20.000 Zeichen auswählen.');return
+        if len(text)>20000:self.show_error(tr('Bitte einen Abschnitt bis 20.000 Zeichen auswählen.'));return
         from tools_ui import Job
         from lumen_memory import worker as memory_worker
         from wissen_data import worker as notebook_worker
-        store=self.tracker.store;title=(self.last_prompt or 'Gespräch mit Lumen').splitlines()[0][:120];source='Von dir gespeichert · Gespräch „'+title+'“'
+        store=self.tracker.store;title=(self.last_prompt or tr('Gespräch mit Lumen')).splitlines()[0][:120];source=tr('Von dir gespeichert · Gespräch „')+title+'“'
         job=Job(lambda job:memory_worker(job,store,'remember',title=title,text=text,source=source) if remember else notebook_worker(job,store,'save_memory',title=title,text=text,source=source),self)
-        self.memory_capture_job=job;job.result.connect(lambda _:(self.memory_status.setText('Im Lumen-Gedächtnis gespeichert.' if remember else 'In deinem Notizbuch gespeichert.'),self.memory_status.show()));job.failed.connect(self.show_error)
+        self.memory_capture_job=job;job.result.connect(lambda _:(self.memory_status.setText(tr('Im Lumen-Gedächtnis gespeichert.') if remember else tr('In deinem Notizbuch gespeichert.')),self.memory_status.show()));job.failed.connect(self.show_error)
         def finished():self.memory_capture_job=None;job.deleteLater()
         job.finished.connect(finished);job.start()
 
@@ -209,7 +210,7 @@ class ChatPanel(QWidget):
 
     def restore_recovery(self, state):
         if self.backend.busy:
-            raise ValueError('Bitte den laufenden Auftrag zuerst abschließen.')
+            raise ValueError(tr('Bitte den laufenden Auftrag zuerst abschließen.'))
         self.backend.new_conversation(state.get('directory') or str(Path.home()))
         self.set_action('open')
         self.paths = [p for p in state.get('paths', []) if isinstance(p, str)][:100]
@@ -220,7 +221,7 @@ class ChatPanel(QWidget):
         self.show_messages(self.backend.messages)
         self.composer.setPlainText(str(state.get('draft', ''))[:100000])
         self.update_context()
-        self.status.setText('Wiederhergestellt · Kein Auftrag wurde erneut gestartet')
+        self.status.setText(tr('Wiederhergestellt · Kein Auftrag wurde erneut gestartet'))
 
     def show_options(self, visible):
         if not hasattr(self, 'context_tools'): return
@@ -271,12 +272,12 @@ class ChatPanel(QWidget):
 
     def show_status(self, text):
         if self.action:
-            if text == 'Bereit' and not self.backend.busy:
-                text = 'Erklärung bereit' if self.action == 'explain' and self.last_answer else 'Ergebnis liegt vor' if self.last_answer else 'Bereit'
-            elif text in ('Lumen arbeitet …', 'Lumen wird bereit …', 'Bereit'):
-                text = {'explain': 'Auswahl wird erklärt …', 'fix': 'Ergebnis wird geprüft …' if self.mode.currentData() == 'plan' else 'Fehler werden gesucht und behoben …',
-                        'review': 'Änderungen werden geprüft …'}[self.action]
-            elif text in ('Abgebrochen', 'Anfrage fehlgeschlagen', 'Antwort nicht abgeschlossen'):
+            if text == tr('Bereit') and not self.backend.busy:
+                text = tr('Erklärung bereit') if self.action == 'explain' and self.last_answer else tr('Ergebnis liegt vor') if self.last_answer else tr('Bereit')
+            elif text in (tr('Lumen arbeitet …'), tr('Lumen wird bereit …'), tr('Bereit')):
+                text = {'explain': tr('Auswahl wird erklärt …'), 'fix': tr('Ergebnis wird geprüft …') if self.mode.currentData() == 'plan' else tr('Fehler werden gesucht und behoben …'),
+                        'review': tr('Änderungen werden geprüft …')}[self.action]
+            elif text in (tr('Abgebrochen'), tr('Anfrage fehlgeschlagen'), tr('Antwort nicht abgeschlossen')):
                 self.retry.show()
                 self.action_more.setEnabled(False)
         self.status.setText(text)
@@ -289,7 +290,7 @@ class ChatPanel(QWidget):
         self.action_buttons.setVisible(bool(self.action))
         self.close_action.setVisible(bool(self.action))
         self.progress.setVisible(bool(self.action) and self.backend.busy)
-        self.action_more.setText('Mehr Details' if self.action == 'explain' else 'Ergebnis prüfen')
+        self.action_more.setText(tr('Mehr Details') if self.action == 'explain' else tr('Ergebnis prüfen'))
         self.retry.hide()
         self.rendered = None
         self.show_messages(self.backend.messages)
@@ -300,9 +301,8 @@ class ChatPanel(QWidget):
         if self.backend.busy or not self.last_answer:
             return
         self.mode.setCurrentIndex(1)
-        self.submit('Erkläre die Auswahl genauer und verständlich.' if self.action == 'explain' else
-                    'Prüfe das vorliegende Ergebnis anhand der Dateien und geeigneter Tests. Ändere keine Dateien. '
-                    'Zeige knapp, was bestätigt wurde und was noch offen ist.')
+        self.submit(tr('Erkläre die Auswahl genauer und verständlich.') if self.action == 'explain' else
+                    tr('Prüfe das vorliegende Ergebnis anhand der Dateien und geeigneter Tests. Ändere keine Dateien. Zeige knapp, was bestätigt wurde und was noch offen ist.'))
 
     def retry_action(self):
         if self.backend.busy or not self.last_prompt:
@@ -313,15 +313,15 @@ class ChatPanel(QWidget):
 
     def show_sessions(self, sessions):
         self.sessions.clear()
-        self.sessions.addItem('Neues Gespräch', '')
+        self.sessions.addItem(tr('Neues Gespräch'), '')
         for session in sorted(sessions, key=lambda s: s.get('time', {}).get('updated', 0), reverse=True):
-            self.sessions.addItem(session.get('title') or 'Gespräch', session['id'])
+            self.sessions.addItem(session.get('title') or tr('Gespräch'), session['id'])
         self.select_session_item(self.backend.session)
 
     def select_session_item(self, session):
         index = self.sessions.findData(session)
         if index < 0:
-            self.sessions.addItem('Aktuelles Gespräch', session)
+            self.sessions.addItem(tr('Aktuelles Gespräch'), session)
             index = self.sessions.count() - 1
         self.sessions.setCurrentIndex(index)
 
@@ -342,12 +342,12 @@ class ChatPanel(QWidget):
 
     def update_context(self):
         names = ' · '.join(Path(p).name for p in self.paths)
-        self.context.setText(('Auswahl: ' + names + '\n' if names else '') + self.backend.directory)
+        self.context.setText((tr('Auswahl: ') + names + '\n' if names else '') + self.backend.directory)
         self.context.setToolTip('\n'.join(self.paths) or self.backend.directory)
 
     def begin_context(self, action='open', paths=None, directory=None, prompt=''):
         if self.backend.busy:
-            self.show_error('Bitte den laufenden Vorgang abwarten oder abbrechen, bevor du den Kontext wechselst.')
+            self.show_error(tr('Bitte den laufenden Vorgang abwarten oder abbrechen, bevor du den Kontext wechselst.'))
             return
         paths = [str(Path(p).expanduser().absolute()) for p in (paths or [])]
         if directory is None and paths:
@@ -365,10 +365,9 @@ class ChatPanel(QWidget):
         if not self.action:
             self.backend.refresh_sessions()
         prompts = {
-            'explain': 'Beschreibe Inhalt und Zweck der ausgewählten Dateien oder des Ordners in zwei bis drei verständlichen Sätzen. Gib nur die Erklärung aus, ohne Anrede, Rückfrage oder weitere Angebote. Ändere keine Dateien.',
-            'review': 'Prüfe den aktuellen Git-Diff im ausgewählten Ordner auf Fehler und Risiken. Ändere keine Dateien.',
-            'fix': 'Untersuche die ausgewählten Dateien oder den Ordner auf Fehler. Behebe bestätigte Fehler und prüfe die Änderungen. '
-                   'Berichte knapp unter Ergebnis, Änderungen und Prüfung, was tatsächlich erledigt wurde und was noch offen ist.'}
+            'explain': tr('Beschreibe Inhalt und Zweck der ausgewählten Dateien oder des Ordners in zwei bis drei verständlichen Sätzen. Gib nur die Erklärung aus, ohne Anrede, Rückfrage oder weitere Angebote. Ändere keine Dateien.'),
+            'review': tr('Prüfe den aktuellen Git-Diff im ausgewählten Ordner auf Fehler und Risiken. Ändere keine Dateien.'),
+            'fix': tr('Untersuche die ausgewählten Dateien oder den Ordner auf Fehler. Behebe bestätigte Fehler und prüfe die Änderungen. Berichte knapp unter Ergebnis, Änderungen und Prüfung, was tatsächlich erledigt wurde und was noch offen ist.')}
         prompt = prompt or prompts.get(action, '')
         if prompt:
             self.submit(prompt)
@@ -387,7 +386,7 @@ class ChatPanel(QWidget):
         self.last_prompt = text
         files = []
         if self.paths:
-            text += '\n\nAusgewählte Pfade (Kontext):\n' + '\n'.join(self.paths)
+            text += tr('\n\nAusgewählte Pfade (Kontext):\n') + '\n'.join(self.paths)
             for path in self.paths:
                 mime = mimetypes.guess_type(path)[0] or ''
                 if Path(path).is_file() and (mime.startswith('image/') or mime == 'application/pdf'):
@@ -395,7 +394,7 @@ class ChatPanel(QWidget):
         title = self.action_titles[self.action] + ' · ' + (Path(self.paths[0]).name if self.paths else Path(self.backend.directory).name) if self.action else None
         self.backend.background_task = False
         if self.context_tools.learn.isChecked():
-            text += '\n\nErkläre die wesentlichen Schritte, ihre Wirkung und wie ich sie selbst wiederholen kann.'
+            text += tr('\n\nErkläre die wesentlichen Schritte, ihre Wirkung und wie ich sie selbst wiederholen kann.')
         self.backend.send(text, files, self.mode.currentData(), title=title,memory_text=self.last_prompt)
         if not self.action:
             self.composer.clear()
@@ -412,7 +411,7 @@ class ChatPanel(QWidget):
                 continue
             parts = message.get('parts', [])
             text = '\n\n'.join(p.get('text', '') for p in parts if p.get('type') == 'text' and not p.get('synthetic'))
-            activity = [p.get('state', {}).get('title') or p.get('tool', 'Werkzeug') for p in parts
+            activity = [p.get('state', {}).get('title') or p.get('tool', tr('Werkzeug')) for p in parts
                         if p.get('type') == 'tool' and p.get('state', {}).get('status') in ('running', 'pending')]
             if role == 'assistant' and text:
                 self.last_answer = text
@@ -435,14 +434,14 @@ class ChatPanel(QWidget):
             body = md.toHtml().split('<body', 1)[1].split('>', 1)[1].rsplit('</body>', 1)[0]
             if not self.action:
                 color = self.palette().color(QPalette.Link).name()
-                document.append(f'<p style="color:{color};font-size:11px"><b>' + ('DU' if role == 'user' else 'LUMEN') + '</b></p>')
+                document.append(f'<p style="color:{color};font-size:11px"><b>' + (tr('DU') if role == 'user' else 'LUMEN') + '</b></p>')
             document.append(body)
             if activity:
                 color = self.palette().color(QPalette.Dark).name()
                 document.append(f'<p style="color:{color}">' + html.escape(' · '.join(activity)) + ' …</p>')
             if not self.action:
                 document.append('<hr>')
-        empty = '<p>Das Ergebnis erscheint hier.</p>' if self.action else '<h2>Wobei kann ich dir helfen?</h2><p>Dateien verstehen, etwas prüfen oder eine Aufgabe erledigen.</p>'
+        empty = tr('<p>Das Ergebnis erscheint hier.</p>') if self.action else tr('<h2>Wobei kann ich dir helfen?</h2><p>Dateien verstehen, etwas prüfen oder eine Aufgabe erledigen.</p>')
         self.transcript.setHtml(''.join(document) or empty)
         scroll.setValue(scroll.maximum() if bottom else position)
 
@@ -454,9 +453,9 @@ class ChatPanel(QWidget):
         content = QWidget()
         layout = QVBoxLayout(content)
         for request in permissions:
-            permission = {'edit': 'Dateien ändern', 'bash': 'Befehl ausführen', 'external_directory': 'Auf Ordner zugreifen',
-                          'read': 'Dateien lesen', 'webfetch': 'Website abrufen', 'task': 'Teilaufgabe ausführen'}.get(request['permission'], 'Aktion ausführen')
-            title = label('Erlauben: ' + permission + '?')
+            permission = {'edit': tr('Dateien ändern'), 'bash': tr('Befehl ausführen'), 'external_directory': tr('Auf Ordner zugreifen'),
+                          'read': tr('Dateien lesen'), 'webfetch': tr('Website abrufen'), 'task': tr('Teilaufgabe ausführen')}.get(request['permission'], tr('Aktion ausführen'))
+            title = label(tr('Erlauben: ') + permission + '?')
             title.setWordWrap(True)
             layout.addWidget(title)
             detail = label('\n'.join(request.get('patterns', [])), 'muted')
@@ -464,7 +463,7 @@ class ChatPanel(QWidget):
             detail.setTextInteractionFlags(Qt.TextSelectableByMouse)
             layout.addWidget(detail)
             row = QHBoxLayout()
-            for caption, allow in [('Ablehnen', False), ('Einmal erlauben', True)]:
+            for caption, allow in [(tr('Ablehnen'), False), (tr('Einmal erlauben'), True)]:
                 button = QPushButton(caption)
                 button.clicked.connect(lambda _=False, rid=request['id'], yes=allow: self.backend.permission_reply(rid, yes))
                 row.addWidget(button)
@@ -485,21 +484,21 @@ class ChatPanel(QWidget):
                         choices.append(check)
                 else:
                     combo = QComboBox()
-                    combo.addItem('Bitte wählen …', None)
+                    combo.addItem(tr('Bitte wählen …'), None)
                     for option in question['options']:
                         combo.addItem(option['label'], option['label'])
                         combo.setItemData(combo.count() - 1, option.get('description', ''), Qt.ToolTipRole)
                     layout.addWidget(combo)
                 custom = QLineEdit() if question.get('custom', True) else None
                 if custom:
-                    custom.setPlaceholderText('Eigene Antwort')
-                    custom.setAccessibleName('Eigene Antwort auf: ' + question['question'])
+                    custom.setPlaceholderText(tr('Eigene Antwort'))
+                    custom.setAccessibleName(tr('Eigene Antwort auf: ') + question['question'])
                     layout.addWidget(custom)
                 inputs.append((choices, combo, custom))
             row = QHBoxLayout()
-            dismiss = QPushButton('Überspringen')
+            dismiss = QPushButton(tr('Überspringen'))
             dismiss.clicked.connect(lambda _=False, rid=request['id']: self.backend.question_reply(rid))
-            reply = QPushButton('Antwort senden')
+            reply = QPushButton(tr('Antwort senden'))
             reply.clicked.connect(lambda _=False, rid=request['id'], fields=inputs: self.answer_question(rid, fields))
             row.addWidget(dismiss)
             row.addWidget(reply)
@@ -521,7 +520,7 @@ class ChatPanel(QWidget):
                     answer = []
                 answer.append(custom.text().strip())
             if not answer:
-                self.show_error('Bitte jede Frage beantworten oder die Rückfrage überspringen.')
+                self.show_error(tr('Bitte jede Frage beantworten oder die Rückfrage überspringen.'))
                 return
             answers.append(answer)
         self.error.hide()
@@ -532,5 +531,5 @@ class ChatPanel(QWidget):
             self.memory_capture_job.cancelled.set();self.memory_capture_job.wait(3000)
             if self.memory_capture_job.isRunning():return False
         return not self.backend.busy or QMessageBox.question(
-            self, 'Lumen arbeitet noch', 'Den laufenden Vorgang abbrechen und schließen?',
+            self, tr('Lumen arbeitet noch'), tr('Den laufenden Vorgang abbrechen und schließen?'),
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes

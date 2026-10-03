@@ -1,4 +1,5 @@
 """Persist native-engine tasks without owning the engine or changing approvals."""
+from lumen_i18n import tr
 import json
 import os
 from pathlib import Path
@@ -26,7 +27,7 @@ class TaskTracker(QObject):
         self.backend.tracking_error = ''
         try: self._started(text, files, agent)
         except Exception as exc:
-            self.backend.tracking_error = 'Auftrag konnte nicht gesichert werden: ' + str(exc)
+            self.backend.tracking_error = tr('Auftrag konnte nicht gesichert werden: ') + str(exc)
             if self.lease is not None: os.close(self.lease); self.lease = None
             self.task_id = self.resume_id = ''
 
@@ -69,24 +70,23 @@ class TaskTracker(QObject):
 
     def interrupt(self):
         if self.task_id and self.backend.busy:
-            self.store.update_task(self.task_id, status='interrupted', error='Lumen wurde während der Ausführung geschlossen.')
+            self.store.update_task(self.task_id, status='interrupted', error=tr('Lumen wurde während der Ausführung geschlossen.'))
             if self.lease is not None:
                 os.close(self.lease); self.lease = None
             self.changed.emit()
 
     def resume(self, task_id, panel):
-        if self.backend.busy: raise ValueError('Bitte den laufenden Auftrag zuerst pausieren.')
+        if self.backend.busy: raise ValueError(tr('Bitte den laufenden Auftrag zuerst pausieren.'))
         task = self.store.task(task_id)
-        if task['steps']: raise ValueError('Diesen Ablauf über „Ausführen“ starten.')
-        if task['status'] == 'completed': raise ValueError('Dieser Auftrag ist bereits abgeschlossen.')
-        if not Path(task['directory']).is_dir(): raise ValueError('Der Arbeitsordner ist nicht mehr erreichbar.')
+        if task['steps']: raise ValueError(tr('Diesen Ablauf über „Ausführen“ starten.'))
+        if task['status'] == 'completed': raise ValueError(tr('Dieser Auftrag ist bereits abgeschlossen.'))
+        if not Path(task['directory']).is_dir(): raise ValueError(tr('Der Arbeitsordner ist nicht mehr erreichbar.'))
         self.backend.new_conversation(task['directory'])
         self.backend.session = task['session']
         self.resume_id = task_id
         self.backend.background_task = any(e['kind'] == 'workflow' for e in self.store.events(task_id))
         events = [json.loads(e['detail']) for e in self.store.events(task_id) if e['kind'] == 'input']
         previous = events[-1] if events else {'files': [], 'agent': 'build'}
-        prompt = ('Setze den unterbrochenen Auftrag fort. Prüfe zuerst, welche Schritte bereits erledigt sind, '
-                  'und wiederhole keine bereits bestätigten Änderungen.\n\n' + task['prompt'])
+        prompt = (tr('Setze den unterbrochenen Auftrag fort. Prüfe zuerst, welche Schritte bereits erledigt sind, und wiederhole keine bereits bestätigten Änderungen.\n\n') + task['prompt'])
         panel.set_action('')
         self.backend.send(prompt, previous['files'], agent=previous['agent'])

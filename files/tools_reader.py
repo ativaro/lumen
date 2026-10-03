@@ -1,4 +1,5 @@
 """A native reading desk with a static page canvas and accessible text alternative."""
+from lumen_i18n import tr
 import base64
 from pathlib import Path
 import uuid
@@ -15,7 +16,7 @@ import reader_data as reader
 class PageCanvas(QWidget):
     changed=pyqtSignal()
     def __init__(self):
-        super().__init__();self.setFocusPolicy(Qt.StrongFocus);self.setAccessibleName('Buchseite; für Tastaturauswahl die Textansicht wählen')
+        super().__init__();self.setFocusPolicy(Qt.StrongFocus);self.setAccessibleName(tr('Buchseite; für Tastaturauswahl die Textansicht wählen'))
         self.pixmap=QPixmap();self.words=[];self.marks=[];self.first=self.last=-1;self.zoom=1
         QShortcut(QKeySequence.Copy,self,activated=self.copy,context=Qt.WidgetShortcut)
         QShortcut(QKeySequence.SelectAll,self,activated=self.select_all,context=Qt.WidgetShortcut)
@@ -59,55 +60,55 @@ class PageCanvas(QWidget):
 
 class Reader(ToolWindow):
     def __init__(self,root=None):
-        super().__init__('reader','Lumen Reader','Zeit zum Lesen. Deine Bücher, Gedanken und Fundstellen.','lumen-reader',root)
-        self.add_button.setText('Buch oder Dokument öffnen');self.search.setPlaceholderText('In meiner Bibliothek …')
-        self.sidebar.layout().insertWidget(2,button('Artikel speichern',lambda:self.safe(self.add_article),'internet-web-browser'))
+        super().__init__('reader',tr('Lumen Reader'),tr('Zeit zum Lesen. Deine Bücher, Gedanken und Fundstellen.'),'lumen-reader',root)
+        self.add_button.setText(tr('Buch oder Dokument öffnen'));self.search.setPlaceholderText(tr('In meiner Bibliothek …'))
+        self.sidebar.layout().insertWidget(2,button(tr('Artikel speichern'),lambda:self.safe(self.add_article),'internet-web-browser'))
         self.data=None;self.page_index=0;self.note_id='';self.passwords={};self.pending=[];self.restore_scroll=0;self.audio_asset=''
-        self.title=label('Deine nächste gute Lektüre','heading');self.content.addWidget(self.title)
-        self.origin=label('PDFs, EPUBs und Artikel hinzufügen. Lesestand und Gedanken bleiben lokal.','muted');self.content.addWidget(self.origin)
-        self.page_number=QSpinBox();self.page_number.setRange(1,1);self.page_number.setAccessibleName('Seite');self.page_number.editingFinished.connect(lambda:self.goto(self.page_number.value()-1))
-        self.page_count=label('');self.zoom=QComboBox();self.zoom.setAccessibleName('Seitenvergrößerung')
-        for text,value in [('Seitenbreite',0),('75 %',.75),('100 %',1),('125 %',1.25),('150 %',1.5),('200 %',2)]:self.zoom.addItem(text,value)
+        self.title=label(tr('Deine nächste gute Lektüre'),'heading');self.content.addWidget(self.title)
+        self.origin=label(tr('PDFs, EPUBs und Artikel hinzufügen. Lesestand und Gedanken bleiben lokal.'),'muted');self.content.addWidget(self.origin)
+        self.page_number=QSpinBox();self.page_number.setRange(1,1);self.page_number.setAccessibleName(tr('Seite'));self.page_number.editingFinished.connect(lambda:self.goto(self.page_number.value()-1))
+        self.page_count=label('');self.zoom=QComboBox();self.zoom.setAccessibleName(tr('Seitenvergrößerung'))
+        for text,value in [(tr('Seitenbreite'),0),('75 %',.75),('100 %',1),('125 %',1.25),('150 %',1.5),('200 %',2)]:self.zoom.addItem(text,value)
         self.zoom.currentIndexChanged.connect(self.set_zoom)
-        self.mode=QComboBox();self.mode.setAccessibleName('Leseansicht');self.mode.addItems(['Seitenansicht','Textansicht']);self.mode.currentIndexChanged.connect(self.change_mode)
-        self.content.addWidget(row(button('Zurück',lambda:self.goto(self.page_index-1),'go-previous'),self.page_number,self.page_count,
-            button('Weiter',lambda:self.goto(self.page_index+1),'go-next'),self.zoom,self.mode))
-        self.book_search=QLineEdit();self.book_search.setPlaceholderText('Im Buch suchen …');self.book_search.setAccessibleName('Suchbegriff im Buch');self.book_search.returnPressed.connect(lambda:self.safe(self.find))
-        self.content.addWidget(row(self.book_search,button('Suchen',lambda:self.safe(self.find),'edit-find'),
-            button('Lesezeichen',lambda:self.safe(self.mark,False),'bookmark-new'),button('Markieren',lambda:self.safe(self.mark,True),'draw-highlight')))
+        self.mode=QComboBox();self.mode.setAccessibleName(tr('Leseansicht'));self.mode.addItems([tr('Seitenansicht'),tr('Textansicht')]);self.mode.currentIndexChanged.connect(self.change_mode)
+        self.content.addWidget(row(button(tr('Zurück'),lambda:self.goto(self.page_index-1),'go-previous'),self.page_number,self.page_count,
+            button(tr('Weiter'),lambda:self.goto(self.page_index+1),'go-next'),self.zoom,self.mode))
+        self.book_search=QLineEdit();self.book_search.setPlaceholderText(tr('Im Buch suchen …'));self.book_search.setAccessibleName(tr('Suchbegriff im Buch'));self.book_search.returnPressed.connect(lambda:self.safe(self.find))
+        self.content.addWidget(row(self.book_search,button(tr('Suchen'),lambda:self.safe(self.find),'edit-find'),
+            button(tr('Lesezeichen'),lambda:self.safe(self.mark,False),'bookmark-new'),button(tr('Markieren'),lambda:self.safe(self.mark,True),'draw-highlight')))
         self.read_split=QSplitter();self.content.addWidget(self.read_split,1)
         self.views=QStackedWidget();self.scroll=QScrollArea();self.scroll.setFrameShape(QScrollArea.NoFrame);self.scroll.setAlignment(Qt.AlignHCenter|Qt.AlignTop)
         self.canvas=PageCanvas();self.scroll.setWidget(self.canvas);self.views.addWidget(self.scroll)
         self.scroll.viewport().installEventFilter(self)
-        self.text=QPlainTextEdit();self.text.setReadOnly(True);self.text.setAccessibleName('Auswählbarer Seitentext');font=self.text.font();font.setPointSize(13);self.text.setFont(font);self.views.addWidget(self.text);self.read_split.addWidget(self.views)
+        self.text=QPlainTextEdit();self.text.setReadOnly(True);self.text.setAccessibleName(tr('Auswählbarer Seitentext'));font=self.text.font();font.setPointSize(13);self.text.setFont(font);self.views.addWidget(self.text);self.read_split.addWidget(self.views)
         for view in (self.canvas,self.text):
             QShortcut(QKeySequence('PgDown'),view,activated=lambda:self.goto(self.page_index+1),context=Qt.WidgetShortcut)
             QShortcut(QKeySequence('PgUp'),view,activated=lambda:self.goto(self.page_index-1),context=Qt.WidgetShortcut)
         self.rail=QWidget();rl=QVBoxLayout(self.rail);rl.setContentsMargins(12,0,0,0)
         self.tabs=QTabWidget();self.tabs.setStyleSheet('QTabBar::tab { min-width: 64px; padding: 8px 10px; }');rl.addWidget(self.tabs,1)
-        self.notes=QListWidget();self.notes.setAccessibleName('Markierungen und Lesezeichen');self.notes.currentItemChanged.connect(self.select_note);self.tabs.addTab(self.notes,'Gedanken')
+        self.notes=QListWidget();self.notes.setAccessibleName(tr('Markierungen und Lesezeichen'));self.notes.currentItemChanged.connect(self.select_note);self.tabs.addTab(self.notes,tr('Gedanken'))
         self.notes.setWordWrap(True);self.notes.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.toc=QListWidget();self.toc.setAccessibleName('Inhaltsverzeichnis');self.toc.itemActivated.connect(lambda item:self.goto(item.data(Qt.UserRole)));self.tabs.addTab(self.toc,'Inhalt')
-        self.hits=QListWidget();self.hits.setAccessibleName('Treffer im Buch');self.hits.itemActivated.connect(lambda item:self.goto(item.data(Qt.UserRole)));self.tabs.addTab(self.hits,'Suche')
-        self.quote=label('Eine Stelle markieren oder ein Lesezeichen setzen.','muted');rl.addWidget(self.quote)
-        self.note=QPlainTextEdit();self.note.setPlaceholderText('Deine Randnotiz …');self.note.setAccessibleName('Randnotiz');self.note.setMaximumHeight(160);self.note.setEnabled(False);self.note.textChanged.connect(self.edited);rl.addWidget(self.note)
-        rl.addWidget(button('Markierung entfernen',lambda:self.safe(self.remove_note),'edit-delete'))
+        self.toc=QListWidget();self.toc.setAccessibleName(tr('Inhaltsverzeichnis'));self.toc.itemActivated.connect(lambda item:self.goto(item.data(Qt.UserRole)));self.tabs.addTab(self.toc,tr('Inhalt'))
+        self.hits=QListWidget();self.hits.setAccessibleName(tr('Treffer im Buch'));self.hits.itemActivated.connect(lambda item:self.goto(item.data(Qt.UserRole)));self.tabs.addTab(self.hits,tr('Suche'))
+        self.quote=label(tr('Eine Stelle markieren oder ein Lesezeichen setzen.'),'muted');rl.addWidget(self.quote)
+        self.note=QPlainTextEdit();self.note.setPlaceholderText(tr('Deine Randnotiz …'));self.note.setAccessibleName(tr('Randnotiz'));self.note.setMaximumHeight(160);self.note.setEnabled(False);self.note.textChanged.connect(self.edited);rl.addWidget(self.note)
+        rl.addWidget(button(tr('Markierung entfernen'),lambda:self.safe(self.remove_note),'edit-delete'))
         self.read_split.addWidget(self.rail);self.read_split.setSizes([720,280]);self.read_split.setStretchFactor(0,1)
-        self.content.addWidget(row(button('Vorlesen',lambda:self.safe(self.speak),'audio-volume-high'),
-            button('Ins Lumen-Wissen',lambda:self.safe(self.remember),'bookmarks'),button('Notizen exportieren',lambda:self.safe(self.export_notes),'document-export'),
-            button('Lesemodus',self.focus_mode,'view-fullscreen')))
+        self.content.addWidget(row(button(tr('Vorlesen'),lambda:self.safe(self.speak),'audio-volume-high'),
+            button(tr('Ins Lumen-Wissen'),lambda:self.safe(self.remember),'bookmarks'),button(tr('Notizen exportieren'),lambda:self.safe(self.export_notes),'document-export'),
+            button(tr('Lesemodus'),self.focus_mode,'view-fullscreen')))
         self.player=AudioPlayer();self.content.addWidget(self.player);self.player.hide()
         self.scroll.verticalScrollBar().valueChanged.connect(self.edited);self.text.verticalScrollBar().valueChanged.connect(self.edited)
         self.body.setEnabled(False);self.refresh()
 
     def create(self):
-        path,_=QFileDialog.getOpenFileName(self,'Buch oder Dokument öffnen',str(Path.home()),'Lesbare Dokumente (*.pdf *.epub *.txt *.md *.html *.htm)')
+        path,_=QFileDialog.getOpenFileName(self,tr('Buch oder Dokument öffnen'),str(Path.home()),tr('Lesbare Dokumente (*.pdf *.epub *.txt *.md *.html *.htm)'))
         if path:self.open_file(path)
 
     def open_file(self,path):
-        if len(self.pending)>=10:raise ValueError('Bitte den laufenden Import abwarten.')
+        if len(self.pending)>=10:raise ValueError(tr('Bitte den laufenden Import abwarten.'))
         if self.job:self.pending.append(path);return
-        self.work('Private Lesekopie wird angelegt …',lambda job:reader.import_file(self.library,path,job),self.open_imported)
+        self.work(tr('Private Lesekopie wird angelegt …'),lambda job:reader.import_file(self.library,path,job),self.open_imported)
 
     def open_imported(self,key):
         # Wait for the importer to release the shared job before rendering.
@@ -119,8 +120,8 @@ class Reader(ToolWindow):
             path=self.pending.pop(0);QTimer.singleShot(0,lambda:self.safe(self.open_file,path))
 
     def add_article(self):
-        value,ok=QInputDialog.getText(self,'Artikel speichern','Webadresse (Abruf ohne Anmeldung)')
-        if ok and value.strip():self.work('Artikel wird als Lesekopie gespeichert …',lambda job:reader.import_url(self.library,value,job),self.open_imported)
+        value,ok=QInputDialog.getText(self,tr('Artikel speichern'),tr('Webadresse (Abruf ohne Anmeldung)'))
+        if ok and value.strip():self.work(tr('Artikel wird als Lesekopie gespeichert …'),lambda job:reader.import_url(self.library,value,job),self.open_imported)
 
     def load(self,record):
         self.player.stop();self.clear_audio();self.data=None;self.note_id='';self.note.clear();self.note.setEnabled(False);self.hits.clear()
@@ -141,21 +142,21 @@ class Reader(ToolWindow):
         self.data=None;self.canvas.pixmap=QPixmap();self.canvas.words=[];self.canvas.update();self.text.clear()
         def done(data):
             if data.get('locked'):
-                self.status.setText('Passwort für diese Lesesitzung erforderlich.')
+                self.status.setText(tr('Passwort für diese Lesesitzung erforderlich.'))
                 QTimer.singleShot(0,lambda:self.unlock(key));return
             self.loading=True
             try:
                 self.data=data;self.library.update(key,pages=data['pages'],toc=data['toc'],locked=False)
-                self.page_number.setRange(1,data['pages']);self.page_number.setValue(index+1);self.page_count.setText('von '+str(data['pages']))
+                self.page_number.setRange(1,data['pages']);self.page_number.setValue(index+1);self.page_count.setText(tr('von ')+str(data['pages']))
                 marks=[n for n in self.library.get(key).get('notes',[]) if n['page']==index]
                 self.canvas.load(data,marks,self.effective_zoom());self.text.setPlainText(data['text']);self.highlight_text(marks)
                 self.toc.clear()
                 for level,title,page in data['toc']:
                     item=QListWidgetItem('  '*(min(level,8)-1)+title);item.setData(Qt.UserRole,max(0,page-1));self.toc.addItem(item)
-                self.status.setText('Seite '+str(index+1)+' · '+('Text auswählen, um zu markieren oder vorzulesen' if data['text'].strip() else 'Bildseite ohne Textschicht'))
+                self.status.setText(tr('Seite ')+str(index+1)+' · '+(tr('Text auswählen, um zu markieren oder vorzulesen') if data['text'].strip() else tr('Bildseite ohne Textschicht')))
             finally:self.loading=False
             value=self.restore_scroll;QTimer.singleShot(0,lambda:self.restore_position(value));self.restore_scroll=0
-        self.work('Seite wird geladen …',lambda job:reader.worker(job,'page',self.library.asset(record['asset']),page=index,password=self.passwords.get(key,''),stamp=record['stamp']),done)
+        self.work(tr('Seite wird geladen …'),lambda job:reader.worker(job,'page',self.library.asset(record['asset']),page=index,password=self.passwords.get(key,''),stamp=record['stamp']),done)
 
     def restore_position(self,value):
         self.loading=True
@@ -165,7 +166,7 @@ class Reader(ToolWindow):
         self.save()
 
     def unlock(self,key):
-        password,ok=QInputDialog.getText(self,'Geschütztes PDF','Passwort (nur für diese Sitzung)',QLineEdit.Password)
+        password,ok=QInputDialog.getText(self,tr('Geschütztes PDF'),tr('Passwort (nur für diese Sitzung)'),QLineEdit.Password)
         if ok:self.passwords[key]=password;self.render_page()
 
     def set_zoom(self):
@@ -190,23 +191,23 @@ class Reader(ToolWindow):
             if note['id']==self.note_id:note['note']=self.note.toPlainText()[:20000]
         view=self.scroll if self.mode.currentIndex()==0 else self.text
         self.library.update(self.current,page=self.page_index,scroll=view.verticalScrollBar().value(),zoom=self.zoom.currentData(),view=self.mode.currentIndex(),notes=notes)
-        if not self.job:self.status.setText('Lesestand und Notizen lokal gespeichert.')
+        if not self.job:self.status.setText(tr('Lesestand und Notizen lokal gespeichert.'))
 
     def selection(self):
         if self.mode.currentIndex()==0:return self.canvas.text(),self.canvas.selected(),[]
         cursor=self.text.textCursor();return cursor.selectedText().replace('\u2029','\n'),[],[cursor.selectionStart(),cursor.selectionEnd()] if cursor.hasSelection() else []
 
     def mark(self,selected=True):
-        if not self.data:raise ValueError('Zuerst eine lesbare Seite öffnen.')
+        if not self.data:raise ValueError(tr('Zuerst eine lesbare Seite öffnen.'))
         self.save();text,words,selection=self.selection() if selected else ('',[],[])
-        if selected and not text.strip():raise ValueError('Zuerst Text auf der Seite oder in der Textansicht auswählen.')
+        if selected and not text.strip():raise ValueError(tr('Zuerst Text auf der Seite oder in der Textansicht auswählen.'))
         note=reader.add_note(self.library,self.current,self.page_index,text,words,selection);self.refresh_notes(note['id'])
         self.canvas.marks=[n for n in self.library.get(self.current)['notes'] if n['page']==self.page_index];self.canvas.update();self.highlight_text(self.canvas.marks)
 
     def refresh_notes(self,selected=''):
         self.notes.blockSignals(True);self.notes.clear();current=None
         for note in self.library.get(self.current).get('notes',[]):
-            item=QListWidgetItem('S. '+str(note['page']+1)+' · '+(note['text'] or 'Lesezeichen')[:90]);item.setData(Qt.UserRole,note);self.notes.addItem(item)
+            item=QListWidgetItem(tr('S. ')+str(note['page']+1)+' · '+(note['text'] or tr('Lesezeichen'))[:90]);item.setData(Qt.UserRole,note);self.notes.addItem(item)
             if note['id']==(selected or self.note_id):current=item
         self.notes.setCurrentItem(current);self.notes.blockSignals(False)
         if selected and current:self.select_note(current,None)
@@ -217,8 +218,8 @@ class Reader(ToolWindow):
             self.note_id='';self.note.clear();self.note.setEnabled(bool(item))
             if item:
                 note=next(n for n in self.library.get(self.current)['notes'] if n['id']==item.data(Qt.UserRole)['id'])
-                self.note_id=note['id'];self.quote.setText(note['text'][:400] or 'Lesezeichen');self.note.setPlainText(note['note'])
-            else:self.quote.setText('Eine Stelle markieren oder ein Lesezeichen setzen.')
+                self.note_id=note['id'];self.quote.setText(note['text'][:400] or tr('Lesezeichen'));self.note.setPlainText(note['note'])
+            else:self.quote.setText(tr('Eine Stelle markieren oder ein Lesezeichen setzen.'))
         finally:self.loading=False
         if item and note['page']!=self.page_index:self.goto(note['page'])
 
@@ -236,23 +237,23 @@ class Reader(ToolWindow):
 
     def find(self):
         if not self.current:return
-        if not self.data:raise ValueError('Das Buch zuerst öffnen beziehungsweise entsperren.')
+        if not self.data:raise ValueError(tr('Das Buch zuerst öffnen beziehungsweise entsperren.'))
         record=self.library.get(self.current);key=self.current;query=self.book_search.text()
         def done(hits):
             self.hits.clear()
             for hit in hits:
-                item=QListWidgetItem('S. '+str(hit['page']+1)+' · '+hit['text']);item.setData(Qt.UserRole,hit['page']);self.hits.addItem(item)
-            self.tabs.setCurrentIndex(2);self.rail.show();self.status.setText(str(len(hits))+' Trefferseiten (maximal 100)')
-        self.work('Buch wird durchsucht …',lambda job:reader.worker(job,'search',self.library.asset(record['asset']),query=query,password=self.passwords.get(key,''),stamp=record['stamp']),done)
+                item=QListWidgetItem(tr('S. ')+str(hit['page']+1)+' · '+hit['text']);item.setData(Qt.UserRole,hit['page']);self.hits.addItem(item)
+            self.tabs.setCurrentIndex(2);self.rail.show();self.status.setText(str(len(hits))+tr(' Trefferseiten (maximal 100)'))
+        self.work(tr('Buch wird durchsucht …'),lambda job:reader.worker(job,'search',self.library.asset(record['asset']),query=query,password=self.passwords.get(key,''),stamp=record['stamp']),done)
 
     def speak(self):
         if not self.data:return
         text=self.selection()[0] or self.data['text']
-        if len(text)>24000:raise ValueError('Zum Vorlesen einen kürzeren Abschnitt markieren (maximal 24.000 Zeichen).')
+        if len(text)>24000:raise ValueError(tr('Zum Vorlesen einen kürzeren Abschnitt markieren (maximal 24.000 Zeichen).'))
         self.player.stop();self.clear_audio()
         def done(result):
             self.audio_asset=result['audio'];self.player.load(self.library.asset(self.audio_asset),result['duration']);self.player.show();self.player.play_at()
-        self.work('Die lokale Stimme bereitet den Abschnitt vor …',lambda job:synthesize(text,self.library,job),done)
+        self.work(tr('Die lokale Stimme bereitet den Abschnitt vor …'),lambda job:synthesize(text,self.library,job),done)
 
     def clear_audio(self):
         if self.audio_asset:self.library.asset(self.audio_asset).unlink(missing_ok=True);self.audio_asset=''
@@ -261,19 +262,19 @@ class Reader(ToolWindow):
     def remember(self):
         self.save();text=self.selection()[0]
         if not text and self.note_id:
-            note=next(n for n in self.library.get(self.current)['notes'] if n['id']==self.note_id);text=note['text']+('\n\nMeine Notiz: '+note['note'] if note['note'] else '')
-        if not text.strip():raise ValueError('Eine Textstelle oder eine gespeicherte Markierung auswählen.')
+            note=next(n for n in self.library.get(self.current)['notes'] if n['id']==self.note_id);text=note['text']+(tr('\n\nMeine Notiz: ')+note['note'] if note['note'] else '')
+        if not text.strip():raise ValueError(tr('Eine Textstelle oder eine gespeicherte Markierung auswählen.'))
         from lumen_store import Store
-        record=self.library.get(self.current);source=record['title']+' · Reader-Seite '+str(self.page_index+1)+' · '+record.get('source','')
-        store=Store();title=record['title']+' · S. '+str(self.page_index+1)
+        record=self.library.get(self.current);source=record['title']+tr(' · Reader-Seite ')+str(self.page_index+1)+' · '+record.get('source','')
+        store=Store();title=record['title']+tr(' · S. ')+str(self.page_index+1)
         if store.setting('knowledge/notebook',''):
             from wissen_data import worker
-            self.work('Fundstelle im Wissen speichern …',lambda job:worker(job,store,'save_memory',title=title,text=text,source=source),lambda _:self.status.setText('Fundstelle mit Quelle im Lumen-Wissen gespeichert.'))
-        else:store.save_memory(title,text,source);self.status.setText('Markierte Stelle samt Quellenverweis im lokalen Lumen-Wissen gespeichert.')
+            self.work(tr('Fundstelle im Wissen speichern …'),lambda job:worker(job,store,'save_memory',title=title,text=text,source=source),lambda _:self.status.setText(tr('Fundstelle mit Quelle im Lumen-Wissen gespeichert.')))
+        else:store.save_memory(title,text,source);self.status.setText(tr('Markierte Stelle samt Quellenverweis im lokalen Lumen-Wissen gespeichert.'))
 
     def export_notes(self):
         self.save();record=self.library.get(self.current);lines=['# '+record['title'],record.get('source','')]
-        for note in record.get('notes',[]):lines.extend(['','## Seite '+str(note['page']+1),note['text'],note['note']])
+        for note in record.get('notes',[]):lines.extend(['',tr('## Seite ')+str(note['page']+1),note['text'],note['note']])
         self.export_text('\n\n'.join(lines),'Lesenotizen.md')
 
     def closeEvent(self,event):

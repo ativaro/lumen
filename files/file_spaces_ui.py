@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 import sys
 
+from lumen_i18n import worker_process, tr
+
 from PyQt5.QtCore import QObject, QProcess, QTimer, QUrl, Qt, QModelIndex, QDateTime, QItemSelectionModel
 from PyQt5.QtGui import QIcon, QStandardItem
 from PyQt5.QtWidgets import (QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QHBoxLayout,
@@ -25,26 +27,25 @@ class LibraryDialog(QDialog):
     def __init__(self, catalog, library, parent):
         super().__init__(parent)
         self.catalog, self.library, self.saved = catalog, library, None
-        self.setWindowTitle('Bibliothek bearbeiten' if library else 'Neue Bibliothek')
+        self.setWindowTitle(tr('Bibliothek bearbeiten') if library else tr('Neue Bibliothek'))
         self.resize(740, 420)
         layout = QVBoxLayout(self)
         self.name = QLineEdit(library['name'] if library else '')
-        form = QFormLayout(); form.addRow('Name', self.name); layout.addLayout(form)
-        hint = QLabel('Alle Quellen erscheinen gemeinsam. Die Dateien bleiben an ihrem Ort.\n'
-                      'Die Bezeichnung wird bei jeder Datei als Herkunft angezeigt.')
+        form = QFormLayout(); form.addRow(tr('Name'), self.name); layout.addLayout(form)
+        hint = QLabel(tr('Alle Quellen erscheinen gemeinsam. Die Dateien bleiben an ihrem Ort.\nDie Bezeichnung wird bei jeder Datei als Herkunft angezeigt.'))
         hint.setWordWrap(True); layout.addWidget(hint)
         self.table = QTableWidget(0, 2)
-        self.table.setHorizontalHeaderLabels(['Bezeichnung', 'Ordner oder Netzwerkadresse'])
+        self.table.setHorizontalHeaderLabels([tr('Bezeichnung'), tr('Ordner oder Netzwerkadresse')])
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.table.setColumnWidth(0, 170)
-        self.table.setAccessibleName('Quellen der Bibliothek')
+        self.table.setAccessibleName(tr('Quellen der Bibliothek'))
         layout.addWidget(self.table)
         for source in (library or {}).get('sources', []):
             self.add(source['label'], source['location'])
         actions = QHBoxLayout()
-        actions.addWidget(button('Ordner hinzufügen …', self.local))
-        actions.addWidget(button('Netzwerk hinzufügen …', self.remote))
-        remove = button('Quelle entfernen', self.remove); remove.setObjectName('danger'); actions.addWidget(remove)
+        actions.addWidget(button(tr('Ordner hinzufügen …'), self.local))
+        actions.addWidget(button(tr('Netzwerk hinzufügen …'), self.remote))
+        remove = button(tr('Quelle entfernen'), self.remove); remove.setObjectName('danger'); actions.addWidget(remove)
         layout.addLayout(actions)
         self.error = QLabel(); self.error.setWordWrap(True); layout.addWidget(self.error)
         box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
@@ -56,8 +57,8 @@ class LibraryDialog(QDialog):
         self.table.setItem(row, 1, QTableWidgetItem(location))
 
     def local(self):
-        path = QFileDialog.getExistingDirectory(self, 'Quelle auswählen')
-        if path: self.add(Path(path).name or 'Dieser PC', path)
+        path = QFileDialog.getExistingDirectory(self, tr('Quelle auswählen'))
+        if path: self.add(Path(path).name or tr('Dieser PC'), path)
 
     def remote(self):
         dialog = ConnectDialog(self)
@@ -81,10 +82,10 @@ class LibraryDialog(QDialog):
 
 class ShelfButton(QPushButton):
     def __init__(self, spaces):
-        super().__init__('Sammelfläche')
+        super().__init__(tr('Sammelfläche'))
         self.spaces = spaces
         self.setAcceptDrops(True)
-        self.setToolTip('Dateien hierher ziehen oder Auswahl über das Kontextmenü sammeln')
+        self.setToolTip(tr('Dateien hierher ziehen oder Auswahl über das Kontextmenü sammeln'))
         self.clicked.connect(lambda: spaces.window.navigate(SHELF))
 
     def dragEnterEvent(self, event):
@@ -123,9 +124,9 @@ class FileSpaces(QObject):
         return address
 
     def name(self, location):
-        if location == SHELF: return 'Sammelfläche'
+        if location == SHELF: return tr('Sammelfläche')
         library = self.catalog.library(location[len(LIBRARY):])
-        return library['name'] if library else 'Bibliothek fehlt'
+        return library['name'] if library else tr('Bibliothek fehlt')
 
     def edit_library(self, identity=None):
         if identity and identity.startswith('project-'):
@@ -138,7 +139,7 @@ class FileSpaces(QObject):
 
     def library_menu(self, menu, location):
         identity = location[len(LIBRARY):]
-        menu.addAction('Quellen bearbeiten …', lambda: self.edit_library(identity))
+        menu.addAction(tr('Quellen bearbeiten …'), lambda: self.edit_library(identity))
         if identity.startswith('project-'): return
         if identity not in {item[0] for item in DEFAULTS}:
             previous = self.catalog.library(identity)
@@ -148,7 +149,7 @@ class FileSpaces(QObject):
                     self.window.error(str(error)); return
                 self.window.populate_places()
                 if self.window.current_location == location: self.window.navigate(str(Path.home()))
-            menu.addAction('Bibliothek entfernen (Dateien behalten)', remove)
+            menu.addAction(tr('Bibliothek entfernen (Dateien behalten)'), remove)
 
     def collect(self, paths):
         self.catalog.add_shelf([self.reference(path) for path in paths])
@@ -156,47 +157,47 @@ class FileSpaces(QObject):
 
     def update_shelf(self):
         locations = self.catalog.shelf()
-        self.shelf_button.setText(f'Sammelfläche · {len(locations)}')
+        self.shelf_button.setText(tr('Sammelfläche · {0}', len(locations)))
         if hasattr(self, 'shelf_summary'):
             self.shelf_summary.setText('   ·   '.join(Path(QUrl(p).path()).name if is_network_address(p) else Path(p).name
-                for p in locations[:4]) or 'Dateien hier sammeln — Originale bleiben an ihrem Ort')
+                for p in locations[:4]) or tr('Dateien hier sammeln — Originale bleiben an ihrem Ort'))
             self.shelf_summary.setToolTip('\n'.join(display_url(p) for p in locations))
 
     def sources_action(self):
         if self.window.current_location.startswith(LIBRARY):
             self.edit_library(self.window.current_location[len(LIBRARY):])
         elif self.window.current_location == SHELF:
-            paths, _ = QFileDialog.getOpenFileNames(self.window, 'Dateien sammeln')
+            paths, _ = QFileDialog.getOpenFileNames(self.window, tr('Dateien sammeln'))
             self.collect(paths); self.reload()
         else: self.library_manager()
 
     def source_details(self):
-        text = self.window.source_status.toolTip() or 'Die Dateien aller erreichbaren Quellen werden gemeinsam angezeigt.'
-        QMessageBox.information(self.window, 'Quellen', text)
+        text = self.window.source_status.toolTip() or tr('Die Dateien aller erreichbaren Quellen werden gemeinsam angezeigt.')
+        QMessageBox.information(self.window, tr('Quellen'), text)
 
     def stop_loading(self):
         self.cancel()
         self.window.stop_sources.setEnabled(False)
-        self.window.source_status.setText('Laden angehalten · F5 zum Aktualisieren')
+        self.window.source_status.setText(tr('Laden angehalten · F5 zum Aktualisieren'))
 
     def library_manager(self):
         menu = QMenu(self.window)
         for library in self.catalog.libraries():
             menu.addAction(library['name'] + ' …', lambda _=False, identity=library['id']: self.edit_library(identity))
-        menu.addSeparator(); menu.addAction('Neue Bibliothek …', lambda: self.edit_library())
+        menu.addSeparator(); menu.addAction(tr('Neue Bibliothek …'), lambda: self.edit_library())
         menu.exec_(self.window.mapToGlobal(self.window.rect().center()))
 
     def shelf_menu(self):
         menu = QMenu(self.window)
-        menu.addAction('Sammelfläche öffnen', lambda: self.window.navigate(SHELF))
-        menu.addAction('Dateien hinzufügen …', self.choose_shelf_files)
-        menu.addAction('Auswahl sammeln', lambda: self.collect(self.window.selected_paths()))
-        menu.addAction('Auswahl in Ordner kopieren …', self.copy_to)
-        menu.addAction('Verweise leeren (Dateien behalten)', self.clear_shelf)
+        menu.addAction(tr('Sammelfläche öffnen'), lambda: self.window.navigate(SHELF))
+        menu.addAction(tr('Dateien hinzufügen …'), self.choose_shelf_files)
+        menu.addAction(tr('Auswahl sammeln'), lambda: self.collect(self.window.selected_paths()))
+        menu.addAction(tr('Auswahl in Ordner kopieren …'), self.copy_to)
+        menu.addAction(tr('Verweise leeren (Dateien behalten)'), self.clear_shelf)
         menu.exec_(self.shelf_button.mapToGlobal(self.shelf_button.rect().bottomLeft()))
 
     def choose_shelf_files(self):
-        paths, _ = QFileDialog.getOpenFileNames(self.window, 'Dateien sammeln')
+        paths, _ = QFileDialog.getOpenFileNames(self.window, tr('Dateien sammeln'))
         self.collect(paths)
         if self.window.current_location == SHELF: self.reload()
 
@@ -226,8 +227,8 @@ class FileSpaces(QObject):
             self.active_room = self.catalog.save_room(self.active_room, self.active_room['name'], self.capture())
             return True
         except (ValueError, OSError) as error:
-            self.window.error('Arbeitsraum konnte nicht gespeichert werden.', str(error) +
-                '\nDu kannst die aktuelle Ansicht als neuen Arbeitsraum speichern.'); return False
+            self.window.error(tr('Arbeitsraum konnte nicht gespeichert werden.'), str(error) +
+                tr('\nDu kannst die aktuelle Ansicht als neuen Arbeitsraum speichern.')); return False
 
     def room_menu(self):
         menu = QMenu(self.window)
@@ -235,19 +236,19 @@ class FileSpaces(QObject):
             action = menu.addAction(room['name'], lambda _=False, value=room: self.open_room(value))
             action.setCheckable(True); action.setChecked(bool(self.active_room and self.active_room['id'] == room['id']))
         menu.addSeparator()
-        menu.addAction('Ansicht als neuen Arbeitsraum speichern …', self.new_room)
+        menu.addAction(tr('Ansicht als neuen Arbeitsraum speichern …'), self.new_room)
         if self.active_room:
-            menu.addAction('Arbeitsraum aktualisieren', self.save_active_room)
-            menu.addAction('Arbeitsraum umbenennen …', self.rename_room)
-            menu.addAction('Aufträge zuordnen …', self.room_tasks)
+            menu.addAction(tr('Arbeitsraum aktualisieren'), self.save_active_room)
+            menu.addAction(tr('Arbeitsraum umbenennen …'), self.rename_room)
+            menu.addAction(tr('Aufträge zuordnen …'), self.room_tasks)
             for task in self.catalog.store.tasks():
                 if task['id'] in self.active_room['state'].get('tasks', []):
-                    menu.addAction('Auftrag: ' + task['title'], lambda _=False, t=task: self.open_task(t))
-            menu.addAction('Arbeitsraum entfernen (Dateien behalten)', self.delete_room)
+                    menu.addAction(tr('Auftrag: ') + task['title'], lambda _=False, t=task: self.open_task(t))
+            menu.addAction(tr('Arbeitsraum entfernen (Dateien behalten)'), self.delete_room)
         menu.exec_(self.window.room_button.mapToGlobal(self.window.room_button.rect().bottomLeft()))
 
     def new_room(self):
-        name, ok = QInputDialog.getText(self.window, 'Arbeitsraum speichern', 'Name:')
+        name, ok = QInputDialog.getText(self.window, tr('Arbeitsraum speichern'), tr('Name:'))
         if ok:
             try:
                 self.active_room = self.catalog.save_room(None, name, self.capture())
@@ -258,7 +259,7 @@ class FileSpaces(QObject):
             except ValueError as error: self.window.error(str(error))
 
     def rename_room(self):
-        name, ok = QInputDialog.getText(self.window, 'Arbeitsraum umbenennen', 'Name:', text=self.active_room['name'])
+        name, ok = QInputDialog.getText(self.window, tr('Arbeitsraum umbenennen'), tr('Name:'), text=self.active_room['name'])
         if ok:
             try:
                 self.active_room = self.catalog.save_room(self.active_room, name, self.capture())
@@ -272,10 +273,10 @@ class FileSpaces(QObject):
         self.active_room = None
         self.catalog.use_room_shelf(); self.update_shelf()
         if self.window.current_location == SHELF: self.reload()
-        self.window.room_button.setText('Arbeitsräume')
+        self.window.room_button.setText(tr('Arbeitsräume'))
 
     def room_tasks(self):
-        dialog = QDialog(self.window); dialog.setWindowTitle('Aufträge diesem Arbeitsraum zuordnen')
+        dialog = QDialog(self.window); dialog.setWindowTitle(tr('Aufträge diesem Arbeitsraum zuordnen'))
         layout = QVBoxLayout(dialog); tasks = QListWidget(); layout.addWidget(tasks)
         chosen = self.active_room['state'].get('tasks', [])
         for task in self.catalog.store.tasks():
@@ -306,7 +307,7 @@ class FileSpaces(QObject):
             if on_open: on_open()
             return
         if window.file_job or (chat and (chat.backend.busy or chat.context_tools.process)):
-            window.error('Bitte den laufenden Datei-, Aufnahme- oder Lumen-Vorgang zuerst beenden.'); return
+            window.error(tr('Bitte den laufenden Datei-, Aufnahme- oder Lumen-Vorgang zuerst beenden.')); return
         directory = room['state'].get('chat', {}).get('directory', '')
         if is_network_address(directory) and chat_directory is None:
             self.cancel()
@@ -324,7 +325,7 @@ class FileSpaces(QObject):
         if not self.save_active_room(): return
         if not self.active_room:
             previous = next((r for r in self.catalog.rooms() if r['id'] == 'previous'), None)
-            try: self.catalog.put('room', {'id': 'previous', 'name': 'Vorheriger Arbeitsstand', 'state': self.capture()}, previous)
+            try: self.catalog.put('room', {'id': 'previous', 'name': tr('Vorheriger Arbeitsstand'), 'state': self.capture()}, previous)
             except ValueError as error:
                 window.error(str(error)); return
         state = room['state']
@@ -364,7 +365,7 @@ class FileSpaces(QObject):
         self.update_shelf(); self.reload()
 
     def choose_target(self):
-        return QFileDialog.getExistingDirectory(self.window, 'Zielordner auswählen', str(Path.home())) or None
+        return QFileDialog.getExistingDirectory(self.window, tr('Zielordner auswählen'), str(Path.home())) or None
 
     def copy_to(self):
         paths = self.window.selected_paths()
@@ -390,7 +391,7 @@ class FileSpaces(QObject):
         generation = self.generation
         self.errors, self.seen = {}, set()
         window.results.clear()
-        window.results.setHorizontalHeaderLabels(['Name', 'Größe', 'Typ', 'Geändert', 'Herkunft'])
+        window.results.setHorizontalHeaderLabels([tr('Name'), tr('Größe'), tr('Typ'), tr('Geändert'), tr('Herkunft')])
         window.proxy.setSourceModel(window.results)
         window.set_file_root(QModelIndex()); window.configure_columns()
         query = window.search.text().strip()
@@ -410,7 +411,7 @@ class FileSpaces(QObject):
             library = self.catalog.library(window.current_location[len(LIBRARY):])
             sources = library['sources'] if library else []
         self.pending = len(sources)
-        window.sources_button.setText('Sammeln' if window.current_location == SHELF else f'{len(sources)} Quellen …')
+        window.sources_button.setText(tr('Sammeln') if window.current_location == SHELF else tr('{0} Quellen …', len(sources)))
         self.source_queue = sources[:]
         self.pump(query, generation)
         self.show_status()
@@ -433,7 +434,7 @@ class FileSpaces(QObject):
             else:
                 self.scan(source, source['location'], query, generation)
     def scan(self, source, root, query, generation):
-        job = QProcess(self); self.jobs.append(job)
+        job = worker_process(self); self.jobs.append(job)
         buffer = bytearray()
         found = set()
         limit = self.window.settings.value('searchLimit', 5000, type=int)
@@ -449,23 +450,23 @@ class FileSpaces(QObject):
                 if generation != self.generation: continue
                 try: entry = json.loads(line)
                 except ValueError:
-                    self.errors[source['location']] = 'Ungültige Antwort beim Lesen.'; continue
+                    self.errors[source['location']] = tr('Ungültige Antwort beim Lesen.'); continue
                 if 'path' in entry:
                     found.add(entry['name'])
                     if 'names' not in source or entry['name'] in source['names']:
                         self.add_entry(entry, source, root, limit)
                 elif 'error' in entry: self.errors[source['location']] = entry['error']
-                elif 'limited' in entry: self.errors[source['location']] = 'Trefferlimit erreicht — Suche eingrenzen.'
+                elif 'limited' in entry: self.errors[source['location']] = tr('Trefferlimit erreicht — Suche eingrenzen.')
         finished = []
         def finish(code):
             if finished: return
             finished.append(True); timer.stop(); read()
             if job in self.jobs: self.jobs.remove(job)
-            error = 'Zeitlimit beim Lesen erreicht. Mit F5 erneut versuchen.' if timeout else ''
-            if code and not error: error = 'Quelle konnte nicht gelesen werden.'
+            error = tr('Zeitlimit beim Lesen erreicht. Mit F5 erneut versuchen.') if timeout else ''
+            if code and not error: error = tr('Quelle konnte nicht gelesen werden.')
             if 'names' in source and not query:
                 missing = set(source['names']) - found
-                if missing: error = f'{len(missing)} gesammelte Einträge nicht erreichbar; Verweise bleiben erhalten.'
+                if missing: error = tr('{0} gesammelte Einträge nicht erreichbar; Verweise bleiben erhalten.', len(missing))
             self.done(source, generation, error)
             job.deleteLater()
         job.readyReadStandardOutput.connect(read)
@@ -483,16 +484,17 @@ class FileSpaces(QObject):
         if self.window.current_location == SHELF and any(term not in entry['name'].casefold()
                 for term in self.window.search.text().casefold().split()): return
         if len(self.seen) >= limit:
-            self.errors[source['location']] = 'Trefferlimit erreicht — Suche eingrenzen.'; return
+            self.errors[source['location']] = tr('Trefferlimit erreicht — Suche eingrenzen.'); return
         self.seen.add(path)
         origin = source['label']
         relative = os.path.relpath(str(Path(path).parent), root)
         if relative != '.': origin += ' / ' + relative
         name = entry['name'].replace('\n', '↵').replace('\t', '⇥')
         items = [QStandardItem(value) for value in [name, '—' if entry['directory'] else size_text(entry['size']),
-            'Ordner' if entry['directory'] else Path(path).suffix[1:].upper(),
+            tr('Ordner') if entry['directory'] else Path(path).suffix[1:].upper(),
             QDateTime.fromSecsSinceEpoch(int(entry['modified'])).toString('dd.MM.yy HH:mm'), origin]]
         items[0].setData(path, Qt.UserRole)
+        items[0].setData(bool(entry['directory']), Qt.UserRole + 3)
         items[0].setData(origin, Qt.UserRole + 2)
         items[0].setIcon(QIcon.fromTheme('folder' if entry['directory'] else 'text-x-generic'))
         items[1].setData(entry['size'], Qt.UserRole + 1)
@@ -513,8 +515,8 @@ class FileSpaces(QObject):
 
     def show_status(self):
         self.window.stop_sources.setEnabled(bool(self.pending))
-        message = f'{self.pending} Quellen werden geladen …' if self.pending else 'Alle erreichbaren Quellen geladen'
-        if self.errors: message += f' · {len(self.errors)} Hinweise (Details)'
+        message = tr('{0} Quellen werden geladen …', self.pending) if self.pending else tr('Alle erreichbaren Quellen geladen')
+        if self.errors: message += tr(' · {0} Hinweise (Details)', len(self.errors))
         self.window.source_status.setText(message)
         self.window.source_status.setToolTip('\n\n'.join(display_url(path) + ': ' + error for path, error in self.errors.items()))
 

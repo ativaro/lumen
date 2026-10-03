@@ -1,6 +1,7 @@
 [Desktop Entry]
 Name=Lumen
-Comment=Frag Lumen: tippe "ai <Frage>"
+Comment=Ask Lumen: type "ai <question>"
+Comment[de]=Frag Lumen: tippe "ai <Frage>"
 Type=Service
 Icon=lumen
 X-KDE-PluginInfo-Name=lumen-runner

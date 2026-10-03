@@ -1,7 +1,8 @@
 [Desktop Entry]
 Type=Application
 Name=Lumen Wissen
-Comment=Notizen, Quellen und verbundene Gedanken
+Comment=Notes, sources and connected ideas
+Comment[de]=Notizen, Quellen und verbundene Gedanken
 Exec=%INSTALL_BIN%/lumen-wissen
 Icon=lumen-wissen
 Terminal=false

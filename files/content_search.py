@@ -1,4 +1,5 @@
 """Local, bounded content search. The CLI runs in its own cancellable process group."""
+from lumen_i18n import tr
 import json
 import os
 import re
@@ -38,7 +39,7 @@ def query_groups(query):
         if [term] not in groups:
             groups.append([term])
     if not groups or len(groups) > 8:
-        raise ValueError('Bitte 1 bis 8 aussagekräftige Suchbegriffe eingeben.')
+        raise ValueError(tr('Bitte 1 bis 8 aussagekräftige Suchbegriffe eingeben.'))
     return groups
 
 
@@ -59,7 +60,7 @@ def parse_groups(text):
                     raise ValueError()
         return [[term.lower().strip() for term in group] for group in groups]
     except (ValueError, TypeError, KeyError):
-        raise ValueError('Lumen hat keine gültigen Suchbegriffe geliefert. Die lokale Suche bleibt verfügbar.') from None
+        raise ValueError(tr('Lumen hat keine gültigen Suchbegriffe geliefert. Die lokale Suche bleibt verfügbar.')) from None
 
 
 def find_passage(text, groups):
@@ -107,7 +108,7 @@ def read_content(path, directory_fd=None):
                         time.sleep(.02)
                     proc.wait()
                     if proc.returncode and not partial and os.fstat(output.fileno()).st_size <= MAX_TEXT:
-                        raise ValueError('PDF nicht lesbar.')
+                        raise ValueError(tr('PDF nicht lesbar.'))
                     output.seek(0)
                     data = output.read(MAX_TEXT + 1)
                 finally:
@@ -120,7 +121,7 @@ def read_content(path, directory_fd=None):
             return value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns, value.st_ctime_ns
         current = os.stat(target, dir_fd=directory_fd, follow_symlinks=False)
         if signature(info) != signature(current) or signature(info) != signature(os.fstat(stream.fileno())):
-            raise ValueError('Datei während der Suche verändert.')
+            raise ValueError(tr('Datei während der Suche verändert.'))
         partial = partial or len(data) > MAX_TEXT
         data = data[:MAX_TEXT]
         if data.startswith((b'\xff\xfe', b'\xfe\xff')):
@@ -171,7 +172,7 @@ def scan_tree(root, root_fd, groups, hidden, max_hits, max_entries, ocr=False, t
                     if not hidden and entry.name.startswith('.'):
                         continue
                     if visited >= max_entries:
-                        limit = 'Eintragslimit'
+                        limit = tr('Eintragslimit')
                         break
                     visited += 1
                     try:
@@ -198,7 +199,7 @@ def scan_tree(root, root_fd, groups, hidden, max_hits, max_entries, ocr=False, t
                                 yield dict(passage, type='hit', path=str(path), partial=incomplete,
                                            pdf=path.suffix.lower() == '.pdf', image=kind == 'image')
                                 if hits >= max_hits:
-                                    limit = 'Trefferlimit'
+                                    limit = tr('Trefferlimit')
                                     break
                     except (OSError, ValueError, subprocess.SubprocessError):
                         errors += 1

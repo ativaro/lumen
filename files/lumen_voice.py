@@ -1,4 +1,5 @@
 """Local continuous voice turns for the shared native chat."""
+from lumen_i18n import worker_process, tr
 from array import array
 from collections import deque
 import math
@@ -54,7 +55,7 @@ def record(path, threshold, silence):
         started = time.monotonic(); last_level = 0.
         while time.monotonic() - started < 180:
             frame = child.stdout.read(640)
-            if not frame: raise ValueError('Mikrofon liefert keine Audiodaten.')
+            if not frame: raise ValueError(tr('Mikrofon liefert keine Audiodaten.'))
             finished = detector.feed(frame)
             if time.monotonic() - last_level >= .05:
                 print(f'LEVEL {detector.level:.4f}', flush=True); last_level = time.monotonic()
@@ -62,7 +63,7 @@ def record(path, threshold, silence):
                 with wave.open(path, 'wb') as out:
                     out.setnchannels(1); out.setsampwidth(2); out.setframerate(16000); out.writeframes(b''.join(detector.frames))
                 return
-        raise ValueError('Drei Minuten keine Sprache erkannt. Mikrofon wurde ausgeschaltet.')
+        raise ValueError(tr('Drei Minuten keine Sprache erkannt. Mikrofon wurde ausgeschaltet.'))
     finally:
         child.terminate()
         try: child.wait(timeout=3)
@@ -87,10 +88,10 @@ else:
             super().__init__(panel); self.panel = panel; self.active = False; self.process = None; self.temp = None; self.state = ''; self.interrupting = False
             self.indicator = VoiceActivity(panel); self.level_buffer = ''; self.playback = None
             self.playback_timer = QTimer(self); self.playback_timer.setInterval(50); self.playback_timer.timeout.connect(self.playback_level)
-            self.button = QPushButton('Sprechen'); self.button.setIcon(QIcon.fromTheme('audio-input-microphone')); self.button.setAccessibleName('Sprachgespräch starten oder beenden'); row.addWidget(self.button)
-            self.button.setToolTip('Sprachgespräch: Sprechpausen senden automatisch. Audio bleibt lokal; Text geht an deinen Lumen-Anbieter.'); self.button.clicked.connect(self.toggle)
-            self.interrupt_button = QPushButton('Unterbrechen'); self.interrupt_button.setToolTip('Antwort unterbrechen und weiterreden'); self.interrupt_button.hide(); row.addWidget(self.interrupt_button); self.interrupt_button.clicked.connect(self.interrupt)
-            self.timer = QTimer(self); self.timer.setSingleShot(True); self.timer.timeout.connect(lambda: self.fail('Sprachverarbeitung hat das Zeitlimit erreicht.'))
+            self.button = QPushButton(tr('Sprechen')); self.button.setIcon(QIcon.fromTheme('audio-input-microphone')); self.button.setAccessibleName(tr('Sprachgespräch starten oder beenden')); row.addWidget(self.button)
+            self.button.setToolTip(tr('Sprachgespräch: Sprechpausen senden automatisch. Audio bleibt lokal; Text geht an deinen Lumen-Anbieter.')); self.button.clicked.connect(self.toggle)
+            self.interrupt_button = QPushButton(tr('Unterbrechen')); self.interrupt_button.setToolTip(tr('Antwort unterbrechen und weiterreden')); self.interrupt_button.hide(); row.addWidget(self.interrupt_button); self.interrupt_button.clicked.connect(self.interrupt)
+            self.timer = QTimer(self); self.timer.setSingleShot(True); self.timer.timeout.connect(lambda: self.fail(tr('Sprachverarbeitung hat das Zeitlimit erreicht.')))
             panel.backend.completed.connect(self.answered); panel.backend.failed.connect(self.fail)
             panel.installEventFilter(self)
 
@@ -99,12 +100,12 @@ else:
             return False
 
         def controls(self):
-            dialog = QDialog(self.panel); dialog.setWindowTitle('Sprachgespräch'); layout = QVBoxLayout(dialog); form = QFormLayout(); layout.addLayout(form)
+            dialog = QDialog(self.panel); dialog.setWindowTitle(tr('Sprachgespräch')); layout = QVBoxLayout(dialog); form = QFormLayout(); layout.addLayout(form)
             from lumen_speech import add_recognition_fields
             self.panel.settings.sync(); save_recognition = add_recognition_fields(form, self.panel.settings)
-            threshold = QSpinBox(); threshold.setRange(50,15000); threshold.setValue(self.panel.settings.value('voiceThreshold',450,type=int)); form.addRow('Mikrofonschwelle (kleiner = empfindlicher)', threshold)
-            silence = QDoubleSpinBox(); silence.setRange(.3,4); silence.setSingleStep(.1); silence.setValue(self.panel.settings.value('voiceSilence',.9,type=float)); form.addRow('Sprechpause vor dem Senden (Sekunden)',silence)
-            save = QPushButton('Speichern'); layout.addWidget(save)
+            threshold = QSpinBox(); threshold.setRange(50,15000); threshold.setValue(self.panel.settings.value('voiceThreshold',450,type=int)); form.addRow(tr('Mikrofonschwelle (kleiner = empfindlicher)'), threshold)
+            silence = QDoubleSpinBox(); silence.setRange(.3,4); silence.setSingleStep(.1); silence.setValue(self.panel.settings.value('voiceSilence',.9,type=float)); form.addRow(tr('Sprechpause vor dem Senden (Sekunden)'),silence)
+            save = QPushButton(tr('Speichern')); layout.addWidget(save)
             def apply():
                 self.panel.settings.setValue('voiceThreshold',threshold.value()); self.panel.settings.setValue('voiceSilence',silence.value()); save_recognition(); dialog.accept()
             save.clicked.connect(apply); dialog.exec_()
@@ -116,7 +117,7 @@ else:
             if not executable('whisper-cli') or not Path(model).is_file() or not executable('piper-tts') or not (speech_root() / 'de_DE-thorsten-medium.onnx').is_file():
                 from setup_dialog import open_setup
                 open_setup(self.panel, self.panel.settings, page=2); return
-            self.active = True; self.temp = tempfile.TemporaryDirectory(prefix='lumen-conversation-'); self.button.setText('Beenden')
+            self.active = True; self.temp = tempfile.TemporaryDirectory(prefix='lumen-conversation-'); self.button.setText(tr('Beenden'))
             self.started.emit(); self.listen()
 
         def say_status(self, state, text):
@@ -125,7 +126,7 @@ else:
             self.button.setToolTip(text); self.interrupt_button.setVisible(self.active and state in ('thinking','preparing','speaking'))
 
         def run(self, program, arguments, callback, timeout=120000, data=None, meter=False, started=None):
-            proc = QProcess(self); self.process = proc
+            proc = worker_process(self); self.process = proc
             proc.setProcessChannelMode(QProcess.SeparateChannels if meter else QProcess.MergedChannels)
             if meter: proc.readyReadStandardOutput.connect(lambda: self.capture_level(proc))
             if started: proc.started.connect(started)
@@ -141,7 +142,7 @@ else:
         def listen(self):
             if not self.active: return
             self.level_buffer = ''
-            self.say_status('listening', 'Mikrofon aktiv · sprich mit Lumen · Sprechpause sendet automatisch')
+            self.say_status('listening', tr('Mikrofon aktiv · sprich mit Lumen · Sprechpause sendet automatisch'))
             self.run(sys.executable, [str(Path(__file__)), str(Path(self.temp.name) / 'speech.wav'), str(self.panel.settings.value('voiceThreshold',450,type=int)), str(self.panel.settings.value('voiceSilence',.9,type=float))], self.recorded, 190000, meter=True)
 
         def capture_level(self, proc):
@@ -154,18 +155,18 @@ else:
                     except ValueError: pass
 
         def recorded(self, code, output):
-            if code: self.fail(output or 'Mikrofonaufnahme fehlgeschlagen.'); return
-            self.say_status('transcribing', 'Sprache wird lokal erkannt …')
+            if code: self.fail(output or tr('Mikrofonaufnahme fehlgeschlagen.')); return
+            self.say_status('transcribing', tr('Sprache wird lokal erkannt …'))
             from lumen_speech import transcription_arguments
             self.run(executable('whisper-cli'), transcription_arguments(self.panel.settings, Path(self.temp.name) / 'speech.wav', Path(self.temp.name) / 'words'), self.transcribed)
 
         def transcribed(self, code, output):
             textfile = Path(self.temp.name) / 'words.txt'
-            if code or not textfile.is_file(): self.fail(output[-500:] or 'Spracherkennung fehlgeschlagen.'); return
+            if code or not textfile.is_file(): self.fail(output[-500:] or tr('Spracherkennung fehlgeschlagen.')); return
             text = textfile.read_text().strip()
             if not text or re.fullmatch(r'[\[\(].*[\]\)]', text): self.listen(); return
             self.panel.composer.setPlainText(text)
-            self.say_status('thinking', 'Lumen antwortet … · Erkannt: ' + text[:140])
+            self.say_status('thinking', tr('Lumen antwortet … · Erkannt: ') + text[:140])
             self.panel.submit(text)
 
         def answered(self, success, answer):
@@ -174,19 +175,19 @@ else:
                 self.interrupting = False; self.listen(); return
             if self.state != 'thinking': return
             if not success: self.fail(answer); return
-            spoken = re.sub(r'```.*?```', 'Code steht in der Antwort.', answer, flags=re.S)
+            spoken = re.sub(r'```.*?```', tr('Code steht in der Antwort.'), answer, flags=re.S)
             spoken = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', spoken); spoken = re.sub(r'[*#_`]', '', spoken).strip()
             if not spoken: self.listen(); return
-            self.say_status('preparing', 'Lumen bereitet die Stimme lokal vor …')
+            self.say_status('preparing', tr('Lumen bereitet die Stimme lokal vor …'))
             self.run(executable('piper-tts'), ['-m', str(speech_root() / 'de_DE-thorsten-medium.onnx'), '-f', str(Path(self.temp.name) / 'reply.wav')], self.synthesized, data=spoken + '\n')
 
         def synthesized(self, code, output):
-            if code: self.fail('Sprachausgabe fehlgeschlagen: ' + output[-500:]); return
+            if code: self.fail(tr('Sprachausgabe fehlgeschlagen: ') + output[-500:]); return
             path = str(Path(self.temp.name) / 'reply.wav')
             self.run('pw-play', [path], lambda code, text: self.fail(text) if code else self.listen(), 600000, started=lambda: self.start_playback(path))
 
         def start_playback(self, path):
-            self.say_status('speaking', 'Lumen spricht · zum Weiterreden „Unterbrechen“ wählen')
+            self.say_status('speaking', tr('Lumen spricht · zum Weiterreden „Unterbrechen“ wählen'))
             try:
                 self.playback = wave.open(path, 'rb')
                 if self.playback.getsampwidth() != 2: self.clear_playback(); return
@@ -226,5 +227,5 @@ else:
         def stop(self):
             self.active = False; self.interrupting = False; self.cancel_process()
             self.state = ''; self.indicator.set_state('')
-            self.button.setText('Sprechen'); self.interrupt_button.hide(); self.panel.status.setText('Sprachgespräch beendet · Mikrofon aus')
+            self.button.setText(tr('Sprechen')); self.interrupt_button.hide(); self.panel.status.setText(tr('Sprachgespräch beendet · Mikrofon aus'))
             if self.temp: self.temp.cleanup(); self.temp = None

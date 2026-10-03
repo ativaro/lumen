@@ -1,4 +1,5 @@
 """Small native voice activity surface shared by search and Files."""
+from lumen_i18n import tr
 from collections import deque
 import math
 import time
@@ -10,11 +11,11 @@ from PyQt5.QtWidgets import QWidget
 
 class VoiceActivity(QWidget):
     STATES = {
-        'listening': ('Ich höre zu', 'Mikrofon an · Audio bleibt lokal'),
-        'transcribing': ('Sprache erkennen', 'Mikrofon aus · lokal verarbeitet'),
-        'thinking': ('Lumen denkt nach', 'Mikrofon aus · Antwort entsteht'),
-        'preparing': ('Stimme vorbereiten', 'Mikrofon aus · lokale Sprachausgabe'),
-        'speaking': ('Lumen spricht', 'Mikrofon aus · du kannst unterbrechen'),
+        'listening': (tr('Ich höre zu'), tr('Mikrofon an · Audio bleibt lokal')),
+        'transcribing': (tr('Sprache erkennen'), tr('Mikrofon aus · lokal verarbeitet')),
+        'thinking': (tr('Lumen denkt nach'), tr('Mikrofon aus · Antwort entsteht')),
+        'preparing': (tr('Stimme vorbereiten'), tr('Mikrofon aus · lokale Sprachausgabe')),
+        'speaking': (tr('Lumen spricht'), tr('Mikrofon aus · du kannst unterbrechen')),
     }
 
     def __init__(self, parent=None):
@@ -28,7 +29,7 @@ class VoiceActivity(QWidget):
 
     def set_state(self, state):
         self.state = state; self.level = self.target = 0.; self.samples = deque([0.] * 25, maxlen=25)
-        title, detail = self.STATES.get(state, ('Mikrofon aus', ''))
+        title, detail = self.STATES.get(state, (tr('Mikrofon aus'), ''))
         self.setAccessibleName(title); self.setAccessibleDescription(detail); self.setToolTip(title + ' · ' + detail)
         self.setVisible(state in self.STATES)
         self.update()

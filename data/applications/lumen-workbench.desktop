@@ -1,7 +1,9 @@
 [Desktop Entry]
 Type=Application
-Name=Projekt-Werkbank
-Comment=Dateien, Notizen, Webseiten und Fragen
+Name=Project workbench
+Name[de]=Projekt-Werkbank
+Comment=Files, notes, websites and questions
+Comment[de]=Dateien, Notizen, Webseiten und Fragen
 Exec=%INSTALL_BIN%/lumen-workbench
 Icon=lumen-workbench
 Terminal=false

@@ -1,6 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=Lumen: fragen
+Name=Lumen: ask
+Name[de]=Lumen: fragen
 Exec=%INSTALL_BIN%/lumen-quick ask
 NoDisplay=true
 StartupNotify=false

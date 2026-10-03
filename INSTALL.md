@@ -10,26 +10,55 @@ it uses KDE's compositor, tray, clock, task manager and pager.
 Inside your Plasma session, run this as your normal user (do not prefix it with sudo):
 
 ```bash
+git clone https://github.com/ativaro/lumen.git && bash lumen/bootstrap.sh --local
+```
+
+**The repository is private.** Git and a GitHub account granted access to
+`ativaro/lumen` are required. Authenticate through your Git credential helper;
+do not paste access tokens into installation commands. Run from a directory that
+does not already contain `lumen`. To update an existing checkout:
+
+```bash
+git -C lumen pull --ff-only && bash lumen/bootstrap.sh --local
+```
+
+The script uses the authenticated local Git checkout, installs
+missing base dependencies through pacman/sudo, copies Lumen into
+`~/.local/share/lumen` (`$XDG_DATA_HOME/lumen` when set), then opens **Set up Lumen**.
+The checkout and installed application files stay local. The bootstrap requests elevated rights
+only for missing base system packages. No compiler or manual package build is needed for Lumen itself.
+Internet access, sudo access for missing packages and an existing KDE Plasma 6 session are required.
+It does not install a Linux distribution, display manager or Plasma session.
+
+If the repository is made public in the future, the download-only route is:
+
+```bash
 curl -fsSL https://raw.githubusercontent.com/ativaro/lumen/main/bootstrap.sh | bash
 ```
 
-The script downloads the current public source from GitHub over HTTPS, installs
-missing base dependencies through pacman/sudo, copies Lumen into
-`~/.local/share/lumen` (`$XDG_DATA_HOME/lumen` when set), then opens **Lumen einrichten**.
-The downloaded source is extracted into a temporary directory and removed afterward;
-the installed application files stay local. The bootstrap requests elevated rights
-only for missing base system packages. No Git checkout, compiler or manual package build is needed for Lumen itself.
-`curl`, sudo access for missing packages and an existing KDE Plasma 6 session are required.
-It does not install a Linux distribution, display manager or Plasma session.
+This public command does **not** work without authentication while the repository
+is private. Its downloaded source is safely extracted into a temporary directory.
+
+## Interface language
+
+Lumen supports German and English. **System language** selects German for a
+German locale and English otherwise. Choose explicitly in the first setup step
+or **Settings → Lumen → Interface language**. Reopen applications after changing
+the setting; Plasma panels use it at their next start/login. Notes, filenames,
+existing conversations and other user content are preserved as written.
+`LUMEN_LANGUAGE=de` or `LUMEN_LANGUAGE=en` overrides the preference for a launch.
+Application-menu entries and external KDE dialogs follow the desktop language.
+Dictation has its own recognition-language setting; changing the interface does
+not replace an installed text-to-speech voice.
 
 In the wizard, set up OpenCode and the provider, optionally add local speech,
-then choose **Lumen-Desktop aktivieren** under **Dein Desktop** to apply the selected
+then choose **Activate Lumen desktop** under **Your desktop** to apply the selected
 theme, window decorations, wallpaper and panels. This uses the existing desktop
-backup mechanism. **Weiter** leaves the current desktop in place. Existing provider
+backup mechanism. **Next** leaves the current desktop in place. Existing provider
 settings and speech models are reused; the document workshop remains disabled until
 enabled in Files settings. The wizard can be closed and resumed later from
-**Einstellungen → Einrichtung** or `~/.local/share/lumen/bin/lumen-setup-wizard`.
-Re-running the one-liner updates the user installation and opens the wizard even
+**Settings → Setup** or `~/.local/share/lumen/bin/lumen-setup-wizard`.
+Running the existing-checkout update command reinstalls the user bundle and opens the wizard even
 if it was previously completed. Download or package errors stop before launching it.
 
 The Arch package workflow below is an alternative for a system-wide installation.

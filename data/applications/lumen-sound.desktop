@@ -1,7 +1,8 @@
 [Desktop Entry]
 Type=Application
 Name=Lumen Sound
-Comment=Lautstärke, Ausgänge und Gesprächsabsenkung pro Anwendung
+Comment=Per-app volume, output devices and conversation ducking
+Comment[de]=Lautstärke, Ausgänge und Gesprächsabsenkung pro Anwendung
 Exec=%INSTALL_BIN%/lumen-sound
 Icon=lumen-sound
 Terminal=false

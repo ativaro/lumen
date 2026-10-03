@@ -1,7 +1,8 @@
 [Desktop Entry]
 Type=Application
 Name=Lumen Vault
-Comment=Verschlüsselte Sicherungen und sichere Wiederherstellung
+Comment=Encrypted backups and safe recovery
+Comment[de]=Verschlüsselte Sicherungen und sichere Wiederherstellung
 Exec=%INSTALL_BIN%/lumen-vault
 Icon=lumen-vault
 Terminal=false

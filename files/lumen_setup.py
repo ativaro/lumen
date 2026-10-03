@@ -1,4 +1,5 @@
 """Dependency discovery and explicit setup jobs; no work happens on import."""
+from lumen_i18n import worker_environment, tr
 import hashlib
 import json
 import os
@@ -13,17 +14,17 @@ import tempfile
 import urllib.request
 
 FEATURES = {
-    'sound': ('Sound: Lautstärke und App-Ausgänge', ('pactl',), ('libpulse',)),
-    'reader': ('Reader: PDF- und EPUB-Lesen', ('pymupdf',), ('python-pymupdf',)),
-    'keyring': ('System-Schlüsselbund für Vault und Inbox', ('secret-tool',), ('libsecret',)),
-    'hardware': ('Hardware-Messwerte', ('sensors',), ('lm_sensors',)),
-    'engine': ('Lumen-Assistent', ('opencode',), ('opencode',)),
-    'documents': ('PDF-Vorschau und Inhaltsuche', ('pdfinfo', 'pdftoppm', 'pdftotext'), ('poppler',)),
-    'media': ('Video- und Audiovorschau', ('ffmpeg', 'ffprobe'), ('ffmpeg',)),
-    'network': ('NAS und Netzwerkordner', ('kio-fuse', 'kioclient', 'kio-smb'), ('kio-fuse', 'kio-extras', 'kde-cli-tools')),
-    'workshop': ('PDF-Dokumentenwerkstatt', ('pymupdf',), ('python-pymupdf',)),
-    'ocr': ('Texterkennung in Bildern und Scans', ('tesseract', 'tessdata-deu', 'tessdata-eng'), ('tesseract', 'tesseract-data-deu', 'tesseract-data-eng')),
-    'capture': ('Bildschirmaufnahme', ('spectacle',), ('spectacle',)),
+    'sound': (tr('Sound: Lautstärke und App-Ausgänge'), ('pactl',), ('libpulse',)),
+    'reader': (tr('Reader: PDF- und EPUB-Lesen'), ('pymupdf',), ('python-pymupdf',)),
+    'keyring': (tr('System-Schlüsselbund für Vault und Inbox'), ('secret-tool',), ('libsecret',)),
+    'hardware': (tr('Hardware-Messwerte'), ('sensors',), ('lm_sensors',)),
+    'engine': (tr('Lumen-Assistent'), ('opencode',), ('opencode',)),
+    'documents': (tr('PDF-Vorschau und Inhaltsuche'), ('pdfinfo', 'pdftoppm', 'pdftotext'), ('poppler',)),
+    'media': (tr('Video- und Audiovorschau'), ('ffmpeg', 'ffprobe'), ('ffmpeg',)),
+    'network': (tr('NAS und Netzwerkordner'), ('kio-fuse', 'kioclient', 'kio-smb'), ('kio-fuse', 'kio-extras', 'kde-cli-tools')),
+    'workshop': (tr('PDF-Dokumentenwerkstatt'), ('pymupdf',), ('python-pymupdf',)),
+    'ocr': (tr('Texterkennung in Bildern und Scans'), ('tesseract', 'tessdata-deu', 'tessdata-eng'), ('tesseract', 'tesseract-data-deu', 'tesseract-data-eng')),
+    'capture': (tr('Bildschirmaufnahme'), ('spectacle',), ('spectacle',)),
 }
 VERSION = '1.9.4'
 SOURCE_URL = f'https://codeload.github.com/ggml-org/whisper.cpp/tar.gz/refs/tags/v{VERSION}'
@@ -81,7 +82,7 @@ def report(message, percent=-1, cancellable=True, **extra):
 def run(command, timeout=1200):
     # No shell and no credentials in command arguments. Capture build/package noise.
     with tempfile.TemporaryFile() as output:
-        process = subprocess.Popen(command, stdout=output, stderr=output, start_new_session=True)
+        process = subprocess.Popen(command, env=worker_environment(), stdout=output, stderr=output, start_new_session=True)
         try:
             code = process.wait(timeout=timeout)
         finally:
@@ -92,18 +93,18 @@ def run(command, timeout=1200):
                     os.killpg(process.pid, signal.SIGKILL); process.wait()
         if code:
             output.seek(max(0, output.tell() - 1800))
-            raise RuntimeError(output.read().decode(errors='replace').strip() or 'Einrichtung fehlgeschlagen.')
+            raise RuntimeError(output.read().decode(errors='replace').strip() or tr('Einrichtung fehlgeschlagen.'))
 
 
 def install_packages(packages):
     allowed = {p for _title, _commands, names in FEATURES.values() for p in names}
     allowed.update(('cmake', 'gcc', 'make', 'pipewire-audio'))
-    if not set(packages) <= allowed: raise ValueError('Unbekannte Paketauswahl.')
+    if not set(packages) <= allowed: raise ValueError(tr('Unbekannte Paketauswahl.'))
     if not packages: return
     if not Path('/usr/bin/pacman').exists() or not shutil.which('pkexec'):
-        raise RuntimeError('Automatische Paketinstallation benötigt Arch/CachyOS und Polkit. '
-                           'Bitte diese Pakete über deine Paketverwaltung installieren: ' + ', '.join(packages))
-    report('Systempakete installieren · gegebenenfalls das Passwort im Systemdialog eingeben.', cancellable=False)
+        raise RuntimeError(tr('Automatische Paketinstallation benötigt Arch/CachyOS und Polkit. '
+                           'Bitte diese Pakete über deine Paketverwaltung installieren: ') + ', '.join(packages))
+    report(tr('Systempakete installieren · gegebenenfalls das Passwort im Systemdialog eingeben.'), cancellable=False)
     run(['pkexec', '/usr/bin/pacman', '-S', '--needed', '--noconfirm', '--', *packages])
 
 
@@ -117,16 +118,16 @@ def download(url, destination, checksum, size):
         partial = Path(output.name)
         try:
             with urllib.request.urlopen(url, timeout=30) as response:
-                if not response.url.startswith('https://'): raise ValueError('Unsicheres Downloadziel.')
+                if not response.url.startswith('https://'): raise ValueError(tr('Unsicheres Downloadziel.'))
                 while chunk := response.read(256 * 1024):
                     received += len(chunk)
-                    if received > size: raise ValueError('Der Download ist unerwartet groß.')
+                    if received > size: raise ValueError(tr('Der Download ist unerwartet groß.'))
                     digest.update(chunk); output.write(chunk)
                     percent = int(received * 100 / size)
                     if percent != previous:
-                        report('Herunterladen …', percent); previous = percent
+                        report(tr('Herunterladen …'), percent); previous = percent
             if received != size or digest.hexdigest() != checksum:
-                raise ValueError('Die Prüfsumme stimmt nicht. Bitte den Download erneut versuchen.')
+                raise ValueError(tr('Die Prüfsumme stimmt nicht. Bitte den Download erneut versuchen.'))
             output.flush(); os.fsync(output.fileno())
             os.replace(partial, destination)
         finally:
@@ -135,7 +136,7 @@ def download(url, destination, checksum, size):
 
 def install_dictation(existing_model='', quality=False):
     if existing_model and not Path(existing_model).is_file():
-        raise ValueError('Das gewählte Sprachmodell ist nicht mehr erreichbar.')
+        raise ValueError(tr('Das gewählte Sprachmodell ist nicht mehr erreichbar.'))
     packages = []
     if not executable('pw-record'): packages.append('pipewire-audio')
     if not executable('whisper-cli'):
@@ -146,10 +147,10 @@ def install_dictation(existing_model='', quality=False):
     if not executable('whisper-cli'):
         with tempfile.TemporaryDirectory(prefix='build-', dir=root) as folder:
             folder = Path(folder); archive = folder / 'whisper.tar.gz'
-            report('Spracherkennung herunterladen · whisper.cpp ' + VERSION)
+            report(tr('Spracherkennung herunterladen · whisper.cpp ') + VERSION)
             download(SOURCE_URL, archive, SOURCE_HASH, 9353438)
             with tarfile.open(archive) as source: source.extractall(folder, filter='data')
-            report('Spracherkennung für diesen Rechner vorbereiten …')
+            report(tr('Spracherkennung für diesen Rechner vorbereiten …'))
             build = folder / 'build'
             # Reuse an installed Vulkan development stack; CPU remains the default elsewhere.
             vulkan = bool(shutil.which('glslc') and all(Path(path).is_file() for path in
@@ -162,7 +163,7 @@ def install_dictation(existing_model='', quality=False):
             run([str(binary), '--help'], timeout=20)
             binary.chmod(0o755); os.replace(binary, root / f'whisper-{VERSION}')
     if existing_model and not quality:
-        report('Spracherkennung bereit · dein vorhandenes Modell bleibt ausgewählt.', 100, model=existing_model)
+        report(tr('Spracherkennung bereit · dein vorhandenes Modell bleibt ausgewählt.'), 100, model=existing_model)
         return
     model = root / (QUALITY_MODEL if quality else 'ggml-small-q5_1.bin')
     checksum, size = (QUALITY_HASH, QUALITY_SIZE) if quality else (MODEL_HASH, MODEL_SIZE)
@@ -170,15 +171,15 @@ def install_dictation(existing_model='', quality=False):
     if valid:
         with model.open('rb') as file: valid = hashlib.file_digest(file, 'sha256').hexdigest() == checksum
     if not valid:
-        report('Whisper Large v3 Turbo herunterladen · 874 MB' if quality else 'Mehrsprachiges Diktiermodell herunterladen · 190 MB')
+        report(tr('Whisper Large v3 Turbo herunterladen · 874 MB') if quality else tr('Mehrsprachiges Diktiermodell herunterladen · 190 MB'))
         download(MODEL_URL.rsplit('/', 1)[0] + '/' + model.name, model, checksum, size)
-    report('Lokales Diktieren ist vorbereitet.', 100, model=str(model))
+    report(tr('Lokales Diktieren ist vorbereitet.'), 100, model=str(model))
 
 
 def install_voice(existing_model=''):
     install_dictation(existing_model)
     root = speech_root(); environment = root / 'piper-env'
-    report('Lokale Sprachausgabe vorbereiten · Piper')
+    report(tr('Lokale Sprachausgabe vorbereiten · Piper'))
     if not (environment / 'bin/python').is_file(): run([sys.executable, '-m', 'venv', str(environment)])
     run([str(environment / 'bin/python'), '-m', 'pip', '--disable-pip-version-check', 'install', 'piper-tts==1.8.0'])
     base = 'https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/de/de_DE/thorsten/medium/'
@@ -191,19 +192,19 @@ def install_voice(existing_model=''):
         if valid:
             with target.open('rb') as stream: valid = hashlib.file_digest(stream, 'sha256').hexdigest() == checksum
         if not valid: download(base + name, target, checksum, size)
-    report('Sprachgespräch eingerichtet · Whisper und deutsche Piper-Stimme lokal.', 100)
+    report(tr('Sprachgespräch eingerichtet · Whisper und deutsche Piper-Stimme lokal.'), 100)
 
 
 def install_image_search():
     from photo_tools import runtime
     environment = runtime() / 'env-v1'; python = str(environment / 'bin/python')
-    report('Lokale Bildsuche vorbereiten · CPU-Laufzeit und mehrsprachige CLIP-Modelle, ca. 2 GB Download')
+    report(tr('Lokale Bildsuche vorbereiten · CPU-Laufzeit und mehrsprachige CLIP-Modelle, ca. 2 GB Download'))
     if not Path(python).is_file(): run([sys.executable, '-m', 'venv', str(environment)])
     run([python, '-m', 'pip', '--disable-pip-version-check', 'install', 'torch==2.14.1', '--index-url', 'https://download.pytorch.org/whl/cpu'])
     run([python, '-m', 'pip', '--disable-pip-version-check', 'install', 'sentence-transformers==6.1.0', 'Pillow==12.3.0'])
-    report('Bildmodelle herunterladen und mit lokaler Inferenz prüfen …')
+    report(tr('Bildmodelle herunterladen und mit lokaler Inferenz prüfen …'))
     run([python, str(Path(__file__).with_name('photo_tools.py')), 'install'], timeout=1800)
-    report('Lokale Bildsuche ist bereit. In Files über „Bilder nach Motiv suchen“.', 100)
+    report(tr('Lokale Bildsuche ist bereit. In Files über „Bilder nach Motiv suchen“.'), 100)
 
 
 def install_vault():
@@ -211,27 +212,27 @@ def install_vault():
     import platform
     archives = {'x86_64': ('amd64', 'f415415624dcc452f2a02b8c33641791a8c6d6d3b65bbb3543fcf9a25151585c', 10107515),
                 'aarch64': ('arm64', 'a5f64aaab53d51e311fa3829124c5b703f2d14cf187d8640b6be3b2b49376465', 9044264)}
-    if platform.machine() not in archives: raise ValueError('Restic bitte über die Paketverwaltung installieren.')
+    if platform.machine() not in archives: raise ValueError(tr('Restic bitte über die Paketverwaltung installieren.'))
     arch, checksum, size = archives[platform.machine()]
     root = speech_root().parent / 'vault'; root.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=root) as tmp:
         archive = Path(tmp)/'restic.bz2'; binary = Path(tmp)/'restic'
-        report('Verschlüsselte Sicherungen vorbereiten · Restic 0.19.1')
+        report(tr('Verschlüsselte Sicherungen vorbereiten · Restic 0.19.1'))
         download(f'https://github.com/restic/restic/releases/download/v0.19.1/restic_0.19.1_linux_{arch}.bz2',archive,checksum,size)
         with bz2.open(archive,'rb') as src, binary.open('wb') as dst:
             shutil.copyfileobj(src,dst)
         binary.chmod(0o755); run([str(binary),'version'],timeout=10)
         os.replace(binary,root/'restic-0.19.1')
-    report('Vault bereit. Ziel und Sicherungspasswort in Lumen Vault auswählen.',100)
+    report(tr('Vault bereit. Ziel und Sicherungspasswort in Lumen Vault auswählen.'),100)
 
 
 def install_inbox():
     root = speech_root().parent / 'inbox-env-v1'; python = str(root / 'bin/python')
-    report('Kalenderanbindung für Inbox vorbereiten')
+    report(tr('Kalenderanbindung für Inbox vorbereiten'))
     if not Path(python).is_file(): run([sys.executable,'-m','venv',str(root)])
     run([python,'-m','pip','--disable-pip-version-check','install','caldav==3.3.1','icalendar==7.3.0','recurring-ical-events==3.8.2'])
     run([python,'-c','import caldav, icalendar'],timeout=20)
-    report('IMAP/SMTP und Kalenderanbindung bereit. Proton Mail benötigt zusätzlich die angemeldete Proton Mail Bridge.',100)
+    report(tr('IMAP/SMTP und Kalenderanbindung bereit. Proton Mail benötigt zusätzlich die angemeldete Proton Mail Bridge.'),100)
 
 
 def main():
@@ -243,14 +244,14 @@ def main():
     from appearance import DESIGNS
     parser.add_argument('--theme', choices=[name for _, name in DESIGNS], default='glass')
     args = parser.parse_args()
-    def interrupted(*_): raise InterruptedError('Einrichtung abgebrochen. Bereits fertige Bestandteile bleiben verfügbar.')
+    def interrupted(*_): raise InterruptedError(tr('Einrichtung abgebrochen. Bereits fertige Bestandteile bleiben verfügbar.'))
     signal.signal(signal.SIGTERM, interrupted)
     try:
         if args.action == 'desktop':
             from lumen_desktop_setup import configure_desktop
-            report('Desktop-Konfiguration sichern und Lumen-Desktop aktivieren …', cancellable=False)
+            report(tr('Desktop-Konfiguration sichern und Lumen-Desktop aktivieren …'), cancellable=False)
             configure_desktop(args.theme, replace_panels=True)
-            report('Lumen-Desktop eingerichtet. Die vorherige Konfiguration wurde lokal gesichert.', 100, cancellable=False)
+            report(tr('Lumen-Desktop eingerichtet. Die vorherige Konfiguration wurde lokal gesichert.'), 100, cancellable=False)
         elif args.action == 'dictation': install_dictation(args.existing_model)
         elif args.action == 'dictation-quality': install_dictation(quality=True)
         elif args.action == 'voice': install_voice(args.existing_model)
@@ -260,8 +261,8 @@ def main():
         else:
             install_packages(missing_packages(args.groups))
             missing = missing_packages(args.groups)
-            if missing: raise RuntimeError('Noch nicht verfügbar: ' + ', '.join(missing))
-            report('Ausgewählte Erweiterungen sind verfügbar.', 100)
+            if missing: raise RuntimeError(tr('Noch nicht verfügbar: ') + ', '.join(missing))
+            report(tr('Ausgewählte Erweiterungen sind verfügbar.'), 100)
         return 0
     except Exception as error:
         report(str(error)); return 1

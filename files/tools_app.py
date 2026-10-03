@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 """Separate native entry points, with one window per application and library."""
+from lumen_i18n import tr
 import argparse
 import hashlib
 import json
@@ -12,10 +13,10 @@ from app import create_app
 
 
 def main():
-    parser=argparse.ArgumentParser(description='Eigenständige Desktop-Werkzeuge')
+    parser=argparse.ArgumentParser(description=tr('Eigenständige Desktop-Werkzeuge'))
     parser.add_argument('tool',choices=['meetings','household','workbench','radio','vault','inbox','reader','sound','wissen'])
     parser.add_argument('path',nargs='?');args=parser.parse_args()
-    if args.path and args.tool not in ('reader','wissen'):parser.error('Dateien können nur an Reader oder Wissen übergeben werden.')
+    if args.path and args.tool not in ('reader','wissen'):parser.error(tr('Dateien können nur an Reader oder Wissen übergeben werden.'))
     requested=str(Path(args.path).expanduser().absolute()) if args.path else ''
     app=create_app(); app.setApplicationName('lumen-'+args.tool); app.setDesktopFileName('lumen-'+args.tool)
     from tools_meetings import Meetings
@@ -36,9 +37,9 @@ def main():
     lock=QLockFile(str(window.library.root/'window.lock'))
     if not lock.tryLock(0):
         from PyQt5.QtWidgets import QMessageBox
-        QMessageBox.information(None,window.windowTitle(),'Das Fenster wird bereits geöffnet. Bitte einen Moment warten.'); return 0
+        QMessageBox.information(None,window.windowTitle(),tr('Das Fenster wird bereits geöffnet. Bitte einen Moment warten.')); return 0
     server=QLocalServer(); QLocalServer.removeServer(server_name); server.setSocketOptions(QLocalServer.UserAccessOption)
-    if not server.listen(server_name): raise RuntimeError('Lokale Fensteraktivierung konnte nicht gestartet werden.')
+    if not server.listen(server_name): raise RuntimeError(tr('Lokale Fensteraktivierung konnte nicht gestartet werden.'))
     def activate():
         socket=server.nextPendingConnection()
         if socket:

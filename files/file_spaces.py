@@ -1,4 +1,5 @@
 """Persistent file references and bounded listings for libraries, shelf and rooms."""
+from lumen_i18n import tr
 import hashlib
 import json
 import os
@@ -15,10 +16,10 @@ from network import is_network_address, normalize_url
 PREFIX = 'files/spaces/'
 LIBRARY = 'lumen:library/'
 SHELF = 'lumen:shelf'
-DEFAULTS = [('documents', 'Dokumente', QStandardPaths.DocumentsLocation, 'folder-documents'),
-            ('pictures', 'Bilder', QStandardPaths.PicturesLocation, 'folder-pictures'),
-            ('music', 'Musik', QStandardPaths.MusicLocation, 'folder-music'),
-            ('videos', 'Videos', QStandardPaths.MoviesLocation, 'folder-videos')]
+DEFAULTS = [('documents', tr('Dokumente'), QStandardPaths.DocumentsLocation, 'folder-documents'),
+            ('pictures', tr('Bilder'), QStandardPaths.PicturesLocation, 'folder-pictures'),
+            ('music', tr('Musik'), QStandardPaths.MusicLocation, 'folder-music'),
+            ('videos', tr('Videos'), QStandardPaths.MoviesLocation, 'folder-videos')]
 
 
 def virtual(location):
@@ -27,7 +28,7 @@ def virtual(location):
 
 def canonical(location):
     if not isinstance(location, str) or not location.strip() or '\x00' in location:
-        raise ValueError('Bitte einen gültigen Ordnerpfad oder eine Netzwerkadresse angeben.')
+        raise ValueError(tr('Bitte einen gültigen Ordnerpfad oder eine Netzwerkadresse angeben.'))
     if virtual(location):
         return location
     if is_network_address(location):
@@ -35,16 +36,16 @@ def canonical(location):
     if location.startswith('file:'):
         url = QUrl(location)
         if not url.isLocalFile() or url.host():
-            raise ValueError('Bitte einen lokalen Pfad oder eine Serveradresse verwenden.')
+            raise ValueError(tr('Bitte einen lokalen Pfad oder eine Serveradresse verwenden.'))
         location = url.toLocalFile()
     if not os.path.isabs(os.path.expanduser(location)):
-        raise ValueError('Bitte einen absoluten Ordnerpfad angeben.')
+        raise ValueError(tr('Bitte einen absoluten Ordnerpfad angeben.'))
     return os.path.abspath(os.path.expanduser(location))
 
 
 def title(value):
     if not isinstance(value, str) or not value.strip() or len(value) > 120 or any(ord(c) < 32 for c in value):
-        raise ValueError('Bitte einen Namen mit 1 bis 120 Zeichen angeben.')
+        raise ValueError(tr('Bitte einen Namen mit 1 bis 120 Zeichen angeben.'))
     return value.strip()
 
 
@@ -64,7 +65,7 @@ class Catalog:
             row = db.execute('SELECT value FROM settings WHERE key=?', (key,)).fetchone()
             default = kind == 'library' and value['id'] in {item[0] for item in DEFAULTS}
             if previous is not None and ((row and json.loads(row[0]) != previous) or (not row and not default)):
-                raise ValueError('Dieser Eintrag wurde in einem anderen Fenster geändert. Bitte erneut öffnen.')
+                raise ValueError(tr('Dieser Eintrag wurde in einem anderen Fenster geändert. Bitte erneut öffnen.'))
             db.execute('INSERT OR REPLACE INTO settings VALUES (?,?)', (key, json.dumps(value)))
         return value
 
@@ -74,7 +75,7 @@ class Catalog:
             db.execute('BEGIN IMMEDIATE')
             row = db.execute('SELECT value FROM settings WHERE key=?', (key,)).fetchone()
             if previous is not None and (not row or json.loads(row[0]) != previous):
-                raise ValueError('Dieser Eintrag wurde in einem anderen Fenster geändert. Bitte erneut öffnen.')
+                raise ValueError(tr('Dieser Eintrag wurde in einem anderen Fenster geändert. Bitte erneut öffnen.'))
             db.execute('DELETE FROM settings WHERE key=?', (key,))
 
     def libraries(self):
@@ -82,7 +83,7 @@ class Catalog:
         result = []
         for identity, name, location, icon in DEFAULTS:
             default = {'id': identity, 'name': name, 'icon': icon, 'sources': [
-                {'label': 'Dieser PC', 'location': QStandardPaths.writableLocation(location)}]}
+                {'label': tr('Dieser PC'), 'location': QStandardPaths.writableLocation(location)}]}
             result.append(values.pop(identity, default))
         return result + list(values.values())
 
@@ -94,14 +95,14 @@ class Catalog:
 
     def save_library(self, previous, name, sources):
         if len(sources) > 24:
-            raise ValueError('Bis zu 24 Quellen je Bibliothek sind möglich.')
+            raise ValueError(tr('Bis zu 24 Quellen je Bibliothek sind möglich.'))
         checked, seen = [], set()
         for source in sources:
             location = canonical(source['location'])
             if virtual(location):
-                raise ValueError('Eine Quelle muss ein echter Ordner sein.')
+                raise ValueError(tr('Eine Quelle muss ein echter Ordner sein.'))
             if location in seen:
-                raise ValueError('Dieser Ordner ist bereits als Quelle eingetragen.')
+                raise ValueError(tr('Dieser Ordner ist bereits als Quelle eingetragen.'))
             seen.add(location)
             checked.append({'label': title(source['label']), 'location': location})
         return self.put('library', {'id': previous['id'] if previous else uuid.uuid4().hex,
@@ -116,7 +117,7 @@ class Catalog:
         if identity == 'previous': identity = None
         kind = 'room-shelf/' + identity if identity else 'shelf'
         checked = [canonical(item) for item in snapshot]
-        if any(virtual(item) for item in checked): raise ValueError('Ungültige Sammelfläche.')
+        if any(virtual(item) for item in checked): raise ValueError(tr('Ungültige Sammelfläche.'))
         if identity:
             with self.store.connect() as db:
                 db.execute('BEGIN IMMEDIATE')
@@ -132,7 +133,7 @@ class Catalog:
     def add_shelf(self, locations):
         checked = [canonical(item) for item in locations]
         if any(virtual(item) for item in checked):
-            raise ValueError('Bitte einzelne Dateien oder Ordner sammeln.')
+            raise ValueError(tr('Bitte einzelne Dateien oder Ordner sammeln.'))
         with self.store.connect() as db:
             for location in checked:
                 identity = hashlib.sha256(location.encode()).hexdigest()
@@ -153,7 +154,7 @@ class Catalog:
     def replace_shelf(self, locations):
         checked = [canonical(item) for item in locations]
         if any(virtual(item) for item in checked):
-            raise ValueError('Ungültige Sammelfläche.')
+            raise ValueError(tr('Ungültige Sammelfläche.'))
         with self.store.connect() as db:
             db.execute('DELETE FROM settings WHERE key LIKE ?', (PREFIX + self.shelf_kind + '/%',))
             for i, location in enumerate(dict.fromkeys(checked)):

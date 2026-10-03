@@ -1,6 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=Lumen: Bildschirm erklären
+Name=Lumen: explain screen
+Name[de]=Lumen: Bildschirm erklären
 Exec=%INSTALL_BIN%/lumen-vision region
 NoDisplay=true
 StartupNotify=false
