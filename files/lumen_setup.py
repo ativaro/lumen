@@ -13,6 +13,7 @@ import tempfile
 import urllib.request
 
 FEATURES = {
+    'reader': ('Reader: PDF- und EPUB-Lesen', ('pymupdf',), ('python-pymupdf',)),
     'keyring': ('System-Schlüsselbund für Vault und Inbox', ('secret-tool',), ('libsecret',)),
     'hardware': ('Hardware-Messwerte', ('sensors',), ('lm_sensors',)),
     'engine': ('Lumen-Assistent', ('opencode',), ('opencode',)),

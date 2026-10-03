@@ -75,3 +75,10 @@ Kalt-/Warmstart beider installierter Apps geprüft. Frische virtuelle Plasma-
 Installation erfolgreich; Paket 1.2.0-34 gebaut und Quellen verglichen.
 Benutzerinstallation ohne sudo und ohne Neustart laufender Fenster abgeschlossen.
 Konten und Sicherungspläne bleiben benutzergeführt; keine echten Mails versendet.
+
+# Reader und Sound
+
+- [ ] Reader: Import, Seiten/Text, Fortschritt, Markierungen/Notizen, Vorlesen/Wissen.
+- [ ] Sound: Stream-Mixer, Ausgänge, gespeicherte App-Regeln und Gesprächsabsenkung.
+- [ ] Reale Dokument- und isolierte Audiotests, native Oberflächen und Starter.
+- [ ] Paket, Benutzerinstallation, portable Git-Quellen und private Referenz.

@@ -63,3 +63,11 @@ verwenden. Reihenfolge: Secret-Service → Vault-Backend mit realem Restore-Test
 Vault-UI/Zeitplan → Inbox-Protokolle mit lokalen Servern → Inbox-UI → Installer,
 vollständige Tests und Bereitstellung. Keine Benutzerkonten oder persönlichen
 Backup-Ziele ohne Auswahl im jeweiligen Einrichtungsdialog aktivieren.
+
+# Reader und Sound, 2026-10-03
+
+Reader zuerst als vollständiger Schnitt mit Parser-Unterprozess, nativer Ansicht,
+Lesestand/Notizen und bestehender Sprache/Wissen-Anbindung; prüfen und committen.
+Danach Sound mit pactl/PipeWire, nativer Streamsteuerung und expliziter Automatik;
+Prüfung an isolierten virtuellen Audioquellen. Abschließend Gesamtprüfung,
+Benutzerinstallation, Paket und Dokumentation. Spezifikation: SPEC-reader-sound.md.

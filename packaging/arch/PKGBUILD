@@ -110,7 +110,7 @@ package() {
     sub "$srcroot/data/applications/lumen-sel.desktop" "$pkgdir/usr/share/applications/lumen-sel.desktop"
     sub "$srcroot/data/applications/lumen-files.desktop" "$pkgdir/usr/share/applications/lumen-files.desktop"
 
-    for tool in meetings household workbench radio vault inbox; do
+    for tool in meetings household workbench radio vault inbox reader; do
         sub "$srcroot/data/applications/lumen-$tool.desktop" "$pkgdir/usr/share/applications/lumen-$tool.desktop"
     done
 
@@ -197,7 +197,7 @@ package() {
     install -m0644 "$srcroot/icons/hicolor/scalable/apps/lumen.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/lumen.svg"
     install -m0644 "$srcroot/icons/hicolor/scalable/apps/lumen-files.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/lumen-files.svg"
 
-    for tool in meetings household workbench radio vault inbox; do
+    for tool in meetings household workbench radio vault inbox reader; do
         install -m0644 "$srcroot/icons/hicolor/scalable/apps/lumen-$tool.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/"
     done
 
