@@ -198,7 +198,26 @@ und bleibt auch nach Scan leer. Keine Benutzernotizen für Tests verwendet.
 - [x] Main Lumen/Files/search interfaces in English and German.
 - [x] Native companion tools, settings/setup and Plasma controls localized.
 - [x] User text, storage keys, paths and commands remain unchanged.
-- [ ] German suite and English native checks, package/catalog installation.
+- [x] German suite and English native checks, package/catalog installation.
 - [x] README opening shows installation and accurate private access requirements.
 - [x] Explain license/control tradeoffs; apply only the user's chosen direction.
-- [ ] Reviewed source pushed; remote and installed resources verified.
+- [x] Reviewed source pushed; remote and installed resources verified.
+
+185 Python checks completed: 184 passed, one optional CalDAV integration check
+skipped. All 12 QML checks passed. Native English main/Files/search/settings/
+setup and nine companion apps checked with synthetic content, plus bilingual
+panel smoke checks. Reviews caught and fixed cancellation routing and saved
+context removal across language changes. Internal jobs keep the window language;
+Qt-free calendar workers read the same setting without importing Qt.
+
+Package 1.2.0-40 built; 186 runtime/catalog/panel resources match the package.
+The user bundle and all five panel catalogs/helpers were compared with source;
+optional runtimes were retained and existing windows left open. Installed English
+main/Files/search/network/workshop/photo/version smoke checks passed. A consistent
+SQLite and file backup precedes installation. No personal data, credentials,
+backups or screenshots are included in Git.
+
+Private GitHub main updated and visibility verified. README begins with the
+working authenticated clone/local-bootstrap route, tested without public download.
+Current LICENSE remains MIT; LICENSE-PLAN.md records the proposed noncommercial
+and separately agreed commercial model, including unresolved PyQt constraints.
