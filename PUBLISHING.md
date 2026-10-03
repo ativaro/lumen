@@ -41,6 +41,10 @@ mockups and diagnostic artifacts are not needed to install Lumen.
 
 ## Package
 
+The optional [Qt 6 search preview](SEARCH-PREVIEW.md) has its own launcher and
+runtime. Include `files/qml/search` and its translation catalog in packages;
+the production search and shortcuts remain on the established interface.
+
 Commit the reviewed source, then run:
 
 ```bash

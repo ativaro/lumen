@@ -15,6 +15,9 @@ elif [ -x "$RUNTIME/bin/python" ] && "$RUNTIME/bin/python" -c 'import PySide6.Qt
     PYTHON="$RUNTIME/bin/python"
 else
     printf '%s\n' 'Qt 6 runtime missing. Run: lumen-search-preview --install-runtime' >&2
+    if command -v kdialog >/dev/null 2>&1; then
+        kdialog --title 'Lumen Search Preview' --error 'This optional preview needs Qt 6. Install its runtime with: lumen-search-preview --install-runtime' || true
+    fi
     exit 1
 fi
 for main in "$SELF_DIR/../files/search_qml.py" "$SELF_DIR/../share/lumen/files/search_qml.py" /usr/share/lumen/files/search_qml.py; do
