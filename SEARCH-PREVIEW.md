@@ -51,13 +51,13 @@ medians on the development machine:
 
 | Measurement | Qt 5 widgets | Qt 6/QML pilot |
 | --- | ---: | ---: |
-| Imports to first captured frame | 106.4 ms | 138.8 ms |
-| Resident memory after first frame | 90.9 MiB | 119.7 MiB |
-| Input to completed file results | 266.4 ms | 276.4 ms |
+| Imports to first captured frame | 109.4 ms | 134.8 ms |
+| Resident memory after first frame | 91.1 MiB | 119.9 MiB |
+| Input to completed file results | 263.9 ms | 267.8 ms |
 
 Search includes the 220 ms typing debounce. These are controlled local comparison
 measurements, not cold desktop startup or GPU performance claims. The pilot
-currently costs roughly 29 MiB more memory and 32 ms more to its first frame.
+currently costs roughly 29 MiB more memory and 25 ms more to its first frame.
 It offers a more flexible presentation layer; it is not a demonstrated speedup.
 
 Search scans a bounded part of the personal folder with up to 100 file results
@@ -72,6 +72,7 @@ PyQt. No project license was changed by this experiment.
 QT_QPA_PLATFORM=offscreen /usr/bin/python3 -m unittest discover -s files -p test_search_qml.py
 tests/benchmark-search.py --samples 5
 QT_QPA_PLATFORM=offscreen ~/.local/share/lumen/qt6-env/bin/python tests/render-search-qml.py
+dbus-run-session -- /usr/bin/python3 tests/check-search-preview.py
 ```
 
 Set `LUMEN_QT6_PYTHON` for a different test runtime. The native tests exercise

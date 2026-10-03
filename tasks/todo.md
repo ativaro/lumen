@@ -253,7 +253,25 @@ configuration. Usage and evidence: docs/interop/USAGE.md and COVERAGE.md.
 ## Qt 6 / QML search pilot
 
 - [x] Scope, isolated checkout, runtime and existing dependency boundaries.
-- [ ] Shared backend/job/voice compatibility with Qt 5 regression coverage.
-- [ ] QML search, conversation, permissions/questions, voice and theme handling.
-- [ ] Native runtime checks, visual inspection and reproducible comparison.
-- [ ] Optional installation, documentation and pilot delivery.
+- [x] Shared backend/job/voice compatibility with Qt 5 regression coverage.
+- [x] QML search, conversation, permissions/questions, voice and theme handling.
+- [x] Native runtime checks, visual inspection and reproducible comparison.
+- [x] Optional installation, documentation and pilot delivery.
+
+
+The combined source passes 333 of 338 Python checks; five optional CalDAV/Restic
+integrations are skipped in the isolated system runtime. Four dedicated Qt 6
+checks additionally cover real keyboard/mouse handling and local HTTP requests.
+QML lint reports no warnings. Four themes, DE/EN, compact layout, approvals,
+questions and voice states were rendered with synthetic content; the same QML
+also rendered on the actual Wayland desktop. Installed cold/warm activation and
+supervised restart restore a synthetic draft/session without re-sending it.
+
+Package 1.2.0-42 includes the QML resources, shared services, translations and
+optional native menu entry. A separate user bundle and optional Qt 6 runtime
+provide the preview; production search, existing shortcuts and windows remain
+available. Source/runtime assets were compared. SEARCH-PREVIEW.md documents
+commands, boundaries and a five-sample benchmark: Qt 6 first frame 134.8 ms versus
+109.4 ms, RSS 119.9 versus 91.1 MiB, completed search 267.8 versus 263.9 ms.
+This is presentation flexibility with a measured startup/memory cost, not a
+claimed speedup. No personal state, test captures or runtime wheels enter Git.

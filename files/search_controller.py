@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 from PySide6.QtCore import QObject, Property, Signal, Slot, QTimer, QProcess, QSettings, QUrl, QFileSystemWatcher
-from PySide6.QtGui import QDesktopServices, QGuiApplication, QPalette
+from PySide6.QtGui import QDesktopServices, QGuiApplication, QPalette, QColor
 from lumen_i18n import tr, worker_process
 from assistant_backend import OpenCodeBackend
 from appearance_tokens import COLORS, RADII, DEFAULT_DESIGN, normalize_design
@@ -109,7 +109,7 @@ class SearchController(QObject):
                 QPalette.AlternateBase, QPalette.Text, QPalette.Button, QPalette.Mid, QPalette.Dark,
                 QPalette.Highlight, QPalette.HighlightedText))
         theme = dict(zip(('window', 'base', 'hover', 'text', 'button', 'border', 'muted', 'accent', 'onAccent'), values))
-        theme.update(name=name, radius=RADII[name])
+        theme.update(name=name, radius=RADII[name], light=QColor(theme['window']).lightness() >= 128)
         if theme != self._theme: self._theme = theme; self.themeChanged.emit()
         self._auto_approve = self.settings.value('autoApproveTools', False, type=bool)
         self.backend.set_auto_approve(self._auto_approve); self.stateChanged.emit()

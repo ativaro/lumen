@@ -106,7 +106,7 @@ ApplicationWindow {
             Label {
                 Layout.fillWidth: true; visible: window.controller.error.length > 0
                 text: window.controller.error; textFormat: Text.PlainText; wrapMode: Text.Wrap
-                color: window.theme.name === "atelier" || window.theme.name === "clear" ? "#ab3539" : "#ffb9b4"
+                color: window.theme.light ? "#ab3539" : "#ffb9b4"
                 font.pixelSize: 13
             }
             StackLayout {

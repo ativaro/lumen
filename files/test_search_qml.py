@@ -101,6 +101,7 @@ with tempfile.TemporaryDirectory() as tmp:
    for theme in ('glass','graphite','atelier','midnight'):
     c.settings.setValue('appearance',theme);c.settings.sync();c.reload_settings();QTest.qWait(20)
     assert c.theme['name']==theme and composer.property('text')=='keep draft'
+    assert c.theme['light']==(theme=='atelier')
     assert c.backend.session=='keep-session'
     assert not w.grabWindow().isNull()
    # Actual keyboard modifiers reach the one composer.
