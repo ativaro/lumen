@@ -155,8 +155,8 @@ def service(library,mode):
     if mode not in ('off','session','login'):raise ValueError(tr('Ungültiger Automatikmodus.'))
     config=settings(library);old=config['mode'];directory=Path(os.environ.get('XDG_CONFIG_HOME',str(Path.home()/'.config')))/'systemd/user'
     directory.mkdir(parents=True,exist_ok=True);script=str(Path(__file__).resolve())
-    if any(c in script for c in '\n\r%"\\'):raise ValueError(tr('Installationspfad für Benutzer-Dienst nicht unterstützt.'))
-    unit='[Unit]\nDescription=Lumen Sound App-Regeln\nAfter=pipewire-pulse.service\n[Service]\nType=simple\nExecStart=/usr/bin/python3 "'+script+'" --run\nRestart=on-failure\nRestartSec=3\nTimeoutStopSec=30\n[Install]\nWantedBy=default.target\n'
+    if any(c in script+sys.executable for c in '\n\r%"\\'):raise ValueError(tr('Installationspfad für Benutzer-Dienst nicht unterstützt.'))
+    unit='[Unit]\nDescription=Lumen Sound App-Regeln\nAfter=pipewire-pulse.service\n[Service]\nType=simple\nExecStart="'+sys.executable+'" "'+script+'" --run\nRestart=on-failure\nRestartSec=3\nTimeoutStopSec=30\n[Install]\nWantedBy=default.target\n'
     (directory/'lumen-sound.service').write_text(unit);run(['systemctl','--user','daemon-reload'])
     try:
         library.update(config['id'],mode=mode)

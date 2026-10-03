@@ -171,8 +171,8 @@ def schedule(library, identity, interval, job):
     config=Path(os.environ.get('XDG_CONFIG_HOME',str(Path.home()/'.config')))/'systemd/user'
     config.mkdir(parents=True,exist_ok=True)
     script=str(Path(__file__).resolve())
-    if any(c in script for c in '\n\r%"\\'): raise ValueError(tr('Installationspfad nicht für Zeitpläne geeignet.'))
-    unit='[Unit]\nDescription=Lumen Vault Sicherungsplaene\n[Service]\nType=oneshot\nExecStart=/usr/bin/python3 "'+script+'" --tick\nNice=10\n'
+    if any(c in script+sys.executable for c in '\n\r%"\\'): raise ValueError(tr('Installationspfad nicht für Zeitpläne geeignet.'))
+    unit='[Unit]\nDescription=Lumen Vault Sicherungsplaene\n[Service]\nType=oneshot\nExecStart="'+sys.executable+'" "'+script+'" --tick\nNice=10\n'
     (config/'lumen-vault.service').write_text(unit)
     (config/'lumen-vault.timer').write_text('[Unit]\nDescription=Lumen Vault Zeitplan\n[Timer]\nOnCalendar=*:0/15\nPersistent=true\n[Install]\nWantedBy=timers.target\n')
     job.command(['systemctl','--user','daemon-reload'],timeout=20)

@@ -2,6 +2,7 @@ import copy
 import os
 import subprocess
 import tempfile
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 from tools_data import Library
@@ -63,6 +64,7 @@ class SoundTest(unittest.TestCase):
                 self.assertIn(['systemctl','--user','disable','lumen-sound.service'],calls)
                 self.assertIn(['systemctl','--user','stop','lumen-sound.service'],calls)
                 restore.assert_called_once_with(library,stop=True)
+                self.assertIn('ExecStart="'+sound.sys.executable+'" ', (Path(tmp)/'systemd/user/lumen-sound.service').read_text())
 
 
 if __name__=='__main__':unittest.main()

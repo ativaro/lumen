@@ -5,6 +5,26 @@ from pathlib import Path
 
 
 class LumenOSTest(unittest.TestCase):
+    def test_generated_background_services_follow_shared_runtime_without_custom_changes(self):
+        import os
+        from unittest.mock import patch
+        from lumen_migrate import migrate_launchers
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp); data=root/'data'; config=root/'config'; bins=data/'lumen/bin'
+            bins.mkdir(parents=True); (bins/'lumen-python').write_text('#!/bin/sh\n')
+            units=config/'systemd/user'; units.mkdir(parents=True)
+            unit=units/'lumen-vault.service'
+            original='[Service]\nExecStart=/usr/bin/python3 "'+str(data/'lumen/files/vault_data.py')+'" --tick\nNice=10\n'
+            unit.write_text(original)
+            custom=units/'lumen-sound.service'; custom.write_text('[Service]\nExecStart=/custom/worker\n')
+            with patch.dict(os.environ,{'XDG_DATA_HOME':str(data),'XDG_CONFIG_HOME':str(config)}),patch('pathlib.Path.home',return_value=root):
+                self.assertEqual(migrate_launchers(bins),[str(unit)])
+                self.assertIn('ExecStart="'+str(bins/'lumen-python')+'"',unit.read_text())
+                self.assertIn('Nice=10',unit.read_text())
+                self.assertEqual(unit.with_name('lumen-vault.service.pre-lumen').read_text(),original)
+                self.assertEqual(migrate_launchers(bins),[])
+                self.assertIn('/custom/worker',custom.read_text())
+
     def test_cached_vision_launcher_reaches_current_app_and_preserves_arguments(self):
         import json
         import os

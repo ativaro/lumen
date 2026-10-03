@@ -58,6 +58,14 @@ def migrate_launchers(binary_directory):
         except UnicodeError: continue
         if path.parent == local_bin and not original.startswith('#!/bin/sh\nexec '): continue
         updated = original.replace(legacy + '/', str(Path(binary_directory)) + '/')
+        if path.name in ('lumen-vault.service', 'lumen-sound.service'):
+            helper = Path(binary_directory).resolve()/'lumen-python'
+            if helper.is_file() and not any(c in str(helper) for c in '\n\r%"\\'):
+                module = 'vault_data.py' if path.name == 'lumen-vault.service' else 'sound_data.py'
+                for root in (data/'lumen/files', data/'opencode-lumen/files', Path('/usr/share/lumen/files')):
+                    old_command = 'ExecStart=/usr/bin/python3 "'+str(root/module)+'" '
+                    new_command = 'ExecStart="'+str(helper)+'" "'+str(root/module)+'" '
+                    updated = updated.replace(old_command, new_command)
         if path == legacy_app:
             # KDE can cache the old vision command; it and an already-running
             # legacy KRunner both eventually invoke this shared app launcher.

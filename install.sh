@@ -148,7 +148,7 @@ subst "$REPO/data/autostart/lumen-versions.desktop" > "$CONFIG_HOME/autostart/lu
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DATA_HOME/applications" >/dev/null 2>&1 || true
 if command -v kbuildsycoca6 >/dev/null 2>&1; then
     if [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] && /usr/bin/python3 -c 'import dbus' 2>/dev/null; then
-        /usr/bin/python3 "$PREFIX/files/desktop_settings.py" refresh-shortcuts <<< '{}' \
+        "$BIN/lumen-python" "$PREFIX/files/desktop_settings.py" refresh-shortcuts <<< '{}' \
             || warn "Lumen-Tastenkürzel konnten nicht neu geladen werden; beim nächsten Anmelden erneut prüfen." "Lumen shortcuts could not be reloaded; check again after your next login."
     else
         kbuildsycoca6 >/dev/null 2>&1 || true

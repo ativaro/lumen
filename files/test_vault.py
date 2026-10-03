@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -20,6 +21,7 @@ class VaultTest(unittest.TestCase):
             vault.schedule(library,key,86400,Runner());self.assertTrue(any('enable' in c for c in calls));self.assertEqual(library.get(key)['interval'],86400)
             vault.schedule(library,key,0,Runner());self.assertIn('disable',calls[-1]);self.assertEqual(library.get(key)['interval'],0)
             self.assertIn('--tick',(Path(tmp)/'systemd/user/lumen-vault.service').read_text())
+            self.assertIn('ExecStart="'+sys.executable+'" ',(Path(tmp)/'systemd/user/lumen-vault.service').read_text())
 
     def test_rejects_nested_and_missing_targets_and_invalid_sources(self):
         with tempfile.TemporaryDirectory() as tmp:
