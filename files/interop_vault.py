@@ -69,6 +69,10 @@ def payload_sources(payload, root=None, store=None):
     entries = [entry for entry in discover_sources(root, store) if entry['app'] == app] if app in APP_NAMES else []
     if app == 'wissen':
         notebook = source.get('locator', {}).get('notebook') or source.get('locator', {}).get('root')
+        if notebook and source.get('id') == 'collection:' and payload.get('paths') == [notebook]:
+            if not Path(notebook).is_dir():raise ValueError(tr('Notizordner nicht erreichbar.'))
+            return [dict(app='wissen',title=tr('Lumen Wissen · Notizordner mit Bildern'),
+                         path=str(Path(notebook).resolve()),slot='notebook',kind='notebook')]+[e for e in discover_sources(root,store) if e['app']=='interop']
         if notebook and Path(notebook).is_dir() and not any(e['path'] == str(Path(notebook).resolve()) for e in entries):
             entries.append(dict(app='wissen', title=tr('Lumen Wissen · Notizordner mit Bildern'),
                                 path=str(Path(notebook).resolve()), slot='notebook', kind='notebook'))
@@ -112,7 +116,7 @@ def handoff_receipt(library, token, signature):
     return None
 
 
-def merge_sources(library, identity, sources, source_ref=None, token=None, signature=None):
+def merge_sources(library, identity, sources, source_ref=None, token=None, signature=None, schedule_interval=None):
     """Merge explicitly reviewed source rows idempotently under the plan lease."""
     import vault_data
     rows = [dict(path=str(row)) if not isinstance(row, dict) else dict(row) for row in sources]
@@ -133,7 +137,8 @@ def merge_sources(library, identity, sources, source_ref=None, token=None, signa
             previous = handoff_receipt(library, token, signature)
             if previous and previous['id'] != identity: raise ValueError(tr('Diese Übergabe gehört bereits zu einem anderen Sicherungsplan.'))
             receipts[token] = signature
-        library.update(identity, sources=paths, app_sources=list(apps.values()), interop_sources=refs, interop_handoffs=receipts)
+        schedule = dict(schedule_pending=schedule_interval) if schedule_interval is not None else {}
+        library.update(identity, sources=paths, app_sources=list(apps.values()), interop_sources=refs, interop_handoffs=receipts, **schedule)
     return library.get(identity)
 
 
@@ -152,7 +157,7 @@ def coverage(paths, root=None):
             saved = plan.get('backup_sources', [])
             last = plan.get('last_backup', 0) if included(saved) else 0
             changed = bool(last and path.exists() and path.stat().st_mtime > plan.get('backup_started', last))
-            candidates.append(dict(id=plan['id'], title=plan['title'], last_backup=last,
+            candidates.append(dict(id=plan['id'], title=plan['title'], last_backup=last, interval=plan.get('interval',0),
                                    changed=changed, state='changed' if changed else 'last_run' if last else 'planned'))
         result.append(dict(path=str(path), exists=path.exists(), plans=candidates))
     return result
@@ -407,13 +412,23 @@ def receive_sources(window, payload, root=None, store=None, done=None, entries=N
     root = root or window.library.root.parent
     if window.job: raise ValueError(tr('Lumen Vault arbeitet bereits. Übergabe anschließend erneut öffnen.'))
     signature = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+    def finished(identity):
+        if done:
+            done(dict(app='vault', id=identity, kind='record', title=window.library.get(identity)['title']) if identity else None)
+    def activate(identity):
+        import vault_data
+        window.focus_record(identity)
+        interval=window.library.get(identity).get('schedule_pending')
+        if interval is None:finished(identity);return True
+        def complete(_):
+            window.focus_record(identity);finished(identity)
+        return window.work(tr('Zeitplan wird eingerichtet …'),lambda job:vault_data.schedule(window.library,identity,interval,job),complete,
+                           failed=lambda _:finished(None))
     recovered = handoff_receipt(window.library, token, signature)
     if recovered:
-        window.focus_record(recovered['id'])
-        if done: done(recovered)
-        return True
+        return activate(recovered['id'])
     rows = entries if entries is not None else payload_sources(payload, root, store)
-    dialog = QDialog(window); dialog.setWindowTitle(tr('An Lumen Vault übergeben')); dialog.resize(680, 480)
+    dialog = QDialog(window); dialog.setWindowTitle(tr('Sicherung einrichten')); dialog.resize(680, 480)
     form = QFormLayout(dialog)
     form.addRow(label(tr('Wähle die gespeicherten Daten, die ein Sicherungsplan künftig erfassen soll. Dadurch wird noch keine Sicherung gestartet.')))
     listing = QListWidget(); listing.setAccessibleName(tr('Lumen-Daten für den Sicherungsplan'))
@@ -431,6 +446,14 @@ def receive_sources(window, payload, root=None, store=None, done=None, entries=N
     for plan in window.library.all(): plans.addItem(plan['title'], plan['id'])
     if window.current and plans.findData(window.current) >= 0: plans.setCurrentIndex(plans.findData(window.current))
     form.addRow(tr('Sicherungsplan'), plans)
+    interval=QComboBox();interval.setAccessibleName(tr('Sicherungsrhythmus'))
+    for caption,value in [(tr('Nur manuell'),0),(tr('Täglich'),86400),(tr('Wöchentlich'),604800)]:interval.addItem(caption,value)
+    form.addRow(tr('Zeitplan'),interval)
+    def update_interval():
+        identity=plans.currentData();interval.setEnabled(bool(identity))
+        interval.setCurrentIndex(interval.findData(window.library.get(identity).get('interval',0)) if identity else 0)
+        interval.setToolTip('' if identity else tr('Den Zeitplan wählst du zusammen mit dem Sicherungsziel im nächsten Schritt.'))
+    plans.currentIndexChanged.connect(update_interval);update_interval()
     form.addRow(label(tr('Lumen Vault kopiert geöffnete Datenbanken konsistent. Ungespeicherte Änderungen in anderen Fenstern sind noch nicht enthalten.')))
     buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
     buttons.accepted.connect(dialog.accept); buttons.rejected.connect(dialog.reject); form.addRow(buttons)
@@ -439,14 +462,13 @@ def receive_sources(window, payload, root=None, store=None, done=None, entries=N
     if not chosen: raise ValueError(tr('Mindestens eine Quelle auswählen.'))
     if local_inbox.isChecked():
         chosen = [dict(row, kind='inbox-local', slot='inbox-local', title=tr('Lumen Inbox · lokale Aufgaben und Entwürfe')) if row.get('app') == 'inbox' else row for row in chosen]
-    def finished(identity):
-        if done:
-            done(dict(app='vault', id=identity, kind='record', title=window.library.get(identity)['title']) if identity else None)
     identity = plans.currentData()
     if identity:
-        merge_sources(window.library, identity, chosen, payload.get('source_url'), token, signature)
-        window.focus_record(identity); window.status.setText(tr('Quellen im Sicherungsplan ergänzt. Zum Sichern „Jetzt sichern“ wählen.'))
-        finished(identity); return True
+        rhythm=interval.currentData()
+        changed=rhythm if rhythm!=window.library.get(identity).get('interval',0) else None
+        merge_sources(window.library, identity, chosen, payload.get('source_url'), token, signature, schedule_interval=changed)
+        window.status.setText(tr('Quellen im Sicherungsplan ergänzt. Zum Sichern „Jetzt sichern“ wählen.'))
+        return activate(identity)
     return bool(window.create(prefill_sources=chosen, on_done=finished, source_ref=payload.get('source_url'),
                               handoff={token: signature} if token else None))
 

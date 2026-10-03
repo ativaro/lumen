@@ -89,7 +89,8 @@ class InteropUITest(unittest.TestCase):
             menu.actions()[0].trigger()
             launched.assert_called_once_with('reader',[str(file)],None)
         names=[a.text() for a in menu.actions()[1].menu().actions()]
-        self.assertTrue(any('Lumen Vault' in name for name in names))
+        self.assertIn(interop_ui.tr('Sicherung einrichten …'),names)
+        self.assertNotIn(interop_ui.tr('Mit Lumen Reader öffnen'),names)
 
     def test_busy_target_queues_reference_until_edits_can_be_flushed(self):
         w=self.window();first=w.library.create('First',notes='',questions=[],resources=[]);second=w.library.create('Second',notes='',questions=[],resources=[])

@@ -21,6 +21,13 @@ MAX_ITEMS = 1000
 MAX_PAYLOAD = 512 * 1024
 
 
+def source_title(source):
+    title=source.get('title') or tr('Original öffnen')
+    page=source.get('position',{}).get('page')
+    if page is not None:title+=tr(' · Seite {0}',page+1)
+    return title
+
+
 def _text(widget):
     return widget.toPlainText() if hasattr(widget, 'toPlainText') else widget.text()
 
@@ -32,6 +39,7 @@ def _selected(widget):
 
 
 def _focused(window, widget):
+    if widget is None:return False
     focus = getattr(window, '_interop_focus', None) or window.focusWidget()
     return focus is widget or bool(focus and widget.isAncestorOf(focus))
 
@@ -112,8 +120,11 @@ def from_paths(paths):
 
 def _reader(window, record):
     source = _ref('reader', record['id'], record['title'], path=_asset(window, record.get('asset')))
+    if _focused(window,getattr(window,'entries',None)):
+        return _payload(source,paths=[source['path']])
     page = max(0, window.page_index)
     selected, words, selection = window.selection()
+    if _focused(window,getattr(window,'notes',None)) or _focused(window,window.note):selected=''
     position = dict(page=page)
     source['position'] = position
     if selected:
@@ -140,7 +151,7 @@ def _wissen(window):
         note = window.doc
         path = _path(Path(root) / note['path'])
         source = _ref('wissen', note['path'], _text(window.title) or note['title'], 'note', path=path, locator=dict(root=root, area=window.area))
-        selected = _selected(window.editor)
+        selected = '' if _focused(window,getattr(window,'entries',None)) else _selected(window.editor)
         if selected:
             cursor = window.editor.textCursor()
             source['position'] = dict(start=cursor.selectionStart(), end=cursor.selectionEnd())

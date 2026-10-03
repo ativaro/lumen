@@ -93,19 +93,21 @@ class Reader(ToolWindow):
         self.quote=label(tr('Eine Stelle markieren oder ein Lesezeichen setzen.'),'muted');rl.addWidget(self.quote)
         self.note=QPlainTextEdit();self.note.setPlaceholderText(tr('Deine Randnotiz …'));self.note.setAccessibleName(tr('Randnotiz'));self.note.setMaximumHeight(160);self.note.setEnabled(False);self.note.textChanged.connect(self.edited);rl.addWidget(self.note)
         rl.addWidget(button(tr('Markierung entfernen'),lambda:self.safe(self.remove_note),'edit-delete'))
+        rl.addWidget(button(tr('Als Notiz speichern …'),lambda:self.safe(self.remember),'document-save'))
         self.read_split.addWidget(self.rail);self.read_split.setSizes([720,280]);self.read_split.setStretchFactor(0,1)
         self.content.addWidget(row(button(tr('Vorlesen'),lambda:self.safe(self.speak),'audio-volume-high'),
-            button(tr('Ins Lumen-Wissen'),lambda:self.safe(self.remember),'bookmarks'),button(tr('Notizen exportieren'),lambda:self.safe(self.export_notes),'document-export'),
+            button(tr('Notizen exportieren'),lambda:self.safe(self.export_notes),'document-export'),
             button(tr('Lesemodus'),self.focus_mode,'view-fullscreen')))
         self.player=AudioPlayer();self.content.addWidget(self.player);self.player.hide()
         self.scroll.verticalScrollBar().valueChanged.connect(self.edited);self.text.verticalScrollBar().valueChanged.connect(self.edited)
         self.body.setEnabled(False);self.refresh()
         actions=self.menuBar().addMenu(tr('Dokument & Fundstellen'))
+        self.document_menu=actions
         actions.addAction(tr('Original prüfen und Lesekopie aktualisieren'),lambda:self.safe(self.refresh_original))
         actions.addAction(tr('Text dieser Seite lokal erkennen'),lambda:self.safe(self.ocr_current))
         actions.addSeparator()
-        actions.addAction(tr('Markierungen dieses Kapitels an Lumen übergeben'),lambda:self.safe(self.send_marks,True))
-        actions.addAction(tr('Alle Markierungen an Lumen übergeben'),lambda:self.safe(self.send_marks,False))
+        actions.addAction(tr('Kapitelmarkierungen als Notiz speichern …'),lambda:self.safe(self.send_marks,True))
+        actions.addAction(tr('Alle Markierungen als Notiz speichern …'),lambda:self.safe(self.send_marks,False))
         from interop_reader import send_book_marks
         actions.addAction(tr('Markierungen mehrerer Dokumente an Lumen Persönliches Radio'),lambda:self.safe(send_book_marks,self))
 
@@ -287,7 +289,7 @@ class Reader(ToolWindow):
         if self.job:raise ValueError(tr('Bitte den laufenden Vorgang abwarten.'))
         from interop_reader import marks_payload
         from interop_ui import reviewed_send
-        self.save();reviewed_send(self,marks_payload(self.library,self.current,chapter))
+        self.save();reviewed_send(self,marks_payload(self.library,self.current,chapter),'wissen.import')
 
     def refresh_original(self):
         if not self.current:raise ValueError(tr('Zuerst ein Dokument öffnen.'))
@@ -327,13 +329,13 @@ class Reader(ToolWindow):
         if not text and self.note_id:
             note=next(n for n in self.library.get(self.current)['notes'] if n['id']==self.note_id);text=note['text']+(tr('\n\nMeine Notiz: ')+note['note'] if note['note'] else '')
         if not text.strip():raise ValueError(tr('Eine Textstelle oder eine gespeicherte Markierung auswählen.'))
-        from lumen_store import Store
-        record=self.library.get(self.current);source=record['title']+tr(' · Reader-Seite ')+str(self.page_index+1)+' · '+record.get('source','')
-        store=Store();title=record['title']+tr(' · S. ')+str(self.page_index+1)
-        if store.setting('knowledge/notebook',''):
-            from wissen_data import worker
-            self.work(tr('Fundstelle im Wissen speichern …'),lambda job:worker(job,store,'save_memory',title=title,text=text,source=source),lambda _:self.status.setText(tr('Fundstelle mit Quelle im Lumen-Wissen gespeichert.')))
-        else:store.save_memory(title,text,source);self.status.setText(tr('Markierte Stelle samt Quellenverweis im lokalen Lumen-Wissen gespeichert.'))
+        from interop_ui import capture,reviewed_send
+        previous=getattr(self,'_interop_focus',None)
+        self._interop_focus=self.note if previous in (self.note,self.notes) or not self.selection()[0] else self.canvas
+        try:payload=capture(self)
+        finally:self._interop_focus=previous
+        payload['title']=self.library.get(self.current)['title']+tr(' · Seite {0}',payload['source']['position']['page']+1)
+        reviewed_send(self,payload,'wissen.import')
 
     def export_notes(self):
         self.save();record=self.library.get(self.current);lines=['# '+record['title'],record.get('source','')]

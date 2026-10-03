@@ -66,13 +66,15 @@ def verify(plan, password, job):
         raise ValueError(tr('Am Ziel liegt eine andere Sicherung. Den richtigen Datenträger verbinden.'))
 
 
-def create(library, title, repository, sources, password, job, app_sources=None, source_ref=None, handoff=None):
+def create(library, title, repository, sources, password, job, app_sources=None, source_ref=None, handoff=None, interval=0):
+    if interval not in (0,86400,604800):raise ValueError(tr('Ungültiger Zeitplan.'))
     if not title.strip():raise ValueError(tr('Bitte einen Namen angeben.'))
     existing = (Path(repository).expanduser()/'config').is_file()
     if existing and not sources: repository, sources = str(Path(repository).expanduser().resolve(strict=True)), []
     else: repository, sources = paths(repository, sources)
     if not existing and len(password) < 12: raise ValueError(tr('Bitte mindestens 12 Zeichen für das Sicherungspasswort verwenden.'))
     plan = dict(repository=repository, sources=sources, interval=0, next_run=0)
+    if interval:plan['schedule_pending']=interval
     if app_sources:
         from interop_vault import APP_NAMES, _slot
         plan['app_sources'] = []
@@ -177,6 +179,7 @@ def schedule(library, identity, interval, job):
     if interval: job.command(['systemctl','--user','enable','--now','lumen-vault.timer'],timeout=20)
     library.update(identity,interval=interval,next_run=time.time()+interval)
     if not any(p.get('interval') for p in library.all()):job.command(['systemctl','--user','disable','--now','lumen-vault.timer'],timeout=20)
+    library.update(identity,schedule_pending=None)
 
 
 def tick():

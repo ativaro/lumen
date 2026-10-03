@@ -4,7 +4,7 @@ import time
 
 from PyQt5.QtCore import Qt, QObject, QEvent, QMimeData, QTimer
 from PyQt5.QtGui import QDrag
-from PyQt5.QtWidgets import QApplication, QPushButton, QWidget
+from PyQt5.QtWidgets import QListWidget, QWidget
 from lumen_i18n import tr
 from interop_data import Registry, validate_payload
 
@@ -33,32 +33,23 @@ def payload_from_mime(mime, registry):
     return payload
 
 
-class DragButton(QPushButton):
+class EntryList(QListWidget):
+    """Drag the selected library item, using the same saved source as its menu."""
     def __init__(self, window):
-        super().__init__(tr('Lumen-Verweis ziehen'), window); self.window = window; self.origin = None
-        self.setAccessibleName(self.text()); self.setToolTip(tr('Die aktuelle Auswahl in eine andere Lumen-App ziehen. Dort wird die Übernahme geprüft.'))
-        self.setCursor(Qt.OpenHandCursor)
+        super().__init__(window); self.owner = window; self.setDragEnabled(True)
 
-    def mousePressEvent(self, event):
-        self.origin = event.pos() if event.button() == Qt.LeftButton else None
-        super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event):
-        if self.origin is not None and event.buttons() & Qt.LeftButton and (event.pos()-self.origin).manhattanLength() >= QApplication.startDragDistance():
-            self.origin = None
-            from interop_ui import with_saved, capture, error, root_for
-            def drag():
-                try:
-                    payload = capture(self.window); transfer = QDrag(self)
-                    transfer.setMimeData(make_mime(payload, Registry(root_for(self.window)))); transfer.exec_(Qt.CopyAction | Qt.LinkAction, Qt.LinkAction)
-                except Exception as exc: error(self.window, exc)
-            try: with_saved(self.window, drag)
-            except Exception as exc: error(self.window, exc)
-            return
-        super().mouseMoveEvent(event)
-
-
-def drag_button(window): return DragButton(window)
+    def startDrag(self, supported):
+        from interop_ui import with_saved, capture, error, root_for
+        if not self.currentItem() or getattr(self.owner, 'job', None): return
+        def drag():
+            try:
+                self.owner._interop_focus = self
+                payload = capture(self.owner); transfer = QDrag(self)
+                transfer.setMimeData(make_mime(payload, Registry(root_for(self.owner))))
+                transfer.exec_(Qt.CopyAction | Qt.LinkAction, Qt.LinkAction)
+            except Exception as exc: error(self.owner, exc)
+        try: with_saved(self.owner, drag)
+        except Exception as exc: error(self.owner, exc)
 
 
 class DropFilter(QObject):

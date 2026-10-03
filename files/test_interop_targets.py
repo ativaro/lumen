@@ -34,7 +34,7 @@ class TargetTest(unittest.TestCase):
         result = self.apply('wissen.import', dict(self.payload, paths=[str(source)]))
         self.assertEqual(result, self.apply('wissen.import', dict(self.payload, paths=[str(source)])))
         book = wissen_data.Notebook(self.store); note = book.read(result['id'])
-        self.assertIn(self.source, note['text']); self.assertIn('Ein überprüfbarer Gedanke.', note['text'])
+        self.assertEqual(self.source, note['source']); self.assertIn('Ein überprüfbarer Gedanke.', note['text'])
         self.assertEqual(len(book.scan()['notes']), 1)
         self.assertEqual(len(list((book.root/'attachments').iterdir())), 1)
         source.unlink(); self.assertIn('Ein Beleg', next((book.root/'attachments').iterdir()).read_text())

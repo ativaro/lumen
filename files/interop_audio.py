@@ -85,8 +85,8 @@ def install_audio_menu(window):
     """Called by shared menu installation after the Workbench UI exists."""
     if getattr(window, 'name', '') != 'workbench' or hasattr(window, '_audio_profile_menu'):
         return
-    from PyQt5.QtWidgets import QInputDialog
-    menu = window.menuBar().addMenu(tr('Lumen-Audioprofil'))
+    from PyQt5.QtWidgets import QInputDialog,QMenu
+    menu = QMenu(tr('Audioprofil'),window)
     window._audio_profile_menu = menu
 
     def save():

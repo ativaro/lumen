@@ -17,11 +17,11 @@ from tools_data import Library, document_text, media_duration, web_url
 
 
 ACTIONS = {
-    'wissen.import': dict(target='wissen', label=tr('In Lumen Wissen übernehmen'), modes=['copy', 'link'], description=tr('Neue Notiz mit Herkunft und ausgewählten Anhängen.')),
-    'workbench.add': dict(target='workbench', label=tr('Zu Lumen Projekt-Werkbank hinzufügen'), modes=['copy', 'link','live'], description=tr('Material und Notizen einem neuen oder vorhandenen Projekt zuordnen.')),
+    'wissen.import': dict(target='wissen', label=tr('Als Notiz speichern …'), modes=['copy', 'link'], description=tr('In Lumen Wissen speichern. Die Originaldatei bleibt unverändert.')),
+    'workbench.add': dict(target='workbench', label=tr('Zu einem Projekt hinzufügen …'), modes=['copy', 'link','live'], description=tr('Material und Notizen einem neuen oder vorhandenen Projekt zuordnen.')),
     'workbench.question': dict(target='workbench', label=tr('Als offene Projektfrage übernehmen'), modes=['copy'], description=tr('Ausgewählten Text als offene Frage mit Herkunft speichern.')),
-    'household.add': dict(target='household', label=tr('Zu Lumen Digitaler Haushalt hinzufügen'), modes=['copy','link','live'], description=tr('Belege, Handbücher und Notizen einem Gerät oder Vertrag zuordnen.')),
-    'radio.add': dict(target='radio', label=tr('Als Quelle in Lumen Persönliches Radio übernehmen'), modes=['copy'], description=tr('Lokalen Text für eine neue oder vorhandene Radioausgabe sammeln.')),
+    'household.add': dict(target='household', label=tr('Zu einem Gerät oder Vertrag hinzufügen …'), modes=['copy','link','live'], description=tr('Belege, Handbücher und Notizen einem Gerät oder Vertrag zuordnen.')),
+    'radio.add': dict(target='radio', label=tr('Für eine Radioausgabe sammeln …'), modes=['copy'], description=tr('Lokalen Text für eine neue oder vorhandene Radioausgabe sammeln.')),
     'reader.import': dict(target='reader', label=tr('In Lumen Reader öffnen'), modes=['copy'], description=tr('Eine private Lesekopie mit Herkunft anlegen.')),
     'meetings.import': dict(target='meetings', label=tr('Aufnahme in Lumen Meeting-Werkstatt öffnen'), modes=['copy'], description=tr('Audio lokal importieren; Transkription separat starten.')),
     'meetings.agenda': dict(target='meetings', label=tr('Als Meeting-Agenda übernehmen'), modes=['copy'], description=tr('Text als Agenda einer neuen oder vorhandenen Besprechung hinzufügen.')),
@@ -108,7 +108,9 @@ def _remember(db, token, signature, result):
 
 def _body(payload, mode='copy'):
     content = payload.get('text', '').strip() if mode == 'copy' else ''
-    return (content+'\n\n' if content else '') + tr('Quelle: ') + payload['source_url']
+    from interop_sources import source_title
+    title=source_title(payload.get('source',{})).replace('\\','\\\\').replace('[','\\[').replace(']','\\]')
+    return (content+'\n\n' if content else '') + tr('Quelle: ') + '['+title+']('+payload['source_url']+')'
 
 
 def _copy(library, path, job, created, limit=128*1024**2):
@@ -160,7 +162,9 @@ def _wissen(library, payload, choice, job, store, created):
         note = book.read(relative)
         if note.get('legacy') != marker: raise ValueError(tr('Am Übergabeziel liegt bereits eine andere Notiz.'))
     except FileNotFoundError:
-        text = _body(payload, choice.get('mode', 'copy')); links = []
+        # The notebook stores the source in portable metadata and displays it
+        # as a named link outside the editable text.
+        text = payload.get('text','').strip() if choice.get('mode','copy')=='copy' else ''; links = []
         if choice.get('mode', 'copy') == 'copy' and not payload.get('text', '').strip():
             imported = [document_text(p, job) for p in payload.get('paths', []) if Path(p).suffix.lower() in ('.md', '.txt')]
             if sum(map(len, imported)) > 120000: raise ValueError(tr('Übergabetext größer als 120.000 Zeichen.'))

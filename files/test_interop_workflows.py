@@ -111,7 +111,7 @@ class WorkflowTest(unittest.TestCase):
             windows[0].focus_record(self.device); windows[1].focus_record(self.project)
             with patch('interop_ui.reviewed_send') as send:
                 for window, label, action in [(windows[0], 'Kündigungsfrist im Kalender planen', 'inbox.event'), (windows[1], 'Agenda aus offenen Fragen', 'meetings.agenda')]:
-                    menu = next(item.menu() for item in window.menuBar().actions() if item.text() == 'Lumen Abläufe')
+                    menu = window._workflow_menu
                     next(item for item in menu.actions() if item.text() == label).trigger()
                     self.assertEqual(send.call_args.args[2], action)
                     self.assertEqual(send.call_args.args[1]['source']['id'], window.current)

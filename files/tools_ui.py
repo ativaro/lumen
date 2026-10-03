@@ -158,7 +158,8 @@ class ToolWindow(QMainWindow):
         self.search = QLineEdit(); self.search.setPlaceholderText(tr('Bibliothek durchsuchen …')); self.search.setAccessibleName(tr('Bibliothek durchsuchen'))
         self.search.textChanged.connect(self.refresh); side.addWidget(self.search)
         self.add_button = button(tr('Neu'), lambda: self.safe(self.create), 'list-add', True); side.addWidget(self.add_button)
-        self.entries = QListWidget(); self.entries.setObjectName('searchResults'); self.entries.setAccessibleName(tr('Bibliothek'))
+        from interop_drag import EntryList
+        self.entries = EntryList(self); self.entries.setObjectName('searchResults'); self.entries.setAccessibleName(tr('Bibliothek'))
         self.entries.currentItemChanged.connect(self.select); side.addWidget(self.entries,1)
         self.archived = QCheckBox(tr('Archiv anzeigen')); self.archived.toggled.connect(self.refresh); side.addWidget(self.archived)
         self.archive_button = button(tr('Archivieren / wiederherstellen'), lambda: self.safe(self.archive), 'archive-insert'); side.addWidget(self.archive_button)

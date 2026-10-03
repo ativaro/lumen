@@ -185,7 +185,9 @@ def context(window, reopen=False):
 
 
 def install_menu(window):
-    menu = window.menuBar().addMenu(tr('Lumen Abläufe'))
+    from PyQt5.QtWidgets import QMenu
+    menu = QMenu(tr('Passende Aktionen'),window)
+    window._workflow_menu=menu
     def add(title, callback): menu.addAction(title, lambda: window.safe(callback))
     if window.name == 'household':
         add(tr('Belegdaten prüfen'), lambda: invoice(window))

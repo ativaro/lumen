@@ -337,3 +337,26 @@ backend send/status path, HTTP and final result rendering. Only the external
 model is replaced by the local test server; no personal report is transmitted.
 
 Final isolated suite: 338 passed and six optional checks skipped (344 total).
+
+## Contextual interoperability experience
+
+- [x] Remove generic integration chrome; retain content actions and object drag.
+- [x] Direct Files → Reader; focused Reader → Wissen review and source links.
+- [x] Notebook → Vault setup, schedule and truthful status in existing controls.
+- [x] German/English native flows, regression checks and local rollout.
+
+Acceptance is recorded in SPEC-interop-experience.md.
+
+Verified: 351 isolated tests (345 passed, six optional skips). Seven native
+interaction checks pass in both German and English against the installed bundle:
+context menu loading, direct Reader drops, Reader quote review/persistence/source
+navigation, notebook edit flushing, backup status, new schedules and retry after
+schedule failure. External backup commands/keyring calls use synthetic doubles in
+the native setup checks; the suite also exercises real encrypted Restic backup and
+restore. Native screenshots were inspected for both languages.
+
+Reviewed source selection, unsaved edits, cancellation, idempotent schedule retry,
+menu accessibility, translations and saved-data compatibility. Installed 18
+runtime files with checksum verification and a private rollback copy under
+`~/.local/state/lumen/manual-updates/contextual-interop-20261004-000203`.
+Existing user windows were left open; reopening them loads the new UI.

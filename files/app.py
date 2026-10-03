@@ -1625,6 +1625,8 @@ class Window(QMainWindow):
         menu.addAction(tr('Bilder nach Motiv suchen …'), lambda: self.photo_tools('search'))
         menu.addAction(tr('Fotos aufräumen …'), lambda: self.photo_tools('tidy'))
         menu.addAction(tr('Aktualisieren\tF5'), self.refresh)
+        from interop_context import add_history
+        add_history(self, menu)
         menu.addAction(tr('Versteckte Dateien\tStrg+H'), self.toggle_hidden)
         menu.addSeparator()
         menu.addAction(tr('Tastenkürzel & Info'), lambda: QMessageBox.information(self, 'Lumen Files',

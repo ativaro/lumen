@@ -44,6 +44,8 @@ class Wissen(ToolWindow):
         self.title.setPlaceholderText(tr('Eine Erinnerung festhalten') if area=='lumen' else tr('Deine erste Notiz'))
         for key,b in self.area_buttons.items():b.setChecked(key==area)
         self.folder_action.setVisible(area=='user');self.share_folder_action.setVisible(area=='user');self.share_note.setVisible(area=='user');self.share_note.setEnabled(False);self.memory_options.setVisible(area=='lumen')
+        self.backup_action.setVisible(area=='user');self.backup_info.setVisible(area=='user')
+        self.origin.hide()
         self.collection_button.setVisible(area=='user')
         self.add_button.setAccessibleName(tr('Neue Erinnerung') if area=='lumen' else tr('Neue Notiz'));self.remove_action.setText(tr('Vergessen …') if area=='lumen' else tr('Notiz entfernen …'));self.remove_action.setEnabled(False)
         self.location.setText(tr('Lumen-Gedächtnis') if area=='lumen' else tr('Meine Notizen'));self.update_collections()
@@ -94,6 +96,27 @@ class Wissen(ToolWindow):
         if self.pending_file:
             path,self.pending_file=self.pending_file,'';self.after_job=lambda:self.safe(self.open_file,path)
         else:self.after_job=self.poll
+
+    def backup_notebook(self):
+        from interop_ui import with_saved,reviewed_send
+        def send():
+            if not self.book:return
+            source=dict(app='wissen',kind='collection',id='collection:',title=tr('Meine Notizen'),
+                        locator=dict(root=str(self.book.root),area=self.area))
+            reviewed_send(self,dict(title=source['title'],source=source,paths=[str(self.book.root)]),'vault.sources')
+        with_saved(self,send)
+
+    def backup_status(self):
+        from interop_vault import coverage
+        from datetime import datetime
+        self.backup_action.setEnabled(bool(self.book) and not self.job)
+        plans=coverage([str(self.book.root)],self.library.root.parent)[0]['plans'] if self.book else []
+        lines=[]
+        for plan in plans:
+            rhythm={0:tr('Nur manuell'),86400:tr('Täglich'),604800:tr('Wöchentlich')}.get(plan['interval'],tr('Nur manuell'))
+            state=tr('Letzter Sicherungslauf: {0}',datetime.fromtimestamp(plan['last_backup']).strftime('%d.%m.%Y %H:%M')) if plan['last_backup'] else tr('Noch kein erfolgreicher Sicherungslauf.')
+            lines.append(plan['title']+' · '+rhythm+'\n'+state)
+        self.backup_info.setText('\n'.join(lines) or tr('Noch kein Sicherungsplan für dieses Notizbuch.'))
     def action(self,action,done,**values):
         if self.job and self.writing:
             self.after_job=lambda:self.action(action,done,**values);return
@@ -225,7 +248,10 @@ class Wissen(ToolWindow):
             if meta.get('evidence'):details+=tr('\n\nDeine Aussage: „')+meta['evidence']+'“'
             source=details+'\n\n'+source
         from interop_ui import source_markup
-        self.source.setText(source_markup(source))
+        self.source.setText(source_markup(source,self.library.root.parent))
+        self.source.setVisible(self.area=='lumen')
+        self.origin.setText(source_markup(source,self.library.root.parent))
+        self.origin.setVisible(self.area=='user' and bool(note['source']))
     def select(self,item,old):
         if item and not self.loading:self.safe(self.open_note,item.data(Qt.UserRole))
     def open_note(self,path):
@@ -328,7 +354,7 @@ class Wissen(ToolWindow):
         external=self.external_connections()
         for value in external:
             item=QListWidgetItem(('← ' if value.get('direction')=='in' else '→ ')+value['app_title']+' · '+value['title']);item.setData(Qt.UserRole,value['url']);self.links.addItem(item)
-        self.details_button.setText(tr('Herkunft und Optionen') if self.area=='lumen' else str(self.links.count())+tr(' Verbindungen · Herkunft'))
+        self.details_button.setText(tr('Herkunft und Optionen') if self.area=='lumen' else tr('Zugehörige Inhalte ({0})',self.links.count()))
         if self.tabs.currentIndex()==2:self.map.display(self.notes,current,external)
     def external_connections(self):
         if not self.doc or not self.book:return []
@@ -377,6 +403,7 @@ class Wissen(ToolWindow):
             data.clear_draft(self.store,self.book.root,path);self.show_note(note)
         self.action('create',done,title=(self.title.text() or self.doc['title'])+tr(' – Entwurf'),text=text,source=self.doc['source'])
     def clear_note(self,message):
+        self.origin.clear();self.origin.hide()
         self.doc=None;self.dirty=False;self.loading=True;self.editor.clear();self.title.clear();self.loading=False;self.editor.setEnabled(False);self.title.setEnabled(False);self.title.setPlaceholderText(message);self.title.show();self.preview.clear();self.views.setCurrentIndex(0);self.view_button.hide();self.links.clear();self.source.clear();self.share_note.setEnabled(False);self.remove_action.setEnabled(False)
     def archive(self):
         if not self.doc:return

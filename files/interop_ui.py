@@ -24,9 +24,11 @@ def capture(window):
 
 def actions(payload):
     from interop_targets import ACTIONS,available
-    result=[(key,tr(ACTIONS[key]['label'])) for key in available(payload)]
+    source=payload.get('source',{}).get('app')
+    result=[(key,tr(ACTIONS[key]['label'])) for key in available(payload)
+            if key not in ({'reader.import'} if source=='reader' else {'wissen.import'} if source=='wissen' else set())]
     if payload.get('paths') or payload.get('source',{}).get('app')!='files':
-        result.append(('vault.sources',tr('Lumen Vault: in Sicherungsplan aufnehmen')))
+        if source!='vault':result.append(('vault.sources',tr('Sicherung einrichten …')))
     return result
 
 
@@ -48,7 +50,7 @@ def reviewed_send(window,payload,action=None):
             if not options:raise ValueError(tr('Für diese Auswahl gibt es noch kein passendes Übergabeziel.'))
             chosen=action
             if not chosen:
-                label,ok=QInputDialog.getItem(window,tr('An Lumen übergeben'),tr('Was soll mit der Auswahl geschehen?'),[v for _,v in options],0,False)
+                label,ok=QInputDialog.getItem(window,tr('Weitere Aktionen'),tr('Was möchtest du mit der Auswahl tun?'),[v for _,v in options],0,False)
                 if not ok:return
                 chosen=options[[v for _,v in options].index(label)][0]
             if chosen not in dict(options):raise ValueError(tr('Dieses Ziel unterstützt die Auswahl nicht.'))
@@ -58,7 +60,7 @@ def reviewed_send(window,payload,action=None):
             target=chosen.split('.')[0];token=registry.enqueue(target,chosen,value)
             if getattr(window,'name','')==target:controller(window).enqueue({'handoff':token})
             else:launch(target,['--handoff',token],root_for(window))
-            if hasattr(window,'status'):window.status.setText(tr('Übergabe in der Zielanwendung prüfen.'))
+            if hasattr(window,'status'):window.status.setText(tr('In {0} fortsetzen.',app_name(target)))
         except Exception as exc:error(window,exc)
     # MIME attachment decoding/file copying is performed in the existing cancellable worker.
     if any(item.get('kind')=='attachment' for item in payload.get('items',[])) and hasattr(window,'work'):
@@ -98,7 +100,7 @@ def review(window,request):
     title=QLineEdit(default_title);form.addRow(tr('Titel'),title)
     destination=QComboBox();rows=choices(action,root_for(window),store=getattr(window,'store',None))
     needs_choice=action in ('inbox.draft','inbox.event') or spec.get('requires_choice',False)
-    if not needs_choice:destination.addItem(tr('Neuen Eintrag anlegen'),'')
+    if not needs_choice and action!='wissen.import':destination.addItem(tr('Neuen Eintrag anlegen'),'')
     for row in rows:destination.addItem(row['title'],row['id'])
     if needs_choice and not rows:
         dialog.deleteLater()
@@ -106,20 +108,27 @@ def review(window,request):
             window.account_dialog()
             if choices(action,root_for(window),store=getattr(window,'store',None)):return review(window,request)
         return None
-    form.addRow(tr('Ziel'),destination)
+    if rows or needs_choice:
+        field={'wissen.import':tr('Notizordner'),'workbench.add':tr('Projekt'),'workbench.question':tr('Projekt'),
+               'household.add':tr('Gerät oder Vertrag'),'inbox.draft':tr('Mailkonto'),'inbox.event':tr('Kalender')}.get(action,tr('Speichern in'))
+        form.addRow(field,destination)
     mode=QComboBox()
     for key in spec.get('modes',['copy']):
         if key=='live' and not (payload.get('source',{}).get('app')=='wissen' and payload['source'].get('kind') in ('note','collection')):continue
-        mode.addItem({'copy':tr('Kopie übernehmen'),'link':tr('Original verknüpfen'),'live':tr('Aktuelle Notiz oder Sammlung live anzeigen')}[key],key)
+        mode.addItem({'copy':tr('Eigenständige Kopie speichern'),'link':tr('Link zum Original speichern'),'live':tr('Mit der Originalnotiz aktuell halten')}[key],key)
     if any(Path(p).is_dir() for p in payload.get('paths',[])) and mode.findData('link')>=0:mode.setCurrentIndex(mode.findData('link'))
-    form.addRow(tr('Übernahme'),mode)
+    if mode.count()>1 and (payload.get('paths') or action in ('workbench.add','household.add')):
+        form.addRow(tr('Inhalt'),mode)
     task=next((item for item in payload.get('items',[]) if item.get('kind')=='task'),{})
-    due=QLineEdit(task.get('due',''));due.setPlaceholderText('JJJJ-MM-TT');form.addRow(tr('Datum, falls benötigt'),due)
-    preview=QPlainTextEdit(payload.get('text',''));preview.setReadOnly(True);preview.setAccessibleName(tr('Vorschau der Übergabe'))
-    form.addRow(preview)
+    due=QLineEdit(task.get('due','') if action in ('inbox.task','inbox.event') else '');due.setPlaceholderText('JJJJ-MM-TT')
+    if action in ('inbox.task','inbox.event'):form.addRow(tr('Fällig am') if action=='inbox.task' else tr('Datum'),due)
+    preview=QPlainTextEdit(payload.get('text',''));preview.setReadOnly(True);preview.setAccessibleName(tr('Inhalt der neuen Notiz') if action=='wissen.import' else tr('Inhalt'))
+    if payload.get('text'):form.addRow(preview)
     if payload.get('paths'):form.addRow(QLabel('\n'.join(payload['paths'][:10])))
-    form.addRow(QLabel(tr('Die Herkunft bleibt verknüpft.')))
+    from interop_sources import source_title
+    form.addRow(QLabel(tr('Quelle: {0}',source_title(payload.get('source',{})))))
     buttons=QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel)
+    if action=='wissen.import':buttons.button(QDialogButtonBox.Save).setText(tr('Notiz speichern'))
     buttons.accepted.connect(dialog.accept);buttons.rejected.connect(dialog.reject);form.addRow(buttons)
     if dialog.exec_()!=QDialog.Accepted:return None
     if due.text():
@@ -143,9 +152,10 @@ class Controller(QObject):
         self.timer.stop()
 
     def remember_focus(self,old,new):
+        from PyQt5.QtWidgets import QAbstractButton
         window=getattr(self,'window',None)
         # Qt may emit focus changes while Python is collecting a widget cycle.
-        if window is None or sip.isdeleted(window) or new is None or sip.isdeleted(new):return
+        if window is None or sip.isdeleted(window) or new is None or sip.isdeleted(new) or isinstance(new,QAbstractButton):return
         central=window.centralWidget()
         if central and (new is central or central.isAncestorOf(new)):
             window._interop_focus=new
@@ -216,7 +226,7 @@ class Controller(QObject):
             try:url=registry.register(ref);registry.finish(token,url)
             except Exception as exc:
                 registry.release(token,str(exc)[:4000]);raise
-            w.status.setText(tr('Übernommen. Die Quelle bleibt erreichbar.'))
+            w.status.setText(tr('Notiz „{0}“ gespeichert.',ref['title']) if ref['app']=='wissen' else tr('In „{0}“ gespeichert.',ref['title']))
         def failed(message):registry.release(token,str(message)[:4000])
         def finished():
             if applied.get('ref'):focus(w,applied['ref'])
@@ -234,7 +244,8 @@ class Controller(QObject):
                     from interop_sources import from_paths
                     paths=[url.toLocalFile() for url in mime.urls()]
                     timer=QTimer(self);timer.setSingleShot(True)
-                    timer.timeout.connect(lambda:self.window.safe(lambda:reviewed_send(self.window,from_paths(paths))))
+                    from interop_context import receive_drop
+                    timer.timeout.connect(lambda:self.window.safe(lambda:receive_drop(self.window,from_paths(paths))))
                     timer.timeout.connect(timer.deleteLater);timer.start(0)
                 return True
         return False
@@ -300,7 +311,7 @@ def browse(window,mode='related',payload=None):
                 item=listing.currentItem();row=item.data(Qt.UserRole+1) if item else None
                 if not row or row['state']!='done':return
                 if row['target']!=getattr(window,'name',''):
-                    QMessageBox.information(dialog,tr('Im Ziel rückgängig machen'),tr('Diese Übernahme in der Zielanwendung unter Lumen verbinden → Übergaben rückgängig machen.'));return
+                    QMessageBox.information(dialog,tr('Im Ziel rückgängig machen'),tr('In der Zielanwendung „Letzte Aktionen …“ öffnen und dort rückgängig machen.'));return
                 if row['action']=='vault.sources':raise ValueError(tr('Sicherungsquellen im Lumen-Vault-Plan bearbeiten. Vorhandene Sicherungen bleiben erhalten.'))
                 if QMessageBox.question(dialog,tr('Übernahme rückgängig machen'),tr('Nur die unveränderte lokale Übernahme zurücknehmen? Neu angelegte Einträge kommen ins Archiv; die Quelle bleibt erhalten. Bereits gespeicherte Kalendertermine bleiben bestehen.'))!=QMessageBox.Yes:return
                 from interop_undo import undo
@@ -330,27 +341,10 @@ def install(window):
     if getattr(window,'name','') in ('inbox','meetings','radio'):
         from interop_communications import install_communications_menu
         install_communications_menu(window)
-    from interop_drag import drag_button,install_drop_filter
-    window.menuBar().setCornerWidget(drag_button(window),Qt.TopRightCorner)
-    install_drop_filter(window,lambda payload:with_saved(window,lambda:reviewed_send(window,payload)))
-    menu=window.menuBar().addMenu(tr('Lumen verbinden'))
-    def guarded(callback):
-        def call():
-            try:callback()
-            except Exception as exc:error(window,exc)
-        return call
-    menu.addAction(tr('An Lumen übergeben …'),guarded(lambda:send_current(window)))
-    menu.addAction(tr('Lumen-Verweis kopieren'),guarded(lambda:copy_link(window)))
-    menu.addAction(tr('Verbindungen und Herkunft …'),guarded(lambda:browse(window)))
-    menu.addAction(tr('In Lumen Files zeigen'),guarded(lambda:show_files(window)))
-    menu.addAction(tr('Gemeinsame Tags …'),guarded(lambda:browse(window,'tags')))
-    if getattr(window,'name','') in ('workbench','household'):
-        from interop_live import show_live,show_paths
-        menu.addAction(tr('Verknüpfte Notizen live anzeigen …'),guarded(lambda:with_saved(window,lambda:show_live(window))))
-        if window.name=='household':menu.addAction(tr('Verknüpfte Ordner und Dateien …'),guarded(lambda:show_paths(window)))
-    menu.addSeparator()
-    menu.addAction(tr('Lumen gemeinsam durchsuchen …'),guarded(lambda:browse(window,'search')))
-    menu.addAction(tr('Übergaben …'),guarded(lambda:browse(window,'history')))
+    from interop_drag import install_drop_filter
+    from interop_context import install as install_context, receive_drop
+    install_drop_filter(window,lambda payload:with_saved(window,lambda:receive_drop(window,payload)))
+    if hasattr(window,'entries'):install_context(window)
 
 
 def files_menu(window,menu,paths):
@@ -360,10 +354,12 @@ def files_menu(window,menu,paths):
         def reader():
             for path in paths:launch('reader',[path],root_for(window))
         menu.addAction(tr('Mit Lumen Reader öffnen'),lambda:safe_action(window,reader))
-    targets=menu.addMenu(tr('An Lumen übergeben'))
-    for action,label in actions(payload):targets.addAction(label,lambda checked=False,a=action:reviewed_send(window,payload,a))
-    menu.addAction(tr('Lumen-Verbindungen …'),lambda:safe_action(window,lambda:browse(window,'related',payload)))
-    menu.addAction(tr('Lesestand und Sicherungsstatus …'),lambda:file_status(window,paths))
+    targets=menu.addMenu(tr('Weitere Aktionen'))
+    for action,label in actions(payload):
+        if action=='reader.import':continue
+        targets.addAction(label,lambda checked=False,a=action:reviewed_send(window,payload,a))
+    menu.addAction(tr('Verwendet in …'),lambda:safe_action(window,lambda:browse(window,'related',payload)))
+    menu.addAction(tr('Lesefortschritt und Sicherungen …'),lambda:file_status(window,paths))
     if len(paths)==1:
         from interop_vault import show_file_versions
         menu.addAction(tr('Versionen in Lumen Vault …'),lambda:safe_action(window,lambda:show_file_versions(window,paths[0],root_for(window))))
@@ -425,7 +421,13 @@ def attachment_send(window):
     window._interop_focus=window.attachments
     send_current(window)
 
-def source_markup(text):
+def source_markup(text,root=None):
     import html,re
     escaped=html.escape(text)
-    return re.sub(r'lumen://object/[a-f0-9]{32}(?:\?[^\s<>]+)?',lambda m:'<a href="'+m[0]+'">'+tr('Quelle in Lumen öffnen')+'</a>',escaped).replace('\n','<br>')
+    def link(match):
+        try:
+            from interop_sources import source_title
+            title=source_title(Registry(root).resolve(html.unescape(match[0])))
+        except (ValueError,OSError):title=tr('Original öffnen')
+        return '<a href="'+match[0]+'">'+html.escape(title)+'</a>'
+    return re.sub(r'lumen://object/[a-f0-9]{32}(?:\?[^\s<>]+)?',link,escaped).replace('\n','<br>')

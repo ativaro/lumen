@@ -5,13 +5,16 @@ Alle Tools beginnen sichtbar mit **Lumen**, einschließlich **Lumen Persönliche
 ## Einstieg
 
 1. In Lumen Files eine Datei markieren und das Kontextmenü öffnen. Dokumente lassen sich direkt in Lumen Reader öffnen oder über die weiteren Lumen-Aktionen übernehmen.
-2. In den Werkzeugen zuerst den gewünschten Eintrag oder Text auswählen. Im Menü **Lumen verbinden** stehen passende Ziele und Spezialaktionen bereit.
-3. Das Ziel zeigt Titel, Inhalt, Zielobjekt und Übernahmeart zur Prüfung. Eine Kopie bleibt eigenständig, ein Link führt zum Original, eine Live-Verbindung zeigt aktuelle Wissen-Notizen oder Sammlungen im Projekt beziehungsweise Haushalt an.
-4. Über Quellenverweise wieder zur Herkunft springen. Der Übergabeverlauf zeigt wartende, erledigte und fehlgeschlagene Übergaben. Unveränderte lokale Übernahmen lassen sich dort zurücknehmen.
+2. Den gewünschten Eintrag mit der rechten Maustaste öffnen. Passende Aktionen beschreiben das Ergebnis, beispielsweise **Als Notiz speichern …** oder **Zu einem Projekt hinzufügen …**. Einträge lassen sich auch direkt aus ihrer Liste in das Zielwerkzeug ziehen. Dort erscheint der passende Speicherdialog.
+3. Im Reader eine Textstelle markieren und **Als Notiz speichern …** wählen. In Lumen Wissen Titel und Notizordner prüfen. Die neue Notiz enthält einen Link mit Dokumentname und genauer Seite. In Wissen stehen weitere Aktionen auch im vorhandenen **Mehr**-Menü.
+4. Zusätzliche Entscheidungen erscheinen nur dort, wo sie etwas ändern: **Eigenständige Kopie speichern**, **Link zum Original speichern** oder **Mit der Originalnotiz aktuell halten**. Ein Datum erscheint bei Aufgaben und Terminen.
+5. Benannte Quellen öffnen wieder die ursprüngliche Stelle. **Letzte Aktionen …** zeigt wartende, erledigte und fehlgeschlagene Aktionen und erlaubt das Zurücknehmen unveränderter lokaler Übernahmen. Es ist über die Kontextmenüs, im Reader im Dokumentmenü und in Wissen unter Einstellungen erreichbar.
 
 ## Wissen und Sicherungen
 
-In Lumen Wissen **Lumen verbinden → Lumen Vault: in Sicherungsplan aufnehmen** wählen. In Lumen Vault Quellen prüfen, einen vorhandenen Plan ergänzen oder einen neuen Plan anlegen. Die eigentliche Sicherung wird bewusst gestartet. Offene Lumen-Anwendungen bestätigen zuvor das Speichern; Konflikte oder nicht erreichbare aktive Fenster brechen die Sicherung ab. Andere Änderungen während der Sicherung bleiben technisch möglich.
+In Lumen Wissen **Einstellungen → Notizbuch sichern …** wählen. Zuvor werden offene Änderungen gespeichert. Lumen Vault zeigt den Notizordner samt Bildern und vorhandenen Quellenverknüpfungen zur Prüfung; gemeinsame Lumen-Einstellungen und das Gedächtnis werden dabei nicht automatisch hinzugefügt. Einen vorhandenen Plan ergänzen oder einen neuen verschlüsselten Sicherungsplan anlegen. Der Zeitplan kann manuell, täglich oder wöchentlich sein. Ein neuer Plan bleibt standardmäßig manuell; **Jetzt sichern** startet die erste Sicherung sofort.
+
+Die Notizbuch-Einstellungen zeigen den eingerichteten Rhythmus und den letzten erfolgreichen Sicherungslauf getrennt. Scheitert das Aktivieren eines Zeitplans, bleibt der Plan erhalten und zeigt den offenen Schritt an. **Zeitplan übernehmen** oder das erneute Öffnen der wartenden Aktion setzt die Einrichtung fort. Offene Lumen-Anwendungen bestätigen vor einer Sicherung das Speichern; Konflikte oder nicht erreichbare aktive Fenster brechen die Sicherung ab. Andere Änderungen während der Sicherung bleiben technisch möglich.
 
 Wiederherstellungen erscheinen zunächst in einer getrennten Umgebung. Notizen lassen sich vor der Übernahme vergleichen; Inbox-Aufgaben und Entwürfe erhalten bei der Übernahme neue Kennungen und bleiben ungesendet. Eine Plananzeige allein beweist keine gesicherte Version einer bestimmten Datei: Dafür die Dateiversionen in Lumen Vault prüfen.
 

@@ -49,6 +49,9 @@ class Vault(ToolWindow):
         form.addRow(tr('Erster Quellordner'),row(source,button(tr('Wählen'),lambda:choose(source))))
         if len(prefill_sources)>1:form.addRow(tr('Weitere Lumen-Quellen'),label('\n'.join(row['path'] for row in prefill_sources[1:])))
         desktop=QCheckBox(tr('Lumen- und KDE-Einstellungen ebenfalls sichern'));form.addRow(desktop)
+        interval=QComboBox();interval.setAccessibleName(tr('Sicherungsrhythmus'))
+        for caption,value in [(tr('Nur manuell'),0),(tr('Täglich'),86400),(tr('Wöchentlich'),604800)]:interval.addItem(caption,value)
+        form.addRow(tr('Zeitplan'),interval)
         form.addRow(tr('Sicherungspasswort'),password);form.addRow(tr('Wiederholen'),confirm)
         form.addRow(label(tr('Neues Ziel: leerer Ordner. Vorhandenes Restic-Ziel: bisheriges Sicherungspasswort verwenden. Passwörter speichert der System-Schlüsselbund.')))
         buttons=QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel);form.addRow(buttons)
@@ -56,15 +59,21 @@ class Vault(ToolWindow):
         if dialog.exec_()!=QDialog.Accepted:return False
         if password.text()!=confirm.text():raise ValueError(tr('Die Passwörter stimmen nicht überein.'))
         sources=([source.text()] if source.text().strip() else [])+[row['path'] for row in prefill_sources[1:]]+(vault.config_sources() if desktop.isChecked() else [])
-        name,target,key=title.text(),repo.text(),password.text()
+        name,target,key,rhythm=title.text(),repo.text(),password.text(),interval.currentData()
+        created=[]
         def prepare(job):
             chosen=[row for row in prefill_sources if row['path'] in sources]
-            return vault.create(self.library,name,target,sources,key,job,app_sources=chosen,source_ref=source_ref,handoff=handoff)
+            identity=vault.create(self.library,name,target,sources,key,job,app_sources=chosen,source_ref=source_ref,handoff=handoff,interval=rhythm)
+            created.append(identity)
+            if rhythm:vault.schedule(self.library,identity,rhythm,job)
+            return identity
         def complete(identity):
             self.focus_record(identity)
             if on_done:on_done(identity)
-        self.work(tr('Sicherungsziel wird vorbereitet …'),prepare,complete)
-        if on_done and self.job:self.job.failed.connect(lambda _:on_done(None))
+        def failed(message):
+            if created:self.focus_record(created[0])
+            if on_done:on_done(None)
+        self.work(tr('Sicherungsziel wird vorbereitet …'),prepare,complete,failed=failed)
         return bool(self.job)
 
     def load(self,plan):
@@ -72,6 +81,9 @@ class Vault(ToolWindow):
         self.interval.setCurrentIndex(self.interval.findData(plan.get('interval',0)))
         last=plan.get('last_backup');when=datetime.fromtimestamp(last).strftime('%d.%m.%Y %H:%M') if last else tr('Noch keine abgeschlossene Sicherung')
         self.details.setText(plan['repository']+'\n'+when+('\n'+plan['last_error'] if plan.get('last_error') else ''))
+        if plan.get('schedule_pending') is not None:
+            self.interval.setCurrentIndex(self.interval.findData(plan['schedule_pending']))
+            self.details.setText(self.details.text()+'\n'+tr('Zeitplan noch nicht aktiviert. „Zeitplan übernehmen“ erneut wählen.'))
         if plan.get('app_sources'):
             self.details.setText(self.details.text()+'\n'+tr('Lumen-Daten: gespeicherte Dateien und konsistente Datenbankkopien. Ungespeicherte Fensteränderungen sind nicht enthalten.'))
         if plan.get('backup_flushes'):

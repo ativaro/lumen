@@ -244,7 +244,8 @@ def install(window):
     name = getattr(window, 'name', '')
     if name not in ('inbox', 'meetings', 'radio') or hasattr(window, '_communications_menu'):
         return
-    menu = window.menuBar().addMenu(tr('Lumen Arbeitsabläufe'))
+    from PyQt5.QtWidgets import QMenu
+    menu = QMenu(tr('Passende Aktionen'),window)
     window._communications_menu = menu
     choices = {
         'inbox': [(tr('Unterhaltung in Lumen Wissen sichern'), 'wissen.import'), (tr('Unterhaltung Lumen Projekt-Werkbank zuordnen'), 'workbench.add'), (tr('Unterhaltung mit Anhängen an Lumen Vault'), 'vault'), (tr('Newsletter als Quelle für Lumen Persönliches Radio'), 'newsletter'), (tr('Kalendertermin als Meeting-Agenda'), 'meeting'), (tr('Mailanhang mit vorhandener Fassung vergleichen'), 'compare'), (tr('Mailanhang mit Herkunft ablegen'), 'save'), (tr('Supportentwurf mit Haushaltsunterlagen'), 'support')],

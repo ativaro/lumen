@@ -72,8 +72,16 @@ class ReaderTest(unittest.TestCase):
             from wissen_data import activate
             activate(Store())
             window=Reader(self.root/'ui');window.open_file(str(path));ready(window);window.canvas.select_all();window.mark()
-            window.note.setPlainText('Meine Randnotiz');window.save();window.remember();ready(window);key=window.current
-            self.assertIn('Reader-Seite 1',Store().memories()[0]['source']);window.close()
+            window.note.setPlainText('Meine Randnotiz');window.save()
+            window._interop_focus=window.note
+            with patch('interop_ui.launch') as launch:
+                window.remember();ready(window)
+            from interop_data import Registry
+            request=Registry(self.root/'ui').request(launch.call_args.args[1][1])
+            self.assertEqual(request['action'],'wissen.import')
+            self.assertEqual(request['payload']['source']['position']['page'],0)
+            self.assertIn('Meine Randnotiz',request['payload']['text'])
+            key=window.current;window.close()
             again=Reader(self.root/'ui');again.focus_record(key);ready(again)
             self.assertEqual(again.library.get(key)['notes'][0]['note'],'Meine Randnotiz')
             again.mode.setCurrentIndex(1);again.text.selectAll();again.mark();self.assertEqual(len(again.library.get(key)['notes']),2);again.close()
