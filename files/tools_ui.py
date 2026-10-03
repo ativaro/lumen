@@ -151,7 +151,7 @@ class ToolWindow(QMainWindow):
         outer = QVBoxLayout(shell); outer.setContentsMargins(24,20,24,16); outer.setSpacing(16)
         title_area = QWidget(); tl = QVBoxLayout(title_area); tl.setContentsMargins(0,0,0,0)
         tl.addWidget(label(title, 'workplaceHeading')); tl.addWidget(label(tagline, 'muted'))
-        head = QHBoxLayout(); head.addWidget(title_area,1); head.addWidget(button(tr('Einrichtung'), self.setup, 'configure'))
+        head = QHBoxLayout(); head.addWidget(title_area,1); head.addWidget(button('Lumen Apps', lambda: self.safe(self.open_apps), 'view-grid')); head.addWidget(button(tr('Einstellungen'), self.open_settings, 'configure'))
         outer.addLayout(head)
         self.split = QSplitter(); outer.addWidget(self.split,1)
         self.sidebar = QWidget(); side = QVBoxLayout(self.sidebar); side.setContentsMargins(0,0,16,0); side.setSpacing(12)
@@ -185,6 +185,15 @@ class ToolWindow(QMainWindow):
     def error(self, text):
         self.status.setText(text)
         QMessageBox.warning(self, self.windowTitle(), text[:3000])
+
+    def open_apps(self):
+        from lumen_apps import launch
+        launch('apps')
+
+    def open_settings(self):
+        from settings_dialog import SettingsDialog
+        dialog = SettingsDialog(self, assistant_settings=self.settings, application=self.name)
+        dialog.exec(); dialog.deleteLater()
 
     def setup(self):
         from setup_dialog import open_setup

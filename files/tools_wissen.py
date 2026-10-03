@@ -34,12 +34,13 @@ class Wissen(ToolWindow):
     def focus_record(self,key):self.current=key
     def load(self,record):pass
     def switch_area(self,area):
+        if area not in ('user', 'lumen'): raise ValueError(tr('Unbekannter Wissensbereich.'))
+        self.pending_area = None
         for key,b in self.area_buttons.items():b.setChecked(key==self.area)
         if area==self.area:self.tabs.setCurrentIndex(0);return
-        if self.engine and self.engine.busy:return
+        if self.engine and self.engine.busy:self.pending_area=area;return
+        if self.poller or self.job:self.pending_area=area;return
         if self.dirty:self.save_note(lambda:self.switch_area(area));return
-        if self.poller:self.pending_area=area;return
-        if self.job:return
         self.area=area;self.collection='';self.folders=[];self.doc=None;self.notes={};self.book=None;self.loading=True;self.editor.clear();self.title.clear();self.loading=False;self.editor.setEnabled(False);self.title.setEnabled(False);self.preview.clear();self.views.setCurrentIndex(0);self.view_button.hide();self.title.show();self.source.clear();self.links.clear();self.recovery.hide();self.banner.hide();self.refresh()
         self.answer='';self.answer_sources=[];self.candidates.clear();self.response.clear();self.question.clear();self.tabs.setCurrentIndex(0)
         self.title.setPlaceholderText(tr('Eine Erinnerung festhalten') if area=='lumen' else tr('Deine erste Notiz'))
@@ -131,6 +132,8 @@ class Wissen(ToolWindow):
         elif self.pending_file:
             path,self.pending_file=self.pending_file,'';QTimer.singleShot(0,lambda:self.safe(self.open_file,path))
         elif callback:QTimer.singleShot(0,lambda:self.safe(callback))
+        elif self.pending_area:
+            area,self.pending_area=self.pending_area,None;QTimer.singleShot(0,lambda:self.safe(self.switch_area,area))
         elif self.dirty and not self.conflict:self.autosave_timer.start()
         elif self.views.currentIndex()==1 and self.doc and self.preview.note_hash!=self.doc['hash']:QTimer.singleShot(0,lambda:self.safe(self.prepare_preview))
     def job_failed(self,message):
@@ -163,6 +166,8 @@ class Wissen(ToolWindow):
         super().ai_done(success,result)
         if self.pending_file:
             path,self.pending_file=self.pending_file,'';QTimer.singleShot(0,lambda:self.safe(self.open_file,path))
+        elif self.pending_area:
+            area,self.pending_area=self.pending_area,None;QTimer.singleShot(0,lambda:self.safe(self.switch_area,area))
     def save(self):
         super().save();self.draft_timer.stop()
         if self.dirty and self.doc and self.book:
@@ -332,10 +337,12 @@ class Wissen(ToolWindow):
                 if self.dirty:self.conflict=True;self.banner.setText(tr('Die Notiz wurde entfernt. Den lokalen Entwurf als Kopie speichern.'));self.banner.show();self.recovery.show()
                 else:self.clear_note(tr('Notiz wurde entfernt'))
         else:
+            from lumen_apps import startup_preference
+            restore = startup_preference('wissen', 'restoreSelection', self.settings)
             last=self.library.get(self.current).get('last_memory' if self.area=='lumen' else 'last_note','')
             visible=[n for n in self.notes.values() if self.in_collection(n)]
-            if last in self.notes and self.in_collection(self.notes[last]):self.show_note(self.notes[last])
-            elif visible:self.show_note(max(visible,key=lambda n:n.get('modified',0)))
+            if restore and last in self.notes and self.in_collection(self.notes[last]):self.show_note(self.notes[last])
+            elif restore and visible:self.show_note(max(visible,key=lambda n:n.get('modified',0)))
         self.update_collections()
         pending=getattr(self,'interop_pending_collection',None)
         if pending and pending[1]==self.area and (self.area=='lumen' or not pending[0] or Path(pending[0])==self.book.root):

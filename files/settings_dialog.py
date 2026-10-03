@@ -41,7 +41,7 @@ def combo(items, value):
 class SettingsDialog(QDialog):
     preferencesChanged = Signal(str, list)
 
-    def __init__(self, parent=None, files_settings=None, assistant_settings=None, page=0, load_system=True):
+    def __init__(self, parent=None, files_settings=None, assistant_settings=None, page=0, load_system=True, application=None):
         super().__init__(parent)
         self.setWindowTitle(tr('Einstellungen — Lumen'))
         self.resize(1000, 760)
@@ -59,7 +59,13 @@ class SettingsDialog(QDialog):
         self.nav.setFixedWidth(205)
         self.nav.setSpacing(5)
         self.stack = QStackedWidget()
-        row.addWidget(self.nav)
+        sidebar = QWidget(); sidebar.setFixedWidth(220)
+        sidebar_layout = QVBoxLayout(sidebar); sidebar_layout.setContentsMargins(0, 0, 0, 0)
+        self.nav_search = QLineEdit(); self.nav_search.setPlaceholderText(tr('Bereich finden …'))
+        self.nav_search.setAccessibleName(tr('Einstellungsbereich suchen'))
+        sidebar_layout.addWidget(self.nav_search); sidebar_layout.addWidget(self.nav, 1)
+        self.nav_search.textChanged.connect(self.filter_pages)
+        row.addWidget(sidebar)
         row.addWidget(self.stack, 1)
         root.addLayout(row, 1)
         self.status = text(tr('Änderungen mit „Übernehmen“ speichern. Systemdialoge übernehmen ihre eigenen Einstellungen.'))
@@ -96,9 +102,66 @@ class SettingsDialog(QDialog):
         from hardware_ui import HardwareView
         hardware = self.page(tr('Hardware & Aktivität'), tr('Temperaturen, Lüfter und Leistungsaufnahme · nur lesend'))
         hardware.addWidget(HardwareView(self))
-        self.nav.setCurrentRow(page)
+        self.app_pages = {'lumen': 0, 'files': 1}
+        self.build_apps()
+        self.nav.setCurrentRow(self.app_pages.get(application, page))
         if load_system:
             QTimer.singleShot(0, self.reload)
+
+    def filter_pages(self, query):
+        query = query.strip().casefold()
+        first = None
+        for index in range(self.nav.count()):
+            item = self.nav.item(index); match = query in item.text().casefold(); item.setHidden(not match)
+            if match and first is None: first = index
+        if first is not None and (self.nav.currentItem() is None or self.nav.currentItem().isHidden()): self.nav.setCurrentRow(first)
+
+    def build_apps(self):
+        from lumen_apps import catalogue, COMPANIONS, launch
+        explanations = {
+            'search': tr('Suche und Gespräch nutzen das gemeinsame Modell, die Sprache und das Erscheinungsbild von Lumen. Diktieren wird im Einrichtungsassistenten eingerichtet.'),
+            'wissen': tr('Notizbuch, Sammlungen und Freigaben verwaltest du in „Meine Notizen“. Im Lumen-Gedächtnis steuerst du Erinnerungen und automatisches Lernen.'),
+            'inbox': tr('Mail- und Kalenderkonten werden in der Inbox verwaltet. Die KI-Lesefreigabe für lokale Nachrichten findest du unter MCP.'),
+            'vault': tr('Quellen, Ziele, Zeitpläne und Verschlüsselung werden je Sicherungsplan in Vault eingestellt.'),
+            'reader': tr('Stimme und Audioausgabe wählst du im Reader. Bibliothek und Markierungen bleiben lokal gespeichert.'),
+            'sound': tr('Ausgabegeräte, Lautstärken und Regeln für Anwendungen verwaltest du in Sound.'),
+            'meetings': tr('Aufnahmen und Transkriptionen verwaltest du in der Meeting-Werkstatt. Lokale Spracherkennung wird über die gemeinsame Einrichtung installiert.'),
+            'household': tr('Dokumente, Kategorien und Erinnerungsfristen stellst du je Eintrag im Digitalen Haushalt ein.'),
+            'workbench': tr('Arbeitsordner, Aufgaben und Projektverknüpfungen verwaltest du je Projekt in der Projekt-Werkbank.'),
+            'radio': tr('Quellen, Programme, Stimmen und Audioausgabe verwaltest du im Persönlichen Radio.'),
+        }
+        self.app_controls = {}
+        def open_app(key, area=None):
+            try: launch(key, area=area)
+            except (OSError, ValueError) as error: self.status.setText(str(error))
+        for key, title, description, icon in catalogue():
+            if key in self.app_pages: continue
+            self.app_pages[key] = self.stack.count()
+            panel = self.page(title, description)
+            panel.addWidget(text(explanations[key]))
+            panel.addWidget(button(tr('App öffnen'), lambda _=False, app=key: open_app(app)))
+            if key == 'wissen':
+                panel.addWidget(button(tr('Lumen-Gedächtnis öffnen'), lambda: open_app('wissen', 'lumen')))
+            if key in COMPANIONS:
+                controls = {}
+                for pref, caption in [('restoreGeometry', tr('Fenstergröße und Position wiederherstellen')), ('restoreSelection', tr('Letzten Eintrag wieder öffnen'))]:
+                    control = QCheckBox(caption)
+                    control.setChecked(self.field(self.assistant, f'apps/{key}/{pref}', True, bool))
+                    panel.addWidget(control); controls[pref] = control
+                self.app_controls[key] = controls
+                def save_app(_=False, app=key, fields=controls):
+                    try:
+                        self.save(self.assistant, {f'apps/{app}/{pref}': control.isChecked() for pref, control in fields.items()})
+                        self.status.setText(tr('App-Einstellungen gespeichert. Gilt beim nächsten Start.'))
+                    except (OSError, ValueError) as error: self.status.setText(str(error))
+                panel.addWidget(button(tr('App-Einstellungen übernehmen'), save_app))
+            panel.addWidget(text(tr('Gemeinsam für alle Lumen-Apps')))
+            panel.addWidget(button(tr('Sprache, Modell und Arbeitsweise'), lambda: self.nav.setCurrentRow(0)))
+            panel.addWidget(button(tr('Erscheinungsbild'), lambda: self.nav.setCurrentRow(3)))
+            if key in ('search', 'meetings', 'reader', 'radio'):
+                panel.addWidget(button(tr('Spracheingabe und Einrichtung'), lambda: self.nav.setCurrentRow(8)))
+            if key == 'inbox': panel.addWidget(button(tr('KI-Zugriff auf die Inbox'), lambda: self.nav.setCurrentRow(9)))
+            panel.addStretch()
 
     def build_mcp(self):
         page = self.page('MCP', tr('Lumen-Funktionen für die KI'))

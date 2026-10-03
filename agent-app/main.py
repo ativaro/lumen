@@ -107,8 +107,10 @@ class LumenWindow(QMainWindow):
         from lumen_workplace import Workplace
         self.workplace = Workplace(self, self.workspace.store, self.workplace_files)
         self.pages.addWidget(self.workplace)
+        from lumen_apps import AppCenter
+        self.pages.addWidget(AppCenter(self))
         self.nav_buttons = []
-        for index, title in enumerate((tr('Gespräche'), tr('Systemstatus'), tr('Aktionen'), tr('Dateien'), tr('Aufträge'), tr('Wissen'), tr('Abläufe'), tr('Modelle'), tr('Arbeitsplatz'))):
+        for index, title in enumerate((tr('Gespräche'), tr('Systemstatus'), tr('Aktionen'), tr('Dateien'), tr('Aufträge'), tr('Wissen'), tr('Abläufe'), tr('Modelle'), tr('Arbeitsplatz'), 'Lumen Apps')):
             item = button(title, lambda _=False, i=index: self.show_page(i))
             item.setCheckable(True)
             navigation.addWidget(item)
@@ -145,6 +147,7 @@ class LumenWindow(QMainWindow):
         from settings_dialog import SettingsDialog
         dialog = SettingsDialog(self, assistant_settings=self.settings)
         dialog.preferencesChanged.connect(self.chat.reload_settings)
+        if self.file_window is not None: dialog.preferencesChanged.connect(self.file_window.reload_settings)
         dialog.exec()
         dialog.deleteLater()
 
@@ -188,6 +191,10 @@ class LumenWindow(QMainWindow):
             item.setChecked(i == index)
         if index == 1:
             self.refresh_system()
+        elif index == 5:
+            self.workspace.refresh_knowledge()
+        elif index == 6:
+            self.workspace.refresh_flows()
         elif index == 8:
             self.workplace.refresh_projects()
             self.workplace.refresh_modes()
@@ -407,7 +414,7 @@ def main():
     parser.add_argument('--file', action='append', default=[])
     parser.add_argument('--selection')
     parser.add_argument('--clipboard-image', action='store_true')
-    parser.add_argument('--page', choices=['chat', 'system', 'actions', 'files', 'tasks', 'knowledge', 'workflows', 'models', 'workplace', 'settings'], default='chat')
+    parser.add_argument('--page', choices=['chat', 'system', 'actions', 'files', 'tasks', 'knowledge', 'workflows', 'models', 'workplace', 'settings', 'apps'], default='chat')
     args = parser.parse_args()
     from lumen_migrate import migrate_user
     migrate_user()
@@ -419,7 +426,7 @@ def main():
     plain_launch = (args.action == 'open' and args.page != 'settings' and not any(
         (args.directory, args.location, args.prompt, args.context, args.file, args.selection,
          args.clipboard_image, os.environ.get('LUMEN_ASK_PROMPT'))))
-    page_index = {'chat': 0, 'system': 1, 'actions': 2, 'files': 3, 'tasks': 4, 'knowledge': 5, 'workflows': 6, 'models': 7, 'workplace': 8}
+    page_index = {'chat': 0, 'system': 1, 'actions': 2, 'files': 3, 'tasks': 4, 'knowledge': 5, 'workflows': 6, 'models': 7, 'workplace': 8, 'apps': 9}
     activation.page = page_index.get(args.page, 0)
     bus = QDBusConnection.sessionBus()
     if plain_launch and bus.isConnected() and bus.registerObject('/Lumen', activation, QDBusConnection.ExportAllSlots):

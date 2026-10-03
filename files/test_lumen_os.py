@@ -291,7 +291,7 @@ class LumenIntegrationTest(unittest.TestCase):
                 while space.knowledge_job and time.monotonic()<deadline:QTest.qWait(20)
                 self.assertIsNone(space.knowledge_job)
                 self.assertIn(completed_id,space.store.memories()[0]['source'])
-                self.assertEqual(space.memories.count(),1)
+                self.assertIn(str(space.store.setting('knowledge/notebook')), space.knowledge_status.text())
                 space.close_task.click(); self.assertEqual(space.tasks.count(), 0)
                 self.assertFalse(space.close_task.isEnabled())
                 self.assertEqual(space.store.task(completed_id)['status'], 'completed')

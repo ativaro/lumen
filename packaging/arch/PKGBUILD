@@ -111,6 +111,7 @@ package() {
     sub "$srcroot/data/applications/lumen-files.desktop" "$pkgdir/usr/share/applications/lumen-files.desktop"
     sub "$srcroot/data/applications/lumen-open.desktop" "$pkgdir/usr/share/applications/lumen-open.desktop"
     sub "$srcroot/data/applications/lumen-search.desktop" "$pkgdir/usr/share/applications/lumen-search.desktop"
+    sub "$srcroot/data/applications/lumen-apps.desktop" "$pkgdir/usr/share/applications/lumen-apps.desktop"
     sub "$srcroot/data/applications/lumen-search-preview.desktop" "$pkgdir/usr/share/applications/lumen-search-preview.desktop"
 
     for tool in meetings household workbench radio vault inbox reader sound wissen; do

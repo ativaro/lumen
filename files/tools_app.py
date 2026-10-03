@@ -16,13 +16,15 @@ def main():
     parser=argparse.ArgumentParser(description=tr('Eigenständige Desktop-Werkzeuge'))
     parser.add_argument('tool',choices=['meetings','household','workbench','radio','vault','inbox','reader','sound','wissen'])
     parser.add_argument('path',nargs='?')
+    parser.add_argument('--area', choices=['user', 'lumen'])
     destination=parser.add_mutually_exclusive_group()
     destination.add_argument('--handoff')
     destination.add_argument('--ref')
     args=parser.parse_args()
     if args.path and args.tool not in ('reader','wissen'):parser.error(tr('Dateien können nur an Reader oder Wissen übergeben werden.'))
+    if args.area and args.tool != 'wissen': parser.error(tr('Der Bereich ist nur für Lumen Wissen verfügbar.'))
     requested=str(Path(args.path).expanduser().absolute()) if args.path else ''
-    activation={key:value for key,value in [('path',requested),('handoff',args.handoff),('ref',args.ref)] if value}
+    activation={key:value for key,value in [('path',requested),('handoff',args.handoff),('ref',args.ref),('area',args.area)] if value}
     from interop_ui import controller
     app=create_app(); app.setApplicationName('lumen-'+args.tool); app.setDesktopFileName('lumen-'+args.tool)
     from tools_meetings import Meetings
@@ -49,6 +51,15 @@ def main():
     Registry(window.library.root.parent).recover(args.tool)
     server=QLocalServer(); QLocalServer.removeServer(server_name); server.setSocketOptions(QLocalServer.UserAccessOption)
     if not server.listen(server_name): raise RuntimeError(tr('Lokale Fensteraktivierung konnte nicht gestartet werden.'))
+    def dispatch(request):
+        if not isinstance(request, dict): raise ValueError(tr('Ungültige App-Anfrage.'))
+        request = dict(request)
+        area = request.pop('area', None)
+        if area is not None:
+            if args.tool != 'wissen' or area not in ('user', 'lumen'): raise ValueError(tr('Unbekannter Wissensbereich.'))
+            window.switch_area(area)
+        if request: controller(window).enqueue(request)
+
     def activate():
         socket=server.nextPendingConnection()
         if socket:
@@ -64,7 +75,7 @@ def main():
                         timer.stop();socket.readyRead.disconnect(receive)
                         serve_flush(window,socket,request)
                         return
-                    window.safe(controller(window).enqueue,request)
+                    window.safe(dispatch,request)
                     window.showNormal() if window.isMinimized() else window.show()
                     window.raise_(); window.activateWindow()
                 except (ValueError,AttributeError):pass
@@ -72,13 +83,14 @@ def main():
             socket.readyRead.connect(receive);receive()
     server.newConnection.connect(activate)
     state=QSettings(str(window.library.root/'window.ini'),QSettings.IniFormat)
-    if state.value('geometry'): window.restoreGeometry(state.value('geometry'))
+    from lumen_apps import startup_preference
+    if startup_preference(args.tool, 'restoreGeometry') and state.value('geometry'): window.restoreGeometry(state.value('geometry'))
     previous=state.value('record','')
-    if previous and any(r['id']==previous for r in window.library.all()): window.focus_record(previous)
+    if startup_preference(args.tool, 'restoreSelection') and previous and any(r['id']==previous for r in window.library.all()): window.focus_record(previous)
     def remember():
         state.setValue('geometry',window.saveGeometry()); state.setValue('record',window.current); state.sync(); server.close(); lock.unlock()
     app.aboutToQuit.connect(remember); window.show()
-    if activation:QTimer.singleShot(0,lambda:window.safe(controller(window).enqueue,activation))
+    if activation:QTimer.singleShot(0,lambda:window.safe(dispatch,activation))
     return app.exec()
 
 

@@ -135,6 +135,7 @@ subst "$REPO/data/applications/lumen-sel.desktop" > "$DATA_HOME/applications/lum
 subst "$REPO/data/applications/lumen-files.desktop" > "$DATA_HOME/applications/lumen-files.desktop"
 subst "$REPO/data/applications/lumen-open.desktop" > "$DATA_HOME/applications/lumen-open.desktop"
 subst "$REPO/data/applications/lumen-search.desktop" > "$DATA_HOME/applications/lumen-search.desktop"
+subst "$REPO/data/applications/lumen-apps.desktop" > "$DATA_HOME/applications/lumen-apps.desktop"
 subst "$REPO/data/applications/lumen-search-preview.desktop" > "$DATA_HOME/applications/lumen-search-preview.desktop"
 for tool in meetings household workbench radio vault inbox reader sound wissen; do
     subst "$REPO/data/applications/lumen-$tool.desktop" > "$DATA_HOME/applications/lumen-$tool.desktop"

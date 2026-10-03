@@ -1582,6 +1582,11 @@ class Window(QMainWindow):
             self.search.clear()
             self.file_stack.currentWidget().setFocus()
 
+    def show_apps(self):
+        from lumen_apps import launch
+        try: launch('apps')
+        except (OSError, ValueError) as error: QMessageBox.warning(self, 'Lumen Apps', str(error))
+
     def show_settings(self):
         from settings_dialog import SettingsDialog
         dialog = SettingsDialog(self, files_settings=self.settings, page=1)
@@ -1618,6 +1623,7 @@ class Window(QMainWindow):
         menu.addAction(tr('Offline verfügbare Ordner …'), self.offline.show)
         menu.addAction(tr('Dateiversionen …'), self.show_versions)
         self.add_workshop_action(menu)
+        menu.addAction('Lumen Apps', self.show_apps)
         menu.addAction(tr('Einstellungen\tStrg+Komma'), self.show_settings)
         menu.addAction(tr('Bibliotheken verwalten …'), self.spaces.library_manager)
         menu.addAction(tr('Arbeitsräume …'), self.spaces.room_menu)
