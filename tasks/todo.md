@@ -153,3 +153,18 @@ erreicht das bestehende Fenster. Gedächtnisnutzung und Lernen im angenommenen
 Benutzerprofil aktiviert, ohne Beispielinhalte anzulegen. Laufende andere Apps
 verwenden den neuen Gesprächscode nach ihrem nächsten Start. Systempaket bleibt
 unverändert; die aktualisierte Laufzeit liegt im Benutzerbundle.
+
+# Direktes Notizbuch — angenommener Bedienentwurf 1
+
+- [x] Automatisch speichern, ohne neuere Eingaben, Cursor oder Undo zu ersetzen.
+- [x] Drei Spalten, direkte Bereiche/Titel, Neu ohne Dialog und eingeklappte Details.
+- [x] Sammlungen aus Ordnern/Tags, sichtbare Freigabe, bestehende Werkzeuge erhalten.
+- [x] Verzögerte Schreibvorgänge, weitere Eingaben, Wechsel/Schließen, Frontmatter,
+  Konflikte, neue Notizen, Freigaben und native Darstellung geprüft.
+- [ ] Paket38, Benutzerinstallation, installierte Starter und Git-Abnahme.
+
+175 Python-Prüfungen im vollständigen Lauf (174 bestanden, ein optionaler
+CalDAV-Check übersprungen); bestehende QML-Themeprüfungen und fokussierte
+Wissen-/Gedächtnisprüfungen. Vier native Themes und kompakte Ansicht gerendert.
+Persönliche Daten bleiben außerhalb des Repos; Markdown, Dateipfade und
+Freigaben werden bei der Umstellung nicht migriert oder neu angelegt.

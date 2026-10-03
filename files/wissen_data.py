@@ -185,7 +185,7 @@ class Notebook:
                     if entry.is_dir(follow_symlinks=False):queue.append(path)
                     elif entry.name.lower().endswith('.md') and entry.is_file(follow_symlinks=False):
                         try:
-                            note=self.read(path);notes.append(note);size+=note['raw_size']
+                            note=self.read(path);note['modified']=entry.stat(follow_symlinks=False).st_mtime;notes.append(note);size+=note['raw_size']
                         except (OSError,ValueError,UnicodeError):errors+=1
         return dict(notes=notes,errors=errors,limited=bool(queue) or count>=10000 or size>=32*1024**2 or len(notes)>=5000,root=str(self.root),identity=self.identity)
 

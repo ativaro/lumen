@@ -2,25 +2,29 @@
 
 Eine eigene native Wissens-App, erreichbar über das Anwendungsmenü, die Suche
 oder `lumen-wissen`. Sie verwendet die vier Lumen-Themes und benötigt für lokale
-Notizen kein laufendes OpenCode. **Einrichtung** öffnet den gemeinsamen Wizard.
+Notizen kein laufendes OpenCode. **Einstellungen → Lumen einrichten** öffnet den
+gemeinsamen Wizard.
 
 ## Zwei Bereiche
 
-**Mein Bereich** ist dein persönliches Notizbuch. Bestehende und neue Notizen
-werden nicht automatisch als Gesprächskontext verwendet. **Diese Notiz für Lumen
-freigeben** erlaubt passende Auszüge; **Ordnerfreigaben** gilt für einen ganzen
+**Meine Notizen** ist dein persönliches Notizbuch. Bestehende und neue Notizen
+werden nicht automatisch als Gesprächskontext verwendet. Die Schaltfläche
+**Nur für mich** an der Notiz wechselt beim Anklicken zu **Für Lumen freigegeben**
+und erlaubt passende Auszüge; erneutes Anklicken entzieht die Freigabe.
+**Einstellungen → Ordnerfreigaben** gilt für einen ganzen
 Unterordner. Eine individuelle Notizregel hat Vorrang. Die Regeln gelten nur für
 den bestätigten Notizordner und seine Identität, auch bei einem NAS.
 
-**Lumen-Gedächtnis** liegt immer lokal im Lumen-Zustandsordner unter
+**Gedächtnis** öffnet Lumens Erinnerungen und liegt immer lokal im Lumen-Zustandsordner unter
 `lumen-memory`. Es enthält Vorlieben, Fakten und Entscheidungen, übergreifend
 oder bezogen auf ein Arbeitsverzeichnis. Bei jedem Eintrag stehen Herkunft,
 Zeitpunkt und gegebenenfalls die zugrunde liegende Nutzeraussage. Automatisch
 gelernte und von dir gepflegte Einträge sind unterscheidbar. Du kannst sie wie
 Notizen bearbeiten; korrigierte Einträge werden nicht automatisch überschrieben.
 
-**Gedächtnis verwenden** und **Aus Gesprächen lernen** steuern diese Funktionen
-getrennt. In frischen Profilen sind beide zunächst aus. Bei aktivierter Nutzung
+Unter **Herkunft und Optionen** steuern **Gedächtnis verwenden** und
+**Aus Gesprächen lernen** diese Funktionen getrennt. In frischen Profilen sind
+beide zunächst aus. Bei aktivierter Nutzung
 erhalten spätere Lumen-, Files- und Suchanfragen bis zu sechs passende
 Erinnerungen und vier freigegebene Notizauszüge, insgesamt höchstens 18.000 Zeichen.
 Inbox kann beim ausdrücklich gestarteten Entwurf ebenfalls Kontext verwenden;
@@ -53,28 +57,37 @@ Anfrage einen frischen Modellkontext. Frühere Chats und bereits an einen Anbiet
 
 ## Schreiben und verbinden
 
-**Neue Notiz** beziehungsweise Strg+N legt eine Markdown-Datei an. Die Suche
-durchsucht Titel, Text, Herkunft und `#tags`. Unter **Einfügen** lassen sich
-Notizlinks, Bilder und Tags einsetzen. `[[Notizname]]`, `[[datei.md|Anzeigename]]`
+Links stehen die beiden Bereiche und Sammlungen, daneben die Notizliste, rechts
+die Schreibfläche. **Neu** beziehungsweise Strg+N legt sofort eine Markdown-Datei
+an und markiert ihren Titel zum direkten Schreiben. Eine Titeländerung lässt den
+Dateinamen bestehen, damit vorhandene Verknüpfungen erhalten bleiben. Markdown-
+Frontmatter bleibt erhalten; die erste Hauptüberschrift wird als Titel bearbeitet.
+
+Die Suche durchsucht Titel, Text, Herkunft und `#tags`. Sammlungen filtern nach
+vorhandenen Unterordnern und Tags; im Gedächtnis nach Vorliebe/Fakt/Entscheidung.
+Die ungefilterte Liste zeigt zuletzt bearbeitete Notizen zuerst. Unter **Mehr**
+lassen sich Notizlinks, Bilder und Tags einsetzen. `[[Notizname]]`, `[[datei.md|Anzeigename]]`
 und gewöhnliche relative Markdown-Links verbinden Notizen. Mehrdeutige Namen
 lassen sich über den vollständigen relativen Dateinamen auflösen.
 
-**Vorschau** zeigt formatierten Text und lokale Bilder. **Bearbeiten** führt zum
-Markdown-Editor zurück. **Verbindungen** zeigt ausgehende Links und Rückverweise;
-bei schmalen Fenstern bleibt diese Spalte zunächst eingeklappt. **Fokus** blendet
-die Seitenleisten aus. Die optionale **Wissenskarte** zeigt die aktuelle Notiz
+**Mehr → Lesevorschau** zeigt formatierten Text und lokale Bilder. **Bearbeiten**
+führt zum Markdown-Editor zurück. Unter der Notiz lassen sich **Verbindungen und
+Herkunft** einblenden; die Details sind zunächst eingeklappt. **Mehr → Fokusmodus**
+blendet die Navigation und Notizliste aus. **Wissenskarte** links zeigt die aktuelle Notiz
 und bis zu 36 direkte Nachbarn. Ihre Knoten und die Verbindungsliste öffnen die
 jeweilige Notiz; die Liste ist auch per Tastatur bedienbar.
 
-**Speichern** oder Strg+S schreibt die Datei. Beim Wechsel der Notiz oder beim
-normalen Schließen wird ebenfalls gespeichert. Während des Schreibens wird
-nach kurzer Pause ein privater lokaler Entwurf gesichert. Änderungen aus anderen
+Nach etwa einer Sekunde Schreibpause speichert Lumen automatisch. Währenddessen
+kannst du weiterschreiben; Cursor und Rückgängig-Verlauf bleiben erhalten.
+**Mehr → Jetzt speichern** oder Strg+S schreibt sofort. Beim Wechsel der Notiz oder
+normalen Schließen wird ebenfalls gespeichert. Ein privater lokaler Entwurf wird
+bereits nach kürzerer Pause gesichert. Änderungen aus anderen
 Editoren werden etwa alle fünf Sekunden erkannt. Bei einem Konflikt bleibt der
 Entwurf erhalten: **Externe Fassung laden** verwirft ihn nach Bestätigung,
 **Entwurf als Kopie** legt eine zusätzliche Notiz an.
 
 Vor dem Überschreiben oder Entfernen speichert Lumen eine lokale Fassung.
-**Wiederherstellen** bringt sie zurück. Diese Kopien sind keine Btrfs-Snapshots
+**Frühere Fassungen** unter **Mehr** oder **Einstellungen** bringt sie zurück. Diese Kopien sind keine Btrfs-Snapshots
 und ersetzen keine Sicherung des Notizordners. Sie werden nicht automatisch
 bereinigt und können entsprechend Speicher belegen. Die Aktion **Vergessen** im
 Lumen-Gedächtnis entfernt auch diese Fassungen des jeweiligen Eintrags.
@@ -82,9 +95,9 @@ Lumen-Gedächtnis entfernt auch diese Fassungen des jeweiligen Eintrags.
 ## Eigener Ordner und offene Dateien
 
 Beim ersten Start wird `~/.local/state/lumen/wissen` angelegt; `LUMEN_DATA` bzw.
-`XDG_STATE_HOME` können den Basisort ändern. **Ordner wählen** öffnet einen
+`XDG_STATE_HOME` können den Basisort ändern. **Einstellungen → Notizordner wählen** öffnet einen
 anderen vorhandenen Ordner, etwa unter Dokumente oder auf einem eingebundenen
-NAS. Es verschiebt keine Dateien. **Ordner öffnen** zeigt den Speicherort im
+NAS. Es verschiebt keine Dateien. **Einstellungen → Aktuellen Ordner öffnen** zeigt den Speicherort im
 Dateimanager. `lumen-wissen "/pfad/zur/notiz.md"` öffnet eine Datei innerhalb des
 gewählten Ordners auch im bereits laufenden Fenster.
 

@@ -36,7 +36,7 @@ gracefully on other setups.
 | **Lumen Inbox** (`lumen-inbox`) | local IMAP inbox and SMTP drafts, Proton Bridge preset, CalDAV calendars, read-only ICS subscriptions and local tasks; [setup and limits](VAULT-INBOX.md) |
 | **Lumen Reader** (`lumen-reader`) | PDFs, EPUBs and saved articles; reading position, highlights, margin notes, local read-aloud and cited passages in Lumen knowledge |
 | **Lumen Sound** (`lumen-sound`) | per-stream volume, mute and output; opt-in app rules and music ducking during calls; [Reader/Sound guide](READER-SOUND.md) |
-| **Lumen Wissen** (`lumen-wissen`) | personal Markdown notebook and separate Lumen memory; explicit note/folder sharing, optional learning, sources, corrections and forgetting; images, links, knowledge map and sourced questions; [Wissen guide](WISSEN.md) |
+| **Lumen Wissen** (`lumen-wissen`) | direct notebook with autosave, editable titles, folder/tag collections and separate Lumen memory; explicit sharing, optional learning, corrections and forgetting; images, links, knowledge map and sourced questions; [Wissen guide](WISSEN.md) |
 | **Application designs** | Glas by default, plus Graphit, Atelier and Mitternacht; shared live themes for Lumen, search, Files, the image viewer, desktop panels and their popups, with native previews in settings |
 | **System watchdog** | systemd timer checks failed units, kernel errors, disk, GPU temp; automatic opencode analysis |
 | **App recovery** | Independent crash/hang detection for Lumen, Files and search; private reports and restoration of views and drafts |

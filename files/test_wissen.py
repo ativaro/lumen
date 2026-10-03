@@ -99,9 +99,44 @@ class WissenNativeTest(unittest.TestCase):
                 self.assertTrue(window.editor.isEnabled());window.editor.insertPlainText(' und während des Speicherns weitergeschrieben')
                 position=window.editor.textCursor().position();release.set();wait(lambda:not window.job and not window.dirty)
             self.assertIn('während des Speicherns',window.book.read(path)['text']);self.assertEqual(window.editor.textCursor().position(),position)
+            other=window.book.create('Zweite Notiz','Ein weiterer Gedanke');window.scanned(window.book.scan());entered.clear();release.clear()
+            with patch.object(wissen_data,'worker',side_effect=slow):
+                window.editor.appendPlainText('Vor dem Wechsel erhalten');window.save_note();wait(entered.is_set)
+                window.open_note(other['path']);release.set();wait(lambda:not window.job and window.doc['path']==other['path'])
+            self.assertIn('Vor dem Wechsel erhalten',window.book.read(path)['text']);path=other['path']
             window.editor.appendPlainText('Beim Schließen ebenfalls erhalten');window.close();wait(lambda:not window.isVisible() and not window.job)
             self.assertIn('Beim Schließen ebenfalls erhalten',window.book.read(path)['text']);self.assertIsNone(draft(window.store,window.book.root,path))
             window.deleteLater();QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
+
+    def test_direct_title_edit_frontmatter_collections_and_new_note(self):
+        from unittest.mock import patch
+        from PyQt5.QtCore import QCoreApplication,QEvent,Qt
+        from PyQt5.QtTest import QTest
+        from tools_wissen import Wissen
+        def ready(w):
+            for _ in range(300):
+                QTest.qWait(20)
+                if w.book and not w.job and not w.poller and not w.dirty:return
+            self.fail(w.status.text())
+        with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,{'LUMEN_DATA':tmp+'/state'}):
+            window=Wissen(Path(tmp)/'tools');window.show();ready(window)
+            QTest.mouseClick(window.add_button,Qt.LeftButton);ready(window)
+            self.assertTrue(window.title.hasFocus());self.assertEqual(window.editor.toPlainText(),'')
+            window.title.selectAll();QTest.keyClicks(window.title,'Arbeitsplan');window.editor.setPlainText('Ein Gedanke #ideen');ready(window)
+            first=window.doc['path'];self.assertEqual(window.book.read(first)['text'],'# Arbeitsplan\n\nEin Gedanke #ideen')
+            item=next(window.collections.item(i) for i in range(window.collections.count()) if window.collections.item(i).data(Qt.UserRole)=='tag:ideen')
+            window.collections.setCurrentItem(item);self.assertEqual(window.entries.count(),1)
+            window.details_button.click();self.assertTrue(window.rail.isVisible());window.details_button.click();self.assertFalse(window.rail.isVisible())
+            frontmatter='---\ncategory: projekt\n---\n\n'
+            for index,heading in enumerate(('# Alter Titel\n\n','')):
+                path=window.book.root/f'import{index}.md';path.write_text(frontmatter+heading+'Originaler Inhalt')
+                window.open_file(str(path));ready(window)
+                self.assertEqual(window.document_text(),path.read_text())
+                window.title.selectAll();QTest.keyClicks(window.title,'Neuer Titel');window.editor.appendPlainText('Erhalten');ready(window)
+                saved=window.book.read(path.name)['text'];self.assertTrue(saved.startswith(frontmatter+'# Neuer Titel\n\n'));self.assertIn('Originaler Inhalt\nErhalten',saved)
+                window.editor.appendPlainText('Weitere Bearbeitung');ready(window)
+                self.assertEqual(window.book.read(path.name)['text'].count('# Neuer Titel'),1)
+            window.close();ready(window);window.deleteLater();QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
 
     def test_explicit_mail_selection_capture(self):
         from unittest.mock import patch
