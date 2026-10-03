@@ -10,7 +10,7 @@ def saved_language():
     # CalDAV runs in an isolated Python environment without Qt. The preference is
     # a plain string in QSettings' Linux INI file, shared with the native apps.
     try:
-        from PyQt5.QtCore import QSettings
+        from lumen_qt import QSettings
     except ImportError:
         config = configparser.ConfigParser(interpolation=None)
         root = Path(os.environ.get('XDG_CONFIG_HOME') or Path.home() / '.config')
@@ -24,7 +24,7 @@ def saved_language():
 
 def system_language():
     try:
-        from PyQt5.QtCore import QLocale
+        from lumen_qt import QLocale
     except ImportError:
         locale = next((os.environ[key] for key in ('LC_ALL', 'LC_MESSAGES', 'LANG')
                        if os.environ.get(key)), '')
@@ -74,7 +74,7 @@ def worker_environment(**values):
 
 
 def worker_process(parent):
-    from PyQt5.QtCore import QProcess, QProcessEnvironment
+    from lumen_qt import QProcess, QProcessEnvironment
     process = QProcess(parent)
     environment = QProcessEnvironment.systemEnvironment()
     environment.insert('LUMEN_LANGUAGE', language())
@@ -84,7 +84,7 @@ def worker_process(parent):
 
 def install(app):
     """Use the same language for Qt's standard buttons and dialogs."""
-    from PyQt5.QtCore import QLibraryInfo, QLocale, QTranslator
+    from lumen_qt import QLibraryInfo, QLocale, QTranslator
     selected = language()
     app.setProperty('lumenLanguage', selected)
     locale = QLocale.system()
@@ -93,6 +93,6 @@ def install(app):
     QLocale.setDefault(locale)
     translator = QTranslator(app)
     if selected == 'de':
-        translator.load('qtbase_de', QLibraryInfo.location(QLibraryInfo.TranslationsPath))
+        translator.load('qtbase_de', QLibraryInfo.path(QLibraryInfo.TranslationsPath) if hasattr(QLibraryInfo, 'path') else QLibraryInfo.location(QLibraryInfo.TranslationsPath))
         app.installTranslator(translator)
     app.translator = translator

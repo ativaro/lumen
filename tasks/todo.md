@@ -221,3 +221,11 @@ Private GitHub main updated and visibility verified. README begins with the
 working authenticated clone/local-bootstrap route, tested without public download.
 Current LICENSE remains MIT; LICENSE-PLAN.md records the proposed noncommercial
 and separately agreed commercial model, including unresolved PyQt constraints.
+
+## Qt 6 / QML search pilot
+
+- [x] Scope, isolated checkout, runtime and existing dependency boundaries.
+- [ ] Shared backend/job/voice compatibility with Qt 5 regression coverage.
+- [ ] QML search, conversation, permissions/questions, voice and theme handling.
+- [ ] Native runtime checks, visual inspection and reproducible comparison.
+- [ ] Optional installation, documentation and pilot delivery.

@@ -10,9 +10,12 @@ import time
 import uuid
 from pathlib import Path
 
-from PyQt5 import sip
-from PyQt5.QtCore import QObject, QProcess, QSettings, QTimer, QUrl, QUrlQuery, pyqtSignal, pyqtSlot
-from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
+from lumen_qt import QT6, is_deleted
+from lumen_qt import QObject, QProcess, QSettings, QTimer, QUrl, QUrlQuery, pyqtSignal, pyqtSlot
+if QT6:
+    from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
+else:
+    from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 
 
 def opencode_binary():
@@ -96,7 +99,7 @@ class OpenCodeBackend(QObject):
     @pyqtSlot(QNetworkReply)
     def request_finished(self, reply):
         context = self.replies.pop(reply, None)
-        if sip.isdeleted(reply):
+        if is_deleted(reply):
             return
         if context is None or context[0] != self.generation:
             reply.deleteLater()
@@ -513,9 +516,9 @@ class OpenCodeBackend(QObject):
         self.waiting.clear()
         pending, self.replies = self.replies, {}
         for reply in pending:
-            if not sip.isdeleted(reply):
+            if not is_deleted(reply):
                 reply.abort()
-                if not sip.isdeleted(reply):
+                if not is_deleted(reply):
                     reply.deleteLater()
         if self.proc:
             proc, self.proc = self.proc, None

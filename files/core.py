@@ -11,7 +11,7 @@ from collections import deque
 from pathlib import Path
 
 from gi.repository import Gio
-from PyQt5.QtCore import QThread, pyqtSignal
+from lumen_qt import QThread, pyqtSignal
 
 TEXT_EXTENSIONS = {'.md', '.py', '.js', '.ts', '.tsx', '.jsx', '.json', '.yaml', '.yml',
                    '.toml', '.ini', '.conf', '.sh', '.log', '.rs', '.c', '.cpp', '.h',

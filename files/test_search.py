@@ -54,7 +54,7 @@ with tempfile.TemporaryDirectory() as tmp:
             window = SearchPalette(tmp, applications=[]); activation = Activation(window)
             voice = window.chat.context_tools.conversation
             try:
-                with patch.object(voice, 'listen') as listen, patch('lumen_voice.executable', return_value='/local/voice'), patch('lumen_voice.Path.is_file', return_value=True):
+                with patch.object(voice, 'listen') as listen, patch('voice_session.executable', return_value='/local/voice'), patch('voice_session.Path.is_file', return_value=True):
                     activation.Activate(); self.assertTrue(window.isVisible()); listen.assert_not_called()
                     activation.Voice()
                     self.assertTrue(voice.active); self.assertTrue(window.conversation)

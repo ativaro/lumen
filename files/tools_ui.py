@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabel,
     QPushButton, QHBoxLayout, QVBoxLayout, QListWidget, QListWidgetItem, QSplitter,
     QMessageBox, QFileDialog, QInputDialog, QCheckBox, QSlider, QProgressBar)
 from tools_data import Library, Cancelled, clock_text
+from lumen_jobs import Job
 
 
 def button(text, callback, icon='', primary=False):
@@ -40,51 +41,6 @@ def open_path(path):
     path = Path(path)
     if not path.exists(): raise ValueError(tr('Die Datei ist nicht erreichbar. Laufwerk oder NAS-Verbindung prüfen.'))
     if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(path))): raise ValueError(tr('Keine Anwendung konnte die Datei öffnen.'))
-
-
-class Job(QThread):
-    result = pyqtSignal(object)
-    failed = pyqtSignal(str)
-    progress = pyqtSignal(str)
-
-    def __init__(self, function, parent=None):
-        super().__init__(parent); self.function = function; self.cancelled = threading.Event()
-
-    def check(self):
-        if self.cancelled.is_set(): raise Cancelled('Abgebrochen')
-
-    def command(self, args, data=None, timeout=300, max_output=2*1024**2):
-        self.check()
-        # Files prevent large decoder/model stderr output from filling RAM or a pipe.
-        with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr, tempfile.TemporaryFile() as stdin:
-            if data: stdin.write(data); stdin.seek(0)
-            proc = subprocess.Popen(args, env=worker_environment(), stdin=stdin, stdout=stdout, stderr=stderr, start_new_session=True)
-            started = time.monotonic()
-            try:
-                while proc.poll() is None:
-                    self.check()
-                    if time.monotonic()-started > timeout: raise ValueError(tr('Die Verarbeitung hat zu lange gedauert.'))
-                    self.cancelled.wait(.1)
-                self.check()
-                if proc.returncode:
-                    stderr.seek(max(0, stderr.tell()-3000))
-                    raise ValueError(f'{Path(args[0]).name}: ' + stderr.read(3000).decode(errors='replace').strip())
-                stdout.seek(0); output = stdout.read(max_output+1)
-                if len(output) > max_output: raise ValueError(tr('Verarbeitungsergebnis zu groß.'))
-                return output
-            finally:
-                if proc.poll() is None:
-                    try: os.killpg(proc.pid, signal.SIGTERM)
-                    except ProcessLookupError: pass
-                    try: proc.wait(timeout=2)
-                    except subprocess.TimeoutExpired:
-                        try: os.killpg(proc.pid, signal.SIGKILL)
-                        except ProcessLookupError: pass
-                        proc.wait()
-
-    def run(self):
-        try: self.result.emit(self.function(self))
-        except Exception as error: self.failed.emit(str(error) or type(error).__name__)
 
 
 class AudioPlayer(QFrame):

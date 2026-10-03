@@ -1,11 +1,11 @@
-# Localization, visible installation and licensing review
+# Unified search with Qt 6 / QML
 
-1. Establish the shared German/English translation API and catalog validation.
-2. In parallel, update separate main/Files UI, companion-tool and settings/panel
-   source groups using that contract; keep data and command identifiers stable.
-3. Add remaining shared status/backend text and language preference behavior.
-4. Run catalog/static checks, German regression tests and native English checks;
-   inspect rendered interfaces, package and install the user bundle.
-5. Move installation to the README opening, document verified access constraints,
-   explain licensing choices, and apply only an explicitly selected license plan.
-6. Review distributable files, commit and push, verify remote main and private docs.
+1. Isolate a pilot checkout and document the comparison contract.
+2. Extract nonvisual jobs and voice state; let the shared backend run with either
+   explicitly loaded Qt binding. Verify existing Qt 5 behavior.
+3. Build the Qt 6 controller and polished QML search/conversation surface using
+   existing themes, language and permission semantics.
+4. Verify keyboard, file search, conversations, recovery, permissions, voice and
+   visual states using local mock services and temporary state.
+5. Package an optional pilot starter, benchmark both implementations, install and
+   show the pilot for comparison; document measured limits and commit the work.

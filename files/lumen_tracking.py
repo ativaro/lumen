@@ -3,7 +3,7 @@ from lumen_i18n import tr
 import json
 import os
 from pathlib import Path
-from PyQt5.QtCore import QObject, pyqtSignal
+from lumen_qt import QObject, pyqtSignal
 from lumen_store import Store
 
 

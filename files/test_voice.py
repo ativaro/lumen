@@ -122,7 +122,7 @@ class VoiceTest(unittest.TestCase):
                     out.setnchannels(1); out.setsampwidth(2); out.setframerate(16000)
                     out.writeframes(b'\0'*3200 + struct.pack('<h', 4000)*6400)
                 voice.start_playback(str(path)); self.assertEqual(indicator.target, 0.)
-                with patch('lumen_voice.time.monotonic', return_value=voice.playback_started + .2): voice.playback_level()
+                with patch('voice_session.time.monotonic', return_value=voice.playback_started + .2): voice.playback_level()
                 self.assertGreater(indicator.target, .5); self.assertEqual(indicator.state, 'speaking')
                 voice.say_status('thinking', 'Thinking'); self.assertIsNone(voice.playback)
                 self.assertFalse(voice.playback_timer.isActive()); self.assertEqual(indicator.target, 0.)

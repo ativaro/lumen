@@ -2,8 +2,8 @@
 from lumen_i18n import tr
 import json
 import re
-from PyQt5.QtCore import QObject,QTimer
-from tools_ui import Job
+from lumen_qt import QObject,QTimer
+from lumen_jobs import Job
 from tools_data import parse_answer
 from lumen_store import Store
 from lumen_memory import worker,options,stamp
