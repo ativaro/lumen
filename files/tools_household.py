@@ -22,7 +22,7 @@ def deadlines(record, today=None):
 
 class Household(ToolWindow):
     def __init__(self, root=None):
-        super().__init__('household',tr('Digitaler Haushalt'),tr('Geräte, Verträge und Belege an einem Ort.'),'go-home',root)
+        super().__init__('household',tr('Lumen Digitaler Haushalt'),tr('Geräte, Verträge und Belege an einem Ort.'),'go-home',root)
         self.add_button.setText(tr('Gerät / Vertrag hinzufügen')); self.search.setPlaceholderText(tr('Name, Modell oder Belegtext …'))
         self.title=QLineEdit(); self.title.setPlaceholderText(tr('Ein Gerät oder einen Vertrag hinzufügen')); self.title.setAccessibleName(tr('Name'))
         self.title.textEdited.connect(self.edited); self.content.addWidget(self.title)

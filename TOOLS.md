@@ -6,10 +6,10 @@ Sie verwenden die vier Lumen-Themes und die vorhandene Einrichtung.
 
 | Anwendung | Start | Ablauf |
 |---|---|---|
-| Meeting-Werkstatt | `lumen-meetings` | Aufnahme importieren → lokal transkribieren → Zeitstelle anklicken → Ergebnisse vorschlagen → korrigieren/exportieren |
-| Digitaler Haushalt | `lumen-household` | Gerät/Vertrag anlegen → Daten und Fristen eintragen → Belege/Handbücher hinzufügen → durchsuchen/öffnen |
-| Projekt-Werkbank | `lumen-workbench` | Projekt anlegen → Notizen und Fragen festhalten → Dateien, Ordner und Webseiten verknüpfen |
-| Persönliches Radio | `lumen-radio` | Ausgabe anlegen → Artikel/Dokumente/Text auswählen → Hörskript erzeugen und prüfen → lokal vertonen → abspielen/exportieren |
+| Lumen Meeting-Werkstatt | `lumen-meetings` | Aufnahme importieren → lokal transkribieren → Zeitstelle anklicken → Ergebnisse vorschlagen → korrigieren/exportieren |
+| Lumen Digitaler Haushalt | `lumen-household` | Gerät/Vertrag anlegen → Daten und Fristen eintragen → Belege/Handbücher hinzufügen → durchsuchen/öffnen |
+| Lumen Projekt-Werkbank | `lumen-workbench` | Projekt anlegen → Notizen und Fragen festhalten → Dateien, Ordner und Webseiten verknüpfen |
+| Lumen Persönliches Radio | `lumen-radio` | Ausgabe anlegen → Artikel/Dokumente/Text auswählen → Hörskript erzeugen und prüfen → lokal vertonen → abspielen/exportieren |
 
 ## Ohne Administratorrechte installieren
 

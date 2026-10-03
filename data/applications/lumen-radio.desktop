@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=Personal radio
-Name[de]=Persönliches Radio
+Name=Lumen Personal Radio
+Name[de]=Lumen Persönliches Radio
 Comment=Listen to your own sources
 Comment[de]=Eigene Quellen als hörbare Ausgabe
 Exec=%INSTALL_BIN%/lumen-radio

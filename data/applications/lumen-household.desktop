@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=Digital household
-Name[de]=Digitaler Haushalt
+Name=Lumen Digital Household
+Name[de]=Lumen Digitaler Haushalt
 Comment=Devices, contracts, receipts and deadlines
 Comment[de]=Geräte, Verträge, Belege und Fristen
 Exec=%INSTALL_BIN%/lumen-household

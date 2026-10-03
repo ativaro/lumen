@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=Meeting workshop
-Name[de]=Meeting-Werkstatt
+Name=Lumen Meeting Workshop
+Name[de]=Lumen Meeting-Werkstatt
 Comment=Recordings, transcripts and results
 Comment[de]=Aufnahmen, Transkripte und Ergebnisse
 Exec=%INSTALL_BIN%/lumen-meetings

@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=Project workbench
-Name[de]=Projekt-Werkbank
+Name=Lumen Project Workbench
+Name[de]=Lumen Projekt-Werkbank
 Comment=Files, notes, websites and questions
 Comment[de]=Dateien, Notizen, Webseiten und Fragen
 Exec=%INSTALL_BIN%/lumen-workbench

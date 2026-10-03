@@ -30,7 +30,7 @@ def radio_result(answer, sources):
 
 class Radio(ToolWindow):
     def __init__(self,root=None):
-        super().__init__('radio',tr('Persönliches Radio'),tr('Deine Quellen. Deine Ausgabe. Lokal vorgelesen.'),'audio-radio',root)
+        super().__init__('radio',tr('Lumen Persönliches Radio'),tr('Deine Quellen. Deine Ausgabe. Lokal vorgelesen.'),'audio-radio',root)
         self.add_button.setText(tr('Ausgabe anlegen')); self.source_index=-1
         self.title=QLineEdit(); self.title.setPlaceholderText(tr('Eine Ausgabe anlegen, um zu beginnen')); self.title.setAccessibleName(tr('Titel der Ausgabe')); self.title.textEdited.connect(self.edited); self.content.addWidget(self.title)
         self.tabs=QTabWidget(); self.content.addWidget(self.tabs,1)

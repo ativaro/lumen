@@ -11,7 +11,7 @@ from tools_ui import ToolWindow, AudioPlayer, button, label, row
 
 class Meetings(ToolWindow):
     def __init__(self, root=None):
-        super().__init__('meetings', tr('Meeting-Werkstatt'), tr('Zuhören. Wiederfinden. Festhalten.'), 'audio-input-microphone', root)
+        super().__init__('meetings', tr('Lumen Meeting-Werkstatt'), tr('Zuhören. Wiederfinden. Festhalten.'), 'audio-input-microphone', root)
         self.add_button.setText(tr('Aufnahme importieren'))
         self.title = QLineEdit(); self.title.setPlaceholderText(tr('Aufnahme importieren, um zu beginnen')); self.title.setAccessibleName(tr('Titel der Aufnahme'))
         self.title.textEdited.connect(self.edited); self.content.addWidget(self.title)

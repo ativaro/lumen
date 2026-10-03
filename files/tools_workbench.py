@@ -11,7 +11,7 @@ from tools_ui import ToolWindow, button, label, row, open_path
 
 class Workbench(ToolWindow):
     def __init__(self,root=None):
-        super().__init__('workbench',tr('Projekt-Werkbank'),tr('Alles, was zu deinem Vorhaben gehört.'),'folder-development',root)
+        super().__init__('workbench',tr('Lumen Projekt-Werkbank'),tr('Alles, was zu deinem Vorhaben gehört.'),'folder-development',root)
         self.add_button.setText(tr('Projekt anlegen'))
         self.title=QLineEdit(); self.title.setPlaceholderText(tr('Lege dein erstes Projekt an')); self.title.setAccessibleName(tr('Projektname')); self.title.textEdited.connect(self.edited)
         self.content.addWidget(self.title)
