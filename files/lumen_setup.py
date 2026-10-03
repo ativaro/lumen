@@ -13,6 +13,7 @@ import tempfile
 import urllib.request
 
 FEATURES = {
+    'keyring': ('System-Schlüsselbund für Vault und Inbox', ('secret-tool',), ('libsecret',)),
     'hardware': ('Hardware-Messwerte', ('sensors',), ('lm_sensors',)),
     'engine': ('Lumen-Assistent', ('opencode',), ('opencode',)),
     'documents': ('PDF-Vorschau und Inhaltsuche', ('pdfinfo', 'pdftoppm', 'pdftotext'), ('poppler',)),
@@ -203,10 +204,38 @@ def install_image_search():
     report('Lokale Bildsuche ist bereit. In Files über „Bilder nach Motiv suchen“.', 100)
 
 
+def install_vault():
+    import bz2
+    import platform
+    archives = {'x86_64': ('amd64', 'f415415624dcc452f2a02b8c33641791a8c6d6d3b65bbb3543fcf9a25151585c', 10107515),
+                'aarch64': ('arm64', 'a5f64aaab53d51e311fa3829124c5b703f2d14cf187d8640b6be3b2b49376465', 9044264)}
+    if platform.machine() not in archives: raise ValueError('Restic bitte über die Paketverwaltung installieren.')
+    arch, checksum, size = archives[platform.machine()]
+    root = speech_root().parent / 'vault'; root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=root) as tmp:
+        archive = Path(tmp)/'restic.bz2'; binary = Path(tmp)/'restic'
+        report('Verschlüsselte Sicherungen vorbereiten · Restic 0.19.1')
+        download(f'https://github.com/restic/restic/releases/download/v0.19.1/restic_0.19.1_linux_{arch}.bz2',archive,checksum,size)
+        with bz2.open(archive,'rb') as src, binary.open('wb') as dst:
+            shutil.copyfileobj(src,dst)
+        binary.chmod(0o755); run([str(binary),'version'],timeout=10)
+        os.replace(binary,root/'restic-0.19.1')
+    report('Vault bereit. Ziel und Sicherungspasswort in Lumen Vault auswählen.',100)
+
+
+def install_inbox():
+    root = speech_root().parent / 'inbox-env-v1'; python = str(root / 'bin/python')
+    report('Kalenderanbindung für Inbox vorbereiten')
+    if not Path(python).is_file(): run([sys.executable,'-m','venv',str(root)])
+    run([python,'-m','pip','--disable-pip-version-check','install','caldav==3.3.1','icalendar==7.3.0','recurring-ical-events==3.8.2'])
+    run([python,'-c','import caldav, icalendar'],timeout=20)
+    report('IMAP/SMTP und Kalenderanbindung bereit. Proton Mail benötigt zusätzlich die angemeldete Proton Mail Bridge.',100)
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=('packages', 'dictation', 'dictation-quality', 'voice', 'desktop', 'image-search'))
+    parser.add_argument('action', choices=('packages', 'dictation', 'dictation-quality', 'voice', 'desktop', 'image-search', 'vault', 'inbox'))
     parser.add_argument('groups', nargs='*', choices=tuple(FEATURES))
     parser.add_argument('--existing-model', default='')
     from appearance import DESIGNS
@@ -224,6 +253,8 @@ def main():
         elif args.action == 'dictation-quality': install_dictation(quality=True)
         elif args.action == 'voice': install_voice(args.existing_model)
         elif args.action == 'image-search': install_image_search()
+        elif args.action == 'vault': install_vault()
+        elif args.action == 'inbox': install_inbox()
         else:
             install_packages(missing_packages(args.groups))
             missing = missing_packages(args.groups)

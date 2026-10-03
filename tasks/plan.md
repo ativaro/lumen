@@ -56,3 +56,10 @@ Wartegrund; keine vorselektierten Löschungen; fehlende Sensoren nicht als Null;
 Fixtures für Prozess-/Sensorparser, synthetische Fotos, native UI-Rendering,
 vollständige isolierte Suite und portables Paket. Laufende Benutzerfenster bleiben
 offen. Daten, Modelle und Messwerte werden nicht eingecheckt.
+# Vault und Inbox, 2026-10-03
+
+Siehe SPEC-vault-inbox.md. Bestehende native ToolWindow-/Library-/Job-Bausteine
+verwenden. Reihenfolge: Secret-Service → Vault-Backend mit realem Restore-Test →
+Vault-UI/Zeitplan → Inbox-Protokolle mit lokalen Servern → Inbox-UI → Installer,
+vollständige Tests und Bereitstellung. Keine Benutzerkonten oder persönlichen
+Backup-Ziele ohne Auswahl im jeweiligen Einrichtungsdialog aktivieren.

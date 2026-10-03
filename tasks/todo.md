@@ -60,3 +60,10 @@ Runtime note: the older resident search was restarted with the user's permission
   und virtueller Plasma-Installationslauf bestanden. Paket 1.2.0-33 gebaut;
   vollständige Benutzerinstallation mit Quellvergleich, gesicherten Startern und
   unveränderten Plasma-/KWin-Einstellungen. Laufende Fenster bleiben geöffnet.
+# Vault und Inbox
+
+- [x] Gemeinsamer Schlüsselbund, Vault-Sicherung und sichere Wiederherstellung.
+- [x] Native Vault-Oberfläche, Ziele, Vorschau und Zeitpläne.
+- [x] IMAP/SMTP/Proton-Bridge und CalDAV/ICS mit lokalen Protokolltests.
+- [x] Native Inbox mit Nachrichten, Entwürfen, Kalender, Aufgaben und Vorschlägen.
+- [ ] Einrichtung, Starter, Paket, vollständige Prüfung und Benutzerinstallation.

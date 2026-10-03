@@ -106,7 +106,7 @@ mkdir -p "$DATA_HOME/applications" "$DATA_HOME/kio/servicemenus" \
 # icon
 install -m 0644 "$REPO/icons/hicolor/scalable/apps/lumen.svg" "$DATA_HOME/icons/hicolor/scalable/apps/lumen.svg"
 install -m 0644 "$REPO/icons/hicolor/scalable/apps/lumen-files.svg" "$DATA_HOME/icons/hicolor/scalable/apps/lumen-files.svg"
-for tool in meetings household workbench radio; do
+for tool in meetings household workbench radio vault inbox; do
     install -m 0644 "$REPO/icons/hicolor/scalable/apps/lumen-$tool.svg" "$DATA_HOME/icons/hicolor/scalable/apps/"
 done
 
@@ -121,7 +121,7 @@ subst "$REPO/data/applications/lumen-ask-sel.desktop" > "$DATA_HOME/applications
 subst "$REPO/data/applications/lumen-vision.desktop" > "$DATA_HOME/applications/lumen-vision.desktop"
 subst "$REPO/data/applications/lumen-sel.desktop" > "$DATA_HOME/applications/lumen-sel.desktop"
 subst "$REPO/data/applications/lumen-files.desktop" > "$DATA_HOME/applications/lumen-files.desktop"
-for tool in meetings household workbench radio; do
+for tool in meetings household workbench radio vault inbox; do
     subst "$REPO/data/applications/lumen-$tool.desktop" > "$DATA_HOME/applications/lumen-$tool.desktop"
 done
 subst "$REPO/data/krunner-dbusplugins/lumen-runner.desktop" > "$DATA_HOME/krunner/dbusplugins/lumen-runner.desktop"

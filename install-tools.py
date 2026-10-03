@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Install only the four standalone applications, without administrator access."""
+"""Install only the standalone applications, without administrator access."""
 import argparse
 import hashlib
 import os
@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import tempfile
 
-TOOLS = ('meetings', 'household', 'workbench', 'radio')
+TOOLS = ('meetings', 'household', 'workbench', 'radio', 'vault', 'inbox')
 MARKER = 'LumenStandaloneToolsInstaller'
 
 
@@ -68,7 +68,7 @@ def main():
         if shutil.which(command[0]):
             try: subprocess.run(command, check=True, timeout=30, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             except (subprocess.SubprocessError, OSError): print('Menü-Aktualisierung folgt beim nächsten Anmelden.')
-    print('Vier Anwendungen für diesen Benutzer installiert:', runtime)
+    print('Eigenständige Anwendungen für diesen Benutzer installiert:', runtime)
 
 
 if __name__ == '__main__': main()

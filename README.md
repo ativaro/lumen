@@ -32,6 +32,8 @@ gracefully on other setups.
 | **KRunner runner** | Type `lumen <question>`, `ai <question>` or `oc <question>` in KRunner |
 | **Plasma applet** | panel widget with agent status + quick actions (`org.lumen.agent`) |
 | **Lumen Files** (`lumen-files`) | file manager with combined local/NAS libraries and visible origins, per-room collection shelves and saved workspaces, fast search, previews, tabs, gallery, disk analysis, KIO network folders, native rename/sort with preview and undo, integrated Lumen panel |
+| **Lumen Vault** (`lumen-vault`) | encrypted restic backups to mounted USB/NAS folders, preview, opt-in schedules, snapshot browsing and verified restore into new folders |
+| **Lumen Inbox** (`lumen-inbox`) | local IMAP inbox and SMTP drafts, Proton Bridge preset, CalDAV calendars, read-only ICS subscriptions and local tasks; [setup and limits](VAULT-INBOX.md) |
 | **Application designs** | Glas by default, plus Graphit, Atelier and Mitternacht; shared live themes for Lumen, search, Files, the image viewer, desktop panels and their popups, with native previews in settings |
 | **System watchdog** | systemd timer checks failed units, kernel errors, disk, GPU temp; automatic opencode analysis |
 | **App recovery** | Independent crash/hang detection for Lumen, Files and search; private reports and restoration of views and drafts |

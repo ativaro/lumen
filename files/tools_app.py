@@ -12,13 +12,15 @@ from app import create_app
 
 def main():
     parser=argparse.ArgumentParser(description='Eigenständige Desktop-Werkzeuge')
-    parser.add_argument('tool',choices=['meetings','household','workbench','radio']); args=parser.parse_args()
+    parser.add_argument('tool',choices=['meetings','household','workbench','radio','vault','inbox']); args=parser.parse_args()
     app=create_app(); app.setApplicationName('lumen-'+args.tool); app.setDesktopFileName('lumen-'+args.tool)
     from tools_meetings import Meetings
     from tools_household import Household
     from tools_workbench import Workbench
     from tools_radio import Radio
-    window={'meetings':Meetings,'household':Household,'workbench':Workbench,'radio':Radio}[args.tool]()
+    from tools_vault import Vault
+    from tools_inbox import Inbox
+    window={'meetings':Meetings,'household':Household,'workbench':Workbench,'radio':Radio,'vault':Vault,'inbox':Inbox}[args.tool]()
     app.setApplicationDisplayName(window.windowTitle())
     server_name='lumen-tool-'+str(os.getuid())+'-'+hashlib.sha256(str(window.library.root.resolve()).encode()).hexdigest()[:20]
     client=QLocalSocket(); client.connectToServer(server_name)

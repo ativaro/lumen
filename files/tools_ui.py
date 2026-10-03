@@ -52,7 +52,7 @@ class Job(QThread):
     def check(self):
         if self.cancelled.is_set(): raise Cancelled('Abgebrochen')
 
-    def command(self, args, data=None, timeout=300):
+    def command(self, args, data=None, timeout=300, max_output=2*1024**2):
         self.check()
         # Files prevent large decoder/model stderr output from filling RAM or a pipe.
         with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr, tempfile.TemporaryFile() as stdin:
@@ -68,8 +68,8 @@ class Job(QThread):
                 if proc.returncode:
                     stderr.seek(max(0, stderr.tell()-3000))
                     raise ValueError(f'{Path(args[0]).name}: ' + stderr.read(3000).decode(errors='replace').strip())
-                stdout.seek(0); output = stdout.read(2*1024**2+1)
-                if len(output) > 2*1024**2: raise ValueError('Verarbeitungsergebnis zu groß.')
+                stdout.seek(0); output = stdout.read(max_output+1)
+                if len(output) > max_output: raise ValueError('Verarbeitungsergebnis zu groß.')
                 return output
             finally:
                 if proc.poll() is None:
