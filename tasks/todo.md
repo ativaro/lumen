@@ -177,3 +177,17 @@ Dateisicherung und konsistente SQLite-Kopie; optionale Laufzeiten erhalten,
 Plasma-/KWin-Konfiguration per Hash unverändert. Alle neun installierten Tools
 kalt/warm sowie Reader-/Wissen-Dateiübergabe geprüft. Neue Wissen-Oberfläche
 geöffnet; es musste kein vorhandenes Benutzerfenster beendet werden.
+
+# Bedienkorrektur: Sammlungen und Linktitel
+
+- [x] Sichtbare Aktion „Neue Sammlung“; leere Ordner im Scan und nach Neustart.
+- [x] Neue Notizen in gewähltem Ordner/Tag, Erinnerungen im gewählten Typ.
+- [x] Auswahl mit tatsächlichem Titel und eindeutigem Pfad, relative Linkziele.
+- [x] Vorschau mit aktuellem Zieltitel; vorhandene Dateinamen/Links bleiben stabil.
+- [x] Regression für leere Sammlungen, neue Notizen, doppelte Titel, Links aus
+  Unterordnern, Pfad-/Symlinkgrenzen und Autosave vor dem Sammlungswechsel.
+
+176 Python-Tests bestanden, ein optionaler CalDAV-Check übersprungen; 12 QML-
+Checks bestanden. Vier Themes, kompakte Ansicht und nativer Linkdialog gerendert.
+Zusätzlicher Test bestätigt: Wechsel in eine leere Sammlung sichert den Text
+und bleibt auch nach Scan leer. Keine Benutzernotizen für Tests verwendet.

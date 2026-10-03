@@ -23,6 +23,7 @@ def build(w):
         b=button(title,lambda checked=False,a=area:w.safe(w.switch_area,a),'');b.setCheckable(True);b.setChecked(area=='user');b.setObjectName('wissenArea');b.setAccessibleName(title)
         w.area_buttons[area]=b;nav.addWidget(b)
     w.collection_label=label('SAMMLUNGEN','wissenCaption');nav.addWidget(w.collection_label)
+    w.collection_button=button('Neue Sammlung',lambda:w.safe(w.create_collection),'folder-new');w.collection_button.setAccessibleName('Neue Sammlung');nav.addWidget(w.collection_button)
     w.collections=QListWidget();w.collections.setObjectName('wissenCollections');w.collections.setAccessibleName('Sammlungen');w.collections.currentItemChanged.connect(w.select_collection);nav.addWidget(w.collections,1)
     w.questions_button=button('Fragen',lambda:w.tabs.setCurrentIndex(1),'edit-find');nav.addWidget(w.questions_button)
     w.map_button=button('Wissenskarte',lambda:w.tabs.setCurrentIndex(2),'insert-link');nav.addWidget(w.map_button)

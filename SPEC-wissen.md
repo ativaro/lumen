@@ -85,3 +85,16 @@ externe Konflikte, Titel und Frontmatter, Bereichstrennung und Freigaben sowie
 native Darstellung in vier Themes bei 840/1180/1440 Pixeln. Bestehende Quellen-,
 Karten-, Vorschau- und Startprüfungen bleiben gültig. Paket38, Benutzerbundle,
 private Git-Quellen und Systemreferenz aktualisieren; keine persönlichen Daten.
+
+## Bedienkorrektur: Sammlungen und Linktitel
+
+„Neue Sammlung“ ist im persönlichen Bereich direkt unter Sammlungen sichtbar.
+Anlegen erzeugt einen normalen Unterordner, auch leere Ordner bleiben nach
+erneutem Scan/Start sichtbar. „Neu“ respektiert den ausgewählten Ordner, Tag
+oder Gedächtnistyp. Beim Wechsel wird zuvor weiter automatisch gespeichert.
+Die Verknüpfungsauswahl zeigt den bearbeiteten Titel sowie den eindeutigen Pfad.
+Links verwenden relative, kodierte Ziele; ihre Vorschau zeigt den aktuellen
+Titel, sofern kein eigener Anzeigename gesetzt ist. Keine automatische
+Dateiumbenennung, neue Laufzeitabhängigkeit oder Änderung persönlicher Daten.
+Prüfung: leere Sammlung, erste Notiz, Wechsel/Autosave, doppelte Titel,
+ordnerübergreifende Links, ungültige Pfade und Symlinks sowie native Darstellung.

@@ -49,6 +49,22 @@ class WissenTest(unittest.TestCase):
         with self.assertRaises(ValueError):book.scan()
         activate(self.store,str(book.root));self.assertEqual(Notebook(self.store).scan()['notes'],[])
 
+    def test_empty_collections_persist_and_notes_stay_inside(self):
+        activate(self.store);book=Notebook(self.store)
+        folder=book.create_collection('Projekte')
+        self.assertEqual(Notebook(self.store).scan()['folders'],['Projekte'])
+        note=book.create('Projektplan',folder=folder)
+        self.assertEqual(Path(note['path']).parent,Path('Projekte'))
+        book.remove(note['path'],note['hash'])
+        self.assertEqual(book.scan()['folders'],['Projekte'])
+        with self.assertRaises(FileExistsError):book.create_collection('Projekte')
+        outside=self.root/'outside';outside.mkdir();(book.root/'linked').symlink_to(outside,target_is_directory=True)
+        for name in ('','../outside','/outside','Unter/Ordner','.hidden','attachments'):
+            with self.assertRaises(ValueError):book.create_collection(name)
+        for folder in ('../outside','linked'):
+            with self.assertRaises((OSError,ValueError)):book.create('Privat',folder=folder)
+        self.assertEqual(list(outside.iterdir()),[])
+
     def test_store_capture_fresh_context_and_relative_links(self):
         from tools_ui import Job
         old=self.store.save_memory('Alt','Alte Erinnerung');activate(self.store);book=Notebook(self.store)
@@ -74,6 +90,52 @@ class WissenNativeTest(unittest.TestCase):
     def setUpClass(cls):
         from PyQt5.QtWidgets import QApplication
         cls.app=QApplication.instance() or QApplication([])
+
+    def test_collection_button_and_link_picker_use_titles(self):
+        from unittest.mock import patch
+        from PyQt5.QtCore import QCoreApplication,QEvent,Qt
+        from PyQt5.QtTest import QTest
+        from PyQt5.QtWidgets import QPushButton
+        from tools_wissen import Wissen
+        def ready(w):
+            for _ in range(300):
+                QTest.qWait(20)
+                if w.book and not w.job and not w.poller and not w.dirty:return
+            self.fail(w.status.text())
+        with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,{'LUMEN_DATA':tmp+'/state'}):
+            window=Wissen(Path(tmp)/'tools');window.show();ready(window)
+            try:
+                buttons=window.findChildren(QPushButton)
+                create=next((b for b in buttons if b.accessibleName()=='Neue Sammlung'),None)
+                self.assertIsNotNone(create,'Sammlungen brauchen eine sichtbare Aktion zum Anlegen')
+                with patch('tools_wissen.QInputDialog.getText',return_value=('Projekte',True)):QTest.mouseClick(create,Qt.LeftButton)
+                ready(window);self.assertEqual(window.collection,'folder:Projekte');self.assertEqual(window.entries.count(),0)
+                window.scanned(window.book.scan());self.assertEqual(window.collection,'folder:Projekte')
+                QTest.mouseClick(window.add_button,Qt.LeftButton);ready(window)
+                self.assertEqual(Path(window.doc['path']).parent,Path('Projekte'))
+                window.title.selectAll();QTest.keyClicks(window.title,'Quellnotiz');ready(window)
+                targets=[]
+                for title in ('Reiseplanung','Arbeitsplan','Arbeitsplan'):
+                    note=window.book.create('Neue Notiz');targets.append(window.book.write(note['path'],'# '+title+'\n\nDetails',note['hash']))
+                window.scanned(window.book.scan());chosen=targets[2]
+                def choose(parent,title,label,choices,*args):
+                    self.assertTrue(any('Reiseplanung' in c for c in choices))
+                    self.assertEqual(len([c for c in choices if 'Arbeitsplan' in c]),2)
+                    self.assertEqual(len(set(choices)),len(choices))
+                    return next(c for c in choices if chosen['path'] in c),True
+                with patch('tools_wissen.QInputDialog.getItem',side_effect=choose):window.insert_link()
+                ready(window);note=window.book.read(window.doc['path'])
+                self.assertEqual(resolve_link(note['path'],note['links'][0],window.notes),chosen['path'])
+                window.toggle_view();ready(window)
+                self.assertIn('Arbeitsplan',window.preview.toPlainText())
+                window.toggle_view();path=window.doc['path'];window.editor.appendPlainText('Vor dem Sammlungswechsel erhalten')
+                with patch('tools_wissen.QInputDialog.getText',return_value=('Noch leer',True)):
+                    QTest.mouseClick(create,Qt.LeftButton);ready(window)
+                window.scanned(window.book.scan());self.assertEqual(window.collection,'folder:Noch leer')
+                self.assertIsNone(window.doc);self.assertEqual(window.entries.count(),0)
+                self.assertIn('Vor dem Sammlungswechsel erhalten',window.book.read(path)['text'])
+            finally:
+                window.close();ready(window);window.deleteLater();QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
 
     def test_autosave_keeps_newer_typing_cursor_and_close(self):
         import threading

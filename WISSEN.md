@@ -65,8 +65,15 @@ Frontmatter bleibt erhalten; die erste Hauptüberschrift wird als Titel bearbeit
 
 Die Suche durchsucht Titel, Text, Herkunft und `#tags`. Sammlungen filtern nach
 vorhandenen Unterordnern und Tags; im Gedächtnis nach Vorliebe/Fakt/Entscheidung.
+**Neue Sammlung** unter „Sammlungen“ legt einen benannten Ordner im Notizbuch an.
+Er bleibt auch ohne Notizen sichtbar. Nach Auswahl einer Sammlung erstellt **Neu**
+die Notiz in diesem Ordner; bei einer Tag-Sammlung erhält sie den gewählten Tag.
 Die ungefilterte Liste zeigt zuletzt bearbeitete Notizen zuerst. Unter **Mehr**
-lassen sich Notizlinks, Bilder und Tags einsetzen. `[[Notizname]]`, `[[datei.md|Anzeigename]]`
+lassen sich Notizlinks, Bilder und Tags einsetzen. **Notiz verknüpfen** zeigt den
+aktuellen Notiztitel und den Pfad, sodass auch gleiche Titel unterscheidbar sind.
+Die Lesevorschau zeigt bei Links ohne eigenen Anzeigenamen den aktuellen Titel
+der Zielnotiz. Dateinamen und bestehende Verknüpfungen bleiben erhalten.
+`[[Notizname]]`, `[[datei.md|Anzeigename]]`
 und gewöhnliche relative Markdown-Links verbinden Notizen. Mehrdeutige Namen
 lassen sich über den vollständigen relativen Dateinamen auflösen.
 

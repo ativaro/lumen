@@ -173,7 +173,7 @@ class Notebook:
         return images
 
     def scan(self):
-        notes=[];queue=[Path('.')];count=size=errors=0
+        notes=[];folders=[];queue=[Path('.')];count=size=errors=0
         while queue and count<10000 and size<32*1024**2 and len(notes)<5000:
             relative=queue.pop()
             with self.directory(relative) as parent:
@@ -182,12 +182,14 @@ class Notebook:
                     if count>10000 or size>=32*1024**2 or len(notes)>=5000:break
                     if entry.name.startswith('.') or entry.is_symlink():continue
                     path=relative/entry.name
-                    if entry.is_dir(follow_symlinks=False):queue.append(path)
+                    if entry.is_dir(follow_symlinks=False):
+                        queue.append(path)
+                        if path.parts[0]!='attachments':folders.append(str(path))
                     elif entry.name.lower().endswith('.md') and entry.is_file(follow_symlinks=False):
                         try:
                             note=self.read(path);note['modified']=entry.stat(follow_symlinks=False).st_mtime;notes.append(note);size+=note['raw_size']
                         except (OSError,ValueError,UnicodeError):errors+=1
-        return dict(notes=notes,errors=errors,limited=bool(queue) or count>=10000 or size>=32*1024**2 or len(notes)>=5000,root=str(self.root),identity=self.identity)
+        return dict(notes=notes,folders=sorted(folders),errors=errors,limited=bool(queue) or count>=10000 or size>=32*1024**2 or len(notes)>=5000,root=str(self.root),identity=self.identity)
 
     def backup(self,path,raw):
         asset=uuid.uuid4().hex+'.md';target=self.history.asset(asset)
@@ -218,11 +220,19 @@ class Notebook:
                     except FileNotFoundError:pass
             return parse(str(path),raw)
 
-    def create(self,title,text='',source='',legacy=''):
+    def create_collection(self,name):
+        name=name.strip()
+        if not name or name.startswith('.') or re.search(r'[/\\\x00-\x1f\x7f]',name) or len(name.encode())>200 or name=='attachments':
+            raise ValueError('Bitte einen Sammlungsnamen ohne Schrägstriche eingeben (nicht versteckt oder „attachments“).')
+        with self.lock(),self.directory() as parent:
+            os.mkdir(name,mode=0o700,dir_fd=parent);os.fsync(parent)
+        return name
+
+    def create(self,title,text='',source='',legacy='',folder='.'):
         title=' '.join(title.split()).strip()[:200]
         if not title:raise ValueError('Bitte einen Titel eingeben.')
         stem=re.sub(r'[^\w .-]','-',title).strip('. ')[:100] or 'Notiz'
-        path=stem+'-'+uuid.uuid4().hex[:8]+'.md'
+        path=str(Path(folder)/(stem+'-'+uuid.uuid4().hex[:8]+'.md'))
         return self.write(path,'# '+title+'\n\n'+text,'',source,legacy)
 
     def remove(self,path,expected):
@@ -307,7 +317,7 @@ def main():
     else:
         book=Notebook(store,root,identity=request.pop('identity',None))
         if action=='scan':book.migrate();result=book.scan()
-        elif action in ('read','write','create','remove','versions','restore','capture','add_image','preview','context'):result=getattr(book,action)(**request)
+        elif action in ('read','write','create','create_collection','remove','versions','restore','capture','add_image','preview','context'):result=getattr(book,action)(**request)
         else:raise ValueError('Unbekannte Notizaktion.')
     print(json.dumps(result,ensure_ascii=False))
 

@@ -30,8 +30,9 @@ class NotePreview(QTextBrowser):
         self.document().setBaseUrl(QUrl.fromLocalFile(str(book.root/Path(note['path']).parent)+'/'))
         pieces=re.split(r'(```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`]*`)',note['text'])
         def link(match):
-            raw=match[1];path=resolve_link(note['path'],raw,notes);title=raw.split('|',1)[-1]
-            return '['+title.replace(']','\\]')+'](lumen-note:/'+quote(path or raw,safe='')+')'
+            raw=match[1];path=resolve_link(note['path'],raw,notes);title=raw.split('|',1)[1] if '|' in raw else notes[path]['title'] if path in notes else raw
+            title=title.replace('\\','\\\\').replace('[','\\[').replace(']','\\]')
+            return '['+title+'](lumen-note:/'+quote(path or raw,safe='')+')'
         for i in range(0,len(pieces),2):pieces[i]=re.sub(r'\[\[([^\]\n]+)\]\]',link,pieces[i])
         self.setMarkdown(''.join(pieces))
         self.fit_timer.start()
