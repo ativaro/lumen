@@ -71,3 +71,10 @@ Lesestand/Notizen und bestehender Sprache/Wissen-Anbindung; prüfen und committe
 Danach Sound mit pactl/PipeWire, nativer Streamsteuerung und expliziter Automatik;
 Prüfung an isolierten virtuellen Audioquellen. Abschließend Gesamtprüfung,
 Benutzerinstallation, Paket und Dokumentation. Spezifikation: SPEC-reader-sound.md.
+
+# Lumen Wissen, 2026-10-03
+
+Angenommenes Konzept: eigene native Notiz-App auf Markdown, mit Verknüpfungen,
+Tags, Quellen, Wissenskarte und expliziten Fragen. SPEC-wissen.md ist der Vertrag.
+Erst sichere Dateispeicherung/Migration prüfen; dann vollständige native Oberfläche
+und Quellenaktionen; schließlich Integration, Paket, Benutzerinstallation und Git.

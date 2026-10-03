@@ -93,3 +93,10 @@ Abgleich nach Fensterschluss wurde mit Regressionstest korrigiert.
 Paket 1.2.0-35 gebaut und Laufzeitquellen verglichen; Benutzerbundle mit Sicherung
 aktualisiert. Sound-Automatik bleibt aus. Laufende Benutzerfenster und
 Desktop-Konfiguration bleiben erhalten; private Daten/Testprofile bleiben lokal.
+
+# Lumen Wissen
+
+- [ ] Markdown-Speicher, Konflikt-/Entwurfschutz und verlustfreie Migration.
+- [ ] Native Bibliothek, Editor/Vorschau, Tags, Bilder, Links und Rückverweise.
+- [ ] Wissenskarte, Quellenfragen und Reader-/Inbox-/Lumen-Übernahme.
+- [ ] Integration, Tests, Paket, Benutzerinstallation, Git und private Referenz.
