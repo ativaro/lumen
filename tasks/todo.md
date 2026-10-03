@@ -99,4 +99,24 @@ Desktop-Konfiguration bleiben erhalten; private Daten/Testprofile bleiben lokal.
 - [x] Markdown-Speicher, Konflikt-/Entwurfschutz und verlustfreie Migration.
 - [x] Native Bibliothek, Editor/Vorschau, Tags, Bilder, Links und Rückverweise.
 - [x] Wissenskarte, Quellenfragen und Reader-/Inbox-/Lumen-Übernahme.
-- [ ] Integration, Tests, Paket, Benutzerinstallation, Git und private Referenz.
+- [x] Integration, Tests, Paket, Benutzerinstallation, Git und private Referenz.
+
+Abnahme: 168 Python-Prüfungen, davon 167 bestanden und ein optionaler
+CalDAV-Check übersprungen; 12 QML-Prüfungen bestanden. Reader-Auswahl,
+Inbox-Auswahl und Auftragsergebnis in den aktiven Markdown-Speicher geprüft.
+Alle neun installierten Werkzeuge starten kalt/warm; Reader- und Wissen-
+Dateiübergabe erreichen das vorhandene Fenster. Native Ansichten in vier
+Themes, kompakter Ansicht, Quellenliste und Karte gerendert und geprüft.
+
+Review: Konflikte/Entwürfe, wiederholte und späte Migration, Grenzen für Pfade,
+Symlinks und Ressourcen, extern bearbeitete Quellen sowie Job-Lebensdauer
+geprüft. Dateiarbeit läuft in abbrechbaren Unterprozessen. Modellauftrag verlangt
+JSON, deaktiviert Werkzeuge und verwendet nur ausgewählte Auszüge; Antworten
+wurden synthetisch geprüft, kein Live-Modellaufruf mit persönlichen Inhalten.
+
+Paket 1.2.0-36 gebaut, relevante Laufzeit und Starter mit Paket verglichen.
+Benutzerbundle mit Sicherung und konsistenter SQLite-Kopie aktualisiert;
+installierte Python-/QSS-/SVG-Dateien entsprechen dem Repo. Bestehende optionale
+Abhängigkeiten erhalten, Plasma/KWin-Konfiguration per Hash unverändert.
+Persönliche Notizen, Bibliotheken, Sicherungen, Screenshots und Systemreferenz
+bleiben außerhalb von Git. Systempaket-Upgrade gehört nicht zu dieser Installation.
