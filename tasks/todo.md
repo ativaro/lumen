@@ -66,4 +66,12 @@ Runtime note: the older resident search was restarted with the user's permission
 - [x] Native Vault-Oberfläche, Ziele, Vorschau und Zeitpläne.
 - [x] IMAP/SMTP/Proton-Bridge und CalDAV/ICS mit lokalen Protokolltests.
 - [x] Native Inbox mit Nachrichten, Entwürfen, Kalender, Aufgaben und Vorschlägen.
-- [ ] Einrichtung, Starter, Paket, vollständige Prüfung und Benutzerinstallation.
+- [x] Einrichtung, Starter, Paket, vollständige Prüfung und Benutzerinstallation.
+
+Verifiziert: 155 Tests im vollständigen Python-Lauf (Kalender-Abhängigkeit dort
+optional übersprungen), zusätzliche Zeitplanprüfung, 3 echte lokale TLS-Protokolltests
+im Kalender-Environment und 12 QML-Prüfungen. Native Dialoge, Entwurferhalt und
+Kalt-/Warmstart beider installierter Apps geprüft. Frische virtuelle Plasma-
+Installation erfolgreich; Paket 1.2.0-34 gebaut und Quellen verglichen.
+Benutzerinstallation ohne sudo und ohne Neustart laufender Fenster abgeschlossen.
+Konten und Sicherungspläne bleiben benutzergeführt; keine echten Mails versendet.
