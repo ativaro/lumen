@@ -284,7 +284,7 @@ class AssistantTest(unittest.TestCase):
             backend = OpenCodeBackend(tmp)
             calls = []
             backend.refresh_sessions = lambda: None
-            def send(text, files=None, agent='build', title=None):
+            def send(text, files=None, agent='build', title=None,memory_text=None):
                 calls.append((text, agent, title))
                 backend.message_id = 'msg_action'
                 backend.set_busy(True)

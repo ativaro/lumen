@@ -253,14 +253,15 @@ class ToolWindow(QMainWindow):
     def job_finished(self):
         self.job.deleteLater(); self.job = None; self.end()
 
-    def ai(self, prompt, done):
+    def ai(self, prompt, done,memory_query=None):
         from assistant_backend import OpenCodeBackend
         if self.job or (self.engine and self.engine.busy): return
         if not self.engine:
             self.engine = OpenCodeBackend(self.library.root, self, project_config=False)
             self.engine.completed.connect(self.ai_done)
+            self.engine.memoryStatus.connect(self.status.setText)
         self.begin('Der eingerichtete KI-Provider erstellt einen Vorschlag …'); self.ai_callback = done
-        self.engine.send(prompt, title=self.windowTitle(), proposal=True)
+        self.engine.send(prompt, title=self.windowTitle(), proposal=True,memory_context=memory_query is not None,memory_text=memory_query)
 
     def ai_done(self, success, result):
         self.end(); callback, self.ai_callback = self.ai_callback, None

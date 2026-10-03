@@ -158,6 +158,12 @@ class ChatPanel(QWidget):
         layout.addWidget(self.save_file_action); self.save_file_action.clicked.connect(self.save_as_file_action)
         self.backend.started.connect(lambda *_: self.save_file_action.hide())
         self.backend.completed.connect(lambda success, _: self.save_file_action.setVisible(success))
+        self.memory_capture_job=None
+        memory_row=QHBoxLayout();self.save_note_button=QPushButton('Für mich speichern');self.remember_button=QPushButton('Merk dir das')
+        for control in (self.save_note_button,self.remember_button):control.setObjectName('toolButton');control.setEnabled(False);memory_row.addWidget(control)
+        self.save_note_button.clicked.connect(lambda:self.capture_knowledge(False));self.remember_button.clicked.connect(lambda:self.capture_knowledge(True));layout.addLayout(memory_row)
+        self.memory_status=label('','muted');self.memory_status.hide();layout.addWidget(self.memory_status)
+        self.backend.memoryStatus.connect(lambda text:(self.memory_status.setText(text),self.memory_status.show()))
         QShortcut(QKeySequence('Ctrl+Return'), self, activated=self.send)
         self.backend.messagesChanged.connect(self.show_messages)
         self.backend.requestsChanged.connect(self.show_requests)
@@ -176,6 +182,20 @@ class ChatPanel(QWidget):
             from file_actions import save_action
             save_action(self, self.tracker.store, self.tracker.store.task(self.tracker.task_id), self.paths)
         except (ValueError, OSError) as error: self.show_error(str(error))
+
+    def capture_knowledge(self,remember):
+        if self.memory_capture_job:return
+        text=self.transcript.textCursor().selectedText().replace('\u2029','\n') or self.last_answer
+        if not text.strip():return
+        if len(text)>20000:self.show_error('Bitte einen Abschnitt bis 20.000 Zeichen auswählen.');return
+        from tools_ui import Job
+        from lumen_memory import worker as memory_worker
+        from wissen_data import worker as notebook_worker
+        store=self.tracker.store;title=(self.last_prompt or 'Gespräch mit Lumen').splitlines()[0][:120];source='Von dir gespeichert · Gespräch „'+title+'“'
+        job=Job(lambda job:memory_worker(job,store,'remember',title=title,text=text,source=source) if remember else notebook_worker(job,store,'save_memory',title=title,text=text,source=source),self)
+        self.memory_capture_job=job;job.result.connect(lambda _:(self.memory_status.setText('Im Lumen-Gedächtnis gespeichert.' if remember else 'In deinem Notizbuch gespeichert.'),self.memory_status.show()));job.failed.connect(self.show_error)
+        def finished():self.memory_capture_job=None;job.deleteLater()
+        job.finished.connect(finished);job.start()
 
     def recovery_state(self):
         # Keep the text view; omit backend credentials and structured tool results.
@@ -376,7 +396,7 @@ class ChatPanel(QWidget):
         self.backend.background_task = False
         if self.context_tools.learn.isChecked():
             text += '\n\nErkläre die wesentlichen Schritte, ihre Wirkung und wie ich sie selbst wiederholen kann.'
-        self.backend.send(text, files, self.mode.currentData(), title=title)
+        self.backend.send(text, files, self.mode.currentData(), title=title,memory_text=self.last_prompt)
         if not self.action:
             self.composer.clear()
 
@@ -399,6 +419,7 @@ class ChatPanel(QWidget):
             if text or (activity and not self.action):
                 entries.append((role, text, [] if self.action else activity))
         self.copy.setEnabled(bool(self.last_answer))
+        self.save_note_button.setEnabled(bool(self.last_answer));self.remember_button.setEnabled(bool(self.last_answer))
         self.action_more.setEnabled(bool(self.last_answer) and not self.backend.busy)
         if entries == self.rendered:
             return
@@ -507,6 +528,9 @@ class ChatPanel(QWidget):
         self.backend.question_reply(request_id, answers)
 
     def can_close(self):
+        if self.memory_capture_job:
+            self.memory_capture_job.cancelled.set();self.memory_capture_job.wait(3000)
+            if self.memory_capture_job.isRunning():return False
         return not self.backend.busy or QMessageBox.question(
             self, 'Lumen arbeitet noch', 'Den laufenden Vorgang abbrechen und schließen?',
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes

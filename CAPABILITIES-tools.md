@@ -13,7 +13,7 @@ Auftrag: Meeting-Werkstatt (3), digitaler Haushalt (4), Projekt-Werkbank (6), pe
 | inbox | IMAP/SMTP, Proton Bridge, CalDAV/ICS, lokale Entwürfe und Aufgaben | tools-common, Secret Service, optionales Kalender-Environment |
 | reader | PDF/EPUB/Artikel, Lesestand, Markierungen, Randnotizen, Vorlesen und zitierte Wissensstellen | tools-common, PyMuPDF; optional Piper/ffmpeg |
 | sound | Lautstärke/Stumm/Ausgang je Stream, App-Regeln und optionale Gesprächsabsenkung | tools-common, pactl, Pulse-kompatibler Audioserver; systemd für Automatik |
-| wissen | Markdown-Notizordner, Editor/Vorschau, Bilder, Tags, Rückverweise, lokale Karte, ausgewählte KI-Quellen | tools-common, Pillow; OpenCode nur für Fragen |
+| wissen | Persönliches Markdown-Notizbuch und separates Lumen-Gedächtnis; Freigaben, optionales Lernen, Korrektur/Vergessen, Editor/Vorschau, Bilder, Links, Karte und Quellenfragen | tools-common, Pillow; OpenCode für Fragen und aktiviertes Lernen |
 
 Reihenfolge: common → meetings → household → workbench → radio → Installation/Verifikation.
 

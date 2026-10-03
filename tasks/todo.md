@@ -120,3 +120,26 @@ installierte Python-/QSS-/SVG-Dateien entsprechen dem Repo. Bestehende optionale
 Abhängigkeiten erhalten, Plasma/KWin-Konfiguration per Hash unverändert.
 Persönliche Notizen, Bibliotheken, Sicherungen, Screenshots und Systemreferenz
 bleiben außerhalb von Git. Systempaket-Upgrade gehört nicht zu dieser Installation.
+
+# Persönliches Notizbuch und Lumen-Gedächtnis
+
+- [x] Zwei native Bereiche, explizite Notiz-/Ordnerfreigaben und lokales Gedächtnis.
+- [x] Herkunft, Zeitpunkt, Beleg, Projektbezug, Korrektur, Verlauf und Vergessen.
+- [x] Gemeinsamer Gesprächskontext, begrenztes optionales Lernen und native Aktionen.
+- [x] Integration, Abbruch, Konflikte, Freigabeentzug und Vergessen getestet.
+- [ ] Paket37, Benutzerinstallation, Starterprüfung und private Referenz abschließen.
+
+Vollständige Prüfung: 173 Python-Prüfungen, davon 172 bestanden und ein optionaler
+CalDAV-Check übersprungen; 12 QML-Prüfungen bestanden. Zusätzlicher fokussierter
+Lauf prüft den Abbruch während der Kontextvorbereitung. Beide Bereiche in vier
+Themes und kompakter Ansicht gerendert. Lokale Test-Engine mit synthetischen
+Antworten für Lernen, späteren Kontext und frische Sitzung nach Freigabeentzug.
+
+Review: Lumen ändert persönliche Notizen nicht automatisch. Korrigierte
+Gedächtniseinträge bleiben geschützt, verspätete Lernvorschläge werden verworfen.
+Vergessen entfernt aktive Datei, Entwurf und lokale Versionen; Hash-Sperren
+erkennen bekannte identische Inhalte, keine beliebigen Umformulierungen.
+Modellinterpretationen sind als automatisch markiert und korrigierbar.
+Frische Profile starten ohne Nutzung/Lernen; Aktivierung hier ausdrücklich im
+angenommenen Auftrag. Private Notizen, Register, Sicherungen und Screenshots
+gehören nicht ins Git. Bedienung und Grenzen: WISSEN.md, Vertrag: SPEC-memory.md.

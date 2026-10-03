@@ -7,12 +7,13 @@ from urllib.parse import quote
 from PyQt5.QtCore import Qt,QTimer,QUrl,QEvent
 from PyQt5.QtGui import QDesktopServices,QKeySequence,QTextCursor
 from PyQt5.QtWidgets import (QWidget,QVBoxLayout,QSplitter,QPlainTextEdit,QTabWidget,QStackedWidget,
-    QListWidget,QListWidgetItem,QLineEdit,QFileDialog,QInputDialog,QShortcut,QMessageBox,QMenu)
+    QListWidget,QListWidgetItem,QLineEdit,QFileDialog,QInputDialog,QShortcut,QMessageBox,QMenu,QComboBox,QCheckBox)
 from tools_ui import ToolWindow,Job,button,label,row
 from tools_data import parse_answer
 from assistant import Transcript
 from lumen_store import Store
 import wissen_data as data
+import lumen_memory as memory
 from wissen_views import NotePreview,KnowledgeMap
 
 
@@ -21,14 +22,22 @@ class Wissen(ToolWindow):
         super().__init__('wissen','Lumen Wissen','Gedanken festhalten. Quellen verbinden. Zusammenhänge entdecken.','lumen-wissen',root)
         self.store=Store();records=self.library.all();self.current=records[0]['id'] if records else self.library.create('Wissen')
         self.book=None;self.notes={};self.doc=None;self.dirty=False;self.conflict=False;self.poller=None;self.after_job=None;self.closing=False;self.answer='';self.answer_sources=[];self.answer_question='';self.pending_file=''
+        self.area='user';self.pending_area=None
+        self.area_choice=QComboBox();self.area_choice.addItem('Mein Bereich','user');self.area_choice.addItem('Lumen-Gedächtnis','lumen');self.area_choice.setAccessibleName('Wissensbereich');self.sidebar.layout().insertWidget(0,self.area_choice);self.area_choice.currentIndexChanged.connect(self.change_area)
         self.add_button.setText('Neue Notiz');self.search.setPlaceholderText('Notizen, Gedanken oder #Tags …')
         self.archived.hide();self.archive_button.setText('Notiz entfernen');self.archive_button.setEnabled(False)
-        self.sidebar.layout().addWidget(button('Ordner wählen',lambda:self.safe(self.choose_folder),'folder-open'))
+        self.folder_button=button('Ordner wählen',lambda:self.safe(self.choose_folder),'folder-open');self.sidebar.layout().addWidget(self.folder_button)
         self.sidebar.layout().addWidget(button('Wiederherstellen',lambda:self.safe(self.history),'edit-undo'))
+        self.share_folder_button=button('Ordnerfreigaben',lambda:self.safe(self.share_folder),'folder-public');self.sidebar.layout().addWidget(self.share_folder_button)
+        self.memory_options=QWidget();ol=QVBoxLayout(self.memory_options);ol.setContentsMargins(0,0,0,0)
+        self.use_memory=QCheckBox('Gedächtnis verwenden');self.learn_memory=QCheckBox('Aus Gesprächen lernen');ol.addWidget(self.use_memory);ol.addWidget(self.learn_memory)
+        ol.addWidget(label('Passende Erinnerungen und freigegebene Notizen gehen an deinen eingerichteten KI-Anbieter. Lernen nutzt den bereits gesendeten Nutzertext.','muted'))
+        self.use_memory.toggled.connect(lambda _:self.safe(self.configure_memory));self.learn_memory.toggled.connect(lambda _:self.safe(self.configure_memory));self.sidebar.layout().addWidget(self.memory_options);self.memory_options.hide()
         self.location=label('Bibliothek wird geöffnet …','muted');self.content.addWidget(row(self.location,button('Ordner öffnen',lambda:self.safe(self.open_folder),'folder')))
         self.tabs=QTabWidget();self.content.addWidget(self.tabs,1)
         writing=QWidget();wl=QVBoxLayout(writing);wl.setContentsMargins(0,12,0,0);wl.setSpacing(12)
         self.title=label('Dein Wissen beginnt mit einem Gedanken','heading');wl.addWidget(self.title)
+        self.share_note=QCheckBox('Diese Notiz für Lumen freigeben');self.share_note.setToolTip('Erlaubt passende Auszüge als Kontext für zukünftige Lumen-Anfragen, auch an deinen eingerichteten Cloud-Anbieter.');self.share_note.toggled.connect(lambda value:self.safe(self.set_note_shared,value));wl.addWidget(self.share_note);self.share_note.setEnabled(False)
         insert=button('Einfügen',lambda:None,'list-add');menu=QMenu(insert)
         for title,callback in [('Notiz verknüpfen',self.insert_link),('Bild einfügen',self.insert_image),('Tag einfügen',self.insert_tag)]:menu.addAction(title,lambda checked=False,callback=callback:self.safe(callback))
         insert.setMenu(menu);self.view_button=button('Vorschau',self.toggle_view,'view-preview')
@@ -62,8 +71,52 @@ class Wissen(ToolWindow):
 
     def focus_record(self,key):self.current=key
     def load(self,record):pass
+    def change_area(self,index):
+        area=self.area_choice.itemData(index)
+        self.area_choice.blockSignals(True);self.area_choice.setCurrentIndex(1 if self.area=='lumen' else 0);self.area_choice.blockSignals(False)
+        self.safe(self.switch_area,area)
+    def switch_area(self,area):
+        if area==self.area:return
+        if self.dirty:self.save_note(lambda:self.switch_area(area));return
+        if self.poller:self.pending_area=area;return
+        if self.job:return
+        self.area=area;self.doc=None;self.notes={};self.book=None;self.loading=True;self.editor.clear();self.loading=False;self.editor.setEnabled(False);self.preview.clear();self.views.setCurrentIndex(0);self.view_button.setText('Vorschau');self.source.clear();self.links.clear();self.recovery.hide();self.banner.hide();self.refresh()
+        self.answer='';self.answer_sources=[];self.candidates.clear();self.response.clear();self.question.clear();self.tabs.setCurrentIndex(0)
+        self.title.setText('Lumens dauerhaftes Gedächtnis' if area=='lumen' else 'Dein Wissen beginnt mit einem Gedanken')
+        self.area_choice.blockSignals(True);self.area_choice.setCurrentIndex(1 if area=='lumen' else 0);self.area_choice.blockSignals(False)
+        self.folder_button.setVisible(area=='user');self.share_folder_button.setVisible(area=='user');self.share_note.setVisible(area=='user');self.share_note.setEnabled(False);self.memory_options.setVisible(area=='lumen')
+        self.add_button.setText('Neue Erinnerung' if area=='lumen' else 'Neue Notiz');self.archive_button.setText('Vergessen' if area=='lumen' else 'Notiz entfernen');self.archive_button.setEnabled(False)
+        config=memory.options(self.store)
+        for control,key in ((self.use_memory,'enabled'),(self.learn_memory,'learn')):control.blockSignals(True);control.setChecked(config[key]);control.blockSignals(False)
+        self.learn_memory.setEnabled(config['enabled']);self.initialize()
+    def configure_memory(self):
+        if self.loading:return
+        enabled=self.use_memory.isChecked();learn=self.learn_memory.isChecked()
+        def done(config):
+            self.learn_memory.setEnabled(config['enabled']);self.status.setText('Gedächtnis-Einstellungen gespeichert · gelten ab der nächsten Anfrage')
+        self.work('Gedächtnis-Einstellungen speichern …',lambda job:memory.worker(job,self.store,'configure',enabled=enabled,learn=learn),done)
+    def set_note_shared(self,allow):
+        if self.loading or not self.doc or self.area!='user':return
+        path=self.doc['path']
+        self.work('Notizfreigabe speichern …',lambda job:memory.worker(job,self.store,'share',path=path,allow=allow),lambda _:self.status.setText('Für zukünftige Lumen-Anfragen freigegeben.' if allow else 'Private Notiz · wird nicht mehr automatisch als Kontext verwendet.'))
+    def share_folder(self):
+        if not self.book or self.area!='user':return
+        action,ok=QInputDialog.getItem(self,'Ordnerfreigaben','Aktion',['Ordner für Lumen freigeben','Ordner privat halten','Bestehende Freigaben ansehen'],0,False)
+        if not ok:return
+        if action=='Bestehende Freigaben ansehen':
+            rules=[r for r in self.store.setting('memory/shares',[]) if r['root']==str(self.book.root) and r['identity']==self.book.identity]
+            QMessageBox.information(self,'Freigaben','\n'.join(('Freigegeben: ' if r['allow'] else 'Privat: ')+r['path'] for r in rules) or 'Alle Notizen sind privat.');return
+        folder=QFileDialog.getExistingDirectory(self,'Ordner innerhalb deines Notizbuchs wählen',str(self.book.root))
+        if not folder:return
+        path=str(Path(folder).relative_to(self.book.root));allow=action=='Ordner für Lumen freigeben'
+        def done(_):
+            if self.doc:self.share_note.blockSignals(True);self.share_note.setChecked(memory.Memory(self.store).shared(self.book,self.doc['path']));self.share_note.blockSignals(False)
+            self.status.setText('Ordnerregel gespeichert. Individuelle Notizregeln haben Vorrang.')
+        self.work('Ordnerfreigabe speichern …',lambda job:memory.worker(job,self.store,'share',path=path,allow=allow,directory=True),done)
     def initialize(self,root=None):
-        self.work('Wissensordner öffnen und vorhandene Einträge übernehmen …',lambda job:data.worker(job,self.store,'activate',root),self.activated)
+        if self.area=='lumen':
+            self.work('Lumen-Gedächtnis öffnen …',lambda job:memory.worker(job,self.store,'scan'),lambda result:(self.activated(result['root']),self.scanned(result)))
+        else:self.work('Wissensordner öffnen und vorhandene Einträge übernehmen …',lambda job:data.worker(job,self.store,'activate',root),self.activated)
     def activated(self,root):
         self.book=data.Notebook(self.store,root);self.location.setText(root)
         if self.pending_file:
@@ -71,7 +124,9 @@ class Wissen(ToolWindow):
         else:self.after_job=self.poll
     def action(self,action,done,**values):
         if not self.book:raise ValueError('Zuerst einen erreichbaren Wissensordner wählen.')
-        self.work('Wissen · '+{'write':'Notiz speichern','read':'Notiz laden','create':'Notiz anlegen','remove':'Notiz sichern und entfernen','add_image':'Bild kopieren','versions':'Verlauf laden','restore':'Version wiederherstellen'}.get(action,action)+' …',lambda job:data.worker(job,self.store,action,str(self.book.root),identity=self.book.identity,**values),done)
+        special={'create':'remember','write':'write','remove':'forget','restore':'restore'}
+        work=lambda job:memory.worker(job,self.store,special[action],**values) if self.area=='lumen' and action in special else data.worker(job,self.store,action,str(self.book.root),identity=self.book.identity,**values)
+        self.work('Wissen · '+{'write':'Notiz speichern','read':'Notiz laden','create':'Notiz anlegen','remove':'Eintrag entfernen','add_image':'Bild kopieren','versions':'Verlauf laden','restore':'Version wiederherstellen'}.get(action,action)+' …',work,done)
     def job_finished(self):
         super().job_finished();callback,self.after_job=self.after_job,None
         if self.closing:QTimer.singleShot(0,self.close)
@@ -109,13 +164,23 @@ class Wissen(ToolWindow):
         try:
             self.doc=note;self.notes[note['path']]=note;self.editor.setPlainText(note['text']);self.editor.setEnabled(True);self.dirty=False;self.conflict=False
             self.title.setText(note['title']);self.title.setToolTip(note['source']);self.source.setText('Quelle: '+note['source'] if note['source'] else 'Eigene Notiz');self.banner.clear();self.banner.hide();self.recovery.hide();self.archive_button.setEnabled(True)
-            self.library.update(self.current,last_note=note['path']);self.refresh();self.connections();self.preview.note_hash=''
+            self.library.update(self.current,**({'last_note':note['path']} if self.area=='user' else {'last_memory':note['path']}));self.refresh();self.connections();self.preview.note_hash=''
+            self.share_note.setEnabled(self.area=='user');self.share_note.blockSignals(True);self.share_note.setChecked(self.area=='user' and memory.Memory(self.store).shared(self.book,note['path']));self.share_note.blockSignals(False)
+            if self.area=='lumen':
+                from datetime import datetime
+                meta=note.get('memory') or self.store.setting('memory/records',{}).get(note['path'],{});updated=meta.get('updated',0)
+                details=memory.KINDS.get(meta.get('kind'),'Erinnerung')+' · '+('Automatisch gelernt' if meta.get('automatic') and meta.get('hash')==note['hash'] else 'Von dir gepflegt')
+                if updated:details+='\n'+datetime.fromtimestamp(updated).strftime('%d.%m.%Y %H:%M')
+                details+='\n'+('Projekt: '+meta['scope'] if meta.get('scope') else 'Übergreifend')
+                if meta.get('evidence'):details+='\n\nDeine Aussage: „'+meta['evidence']+'“'
+                self.source.setText(details+'\n\n'+self.source.text())
             if not self.job and self.views.currentIndex()==1:QTimer.singleShot(0,lambda:self.safe(self.prepare_preview))
             saved=data.draft(self.store,self.book.root,note['path'])
             if saved and saved['text']!=note['text']:
                 self.editor.setPlainText(saved['text']);self.dirty=True;self.conflict=saved['expected']!=note['hash'];self.doc=dict(note,hash=saved['expected'])
                 self.banner.setText('Lokaler Entwurf wiederhergestellt.'+(' Die Datei wurde inzwischen verändert.' if self.conflict else ' Zum Übernehmen speichern.'));self.banner.show();self.recovery.setVisible(self.conflict)
         finally:self.loading=False
+        self.status.setText('Lokaler Entwurf wiederhergestellt · zum Übernehmen speichern' if self.dirty else ('Erinnerung geladen · Änderungen bleiben nachvollziehbar' if self.area=='lumen' else 'Notiz geladen · lokal gespeichert'))
     def select(self,item,old):
         if item and not self.loading:self.safe(self.open_note,item.data(Qt.UserRole))
     def open_note(self,path):
@@ -124,6 +189,9 @@ class Wissen(ToolWindow):
         if self.dirty:self.save_note(lambda:self.open_note(path));return
         self.action('read',lambda note:(self.show_note(note),self.tabs.setCurrentIndex(0)),path=path)
     def open_file(self,path):
+        candidate=Path(path).expanduser().absolute()
+        target='lumen' if candidate.is_relative_to(memory.root(self.store)) else 'user'
+        if target!=self.area:self.pending_file=path;self.switch_area(target);return
         if not self.book or self.job:self.pending_file=path;return
         candidate=Path(path).resolve(strict=True)
         try:relative=str(candidate.relative_to(self.book.root))
@@ -139,12 +207,14 @@ class Wissen(ToolWindow):
         self.entries.blockSignals(False)
     def poll(self):
         if not self.book or self.poller or self.job or self.closing:return
-        self.poller=Job(lambda job:data.worker(job,self.store,'scan',str(self.book.root),identity=self.book.identity),self)
+        self.poller=Job(lambda job:memory.worker(job,self.store,'scan') if self.area=='lumen' else data.worker(job,self.store,'scan',str(self.book.root),identity=self.book.identity),self)
         self.poller.result.connect(lambda result:self.safe(self.scanned,result));self.poller.failed.connect(lambda message:self.status.setText('Ordner nicht aktualisiert: '+message))
         self.poller.finished.connect(self.poll_finished);self.poller.start()
     def poll_finished(self):
         self.poller.deleteLater();self.poller=None
         if self.closing:QTimer.singleShot(0,self.close)
+        elif self.pending_area:
+            area,self.pending_area=self.pending_area,None;QTimer.singleShot(0,lambda:self.switch_area(area))
     def scanned(self,result):
         self.notes={n['path']:n for n in result['notes']};self.refresh()
         if self.doc:
@@ -156,7 +226,7 @@ class Wissen(ToolWindow):
                 if self.dirty:self.conflict=True;self.banner.setText('Die Notiz wurde entfernt. Den lokalen Entwurf als Kopie speichern.');self.banner.show();self.recovery.show()
                 else:self.doc=None;self.loading=True;self.editor.clear();self.loading=False;self.editor.setEnabled(False);self.title.setText('Notiz wurde entfernt');self.links.clear()
         else:
-            last=self.library.get(self.current).get('last_note','')
+            last=self.library.get(self.current).get('last_memory' if self.area=='lumen' else 'last_note','')
             if last in self.notes:self.show_note(self.notes[last])
         self.connections()
         if result['limited'] or result['errors']:self.status.setText(f"{len(self.notes)} Notizen · {result['errors']} nicht lesbar"+(' · Scanlimit erreicht' if result['limited'] else ''))
@@ -208,9 +278,10 @@ class Wissen(ToolWindow):
     def archive(self):
         if not self.doc:return
         if self.dirty:self.save_note(self.archive);return
-        if QMessageBox.question(self,'Notiz entfernen','Die Notiz entfernen? Eine lokale Kopie bleibt unter „Wiederherstellen“ erhalten.',QMessageBox.Yes|QMessageBox.Cancel,QMessageBox.Cancel)!=QMessageBox.Yes:return
+        question='Diese Erinnerung vergessen und ihre lokalen früheren Fassungen entfernen? Sie wird nicht mehr als Gedächtnis verwendet. Frühere Gespräche bleiben unverändert.' if self.area=='lumen' else 'Die Notiz entfernen? Eine lokale Kopie bleibt unter „Wiederherstellen“ erhalten.'
+        if QMessageBox.question(self,'Erinnerung vergessen' if self.area=='lumen' else 'Notiz entfernen',question,QMessageBox.Yes|QMessageBox.Cancel,QMessageBox.Cancel)!=QMessageBox.Yes:return
         def done(_):
-            self.notes.pop(self.doc['path'],None);self.doc=None;self.loading=True;self.editor.clear();self.loading=False;self.editor.setEnabled(False);self.refresh();self.links.clear();self.title.setText('Notiz entfernt · lokal wiederherstellbar')
+            self.notes.pop(self.doc['path'],None);self.doc=None;self.loading=True;self.editor.clear();self.loading=False;self.editor.setEnabled(False);self.refresh();self.links.clear();self.title.setText('Erinnerung vergessen' if self.area=='lumen' else 'Notiz entfernt · lokal wiederherstellbar');self.share_note.setEnabled(False)
         self.action('remove',done,path=self.doc['path'],expected=self.doc['hash'])
     def history(self):
         if self.dirty:self.save_note(self.history);return
