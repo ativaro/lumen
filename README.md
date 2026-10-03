@@ -349,8 +349,10 @@ install-system.sh         optional root-only tweaks
 ## License
 
 The current license for Lumen-authored code is MIT — see [LICENSE](LICENSE).
-The repository remains private. The maintainer is evaluating noncommercial use
-with separately agreed commercial rights; this is not yet a license change.
+The repository remains private. The proposed direction is dual licensing: an
+AGPLv3 community version and paid licenses for proprietary derivatives. Compliant
+AGPL redistribution, including sales, would remain permitted without a license fee.
+This proposal is not yet a license change.
 See [the licensing plan and dependency constraints](LICENSE-PLAN.md).
 
 ## System-wide install (Arch / CachyOS)
@@ -408,6 +410,6 @@ uses the [OpenCode server API](https://opencode.ai/docs/server/); see
 
 ## Eigenständige Werkzeuge
 
-Meeting-Werkstatt, digitaler Haushalt, Projekt-Werkbank und persönliches Radio
+Lumen Meeting-Werkstatt, Lumen Digitaler Haushalt, Lumen Projekt-Werkbank und Lumen Persönliches Radio
 werden mit eigenen Startern installiert. Funktionen, Speicherung, Einrichtung
 und Grenzen: [Desktop-Werkzeuge](TOOLS.md).

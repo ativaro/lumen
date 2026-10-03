@@ -61,10 +61,12 @@ No AUR release or binary repository is currently implied by this source reposito
 ## Licenses
 
 The repository remains private. [LICENSE-PLAN.md](LICENSE-PLAN.md) records the
-proposed noncommercial/commercial licensing direction and the PyQt dependency
-issue to resolve before adopting it. It does not replace the current license.
+proposed AGPLv3 community/commercial dual-licensing direction, including permitted
+AGPL-compliant sales and the PyQt/PyMuPDF rights to resolve for proprietary
+distribution. It does not replace the current license.
 
-Application code is MIT. The bundled modified MacTahoe Plasma/Aurorae artwork and
+Lumen-authored application code is currently MIT; dependencies retain their own
+licenses. The bundled modified MacTahoe Plasma/Aurorae artwork and
 four SVG wallpapers use GPL-3.0. Keep `desktop/CREDITS.md`, `COPYING.GPL-3.0` and
 editable graphics with the distribution. Image-generated wallpapers are identified
 separately in the credits. Do not include third-party account credentials or private
