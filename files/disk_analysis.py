@@ -5,9 +5,9 @@ from pathlib import Path
 
 from lumen_i18n import worker_process, tr
 
-from PyQt5.QtCore import QFileInfo, QProcess, QRectF, Qt, pyqtSignal
-from PyQt5.QtGui import QColor, QIcon
-from PyQt5.QtWidgets import (QCheckBox, QDialog, QFileDialog, QHBoxLayout, QHeaderView,
+from PySide6.QtCore import QFileInfo, QProcess, QRectF, Qt, Signal
+from PySide6.QtGui import QColor, QIcon
+from PySide6.QtWidgets import (QCheckBox, QDialog, QFileDialog, QHBoxLayout, QHeaderView,
                              QMessageBox, QPushButton, QStyledItemDelegate, QTreeWidget,
                              QTreeWidgetItem, QVBoxLayout)
 from core import size_text
@@ -40,8 +40,8 @@ class SizeBar(QStyledItemDelegate):
 
 
 class DiskAnalysis(QDialog):
-    openPath = pyqtSignal(str)
-    sizesReady = pyqtSignal(object)
+    openPath = Signal(str)
+    sizesReady = Signal(object)
 
     def __init__(self, path, parent=None, apparent=False):
         super().__init__(parent)
@@ -283,4 +283,4 @@ class DiskAnalysis(QDialog):
         box = QMessageBox(QMessageBox.Warning, tr('Analyse unvollständig'),
                           tr('Nicht alle Daten konnten gelesen werden.'), QMessageBox.Ok, self)
         box.setDetailedText(self.errors)
-        box.exec_()
+        box.exec()

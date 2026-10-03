@@ -60,13 +60,13 @@ def expand(flow, paths):
 def save_action(parent, store, task, paths=()):
     if task['status'] != 'completed': raise ValueError(tr('Zuerst die Aufgabe erfolgreich abschließen.'))
     from lumen_workspace import PlanDialog
-    from PyQt5.QtWidgets import QLabel
+    from PySide6.QtWidgets import QLabel
     dialog = PlanDialog(parent, template(task, paths), workflow=True)
     dialog.setWindowTitle(tr('Eigene Dateiaktion speichern'))
     hint = QLabel(tr('Platzhalter: {{datei}}, {{ordner}}, {{name}}, {{stamm}}, {{endung}}, {{auswahl}}.\nDie neue Auswahl wird vor jedem Start angezeigt. KI-Aufträge behalten ihre Werkzeugfreigaben.')); hint.setWordWrap(True)
     dialog.layout().insertWidget(0, hint)
     dialog.trigger.setCurrentIndex(0); dialog.trigger.setEnabled(False); dialog.enable.hide(); dialog.interval.hide(); dialog.watch.hide()
-    if dialog.exec_():
+    if dialog.exec():
         identity = store.save_workflow(**dialog.value)
         store.set_setting(PREFIX + identity, True)
         return identity
@@ -76,7 +76,7 @@ def run_action(window, flow, paths):
     from lumen_workspace import PlanDialog
     value = expand(flow, paths); dialog = PlanDialog(window, value)
     dialog.setWindowTitle(tr('Dateiaktion prüfen · ') + flow['name'])
-    if not dialog.exec_(): return
+    if not dialog.exec(): return
     config = dialog.value; store = Store()
     if config['steps']:
         identity = store.create_task(config['name'], directory=value['directory'], roots=config['roots'], steps=config['steps'], approved=True)

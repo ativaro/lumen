@@ -1,9 +1,9 @@
 """Small folder family shared by the native list, grid and library models."""
 from pathlib import Path
 
-from PyQt5.QtCore import QByteArray, QRectF, QStandardPaths, Qt
-from PyQt5.QtGui import QIcon, QPainter, QPixmap
-from PyQt5.QtSvg import QSvgRenderer
+from PySide6.QtCore import QByteArray, QRectF, QStandardPaths, Qt
+from PySide6.QtGui import QIcon, QPainter, QPixmap
+from PySide6.QtSvg import QSvgRenderer
 
 
 def folder_icons():

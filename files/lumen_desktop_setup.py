@@ -51,7 +51,7 @@ def configure_desktop(design, replace_panels=False):
     print(tr('Sicherung:'), backup, flush=True)
     data = install_resources()
     apply({'design': design})
-    from PyQt5.QtCore import QSettings
+    from PySide6.QtCore import QSettings
     settings = QSettings('Lumen', 'Assistant')
     settings.setValue('appearance', design)
     settings.sync()

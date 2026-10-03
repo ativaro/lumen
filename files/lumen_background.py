@@ -2,7 +2,7 @@
 import argparse
 from pathlib import Path
 import sys
-from PyQt5.QtCore import QCoreApplication
+from PySide6.QtCore import QCoreApplication
 from assistant_backend import OpenCodeBackend
 from lumen_store import Store
 from lumen_tasks import defer_background
@@ -27,9 +27,9 @@ def main():
         backend.shutdown(); app.exit(0 if success else 1)
     backend.completed.connect(done)
     # Enter the event loop before a synchronous validation failure may occur.
-    from PyQt5.QtCore import QTimer
+    from PySide6.QtCore import QTimer
     QTimer.singleShot(0, lambda: backend.send(args.prompt, agent='plan'))
-    result = app.exec_(); tracker.interrupt(); backend.shutdown(); return result
+    result = app.exec(); tracker.interrupt(); backend.shutdown(); return result
 
 
 if __name__ == '__main__': sys.exit(main())

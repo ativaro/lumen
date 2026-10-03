@@ -6,8 +6,8 @@ import sys
 import tempfile
 from lumen_i18n import worker_process, tr
 
-from PyQt5.QtCore import QProcess, Qt
-from PyQt5.QtWidgets import (QDialog, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QListWidget,
+from PySide6.QtCore import QProcess, Qt
+from PySide6.QtWidgets import (QDialog, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QListWidget,
     QListWidgetItem, QPushButton, QSpinBox, QSplitter, QPlainTextEdit, QVBoxLayout, QWidget)
 from lumen_versions import Versions, start
 from preview import Preview
@@ -66,12 +66,12 @@ class VersionsDialog(QDialog):
                 self.versions.configure([roots.item(i).text() for i in range(roots.count())], *(f.value() for f in fields))
                 start(self.versions.store); dialog.accept()
             except (ValueError, OSError) as exc: error.setText(str(exc))
-        button = QPushButton(tr('Speichern')); button.clicked.connect(save); layout.addWidget(button); dialog.exec_()
+        button = QPushButton(tr('Speichern')); button.clicked.connect(save); layout.addWidget(button); dialog.exec()
 
     def run(self, args, callback):
         if self.proc: return
         proc = worker_process(self); self.proc = proc; self.restore_button.setEnabled(False); self.list.setEnabled(False)
-        from PyQt5.QtCore import QTimer
+        from PySide6.QtCore import QTimer
         env = proc.processEnvironment(); env.insert('LUMEN_DATA', str(self.versions.store.directory)); proc.setProcessEnvironment(env)
         timer = QTimer(proc); timer.setSingleShot(True); timer.timeout.connect(proc.kill)
         def finished(code):

@@ -4,7 +4,7 @@ Approved scope: the user requested all eight proposed capabilities and one produ
 named **Lumen**, with file management as an integrated page and the separately
 launchable **Lumen Files** window. The panel opens the assistant; both entry
 points share settings and integrations. OpenCode remains the model/tool engine.
-This is an extension of the existing PyQt5 application.
+This is an extension of the existing PySide6 application.
 
 ## Capability map and build order
 
@@ -49,7 +49,7 @@ This is an extension of the existing PyQt5 application.
 
 ## Implementation and conventions
 
-Use Python stdlib (sqlite3, pathlib, subprocess with argv), existing PyQt5 widgets
+Use Python stdlib (sqlite3, pathlib, subprocess with argv), existing PySide6 widgets
 and OpenCode HTTP API. Keep new modules under `files/` so both installation paths
 already include them. Reuse existing search, permission UI, assistant backend,
 settings and native file operations. Integrate using direct calls/signals.

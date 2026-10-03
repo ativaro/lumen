@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from PyQt5.QtCore import Qt
+from PySide6.QtCore import Qt
 from lumen_i18n import tr
 from interop_parts import capture_part
 

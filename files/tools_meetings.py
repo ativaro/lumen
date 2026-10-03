@@ -2,8 +2,8 @@
 from lumen_i18n import tr
 import json
 from pathlib import Path
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QFileDialog, QLineEdit, QPlainTextEdit, QSplitter, QTableWidget,
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (QFileDialog, QLineEdit, QPlainTextEdit, QSplitter, QTableWidget,
     QTableWidgetItem, QHeaderView, QTabWidget, QWidget, QVBoxLayout)
 from tools_data import media_duration, transcribe, meeting_result, clock_text
 from tools_ui import ToolWindow, AudioPlayer, button, label, row
@@ -95,7 +95,7 @@ class Meetings(ToolWindow):
         if not record.get('recording'): raise ValueError(tr('Zuerst eine Aufnahme zu dieser Agenda hinzufügen.'))
         # Existing edited text/results survive cancellation; replacement is explicit.
         if record.get('segments'):
-            from PyQt5.QtWidgets import QMessageBox
+            from PySide6.QtWidgets import QMessageBox
             if QMessageBox.question(self,tr('Erneut transkribieren'),tr('Vorhandenes Transkript und seine Ergebnisse nach erfolgreicher Erkennung ersetzen?')) != QMessageBox.Yes: return
         key = self.current
         def done(segments):

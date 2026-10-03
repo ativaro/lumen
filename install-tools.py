@@ -25,13 +25,15 @@ def install(repo, data, binaries):
     if not (repo/'files/tools_app.py').is_file(): raise ValueError('Anwendungsquellen fehlen.')
     digest = hashlib.sha256()
     for p in sources: digest.update(str(p.relative_to(repo/'files')).encode()); digest.update(p.read_bytes())
+    launcher = (repo/'bin/lumen-python').read_bytes()
+    digest.update(launcher)
     runtime = data/'lumen-tools/runtime'/digest.hexdigest()[:20]
     writes = {}
     for tool in TOOLS:
         name = 'lumen-'+tool; binary = binaries/name
         writes[binary] = ('#!/bin/sh\n# '+MARKER+'\n'
                          f'if [ -x /usr/bin/{name} ]; then exec /usr/bin/{name} "$@"; fi\n'
-                         f'exec /usr/bin/python3 {shlex.quote(str(runtime/"tools_app.py"))} {tool} "$@"\n', 0o755)
+                         f'exec {shlex.quote(str(runtime/"lumen-python"))} {shlex.quote(str(runtime/"tools_app.py"))} {tool} "$@"\n', 0o755)
         desktop = (repo/'data/applications'/f'{name}.desktop').read_text()
         desktop = desktop.replace(f'%INSTALL_BIN%/{name}', f'"{binary}"')
         writes[data/'applications'/f'{name}.desktop'] = (desktop+f'X-{MARKER}=true\n', 0o644)
@@ -40,7 +42,7 @@ def install(repo, data, binaries):
     binary=binaries/'lumen-open'
     writes[binary]=('#!/bin/sh\n# '+MARKER+'\n'
                    'if [ -x /usr/bin/lumen-open ]; then exec /usr/bin/lumen-open "$@"; fi\n'
-                   f'exec /usr/bin/python3 {shlex.quote(str(runtime/"interop_open.py"))} "$@"\n',0o755)
+                   f'exec {shlex.quote(str(runtime/"lumen-python"))} {shlex.quote(str(runtime/"interop_open.py"))} "$@"\n',0o755)
     desktop=(repo/'data/applications/lumen-open.desktop').read_text().replace('%INSTALL_BIN%/lumen-open',f'"{binary}"')
     writes[data/'applications/lumen-open.desktop']=(desktop+f'X-{MARKER}=true\n',0o644)
     # Complete preflight before writing; leave unrelated/custom launchers intact.
@@ -54,6 +56,8 @@ def install(repo, data, binaries):
             for p in sources:
                 target = staged/p.relative_to(repo/'files'); target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(p, target)
+            (staged/'lumen-python').write_bytes(launcher)
+            (staged/'lumen-python').chmod(0o755)
             staged.rename(runtime)
     for path, (content, mode) in writes.items():
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -71,7 +75,7 @@ def main():
     parser.add_argument('--data-home', type=Path, default=Path(os.environ.get('XDG_DATA_HOME', str(Path.home()/'.local/share'))))
     parser.add_argument('--bin-dir', type=Path, default=Path.home()/'.local/bin')
     args = parser.parse_args()
-    subprocess.run(['/usr/bin/python3', '-c', 'import PyQt5.QtWidgets, PyQt5.QtSvg, gi, PIL'], check=True)
+    subprocess.run([str(Path(__file__).parent/'bin/lumen-python'), '-c', 'import PySide6.QtWidgets, PySide6.QtSvg, gi, PIL'], check=True)
     runtime = install(Path(__file__).resolve().parent, args.data_home, args.bin_dir)
     for command in (['update-desktop-database', str(args.data_home/'applications')], ['kbuildsycoca6', '--noincremental']):
         if shutil.which(command[0]):

@@ -1,3 +1,5 @@
+> Historical pilot specification. The production migration is specified in [SPEC-qt6.md](SPEC-qt6.md).
+
 # Qt 6 / QML search pilot
 
 ## Objective and approved scope

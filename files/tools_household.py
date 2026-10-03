@@ -2,8 +2,8 @@
 from lumen_i18n import tr
 from datetime import date
 from pathlib import Path
-from PyQt5.QtCore import Qt, QDate
-from PyQt5.QtWidgets import (QLineEdit, QComboBox, QDateEdit, QFormLayout, QPlainTextEdit,
+from PySide6.QtCore import Qt, QDate
+from PySide6.QtWidgets import (QLineEdit, QComboBox, QDateEdit, QFormLayout, QPlainTextEdit,
     QListWidget, QListWidgetItem, QFileDialog, QInputDialog, QScrollArea, QWidget,
     QVBoxLayout, QMessageBox)
 from tools_data import document_text, Cancelled

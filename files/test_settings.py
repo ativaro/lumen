@@ -84,16 +84,16 @@ class NativeSettingsTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from app import create_app
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         cls.app = QApplication.instance() or create_app()
 
     def tearDown(self):
-        from PyQt5 import sip
-        from PyQt5.QtCore import QCoreApplication, QEvent
-        from PyQt5.QtTest import QTest
+        from lumen_qt import is_deleted
+        from PySide6.QtCore import QCoreApplication, QEvent
+        from PySide6.QtTest import QTest
         # Dispose Qt objects while the interpreter and GUI event loop still exist.
         for widget in self.app.topLevelWidgets():
-            if not sip.isdeleted(widget):
+            if not is_deleted(widget):
                 widget.close()
                 widget.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
@@ -103,11 +103,10 @@ class NativeSettingsTest(unittest.TestCase):
         from app import Window
         from appearance import DEFAULT_DESIGN, DESIGNS, apply_design, normalize_design
         from settings_dialog import SettingsDialog
-        from lumen_search import SearchPalette
-        from PyQt5.QtCore import QSettings, Qt
-        from PyQt5.QtGui import QPalette
-        from PyQt5.QtTest import QTest
-        from PyQt5.QtWidgets import QDialog, QPushButton, QVBoxLayout
+        from PySide6.QtCore import QSettings, Qt
+        from PySide6.QtGui import QPalette
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QDialog, QPushButton, QVBoxLayout
         self.assertEqual(DEFAULT_DESIGN, 'glass')
         self.assertEqual(normalize_design('studio'), 'atelier')
         self.assertEqual(normalize_design('lumen'), 'graphite')
@@ -122,7 +121,6 @@ class NativeSettingsTest(unittest.TestCase):
             dialog = SettingsDialog(files_settings=files, assistant_settings=settings, page=3, load_system=False)
             dialog.perform = lambda action, data, callback: callback({'desktop': True})
             self.assertEqual(dialog.appearance.checkedButton().property('design'), 'glass')
-            search = SearchPalette(tmp, applications=[]); search.resize(540, 420); search.show()
             gallery = QDialog(); gallery.setObjectName('gallery')
             layout = QVBoxLayout(gallery); action = QPushButton('Speichern'); action.setObjectName('primary'); layout.addWidget(action)
             gallery.show(); dialog.show()
@@ -139,9 +137,6 @@ class NativeSettingsTest(unittest.TestCase):
                             (QPalette.HighlightedText, QPalette.Highlight)]:
                         light, dark = sorted((luminance(palette.color(foreground)), luminance(palette.color(background))))
                         self.assertGreaterEqual((dark + .05) / (light + .05), 4.5, (name, foreground, background))
-                    self.assertIs(search.query.parentWidget(), search.go.parentWidget())
-                    self.assertGreater(search.go.x(), search.query.geometry().right())
-                    self.assertLessEqual(search.width(), 540)
                 dialog.done(0)
                 reopened = SettingsDialog(files_settings=files, assistant_settings=settings, page=3, load_system=False)
                 self.assertEqual(reopened.appearance.checkedButton().property('design'), 'midnight')
@@ -150,15 +145,14 @@ class NativeSettingsTest(unittest.TestCase):
                 self.assertEqual(window.palette().color(QPalette.Highlight), self.app.palette().color(QPalette.Highlight))
                 window.close()
             finally:
-                search.shutdown(); search.hide(); search.deleteLater()
                 gallery.close(); dialog.close()
                 apply_design(self.app, DEFAULT_DESIGN)
 
     def test_preferences_apply_to_files_and_new_windows_without_system_writes(self):
         from app import Window
         from settings_dialog import SettingsDialog
-        from PyQt5.QtCore import QSettings
-        from PyQt5.QtTest import QTest
+        from PySide6.QtCore import QSettings
+        from PySide6.QtTest import QTest
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp) / 'start'
             folder.mkdir()
@@ -196,8 +190,8 @@ class NativeSettingsTest(unittest.TestCase):
         from app import Window
         from settings_dialog import SettingsDialog
         from document_workshop_ui import open_workshop
-        from PyQt5.QtCore import QSettings
-        from PyQt5.QtWidgets import QMenu
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import QMenu
         with tempfile.TemporaryDirectory() as tmp, patch.dict('os.environ', {'LUMEN_DATA': tmp+'/state'}):
             files = QSettings(tmp+'/files.ini', QSettings.IniFormat)
             assistant = QSettings(tmp+'/assistant.ini', QSettings.IniFormat)
@@ -228,7 +222,7 @@ class NativeSettingsTest(unittest.TestCase):
     def test_lumen_preferences_preserve_explicit_read_and_fix_actions(self):
         from assistant import ChatPanel
         from settings_dialog import SettingsDialog
-        from PyQt5.QtCore import QSettings
+        from PySide6.QtCore import QSettings
         with tempfile.TemporaryDirectory() as tmp:
             settings = QSettings(str(Path(tmp) / 'assistant.ini'), QSettings.IniFormat)
             files = QSettings(str(Path(tmp) / 'files.ini'), QSettings.IniFormat)
@@ -256,7 +250,7 @@ class NativeSettingsTest(unittest.TestCase):
     def test_files_save_never_enables_auto_approval_in_an_existing_chat(self):
         from assistant import ChatPanel
         from settings_dialog import SettingsDialog
-        from PyQt5.QtCore import QSettings
+        from PySide6.QtCore import QSettings
         with tempfile.TemporaryDirectory() as tmp:
             settings = QSettings(str(Path(tmp) / 'assistant.ini'), QSettings.IniFormat)
             files = QSettings(str(Path(tmp) / 'files.ini'), QSettings.IniFormat)
@@ -275,7 +269,7 @@ class NativeSettingsTest(unittest.TestCase):
 
     def test_model_preference_reaches_proposal_without_unlocking_tools(self):
         from assistant_backend import OpenCodeBackend
-        from PyQt5.QtCore import QSettings
+        from PySide6.QtCore import QSettings
         with tempfile.TemporaryDirectory() as tmp:
             backend = OpenCodeBackend(tmp, server_url='http://127.0.0.1:9')
             backend.settings = QSettings(str(Path(tmp) / 'assistant.ini'), QSettings.IniFormat)
@@ -307,7 +301,7 @@ class NativeSettingsTest(unittest.TestCase):
 
     def test_settings_conflict_keeps_places_added_by_another_window(self):
         from settings_dialog import SettingsDialog
-        from PyQt5.QtCore import QSettings
+        from PySide6.QtCore import QSettings
         with tempfile.TemporaryDirectory() as tmp:
             files = QSettings(str(Path(tmp) / 'files.ini'), QSettings.IniFormat)
             assistant = QSettings(str(Path(tmp) / 'assistant.ini'), QSettings.IniFormat)

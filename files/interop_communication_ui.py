@@ -3,8 +3,8 @@ import json
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QDialog, QDialogButtonBox, QFileDialog, QInputDialog,
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QFileDialog, QInputDialog,
     QListWidget, QListWidgetItem, QMessageBox, QVBoxLayout, QDockWidget,
     QPlainTextEdit, QWidget, QLabel, QPushButton)
 from lumen_i18n import tr
@@ -43,7 +43,7 @@ def _checked(window, title, rows, checked=False):
     buttons.accepted.connect(dialog.accept)
     buttons.rejected.connect(dialog.reject)
     layout.addWidget(buttons)
-    if dialog.exec_() != QDialog.Accepted:
+    if dialog.exec() != QDialog.Accepted:
         return None
     return [index for index in range(listing.count()) if listing.item(index).checkState() == Qt.Checked]
 
@@ -244,7 +244,7 @@ def install(window):
     name = getattr(window, 'name', '')
     if name not in ('inbox', 'meetings', 'radio') or hasattr(window, '_communications_menu'):
         return
-    from PyQt5.QtWidgets import QMenu
+    from PySide6.QtWidgets import QMenu
     menu = QMenu(tr('Passende Aktionen'),window)
     window._communications_menu = menu
     choices = {

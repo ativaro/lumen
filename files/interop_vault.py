@@ -372,7 +372,7 @@ def relocate_restored(bundle):
 
 def show_restored(window, directory):
     """Called exclusively by the successful, verified native restore callback."""
-    from PyQt5.QtWidgets import QDialog, QFormLayout, QComboBox, QDialogButtonBox
+    from PySide6.QtWidgets import QDialog, QFormLayout, QComboBox, QDialogButtonBox
     from tools_ui import label, button, open_path
     bundles = restored_bundles(directory)
     if not bundles: open_path(directory); return
@@ -396,8 +396,8 @@ def show_restored(window, directory):
     form.addRow(button(tr('Wiederherstellungsordner öffnen'), lambda: open_path(directory)))
     form.addRow(label(tr('Gesichert sind gespeicherte Dateien und bestätigte Datenbankänderungen. Verweise auf externe Originaldateien können eine erneute Zuordnung benötigen. Audioregeln starten ausgeschaltet.')))
     buttons = QDialogButtonBox(QDialogButtonBox.Close); buttons.rejected.connect(dialog.reject); form.addRow(buttons)
-    from PyQt5.QtCore import QTimer
-    QTimer.singleShot(0, dialog.exec_)
+    from PySide6.QtCore import QTimer
+    QTimer.singleShot(0, dialog.exec)
 
 
 def receive_sources(window, payload, root=None, store=None, done=None, entries=None, token=None):
@@ -406,8 +406,8 @@ def receive_sources(window, payload, root=None, store=None, done=None, entries=N
     done(ref) reports durable success; done(None) reports asynchronous failure.
     Creating a new plan retains the existing native password/target flow.
     """
-    from PyQt5.QtCore import Qt
-    from PyQt5.QtWidgets import QDialog, QFormLayout, QComboBox, QListWidget, QListWidgetItem, QDialogButtonBox, QCheckBox
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QDialog, QFormLayout, QComboBox, QListWidget, QListWidgetItem, QDialogButtonBox, QCheckBox
     from tools_ui import label
     root = root or window.library.root.parent
     if window.job: raise ValueError(tr('Lumen Vault arbeitet bereits. Übergabe anschließend erneut öffnen.'))
@@ -457,7 +457,7 @@ def receive_sources(window, payload, root=None, store=None, done=None, entries=N
     form.addRow(label(tr('Lumen Vault kopiert geöffnete Datenbanken konsistent. Ungespeicherte Änderungen in anderen Fenstern sind noch nicht enthalten.')))
     buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
     buttons.accepted.connect(dialog.accept); buttons.rejected.connect(dialog.reject); form.addRow(buttons)
-    if dialog.exec_() != QDialog.Accepted: return False
+    if dialog.exec() != QDialog.Accepted: return False
     chosen = [listing.item(i).data(Qt.UserRole) for i in range(listing.count()) if listing.item(i).checkState() == Qt.Checked]
     if not chosen: raise ValueError(tr('Mindestens eine Quelle auswählen.'))
     if local_inbox.isChecked():
@@ -539,7 +539,8 @@ def import_restored_note(comparison, store, expected, job):
 
 def show_note_comparison(parent, directory, store=None):
     from lumen_store import Store
-    from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPlainTextEdit, QDialogButtonBox, QFileDialog, QMessageBox
+    from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPlainTextEdit, QDialogButtonBox, QFileDialog,
+        QMessageBox)
     from tools_ui import label, button
     notebooks = [row['restored'] for bundle in restored_bundles(directory) for row in bundle['sources'] if row.get('kind') == 'notebook']
     if not notebooks: raise ValueError(tr('Keine wiederhergestellten Lumen-Notizen gefunden.'))
@@ -562,7 +563,7 @@ def show_note_comparison(parent, directory, store=None):
                  lambda job: import_restored_note(comparison, store, comparison['current']['hash'], job), done)
     layout.addWidget(button(tr('Geprüfte Fassung übernehmen'), apply))
     buttons = QDialogButtonBox(QDialogButtonBox.Cancel); buttons.rejected.connect(dialog.reject); layout.addWidget(buttons)
-    dialog.exec_()
+    dialog.exec()
 
 
 def file_versions(library, identity, path, job, offset=0, limit=20):
@@ -602,8 +603,8 @@ def file_versions(library, identity, path, job, offset=0, limit=20):
 
 def _run_job(parent, title, function, done):
     """A modal cancellable job also usable from Files, which has no ToolWindow.work."""
-    from PyQt5.QtCore import Qt, QTimer
-    from PyQt5.QtWidgets import QProgressDialog, QMessageBox
+    from PySide6.QtCore import Qt, QTimer
+    from PySide6.QtWidgets import QProgressDialog, QMessageBox
     from tools_ui import Job
     dialog = QProgressDialog(title, tr('Abbrechen'), 0, 0, parent)
     dialog.setWindowTitle(tr('Lumen Vault')); dialog.setWindowModality(Qt.WindowModal); dialog.setMinimumDuration(0)
@@ -623,8 +624,9 @@ def _run_job(parent, title, function, done):
 
 
 def show_file_versions(parent, path, root=None):
-    from PyQt5.QtCore import Qt
-    from PyQt5.QtWidgets import QDialog, QFormLayout, QComboBox, QListWidget, QListWidgetItem, QDialogButtonBox, QFileDialog, QMessageBox
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import (QDialog, QFormLayout, QComboBox, QListWidget, QListWidgetItem, QDialogButtonBox,
+        QFileDialog, QMessageBox)
     from tools_data import Library
     from tools_ui import label, button
     base = tools_root(root or (parent.library.root.parent if hasattr(parent, 'library') else None))
@@ -672,4 +674,4 @@ def show_file_versions(parent, path, root=None):
                                            selected=selected['path'], destination=target), lambda restored: show_restored(parent, restored))
     form.addRow(button(tr('Gewählte Dateiversion wiederherstellen'), restore))
     buttons = QDialogButtonBox(QDialogButtonBox.Close); buttons.rejected.connect(dialog.reject); form.addRow(buttons)
-    dialog.exec_()
+    dialog.exec()

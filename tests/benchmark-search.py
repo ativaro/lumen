@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare isolated Qt 5 / Qt 6 search renders using synthetic local files."""
+"""Measure production QML search renders using synthetic local files."""
 import argparse
 import json
 import os
@@ -12,13 +12,13 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
 parser.add_argument('--samples', type=int, default=5)
-parser.add_argument('--child', choices=('qt5', 'qt6'))
+parser.add_argument('--child', choices=('qt6',))
 args = parser.parse_args()
 
 if not args.child:
     outcomes = {}
-    for kind in ('qt5', 'qt6'):
-        python = '/usr/bin/python3' if kind == 'qt5' else str(Path.home()/'.local/share/lumen/qt6-env/bin/python')
+    for kind in ('qt6',):
+        python = sys.executable
         samples = []
         for _ in range(args.samples):
             result = subprocess.run([python, __file__, '--child', kind], capture_output=True, text=True,
@@ -49,21 +49,15 @@ with tempfile.TemporaryDirectory() as tmp:
         for _ in range(50):
             if not frame.isNull(): break
             QTest.qWait(1); frame=window.grabWindow()
-    else:
-        from PyQt5.QtTest import QTest
-        from app import create_app
-        from lumen_search import SearchPalette
-        app=create_app(); window=SearchPalette(directory, applications=[]); controller=window
-        window.show(); QTest.qWaitForWindowExposed(window); frame=window.grab()
     if frame.isNull(): raise RuntimeError('No rendered frame')
     rendered = (time.perf_counter()-start)*1000
     rss = int(next(line.split()[1] for line in Path('/proc/self/status').read_text().splitlines() if line.startswith('VmRSS:')))/1024
     start = time.perf_counter()
-    controller.set_query('report-199') if args.child == 'qt6' else window.query.setPlainText('report-199')
+    controller.set_query('report-199')
     deadline=time.monotonic()+10
     while (controller.debounce.isActive() or controller.scan_jobs) and time.monotonic()<deadline: QTest.qWait(2)
     if controller.debounce.isActive() or controller.scan_jobs: raise RuntimeError('Search timed out')
-    rows = controller.results if args.child == 'qt6' else [window.results.item(i) for i in range(window.results.count())]
+    rows = controller.results
     if len(rows) != 11: raise RuntimeError('Expected 10 files and one conversation result')
     search = (time.perf_counter()-start)*1000
     controller.shutdown(); window.hide()

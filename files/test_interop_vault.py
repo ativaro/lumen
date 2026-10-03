@@ -212,12 +212,12 @@ class VaultInteropTest(unittest.TestCase):
 class VaultNativeHandoffTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         cls.app = QApplication.instance() or QApplication([])
 
     def test_existing_plan_native_handoff_and_cancel(self):
-        from PyQt5.QtCore import QTimer
-        from PyQt5.QtWidgets import QApplication, QListWidget
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QApplication, QListWidget
         from tools_vault import Vault
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); repository = root/'repo'; repository.mkdir()
@@ -242,8 +242,8 @@ class VaultNativeHandoffTest(unittest.TestCase):
             self.assertEqual(len(completed), 1)
 
     def test_created_plan_receipt_survives_registry_failure_without_second_review(self):
-        from PyQt5.QtCore import QTimer
-        from PyQt5.QtWidgets import QApplication, QDialog
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QApplication, QDialog
         from tools_vault import Vault
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); repository = root/'repo'; repository.mkdir()
@@ -265,7 +265,7 @@ class VaultNativeHandoffTest(unittest.TestCase):
             self.assertEqual(len(window.library.all()), 1)
             source.unlink()  # A replay acknowledges the durable mutation, not a new source review.
             completed = []
-            with patch.object(window, 'create', side_effect=AssertionError('No duplicate plan')), patch.object(QDialog, 'exec_', side_effect=AssertionError('No repeated review')):
+            with patch.object(window, 'create', side_effect=AssertionError('No duplicate plan')), patch.object(QDialog, 'exec', side_effect=AssertionError('No repeated review')):
                 self.assertTrue(interop.receive_sources(window, payload, token=token, done=completed.append))
             self.assertEqual(completed[0]['id'], window.library.all()[0]['id'])
             with self.assertRaises(ValueError):
@@ -283,8 +283,8 @@ class VaultNativeHandoffTest(unittest.TestCase):
             with self.assertRaises(ValueError): interop.handoff_receipt(library, 'b'*32, 'same')
 
     def test_file_versions_dialog_works_with_plain_files_parent(self):
-        from PyQt5.QtCore import QTimer
-        from PyQt5.QtWidgets import QApplication, QWidget, QListWidget, QPushButton
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QApplication, QWidget, QListWidget, QPushButton
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); library = Library('vault', root/'tools')
             document = root/'selected.txt'; document.write_text('Document')
@@ -306,18 +306,18 @@ class VaultNativeHandoffTest(unittest.TestCase):
             parent.close(); self.assertFalse(failures, failures)
 
     def test_standalone_worker_delivers_after_finishing(self):
-        from PyQt5.QtCore import QEventLoop, QTimer
-        from PyQt5.QtWidgets import QWidget
+        from PySide6.QtCore import QEventLoop, QTimer
+        from PySide6.QtWidgets import QWidget
         parent = QWidget(); loop = QEventLoop(); completed = []
         def done(value): completed.append(value); loop.quit()
         runner = interop._run_job(parent, 'Synthetic job', lambda job: 42, done)
         timeout = QTimer(); timeout.setSingleShot(True); timeout.timeout.connect(loop.quit); timeout.start(3000)
-        loop.exec_(); timeout.stop()
+        loop.exec(); timeout.stop()
         self.assertEqual(completed, [42]); parent.close()
 
     def test_detected_project_gap_is_reviewed_before_manual_backup(self):
-        from PyQt5.QtCore import QTimer
-        from PyQt5.QtWidgets import QApplication,QMessageBox
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QApplication,QMessageBox
         from tools_vault import Vault
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);workbench=Library('workbench',root)
@@ -331,8 +331,8 @@ class VaultNativeHandoffTest(unittest.TestCase):
 
     def test_task_handoff_explicitly_offers_selective_inbox_backup(self):
         import inbox_data
-        from PyQt5.QtCore import QTimer
-        from PyQt5.QtWidgets import QApplication,QCheckBox
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QApplication,QCheckBox
         from tools_vault import Vault
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);inbox_data.store(root);repository=root/'repo';repository.mkdir()

@@ -7,9 +7,9 @@ import re
 import shutil
 import sys
 
-from PyQt5.QtCore import QProcess, QSettings, QSize, Qt, QTimer, QTime, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices, QKeySequence
-from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout,
+from PySide6.QtCore import QProcess, QSettings, QSize, Qt, QTimer, QTime, QUrl, Signal
+from PySide6.QtGui import QDesktopServices, QKeySequence
+from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout,
     QButtonGroup, QGridLayout, QHBoxLayout, QKeySequenceEdit, QLabel, QLineEdit, QListWidget, QListWidgetItem,
     QPushButton, QScrollArea, QSpinBox, QStackedWidget, QTimeEdit, QVBoxLayout, QWidget)
 from assistant_backend import OpenCodeBackend
@@ -39,7 +39,7 @@ def combo(items, value):
 
 
 class SettingsDialog(QDialog):
-    preferencesChanged = pyqtSignal(str, list)
+    preferencesChanged = Signal(str, list)
 
     def __init__(self, parent=None, files_settings=None, assistant_settings=None, page=0, load_system=True):
         super().__init__(parent)
@@ -334,18 +334,18 @@ class SettingsDialog(QDialog):
     def manage_libraries(self):
         from file_spaces import Catalog
         from file_spaces_ui import LibraryDialog
-        from PyQt5.QtWidgets import QMenu
+        from PySide6.QtWidgets import QMenu
         catalog = self.parent().spaces.catalog if hasattr(self.parent(), 'spaces') else Catalog()
         menu = QMenu(self)
         def edit(library=None):
             dialog = LibraryDialog(catalog, library, self)
-            if dialog.exec_() == QDialog.Accepted:
+            if dialog.exec() == QDialog.Accepted:
                 self.preferencesChanged.emit(self.files.fileName(), ['libraries'])
             dialog.deleteLater()
         for library in catalog.libraries():
             menu.addAction(library['name'], lambda _=False, value=library: edit(value))
         menu.addAction(tr('Neue Bibliothek …'), lambda: edit())
-        menu.exec_(self.mapToGlobal(self.rect().center()))
+        menu.exec(self.mapToGlobal(self.rect().center()))
 
     def save_files(self):
         try:
@@ -655,8 +655,8 @@ class SettingsDialog(QDialog):
 
 if __name__ == '__main__':
     from app import create_app
-    from PyQt5.QtGui import QIcon
+    from PySide6.QtGui import QIcon
     app = create_app()
     app.setApplicationName('lumen-settings'); app.setApplicationDisplayName(tr('Lumen Einstellungen'))
     dialog = SettingsDialog(page=9 if '--hardware' in sys.argv else 3 if '--appearance' in sys.argv else 0); dialog.setWindowIcon(QIcon.fromTheme('configure')); dialog.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

@@ -3,9 +3,9 @@ import os
 from pathlib import Path
 import unittest
 from unittest.mock import patch
-from PyQt5.QtCore import Qt, QCoreApplication, QEvent
-from PyQt5.QtTest import QTest
-from PyQt5.QtWidgets import QApplication
+from PySide6.QtCore import Qt, QCoreApplication, QEvent
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication
 from tools_workbench import Workbench
 from tools_household import Household
 from tools_meetings import Meetings
@@ -119,7 +119,7 @@ class FocusTest(unittest.TestCase):
     def test_wissen_collection_in_another_notebook_and_exact_text(self):
         from tools_wissen import Wissen
         from wissen_data import Notebook
-        from PyQt5.QtWidgets import QMessageBox
+        from PySide6.QtWidgets import QMessageBox
         window=self.window(Wissen)
         def ready():
             for _ in range(300):
@@ -131,7 +131,7 @@ class FocusTest(unittest.TestCase):
         folder=book.create_collection('Reading');note=book.create('Selected',text='abcdef',folder=folder)
         book.create('Unselected',text='Other body')
         ref=dict(app='wissen',kind='collection',id='collection:folder:Reading',title='Reading',locator=dict(root=str(other),area='user'))
-        with patch('PyQt5.QtWidgets.QMessageBox.question',return_value=QMessageBox.Yes):focus(window,ref)
+        with patch('PySide6.QtWidgets.QMessageBox.question',return_value=QMessageBox.Yes):focus(window,ref)
         ready()
         self.assertEqual(window.book.root,other);self.assertEqual(window.collection,'folder:Reading');self.assertEqual(window.entries.count(),1)
         self.assertEqual(window.doc['path'],note['path']);self.assertFalse(window.pending_file)

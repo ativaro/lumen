@@ -9,11 +9,11 @@ class DiskAnalysisTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from app import create_app
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         cls.app = QApplication.instance() or create_app()
 
     def wait_until(self, condition, seconds=15):
-        from PyQt5.QtTest import QTest
+        from PySide6.QtTest import QTest
         deadline = time.monotonic() + seconds
         while not condition() and time.monotonic() < deadline:
             QTest.qWait(10)
@@ -21,7 +21,7 @@ class DiskAnalysisTest(unittest.TestCase):
 
     def test_sizes_sparse_hardlinks_symlinks_and_lazy_tree(self):
         from disk_analysis import DiskAnalysis
-        from PyQt5.QtCore import Qt
+        from PySide6.QtCore import Qt
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             folder = root / 'nested'
@@ -55,7 +55,7 @@ class DiskAnalysisTest(unittest.TestCase):
         if os.geteuid() == 0:
             self.skipTest('Root kann Testordner trotz fehlender Rechte lesen.')
         from disk_analysis import DiskAnalysis
-        from PyQt5.QtCore import Qt
+        from PySide6.QtCore import Qt
         with tempfile.TemporaryDirectory() as tmp:
             blocked = Path(tmp) / 'blocked'
             blocked.mkdir()
@@ -82,8 +82,8 @@ class DiskAnalysisTest(unittest.TestCase):
 
     def test_folder_sizes_fill_list_and_library_without_automatic_scan(self):
         from unittest.mock import patch
-        from PyQt5.QtCore import QSettings, Qt, QTimer
-        from PyQt5.QtTest import QTest
+        from PySide6.QtCore import QSettings, Qt, QTimer
+        from PySide6.QtTest import QTest
         from app import Window
         from disk_analysis import DiskAnalysis
         from file_spaces import Catalog, LIBRARY

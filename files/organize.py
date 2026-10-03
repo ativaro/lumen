@@ -1,3 +1,4 @@
+import sys
 """Bounded proposal context and reversible, no-overwrite file moves."""
 from lumen_i18n import tr
 import json
@@ -60,7 +61,7 @@ def proposal_context(items, temp, stopped=lambda: False):
                 with text_file.open('rb') as stream:
                     record['excerpt'] = stream.read(4096).decode('utf-8', errors='replace')
             elif kind == 'text' or (kind == 'image' and len(attachments) < 12):
-                result = subprocess.run(['/usr/bin/python3', str(Path(__file__).with_name('preview.py')),
+                result = subprocess.run([sys.executable, str(Path(__file__).with_name('preview.py')),
                                          '--data', str(path), str(output), '1024'],
                                         capture_output=True, timeout=12, check=True)
                 data = json.loads(result.stdout)

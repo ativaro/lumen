@@ -1,12 +1,13 @@
 [Desktop Entry]
 Type=Application
-Name=Lumen Search Preview
-Name[de]=Lumen Suche Vorschau
-Comment=Try the optional Qt 6 search and conversation interface
-Comment[de]=Optionale Qt-6-Oberfläche für Suche und Gespräche ausprobieren
+Name=Lumen Search (compatibility alias)
+Name[de]=Lumen Suche (Kompatibilitätsstarter)
+Comment=Open the normal Lumen search
+Comment[de]=Die normale Lumen-Suche öffnen
 Exec=%INSTALL_BIN%/lumen-search-preview
 Icon=lumen
 Terminal=false
 Categories=Utility;
-StartupWMClass=lumen-search-preview
+StartupWMClass=lumen-search
 Keywords=Lumen;Search;Suche;QML;
+NoDisplay=true

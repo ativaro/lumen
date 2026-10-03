@@ -7,9 +7,9 @@ from pathlib import Path
 
 from lumen_i18n import worker_process, tr
 
-from PyQt5.QtCore import QObject, QProcess, Qt, QUrl, pyqtSignal
-from PyQt5.QtDBus import QDBusConnection, QDBusMessage, QDBusPendingCallWatcher, QDBusPendingReply
-from PyQt5.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox,
+from PySide6.QtCore import QObject, QProcess, Qt, QUrl, Signal
+from PySide6.QtDBus import QDBusConnection, QDBusMessage, QDBusPendingCallWatcher
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox,
                              QFormLayout, QLabel, QLineEdit, QVBoxLayout)
 
 SCHEMES = {'smb', 'sftp', 'webdav', 'webdavs', 'ftp', 'nfs'}
@@ -57,7 +57,9 @@ def remote_path(path, mounts):
 
 
 def display_url(value):
-    return QUrl(value).toDisplayString(QUrl.RemovePassword)
+    url = QUrl(value)
+    url.setPassword('')
+    return url.toDisplayString()
 
 
 def server_label(value):
@@ -67,9 +69,9 @@ def server_label(value):
 
 
 class Network(QObject):
-    connected = pyqtSignal(str, str)
-    failed = pyqtSignal(str)
-    busy = pyqtSignal(bool)
+    connected = Signal(str, str)
+    failed = Signal(str)
+    busy = Signal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -91,7 +93,7 @@ class Network(QObject):
             # Older KIO-FUSE has no GUI job delegate and cannot ask for credentials.
             # Listing covers server discovery and protected shares; stat alone may
             # succeed without read access. KDE handles credentials outside Lumen.
-            from PyQt5.QtCore import QTimer
+            from PySide6.QtCore import QTimer
             proc = worker_process(self); self.probe = proc
             proc.setStandardOutputFile(QProcess.nullDevice())
             proc.setStandardErrorFile(QProcess.nullDevice())
@@ -130,13 +132,13 @@ class Network(QObject):
                 watcher.deleteLater()
                 return
             self.pending = None
-            reply = QDBusPendingReply(watcher)
-            if reply.isError():
+            reply = watcher.reply()
+            if reply.type() == QDBusMessage.ErrorMessage:
                 self.busy.emit(False)
                 self.failed.emit(tr('Verbindung fehlgeschlagen. Serveradresse, Netzwerk und Anmeldung prüfen.\n')
-                                 + reply.error().message())
+                                 + reply.errorMessage())
             else:
-                values = reply.reply().arguments()
+                values = reply.arguments()
                 path = values[0] if values else ''
                 if not isinstance(path, str) or not os.path.isabs(path) or '\x00' in path:
                     self.busy.emit(False)
@@ -151,7 +153,7 @@ class Network(QObject):
     def check_listing(self, address, path):
         # KIO's mount/stat can succeed even when the directory cannot be listed.
         # Trigger the real read (and KDE authentication) outside the GUI thread.
-        from PyQt5.QtCore import QTimer
+        from PySide6.QtCore import QTimer
         proc = worker_process(self); self.probe = proc
         timer = QTimer(proc); timer.setSingleShot(True); timer.timeout.connect(proc.kill)
         finished_once = []

@@ -2,9 +2,9 @@
 from collections import deque
 from pathlib import Path
 import json
-from PyQt5.QtCore import Qt,QObject,QTimer,QEvent,QMimeData,QUrl
-from PyQt5 import sip
-from PyQt5.QtWidgets import (QApplication,QDialog,QDialogButtonBox,QVBoxLayout,QFormLayout,
+from PySide6.QtCore import Qt,QObject,QTimer,QEvent,QMimeData,QUrl
+from lumen_qt import is_deleted
+from PySide6.QtWidgets import (QApplication,QDialog,QDialogButtonBox,QVBoxLayout,QFormLayout,
     QLabel,QLineEdit,QPlainTextEdit,QComboBox,QMenu,QListWidget,QListWidgetItem,QInputDialog,QMessageBox,QPushButton)
 from lumen_i18n import tr
 from interop_data import Registry,validate_payload
@@ -130,7 +130,7 @@ def review(window,request):
     buttons=QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel)
     if action=='wissen.import':buttons.button(QDialogButtonBox.Save).setText(tr('Notiz speichern'))
     buttons.accepted.connect(dialog.accept);buttons.rejected.connect(dialog.reject);form.addRow(buttons)
-    if dialog.exec_()!=QDialog.Accepted:return None
+    if dialog.exec()!=QDialog.Accepted:return None
     if due.text():
         from datetime import date
         date.fromisoformat(due.text())
@@ -152,10 +152,10 @@ class Controller(QObject):
         self.timer.stop()
 
     def remember_focus(self,old,new):
-        from PyQt5.QtWidgets import QAbstractButton
+        from PySide6.QtWidgets import QAbstractButton
         window=getattr(self,'window',None)
         # Qt may emit focus changes while Python is collecting a widget cycle.
-        if window is None or sip.isdeleted(window) or new is None or sip.isdeleted(new) or isinstance(new,QAbstractButton):return
+        if window is None or is_deleted(window) or new is None or is_deleted(new) or isinstance(new,QAbstractButton):return
         central=window.centralWidget()
         if central and (new is central or central.isAncestorOf(new)):
             window._interop_focus=new
@@ -235,7 +235,7 @@ class Controller(QObject):
 
     def eventFilter(self,watched,event):
         window=getattr(self,'window',None)
-        if window is None or sip.isdeleted(window):return False
+        if window is None or is_deleted(window):return False
         if watched is window and event.type() in (QEvent.DragEnter,QEvent.DragMove,QEvent.Drop):
             mime=event.mimeData()
             if mime.hasUrls() and all(url.isLocalFile() for url in mime.urls()):
@@ -330,7 +330,7 @@ def browse(window,mode='related',payload=None):
                 with_saved(window,lambda:window.work(tr('Übernahme wird zurückgenommen …'),lambda job:undo(row['action'],row['id'],job,root_for(window),getattr(window,'store',None)),done,finished=finished))
             except Exception as exc:error(window,exc)
         undo_button.clicked.connect(undo_selected)
-    buttons=QDialogButtonBox(QDialogButtonBox.Close);buttons.rejected.connect(dialog.reject);layout.addWidget(buttons);dialog.exec_()
+    buttons=QDialogButtonBox(QDialogButtonBox.Close);buttons.rejected.connect(dialog.reject);layout.addWidget(buttons);dialog.exec()
 
 
 def install(window):

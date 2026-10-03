@@ -1,3 +1,4 @@
+import sys
 import json
 import tempfile
 import threading
@@ -132,11 +133,11 @@ class OrganizeUITest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from app import create_app
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         cls.app = QApplication.instance() or create_app()
 
     def wait(self, condition):
-        from PyQt5.QtTest import QTest
+        from PySide6.QtTest import QTest
         deadline = time.monotonic() + 12
         while not condition() and time.monotonic() < deadline:
             QTest.qWait(10)
@@ -159,8 +160,8 @@ class OrganizeUITest(unittest.TestCase):
 import sys
 from app import create_app
 from assistant_backend import OpenCodeBackend
-from PyQt5.QtCore import QTimer
-from PyQt5.QtWidgets import QDialog
+from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QDialog
 app = create_app()
 app.setQuitOnLastWindowClosed(False)
 state = {'count': 0}
@@ -178,11 +179,11 @@ def next_dialog():
     backend.request('GET', '/health', callback=done)
 next_dialog()
 QTimer.singleShot(15000, app.quit)
-app.exec_()
+app.exec()
 assert state['count'] == 50, state['count']
 '''
         try:
-            result = subprocess.run(['/usr/bin/python3', '-X', 'faulthandler', '-c', script,
+            result = subprocess.run([sys.executable, '-X', 'faulthandler', '-c', script,
                                      f'http://127.0.0.1:{server.server_port}'],
                                     cwd=Path(__file__).parent, capture_output=True, timeout=20)
             self.assertEqual(result.returncode, 0, result.stderr.decode())
@@ -193,7 +194,7 @@ assert state['count'] == 50, state['count']
     def test_native_preview_edit_deselect_apply_undo_and_invalid_reply(self):
         from assistant_backend import OpenCodeBackend
         from organize_dialog import OrganizeDialog
-        from PyQt5.QtCore import Qt
+        from PySide6.QtCore import Qt
         state = {'requests': [], 'messages': [], 'invalid': False}
 
         class Handler(BaseHTTPRequestHandler):

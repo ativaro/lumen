@@ -6,8 +6,8 @@ import threading
 import time
 import unittest
 from unittest.mock import patch
-from PyQt5.QtCore import QTimer
-from PyQt5.QtWidgets import QApplication, QWidget
+from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QApplication, QWidget
 from lumen_store import Store
 from tools_data import Library
 from tools_ui import Job, ToolWindow
@@ -35,7 +35,7 @@ class ReviewExtraTest(unittest.TestCase):
         self.fail('Bounded Qt operation did not finish')
 
     def test_controller_teardown_ignores_focus_and_events_after_state_is_cleared(self):
-        from PyQt5.QtCore import QEvent
+        from PySide6.QtCore import QEvent
         from interop_ui import Controller
         window=ToolWindow('workbench','Test','Test','document',self.root);control=Controller(window)
         try:
@@ -117,7 +117,7 @@ class ReviewExtraTest(unittest.TestCase):
             release.set(); window.close(); window.deleteLater(); self.app.processEvents()
 
     def test_vault_controller_retries_failed_registry_finish_without_reapplying(self):
-        from PyQt5.QtWidgets import QDialog
+        from PySide6.QtWidgets import QDialog
         from tools_vault import Vault
         from interop_data import Registry
         from interop_ui import Controller
@@ -133,7 +133,7 @@ class ReviewExtraTest(unittest.TestCase):
                 control.deliver({'handoff': token})
             self.assertTrue(errors); self.assertEqual(registry.request(token)['state'], 'pending')
             source.unlink()
-            with patch.object(QDialog, 'exec_', side_effect=AssertionError('No second review')):
+            with patch.object(QDialog, 'exec', side_effect=AssertionError('No second review')):
                 control.deliver({'handoff': token})
             self.assertEqual(registry.request(token)['state'], 'done')
             self.assertEqual(window.library.get(key)['sources'], [str(source)])

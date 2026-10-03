@@ -7,9 +7,9 @@ if __name__ == '__main__':
     try: record(sys.argv[1], int(sys.argv[2]), float(sys.argv[3]))
     except Exception as error: print(str(error), file=sys.stderr); sys.exit(1)
 else:
-    from PyQt5.QtCore import QEvent
-    from PyQt5.QtGui import QIcon
-    from PyQt5.QtWidgets import QPushButton, QDialog, QFormLayout, QSpinBox, QDoubleSpinBox, QVBoxLayout
+    from PySide6.QtCore import QEvent
+    from PySide6.QtGui import QIcon
+    from PySide6.QtWidgets import QPushButton, QDialog, QFormLayout, QSpinBox, QDoubleSpinBox, QVBoxLayout
     from lumen_voice_ui import VoiceActivity
     from voice_session import VoiceSession
 
@@ -54,4 +54,4 @@ else:
             save = QPushButton(tr('Speichern')); layout.addWidget(save)
             def apply():
                 self.panel.settings.setValue('voiceThreshold',threshold.value()); self.panel.settings.setValue('voiceSilence',silence.value()); save_recognition(); dialog.accept()
-            save.clicked.connect(apply); dialog.exec_()
+            save.clicked.connect(apply); dialog.exec()

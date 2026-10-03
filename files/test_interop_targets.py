@@ -157,8 +157,8 @@ class TargetTest(unittest.TestCase):
         self.assertIn('## Abschnitt', note['text']); self.assertIn('Wichtig.', note['text'])
 
     def test_agenda_only_meeting_opens_and_preserves_edits(self):
-        from PyQt5.QtWidgets import QApplication
-        from PyQt5.QtCore import QCoreApplication, QEvent
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtCore import QCoreApplication, QEvent
         from tools_meetings import Meetings
         app = QApplication.instance() or QApplication([])
         result = self.apply('meetings.agenda')

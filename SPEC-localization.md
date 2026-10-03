@@ -5,7 +5,7 @@ Add English alongside German to Lumen, Files, search, the native companion tools
 settings/setup and Plasma controls. Shared setting: System language, Deutsch,
 English. Language changes apply on next application start, with an explicit
 notice; do not restart active editors or replace user content to switch language.
-Use the existing PyQt5/Qt/KDE runtime without a new translation service.
+Use the existing PySide6/Qt/KDE runtime without a new translation service.
 
 Translate product-authored UI labels, guidance, progress and error messages at
 explicit source call sites. Never translate paths, identifiers, database keys,

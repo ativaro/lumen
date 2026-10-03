@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import select
 import time
 import uuid
 from lumen_i18n import tr
@@ -21,8 +22,8 @@ def server_name(library_root):
 
 def serve_flush(window, connection, request, timeout_ms=10000):
     """Dispatch on the app's GUI thread; answer only after its real save completes."""
-    from PyQt5.QtCore import QTimer
-    from PyQt5.QtWidgets import QApplication
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QApplication
     token = request.get('vault_flush', '')
     state = dict(done=False, requested=False)
     timer = QTimer(connection); timer.setSingleShot(True)
@@ -82,7 +83,7 @@ def _live_lock(path):
 
 def request_flush(library_root, job, timeout=12):
     """Blocking worker-side IPC; never starts an app that is not already open."""
-    from PyQt5.QtNetwork import QLocalSocket
+    from PySide6.QtNetwork import QLocalSocket
     job.check(); connection = QLocalSocket(); token = uuid.uuid4().hex; deadline = time.monotonic()+timeout
     try:
         connection.connectToServer(server_name(library_root))
@@ -95,7 +96,12 @@ def request_flush(library_root, job, timeout=12):
         buffer = bytearray()
         while time.monotonic() < deadline:
             job.check()
-            if connection.bytesAvailable() or connection.waitForReadyRead(100): buffer.extend(bytes(connection.readAll()))
+            # A Python worker must release the GIL while the GUI handles the
+            # request. Qt's blocking wait can otherwise starve that handler.
+            if not connection.bytesAvailable():
+                select.select([connection.socketDescriptor()], [], [], min(.1, max(0, deadline-time.monotonic())))
+                connection.waitForReadyRead(0)
+            buffer.extend(bytes(connection.readAll()))
             if len(buffer) > 8192: raise ValueError(tr('Ungültige Speicherantwort einer Lumen-Anwendung.'))
             if b'\n' in buffer:
                 result = json.loads(buffer.split(b'\n', 1)[0])

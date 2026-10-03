@@ -7,9 +7,9 @@ import sys
 import tempfile
 from lumen_i18n import worker_process, tr
 
-from PyQt5.QtCore import QProcess, QSettings, QTimer, Qt, QRectF, QSize
-from PyQt5.QtGui import QColor, QPen, QPixmap
-from PyQt5.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QFileDialog,
+from PySide6.QtCore import QProcess, QSettings, QTimer, Qt, QRectF, QSize
+from PySide6.QtGui import QColor, QPen, QPixmap
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QFileDialog,
     QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
     QPushButton, QSplitter, QVBoxLayout, QWidget)
 
@@ -183,4 +183,4 @@ def open_workshop(parent, paths=()):
         from setup_dialog import open_setup
         open_setup(parent)
         if not executable('pymupdf'): return
-    dialog = DocumentWorkshop(paths, parent); dialog.exec_(); dialog.deleteLater()
+    dialog = DocumentWorkshop(paths, parent); dialog.exec(); dialog.deleteLater()

@@ -1,6 +1,6 @@
 # Lumen — Dateien
 
-Native Linux-Dateiverwaltung mit Schwerpunkt auf schneller Dateinamensuche und brauchbaren Vorschauen. Deutsch, dunkle ruhige Oberfläche, Systemschrift, vorhandenes PyQt5 und GIO; keine neuen Pakete.
+Native Linux-Dateiverwaltung mit Schwerpunkt auf schneller Dateinamensuche und brauchbaren Vorschauen. Deutsch, dunkle ruhige Oberfläche, Systemschrift, vorhandenes PySide6 und GIO; keine neuen Pakete.
 
 ## Akzeptanz
 - Gestaltung gemäß freigegebenem Entwurf: Tabs oberhalb einer kompakten Navigation,

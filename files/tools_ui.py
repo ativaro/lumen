@@ -6,9 +6,9 @@ import signal
 import tempfile
 import time
 
-from PyQt5.QtCore import Qt, QProcess, QTimer, QSettings, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices, QIcon
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabel, QLineEdit,
+from PySide6.QtCore import Qt, QProcess, QTimer, QSettings, QUrl, Signal
+from PySide6.QtGui import QDesktopServices, QIcon
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabel, QLineEdit,
     QPushButton, QHBoxLayout, QVBoxLayout, QListWidget, QListWidgetItem, QSplitter,
     QMessageBox, QFileDialog, QInputDialog, QCheckBox, QSlider, QProgressBar)
 from tools_data import Library, Cancelled, clock_text
@@ -140,7 +140,7 @@ class AudioPlayer(QFrame):
 
 
 class ToolWindow(QMainWindow):
-    operation_failed=pyqtSignal(str)
+    operation_failed=Signal(str)
     def __init__(self, name, title, tagline, icon, root=None):
         super().__init__(); self.name = name; self.library = Library(name, root); self.current = ''; self.loading = False
         self.job = None; self.engine = None; self.ai_callback = None

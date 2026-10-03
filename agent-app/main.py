@@ -13,18 +13,19 @@ if __name__ == '__main__':
     supervise('lumen')
 from lumen_i18n import tr, language
 
-from PyQt5.QtCore import QObject, Q_CLASSINFO, QProcess, QSettings, Qt, QTimer, QUrl, pyqtSlot
-from PyQt5.QtDBus import QDBus, QDBusConnection, QDBusMessage
-from PyQt5.QtGui import QIcon, QKeySequence, QTextDocument
-from PyQt5.QtWidgets import (QApplication, QFileDialog, QGridLayout, QHBoxLayout, QMainWindow,
-                             QPushButton, QShortcut, QStackedWidget, QVBoxLayout, QWidget)
+from PySide6.QtCore import QObject, ClassInfo, QProcess, QSettings, Qt, QTimer, QUrl, Slot
+from PySide6.QtDBus import QDBus, QDBusConnection, QDBusMessage
+from PySide6.QtGui import QIcon, QKeySequence, QTextDocument
+from PySide6.QtGui import QShortcut
+from PySide6.QtWidgets import (QApplication, QFileDialog, QGridLayout, QHBoxLayout, QMainWindow, QPushButton,
+    QStackedWidget, QVBoxLayout, QWidget)
 from app import create_app, button
 from assistant import ChatPanel, Transcript
 from preview import label
 
 
+@ClassInfo(**{'D-Bus Interface': 'org.lumen.Desktop'})
 class DesktopActivation(QObject):
-    Q_CLASSINFO('D-Bus Interface', 'org.lumen.Desktop')
 
     def __init__(self):
         super().__init__()
@@ -33,7 +34,7 @@ class DesktopActivation(QObject):
         self.page = 0
         self.task = ''
 
-    @pyqtSlot(str, result=bool)
+    @Slot(str, result=bool)
     def ActivateTask(self, task):
         from lumen_panel import valid_task
         try: self.task = valid_task(task)
@@ -42,24 +43,17 @@ class DesktopActivation(QObject):
         self.Activate()
         return True
 
-    @pyqtSlot(int)
+    @Slot(int)
     def ActivatePage(self, page):
         self.task = ''
         self.page = page
         self.Activate()
 
-    @pyqtSlot()
+    @Slot()
     def Activate(self):
         self.pending = True
         if self.window is None:
             return
-        # Refresh the X11 user timestamp for an explicit launcher/hotkey request.
-        try:
-            from PyQt5.QtX11Extras import QX11Info
-            if QX11Info.isPlatformX11():
-                QX11Info.setAppUserTime(QX11Info.getTimestamp())
-        except ImportError:
-            pass
         window = QApplication.activeModalWidget() or self.window
         self.window.setWindowState(self.window.windowState() & ~Qt.WindowMinimized)
         self.window.show_page(self.page)
@@ -69,6 +63,7 @@ class DesktopActivation(QObject):
         self.window.show()
         window.raise_()
         window.activateWindow()
+        if window.windowHandle(): window.windowHandle().requestActivate()
 
 
 class LumenWindow(QMainWindow):
@@ -150,7 +145,7 @@ class LumenWindow(QMainWindow):
         from settings_dialog import SettingsDialog
         dialog = SettingsDialog(self, assistant_settings=self.settings)
         dialog.preferencesChanged.connect(self.chat.reload_settings)
-        dialog.exec_()
+        dialog.exec()
         dialog.deleteLater()
 
     def show_rooms(self):
@@ -480,7 +475,7 @@ def main():
         from setup_dialog import offer_setup
         QTimer.singleShot(250, lambda: offer_setup(window))
     app.aboutToQuit.connect(window.chat.backend.shutdown)
-    return app.exec_()
+    return app.exec()
 
 
 if __name__ == '__main__':

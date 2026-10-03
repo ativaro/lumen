@@ -1,3 +1,4 @@
+import sys
 import json
 import os
 from pathlib import Path
@@ -12,7 +13,7 @@ class ToolsTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from app import create_app
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         cls.app = QApplication.instance() or create_app()
 
     def test_private_import_update_archive_and_cancel(self):
@@ -48,7 +49,7 @@ class ToolsTest(unittest.TestCase):
 
     def test_meeting_ui_persists_edits_and_job_results(self):
         from tools_meetings import Meetings
-        from PyQt5.QtCore import Qt
+        from PySide6.QtCore import Qt
         with tempfile.TemporaryDirectory() as root:
             w=Meetings(root); w.error=lambda message:self.fail(message)
             key=w.library.create('Besprechung',recording={'name':'sample.wav','asset':'sample.wav'},duration=3000,
@@ -65,7 +66,7 @@ class ToolsTest(unittest.TestCase):
     def test_household_deadlines_and_document_persistence(self):
         from tools_household import Household, deadlines
         from datetime import date
-        from PyQt5.QtCore import QDate
+        from PySide6.QtCore import QDate
         with tempfile.TemporaryDirectory() as root:
             w=Household(root); key=w.library.create('Waschmaschine',attachments=[],notes='')
             w.focus_record(key); w.notes.setPlainText('Handbuch im Karton'); w.fields['model'].setText('W-100')
@@ -78,7 +79,7 @@ class ToolsTest(unittest.TestCase):
 
     def test_workbench_switch_keeps_notes_questions_and_original_files(self):
         from tools_workbench import Workbench
-        from PyQt5.QtCore import Qt
+        from PySide6.QtCore import Qt
         with tempfile.TemporaryDirectory() as root:
             source=Path(root)/'sketch.txt'; source.write_text('Original')
             w=Workbench(root); first=w.library.create('Renovierung',notes='',questions=[],resources=[])
@@ -94,7 +95,7 @@ class ToolsTest(unittest.TestCase):
 
     def test_radio_source_selection_script_references_and_stale_audio(self):
         from tools_radio import Radio, radio_result
-        from PyQt5.QtCore import Qt
+        from PySide6.QtCore import Qt
         import hashlib
         with tempfile.TemporaryDirectory() as root:
             w=Radio(root); key=w.library.create('Testausgabe',sources=[],script='')

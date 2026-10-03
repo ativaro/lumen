@@ -13,7 +13,7 @@ never sends its text, and starts only on a click. Continuous voice dialogue is a
 separate feature; this wizard prepares dictation.
 
 ## Structure and implementation
-Python/PyQt5, current shared palette and widgets. `files/lumen_setup.py` owns setup
+Python/PySide6, current shared palette and widgets. `files/lumen_setup.py` owns setup
 checks and the installer worker; `files/setup_dialog.py` owns the wizard. Reuse
 `OpenCodeBackend`, `ContextTools`, QSettings and platform package management.
 Style follows existing Qt modules: explicit functions, no new framework.

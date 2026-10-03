@@ -5,8 +5,8 @@ import tempfile
 import time
 import unittest
 from unittest.mock import patch
-from PyQt5.QtCore import QTimer,QCoreApplication,QEvent
-from PyQt5.QtWidgets import QApplication,QComboBox,QDialog,QLabel,QLineEdit,QMenu,QPlainTextEdit
+from PySide6.QtCore import QTimer,QCoreApplication,QEvent
+from PySide6.QtWidgets import QApplication,QComboBox,QDialog,QLabel,QLineEdit,QMenu,QPlainTextEdit
 from interop_data import Registry
 import interop_ui
 import interop_vault
@@ -159,7 +159,7 @@ class ContextTest(unittest.TestCase):
             self.wait(lambda:not window.job)
         self.assertEqual(completed,[None]);self.assertEqual(window.library.get(key)['schedule_pending'],86400)
         self.assertEqual(window.library.get(key).get('last_backup'),None)
-        with patch.object(QDialog,'exec_',side_effect=AssertionError('Already reviewed')),patch.object(Job,'command',return_value=b''):
+        with patch.object(QDialog,'exec',side_effect=AssertionError('Already reviewed')),patch.object(Job,'command',return_value=b''):
             self.assertTrue(interop_vault.receive_sources(window,payload,token='c'*32,done=completed.append))
             self.wait(lambda:not window.job)
         self.assertEqual(completed[-1]['id'],key);self.assertEqual(len(window.library.all()),1)

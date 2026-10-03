@@ -10,11 +10,12 @@ See [INSTALL.md](INSTALL.md) for installation and recovery.
 Use an isolated user profile:
 
 ```bash
+lumen_test_python="$(bin/lumen-python -c 'import sys; print(sys.executable)')"
 lumen_test_root="$(mktemp -d)"
 HOME="$lumen_test_root" XDG_CONFIG_HOME="$lumen_test_root/config" \
   XDG_DATA_HOME="$lumen_test_root/data" XDG_STATE_HOME="$lumen_test_root/state" \
   XDG_CACHE_HOME="$lumen_test_root/cache" QT_QPA_PLATFORM=offscreen LUMEN_LANGUAGE=de \
-  dbus-run-session -- /usr/bin/python3 -m unittest discover -s files -v
+  LUMEN_PYTHON="$lumen_test_python" dbus-run-session -- "$lumen_test_python" -m unittest discover -s files -v
 ```
 
 Create the ignored screenshot directories and run Qt 6's QML checks:
@@ -41,9 +42,9 @@ mockups and diagnostic artifacts are not needed to install Lumen.
 
 ## Package
 
-The optional [Qt 6 search preview](SEARCH-PREVIEW.md) has its own launcher and
-runtime. Include `files/qml/search` and its translation catalog in packages;
-the production search and shortcuts remain on the established interface.
+All desktop programs use PySide6/Qt 6. The [QML search](SEARCH-PREVIEW.md) is the
+production search behind the existing panel and shortcuts. Include `files/qml/search`,
+its translation catalog and `bin/lumen-python` in every package.
 
 Commit the reviewed source, then run:
 
@@ -66,7 +67,7 @@ No AUR release or binary repository is currently implied by this source reposito
 
 The repository remains private. [LICENSE-PLAN.md](LICENSE-PLAN.md) records the
 proposed AGPLv3 community/commercial dual-licensing direction, including permitted
-AGPL-compliant sales and the PyQt/PyMuPDF rights to resolve for proprietary
+AGPL-compliant sales and the Qt/PyMuPDF rights to resolve for proprietary
 distribution. It does not replace the current license.
 
 Lumen-authored application code is currently MIT; dependencies retain their own

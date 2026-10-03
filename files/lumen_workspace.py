@@ -4,9 +4,9 @@ import json
 from pathlib import Path
 import sys
 
-from PyQt5.QtCore import QObject, QProcess, QThread, QTimer, Qt, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices
-from PyQt5.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
+from PySide6.QtCore import QObject, QProcess, QThread, QTimer, Qt, QUrl, Signal
+from PySide6.QtGui import QDesktopServices
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
     QFormLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem,
     QMessageBox, QPlainTextEdit, QPushButton, QSizePolicy, QSpinBox, QSplitter, QTextBrowser, QVBoxLayout, QWidget)
 from lumen_actions import ACTIONS, undo
@@ -118,7 +118,7 @@ class PlanDialog(QDialog):
 
     def add_step(self):
         dialog = StepDialog(self)
-        if dialog.exec_():
+        if dialog.exec():
             from lumen_actions import validate_steps
             try: step = dialog.step(); validate_steps([step]); self.add_step_item(step)
             except ValueError as exc: self.error.setText(str(exc))
@@ -139,7 +139,7 @@ class PlanDialog(QDialog):
 
 
 class Indexer(QThread):
-    outcome = pyqtSignal(str)
+    outcome = Signal(str)
     def __init__(self, store, root, parent):
         super().__init__(parent); self.store = store; self.root = root
     def run(self):
@@ -234,7 +234,7 @@ class Workspace(QObject):
 
     def new_task(self):
         dialog = PlanDialog(self.window, {'roots': [self.window.chat.backend.directory]})
-        if dialog.exec_():
+        if dialog.exec():
             value = dialog.value
             task = self.store.create_task(value['name'], prompt=value['prompt'], roots=value['roots'],
                 directory=value['roots'][0], steps=value['steps'], approved=True)
@@ -245,7 +245,7 @@ class Workspace(QObject):
         if task['status'] in ('completed', 'running', 'cancelled'): raise ValueError(tr('Dieser Auftrag kann nicht fortgesetzt werden.'))
         if not task['approved'] and task['steps']:
             dialog = PlanDialog(self.window, task)
-            if not dialog.exec_(): return
+            if not dialog.exec(): return
             value = dialog.value
             replacement = self.store.create_task(value['name'], prompt=value['prompt'], directory=value['roots'][0], roots=value['roots'], steps=value['steps'], approved=True)
             self.store.update_task(task['id'], status='cancelled')
@@ -322,7 +322,7 @@ class Workspace(QObject):
 
     def flow_dialog(self, task=None):
         dialog = PlanDialog(self.window, task or {'roots': [self.window.chat.backend.directory]}, workflow=True)
-        if dialog.exec_(): self.store.save_workflow(**dialog.value); self.refresh_flows()
+        if dialog.exec(): self.store.save_workflow(**dialog.value); self.refresh_flows()
 
     def refresh_flows(self):
         self.flows.clear()
@@ -397,7 +397,7 @@ class Workspace(QObject):
         job.finished.connect(finished);job.start()
 
     def open_notebook(self,path=''):
-        from PyQt5.QtCore import QProcess
+        from PySide6.QtCore import QProcess
         QProcess.startDetached(sys.executable,[str(Path(__file__).with_name('tools_app.py')),'wissen']+([path] if path else []))
 
     def add_knowledge(self):
@@ -441,7 +441,7 @@ class Workspace(QObject):
         source = QLineEdit(memory.get('source', tr('Von mir'))); form.addRow(tr('Titel'), title); form.addRow(tr('Inhalt'), content); form.addRow(tr('Quelle'), source)
         row = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel); form.addRow(row)
         row.accepted.connect(dialog.accept); row.rejected.connect(dialog.reject)
-        if dialog.exec_():self.knowledge_work('save_memory',lambda _:self.refresh_knowledge(),title=title.text(),text=content.toPlainText(),source=source.text(),memory=memory.get('id'))
+        if dialog.exec():self.knowledge_work('save_memory',lambda _:self.refresh_knowledge(),title=title.text(),text=content.toPlainText(),source=source.text(),memory=memory.get('id'))
 
     def delete_memory(self):self.knowledge_work('delete_memory',lambda _:self.refresh_knowledge(),memory=selected(self.memories)['id'])
     def use_memory(self):

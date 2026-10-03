@@ -3,12 +3,12 @@ from lumen_i18n import tr
 import json
 import os
 from pathlib import Path
-from lumen_qt import QObject, pyqtSignal
+from lumen_qt import QObject, Signal
 from lumen_store import Store
 
 
 class TaskTracker(QObject):
-    changed = pyqtSignal()
+    changed = Signal()
 
     def __init__(self, backend, parent=None, store=None):
         super().__init__(parent)

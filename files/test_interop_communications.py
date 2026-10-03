@@ -7,8 +7,8 @@ import zipfile
 from unittest.mock import patch
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
-from PyQt5.QtWidgets import QApplication
-from PyQt5.QtCore import QCoreApplication, QEvent
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QCoreApplication, QEvent
 from tools_ui import Job
 from tools_data import Library, Cancelled
 from interop_data import Registry

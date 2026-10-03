@@ -155,7 +155,7 @@ class WorkplaceTest(unittest.TestCase):
         self.assertFalse((destination / source.name).exists())
 
     def test_preferences_undo_preserves_types_and_rejects_conflict(self):
-        from PyQt5.QtCore import QSettings
+        from PySide6.QtCore import QSettings
         path = str(self.root / 'preferences.ini'); settings = QSettings(path, QSettings.IniFormat)
         settings.setValue('preview', True); settings.setValue('limit', 100); settings.sync()
         identity = history.record(self.store, 'Prefs', 'preferences', {'preview': False, 'limit': 50}, {'preview': True, 'limit': 100}, path)
@@ -170,11 +170,11 @@ class NativeWorkplaceTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from app import create_app
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         cls.app = QApplication.instance() or create_app()
 
     def wait(self, condition):
-        from PyQt5.QtTest import QTest
+        from PySide6.QtTest import QTest
         deadline = time.monotonic() + 10
         while not condition() and time.monotonic() < deadline: QTest.qWait(20)
         self.assertTrue(condition())
@@ -182,7 +182,7 @@ class NativeWorkplaceTest(unittest.TestCase):
     def test_sources_offline_cache_and_room_resume_are_native(self):
         from app import Window
         from lumen_workplace import Workplace
-        from PyQt5.QtCore import QSettings
+        from PySide6.QtCore import QSettings
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); folder = root / 'source'; folder.mkdir(); (folder / 'note.txt').write_text('one')
             store = Store(root / 'state'); project = projects.save_project(store, None, 'Work',
@@ -206,9 +206,9 @@ class NativeWorkplaceTest(unittest.TestCase):
                 self.assertEqual(projects.projects(store)[0]['state']['tabs'][0], str(folder))
                 latest = projects.projects(store)[0]
                 edited = projects.save_project(store, latest, 'Renamed', latest['sources'], [], [], 'New note')
-                from PyQt5.QtWidgets import QDialog
+                from PySide6.QtWidgets import QDialog
                 with patch('lumen_workplace.ProjectDialog') as dialog:
-                    dialog.return_value.exec_.return_value = QDialog.Accepted
+                    dialog.return_value.exec.return_value = QDialog.Accepted
                     dialog.return_value.saved = edited
                     page.edit_project()
                 self.assertEqual(window.spaces.active_room['note'], 'New note')

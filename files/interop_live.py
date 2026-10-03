@@ -32,8 +32,8 @@ def live_notes(library,key,job,store=None):
 
 
 def show_live(window):
-    from PyQt5.QtCore import QTimer,Qt
-    from PyQt5.QtWidgets import QDialog,QVBoxLayout,QListWidget,QListWidgetItem,QPlainTextEdit,QDialogButtonBox,QLabel
+    from PySide6.QtCore import QTimer,Qt
+    from PySide6.QtWidgets import QDialog,QVBoxLayout,QListWidget,QListWidgetItem,QPlainTextEdit,QDialogButtonBox,QLabel
     from tools_ui import Job
     from interop_open import open_url
     if not window.current:raise ValueError(tr('Zuerst einen Eintrag auswählen.'))
@@ -71,12 +71,12 @@ def show_live(window):
         if dialog.job:return
         dialog.job=Job(lambda job:live_notes(window.library,key,job,getattr(window,'store',None)),dialog)
         dialog.job.result.connect(refresh);dialog.job.failed.connect(status.setText);dialog.job.finished.connect(finished);dialog.job.start()
-    timer=QTimer(dialog);timer.setInterval(5000);timer.timeout.connect(poll);timer.start();poll();dialog.exec_()
+    timer=QTimer(dialog);timer.setInterval(5000);timer.timeout.connect(poll);timer.start();poll();dialog.exec()
 
 
 def show_paths(window):
-    from PyQt5.QtCore import Qt
-    from PyQt5.QtWidgets import QDialog,QVBoxLayout,QListWidget,QListWidgetItem,QDialogButtonBox
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QDialog,QVBoxLayout,QListWidget,QListWidgetItem,QDialogButtonBox
     from interop_open import launch
     record=window.library.get(window.current)
     dialog=QDialog(window);dialog.setWindowTitle(tr('Verknüpfte Ordner und Dateien'));dialog.resize(680,440)
@@ -85,4 +85,4 @@ def show_paths(window):
         item=QListWidgetItem(link['title']+'\n'+link['path']);item.setData(Qt.UserRole,link['path']);listing.addItem(item)
     from interop_ui import safe_action
     listing.itemActivated.connect(lambda item:safe_action(window,lambda:launch('files',[item.data(Qt.UserRole),'--select'],window.library.root.parent)))
-    buttons=QDialogButtonBox(QDialogButtonBox.Close);buttons.rejected.connect(dialog.reject);layout.addWidget(buttons);dialog.exec_()
+    buttons=QDialogButtonBox(QDialogButtonBox.Close);buttons.rejected.connect(dialog.reject);layout.addWidget(buttons);dialog.exec()

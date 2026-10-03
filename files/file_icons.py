@@ -1,9 +1,9 @@
 """Bounded themed file symbols without desktop content sniffing on the GUI thread."""
 from collections import OrderedDict
 from pathlib import Path
-from PyQt5.QtCore import QFileInfo, QMimeDatabase
-from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QApplication, QFileIconProvider, QStyle
+from PySide6.QtCore import QFileInfo, QMimeDatabase
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QApplication, QFileIconProvider, QStyle
 
 
 class FileIcons(QFileIconProvider):
@@ -13,7 +13,7 @@ class FileIcons(QFileIconProvider):
         self.cache=OrderedDict()
         self.theme=None
         self.fallback={kind:QIcon(str(Path(__file__).with_name(asset)))
-                       for kind,asset in ((self.File,'file.svg'),(self.Folder,'folder.svg'))}
+                       for kind,asset in ((self.IconType.File,'file.svg'),(self.IconType.Folder,'folder.svg'))}
         style=QApplication.style()
         self.links={False:style.standardIcon(QStyle.SP_FileLinkIcon),
                     True:style.standardIcon(QStyle.SP_DirLinkIcon)}
@@ -33,7 +33,7 @@ class FileIcons(QFileIconProvider):
         if theme!=self.theme:self.cache.clear();self.theme=theme
         key=(name,generic,directory)
         if key not in self.cache:
-            fallback=self.fallback[self.Folder if directory else self.File]
+            fallback=self.fallback[self.IconType.Folder if directory else self.IconType.File]
             icon=QIcon.fromTheme(generic,fallback) if generic else fallback
             if name:icon=QIcon.fromTheme(name,icon)
             # Resolve missing symbols once per type, including the fallback.

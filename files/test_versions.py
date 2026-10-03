@@ -29,7 +29,7 @@ class VersionsTest(unittest.TestCase):
             with self.assertRaises(ValueError): versions.configure([str(root), str(root)])
 
     def test_daemon_survives_ui_and_native_comparison_restores(self):
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         from versions_ui import VersionsDialog
         from lumen_versions import start
         app = QApplication.instance() or QApplication([])

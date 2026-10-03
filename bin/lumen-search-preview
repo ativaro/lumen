@@ -1,27 +1,6 @@
 #!/usr/bin/env bash
-# Opt-in Qt 6/QML comparison. Never replaces the production search service.
+# Retained alias for existing preview menu entries and bookmarks.
 set -euo pipefail
 SELF_DIR="$(dirname "$(readlink -f "$0")")"
-RUNTIME="${XDG_DATA_HOME:-$HOME/.local/share}/lumen/qt6-env"
-if [ "${1:-}" = --install-runtime ]; then
-    /usr/bin/python3 -m venv --system-site-packages "$RUNTIME"
-    "$RUNTIME/bin/python" -m pip install 'PySide6-Essentials==6.11.2'
-    printf '%s\n' 'Qt 6 installed. Start the pilot with lumen-search-preview.'
-    exit 0
-fi
-if /usr/bin/python3 -c 'import PySide6.QtQuick, PySide6.QtDBus' >/dev/null 2>&1; then
-    PYTHON=/usr/bin/python3
-elif [ -x "$RUNTIME/bin/python" ] && "$RUNTIME/bin/python" -c 'import PySide6.QtQuick, PySide6.QtDBus' >/dev/null 2>&1; then
-    PYTHON="$RUNTIME/bin/python"
-else
-    printf '%s\n' 'Qt 6 runtime missing. Run: lumen-search-preview --install-runtime' >&2
-    if command -v kdialog >/dev/null 2>&1; then
-        kdialog --title 'Lumen Search Preview' --error 'This optional preview needs Qt 6. Install its runtime with: lumen-search-preview --install-runtime' || true
-    fi
-    exit 1
-fi
-for main in "$SELF_DIR/../files/search_qml.py" "$SELF_DIR/../share/lumen/files/search_qml.py" /usr/share/lumen/files/search_qml.py; do
-    if [ -f "$main" ]; then exec "$PYTHON" "$main" "$@"; fi
-done
-printf '%s\n' 'Lumen search preview was not found.' >&2
-exit 1
+if [ "${1:-}" = --install-runtime ]; then exec "$SELF_DIR/lumen-python" "$@"; fi
+exec "$SELF_DIR/lumen-search" "$@"

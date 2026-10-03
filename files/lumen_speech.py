@@ -21,7 +21,7 @@ def transcription_arguments(settings, audio, output, model=None):
 
 def add_recognition_fields(form, settings):
     """Return an explicit save action; merely opening settings changes nothing."""
-    from PyQt5.QtWidgets import QCheckBox, QComboBox, QLineEdit
+    from PySide6.QtWidgets import QCheckBox, QComboBox, QLineEdit
     language = QComboBox(); language.setAccessibleName(tr('Erkennungssprache'))
     for label, code in LANGUAGES: language.addItem(label, code)
     language.setCurrentIndex(max(0, language.findData(settings.value('speechLanguage', 'de'))))

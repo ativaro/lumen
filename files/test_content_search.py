@@ -1,3 +1,4 @@
+import sys
 import json
 import os
 import subprocess
@@ -55,7 +56,7 @@ class ContentSearchTest(unittest.TestCase):
             (root / 'large.txt').write_text('Rechnung Monitor ' + 'x' * (1024 * 1024 + 1))
             summary = list(scan(root, query_groups('Monitor'), False))[-1]
             self.assertGreaterEqual(summary['partial'], 1)
-            result = subprocess.run(['/usr/bin/python3', str(Path(__file__).with_name('content_search.py')), '--scan'],
+            result = subprocess.run([sys.executable, str(Path(__file__).with_name('content_search.py')), '--scan'],
                                     input=json.dumps({'root': str(root), 'groups': [['rechnung'], ['monitor']], 'hidden': False}),
                                     text=True, capture_output=True, timeout=10)
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -82,11 +83,11 @@ class ContentSearchUITest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from app import create_app
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         cls.app = QApplication.instance() or create_app()
 
     def wait(self, condition, seconds=10):
-        from PyQt5.QtTest import QTest
+        from PySide6.QtTest import QTest
         deadline = time.monotonic() + seconds
         while not condition() and time.monotonic() < deadline:
             QTest.qWait(10)
@@ -95,8 +96,8 @@ class ContentSearchUITest(unittest.TestCase):
     def test_native_text_pdf_synonyms_errors_and_folders(self):
         from assistant_backend import OpenCodeBackend
         from content_search_dialog import ContentSearchDialog
-        from PyQt5.QtCore import Qt
-        from PyQt5.QtGui import QPainter, QPdfWriter
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QPainter, QPdfWriter
         state = {'requests': [], 'messages': [], 'invalid': False}
 
         class Handler(BaseHTTPRequestHandler):
@@ -190,7 +191,7 @@ class ContentSearchUITest(unittest.TestCase):
 
     def test_cancel_kills_scanner_and_pdf_decoder_and_ignores_old_hits(self):
         from content_search_dialog import ContentSearchDialog
-        from PyQt5.QtTest import QTest
+        from PySide6.QtTest import QTest
         from unittest.mock import patch
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

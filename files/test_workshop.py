@@ -43,9 +43,9 @@ class WorkshopTest(unittest.TestCase):
             self.assertFalse((root/'stale.pdf').exists())
 
     def test_native_preview_draw_rotate_and_export_worker(self):
-        from PyQt5.QtCore import Qt, QPoint
-        from PyQt5.QtTest import QTest
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtCore import Qt, QPoint
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QApplication
         from document_workshop_ui import DocumentWorkshop
         app = QApplication.instance() or QApplication([])
         with tempfile.TemporaryDirectory() as tmp:
@@ -63,7 +63,7 @@ class WorkshopTest(unittest.TestCase):
             QTest.mouseMove(dialog.canvas.viewport(),last)
             QTest.mouseRelease(dialog.canvas.viewport(),Qt.LeftButton,pos=last)
             # Some offscreen backends omit intermediate moves; exercise the same stored recipe.
-            from PyQt5.QtCore import Qt
+            from PySide6.QtCore import Qt
             value=dialog.pages.item(0).data(Qt.UserRole)
             if not value['boxes']: value['boxes']=[[.1,.125,.875,.2375]]; dialog.pages.item(0).setData(Qt.UserRole,value)
             dialog.rotate(); wait()

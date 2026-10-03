@@ -31,8 +31,8 @@ def open_url(url,root=None):
 
 def focus(window,ref):
     """Called only after the target's pending edits have been saved."""
-    from PyQt5.QtCore import Qt
-    from PyQt5.QtWidgets import QTreeWidgetItem,QTreeWidgetItemIterator,QMessageBox
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QTreeWidgetItem,QTreeWidgetItemIterator,QMessageBox
     ref=validate_ref(ref);app=ref['app'];position=ref.get('position',{})
     if app!=window.name:raise ValueError(tr('Dieser Verweis gehört zu einer anderen Lumen-Anwendung.'))
     if app=='wissen':
@@ -101,7 +101,7 @@ def _index(value,count):
 
 
 def focus_collection(window,key):
-    from PyQt5.QtCore import Qt
+    from PySide6.QtCore import Qt
     window.update_collections()
     if key not in [window.collections.item(index).data(Qt.UserRole) for index in range(window.collections.count())]:
         raise ValueError(tr('Der verknüpfte Eintrag ist nicht mehr verfügbar.'))
@@ -110,15 +110,15 @@ def focus_collection(window,key):
 
 def focus_text(widget,position):
     if 'start' not in position and 'end' not in position:return
-    from PyQt5.QtGui import QTextCursor
+    from PySide6.QtGui import QTextCursor
     start,end=position.get('start',0),position.get('end',0)
     if not 0<=start<end<widget.document().characterCount():raise ValueError(tr('Der verknüpfte Textausschnitt ist nicht mehr vorhanden.'))
     cursor=widget.textCursor();cursor.setPosition(start);cursor.setPosition(end,QTextCursor.KeepAnchor);widget.setTextCursor(cursor);widget.ensureCursorVisible();widget.setFocus()
 
 
 def _select_tree(tree,key):
-    from PyQt5.QtCore import Qt
-    from PyQt5.QtWidgets import QTreeWidgetItemIterator
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QTreeWidgetItemIterator
     items=QTreeWidgetItemIterator(tree)
     while items.value():
         item=items.value()
@@ -128,7 +128,7 @@ def _select_tree(tree,key):
 
 
 def focus_part(window,position):
-    from PyQt5.QtCore import Qt
+    from PySide6.QtCore import Qt
     from interop_parts import match_part,window_parts
     part=position.get('part','');kind,_,value=part.partition(':');app=window.name
     if app=='workbench' and kind in ('resource','question'):
@@ -165,7 +165,7 @@ def main():
     try:open_url(args.url)
     except (ValueError,OSError) as error:
         from app import create_app
-        from PyQt5.QtWidgets import QMessageBox
+        from PySide6.QtWidgets import QMessageBox
         app=create_app();QMessageBox.warning(None,'Lumen',str(error));return 1
     return 0
 

@@ -1,3 +1,4 @@
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -63,12 +64,12 @@ class GalleryTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from app import create_app
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         cls.app = QApplication.instance() or create_app()
 
     def wait_until(self, condition, seconds=15):
         import time
-        from PyQt5.QtTest import QTest
+        from PySide6.QtTest import QTest
         deadline = time.monotonic() + seconds
         while not condition() and time.monotonic() < deadline:
             QTest.qWait(15)
@@ -93,9 +94,9 @@ class GalleryTest(unittest.TestCase):
 
     def test_browse_prefetch_edit_save_and_trash(self):
         from gallery import Gallery
-        from PyQt5.QtCore import Qt
-        from PyQt5.QtTest import QTest
-        from PyQt5.QtWidgets import QMessageBox
+        from PySide6.QtCore import Qt
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QMessageBox
         from unittest.mock import patch
         from core import FileWorker
         with tempfile.TemporaryDirectory() as tmp:
@@ -137,7 +138,7 @@ class GalleryTest(unittest.TestCase):
             class FailedTrash(FileWorker):
                 def run(self):
                     self.completed.emit([], ['Kein Papierkorb auf diesem Laufwerk'])
-            with patch('gallery.FileWorker', FailedTrash), patch.object(QMessageBox, 'exec_', return_value=QMessageBox.Yes), patch.object(QMessageBox, 'warning') as warning:
+            with patch('gallery.FileWorker', FailedTrash), patch.object(QMessageBox, 'exec', return_value=QMessageBox.Yes), patch.object(QMessageBox, 'warning') as warning:
                 gallery.trash()
                 self.wait_until(lambda: not gallery.busy)
                 warning.assert_called_once()
@@ -149,7 +150,7 @@ class GalleryTest(unittest.TestCase):
                 def run(self):
                     Path(self.sources[0]).rename(Path(tmp) / 'test-bin.png')
                     self.completed.emit(self.sources, [])
-            with patch('gallery.FileWorker', TestTrash), patch.object(QMessageBox, 'exec_', return_value=QMessageBox.Yes):
+            with patch('gallery.FileWorker', TestTrash), patch.object(QMessageBox, 'exec', return_value=QMessageBox.Yes):
                 gallery.trash()
             self.wait_until(lambda: not gallery.busy)
             self.assertFalse(Path(paths[1]).exists())
@@ -159,8 +160,8 @@ class GalleryTest(unittest.TestCase):
 
     def test_filmstrip_scrolls_to_unloaded_images_and_bounds_thumbnail_work(self):
         from gallery import Gallery
-        from PyQt5.QtCore import Qt
-        from PyQt5.QtTest import QTest
+        from PySide6.QtCore import Qt
+        from PySide6.QtTest import QTest
         with tempfile.TemporaryDirectory() as tmp:
             paths = [str(Path(tmp) / f'{i}.png') for i in range(80)]
             for path in paths:
@@ -186,8 +187,8 @@ class GalleryTest(unittest.TestCase):
 
     def test_photo_inspector_routes_actions_and_replaces_cached_preview(self):
         from preview import Preview
-        from PyQt5.QtCore import Qt
-        from PyQt5.QtTest import QTest
+        from PySide6.QtCore import Qt
+        from PySide6.QtTest import QTest
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             photos = [root / 'red.png', root / 'blue.png']

@@ -11,7 +11,7 @@ from collections import deque
 from pathlib import Path
 
 from gi.repository import Gio
-from lumen_qt import QThread, pyqtSignal
+from lumen_qt import QThread, Signal
 
 TEXT_EXTENSIONS = {'.md', '.py', '.js', '.ts', '.tsx', '.jsx', '.json', '.yaml', '.yml',
                    '.toml', '.ini', '.conf', '.sh', '.log', '.rs', '.c', '.cpp', '.h',
@@ -148,9 +148,9 @@ def copy_entry(source, target_dir, portable=False, progress=None):
 
 
 class SearchWorker(QThread):
-    batch = pyqtSignal(list)
-    progress = pyqtSignal(int, int)
-    summary = pyqtSignal(int, bool, float)
+    batch = Signal(list)
+    progress = Signal(int, int)
+    summary = Signal(int, bool, float)
 
     def __init__(self, root, query, hidden, limit=5000):
         super().__init__()
@@ -175,8 +175,8 @@ class SearchWorker(QThread):
 
 
 class FileWorker(QThread):
-    progress = pyqtSignal(str)
-    completed = pyqtSignal(list, list)
+    progress = Signal(str)
+    completed = Signal(list, list)
 
     def __init__(self, action, sources, target=None, portable=False, expected=None):
         super().__init__()

@@ -64,8 +64,8 @@ def marks_from_books(library,keys):
 
 
 def send_book_marks(window):
-    from PyQt5.QtCore import Qt
-    from PyQt5.QtWidgets import QDialog,QVBoxLayout,QListWidget,QListWidgetItem,QDialogButtonBox
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QDialog,QVBoxLayout,QListWidget,QListWidgetItem,QDialogButtonBox
     from interop_ui import with_saved,reviewed_send
     def choose():
         dialog=QDialog(window);dialog.setWindowTitle(tr('Markierungen mehrerer Dokumente'));dialog.resize(580,420)
@@ -74,7 +74,7 @@ def send_book_marks(window):
             if not record.get('notes'):continue
             item=QListWidgetItem(record['title']);item.setData(Qt.UserRole,record['id']);item.setFlags(item.flags()|Qt.ItemIsUserCheckable);item.setCheckState(Qt.Unchecked);listing.addItem(item)
         buttons=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel);buttons.accepted.connect(dialog.accept);buttons.rejected.connect(dialog.reject);layout.addWidget(buttons)
-        if dialog.exec_()!=QDialog.Accepted:return
+        if dialog.exec()!=QDialog.Accepted:return
         keys=[listing.item(i).data(Qt.UserRole) for i in range(listing.count()) if listing.item(i).checkState()==Qt.Checked]
         reviewed_send(window,marks_from_books(window.library,keys),'radio.add')
     with_saved(window,choose)

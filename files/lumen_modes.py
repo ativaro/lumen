@@ -65,14 +65,14 @@ def dnd_write(value):
 
 def window_script(store, body):
     """KWin replies over a private D-Bus object; no log scraping or shell."""
-    from PyQt5.QtCore import QObject, QCoreApplication, QEventLoop, QTimer, Q_CLASSINFO, pyqtSlot
-    from PyQt5.QtDBus import QDBusConnection
+    from PySide6.QtCore import QObject, QCoreApplication, QEventLoop, QTimer, ClassInfo, Slot
+    from PySide6.QtDBus import QDBusConnection
     app = QCoreApplication.instance() or QCoreApplication([])
     loop = QEventLoop()
+    @ClassInfo(**{'D-Bus Interface': 'org.lumen.WindowReply'})
     class Reply(QObject):
-        Q_CLASSINFO('D-Bus Interface', 'org.lumen.WindowReply')
         result = None
-        @pyqtSlot(str)
+        @Slot(str)
         def receive(self, value):
             self.result = json.loads(value); loop.quit()
     receiver = Reply()
@@ -89,7 +89,7 @@ def window_script(store, body):
         if not number.isdigit(): raise RuntimeError(tr('KWin hat die Fensteraktion nicht geladen.'))
         run(['qdbus6', 'org.kde.KWin', '/Scripting/Script' + number, 'org.kde.kwin.Script.run'])
         timer = QTimer(); timer.setSingleShot(True); timer.timeout.connect(loop.quit); timer.start(2500)
-        if receiver.result is None: loop.exec_()
+        if receiver.result is None: loop.exec()
         timer.stop()
         if receiver.result is None: raise RuntimeError(tr('KWin hat nicht rechtzeitig geantwortet.'))
         if 'error' in receiver.result: raise RuntimeError(receiver.result['error'])

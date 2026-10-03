@@ -1,3 +1,4 @@
+import sys
 """Native content results with optional model-assisted query expansion."""
 import html
 import json
@@ -8,9 +9,9 @@ from pathlib import Path
 
 from lumen_i18n import worker_process, tr
 
-from PyQt5.QtCore import QProcess, Qt, QTimer, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices
-from PyQt5.QtWidgets import (QApplication, QCheckBox, QDialog, QHeaderView, QHBoxLayout,
+from PySide6.QtCore import QProcess, Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QDesktopServices
+from PySide6.QtWidgets import (QApplication, QCheckBox, QDialog, QHeaderView, QHBoxLayout,
                              QLineEdit, QPushButton, QSplitter, QTextBrowser, QTreeWidget,
                              QTreeWidgetItem, QVBoxLayout, QWidget)
 from assistant_backend import OpenCodeBackend
@@ -19,7 +20,7 @@ from preview import Preview, label
 
 
 class ContentSearchDialog(QDialog):
-    folderRequested = pyqtSignal(str)
+    folderRequested = Signal(str)
 
     def __init__(self, directory, query='', hidden=False, parent=None, backend=None):
         super().__init__(parent)
@@ -149,7 +150,7 @@ class ContentSearchDialog(QDialog):
     def local_photos(self):
         from photo_tools_ui import PhotoToolsDialog
         dialog = PhotoToolsDialog(self.root, query=self.query.text(), parent=self)
-        dialog.folderRequested.connect(self.folderRequested); dialog.exec_(); dialog.deleteLater()
+        dialog.folderRequested.connect(self.folderRequested); dialog.exec(); dialog.deleteLater()
 
     def buttons(self):
         selected = self.results.currentItem() is not None
@@ -225,7 +226,7 @@ class ContentSearchDialog(QDialog):
         proc.finished.connect(lambda code, _status: self.finished_scan(proc, code))
         proc.finished.connect(proc.deleteLater)
         proc.errorOccurred.connect(lambda error: self.failed_scan(proc) if error == QProcess.FailedToStart else None)
-        proc.start('/usr/bin/python3', [str(Path(__file__).with_name('content_search.py')), '--scan'])
+        proc.start(sys.executable, [str(Path(__file__).with_name('content_search.py')), '--scan'])
         proc.write((json.dumps({'root': self.root, 'groups': groups, 'hidden': self.hidden.isChecked(), 'ocr': self.ocr.isChecked(), 'thumbnail_dir': self.model_context.name if self.vision.isChecked() else None}) + '\n').encode())
         proc.closeWriteChannel()
         self.status.setText(tr('Dateiinhalte werden durchsucht …'))

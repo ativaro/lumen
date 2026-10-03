@@ -1,6 +1,6 @@
 import json
 import unittest
-from PyQt5.QtCore import QProcessEnvironment
+from PySide6.QtCore import QProcessEnvironment
 from interop_audio import playback_environment
 from interop_audio_route import route, snapshot, strict_reason
 

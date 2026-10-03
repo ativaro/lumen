@@ -30,12 +30,13 @@ remain commercial decisions. No price or revenue-sharing obligation is set here.
 
 ## Resolve before adopting or publishing
 
-- Lumen uses PyQt5, offered under GPLv3 or a commercial license. GPLv3 and AGPLv3
-  explicitly permit combining their covered works under their respective terms,
-  so the proposed community route does not by itself require a PyQt migration.
-  Proprietary distribution needs appropriate Riverbank rights, or an alternative
-  such as PySide/Qt for Python with the obligations of each Qt module satisfied.
-  A Lumen commercial license cannot waive PyQt or Qt licensing requirements.
+- Lumen now uses PySide6/Qt 6 instead of PyQt5. This removes the application's
+  Riverbank binding dependency; it does not remove Qt's licensing obligations.
+  Audit the actual Qt modules and bundled libraries for every release. Preserve
+  notices, source/relinking rights and other applicable LGPL/GPL obligations, or
+  obtain appropriate commercial rights. See the official
+  [Qt for Python licenses](https://doc.qt.io/qtforpython-6/licenses.html) and
+  [Qt licensing overview](https://doc.qt.io/qt-6/licensing.html).
 - Reader and the optional document workshop use PyMuPDF/MuPDF, offered under
   AGPL or commercial terms. Include these features in the dependency audit.
   Proprietary distribution needs suitable Artifex rights or a verified replacement

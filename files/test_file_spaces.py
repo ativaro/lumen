@@ -85,12 +85,12 @@ class NativeSpacesTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from app import create_app
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         cls.app = QApplication.instance() or create_app()
 
     def wait(self, condition):
         import time
-        from PyQt5.QtTest import QTest
+        from PySide6.QtTest import QTest
         deadline = time.monotonic() + 10
         while not condition() and time.monotonic() < deadline: QTest.qWait(20)
         self.assertTrue(condition())
@@ -98,8 +98,8 @@ class NativeSpacesTest(unittest.TestCase):
     def test_unified_sources_shelf_rooms_and_stale_navigation(self):
         from app import Window
         from file_spaces import LIBRARY, SHELF
-        from PyQt5.QtCore import QSettings, Qt
-        from PyQt5.QtTest import QTest
+        from PySide6.QtCore import QSettings, Qt
+        from PySide6.QtTest import QTest
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); catalog = Catalog(Store(root / 'state'))
             a, b = root / 'PC', root / 'NAS'; a.mkdir(); b.mkdir()
@@ -140,8 +140,8 @@ class NativeSpacesTest(unittest.TestCase):
 
     def test_room_preserves_draft_remote_context_and_never_submits(self):
         from app import Window
-        from PyQt5.QtCore import QSettings
-        from PyQt5.QtTest import QTest
+        from PySide6.QtCore import QSettings
+        from PySide6.QtTest import QTest
         from unittest.mock import patch
         with tempfile.TemporaryDirectory() as tmp:
             catalog = Catalog(Store(Path(tmp) / 'state'))

@@ -7,9 +7,9 @@ from pathlib import Path
 
 from lumen_i18n import tr
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import (QAbstractItemView, QDialog, QHeaderView, QHBoxLayout, QLineEdit,
+from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (QAbstractItemView, QDialog, QHeaderView, QHBoxLayout, QLineEdit,
                              QProgressBar, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout)
 from assistant_backend import OpenCodeBackend
 from organize import (apply_moves, load_journal, parse_proposal, proposal_context,
@@ -18,9 +18,9 @@ from preview import label
 
 
 class OrganizeWorker(QThread):
-    result = pyqtSignal(object)
-    failed = pyqtSignal(str)
-    progress = pyqtSignal(int, str)
+    result = Signal(object)
+    failed = Signal(str)
+    progress = Signal(int, str)
 
     def __init__(self, action, parent, **arguments):
         super().__init__(parent)
@@ -258,7 +258,7 @@ class OrganizeDialog(QDialog):
             for column, value in enumerate(values):
                 cell = QTableWidgetItem(value)
                 cell.setToolTip(value)
-                cell.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable | (Qt.ItemIsEditable if column == 2 else 0))
+                cell.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable | (Qt.ItemIsEditable if column == 2 else Qt.NoItemFlags))
                 if column == 0:
                     cell.setFlags(cell.flags() | Qt.ItemIsUserCheckable)
                     cell.setCheckState(Qt.Unchecked if unchanged else Qt.Checked)

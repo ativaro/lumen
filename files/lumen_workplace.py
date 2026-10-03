@@ -7,9 +7,9 @@ import subprocess
 import sys
 import time
 
-from PyQt5.QtCore import QProcess, QTimer, Qt, QUrl
-from PyQt5.QtGui import QDesktopServices, QIcon
-from PyQt5.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
+from PySide6.QtCore import QProcess, QTimer, Qt, QUrl
+from PySide6.QtGui import QDesktopServices, QIcon
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
     QFileDialog, QFormLayout, QFrame, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
     QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPlainTextEdit, QProgressBar,
     QPushButton, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
@@ -124,7 +124,7 @@ class ProjectDialog(QDialog):
 
     def remote(self):
         dialog = ConnectDialog(self)
-        if dialog.exec_() == QDialog.Accepted: self.add_source(server_label(dialog.url), dialog.url)
+        if dialog.exec() == QDialog.Accepted: self.add_source(server_label(dialog.url), dialog.url)
         dialog.deleteLater()
 
     def remove_source(self):
@@ -164,7 +164,7 @@ class ModeDialog(QDialog):
         layout.addWidget(self.connections)
         def add():
             dialog = ConnectDialog(self)
-            if dialog.exec_() == QDialog.Accepted: self.connections.appendPlainText(dialog.url)
+            if dialog.exec() == QDialog.Accepted: self.connections.appendPlainText(dialog.url)
             dialog.deleteLater()
         layout.addWidget(button(tr('Netzwerk hinzufügen …'), add))
         self.error = text(''); layout.addWidget(self.error)
@@ -285,7 +285,7 @@ class Workplace(QWidget):
 
     def edit_project(self, _=False, new=False):
         dialog = ProjectDialog(self.store, None if new else self.project, self)
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.Accepted:
             window = self.guard(lambda: self.files())
             if window and window.spaces.active_room and window.spaces.active_room['id'] == dialog.saved['id']:
                 window.spaces.active_room = dialog.saved
@@ -413,7 +413,7 @@ class Workplace(QWidget):
         def ready(devices, error):
             dialog = ModeDialog(self.store, mode, devices or [], self)
             if error: dialog.error.setText(tr('Audioausgaben derzeit nicht verfügbar: ') + error)
-            if dialog.exec_() == QDialog.Accepted: self.refresh_modes()
+            if dialog.exec() == QDialog.Accepted: self.refresh_modes()
             dialog.deleteLater()
         self.job('audio', {}, ready)
 

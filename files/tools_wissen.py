@@ -5,9 +5,10 @@ from pathlib import Path
 import re
 import time
 from urllib.parse import quote
-from PyQt5.QtCore import Qt,QTimer,QUrl,QEvent
-from PyQt5.QtGui import QDesktopServices,QKeySequence
-from PyQt5.QtWidgets import QListWidgetItem,QFileDialog,QInputDialog,QShortcut,QMessageBox
+from PySide6.QtCore import Qt,QTimer,QUrl,QEvent
+from PySide6.QtGui import QDesktopServices,QKeySequence
+from PySide6.QtGui import QShortcut
+from PySide6.QtWidgets import (QListWidgetItem, QFileDialog, QInputDialog, QMessageBox)
 from tools_ui import ToolWindow,Job
 from tools_data import parse_answer
 from lumen_store import Store

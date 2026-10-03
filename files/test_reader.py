@@ -56,9 +56,9 @@ class ReaderTest(unittest.TestCase):
             with self.assertRaises(ValueError):reader.validate_epub(path)
 
     def test_native_notes_reopen_knowledge_and_text_selection(self):
-        from PyQt5.QtWidgets import QApplication
-        from PyQt5.QtCore import QCoreApplication,QEvent
-        from PyQt5.QtTest import QTest
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtCore import QCoreApplication,QEvent
+        from PySide6.QtTest import QTest
         from tools_reader import Reader
         from lumen_store import Store
         app=QApplication.instance() or QApplication([])

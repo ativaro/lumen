@@ -43,7 +43,7 @@ leere Ersatzbibliothek oder automatische Datenlöschung erzeugen.
 
 ## Grenzen und Abnahme
 
-Standardbibliothek plus vorhandenes PyQt5, keine neue Cloud oder Notiz-Engine.
+Standardbibliothek plus vorhandenes PySide6, keine neue Cloud oder Notiz-Engine.
 Scanner begrenzt auf 5.000 Notizen/32 MiB Text/10.000 Verzeichniseinträge; native
 Dateiarbeit in abbrechbaren Jobs/Unterprozessen. Vorschau lädt keine entfernten
 Bilder, Skripte oder lokalen Dateien außerhalb des Notizordners. Graph zeigt einen

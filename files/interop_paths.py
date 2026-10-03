@@ -59,7 +59,7 @@ def relocate(old,new,root=None):
 
 
 def update_window(window):
-    from PyQt5.QtCore import Qt
+    from PySide6.QtCore import Qt
     changes=moves(window.library.root.parent,getattr(window,'interop_path_revision',0))
     if not changes:return
     for index in range(window.resources.count()):

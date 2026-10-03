@@ -1,6 +1,6 @@
 """Local voice turns independent of QWidget or QML presentation."""
 from lumen_i18n import worker_process, tr
-from lumen_qt import QObject, QProcess, QTimer, pyqtSignal
+from lumen_qt import QObject, QProcess, QTimer, Signal
 from pathlib import Path
 import math
 import re
@@ -13,12 +13,12 @@ from voice_capture import pcm_rms, normalized_level
 
 
 class VoiceSession(QObject):
-    started = pyqtSignal()
-    changed = pyqtSignal()
-    levelChanged = pyqtSignal(float)
-    transcribedText = pyqtSignal(str)
-    failed = pyqtSignal(str)
-    setupRequested = pyqtSignal()
+    started = Signal()
+    changed = Signal()
+    levelChanged = Signal(float)
+    transcribedText = Signal(str)
+    failed = Signal(str)
+    setupRequested = Signal()
 
     def __init__(self, backend, settings, parent=None):
         super().__init__(parent)

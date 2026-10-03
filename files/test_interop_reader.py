@@ -82,9 +82,9 @@ class ReaderBridgeTest(unittest.TestCase):
         self.assertEqual(self.library.get(key), before)
 
     def test_native_reader_focuses_exact_mark_and_uses_saved_ocr_in_text_view(self):
-        from PyQt5.QtWidgets import QApplication
-        from PyQt5.QtCore import QCoreApplication, QEvent
-        from PyQt5.QtTest import QTest
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtCore import QCoreApplication, QEvent
+        from PySide6.QtTest import QTest
         from tools_reader import Reader
         app = QApplication.instance() or QApplication([])
         path = self.root/'book.pdf'; self.pdf(path, ['First', 'Second'])

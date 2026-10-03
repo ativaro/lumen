@@ -46,7 +46,7 @@ class LocalizationTest(unittest.TestCase):
 import importlib.abc, sys
 class NoQt(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path=None, target=None):
-        if fullname == 'PyQt5' or fullname.startswith('PyQt5.'):
+        if fullname == 'PySide6' or fullname.startswith('PySide6.'):
             raise ModuleNotFoundError(fullname)
 sys.meta_path.insert(0, NoQt())
 from lumen_i18n import language, tr

@@ -3,8 +3,8 @@ from lumen_i18n import worker_process, tr
 from pathlib import Path
 import shutil
 import tempfile
-from PyQt5.QtCore import QObject, QProcess, QTimer
-from PyQt5.QtWidgets import QApplication, QFileDialog, QHBoxLayout, QPushButton, QCheckBox, QMenu
+from PySide6.QtCore import QObject, QProcess, QTimer
+from PySide6.QtWidgets import QApplication, QFileDialog, QHBoxLayout, QPushButton, QCheckBox, QMenu
 from lumen_setup import executable
 
 

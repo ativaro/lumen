@@ -56,7 +56,7 @@ im Haupt-README beschriebenen Systemabhängigkeiten.
 
 ## Voraussetzungen und Grenzen
 
-Vorhandene Lumen-Laufzeit: Python, PyQt5, QtSvg, PyGObject, Pillow. Audio benötigt
+Vorhandene Lumen-Laufzeit: Python, PySide6, QtSvg, PyGObject, Pillow. Audio benötigt
 `ffmpeg` einschließlich `ffprobe`/`ffplay`; PDF-Text Poppler; gescannte Belege
 Tesseract samt Sprachdaten. Lokale Whisper-/Piper-Modelle lassen sich über
 „Einrichtung“ installieren. Ohne Textindex bleibt ein Haushaltsbeleg gespeichert

@@ -96,7 +96,7 @@ class DesktopThemeTest(unittest.TestCase):
 
     def test_appearance_history_restores_the_desktop_together_with_app(self):
         import os
-        from PyQt5.QtCore import QSettings
+        from PySide6.QtCore import QSettings
         from lumen_store import Store
         from lumen_history import record, undo_record
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA':tmp+'/state', 'XDG_CONFIG_HOME':tmp+'/config'}):

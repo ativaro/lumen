@@ -40,7 +40,7 @@ def match_part(kind, value, items):
 
 def window_parts(window, kind):
     """Read live content in widget order, matching the persisted record field names."""
-    from PyQt5.QtCore import Qt
+    from PySide6.QtCore import Qt
     if kind == 'resource':
         return [window.resources.item(index).data(Qt.UserRole) for index in range(window.resources.count())]
     if kind == 'question':

@@ -5,17 +5,18 @@ from pathlib import Path
 import sys
 from lumen_i18n import worker_process, tr
 
-from PyQt5.QtCore import QObject, QProcess, QTimer, Qt, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout
+from PySide6.QtCore import QObject, QProcess, QTimer, Qt, QUrl, Signal
+from PySide6.QtGui import QDesktopServices
+from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton, QTreeWidget,
+    QTreeWidgetItem, QVBoxLayout)
 from lumen_store import Store
 from lumen_offline import folders, pin, PREFIX
 from network import Network
 
 
 class Offline(QObject):
-    changed = pyqtSignal()
-    catalogChanged = pyqtSignal()
+    changed = Signal()
+    catalogChanged = Signal()
 
     def __init__(self, window):
         super().__init__(window)

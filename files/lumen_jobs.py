@@ -7,14 +7,14 @@ import subprocess
 import tempfile
 import threading
 import time
-from lumen_qt import QThread, pyqtSignal
+from lumen_qt import QThread, Signal
 from tools_data import Cancelled
 
 
 class Job(QThread):
-    result = pyqtSignal(object)
-    failed = pyqtSignal(str)
-    progress = pyqtSignal(str)
+    result = Signal(object)
+    failed = Signal(str)
+    progress = Signal(str)
 
     def __init__(self, function, parent=None):
         super().__init__(parent); self.function = function; self.cancelled = threading.Event()

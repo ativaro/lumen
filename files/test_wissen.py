@@ -88,14 +88,14 @@ class WissenTest(unittest.TestCase):
 class WissenNativeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         cls.app=QApplication.instance() or QApplication([])
 
     def test_collection_button_and_link_picker_use_titles(self):
         from unittest.mock import patch
-        from PyQt5.QtCore import QCoreApplication,QEvent,Qt
-        from PyQt5.QtTest import QTest
-        from PyQt5.QtWidgets import QPushButton
+        from PySide6.QtCore import QCoreApplication,QEvent,Qt
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QPushButton
         from tools_wissen import Wissen
         def ready(w):
             for _ in range(300):
@@ -140,8 +140,8 @@ class WissenNativeTest(unittest.TestCase):
     def test_autosave_keeps_newer_typing_cursor_and_close(self):
         import threading
         from unittest.mock import patch
-        from PyQt5.QtCore import QCoreApplication,QEvent
-        from PyQt5.QtTest import QTest
+        from PySide6.QtCore import QCoreApplication,QEvent
+        from PySide6.QtTest import QTest
         from tools_wissen import Wissen
         import wissen_data
         def wait(predicate):
@@ -172,8 +172,8 @@ class WissenNativeTest(unittest.TestCase):
 
     def test_direct_title_edit_frontmatter_collections_and_new_note(self):
         from unittest.mock import patch
-        from PyQt5.QtCore import QCoreApplication,QEvent,Qt
-        from PyQt5.QtTest import QTest
+        from PySide6.QtCore import QCoreApplication,QEvent,Qt
+        from PySide6.QtTest import QTest
         from tools_wissen import Wissen
         def ready(w):
             for _ in range(300):
@@ -202,9 +202,9 @@ class WissenNativeTest(unittest.TestCase):
 
     def test_explicit_mail_selection_capture(self):
         from unittest.mock import patch
-        from PyQt5.QtCore import QCoreApplication,QEvent
-        from PyQt5.QtGui import QTextCursor
-        from PyQt5.QtTest import QTest
+        from PySide6.QtCore import QCoreApplication,QEvent
+        from PySide6.QtGui import QTextCursor
+        from PySide6.QtTest import QTest
         from tools_inbox import Inbox
         with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,{'LUMEN_DATA':tmp+'/state'}):
             store=Store();activate(store);window=Inbox(Path(tmp)/'tools')
@@ -222,9 +222,9 @@ class WissenNativeTest(unittest.TestCase):
 
     def test_native_edit_external_conflict_draft_sources_and_safe_preview(self):
         from unittest.mock import patch
-        from PyQt5.QtCore import QCoreApplication,QEvent,QUrl
-        from PyQt5.QtGui import QTextDocument
-        from PyQt5.QtTest import QTest
+        from PySide6.QtCore import QCoreApplication,QEvent,QUrl
+        from PySide6.QtGui import QTextDocument
+        from PySide6.QtTest import QTest
         from tools_wissen import Wissen
         from PIL import Image
         def ready(window,predicate=lambda:True):

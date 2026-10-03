@@ -159,7 +159,7 @@ def import_package(directory, library, account, job, include_tasks=True, include
 
 
 def show_restore(parent, directory, root=None):
-    from PyQt5.QtWidgets import QDialog, QFormLayout, QComboBox, QCheckBox, QDialogButtonBox, QMessageBox, QInputDialog
+    from PySide6.QtWidgets import QDialog, QFormLayout, QComboBox, QCheckBox, QDialogButtonBox, QMessageBox, QInputDialog
     from interop_vault import restored_bundles, tools_root, _run_job
     from inbox_data import store
     from tools_ui import label, button
@@ -201,4 +201,4 @@ def show_restore(parent, directory, root=None):
                  lambda job:import_package(package,library,selected_account,job,include_tasks,include_drafts,expected=digest),done)
     form.addRow(button(tr('Geprüfte Auswahl übernehmen'),apply))
     buttons=QDialogButtonBox(QDialogButtonBox.Cancel);buttons.rejected.connect(dialog.reject);form.addRow(buttons)
-    dialog.exec_()
+    dialog.exec()

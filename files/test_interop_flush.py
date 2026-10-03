@@ -6,9 +6,9 @@ import threading
 import time
 import unittest
 from unittest.mock import patch
-from PyQt5.QtCore import QTimer
-from PyQt5.QtNetwork import QLocalServer
-from PyQt5.QtWidgets import QApplication, QWidget, QDialog
+from PySide6.QtCore import QTimer
+from PySide6.QtNetwork import QLocalServer
+from PySide6.QtWidgets import QApplication, QWidget, QDialog
 from tools_data import Library, Cancelled
 from tools_ui import Job
 import interop_flush as flush

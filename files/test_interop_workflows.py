@@ -101,8 +101,8 @@ class WorkflowTest(unittest.TestCase):
         self.assertEqual(Registry(self.tools).related(payload['source_url'])[0]['app'], 'radio')
 
     def test_native_project_and_household_workflow_menus_send_reviewed_payloads(self):
-        from PyQt5.QtWidgets import QApplication
-        from PyQt5.QtCore import QCoreApplication, QEvent
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtCore import QCoreApplication, QEvent
         from tools_household import Household
         from tools_workbench import Workbench
         app = QApplication.instance() or QApplication([])

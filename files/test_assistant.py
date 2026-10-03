@@ -1,3 +1,4 @@
+import sys
 import json
 import os
 import tempfile
@@ -19,11 +20,11 @@ class AssistantTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from app import create_app
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         cls.app = QApplication.instance() or create_app()
 
     def wait(self, condition):
-        from PyQt5.QtTest import QTest
+        from PySide6.QtTest import QTest
         deadline = time.monotonic() + 8
         while not condition() and time.monotonic() < deadline:
             QTest.qWait(10)
@@ -31,7 +32,7 @@ class AssistantTest(unittest.TestCase):
 
     def test_crash_diagnosis_uses_plan_mode_and_explicit_report_context(self):
         from assistant import ChatPanel
-        from PyQt5.QtCore import QSettings
+        from PySide6.QtCore import QSettings
         state = {'prompt':None}
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, *_): pass
@@ -79,11 +80,11 @@ class AssistantTest(unittest.TestCase):
 
     def test_context_buttons_fit_a_narrow_files_panel(self):
         from assistant import ChatPanel
-        from PyQt5.QtCore import QSettings
-        from PyQt5.QtTest import QTest
-        from PyQt5.QtWidgets import QPushButton
+        from PySide6.QtCore import QSettings
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QPushButton
         from appearance import apply_design
-        from PyQt5.QtGui import QPalette
+        from PySide6.QtGui import QPalette
         with tempfile.TemporaryDirectory() as tmp:
             panel = ChatPanel(tmp, settings=QSettings(tmp + '/assistant.ini', QSettings.IniFormat))
             panel.resize(350, 800); panel.show(); QTest.qWait(30)
@@ -173,8 +174,8 @@ class AssistantTest(unittest.TestCase):
             backend = OpenCodeBackend(tmp, server_url=f'http://127.0.0.1:{server.server_port}', password='test-token')
             try:
                 from assistant import ChatPanel
-                from PyQt5.QtCore import QSettings
-                from PyQt5.QtWidgets import QPushButton, QComboBox
+                from PySide6.QtCore import QSettings
+                from PySide6.QtWidgets import QPushButton, QComboBox
                 settings = QSettings(tmp + '/assistant.ini', QSettings.IniFormat)
                 panel = ChatPanel(tmp, backend=backend, settings=settings)
                 self.assertEqual(panel.tracker.store.directory, Path(self.state_directory))
@@ -308,7 +309,7 @@ class AssistantTest(unittest.TestCase):
             bins = target / 'bin'; bins.mkdir()
             files = target / 'files'; files.mkdir()
             shutil.copy2(stub, bins / 'lumen-agent-app')
-            for name in ('lumen', 'lumen-files'):
+            for name in ('lumen', 'lumen-files', 'lumen-python'):
                 shutil.copy2(root / 'bin' / name, bins / name)
             (files / 'app.py').write_text('import json,sys;print(json.dumps(["files", *sys.argv[1:]]))\n')
             self.assertEqual(json.loads(subprocess.check_output([str(bins / 'lumen')], text=True)), [])
@@ -327,7 +328,7 @@ class AssistantTest(unittest.TestCase):
 
     def test_file_actions_show_native_results_instead_of_chat(self):
         from assistant import ChatPanel
-        from PyQt5.QtCore import QSettings
+        from PySide6.QtCore import QSettings
         with tempfile.TemporaryDirectory() as tmp:
             backend = OpenCodeBackend(tmp)
             calls = []
@@ -388,7 +389,7 @@ class AssistantTest(unittest.TestCase):
 
     def test_english_cancellation_exposes_retry_and_keeps_tracking_sentinel(self):
         from assistant import ChatPanel
-        from PyQt5.QtCore import QSettings
+        from PySide6.QtCore import QSettings
         with tempfile.TemporaryDirectory() as tmp, patch('lumen_i18n.language', return_value='en'):
             backend = OpenCodeBackend(tmp)
             panel = ChatPanel(tmp, backend=backend, settings=QSettings(tmp + '/assistant.ini', QSettings.IniFormat))
@@ -439,7 +440,7 @@ class AssistantTest(unittest.TestCase):
 import sys,tempfile,os,importlib.util
 sys.path.insert(0,'files')
 from app import create_app,Window
-from PyQt5.QtCore import QSettings,QTimer
+from PySide6.QtCore import QSettings,QTimer
 with tempfile.TemporaryDirectory() as tmp:
     os.environ['XDG_CONFIG_HOME']=tmp+'/config'
     os.environ['LUMEN_DATA']=tmp+'/state'
@@ -456,11 +457,11 @@ with tempfile.TemporaryDirectory() as tmp:
     window.show()
     # Run the real lifecycle so Qt handles deferred deletions before Python exits.
     QTimer.singleShot(int(sys.argv[1]),app.quit if sys.argv[2] == 'quit' else window.close)
-    app.exec_()
+    app.exec()
 """
         for mode in ('close', 'quit'):
             for delay in (0, 150, 500):
-                result = subprocess.run(['/usr/bin/python3', '-X', 'faulthandler', '-c', script, str(delay), mode],
+                result = subprocess.run([sys.executable, '-X', 'faulthandler', '-c', script, str(delay), mode],
                                         cwd=root, env={**os.environ, 'QT_QPA_PLATFORM': 'offscreen'},
                                         capture_output=True, text=True, timeout=15)
                 self.assertEqual(result.returncode, 0, result.stderr)

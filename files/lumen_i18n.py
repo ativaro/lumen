@@ -93,6 +93,6 @@ def install(app):
     QLocale.setDefault(locale)
     translator = QTranslator(app)
     if selected == 'de':
-        translator.load('qtbase_de', QLibraryInfo.path(QLibraryInfo.TranslationsPath) if hasattr(QLibraryInfo, 'path') else QLibraryInfo.location(QLibraryInfo.TranslationsPath))
+        translator.load('qtbase_de', QLibraryInfo.path(QLibraryInfo.TranslationsPath))
         app.installTranslator(translator)
     app.translator = translator

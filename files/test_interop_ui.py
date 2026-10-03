@@ -4,7 +4,7 @@ import tempfile
 import time
 import unittest
 from unittest.mock import patch
-from PyQt5.QtWidgets import QApplication,QMenu
+from PySide6.QtWidgets import QApplication,QMenu
 from tools_data import Library
 from tools_workbench import Workbench
 from interop_data import Registry

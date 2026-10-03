@@ -2,8 +2,8 @@
 from lumen_i18n import tr
 from datetime import datetime
 from pathlib import Path
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QCheckBox,
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QCheckBox,
     QComboBox, QFileDialog, QInputDialog, QListWidget, QListWidgetItem, QMessageBox, QTreeWidget, QTreeWidgetItem)
 from tools_ui import ToolWindow, button, label, row, open_path
 import vault_data as vault
@@ -56,7 +56,7 @@ class Vault(ToolWindow):
         form.addRow(label(tr('Neues Ziel: leerer Ordner. Vorhandenes Restic-Ziel: bisheriges Sicherungspasswort verwenden. Passwörter speichert der System-Schlüsselbund.')))
         buttons=QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel);form.addRow(buttons)
         buttons.accepted.connect(dialog.accept);buttons.rejected.connect(dialog.reject)
-        if dialog.exec_()!=QDialog.Accepted:return False
+        if dialog.exec()!=QDialog.Accepted:return False
         if password.text()!=confirm.text():raise ValueError(tr('Die Passwörter stimmen nicht überein.'))
         sources=([source.text()] if source.text().strip() else [])+[row['path'] for row in prefill_sources[1:]]+(vault.config_sources() if desktop.isChecked() else [])
         name,target,key,rhythm=title.text(),repo.text(),password.text(),interval.currentData()
@@ -133,7 +133,7 @@ class Vault(ToolWindow):
                 text+='\n\n'+tr('Nur die bereits ausgewählten Quellen sichern?')
                 question=QMessageBox(QMessageBox.Warning,tr('Projektquellen vor der Sicherung prüfen'),text,QMessageBox.Yes|QMessageBox.Cancel,self)
                 question.setTextFormat(Qt.PlainText);question.setDefaultButton(QMessageBox.Cancel)
-                if question.exec_()!=QMessageBox.Yes:return
+                if question.exec()!=QMessageBox.Yes:return
         def done(value):
             if action=='snapshots':
                 self.snapshots.clear()
@@ -166,8 +166,8 @@ class Vault(ToolWindow):
                 item=QListWidgetItem(value.get('path',''));item.setData(Qt.UserRole,value);listing.addItem(item)
             form.addRow(button(tr('Auswahl wiederherstellen'),lambda:self._restore_from_dialog(dialog,listing,snapshot)))
             # The worker completes after its result signal; defer this modal window.
-            from PyQt5.QtCore import QTimer
-            QTimer.singleShot(0,dialog.exec_)
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(0,dialog.exec)
         self.work(tr('Gesicherte Pfade werden geladen …'),lambda job:vault.run(self.library,key,'files',job,snapshot=snapshot),show)
 
     def _restore_from_dialog(self,dialog,listing,snapshot):

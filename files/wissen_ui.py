@@ -1,8 +1,8 @@
 """The direct notebook layout; storage and actions live in tools_wissen."""
 from lumen_i18n import tr
 from pathlib import Path
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QLineEdit,QPlainTextEdit,
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QLineEdit,QPlainTextEdit,
     QTabWidget,QStackedWidget,QListWidget,QCheckBox,QMenu,QScrollArea)
 from tools_ui import button,label,row
 from assistant import Transcript

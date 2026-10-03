@@ -6,9 +6,9 @@ import sys
 
 from lumen_i18n import worker_process, tr
 
-from PyQt5.QtCore import QObject, QProcess, QTimer, QUrl, Qt, QModelIndex, QDateTime, QItemSelectionModel
-from PyQt5.QtGui import QIcon, QStandardItem
-from PyQt5.QtWidgets import (QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QHBoxLayout,
+from PySide6.QtCore import QObject, QProcess, QTimer, QUrl, Qt, QModelIndex, QDateTime, QItemSelectionModel
+from PySide6.QtGui import QIcon, QStandardItem
+from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QHBoxLayout,
     QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMenu, QMessageBox,
     QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QVBoxLayout, QWidget)
 
@@ -62,7 +62,7 @@ class LibraryDialog(QDialog):
 
     def remote(self):
         dialog = ConnectDialog(self)
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.Accepted:
             self.add(server_label(dialog.url), dialog.url)
         dialog.deleteLater()
 
@@ -132,7 +132,7 @@ class FileSpaces(QObject):
         if identity and identity.startswith('project-'):
             self.window.show_workplace(); return
         dialog = LibraryDialog(self.catalog, self.catalog.library(identity) if identity else None, self.window)
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.Accepted:
             self.window.populate_places()
             self.window.navigate(LIBRARY + dialog.saved['id'])
         dialog.deleteLater()
@@ -185,7 +185,7 @@ class FileSpaces(QObject):
         for library in self.catalog.libraries():
             menu.addAction(library['name'] + ' …', lambda _=False, identity=library['id']: self.edit_library(identity))
         menu.addSeparator(); menu.addAction(tr('Neue Bibliothek …'), lambda: self.edit_library())
-        menu.exec_(self.window.mapToGlobal(self.window.rect().center()))
+        menu.exec(self.window.mapToGlobal(self.window.rect().center()))
 
     def shelf_menu(self):
         menu = QMenu(self.window)
@@ -194,7 +194,7 @@ class FileSpaces(QObject):
         menu.addAction(tr('Auswahl sammeln'), lambda: self.collect(self.window.selected_paths()))
         menu.addAction(tr('Auswahl in Ordner kopieren …'), self.copy_to)
         menu.addAction(tr('Verweise leeren (Dateien behalten)'), self.clear_shelf)
-        menu.exec_(self.shelf_button.mapToGlobal(self.shelf_button.rect().bottomLeft()))
+        menu.exec(self.shelf_button.mapToGlobal(self.shelf_button.rect().bottomLeft()))
 
     def choose_shelf_files(self):
         paths, _ = QFileDialog.getOpenFileNames(self.window, tr('Dateien sammeln'))
@@ -245,7 +245,7 @@ class FileSpaces(QObject):
                 if task['id'] in self.active_room['state'].get('tasks', []):
                     menu.addAction(tr('Auftrag: ') + task['title'], lambda _=False, t=task: self.open_task(t))
             menu.addAction(tr('Arbeitsraum entfernen (Dateien behalten)'), self.delete_room)
-        menu.exec_(self.window.room_button.mapToGlobal(self.window.room_button.rect().bottomLeft()))
+        menu.exec(self.window.room_button.mapToGlobal(self.window.room_button.rect().bottomLeft()))
 
     def new_room(self):
         name, ok = QInputDialog.getText(self.window, tr('Arbeitsraum speichern'), tr('Name:'))
@@ -284,7 +284,7 @@ class FileSpaces(QObject):
             item.setCheckState(Qt.Checked if task['id'] in chosen else Qt.Unchecked); tasks.addItem(item)
         box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         box.accepted.connect(dialog.accept); box.rejected.connect(dialog.reject); layout.addWidget(box)
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.Accepted:
             state = self.capture()
             state['tasks'] = [tasks.item(i).data(Qt.UserRole) for i in range(tasks.count()) if tasks.item(i).checkState() == Qt.Checked]
             try: self.active_room = self.catalog.save_room(self.active_room, self.active_room['name'], state)

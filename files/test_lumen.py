@@ -1,3 +1,4 @@
+import sys
 import tempfile
 import threading
 import unittest
@@ -57,12 +58,12 @@ class NativeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from app import create_app
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         cls.app = QApplication.instance() or create_app()
 
     def wait_until(self, condition, seconds=15):
         import time
-        from PyQt5.QtTest import QTest
+        from PySide6.QtTest import QTest
         deadline = time.monotonic() + seconds
         while not condition() and time.monotonic() < deadline:
             QTest.qWait(15)
@@ -70,14 +71,17 @@ class NativeTest(unittest.TestCase):
 
     def test_tabs_sort_and_preview_width_survive_reopening(self):
         from app import Window
-        from PyQt5.QtCore import QSettings, Qt
-        from PyQt5.QtTest import QTest
+        from PySide6.QtCore import QSettings, Qt
+        from PySide6.QtTest import QTest
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             first, second = root / 'first', root / 'second'
             first.mkdir(); second.mkdir()
             settings = QSettings(str(root / 'settings.ini'), QSettings.IniFormat)
             window = Window(str(first), settings)
+            # Keep the same outer size after Qt 6 constrains restored geometry
+            # to the 800x800 offscreen screen (the app's minimum width is 1000).
+            window.resize(1000, 700)
             window.show()
             window.new_tab(str(second))
             window.view.sortByColumn(1, Qt.DescendingOrder)
@@ -114,9 +118,9 @@ class NativeTest(unittest.TestCase):
 
     def test_grid_thumbnails_selection_search_and_settings(self):
         from app import Window
-        from PyQt5.QtCore import QSettings, Qt
-        from PyQt5.QtTest import QTest
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtCore import QSettings, Qt
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QApplication
         from PIL import Image
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -166,8 +170,8 @@ class NativeTest(unittest.TestCase):
 
     def test_compact_breadcrumb_keeps_current_folder_visible(self):
         from app import Window
-        from PyQt5.QtCore import QPoint, QSettings, Qt
-        from PyQt5.QtTest import QTest
+        from PySide6.QtCore import QPoint, QSettings, Qt
+        from PySide6.QtTest import QTest
         with tempfile.TemporaryDirectory() as tmp:
             window = Window(tmp, QSettings(tmp + '/files.ini', QSettings.IniFormat))
             window.show(); window.resize(1000, 640)
@@ -194,10 +198,10 @@ class NativeTest(unittest.TestCase):
 
     def test_grid_renders_folder_icon_before_clearing_native_decoration(self):
         from app import Window
-        from PyQt5.QtCore import QSettings, QRect, Qt
-        from PyQt5.QtGui import QImage, QPainter
-        from PyQt5.QtWidgets import QStyle, QStyleOptionViewItem
-        from PyQt5.QtTest import QTest
+        from PySide6.QtCore import QSettings, QRect, Qt
+        from PySide6.QtGui import QImage, QPainter
+        from PySide6.QtWidgets import QStyle, QStyleOptionViewItem
+        from PySide6.QtTest import QTest
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); folder = root / 'Documents'; folder.mkdir()
             document = root / 'Notes.txt'; document.write_text('Example')
@@ -231,8 +235,8 @@ class NativeTest(unittest.TestCase):
     def test_folder_badges_follow_configured_locations_in_list_grid_and_libraries(self):
         from app import Window
         from folder_icons import folder_icons
-        from PyQt5.QtCore import QSettings, QStandardPaths, Qt, QModelIndex
-        from PyQt5.QtTest import QTest
+        from PySide6.QtCore import QSettings, QStandardPaths, Qt, QModelIndex
+        from PySide6.QtTest import QTest
         from unittest.mock import patch
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -267,9 +271,9 @@ class NativeTest(unittest.TestCase):
 
     def test_system_colors_and_font_follow_light_and_dark_kde_settings(self):
         from app import Window, apply_system_appearance
-        from PyQt5.QtCore import QSettings
-        from PyQt5.QtTest import QTest
-        from PyQt5.QtGui import QIcon, QPalette
+        from PySide6.QtCore import QSettings
+        from PySide6.QtTest import QTest
+        from PySide6.QtGui import QIcon, QPalette
         palette, font, theme, style = self.app.palette(), self.app.font(), QIcon.themeName(), self.app.styleSheet()
         try:
             with tempfile.TemporaryDirectory() as tmp:
@@ -298,9 +302,9 @@ class NativeTest(unittest.TestCase):
 
     def test_mouse_history_over_child_widgets_and_dialog_isolation(self):
         from app import Window
-        from PyQt5.QtCore import QSettings, Qt
-        from PyQt5.QtTest import QTest
-        from PyQt5.QtWidgets import QDialog
+        from PySide6.QtCore import QSettings, Qt
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QDialog
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             first, second = root / 'first', root / 'first' / 'second'
@@ -338,9 +342,9 @@ class NativeTest(unittest.TestCase):
 
     def test_places_fit_in_compact_window_and_long_names_elide(self):
         from app import Window
-        from PyQt5.QtCore import QSettings
-        from PyQt5.QtTest import QTest
-        from PyQt5.QtGui import QIcon
+        from PySide6.QtCore import QSettings
+        from PySide6.QtTest import QTest
+        from PySide6.QtGui import QIcon
         with tempfile.TemporaryDirectory() as tmp:
             window = Window(tmp, QSettings(str(Path(tmp) / 'settings.ini'), QSettings.IniFormat))
             window.show()
@@ -365,9 +369,9 @@ class NativeTest(unittest.TestCase):
         import os
         import subprocess
         from app import Window
-        from PyQt5.QtCore import QItemSelectionModel, QPoint, QSettings, Qt
-        from PyQt5.QtGui import QImage, QColor, QPainter, QPdfWriter
-        from PyQt5.QtTest import QTest
+        from PySide6.QtCore import QItemSelectionModel, QPoint, QSettings, Qt
+        from PySide6.QtGui import QImage, QColor, QPainter, QPdfWriter
+        from PySide6.QtTest import QTest
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             nested = root / 'nested'
@@ -466,6 +470,9 @@ class NativeTest(unittest.TestCase):
             window.view.setCurrentIndex(index)
             window.view.selectionModel().select(index, QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows)
             window.copy(True)
+            # The offscreen platform holds Python-created MIME data globally;
+            # release this test clipboard while the Python runtime still exists.
+            self.addCleanup(self.app.clipboard().clear)
             window.navigate(nested)
             window.paste()
             self.wait_until(lambda: window.file_job is None)
@@ -489,7 +496,7 @@ class NativeTest(unittest.TestCase):
             script = ('from gi.repository import Gio; import sys; '
                       'Gio.File.new_for_path(sys.argv[1]).trash(None)')
             env = {**os.environ, 'HOME': tmp, 'XDG_DATA_HOME': str(root / 'data')}
-            subprocess.run(['/usr/bin/python3', '-c', script, str(source)], env=env, check=True)
+            subprocess.run([sys.executable, '-c', script, str(source)], env=env, check=True)
             self.assertFalse(source.exists())
             trashed = list((root / 'data/Trash/files').glob('trash-test*'))
             self.assertEqual(len(trashed), 1)

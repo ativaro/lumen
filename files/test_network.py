@@ -57,12 +57,12 @@ class NetworkRuntimeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from app import create_app
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         cls.app = QApplication.instance() or create_app()
 
     def wait_until(self, condition, seconds=15):
         import time
-        from PyQt5.QtTest import QTest
+        from PySide6.QtTest import QTest
         deadline = time.monotonic() + seconds
         while not condition() and time.monotonic() < deadline:
             QTest.qWait(15)
@@ -71,7 +71,7 @@ class NetworkRuntimeTest(unittest.TestCase):
     def test_smb_dialog_accepts_server_and_listing_rejects_missing_folder(self):
         import tempfile
         from network import ConnectDialog, Network
-        from PyQt5.QtWidgets import QDialog, QLineEdit
+        from PySide6.QtWidgets import QDialog, QLineEdit
         dialog = ConnectDialog(address='smb://nas/')
         dialog.validate()
         self.assertEqual(dialog.result(), QDialog.Accepted)
@@ -95,7 +95,7 @@ class NetworkRuntimeTest(unittest.TestCase):
         import tempfile
         from pathlib import Path
         from unittest.mock import patch
-        from PyQt5.QtTest import QTest
+        from PySide6.QtTest import QTest
         from network import Network
         with tempfile.TemporaryDirectory() as tmp:
             helper = Path(tmp) / 'kioclient'
@@ -128,8 +128,8 @@ class NetworkRuntimeTest(unittest.TestCase):
         import tempfile
         from pathlib import Path
         from unittest.mock import patch
-        from PyQt5.QtCore import QSettings
-        from PyQt5.QtTest import QTest
+        from PySide6.QtCore import QSettings
+        from PySide6.QtTest import QTest
         from app import Window
         from file_spaces import Catalog
         from lumen_store import Store
@@ -175,8 +175,8 @@ class NetworkRuntimeTest(unittest.TestCase):
         from app import Window
         from file_spaces import Catalog, LIBRARY
         from lumen_store import Store
-        from PyQt5.QtCore import QSettings
-        from PyQt5.QtTest import QTest
+        from PySide6.QtCore import QSettings
+        from PySide6.QtTest import QTest
 
         class DAV(SimpleHTTPRequestHandler):
             def log_message(self, *_args):
@@ -385,7 +385,7 @@ class NetworkRuntimeTest(unittest.TestCase):
 
     def test_connect_dialog_never_accepts_or_saves_password_urls(self):
         from network import ConnectDialog
-        from PyQt5.QtWidgets import QDialog
+        from PySide6.QtWidgets import QDialog
         dialog = ConnectDialog()
         dialog.address.setText('sftp://alice:secret@host/home/alice')
         dialog.validate()

@@ -10,15 +10,16 @@ if __name__ == '__main__':
 
 from lumen_i18n import tr
 
-from PyQt5.QtCore import (QDir, QEvent, QFileInfo, QItemSelectionModel, QMimeData, QModelIndex, QRect, QRectF,
+from PySide6.QtCore import (QDir, QEvent, QFileInfo, QItemSelectionModel, QMimeData, QModelIndex, QRect, QRectF,
                           QSettings, QSize, QSortFilterProxyModel, QStandardPaths, QFileSystemWatcher,
                           QStorageInfo, Qt, QTimer, QUrl)
-from PyQt5.QtGui import QDesktopServices, QIcon, QKeySequence, QPalette, QColor, QFont, QPainterPath, QStandardItem, QStandardItemModel
-from PyQt5.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDockWidget,
-                             QFileSystemModel, QFrame, QHBoxLayout, QHeaderView, QInputDialog,
-                             QLabel, QLineEdit, QListView, QListWidget, QListWidgetItem, QMainWindow,
-                             QMenu, QMessageBox, QPushButton, QScrollArea, QShortcut, QSizePolicy,
-                             QSlider, QSplitter, QStackedWidget, QStyle, QStyleOptionViewItem, QStyledItemDelegate, QTabBar, QTreeView, QVBoxLayout, QWidget)
+from PySide6.QtGui import (QDesktopServices, QIcon, QKeySequence, QPalette, QColor, QFont, QPainterPath,
+    QStandardItem, QStandardItemModel)
+from PySide6.QtGui import QShortcut
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDockWidget, QFileSystemModel, QFrame,
+    QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QListView, QListWidget, QListWidgetItem, QMainWindow,
+    QMenu, QMessageBox, QPushButton, QScrollArea, QSizePolicy, QSlider, QSplitter, QStackedWidget, QStyle,
+    QStyleOptionViewItem, QStyledItemDelegate, QTabBar, QTreeView, QVBoxLayout, QWidget)
 from core import FileWorker, SearchWorker, file_kind, size_text, valid_name
 from network import Network, ConnectDialog, display_url, is_network_address, normalize_url, server_label
 from preview import Preview, label
@@ -138,7 +139,7 @@ class FileDropMixin:
         self.setDropIndicatorShown(True)
 
     def startDrag(self, supported):
-        from PyQt5.QtGui import QDrag
+        from PySide6.QtGui import QDrag
         paths = self.main_window.selected_paths()
         if not paths:
             return
@@ -147,7 +148,7 @@ class FileDropMixin:
         mime.setUrls([QUrl.fromLocalFile(path) for path in paths])
         drag.setMimeData(mime)
         # Copy-only external dragging avoids accidental destructive drop actions.
-        drag.exec_(Qt.CopyAction)
+        drag.exec(Qt.CopyAction)
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls() and all(u.isLocalFile() for u in event.mimeData().urls()):
@@ -199,7 +200,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
         grid = self.parent()
         opt = QStyleOptionViewItem(option)
         self.initStyleOption(opt, index)
-        # PyQt exposes a borrowed QIcon here; copy before clearing the option.
+        # Qt exposes a borrowed QIcon here; copy before clearing the option.
         icon, name = QIcon(opt.icon), index.data(Qt.DisplayRole) or ''
         opt.text, opt.icon = '', QIcon()
         opt.state &= ~QStyle.State_HasFocus
@@ -764,7 +765,7 @@ class Window(QMainWindow):
 
     def connect_dialog(self):
         dialog = ConnectDialog(self)
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.Accepted:
             self.connect_server(dialog.url, remember=dialog.remember.isChecked())
         dialog.deleteLater()
 
@@ -834,7 +835,7 @@ class Window(QMainWindow):
                 self.settings.setValue(key, [p for p in favorites if p != path])
                 self.populate_places()
             menu.addAction(tr('Aus gemerkten Orten entfernen'), remove)
-        menu.exec_(self.places.viewport().mapToGlobal(position))
+        menu.exec(self.places.viewport().mapToGlobal(position))
 
     def configure_columns(self):
         header = self.view.header()
@@ -1165,7 +1166,7 @@ class Window(QMainWindow):
         if not root: return
         dialog = ContentSearchDialog(root, self.search.text(), self.hidden, self)
         dialog.folderRequested.connect(self.navigate)
-        dialog.exec_()
+        dialog.exec()
         dialog.deleteLater()
 
     def photo_tools(self, mode='search'):
@@ -1173,7 +1174,7 @@ class Window(QMainWindow):
         root = self.spaces.choose_target() if virtual(self.current_location) else self.current_path
         if not root: return
         dialog = PhotoToolsDialog(root, mode, self.search.text(), self)
-        dialog.folderRequested.connect(self.navigate); dialog.exec_(); dialog.deleteLater(); self.refresh()
+        dialog.folderRequested.connect(self.navigate); dialog.exec(); dialog.deleteLater(); self.refresh()
 
     def queue_search(self, _text=None):
         self.cancel_search()
@@ -1351,7 +1352,7 @@ class Window(QMainWindow):
         root = self.current_path
         dialog = OrganizeDialog(paths or self.selected_paths(), root, mode, journal, self,
                                 per_source=virtual(self.current_location))
-        dialog.exec_()
+        dialog.exec()
         dialog.deleteLater()
         self.refresh()
 
@@ -1372,7 +1373,7 @@ class Window(QMainWindow):
         preview.show_path(paths[0], display_url(remote) if remote else None)
         QShortcut(QKeySequence('Space'), dialog, activated=dialog.accept)
         dialog.finished.connect(preview.cancel)
-        dialog.exec_()
+        dialog.exec()
         dialog.deleteLater()
 
     def open_gallery(self, path, editing=False):
@@ -1392,7 +1393,7 @@ class Window(QMainWindow):
         self.preview_delay.stop()
         dialog = Gallery(images, path, self)
         dialog.editor_button.setChecked(editing)
-        dialog.exec_()
+        dialog.exec()
         for row in range(self.proxy.rowCount(self.view.rootIndex())):
             index = self.proxy.index(row, 0, self.view.rootIndex())
             if self.proxy.path(index) == dialog.path:
@@ -1419,7 +1420,7 @@ class Window(QMainWindow):
         dialog.sizesReady.connect(sizes_ready)
         destination = []
         dialog.openPath.connect(destination.append)
-        dialog.exec_()
+        dialog.exec()
         dialog.deleteLater()
         if destination:
             self.navigate(destination[0])
@@ -1557,7 +1558,7 @@ class Window(QMainWindow):
         menu.addAction(tr('Neuer Ordner'), self.mkdir)
         menu.addSeparator()
         menu.addAction(tr('Letzte Lumen-Dateiaktion rückgängig …'), lambda: self.organize_files('undo'))
-        menu.exec_(view.viewport().mapToGlobal(position))
+        menu.exec(view.viewport().mapToGlobal(position))
 
     def refresh(self):
         self.proxy.folder_sizes.clear()
@@ -1585,7 +1586,7 @@ class Window(QMainWindow):
         from settings_dialog import SettingsDialog
         dialog = SettingsDialog(self, files_settings=self.settings, page=1)
         dialog.preferencesChanged.connect(self.reload_settings)
-        dialog.exec_()
+        dialog.exec()
         dialog.deleteLater()
 
     def reload_settings(self, filename=None, keys=None):
@@ -1631,11 +1632,11 @@ class Window(QMainWindow):
         menu.addSeparator()
         menu.addAction(tr('Tastenkürzel & Info'), lambda: QMessageBox.information(self, 'Lumen Files',
             tr('Lumen Files · 0.3\n\nStrg+F  Suchen\nStrg+L  Pfad eingeben\nStrg+K  Server verbinden\nStrg+T / Strg+W  Tab öffnen / schließen\nAlt+Pfeile  Navigation\nLeertaste  Große Vorschau\nF2  Umbenennen\nStrg+C / X / V  Kopieren / Ausschneiden / Einfügen\nEntf  Papierkorb\n\nSuche: Dateinamen im aktuellen Ordner und Unterordnern. Mehrere Wörter müssen alle im Namen vorkommen. Trefferlimit in den Einstellungen; kein Volltextindex.\n\nBilder: Pfeiltasten blättern, R / Umschalt+R drehen, H spiegeln, Strg+Z rückgängig, Strg+S speichern, Entf Papierkorb, F11 Vollbild. Originale bleiben in .lumen-originals.\n\nPDFs sind blätterbar. Videos zeigen ein Standbild, Audio eine Wellenform. Wiedergabe in der Standard-App.')))
-        menu.exec_(self.sender().mapToGlobal(self.sender().rect().bottomLeft()))
+        menu.exec(self.sender().mapToGlobal(self.sender().rect().bottomLeft()))
 
     def show_versions(self, path=None):
         from versions_ui import VersionsDialog
-        dialog = VersionsDialog(self, path if isinstance(path, str) else None); dialog.exec_(); dialog.deleteLater()
+        dialog = VersionsDialog(self, path if isinstance(path, str) else None); dialog.exec(); dialog.deleteLater()
 
     def show_workplace(self, tab=0):
         if hasattr(self, 'lumen_host'):
@@ -1662,7 +1663,7 @@ class Window(QMainWindow):
         box.setTextFormat(Qt.PlainText)
         if detail:
             box.setDetailedText(detail)
-        box.exec_()
+        box.exec()
 
     def closeEvent(self, event):
         if hasattr(self, 'workplace_dialog') and self.workplace_dialog.page.busy:
@@ -1797,7 +1798,6 @@ def apply_system_appearance(app, path):
 
 
 def create_app(appearance=None):
-    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
     app = Application(sys.argv)
     # An application event filter sees GUI-thread events only. Overriding notify
     # also wraps objects from Qt's network threads in Python and races their deletion.
@@ -1878,4 +1878,4 @@ if __name__ == '__main__':
     else:
         from setup_dialog import offer_setup
         QTimer.singleShot(250, lambda: offer_setup(window))
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

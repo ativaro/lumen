@@ -9,7 +9,7 @@ import sys
 import time
 import uuid
 
-from PyQt5.QtCore import QStandardPaths, QUrl
+from PySide6.QtCore import QStandardPaths, QUrl
 from lumen_store import Store
 from network import is_network_address, normalize_url
 

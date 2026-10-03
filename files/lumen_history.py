@@ -103,7 +103,7 @@ def undo_record(store, identity):
                 from gi.repository import Gio
                 Gio.File.new_for_path(target).trash(None)
         elif kind == 'preferences':
-            from PyQt5.QtCore import QSettings
+            from PySide6.QtCore import QSettings
             settings = QSettings(target, QSettings.IniFormat)
             settings.sync()
             for key, expected in after.items():

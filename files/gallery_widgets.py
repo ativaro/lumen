@@ -3,16 +3,16 @@ from pathlib import Path
 
 from lumen_i18n import tr
 
-from PyQt5.QtCore import QSize, Qt, QTimer, pyqtSignal
-from PyQt5.QtGui import QIcon, QKeySequence
-from PyQt5.QtWidgets import (QAbstractItemView, QFrame, QHBoxLayout, QLabel, QListView,
-                             QListWidget, QListWidgetItem, QPushButton, QShortcut,
-                             QSizePolicy, QVBoxLayout, QWidget)
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QIcon, QKeySequence
+from PySide6.QtGui import QShortcut
+from PySide6.QtWidgets import (QAbstractItemView, QFrame, QHBoxLayout, QLabel, QListView, QListWidget,
+    QListWidgetItem, QPushButton, QSizePolicy, QVBoxLayout, QWidget)
 from preview import label
 
 
 class Filmstrip(QListWidget):
-    chosen = pyqtSignal(int)
+    chosen = Signal(int)
 
     def __init__(self, loader, parent=None):
         super().__init__(parent)

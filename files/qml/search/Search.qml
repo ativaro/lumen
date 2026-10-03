@@ -11,7 +11,7 @@ ApplicationWindow {
     minimumWidth: 520; minimumHeight: 430
     visible: false; color: "transparent"
     flags: Qt.Tool | Qt.FramelessWindowHint
-    title: window.controller.text("Lumen Suche · Vorschau")
+    title: window.controller.text("Lumen Suche")
     font.family: "Noto Sans"
     palette.windowText: window.theme.text; palette.text: window.theme.text
     palette.base: window.theme.base; palette.button: window.theme.button

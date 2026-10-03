@@ -27,7 +27,7 @@ class OCRTest(unittest.TestCase):
             self.assertFalse([e for e in scan(root, [['auto']]) if e['type'] == 'hit'])
 
     def test_native_vision_queue_is_opt_in_and_reuses_provider_without_tools(self):
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         from content_search_dialog import ContentSearchDialog
         app = QApplication.instance() or QApplication([])
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp + '/state'}):

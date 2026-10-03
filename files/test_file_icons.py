@@ -4,9 +4,9 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-from PyQt5.QtCore import QFileInfo, QMimeDatabase, QSettings
-from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QApplication, QFileIconProvider
+from PySide6.QtCore import QFileInfo, QMimeDatabase, QSettings
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QApplication, QFileIconProvider
 
 
 class FileIconsTest(unittest.TestCase):

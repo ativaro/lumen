@@ -48,7 +48,7 @@ gracefully on other setups.
 
 | Component | What it does |
 |---|---|
-| **Desktop app** (`lumen`) | One PyQt5 window for conversations, files, system status, tasks, knowledge, workflows and models |
+| **Desktop app** (`lumen`) | One PySide6 window for conversations, files, system status, tasks, knowledge, workflows and models |
 | **Workplace** | Projects resume selected folders/NAS, apps, webpages and a continuation note; source availability/recent files, editable desktop modes, shared transfers and guarded history in Lumen and Files |
 | **Durable tasks** | SQLite task history, process leases, interruption recovery, pause/resume/cancel, results and native file undo with conflict checks |
 | **Knowledge** | Explicit folder selection, bounded local text/PDF index, source/page citations and editable memories |
@@ -166,7 +166,7 @@ Existing windows gain supervision when restarted. No additional system service i
 
 ## Requirements
 
-**Required:** `bash`, Python 3, PyQt5 with QtSvg, PyGObject/GIO, Pillow. AI features additionally need [OpenCode](https://opencode.ai) with its server API.
+**Required:** `bash`, Python 3, PySide6 with QtSvg, QtQuick and QtDBus, PyGObject/GIO, Pillow. AI features additionally need [OpenCode](https://opencode.ai) with its server API.
 
 **Optional** (individual features need these):
 - `notify-send` (libnotify) — watchdog notifications
@@ -304,7 +304,7 @@ askpass (`ksshaskpass`/GNOME/OpenSSH) in `/etc/sudo.conf` if none is set.
 bin/                      helper scripts + GUI backend (installed to PREFIX/bin)
 agent-app/main.py         Unified native Lumen window
 plasmoid/                 Plasma panel applet (org.lumen.agent)
-files/                    Integrated files, tasks, knowledge and assistant (PyQt5)
+files/                    Integrated files, tasks, knowledge and assistant (PySide6)
 shell/                    bash + fish integration (why/vix/sel)
 data/                     .desktop / krunner / dbus / autostart templates
 systemd/                  watchdog user units
@@ -338,7 +338,7 @@ install-system.sh         optional root-only tweaks
   The composer offers task mode or read-only analysis mode. Closing an active
   conversation asks before stopping it. Images/PDFs selected as context are sent
   as attachments; other paths are supplied as text context.
-- The shared panel uses the existing PyQt5 runtime. QML, terminal launchers and
+- The shared panel uses PySide6/Qt 6 Widgets; search uses QtQuick/QML. Terminal launchers and
   the temporary text-file bridge are no longer used for conversations.
 - `lumen-sel translate|fix|summarize` copies successful answers back to the clipboard.
   Every answer can also be copied from the panel.

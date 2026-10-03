@@ -33,8 +33,8 @@ class CrashMonitorTest(unittest.TestCase):
 
     def test_recovery_dialog_can_check_report_and_keeps_recovery_available(self):
         from app import create_app
-        from PyQt5.QtCore import QCoreApplication
-        from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox
+        from PySide6.QtCore import QCoreApplication
+        from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox
         app = QApplication.instance() or create_app()
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA':tmp}):
             run = crash.directory()/'run-example'; run.mkdir()
@@ -48,7 +48,7 @@ class CrashMonitorTest(unittest.TestCase):
             try:
                 for error in (None, OSError('Launcher unavailable')):
                     with self.subTest(error=error), patch.object(crash, 'RUN', current), \
-                            patch.object(crash, 'HEARTBEAT', -1), patch.object(QMessageBox, 'exec_', choose), \
+                            patch.object(crash, 'HEARTBEAT', -1), patch.object(QMessageBox, 'exec', choose), \
                             patch.object(QMessageBox, 'warning') as warning, \
                             patch.object(crash, 'check_with_lumen', side_effect=error) as launch:
                         crash.attach(app, window, 'files')
@@ -142,8 +142,8 @@ kind, mode = sys.argv[1:]
 crash.supervise(kind)
 from app import create_app, Window
 from assistant_backend import OpenCodeBackend
-from PyQt5.QtCore import QTimer
-from PyQt5.QtWidgets import QMessageBox
+from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QMessageBox
 app = create_app()
 def forbidden(*args, **kwargs): raise AssertionError('Recovery contacted the engine')
 OpenCodeBackend.ensure_server = forbidden
@@ -151,9 +151,6 @@ OpenCodeBackend.send = forbidden
 home = Path.home()
 if kind == 'files':
     window = Window(str(home))
-elif kind == 'search':
-    from lumen_search import SearchPalette
-    window = SearchPalette(str(home), applications=[])
 else:
     spec = importlib.util.spec_from_file_location('lumen_main', str(Path(os.environ['LUMEN_TEST_REPO'])/'agent-app/main.py'))
     module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
@@ -166,9 +163,7 @@ if mode == 'crash':
     else:
         window.chat.composer.setPlainText('Entwurf behalten')
         window.chat.backend.session = 'ses_preserved'
-        if kind == 'search': window.conversation = True
-        else:
-            window.show_page(3); window.file_window.new_tab(str(home/'second'))
+        window.show_page(3); window.file_window.new_tab(str(home/'second'))
     QTimer.singleShot(1400, lambda: os.kill(os.getpid(), signal.SIGKILL))
 else:
     accepted = False
@@ -186,16 +181,14 @@ else:
         assert state['chat']['draft'] == 'Entwurf behalten', state
         if kind == 'files': assert state['tabs'][-1] == str(home/'second'), state
         elif kind == 'lumen': assert state['files']['tabs'][-1] == str(home/'second'), state
-        else: assert state['conversation'] is True, state
         assert crash.recoveries(kind) == []
-        if kind == 'search': window.shutdown(); window.hide()
-        else: assert window.close()
+        assert window.close()
         app.quit()
     QTimer.singleShot(1200, check)
 crash.attach(app, window, kind)
-sys.exit(app.exec_())
+sys.exit(app.exec())
 '''
-        for kind in ('files', 'lumen', 'search'):
+        for kind in ('files', 'lumen'):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp); (root/'second').mkdir()
                 script = root/'fixture.py'; script.write_text(fixture)

@@ -11,7 +11,7 @@ from PIL import Image, ImageDraw, ImageFilter
 class PhotoToolsTest(unittest.TestCase):
     def test_cache_reuses_decode_and_invalidates_changed_original(self):
         from preview import preview_data
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         app = QApplication.instance() or QApplication([])
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'XDG_CACHE_HOME': tmp + '/cache'}):
             path = Path(tmp)/'source.jpg'; output = str(Path(tmp)/'out.png')
@@ -83,8 +83,8 @@ class PhotoToolsTest(unittest.TestCase):
             self.assertIn('verändert',store.setting('workplace/transfer/'+value['id'])['errors'][0])
 
     def test_native_review_is_explicit_cancellable_and_uses_preview(self):
-        from PyQt5.QtWidgets import QApplication
-        from PyQt5.QtTest import QTest
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtTest import QTest
         from photo_tools_ui import PhotoToolsDialog
         app=QApplication.instance() or QApplication([])
         with tempfile.TemporaryDirectory() as tmp:

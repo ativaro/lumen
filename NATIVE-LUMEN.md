@@ -8,7 +8,7 @@ Lumen ist die sichtbare Anwendung; OpenCode arbeitet ausschließlich als lokale 
 - Werkzeugfreigaben werden standardmäßig einzeln bestätigt oder abgelehnt. Der sichtbare Schalter „Nicht mehr nachfragen“ erlaubt sie optional automatisch; inhaltliche Rückfragen bleiben native Formulare.
 - Gespräche sind einem Arbeitsordner zugeordnet und lassen sich fortsetzen oder neu beginnen. Dateien werden nur mit explizitem Dateikontext an eine Anfrage angehängt.
 - Kontextmenüs, KRunner, Auswahl-/Zwischenablage- und Screenshot-Aktionen verwenden Lumen. Systemstatus und Berichte bleiben direkt lesbar.
-- Vorhandenes PyQt5 wird für beide Oberflächen genutzt; die bisherige QML-Shell und Textdatei-Polling-Bridge werden durch denselben Chat ersetzt.
+- Vorhandenes PySide6 wird für beide Oberflächen genutzt; die bisherige QML-Shell und Textdatei-Polling-Bridge werden durch denselben Chat ersetzt.
 
 ## Prüfung
 Native UI-Prüfungen, lokaler HTTP-Testserver für Antwortfortschritt, Fehler, Stoppen, Berechtigungen und Rückfragen; realer OpenCode-Server für API-/Session-Lebenszyklus sowie einen kurzen Modellaufruf. Bestehende Files-Tests bleiben erhalten. Launcher-Tests prüfen Argumente und dass keine Terminalprogramme gestartet werden.
@@ -49,7 +49,7 @@ im nativen KDE-Editor, statt in Lumen dupliziert zu werden.
 - Doppelte/überlappende Abfragen dürfen keine mehrfachen Antworten auslösen. Fehler bleiben sichtbar, alte Antworten nach Gesprächswechsel/Abbruch werden verworfen. Tests mit lokalem HTTP-Server für Ein/Aus, wartende Anfragen, Unteraufgaben/fremde Sitzungen, Fragen und Fehler; echte Engine und native Ansicht prüfen.
 
 ## Implementiert
-Gemeinsames PyQt5-Panel und native Einzelanwendung; lokale authentifizierte API,
+Gemeinsames PySide6-Panel und native Einzelanwendung; lokale authentifizierte API,
 getrennte Gespräche je Ordner, Markdown ohne automatische Ressourcenabrufe,
 Freigaben/Rückfragen/Abbruch sowie Auswahl- und Bildkontext. Desktop- und
 Dateimanager-Einstiege öffnen diese Oberfläche. Vorhandene OpenCode-Anweisungen

@@ -6,9 +6,9 @@ import sys
 from types import SimpleNamespace
 from urllib.parse import quote
 
-from PyQt5.QtCore import QLockFile, QProcess, QSettings, QSize, QStandardPaths, QUrl
-from PyQt5.QtGui import QDesktopServices, QIcon
-from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFileDialog,
+from PySide6.QtCore import QLockFile, QProcess, QSettings, QSize, QStandardPaths, QUrl
+from PySide6.QtGui import QDesktopServices, QIcon
+from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFileDialog,
     QFormLayout, QHBoxLayout, QLineEdit, QPlainTextEdit, QProgressBar,
     QScrollArea, QStackedWidget, QVBoxLayout, QWidget)
 
@@ -343,7 +343,7 @@ class SetupDialog(QDialog):
 
 def open_setup(parent=None, settings=None, page=0):
     dialog = SetupDialog(parent, settings, page)
-    try: return dialog.exec_()
+    try: return dialog.exec()
     finally: dialog.deleteLater()
 
 
@@ -363,4 +363,4 @@ if __name__ == '__main__':
     from app import create_app
     app = create_app(); app.setApplicationName('lumen-setup-wizard')
     dialog = SetupDialog(); dialog.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

@@ -6,9 +6,9 @@ import unittest
 from unittest.mock import patch
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
-from PyQt5.QtWidgets import QApplication
-from PyQt5.QtGui import QTextCursor
-from PyQt5.QtCore import QCoreApplication, QEvent, Qt
+from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QTextCursor
+from PySide6.QtCore import QCoreApplication, QEvent, Qt
 
 from tools_data import Library
 import interop_sources as sources

@@ -1,9 +1,9 @@
 """Project files, web references, notes and open questions in a native workspace."""
 from lumen_i18n import tr
 from pathlib import Path
-from PyQt5.QtCore import Qt, QUrl
-from PyQt5.QtGui import QDesktopServices
-from PyQt5.QtWidgets import (QLineEdit, QPlainTextEdit, QListWidget, QListWidgetItem,
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QDesktopServices
+from PySide6.QtWidgets import (QLineEdit, QPlainTextEdit, QListWidget, QListWidgetItem,
     QInputDialog, QFileDialog, QTabWidget, QWidget, QVBoxLayout)
 from tools_data import web_url
 from tools_ui import ToolWindow, button, label, row, open_path

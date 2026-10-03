@@ -1,3 +1,4 @@
+import sys
 """Launch two actual app processes on a private D-Bus, without a real AI backend."""
 import os
 from pathlib import Path
@@ -16,8 +17,8 @@ class DesktopTest(unittest.TestCase):
             script = r'''
 import importlib.util
 import sys
-from PyQt5.QtCore import QProcess, QTimer
-from PyQt5.QtWidgets import QApplication
+from PySide6.QtCore import QProcess, QTimer
+from PySide6.QtWidgets import QApplication
 spec = importlib.util.spec_from_file_location('desktop', sys.argv[1])
 desktop = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(desktop)
@@ -83,6 +84,6 @@ class Probe(desktop.LumenWindow):
 desktop.LumenWindow = Probe
 sys.exit(desktop.main())
 '''
-            result = subprocess.run(['dbus-run-session', '--', '/usr/bin/python3', '-c', script, program, tmp],
+            result = subprocess.run(['dbus-run-session', '--', sys.executable, '-c', script, program, tmp],
                                     env=environment, capture_output=True, text=True, timeout=15)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

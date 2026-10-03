@@ -2,7 +2,7 @@
 
 The user approved the suggested workspaces and shelf, and added a request for
 combined local/NAS folders under Documents, Pictures, Music and custom places.
-Native PyQt5 controls; originals stay in place; no inference is needed.
+Native PySide6 controls; originals stay in place; no inference is needed.
 
 | Capability | Responsibility | Depends on |
 | --- | --- | --- |

@@ -1,8 +1,8 @@
 import tempfile
 import unittest
 from unittest.mock import patch
-from PyQt5.QtCore import QTimer
-from PyQt5.QtWidgets import QApplication,QDialog,QComboBox,QLineEdit,QPlainTextEdit
+from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QApplication,QDialog,QComboBox,QLineEdit,QPlainTextEdit
 from tools_inbox import Inbox
 from tools_vault import Vault
 

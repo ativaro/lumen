@@ -9,8 +9,8 @@ import json
 import os
 from pathlib import Path
 
-from PyQt5.QtCore import QObject, QProcess, QTimer
-from PyQt5.QtNetwork import QLocalServer, QLocalSocket
+from PySide6.QtCore import QObject, QProcess, QTimer
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from lumen_i18n import tr, worker_process
 from tools_data import Library
 
@@ -85,7 +85,7 @@ def install_audio_menu(window):
     """Called by shared menu installation after the Workbench UI exists."""
     if getattr(window, 'name', '') != 'workbench' or hasattr(window, '_audio_profile_menu'):
         return
-    from PyQt5.QtWidgets import QInputDialog,QMenu
+    from PySide6.QtWidgets import QInputDialog,QMenu
     menu = QMenu(tr('Audioprofil'),window)
     window._audio_profile_menu = menu
 
@@ -371,7 +371,7 @@ def options(player):
     if not control:
         return
     from interop_audio_route import snapshot, strict_reason
-    from PyQt5.QtWidgets import QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLabel
+    from PySide6.QtWidgets import QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLabel
 
     def ready(snapshot):
         dialog = QDialog(window)
@@ -416,7 +416,7 @@ def options(player):
         buttons.accepted.connect(dialog.accept)
         buttons.rejected.connect(dialog.reject)
         form.addRow(buttons)
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.Accepted:
             window.safe(save_preferences, control.app, dict(sink=sink.currentData(), pause_radio=interrupt.isChecked(), pause_disconnect=disconnect.isChecked(), strict_routing=strict.isChecked()), control.root)
     def show_options(state):
         timer = QTimer(window)

@@ -2,9 +2,9 @@
 import json
 import time
 
-from PyQt5.QtCore import Qt, QObject, QEvent, QMimeData, QTimer
-from PyQt5.QtGui import QDrag
-from PyQt5.QtWidgets import QListWidget, QWidget
+from PySide6.QtCore import Qt, QObject, QEvent, QMimeData, QTimer
+from PySide6.QtGui import QDrag
+from PySide6.QtWidgets import QListWidget, QWidget
 from lumen_i18n import tr
 from interop_data import Registry, validate_payload
 
@@ -46,7 +46,7 @@ class EntryList(QListWidget):
                 self.owner._interop_focus = self
                 payload = capture(self.owner); transfer = QDrag(self)
                 transfer.setMimeData(make_mime(payload, Registry(root_for(self.owner))))
-                transfer.exec_(Qt.CopyAction | Qt.LinkAction, Qt.LinkAction)
+                transfer.exec(Qt.CopyAction | Qt.LinkAction, Qt.LinkAction)
             except Exception as exc: error(self.owner, exc)
         try: with_saved(self.owner, drag)
         except Exception as exc: error(self.owner, exc)

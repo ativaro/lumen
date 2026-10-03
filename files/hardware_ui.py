@@ -3,8 +3,8 @@ from lumen_i18n import worker_process, tr
 import json
 import sys
 from pathlib import Path
-from PyQt5.QtCore import QProcess, QTimer
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QTreeWidget, QTreeWidgetItem, QCheckBox, QLineEdit
+from PySide6.QtCore import QProcess, QTimer
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QTreeWidget, QTreeWidgetItem, QCheckBox, QLineEdit
 from lumen_store import Store
 
 

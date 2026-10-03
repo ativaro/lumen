@@ -96,7 +96,7 @@ with tempfile.TemporaryDirectory(prefix='lumen-routing-probe-') as directory:
         target=pactl('load-module','module-null-sink','sink_name=lumen_test_sdl',"sink_properties='device.description=LumenTestSDL priority.session=-10000 device.bus=usb'")
         from interop_audio_route import route, snapshot
         from interop_audio import playback_environment
-        from PyQt5.QtCore import QProcessEnvironment
+        from PySide6.QtCore import QProcessEnvironment
         class ReadJob:
             def command(self,args,**kwargs):return run(args).encode()
         state=snapshot(ReadJob())

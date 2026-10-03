@@ -4,8 +4,8 @@ import sys
 from pathlib import Path
 from lumen_i18n import worker_process, tr
 
-from PyQt5.QtCore import Qt, QProcess, QTimer, pyqtSignal
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton,
+from PySide6.QtCore import Qt, QProcess, QTimer, Signal
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton,
     QCheckBox, QTreeWidget, QTreeWidgetItem, QSplitter, QMessageBox)
 from preview import Preview, label
 from photo_tools import available, runtime
@@ -14,7 +14,7 @@ from core import FileWorker
 
 
 class PhotoToolsDialog(QDialog):
-    folderRequested = pyqtSignal(str)
+    folderRequested = Signal(str)
 
     def __init__(self, directory, mode='search', query='', parent=None):
         super().__init__(parent)
@@ -130,7 +130,7 @@ class PhotoToolsDialog(QDialog):
         paths = list(dict.fromkeys(self.results.topLevelItem(i).data(0, Qt.UserRole)['path'] for i in range(self.results.topLevelItemCount())))
         self.preview.cancel(); gallery = Gallery(paths, item.data(0, Qt.UserRole)['path'], self)
         gallery.editor_button.setChecked(editing)
-        gallery.exec_(); gallery.deleteLater()
+        gallery.exec(); gallery.deleteLater()
 
     def open_folder(self):
         item = self.results.currentItem()

@@ -7,8 +7,8 @@ import json
 import os
 from pathlib import Path
 import sys
-from PyQt5.QtCore import QSettings, QTimer, QLockFile
-from PyQt5.QtNetwork import QLocalServer, QLocalSocket
+from PySide6.QtCore import QSettings, QTimer, QLockFile
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from app import create_app
 
 
@@ -43,7 +43,7 @@ def main():
         client.write(json.dumps(activation).encode()+b'\n'); client.waitForBytesWritten(1000); client.disconnectFromServer(); return 0
     lock=QLockFile(str(window.library.root/'window.lock'))
     if not lock.tryLock(0):
-        from PyQt5.QtWidgets import QMessageBox
+        from PySide6.QtWidgets import QMessageBox
         QMessageBox.information(None,window.windowTitle(),tr('Das Fenster wird bereits geöffnet. Bitte einen Moment warten.')); return 0
     from interop_data import Registry
     Registry(window.library.root.parent).recover(args.tool)
@@ -79,7 +79,7 @@ def main():
         state.setValue('geometry',window.saveGeometry()); state.setValue('record',window.current); state.sync(); server.close(); lock.unlock()
     app.aboutToQuit.connect(remember); window.show()
     if activation:QTimer.singleShot(0,lambda:window.safe(controller(window).enqueue,activation))
-    return app.exec_()
+    return app.exec()
 
 
 if __name__=='__main__': sys.exit(main())

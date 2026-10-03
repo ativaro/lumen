@@ -5,9 +5,9 @@ import unittest
 from unittest.mock import patch
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
-from PyQt5.QtCore import QCoreApplication, QEvent, QProcessEnvironment, QTimer, QObject, pyqtSignal
-from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QDialog, QDialogButtonBox, QComboBox
-from PyQt5.QtTest import QTest
+from PySide6.QtCore import QCoreApplication, QEvent, QProcessEnvironment, QTimer, QObject, Signal
+from PySide6.QtWidgets import QApplication, QLabel, QWidget, QDialog, QDialogButtonBox, QComboBox
+from PySide6.QtTest import QTest
 
 import interop_audio as audio
 
@@ -26,8 +26,8 @@ class Player(QWidget):
 
 
 class Process(QObject):
-    errorOccurred = pyqtSignal(int)
-    finished = pyqtSignal(int, int)
+    errorOccurred = Signal(int)
+    finished = Signal(int, int)
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -252,7 +252,7 @@ class AudioTest(unittest.TestCase):
             key = workbench.library.create('Project', notes='', resources=[], questions=[])
             workbench.focus_record(key)
             audio.install_audio_menu(workbench)
-            with patch('PyQt5.QtWidgets.QInputDialog.getText', return_value=('Test audio', True)):
+            with patch('PySide6.QtWidgets.QInputDialog.getText', return_value=('Test audio', True)):
                 workbench._audio_profile_menu.actions()[0].trigger()
             self.assertEqual(workbench.library.get(key)['audio_profile']['title'], 'Test audio')
             workbench.close()

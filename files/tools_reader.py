@@ -3,18 +3,19 @@ from lumen_i18n import tr
 import base64
 from pathlib import Path
 import uuid
-from PyQt5.QtCore import Qt, QTimer, QRectF, QEvent, pyqtSignal
-from PyQt5.QtGui import QPixmap, QPainter, QColor, QKeySequence, QTextCursor, QTextCharFormat
-from PyQt5.QtWidgets import (QWidget, QScrollArea, QSpinBox, QComboBox, QLineEdit,
-    QPlainTextEdit, QTextEdit, QSplitter, QVBoxLayout, QTabWidget, QListWidget,
-    QListWidgetItem, QFileDialog, QInputDialog, QMessageBox, QShortcut, QStackedWidget)
+from PySide6.QtCore import Qt, QTimer, QRectF, QEvent, Signal
+from PySide6.QtGui import QPixmap, QPainter, QColor, QKeySequence, QTextCursor, QTextCharFormat
+from PySide6.QtGui import QShortcut
+from PySide6.QtWidgets import (QWidget, QScrollArea, QSpinBox, QComboBox, QLineEdit, QPlainTextEdit, QTextEdit,
+    QSplitter, QVBoxLayout, QTabWidget, QListWidget, QListWidgetItem, QFileDialog, QInputDialog, QMessageBox,
+    QStackedWidget)
 from tools_ui import ToolWindow, AudioPlayer, button, label, row
 from tools_data import synthesize
 import reader_data as reader
 
 
 class PageCanvas(QWidget):
-    changed=pyqtSignal()
+    changed=Signal()
     def __init__(self):
         super().__init__();self.setFocusPolicy(Qt.StrongFocus);self.setAccessibleName(tr('Buchseite; für Tastaturauswahl die Textansicht wählen'))
         self.pixmap=QPixmap();self.words=[];self.marks=[];self.first=self.last=-1;self.zoom=1
@@ -33,7 +34,7 @@ class PageCanvas(QWidget):
     def selected(self):return list(range(min(self.first,self.last),max(self.first,self.last)+1)) if self.first>=0 and self.last>=0 else []
     def text(self):return ' '.join(self.words[i][4] for i in self.selected())
     def copy(self):
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         if self.text():QApplication.clipboard().setText(self.text())
     def select_all(self):self.first=0;self.last=len(self.words)-1;self.update();self.changed.emit()
 

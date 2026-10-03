@@ -1,8 +1,8 @@
 """Live native application mixer, backed by the existing Pulse-compatible server."""
 from lumen_i18n import tr
 import time
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QFrame, QScrollArea,
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QFrame, QScrollArea,
     QTabWidget, QSlider, QComboBox, QCheckBox, QSpinBox, QTreeWidget, QTreeWidgetItem,
     QDialog, QDialogButtonBox, QFormLayout, QInputDialog, QMessageBox)
 from tools_ui import ToolWindow, Job, button, label, row
@@ -137,7 +137,7 @@ class Sound(ToolWindow):
         role.setCurrentIndex(role.findData(old.get('role','none')));form.addRow(tr('Rolle'),role)
         form.addRow(label(tr('Gilt für alle Wiedergaben dieser App. Regeln werden erst nach Aktivierung der Automatik angewandt.'),'muted'))
         buttons=QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel);buttons.accepted.connect(dialog.accept);buttons.rejected.connect(dialog.reject);form.addRow(buttons)
-        if dialog.exec_()!=QDialog.Accepted:return
+        if dialog.exec()!=QDialog.Accepted:return
         values=(key,title,volume.value(),output.currentData(),mute.isChecked(),role.currentData())
         self.work(tr('App-Regel speichern …'),lambda _:sound.save_rule(self.library,*values),lambda _:self.load_rules())
 

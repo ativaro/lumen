@@ -1,8 +1,8 @@
 """Shared native application themes; never writes KDE settings."""
 from lumen_i18n import tr
 from pathlib import Path
-from PyQt5.QtCore import QRectF, Qt
-from PyQt5.QtGui import QColor, QIcon, QPainter, QPalette, QPixmap
+from PySide6.QtCore import QRectF, Qt
+from PySide6.QtGui import QColor, QIcon, QPainter, QPalette, QPixmap
 
 from appearance_tokens import DEFAULT_DESIGN, DESIGNS, DESCRIPTIONS, COLORS, RADII, normalize_design
 

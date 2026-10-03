@@ -10,12 +10,9 @@ import time
 import uuid
 from pathlib import Path
 
-from lumen_qt import QT6, is_deleted
-from lumen_qt import QObject, QProcess, QSettings, QTimer, QUrl, QUrlQuery, pyqtSignal, pyqtSlot
-if QT6:
-    from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
-else:
-    from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
+from lumen_qt import is_deleted
+from lumen_qt import QObject, QProcess, QSettings, QTimer, QUrl, QUrlQuery, Signal, Slot
+from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 
 
 def opencode_binary():
@@ -23,16 +20,16 @@ def opencode_binary():
 
 
 class OpenCodeBackend(QObject):
-    messagesChanged = pyqtSignal(list)
-    requestsChanged = pyqtSignal(list, list)
-    sessionsChanged = pyqtSignal(list)
-    sessionChanged = pyqtSignal(str)
-    busyChanged = pyqtSignal(bool)
-    statusChanged = pyqtSignal(str)
-    failed = pyqtSignal(str)
-    started = pyqtSignal(str, list, str)
-    completed = pyqtSignal(bool, str)
-    memoryStatus = pyqtSignal(str)
+    messagesChanged = Signal(list)
+    requestsChanged = Signal(list, list)
+    sessionsChanged = Signal(list)
+    sessionChanged = Signal(str)
+    busyChanged = Signal(bool)
+    statusChanged = Signal(str)
+    failed = Signal(str)
+    started = Signal(str, list, str)
+    completed = Signal(bool, str)
+    memoryStatus = Signal(str)
 
     def __init__(self, directory, parent=None, server_url='', password='', project_config=True):
         super().__init__(parent)
@@ -52,6 +49,7 @@ class OpenCodeBackend(QObject):
         self.message_id = ''
         self.idle_since = None
         self.busy = False
+        self.prompt_submitted = False
         self.polling = False
         self.permissions, self.questions = [], []
         self.auto_approve = False
@@ -96,7 +94,7 @@ class OpenCodeBackend(QObject):
         reply = self.network.sendCustomRequest(request, method.encode(), json.dumps(body).encode() if body is not None else b'')
         self.replies[reply] = (self.generation, callback, error)
 
-    @pyqtSlot(QNetworkReply)
+    @Slot(QNetworkReply)
     def request_finished(self, reply):
         context = self.replies.pop(reply, None)
         if is_deleted(reply):
@@ -249,6 +247,7 @@ class OpenCodeBackend(QObject):
                 self.fail(self.tracking_error); return
         self.log = b'' if not self.url else self.log
         self.set_busy(True)
+        self.prompt_submitted = False
         self.deadline.start(max(30, min(7200, int(self.model_policy.get('timeout_seconds', 900)))) * 1000)
         self.message_id = 'msg_' + uuid.uuid4().hex
         self.idle_since = None
@@ -280,6 +279,7 @@ class OpenCodeBackend(QObject):
                 if self.memory_payload.get('stamp')!=current_stamp or (session_stamp is not None and session_stamp!=current_stamp):
                     self.session='';self.messages=[];self.messagesChanged.emit([]);prepare_memory(prepare_session);return
                 store.set_setting('memory/session/'+self.session,self.memory_payload['stamp'])
+            self.prompt_submitted = True
             self.request('POST', f'/session/{self.session}/prompt_async', body, lambda _: self.poll())
 
         def created(session):
@@ -474,7 +474,7 @@ class OpenCodeBackend(QObject):
         self.permissions, self.questions = [], []
         self.permission_replies.clear()
         self.requestsChanged.emit([], [])
-        if self.url and self.session:
+        if self.url and self.session and self.prompt_submitted:
             self.request('POST', f'/session/{self.session}/abort', {}, self.stopped)
             self.statusChanged.emit(tr('Wird abgebrochen …'))
         else:

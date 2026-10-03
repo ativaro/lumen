@@ -1,3 +1,4 @@
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,6 +17,7 @@ class LumenOSTest(unittest.TestCase):
             root = Path(tmp); data = root / 'data'
             legacy = data / 'opencode-lumen/bin'; legacy.mkdir(parents=True)
             current = root / 'new install/bin'; current.mkdir(parents=True)
+            shutil.copy2(repo / 'bin/lumen-python', current / 'lumen-python')
             template = (repo / 'bin/lumen-agent-app').read_text()
             target = current / 'lumen-agent-app'; target.write_text(template); target.chmod(0o755)
             old = legacy / 'lumen-agent-app'
@@ -62,8 +64,8 @@ class LumenOSTest(unittest.TestCase):
         import subprocess
         script = """
 from app import create_app
-from PyQt5.QtCore import QTimer
-from PyQt5.QtWidgets import QWidget
+from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QWidget
 app = create_app()
 window = QWidget()
 timer = QTimer(window)
@@ -71,10 +73,10 @@ timer.start(100)
 app.aboutToQuit.connect(lambda: timer.stop())
 window.show()
 QTimer.singleShot(0, app.quit)
-app.exec_()
+app.exec()
 """
         with tempfile.TemporaryDirectory() as tmp:
-            result = subprocess.run(['/usr/bin/python3', '-c', script],
+            result = subprocess.run([sys.executable, '-c', script],
                                     cwd=Path(__file__).resolve().parent,
                                     env={**os.environ, 'QT_QPA_PLATFORM': 'offscreen', 'XDG_CONFIG_HOME': tmp},
                                     capture_output=True, text=True, timeout=15)
@@ -231,7 +233,7 @@ class LumenIntegrationTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from app import create_app
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         cls.app = QApplication.instance() or create_app()
 
     def test_native_pages_workflow_result_and_source_context(self):
@@ -239,8 +241,8 @@ class LumenIntegrationTest(unittest.TestCase):
         import os
         import time
         from unittest.mock import patch
-        from PyQt5.QtCore import QSettings
-        from PyQt5.QtTest import QTest
+        from PySide6.QtCore import QSettings
+        from PySide6.QtTest import QTest
         from lumen_knowledge import index_root
         spec = importlib.util.spec_from_file_location('lumen_desktop_test', Path(__file__).resolve().parents[1] / 'agent-app/main.py')
         desktop = importlib.util.module_from_spec(spec); spec.loader.exec_module(desktop)

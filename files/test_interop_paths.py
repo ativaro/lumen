@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 import unittest
 from unittest.mock import patch
-from PyQt5.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 from tools_data import Library
 from tools_workbench import Workbench
 from interop_paths import relocate

@@ -60,14 +60,14 @@ class MemoryTest(unittest.TestCase):
 class MemoryBackendTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         cls.app=QApplication.instance() or QApplication([])
 
     def test_learning_recall_and_revocation_in_shared_backend(self):
         import json,threading,time
         from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
         from unittest.mock import patch
-        from PyQt5.QtTest import QTest
+        from PySide6.QtTest import QTest
         from assistant_backend import OpenCodeBackend
         state={'sessions':{},'prompts':[],'counter':0}
         user='Ich möchte kurze Antworten.'
@@ -121,9 +121,9 @@ class MemoryBackendTest(unittest.TestCase):
 
     def test_native_areas_sharing_correction_forget_and_chat_capture(self):
         from unittest.mock import patch
-        from PyQt5.QtCore import QCoreApplication,QEvent,QSettings
-        from PyQt5.QtTest import QTest
-        from PyQt5.QtWidgets import QMessageBox
+        from PySide6.QtCore import QCoreApplication,QEvent,QSettings
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QMessageBox
         from tools_wissen import Wissen
         from assistant import ChatPanel
         def wait(window,predicate=lambda:True):

@@ -3,8 +3,8 @@
 import hashlib,os,subprocess,sys,tempfile,time
 from pathlib import Path
 repo=Path(__file__).resolve().parent.parent;sys.path.insert(0,str(repo/'files'))
-from PyQt5.QtCore import QCoreApplication
-from PyQt5.QtNetwork import QLocalSocket
+from PySide6.QtCore import QCoreApplication
+from PySide6.QtNetwork import QLocalSocket
 from tools_data import Library
 app=QCoreApplication([])
 binary_dir=Path(sys.argv[1]) if len(sys.argv)>1 else repo/'bin'

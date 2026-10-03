@@ -5,9 +5,9 @@ import base64
 from pathlib import Path
 import re
 from urllib.parse import quote,unquote
-from PyQt5.QtCore import Qt,QUrl,QTimer,QEvent,pyqtSignal
-from PyQt5.QtGui import QColor,QBrush,QPen,QImage,QTextDocument,QTextCursor,QPainter
-from PyQt5.QtWidgets import QTextBrowser,QGraphicsView,QGraphicsScene,QGraphicsEllipseItem,QGraphicsSimpleTextItem
+from PySide6.QtCore import Qt,QUrl,QTimer,QEvent,Signal
+from PySide6.QtGui import QColor,QBrush,QPen,QImage,QTextDocument,QTextCursor,QPainter
+from PySide6.QtWidgets import QTextBrowser,QGraphicsView,QGraphicsScene,QGraphicsEllipseItem,QGraphicsSimpleTextItem
 from wissen_data import resolve_link
 
 
@@ -18,7 +18,7 @@ class NoteDocument(QTextDocument):
 
 class NotePreview(QTextBrowser):
     note_hash=''
-    noteRequested=pyqtSignal(str)
+    noteRequested=Signal(str)
     def __init__(self,parent=None):
         super().__init__(parent);self.book=None;self.notes={};self.origin='';self.images={};self.setDocument(NoteDocument(self))
         self.setOpenLinks(False);self.setOpenExternalLinks(False);self.anchorClicked.connect(self.follow)
@@ -75,7 +75,7 @@ class NotePreview(QTextBrowser):
     def follow(self,url):
         if url.scheme()=='lumen-note':self.noteRequested.emit(unquote(url.path().lstrip('/')));return
         if url.scheme() in ('https','http'):
-            from PyQt5.QtGui import QDesktopServices
+            from PySide6.QtGui import QDesktopServices
             QDesktopServices.openUrl(url);return
         if url.scheme()=='lumen':
             from interop_open import open_url
@@ -101,8 +101,8 @@ class GraphNode(QGraphicsEllipseItem):
 
 
 class KnowledgeMap(QGraphicsView):
-    noteRequested=pyqtSignal(str)
-    objectRequested=pyqtSignal(str)
+    noteRequested=Signal(str)
+    objectRequested=Signal(str)
     def __init__(self):
         super().__init__();self.setScene(QGraphicsScene(self));self.setRenderHints(self.renderHints()|QPainter.Antialiasing)
         self.setDragMode(QGraphicsView.ScrollHandDrag);self.setAccessibleName(tr('Wissenskarte; dieselben Verbindungen sind in der Notizliste per Tastatur erreichbar'))

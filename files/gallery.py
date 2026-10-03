@@ -6,17 +6,17 @@ from pathlib import Path
 
 from lumen_i18n import worker_process, tr
 
-from PyQt5.QtCore import QObject, QProcess, Qt, QTemporaryDir, QTimer, QUrl, pyqtSignal
-from PyQt5.QtGui import QColor, QPainter, QPixmap, QTransform
-from PyQt5.QtWidgets import QDialog, QGraphicsScene, QGraphicsView, QMessageBox
+from PySide6.QtCore import QObject, QProcess, Qt, QTemporaryDir, QTimer, QUrl, Signal
+from PySide6.QtGui import QColor, QPainter, QPixmap, QTransform
+from PySide6.QtWidgets import QDialog, QGraphicsScene, QGraphicsView, QMessageBox
 from core import FileWorker
 
 ROOT = Path(__file__).resolve().parent
 
 
 class ImageLoader(QObject):
-    ready = pyqtSignal(str, object, object)
-    failed = pyqtSignal(str, str)
+    ready = Signal(str, object, object)
+    failed = Signal(str, str)
 
     def __init__(self, parent=None, max_side=2560, cache_limit=3):
         super().__init__(parent)
@@ -331,7 +331,7 @@ class Gallery(QDialog):
         box.setTextFormat(Qt.PlainText)
         box.setText(tr('„{0}“ in den Papierkorb verschieben?\nUngespeicherte Änderungen werden verworfen.', Path(self.path).name))
         box.setDefaultButton(QMessageBox.Cancel)
-        if box.exec_() != QMessageBox.Yes:
+        if box.exec() != QMessageBox.Yes:
             return
         self.busy = True
         self.controls()

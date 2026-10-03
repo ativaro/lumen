@@ -2,8 +2,8 @@
 from datetime import datetime
 from pathlib import Path
 
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtWidgets import (QDialog, QDialogButtonBox, QFormLayout, QVBoxLayout, QLineEdit,
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QFormLayout, QVBoxLayout, QLineEdit,
     QPlainTextEdit, QListWidget, QListWidgetItem, QInputDialog, QFileDialog, QMessageBox, QAbstractItemView)
 from lumen_i18n import tr
 from tools_ui import button, row, open_path
@@ -28,7 +28,7 @@ def _files(window, record):
         item = QListWidgetItem(value['title']+'\n'+value['path']); item.setData(Qt.UserRole, value['path']); item.setFlags(item.flags() | Qt.ItemIsUserCheckable); item.setCheckState(Qt.Checked); listing.addItem(item)
     layout.addWidget(listing); buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
     buttons.accepted.connect(dialog.accept); buttons.rejected.connect(dialog.reject); layout.addWidget(buttons)
-    if dialog.exec_() != QDialog.Accepted: return None
+    if dialog.exec() != QDialog.Accepted: return None
     return [listing.item(i).data(Qt.UserRole) for i in range(listing.count()) if listing.item(i).checkState() == Qt.Checked]
 
 
@@ -65,7 +65,7 @@ def invoice(window):
                 control = QLineEdit(candidates.get(field, record.get(field, ''))); control.setAccessibleName(title); form.addRow(title, control); fields[field] = control
             preview = QPlainTextEdit(text); preview.setReadOnly(True); preview.setAccessibleName(tr('Erkannter Belegtext')); form.addRow(preview)
             buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel); buttons.accepted.connect(dialog.accept); buttons.rejected.connect(dialog.reject); form.addRow(buttons)
-            if dialog.exec_() != QDialog.Accepted: return
+            if dialog.exec() != QDialog.Accepted: return
             values = {field: control.text().strip() for field, control in fields.items()}
             if values['since']:
                 from datetime import date
@@ -96,7 +96,7 @@ def project(window, workflow):
         dialog = QDialog(window); dialog.setWindowTitle(tr('Meilenstein planen')); form = QFormLayout(dialog)
         title = QLineEdit(); due = QLineEdit(); due.setPlaceholderText('JJJJ-MM-TT'); form.addRow(tr('Meilenstein'), title); form.addRow(tr('Datum'), due)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel); buttons.accepted.connect(dialog.accept); buttons.rejected.connect(dialog.reject); form.addRow(buttons)
-        if dialog.exec_() != QDialog.Accepted: return
+        if dialog.exec() != QDialog.Accepted: return
         values.update(title=title.text(), due=due.text())
     if workflow in ('handover', 'export'):
         paths = _files(window, record)
@@ -137,7 +137,7 @@ def reading(window):
             launch('reader', [item.data(Qt.UserRole)['path']], window.library.root.parent)
     layout.addWidget(row(button(tr('Nach oben'), lambda: shift(-1)), button(tr('Nach unten'), lambda: shift(1)), button(tr('Mit Lumen Reader öffnen'), lambda: window.safe(opened))))
     buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel); buttons.accepted.connect(dialog.accept); buttons.rejected.connect(dialog.reject); layout.addWidget(buttons)
-    if dialog.exec_() == QDialog.Accepted: save()
+    if dialog.exec() == QDialog.Accepted: save()
 
 
 def recent(window):
@@ -147,7 +147,7 @@ def recent(window):
         for value in values:
             item = QListWidgetItem(datetime.fromtimestamp(value['modified']).strftime('%d.%m.%Y %H:%M')+' · '+value['path']); item.setData(Qt.UserRole, value['path']); listing.addItem(item)
         layout.addWidget(listing); listing.itemDoubleClicked.connect(lambda item: window.safe(open_path, item.data(Qt.UserRole)))
-        buttons = QDialogButtonBox(QDialogButtonBox.Close); buttons.rejected.connect(dialog.reject); layout.addWidget(buttons); dialog.exec_()
+        buttons = QDialogButtonBox(QDialogButtonBox.Close); buttons.rejected.connect(dialog.reject); layout.addWidget(buttons); dialog.exec()
     window.work(tr('Projektdateien werden geprüft …'), lambda job: flow.recent_files(window.library, record['id'], job), lambda values: QTimer.singleShot(0, lambda: window.safe(show, values)))
 
 
@@ -180,12 +180,12 @@ def context(window, reopen=False):
     for value in values:
         item = QListWidgetItem(app_title(value['app'])+' · '+value['title']); item.setData(Qt.UserRole, value['url']); item.setFlags(item.flags() | Qt.ItemIsUserCheckable); item.setCheckState(Qt.Checked if value['url'] in record.get('context', []) else Qt.Unchecked); listing.addItem(item)
     layout.addWidget(listing); buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel); buttons.accepted.connect(dialog.accept); buttons.rejected.connect(dialog.reject); layout.addWidget(buttons)
-    if dialog.exec_() == QDialog.Accepted:
+    if dialog.exec() == QDialog.Accepted:
         flow.save_context(window.library, record['id'], [listing.item(i).data(Qt.UserRole) for i in range(listing.count()) if listing.item(i).checkState() == Qt.Checked])
 
 
 def install_menu(window):
-    from PyQt5.QtWidgets import QMenu
+    from PySide6.QtWidgets import QMenu
     menu = QMenu(tr('Passende Aktionen'),window)
     window._workflow_menu=menu
     def add(title, callback): menu.addAction(title, lambda: window.safe(callback))

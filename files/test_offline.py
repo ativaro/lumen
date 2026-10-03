@@ -53,8 +53,8 @@ class OfflineTest(unittest.TestCase):
             self.assertEqual((local/'a.txt').read_text(),'offline edit')
 
     def test_worker_and_native_folder_view(self):
-        from PyQt5.QtWidgets import QApplication
-        from PyQt5.QtCore import QSettings
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtCore import QSettings
         from app import Window
         app = QApplication.instance() or QApplication([])
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp + '/state'}):

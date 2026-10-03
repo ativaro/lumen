@@ -2,9 +2,9 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
-from PyQt5.QtCore import Qt
-from PyQt5.QtTest import QSignalSpy, QTest
-from PyQt5.QtWidgets import QApplication
+from PySide6.QtCore import Qt
+from PySide6.QtTest import QSignalSpy, QTest
+from PySide6.QtWidgets import QApplication
 from interop_data import Registry
 from interop_graph import neighbors
 from wissen_views import KnowledgeMap, GraphNode
@@ -32,7 +32,7 @@ class GraphTest(unittest.TestCase):
                 target = next(node for node in nodes if node.path == project)
                 spy = QSignalSpy(view.objectRequested)
                 QTest.mouseClick(view.viewport(), Qt.LeftButton, pos=view.mapFromScene(target.scenePos()))
-                self.assertEqual(spy[0][0], project)
+                self.assertEqual(spy.at(0)[0], project)
             finally: view.close()
 
 

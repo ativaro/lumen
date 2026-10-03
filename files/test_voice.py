@@ -1,3 +1,4 @@
+import sys
 import math
 import os
 from pathlib import Path
@@ -13,7 +14,7 @@ class VoiceTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from app import create_app
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         cls.app = QApplication.instance() or create_app()
 
     def test_silence_ends_only_a_real_utterance(self):
@@ -26,8 +27,8 @@ class VoiceTest(unittest.TestCase):
         self.assertGreater(len(detector.frames), 30)
 
     def test_shared_recognition_preferences_reach_voice_and_dictation(self):
-        from PyQt5.QtCore import QSettings
-        from PyQt5.QtWidgets import QComboBox, QFormLayout, QLineEdit, QWidget
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import QComboBox, QFormLayout, QLineEdit, QWidget
         from assistant import ChatPanel
         from lumen_speech import add_recognition_fields, transcription_arguments
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA':tmp+'/state'}):
@@ -76,8 +77,8 @@ class VoiceTest(unittest.TestCase):
                 self.assertEqual(audio.getframerate(), 16000); self.assertGreater(audio.getnframes(), 10000)
 
     def test_native_turns_share_chat_and_interrupt_without_sending_audio(self):
-        from PyQt5.QtCore import QSettings
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import QApplication
         from assistant import ChatPanel
         app = QApplication.instance() or QApplication([])
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp + '/state'}):
@@ -100,8 +101,8 @@ class VoiceTest(unittest.TestCase):
 
     def test_live_levels_playback_and_visibility_follow_real_audio(self):
         import sys
-        from PyQt5.QtTest import QTest
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QApplication
         from assistant import ChatPanel
         app = QApplication.instance() or QApplication([])
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp + '/state'}):

@@ -7,9 +7,9 @@ from pathlib import Path
 
 from lumen_i18n import worker_process, tr
 
-from PyQt5.QtCore import QProcess, QSize, Qt, QTemporaryDir, QTimer, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices, QFontDatabase, QIcon, QImageReader, QPixmap
-from PyQt5.QtWidgets import (QHBoxLayout, QLabel, QPlainTextEdit, QPushButton,
+from PySide6.QtCore import QProcess, QSize, Qt, QTemporaryDir, QTimer, QUrl, Signal, SIGNAL
+from PySide6.QtGui import QDesktopServices, QFontDatabase, QIcon, QImageReader, QPixmap
+from PySide6.QtWidgets import (QHBoxLayout, QLabel, QPlainTextEdit, QPushButton,
                              QSizePolicy, QStackedWidget, QVBoxLayout, QWidget)
 from core import file_kind, size_text
 
@@ -24,7 +24,7 @@ def label(text='', name=''):
 
 
 class Preview(QWidget):
-    openImage = pyqtSignal(str, bool)
+    openImage = Signal(str, bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -93,7 +93,7 @@ class Preview(QWidget):
 
     def open_file(self):
         if self.path:
-            if self.photo and self.receivers(self.openImage):
+            if self.photo and self.receivers(SIGNAL('openImage(QString,bool)')):
                 self.openImage.emit(str(self.path), False)
             else:
                 QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.path)))
@@ -102,7 +102,7 @@ class Preview(QWidget):
         self.photo = enabled
         self.layout.removeWidget(self.stack)
         self.layout.insertWidget(1 if enabled else 3, self.stack, 1)
-        native = enabled and self.receivers(self.openImage) > 0
+        native = enabled and self.receivers(SIGNAL('openImage(QString,bool)')) > 0
         self.open_button.setText(tr('Groß öffnen') if native else tr('Mit Standard-App öffnen  ↗'))
         self.open_button.setObjectName('primary' if native else '')
         self.open_button.style().unpolish(self.open_button)
@@ -325,7 +325,7 @@ def preview_data(path, output, max_side=1600):
             try:
                 image_cache.write(path, stamp, max_side, Path(output).read_bytes(), data)
                 if max_side > 640:
-                    from PyQt5.QtCore import QBuffer, QByteArray, QIODevice
+                    from PySide6.QtCore import QBuffer, QByteArray, QIODevice
                     for side in (192, 640):
                         encoded = QByteArray(); buffer = QBuffer(encoded); buffer.open(QIODevice.WriteOnly)
                         image.scaled(side, side, Qt.KeepAspectRatio, Qt.SmoothTransformation).save(buffer, 'PNG')
@@ -347,8 +347,8 @@ elif __name__ == '__main__' and len(sys.argv) in {4, 5} and sys.argv[1] == '--da
     import resource
     resource.setrlimit(resource.RLIMIT_AS, (1536 * 1024 * 1024, 1536 * 1024 * 1024))
     os.environ['QT_QPA_PLATFORM'] = 'offscreen'
-    from PyQt5.QtCore import QThreadPool
-    from PyQt5.QtGui import QGuiApplication
+    from PySide6.QtCore import QThreadPool
+    from PySide6.QtGui import QGuiApplication
     application = QGuiApplication(sys.argv)
     # Qt image scaling otherwise creates a CPU-sized pool whose stacks/arenas can
     # exhaust RLIMIT_AS and stall large photos. Each image already has its own process.

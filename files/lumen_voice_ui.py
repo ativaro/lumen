@@ -4,9 +4,9 @@ from collections import deque
 import math
 import time
 
-from PyQt5.QtCore import QPointF, QRectF, Qt, QTimer
-from PyQt5.QtGui import QColor, QPainter, QPainterPath, QPalette, QPen, QRadialGradient
-from PyQt5.QtWidgets import QWidget
+from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPalette, QPen, QRadialGradient
+from PySide6.QtWidgets import QWidget
 
 
 class VoiceActivity(QWidget):

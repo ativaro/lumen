@@ -360,3 +360,12 @@ menu accessibility, translations and saved-data compatibility. Installed 18
 runtime files with checksum verification and a private rollback copy under
 `~/.local/state/lumen/manual-updates/contextual-interop-20261004-000203`.
 Existing user windows were left open; reopening them loads the new UI.
+
+# Qt 6 migration
+
+- [x] All Lumen GUI modules and shared services use PySide6/Qt 6.
+- [x] Production QML search behind existing launcher, panel and shortcuts.
+- [x] Shared runtime selector, worker interpreters and installer/package dependencies.
+- [x] Regression suite:349 tests,344 passed,5 optional integrations skipped.
+- [x] Native DE/EN rendering, Wayland, cold/warm launches, crash/draft recovery.
+- [x] Separate review of nonmechanical runtime and installation changes.

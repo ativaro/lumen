@@ -72,11 +72,11 @@ class SetupTest(unittest.TestCase):
 class SetupDialogTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from PyQt5.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         cls.app = QApplication.instance() or QApplication([])
 
     def test_wizard_preserves_config_and_only_saves_auth_after_click(self):
-        from PyQt5.QtCore import QSettings
+        from PySide6.QtCore import QSettings
         from setup_dialog import SetupDialog
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp + '/state'}):
             settings = QSettings(tmp + '/preferences.ini', QSettings.IniFormat)
@@ -116,7 +116,7 @@ class SetupDialogTest(unittest.TestCase):
             dialog.deleteLater(); reopened.deleteLater()
 
     def test_desktop_is_only_changed_after_explicit_activation(self):
-        from PyQt5.QtCore import QSettings
+        from PySide6.QtCore import QSettings
         from setup_dialog import SetupDialog
         with tempfile.TemporaryDirectory() as tmp:
             settings = QSettings(tmp + '/preferences.ini', QSettings.IniFormat)
@@ -132,8 +132,8 @@ class SetupDialogTest(unittest.TestCase):
             dialog.reject(); dialog.deleteLater()
 
     def test_microphone_test_uses_shared_process_flow_without_sending(self):
-        from PyQt5.QtCore import QSettings
-        from PyQt5.QtTest import QTest
+        from PySide6.QtCore import QSettings
+        from PySide6.QtTest import QTest
         from setup_dialog import SetupDialog
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

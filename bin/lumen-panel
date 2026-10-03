@@ -3,7 +3,7 @@ set -euo pipefail
 SELF_DIR="$(dirname "$(readlink -f "$0")")"
 export LUMEN_BIN_DIR="$SELF_DIR"
 for helper in "$SELF_DIR/../files/lumen_panel.py" "$SELF_DIR/../share/lumen/files/lumen_panel.py" /usr/share/lumen/files/lumen_panel.py; do
-    if [ -f "$helper" ]; then exec /usr/bin/python3 "$helper" "$@"; fi
+    if [ -f "$helper" ]; then exec "$SELF_DIR/lumen-python" "$helper" "$@"; fi
 done
 echo 'Lumen: Panel-Helfer fehlt.' >&2
 exit 1

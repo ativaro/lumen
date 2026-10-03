@@ -241,8 +241,8 @@ def attach(app, window, kind, offer_recovery=True):
             # A full disk or a closing window must not itself crash the app.
             return False
     def offer():
-        from PyQt5.QtGui import QDesktopServices
-        from PyQt5.QtWidgets import QMessageBox
+        from PySide6.QtGui import QDesktopServices
+        from PySide6.QtWidgets import QMessageBox
         for path, report in recoveries(kind):
             lock = (path / 'lock').open('a')
             try: fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -264,7 +264,7 @@ def attach(app, window, kind, offer_recovery=True):
             box.setDefaultButton(restore); box.setEscapeButton(later)
             details.clicked.connect(lambda _=False, p=path: QDesktopServices.openUrl(QUrl.fromLocalFile(str(p))))
             try:
-                box.exec_()
+                box.exec()
                 if box.clickedButton() is restore:
                     state = read_json(path / 'state.json')
                     if not state: raise ValueError(tr('Für diese Sitzung wurde keine lesbare Ansicht gespeichert. Der Fehlerbericht bleibt verfügbar.'))

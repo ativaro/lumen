@@ -1,10 +1,10 @@
 import tempfile
 from pathlib import Path
 import unittest
-from PyQt5.QtCore import Qt, QMimeData, QPoint, QPointF, QCoreApplication, QEvent
-from PyQt5.QtGui import QDragEnterEvent, QDropEvent
-from PyQt5.QtWidgets import QApplication
-from PyQt5.QtTest import QTest
+from PySide6.QtCore import Qt, QMimeData, QPoint, QPointF, QCoreApplication, QEvent
+from PySide6.QtGui import QDragEnterEvent, QDropEvent
+from PySide6.QtWidgets import QApplication
+from PySide6.QtTest import QTest
 from interop_data import Registry
 import interop_drag as drag
 from tools_workbench import Workbench

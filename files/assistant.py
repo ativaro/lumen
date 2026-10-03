@@ -5,11 +5,11 @@ from pathlib import Path
 
 from lumen_i18n import tr
 
-from PyQt5.QtCore import QEvent, QSettings, Qt, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices, QKeySequence, QTextDocument, QPalette
-from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame, QHBoxLayout,
-                             QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton,
-                             QScrollArea, QShortcut, QTextBrowser, QVBoxLayout, QWidget)
+from PySide6.QtCore import QEvent, QSettings, Qt, QUrl, Signal
+from PySide6.QtGui import QDesktopServices, QKeySequence, QTextDocument, QPalette
+from PySide6.QtGui import QShortcut
+from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit,
+    QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QScrollArea, QTextBrowser, QVBoxLayout, QWidget)
 from assistant_backend import OpenCodeBackend
 from preview import label
 
@@ -26,8 +26,8 @@ class Transcript(QTextBrowser):
 
 
 class ChatPanel(QWidget):
-    actionChanged = pyqtSignal(str)
-    closeRequested = pyqtSignal()
+    actionChanged = Signal(str)
+    closeRequested = Signal()
     action_titles = {'explain': tr('Erklärung'), 'fix': tr('Fehler beheben'), 'review': tr('Änderungen prüfen'),
                      'diagnose': tr('Fehlerbericht prüfen')}
 

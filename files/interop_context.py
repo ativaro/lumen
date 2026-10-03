@@ -1,7 +1,7 @@
 """Content actions in existing menus; no additional application chrome."""
 from pathlib import Path
-from PyQt5.QtCore import Qt,QTimer
-from PyQt5.QtWidgets import QMenu, QPlainTextEdit, QTextEdit
+from PySide6.QtCore import Qt,QTimer
+from PySide6.QtWidgets import QMenu, QPlainTextEdit, QTextEdit
 from lumen_i18n import tr
 
 
@@ -62,7 +62,7 @@ def install(window):
             add_actions(window,menu);add_history(window,menu)
         from interop_ui import safe_action
         timer.timeout.connect(lambda:safe_action(window,populate));timer.start();populate()
-        menu.exec_(widget.mapToGlobal(point));timer.stop();menu.deleteLater()
+        menu.exec(widget.mapToGlobal(point));timer.stop();menu.deleteLater()
     widgets = [window.entries]
     if window.name == 'reader': widgets += [getattr(window,name) for name in ('canvas','text','notes','note') if hasattr(window,name)]
     if window.name == 'wissen' and hasattr(window,'editor'): widgets += [window.editor]

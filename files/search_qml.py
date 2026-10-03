@@ -1,4 +1,4 @@
-"""Optional native Qt 6/QML search pilot. Its service leaves the Qt 5 search intact."""
+"""Native Qt 6/QML search and conversation surface."""
 import argparse
 from pathlib import Path
 import sys
@@ -26,7 +26,7 @@ class Icons(QQuickImageProvider):
         return pixmap
 
 
-@ClassInfo(**{'D-Bus Interface': 'org.lumen.SearchPreview'})
+@ClassInfo(**{'D-Bus Interface': 'org.lumen.Search'})
 class Activation(QObject):
     def __init__(self, window, controller):
         super().__init__(); self.window = window; self.controller = controller
@@ -66,17 +66,17 @@ def create_window(app, controller):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Lumen Qt 6 search preview')
+    parser = argparse.ArgumentParser(description='Lumen search')
     parser.add_argument('--voice', action='store_true')
     parser.add_argument('--restore-state', type=Path)
     args = parser.parse_args()
     from lumen_crash import supervise, attach, read_json, write_json
     supervise('search')
-    app = QGuiApplication(sys.argv); app.setApplicationName('lumen-search-preview')
-    app.setApplicationDisplayName(tr('Lumen Suche · Vorschau')); app.setDesktopFileName('lumen-search-preview')
+    app = QGuiApplication(sys.argv); app.setApplicationName('lumen-search')
+    app.setApplicationDisplayName(tr('Lumen Suche')); app.setDesktopFileName('lumen-search')
     app.setQuitOnLastWindowClosed(False); install(app)
     bus = QDBusConnection.sessionBus()
-    service = 'org.lumen.SearchPreview'
+    service = 'org.lumen.Search'
     if bus.isConnected() and not bus.registerService(service):
         reply = bus.call(QDBusMessage.createMethodCall(service, '/Search', service, 'Voice' if args.voice else 'Activate'), QDBus.Block, 3000)
         if reply.type() != QDBusMessage.ErrorMessage: return 0
@@ -86,8 +86,10 @@ def main():
     activation = Activation(window, controller)
     if bus.isConnected(): bus.registerObject('/Search', activation, QDBusConnection.ExportAllSlots)
     from lumen_store import state_path
-    state_file = state_path()/'search-preview.json'
+    state_file = state_path()/'search.json'
     saved = read_json(args.restore_state or state_file)
+    if not saved and args.restore_state is None:
+        saved = read_json(state_path()/'search-preview.json')
     if saved:
         try: controller.restore_recovery(saved)
         except (TypeError, ValueError, KeyError, AttributeError, OSError) as error: controller.show_error(str(error))

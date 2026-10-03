@@ -11,8 +11,8 @@ import ssl
 import sys
 import uuid
 from urllib.parse import urlsplit
-from PyQt5.QtCore import Qt, QDateTime, QTimer,QTimeZone
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QDialog, QFormLayout, QLineEdit,
+from PySide6.QtCore import Qt, QDateTime, QTimer,QTimeZone
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QDialog, QFormLayout, QLineEdit,
     QComboBox, QSpinBox, QDialogButtonBox, QFileDialog, QInputDialog, QMessageBox,
     QListWidgetItem, QTreeWidget, QTreeWidgetItem, QPlainTextEdit, QTabWidget, QSplitter,
     QDateTimeEdit, QCheckBox,QTextBrowser)
@@ -150,7 +150,7 @@ class Inbox(ToolWindow):
         kind.currentIndexChanged.connect(changed)
         advanced.toggled.connect(lambda _: [visible(key,advanced.isChecked()) for key in ('host','port','tls','smtp_host','smtp_port','smtp_tls')]);changed()
         buttons=QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel);form.addRow(buttons);buttons.accepted.connect(dialog.accept);buttons.rejected.connect(dialog.reject)
-        if dialog.exec_()!=QDialog.Accepted:return
+        if dialog.exec()!=QDialog.Accepted:return
         values={key:field.value() if isinstance(field,QSpinBox) else field.currentData() if isinstance(field,QComboBox) else field.text().strip() for key,field in fields.items()}
         password=fields['password'].text();values.pop('password');certificate=values.pop('certificate');values['kind']=kind.currentData()
         if not values['title']:raise ValueError(tr('Bitte einen Kontonamen angeben.'))
@@ -298,7 +298,7 @@ class Inbox(ToolWindow):
         def preview():
             view=QDialog(dialog);view.setWindowTitle(tr('Formatierter Mailentwurf'));view.resize(620,480);layout=QVBoxLayout(view)
             text=QTextBrowser();text.setOpenLinks(False);text.setHtml(inbox.draft_html(body.toPlainText()));layout.addWidget(text)
-            close=QDialogButtonBox(QDialogButtonBox.Close);close.rejected.connect(view.reject);layout.addWidget(close);view.exec_()
+            close=QDialogButtonBox(QDialogButtonBox.Close);close.rejected.connect(view.reject);layout.addWidget(close);view.exec()
         form.addRow(row(formatted,button(tr('Vorschau'),preview)))
         if values.get('attachments'):
             attachment_names='\n'.join(a['name'] for a in values['attachments'])
@@ -316,7 +316,7 @@ class Inbox(ToolWindow):
         formatted.toggled.connect(lambda:timer.start())
         for field in (to,subject,body):field.setReadOnly(readonly)
         form.addRow(row(button(tr('Schließen'),dialog.reject),button(tr('Senden'),lambda:self.safe(send),'mail-send',True)) if not readonly else button(tr('Schließen'),dialog.reject))
-        dialog.exec_();self.reload_other()
+        dialog.exec();self.reload_other()
 
     def sent(self,text):self.status.setText(text);self.reload_other()
 
@@ -373,7 +373,7 @@ class Inbox(ToolWindow):
             dialog.accept();QTimer.singleShot(0,lambda:self.work(tr('Termin wird gespeichert …'),lambda job:self.calendar_job(account,'save',data,job),lambda text:self.status.setText(text+tr(' Mit Aktualisieren neu laden.'))))
         if readonly:
             for field in (title,location,description,*times):field.setReadOnly(True)
-        form.addRow(button(tr('Schließen'),dialog.reject) if readonly else row(button(tr('Abbrechen'),dialog.reject),button(tr('Termin speichern'),lambda:self.safe(save),'document-save',True)));dialog.exec_()
+        form.addRow(button(tr('Schließen'),dialog.reject) if readonly else row(button(tr('Abbrechen'),dialog.reject),button(tr('Termin speichern'),lambda:self.safe(save),'document-save',True)));dialog.exec()
 
     def reload_other(self):
         self.events.clear();self.drafts.clear();self.tasks.clear()
