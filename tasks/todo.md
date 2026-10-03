@@ -96,7 +96,7 @@ Desktop-Konfiguration bleiben erhalten; private Daten/Testprofile bleiben lokal.
 
 # Lumen Wissen
 
-- [ ] Markdown-Speicher, Konflikt-/Entwurfschutz und verlustfreie Migration.
-- [ ] Native Bibliothek, Editor/Vorschau, Tags, Bilder, Links und Rückverweise.
-- [ ] Wissenskarte, Quellenfragen und Reader-/Inbox-/Lumen-Übernahme.
+- [x] Markdown-Speicher, Konflikt-/Entwurfschutz und verlustfreie Migration.
+- [x] Native Bibliothek, Editor/Vorschau, Tags, Bilder, Links und Rückverweise.
+- [x] Wissenskarte, Quellenfragen und Reader-/Inbox-/Lumen-Übernahme.
 - [ ] Integration, Tests, Paket, Benutzerinstallation, Git und private Referenz.

@@ -265,7 +265,11 @@ class Reader(ToolWindow):
         if not text.strip():raise ValueError('Eine Textstelle oder eine gespeicherte Markierung auswählen.')
         from lumen_store import Store
         record=self.library.get(self.current);source=record['title']+' · Reader-Seite '+str(self.page_index+1)+' · '+record.get('source','')
-        Store().save_memory(record['title']+' · S. '+str(self.page_index+1),text,source);self.status.setText('Markierte Stelle samt Quellenverweis im lokalen Lumen-Wissen gespeichert.')
+        store=Store();title=record['title']+' · S. '+str(self.page_index+1)
+        if store.setting('knowledge/notebook',''):
+            from wissen_data import worker
+            self.work('Fundstelle im Wissen speichern …',lambda job:worker(job,store,'save_memory',title=title,text=text,source=source),lambda _:self.status.setText('Fundstelle mit Quelle im Lumen-Wissen gespeichert.'))
+        else:store.save_memory(title,text,source);self.status.setText('Markierte Stelle samt Quellenverweis im lokalen Lumen-Wissen gespeichert.')
 
     def export_notes(self):
         self.save();record=self.library.get(self.current);lines=['# '+record['title'],record.get('source','')]

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen Wissen
+Comment=Notizen, Quellen und verbundene Gedanken
+Exec=%INSTALL_BIN%/lumen-wissen
+Icon=lumen-wissen
+Terminal=false
+Categories=Office;
+StartupWMClass=lumen-wissen
+Keywords=Lumen;Wissen;Notizen;Markdown;Knowledge;

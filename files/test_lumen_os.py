@@ -263,6 +263,13 @@ class LumenIntegrationTest(unittest.TestCase):
                 self.assertEqual(space.store.tasks()[0]['status'], 'completed')
                 space.refresh_tasks(); self.assertTrue(space.close_task.isEnabled())
                 completed_id = space.store.tasks()[0]['id']
+                from wissen_data import activate
+                activate(space.store);space.select_task(completed_id);space.task_to_knowledge()
+                deadline=time.monotonic()+5
+                while space.knowledge_job and time.monotonic()<deadline:QTest.qWait(20)
+                self.assertIsNone(space.knowledge_job)
+                self.assertIn(completed_id,space.store.memories()[0]['source'])
+                self.assertEqual(space.memories.count(),1)
                 space.close_task.click(); self.assertEqual(space.tasks.count(), 0)
                 self.assertFalse(space.close_task.isEnabled())
                 self.assertEqual(space.store.task(completed_id)['status'], 'completed')

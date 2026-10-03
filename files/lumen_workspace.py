@@ -159,7 +159,7 @@ class Indexer(QThread):
 class Workspace(QObject):
     def __init__(self, window):
         super().__init__(window); self.window = window; self.store = window.chat.tracker.store
-        self.store.recover(); self.processes = []; self.indexer = None; self.task_signature = None
+        self.store.recover(); self.processes = []; self.indexer = None; self.task_signature = None; self.knowledge_job = None
         self.tasks_page = self.build_tasks(); self.flows_page = self.build_flows()
         self.knowledge_page = self.build_knowledge(); self.models_page = self.build_models()
         self.timer = QTimer(self); self.timer.timeout.connect(self.refresh_tasks); self.timer.start(1500)
@@ -183,6 +183,7 @@ class Workspace(QObject):
                       ('Pausieren', self.guarded(lambda: self.stop_task('paused'))), ('Abbrechen', self.guarded(lambda: self.stop_task('cancelled')))])
         buttons(box, [('Als Ablauf speichern', self.guarded(self.task_to_flow)), ('Als Dateiaktion', self.guarded(self.task_to_file_action)), ('Ergebnis speichern', self.guarded(self.export_task)),
                       ('Änderung rückgängig', self.guarded(self.undo_change))])
+        buttons(box, [('Ergebnis ins Wissen',self.guarded(self.task_to_knowledge))])
         self.close_task = QPushButton('Schließen'); self.close_task.setEnabled(False)
         self.close_task.setToolTip('Erledigte oder abgebrochene Aufgabe aus der Übersicht entfernen. Ergebnis und Verlauf bleiben erhalten.')
         self.close_task.clicked.connect(self.guarded(self.dismiss_task)); box.addWidget(self.close_task)
@@ -296,6 +297,11 @@ class Workspace(QObject):
         from lumen_tasks import run_steps
         run_steps(self.store, job); self.refresh_tasks()
 
+    def task_to_knowledge(self):
+        task=self.store.task(selected(self.tasks))
+        if not task['result']:raise ValueError('Dieser Auftrag hat noch kein Ergebnis.')
+        self.knowledge_work('save_memory',lambda _:self.refresh_knowledge(),title=task['title'],text=task['result'],source='Lumen-Auftrag · '+task['id'])
+
     def undo_change(self):
         task = selected(self.tasks); changes = [r for r in self.store.changes(task) if r['status'] in ('applied', 'pending')]
         if not changes: raise ValueError('Keine rücknehmbaren nativen Dateiänderungen vorhanden.')
@@ -350,6 +356,7 @@ class Workspace(QObject):
 
     def build_knowledge(self):
         widget, box = page('Wissen', 'Nur ausgewählte Ordner werden lokal indexiert. Quellen werden erst mit „Im Gespräch verwenden“ an das gewählte Modell übergeben.')
+        buttons(box,[('Lumen Wissen öffnen',self.guarded(self.open_notebook))])
         self.roots = QListWidget(); self.roots.setMaximumHeight(100); self.roots.setAccessibleName('Wissensordner'); box.addWidget(self.roots)
         buttons(box, [('Ordner aufnehmen', self.guarded(self.add_knowledge)), ('Neu indexieren', self.guarded(lambda: self.start_index(selected(self.roots)))),
                       ('Freigabe entfernen', self.guarded(self.remove_knowledge)), ('Indexierung stoppen', self.cancel_index)])
@@ -369,7 +376,28 @@ class Workspace(QObject):
     def refresh_knowledge(self):
         self.roots.clear(); self.memories.clear()
         for row in self.store.rows('SELECT * FROM roots ORDER BY path'): add_item(self.roots, row['path'], row['path'])
-        for row in self.store.memories(): add_item(self.memories, row['title'] + ' — ' + row['text'][:100], row)
+        def display(rows):
+            self.memories.clear()
+            for row in rows:add_item(self.memories,row['title']+' — '+row['text'][:100],row)
+        if self.store.setting('knowledge/notebook',''):
+            if not self.knowledge_job:self.knowledge_work('memories',display)
+        else:display(self.store.memories())
+
+    def knowledge_work(self,action,done,**values):
+        from tools_ui import Job
+        from wissen_data import worker
+        if self.knowledge_job:raise ValueError('Den laufenden Wissensvorgang kurz abwarten.')
+        job=Job(lambda job:worker(job,self.store,action,**values),self);self.knowledge_job=job;results=[]
+        self.index_status.setText('Wissensordner wird verarbeitet …')
+        job.result.connect(results.append);job.failed.connect(lambda message:self.index_status.setText(message))
+        def finished():
+            self.knowledge_job=None;job.deleteLater()
+            if results and not job.cancelled.is_set():self.index_status.setText('Wissensordner aktualisiert.');self.guarded(lambda:done(results[0]))()
+        job.finished.connect(finished);job.start()
+
+    def open_notebook(self,path=''):
+        from PyQt5.QtCore import QProcess
+        QProcess.startDetached(sys.executable,[str(Path(__file__).with_name('tools_app.py')),'wissen']+([path] if path else []))
 
     def add_knowledge(self):
         root = QFileDialog.getExistingDirectory(self.window, 'Wissensordner freigeben')
@@ -405,14 +433,16 @@ class Workspace(QObject):
         self.window.chat.composer.setPlainText(text); self.window.show_page(0)
 
     def edit_memory(self, memory=None):
+        if memory and self.store.setting('knowledge/notebook',''):
+            self.open_notebook(str(Path(self.store.setting('knowledge/notebook'))/memory['path']));return
         memory = memory or {}; dialog = QDialog(self.window); dialog.setWindowTitle('Erinnerung'); dialog.resize(520, 380)
         form = QFormLayout(dialog); title = QLineEdit(memory.get('title', '')); content = QPlainTextEdit(memory.get('text', ''))
         source = QLineEdit(memory.get('source', 'Von mir')); form.addRow('Titel', title); form.addRow('Inhalt', content); form.addRow('Quelle', source)
         row = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel); form.addRow(row)
         row.accepted.connect(dialog.accept); row.rejected.connect(dialog.reject)
-        if dialog.exec_(): self.store.save_memory(title.text(), content.toPlainText(), source.text(), memory.get('id')); self.refresh_knowledge()
+        if dialog.exec_():self.knowledge_work('save_memory',lambda _:self.refresh_knowledge(),title=title.text(),text=content.toPlainText(),source=source.text(),memory=memory.get('id'))
 
-    def delete_memory(self): self.store.delete_memory(selected(self.memories)['id']); self.refresh_knowledge()
+    def delete_memory(self):self.knowledge_work('delete_memory',lambda _:self.refresh_knowledge(),memory=selected(self.memories)['id'])
     def use_memory(self):
         memory = selected(self.memories); self.to_chat(f"Meine Erinnerung: {memory['title']}\n{memory['text']}\nQuelle: {memory['source']}\n\n")
 
@@ -455,4 +485,7 @@ class Workspace(QObject):
         if self.indexer and self.indexer.isRunning():
             self.indexer.requestInterruption(); self.indexer.wait(5000)
             if self.indexer.isRunning(): return False
+        if self.knowledge_job:
+            self.knowledge_job.cancelled.set();self.knowledge_job.wait(3000)
+            if self.knowledge_job.isRunning():return False
         return True

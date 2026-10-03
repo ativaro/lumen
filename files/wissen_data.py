@@ -1,8 +1,10 @@
 """Portable Markdown notebooks. Local drafts/history are private recovery data."""
 from contextlib import contextmanager
+import base64
 import fcntl
 import hashlib
 import json
+import io
 import os
 from pathlib import Path
 import re
@@ -24,20 +26,21 @@ def digest(raw):return hashlib.sha256(raw).hexdigest()
 def parse(path,raw):
     text=raw.decode('utf-8-sig');meta={};match=META.match(text)
     if match:
-        try:meta=json.loads(match[1])
+        try:
+            candidate=json.loads(match[1])
+            if isinstance(candidate,dict):meta=candidate;text=text[match.end():]
         except ValueError:pass
-        if not isinstance(meta,dict):meta={}
-        text=text[match.end():]
     heading=re.search(r'^# (.+)$',text,re.M)
     title=heading[1].strip() if heading else Path(path).stem
     plain=re.sub(r'```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`]*`','',text)
     tags=sorted(set(re.findall(r'(?<![\w/#])#([^\W\d][\w/-]*)',plain)))[:100]
     links=re.findall(r'\[\[([^\]\n]+)\]\]',plain)+re.findall(r'(?<!!)\[[^\]\n]*\]\(([^)\n]+)\)',plain)
-    return dict(id=path,path=path,title=title[:300],text=text,source=meta.get('source',''),legacy=meta.get('legacy',''),tags=tags,links=links,hash=digest(raw),raw_size=len(raw))
+    return dict(id=path,path=path,title=title[:300],text=text,source=str(meta.get('source',''))[:2000],legacy=str(meta.get('legacy',''))[:200],tags=tags,links=links,hash=digest(raw),raw_size=len(raw))
 
 
 def encode(text,source='',legacy=''):
-    raw=('<!-- lumen: '+json.dumps(dict(source=source,legacy=legacy),ensure_ascii=False)+' -->\n'+text).encode()
+    prefix='<!-- lumen: '+json.dumps(dict(source=source,legacy=legacy),ensure_ascii=False)+' -->\n' if source or legacy else ''
+    raw=(prefix+text).encode()
     if len(raw)>MAX_NOTE:raise ValueError('Notiz größer als 1 MiB. Bitte aufteilen.')
     return raw
 
@@ -47,8 +50,9 @@ def resolve_link(origin,target,notes):
     if not target:return origin
     if urlsplit(target).scheme or target.startswith(('/', '\\')):return None
     if not target.lower().endswith('.md'):target+='.md'
-    local=str(Path(origin).parent/target)
-    for candidate in (local,target):
+    local=os.path.normpath(str(Path(origin).parent/target))
+    if local=='..' or local.startswith('../'):return None
+    for candidate in (local,os.path.normpath(target)):
         if candidate in notes:return candidate
     matches=[p for p,n in notes.items() if Path(p).stem.casefold()==Path(target).stem.casefold() or n['title'].casefold()==target[:-3].casefold()]
     return matches[0] if len(matches)==1 else None
@@ -64,6 +68,13 @@ def search(notes,query,limit=60):
     return [n for _,n in sorted(ranked,key=lambda p:(-p[0],p[1]['title'].casefold()))[:limit]]
 
 
+def excerpt(text,query,limit=3000):
+    terms=[w for w in re.findall(r'\w+',query.casefold()) if w not in STOP_WORDS and len(w)>1][:12]
+    positions=[text.casefold().find(t) for t in terms if t in text.casefold()]
+    start=max(0,min(positions)-limit//4) if positions else 0
+    return ('…\n' if start else '')+text[start:start+limit]+('\n…' if start+limit<len(text) else '')
+
+
 class Notebook:
     def __init__(self,store,root=None,create=False,identity=None):
         self.store=store
@@ -74,6 +85,10 @@ class Notebook:
         self.root=self.root.resolve(strict=True)
         st=self.root.stat();self.identity=identity or (store.setting('knowledge/identity') if str(self.root)==store.setting('knowledge/notebook') else None) or [st.st_dev,st.st_ino]
         self.history=Library('wissen-history',store.directory)
+
+    def context(self,paths,query):
+        if not 1<=len(paths)<=8:raise ValueError('Eine bis acht Quellen auswählen.')
+        return [dict(note,text=excerpt(note['text'],query)) for note in (self.read(p) for p in dict.fromkeys(paths))]
 
     @contextmanager
     def directory(self,relative='.'):
@@ -138,6 +153,24 @@ class Notebook:
                 fd=os.open(name,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600,dir_fd=parent)
                 with os.fdopen(fd,'wb') as stream:image.save(stream,format='PNG');stream.flush();os.fsync(stream.fileno())
             return 'attachments/'+name
+
+    def preview(self,path,text):
+        from PIL import Image,ImageOps
+        images={};total=0
+        for target in re.findall(r'!\[[^\]\n]*\]\(([^)\n]+)\)',text)[:16]:
+            target=unquote(target)
+            if urlsplit(target).scheme or target.startswith('/'):continue
+            relative=os.path.normpath(str(Path(path).parent/target))
+            try:
+                raw=self.image(relative)
+                with Image.open(io.BytesIO(raw)) as image:
+                    if image.width*image.height>36_000_000:continue
+                    image=ImageOps.exif_transpose(image);image.thumbnail((1600,1600));output=io.BytesIO();image.convert('RGBA').save(output,format='PNG')
+                    encoded=base64.b64encode(output.getvalue()).decode();total+=len(encoded)
+                    if total>16*1024**2:break
+                    images[relative]=encoded
+            except (OSError,ValueError):continue
+        return images
 
     def scan(self):
         notes=[];queue=[Path('.')];count=size=errors=0
@@ -211,8 +244,15 @@ class Notebook:
 
     def capture(self,title,text,source='',memory=None):
         if not memory:return self.create(title,text,source)['path']
+        memory=self.memory_path(memory)
         note=self.read(memory)
         return self.write(memory,'# '+title.strip()+'\n\n'+text,note['hash'],source)['path']
+
+    def memory_path(self,memory):
+        if memory.endswith('.md'):return memory
+        imported=self.store.setting('knowledge/imports',{}).get(memory,{})
+        if imported.get('root')!=str(self.root):raise ValueError('Die alte Erinnerung zuerst in Lumen Wissen öffnen.')
+        return imported['path']
 
     def migrate(self):
         with self.lock('wissen-import.lock'):return self.import_legacy()
@@ -227,13 +267,16 @@ class Notebook:
             token=row['id']+'@'+version
             if existing is None:existing={n['legacy']:n for n in self.scan()['notes'] if n['legacy']}
             note=existing.get(token) or self.create(row['title'],row['text'],row['source'],token)
-            imported[row['id']]=dict(version=version,path=note['path']);self.store.set_setting('knowledge/imports',imported);changed+=1
+            imported[row['id']]=dict(version=version,path=note['path'],root=str(self.root));self.store.set_setting('knowledge/imports',imported);changed+=1
         return changed
 
 
 def activate(store,root=None):
     chosen=root or store.setting('knowledge/notebook','') or str(store.directory/'wissen')
-    book=Notebook(store,chosen,create=not root and not store.setting('knowledge/notebook',''))
+    identity=None
+    if root:
+        st=Path(root).expanduser().stat();identity=[st.st_dev,st.st_ino]
+    book=Notebook(store,chosen,create=not root and not store.setting('knowledge/notebook',''),identity=identity)
     book.migrate();store.set_setting('knowledge/notebook',str(book.root));store.set_setting('knowledge/identity',book.identity);return str(book.root)
 
 
@@ -260,10 +303,11 @@ def main():
     from lumen_store import Store
     request=json.load(sys.stdin);store=Store(request.pop('store'));action=request.pop('action');root=request.pop('root')
     if action=='activate':result=activate(store,root)
+    elif action in ('save_memory','memories','delete_memory'):result=getattr(store,action)(**request)
     else:
         book=Notebook(store,root,identity=request.pop('identity',None))
         if action=='scan':book.migrate();result=book.scan()
-        elif action in ('read','write','create','remove','versions','restore','capture','add_image'):result=getattr(book,action)(**request)
+        elif action in ('read','write','create','remove','versions','restore','capture','add_image','preview','context'):result=getattr(book,action)(**request)
         else:raise ValueError('Unbekannte Notizaktion.')
     print(json.dumps(result,ensure_ascii=False))
 

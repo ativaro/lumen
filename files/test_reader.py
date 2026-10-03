@@ -69,8 +69,10 @@ class ReaderTest(unittest.TestCase):
                 if window.data and not window.job:return
             self.fail('Reader did not finish rendering')
         with patch.dict(os.environ,{'LUMEN_DATA':str(self.root/'knowledge')}):
+            from wissen_data import activate
+            activate(Store())
             window=Reader(self.root/'ui');window.open_file(str(path));ready(window);window.canvas.select_all();window.mark()
-            window.note.setPlainText('Meine Randnotiz');window.save();window.remember();key=window.current
+            window.note.setPlainText('Meine Randnotiz');window.save();window.remember();ready(window);key=window.current
             self.assertIn('Reader-Seite 1',Store().memories()[0]['source']);window.close()
             again=Reader(self.root/'ui');again.focus_record(key);ready(again)
             self.assertEqual(again.library.get(key)['notes'][0]['note'],'Meine Randnotiz')

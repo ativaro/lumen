@@ -58,6 +58,7 @@ class Inbox(ToolWindow):
         rl.addWidget(row(button('Antworten',lambda:self.safe(self.reply),'mail-reply-sender'),
             button('Aufgabe',lambda:self.safe(self.add_task),'list-add'),button('Termin',lambda:self.safe(self.event_dialog),'view-calendar')))
         rl.addWidget(button('Mit Lumen entwerfen …',lambda:self.safe(self.propose),'lumen'))
+        rl.addWidget(button('Ins Lumen-Wissen',lambda:self.safe(self.capture_knowledge),'bookmarks'))
         split.addWidget(reading);split.setSizes([360,520]);self.tabs.addTab(mail,'Posteingang')
         calendar=QWidget();cl=QVBoxLayout(calendar);cl.setContentsMargins(0,12,0,0)
         cl.addWidget(label('Letzte 30 Tage und kommende 12 Monate · Serien und Einladungen bleiben lesend.','muted'))
@@ -254,6 +255,16 @@ class Inbox(ToolWindow):
         if not self.message or self.attachments.currentIndex()<0:return
         path,_=QFileDialog.getSaveFileName(self,'Anhang speichern',str(Path.home()/self.attachments.currentText()))
         if path:inbox.save_attachment(self.message['raw'],self.attachments.currentData(),path);self.status.setText('Anhang gespeichert.')
+
+    def capture_knowledge(self):
+        if not self.message:raise ValueError('Zuerst eine Nachricht auswählen.')
+        from lumen_store import Store
+        text=self.reader.textCursor().selectedText().replace('\u2029','\n') or self.message['body']
+        source='Mail · '+self.message['sender']+' · '+self.message['sent']+' · '+self.message['subject']
+        if len(text)>20000:raise ValueError('Bitte einen Abschnitt bis 20.000 Zeichen auswählen.')
+        from wissen_data import worker
+        store=Store();title=self.message['subject'] or 'Mail-Fundstelle'
+        self.work('Nachrichtenauszug im Wissen speichern …',lambda job:worker(job,store,'save_memory',title=title,text=text,source=source),lambda _:self.status.setText('Nachrichtenauszug mit Herkunft im lokalen Lumen-Wissen gespeichert.'))
 
     def pick_account(self,kinds):
         accounts=[r for r in self.library.all() if r['kind'] in kinds]

@@ -165,15 +165,25 @@ class Store:
 
     def save_memory(self, title, text, source='Von mir', memory=None):
         if not title.strip() or not text.strip() or len(text) > 20000: raise ValueError('Titel und Text (max. 20.000 Zeichen) erforderlich.')
+        if self.setting('knowledge/notebook',''):
+            from wissen_data import Notebook
+            return Notebook(self).capture(title,text,source,memory)
         memory = memory or identifier()
         with self.connect() as db:
             db.execute('INSERT OR REPLACE INTO memories VALUES (?,?,?,?,?)', (memory, title[:200], text, source[:1000], time.time()))
         return memory
 
     def memories(self):
+        if self.setting('knowledge/notebook',''):
+            from wissen_data import Notebook
+            book=Notebook(self);book.migrate()
+            return book.scan()['notes'][:500]
         return self.rows('SELECT * FROM memories ORDER BY updated DESC LIMIT 500')
 
     def delete_memory(self, memory):
+        if self.setting('knowledge/notebook',''):
+            from wissen_data import Notebook
+            book=Notebook(self);memory=book.memory_path(memory);note=book.read(memory);book.remove(memory,note['hash']);return
         with self.connect() as db: db.execute('DELETE FROM memories WHERE id=?', (memory,))
 
     def remove_root(self, root):

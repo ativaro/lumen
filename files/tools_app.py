@@ -13,9 +13,9 @@ from app import create_app
 
 def main():
     parser=argparse.ArgumentParser(description='Eigenständige Desktop-Werkzeuge')
-    parser.add_argument('tool',choices=['meetings','household','workbench','radio','vault','inbox','reader','sound'])
+    parser.add_argument('tool',choices=['meetings','household','workbench','radio','vault','inbox','reader','sound','wissen'])
     parser.add_argument('path',nargs='?');args=parser.parse_args()
-    if args.path and args.tool!='reader':parser.error('Dateien können nur an Reader übergeben werden.')
+    if args.path and args.tool not in ('reader','wissen'):parser.error('Dateien können nur an Reader oder Wissen übergeben werden.')
     requested=str(Path(args.path).expanduser().absolute()) if args.path else ''
     app=create_app(); app.setApplicationName('lumen-'+args.tool); app.setDesktopFileName('lumen-'+args.tool)
     from tools_meetings import Meetings
@@ -26,7 +26,8 @@ def main():
     from tools_inbox import Inbox
     from tools_reader import Reader
     from tools_sound import Sound
-    window={'meetings':Meetings,'household':Household,'workbench':Workbench,'radio':Radio,'vault':Vault,'inbox':Inbox,'reader':Reader,'sound':Sound}[args.tool]()
+    from tools_wissen import Wissen
+    window={'meetings':Meetings,'household':Household,'workbench':Workbench,'radio':Radio,'vault':Vault,'inbox':Inbox,'reader':Reader,'sound':Sound,'wissen':Wissen}[args.tool]()
     app.setApplicationDisplayName(window.windowTitle())
     server_name='lumen-tool-'+str(os.getuid())+'-'+hashlib.sha256(str(window.library.root.resolve()).encode()).hexdigest()[:20]
     client=QLocalSocket(); client.connectToServer(server_name)
@@ -49,7 +50,7 @@ def main():
                 if b'\n' not in buffer:return
                 try:
                     request=json.loads(buffer.split(b'\n',1)[0]);path=request.get('path','')
-                    if args.tool=='reader' and isinstance(path,str) and path:window.safe(window.open_file,path)
+                    if args.tool in ('reader','wissen') and isinstance(path,str) and path:window.safe(window.open_file,path)
                 except (ValueError,AttributeError):pass
                 socket.disconnectFromServer()
             socket.readyRead.connect(receive);receive()

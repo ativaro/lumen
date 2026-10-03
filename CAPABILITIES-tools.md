@@ -13,8 +13,10 @@ Auftrag: Meeting-Werkstatt (3), digitaler Haushalt (4), Projekt-Werkbank (6), pe
 | inbox | IMAP/SMTP, Proton Bridge, CalDAV/ICS, lokale Entwürfe und Aufgaben | tools-common, Secret Service, optionales Kalender-Environment |
 | reader | PDF/EPUB/Artikel, Lesestand, Markierungen, Randnotizen, Vorlesen und zitierte Wissensstellen | tools-common, PyMuPDF; optional Piper/ffmpeg |
 | sound | Lautstärke/Stumm/Ausgang je Stream, App-Regeln und optionale Gesprächsabsenkung | tools-common, pactl, Pulse-kompatibler Audioserver; systemd für Automatik |
+| wissen | Markdown-Notizordner, Editor/Vorschau, Bilder, Tags, Rückverweise, lokale Karte, ausgewählte KI-Quellen | tools-common, Pillow; OpenCode nur für Fragen |
 
 Reihenfolge: common → meetings → household → workbench → radio → Installation/Verifikation.
 
 Vault und Inbox: Einrichtung und Grenzen stehen in [VAULT-INBOX.md](VAULT-INBOX.md).
 Reader und Sound: Bedienung, private Speicherung und Automatik in [READER-SOUND.md](READER-SOUND.md).
+Wissen: offenes Dateiformat, Konfliktschutz und Quellenfragen in [WISSEN.md](WISSEN.md).
