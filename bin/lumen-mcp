@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Use exactly the same Qt runtime as Lumen's native applications.
+set -euo pipefail
+self_dir="$(cd -- "$(dirname -- "$(readlink -f -- "$0")")" && pwd)"
+exec "$self_dir/lumen-python" "$self_dir/lumen_mcp.py" "$@"

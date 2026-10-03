@@ -17,7 +17,7 @@ import subprocess
 import sys
 
 SERVER_NAME = "lumen-mcp"
-SERVER_VERSION = "1.2.0"
+SERVER_VERSION = "1.3.0"
 PROTOCOL_VERSION = "2024-11-05"
 
 # Writing actions (restart units, media control, notifications, …) are OFF by
@@ -251,7 +251,7 @@ def tool_wallpaper(args):
         "for (var i=0;i<ds.length;i++){"
         f"ds[i].wallpaperPlugin='org.kde.image';"
         f"ds[i].currentConfigGroup=['Wallpaper','org.kde.image','General'];"
-        f"ds[i].writeConfig('Image','{url}');"
+        f"ds[i].writeConfig('Image',{json.dumps(url)});"
         "}"
     )
     res = run(["qdbus6", "org.kde.plasmashell", "/PlasmaShell",
@@ -449,6 +449,63 @@ TOOLS.update({
         'schema': {'type': 'object', 'properties': {'title': {'type': 'string'}, 'roots': {'type': 'array', 'items': {'type': 'string'}}, 'steps': {'type': 'array', 'items': {'type': 'object'}}}, 'required': ['title','roots','steps']}},
 })
 
+
+def validate_schema(value, schema, path='arguments'):
+    """Validate the JSON Schema subset used by these local tool definitions."""
+    kinds = {'object': dict, 'array': list, 'string': str, 'integer': int, 'boolean': bool}
+    kind = schema.get('type')
+    if kind and type(value) is not kinds[kind]:
+        raise ValueError(path + ': expected ' + kind)
+    if 'enum' in schema and value not in schema['enum']:
+        raise ValueError(path + ': unsupported value')
+    if kind == 'object':
+        if any(key not in value for key in schema.get('required', [])):
+            raise ValueError(path + ': missing required field')
+        properties = schema.get('properties', {})
+        if schema.get('additionalProperties') is False and set(value) - set(properties):
+            raise ValueError(path + ': unknown field')
+        for key in value.keys() & properties.keys(): validate_schema(value[key], properties[key], path+'.'+key)
+    if kind == 'array':
+        if len(value) > schema.get('maxItems', 1000): raise ValueError(path + ': too many items')
+        for item in value: validate_schema(item, schema.get('items', {}), path+'[]')
+    if kind == 'string':
+        if not schema.get('minLength', 0) <= len(value) <= schema.get('maxLength', 1000000) or '\x00' in value:
+            raise ValueError(path + ': invalid text length or NUL character')
+    if kind == 'integer' and not schema.get('minimum', value) <= value <= schema.get('maximum', value):
+        raise ValueError(path + ': outside allowed range')
+
+
+def tool_native(name, args):
+    from pathlib import Path
+    import signal
+    from lumen_mcp_tools import DEFINITIONS
+    if DEFINITIONS[name].get('action') and not ACTIONS_ENABLED:
+        raise ValueError('MCP actions are disabled.')
+    worker = Path(sys.modules['lumen_mcp_tools'].__file__)
+    process = subprocess.Popen([sys.executable, str(worker)], stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+    try:
+        output, stderr = process.communicate(json.dumps(dict(name=name, arguments=args)), timeout=45)
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.communicate()
+        raise ValueError('Native tool timed out. Check the source/desktop connection and retry.') from None
+    if process.returncode:
+        raise ValueError('Native tool failed. Verify the Lumen Qt6 runtime and installation.')
+    if len(output) > 1024*1024: raise ValueError('Result too large. Narrow the query or reduce the limit.')
+    response = json.loads(output)
+    if 'error' in response: raise ValueError(response['error'])
+    return response['data']
+
+
+lumen_modules()
+from lumen_mcp_tools import DEFINITIONS
+from functools import partial
+for name, definition in DEFINITIONS.items():
+    if not definition.get('action') or ACTIONS_ENABLED:
+        TOOLS[name] = dict(definition, fn=partial(tool_native, name), native=True)
+
+
 if ACTIONS_ENABLED:
     TOOLS.update(ACTION_TOOLS)
 
@@ -470,15 +527,22 @@ def error(req_id, code, message):
 
 
 def handle(req):
+    if not isinstance(req, dict):
+        error(None, -32600, "Request must be an object")
+        return
     method = req.get("method")
     rid = req.get("id")
-    params = req.get("params") or {}
+    params = req.get("params", {})
+    if not isinstance(params, dict):
+        if rid is not None: error(rid, -32602, "params must be an object")
+        return
+    if rid is None: return
 
     if method == "initialize":
         result(
             rid,
             {
-                "protocolVersion": PROTOCOL_VERSION,
+                "protocolVersion": params.get("protocolVersion") if params.get("protocolVersion") in ("2024-11-05", "2025-03-26", "2025-06-18") else PROTOCOL_VERSION,
                 "capabilities": {"tools": {}},
                 "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
             },
@@ -496,6 +560,7 @@ def handle(req):
                         "name": name,
                         "description": t["desc"],
                         "inputSchema": t["schema"],
+                        **({"annotations": t["annotations"]} if "annotations" in t else {}),
                     }
                     for name, t in TOOLS.items()
                 ]
@@ -503,14 +568,18 @@ def handle(req):
         )
     elif method == "tools/call":
         name = params.get("name")
-        args = params.get("arguments") or {}
-        tool = TOOLS.get(name)
+        args = params.get("arguments", {})
+        tool = TOOLS.get(name) if isinstance(name, str) else None
         if not tool:
             error(rid, -32602, f"Unbekanntes Tool: {name}")
             return
         try:
+            validate_schema(args, tool["schema"])
             content = tool["fn"](args)
-            result(rid, {"content": content, "isError": False})
+            if tool.get("native"):
+                result(rid, {"content": ok(json.dumps(content, ensure_ascii=False)), "structuredContent": content, "isError": False})
+            else:
+                result(rid, {"content": content, "isError": False})
         except Exception as exc:  # noqa: BLE001
             result(rid, {"content": ok(f"Fehler: {exc}"), "isError": True})
     elif method in ("resources/list", "prompts/list"):
@@ -528,6 +597,7 @@ def main():
         try:
             req = json.loads(line)
         except json.JSONDecodeError:
+            error(None, -32700, "Invalid JSON")
             continue
         handle(req)
 

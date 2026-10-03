@@ -97,6 +97,7 @@ fi
 say "Registriere MCP-Server 'cachyos' -> $MCP_PY"
 python3 - "$OPENCODE_HOME/opencode.jsonc" "$MCP_PY" <<'PY'
 import json, os, re, sys
+from pathlib import Path
 cfg, mcp_py = sys.argv[1], sys.argv[2]
 raw = open(cfg).read() if os.path.exists(cfg) else ""
 stripped = re.sub(r'^\s*//.*$', '', raw, flags=re.M)
@@ -106,10 +107,13 @@ except Exception:
     print("  (bestehende opencode.jsonc nicht parsebar – bitte manuell ergänzen)")
     raise SystemExit(0)
 d.setdefault("$schema", "https://opencode.ai/config.json")
-d.setdefault("mcp", {})["cachyos"] = {
+launcher = Path(mcp_py).with_name('lumen-mcp')
+previous = d.setdefault("mcp", {}).get("cachyos", {})
+d["mcp"]["cachyos"] = {
+    **previous,
     "type": "local",
-    "command": ["python3", mcp_py],
-    "enabled": True,
+    "command": [str(launcher)] if launcher.is_file() else ["python3", mcp_py],
+    "enabled": previous.get("enabled", True),
 }
 open(cfg, "w").write(json.dumps(d, indent=2) + "\n")
 print("  eingetragen:", cfg)

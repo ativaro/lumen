@@ -132,6 +132,9 @@ installer or the Lumen package, or checked by `install.sh`. The bootstrap instal
 these before opening the wizard.
 `lumen-setup` remains the separate MCP/commands integration helper (user install:
 `~/.local/share/lumen/bin/lumen-setup`); it is not renamed or replaced by the wizard.
+The MCP helper uses the shared Qt6 runtime through `lumen-mcp`. Existing MCP
+environment and enablement settings are preserved. See [MCP tools and access](MCP.md)
+for Files, Wissen, tasks, settings, Vault and Inbox integration.
 Files, native search, desktop controls and themes also work without an AI provider.
 Saved NAS connections, knowledge folders, tasks, conversations, API credentials
 and model choices are configured by each user; none are included in the repository.
