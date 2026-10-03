@@ -440,5 +440,12 @@
   "PDF-Dokumentenwerkstatt": "PDF document workshop",
   "Sicherung:": "Backup:",
   "Leiste fehlt": "Panel missing",
-  "{0} öffnen …": "Open {0} …"
+  "{0} öffnen …": "Open {0} …",
+  "Lumen-Funktionen für die KI": "Lumen functions for AI",
+  "Die KI kann Dateien suchen, freigegebene Notizen lesen und Aufträge sowie Sicherungsstände abfragen. Wissen verwendet dieselben Freigaben wie Gespräche.": "AI can search files, read shared notes, and check tasks and backup status. Wissen uses the same sharing rules as conversations.",
+  "Lokale Nachrichten und Termine über MCP lesen": "Read local messages and calendar events through MCP",
+  "Standardmäßig aus. Gelesene Inhalte können an deinen konfigurierten KI-Anbieter übermittelt werden. Es werden keine Nachrichten versendet und keine Konten synchronisiert. Der Entzug gilt ab dem nächsten Werkzeugaufruf; bereits gelesene Chat-Inhalte bleiben erhalten.": "Off by default. Read content may be sent to your configured AI provider. No messages are sent and no accounts are synced. Revoking access applies from the next tool call; previously read chat content remains.",
+  "MCP-Freigabe gespeichert.": "MCP access saved.",
+  "MCP-Einstellungen übernehmen": "Apply MCP settings",
+  "Ändernde Werkzeuge benötigen eine separate Freigabe in OpenCode. Die Lesefreigabe für die Inbox erlaubt keine Änderungen.": "Tools that make changes require separate permission in OpenCode. Read access to Inbox does not allow changes."
 }

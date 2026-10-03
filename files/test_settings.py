@@ -186,6 +186,24 @@ class NativeSettingsTest(unittest.TestCase):
             self.assertEqual(files.value('favorites', [], type=list), [str(folder)])
             other.close()
 
+    def test_mcp_inbox_grant_is_opt_in_and_saved_through_native_settings(self):
+        from settings_dialog import SettingsDialog
+        from PySide6.QtCore import QSettings
+        with tempfile.TemporaryDirectory() as tmp, patch.dict('os.environ', {'LUMEN_DATA': tmp+'/state'}):
+            assistant = QSettings(tmp+'/assistant.ini', QSettings.IniFormat)
+            files = QSettings(tmp+'/files.ini', QSettings.IniFormat)
+            dialog = SettingsDialog(files_settings=files, assistant_settings=assistant, load_system=False)
+            self.assertFalse(dialog.mcp_inbox.isChecked())
+            dialog.mcp_inbox.setChecked(True)
+            from PySide6.QtWidgets import QPushButton
+            from lumen_i18n import tr
+            button = next(b for b in dialog.findChildren(QPushButton) if b.text()==tr('MCP-Einstellungen übernehmen'))
+            button.click()
+            self.assertTrue(assistant.value('mcpInboxRead',False,type=bool))
+            dialog.mcp_inbox.setChecked(False);button.click()
+            self.assertFalse(assistant.value('mcpInboxRead',True,type=bool))
+            dialog.close()
+
     def test_document_workshop_is_opt_in_and_stale_actions_cannot_open_it(self):
         from app import Window
         from settings_dialog import SettingsDialog

@@ -92,12 +92,30 @@ class SettingsDialog(QDialog):
         self.build_integrations()
         self.build_recovery()
         self.build_setup()
+        self.build_mcp()
         from hardware_ui import HardwareView
         hardware = self.page(tr('Hardware & Aktivität'), tr('Temperaturen, Lüfter und Leistungsaufnahme · nur lesend'))
         hardware.addWidget(HardwareView(self))
         self.nav.setCurrentRow(page)
         if load_system:
             QTimer.singleShot(0, self.reload)
+
+    def build_mcp(self):
+        page = self.page('MCP', tr('Lumen-Funktionen für die KI'))
+        page.addWidget(text(tr('Die KI kann Dateien suchen, freigegebene Notizen lesen und Aufträge sowie Sicherungsstände abfragen. Wissen verwendet dieselben Freigaben wie Gespräche.')))
+        self.mcp_inbox = QCheckBox(tr('Lokale Nachrichten und Termine über MCP lesen'))
+        self.mcp_inbox.setChecked(self.field(self.assistant, 'mcpInboxRead', False, bool))
+        page.addWidget(self.mcp_inbox)
+        page.addWidget(text(tr('Standardmäßig aus. Gelesene Inhalte können an deinen konfigurierten KI-Anbieter übermittelt werden. Es werden keine Nachrichten versendet und keine Konten synchronisiert. Der Entzug gilt ab dem nächsten Werkzeugaufruf; bereits gelesene Chat-Inhalte bleiben erhalten.')))
+        page.addWidget(text(tr('Ändernde Werkzeuge benötigen eine separate Freigabe in OpenCode. Die Lesefreigabe für die Inbox erlaubt keine Änderungen.')))
+        def save():
+            try:
+                self.save(self.assistant, {'mcpInboxRead': self.mcp_inbox.isChecked()})
+                self.status.setText(tr('MCP-Freigabe gespeichert.'))
+            except (OSError, ValueError) as error:
+                self.status.setText(str(error))
+        page.addWidget(button(tr('MCP-Einstellungen übernehmen'), save))
+        page.addStretch()
 
     def build_setup(self):
         page = self.page(tr('Einrichtung'), tr('Lumen und optionale Erweiterungen vorbereiten'))
@@ -165,26 +183,9 @@ class SettingsDialog(QDialog):
         return value
 
     def save(self, settings, values):
-        settings.sync()
-        changes = {}
-        for key, value in values.items():
-            before = self.original.get((settings.fileName(), key))
-            if value != before:
-                current = settings.value(key, before, type=type(before))
-                if current != before and current != value:
-                    raise ValueError(tr('Diese Einstellung wurde in einem anderen Fenster geändert. Bitte die Einstellungen erneut öffnen.'))
-                changes[key] = value
-        for key, value in changes.items():
-            settings.setValue(key, value)
-        settings.sync()
-        if settings.status() != QSettings.NoError:
-            raise OSError(tr('Einstellungen konnten nicht gespeichert werden.'))
-        if changes:
-            from lumen_history import record
-            from lumen_store import Store
-            record(Store(), tr('Lumen-Einstellungen angepasst'), 'preferences',
-                   {key: self.original.get((settings.fileName(), key)) for key in changes},
-                   changes, settings.fileName())
+        from lumen_preferences import save_preferences
+        changes = save_preferences(settings, values,
+            {key: self.original.get((settings.fileName(), key)) for key in values})
         for key, value in values.items():
             self.original[(settings.fileName(), key)] = value
         self.preferencesChanged.emit(settings.fileName(), list(changes))
