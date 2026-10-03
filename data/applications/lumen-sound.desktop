@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen Sound
+Comment=Lautstärke, Ausgänge und Gesprächsabsenkung pro Anwendung
+Exec=%INSTALL_BIN%/lumen-sound
+Icon=lumen-sound
+Terminal=false
+Categories=AudioVideo;Audio;Mixer;
+StartupWMClass=lumen-sound
+Keywords=Lumen;Sound;Audio;Mixer;

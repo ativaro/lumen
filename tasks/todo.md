@@ -78,7 +78,7 @@ Konten und Sicherungspläne bleiben benutzergeführt; keine echten Mails versend
 
 # Reader und Sound
 
-- [ ] Reader: Import, Seiten/Text, Fortschritt, Markierungen/Notizen, Vorlesen/Wissen.
-- [ ] Sound: Stream-Mixer, Ausgänge, gespeicherte App-Regeln und Gesprächsabsenkung.
-- [ ] Reale Dokument- und isolierte Audiotests, native Oberflächen und Starter.
+- [x] Reader: Import, Seiten/Text, Fortschritt, Markierungen/Notizen, Vorlesen/Wissen.
+- [x] Sound: Stream-Mixer, Ausgänge, gespeicherte App-Regeln und Gesprächsabsenkung.
+- [x] Reale Dokument- und isolierte Audiotests, native Oberflächen und Starter.
 - [ ] Paket, Benutzerinstallation, portable Git-Quellen und private Referenz.

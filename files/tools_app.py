@@ -13,7 +13,7 @@ from app import create_app
 
 def main():
     parser=argparse.ArgumentParser(description='Eigenständige Desktop-Werkzeuge')
-    parser.add_argument('tool',choices=['meetings','household','workbench','radio','vault','inbox','reader'])
+    parser.add_argument('tool',choices=['meetings','household','workbench','radio','vault','inbox','reader','sound'])
     parser.add_argument('path',nargs='?');args=parser.parse_args()
     if args.path and args.tool!='reader':parser.error('Dateien können nur an Reader übergeben werden.')
     requested=str(Path(args.path).expanduser().absolute()) if args.path else ''
@@ -25,7 +25,8 @@ def main():
     from tools_vault import Vault
     from tools_inbox import Inbox
     from tools_reader import Reader
-    window={'meetings':Meetings,'household':Household,'workbench':Workbench,'radio':Radio,'vault':Vault,'inbox':Inbox,'reader':Reader}[args.tool]()
+    from tools_sound import Sound
+    window={'meetings':Meetings,'household':Household,'workbench':Workbench,'radio':Radio,'vault':Vault,'inbox':Inbox,'reader':Reader,'sound':Sound}[args.tool]()
     app.setApplicationDisplayName(window.windowTitle())
     server_name='lumen-tool-'+str(os.getuid())+'-'+hashlib.sha256(str(window.library.root.resolve()).encode()).hexdigest()[:20]
     client=QLocalSocket(); client.connectToServer(server_name)

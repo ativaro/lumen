@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import tempfile
 
-TOOLS = ('meetings', 'household', 'workbench', 'radio', 'vault', 'inbox', 'reader')
+TOOLS = ('meetings', 'household', 'workbench', 'radio', 'vault', 'inbox', 'reader', 'sound')
 MARKER = 'LumenStandaloneToolsInstaller'
 
 

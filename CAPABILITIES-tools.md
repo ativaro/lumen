@@ -11,7 +11,10 @@ Auftrag: Meeting-Werkstatt (3), digitaler Haushalt (4), Projekt-Werkbank (6), pe
 | radio | Gewählte Artikel/Dokumente zu hörbarer Ausgabe mit Quellen machen | tools-common, Piper |
 | vault | Verschlüsselte USB-/NAS-Sicherung, Vorschau, Zeitplan, Verlauf und Wiederherstellung in neue Ordner | tools-common, Restic, Secret Service |
 | inbox | IMAP/SMTP, Proton Bridge, CalDAV/ICS, lokale Entwürfe und Aufgaben | tools-common, Secret Service, optionales Kalender-Environment |
+| reader | PDF/EPUB/Artikel, Lesestand, Markierungen, Randnotizen, Vorlesen und zitierte Wissensstellen | tools-common, PyMuPDF; optional Piper/ffmpeg |
+| sound | Lautstärke/Stumm/Ausgang je Stream, App-Regeln und optionale Gesprächsabsenkung | tools-common, pactl, Pulse-kompatibler Audioserver; systemd für Automatik |
 
 Reihenfolge: common → meetings → household → workbench → radio → Installation/Verifikation.
 
 Vault und Inbox: Einrichtung und Grenzen stehen in [VAULT-INBOX.md](VAULT-INBOX.md).
+Reader und Sound: Bedienung, private Speicherung und Automatik in [READER-SOUND.md](READER-SOUND.md).

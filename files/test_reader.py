@@ -57,6 +57,7 @@ class ReaderTest(unittest.TestCase):
 
     def test_native_notes_reopen_knowledge_and_text_selection(self):
         from PyQt5.QtWidgets import QApplication
+        from PyQt5.QtCore import QCoreApplication,QEvent
         from PyQt5.QtTest import QTest
         from tools_reader import Reader
         from lumen_store import Store
@@ -74,6 +75,7 @@ class ReaderTest(unittest.TestCase):
             again=Reader(self.root/'ui');again.focus_record(key);ready(again)
             self.assertEqual(again.library.get(key)['notes'][0]['note'],'Meine Randnotiz')
             again.mode.setCurrentIndex(1);again.text.selectAll();again.mark();self.assertEqual(len(again.library.get(key)['notes']),2);again.close()
+            window.deleteLater();again.deleteLater();QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
 
 
 if __name__=='__main__':unittest.main()

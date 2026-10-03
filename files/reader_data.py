@@ -88,7 +88,9 @@ def import_text(library,title,text,source,job):
     if not text.strip() or len(text)>120000:raise ValueError('Artikel muss 1 bis 120.000 Zeichen enthalten.')
     name=uuid.uuid4().hex+'.html';path=library.asset(name)
     # No original tags, scripts, styles, images or external resources enter the renderer.
-    body='<html><head><meta charset="utf-8"></head><body><h1>'+html.escape(title)+'</h1>'+''.join('<p>'+html.escape(p)+'</p>' for p in text.splitlines() if p.strip())+'</body></html>'
+    paragraphs=[p for p in text.splitlines() if p.strip()]
+    if paragraphs and paragraphs[0].strip()==title.strip():paragraphs.pop(0)
+    body='<html><head><meta charset="utf-8"></head><body><h1>'+html.escape(title)+'</h1>'+''.join('<p>'+html.escape(p)+'</p>' for p in paragraphs)+'</body></html>'
     with path.open('x') as stream:path.chmod(0o600);stream.write(body)
     try:
         metadata=worker(job,'metadata',path);job.check()

@@ -2,7 +2,7 @@
 import base64
 from pathlib import Path
 import uuid
-from PyQt5.QtCore import Qt, QTimer, QRectF, pyqtSignal
+from PyQt5.QtCore import Qt, QTimer, QRectF, QEvent, pyqtSignal
 from PyQt5.QtGui import QPixmap, QPainter, QColor, QKeySequence, QTextCursor, QTextCharFormat
 from PyQt5.QtWidgets import (QWidget, QScrollArea, QSpinBox, QComboBox, QLineEdit,
     QPlainTextEdit, QTextEdit, QSplitter, QVBoxLayout, QTabWidget, QListWidget,
@@ -67,8 +67,8 @@ class Reader(ToolWindow):
         self.origin=label('PDFs, EPUBs und Artikel hinzufügen. Lesestand und Gedanken bleiben lokal.','muted');self.content.addWidget(self.origin)
         self.page_number=QSpinBox();self.page_number.setRange(1,1);self.page_number.setAccessibleName('Seite');self.page_number.editingFinished.connect(lambda:self.goto(self.page_number.value()-1))
         self.page_count=label('');self.zoom=QComboBox();self.zoom.setAccessibleName('Seitenvergrößerung')
-        for text,value in [('75 %',.75),('100 %',1),('125 %',1.25),('150 %',1.5),('200 %',2)]:self.zoom.addItem(text,value)
-        self.zoom.setCurrentIndex(1);self.zoom.currentIndexChanged.connect(self.set_zoom)
+        for text,value in [('Seitenbreite',0),('75 %',.75),('100 %',1),('125 %',1.25),('150 %',1.5),('200 %',2)]:self.zoom.addItem(text,value)
+        self.zoom.currentIndexChanged.connect(self.set_zoom)
         self.mode=QComboBox();self.mode.setAccessibleName('Leseansicht');self.mode.addItems(['Seitenansicht','Textansicht']);self.mode.currentIndexChanged.connect(self.change_mode)
         self.content.addWidget(row(button('Zurück',lambda:self.goto(self.page_index-1),'go-previous'),self.page_number,self.page_count,
             button('Weiter',lambda:self.goto(self.page_index+1),'go-next'),self.zoom,self.mode))
@@ -78,13 +78,15 @@ class Reader(ToolWindow):
         self.read_split=QSplitter();self.content.addWidget(self.read_split,1)
         self.views=QStackedWidget();self.scroll=QScrollArea();self.scroll.setFrameShape(QScrollArea.NoFrame);self.scroll.setAlignment(Qt.AlignHCenter|Qt.AlignTop)
         self.canvas=PageCanvas();self.scroll.setWidget(self.canvas);self.views.addWidget(self.scroll)
+        self.scroll.viewport().installEventFilter(self)
         self.text=QPlainTextEdit();self.text.setReadOnly(True);self.text.setAccessibleName('Auswählbarer Seitentext');font=self.text.font();font.setPointSize(13);self.text.setFont(font);self.views.addWidget(self.text);self.read_split.addWidget(self.views)
         for view in (self.canvas,self.text):
             QShortcut(QKeySequence('PgDown'),view,activated=lambda:self.goto(self.page_index+1),context=Qt.WidgetShortcut)
             QShortcut(QKeySequence('PgUp'),view,activated=lambda:self.goto(self.page_index-1),context=Qt.WidgetShortcut)
         self.rail=QWidget();rl=QVBoxLayout(self.rail);rl.setContentsMargins(12,0,0,0)
-        self.tabs=QTabWidget();rl.addWidget(self.tabs,1)
+        self.tabs=QTabWidget();self.tabs.setStyleSheet('QTabBar::tab { min-width: 64px; padding: 8px 10px; }');rl.addWidget(self.tabs,1)
         self.notes=QListWidget();self.notes.setAccessibleName('Markierungen und Lesezeichen');self.notes.currentItemChanged.connect(self.select_note);self.tabs.addTab(self.notes,'Gedanken')
+        self.notes.setWordWrap(True);self.notes.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.toc=QListWidget();self.toc.setAccessibleName('Inhaltsverzeichnis');self.toc.itemActivated.connect(lambda item:self.goto(item.data(Qt.UserRole)));self.tabs.addTab(self.toc,'Inhalt')
         self.hits=QListWidget();self.hits.setAccessibleName('Treffer im Buch');self.hits.itemActivated.connect(lambda item:self.goto(item.data(Qt.UserRole)));self.tabs.addTab(self.hits,'Suche')
         self.quote=label('Eine Stelle markieren oder ein Lesezeichen setzen.','muted');rl.addWidget(self.quote)
@@ -125,7 +127,7 @@ class Reader(ToolWindow):
         self.title.setText(record['title']);self.origin.setText(record.get('source',''))
         self.page_index=record.get('page',0);self.restore_scroll=record.get('scroll',0)
         self.mode.blockSignals(True);self.mode.setCurrentIndex(record.get('view',0));self.mode.blockSignals(False);self.views.setCurrentIndex(self.mode.currentIndex())
-        self.zoom.blockSignals(True);self.zoom.setCurrentIndex(max(0,self.zoom.findData(record.get('zoom',1))));self.zoom.blockSignals(False)
+        self.zoom.blockSignals(True);self.zoom.setCurrentIndex(max(0,self.zoom.findData(record.get('zoom',0))));self.zoom.blockSignals(False)
         self.refresh_notes();QTimer.singleShot(0,self.render_page)
 
     def goto(self,index):
@@ -146,7 +148,7 @@ class Reader(ToolWindow):
                 self.data=data;self.library.update(key,pages=data['pages'],toc=data['toc'],locked=False)
                 self.page_number.setRange(1,data['pages']);self.page_number.setValue(index+1);self.page_count.setText('von '+str(data['pages']))
                 marks=[n for n in self.library.get(key).get('notes',[]) if n['page']==index]
-                self.canvas.load(data,marks,self.zoom.currentData());self.text.setPlainText(data['text']);self.highlight_text(marks)
+                self.canvas.load(data,marks,self.effective_zoom());self.text.setPlainText(data['text']);self.highlight_text(marks)
                 self.toc.clear()
                 for level,title,page in data['toc']:
                     item=QListWidgetItem('  '*(min(level,8)-1)+title);item.setData(Qt.UserRole,max(0,page-1));self.toc.addItem(item)
@@ -167,7 +169,14 @@ class Reader(ToolWindow):
         if ok:self.passwords[key]=password;self.render_page()
 
     def set_zoom(self):
-        self.canvas.resize_page(self.zoom.currentData());self.edited()
+        self.canvas.resize_page(self.effective_zoom());self.edited()
+
+    def effective_zoom(self):
+        return self.zoom.currentData() or max(.15,min(2,(self.scroll.viewport().width()-16)/(self.data['width'] if self.data else 600)))
+
+    def eventFilter(self,obj,event):
+        if event.type()==QEvent.Resize and hasattr(self,'canvas') and self.zoom.currentData()==0:self.canvas.resize_page(self.effective_zoom())
+        return super().eventFilter(obj,event)
 
     def change_mode(self,index):self.views.setCurrentIndex(index);self.edited()
     def focus_mode(self):
@@ -181,6 +190,7 @@ class Reader(ToolWindow):
             if note['id']==self.note_id:note['note']=self.note.toPlainText()[:20000]
         view=self.scroll if self.mode.currentIndex()==0 else self.text
         self.library.update(self.current,page=self.page_index,scroll=view.verticalScrollBar().value(),zoom=self.zoom.currentData(),view=self.mode.currentIndex(),notes=notes)
+        if not self.job:self.status.setText('Lesestand und Notizen lokal gespeichert.')
 
     def selection(self):
         if self.mode.currentIndex()==0:return self.canvas.text(),self.canvas.selected(),[]

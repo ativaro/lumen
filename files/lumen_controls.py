@@ -18,9 +18,9 @@ ACTIONS = {
 }
 
 
-def run(arguments):
+def run(arguments, timeout=3):
     return subprocess.run(arguments, check=True, capture_output=True, text=True,
-                          timeout=3, env={**os.environ, 'LC_ALL': 'C'}).stdout.strip()
+                          timeout=timeout, env={**os.environ, 'LC_ALL': 'C'}).stdout.strip()
 
 
 def brightness(method, *args):
