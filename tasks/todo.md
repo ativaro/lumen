@@ -127,7 +127,7 @@ bleiben außerhalb von Git. Systempaket-Upgrade gehört nicht zu dieser Installa
 - [x] Herkunft, Zeitpunkt, Beleg, Projektbezug, Korrektur, Verlauf und Vergessen.
 - [x] Gemeinsamer Gesprächskontext, begrenztes optionales Lernen und native Aktionen.
 - [x] Integration, Abbruch, Konflikte, Freigabeentzug und Vergessen getestet.
-- [ ] Paket37, Benutzerinstallation, Starterprüfung und private Referenz abschließen.
+- [x] Paket37, Benutzerinstallation und Starterprüfung abschließen.
 
 Vollständige Prüfung: 173 Python-Prüfungen, davon 172 bestanden und ein optionaler
 CalDAV-Check übersprungen; 12 QML-Prüfungen bestanden. Zusätzlicher fokussierter
@@ -143,3 +143,13 @@ Modellinterpretationen sind als automatisch markiert und korrigierbar.
 Frische Profile starten ohne Nutzung/Lernen; Aktivierung hier ausdrücklich im
 angenommenen Auftrag. Private Notizen, Register, Sicherungen und Screenshots
 gehören nicht ins Git. Bedienung und Grenzen: WISSEN.md, Vertrag: SPEC-memory.md.
+
+Paket 1.2.0-37 gebaut; Gedächtnis-/Gesprächsmodule und Wissen-Starter stimmen mit
+Repo und Benutzerbundle überein. Vor Installation konsistente SQLite-Kopie und
+Dateisicherung erstellt. Alle installierten Python-/QSS-/SVG-Dateien verglichen,
+optionale Laufzeiten erhalten, Plasma-/KWin-Konfiguration per Hash unverändert.
+Neun installierte Werkzeuge starten kalt/warm; Reader-/Wissen-Dateiübergabe
+erreicht das bestehende Fenster. Gedächtnisnutzung und Lernen im angenommenen
+Benutzerprofil aktiviert, ohne Beispielinhalte anzulegen. Laufende andere Apps
+verwenden den neuen Gesprächscode nach ihrem nächsten Start. Systempaket bleibt
+unverändert; die aktualisierte Laufzeit liegt im Benutzerbundle.
