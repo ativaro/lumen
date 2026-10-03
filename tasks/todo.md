@@ -161,10 +161,19 @@ unverändert; die aktualisierte Laufzeit liegt im Benutzerbundle.
 - [x] Sammlungen aus Ordnern/Tags, sichtbare Freigabe, bestehende Werkzeuge erhalten.
 - [x] Verzögerte Schreibvorgänge, weitere Eingaben, Wechsel/Schließen, Frontmatter,
   Konflikte, neue Notizen, Freigaben und native Darstellung geprüft.
-- [ ] Paket38, Benutzerinstallation, installierte Starter und Git-Abnahme.
+- [x] Paket38, Benutzerinstallation und installierte Starter geprüft.
 
 175 Python-Prüfungen im vollständigen Lauf (174 bestanden, ein optionaler
 CalDAV-Check übersprungen); bestehende QML-Themeprüfungen und fokussierte
 Wissen-/Gedächtnisprüfungen. Vier native Themes und kompakte Ansicht gerendert.
 Persönliche Daten bleiben außerhalb des Repos; Markdown, Dateipfade und
 Freigaben werden bei der Umstellung nicht migriert oder neu angelegt.
+
+Zusätzlich 13 fokussierte Wissen-/Gedächtnisprüfungen erfolgreich, einschließlich
+Notizwechsel während laufenden Schreibens. 12 QML-Checks bestanden. Paket1.2.0-38
+gebaut; UI/Speicher/QSS mit Paket und installiertem Benutzerbundle identisch.
+Alle Python-/QSS-/SVG-Dateien der Benutzerinstallation verglichen. Vorher
+Dateisicherung und konsistente SQLite-Kopie; optionale Laufzeiten erhalten,
+Plasma-/KWin-Konfiguration per Hash unverändert. Alle neun installierten Tools
+kalt/warm sowie Reader-/Wissen-Dateiübergabe geprüft. Neue Wissen-Oberfläche
+geöffnet; es musste kein vorhandenes Benutzerfenster beendet werden.
