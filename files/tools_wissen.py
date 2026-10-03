@@ -22,7 +22,7 @@ class Wissen(ToolWindow):
         super().__init__('wissen','Lumen Wissen','Gedanken festhalten. Quellen verbinden. Zusammenhänge entdecken.','lumen-wissen',root)
         self.store=Store();records=self.library.all();self.current=records[0]['id'] if records else self.library.create('Wissen')
         self.book=None;self.notes={};self.doc=None;self.dirty=False;self.conflict=False;self.poller=None;self.after_job=None;self.closing=False;self.answer='';self.answer_sources=[];self.answer_question='';self.pending_file=''
-        self.area='user';self.pending_area=None
+        self.area='user';self.pending_area=None;self.writing=False
         self.area_choice=QComboBox();self.area_choice.addItem('Mein Bereich','user');self.area_choice.addItem('Lumen-Gedächtnis','lumen');self.area_choice.setAccessibleName('Wissensbereich');self.sidebar.layout().insertWidget(0,self.area_choice);self.area_choice.currentIndexChanged.connect(self.change_area)
         self.add_button.setText('Neue Notiz');self.search.setPlaceholderText('Notizen, Gedanken oder #Tags …')
         self.archived.hide();self.archive_button.setText('Notiz entfernen');self.archive_button.setEnabled(False)
@@ -65,6 +65,7 @@ class Wissen(ToolWindow):
         map_page=QWidget();ml=QVBoxLayout(map_page);ml.addWidget(label('Eine Notiz und ihre direkten Verbindungen · maximal 36 Nachbarn','muted'))
         self.map=KnowledgeMap();self.map.noteRequested.connect(lambda p:self.safe(self.open_note,p));ml.addWidget(self.map,1);self.tabs.addTab(map_page,'Wissenskarte');self.tabs.currentChanged.connect(self.tab_changed)
         self.draft_timer=QTimer(self);self.draft_timer.setSingleShot(True);self.draft_timer.setInterval(450);self.draft_timer.timeout.connect(lambda:self.safe(self.save))
+        self.autosave_timer=QTimer(self);self.autosave_timer.setSingleShot(True);self.autosave_timer.setInterval(1100);self.autosave_timer.timeout.connect(lambda:self.safe(self.save_note))
         self.poll_timer=QTimer(self);self.poll_timer.setInterval(5000);self.poll_timer.timeout.connect(self.poll);self.poll_timer.start()
         QShortcut(QKeySequence.Save,self,activated=lambda:self.safe(self.save_note));QShortcut(QKeySequence.New,self,activated=lambda:self.safe(self.create));QShortcut(QKeySequence('Ctrl+F'),self,activated=self.search.setFocus)
         self.editor.setEnabled(False);QTimer.singleShot(0,self.initialize)
@@ -128,11 +129,12 @@ class Wissen(ToolWindow):
         work=lambda job:memory.worker(job,self.store,special[action],**values) if self.area=='lumen' and action in special else data.worker(job,self.store,action,str(self.book.root),identity=self.book.identity,**values)
         self.work('Wissen · '+{'write':'Notiz speichern','read':'Notiz laden','create':'Notiz anlegen','remove':'Eintrag entfernen','add_image':'Bild kopieren','versions':'Verlauf laden','restore':'Version wiederherstellen'}.get(action,action)+' …',work,done)
     def job_finished(self):
-        super().job_finished();callback,self.after_job=self.after_job,None
+        self.writing=False;super().job_finished();callback,self.after_job=self.after_job,None
         if self.closing:QTimer.singleShot(0,self.close)
         elif self.pending_file:
             path,self.pending_file=self.pending_file,'';QTimer.singleShot(0,lambda:self.safe(self.open_file,path))
         elif callback:QTimer.singleShot(0,lambda:self.safe(callback))
+        elif self.dirty and not self.conflict:self.autosave_timer.start()
         elif self.views.currentIndex()==1 and self.doc and self.preview.note_hash!=self.doc['hash']:QTimer.singleShot(0,lambda:self.safe(self.prepare_preview))
     def job_failed(self,message):
         self.status.setText(message);self.banner.setText(message);self.banner.show();self.conflict=self.dirty;self.recovery.setVisible(self.dirty)
@@ -140,21 +142,36 @@ class Wissen(ToolWindow):
 
     def edited(self):
         if self.loading or not self.doc:return
-        self.dirty=True;self.draft_timer.start();self.status.setText('Ungespeichert · Entwurf wird lokal gesichert')
+        self.dirty=True;self.draft_timer.start();self.autosave_timer.start();self.status.setText('Wird automatisch gespeichert …')
+    def begin(self,text):
+        if self.writing:self.save();self.status.setText('Wird gespeichert …')
+        else:super().begin(text)
     def save(self):
         super().save();self.draft_timer.stop()
         if self.dirty and self.doc and self.book:
-            data.draft(self.store,self.book.root,self.doc['path'],self.editor.toPlainText(),self.doc['hash']);self.status.setText('Entwurf lokal gesichert · Strg+S speichert die Notiz')
+            data.draft(self.store,self.book.root,self.doc['path'],self.editor.toPlainText(),self.doc['hash'])
     def save_note(self,after=None):
-        if self.job:return
+        if self.job:
+            if after and self.writing:self.after_job=lambda:self.save_note(after)
+            return
+        if self.poller:
+            if after:self.pending_save=after
+            self.autosave_timer.start(200);return
+        after=after or getattr(self,'pending_save',None);self.pending_save=None
+        self.autosave_timer.stop()
         if not self.doc or not self.dirty:
             if after:after()
             return
         self.save()
         if self.conflict:self.recovery.show();self.banner.show();self.banner.setText('Externe Änderung: neu laden oder den Entwurf als Kopie speichern.');return
+        snapshot=self.editor.toPlainText()
         def done(note):
-            data.clear_draft(self.store,self.book.root,note['path']);self.show_note(note);self.status.setText('Notiz gespeichert.');self.after_job=after
-        self.action('write',done,path=self.doc['path'],text=self.editor.toPlainText(),expected=self.doc['hash'])
+            self.doc=note;self.notes[note['path']]=note;self.dirty=self.editor.toPlainText()!=snapshot
+            if self.dirty:self.save()
+            else:data.clear_draft(self.store,self.book.root,note['path'])
+            self.refresh();self.connections();self.status.setText('Weitere Änderungen werden gespeichert …' if self.dirty else 'Automatisch gespeichert')
+            if after:self.after_job=lambda:self.save_note(after)
+        self.writing=True;self.action('write',done,path=self.doc['path'],text=snapshot,expected=self.doc['hash'])
     def create(self):
         if self.dirty:self.save_note(self.create);return
         title,ok=QInputDialog.getText(self,'Neue Notiz','Titel')
@@ -352,8 +369,10 @@ class Wissen(ToolWindow):
         try:self.save()
         except (OSError,ValueError) as error:
             self.status.setText('Entwurf konnte nicht gesichert werden: '+str(error));event.ignore();self.closing=False;return
-        self.poll_timer.stop();self.closing=True
+        self.poll_timer.stop();self.autosave_timer.stop();self.closing=True
         if self.poller:self.poller.cancelled.set();event.ignore();return
-        if self.job:self.cancel();event.ignore();return
+        if self.job:
+            if not self.writing:self.cancel()
+            event.ignore();return
         if self.dirty and not self.conflict:self.save_note();event.ignore();return
         super().closeEvent(event)

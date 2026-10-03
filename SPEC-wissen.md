@@ -61,3 +61,27 @@ Befehle: `PYTHONPATH=files QT_QPA_PLATFORM=offscreen python3 -m unittest files/t
 `./packaging/arch/build-package.sh`, `./install.sh --no-timer --no-mcp`.
 Code folgt den vorhandenen ToolWindow/Library/Job-Konventionen; keine Änderung
 an aktiven Benutzersitzungen oder Cloud-Konten und keine persönlichen Beispieldaten.
+
+## Angenommener Bedienentwurf 1: Direktes Notizbuch
+
+Der Nutzer wählt „Direktes Notizbuch“: dauerhafte Navigation für persönliche
+Notizen und Gedächtnis, daneben Notizliste, rechts eine ruhige Schreibfläche.
+Keine große Einstiegsüberschrift, kein Bereichs-Dropdown und keine permanente
+Werkzeug-/Metadatenwand. Titel direkt bearbeiten, neue Notiz ohne Titeldialog,
+automatisch nach kurzer Schreibpause speichern. Vorhandene Ordner erscheinen
+als Sammlungen; keine künstlichen Beispielordner. Quellen, Verknüpfungen,
+Versionen, Gedächtnisoptionen, Vorschau, Karte und Fragen bleiben erreichbar.
+Freigabe privat/geteilt unmittelbar an der Notiz sichtbar und änderbar.
+
+Autosave verwendet die vorhandene atomare Hash-Prüfung und Entwurfssicherung.
+Während des Schreibens bleiben weitere Eingaben möglich; Rückmeldungen dürfen
+weder neueren Text noch Cursor/Undo ersetzen. Navigation und Schließen warten
+auf den Schreibvorgang. Bei Konflikten bleibt der lokale Entwurf erhalten.
+Markdown, Frontmatter, Herkunft und externe Verknüpfungen werden erhalten;
+eine Titeländerung benennt die Datei nicht ungefragt um.
+
+Abnahme: verzögerte Schreibvorgänge mit weiteren Eingaben, Wechsel/Schließen,
+externe Konflikte, Titel und Frontmatter, Bereichstrennung und Freigaben sowie
+native Darstellung in vier Themes bei 840/1180/1440 Pixeln. Bestehende Quellen-,
+Karten-, Vorschau- und Startprüfungen bleiben gültig. Paket38, Benutzerbundle,
+private Git-Quellen und Systemreferenz aktualisieren; keine persönlichen Daten.

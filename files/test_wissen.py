@@ -75,6 +75,34 @@ class WissenNativeTest(unittest.TestCase):
         from PyQt5.QtWidgets import QApplication
         cls.app=QApplication.instance() or QApplication([])
 
+    def test_autosave_keeps_newer_typing_cursor_and_close(self):
+        import threading
+        from unittest.mock import patch
+        from PyQt5.QtCore import QCoreApplication,QEvent
+        from PyQt5.QtTest import QTest
+        from tools_wissen import Wissen
+        import wissen_data
+        def wait(predicate):
+            for _ in range(300):
+                QTest.qWait(20)
+                if predicate():return
+            self.fail('Autosave did not finish')
+        with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,{'LUMEN_DATA':tmp+'/state'}):
+            window=Wissen(Path(tmp)/'tools');window.show();wait(lambda:window.book and not window.job and not window.poller)
+            window.action('create',window.show_note,title='Autosave',text='Erster Gedanke');wait(lambda:window.doc and not window.job)
+            path=window.doc['path'];entered=threading.Event();release=threading.Event();original=wissen_data.worker
+            def slow(job,store,action,*args,**kwargs):
+                if action=='write':entered.set();release.wait(3)
+                return original(job,store,action,*args,**kwargs)
+            with patch.object(wissen_data,'worker',side_effect=slow):
+                window.editor.appendPlainText('Erste Ergänzung');wait(entered.is_set)
+                self.assertTrue(window.editor.isEnabled());window.editor.insertPlainText(' und während des Speicherns weitergeschrieben')
+                position=window.editor.textCursor().position();release.set();wait(lambda:not window.job and not window.dirty)
+            self.assertIn('während des Speicherns',window.book.read(path)['text']);self.assertEqual(window.editor.textCursor().position(),position)
+            window.editor.appendPlainText('Beim Schließen ebenfalls erhalten');window.close();wait(lambda:not window.isVisible() and not window.job)
+            self.assertIn('Beim Schließen ebenfalls erhalten',window.book.read(path)['text']);self.assertIsNone(draft(window.store,window.book.root,path))
+            window.deleteLater();QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
+
     def test_explicit_mail_selection_capture(self):
         from unittest.mock import patch
         from PyQt5.QtCore import QCoreApplication,QEvent
