@@ -81,4 +81,15 @@ Konten und Sicherungspläne bleiben benutzergeführt; keine echten Mails versend
 - [x] Reader: Import, Seiten/Text, Fortschritt, Markierungen/Notizen, Vorlesen/Wissen.
 - [x] Sound: Stream-Mixer, Ausgänge, gespeicherte App-Regeln und Gesprächsabsenkung.
 - [x] Reale Dokument- und isolierte Audiotests, native Oberflächen und Starter.
-- [ ] Paket, Benutzerinstallation, portable Git-Quellen und private Referenz.
+- [x] Paket, Benutzerinstallation, portable Git-Quellen und private Referenz.
+
+Verifiziert: 162 Python-Prüfungen (161 bestanden, ein optionaler Kalendercheck
+übersprungen), 12 QML-Prüfungen, reale PDF-/EPUB-/HTML-Verarbeitung und Piper-
+Synthese. Private PipeWire-Sitzung: Routing, Stumm, Regeln, Gesprächsabsenkung,
+Wiederherstellung und manuelle Änderungen. Native Sound-Bedienung einschließlich
+Tastatur geprüft; acht installierte Starter kalt/warm, Reader-Dateiübergabe und
+frische virtuelle Plasma-Installation erfolgreich. Ein verzögerter Offline-
+Abgleich nach Fensterschluss wurde mit Regressionstest korrigiert.
+Paket 1.2.0-35 gebaut und Laufzeitquellen verglichen; Benutzerbundle mit Sicherung
+aktualisiert. Sound-Automatik bleibt aus. Laufende Benutzerfenster und
+Desktop-Konfiguration bleiben erhalten; private Daten/Testprofile bleiben lokal.
