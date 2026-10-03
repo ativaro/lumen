@@ -9,3 +9,7 @@
 5. Move installation to the README opening, document verified access constraints,
    explain licensing choices, and apply only an explicitly selected license plan.
 6. Review distributable files, commit and push, verify remote main and private docs.
+
+# Interoperability (user-approved 2026-10-03)
+
+Implement the numbered cross-app scenarios in vertical slices, following docs/interop/CONTRACT.md. Shared references/dispatch precede independent source/destination, backup, and audio work. Integrate each completed path into native menus, test against temporary stores, then verify cold/warm launch and update the installed user runtime. Track exact requirement evidence in docs/interop/COVERAGE.md, rather than counting generic actions as finished workflows.

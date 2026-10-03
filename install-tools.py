@@ -37,6 +37,12 @@ def install(repo, data, binaries):
         writes[data/'applications'/f'{name}.desktop'] = (desktop+f'X-{MARKER}=true\n', 0o644)
         icon = (repo/'icons/hicolor/scalable/apps'/f'{name}.svg').read_text()
         writes[data/'icons/hicolor/scalable/apps'/f'{name}.svg'] = (icon+f'<!-- {MARKER} -->\n', 0o644)
+    binary=binaries/'lumen-open'
+    writes[binary]=('#!/bin/sh\n# '+MARKER+'\n'
+                   'if [ -x /usr/bin/lumen-open ]; then exec /usr/bin/lumen-open "$@"; fi\n'
+                   f'exec /usr/bin/python3 {shlex.quote(str(runtime/"interop_open.py"))} "$@"\n',0o755)
+    desktop=(repo/'data/applications/lumen-open.desktop').read_text().replace('%INSTALL_BIN%/lumen-open',f'"{binary}"')
+    writes[data/'applications/lumen-open.desktop']=(desktop+f'X-{MARKER}=true\n',0o644)
     # Complete preflight before writing; leave unrelated/custom launchers intact.
     for path, (content, mode) in writes.items():
         if path.is_symlink() or (path.exists() and (not path.is_file() or MARKER not in path.read_text())):

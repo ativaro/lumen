@@ -9,23 +9,28 @@ from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import (QLineEdit, QPlainTextEdit, QListWidget, QListWidgetItem,
     QInputDialog, QFileDialog, QTabWidget, QWidget, QVBoxLayout, QSplitter, QSpinBox)
-from tools_data import document_text, fetch_article, selected_sources, parse_answer, synthesize, web_url
+from tools_data import document_text, fetch_article, selected_sources, parse_answer, web_url
 from tools_ui import ToolWindow, AudioPlayer, button, label, row
 
 
 def radio_result(answer, sources):
     value=parse_answer(answer); sections=value.get('sections')
     if not isinstance(sections,list) or not sections or len(sections)>50: raise ValueError(tr('Die KI hat kein geeignetes Hörskript geliefert.'))
-    lines=[]; used=[]
+    lines=[]; used=[]; mapped=[]; offset=0
     for section in sections:
         if not isinstance(section,dict): raise ValueError(tr('Ungültiger Abschnitt.'))
         index=section.get('source'); text=section.get('text')
         if not isinstance(index,int) or not 0<=index<len(sources) or not isinstance(text,str) or not text.strip(): raise ValueError(tr('Abschnitt ohne gültige Quelle.'))
-        lines.append(sources[index]['title']+'.\n'+text.strip())
+        line=sources[index]['title']+'.\n'+text.strip();lines.append(line)
+        length=len(line.encode('utf-16-le'))//2
+        mapped.append(dict(start=offset,end=offset+length,title=sources[index]['title'],url=sources[index].get('url','')));offset+=length+2
         if index not in used: used.append(index)
     script='\n\n'.join(lines)
     if len(script)>24000: raise ValueError(tr('Hörskript zu lang. Eine kürzere Ausgabe anfordern.'))
-    return dict(script=script,edition_sources=[dict(title=sources[i]['title'],url=sources[i].get('url','')) for i in used])
+    result=dict(script=script,edition_sources=[dict(title=sources[i]['title'],url=sources[i].get('url','')) for i in used],edition_sections=mapped,edition_script_hash=hashlib.sha256(script.encode()).hexdigest())
+    from interop_radio_audio import source_sections
+    result['source_sections']=source_sections(result)
+    return result
 
 
 class Radio(ToolWindow):
@@ -148,10 +153,11 @@ class Radio(ToolWindow):
         self.ai(prompt,done)
 
     def render(self):
+        from interop_radio_audio import synthesize_radio
         self.save(); key=self.current; r=self.library.get(key); script=r.get('script',''); self.player.stop()
         def done(value):
             self.library.update(key,**value,audio_hash=hashlib.sha256(script.encode()).hexdigest()); self.focus_record(key)
-        self.work(tr('Die lokale Stimme spricht deine Ausgabe ein …'),lambda job:synthesize(script,self.library,job),done)
+        self.work(tr('Die lokale Stimme spricht deine Ausgabe ein …'),lambda job:synthesize_radio(r,self.library,job),done)
 
     def export(self):
         self.save(); r=self.library.get(self.current)

@@ -33,12 +33,16 @@ class Workbench(ToolWindow):
         self.tabs.addTab(resources,tr('Material'))
         self.content.addWidget(button(tr('Projektübersicht exportieren'),lambda:self.safe(self.export),'document-export'))
         self.body.setEnabled(False); self.refresh()
+        from interop_workflow_ui import install_menu
+        install_menu(self)
 
     def create(self):
         title,ok=QInputDialog.getText(self,tr('Neues Projekt'),tr('Projektname'))
         if ok and title.strip(): self.save(); self.focus_record(self.library.create(title,notes='',questions=[],resources=[]))
 
     def load(self,r):
+        from interop_paths import update_window
+        self.interop_path_revision=r.get('interop_path_revision',0)
         self.title.setText(r['title']); self.notes.setPlainText(r.get('notes','')); self.questions.clear(); self.resources.clear()
         for q in r.get('questions',[]):
             item=QListWidgetItem(q['text']); item.setFlags(item.flags()|Qt.ItemIsEditable|Qt.ItemIsUserCheckable)
@@ -46,13 +50,16 @@ class Workbench(ToolWindow):
         for resource in r.get('resources',[]):
             item=QListWidgetItem(resource['title']+'\n'+resource['target']); item.setData(Qt.UserRole,resource); self.resources.addItem(item)
         self.question.setText(r.get('question_draft','')); self.status.setText(tr('Änderungen werden automatisch gespeichert · Dateien bleiben an ihrem Ort'))
+        update_window(self)
 
     def save(self):
         super().save()
         if not self.current or self.loading: return
+        from interop_paths import update_window
+        update_window(self)
         questions=[dict(text=self.questions.item(i).text(),done=self.questions.item(i).checkState()==Qt.Checked) for i in range(self.questions.count())]
         resources=[self.resources.item(i).data(Qt.UserRole) for i in range(self.resources.count())]
-        self.library.update(self.current,title=self.title.text(),notes=self.notes.toPlainText(),questions=questions,resources=resources,question_draft=self.question.text())
+        self.library.update(self.current,title=self.title.text(),notes=self.notes.toPlainText(),questions=questions,resources=resources,question_draft=self.question.text(),interop_path_revision=self.interop_path_revision)
         self.status.setText(tr('Lokal gespeichert')); self.refresh()
 
     def add_question(self):
@@ -66,6 +73,8 @@ class Workbench(ToolWindow):
         if i>=0: self.questions.takeItem(i); self.save()
 
     def add_resource(self,kind,target,title):
+        from interop_paths import update_window
+        update_window(self)
         if any(self.resources.item(i).data(Qt.UserRole)['target']==target for i in range(self.resources.count())): return
         item=QListWidgetItem(title+'\n'+target); item.setData(Qt.UserRole,dict(kind=kind,target=target,title=title)); self.resources.addItem(item); self.save()
 
@@ -83,9 +92,15 @@ class Workbench(ToolWindow):
             address=web_url(value); self.add_resource('url',address,QUrl(address).host())
 
     def open_resource(self):
+        from interop_paths import update_window
+        update_window(self)
         item=self.resources.currentItem()
         if not item: return
         value=item.data(Qt.UserRole)
+        if value['target'].startswith('lumen:'):
+            from interop_open import open_url
+            open_url(value['target'],self.library.root.parent)
+            return
         if value['kind']=='file': open_path(value['target'])
         elif not QDesktopServices.openUrl(QUrl(web_url(value['target']))): raise ValueError(tr('Browser konnte nicht geöffnet werden.'))
 

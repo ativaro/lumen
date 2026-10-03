@@ -77,6 +77,10 @@ class NotePreview(QTextBrowser):
         if url.scheme() in ('https','http'):
             from PyQt5.QtGui import QDesktopServices
             QDesktopServices.openUrl(url);return
+        if url.scheme()=='lumen':
+            from interop_open import open_url
+            from interop_ui import safe_action
+            safe_action(self.window(),lambda:open_url(url.toString(),getattr(self,'interop_root',None)));return
         if url.isLocalFile() and self.book:
             try:path=str(Path(url.toLocalFile()).relative_to(self.book.root))
             except ValueError:return
@@ -92,15 +96,17 @@ class GraphNode(QGraphicsEllipseItem):
         self.setBrush(QBrush(view.palette().highlight().color() if center else view.palette().mid().color()));self.setPen(QPen(Qt.NoPen));self.setCursor(Qt.PointingHandCursor)
         label=QGraphicsSimpleTextItem(note['title'][:32],self);label.setBrush(view.palette().text());label.setPos(-label.boundingRect().width()/2,radius+9)
         self.setToolTip(note['title']+'\n'+path)
-    def mousePressEvent(self,event):self.view.noteRequested.emit(self.path);event.accept()
+    def mousePressEvent(self,event):
+        (self.view.objectRequested if self.path.startswith('lumen://') else self.view.noteRequested).emit(self.path);event.accept()
 
 
 class KnowledgeMap(QGraphicsView):
     noteRequested=pyqtSignal(str)
+    objectRequested=pyqtSignal(str)
     def __init__(self):
         super().__init__();self.setScene(QGraphicsScene(self));self.setRenderHints(self.renderHints()|QPainter.Antialiasing)
         self.setDragMode(QGraphicsView.ScrollHandDrag);self.setAccessibleName(tr('Wissenskarte; dieselben Verbindungen sind in der Notizliste per Tastatur erreichbar'))
-    def display(self,notes,current):
+    def display(self,notes,current,external=()):
         scene=self.scene();scene.clear()
         if not notes:return
         current=current if current in notes else next(iter(notes));edges=set()
@@ -108,12 +114,15 @@ class KnowledgeMap(QGraphicsView):
             for link in note['links']:
                 target=resolve_link(path,link,notes)
                 if target and target!=path:edges.add((path,target))
+        nodes=dict(notes)
+        for value in external:
+            target=value['url'];nodes[target]=dict(title=value['app_title']+' · '+value['title']);edges.add((current,target))
         neighbors=sorted({b if a==current else a for a,b in edges if current in (a,b)})[:36]
         positions={current:(0,0)}
         for i,path in enumerate(neighbors):
             angle=i*math.tau/max(1,len(neighbors));positions[path]=(math.cos(angle)*340,math.sin(angle)*250)
         for a,b in edges:
             if a in positions and b in positions:scene.addLine(*positions[a],*positions[b],QPen(self.palette().mid().color(),1.3))
-        for path,(x,y) in positions.items():scene.addItem(GraphNode(path,notes[path],x,y,self,path==current))
+        for path,(x,y) in positions.items():scene.addItem(GraphNode(path,nodes[path],x,y,self,path==current))
         scene.setSceneRect(scene.itemsBoundingRect().adjusted(-50,-50,50,50));self.fitInView(scene.sceneRect(),Qt.KeepAspectRatio)
     def resizeEvent(self,event):super().resizeEvent(event);self.fitInView(self.sceneRect(),Qt.KeepAspectRatio)

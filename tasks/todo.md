@@ -221,3 +221,14 @@ Private GitHub main updated and visibility verified. README begins with the
 working authenticated clone/local-bootstrap route, tested without public download.
 Current LICENSE remains MIT; LICENSE-PLAN.md records the proposed noncommercial
 and separately agreed commercial model, including unresolved PyQt constraints.
+
+## Lumen interoperability
+
+- [x] Shared reference/dispatch/history contract, validation and replay tests.
+- [x] Files context actions and native source capture.
+- [x] Target adapters, review and cold/warm delivery.
+- [x] Wissen/Vault and application-aware backup paths.
+- [x] Cross-app links, backlinks, tags, search, object activation.
+- [x] Project, calendar, mail, reading and meeting specialized workflows.
+- [x] Audio identity, interruption and routing.
+- [ ] Requirement-by-requirement acceptance, complete isolated suite, bilingual native checks and local installation.

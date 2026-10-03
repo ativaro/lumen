@@ -63,7 +63,7 @@ class Reader(ToolWindow):
         super().__init__('reader',tr('Lumen Reader'),tr('Zeit zum Lesen. Deine Bücher, Gedanken und Fundstellen.'),'lumen-reader',root)
         self.add_button.setText(tr('Buch oder Dokument öffnen'));self.search.setPlaceholderText(tr('In meiner Bibliothek …'))
         self.sidebar.layout().insertWidget(2,button(tr('Artikel speichern'),lambda:self.safe(self.add_article),'internet-web-browser'))
-        self.data=None;self.page_index=0;self.note_id='';self.passwords={};self.pending=[];self.restore_scroll=0;self.audio_asset=''
+        self.data=None;self.page_index=0;self.note_id='';self.passwords={};self.pending=[];self.restore_scroll=0;self.audio_asset='';self.pending_position={}
         self.title=label(tr('Deine nächste gute Lektüre'),'heading');self.content.addWidget(self.title)
         self.origin=label(tr('PDFs, EPUBs und Artikel hinzufügen. Lesestand und Gedanken bleiben lokal.'),'muted');self.content.addWidget(self.origin)
         self.page_number=QSpinBox();self.page_number.setRange(1,1);self.page_number.setAccessibleName(tr('Seite'));self.page_number.editingFinished.connect(lambda:self.goto(self.page_number.value()-1))
@@ -100,6 +100,14 @@ class Reader(ToolWindow):
         self.player=AudioPlayer();self.content.addWidget(self.player);self.player.hide()
         self.scroll.verticalScrollBar().valueChanged.connect(self.edited);self.text.verticalScrollBar().valueChanged.connect(self.edited)
         self.body.setEnabled(False);self.refresh()
+        actions=self.menuBar().addMenu(tr('Dokument & Fundstellen'))
+        actions.addAction(tr('Original prüfen und Lesekopie aktualisieren'),lambda:self.safe(self.refresh_original))
+        actions.addAction(tr('Text dieser Seite lokal erkennen'),lambda:self.safe(self.ocr_current))
+        actions.addSeparator()
+        actions.addAction(tr('Markierungen dieses Kapitels an Lumen übergeben'),lambda:self.safe(self.send_marks,True))
+        actions.addAction(tr('Alle Markierungen an Lumen übergeben'),lambda:self.safe(self.send_marks,False))
+        from interop_reader import send_book_marks
+        actions.addAction(tr('Markierungen mehrerer Dokumente an Lumen Persönliches Radio'),lambda:self.safe(send_book_marks,self))
 
     def create(self):
         path,_=QFileDialog.getOpenFileName(self,tr('Buch oder Dokument öffnen'),str(Path.home()),tr('Lesbare Dokumente (*.pdf *.epub *.txt *.md *.html *.htm)'))
@@ -136,6 +144,17 @@ class Reader(ToolWindow):
         if not 0<=index<self.library.get(self.current).get('pages',1):return
         self.safe(self.save);self.player.stop();self.clear_audio();self.page_index=index;self.restore_scroll=0;self.render_page()
 
+    def focus_position(self,position):
+        record=self.library.get(self.current);page=position.get('page',record.get('page',0));note=position.get('note','')
+        if note:
+            selected=next((n for n in record.get('notes',[]) if n['id']==note),None)
+            if selected is None:raise ValueError(tr('Die verknüpfte Markierung ist nicht mehr vorhanden.'))
+            page=selected['page']
+        if not 0<=page<record.get('pages',1):raise ValueError(tr('Die verknüpfte Seite ist nicht mehr verfügbar.'))
+        self.page_index=page;self.restore_scroll=0
+        self.pending_position=dict(position)
+        if note:self.refresh_notes(note);self.tabs.setCurrentIndex(0);self.rail.show()
+
     def render_page(self):
         if not self.current:return
         key=self.current;record=self.library.get(key);index=self.page_index
@@ -149,12 +168,25 @@ class Reader(ToolWindow):
                 self.data=data;self.library.update(key,pages=data['pages'],toc=data['toc'],locked=False)
                 self.page_number.setRange(1,data['pages']);self.page_number.setValue(index+1);self.page_count.setText(tr('von ')+str(data['pages']))
                 marks=[n for n in self.library.get(key).get('notes',[]) if n['page']==index]
-                self.canvas.load(data,marks,self.effective_zoom());self.text.setPlainText(data['text']);self.highlight_text(marks)
+                self.canvas.load(data,marks,self.effective_zoom())
+                ocr=self.library.get(key).get('ocr_text',{}).get(str(index))
+                if ocr:data['text']=ocr
+                self.text.setPlainText(data['text']);self.highlight_text(marks)
                 self.toc.clear()
                 for level,title,page in data['toc']:
                     item=QListWidgetItem('  '*(min(level,8)-1)+title);item.setData(Qt.UserRole,max(0,page-1));self.toc.addItem(item)
                 self.status.setText(tr('Seite ')+str(index+1)+' · '+(tr('Text auswählen, um zu markieren oder vorzulesen') if data['text'].strip() else tr('Bildseite ohne Textschicht')))
             finally:self.loading=False
+            position=self.pending_position;self.pending_position={}
+            if 'start' in position:
+                from interop_open import focus_text
+                self.mode.setCurrentIndex(1);self.safe(focus_text,self.text,position)
+            elif position.get('part','').startswith('words:'):
+                from interop_open import _index
+                parts=position['part'].split(':')
+                if len(parts)==3:
+                    try:self.canvas.first=_index(parts[1],len(self.canvas.words));self.canvas.last=_index(parts[2],len(self.canvas.words));self.canvas.update()
+                    except ValueError as error:self.error(str(error))
             value=self.restore_scroll;QTimer.singleShot(0,lambda:self.restore_position(value));self.restore_scroll=0
         self.work(tr('Seite wird geladen …'),lambda job:reader.worker(job,'page',self.library.asset(record['asset']),page=index,password=self.passwords.get(key,''),stamp=record['stamp']),done)
 
@@ -240,11 +272,42 @@ class Reader(ToolWindow):
         if not self.data:raise ValueError(tr('Das Buch zuerst öffnen beziehungsweise entsperren.'))
         record=self.library.get(self.current);key=self.current;query=self.book_search.text()
         def done(hits):
+            from interop_reader import search_ocr
+            by_page={hit['page']:hit for hit in hits}
+            by_page.update({hit['page']:hit for hit in search_ocr(record,query)})
+            hits=[by_page[page] for page in sorted(by_page)][:100]
             self.hits.clear()
             for hit in hits:
                 item=QListWidgetItem(tr('S. ')+str(hit['page']+1)+' · '+hit['text']);item.setData(Qt.UserRole,hit['page']);self.hits.addItem(item)
             self.tabs.setCurrentIndex(2);self.rail.show();self.status.setText(str(len(hits))+tr(' Trefferseiten (maximal 100)'))
         self.work(tr('Buch wird durchsucht …'),lambda job:reader.worker(job,'search',self.library.asset(record['asset']),query=query,password=self.passwords.get(key,''),stamp=record['stamp']),done)
+
+    def send_marks(self,chapter=False):
+        if not self.current:raise ValueError(tr('Zuerst ein Dokument öffnen.'))
+        if self.job:raise ValueError(tr('Bitte den laufenden Vorgang abwarten.'))
+        from interop_reader import marks_payload
+        from interop_ui import reviewed_send
+        self.save();reviewed_send(self,marks_payload(self.library,self.current,chapter))
+
+    def refresh_original(self):
+        if not self.current:raise ValueError(tr('Zuerst ein Dokument öffnen.'))
+        from interop_reader import compare_original,refresh_original
+        self.save();key=self.current
+        def reviewed(status):
+            def update():
+                if not status['changed']:self.status.setText(tr('Die Lesekopie entspricht dem Original.'));return
+                if QMessageBox.question(self,tr('Lesekopie aktualisieren'),tr('Die Originaldatei hat sich geändert. Aktualisieren, wenn Lesestand und alle Markierungen eindeutig zugeordnet werden können?'))!=QMessageBox.Yes:return
+                self.work(tr('Seiten und Markierungen werden abgeglichen …'),lambda job:refresh_original(self.library,key,job,self.passwords.get(key,'')),lambda _:self.open_imported(key))
+            QTimer.singleShot(0,update)
+        self.work(tr('Original und Lesekopie werden verglichen …'),lambda job:compare_original(self.library,key,job),reviewed)
+
+    def ocr_current(self):
+        if not self.current or not self.data:raise ValueError(tr('Zuerst eine lesbare Seite öffnen.'))
+        from interop_reader import ocr_page
+        self.save();key=self.current;page=self.page_index
+        def done(text):
+            self.mode.setCurrentIndex(1);QTimer.singleShot(0,self.render_page)
+        self.work(tr('Text dieser Seite wird lokal erkannt …'),lambda job:ocr_page(self.library,key,page,job,self.passwords.get(key,'')),done)
 
     def speak(self):
         if not self.data:return

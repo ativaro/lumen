@@ -131,6 +131,7 @@ subst "$REPO/data/applications/lumen-ask-sel.desktop" > "$DATA_HOME/applications
 subst "$REPO/data/applications/lumen-vision.desktop" > "$DATA_HOME/applications/lumen-vision.desktop"
 subst "$REPO/data/applications/lumen-sel.desktop" > "$DATA_HOME/applications/lumen-sel.desktop"
 subst "$REPO/data/applications/lumen-files.desktop" > "$DATA_HOME/applications/lumen-files.desktop"
+subst "$REPO/data/applications/lumen-open.desktop" > "$DATA_HOME/applications/lumen-open.desktop"
 for tool in meetings household workbench radio vault inbox reader sound wissen; do
     subst "$REPO/data/applications/lumen-$tool.desktop" > "$DATA_HOME/applications/lumen-$tool.desktop"
 done

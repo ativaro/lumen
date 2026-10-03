@@ -98,6 +98,7 @@ class AudioPlayer(QFrame):
         self.seek.sliderReleased.connect(lambda: self.play_at(self.seek.value()))
         self.time = label('00:00:00 / 00:00:00', 'muted')
         layout = QHBoxLayout(self); layout.setContentsMargins(12,4,12,4); layout.addWidget(self.play_button); layout.addWidget(self.seek,1); layout.addWidget(self.time)
+        self.audio_options = button(tr('Audioausgabe'), self.configure_audio, 'audio-volume-high'); layout.addWidget(self.audio_options)
         self.timer = QTimer(self); self.timer.setInterval(150); self.timer.timeout.connect(self.tick)
         self.setEnabled(False)
 
@@ -106,10 +107,13 @@ class AudioPlayer(QFrame):
         self.position = 0; self.seek.setRange(0, self.duration); self.setEnabled(bool(path)); self.tick()
 
     def stop(self):
+        if hasattr(self, '_lumen_audio'): self._lumen_audio.stop()
         self.timer.stop()
         if self.proc:
             proc, self.proc = self.proc, None
-            if self.paused and proc.processId(): os.kill(proc.processId(), signal.SIGCONT)
+            if self.paused and proc.processId():
+                try: os.kill(proc.processId(), signal.SIGCONT)
+                except ProcessLookupError: pass
             proc.terminate()
             if not proc.waitForFinished(600): proc.kill(); proc.waitForFinished(600)
             proc.deleteLater()
@@ -118,8 +122,17 @@ class AudioPlayer(QFrame):
     def play_at(self, position=0):
         self.stop()
         if not self.path: return
+        from interop_audio import controller
+        control = controller(self)
+        if control: control.start(lambda: self.start_playback(position))
+        else: self.start_playback(position)
+
+    def start_playback(self, position):
         self.position = max(0, min(int(position), self.duration)); self.start_position = self.position
         self.started = time.monotonic(); proc = worker_process(self); self.proc = proc
+        if hasattr(self, '_lumen_audio'):
+            from interop_audio import playback_environment
+            proc.setProcessEnvironment(playback_environment(proc.processEnvironment(), self._lumen_audio.app, self._lumen_audio.prefs))
         proc.setProcessChannelMode(QProcess.MergedChannels)
         proc.errorOccurred.connect(lambda *_: self.playback_error(proc))
         proc.finished.connect(lambda code, _status: self.ended(proc, code))
@@ -132,6 +145,7 @@ class AudioPlayer(QFrame):
 
     def ended(self, proc, code):
         if self.proc is not proc: return
+        if hasattr(self, '_lumen_audio'): self._lumen_audio.stop()
         self.proc = None; self.timer.stop(); self.paused = False; self.play_button.setText(tr('Abspielen'))
         self.position = 0; self.tick()
         if code: self.time.setText(tr('Audiodatei konnte nicht abgespielt werden.'))
@@ -139,13 +153,31 @@ class AudioPlayer(QFrame):
 
     def toggle(self):
         if not self.proc: self.play_at(self.position); return
+        control = getattr(self, '_lumen_audio', None)
+        if control: control.manual()
+        if self.paused:
+            if control: control.start(lambda: self.set_paused(False))
+            else: self.set_paused(False)
+        else:
+            self.set_paused(True)
+            if control: control.stop()
+
+    def set_paused(self, paused):
+        if not self.proc or self.paused == paused: return
         pid = self.proc.processId()
         if not pid: return
-        if self.paused:
-            os.kill(pid, signal.SIGCONT); self.started = time.monotonic(); self.start_position = self.position
+        try: os.kill(pid, signal.SIGSTOP if paused else signal.SIGCONT)
+        except ProcessLookupError:
+            self.stop(); return
+        if not paused:
+            self.started = time.monotonic(); self.start_position = self.position
             self.paused = False; self.timer.start(); self.play_button.setText(tr('Pause'))
         else:
-            self.tick(); os.kill(pid, signal.SIGSTOP); self.paused = True; self.timer.stop(); self.play_button.setText(tr('Fortsetzen'))
+            self.tick(); self.paused = True; self.timer.stop(); self.play_button.setText(tr('Fortsetzen'))
+
+    def configure_audio(self):
+        from interop_audio import options
+        options(self)
 
     def tick(self):
         if self.proc and not self.paused: self.position = min(self.duration, self.start_position+int((time.monotonic()-self.started)*1000))
@@ -154,6 +186,7 @@ class AudioPlayer(QFrame):
 
 
 class ToolWindow(QMainWindow):
+    operation_failed=pyqtSignal(str)
     def __init__(self, name, title, tagline, icon, root=None):
         super().__init__(); self.name = name; self.library = Library(name, root); self.current = ''; self.loading = False
         self.job = None; self.engine = None; self.ai_callback = None
@@ -184,6 +217,11 @@ class ToolWindow(QMainWindow):
         outer.addWidget(row(self.status, self.progress, self.cancel_button))
         self.save_timer = QTimer(self); self.save_timer.setSingleShot(True); self.save_timer.setInterval(450)
         self.save_timer.timeout.connect(lambda: self.safe(self.save))
+        from interop_ui import install
+        self.interop_install_timer = QTimer(self)
+        self.interop_install_timer.setSingleShot(True)
+        self.interop_install_timer.timeout.connect(lambda: install(self))
+        self.interop_install_timer.start(0)
 
     def safe(self, callback, *args):
         try: return callback(*args)
@@ -240,12 +278,22 @@ class ToolWindow(QMainWindow):
     def end(self):
         self.sidebar.setEnabled(True); self.body.setEnabled(bool(self.current)); self.progress.hide(); self.cancel_button.hide()
 
-    def work(self, text, function, done):
-        if self.job or (self.engine and self.engine.busy): return
+    def work(self, text, function, done, failed=None, finished=None):
+        if self.job or (self.engine and self.engine.busy): return False
         self.begin(text); self.job = Job(function, self)
-        self.job.result.connect(lambda value: self.safe(done, value)); self.job.failed.connect(self.job_failed)
+        def completed(value):
+            try:done(value)
+            except Exception as exc:
+                self.operation_failed.emit(str(exc));self.error(str(exc))
+        self.job.result.connect(completed)
+        self.job.failed.connect(self.operation_failed.emit)
+        if failed: self.job.failed.connect(lambda message: self.safe(failed, message))
+        self.job.failed.connect(self.job_failed)
         self.job.progress.connect(self.status.setText)
-        self.job.finished.connect(self.job_finished); self.job.start()
+        self.job.finished.connect(self.job_finished)
+        if finished: self.job.finished.connect(lambda: self.safe(finished))
+        self.job.start()
+        return True
 
     def job_failed(self, message):
         if message == 'Abgebrochen': self.status.setText(tr('Abgebrochen'))

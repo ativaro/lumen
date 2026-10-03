@@ -50,6 +50,9 @@ class Library:
     def create(self, title, **data):
         title = title.strip()
         if not title: raise ValueError(tr('Bitte einen Namen angeben.'))
+        if self.root.name=='workbench':
+            from interop_paths import revision
+            data.setdefault('interop_path_revision',revision(self.root.parent))
         key = uuid.uuid4().hex
         with self.connect() as db:
             db.execute('INSERT INTO records VALUES (?,?,?,?,?)', (key, title, json.dumps(data), 0, time.time()))

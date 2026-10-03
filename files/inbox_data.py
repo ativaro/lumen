@@ -42,6 +42,7 @@ def store(root=None):
             PRIMARY KEY(account,folder,validity,uid));
             CREATE TABLE IF NOT EXISTS drafts(id TEXT PRIMARY KEY, account TEXT, data TEXT, status TEXT);
             CREATE TABLE IF NOT EXISTS tasks(id TEXT PRIMARY KEY, title TEXT, due TEXT, source TEXT, done INTEGER DEFAULT 0);
+            CREATE TABLE IF NOT EXISTS interop_task_details(task TEXT PRIMARY KEY,body TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS calendar_cache(account TEXT, uid TEXT, data TEXT, PRIMARY KEY(account,uid));''')
     return library
 
@@ -205,10 +206,48 @@ def save_draft(library,account,values,identity=None):
     if len(allowed['body'])>120000:raise ValueError(tr('Entwurf zu lang.'))
     identity=identity or uuid.uuid4().hex
     with library.connect() as db:
-        row=db.execute('SELECT status FROM drafts WHERE id=?',(identity,)).fetchone()
+        row=db.execute('SELECT status,data FROM drafts WHERE id=?',(identity,)).fetchone()
         if row and row['status']!='draft':raise ValueError(tr('Bereits versandten oder unklaren Entwurf zuerst als neuen Entwurf kopieren.'))
+        previous=json.loads(row['data']) if row else {}
+        allowed['formatted']=bool(values.get('formatted',previous.get('formatted',False)))
+        attachments=values.get('attachments',previous.get('attachments',[]))
+        allowed['attachments']=draft_attachments(library,attachments)
+        for key in ('interop_sources','interop_token'):
+            if key in previous:allowed[key]=previous[key]
         db.execute('INSERT OR REPLACE INTO drafts VALUES (?,?,?,?)',(identity,account,json.dumps(allowed),'draft'))
     return identity
+
+
+def draft_html(text):
+    """Small, escaped mail formatting subset: headings, lists and paragraphs."""
+    import html,re
+    lines=[];in_list=False
+    for raw in text.splitlines():
+        line=html.escape(raw);heading=re.match(r'^(#{1,6})\s+(.*)$',line)
+        bullet=re.match(r'^\s*[-*]\s+(.*)$',line)
+        if in_list and not bullet:lines.append('</ul>');in_list=False
+        if bullet:
+            if not in_list:lines.append('<ul>');in_list=True
+            lines.append('<li>'+bullet[1]+'</li>')
+        elif heading:lines.append('<h'+str(len(heading[1]))+'>'+heading[2]+'</h'+str(len(heading[1]))+'>')
+        elif line.strip():lines.append('<p>'+line+'</p>')
+    if in_list:lines.append('</ul>')
+    return '<html><body>'+''.join(lines)+'</body></html>'
+
+
+def draft_attachments(library,attachments):
+    if not isinstance(attachments,list) or len(attachments)>100:raise ValueError(tr('Ungültige Entwurfsanhänge.'))
+    result=[];total=0
+    for item in attachments:
+        if not isinstance(item,dict) or not isinstance(item.get('asset'),str) or not isinstance(item.get('name'),str):raise ValueError(tr('Ungültiger Entwurfsanhang.'))
+        path=library.asset(item['asset'])
+        if path.is_symlink() or not path.is_file():raise ValueError(tr('Ein Entwurfsanhang fehlt.'))
+        total+=path.stat().st_size
+        if total>12*1024**2:raise ValueError(tr('Anhänge zusammen größer als 12 MiB.'))
+        name=Path(item['name'].replace('\\','/')).name
+        if not name or any(c in name for c in '\r\n\0'):raise ValueError(tr('Ungültiger Anhangname.'))
+        result.append(dict(asset=item['asset'],name=name))
+    return result
 
 
 def send_draft(library,identity,job):
@@ -225,7 +264,14 @@ def send_draft(library,identity,job):
         message=EmailMessage();message['From']=sender;message['To']=', '.join(recipients);message['Subject']=values['subject']
         message['Date']=formatdate(localtime=True);message['Message-ID']=make_msgid()
         if values['reply_to']:message['In-Reply-To']=values['reply_to'];message['References']=values['reply_to']
-        message.set_content(values['body']);db.execute("UPDATE drafts SET status='sending' WHERE id=?",(identity,))
+        message.set_content(values['body'])
+        if values.get('formatted'):message.add_alternative(draft_html(values['body']),subtype='html')
+        for item in draft_attachments(library,values.get('attachments',[])):
+            job.check()
+            with library.asset(item['asset']).open('rb') as stream:content=stream.read(12*1024**2+1)
+            if len(content)>12*1024**2:raise ValueError(tr('Anhänge zusammen größer als 12 MiB.'))
+            message.add_attachment(content,maintype='application',subtype='octet-stream',filename=item['name'])
+        db.execute("UPDATE drafts SET status='sending' WHERE id=?",(identity,))
     smtp=None;submitted=False
     try:
         job.check();context=trust_context(account)
@@ -297,6 +343,17 @@ def parse_calendar(data,expand=False):
     return result
 
 
+def new_event_repeat(values,start,end):
+    repeat=values.get('repeat','')
+    if not repeat:return start,end,None
+    if values.get('url') or repeat not in ('daily','weekly') or type(values.get('repeat_count')) is not int or not 2<=values['repeat_count']<=52:
+        raise ValueError(tr('Nur neue tägliche oder wöchentliche Serien mit 2 bis 52 Terminen anlegen.'))
+    from zoneinfo import ZoneInfo
+    try:zone=ZoneInfo(values.get('timezone',''))
+    except (KeyError,ValueError,TypeError):raise ValueError(tr('Für die Terminserie eine gültige Zeitzone wählen.')) from None
+    return start.astimezone(zone),end.astimezone(zone),dict(freq=repeat.upper(),count=values['repeat_count'])
+
+
 def calendar_operation(account,action,values):
     if account['kind']=='ics':
         if action!='sync':raise ValueError(tr('Kalender-Abonnements sind nur lesbar.'))
@@ -328,6 +385,7 @@ def calendar_operation(account,action,values):
             if values.get('recurring') or values.get('invited'):raise ValueError(tr('Serien oder Einladungen im ursprünglichen Kalender bearbeiten.'))
             start=datetime.fromisoformat(values['start']);end=datetime.fromisoformat(values['end'])
             if start.tzinfo is None or end.tzinfo is None or end<=start:raise ValueError(tr('Gültigen Zeitraum mit Zeitzone wählen.'))
+            start,end,repeat=new_event_repeat(values,start,end)
             if not values.get('title','').strip():raise ValueError(tr('Termintitel fehlt.'))
             uid=values.get('uid') or uuid.uuid4().hex+'@lumen.local'
             body=Calendar();body.add('version','2.0');body.add('prodid','-//Lumen Inbox//DE')
@@ -341,6 +399,7 @@ def calendar_operation(account,action,values):
                 raise ValueError(tr('Serien oder Einladungen im ursprünglichen Kalender bearbeiten.'))
             for key in ('uid','dtstamp','dtstart','dtend','duration','summary','description','location'):event.pop(key,None)
             event.add('uid',uid);event.add('dtstamp',datetime.now(timezone.utc));event.add('dtstart',start);event.add('dtend',end)
+            if repeat:event.add('rrule',repeat)
             for key,field in [('summary','title'),('description','description'),('location','location')]:event.add(key,str(values.get(field,''))[:120000])
             event['sequence']=int(event.get('sequence',0))+1
             url=values.get('url') or urljoin(str(calendar.url).rstrip('/')+'/',uuid.uuid4().hex+'.ics')

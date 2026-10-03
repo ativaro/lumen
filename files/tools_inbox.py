@@ -11,11 +11,11 @@ import ssl
 import sys
 import uuid
 from urllib.parse import urlsplit
-from PyQt5.QtCore import Qt, QDateTime, QTimer
+from PyQt5.QtCore import Qt, QDateTime, QTimer,QTimeZone
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QDialog, QFormLayout, QLineEdit,
     QComboBox, QSpinBox, QDialogButtonBox, QFileDialog, QInputDialog, QMessageBox,
     QListWidgetItem, QTreeWidget, QTreeWidgetItem, QPlainTextEdit, QTabWidget, QSplitter,
-    QDateTimeEdit, QCheckBox)
+    QDateTimeEdit, QCheckBox,QTextBrowser)
 from tools_ui import ToolWindow, button, label, row
 from tools_secrets import secret
 import inbox_data as inbox
@@ -55,7 +55,9 @@ class Inbox(ToolWindow):
         self.subject=label(tr('Dein Posteingang'),'heading');rl.addWidget(self.subject)
         self.sender=label(tr('Konto hinzufügen und aktualisieren, um Nachrichten zu laden.'),'muted');rl.addWidget(self.sender)
         self.reader=QPlainTextEdit();self.reader.setReadOnly(True);self.reader.setAccessibleName(tr('Nachrichtentext'));rl.addWidget(self.reader,1)
-        self.attachments=QComboBox();self.attachments.setAccessibleName(tr('Anhänge'));rl.addWidget(row(self.attachments,button(tr('Speichern'),lambda:self.safe(self.attachment),'document-save')))
+        self.attachments=QComboBox();self.attachments.setAccessibleName(tr('Anhänge'))
+        from interop_ui import attachment_send
+        rl.addWidget(row(self.attachments,button(tr('Speichern'),lambda:self.safe(self.attachment),'document-save'),button(tr('An Lumen …'),lambda:self.safe(attachment_send,self),'insert-link')))
         rl.addWidget(row(button(tr('Antworten'),lambda:self.safe(self.reply),'mail-reply-sender'),
             button(tr('Aufgabe'),lambda:self.safe(self.add_task),'list-add'),button(tr('Termin'),lambda:self.safe(self.event_dialog),'view-calendar')))
         rl.addWidget(button(tr('Mit Lumen entwerfen …'),lambda:self.safe(self.propose),'lumen'))
@@ -76,6 +78,10 @@ class Inbox(ToolWindow):
         self.tabs.addTab(drafts,tr('Entwürfe / Versand'))
         tasks=QWidget();tl=QVBoxLayout(tasks);tl.setContentsMargins(0,12,0,0)
         self.tasks=tree([tr('Aufgabe'),tr('Fällig'),tr('Status')]);tl.addWidget(self.tasks,1)
+        self.task_details=QTextBrowser();self.task_details.setOpenLinks(False);self.task_details.setAccessibleName(tr('Aufgabendetails und Herkunft'));tl.addWidget(self.task_details)
+        self.tasks.itemSelectionChanged.connect(lambda:self.safe(self.show_task_details))
+        from interop_open import open_url
+        self.task_details.anchorClicked.connect(lambda url:self.safe(open_url,url.toString(),self.library.root.parent))
         tl.addWidget(row(button(tr('Neue Aufgabe'),lambda:self.safe(self.add_task),'list-add'),
             button(tr('Erledigt / offen'),lambda:self.safe(self.toggle_task),'dialog-ok'),
             button(tr('Löschen'),lambda:self.safe(self.delete_task),'edit-delete')))
@@ -288,16 +294,26 @@ class Inbox(ToolWindow):
         values=values or {};dialog=QDialog(self);dialog.setWindowTitle(tr('Nachricht · ')+account['title']);dialog.resize(740,650);form=QFormLayout(dialog)
         to=QLineEdit(values.get('to',''));subject=QLineEdit(values.get('subject',''));body=QPlainTextEdit(values.get('body',''));body.setAccessibleName(tr('Nachricht schreiben'))
         form.addRow(tr('An'),to);form.addRow(tr('Betreff'),subject);form.addRow(body);form.addRow(label(tr('Lokal automatisch gespeichert. Versand erst mit „Senden“.'),'muted'))
+        formatted=QCheckBox(tr('Überschriften und Listen formatiert senden'));formatted.setChecked(bool(values.get('formatted')));formatted.setEnabled(not readonly)
+        def preview():
+            view=QDialog(dialog);view.setWindowTitle(tr('Formatierter Mailentwurf'));view.resize(620,480);layout=QVBoxLayout(view)
+            text=QTextBrowser();text.setOpenLinks(False);text.setHtml(inbox.draft_html(body.toPlainText()));layout.addWidget(text)
+            close=QDialogButtonBox(QDialogButtonBox.Close);close.rejected.connect(view.reject);layout.addWidget(close);view.exec_()
+        form.addRow(row(formatted,button(tr('Vorschau'),preview)))
+        if values.get('attachments'):
+            attachment_names='\n'.join(a['name'] for a in values['attachments'])
+            form.addRow(tr('Anhänge'),label(attachment_names))
         state={'id':identity};timer=QTimer(dialog);timer.setSingleShot(True);timer.setInterval(500)
         def save():
             timer.stop()
-            if not readonly:state['id']=inbox.save_draft(self.library,account['id'],dict(to=to.text(),subject=subject.text(),body=body.toPlainText(),reply_to=values.get('reply_to','')),state['id'])
+            if not readonly:state['id']=inbox.save_draft(self.library,account['id'],dict(to=to.text(),subject=subject.text(),body=body.toPlainText(),reply_to=values.get('reply_to',''),formatted=formatted.isChecked()),state['id'])
         def send():
             save()
             if QMessageBox.question(dialog,tr('Nachricht senden'),tr('Diese Nachricht jetzt an ')+to.text()+tr(' senden?'))!=QMessageBox.Yes:return
             dialog.accept();QTimer.singleShot(0,lambda:self.work(tr('Nachricht wird gesendet …'),lambda job:inbox.send_draft(self.library,state['id'],job),self.sent))
         for field in (to,subject):field.textChanged.connect(lambda:timer.start())
         body.textChanged.connect(lambda:timer.start());timer.timeout.connect(lambda:self.safe(save));dialog.finished.connect(lambda _:self.safe(save))
+        formatted.toggled.connect(lambda:timer.start())
         for field in (to,subject,body):field.setReadOnly(readonly)
         form.addRow(row(button(tr('Schließen'),dialog.reject),button(tr('Senden'),lambda:self.safe(send),'mail-send',True)) if not readonly else button(tr('Schließen'),dialog.reject))
         dialog.exec_();self.reload_other()
@@ -341,10 +357,19 @@ class Inbox(ToolWindow):
             if not dt.isValid():dt=QDateTime.currentDateTime().addSecs(hours*3600)
             field=QDateTimeEdit(dt);field.setCalendarPopup(True);field.setDisplayFormat('dd.MM.yyyy HH:mm');field.setAccessibleName(name);form.addRow(name,field);times.append(field)
         form.addRow(tr('Ort'),location);form.addRow(description)
+        repeat=QComboBox();repeat.addItem(tr('Einmalig'),'');repeat.addItem(tr('Täglich'),'daily');repeat.addItem(tr('Wöchentlich'),'weekly')
+        count=QSpinBox();count.setRange(2,52);count.setValue(12);count.setEnabled(False)
+        repeat.currentIndexChanged.connect(lambda:count.setEnabled(bool(repeat.currentData())))
+        zone=QLineEdit(bytes(QTimeZone.systemTimeZoneId()).decode());zone.setAccessibleName(tr('Zeitzone'))
+        if not readonly and not values.get('url'):
+            form.addRow(tr('Wiederholung'),repeat);form.addRow(tr('Anzahl Termine'),count);form.addRow(tr('Zeitzone'),zone)
         form.addRow(label(tr('Lesender Termin: Serien, ganztägige Termine, Einladungen und Abos beim Anbieter bearbeiten.') if readonly else tr('Speichert einen Termin ohne Teilnehmer und ohne Einladung.'),'muted'))
         def save():
             data=dict(values,title=title.text(),location=location.text(),description=description.toPlainText(),
                 start=datetime.fromtimestamp(times[0].dateTime().toSecsSinceEpoch()).astimezone().isoformat(),end=datetime.fromtimestamp(times[1].dateTime().toSecsSinceEpoch()).astimezone().isoformat())
+            if repeat.currentData():
+                data.update(repeat=repeat.currentData(),repeat_count=count.value(),timezone=zone.text().strip())
+                inbox.new_event_repeat(data,datetime.fromisoformat(data['start']),datetime.fromisoformat(data['end']))
             dialog.accept();QTimer.singleShot(0,lambda:self.work(tr('Termin wird gespeichert …'),lambda job:self.calendar_job(account,'save',data,job),lambda text:self.status.setText(text+tr(' Mit Aktualisieren neu laden.'))))
         if readonly:
             for field in (title,location,description,*times):field.setReadOnly(True)
@@ -373,6 +398,14 @@ class Inbox(ToolWindow):
         with self.library.connect() as db:db.execute('INSERT INTO tasks VALUES (?,?,?,?,0)',(uuid.uuid4().hex,title,due,self.message['thread'] if self.message else ''))
         self.reload_other();self.status.setText(tr('Aufgabe lokal gespeichert.'))
 
+    def show_task_details(self):
+        item=self.tasks.currentItem()
+        if not item:self.task_details.clear();return
+        task=item.data(0,Qt.UserRole)
+        with self.library.connect() as db:row=db.execute('SELECT body FROM interop_task_details WHERE task=?',(task['id'],)).fetchone()
+        from interop_ui import source_markup
+        self.task_details.setHtml(source_markup(row['body'] if row else task['source']))
+
     def toggle_task(self):
         item=self.tasks.currentItem()
         if item:
@@ -382,7 +415,9 @@ class Inbox(ToolWindow):
     def delete_task(self):
         item=self.tasks.currentItem()
         if item and QMessageBox.question(self,tr('Aufgabe löschen'),tr('Diese lokale Aufgabe löschen?'))==QMessageBox.Yes:
-            with self.library.connect() as db:db.execute('DELETE FROM tasks WHERE id=?',(item.data(0,Qt.UserRole)['id'],))
+            with self.library.connect() as db:
+                db.execute('DELETE FROM tasks WHERE id=?',(item.data(0,Qt.UserRole)['id'],))
+                db.execute('DELETE FROM interop_task_details WHERE task=?',(item.data(0,Qt.UserRole)['id'],))
             self.reload_other()
 
     def propose(self):
