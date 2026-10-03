@@ -15,6 +15,10 @@ def build(w):
     outer=QVBoxLayout(shell);outer.setContentsMargins(0,0,0,0);outer.setSpacing(0)
     chrome=QWidget();chrome.setObjectName('wissenChrome');head=QHBoxLayout(chrome);head.setContentsMargins(20,8,16,8)
     head.addWidget(label(tr('Lumen Wissen'),'wissenBrand'));head.addStretch();w.status.setMaximumWidth(400)
+    w.status.setWordWrap(False)
+    # Loading must not resize the chrome and move the entire notebook.
+    for control in (w.progress, w.cancel_button):
+        policy = control.sizePolicy(); policy.setRetainSizeWhenHidden(True); control.setSizePolicy(policy)
     head.addWidget(w.status);head.addWidget(w.progress);head.addWidget(w.cancel_button);outer.addWidget(chrome)
     outer.addWidget(w.split,1);w.split.setHandleWidth(1);w.split.setChildrenCollapsible(False)
     w.navigation=QWidget();w.navigation.setObjectName('wissenNavigation');w.navigation.setMinimumWidth(155);w.navigation.setMaximumWidth(220)

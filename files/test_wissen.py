@@ -91,6 +91,52 @@ class WissenNativeTest(unittest.TestCase):
         from PySide6.QtWidgets import QApplication
         cls.app=QApplication.instance() or QApplication([])
 
+    def test_note_loading_keeps_editor_geometry_stable(self):
+        import threading
+        from unittest.mock import patch
+        from PySide6.QtCore import QPoint, QCoreApplication, QEvent
+        from PySide6.QtTest import QTest
+        import tools_wissen
+        def ready(window):
+            for _ in range(300):
+                QTest.qWait(20)
+                if window.book and not window.job and not window.poller: return
+            self.fail('Notebook did not become idle')
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp+'/state'}):
+            from appearance import apply_design
+            old_style, old_palette, old_font = self.app.styleSheet(), self.app.palette(), self.app.font()
+            apply_design(self.app, 'glass')
+            window = tools_wissen.Wissen(Path(tmp)/'tools'); window.show(); ready(window)
+            first = window.book.create('First', 'One')
+            second = window.book.create('Second', 'Two')
+            window.poll(); ready(window); window.open_note(first['path']); ready(window)
+            def geometry():
+                return (window.editor.mapTo(window, QPoint()), window.editor.size(), window.split.geometry())
+            original = tools_wissen.data.worker
+            gate = threading.Event()
+            def slow_read(job, store, action, *args, **kwargs):
+                if action == 'read': gate.wait(3)
+                return original(job, store, action, *args, **kwargs)
+            try:
+                for width in (1180, 840):
+                    window.resize(width, 800); QTest.qWait(50)
+                    before = geometry(); gate.clear()
+                    path = second['path'] if window.doc['path'] == first['path'] else first['path']
+                    with patch.object(tools_wissen.data, 'worker', slow_read):
+                        window.open_note(path); QTest.qWait(60)
+                        loading = geometry()
+                        self.assertTrue(window.progress.isVisible())
+                        self.assertTrue(window.cancel_button.isVisible())
+                        gate.set(); ready(window)
+                    self.assertEqual(before, loading, 'Loading controls moved the notebook')
+                    self.assertEqual(before, geometry(), 'Completing the load moved the notebook')
+                    self.assertEqual(window.doc['path'], path)
+            finally:
+                gate.set(); ready(window); window.close(); window.deleteLater()
+                QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+                self.app.setStyleSheet(old_style); self.app.setPalette(old_palette); self.app.setFont(old_font)
+
+
     def test_collection_button_and_link_picker_use_titles(self):
         from unittest.mock import patch
         from PySide6.QtCore import QCoreApplication,QEvent,Qt
