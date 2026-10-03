@@ -11,6 +11,55 @@ import lumen_crash as crash
 
 
 class CrashMonitorTest(unittest.TestCase):
+    def test_diagnosis_selects_only_report_and_log_without_replaying_prompt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); run = root/'crash report'; run.mkdir()
+            for name in ('report.json', 'stderr.log', 'state.json'):
+                (run/name).write_text('{}')
+            binary = root/'bin'; binary.mkdir(); (binary/'lumen-agent-app').touch()
+            with patch.dict(os.environ, {'LUMEN_BIN_DIR':str(binary), 'LUMEN_ASK_PROMPT':'Old task'}), \
+                    patch.object(crash.subprocess, 'Popen') as launch:
+                crash.check_with_lumen(run)
+                args = launch.call_args.args[0]
+                self.assertEqual(args[:3], [str(binary/'lumen-agent-app'), '--action', 'diagnose'])
+                self.assertEqual(args[3:], ['--file', str(run/'report.json'), '--file', str(run/'stderr.log')])
+                self.assertNotIn('LUMEN_ASK_PROMPT', launch.call_args.kwargs['env'])
+                self.assertTrue((run/'state.json').exists())
+                (run/'stderr.log').unlink(); (run/'stderr.log').symlink_to(run/'state.json')
+                crash.check_with_lumen(run)
+                self.assertNotIn(str(run/'stderr.log'), launch.call_args.args[0])
+                (run/'report.json').unlink()
+                with self.assertRaises(ValueError): crash.check_with_lumen(run)
+
+    def test_recovery_dialog_can_check_report_and_keeps_recovery_available(self):
+        from app import create_app
+        from PyQt5.QtCore import QCoreApplication
+        from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox
+        app = QApplication.instance() or create_app()
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA':tmp}):
+            run = crash.directory()/'run-example'; run.mkdir()
+            crash.write_json(run/'report.json', {'app':'files', 'status':'crashed'})
+            crash.write_json(run/'state.json', {'tabs':['saved-folder']})
+            current = Path(tmp)/'current'; current.mkdir()
+            window = QMainWindow(); window.recovery_state = lambda: {'tabs':['current-folder']}
+            def choose(box):
+                button = next(b for b in box.buttons() if b.text() == 'Mit Lumen prüfen')
+                button.click()
+            try:
+                for error in (None, OSError('Launcher unavailable')):
+                    with self.subTest(error=error), patch.object(crash, 'RUN', current), \
+                            patch.object(crash, 'HEARTBEAT', -1), patch.object(QMessageBox, 'exec_', choose), \
+                            patch.object(QMessageBox, 'warning') as warning, \
+                            patch.object(crash, 'check_with_lumen', side_effect=error) as launch:
+                        crash.attach(app, window, 'files')
+                        QCoreApplication.processEvents()
+                        launch.assert_called_once_with(run)
+                        self.assertEqual(warning.call_count, int(error is not None))
+                        self.assertEqual(crash.recoveries('files')[0][0], run)
+                        self.assertEqual(crash.read_json(run/'state.json')['tabs'], ['saved-folder'])
+                        app.crash_timer.stop(); app.crash_timer.deleteLater()
+            finally: window.close(); window.deleteLater(); QCoreApplication.processEvents()
+
     def test_exit_signal_hang_and_recovery_are_distinct(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp}), patch.object(crash, 'notify', return_value=None):
             self.assertEqual(crash.monitor([sys.executable, '-c', 'pass'], 'files', poll=.01), 0)

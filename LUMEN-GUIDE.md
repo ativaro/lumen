@@ -9,6 +9,14 @@ Beide verwenden dieselben Datei-Einstellungen, Modelle und KI-Funktionen;
 `Strg+,` öffnet den gemeinsamen Einstellungsdialog. OpenCode bleibt die Engine;
 bestehende Anmeldungen und Anbieter werden weiterverwendet.
 
+Nach einem Absturz bietet der Wiederherstellungsdialog **Mit Lumen prüfen** an.
+Die Schaltfläche öffnet **Fehlerbericht prüfen** in einem eigenen Lumen-Fenster
+und startet die Analyse mit dem eingerichteten Modell. Als Kontext werden nur
+Absturzdaten und Fehlerprotokoll ausgewählt, keine gespeicherten Sitzungen oder
+Entwürfe. Der Auftrag läuft im Planungsmodus: Ursache erklären, Vermutungen
+kennzeichnen und nächste Schritte vorschlagen. Der Bericht bleibt zur späteren
+Wiederherstellung erhalten. **Fehlerbericht** öffnet weiterhin den lokalen Ordner.
+
 ## Aufträge und echte Ergebnisse
 
 ### Lumen-Menü in der Plasma-Leiste

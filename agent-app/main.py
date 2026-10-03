@@ -407,7 +407,7 @@ def main():
     parser.add_argument('--task', type=valid_task, help=tr('Gespeicherten Auftrag anzeigen'))
     parser.add_argument('--location', help=tr('Datei- oder Netzwerkordner im Dateibereich'))
     parser.add_argument('--prompt', default='')
-    parser.add_argument('--action', choices=['open', 'ask', 'explain', 'fix', 'review'], default='open')
+    parser.add_argument('--action', choices=['open', 'ask', 'explain', 'fix', 'review', 'diagnose'], default='open')
     parser.add_argument('--context', nargs='*', default=[])
     parser.add_argument('--file', action='append', default=[])
     parser.add_argument('--selection')

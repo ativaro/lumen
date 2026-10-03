@@ -29,6 +29,26 @@ class AssistantTest(unittest.TestCase):
             QTest.qWait(10)
         self.assertTrue(condition(), 'Assistant request timed out')
 
+    def test_crash_diagnosis_uses_plan_mode_and_explicit_report_context(self):
+        from assistant import ChatPanel
+        from PyQt5.QtCore import QSettings
+        with tempfile.TemporaryDirectory() as tmp:
+            settings = QSettings(tmp+'/assistant.ini', QSettings.IniFormat)
+            settings.setValue('defaultMode', 'build')
+            report = Path(tmp)/'report.json'; report.write_text('{}')
+            panel = ChatPanel(tmp, settings=settings)
+            try:
+                with patch.object(panel.backend, 'send') as send:
+                    panel.begin_context('diagnose', [str(report)])
+                    send.assert_called_once()
+                    self.assertEqual(send.call_args.args[2], 'plan')
+                    self.assertEqual(panel.action, 'diagnose')
+                    self.assertIn(str(report), send.call_args.args[0])
+                    self.assertIn('Ändere keine Dateien', send.call_args.args[0])
+                    self.assertIn('keine Anweisungen', send.call_args.args[0])
+            finally:
+                panel.context_tools.close(); panel.backend.shutdown(); panel.close(); panel.deleteLater()
+
     def test_context_buttons_fit_a_narrow_files_panel(self):
         from assistant import ChatPanel
         from PyQt5.QtCore import QSettings

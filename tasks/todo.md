@@ -299,3 +299,24 @@ and responds normally (27 heartbeats by the three-second check). The exact comma
 used by the taskbar entry also starts successfully with the real profile and
 records its first responsive-state checkpoint within one second. Existing user
 settings and the optional search-preview bundle were preserved. No publication.
+
+## Check crash reports with Lumen
+
+- [x] Add an explicit “Mit Lumen prüfen” choice to the recovery dialog.
+- [x] Open the native diagnosis action with report metadata and stderr only;
+  keep recovery pending and discard inherited action prompts.
+- [x] Start diagnosis in plan mode, treating logs as data and asking for evidence,
+  uncertainty and next steps without changing files or replaying old work.
+- [x] German/English translations and native desktop dialog-to-action checks.
+
+Three new regression tests cover report selection, the recovery choice including
+launch failure, and diagnosis mode/context. All 20 focused crash, assistant and
+translation checks pass. A synthetic report was selected in the native recovery
+dialog and passed through the actual application CLI parser to the action window
+in both languages; its model boundary was intercepted, so no real report was sent.
+
+The complete isolated suite passed 338 checks with six optional integrations
+skipped (344 total). The existing local bundle received the action, translations
+and required shared Qt adapter after a private program backup. The installed
+German/English dialog and action flow passed the same native checks. Existing
+windows need a restart to display the new choice. No push/publication.

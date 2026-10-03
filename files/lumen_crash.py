@@ -90,6 +90,24 @@ def enabled():
         return True
 
 
+def check_with_lumen(path):
+    """Open an explicit diagnostic request without handing over saved drafts."""
+    path = Path(path).absolute()
+    files = [path/name for name in ('report.json', 'stderr.log')
+             if (path/name).is_file() and not (path/name).is_symlink()]
+    if not files: raise ValueError(tr('Der Fehlerbericht ist nicht mehr verfügbar.'))
+    binary = Path(os.environ.get('LUMEN_BIN_DIR', str(Path(__file__).resolve().parents[1]/'bin'))) / 'lumen-agent-app'
+    launcher = str(binary) if binary.is_file() else shutil.which('lumen-agent-app')
+    if not launcher: raise OSError(tr('Lumen konnte nicht gefunden werden. Bitte die Installation prüfen.'))
+    arguments = [launcher, '--action', 'diagnose']
+    for file in files: arguments.extend(['--file', str(file)])
+    environment = dict(os.environ)
+    for key in ('LUMEN_ASK_PROMPT', 'LUMEN_CRASH_RUN', 'LUMEN_GUARD_PID', 'LUMEN_CRASH_LOCK', 'LUMEN_HEARTBEAT_FD'):
+        environment.pop(key, None)
+    subprocess.Popen(arguments, env=environment, start_new_session=True,
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def notify(kind, hung=False):
     if not shutil.which('notify-send'): return None
     text = (tr('Die Oberfläche antwortet seit mindestens einer Minute nicht. Du kannst weiter warten. Beim Beenden können laufende Vorgänge unterbrochen werden.') if hung else
@@ -241,6 +259,8 @@ def attach(app, window, kind, offer_recovery=True):
             later = box.addButton(tr('Später'), QMessageBox.RejectRole)
             discard = box.addButton(tr('Verwerfen'), QMessageBox.DestructiveRole)
             details = box.addButton(tr('Fehlerbericht'), QMessageBox.ActionRole)
+            diagnose = box.addButton(tr('Mit Lumen prüfen'), QMessageBox.ActionRole)
+            diagnose.setToolTip(tr('Lumen prüft Fehlerprotokoll und Absturzdaten mit deinem eingerichteten Modell und schlägt nächste Schritte vor.'))
             box.setDefaultButton(restore); box.setEscapeButton(later)
             details.clicked.connect(lambda _=False, p=path: QDesktopServices.openUrl(QUrl.fromLocalFile(str(p))))
             try:
@@ -252,10 +272,14 @@ def attach(app, window, kind, offer_recovery=True):
                     if not checkpoint(): raise OSError(tr('Die wiederhergestellte Ansicht konnte nicht gesichert werden. Die bisherige Sicherung bleibt erhalten.'))
                     acknowledge(path)
                     break
+                elif box.clickedButton() is diagnose:
+                    check_with_lumen(path)
+                    break
                 elif box.clickedButton() is discard: acknowledge(path)
                 else: break
             except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
-                QMessageBox.warning(window, tr('Wiederherstellung nicht möglich'), str(error))
+                QMessageBox.warning(window, tr('Fehlerprüfung nicht möglich') if box.clickedButton() is diagnose
+                                    else tr('Wiederherstellung nicht möglich'), str(error))
                 break
             finally:
                 lock.close(); box.deleteLater()
