@@ -118,4 +118,12 @@ Geprüfter Stand 03.10.2026. **Umgesetzt** bezeichnet vorhandenen und geprüften
 - `scripts/probe_audio_routing.py`: isolierte PipeWire-/WirePlumber-Instanz ohne Hardware. Produktcode und tatsächliche SDL-Bibliothek wählen den Ausgang, beenden bei dessen Verlust und verweigern fehlende Ausgänge. Der Standardausgang bleibt unverändert. Grundlage: [PipeWire-Eigenschaften](https://docs.pipewire.org/page_man_pipewire-props_7.html) und [SDL-Geräteauswahl](https://github.com/libsdl-org/sdl2-compat/blob/main/src/sdl2_compat.c).
 - Radio verwendet gemessene PCM-Abschnittszeiten aus einem Piper-Prozess; ein Test mit der installierten Stimme prüft die tatsächlichen Abschnittsgrenzen.
 
-Bedienung: [Lumen-Anwendungen verbinden](USAGE.md). Die lokale Installation wird nach dem Paketbau separat geprüft.
+Bedienung: [Lumen-Anwendungen verbinden](USAGE.md).
+
+## Lokale Auslieferung
+
+Paket **1.2.0-41** gebaut. 42 geänderte Produktionsressourcen und der Verweis-Launcher stimmen bytegenau zwischen Quelle, Paket und installiertem Benutzerbundle überein. 44 Programm-/Katalog-/Launcher-/Desktopdateien aktualisiert; optionale Laufzeiten beibehalten.
+
+Alle neun installierten Tools wurden mit temporären Profilen kalt und warm gestartet, einschließlich Reader-/Wissen-Dateiübergabe. Installierte Übergaben, `lumen://`-Aktivierung, Speicherbestätigung und wiederholte Zustellung ohne Duplikat bestanden. Der Desktop erkennt `lumen-open.desktop` als URI-Handler.
+
+Vor dem Update wurden die ersetzten Programmdateien und konsistente Kopien der zehn vorhandenen SQLite-Datenbanken privat gesichert. Rücknahme erfolgt anhand des Sicherungsmanifests; neuere Nutzerdaten dürfen dabei nicht durch ältere Datenbankkopien ersetzt werden. Bestehende Benutzerfenster wurden nicht beendet. Für die neuen Menüs die Tools neu starten.
