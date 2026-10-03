@@ -1,6 +1,7 @@
 {
   "Mit Lumen prüfen": "Check with Lumen",
   "Fehlerbericht prüfen": "Check error report",
+  "Fehlerbericht wird geprüft …": "Checking error report …",
   "Fehlerprüfung nicht möglich": "Unable to check error report",
   "Der Fehlerbericht ist nicht mehr verfügbar.": "The error report is no longer available.",
   "Lumen konnte nicht gefunden werden. Bitte die Installation prüfen.": "Lumen could not be found. Please check the installation.",

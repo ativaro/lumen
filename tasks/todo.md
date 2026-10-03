@@ -320,3 +320,20 @@ skipped (344 total). The existing local bundle received the action, translations
 and required shared Qt adapter after a private program backup. The installed
 German/English dialog and action flow passed the same native checks. Existing
 windows need a restart to display the new choice. No push/publication.
+
+### Diagnosis start regression
+
+The installed action aborted when the real backend emitted its first working
+status: the action-specific status table lacked `diagnose`, so its Qt callback
+raised `KeyError`. The initial handoff smoke intercepted `send`, which hid this
+missing transition. Add the diagnosis status and a generic fallback for future
+actions. Replace that regression test's send mock with a local HTTP server so the
+real request, status signals and completed result all run. Before the fix the
+test captures `KeyError('diagnose')`; after it, all 20 focused checks pass.
+
+The corrected resources are installed with a private program backup. Installed
+German/English native checks now exercise recovery click, CLI parsing, the real
+backend send/status path, HTTP and final result rendering. Only the external
+model is replaced by the local test server; no personal report is transmitted.
+
+Final isolated suite: 338 passed and six optional checks skipped (344 total).

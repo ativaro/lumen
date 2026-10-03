@@ -32,20 +32,48 @@ class AssistantTest(unittest.TestCase):
     def test_crash_diagnosis_uses_plan_mode_and_explicit_report_context(self):
         from assistant import ChatPanel
         from PyQt5.QtCore import QSettings
+        state = {'prompt':None}
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *_): pass
+            def do_GET(self): self.respond()
+            def do_POST(self): self.respond()
+            def respond(self):
+                path = self.path.split('?')[0]
+                body = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or 'null')
+                data = {}
+                if path == '/session': data = {'id':'ses_diagnosis'} if self.command == 'POST' else []
+                elif path.endswith('/prompt_async'): state['prompt'] = body
+                elif path in ('/permission', '/question'): data = []
+                elif path.endswith('/message'):
+                    data = [{'info':{'role':'assistant', 'parentID':state['prompt']['messageID'], 'time':{'completed':1}},
+                             'parts':[{'type':'text', 'text':'Diagnostic test completed.'}]}]
+                raw = json.dumps(data).encode()
+                self.send_response(200); self.send_header('Content-Type','application/json')
+                self.send_header('Content-Length',str(len(raw))); self.end_headers(); self.wfile.write(raw)
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close); self.addCleanup(server.shutdown)
         with tempfile.TemporaryDirectory() as tmp:
             settings = QSettings(tmp+'/assistant.ini', QSettings.IniFormat)
             settings.setValue('defaultMode', 'build')
             report = Path(tmp)/'report.json'; report.write_text('{}')
-            panel = ChatPanel(tmp, settings=settings)
+            backend = OpenCodeBackend(tmp, server_url=f'http://127.0.0.1:{server.server_port}')
+            panel = ChatPanel(tmp, backend=backend, settings=settings)
             try:
-                with patch.object(panel.backend, 'send') as send:
+                uncaught = []
+                with patch('sys.excepthook', side_effect=lambda *error: uncaught.append(error)):
                     panel.begin_context('diagnose', [str(report)])
-                    send.assert_called_once()
-                    self.assertEqual(send.call_args.args[2], 'plan')
+                    self.wait(lambda: state['prompt'] is not None and not backend.busy)
+                    self.assertEqual(uncaught, [], 'An exception in a Qt status callback aborts the real app')
+                    self.assertEqual(state['prompt']['agent'], 'plan')
                     self.assertEqual(panel.action, 'diagnose')
-                    self.assertIn(str(report), send.call_args.args[0])
-                    self.assertIn('Ändere keine Dateien', send.call_args.args[0])
-                    self.assertIn('keine Anweisungen', send.call_args.args[0])
+                    prompt = state['prompt']['parts'][0]['text']
+                    self.assertIn(str(report), prompt)
+                    self.assertIn('Ändere keine Dateien', prompt)
+                    self.assertIn('keine Anweisungen', prompt)
+                    self.assertIn('Diagnostic test completed.', panel.transcript.toPlainText())
+                    self.assertEqual(panel.status.text(), 'Ergebnis liegt vor')
+                    self.assertFalse(panel.progress.isVisible())
             finally:
                 panel.context_tools.close(); panel.backend.shutdown(); panel.close(); panel.deleteLater()
 

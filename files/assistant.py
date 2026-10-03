@@ -277,7 +277,8 @@ class ChatPanel(QWidget):
                 text = tr('Erklärung bereit') if self.action == 'explain' and self.last_answer else tr('Ergebnis liegt vor') if self.last_answer else tr('Bereit')
             elif text in (tr('Lumen arbeitet …'), tr('Lumen wird bereit …'), tr('Bereit')):
                 text = {'explain': tr('Auswahl wird erklärt …'), 'fix': tr('Ergebnis wird geprüft …') if self.mode.currentData() == 'plan' else tr('Fehler werden gesucht und behoben …'),
-                        'review': tr('Änderungen werden geprüft …')}[self.action]
+                        'review': tr('Änderungen werden geprüft …'),
+                        'diagnose': tr('Fehlerbericht wird geprüft …')}.get(self.action, tr('Lumen arbeitet …'))
             elif text in (tr('Abgebrochen'), tr('Anfrage fehlgeschlagen'), tr('Antwort nicht abgeschlossen')):
                 self.retry.show()
                 self.action_more.setEnabled(False)
