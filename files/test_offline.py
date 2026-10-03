@@ -71,3 +71,6 @@ class OfflineTest(unittest.TestCase):
             self.assertEqual(controller.dialog.list.count(), 1)
             controller.dialog.open_local(); self.assertEqual(window.current_path, item['local'])
             window.close(); app.processEvents()
+            # The delayed initial refresh must not restart a closed controller.
+            with patch('offline_ui.folders',side_effect=AssertionError('Closed controller read its database')):
+                controller.refresh()

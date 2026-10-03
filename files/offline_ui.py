@@ -18,7 +18,7 @@ class Offline(QObject):
     def __init__(self, window):
         super().__init__(window)
         self.window = window; self.store = Store(); self.network = Network(self)
-        self.proc = None; self.active = None; self.roots = {}; self.queue = []; self.message = ''
+        self.proc = None; self.active = None; self.roots = {}; self.queue = []; self.message = ''; self.closed = False
         self.network.connected.connect(self.connected)
         self.network.failed.connect(self.failed)
         self.timer = QTimer(self); self.timer.timeout.connect(self.refresh); self.timer.start(60000)
@@ -31,7 +31,7 @@ class Offline(QObject):
         except (ValueError, OSError) as error: self.window.error(str(error))
 
     def refresh(self):
-        if self.active: return
+        if self.closed or self.active: return
         self.queue = folders(self.store); self.next()
 
     def next(self):
@@ -91,6 +91,7 @@ class Offline(QObject):
         self.dialog.reload(); self.dialog.show(); self.dialog.raise_(); self.dialog.activateWindow()
 
     def close(self):
+        self.closed = True
         self.queue = []; self.timer.stop(); self.deadline.stop(); self.network.close()
         if self.proc:
             proc, self.proc = self.proc, None; proc.kill(); proc.waitForFinished(1000); proc.deleteLater()
