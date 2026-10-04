@@ -58,3 +58,10 @@ Settings retain existing policies. Package and user installation include every a
 - Native MCP and settings regressions: 27 passed.
 - DE/EN screenshots inspected in Glass, Graphite, Atelier and Midnight;
   responsive 820×620 layout verified. No mock data is part of the runtime.
+
+### Settings activation correction
+Clicking Lumen System in Apps, Maintenance or the settings search opens the app
+immediately and reveals its background preferences underneath. Programmatic
+settings navigation and searches targeting a specific setting do not launch it.
+Launch errors remain visible in the settings status. Native pointer regression
+and real desktop cold-launch verification pass; 19 related UI tests pass.

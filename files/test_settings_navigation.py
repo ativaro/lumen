@@ -26,6 +26,33 @@ class SettingsNavigationTest(unittest.TestCase):
         self.dialog.close(); self.dialog.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
 
+    def test_system_category_entry_launches_app_on_first_click(self):
+        d = self.dialog; d.show(); QTest.qWait(30)
+        with patch('lumen_apps.QProcess.startDetached', return_value=(True, 42)) as launch:
+            # Programmatic settings navigation must not launch another app.
+            d.open_page(d.hardware_page); launch.assert_not_called()
+            for category in (3, 5):
+                d.navigation.show_category(category); self.app.processEvents()
+                entry = next(b for b in d.navigation.overview.findChildren(QPushButton)
+                             if b.isVisible() and b.accessibleName().startswith('Lumen System.'))
+                QTest.mouseClick(entry, Qt.LeftButton)
+                self.assertTrue(launch.call_args, 'The first click must start Lumen System')
+                self.assertTrue(launch.call_args.args[0].endswith('lumen-system'))
+                self.assertEqual(d.stack.currentIndex(), d.hardware_page)
+                launch.reset_mock()
+
+    def test_system_search_launches_but_policy_target_only_opens_settings(self):
+        d = self.dialog
+        with patch('lumen_apps.QProcess.startDetached', return_value=(True, 42)) as launch:
+            d.navigation.search.setText('Lumen System')
+            d.navigation.activate_first()
+            self.assertEqual(launch.call_count, 1)
+            launch.reset_mock()
+            d.navigation.activate_page(d.hardware_page, d.stack.widget(d.hardware_page))
+            launch.assert_not_called()
+        with patch('lumen_apps.launch', side_effect=OSError('Launch unavailable')):
+            d.open_system(); self.assertEqual(d.status.text(), 'Launch unavailable')
+
     def test_section_rows_have_readable_labels_after_category_switch(self):
         from PySide6.QtWidgets import QLabel
         d = self.dialog; d.show(); QTest.qWait(20)

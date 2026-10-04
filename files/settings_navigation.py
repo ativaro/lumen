@@ -98,10 +98,19 @@ class SettingsNavigation(QWidget):
             for child in (heading, description):
                 child.setAttribute(Qt.WA_TransparentForMouseEvents); copy.addWidget(child)
             row.addLayout(copy, 1); arrow = label('›'); arrow.setAttribute(Qt.WA_TransparentForMouseEvents); row.addWidget(arrow)
-            entry.clicked.connect(lambda _=False, s=section, c=index: self.open_page(s['page'], s.get('target'), c))
+            entry.clicked.connect(lambda _=False, s=section, c=index: self.activate_page(s['page'], s.get('target'), c))
             self.overview_layout.addWidget(entry)
         self.overview_layout.addStretch()
         self.content.setCurrentIndex(0)
+
+    def activate_page(self, page, target=None, category=None):
+        """User activation may open an app; restoring a settings page never does."""
+        category = self.owner(page) if category is None else category
+        self.open_page(page, target, category)
+        if target is None:
+            section = next((row for row in self.categories[category]['sections']
+                            if row['page'] == page and row.get('activate')), None)
+            if section: section['activate']()
 
     def open_page(self, page, target=None, category=None):
         if not 0 <= page < self.stack.count(): return
@@ -178,13 +187,13 @@ class SettingsNavigation(QWidget):
         if self.hits: self.activate_result(self.results.currentItem())
 
     def activate_result(self, item):
-        if item is not None: self.open_page(*self.hits[item.data(Qt.UserRole)])
+        if item is not None: self.activate_page(*self.hits[item.data(Qt.UserRole)])
 
 
 def categories(dialog):
-    def section(page, title=None, description=None, target=None):
+    def section(page, title=None, description=None, target=None, activate=None):
         info = dialog.page_info[page]
-        return dict(page=page, title=title or info['title'], description=description or info['subtitle'], target=target)
+        return dict(page=page, title=title or info['title'], description=description or info['subtitle'], target=target, activate=activate)
     from lumen_apps import catalogue
     return [
         dict(title=tr('Darstellung & Desktop'), description=tr('Das Aussehen und die Bedienung deines Desktops.'), sections=[
@@ -203,7 +212,7 @@ def categories(dialog):
             section(1, tr('Orte & Server'), tr('Favoriten, Bibliotheken und NAS · SMB, SFTP, WebDAV'), dialog.places),
             section(dialog.app_pages['vault'], tr('Sicherungen'), tr('Lumen Vault und seine Sicherungspläne'))]),
         dict(title=tr('Apps'), description=tr('Eigene Einstellungen für jede Lumen-App.'), sections=[
-            section(dialog.app_pages[key], title, description) for key, title, description, icon in catalogue()]),
+            section(dialog.app_pages[key], title, description, activate=dialog.open_system if key == 'system' else None) for key, title, description, icon in catalogue()]),
         dict(title=tr('Datenschutz & Freigaben'), description=tr('Was Lumen lesen, behalten und verändern darf.'), sections=[
             section(0, tr('Werkzeugfreigaben'), tr('Nachfragen und Freigaben für Befehle und Dateiänderungen'), dialog.auto),
             section(9, tr('KI-Zugriff & MCP'), tr('Zugriff auf lokale Nachrichten, Termine und Werkzeuge')),
@@ -212,5 +221,5 @@ def categories(dialog):
             section(8, description=tr('Anbieter verbinden und Erweiterungen installieren')),
             section(5, description=tr('Autostart, Zeitpläne und automatische Analysen')),
             section(7, description=tr('Absturzerkennung, Wiederherstellung und Fehlerberichte')),
-            section(dialog.hardware_page, description=tr('Leistung, Geräte und Hintergrundarbeit'))]),
+            section(dialog.hardware_page, description=tr('Leistung, Geräte und Hintergrundarbeit'), activate=dialog.open_system)]),
     ]

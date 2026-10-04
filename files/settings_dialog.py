@@ -116,6 +116,11 @@ class SettingsDialog(QDialog):
     def open_page(self, index, target=None):
         self.navigation.open_page(index, target)
 
+    def open_system(self):
+        from lumen_apps import launch
+        try: launch('system')
+        except (OSError, ValueError) as error: self.status.setText(str(error))
+
     def build_apps(self):
         from lumen_apps import catalogue, COMPANIONS, launch
         explanations = {
