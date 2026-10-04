@@ -69,6 +69,7 @@ ColumnLayout {
             PC.Button {
                 id: appButton
                 required property var modelData
+                Kirigami.Theme.inherit: true
                 objectName: "app-" + modelData.id
                 Layout.fillWidth: true
                 Layout.preferredWidth: 0
@@ -90,12 +91,14 @@ ColumnLayout {
                     spacing: 4
                     Kirigami.Icon {
                         source: appButton.modelData.icon
-                        color: Kirigami.Theme.textColor
+                        color: panel.Kirigami.Theme.textColor
+                        isMask: true
                         Layout.alignment: Qt.AlignHCenter
                         Layout.preferredWidth: 22; Layout.preferredHeight: 22
                     }
                     PC.Label {
                         text: appButton.modelData.label
+                        color: panel.Kirigami.Theme.textColor
                         textFormat: Text.PlainText
                         font.pixelSize: 11
                         horizontalAlignment: Text.AlignHCenter
