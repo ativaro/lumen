@@ -114,3 +114,75 @@ redirect refusal, response size, default-Cancel approval and reflection filterin
 `files/test_vault_access.py`: non-secret schemas/adapter/private socket results and
 error handling. Existing native MCP, launcher and isolated KDE regressions also run.
 No authenticated test uses a credential from chat or a personal service.
+
+## Generic profiles (supersedes the BookStack-only connection UI)
+
+The credential is independent of the provider. The editor now has one service
+address and one token-ID field, plus a connector selection (HTTPS API or remote
+MCP over HTTPS) and authentication mode:
+
+- Bearer token;
+- API key in a named header;
+- `Authorization: Token <id>:<secret>`;
+- ID and secret in two separately named headers.
+
+No provider is inferred from the presence of two credential parts. The previous
+BookStack tool remains a compatibility adapter for its fixed read endpoints; it
+does not control storage or the generic connection UI. Old dedicated address/ID
+fields take precedence when populated; ordinary URL/UserName fields are fallback
+sources. Saving through the new editor synchronizes them. Invalid populated
+fields never silently fall back to other destinations. HTTP is not silently
+upgraded or used to transmit a secret: the inline hint requires an HTTPS address.
+
+Connect reads the saved entry directly. It does not open a setup wizard. Missing
+or invalid fields produce a precise inline hint. Active state belongs to the
+selected entry; selecting B does not make B appear connected merely because A is
+active, and connecting B explicitly replaces A's temporary connection.
+
+The native request is bound to the full resolved profile, including connector,
+auth mode, header names and exact endpoint. Custom header names are absolutely
+anchored ASCII tokens; reserved transport/security headers and case-insensitive
+duplicates are rejected. Credential values reject controls, CR/LF/NUL, with JWT
+punctuation accepted. Only credential components actually transmitted participate
+in response-reflection checks. Profile edits still revoke pending access.
+
+### Generic tools
+
+- `lumen_vault_connection`: the single explicitly enabled connection's opaque
+  reference, endpoint, connector and expiry only; no credentials/header values,
+  session IDs or enumeration of vault entries.
+- `lumen_vault_api_get`: GET under the configured HTTPS origin/base path, with
+  constrained path segments and structured encoded query parameters. No absolute
+  references, traversal, encoded delimiters, arbitrary headers or host override.
+  Result is bounded untrusted JSON. Confirmation does not claim that every remote
+  implementation of GET is side-effect-free.
+- `lumen_vault_mcp`: list tools or invoke a named tool with explicit arguments.
+  Every operation has native approval showing its destination and arguments;
+  calls may mutate remote state. General MCP-write disablement does not prevent
+  opening this independently confirmed native operation, and does not change
+  access to any other writing tool.
+
+MCP uses initialize → initialized notification → one requested operation. Supported
+negotiated versions: 2025-06-18 and 2025-03-26. JSON and bounded SSE responses are
+accepted, including CR/LF/CRLF and BOM. Limit: 64 SSE events per response and 1 MiB
+cumulative body data across all stages. Session IDs stay native and volatile;
+subsequent requests include the negotiated protocol/session headers. No roots,
+sampling, elicitation, server-request execution, destination change, reconnect or
+automatic replay is implemented. Legacy HTTP+SSE, OAuth login and local stdio-MCP
+credential injection are not supported. Server sessions are left to expire; the
+client does not reuse or persist them.
+
+A dispatched MCP call cannot be undone by disconnecting. Native errors after
+call dispatch and client transport/decoding loss conservatively report unknown
+outcome; check the service before retrying. Independent security review and
+whole-agent OS isolation remain outstanding prerelease limitations.
+
+Protocol references checked for this implementation:
+https://modelcontextprotocol.io/specification/2025-06-18/basic/transports
+https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle
+
+Regression coverage adds legacy-field activation without a wizard, selected-entry
+status, missing-field hints, generic Bearer/JWT and custom headers, CR/LF rejection,
+path confinement, unused-ID reflection, TLS MCP initialization/headers with JSON
+and SSE, unexpected IDs/server requests, event bounds, and cancellation after a
+potentially mutating call without replay.

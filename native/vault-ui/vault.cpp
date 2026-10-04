@@ -2,6 +2,7 @@
 #include "vault.h"
 #include "backups.h"
 #include "bookstack.h"
+#include "connection.h"
 #include <QtEndian>
 #include <cstring>
 #include <signal.h>
@@ -946,8 +947,10 @@ QWidget *VaultWindow::openPage() {
     return field;
   };
   website = addField("website", tx("Website", "Website"), false);
-  username = addField("username", tx("Benutzername", "Username"), false);
-  secret = addField("secret", tx("Passwort / Token", "Password / token"), true);
+  username = addField(
+      "username", tx("Benutzername / Token-ID", "Username / token ID"), false);
+  secret = addField(
+      "secret", tx("Passwort / Token-Secret", "Password / token secret"), true);
   secret->setText("••••••••••••••••••");
   auto passwordFont = secret->font();
   passwordFont.setLetterSpacing(QFont::AbsoluteSpacing, 1.4);
@@ -966,31 +969,25 @@ QWidget *VaultWindow::openPage() {
   accessText->setSpacing(8);
   accessText->addWidget(new QLabel(tx("Zugriff durch Apps", "Access by apps")));
   auto *boundary = new QLabel;
-  boundary->setObjectName("muted");
+  accessStatus = boundary;
+  boundary->setObjectName("accessStatus");
+  boundary->setObjectName("accessStatus");
   boundary->setWordWrap(true);
   accessText->addWidget(boundary);
   auto *explanation =
-      new QLabel(tx("BookStack: nur lesen. Jede Anfrage wird hier bestätigt.",
-                    "BookStack: read only. Confirm every request here."));
+      new QLabel(tx("API oder MCP. Zugangsdaten bleiben im Tresor; jede "
+                    "Dienstanfrage wird hier bestätigt.",
+                    "API or MCP. Credentials stay in Vault; confirm every "
+                    "service request here."));
   explanation->setObjectName("caption");
   explanation->setWordWrap(true);
   accessText->addWidget(explanation);
   accessRow->addLayout(accessText, 1);
   auto *permissions = button(tx("Mit Lumen verwenden", "Use with Lumen"),
-                             [this] { shareBookStack(); });
+                             [this] { shareConnection(); });
   permissions->setObjectName("apiAccess");
-  auto updateAccess = [this, boundary, permissions] {
-    boundary->setText(access->armed()
-                          ? tx("Ein BookStack-Zugang ist für Anfragen bereit · "
-                               "höchstens 5 Minuten",
-                               "One BookStack credential is ready for requests "
-                               "· up to 5 minutes")
-                          : tx("Nicht freigegeben", "Not shared"));
-    permissions->setText(access->armed()
-                             ? tx("Freigabe beenden", "End access")
-                             : tx("Mit Lumen verwenden", "Use with Lumen"));
-  };
-  connect(access, &VaultAccess::changed, boundary, updateAccess);
+  accessButton = permissions;
+  connect(access, &VaultAccess::changed, boundary, [this] { updateAccess(); });
   updateAccess();
   accessRow->addWidget(permissions, 0, Qt::AlignVCenter);
   dl->addLayout(accessRow);
@@ -1351,6 +1348,7 @@ QString VaultWindow::selectedId() const {
              : QString();
 }
 void VaultWindow::select() {
+  updateAccess();
   hideSecret();
   if (website)
     website->setText({});
@@ -1372,6 +1370,10 @@ void VaultWindow::select() {
     avatar->setProperty("glyph", name);
     avatar->setPixmap(glyph(name).pixmap(48, 48));
   }
+  if (username)
+    username->setEchoMode(i >= 0 && rows.value(i + 2) == "token"
+                              ? QLineEdit::Password
+                              : QLineEdit::Normal);
   subtitle->setText(
       i >= 0 ? kind(rows.value(i + 2)) + (rows.value(i + 3).isEmpty()
                                               ? QString()
@@ -1497,7 +1499,8 @@ bool VaultWindow::eventFilter(QObject *object, QEvent *event) {
   return QMainWindow::eventFilter(object, event);
 }
 void VaultWindow::edit(QStringList fields, bool createNew) {
-  if (!createNew) access->revoke();
+  if (!createNew)
+    access->revoke();
   if (editor || !isOpen) {
     for (auto &v : fields)
       wipe(v);
@@ -1528,35 +1531,86 @@ void VaultWindow::edit(QStringList fields, bool createNew) {
   type->addItem(tx("Wiederherstellungscodes", "Recovery codes"), "recovery");
   type->setCurrentIndex(qMax(0, type->findData(value("LumenType"))));
   form->addRow(tx("Typ", "Type"), type);
+  const auto connectionSettings = VaultConnection::settings(fields);
+  auto *connector = new QComboBox;
+  connector->setObjectName("editConnector");
+  connector->addItem(tx("HTTPS-API", "HTTPS API"), "api");
+  connector->addItem(tx("MCP über HTTPS", "MCP over HTTPS"), "mcp");
+  connector->setCurrentIndex(
+      qMax(0, connector->findData(connectionSettings["connector"].toString())));
+  form->addRow(tx("Anbindung", "Connection"), connector);
+  auto *auth = new QComboBox;
+  auth->setObjectName("editAuth");
+  auth->addItem(tx("Bearer-Token", "Bearer token"), "bearer");
+  auth->addItem(tx("API-Key in einem Header", "API key in one header"),
+                "api_key");
+  auth->addItem(tx("Token-ID : Secret (Authorization: Token)",
+                   "Token ID : secret (Authorization: Token)"),
+                "token_pair");
+  auth->addItem(tx("Token-ID und Secret in zwei Headern",
+                   "Token ID and secret in two headers"),
+                "headers");
+  auth->setCurrentIndex(
+      qMax(0, auth->findData(connectionSettings["auth"].toString())));
+  form->addRow(tx("Anmeldung", "Authentication"), auth);
   QMap<QString, QLineEdit *> edits;
   const QList<QPair<QString, QString>> definitions{
       {"Title", tx("Name", "Name")},
       {"LumenCollection", tx("Sammlung", "Collection")},
       {"UserName", tx("Benutzername", "Username")},
       {"URL", tx("Website", "Website")},
-      {"Password", tx("Passwort / Token", "Password / token")},
-      {"LumenApiBase", tx("BookStack: HTTPS-Adresse (optional)",
-                          "BookStack: HTTPS address (optional)")},
-      {"LumenApiTokenId", tx("BookStack: Token-ID", "BookStack: token ID")},
+      {"Password", tx("Passwort / Token-Secret", "Password / token secret")},
+      {"LumenApiIdHeader", tx("Header für Token-ID", "Token ID header")},
+      {"LumenApiSecretHeader", tx("Header für Secret", "Secret header")},
       {"LumenTags", tx("Tags", "Tags")},
       {"LumenExpires", tx("Ablaufdatum", "Expiry date")},
       {"LumenPermissions", tx("Berechtigungen (Notiz)", "Permissions (note)")}};
   for (const auto &definition : definitions) {
-    auto *field = input("edit" + definition.first,
-                        definition.first == "Password" ||
-                            definition.first == "LumenApiTokenId");
+    auto *field =
+        input("edit" + definition.first, definition.first == "Password" ||
+                                             (definition.first == "UserName" &&
+                                              type->currentData() == "token"));
     field->setText(value(definition.first));
     edits[definition.first] = field;
     form->addRow(definition.second, field);
   }
-  auto updateApiFields = [form, edits, type] {
-    for (const auto *key : {"LumenApiBase", "LumenApiTokenId"}) {
-      edits[key]->setVisible(type->currentData() == "token");
-      form->labelForField(edits[key])
-          ->setVisible(type->currentData() == "token");
+  if (type->currentData() == "token") {
+    edits["URL"]->setText(connectionSettings["endpoint"].toString());
+    if (!value("LumenApiTokenId").isEmpty())
+      edits["UserName"]->setText(value("LumenApiTokenId"));
+  }
+  edits["LumenApiIdHeader"]->setText(
+      connectionSettings["id_header"].toString());
+  edits["LumenApiSecretHeader"]->setText(
+      connectionSettings["secret_header"].toString());
+  auto updateApiFields = [this, form, edits, type, connector, auth] {
+    const bool token = type->currentData() == "token";
+    for (auto *field : {connector, auth}) {
+      field->setVisible(token);
+      form->labelForField(field)->setVisible(token);
     }
+    auto showField = [&](const QString &key, bool visible) {
+      edits[key]->setVisible(visible);
+      form->labelForField(edits[key])->setVisible(visible);
+    };
+    showField("LumenApiIdHeader", token && auth->currentData() == "headers");
+    showField("LumenApiSecretHeader",
+              token && (auth->currentData() == "headers" ||
+                        auth->currentData() == "api_key"));
+    const bool needsId =
+        auth->currentData() == "token_pair" || auth->currentData() == "headers";
+    showField("UserName", !token || needsId);
+    edits["UserName"]->setEchoMode(token ? QLineEdit::Password
+                                         : QLineEdit::Normal);
+    qobject_cast<QLabel *>(form->labelForField(edits["UserName"]))
+        ->setText(token ? QString::fromUtf8("Token-ID")
+                        : tx("Benutzername", "Username"));
+    qobject_cast<QLabel *>(form->labelForField(edits["URL"]))
+        ->setText(token ? tx("Dienstadresse (HTTPS)", "Service address (HTTPS)")
+                        : QString::fromUtf8("Website"));
   };
   connect(type, &QComboBox::currentIndexChanged, dialog, updateApiFields);
+  connect(auth, &QComboBox::currentIndexChanged, dialog, updateApiFields);
   updateApiFields();
   for (int i = 0; i + 1 < fields.size(); i += 2) {
     const auto &key = fields[i];
@@ -1614,11 +1668,13 @@ void VaultWindow::edit(QStringList fields, bool createNew) {
   auto *save =
       button(tx("Speichern", "Save"), [this, dialog = QPointer<QDialog>(dialog),
                                        id, edits, type, notes, customName,
-                                       customValue, info] {
+                                       customValue, info, connector, auth] {
         if (!dialog || dialog->property("saving").toBool())
           return;
         if (channel.busy()) {
-          info->setText(tx("Der Tresor arbeitet noch. Bitte gleich nochmals speichern.", "Vault is still working. Please save again in a moment."));
+          info->setText(
+              tx("Der Tresor arbeitet noch. Bitte gleich nochmals speichern.",
+                 "Vault is still working. Please save again in a moment."));
           return;
         }
         if (edits["Title"]->text().trimmed().isEmpty()) {
@@ -1636,6 +1692,11 @@ void VaultWindow::edit(QStringList fields, bool createNew) {
                             "Notes",     notes->toPlainText()};
         for (auto it = edits.begin(); it != edits.end(); ++it)
           request << it.key() << it.value()->text();
+        request << "LumenApiConnector" << connector->currentData().toString()
+                << "LumenApiAuth" << auth->currentData().toString();
+        if (type->currentData() == "token")
+          request << "LumenApiBase" << edits["URL"]->text() << "LumenApiTokenId"
+                  << edits["UserName"]->text();
         if (!customName->text().isEmpty()) {
           if (customName->text().size() > 100 ||
               edits.contains(customName->text()) ||
@@ -1650,7 +1711,8 @@ void VaultWindow::edit(QStringList fields, bool createNew) {
           request << customName->text() << customValue->text();
         }
         dialog->setProperty("saving", true);
-        info->setText(tx("Wird verschlüsselt gespeichert …", "Saving encrypted entry …"));
+        info->setText(
+            tx("Wird verschlüsselt gespeichert …", "Saving encrypted entry …"));
         if (auto *saveButton = dialog->findChild<QPushButton *>("save"))
           saveButton->setEnabled(false);
         channel.call(std::move(request), [this, dialog](QStringList reply) {
@@ -1684,43 +1746,66 @@ void VaultWindow::stopAccessServer() { access->close(); }
 bool VaultWindow::startAccessServer(const QString &runtime) {
   return access->listen(runtime);
 }
-void VaultWindow::shareBookStack() {
-  if (access->armed()) {
+void VaultWindow::updateAccess() {
+  if (!accessStatus || !accessButton)
+    return;
+  const bool selected = access->armed() && access->entry() == selectedId();
+  accessStatus->setText(selected
+                            ? tx("Mit Lumen verbunden · höchstens 5 Minuten",
+                                 "Connected to Lumen · up to 5 minutes")
+                            : tx("Nicht verbunden", "Not connected"));
+  accessButton->setText(selected
+                            ? tx("Verbindung trennen", "Disconnect")
+                            : tx("Mit Lumen verbinden", "Connect to Lumen"));
+  const int row = rowIndex(selectedId());
+  accessButton->setEnabled(row >= 0 && rows.value(row + 2) == "token" &&
+                           rows.value(row + 5) != "1");
+}
+void VaultWindow::shareConnection() {
+  const auto id = selectedId();
+  if (access->armed() && access->entry() == id) {
     access->revoke();
     return;
   }
-  const auto id = selectedId();
   if (!isOpen || id.isEmpty() || editor)
     return;
   const auto current = generation;
   channel.call({"edit", id}, [this, id, current](QStringList fields) {
-    auto value = [&fields](const QString &key) {
-      for (int i = 0; i + 1 < fields.size(); i += 2)
-        if (fields[i] == key)
-          return fields[i + 1];
-      return QString();
-    };
-    const auto base = BookStack::origin(value("LumenApiBase"));
-    const bool valid = value("LumenType") == "token" &&
-                       value("LumenTrash") != "1" && !base.isEmpty() &&
-                       BookStack::credential(value("LumenApiTokenId")) &&
-                       BookStack::credential(value("Password"));
+    const auto profile = VaultConnection::settings(fields);
+    const auto problem = VaultConnection::problem(fields);
     for (auto &field : fields)
       wipe(field);
     if (!isOpen || generation != current || selectedId() != id)
       return;
-    if (valid)
-      access->arm(id, base);
-    else
-      QMessageBox::information(
-          this, "BookStack",
-          tx("Wähle einen API-Token und trage unter Bearbeiten die "
-             "BookStack-HTTPS-Adresse, Token-ID und den Token im Passwortfeld "
-             "ein. Anschließend kannst du ihn hier für Leseanfragen "
-             "bereitstellen.",
-             "Select an API token and use Edit to enter the BookStack HTTPS "
-             "address, token ID and token secret in the password field. Then "
-             "enable it here for read requests."));
+    if (problem.isEmpty()) {
+      access->arm(id, profile);
+      return;
+    }
+    const QMap<QString, QString> hints{
+        {"endpoint",
+         tx("Die Dienstadresse muss eine HTTPS-URL ohne Benutzername, Query "
+            "oder Fragment sein. Unter Bearbeiten korrigieren.",
+            "The service address must be an HTTPS URL without user info, query "
+            "or fragment. Correct it in Edit.")},
+        {"secret", tx("Token-Secret fehlt oder enthält unzulässige Zeichen. "
+                      "Unter Bearbeiten ergänzen.",
+                      "Token secret is missing or contains invalid characters. "
+                      "Complete it in Edit.")},
+        {"token_id",
+         tx("Für diese Anmeldung fehlt die Token-ID. Unter Bearbeiten ergänzen "
+            "oder eine andere Anmeldung wählen.",
+            "This authentication mode needs a token ID. Complete it in Edit or "
+            "choose another mode.")},
+        {"id_header",
+         tx("Name des Token-ID-Headers fehlt, ist reserviert oder doppelt.",
+            "Token ID header name is missing, reserved or duplicated.")},
+        {"secret_header",
+         tx("Name des Secret-Headers fehlt oder ist reserviert.",
+            "Secret header name is missing or reserved.")}};
+    if (accessStatus)
+      accessStatus->setText(hints.value(
+          problem, tx("Bitte Anbindung und Anmeldung unter Bearbeiten prüfen.",
+                      "Check the connection and authentication in Edit.")));
   });
 }
 void VaultWindow::theme() {

@@ -26,7 +26,7 @@ class VaultAccessTest(unittest.TestCase):
         native.assert_called_once_with({'operation': 'store', 'title': 'Documentation', 'kind': 'token'}, launch=True)
         self.assertEqual(result, {'saved': True, 'reference': 'vault:public-id'})
 
-    def exercise(self, response):
+    def exercise(self, response, operation="check"):
         with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, XDG_RUNTIME_DIR=directory):
             endpoint = Path(directory)/'lumen-vault-access'
             service = socket.socket(socket.AF_UNIX)
@@ -40,11 +40,23 @@ class VaultAccessTest(unittest.TestCase):
                         connection.sendall(response)
             thread = threading.Thread(target=serve); thread.start()
             try:
-                result = request({'operation': 'check'})
+                result = request({'operation': operation})
             finally:
                 thread.join(timeout=2)
-            self.assertEqual(received, [{'operation': 'check'}])
+            self.assertEqual(received, [{'operation': operation}])
             return result
+
+    def test_mcp_disconnect_does_not_claim_cancellation(self):
+        with self.assertRaisesRegex(ValueError, 'outcome is unknown'):
+            self.exercise(b'', operation='mcp_call')
+
+    def test_generic_tools_do_not_pass_credentials(self):
+        with patch('vault_access.request', return_value={'result': {}}) as native:
+            invoke('lumen_vault_api_get', {'path': '/status'})
+            native.assert_called_once_with({'path': '/status', 'operation': 'api_get'}, launch=False)
+        with patch('vault_access.request', return_value={'result': {}}) as native:
+            invoke('lumen_vault_mcp', {'operation': 'call', 'name': 'example', 'arguments': {}})
+            native.assert_called_once_with({'operation': 'mcp_call', 'name': 'example', 'arguments': {}}, launch=False)
 
     def test_native_result(self):
         self.assertEqual(self.exercise(b'{"connected":true}\n'), {'connected': True})

@@ -25,6 +25,8 @@ public:
   void setStore(Store callback) { store = std::move(callback); }
   bool listen(const QString &runtime);
   bool arm(const QString &id, const QUrl &base);
+  bool arm(const QString &id, const QJsonObject &profile);
+  QJsonObject connection() const;
   void revoke();
   void close() {
     revoke();
@@ -40,6 +42,8 @@ private:
   void receive();
   void confirm(const QJsonObject &args);
   void dispatch(const QJsonObject &args, quint64 epoch, QStringList fields);
+  void sendRequest(const QJsonObject &args, quint64 epoch, int stage);
+  void received(const QJsonObject &args, quint64 epoch, int stage, bool final);
   void finish(const QJsonObject &result);
   void cancel();
   QString tx(const char *de, const char *en) const;
@@ -56,6 +60,11 @@ private:
   QElapsedTimer elapsed;
   QString entryId;
   QUrl base;
+  QJsonObject profile;
+  QList<QPair<QByteArray, QByteArray>> authHeaders;
+  QByteArray sessionId, protocol;
+  int totalBytes = 0;
+  bool actionDispatched = false;
   QByteArray frame, response;
   QStringList credentials;
   quint64 epoch = 0;

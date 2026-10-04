@@ -238,6 +238,9 @@ class NativeMCPTest(unittest.TestCase):
         tools={t['name']:t for t in keyed[2]['result']['tools']}
         self.assertIn('lumen_notes_read',tools);self.assertNotIn('lumen_theme_set',tools)
         self.assertIn('lumen_vault_store',tools)
+        self.assertIn('lumen_vault_mcp',tools)
+        self.assertIn('lumen_vault_api_get',tools)
+        self.assertIn('lumen_vault_connection',tools)
         self.assertFalse(tools['lumen_vault_store']['annotations']['readOnlyHint'])
         self.assertNotIn('password',tools['lumen_vault_store']['inputSchema']['properties'])
         self.assertTrue(tools['lumen_present_files']['annotations']['readOnlyHint'])

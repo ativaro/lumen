@@ -1,7 +1,7 @@
 # Native Lumen Vault
 
 A functional **prerelease**, normally tested with synthetic credentials. The user
-explicitly opted into local native intake/BookStack evaluation before qualification.
+explicitly opted into local native credential/API/MCP evaluation before qualification.
 Independent expert review is pending; `PRODUCTION_READY=false`. The compact unlock/about notice is
 intentional. Diagnostic and backup controls no longer dominate the main view.
 
@@ -146,3 +146,22 @@ remain false; whole-agent isolation is outstanding. See `SPEC-vault-api-access.m
 A submitted Save is a commit request: closing an IPC client or locking cannot
 reliably undo a write already sent to Rust. If a save is interrupted, check Vault
 before retrying; do not assume failure means no entry was stored.
+
+## Generic API and MCP connections
+
+The connection editor is now provider-neutral: **HTTPS API** or **MCP over HTTPS**,
+with Bearer, API-key header, `Authorization: Token ID:Secret`, or two named headers.
+There is one service address and one optional protected token-ID field. Old
+Website/Username entries are recognized as fallback address/ID; saving preserves
+and synchronizes the previous dedicated fields. Filled valid entries connect
+without a setup dialog. Missing fields are identified inline. HTTP addresses must
+be changed to HTTPS; TLS verification is never bypassed.
+
+Lumen reads the enabled connection metadata with `lumen_vault_connection`, then
+uses `lumen_vault_api_get` or `lumen_vault_mcp`. MCP supports remote Streamable HTTP
+(JSON/SSE), tool discovery and individually confirmed tool calls. It does not yet
+support local stdio servers, OAuth setup or old HTTP+SSE endpoints. Secrets never
+enter OpenCode's plaintext configuration. BookStack is a test case and an optional
+legacy read adapter, not the credential type. Generic operations may alter remote
+state; native approval shows the exact request. Check remote state before retrying
+an interrupted MCP call whose outcome is unknown.

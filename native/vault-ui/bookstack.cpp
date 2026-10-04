@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "bookstack.h"
+#include "connection.h"
 #include "vault.h"
 #include <QStringDecoder>
 #include <cmath>
@@ -15,6 +16,10 @@ bool integer(const QJsonValue &value, int low, int high) {
 bool reflected(const QByteArray &data, const QStringList &secrets) {
   for (const auto &secret : secrets) {
     const auto bytes = secret.toUtf8();
+    const auto quoted =
+        QJsonDocument(QJsonArray{secret}).toJson(QJsonDocument::Compact);
+    if (quoted.size() > 4 && data.contains(quoted.mid(2, quoted.size() - 4)))
+      return true;
     if (bytes.isEmpty())
       continue;
     if (data.contains(bytes) || data.contains(bytes.toBase64()) ||
@@ -173,20 +178,38 @@ bool VaultAccess::armed() const {
   return !entryId.isEmpty() && elapsed.isValid() && elapsed.elapsed() < 300000;
 }
 bool VaultAccess::arm(const QString &id, const QUrl &url) {
+  return arm(id, QJsonObject{{"endpoint", url.toString()},
+                             {"connector", "api"},
+                             {"auth", "token_pair"},
+                             {"id_header", ""},
+                             {"secret_header", "X-API-Key"}});
+}
+bool VaultAccess::arm(const QString &id, const QJsonObject &value) {
   revoke();
-  if (id.isEmpty() || BookStack::origin(url.toString()).isEmpty())
+  if (id.isEmpty() || value["endpoint"].toString().isEmpty())
     return false;
   entryId = id;
-  base = BookStack::origin(url.toString());
+  profile = value;
+  base = QUrl(profile["endpoint"].toString());
   elapsed.start();
   expiry.start(300000);
   emit changed();
   return true;
 }
+QJsonObject VaultAccess::connection() const {
+  if (!armed())
+    return {{"connected", false}};
+  return {{"connected", true},
+          {"reference", "vault:" + entryId},
+          {"connector", profile["connector"]},
+          {"endpoint", base.toString(QUrl::FullyEncoded)},
+          {"expires_in_seconds", qMax(0, 300 - int(elapsed.elapsed() / 1000))}};
+}
 void VaultAccess::revoke() {
   ++epoch;
   entryId.clear();
   base.clear();
+  profile = {};
   expiry.stop();
   elapsed.invalidate();
   finish(failure("access_revoked"));
@@ -220,12 +243,21 @@ void VaultAccess::cancel() {
   for (auto &secret : credentials)
     wipe(secret);
   credentials.clear();
+  for (auto &header : authHeaders)
+    wipe(header.second);
+  authHeaders.clear();
+  wipe(sessionId);
+  wipe(protocol);
+  totalBytes = 0;
+  actionDispatched = false;
   wipe(frame);
   wipe(response);
   requested = false;
 }
 void VaultAccess::finish(const QJsonObject &result) {
   QJsonObject delivered = result;
+  if (result.contains("error") && actionDispatched)
+    delivered = failure("operation_outcome_unknown");
   if (result.contains("error") && prompt && prompt->property("saving").toBool())
     delivered = failure("save_outcome_unknown");
   auto socket = peer;
@@ -294,6 +326,10 @@ void VaultAccess::receive() {
     finish(failure("invalid_request"));
     return;
   }
+  if (document.object() == QJsonObject{{"operation", "connection"}}) {
+    finish(connection());
+    return;
+  }
   if (document.object().value("operation") == "store") {
     const auto args = document.object();
     for (auto it = args.begin(); it != args.end(); ++it)
@@ -317,6 +353,7 @@ void VaultAccess::receive() {
     }
     entryId.clear();
     base.clear();
+    profile = {};
     expiry.stop();
     elapsed.invalidate();
     emit changed();
@@ -343,10 +380,10 @@ void VaultAccess::receive() {
     return;
   }
   if (!armed()) {
-    finish(failure("open_vault_and_enable_bookstack"));
+    finish(failure("open_vault_and_enable_connection"));
     return;
   }
-  if (BookStack::route(base, document.object()).isEmpty()) {
+  if (VaultConnection::route(profile, document.object()).isEmpty()) {
     finish(failure("invalid_request"));
     return;
   }
@@ -362,19 +399,24 @@ void VaultAccess::confirm(const QJsonObject &args) {
   auto *dialog = new QDialog(window);
   prompt = dialog;
   dialog->setWindowTitle(
-      tx("BookStack-Zugriff bestätigen", "Confirm BookStack access"));
+      tx("Dienstzugriff bestätigen", "Confirm service access"));
   auto *layout = new QVBoxLayout(dialog);
   auto *text = new QLabel(
-      tx("Ein lokales Programm möchte BookStack lesen. Der Aufrufer ist nicht "
+      tx("Ein lokales Programm möchte den verbundenen Dienst verwenden. Der "
+         "Aufrufer ist nicht "
          "als Lumen verifiziert.\n\n",
-         "A local program wants to read BookStack. The caller is not verified "
+         "A local program wants to use the connected service. The caller is "
+         "not verified "
          "as Lumen.\n\n") +
-      base.toString(QUrl::FullyEncoded) + "\n" +
+      VaultConnection::route(profile, args).toString(QUrl::FullyEncoded) +
+      "\n" +
       QString::fromUtf8(QJsonDocument(args).toJson(QJsonDocument::Indented)) +
-      tx("\nDie Antwort wird an das anfragende Programm zurückgegeben und kann "
+      tx("\nDie Anfrage kann beim Dienst Änderungen auslösen.\nDie Antwort "
+         "wird an das anfragende Programm zurückgegeben und kann "
          "an dein Cloud-Modell gelangen. Der Token wird nur zur Anmeldung bei "
          "diesem Dienst verwendet.",
-         "\nThe response is returned to the requesting program and may reach "
+         "\nThe request may change data at the service.\nThe response is "
+         "returned to the requesting program and may reach "
          "your cloud model. The token is used only to authenticate to this "
          "service."));
   text->setTextFormat(Qt::PlainText);
@@ -383,7 +425,7 @@ void VaultAccess::confirm(const QJsonObject &args) {
   layout->addWidget(text);
   auto *buttons = new QDialogButtonBox(QDialogButtonBox::Cancel);
   auto *allow =
-      buttons->addButton(tx("Einmal lesen erlauben", "Allow one read"),
+      buttons->addButton(tx("Diese Anfrage erlauben", "Allow this request"),
                          QDialogButtonBox::AcceptRole);
   allow->setAutoDefault(false);
   allow->setDefault(false);
@@ -414,29 +456,48 @@ void VaultAccess::confirm(const QJsonObject &args) {
 }
 void VaultAccess::dispatch(const QJsonObject &args, quint64 requestEpoch,
                            QStringList fields) {
-  auto field = [&fields](const QString &key) {
-    const int i = fields.indexOf(key);
-    return i >= 0 && i % 2 == 0 ? fields.value(i + 1) : QString();
-  };
-  const auto configured = BookStack::origin(field("LumenApiBase"));
-  QString id = field("LumenApiTokenId"), secret = field("Password");
-  const bool valid = configured == base && field("LumenType") == "token" &&
-                     field("LumenTrash") != "1" && BookStack::credential(id) &&
-                     BookStack::credential(secret);
-  for (auto &value : fields)
-    wipe(value);
+  const bool valid = VaultConnection::problem(fields).isEmpty() &&
+                     VaultConnection::settings(fields) == profile;
   if (requestEpoch != epoch || !peer || !armed() || !valid) {
-    wipe(id);
-    wipe(secret);
+    for (auto &value : fields)
+      wipe(value);
     if (requestEpoch == epoch)
       finish(failure("access_revoked_or_invalid_profile"));
     return;
   }
-  credentials = {id, secret, id + ":" + secret};
+  auto id = VaultConnection::value(fields, "LumenApiTokenId");
+  if (id.isEmpty())
+    id = VaultConnection::value(fields, "UserName");
+  auto secret = VaultConnection::value(fields, "Password");
+  credentials = {secret};
+  if (!id.isEmpty() &&
+      (profile["auth"] == "token_pair" || profile["auth"] == "headers"))
+    credentials << id << id + ":" + secret;
+  authHeaders = VaultConnection::headers(fields);
+  wipe(id);
+  wipe(secret);
+  for (auto &value : fields)
+    wipe(value);
   network = new QNetworkAccessManager(this);
   network->setProxy(QNetworkProxy::NoProxy);
   network->setCache(nullptr);
-  QNetworkRequest request(BookStack::route(base, args));
+  sendRequest(args, requestEpoch, profile["connector"] == "mcp" ? 0 : 2);
+}
+void VaultAccess::sendRequest(const QJsonObject &args, quint64 requestEpoch,
+                              int stage) {
+  if (requestEpoch != epoch || !peer || !armed()) {
+    if (requestEpoch == epoch)
+      finish(failure("access_revoked"));
+    return;
+  }
+  if (reply) {
+    reply->disconnect(this);
+    reply->abort();
+    reply->deleteLater();
+    reply.clear();
+  }
+  wipe(response);
+  QNetworkRequest request(VaultConnection::route(profile, args));
   request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                        QNetworkRequest::ManualRedirectPolicy);
   request.setAttribute(QNetworkRequest::CookieLoadControlAttribute,
@@ -449,49 +510,157 @@ void VaultAccess::dispatch(const QJsonObject &args, quint64 requestEpoch,
                        QNetworkRequest::AlwaysNetwork);
   request.setAttribute(QNetworkRequest::CacheSaveControlAttribute, false);
   request.setTransferTimeout(20000);
-  request.setRawHeader("Accept", "application/json");
   request.setRawHeader("Accept-Encoding", "identity");
-  QByteArray auth = "Token " + id.toUtf8() + ":" + secret.toUtf8();
-  request.setRawHeader("Authorization", auth);
-  reply = network->get(request);
-  wipe(auth);
-  wipe(id);
-  wipe(secret);
+  const bool mcp = profile["connector"] == "mcp";
+  request.setRawHeader("Accept", mcp ? "application/json, text/event-stream"
+                                     : "application/json");
+  for (const auto &header : authHeaders)
+    request.setRawHeader(header.first, header.second);
+  if (mcp) {
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    if (!sessionId.isEmpty())
+      request.setRawHeader("Mcp-Session-Id", sessionId);
+    if (!protocol.isEmpty())
+      request.setRawHeader("MCP-Protocol-Version", protocol);
+    if (stage == 2 && args["operation"] == "mcp_call")
+      actionDispatched = true;
+    reply =
+        network->post(request, QJsonDocument(VaultConnection::rpc(args, stage))
+                                   .toJson(QJsonDocument::Compact));
+  } else
+    reply = network->get(request);
   reply->setReadBufferSize(65536);
   QTimer::singleShot(20000, reply, [this, requestEpoch] {
     if (epoch == requestEpoch)
       finish(failure("network_timeout"));
   });
-  connect(reply, &QNetworkReply::readyRead, this, [this, requestEpoch] {
-    if (epoch != requestEpoch || !reply)
-      return;
-    response += reply->read(BookStack::MaxBody + 1 - response.size());
-    if (response.size() > BookStack::MaxBody)
-      finish(failure("response_too_large"));
-  });
-  connect(reply, &QNetworkReply::finished, this, [this, requestEpoch, args] {
-    if (epoch != requestEpoch || !reply)
-      return;
-    if (!armed()) {
-      finish(failure("access_revoked"));
-      return;
-    }
-    const int status =
-        reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    if (reply->error() != QNetworkReply::NoError || status != 200) {
+  connect(reply, &QNetworkReply::readyRead, this,
+          [this, args, requestEpoch, stage] {
+            received(args, requestEpoch, stage, false);
+          });
+  connect(reply, &QNetworkReply::finished, this,
+          [this, args, requestEpoch, stage] {
+            received(args, requestEpoch, stage, true);
+          });
+}
+void VaultAccess::received(const QJsonObject &args, quint64 requestEpoch,
+                           int stage, bool final) {
+  if (requestEpoch != epoch || !reply)
+    return;
+  if (!armed()) {
+    finish(failure("access_revoked"));
+    return;
+  }
+  auto chunk = reply->read(BookStack::MaxBody + 1 - totalBytes);
+  totalBytes += chunk.size();
+  response += chunk;
+  wipe(chunk);
+  if (totalBytes > BookStack::MaxBody) {
+    finish(failure("response_too_large"));
+    return;
+  }
+  const int status =
+      reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+  if (status != 200 &&
+      !(profile["connector"] == "mcp" && stage == 1 && status == 202)) {
+    if (final || status)
       finish(failure(status == 401 || status == 403 ? "service_denied"
                                                     : "https_request_failed"));
+    return;
+  }
+  if (final && reply->error() != QNetworkReply::NoError) {
+    finish(failure("https_request_failed"));
+    return;
+  }
+  if (!reply->rawHeader("Content-Encoding").isEmpty() &&
+      reply->rawHeader("Content-Encoding") != "identity") {
+    finish(failure("invalid_response"));
+    return;
+  }
+  if (reflected(response, credentials)) {
+    finish(failure("unsafe_response"));
+    return;
+  }
+  if (profile["connector"] == "mcp" && stage == 1) {
+    if (final) {
+      if (status != 202 || !response.isEmpty())
+        finish(failure("invalid_response"));
+      else
+        sendRequest(args, requestEpoch, 2);
+    }
+    return;
+  }
+  const auto contentType =
+      reply->header(QNetworkRequest::ContentTypeHeader).toString();
+  const bool sse = contentType.startsWith("text/event-stream");
+  if (!contentType.startsWith("application/json") &&
+      !(sse && profile["connector"] == "mcp")) {
+    finish(failure("invalid_response"));
+    return;
+  }
+  if (profile["connector"] == "mcp") {
+    if (!final && !sse)
+      return;
+    const auto result =
+        VaultConnection::rpcResponse(response, sse, stage == 0 ? 1 : 2);
+    if (result.isEmpty()) {
+      if (final)
+        finish(failure("invalid_response"));
       return;
     }
-    if (!reply->header(QNetworkRequest::ContentTypeHeader)
-             .toString()
-             .startsWith("application/json") ||
-        (!reply->rawHeader("Content-Encoding").isEmpty() &&
-         reply->rawHeader("Content-Encoding") != "identity")) {
-      finish(failure("invalid_response"));
+    if (result.contains("error")) {
+      finish(failure("invalid_mcp_response"));
       return;
     }
-    response += reply->read(BookStack::MaxBody + 1 - response.size());
+    const auto payload = result["result"].toObject();
+    if (reflected(QJsonDocument(payload).toJson(QJsonDocument::Compact),
+                  credentials)) {
+      finish(failure("unsafe_response"));
+      return;
+    }
+    if (stage == 0) {
+      protocol = payload["protocolVersion"].toString().toLatin1();
+      if (protocol != "2025-06-18" && protocol != "2025-03-26") {
+        finish(failure("unsupported_mcp_version"));
+        return;
+      }
+      sessionId = reply->rawHeader("Mcp-Session-Id");
+      if (sessionId.size() > 256) {
+        finish(failure("invalid_mcp_response"));
+        return;
+      }
+      for (auto c : sessionId)
+        if (c < 0x21 || c > 0x7e) {
+          finish(failure("invalid_mcp_response"));
+          return;
+        }
+      if (!sessionId.isEmpty())
+        credentials << QString::fromLatin1(sessionId);
+      sendRequest(args, requestEpoch, 1);
+      return;
+    }
+    finish({{"untrusted_content", true}, {"result", payload}});
+    return;
+  }
+  if (!final)
+    return;
+  if (args["operation"] != "api_get") {
     finish(BookStack::project(args, response, credentials));
-  });
+    return;
+  }
+  QJsonParseError error;
+  const auto result = QJsonDocument::fromJson(response, &error);
+  if (error.error != QJsonParseError::NoError ||
+      (!result.isObject() && !result.isArray())) {
+    finish(failure("invalid_response"));
+    return;
+  }
+  const auto canonical = result.toJson(QJsonDocument::Compact);
+  if (reflected(canonical, credentials)) {
+    finish(failure("unsafe_response"));
+    return;
+  }
+  finish({{"untrusted_content", true},
+          {"result", result.isObject() ? QJsonValue(result.object())
+                                       : QJsonValue(result.array())}});
 }

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "bookstack.h"
+#include "connection.h"
 #include "vault.h"
 #include <QtTest>
 
@@ -12,6 +13,9 @@ public:
   QByteArray extra;
   QByteArray received;
   int requests = 0;
+  bool mcpMode = false, stream = false, wrongId = false, holdCall = false;
+  QList<QByteArray> history;
+  QStringList methods;
   void incomingConnection(qintptr descriptor) override {
     auto *socket = new QSslSocket(this);
     socket->setSocketDescriptor(descriptor);
@@ -24,9 +28,59 @@ public:
       socket->setProperty("buffer", buffer);
       if (!buffer.contains("\r\n\r\n") || socket->property("answered").toBool())
         return;
+      const int headEnd = buffer.indexOf("\r\n\r\n");
+      const auto head = buffer.left(headEnd);
+      int length = 0;
+      for (const auto &line : head.split('\n'))
+        if (line.toLower().startsWith("content-length:"))
+          length = line.mid(15).trimmed().toInt();
+      if (buffer.size() < headEnd + 4 + length)
+        return;
       socket->setProperty("answered", true);
       received = buffer;
+      history.append(buffer);
       ++requests;
+      if (mcpMode) {
+        const auto rpc =
+            QJsonDocument::fromJson(buffer.mid(headEnd + 4, length)).object();
+        const auto method = rpc["method"].toString();
+        methods.append(method);
+        if (method == "notifications/initialized") {
+          socket->write("HTTP/1.1 202 Accepted\r\nContent-Length: "
+                        "0\r\nConnection: close\r\n\r\n");
+          socket->disconnectFromHost();
+          return;
+        }
+        if (method == "tools/call" && holdCall)
+          return;
+        const QJsonObject value =
+            method == "initialize"
+                ? QJsonObject{{"protocolVersion", "2025-06-18"},
+                              {"capabilities",
+                               QJsonObject{{"tools", QJsonObject{}}}},
+                              {"serverInfo", QJsonObject{{"name", "synthetic"},
+                                                         {"version", "1"}}}}
+                : QJsonObject{
+                      {"tools",
+                       QJsonArray{QJsonObject{
+                           {"name", "example"},
+                           {"inputSchema", QJsonObject{{"type", "object"}}}}}}};
+        auto data =
+            QJsonDocument(QJsonObject{{"jsonrpc", "2.0"},
+                                      {"id", wrongId ? 99 : rpc["id"].toInt()},
+                                      {"result", value}})
+                .toJson(QJsonDocument::Compact);
+        if (stream)
+          data = "event: message\r\ndata: " + data + "\r\n\r\n";
+        socket->write(
+            "HTTP/1.1 200 OK\r\nContent-Type: " +
+            QByteArray(stream ? "text/event-stream" : "application/json") +
+            "\r\nConnection: close\r\nMcp-Session-Id: "
+            "synthetic-session\r\nContent-Length: " +
+            QByteArray::number(data.size()) + "\r\n\r\n" + data);
+        socket->disconnectFromHost();
+        return;
+      }
       socket->write("HTTP/1.1 " + status +
                     "\r\nContent-Type: application/json\r\nConnection: "
                     "close\r\nContent-Length: " +
@@ -85,6 +139,79 @@ private slots:
     QCOMPARE(QUrlQuery(url).queryItemValue("count"), QString("10"));
     QVERIFY(!BookStack::credential("SYNTHETIC\r\nHeader"));
   }
+  void genericProfilesAndConfinement() {
+    QStringList fields{"LumenType",    "token",
+                       "URL",          "https://api.example/api",
+                       "UserName",     "example-id",
+                       "Password",     "eyJhbGc.eyJpc3M.signature_123",
+                       "LumenApiAuth", "bearer"};
+    QVERIFY(VaultConnection::problem(fields).isEmpty());
+    auto profile = VaultConnection::settings(fields);
+    QCOMPARE(profile["connector"].toString(), QString("api"));
+    QCOMPARE(profile["endpoint"].toString(),
+             QString("https://api.example/api"));
+    QCOMPARE(VaultConnection::headers(fields).first().second,
+             QByteArray("Bearer eyJhbGc.eyJpc3M.signature_123"));
+    QCOMPARE(VaultConnection::route(
+                 profile, {{"operation", "api_get"}, {"path", "/status"}})
+                 .path(),
+             QString("/api/status"));
+    for (const auto *path :
+         {"//evil.test/", "https://evil.test", "/../out", "/%2e%2e/out",
+          "/a/../../out", "/ok\n", "/a%2fb", "/a\\b"})
+      QVERIFY2(VaultConnection::route(
+                   profile, {{"operation", "api_get"}, {"path", path}})
+                   .isEmpty(),
+               path);
+    fields << "LumenApiBase" << "http://bad.example";
+    QCOMPARE(VaultConnection::problem(fields),
+             QString("endpoint")); // Do not silently fall back from populated
+                                   // invalid address.
+    fields.removeLast();
+    fields.removeLast();
+    fields[fields.indexOf("LumenApiAuth") + 1] = "headers";
+    fields << "LumenApiIdHeader" << "X-Token-ID" << "LumenApiSecretHeader"
+           << "X-Token-Secret";
+    QVERIFY(VaultConnection::problem(fields).isEmpty());
+    QCOMPARE(VaultConnection::headers(fields).size(), 2);
+    fields[fields.indexOf("LumenApiSecretHeader") + 1] = "hOsT";
+    QCOMPARE(VaultConnection::problem(fields), QString("secret_header"));
+    fields[fields.indexOf("LumenApiSecretHeader") + 1] = "Host\n";
+    QCOMPARE(VaultConnection::problem(fields), QString("secret_header"));
+    fields[fields.indexOf("LumenApiSecretHeader") + 1] = "x-token-id";
+    QCOMPARE(VaultConnection::problem(fields), QString("id_header"));
+    fields[fields.indexOf("LumenApiSecretHeader") + 1] = "X-Token-Secret";
+    fields[fields.indexOf("Password") + 1] = "bad\r\nHeader: injection";
+    QCOMPARE(VaultConnection::problem(fields), QString("secret"));
+    QCOMPARE(VaultConnection::rpcResponse(
+                 R"({"jsonrpc":"2.0","id":9,"result":{}})", false, 1)["error"]
+                 .toString(),
+             QString("invalid_rpc"));
+    QCOMPARE(
+        VaultConnection::rpcResponse(
+            R"({"jsonrpc":"2.0","id":1,"method":"sampling/createMessage"})",
+            false, 1)["error"]
+            .toString(),
+        QString("unsupported_server_request"));
+    QCOMPARE(VaultConnection::rpcResponse(
+                 "data: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n\n", true,
+                 1)["result"]
+                 .toObject(),
+             QJsonObject{});
+  }
+  void sseFramingAndLimits() {
+    const QByteArray event =
+        "data: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}";
+    QVERIFY(VaultConnection::rpcResponse(event + "\r\r", true, 1)
+                .contains("result"));
+    QVERIFY(VaultConnection::rpcResponse(event + "\r", true, 1).isEmpty());
+    QVERIFY(VaultConnection::rpcResponse(
+                QByteArray::fromHex("efbbbf") + event + "\r\n\r\n", true, 1)
+                .contains("result"));
+    QVERIFY(VaultConnection::rpcResponse(QByteArray(130, '\n') + event + "\n\n",
+                                         true, 1)
+                .contains("error"));
+  }
   void responseProjectionAndReflection() {
     const QString canary = "SYNTHETIC_SECRET_123";
     const QJsonObject args{{"operation", "read_page"}, {"page_id", 5}};
@@ -140,7 +267,7 @@ private slots:
     send(absent, runtime.path(), R"({"operation":"check"})");
     QTRY_VERIFY(absent.bytesAvailable());
     QCOMPARE(result(absent).value("error").toString(),
-             QString("open_vault_and_enable_bookstack"));
+             QString("open_vault_and_enable_connection"));
     QVERIFY(access.arm("synthetic-id",
                        BookStack::origin("https://example.invalid")));
     QLocalSocket extra;
@@ -297,6 +424,86 @@ private slots:
     service.body = QByteArray(BookStack::MaxBody + 100, 'x');
     QCOMPARE(perform(R"({"operation":"check"})").value("error").toString(),
              QString("response_too_large"));
+    // Generic API uses the same encrypted credential boundary, with a different
+    // auth scheme.
+    QStringList generic{"LumenType",
+                        "token",
+                        "URL",
+                        base.toString() + "/service",
+                        "Password",
+                        "SYNTHETIC.JWT.SECRET",
+                        "LumenApiAuth",
+                        "bearer",
+                        "LumenApiConnector",
+                        "api"};
+    QWidget genericWindow;
+    VaultAccess genericAccess(
+        &genericWindow, [&](QString, auto callback) { callback(generic); },
+        true);
+    QTemporaryDir genericRuntime;
+    QVERIFY(genericAccess.listen(genericRuntime.path()));
+    QVERIFY(genericAccess.arm("generic", VaultConnection::settings(generic)));
+    auto genericPerform = [&](const QByteArray &request) -> QJsonObject {
+      QLocalSocket client;
+      send(client, genericRuntime.path(), request);
+      for (int i = 0; i < 100 && !QApplication::activeModalWidget(); ++i)
+        QTest::qWait(10);
+      auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+      if (!dialog)
+        return {{"test_error", "no_prompt"}};
+      dialog->accept();
+      for (int i = 0; i < 500 && !client.bytesAvailable(); ++i)
+        QTest::qWait(10);
+      return result(client);
+    };
+    service.body = R"({"status":"ok","id":1})";
+    generic << "UserName" << "id";
+    QVERIFY(genericAccess.arm("generic", VaultConnection::settings(generic)));
+    QCOMPARE(
+        genericPerform(R"({"operation":"api_get","path":"/status"})")["result"]
+            .toObject()["status"]
+            .toString(),
+        QString("ok"));
+    QVERIFY(service.received.startsWith("GET /service/status HTTP/1.1"));
+    QVERIFY(service.received.contains(
+        "Authorization: Bearer SYNTHETIC.JWT.SECRET"));
+    generic[generic.indexOf("LumenApiConnector") + 1] = "mcp";
+    service.mcpMode = true;
+    for (bool sse : {false, true}) {
+      service.stream = sse;
+      service.methods.clear();
+      service.history.clear();
+      QVERIFY(genericAccess.arm("generic", VaultConnection::settings(generic)));
+      const auto response = genericPerform(R"({"operation":"mcp_tools"})");
+      QVERIFY2(response.contains("result"),
+               qPrintable(QString::fromUtf8(QJsonDocument(response).toJson())));
+      QCOMPARE(service.methods,
+               QStringList(
+                   {"initialize", "notifications/initialized", "tools/list"}));
+      QVERIFY(service.history[1].contains("Mcp-Session-Id: synthetic-session"));
+      QVERIFY(service.history[2].toLower().contains(
+          "mcp-protocol-version: 2025-06-18"));
+      QVERIFY(!QJsonDocument(response).toJson().contains("synthetic-session"));
+    }
+    service.wrongId = true;
+    QCOMPARE(genericPerform(R"({"operation":"mcp_tools"})")["error"].toString(),
+             QString("invalid_mcp_response"));
+    service.wrongId = false;
+    service.holdCall = true;
+    QLocalSocket mutation;
+    send(mutation, genericRuntime.path(),
+         R"({"operation":"mcp_call","name":"example","arguments":{}})");
+    QTRY_VERIFY(QApplication::activeModalWidget());
+    qobject_cast<QDialog *>(QApplication::activeModalWidget())->accept();
+    QTRY_COMPARE(service.methods.last(), QString("tools/call"));
+    const int dispatched = service.methods.count("tools/call");
+    genericAccess.revoke();
+    QTRY_VERIFY(mutation.bytesAvailable());
+    QCOMPARE(result(mutation)["error"].toString(),
+             QString("operation_outcome_unknown"));
+    QTest::qWait(50);
+    QCOMPARE(service.methods.count("tools/call"), dispatched);
+    service.mcpMode = false;
     const int prior = secretReads;
     QLocalSocket denied;
     send(denied, runtime.path(), R"({"operation":"check"})");
@@ -306,6 +513,64 @@ private slots:
     QCOMPARE(result(denied).value("error").toString(),
              QString("access_denied"));
     QCOMPARE(secretReads, prior);
+  }
+  void existingEntriesConnectWithoutWizardAndSelectionIsScoped() {
+    QTemporaryDir root;
+    Channel seed(root.path());
+    bool created = false;
+    seed.call({"create", "SYNTHETIC GENERIC MASTER"},
+              [&](QStringList) { created = true; });
+    QTRY_VERIFY_WITH_TIMEOUT(created, 10000);
+    QString a, b;
+    seed.call({"put", "", "Title", "A API", "LumenType", "token", "URL",
+               "https://api.example", "UserName", "SYNTHETIC_ID", "Password",
+               "SYNTHETIC_SECRET"},
+              [&](QStringList result) { a = result.value(0); });
+    QTRY_VERIFY_WITH_TIMEOUT(!a.isEmpty(), 10000);
+    seed.call({"put", "", "Title", "B MCP", "LumenType", "token",
+               "LumenApiConnector", "mcp", "URL", "https://mcp.example/mcp",
+               "LumenApiAuth", "bearer", "Password", "SYNTHETIC.JWT.SECRET"},
+              [&](QStringList result) { b = result.value(0); });
+    QTRY_VERIFY_WITH_TIMEOUT(!b.isEmpty(), 10000);
+    seed.stop();
+    VaultWindow window(root.path());
+    window.show();
+    auto *master = window.findChild<QLineEdit *>("master");
+    master->setText("SYNTHETIC GENERIC MASTER");
+    QTest::keyClick(master, Qt::Key_Return);
+    QTRY_VERIFY_WITH_TIMEOUT(window.unlocked(), 10000);
+    QTRY_COMPARE(window.findChild<QListWidget *>("entries")->count(), 2);
+    auto *entries = window.findChild<QListWidget *>("entries");
+    auto select = [&](const QString &id) {
+      for (int i = 0; i < entries->count(); ++i)
+        if (entries->item(i)->data(Qt::UserRole).toString() == id)
+          entries->setCurrentRow(i);
+    };
+    auto *access = window.findChild<VaultAccess *>();
+    auto *button = window.findChild<QPushButton *>("apiAccess");
+    select(a);
+    QTest::mouseClick(button, Qt::LeftButton);
+    QTRY_COMPARE(access->entry(), a);
+    QVERIFY(!QApplication::activeModalWidget());
+    const auto activeText = button->text();
+    select(b);
+    QVERIFY(button->text() != activeText);
+    QCOMPARE(access->entry(), a);
+    QTest::mouseClick(button, Qt::LeftButton);
+    QTRY_COMPARE(access->entry(), b);
+    QCOMPARE(access->connection()["connector"].toString(), QString("mcp"));
+    auto *channel = window.findChild<Channel *>();
+    bool changed = false;
+    channel->call({"put", a, "Title", "A API", "URL", "http://api.example"},
+                  [&](QStringList) { changed = true; });
+    QTRY_VERIFY(changed);
+    select(a);
+    QTest::mouseClick(button, Qt::LeftButton);
+    QTRY_VERIFY(
+        window.findChild<QLabel *>("accessStatus")->text().contains("HTTPS"));
+    QVERIFY(!QApplication::activeModalWidget());
+    QCOMPARE(access->entry(), b);
+    window.lock();
   }
   void nativeIntakeSavesOnlyReferenceAndLocks() {
     QTemporaryDir root, runtime;
@@ -325,9 +590,9 @@ private slots:
     QTRY_VERIFY(window.findChild<QLineEdit *>("editPassword"));
     window.findChild<QLineEdit *>("editPassword")
         ->setText("SYNTHETIC_SECRET_123");
-    window.findChild<QLineEdit *>("editLumenApiBase")
-        ->setText("https://example.invalid");
-    auto *id = window.findChild<QLineEdit *>("editLumenApiTokenId");
+    window.findChild<QLineEdit *>("editURL")->setText(
+        "https://example.invalid");
+    auto *id = window.findChild<QLineEdit *>("editUserName");
     QCOMPARE(id->echoMode(), QLineEdit::Password);
     id->setText("SYNTHETIC_ID_123");
     QTest::mouseClick(window.findChild<QPushButton *>("save"), Qt::LeftButton);
@@ -337,6 +602,13 @@ private slots:
     QVERIFY(saved.value("saved").toBool());
     QVERIFY(saved.value("reference").toString().startsWith("vault:"));
     QTRY_VERIFY(!window.findChild<QLineEdit *>("editPassword"));
+    QTRY_COMPARE(window.findChild<QListWidget *>("entries")->count(), 1);
+    window.findChild<QListWidget *>("entries")->setCurrentRow(0);
+    QTest::mouseClick(window.findChild<QPushButton *>("apiAccess"),
+                      Qt::LeftButton);
+    QTRY_VERIFY(window.findChild<VaultAccess *>()->armed());
+    QVERIFY(!QApplication::activeModalWidget());
+    // An invalid endpoint is shown inline, never as a setup wizard.
     QLocalSocket second;
     send(second, runtime.path(),
          R"({"operation":"store","title":"Cancelled","kind":"login"})");

@@ -67,7 +67,8 @@ private:
   void select();
   void filter();
   void edit(QStringList fields = {}, bool createNew = false);
-  void shareBookStack();
+  void shareConnection();
+  void updateAccess();
   void theme();
   void hideSecret();
   void authorize(bool create, bool restore = false);
@@ -88,7 +89,8 @@ private:
   QStringList rows;
   QPointer<QLineEdit> master, confirm, search, secret, username, website;
   QPointer<QListWidget> entries, navigation;
-  QPointer<QLabel> heading, subtitle, status;
+  QPointer<QLabel> heading, subtitle, status, accessStatus;
+  QPointer<QPushButton> accessButton;
   QPointer<QDialog> editor;
   QPointer<QWidget> body;
 };

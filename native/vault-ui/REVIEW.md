@@ -1,7 +1,7 @@
 # Review handoff — release remains closed
 
 Scope: native/vault-core + native/vault-ui, launcher `--lab`, optional native
-button in tools_vault.py, readiness MCP, and explicitly opted-in native intake/BookStack reads. The legacy synthetic QML preview
+button in tools_vault.py, readiness MCP, and explicitly opted-in native intake/API/MCP requests. The legacy synthetic QML preview
 and Restic backups remain separate. All tests use public synthetic values.
 
 ## Implemented trust boundary
@@ -38,7 +38,7 @@ race the last hash check; active files must remain exclusively managed by Vault.
 4. Whole-Lumen agent isolation before any claim that an unrestricted agent cannot
    obtain screen/clipboard/process data or enable automatic credential use.
    The user accepted a bounded prerelease exception: native input and separately
-   confirmed BookStack reads, without claiming whole-agent isolation. No secret
+   confirmed API reads and MCP operations, without claiming whole-agent isolation. No secret
    export API is exposed; production readiness remains false.
 5. Production UX/policy for history retention, broad KDBX import profiles, recovery
    documentation, larger vaults and new dependency/source distribution obligations.
