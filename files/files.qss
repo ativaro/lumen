@@ -121,3 +121,13 @@ QListWidget#settingsNavigation::item { padding: 12px 8px; border-radius: 8px; co
 QListWidget#settingsNavigation::item:selected { background: palette(midlight); color: palette(text); }
 
 QPushButton#iconButton { padding: 0; min-width: 0; min-height: 0; }
+
+/* Settings: stable six-category navigation with quiet section rows. */
+QPushButton#settingsSection { text-align: left; padding: 0; min-height: 72px; border: 1px solid palette(mid); border-radius: 10px; background: palette(base); }
+QPushButton#settingsSection:hover { background: palette(midlight); border-color: palette(highlight); }
+QPushButton#settingsSection:focus { border: 2px solid palette(highlight); }
+QLabel#settingsSectionTitle { font-weight: 600; background: transparent; }
+QLabel#settingsDescription { color: palette(dark); background: transparent; }
+QListWidget#settingsResults { border: none; background: transparent; }
+QListWidget#settingsResults::item { padding: 10px 12px; border-bottom: 1px solid palette(mid); }
+QListWidget#settingsResults::item:selected { color: palette(text); background: palette(midlight); }

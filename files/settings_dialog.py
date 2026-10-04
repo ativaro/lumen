@@ -26,6 +26,7 @@ def text(value):
 
 def button(title, callback):
     item = QPushButton(title)
+    item.setAutoDefault(False)
     item.clicked.connect(callback)
     return item
 
@@ -41,7 +42,7 @@ def combo(items, value):
 class SettingsDialog(QDialog):
     preferencesChanged = Signal(str, list)
 
-    def __init__(self, parent=None, files_settings=None, assistant_settings=None, page=0, load_system=True, application=None):
+    def __init__(self, parent=None, files_settings=None, assistant_settings=None, page=None, load_system=True, application=None):
         super().__init__(parent)
         self.setWindowTitle(tr('Einstellungen — Lumen'))
         self.resize(1000, 760)
@@ -53,21 +54,9 @@ class SettingsDialog(QDialog):
         self.desktop = {}
         self.original = {}
         root = QVBoxLayout(self)
-        row = QHBoxLayout()
-        self.nav = QListWidget()
-        self.nav.setAccessibleName(tr('Einstellungsbereiche')); self.nav.setObjectName('settingsNavigation')
-        self.nav.setFixedWidth(205)
-        self.nav.setSpacing(5)
+        root.setContentsMargins(24, 24, 24, 18)
         self.stack = QStackedWidget()
-        sidebar = QWidget(); sidebar.setFixedWidth(220)
-        sidebar_layout = QVBoxLayout(sidebar); sidebar_layout.setContentsMargins(0, 0, 0, 0)
-        self.nav_search = QLineEdit(); self.nav_search.setPlaceholderText(tr('Bereich finden …'))
-        self.nav_search.setAccessibleName(tr('Einstellungsbereich suchen'))
-        sidebar_layout.addWidget(self.nav_search); sidebar_layout.addWidget(self.nav, 1)
-        self.nav_search.textChanged.connect(self.filter_pages)
-        row.addWidget(sidebar)
-        row.addWidget(self.stack, 1)
-        root.addLayout(row, 1)
+        self.page_info = []
         self.status = text(tr('Änderungen mit „Übernehmen“ speichern. Systemdialoge übernehmen ihre eigenen Einstellungen.'))
         root.addWidget(self.status)
         bottom = QHBoxLayout()
@@ -75,7 +64,6 @@ class SettingsDialog(QDialog):
         bottom.addStretch()
         bottom.addWidget(button(tr('Schließen'), self.reject))
         root.addLayout(bottom)
-        self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)
         self.build_lumen()
         self.build_files()
         self.shortcut_page = self.page(tr('Tastenkürzel'), tr('Lumen überall aufrufen'))
@@ -104,17 +92,20 @@ class SettingsDialog(QDialog):
         hardware.addWidget(HardwareView(self))
         self.app_pages = {'lumen': 0, 'files': 1}
         self.build_apps()
-        self.nav.setCurrentRow(self.app_pages.get(application, page))
+        self.build_speech_settings()
+        for action in self.stack.findChildren(QPushButton):
+            action.setAutoDefault(False); action.setDefault(False)
+        from settings_navigation import SettingsNavigation, categories
+        self.navigation = SettingsNavigation(self.stack, self.page_info, categories(self), self)
+        self.nav = self.navigation.nav; self.nav_search = self.navigation.search
+        root.insertWidget(0, self.navigation, 1)
+        destination = self.app_pages.get(application, page)
+        if destination is not None: self.open_page(destination)
         if load_system:
             QTimer.singleShot(0, self.reload)
 
-    def filter_pages(self, query):
-        query = query.strip().casefold()
-        first = None
-        for index in range(self.nav.count()):
-            item = self.nav.item(index); match = query in item.text().casefold(); item.setHidden(not match)
-            if match and first is None: first = index
-        if first is not None and (self.nav.currentItem() is None or self.nav.currentItem().isHidden()): self.nav.setCurrentRow(first)
+    def open_page(self, index, target=None):
+        self.navigation.open_page(index, target)
 
     def build_apps(self):
         from lumen_apps import catalogue, COMPANIONS, launch
@@ -169,11 +160,11 @@ class SettingsDialog(QDialog):
                     except (OSError, ValueError) as error: self.status.setText(str(error))
                 panel.addWidget(button(tr('App-Einstellungen übernehmen'), save_app))
             panel.addWidget(text(tr('Gemeinsam für alle Lumen-Apps')))
-            panel.addWidget(button(tr('Sprache, Modell und Arbeitsweise'), lambda: self.nav.setCurrentRow(0)))
-            panel.addWidget(button(tr('Erscheinungsbild'), lambda: self.nav.setCurrentRow(3)))
+            panel.addWidget(button(tr('Sprache, Modell und Arbeitsweise'), lambda: self.open_page(0)))
+            panel.addWidget(button(tr('Erscheinungsbild'), lambda: self.open_page(3)))
             if key in ('search', 'meetings', 'reader', 'radio'):
-                panel.addWidget(button(tr('Spracheingabe und Einrichtung'), lambda: self.nav.setCurrentRow(8)))
-            if key == 'inbox': panel.addWidget(button(tr('KI-Zugriff auf die Inbox'), lambda: self.nav.setCurrentRow(9)))
+                panel.addWidget(button(tr('Spracheingabe und Einrichtung'), lambda: self.open_page(self.speech_input_page)))
+            if key == 'inbox': panel.addWidget(button(tr('KI-Zugriff auf die Inbox'), lambda: self.open_page(9)))
             panel.addStretch()
 
     def build_mcp(self):
@@ -193,21 +184,74 @@ class SettingsDialog(QDialog):
         page.addWidget(button(tr('MCP-Einstellungen übernehmen'), save))
         page.addStretch()
 
+    def build_speech_settings(self):
+        from lumen_speech import add_recognition_fields
+        from lumen_tts import add_voice_fields
+        from settings_navigation import Details
+        from PySide6.QtWidgets import QDoubleSpinBox
+        self.speech_input_page = self.stack.count()
+        page = self.page(tr('Spracheingabe'), tr('Mikrofon und Diktieren für alle Lumen-Apps'))
+        form = QFormLayout(); page.addLayout(form)
+        save_recognition = add_recognition_fields(form, self.assistant)
+        self.recognition_form = form
+        advanced = Details(tr('Erweitert · Gesprächserkennung')); page.addWidget(advanced)
+        calibration = QFormLayout(); advanced.content.addLayout(calibration)
+        threshold = QSpinBox(); threshold.setRange(50, 15000)
+        threshold.setValue(self.assistant.value('voiceThreshold', 450, type=int))
+        silence = QDoubleSpinBox(); silence.setRange(.3, 4); silence.setSingleStep(.1)
+        silence.setValue(self.assistant.value('voiceSilence', .9, type=float))
+        calibration.addRow(tr('Mikrofonschwelle (kleiner = empfindlicher)'), threshold)
+        calibration.addRow(tr('Sprechpause vor dem Senden (Sekunden)'), silence)
+        def save_input():
+            save_recognition()
+            self.assistant.setValue('voiceThreshold', threshold.value()); self.assistant.setValue('voiceSilence', silence.value())
+            self.assistant.sync()
+            self.preferencesChanged.emit(self.assistant.fileName(), ['speechLanguage', 'speechVocabulary', 'speechUseGPU', 'voiceThreshold', 'voiceSilence'])
+            self.status.setText(tr('Spracheingabe gespeichert. Gilt ab der nächsten Aufnahme.'))
+        page.addWidget(button(tr('Spracheingabe übernehmen'), save_input))
+        self.speech_setup_link(page)
+        page.addStretch()
+        self.speech_output_page = self.stack.count()
+        page = self.page(tr('Stimme & Vorlesen'), tr('Gemeinsame Stimme für Gespräche, Reader und Radio'))
+        form = QFormLayout(); page.addLayout(form)
+        save_voice = add_voice_fields(form, self.assistant)
+        self.voice_form = form
+        def save_output():
+            save_voice()
+            self.preferencesChanged.emit(self.assistant.fileName(), ['speechEngine', 'speechSpeaker'])
+            self.status.setText(tr('Stimme gespeichert. Gilt ab der nächsten Sprachausgabe.'))
+        page.addWidget(button(tr('Stimme übernehmen'), save_output))
+        self.speech_setup_link(page)
+        page.addStretch()
+
+    def speech_setup_link(self, page):
+        page.addWidget(text(tr('Modelle installieren oder wechseln und das Mikrofon testen:')))
+        page.addWidget(button(tr('Sprache einrichten …'), lambda: self.open_setup_wizard(2)))
+
+    def open_setup_wizard(self, page=0):
+        from setup_dialog import open_setup
+        open_setup(self, self.assistant, page=page)
+        self.assistant.sync()
+        selected = self.assistant.value('model', '')
+        if self.model.findData(selected) < 0: self.model.addItem(selected, selected)
+        self.model.setCurrentIndex(max(0, self.model.findData(selected)))
+        self.original[(self.assistant.fileName(), 'model')] = selected
+        from lumen_speech import VOCABULARY
+        from lumen_tts import engine, speaker
+        language_choice = self.recognition_form.itemAt(0, QFormLayout.FieldRole).widget()
+        language_choice.setCurrentIndex(max(0, language_choice.findData(self.assistant.value('speechLanguage', 'de'))))
+        self.recognition_form.itemAt(1, QFormLayout.FieldRole).widget().setText(str(self.assistant.value('speechVocabulary', VOCABULARY)))
+        self.recognition_form.itemAt(2, QFormLayout.FieldRole).widget().setChecked(self.assistant.value('speechUseGPU', True, type=bool))
+        voice_choice = self.voice_form.itemAt(0, QFormLayout.FieldRole).widget()
+        voice_choice.setCurrentIndex(max(0, voice_choice.findData(engine(self.assistant))))
+        self.voice_form.itemAt(1, QFormLayout.FieldRole).widget().setCurrentText(speaker(self.assistant))
+        self.preferencesChanged.emit(self.assistant.fileName(), ['model', 'speechModel', 'speechEngine', 'speechSpeaker'])
+
     def build_setup(self):
         page = self.page(tr('Einrichtung'), tr('Lumen und optionale Erweiterungen vorbereiten'))
         page.addWidget(text(tr('Der Einrichtungsassistent prüft OpenCode, Vorschauen und Netzwerkfunktionen. '
             'Du kannst Anbieter verbinden, ein Modell auswählen und lokales Diktieren installieren und testen.')))
-        def launch():
-            from setup_dialog import open_setup
-            open_setup(self, self.assistant)
-            self.assistant.sync()
-            # Refresh the existing model control so a later Apply cannot revert the wizard choice.
-            selected = self.assistant.value('model', '')
-            if self.model.findData(selected) < 0: self.model.addItem(selected, selected)
-            self.model.setCurrentIndex(max(0, self.model.findData(selected)))
-            self.original[(self.assistant.fileName(), 'model')] = selected
-            self.preferencesChanged.emit(self.assistant.fileName(), ['model', 'speechModel'])
-        page.addWidget(button(tr('Einrichtungsassistent öffnen'), launch))
+        page.addWidget(button(tr('Einrichtungsassistent öffnen'), self.open_setup_wizard))
         page.addStretch()
 
     def build_recovery(self):
@@ -237,7 +281,7 @@ class SettingsDialog(QDialog):
         page.addStretch()
 
     def page(self, title, subtitle):
-        self.nav.addItem(title)
+        self.page_info.append(dict(title=title, subtitle=subtitle))
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.NoFrame)
@@ -377,6 +421,11 @@ class SettingsDialog(QDialog):
         self.document_workshop.setChecked(self.field(self.files, 'documentWorkshopEnabled', False, bool))
         self.document_workshop.setToolTip(tr('PDF-Seiten zusammenstellen, drehen, schwärzen und mit Texterkennung exportieren. Standardmäßig ausgeschaltet.'))
         form.addRow(tr('PDF-Bearbeitung'), self.document_workshop)
+        page.addLayout(form)
+        from settings_navigation import Details
+        tuning = Details(tr('Erweitert · Suchverhalten'))
+        page.addWidget(tuning)
+        form = QFormLayout(); tuning.content.addLayout(form)
         self.delay = QSpinBox()
         self.delay.setRange(100, 1500)
         self.delay.setSingleStep(50)
@@ -388,7 +437,9 @@ class SettingsDialog(QDialog):
         self.limit.setSingleStep(500)
         self.limit.setValue(self.field(self.files, 'searchLimit', 5000, int))
         form.addRow(tr('Max. Dateinamen-Treffer'), self.limit)
-        page.addLayout(form)
+        sources = Details(tr('Orte, Server und Bibliotheken'))
+        page.addWidget(sources)
+        main_page = page; page = sources.content
         page.addWidget(text(tr('Gespeicherte Orte & Server — Entfernen löscht nur den Eintrag, keine Dateien oder Zugangsdaten.')))
         self.places = QListWidget()
         self.places.setAccessibleName(tr('Gespeicherte Orte und Server'))
@@ -401,12 +452,12 @@ class SettingsDialog(QDialog):
         page.addWidget(self.places)
         remove = button(tr('Ausgewählten Eintrag entfernen'), lambda: self.places.takeItem(self.places.currentRow()) if self.places.currentRow() >= 0 else None)
         remove.setObjectName('danger'); page.addWidget(remove)
-        page.addWidget(button(tr('Files-Einstellungen übernehmen'), self.save_files))
         page.addWidget(button(tr('Bibliotheken und Quellen verwalten …'), self.manage_libraries))
         page.addWidget(text(tr('Neue Server: Strg+K in Files (SMB, SFTP, WebDAV, NFS).\n'
             'Bilder bearbeiten: Leertaste auf einem Bild. Originale werden vor dem Speichern gesichert.\n'
             'Speicheranalyse: Menü ••• → Speicher analysieren. Umbenennen/Sortieren: Auswahl → Kontextmenü.')))
-        page.addStretch()
+        main_page.addWidget(button(tr('Files-Einstellungen übernehmen'), self.save_files))
+        main_page.addStretch()
 
     def manage_libraries(self):
         from file_spaces import Catalog
@@ -493,6 +544,7 @@ class SettingsDialog(QDialog):
         desktop = QWidget(); desktop.hide(); desktop_layout = QVBoxLayout(desktop)
         desktop_layout.setContentsMargins(0, 0, 0, 0)
         advanced = QPushButton(tr('KDE-Desktop anpassen …')); advanced.setObjectName('quiet'); advanced.setCheckable(True)
+        desktop.settings_toggle = advanced
         advanced.toggled.connect(desktop.setVisible); page.addWidget(advanced, 0, Qt.AlignLeft)
         page.addWidget(desktop)
         self.theme_state = text(tr('Aktuelles KDE-Design wird geladen …'))
@@ -735,5 +787,5 @@ if __name__ == '__main__':
     from PySide6.QtGui import QIcon
     app = create_app()
     app.setApplicationName('lumen-settings'); app.setApplicationDisplayName(tr('Lumen Einstellungen'))
-    dialog = SettingsDialog(page=9 if '--hardware' in sys.argv else 3 if '--appearance' in sys.argv else 0); dialog.setWindowIcon(QIcon.fromTheme('configure')); dialog.show()
+    dialog = SettingsDialog(page=10 if '--hardware' in sys.argv else 3 if '--appearance' in sys.argv else None); dialog.setWindowIcon(QIcon.fromTheme('configure')); dialog.show()
     sys.exit(app.exec())

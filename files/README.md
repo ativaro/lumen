@@ -52,6 +52,20 @@ Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. Au
 In beiden Apps über **Einstellungen** oder **Strg+Komma**; direkter Start mit
 `lumen-files --settings` oder `lumen-agent-app --page settings`.
 
+Die Navigation hat sechs Hauptbereiche: **Darstellung & Desktop**, **KI & Sprache**,
+**Dateien & Speicher**, **Apps**, **Datenschutz & Freigaben** und **Wartung**.
+Jeder Bereich öffnet eine kurze Übersicht seiner Unterseiten. Alle bisherigen
+Optionen, App-Verknüpfungen und nativen KDE-Dialoge bleiben erreichbar.
+
+Die Suche oben (auch **Strg+F**) findet einzelne Einstellungen und springt mit
+**Enter** direkt zum passenden Feld. Zugeklappte Details werden dabei geöffnet;
+persönliche Feldwerte wie Ordnerpfade oder Modellnamen werden nicht durchsucht.
+**KI & Sprache → Spracheingabe / Stimme & Vorlesen** bietet die laufenden
+Sprachoptionen direkt; der Einrichtungsassistent bleibt für Installation und Tests.
+Seltene Suchparameter und die Verwaltung von Orten liegen in aufklappbaren
+Bereichen. Seitenwechsel und Suche erhalten ungespeicherte Änderungen und führen
+keine Aktionen aus. Gespeichert wird weiterhin ausdrücklich über „Übernehmen“.
+
 - **Lumen:** Arbeitsordner, Standardmodus, Übersetzungssprache, Modell aus den
   eingerichteten Providern und „Nicht mehr nachfragen“. Die Modellwahl gilt ab
   der nächsten Anfrage auch für intelligente Dateiaktionen. Provider-/Auth-
