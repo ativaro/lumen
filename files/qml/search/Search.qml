@@ -198,16 +198,22 @@ ApplicationWindow {
                                 Layout.fillWidth: true
                                 Layout.maximumWidth: userMessage ? Math.min(960, conversation.availableWidth) * 8 / 9 : 960
                                 Layout.alignment: userMessage ? Qt.AlignRight : Qt.AlignLeft
-                                leftPadding: 18; rightPadding: 18; topPadding: 14; bottomPadding: 14
+                                leftPadding: userMessage ? 18 : 22; rightPadding: leftPadding; topPadding: userMessage ? 14 : 20; bottomPadding: topPadding
                                 background: Rectangle {
                                     radius: 14
-                                    color: messageRow.userMessage ? Qt.alpha(window.theme.accent, 0.07) : "transparent"
-                                    border.width: messageRow.userMessage ? 1 : 0
+                                    color: messageRow.userMessage ? Qt.alpha(window.theme.accent, 0.07) : Qt.alpha(window.theme.base, 0.72)
+                                    border.width: 1
                                     border.color: Qt.alpha(window.theme.border, 0.6)
                                 }
                                 contentItem: ColumnLayout {
-                                    spacing: 8
-                                    Label { text: messageRow.userMessage ? window.controller.text("DU") : "LUMEN"; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 1; color: window.theme.muted }
+                                    spacing: messageRow.userMessage ? 8 : 16
+                                    Label { visible: messageRow.userMessage; text: window.controller.text("DU"); font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 1; color: window.theme.muted }
+                                    RowLayout {
+                                        visible: !messageRow.userMessage; spacing: 9
+                                        Image { source: "image://icons/lumen?" + window.theme.name; sourceSize: Qt.size(26, 26); Layout.preferredWidth: 26; Layout.preferredHeight: 26 }
+                                        Label { text: "Lumen"; color: window.theme.text; font.pixelSize: 14; font.weight: Font.DemiBold }
+                                        Item { Layout.fillWidth: true }
+                                    }
                                     TextArea {
                                         objectName: "messageBody"
                                         Layout.fillWidth: true; text: messageRow.modelData.body
@@ -217,6 +223,26 @@ ApplicationWindow {
                                         onLinkActivated: function(link) { window.controller.open_link(link) }
                                     }
                                     Label { Layout.fillWidth: true; visible: messageRow.modelData.activity.length > 0; text: messageRow.modelData.activity + " …"; color: window.theme.muted; font.pixelSize: 12; wrapMode: Text.Wrap; textFormat: Text.PlainText }
+                                    ColumnLayout {
+                                        objectName: "answerActions"
+                                        Layout.fillWidth: true; spacing: 8
+                                        visible: messageRow.modelData.actions && !window.controller.busy
+                                        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Qt.alpha(window.theme.border, 0.5) }
+                                        Flow {
+                                            Layout.fillWidth: true; spacing: 4
+                                            LumenButton {
+                                                id: copyAnswer; objectName: "copyAnswer"
+                                                property bool copied: false
+                                                theme: window.theme; quiet: true
+                                                icon.name: copied ? "emblem-ok-symbolic" : "edit-copy"
+                                                text: window.controller.text(copied ? "Kopiert" : "Kopieren")
+                                                onClicked: { window.controller.copy_answer(); copied = true; copiedReset.restart() }
+                                                Timer { id: copiedReset; interval: 1800; onTriggered: copyAnswer.copied = false }
+                                            }
+                                            LumenButton { objectName: "saveAnswer"; theme: window.theme; quiet: true; icon.name: "bookmark-new"; text: window.controller.text("Für mich speichern"); onClicked: window.controller.capture_knowledge(false) }
+                                            LumenButton { objectName: "rememberAnswer"; theme: window.theme; quiet: true; icon.name: "view-history"; text: window.controller.text("Merk dir das"); onClicked: window.controller.capture_knowledge(true) }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -243,12 +269,6 @@ ApplicationWindow {
                             }
                         }
                         Repeater { model: window.controller.questions; QuestionCard { required property var modelData; controller: window.controller; request: modelData; Layout.fillWidth: true } }
-                        Flow {
-                            Layout.fillWidth: true; spacing: 4; visible: window.controller.messages.length > 0 && !window.controller.busy
-                            LumenButton { theme: window.theme; quiet: true; text: window.controller.text("Kopieren"); onClicked: window.controller.copy_answer() }
-                            LumenButton { theme: window.theme; quiet: true; text: window.controller.text("Für mich speichern"); onClicked: window.controller.capture_knowledge(false) }
-                            LumenButton { theme: window.theme; quiet: true; text: window.controller.text("Merk dir das"); onClicked: window.controller.capture_knowledge(true) }
-                        }
                         RowLayout {
                             Layout.fillWidth: true; visible: window.controller.busy
                             BusyIndicator { running: window.controller.busy; implicitWidth: 24; implicitHeight: 24 }

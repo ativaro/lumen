@@ -19,6 +19,41 @@ class Qt6SearchTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
             return result
 
+    def test_answer_actions_belong_to_latest_answer_card(self):
+        self.run_qt6("""
+import tempfile
+from PySide6.QtCore import Qt, QPointF
+from PySide6.QtGui import QGuiApplication
+from PySide6.QtTest import QTest
+from search_controller import SearchController
+from search_qml import create_window
+app=QGuiApplication([])
+with tempfile.TemporaryDirectory() as tmp:
+ c=SearchController(tmp,applications=[]);engine,w=create_window(app,c);w.show();c.show_conversation()
+ def walk(item):
+  yield item
+  for child in item.childItems():yield from walk(child)
+ def visible(name):return [i for i in walk(w.contentItem()) if i.objectName()==name and i.isVisible()]
+ try:
+  c.backend.messages=[dict(info=dict(role=role),parts=[dict(type='text',text=text)]) for role,text in [('assistant','Old answer'),('user','Follow-up'),('assistant','Current answer')]]
+  c.backend.messagesChanged.emit(c.backend.messages);QTest.qWait(60)
+  assert [row['actions'] for row in c.messages]==[False,False,True]
+  actions=visible('answerActions');assert len(actions)==1
+  ancestor=actions[0].parentItem()
+  while ancestor and ancestor.objectName()!='messageBubble':ancestor=ancestor.parentItem()
+  assert ancestor and not ancestor.property('userMessage')
+  copy=visible('copyAnswer')[0];point=copy.mapToScene(QPointF(copy.width()/2,copy.height()/2)).toPoint()
+  QTest.mouseClick(w,Qt.LeftButton,Qt.NoModifier,point);QTest.qWait(10)
+  assert app.clipboard().text()=='Current answer' and copy.property('copied')
+  c.backend.busy=True;c.backend.busyChanged.emit(True);QTest.qWait(10);assert not visible('answerActions')
+  c.backend.busy=False;c.backend.busyChanged.emit(False)
+  for theme in ('atelier','glass','graphite','midnight'):
+   c.settings.setValue('appearance',theme);c.reload_settings();w.setWidth(620);QTest.qWait(30)
+   for button in visible('copyAnswer')+visible('saveAnswer')+visible('rememberAnswer'):
+    right=button.mapToScene(QPointF(button.width(),0)).x();assert 0<right<w.width()
+ finally:c.shutdown();w.hide();engine.deleteLater();QTest.qWait(20)
+""")
+
     def test_shared_backend_and_memory_do_not_load_qt5(self):
         self.run_qt6('''
 import sys

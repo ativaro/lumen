@@ -669,5 +669,7 @@ auch bei vorhandenem Whisper-Modell; alte Installationen behalten bis dahin die
 bisherige Pegelerkennung. Keine Aufnahme wird zur Pausenerkennung hochgeladen.
 Die 20-ms-Frames entsprechen dem [WebRTC-VAD-Vertrag](https://github.com/wiseman/py-webrtcvad).
 
-Search verwendet wie Lumen rechts eingerückte, dezente Nutzernachrichten und
-ungerahmte Antworten mit gemeinsamer Schriftgröße und begrenzter Lesebreite.
+Search verwendet rechts eingerückte, dezente Nutzernachrichten und ruhige
+Antwortkarten mit Lumen-Kopf, gemeinsamer Schriftgröße und begrenzter Lesebreite.
+Kopieren, Notizbuch und Gedächtnis sind im Fuß der letzten Textantwort integriert;
+während der Bearbeitung sind sie ausgeblendet. Kopieren bestätigt sich direkt am Knopf.

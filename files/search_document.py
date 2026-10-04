@@ -51,5 +51,9 @@ def message_rows(messages):
         text = '\n\n'.join(p.get('text', '') for p in parts if p.get('type') == 'text' and not p.get('synthetic'))
         activity = [p.get('state', {}).get('title') or p.get('tool', tr('Werkzeug')) for p in parts if p.get('type') == 'tool' and p.get('state', {}).get('status') in ('running', 'pending')]
         if role == 'assistant' and text: answer = text
-        if text or activity: rows.append(dict(role=role, text=text, body=render(text), activity=' · '.join(activity)))
+        if text or activity: rows.append(dict(role=role, text=text, body=render(text), activity=' · '.join(activity), actions=False))
+    for row in reversed(rows):
+        if row['role'] == 'assistant' and row['text']:
+            row['actions'] = True
+            break
     return rows, answer
