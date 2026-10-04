@@ -310,3 +310,38 @@ freigegeben. Gate 1 ist noch nicht bestanden, Gate 6 wurde nicht durchgeführt.
 Die Vorschau ist eine separat prüfbare UI-Arbeit, keine vorgezogene Abnahme der
 Schritte 2–6. Import, Recovery, native Secret-Eingabe, Clipboard-Härtung und
 Agent-Isolation sind weiterhin **nicht implementiert/abgenommen**.
+
+## 12. Rust-Kern: erster ausführbarer Nachweis (04.10.2026)
+
+Auf die Freigabe „go“ folgt nun `native/vault-core/`: ein echter Rust-Lese-/
+Schreibkern mit fest gepinntem `keepass` 0.15.0 und Cargo.lock, keine weitere
+UI-Simulation. Der einzige ausführbare Einstieg nimmt keine Nutzereingaben an
+und arbeitet ausschließlich mit selbst angelegten synthetischen Testtresoren.
+
+Nachgewiesen: neue KDBX4.1-Datei mit AES-256/Argon2id, geschützte Felder und
+Historie, Speichern/Sperren/Öffnen, zufällige neue Verschlüsselung beim Speichern,
+verschlüsseltes Backup und Restore in frischem Verzeichnis. KeePassXC 2.7.12
+liest den Rust-Tresor, ändert sein Beispielpasswort, anschließend liest Rust
+geändertes Passwort, Unicode, Zusatzfeld und Historie wieder korrekt. KeePassXC
+schreibt dieses Beispiel als KDBX4.0 zurück; die Kryptoparameter bleiben gleich
+und der Leser unterstützt diesen geprüften Profilwechsel ausdrücklich.
+
+Acht Tests, Formatprüfung, Clippy ohne Warnungen und RustSec-Audit bestanden.
+Letzteres: 0 bekannte Schwachstellen / 0 Warnungen zum geprüften Stand. Tests
+umfassen falschen Schlüssel, beschädigte/trunkierte Dateien, KDF-/Größenlimits,
+Dateirechte/Symlinks, parallele Schreiber, erkannte Revisionkonflikte, einen echten
+fehlgeschlagenen Backup-Rename und Prüfungen auf synthetische Klartextmarker.
+
+**Noch keine vollständige Engine- oder Produktfreigabe:** Upstream-Schreiben bleibt
+experimentell. Die Profile sind begrenzt (u. a. kein komprimierter Import), KDF
+noch nicht gerätekalibriert, nicht alle Bibliothekspuffer nachweislich gelöscht.
+Lock und Revisionprüfung schützen nicht atomar gegen fremde Programme, die das
+Lock ignorieren. Stromausfall-/Dateisystemprüfung, sichere native Eingabe/IPC,
+Clipboard, Agent-Isolation und externe Prüfung bleiben offen. Diese Grenzen
+stehen mit konkreten nächsten Arbeiten in `native/vault-core/README.md`.
+
+Der Desktop-Paketstand bleibt 1.2.0-66, die Passwort-UI weiterhin Beispieldaten.
+Der Rust-Testkern wird nicht als freigegebener Passwortmanager installiert oder
+an KI/MCP gekoppelt. Die Laufzeit benötigt keine neue Kryptografie-Implementierung;
+Algorithmen und KDBX stammen aus den dokumentierten Bibliotheken. Kein KeePassXC-
+Code wurde übernommen und keine Projektlizenz umgestellt.

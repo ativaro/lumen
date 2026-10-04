@@ -35,3 +35,6 @@ distro/aur/*.tar.gz
 
 # local pacman repo
 distro/cachyos/repo/
+
+# Native prototype build output (source and Cargo.lock are tracked)
+native/vault-core/target/

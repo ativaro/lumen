@@ -720,3 +720,9 @@ unverändert nutzbar. Details, Prüfergebnisse und verbleibende Freigabestufen:
 `lumen_vault_secrets_status` gibt über MCP nur den Entwicklungsstand zurück,
 keine Eintragsdaten oder Geheimnisse. `lumen_vault_status` bleibt der Status
 bestehender Sicherungspläne.
+
+Der erste echte Rust-Kern ist inzwischen unter
+[`native/vault-core`](../native/vault-core/README.md) als separat ausführbarer
+Testkern vorhanden. Er speichert KDBX4.1/Argon2id, wird gegen KeePassXC geprüft
+und weist Backup/Restore mit festen Testdaten nach. Das ist noch keine Freigabe
+für reale Zugangsdaten und verändert die Desktop-Vorschau nicht.
