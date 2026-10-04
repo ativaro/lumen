@@ -114,6 +114,7 @@ d["mcp"]["cachyos"] = {
     "type": "local",
     "command": [str(launcher)] if launcher.is_file() else ["python3", mcp_py],
     "enabled": previous.get("enabled", True),
+    "timeout": previous.get("timeout", 120000),
 }
 open(cfg, "w").write(json.dumps(d, indent=2) + "\n")
 print("  eingetragen:", cfg)

@@ -76,6 +76,8 @@ int main(int argc, char **argv) {
   if (!server.listen(endpoint))
     return 1;
   VaultWindow window(root);
+  if (!window.startAccessServer(QString::fromUtf8(runtime)))
+    return 1;
   QObject::connect(&server, &QLocalServer::newConnection, &window, [&] {
     while (server.hasPendingConnections()) {
       auto *peer = server.nextPendingConnection();
@@ -106,6 +108,7 @@ int main(int argc, char **argv) {
     QStringList arguments{"--laboratory-only"};
     if (window.section() == 1)
       arguments << "--backups";
+    window.stopAccessServer();
     server.close();
     owner.unlock();
     QProcess::startDetached(QCoreApplication::applicationFilePath(), arguments);

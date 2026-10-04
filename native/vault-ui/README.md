@@ -1,7 +1,8 @@
 # Native Lumen Vault
 
-A functional **prerelease for synthetic credentials only**. Independent expert
-review is pending; `PRODUCTION_READY=false`. The compact unlock/about notice is
+A functional **prerelease**, normally tested with synthetic credentials. The user
+explicitly opted into local native intake/BookStack evaluation before qualification.
+Independent expert review is pending; `PRODUCTION_READY=false`. The compact unlock/about notice is
 intentional. Diagnostic and backup controls no longer dominate the main view.
 
 ## Build and installation
@@ -51,8 +52,7 @@ Binaries/source/notices: `$XDG_DATA_HOME/lumen/vault-lab`, default
   at smaller window heights; labels and icons remain native, keyboard-accessible
   controls. Recovery codes and Trash remain available in Settings.
 - Collections and entry details come from the encrypted store. App access shows
-  its actual disabled status; no nonfunctional sharing toggle or invented
-  modification date is displayed. Version history remains directly available.
+  actual temporary BookStack access status; no invented modification date is displayed. Version history remains directly available.
 - Login, token, note, recovery codes, custom fields, trash, collections and tags.
   Expiry/permissions are notes, not verification against the provider.
 - Masked secrets, explicit 10-second reveal, 24-character OS-random generator.
@@ -124,3 +124,25 @@ request deduplication, cancellation and singleton ownership. Set
 `python3 native/vault-ui/test-launch.py` checks real native singleton activation
 and cold helper startup without a Lumen executable on PATH, in temporary HOME and
 XDG directories. It terminates only the processes created by that test.
+
+## Native credential intake and BookStack (explicit local prerelease)
+
+Lumen can open the native editor using `lumen_vault_store` with only a title and
+kind. Unlock Vault locally, then enter the password/token in its native form.
+The tool receives only a saved reference, never the credential. Existing
+plaintext chat cannot be made private retroactively. No Markdown credential file
+is created. This is also available by manually choosing New entry in Vault.
+
+For the BookStack test connector, choose API token and enter the optional HTTPS
+origin, token ID and secret (Password/token field). Use with Lumen enables that
+entry for up to five minutes. Every `lumen_bookstack_read` request separately
+asks native approval and returns only bounded read results. No write/delete
+operation exists. End access, lock, edit or expiry revokes pending access.
+The approval identifies a local program, not a verified app identity. Read
+results may reach the configured cloud model; the token stays local except for
+authentication to the approved service. The independent-review/production flags
+remain false; whole-agent isolation is outstanding. See `SPEC-vault-api-access.md`.
+
+A submitted Save is a commit request: closing an IPC client or locking cannot
+reliably undo a write already sent to Rust. If a save is interrupted, check Vault
+before retrying; do not assume failure means no entry was stored.

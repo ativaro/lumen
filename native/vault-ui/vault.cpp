@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include "vault.h"
 #include "backups.h"
+#include "bookstack.h"
 #include <QtEndian>
 #include <cstring>
 #include <signal.h>
@@ -287,6 +288,31 @@ VaultWindow::VaultWindow(const QString &root)
   english =
       language == "en" ||
       (language == "system" && QLocale::system().language() != QLocale::German);
+  access = new VaultAccess(
+      this,
+      [this](QString id, std::function<void(QStringList)> callback) {
+        if (!isOpen) {
+          callback({});
+          return;
+        }
+        channel.call({"edit", id}, std::move(callback));
+      },
+      english);
+  access->setStore([this](const QJsonObject &args) -> QDialog * {
+    showSection(0);
+    show();
+    raise();
+    activateWindow();
+    if (!isOpen || editor)
+      return nullptr;
+    edit({"Title", args.value("title").toString(), "LumenType",
+          args.value("kind").toString()},
+         true);
+    if (editor)
+      editor->setWindowTitle(tx("Zugang für Lumen im Tresor speichern",
+                                "Save a credential for Lumen in Vault"));
+    return editor;
+  });
   setWindowTitle("Lumen Vault");
   resize(1510, 926);
   setMinimumSize(1080, 720);
@@ -328,6 +354,8 @@ VaultWindow::VaultWindow(const QString &root)
   themeTimer.start();
 }
 VaultWindow::~VaultWindow() {
+  delete access;
+  access = nullptr;
   qApp->removeEventFilter(this);
   clearOwnClipboard();
   channel.stop();
@@ -355,9 +383,11 @@ void VaultWindow::replacePage(QWidget *page) {
   }
   credentialPage = page;
   sections->insertWidget(0, page);
-  if (!backupSelected) sections->setCurrentWidget(page);
+  if (!backupSelected)
+    sections->setCurrentWidget(page);
   for (auto *tabs : page->findChildren<QTabBar *>("vaultSections")) {
-    QSignalBlocker block(tabs); tabs->setCurrentIndex(backupSelected ? 1 : 0);
+    QSignalBlocker block(tabs);
+    tabs->setCurrentIndex(backupSelected ? 1 : 0);
   }
 }
 class TintedIcon : public QIconEngine {
@@ -398,17 +428,24 @@ int VaultWindow::section() const {
   return backups && sections->currentWidget() == backups ? 1 : 0;
 }
 void VaultWindow::showSection(int index) {
-  if (index != 0 && index != 1) return;
+  if (index != 0 && index != 1)
+    return;
   if (index == 1 && !backups) {
     backups = new BackupPage(sectionTabs(), english, this);
     sections->addWidget(backups);
   }
-  if (index == 1) { hideSecret(); clearOwnClipboard(); }
-  sections->setCurrentWidget(index == 1 ? static_cast<QWidget *>(backups) : credentialPage.data());
-  for (auto *tabs : findChildren<QTabBar *>("vaultSections")) {
-    QSignalBlocker block(tabs); tabs->setCurrentIndex(index);
+  if (index == 1) {
+    hideSecret();
+    clearOwnClipboard();
   }
-  if (index == 1) backups->activate();
+  sections->setCurrentWidget(index == 1 ? static_cast<QWidget *>(backups)
+                                        : credentialPage.data());
+  for (auto *tabs : findChildren<QTabBar *>("vaultSections")) {
+    QSignalBlocker block(tabs);
+    tabs->setCurrentIndex(index);
+  }
+  if (index == 1)
+    backups->activate();
 }
 QWidget *VaultWindow::lockedPage() {
   auto *page = new QWidget;
@@ -433,11 +470,10 @@ QWidget *VaultWindow::lockedPage() {
       tx("Dein Tresor. Lokal bei dir.", "Your vault. Stored locally."));
   title->setObjectName("title");
   layout->addWidget(title);
-  auto *notice =
-      new QLabel(tx("Nur erfundene Zugangsdaten verwenden.\nDie "
-                    "unabhängige Sicherheitsprüfung steht noch aus.",
-                    "Use synthetic credentials only.\nIndependent "
-                    "security review is still pending."));
+  auto *notice = new QLabel(tx("Vorabversion.\nDie "
+                               "unabhängige Sicherheitsprüfung steht noch aus.",
+                               "Prerelease.\nIndependent "
+                               "security review is still pending."));
   notice->setWordWrap(true);
   notice->setObjectName("muted");
   layout->addWidget(notice);
@@ -535,14 +571,15 @@ public:
     const QRect area = option.rect.adjusted(0, 2, -1, -2);
     if (selected || hover) {
       auto color = palette.color(QPalette::AlternateBase);
-      if (!selected) color.setAlpha(100);
+      if (!selected)
+        color.setAlpha(100);
       p->setPen(Qt::NoPen);
       p->setBrush(color);
       p->drawRoundedRect(area, 8, 8);
       if (selected) {
         p->setBrush(palette.color(QPalette::Highlight));
-        p->drawRoundedRect(QRect(area.left(), area.top() + 3, 3,
-                                area.height() - 6), 1.5, 1.5);
+        p->drawRoundedRect(
+            QRect(area.left(), area.top() + 3, 3, area.height() - 6), 1.5, 1.5);
       }
     } else {
       p->setPen(palette.color(QPalette::Mid));
@@ -558,15 +595,18 @@ public:
     p->setFont(font);
     p->setPen(palette.color(QPalette::Text));
     QRect text(area.left() + 94, area.top() + 14, area.width() - 136, 27);
-    p->drawText(text, Qt::AlignVCenter,
-                QFontMetrics(font).elidedText(title, Qt::ElideRight, text.width()));
+    p->drawText(
+        text, Qt::AlignVCenter,
+        QFontMetrics(font).elidedText(title, Qt::ElideRight, text.width()));
     font.setPixelSize(14);
     p->setFont(font);
     p->setPen(palette.color(QPalette::PlaceholderText));
     text.translate(0, 27);
-    p->drawText(text, Qt::AlignVCenter,
-                QFontMetrics(font).elidedText(subtitle, Qt::ElideRight, text.width()));
-    glyph("go-next").paint(p, QRect(area.right() - 34, area.center().y() - 9, 18, 18));
+    p->drawText(
+        text, Qt::AlignVCenter,
+        QFontMetrics(font).elidedText(subtitle, Qt::ElideRight, text.width()));
+    glyph("go-next").paint(
+        p, QRect(area.right() - 34, area.center().y() - 9, 18, 18));
     if (option.state & QStyle::State_HasFocus) {
       p->setPen(QPen(palette.color(QPalette::Highlight), 1));
       p->setBrush(Qt::NoBrush);
@@ -601,7 +641,8 @@ static void spacedButton(QPushButton *button) {
   auto *caption = new QLabel(text);
   caption->setAttribute(Qt::WA_TransparentForMouseEvents);
   layout->addWidget(caption);
-  layout->setAlignment(button->objectName() == "settings" ? Qt::AlignLeft : Qt::AlignCenter);
+  layout->setAlignment(button->objectName() == "settings" ? Qt::AlignLeft
+                                                          : Qt::AlignCenter);
   button->setMinimumWidth(layout->sizeHint().width());
   // Refresh icons with the theme without re-reading any entry data.
   mark->setProperty("buttonIcon", icon);
@@ -659,15 +700,13 @@ QWidget *VaultWindow::openPage() {
   navigation->setObjectName("navigation");
   navigation->setIconSize(QSize(26, 26));
   navigation->setSpacing(3);
-  const QStringList labels{tx("Alle Einträge", "All entries"),
-                           tx("Favoriten", "Favorites"),
-                           tx("Passwörter", "Passwords"),
-                           tx("API-Tokens", "API tokens"),
-                           tx("Sichere Notizen", "Secure notes")};
+  const QStringList labels{
+      tx("Alle Einträge", "All entries"), tx("Favoriten", "Favorites"),
+      tx("Passwörter", "Passwords"), tx("API-Tokens", "API tokens"),
+      tx("Sichere Notizen", "Secure notes")};
   const QStringList keys{"all", "favorite", "login", "token", "note"};
-  const QStringList icons{
-      "view-list-details", "favorite", "dialog-password", "code-context",
-      "document-edit"};
+  const QStringList icons{"view-list-details", "favorite", "dialog-password",
+                          "code-context", "document-edit"};
   for (int i = 0; i < labels.size(); ++i) {
     auto *item = new QListWidgetItem(glyph(icons[i]), labels[i], navigation);
     item->setData(Qt::UserRole, keys[i]);
@@ -820,6 +859,7 @@ QWidget *VaultWindow::openPage() {
         [this] {
           auto id = selectedId();
           int i = rowIndex(id);
+          access->revoke();
           if (i >= 0)
             channel.call({"trash", id, rows.value(i + 5) == "1" ? "0" : "1"},
                          [this](QStringList) { refresh(); });
@@ -925,23 +965,33 @@ QWidget *VaultWindow::openPage() {
   auto *accessText = new QVBoxLayout;
   accessText->setSpacing(8);
   accessText->addWidget(new QLabel(tx("Zugriff durch Apps", "Access by apps")));
-  auto *boundary = new QLabel(tx("Nicht freigegeben", "Not shared"));
+  auto *boundary = new QLabel;
   boundary->setObjectName("muted");
+  boundary->setWordWrap(true);
   accessText->addWidget(boundary);
-  auto *explanation = new QLabel(tx("Deine Geheimnisse bleiben im Tresor.",
-                                    "Your secrets stay in the vault."));
+  auto *explanation =
+      new QLabel(tx("BookStack: nur lesen. Jede Anfrage wird hier bestätigt.",
+                    "BookStack: read only. Confirm every request here."));
   explanation->setObjectName("caption");
   explanation->setWordWrap(true);
   accessText->addWidget(explanation);
   accessRow->addLayout(accessText, 1);
-  auto *permissions = button(tx("Zugriffsstatus", "Access status"), [this] {
-    QMessageBox::information(this, tx("Zugriff durch Apps", "Access by apps"),
-      tx("Apps und Lumen haben keinen Zugriff auf diesen Tresor. Eine automatische "
-         "Weitergabe von Passwörtern ist nicht aktiviert. Du kannst einzelne Werte "
-         "bewusst über die Kopieren-Schaltfläche übernehmen.",
-         "Apps and Lumen have no access to this vault. Automatic password sharing "
-         "is not enabled. You can explicitly copy individual values using the copy button."));
-  });
+  auto *permissions = button(tx("Mit Lumen verwenden", "Use with Lumen"),
+                             [this] { shareBookStack(); });
+  permissions->setObjectName("apiAccess");
+  auto updateAccess = [this, boundary, permissions] {
+    boundary->setText(access->armed()
+                          ? tx("Ein BookStack-Zugang ist für Anfragen bereit · "
+                               "höchstens 5 Minuten",
+                               "One BookStack credential is ready for requests "
+                               "· up to 5 minutes")
+                          : tx("Nicht freigegeben", "Not shared"));
+    permissions->setText(access->armed()
+                             ? tx("Freigabe beenden", "End access")
+                             : tx("Mit Lumen verwenden", "Use with Lumen"));
+  };
+  connect(access, &VaultAccess::changed, boundary, updateAccess);
+  updateAccess();
   accessRow->addWidget(permissions, 0, Qt::AlignVCenter);
   dl->addLayout(accessRow);
   dl->addStretch();
@@ -1035,6 +1085,7 @@ void VaultWindow::backup() {
   });
 }
 void VaultWindow::history() {
+  access->revoke();
   const auto id = selectedId();
   if (id.isEmpty() || editor)
     return;
@@ -1211,7 +1262,8 @@ void VaultWindow::loadPage(QString cursor) {
         header->setFlags(Qt::NoItemFlags);
         header->setSizeHint(QSize(170, 60));
         header->setText({});
-        header->setData(Qt::AccessibleTextRole, tx("Sammlungen", "Collections"));
+        header->setData(Qt::AccessibleTextRole,
+                        tx("Sammlungen", "Collections"));
         auto *section = new QWidget;
         section->setAttribute(Qt::WA_TransparentForMouseEvents);
         auto *layout = new QVBoxLayout(section);
@@ -1275,8 +1327,10 @@ void VaultWindow::filter() {
         entries);
     item->setData(Qt::UserRole, rows[i]);
     item->setData(Qt::UserRole + 1, rows[i + 1]);
-    item->setData(Qt::UserRole + 2, kind(rows[i + 2]) +
-        (rows[i + 3].isEmpty() ? QString() : " · " + rows[i + 3]));
+    item->setData(Qt::UserRole + 2,
+                  kind(rows[i + 2]) + (rows[i + 3].isEmpty()
+                                           ? QString()
+                                           : " · " + rows[i + 3]));
     item->setSizeHint(QSize(250, 84));
     if (rows[i] == old)
       entries->setCurrentItem(item);
@@ -1310,10 +1364,11 @@ void VaultWindow::select() {
   heading->setText(i >= 0 ? rows.value(i + 1)
                           : tx("Noch kein Eintrag", "No entry selected"));
   if (auto *avatar = findChild<QLabel *>("avatar")) {
-    const auto name = i >= 0 && rows.value(i + 2) == "token" ? "code-context"
-                    : i >= 0 && rows.value(i + 2) == "note" ? "document-edit"
-                    : i >= 0 && rows.value(i + 2) == "recovery" ? "view-barcode"
-                    : "dialog-password";
+    const auto name = i >= 0 && rows.value(i + 2) == "token"  ? "code-context"
+                      : i >= 0 && rows.value(i + 2) == "note" ? "document-edit"
+                      : i >= 0 && rows.value(i + 2) == "recovery"
+                          ? "view-barcode"
+                          : "dialog-password";
     avatar->setProperty("glyph", name);
     avatar->setPixmap(glyph(name).pixmap(48, 48));
   }
@@ -1357,6 +1412,8 @@ void VaultWindow::clearOwnClipboard() {
   clipboardTag.clear();
 }
 void VaultWindow::lock() {
+  if (access)
+    access->revoke();
   const bool wasOpen = isOpen;
   const bool wasVisible = isVisible();
   hide();
@@ -1400,11 +1457,13 @@ bool VaultWindow::eventFilter(QObject *object, QEvent *event) {
       (event->type() == QEvent::MouseButtonPress ||
        event->type() == QEvent::KeyPress || event->type() == QEvent::Wheel)) {
     auto *widget = qobject_cast<QWidget *>(object);
-    if (widget && belongsTo(widget, this) && !(backups && belongsTo(widget, backups)))
+    if (widget && belongsTo(widget, this) &&
+        !(backups && belongsTo(widget, backups)))
       idle.start();
   }
   auto *widget = qobject_cast<QWidget *>(object);
-  const bool ours = widget && belongsTo(widget, this) && !(backups && belongsTo(widget, backups));
+  const bool ours = widget && belongsTo(widget, this) &&
+                    !(backups && belongsTo(widget, backups));
   auto *line = ours ? qobject_cast<QLineEdit *>(object) : nullptr;
   auto *notes = ours ? qobject_cast<QPlainTextEdit *>(object) : nullptr;
   if ((line || notes) && event->type() == QEvent::ContextMenu) {
@@ -1437,13 +1496,14 @@ bool VaultWindow::eventFilter(QObject *object, QEvent *event) {
   }
   return QMainWindow::eventFilter(object, event);
 }
-void VaultWindow::edit(QStringList fields) {
+void VaultWindow::edit(QStringList fields, bool createNew) {
+  if (!createNew) access->revoke();
   if (editor || !isOpen) {
     for (auto &v : fields)
       wipe(v);
     return;
   }
-  const QString id = fields.isEmpty() ? QString() : selectedId();
+  const QString id = createNew || fields.isEmpty() ? QString() : selectedId();
   auto value = [&fields](const QString &key) {
     for (int i = 0; i + 1 < fields.size(); i += 2)
       if (fields[i] == key)
@@ -1475,16 +1535,29 @@ void VaultWindow::edit(QStringList fields) {
       {"UserName", tx("Benutzername", "Username")},
       {"URL", tx("Website", "Website")},
       {"Password", tx("Passwort / Token", "Password / token")},
+      {"LumenApiBase", tx("BookStack: HTTPS-Adresse (optional)",
+                          "BookStack: HTTPS address (optional)")},
+      {"LumenApiTokenId", tx("BookStack: Token-ID", "BookStack: token ID")},
       {"LumenTags", tx("Tags", "Tags")},
       {"LumenExpires", tx("Ablaufdatum", "Expiry date")},
       {"LumenPermissions", tx("Berechtigungen (Notiz)", "Permissions (note)")}};
   for (const auto &definition : definitions) {
-    auto *field =
-        input("edit" + definition.first, definition.first == "Password");
+    auto *field = input("edit" + definition.first,
+                        definition.first == "Password" ||
+                            definition.first == "LumenApiTokenId");
     field->setText(value(definition.first));
     edits[definition.first] = field;
     form->addRow(definition.second, field);
   }
+  auto updateApiFields = [form, edits, type] {
+    for (const auto *key : {"LumenApiBase", "LumenApiTokenId"}) {
+      edits[key]->setVisible(type->currentData() == "token");
+      form->labelForField(edits[key])
+          ->setVisible(type->currentData() == "token");
+    }
+  };
+  connect(type, &QComboBox::currentIndexChanged, dialog, updateApiFields);
+  updateApiFields();
   for (int i = 0; i + 1 < fields.size(); i += 2) {
     const auto &key = fields[i];
     if (edits.contains(key) || key == "Notes" || key.startsWith("Lumen"))
@@ -1539,48 +1612,55 @@ void VaultWindow::edit(QStringList fields) {
   buttons->addWidget(
       button(tx("Abbrechen", "Cancel"), [dialog] { dialog->reject(); }));
   auto *save =
-      button(tx("Speichern", "Save"),
-             [this, dialog = QPointer<QDialog>(dialog), id, edits, type, notes,
-              customName, customValue, info] {
-               if (!dialog || dialog->property("saving").toBool())
-                 return;
-               if (edits["Title"]->text().trimmed().isEmpty()) {
-                 info->setText(
-                     tx("Bitte einen Namen eingeben.", "Please enter a name."));
-                 return;
-               }
-               if (notes->toPlainText().toUtf8().size() > 16384) {
-                 info->setText(tx("Notiz zu lang (max. 16 KiB).",
-                                  "Note too long (max. 16 KiB)."));
-                 return;
-               }
-               QStringList request{"put",       id,
-                                   "LumenType", type->currentData().toString(),
-                                   "Notes",     notes->toPlainText()};
-               for (auto it = edits.begin(); it != edits.end(); ++it)
-                 request << it.key() << it.value()->text();
-               if (!customName->text().isEmpty()) {
-                 if (customName->text().size() > 100 ||
-                     edits.contains(customName->text()) ||
-                     customName->text().startsWith("Lumen") ||
-                     customName->text() == "Notes") {
-                   info->setText(tx("Anderen Feldnamen wählen.",
-                                    "Choose another field name."));
-                   for (auto &v : request)
-                     wipe(v);
-                   return;
-                 }
-                 request << customName->text() << customValue->text();
-               }
-               dialog->setProperty("saving", true);
-               if (auto *saveButton = dialog->findChild<QPushButton *>("save"))
-                 saveButton->setEnabled(false);
-               channel.call(std::move(request), [this, dialog](QStringList) {
-                 if (dialog)
-                   dialog->accept();
-                 refresh();
-               });
-             });
+      button(tx("Speichern", "Save"), [this, dialog = QPointer<QDialog>(dialog),
+                                       id, edits, type, notes, customName,
+                                       customValue, info] {
+        if (!dialog || dialog->property("saving").toBool())
+          return;
+        if (channel.busy()) {
+          info->setText(tx("Der Tresor arbeitet noch. Bitte gleich nochmals speichern.", "Vault is still working. Please save again in a moment."));
+          return;
+        }
+        if (edits["Title"]->text().trimmed().isEmpty()) {
+          info->setText(
+              tx("Bitte einen Namen eingeben.", "Please enter a name."));
+          return;
+        }
+        if (notes->toPlainText().toUtf8().size() > 16384) {
+          info->setText(tx("Notiz zu lang (max. 16 KiB).",
+                           "Note too long (max. 16 KiB)."));
+          return;
+        }
+        QStringList request{"put",       id,
+                            "LumenType", type->currentData().toString(),
+                            "Notes",     notes->toPlainText()};
+        for (auto it = edits.begin(); it != edits.end(); ++it)
+          request << it.key() << it.value()->text();
+        if (!customName->text().isEmpty()) {
+          if (customName->text().size() > 100 ||
+              edits.contains(customName->text()) ||
+              customName->text().startsWith("Lumen") ||
+              customName->text() == "Notes") {
+            info->setText(
+                tx("Anderen Feldnamen wählen.", "Choose another field name."));
+            for (auto &v : request)
+              wipe(v);
+            return;
+          }
+          request << customName->text() << customValue->text();
+        }
+        dialog->setProperty("saving", true);
+        info->setText(tx("Wird verschlüsselt gespeichert …", "Saving encrypted entry …"));
+        if (auto *saveButton = dialog->findChild<QPushButton *>("save"))
+          saveButton->setEnabled(false);
+        channel.call(std::move(request), [this, dialog](QStringList reply) {
+          if (dialog && !reply.isEmpty()) {
+            dialog->setProperty("savedEntryId", reply[0]);
+            dialog->accept();
+          }
+          refresh();
+        });
+      });
   save->setObjectName("save");
   buttons->addWidget(save);
   layout->addLayout(buttons);
@@ -1599,6 +1679,49 @@ void VaultWindow::edit(QStringList fields) {
   dialog->setModal(true);
   dialog->show();
   edits["Title"]->setFocus();
+}
+void VaultWindow::stopAccessServer() { access->close(); }
+bool VaultWindow::startAccessServer(const QString &runtime) {
+  return access->listen(runtime);
+}
+void VaultWindow::shareBookStack() {
+  if (access->armed()) {
+    access->revoke();
+    return;
+  }
+  const auto id = selectedId();
+  if (!isOpen || id.isEmpty() || editor)
+    return;
+  const auto current = generation;
+  channel.call({"edit", id}, [this, id, current](QStringList fields) {
+    auto value = [&fields](const QString &key) {
+      for (int i = 0; i + 1 < fields.size(); i += 2)
+        if (fields[i] == key)
+          return fields[i + 1];
+      return QString();
+    };
+    const auto base = BookStack::origin(value("LumenApiBase"));
+    const bool valid = value("LumenType") == "token" &&
+                       value("LumenTrash") != "1" && !base.isEmpty() &&
+                       BookStack::credential(value("LumenApiTokenId")) &&
+                       BookStack::credential(value("Password"));
+    for (auto &field : fields)
+      wipe(field);
+    if (!isOpen || generation != current || selectedId() != id)
+      return;
+    if (valid)
+      access->arm(id, base);
+    else
+      QMessageBox::information(
+          this, "BookStack",
+          tx("Wähle einen API-Token und trage unter Bearbeiten die "
+             "BookStack-HTTPS-Adresse, Token-ID und den Token im Passwortfeld "
+             "ein. Anschließend kannst du ihn hier für Leseanfragen "
+             "bereitstellen.",
+             "Select an API token and use Edit to enter the BookStack HTTPS "
+             "address, token ID and token secret in the password field. Then "
+             "enable it here for read requests."));
+  });
 }
 void VaultWindow::theme() {
   QSettings settings("Lumen", "Assistant");
@@ -1655,10 +1778,12 @@ void VaultWindow::theme() {
   for (auto *label : findChildren<QLabel *>())
     if (label->property("buttonIcon").isValid()) {
       const int size = label->property("glyphSize").toInt();
-      label->setPixmap(qvariant_cast<QIcon>(label->property("buttonIcon")).pixmap(size, size));
+      label->setPixmap(qvariant_cast<QIcon>(label->property("buttonIcon"))
+                           .pixmap(size, size));
     } else if (label->property("glyph").isValid()) {
       const int size = label->property("glyphSize").toInt();
-      label->setPixmap(glyph(label->property("glyph").toString()).pixmap(size, size));
+      label->setPixmap(
+          glyph(label->property("glyph").toString()).pixmap(size, size));
     }
   qApp->setStyleSheet(
       QString(
@@ -1671,7 +1796,8 @@ void VaultWindow::theme() {
           "QLabel#avatar{background:%3;border:1px solid "
           "%5;border-radius:51px;} "
           "QTabBar#vaultSections{background:transparent;} "
-          "QTabBar#vaultSections::tab{background:%2;color:%6;border:1px solid %5;"
+          "QTabBar#vaultSections::tab{background:%2;color:%6;border:1px solid "
+          "%5;"
           "padding:10px 18px;} "
           "QTabBar#vaultSections::tab:first{border-top-left-radius:9px;"
           "border-bottom-left-radius:9px;} "
@@ -1681,7 +1807,8 @@ void VaultWindow::theme() {
           "font-weight:600;} "
           "QTabBar#vaultSections::tab:hover{color:%4;} "
           "QPushButton#quiet{background:transparent;border:0;padding:6px;} "
-          "QPushButton#settings{background:transparent;border:0;text-align:left;"
+          "QPushButton#settings{background:transparent;border:0;text-align:"
+          "left;"
           "padding:10px 16px;} "
           "QMenu{background:%2;border:1px solid %5;padding:6px;} "
           "QMenu::item{padding:10px 18px;} "
@@ -1691,9 +1818,12 @@ void VaultWindow::theme() {
           "QLabel#brand{font-size:26px;font-weight:500;} "
           "QLabel#title{font-size:28px;font-weight:600;} "
           "QLabel#muted{color:%6;} QLabel#status{color:%7;} "
-          "QLabel#caption{color:%6;font-size:14px;} QLabel#tagline{color:%6;font-size:12px;} "
-          "QLineEdit#website{color:%7;} QLineEdit{lineedit-password-character:8226;} "
-          "QPushButton{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 %3,stop:1 %1);border:1px solid "
+          "QLabel#caption{color:%6;font-size:14px;} "
+          "QLabel#tagline{color:%6;font-size:12px;} "
+          "QLineEdit#website{color:%7;} "
+          "QLineEdit{lineedit-password-character:8226;} "
+          "QPushButton{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 "
+          "%3,stop:1 %1);border:1px solid "
           "%5;border-radius:9px;padding:7px 14px;} "
           "QPushButton:hover{background:%3;border-color:%7;} "
           "QPushButton:focus{border:2px solid %7;} "
@@ -1703,16 +1833,20 @@ void VaultWindow::theme() {
           "solid %5;border-radius:8px;padding:6px "
           "10px;selection-background-color:%7;selection-color:%8;} "
           "QLineEdit:focus,QPlainTextEdit:focus{border:1px solid %7;} "
-          "QFrame#fieldRow{background:%2;border:1px solid %5;border-radius:8px;} "
+          "QFrame#fieldRow{background:%2;border:1px solid "
+          "%5;border-radius:8px;} "
           "QFrame#fieldRow QLineEdit{background:transparent;border:0;} "
           "QPushButton[fieldAction=true]{background:transparent;border:0;"
           "border-left:1px solid %5;border-radius:6px;padding:8px;} "
           "QPushButton[fieldAction=true]:hover{background:%3;} "
           "QPushButton[fieldAction=true]:focus{border:1px solid %7;} "
           "QScrollArea#detailScroll{background:transparent;border:0;} "
-          "QTreeWidget{background:%2;border:1px solid %5;border-radius:8px;outline:0;} "
-          "QTreeWidget::item{padding:10px;} QTreeWidget::item:selected{background:%3;color:%4;} "
-          "QHeaderView::section{background:%2;color:%6;padding:10px;border:0;border-bottom:1px solid %5;} "
+          "QTreeWidget{background:%2;border:1px solid "
+          "%5;border-radius:8px;outline:0;} "
+          "QTreeWidget::item{padding:10px;} "
+          "QTreeWidget::item:selected{background:%3;color:%4;} "
+          "QHeaderView::section{background:%2;color:%6;padding:10px;border:0;"
+          "border-bottom:1px solid %5;} "
           "QListWidget{background:transparent;border:0;outline:0;} "
           "QListWidget::item{padding:8px 18px;border-radius:8px;} "
           "QListWidget::item:selected{background:%3;color:%4;border-left:3px "

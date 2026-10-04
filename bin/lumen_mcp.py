@@ -485,13 +485,13 @@ def tool_native(name, args):
     from pathlib import Path
     import signal
     from lumen_mcp_tools import DEFINITIONS
-    if DEFINITIONS[name].get('action') and not ACTIONS_ENABLED:
+    if DEFINITIONS[name].get('action') and not DEFINITIONS[name].get('native_confirmation') and not ACTIONS_ENABLED:
         raise ValueError('MCP actions are disabled.')
     worker = Path(sys.modules['lumen_mcp_tools'].__file__)
     process = subprocess.Popen([sys.executable, str(worker)], stdin=subprocess.PIPE,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
     try:
-        output, stderr = process.communicate(json.dumps(dict(name=name, arguments=args)), timeout=270 if name == 'lumen_translate_pdf' else 165 if name == 'lumen_translate_text' else 45)
+        output, stderr = process.communicate(json.dumps(dict(name=name, arguments=args)), timeout=105 if name in ('lumen_vault_store', 'lumen_bookstack_read') else 270 if name == 'lumen_translate_pdf' else 165 if name == 'lumen_translate_text' else 45)
     except subprocess.TimeoutExpired:
         os.killpg(process.pid, signal.SIGKILL)
         process.communicate()
@@ -508,7 +508,7 @@ lumen_modules()
 from lumen_mcp_tools import DEFINITIONS
 from functools import partial
 for name, definition in DEFINITIONS.items():
-    if not definition.get('action') or ACTIONS_ENABLED:
+    if not definition.get('action') or definition.get('native_confirmation') or ACTIONS_ENABLED:
         TOOLS[name] = dict(definition, fn=partial(tool_native, name), native=True)
 
 

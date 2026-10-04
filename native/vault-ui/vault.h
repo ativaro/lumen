@@ -5,6 +5,7 @@
 #include <functional>
 
 class BackupPage;
+class VaultAccess;
 using Reply = std::function<void(QStringList)>;
 void wipe(QString &text);
 void wipe(QByteArray &text);
@@ -39,6 +40,8 @@ public:
   bool unlocked() const { return isOpen; }
   int section() const;
   void showSection(int index);
+  void stopAccessServer();
+  bool startAccessServer(const QString &runtime);
 signals:
   void retire();
 public slots:
@@ -63,7 +66,8 @@ private:
   QString kind(const QString &key) const;
   void select();
   void filter();
-  void edit(QStringList fields = {});
+  void edit(QStringList fields = {}, bool createNew = false);
+  void shareBookStack();
   void theme();
   void hideSecret();
   void authorize(bool create, bool restore = false);
@@ -76,6 +80,7 @@ private:
   QPointer<QWidget> credentialPage;
   BackupPage *backups = nullptr;
   Channel channel;
+  VaultAccess *access = nullptr;
   bool isOpen = false, english = false;
   QTimer idle, revealTimer, clipboardTimer, themeTimer, detailTimer;
   quint64 generation = 0;

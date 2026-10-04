@@ -1,7 +1,7 @@
 # Review handoff — release remains closed
 
 Scope: native/vault-core + native/vault-ui, launcher `--lab`, optional native
-button in tools_vault.py, and readiness-only MCP. The legacy synthetic QML preview
+button in tools_vault.py, readiness MCP, and explicitly opted-in native intake/BookStack reads. The legacy synthetic QML preview
 and Restic backups remain separate. All tests use public synthetic values.
 
 ## Implemented trust boundary
@@ -9,8 +9,9 @@ and Restic backups remain separate. All tests use public synthetic values.
 Native Qt widgets -> QProcess-owned anonymous stdin/stdout pipes -> Rust Session.
 The inherited descriptors are the capability; there is no reconnect service or
 UID-only authentication. Requests/replies are bounded binary frames, exact length
-and count checked, with command-specific validation. IPC requests never traverse
-Python, a shell, chat history or MCP. Child exit, malformed frames and failed
+and count checked, with command-specific validation. Secret-bearing broker IPC requests never traverse
+Python, a shell, chat history or MCP. A separate, bounded local socket now accepts
+non-secret native-intake and BookStack-read requests; it is not caller authentication. Child exit, malformed frames and failed
 operations lock the UI. No secret or document paths in error messages.
 
 Persistent plaintext is restricted to code, settings for appearance/language,
@@ -20,7 +21,7 @@ writers, hashes detect observed foreign edits, and encrypted fsync/rename writes
 retain the previous encrypted version. Uncooperative external writers can still
 race the last hash check; active files must remain exclusively managed by Vault.
 
-## Required before real credentials
+## Required before production qualification
 
 1. Independent expert review of the full Rust library and native UI/IPC boundary,
    including `keepass`'s experimental writer, parser/serializer/key-buffer lifetime,
@@ -35,8 +36,10 @@ race the last hash check; active files must remain exclusively managed by Vault.
    PRIMARY notes and screen-lock/suspend D-Bus signals. Physical sleep/resume,
    other managers and unrestricted capture remain unqualified.
 4. Whole-Lumen agent isolation before any claim that an unrestricted agent cannot
-   obtain screen/clipboard/process data, and before any connector secret-use API.
-   The current MCP endpoint returns readiness constants and exposes no secret API.
+   obtain screen/clipboard/process data or enable automatic credential use.
+   The user accepted a bounded prerelease exception: native input and separately
+   confirmed BookStack reads, without claiming whole-agent isolation. No secret
+   export API is exposed; production readiness remains false.
 5. Production UX/policy for history retention, broad KDBX import profiles, recovery
    documentation, larger vaults and new dependency/source distribution obligations.
 
