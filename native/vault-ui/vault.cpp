@@ -350,13 +350,43 @@ void VaultWindow::replacePage(QWidget *page) {
   }
   setCentralWidget(page);
 }
+QWidget *VaultWindow::sectionTabs() {
+  auto *tabs = new QTabBar;
+  tabs->setObjectName("vaultSections");
+  tabs->setAccessibleName(tx("Bereich", "Section"));
+  tabs->setDrawBase(false);
+  tabs->setExpanding(true);
+  tabs->setFixedSize(280, 44);
+  tabs->addTab(tx("Tresor", "Vault"));
+  tabs->addTab(tx("Sicherungen", "Backups"));
+  connect(tabs, &QTabBar::currentChanged, this, [this, tabs](int index) {
+    if (index != 1)
+      return;
+    // File backups run in their existing process; the credential broker and
+    // its private memory never cross into the Python backup application.
+    const auto app = QStandardPaths::findExecutable("lumen-vault");
+    const bool started = !app.isEmpty() &&
+                         QProcess::startDetached(app, {"--backups"});
+    tabs->setCurrentIndex(0);
+    if (!started)
+      QMessageBox::warning(this, "Lumen Vault",
+                           tx("Sicherungen konnten nicht geöffnet werden.",
+                              "Could not open backups."));
+  });
+  return tabs;
+}
 QWidget *VaultWindow::lockedPage() {
   auto *page = new QWidget;
   auto *outer = new QVBoxLayout(page);
   outer->setContentsMargins(36, 28, 36, 28);
   auto *brand = new QLabel("◈  Lumen Vault");
   brand->setObjectName("brand");
-  outer->addWidget(brand);
+  auto *header = new QGridLayout;
+  header->addWidget(brand, 0, 0, Qt::AlignLeft);
+  header->addWidget(sectionTabs(), 0, 1, Qt::AlignCenter);
+  header->setColumnStretch(0, 1);
+  header->setColumnStretch(2, 1);
+  outer->addLayout(header);
   outer->addStretch();
   auto *card = new QFrame;
   card->setObjectName("card");
@@ -369,9 +399,9 @@ QWidget *VaultWindow::lockedPage() {
   title->setObjectName("title");
   layout->addWidget(title);
   auto *notice =
-      new QLabel(tx("Testversion · nur erfundene Zugangsdaten verwenden.\nDie "
+      new QLabel(tx("Nur erfundene Zugangsdaten verwenden.\nDie "
                     "unabhängige Sicherheitsprüfung steht noch aus.",
-                    "Laboratory · use synthetic credentials only.\nIndependent "
+                    "Use synthetic credentials only.\nIndependent "
                     "security review is still pending."));
   notice->setWordWrap(true);
   notice->setObjectName("muted");
@@ -552,11 +582,6 @@ QWidget *VaultWindow::openPage() {
     menu.addAction(
         tx("Verschlüsselte Sicherung exportieren…", "Export encrypted backup…"),
         this, &VaultWindow::backup);
-    menu.addAction(tx("Dateisicherungen…", "File backups…"), [] {
-      auto app = QStandardPaths::findExecutable("lumen-vault");
-      if (!app.isEmpty())
-        QProcess::startDetached(app, {"--backups"});
-    });
     menu.addSeparator();
     menu.addAction(
         tx("Über Lumen Vault · Lizenzen", "About Lumen Vault · Licenses"), this,
@@ -569,22 +594,22 @@ QWidget *VaultWindow::openPage() {
   auto *main = new QVBoxLayout;
   main->setContentsMargins(0, 0, 0, 0);
   main->setSpacing(0);
-  auto *top = new QHBoxLayout;
+  auto *top = new QGridLayout;
   top->setContentsMargins(24, 18, 24, 18);
-  auto *tab = new QLabel(tx("Tresor", "Vault"));
-  tab->setObjectName("tab");
-  tab->setAlignment(Qt::AlignCenter);
-  tab->setFixedSize(130, 40);
-  top->addWidget(tab);
-  top->addStretch();
+  top->setColumnStretch(0, 1);
+  top->setColumnStretch(2, 1);
+  top->addWidget(sectionTabs(), 0, 1, Qt::AlignCenter);
+  auto *actions = new QHBoxLayout;
+  actions->addStretch();
   auto *state = new QLabel(tx("Entsperrt", "Unlocked"));
   state->setObjectName("status");
-  top->addWidget(state);
-  top->addSpacing(14);
+  actions->addWidget(state);
+  actions->addSpacing(14);
   auto *lockButton = button(tx("Sperren", "Lock"), [this] { lock(); });
   lockButton->setObjectName("lock");
   lockButton->setIcon(glyph("object-locked"));
-  top->addWidget(lockButton);
+  actions->addWidget(lockButton);
+  top->addLayout(actions, 0, 2);
   main->addLayout(top);
   main->addWidget(rule());
   auto *columns = new QHBoxLayout;
@@ -1429,8 +1454,16 @@ void VaultWindow::theme() {
           "QFrame#sidebar{background:%2;} QFrame#rule{background:%5;} "
           "QLabel#avatar{background:%3;border:1px solid "
           "%5;border-radius:38px;} "
-          "QLabel#tab{background:%3;color:%7;border:1px solid "
-          "%5;border-radius:8px;font-weight:600;} "
+          "QTabBar#vaultSections{background:transparent;} "
+          "QTabBar#vaultSections::tab{background:%2;color:%6;border:1px solid %5;"
+          "padding:10px 18px;} "
+          "QTabBar#vaultSections::tab:first{border-top-left-radius:9px;"
+          "border-bottom-left-radius:9px;} "
+          "QTabBar#vaultSections::tab:last{border-top-right-radius:9px;"
+          "border-bottom-right-radius:9px;border-left:0;} "
+          "QTabBar#vaultSections::tab:selected{background:%3;color:%7;"
+          "font-weight:600;} "
+          "QTabBar#vaultSections::tab:hover{color:%4;} "
           "QPushButton#quiet{border:0;padding:6px;} "
           "QMenu{background:%2;border:1px solid %5;padding:6px;} "
           "QMenu::item{padding:10px 18px;} "

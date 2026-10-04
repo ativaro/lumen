@@ -18,7 +18,9 @@ lumen-vault
 Installation remains explicit and user-local. If that native installation exists,
 `lumen-vault` opens the native three-column vault. `lumen-vault --lab` remains an
 explicit alias. `lumen-vault --backups` opens the existing Restic application;
-it is also reachable from Vault's Settings menu. Fresh production installs do
+it is also reachable directly from the top Vault / Backups tabs, including on
+the unlock screen. Each section opens its existing native application; the
+credential process remains isolated from the file-backup application. Fresh production installs do
 not silently enable the native prerelease. No existing data is migrated.
 
 Binaries/source/notices: `$XDG_DATA_HOME/lumen/vault-lab`, default

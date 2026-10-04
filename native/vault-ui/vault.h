@@ -47,6 +47,7 @@ protected:
   bool eventFilter(QObject *object, QEvent *event) override;
 
 private:
+  QWidget *sectionTabs();
   QWidget *lockedPage();
   QWidget *openPage();
   void replacePage(QWidget *page);

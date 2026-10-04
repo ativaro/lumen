@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QCheckBox,
-    QComboBox, QFileDialog, QInputDialog, QListWidget, QListWidgetItem, QMessageBox, QTreeWidget, QTreeWidgetItem)
+    QComboBox, QTabBar, QFileDialog, QInputDialog, QListWidget, QListWidgetItem, QMessageBox, QTreeWidget, QTreeWidgetItem)
 from tools_ui import ToolWindow, button, label, row, open_path
 import vault_data as vault
 
@@ -15,9 +15,26 @@ class Vault(ToolWindow):
         # Explicit laboratory installation; never silently enable production secrets.
         from PySide6.QtCore import QStandardPaths
         self.native_lab = (Path(QStandardPaths.writableLocation(QStandardPaths.GenericDataLocation)) / 'lumen/vault-lab/bin/lumen-vault-lab').is_file()
-        preview = button(tr('Tresor öffnen' if self.native_lab else 'Tresor · Vorschau'), self.open_preview, 'document-encrypt')
-        preview.setObjectName('vaultSecretsPreview')
-        self.centralWidget().layout().itemAt(0).layout().insertWidget(1, preview)
+        self.sections = QTabBar()
+        self.sections.setObjectName('vaultSections')
+        self.sections.setAccessibleName(tr('Bereich'))
+        self.sections.setDrawBase(False)
+        self.sections.setFixedSize(280, 44)
+        self.sections.addTab(tr('Tresor'))
+        self.sections.addTab(tr('Sicherungen'))
+        self.sections.setCurrentIndex(1)
+        self.sections.setStyleSheet("""
+            QTabBar::tab { padding: 10px 18px; border: 1px solid palette(mid);
+                background: palette(base); color: palette(text); }
+            QTabBar::tab:first { border-top-left-radius: 9px; border-bottom-left-radius: 9px; }
+            QTabBar::tab:last { border-top-right-radius: 9px; border-bottom-right-radius: 9px; border-left: 0; }
+            QTabBar::tab:selected { background: palette(alternate-base); font-weight: 600; }
+            QTabBar::tab:hover { color: palette(highlight); }
+        """)
+        self.sections.currentChanged.connect(self.open_section)
+        header = self.centralWidget().layout().itemAt(0).layout()
+        header.insertWidget(1, self.sections)
+        header.insertStretch(2, 1)
         self.add_button.setText(tr('Sicherung einrichten')); self.search.setPlaceholderText(tr('Sicherungspläne …'))
         self.summary=label(tr('Wähle einen Sicherungsplan oder richte deine erste Sicherung ein.'),'heading'); self.content.addWidget(self.summary)
         self.details=label(''); self.content.addWidget(self.details)
@@ -39,6 +56,11 @@ class Vault(ToolWindow):
             button(tr('Projektquellen prüfen'),lambda:self.safe(self.check_sources),'document-preview')))
         self.content.addWidget(label(tr('Wiederherstellungen landen in einem neuen Ordner. Das Sicherungspasswort zusätzlich außerhalb dieses Rechners aufbewahren.'),'muted'))
         self.body.setEnabled(False);self.refresh()
+
+    def open_section(self, index):
+        if index == 0:
+            self.open_preview()
+            self.sections.setCurrentIndex(1)
 
     def open_preview(self):
         from PySide6.QtCore import QProcess
