@@ -7,7 +7,13 @@ Rectangle {
     id: scene
     width: 420
     height: 580
-    color: "#212b2f"
+    Kirigami.Theme.inherit: false
+    Kirigami.Theme.textColor: "#eaf3f6"
+    Kirigami.Theme.backgroundColor: "#20353f"
+    Kirigami.Theme.alternateBackgroundColor: "#304b58"
+    Kirigami.Theme.disabledTextColor: "#a0b7c2"
+    Kirigami.Theme.highlightColor: "#97ddd4"
+    color: Kirigami.Theme.backgroundColor
     Lumen.PanelView {
         id: panel
         anchors.fill: parent

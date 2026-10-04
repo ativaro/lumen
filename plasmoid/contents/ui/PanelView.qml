@@ -88,8 +88,8 @@ ColumnLayout {
                 }
                 contentItem: ColumnLayout {
                     spacing: 4
-                    LumenIcon {
-                        name: appButton.modelData.icon
+                    Kirigami.Icon {
+                        source: appButton.modelData.icon
                         color: Kirigami.Theme.textColor
                         Layout.alignment: Qt.AlignHCenter
                         Layout.preferredWidth: 22; Layout.preferredHeight: 22
