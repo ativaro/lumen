@@ -147,7 +147,7 @@ Diese Dateiaktionen zeigen ihre Ergebnisse ohne Chat-Eingabe, Gesprächsauswahl,
 Moduswahl oder interne Auftragstexte. „Erneut versuchen“, „Kopieren“ und „Schließen“
 sind direkt verfügbar; Abbrechen, Freigaben und Rückfragen bleiben im selben Panel.
 Der freie Chat über **Lumen / Strg+J / Mit Lumen öffnen** bleibt separat erreichbar.
-**Strg+Enter** sendet; „Neues Gespräch“ und die Gesprächsauswahl verwalten
+**Enter** sendet, **Umschalt+Enter** fügt eine neue Zeile ein; „Neues Gespräch“ und die Gesprächsauswahl verwalten
 Lumen-Unterhaltungen im Arbeitsordner. Der Kontext bleibt sichtbar, auch wenn
 man im Dateimanager weiter navigiert. Netzwerkdateien nutzen ihren lokalen
 KIO-FUSE-Pfad. Bilder/PDFs werden als Anhänge übergeben.
@@ -376,7 +376,8 @@ Aktionen selbst bleiben reine Verlaufseinträge.
 ### Desktop-Suche und Einstellungen
 
 `lumen-search` öffnet eine native gemeinsame App-/Dateisuche mit Gespräch. Enter
-öffnet den gewählten Treffer; Strg+Enter fragt direkt. Natürlich formulierte Fragen
+öffnet den gewählten Treffer oder sendet im Gespräch. Umschalt+Enter fügt eine neue
+Zeile ein; Strg+Enter ist optional für eine direkte Frage. Natürlich formulierte Fragen
 stehen als Gesprächstreffer oben. Antworten und Folgefragen bleiben im Fenster.
 „Neue Suche“ beginnt neu; Schließen blendet die Suche aus und erhält das Gespräch.
 Die persönliche Dateisuche ist auf 100 Treffer, 100.000 Einträge und acht Sekunden

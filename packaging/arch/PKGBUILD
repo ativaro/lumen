@@ -1,7 +1,7 @@
 # Maintainer: Lumen
 pkgname=lumen
 pkgver=1.2.0
-pkgrel=56
+pkgrel=57
 pkgdesc="Lumen — AI desktop for CachyOS with files, tasks, knowledge and workflows"
 provides=('opencode-lumen')
 # No automatic conflict removal: the legacy package's uninstall script deletes reports.

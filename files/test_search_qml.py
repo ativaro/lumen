@@ -120,7 +120,7 @@ with tempfile.TemporaryDirectory() as tmp:
    # Actual keyboard modifiers reach the one composer.
    QTest.keyClick(w,Qt.Key_Return,Qt.ShiftModifier)
    assert send.call_count==2 and chr(10) in c.query
-   QTest.keyClick(w,Qt.Key_Return,Qt.ControlModifier)
+   QTest.keyClick(w,Qt.Key_Return)
    assert send.call_count==3
    assert c.backend.session=='keep-session'
   w.setHeight(1050);c.backend.messagesChanged.emit([])

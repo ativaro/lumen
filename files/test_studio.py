@@ -54,6 +54,29 @@ class StudioTest(unittest.TestCase):
         self.window.chat.backend.messagesChanged.emit(messages)
         return messages
 
+    def test_enter_sends_shift_enter_inserts_line_break(self):
+        chat = self.window.chat
+        chat.composer.setFocus(); QTest.qWait(20)
+        with patch.object(chat.backend, 'send') as send:
+            chat.composer.setPlainText('First line')
+            chat.composer.moveCursor(chat.composer.textCursor().MoveOperation.End)
+            QTest.keyClick(chat.composer, Qt.Key_Return, Qt.ShiftModifier)
+            self.assertEqual(chat.composer.toPlainText(), 'First line\n')
+            send.assert_not_called()
+            chat.composer.insertPlainText('Second line')
+            QTest.keyClick(chat.composer, Qt.Key_Return)
+            self.assertEqual(send.call_count, 1)
+            self.assertEqual(send.call_args.args[0], 'First line\nSecond line')
+            self.assertEqual(chat.composer.toPlainText(), '')
+            chat.composer.setPlainText('Keypad enter')
+            QTest.keyClick(chat.composer, Qt.Key_Enter)
+            self.assertEqual(send.call_count, 2)
+            chat.backend.busy = True
+            chat.composer.setPlainText('Keep while busy')
+            QTest.keyClick(chat.composer, Qt.Key_Return)
+            self.assertEqual(send.call_count, 2)
+            self.assertEqual(chat.composer.toPlainText(), 'Keep while busy')
+
     def test_session_history_title_and_busy_navigation_use_backend(self):
         chat = self.window.chat
         sessions = [{'id':'one','title':'Research','time':{'updated':1}}, {'id':'two','title':'Photos','time':{'updated':2}}]

@@ -181,7 +181,7 @@ class SearchController(QObject):
             self.set_hint(tr('Apps und Dateien finden. Fragen werden im selben Fenster beantwortet.'))
             self.publish_results(); return
         query = query[:300]
-        self.set_hint(tr('Enter öffnet den Treffer · Strg+Enter beginnt ein Gespräch hier'))
+        self.set_hint(tr('Enter startet · Umschalt+Enter für eine neue Zeile'))
         question = '?' in query or query.lower().split()[0] in ('wie', 'warum', 'was', 'welche', 'welcher', 'wieso', 'kannst', 'erkläre', 'how', 'why', 'what', 'which', 'who', 'where', 'when', 'can', 'could', 'explain')
         ask = self.result(query, tr('Hier mit Lumen besprechen'), 'question', query, 'lumen')
         if question: self._results.append(ask)
@@ -216,7 +216,7 @@ class SearchController(QObject):
             if process in self.scan_jobs: self.scan_jobs.remove(process)
             if self.process is process:
                 self.process = None
-                self.set_hint(tr('Dateisuche unterbrochen. Apps und Gespräch sind weiterhin verfügbar.') if code else tr('Enter öffnet · Strg+Enter fragt · Dateisuche in deinem persönlichen Ordner (begrenzt)'))
+                self.set_hint(tr('Dateisuche unterbrochen. Apps und Gespräch sind weiterhin verfügbar.') if code else tr('Enter startet · Umschalt+Enter für eine neue Zeile · Dateisuche im persönlichen Ordner'))
             process.deleteLater()
         process.readyReadStandardOutput.connect(read); process.finished.connect(done)
         process.errorOccurred.connect(lambda error: done(-1) if error == QProcess.FailedToStart else None)

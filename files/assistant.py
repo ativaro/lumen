@@ -6,8 +6,7 @@ from pathlib import Path
 from lumen_i18n import tr
 
 from PySide6.QtCore import QEvent, QSettings, Qt, QUrl, Signal
-from PySide6.QtGui import QDesktopServices, QKeySequence, QTextDocument, QPalette
-from PySide6.QtGui import QShortcut
+from PySide6.QtGui import QDesktopServices, QTextDocument, QPalette
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit,
     QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QScrollArea, QTextBrowser, QVBoxLayout, QWidget)
 from assistant_backend import OpenCodeBackend
@@ -138,7 +137,9 @@ class ChatPanel(QWidget):
         self.error.hide()
         layout.addWidget(self.error)
         self.composer = QPlainTextEdit()
-        self.composer.setPlaceholderText(tr('Was möchtest du tun?\nStrg+Enter zum Senden'))
+        self.composer.installEventFilter(self)
+        self.composer.setToolTip(tr('Enter sendet · Umschalt+Enter für eine neue Zeile'))
+        self.composer.setPlaceholderText(tr('Was möchtest du tun?\nEnter sendet · Umschalt+Enter für eine neue Zeile'))
         self.composer.setAccessibleName(tr('Nachricht an Lumen'))
         self.composer.setMaximumHeight(115)
         layout.addWidget(self.composer)
@@ -175,7 +176,6 @@ class ChatPanel(QWidget):
         self.save_note_button.clicked.connect(lambda:self.capture_knowledge(False));self.remember_button.clicked.connect(lambda:self.capture_knowledge(True));layout.addLayout(memory_row)
         self.memory_status=label('','muted');self.memory_status.hide();layout.addWidget(self.memory_status)
         self.backend.memoryStatus.connect(lambda text:(self.memory_status.setText(text),self.memory_status.show()))
-        QShortcut(QKeySequence('Ctrl+Return'), self, activated=self.send)
         self.backend.messagesChanged.connect(self.show_messages)
         self.backend.requestsChanged.connect(self.show_requests)
         self.backend.sessionsChanged.connect(self.show_sessions)
@@ -187,6 +187,15 @@ class ChatPanel(QWidget):
         self.update_context()
         self.show_messages([])
         self.show_options(False)
+
+    def eventFilter(self, watched, event):
+        if (watched is self.composer and event.type() == QEvent.KeyPress
+                and event.key() in (Qt.Key_Return, Qt.Key_Enter)
+                and not event.modifiers() & Qt.ShiftModifier):
+            if not event.isAutoRepeat():
+                self.send()
+            return True
+        return super().eventFilter(watched, event)
 
     def save_as_file_action(self):
         try:
