@@ -63,6 +63,12 @@ an und markiert ihren Titel zum direkten Schreiben. Eine Titeländerung lässt d
 Dateinamen bestehen, damit vorhandene Verknüpfungen erhalten bleiben. Markdown-
 Frontmatter bleibt erhalten; die erste Hauptüberschrift wird als Titel bearbeitet.
 
+Unter dem Titel stehen Datum und lokale Uhrzeit: **Erstellt** und, bei einem
+anderen Zeitpunkt, **Geändert**. Das gilt auch für übernommene Fundstellen und
+Gedächtniseinträge; im Profil **Über dich** stehen die Zeitangaben direkt an den
+Einträgen. Bei älteren Notizen ohne bekannte Erstellungszeit wird nur die letzte
+Dateiänderung angezeigt. Die Zeitangaben gehören nicht zum bearbeitbaren Text.
+
 Die Suche durchsucht Titel, Text, Herkunft und `#tags`. Sammlungen filtern nach
 vorhandenen Unterordnern und Tags; im Gedächtnis nach Vorliebe/Fakt/Entscheidung.
 **Neue Sammlung** unter „Sammlungen“ legt einen benannten Ordner im Notizbuch an.
@@ -109,7 +115,9 @@ Dateimanager. `lumen-wissen "/pfad/zur/notiz.md"` öffnet eine Datei innerhalb d
 gewählten Ordners auch im bereits laufenden Fenster.
 
 Notizen sind gewöhnliche UTF-8-Markdown-Dateien. Ein optionaler HTML-Kommentar
-hält Herkunft und Übernahme-ID fest. Fremde Frontmatter bleibt als Text erhalten.
+hält Herkunft, Übernahme-ID und bei neuen Notizen die Erstellungszeit fest.
+Bearbeiten und Wiederherstellen erhalten diese Zeit. Bestehende Dateien werden
+beim Öffnen dafür nicht verändert. Fremde Frontmatter bleibt als Text erhalten.
 Bilder werden bewusst als relative PNG-Anhänge in `attachments` kopiert und bei
 Bedarf verkleinert. Obsidian kann denselben Ordner lesen; Obsidian-Plugins,
 Canvas-Dateien und spezielle Frontmatter-Auswertungen werden nicht nachgebildet.

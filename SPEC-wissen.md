@@ -29,6 +29,15 @@ alle Notizen bleiben auch ohne diesen Kommentar lesbar. Fremde Frontmatter bleib
 als Text erhalten. Bilder werden bewusst in einen relativen Anhängeordner kopiert.
 Kein Zugriff durch Symlinks oder Pfade außerhalb des gewählten Ordners.
 
+Einträge zeigen Datum und lokale Uhrzeit dezent unter dem Titel. Neue Notizen
+speichern die Erstellungszeit als UTC-Unixzeit im vorhandenen Lumen-Kommentar;
+Bearbeiten und Wiederherstellen erhalten sie. Die Änderungszeit stammt aus der
+gelesenen Datei. Ohne belegte Erstellungszeit wird nur „Geändert“ angezeigt;
+bestehende Dateien werden dafür nicht nachträglich umgeschrieben. Bekannte
+Erstellungszeiten älterer Gedächtniseinträge bleiben als Anzeigequelle nutzbar.
+Zeitstempel gehören nicht in den editierbaren Text und erscheinen auch bei
+Profil-Einträgen. Speichern ohne Inhaltsänderung verändert den Zeitpunkt nicht.
+
 Vorhandene SQLite-Erinnerungen werden idempotent kopiert, niemals aus ihrer
 Ursprungsdatenbank entfernt. Nach Aktivierung arbeiten neue Store-Aufrufe auf den
 Markdown-Dateien. Späte Änderungen aus noch laufenden alten Lumen-Fenstern werden

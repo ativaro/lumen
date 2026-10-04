@@ -399,3 +399,27 @@ Existing user windows were left open; reopening them loads the new UI.
   history, permission replies, Markdown safety and no replay on recovery.
 - [x] Native screenshots inspected in DE/EN, four themes and compact dimensions;
   synthetic demo files only. Reference and renders remain in ignored artifacts/studio.
+
+## Wissen timestamps (2026-10-05)
+
+- [x] Show local creation/change dates below the note title and on memory profile entries.
+- [x] Preserve creation in portable note metadata, edits, history and Vault restoration.
+- [x] Display existing file modification times without rewriting old notes or inventing creation dates.
+- [x] Verify autosave, unchanged saves, frontmatter, imports, copied notebooks and restoration.
+- [x] Install six runtime files with a private rollback copy and verify the installed DE/EN UI.
+
+All 73 focused Wissen, memory, interoperability and localization checks passed
+their assertions. The isolated Vault module then crashes during Qt/Python
+shutdown; the same 18 passing checks followed by the same shutdown crash reproduce
+on the unmodified baseline. The extended Vault restore test also passes alone.
+Native tests against the installed bundle pass in German and English, including
+autosave, legacy notes, memory entries and the profile. Both narrow and wide
+window renders were inspected. The program rollback copy is under
+`~/.local/state/lumen/manual-updates/wissen-timestamps-20261005-003512`.
+
+The complete 457-test run has two existing errors (Vision launcher JSON output
+and the setup dialog's second QApplication), both reproduced by the unmodified
+453-test baseline. A WebDAV transfer failed once in the full run and passes when
+rechecked alone against the changed tree; it also passes in the baseline. Two
+optional integrations are skipped. These wider-suite limitations remain separate
+from the passing timestamp checks; no unrelated runtime changes were made.

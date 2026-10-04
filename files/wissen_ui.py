@@ -72,6 +72,7 @@ def build(w):
     w.title=QLineEdit();w.title.setObjectName('wissenTitle');w.title.setPlaceholderText(tr('Deine erste Notiz'));w.title.setAccessibleName(tr('Notiztitel'));w.title.setMaxLength(300);w.title.setEnabled(False);w.title.textEdited.connect(w.edited);wl.addWidget(w.title)
     w.banner=label('','muted');w.banner.hide();wl.addWidget(w.banner)
     w.recovery=row(button(tr('Externe Fassung laden'),lambda:w.safe(w.reload_external),'view-refresh'),button(tr('Entwurf als Kopie'),lambda:w.safe(w.save_copy),'edit-copy'));w.recovery.hide();wl.addWidget(w.recovery)
+    w.timestamp=label('','muted');w.timestamp.setAccessibleDescription(tr('Zeitstempel der Notiz'));w.timestamp.setTextFormat(Qt.PlainText);w.timestamp.hide();wl.addWidget(w.timestamp)
     w.views=QStackedWidget();wl.addWidget(w.views,1)
     w.editor=QPlainTextEdit();w.editor.setObjectName('wissenEditor');w.editor.setAccessibleName(tr('Notiztext'));w.editor.setPlaceholderText(tr('Mit „Neu“ einen Gedanken festhalten.\n\nDeine Notizen bleiben zunächst privat.'));w.editor.setTabStopDistance(32);w.editor.textChanged.connect(w.edited);w.views.addWidget(w.editor)
     w.preview=NotePreview();w.preview.interop_root=w.library.root.parent;w.preview.setObjectName('wissenPreview');w.preview.noteRequested.connect(lambda p:w.safe(w.open_note,p));w.views.addWidget(w.preview)

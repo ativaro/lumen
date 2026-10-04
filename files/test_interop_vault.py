@@ -152,7 +152,7 @@ class VaultInteropTest(unittest.TestCase):
             with self.assertRaises(ValueError): interop.relocate_restored(escaped)
 
     def test_reviewed_note_import_preserves_images_history_and_detects_conflicts(self):
-        from wissen_data import Notebook
+        from wissen_data import Notebook, encode
         from PIL import Image
         live = self.root/'live'; live.mkdir()
         self.store.set_setting('knowledge/notebook', str(live))
@@ -160,12 +160,13 @@ class VaultInteropTest(unittest.TestCase):
         current = book.write('note.md', '# Current\n\nNewer thoughts', '')
         restored = self.root/'restored-notebook'; restored.mkdir(); (restored/'attachments').mkdir()
         Image.new('RGB', (8, 8), 'blue').save(restored/'attachments/photo.png')
-        note = restored/'note.md'; note.write_text('# Recovered\n\nOlder thoughts ![Picture](attachments/photo.png)')
+        note = restored/'note.md'; note.write_bytes(encode('# Recovered\n\nOlder thoughts ![Picture](attachments/photo.png)', created=1600000000))
         comparison = interop.note_comparison(note, restored, self.store)
         self.assertEqual(comparison['current']['hash'], current['hash'])
         result = interop.import_restored_note(comparison, self.store, current['hash'], self.job)
         self.assertEqual(result['path'], str(live/'note.md'))
         imported = book.read('note.md')
+        self.assertEqual(imported['created'], current['created'])
         self.assertIn('# Recovered', imported['text'])
         self.assertNotIn('attachments/photo.png', imported['text'])
         self.assertEqual(len(list((live/'attachments').iterdir())), 1)
@@ -176,6 +177,9 @@ class VaultInteropTest(unittest.TestCase):
             interop.import_restored_note(after_review, self.store, imported['hash'], self.job)
         self.assertEqual(book.read('note.md')['text'], '# Edited during review')
         self.assertEqual(len(list((live/'attachments').iterdir())), 1)
+        book.remove('note.md', book.read('note.md')['hash'])
+        interop.import_restored_note(interop.note_comparison(note, restored, self.store), self.store, '', self.job)
+        self.assertEqual(book.read('note.md')['created'], 1600000000)
 
     def test_note_import_rejects_escaped_images_and_changed_recovered_file(self):
         from wissen_data import Notebook

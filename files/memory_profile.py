@@ -3,6 +3,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QScrollArea, QPushButton
 from lumen_i18n import tr
 from settings_navigation import label
+from wissen_data import timestamp_text
 
 
 class MemoryProfile(QScrollArea):
@@ -43,6 +44,9 @@ class MemoryProfile(QScrollArea):
                 if lines and lines[0].startswith('# '):lines=lines[1:]
                 description=label(' '.join(lines).strip()[:260],'muted')
                 for child in (heading,description):child.setAttribute(Qt.WA_TransparentForMouseEvents);content.addWidget(child)
+                when=timestamp_text(note)
+                if when:
+                    caption=label(when,'muted');caption.setAttribute(Qt.WA_TransparentForMouseEvents);content.addWidget(caption)
                 if note.get('memory',{}).get('correction'):
                     caption=label(tr('Nach deiner Korrektur aktualisiert'),'muted');caption.setAttribute(Qt.WA_TransparentForMouseEvents);content.addWidget(caption)
                 self.entries.addWidget(entry)
