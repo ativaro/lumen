@@ -18,7 +18,8 @@ class StudioTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from app import create_app
-        cls.app = create_app()
+        from PySide6.QtWidgets import QApplication
+        cls.app = QApplication.instance() or create_app()
         path = Path(__file__).resolve().parents[1] / 'agent-app/main.py'
         spec = importlib.util.spec_from_file_location('studio_test_main', path)
         cls.desktop = importlib.util.module_from_spec(spec); spec.loader.exec_module(cls.desktop)

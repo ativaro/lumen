@@ -108,14 +108,22 @@ with tempfile.TemporaryDirectory() as tmp:
     assert c.theme['name']==theme and composer.property('text')=='keep draft'
     assert c.theme['light']==(theme=='atelier')
     assert c.backend.session=='keep-session'
-    assert not w.grabWindow().isNull()
+   from test_rich_results import sample,message
+   from rich_result import present
+   c.backend.messagesChanged.emit(message(present(sample())));QTest.qWait(30)
+   assert c.rich.active and c.rich.values['quality']==85
+   c.rich.set_value('quality',70);c.rich.submit();assert send.call_count==2
+   assert c.query=='keep draft'
+   c.settings.setValue('textSize',20);c.reload_settings();QTest.qWait(20)
+   assert c.theme['fontSize']==20
+   assert not w.grabWindow().isNull()
    # Actual keyboard modifiers reach the one composer.
    QTest.keyClick(w,Qt.Key_Return,Qt.ShiftModifier)
-   assert send.call_count==1 and chr(10) in c.query
+   assert send.call_count==2 and chr(10) in c.query
    QTest.keyClick(w,Qt.Key_Return,Qt.ControlModifier)
-   assert send.call_count==2
+   assert send.call_count==3
    assert c.backend.session=='keep-session'
-  w.setHeight(1050);c.update_messages([])
+  w.setHeight(1050);c.backend.messagesChanged.emit([])
   c.backend.questions = [dict(id='form', questions=[dict(question='Choose', multiple=True, options=[dict(label='One'),dict(label='Two')]),dict(question='Custom', options=[],custom=True)])]
   c.backend.publish_requests()
   QTest.qWait(40)

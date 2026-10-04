@@ -48,6 +48,13 @@ class StudioChat(ChatPanel):
         self.options.toggled.connect(self.options_box.setVisible); self.options_box.hide()
         from studio_transcript import StudioTranscript
         self.transcript = StudioTranscript(self.transcript, self)
+        from rich_controller import RichController
+        from rich_widget import RichWidget
+        self.rich = RichController(self.backend, self)
+        self.rich.failed.connect(self.show_error)
+        self.rich.submitted.connect(self.submit_view)
+        self.rich_widget = RichWidget(self.rich, self.settings, self)
+        self.transcript.box.insertWidget(self.transcript.box.count()-1, self.rich_widget)
         root.addWidget(self.transcript, 1); root.addWidget(self.requests); root.addWidget(self.error)
         root.addWidget(self.action_buttons); root.addWidget(self.progress)
         voice = self.context_tools.conversation
@@ -86,7 +93,7 @@ class StudioChat(ChatPanel):
         self.update_context(); self.show_options(False); self.rendered = None; self.show_messages(self.backend.messages)
         self.backend.sessionChanged.connect(lambda _: self.update_title())
         self.backend.sessionsChanged.connect(lambda _: self.update_title())
-        self.update_title()
+        self.update_title(); self.apply_typography()
         # Widgets moved out of the hidden parking container retain their explicit
         # visibility; transient states still come from the shared chat controller.
         for widget in (self.heading, self.new, self.options, self.transcript, self.composer, self.send_button, self.status): widget.show()
@@ -105,9 +112,35 @@ class StudioChat(ChatPanel):
         self.presentation = result
         self.resultChanged.emit(result)
 
+    def reload_settings(self, filename, keys):
+        super().reload_settings(filename, keys)
+        if filename == self.settings.fileName() and {'textSize', 'contentDensity'} & set(keys):
+            self.transcript.refresh_typography()
+            self.apply_typography()
+
+    def apply_typography(self):
+        from ui_typography import metrics
+        values = metrics(self.settings)
+        self.setStyleSheet('QWidget#studioChat { font-family: "'+values['fontFamily']+'"; }'
+            +'QPlainTextEdit#studioInput { font-size: '+str(values['fontSize'])+'px; }')
+        self.composer.setFixedHeight(values['fontSize'] * 2 + 24)
+        if hasattr(self, 'rich_widget'): self.rich_widget.refresh()
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        from PySide6.QtCore import QEvent
+        if event.type() == QEvent.PaletteChange and hasattr(self, 'rich_widget'):
+            self.rich_widget.refresh()
+
+    def submit_view(self, text, data):
+        if self.backend.busy: return
+        self.last_prompt = text; self.error.hide()
+        self.backend.send(text, [], agent=self.mode.currentData(), memory_text=text, context_data=data)
+
     def recovery_state(self):
         state = super().recovery_state()
         state['presentation'] = self.presentation
+        state['rich_view'] = self.rich.recovery_state()
         return state
 
     def restore_recovery(self, state):
@@ -117,6 +150,7 @@ class StudioChat(ChatPanel):
         except ValueError: result = None
         self.presentation = result
         self.resultChanged.emit(result)
+        self.rich.restore(state.get('rich_view'))
 
     def update_title(self):
         if self.action: return

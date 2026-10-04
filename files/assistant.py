@@ -212,7 +212,7 @@ class ChatPanel(QWidget):
         # Keep the text view; omit backend credentials and structured tool results.
         messages = [{'info': {'role': m.get('info', {}).get('role')},
                      'parts': [{'type': 'text', 'text': '\n\n'.join(p.get('text', '')
-                               for p in m.get('parts', []) if p.get('type') == 'text')[:20000]}]}
+                               for p in m.get('parts', []) if p.get('type') == 'text' and not p.get('synthetic'))[:20000]}]}
                     for m in self.backend.messages[-20:]]
         return {'directory': self.backend.directory, 'session': self.backend.session,
                 'draft': self.composer.toPlainText()[:100000], 'messages': messages,

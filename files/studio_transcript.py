@@ -16,7 +16,8 @@ class MessageBody(Transcript):
         self.anchorClicked.connect(lambda url: QDesktopServices.openUrl(url) if url.scheme() in ('https', 'http') else None)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff); self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed); self.setMinimumWidth(0)
-        font = QFont(self.font()); font.setPixelSize(15); self.setFont(font)
+        from ui_typography import font
+        self.setFont(font(parent.settings if parent is not None and hasattr(parent, 'settings') else None))
         self.document().contentsChanged.connect(self.fit)
 
     def fit(self):
@@ -34,8 +35,15 @@ class StudioTranscript(QScrollArea):
         self.setObjectName('studioTranscript'); self.setFrameShape(QFrame.NoFrame); self.setWidgetResizable(True)
         self.setAccessibleName(tr('Gespräch mit Lumen'))
         self.content = QWidget(); self.content.setObjectName('studioMessages')
+        self.content.setMaximumWidth(960); self.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
         self.box = QVBoxLayout(self.content); self.box.setContentsMargins(0, 12, 6, 0); self.box.setSpacing(24)
         self.box.addStretch(); self.setWidget(self.content)
+
+    def refresh_typography(self):
+        from ui_typography import metrics
+        self.box.setSpacing(metrics(self.parent().settings)['spacing'] + 8)
+        entries = [row[1] for row in self.rows]
+        self.clear(); self.entries(entries)
 
     def setHtml(self, value): self.backing.setHtml(value)
     def toPlainText(self): return self.backing.toPlainText()
@@ -56,7 +64,7 @@ class StudioTranscript(QScrollArea):
                 bubble = QFrame(); bubble.setObjectName('studioUserMessage' if role == 'user' else 'studioAssistantMessage')
                 layout = QVBoxLayout(bubble); layout.setContentsMargins(18, 14, 18, 14); layout.setSpacing(8)
                 caption = label(tr('DU') if role == 'user' else 'LUMEN', 'studioSpeaker'); layout.addWidget(caption)
-                body = MessageBody(); layout.addWidget(body)
+                body = MessageBody(self.parent()); layout.addWidget(body)
                 activity_label = label('', 'muted'); layout.addWidget(activity_label)
                 if role == 'user': outer.addStretch(1)
                 outer.addWidget(bubble, 8)
@@ -72,7 +80,9 @@ class StudioTranscript(QScrollArea):
             if changed:
                 document = SafeDocument(); document.setDefaultFont(body.font())
                 document.setMarkdown(value, QTextDocument.MarkdownFeatures(QTextDocument.MarkdownDialectGitHub | QTextDocument.MarkdownNoHTML))
-                body.setHtml(document.toHtml()); body.fit()
+                body.setHtml(document.toHtml())
+                from ui_typography import format_document
+                format_document(body.document(), self.parent().settings); body.fit()
                 activity_label.setText(' · '.join(activity) + (' …' if activity else '')); activity_label.setVisible(bool(activity))
         self.box.activate()
 

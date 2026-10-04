@@ -549,6 +549,19 @@ class SettingsDialog(QDialog):
                 self.status.setText(str(error))
         self.apply_appearance = button(tr('Design übernehmen'), save); self.apply_appearance.setObjectName('primary')
         page.addWidget(self.apply_appearance, 0, Qt.AlignLeft)
+        reading = QFormLayout()
+        self.text_size = QSpinBox(); self.text_size.setRange(14, 22); self.text_size.setSuffix(' px')
+        self.text_size.setValue(self.field(self.assistant, 'textSize', 17))
+        reading.addRow(tr('Schriftgröße · Lumen und Suche'), self.text_size)
+        self.content_density = combo([(tr('Komfortabel'), 'comfortable'), (tr('Kompakt'), 'compact')],
+            self.field(self.assistant, 'contentDensity', 'comfortable'))
+        reading.addRow(tr('Darstellungsdichte'), self.content_density); page.addLayout(reading)
+        def save_reading():
+            try:
+                self.save(self.assistant, dict(textSize=self.text_size.value(), contentDensity=self.content_density.currentData()))
+                self.status.setText(tr('Textdarstellung übernommen.'))
+            except (OSError, ValueError) as error: self.status.setText(str(error))
+        page.addWidget(button(tr('Textdarstellung übernehmen'), save_reading), 0, Qt.AlignLeft)
         desktop = QWidget(); desktop.hide(); desktop_layout = QVBoxLayout(desktop)
         desktop_layout.setContentsMargins(0, 0, 0, 0)
         advanced = QPushButton(tr('KDE-Desktop anpassen …')); advanced.setObjectName('quiet'); advanced.setCheckable(True)

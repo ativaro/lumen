@@ -33,6 +33,6 @@ QWidget#studioPreviewPane QListWidget#filmstrip::item:focus { border-color: pale
 QSplitter::handle { background: palette(mid); }
 QScrollArea#studioTranscript, QWidget#studioMessages { background: transparent; border: none; }
 QFrame#studioUserMessage { background: palette(midlight); border: 1px solid palette(mid); border-radius: 14px; }
-QFrame#studioAssistantMessage { background: palette(base); border: 1px solid palette(mid); border-radius: 14px; }
-QTextBrowser#studioMessage { background: transparent; border: none; padding: 0; font-size: 15px; }
+QFrame#studioAssistantMessage { background: transparent; border: none; }
+QTextBrowser#studioMessage { background: transparent; border: none; padding: 0; }
 QLabel#studioSpeaker { color: palette(link); font-size: 10px; letter-spacing: 1px; }

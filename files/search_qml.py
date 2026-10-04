@@ -5,7 +5,7 @@ import sys
 
 # Select this process's binding before importing any shared Lumen module.
 from PySide6.QtCore import QObject, QTimer, QUrl, QSize, Qt, Slot, ClassInfo, QStandardPaths
-from PySide6.QtGui import QGuiApplication, QCursor, QIcon, QPixmap, QColor
+from PySide6.QtGui import QGuiApplication, QCursor, QIcon, QPixmap, QColor, QPainter, QPalette
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickImageProvider
 from PySide6.QtDBus import QDBusConnection, QDBusMessage, QDBus
@@ -17,11 +17,16 @@ class Icons(QQuickImageProvider):
     def __init__(self): super().__init__(QQuickImageProvider.Pixmap)
 
     def requestPixmap(self, name, size, requested):
-        name = name.split('?', 1)[0]
+        from urllib.parse import parse_qs
+        name, _, query = name.partition('?')
+        tint = parse_qs(query).get('tint', [''])[0]
         target = requested if requested.width() > 0 else QSize(24, 24)
         icon = QIcon.fromTheme(name, QIcon.fromTheme('system-search' if name == 'lumen' else 'application-x-executable'))
         pixmap = icon.pixmap(target)
         if pixmap.isNull(): pixmap = QPixmap(target); pixmap.fill(Qt.transparent)
+        if tint and QColor(tint).isValid():
+            painter = QPainter(pixmap); painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
+            painter.fillRect(pixmap.rect(), QColor(tint)); painter.end()
         size.setWidth(pixmap.width()); size.setHeight(pixmap.height())
         return pixmap
 
@@ -38,8 +43,8 @@ class Activation(QObject):
             self.controller.debounce.stop(); self.controller.search()
         screen = QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
         area = screen.availableGeometry()
-        self.window.setWidth(min(860, max(320, area.width()-30)))
-        self.window.setHeight(min(680, max(400, area.height()-70)))
+        self.window.setWidth(min(1240, max(620, area.width()-30)))
+        self.window.setHeight(min(900, max(560, area.height()-70)))
         self.window.setPosition(area.x()+(area.width()-self.window.width())//2, min(area.bottom()-self.window.height(), max(area.y()+12, screen.geometry().y()+70)))
         self.window.show(); self.window.raise_(); self.window.requestActivate()
 
@@ -55,6 +60,10 @@ def create_window(app, controller):
     QIcon.setThemeSearchPaths(paths + QIcon.themeSearchPaths())
     QIcon.setFallbackThemeName('hicolor')
     def icons():
+        palette = QGuiApplication.palette()
+        for key, role in [('window',QPalette.Window),('base',QPalette.Base),('text',QPalette.WindowText),('text',QPalette.Text),('text',QPalette.ButtonText),('accent',QPalette.Highlight),('onAccent',QPalette.HighlightedText)]:
+            palette.setColor(role,QColor(controller.theme[key]))
+        app.setPalette(palette)
         QIcon.setThemeName('breeze-dark' if QColor(controller.theme['window']).lightness() < 128 else 'breeze')
     icons(); controller.themeChanged.connect(icons)
     engine = QQmlApplicationEngine()

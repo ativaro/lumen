@@ -35,6 +35,8 @@ class SafeHtml(HTMLParser):
 def render(text):
     doc = SafeDocument()
     doc.setMarkdown(text, QTextDocument.MarkdownDialectGitHub | QTextDocument.MarkdownNoHTML)
+    from ui_typography import format_document
+    format_document(doc)
     body = doc.toHtml().split('<body', 1)[1].split('>', 1)[1].rsplit('</body>', 1)[0]
     safe = SafeHtml(); safe.feed(body)
     return ''.join(safe.output)

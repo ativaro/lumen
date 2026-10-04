@@ -53,6 +53,18 @@ DEFINITIONS = {
     'lumen_calendar_list': definition('Search locally cached calendar events. Requires native Inbox MCP access. No sync, invitations or calendar changes; cached results can be stale.', dict(query=QUERY, account=ID, **PAGE)),
 }
 
+from rich_result import SCHEMA as VIEW_SCHEMA
+DEFINITIONS['lumen_present_view'] = definition(
+    'Show native interactive results in Lumen or Lumen Search. Replaces the current view. '
+    'Blocks use unique id, type and label. table: columns (labels), rows (arrays of strings/numbers); '
+    'slider: integer min/max/step/value and optional unit; select: options (strings) and value; '
+    'toggle: boolean value; chart: items of label/value (nonnegative numbers) and unit; '
+    'progress: measured value 0–100; files: existing absolute local/mounted paths. '
+    'Optional submit_label creates a button that sends chosen values as a user follow-up. '
+    'Wait for that follow-up before acting. No execution on slider moves; permissions unchanged. '
+    'Use real data, not placeholder results. No HTML, QML, commands or URLs.',
+    VIEW_SCHEMA['properties'], VIEW_SCHEMA['required'])
+
 
 from translate_data import LANGUAGES, STYLES, MODES, MAX_TEXT
 TRANSLATE_OPTIONS = dict(
@@ -142,6 +154,9 @@ def preferences():
 
 
 def invoke(name, args):
+    if name == 'lumen_present_view':
+        from rich_result import present
+        return present(args)
     if name == 'lumen_present_files':
         from studio_results import present
         return present(args['paths'], args.get('title', ''))

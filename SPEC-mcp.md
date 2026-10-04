@@ -59,3 +59,20 @@ Protocol reference: https://modelcontextprotocol.io/specification/2025-06-18/ser
   passed in an isolated profile. Optional action configuration exposes 32 tools.
 - Synthetic evaluation questions are provided under tests/mcp; no cloud/model-based
   evaluation or transmission of personal data was performed.
+
+## Interactive result views
+
+`lumen_present_view(title, blocks, submit_label?)` returns a conversation-local
+`lumen.view.v1` result. Types: table, slider, select, toggle, chart, progress, files.
+12 blocks, 100 rows/table, 8 columns, 1200 table cells total and 400k serialized text
+limit. Numeric values are finite, sliders have valid integer ranges/steps, choices
+are enumerated, IDs unique, paths are explicit regular local/mounted files.
+No model-supplied code or URLs. The tool runs with write actions disabled.
+
+Only successful tool results render. Edits stay local until the user submits; submission
+is a normal backend prompt with visible human summary and a synthetic structured data
+part. Existing modes, tool permissions and task tracking apply. Repeated polls preserve
+edits; new results reset them; recovery never replays submissions. Both Studio and Search
+use the same renderer and controller. Search also exposes file-presentation results as
+file cards; Studio keeps its image/PDF preview. Tests cover actual Qt interactions,
+malformed input, numeric sorting, selection, safe export, session isolation and recovery.

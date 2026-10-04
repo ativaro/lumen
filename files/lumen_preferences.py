@@ -5,6 +5,8 @@ from PySide6.QtCore import QSettings
 # Deliberately excludes credentials, paths, auto-approval and privacy grants.
 MCP_FIELDS = {
     'Assistant': {
+        'textSize': (17, int, (14, 22)),
+        'contentDensity': ('comfortable', str, ('comfortable', 'compact')),
         'uiLanguage': ('system', str, ('system','de','en')),
         'defaultMode': ('build', str, ('build','plan')),
         'appearance': ('glass', str, ('glass','graphite','atelier','midnight','clear','system')),

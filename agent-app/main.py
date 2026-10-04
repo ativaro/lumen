@@ -79,6 +79,8 @@ class LumenWindow(QMainWindow):
         self.resize(1380, 860)
         self.setMinimumSize(760, 600)
         self.settings = QSettings('Lumen', 'Assistant')
+        from ui_typography import font
+        self.setFont(font(self.settings))
         self.file_settings = file_settings
         geometry = self.settings.value('geometry')
         if geometry:

@@ -622,3 +622,35 @@ Das Werkzeug akzeptiert bis zu 100 vorhandene Dateien mit absoluten lokalen oder
 eingehängten Netzwerkpfaden; keine Ordner. Leere Pfadliste leert das Ergebnis.
 Der Chat in Files und die Suche behalten ihre eigenen bisherigen Oberflächen.
 Alle vier Themes und Deutsch/Englisch werden unterstützt.
+
+### Lesbare Antworten und interaktive Ergebnisse
+
+Lumen und Search verwenden Adwaita Sans (mit Noto-Sans-Fallback), größere Antworttexte,
+mehr Zeilenabstand und ruhige Flächen. Unter **Erscheinungsbild** lassen sich die gemeinsame
+Schriftgröße (14–22px) und Darstellungsdichte (komfortabel/kompakt) ändern. Die bestehenden
+Themes bleiben erhalten. Lumen begrenzt die Textbreite und zeigt Antworten ohne große Blasen.
+
+`lumen_present_view` gibt dem Modell allgemeine native Bausteine: Tabellen mit numerischer
+Sortierung, Textfilter, Zeilenauswahl, Kopieren und CSV-Export; Regler mit Zahlenfeld;
+Auswahlfelder, Schalter, Balkendiagramme, gemeldeten Fortschritt und Dateikarten.
+Lumen und Search verwenden denselben Qt-Quick-Renderer. Daten sind begrenzt und validiert;
+kein Modellcode, HTML oder QML wird ausgeführt. Sprachunabhängige Werkzeugwahl statt
+Schlüsselwortregeln. Gewöhnliche Erklärungen bleiben normale Antworten.
+
+Regleränderungen führen nichts aus. Ein ausdrücklich angeklickter Ergebnisbutton sendet
+Auswahlwerte über den normalen Gesprächsweg an Lumen. Im Gespräch steht eine lesbare
+Zusammenfassung; technische Daten werden separat übertragen. Werkzeugfreigaben und
+Lesemodus bleiben wirksam. Wiederherstellung und regelmäßige Aktualisierungen senden
+nichts und erhalten Auswahlwerte. CSV-Export überschreibt keine bestehende Datei und
+entschärft Formeln. Dateikarten öffnen Originale erst nach einem Klick auf Öffnen.
+
+### Neue Search-Übersicht
+
+Die zentrale Suche enthält Übersicht, Aufträge und Gespräche, eine gemeinsame Eingabe
+mit Dateianhängen und Mikrofon, sechs App-Verknüpfungen und den Desktop-Dateiverlauf.
+Aufträge stammen aus Lumen; erledigte/abgebrochene Einträge können geschlossen werden.
+Die Gesprächsliste zeigt zunächst fünf Einträge. Alle Apps und Einstellungen bleiben
+erreichbar. Daten werden außerhalb der Oberfläche aktualisiert, solange Search sichtbar
+ist. Auf kleinen Fenstern stehen die Listen untereinander. Die Farben folgen dem Theme;
+der gezeigte helle Entwurf entspricht Atelier. Die Fußzeile meldet den Zustand der
+Übersicht und behauptet keine ungeprüfte Systemdiagnose.

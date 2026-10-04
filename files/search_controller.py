@@ -35,7 +35,14 @@ class SearchController(QObject):
         self.settings = QSettings('Lumen', 'Assistant')
         self.backend = backend or OpenCodeBackend(self.directory, self)
         self.backend.settings = self.settings
+        from rich_controller import RichController
+        self.rich = RichController(self.backend, self, file_results=True)
+        self.rich.submitted.connect(self.submit_view)
+        self.rich.failed.connect(self.show_error)
+        from search_home import SearchHome
+        self.home = SearchHome(self); self.home.failed.connect(self.show_error)
         self.tracker = TaskTracker(self.backend, self)
+        self._attachments = []
         self._query = ''; self._results = []; self._selection = 0
         self._conversation = False; self._messages = []; self._permissions = []; self._questions = []
         self._sessions = [dict(id='', title=tr('Neues Gespräch'))]; self._theme = {}; self._hint = ''; self._error = ''; self._status = tr('Bereit')
@@ -73,7 +80,10 @@ class SearchController(QObject):
         self.applications = sorted(applications, key=lambda item: item[0].casefold())
         self.search()
 
+    attachments = Property('QVariantList', lambda self: self._attachments, notify=stateChanged)
     query = Property(str, lambda self: self._query, notify=queryChanged)
+    homeView = Property(QObject, lambda self: self.home, constant=True)
+    richView = Property(QObject, lambda self: self.rich, constant=True)
     results = Property('QVariantList', lambda self: self._results, notify=resultsChanged)
     selectedIndex = Property(int, lambda self: self._selection, notify=selectionChanged)
     conversation = Property(bool, lambda self: self._conversation, notify=stateChanged)
@@ -121,7 +131,10 @@ class SearchController(QObject):
                 QPalette.Highlight, QPalette.HighlightedText))
         theme = dict(zip(('window', 'base', 'hover', 'text', 'button', 'border', 'muted', 'accent', 'onAccent'), values))
         theme.update(name=name, radius=RADII[name], light=QColor(theme['window']).lightness() >= 128)
-        if theme != self._theme: self._theme = theme; self.themeChanged.emit()
+        from ui_typography import metrics
+        theme.update(metrics(self.settings))
+        if theme != self._theme:
+            self._theme = theme; self.themeChanged.emit(); self.update_messages(self.backend.messages)
         self._auto_approve = self.settings.value('autoApproveTools', False, type=bool)
         self.backend.set_auto_approve(self._auto_approve); self.stateChanged.emit()
         file = Path(self.settings.fileName()); file.parent.mkdir(parents=True, exist_ok=True)
@@ -220,6 +233,19 @@ class SearchController(QObject):
     def activate_result(self, index):
         if 0 <= index < len(self._results): self._selection = index; self.submit(False)
 
+    @Slot('QVariantList')
+    def add_attachments(self, urls):
+        if self.backend.busy:return
+        for value in urls[:24]:
+            url=QUrl(str(value))
+            if url.isLocalFile() and url.toLocalFile() not in self._attachments:
+                self._attachments.append(url.toLocalFile())
+        self._attachments=self._attachments[:24];self.stateChanged.emit()
+
+    @Slot()
+    def clear_attachments(self):
+        if not self.backend.busy:self._attachments=[];self.stateChanged.emit()
+
     @Slot(bool)
     def submit(self, ask=False):
         if self.backend.busy: return
@@ -233,7 +259,14 @@ class SearchController(QObject):
             self.set_query('')
             prompt = query + (tr('\n\nErkläre die wesentlichen Schritte, ihre Wirkung und wie ich sie selbst wiederholen kann.') if self._learn else '')
             self.backend.background_task = False
-            self.backend.send(prompt, [], agent=self._mode, memory_text=query)
+            import mimetypes
+            files=[]
+            if self._attachments:
+                prompt += tr('\n\nAusgewählte Pfade (Kontext):\n')+'\n'.join(self._attachments)
+                for path in self._attachments:
+                    mime=mimetypes.guess_type(path)[0] or ''
+                    if mime.startswith('image/') or mime=='application/pdf':files.append((path,mime))
+            self.backend.send(prompt, files, agent=self._mode, memory_text=query)
             self.focusRequested.emit(); return
         if not self._results: self.submit(True); return
         row = self._results[self._selection]
@@ -247,10 +280,25 @@ class SearchController(QObject):
             self.hideRequested.emit()
         except (OSError, ValueError) as error: self.show_error(str(error))
 
+    @Slot()
+    def browse(self):
+        self._conversation = False; self.stateChanged.emit()
+        self.home.start()
+
+    @Slot()
+    def show_conversation(self):
+        self._conversation = True; self.stateChanged.emit()
+
     def update_messages(self, messages):
         rows, answer = message_rows(messages)
         self.last_answer = answer
         if rows != self._messages: self._messages = rows; self.messagesChanged.emit()
+
+    def submit_view(self, text, data):
+        if self.backend.busy: return
+        self._conversation = True; self._error = ''; self.last_prompt = text
+        self.backend.send(text, [], agent=self._mode, memory_text=text, context_data=data)
+        self.stateChanged.emit()
 
     def update_requests(self, permissions, questions):
         names = {'edit': tr('Dateien ändern'), 'bash': tr('Befehl ausführen'),
@@ -306,7 +354,7 @@ class SearchController(QObject):
     def reset(self):
         if self.backend.busy: return
         self.voice.stop(); self.backend.new_conversation(); self._conversation = False
-        self._error = ''; self.last_prompt = ''; self.set_query(''); self.search(); self.stateChanged.emit(); self.focusRequested.emit()
+        self._error = ''; self.last_prompt = ''; self._attachments=[]; self.set_query(''); self.search(); self.stateChanged.emit(); self.focusRequested.emit()
 
     @Slot()
     def stop(self): self.voice.stop(); self.backend.stop()
@@ -325,7 +373,7 @@ class SearchController(QObject):
     def voice_submit(self, text): self.set_query(text); self.submit(True)
 
     @Slot()
-    def hidden(self): self.debounce.stop(); self.voice.stop(); self.cancel_scan()
+    def hidden(self): self.home.stop(); self.debounce.stop(); self.voice.stop(); self.cancel_scan()
 
     @Slot()
     def copy_answer(self): QGuiApplication.clipboard().setText(self.last_answer)
@@ -357,8 +405,8 @@ class SearchController(QObject):
         job.finished.connect(done); job.start()
 
     def recovery_state(self):
-        messages = [dict(info=dict(role=m.get('info', {}).get('role')), parts=[dict(type='text', text='\n\n'.join(p.get('text', '') for p in m.get('parts', []) if p.get('type') == 'text')[:20000])]) for m in self.backend.messages[-20:]]
-        return dict(conversation=self._conversation, chat=dict(directory=self.backend.directory, session=self.backend.session, draft=self._query[:100000], messages=messages, paths=[], mode=self._mode, persona=self.backend.persona_choice()))
+        messages = [dict(info=dict(role=m.get('info', {}).get('role')), parts=[dict(type='text', text='\n\n'.join(p.get('text', '') for p in m.get('parts', []) if p.get('type') == 'text' and not p.get('synthetic'))[:20000])]) for m in self.backend.messages[-20:]]
+        return dict(conversation=self._conversation, rich_view=self.rich.recovery_state(), chat=dict(directory=self.backend.directory, session=self.backend.session, draft=self._query[:100000], messages=messages, paths=self._attachments, mode=self._mode, persona=self.backend.persona_choice()))
 
     def restore_recovery(self, state):
         if self.backend.busy: raise ValueError(tr('Bitte den laufenden Auftrag zuerst abschließen.'))
@@ -367,12 +415,15 @@ class SearchController(QObject):
         self.backend.new_conversation(chat.get('directory') or self.directory)
         self.backend.session = str(chat.get('session', '')); self.backend.messages = chat.get('messages', [])
         if not self.backend.session: self.backend.set_persona(chat.get('persona', ''))
+        self._attachments=[p for p in chat.get('paths',[]) if isinstance(p,str) and p.startswith('/')][:24]
         self._conversation = bool(state.get('conversation')); self._mode = 'plan' if chat.get('mode') == 'plan' else 'build'
         self.update_messages(self.backend.messages); self.set_query(str(chat.get('draft', ''))[:100000])
+        self.rich.restore(state.get('rich_view'))
         self.set_status(tr('Wiederhergestellt · Kein Auftrag wurde erneut gestartet')); self.sessionsChanged.emit()
         if not self._conversation: self.search()
 
     def shutdown(self):
+        self.home.shutdown()
         self.debounce.stop(); self.theme_timer.stop(); self.cancel_scan(); self.voice.stop()
         for process in self.scan_jobs[:]: process.kill(); process.waitForFinished(1000)
         if self.memory_job: self.memory_job.cancelled.set(); self.memory_job.wait(3000)
