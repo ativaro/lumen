@@ -23,3 +23,11 @@ echtes Plasma-Menü mit gemeinsamer Aufgabenanzeige ersetzen.
 
 Die Hintergrund-Lebensdauer von KI-Aufträgen, eine gemeinsame Engine und neue
 KRunner-Aktionen gehören zu den später vorgeschlagenen Ausbaustufen.
+
+### Search pointer targets
+
+Search and microphone are separate click targets. The search panel intentionally
+has no hover popups: Plasma's attached microphone tooltip could cover the button
+and swallow the first click. Named accessible controls and keyboard activation
+remain. Regression tests hover800ms before clicking the microphone's left edge,
+center and right edge, at480/280/220px panel widths.

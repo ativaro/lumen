@@ -17,7 +17,26 @@ Rectangle {
             verify(Math.abs(icon.mapToItem(scene, 0, icon.height / 2).y - scene.height / 2) <= 0.5,
                    button.objectName + " icon must share the panel's vertical center");
         }
+        function test_microphone_pointer_target_data() {
+            return [{tag:"wide", width:480}, {tag:"compact", width:280}, {tag:"narrow", width:220}];
+        }
+        function test_microphone_pointer_target(data) {
+            scene.height=48; scene.width=data.width; bar.surface="search";
+            waitForRendering(bar); voices.clear(); searches.clear();
+            const search=findChild(bar,"searchButton"); const voice=findChild(bar,"voiceButton");
+            verify(search.x+search.width <= voice.x, "Search and microphone hit areas overlap");
+            verify(voice.mapToItem(scene,voice.width,0).x <= scene.width, "Microphone leaves panel bounds");
+            for (const x of [4,voice.width/2,voice.width-4]) {
+                const point=voice.mapToItem(scene,x,voice.height/2);
+                mouseMove(scene,point.x,point.y); wait(800);
+                const count=voices.count;
+                mouseClick(scene,point.x,point.y);
+                compare(voices.count,count+1,"Click must reach microphone, including after hover");
+                compare(searches.count,0,"Microphone must never activate text search");
+            }
+        }
         function test_roles_keyboard_and_bounds() {
+            toggles.clear(); launches.clear(); searches.clear(); voices.clear();
             scene.height = 48; scene.width = 280; bar.surface = "home"; waitForRendering(bar);
             const home = findChild(bar, "homeButton"); const files = findChild(bar, "filesButton");
             verifyCentered(home); verifyCentered(files);

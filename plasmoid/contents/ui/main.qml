@@ -24,8 +24,9 @@ PlasmoidItem {
     property bool systemBusy: false
     property string systemCommand: ""
     preferredRepresentation: compactRepresentation
-    toolTipMainText: surface === "search" ? root.tr("Suchen oder fragen") : surface === "control" ? root.tr("Einstellungen") : root.tr("Dein System")
-    toolTipSubText: surface === "search" ? root.tr("Dateien, Apps und Gespräche in einer Suche") : surface === "control" ? root.tr("Systemregler, Einstellungen und Themes") : snapshot.error || (snapshot.attention ? root.tr("Braucht deine Rückmeldung")
+    // The search surface has separate pointer targets; hover popups can cover them.
+    toolTipMainText: surface === "search" ? "" : surface === "control" ? root.tr("Einstellungen") : root.tr("Dein System")
+    toolTipSubText: surface === "search" ? "" : surface === "control" ? root.tr("Systemregler, Einstellungen und Themes") : snapshot.error || (snapshot.attention ? root.tr("Braucht deine Rückmeldung")
         : snapshot.busy ? root.tr("Aufträge laufen") : root.tr("Aufträge, Ergebnisse und Schnellaktionen"))
 
     function refresh() {

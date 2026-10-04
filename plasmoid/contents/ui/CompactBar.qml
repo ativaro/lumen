@@ -3,7 +3,6 @@ import "Translations.js" as I18n
 import QtQuick
 import org.kde.kirigami as Kirigami
 import QtQuick.Layouts
-import org.kde.plasma.components as PC
 
 RowLayout {
     id: bar
@@ -62,8 +61,6 @@ RowLayout {
         icon.name: "audio-input-microphone"
         flat: true
         Accessible.name: bar.tr("Mit Lumen sprechen")
-        PC.ToolTip.text: bar.tr("Mit Lumen sprechen")
-        PC.ToolTip.visible: hovered
         onClicked: bar.voice()
     }
     LumenButton {
