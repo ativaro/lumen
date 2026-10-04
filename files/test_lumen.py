@@ -300,6 +300,45 @@ class NativeTest(unittest.TestCase):
             QIcon.setThemeName(theme)
             self.app.setStyleSheet(style)
 
+    def test_side_button_motion_never_starts_file_copy_drag(self):
+        from app import Window
+        from PySide6.QtCore import QSettings, Qt, QEvent, QPoint, QPointF, QCoreApplication
+        from PySide6.QtGui import QMouseEvent
+        from PySide6.QtTest import QTest
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); folder = root / 'entries'; folder.mkdir()
+            (folder / 'file.txt').write_text('untouched'); (folder / 'subfolder').mkdir()
+            window = Window(str(folder), QSettings(str(root / 'settings.ini'), QSettings.IniFormat))
+            window.show(); QTest.qWait(150)
+            try:
+                view = window.view
+                for row in range(2):
+                    index = window.proxy.index(row, 0, view.rootIndex())
+                    self.assertTrue(index.isValid())
+                    pos = view.visualRect(index).center(); end = pos + QPoint(90, 40)
+                    for button in (Qt.BackButton, Qt.ForwardButton, Qt.LeftButton):
+                        QTest.mouseClick(view.viewport(), Qt.LeftButton, pos=pos)
+                        with patch('PySide6.QtGui.QDrag') as drag, patch.object(window, 'history') as history, \
+                                patch.object(window, 'run_operation') as operation:
+                            QTest.mousePress(view.viewport(), button, pos=pos)
+                            for point in (pos, end, end + QPoint(30, 0)):
+                                event = QMouseEvent(QEvent.MouseMove, QPointF(point),
+                                    QPointF(view.viewport().mapToGlobal(point)), Qt.NoButton, button, Qt.NoModifier)
+                                self.app.sendEvent(view.viewport(), event)
+                            QTest.mouseRelease(view.viewport(), button, pos=end)
+                            if button == Qt.LeftButton:
+                                drag.assert_called_once(); history.assert_not_called()
+                                drag.return_value.exec.assert_called_once_with(Qt.CopyAction)
+                            else:
+                                drag.assert_not_called()
+                                history.assert_called_once_with(-1 if button == Qt.BackButton else 1)
+                            operation.assert_not_called()
+                self.assertEqual((folder / 'file.txt').read_text(), 'untouched')
+            finally:
+                window.close(); window.deleteLater()
+                QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+
     def test_mouse_history_over_child_widgets_and_dialog_isolation(self):
         from app import Window
         from PySide6.QtCore import QSettings, Qt

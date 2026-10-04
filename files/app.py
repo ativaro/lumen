@@ -140,6 +140,8 @@ class FileDropMixin:
 
     def startDrag(self, supported):
         from PySide6.QtGui import QDrag
+        if QApplication.mouseButtons() != Qt.LeftButton:
+            return
         paths = self.main_window.selected_paths()
         if not paths:
             return
@@ -1728,6 +1730,8 @@ class Application(QApplication):
         kind = event.type()
         mouse = (kind in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick)
                  and event.button() in (Qt.BackButton, Qt.ForwardButton))
+        mouse = mouse or (kind == QEvent.MouseMove
+                          and bool(event.buttons() & (Qt.BackButton | Qt.ForwardButton)))
         key = kind in (QEvent.KeyPress, QEvent.KeyRelease) and event.key() in (Qt.Key_Back, Qt.Key_Forward)
         if (mouse or key) and isinstance(receiver, QWidget):
             top = receiver.window()

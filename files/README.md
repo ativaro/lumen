@@ -335,6 +335,8 @@ Zusätzlich geprüft: Tabs oberhalb der Suche, Galerie-Aufruf und Bildfolge, vor
 
 Vor/Zurück wird an der Dateiliste selbst und ihrer inneren Fläche, Seitenleiste,
 Vorschau, Suche, Tabs und Galerie geprüft, mit Mausklicks und Browser-Tasten.
+Bewegungen mit gedrückter Seitentaste lösen keinen Kopier-Drag aus; Datei-Dragging
+beginnt ausschließlich mit der linken Maustaste.
 Zusätzlicher Laufzeittest über X11-Ereignisse: Buttons 8/9 und XF86Back/Forward.
 Die Dateiliste darf `QWidget.window()` nicht mit einem Instanzattribut verdecken;
 die frühere Kollision verursachte Fehler bei direkt an die Liste gelieferten Ereignissen.
