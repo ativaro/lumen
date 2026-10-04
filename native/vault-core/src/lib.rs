@@ -22,6 +22,8 @@ impl From<std::io::Error> for Error {
     }
 }
 
+#[doc(hidden)]
+pub mod laboratory;
 mod store;
 
 mod probe;

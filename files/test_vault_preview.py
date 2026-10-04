@@ -56,7 +56,7 @@ class VaultPreviewTest(unittest.TestCase):
         from lumen_mcp_tools import invoke
         with patch('tools_data.Library',side_effect=AssertionError('Must not open a library')):
             result=invoke('lumen_vault_secrets_status',{})
-        self.assertEqual(result,dict(available=False,stage='design_preview',real_secrets_supported=False,
+        self.assertEqual(result,dict(available=False,stage='native_laboratory',real_secrets_supported=False,
                                    engine_qualified=False,independent_review_completed=False))
 
     def test_application_starts_with_a_real_session_bus(self):

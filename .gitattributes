@@ -1,0 +1,3 @@
+# Preserve upstream license/attribution texts byte-for-byte, including their whitespace.
+native/vault-core/licenses/** -text -whitespace
+native/vault-ui/licenses/** -text -whitespace

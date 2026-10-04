@@ -63,6 +63,14 @@ for maintainers: create the matching version tag and replace `SKIP` with the
 verified archive checksum before distributing that PKGBUILD independently.
 No AUR release or binary repository is currently implied by this source repository.
 
+## Native Vault laboratory
+
+The optional native password-vault laboratory is built and installed separately;
+see [native/vault-ui/README.md](native/vault-ui/README.md). It remains restricted
+to synthetic data pending the release gates in its REVIEW.md. The default package
+ships only the launcher route and readiness status, not an audited password manager.
+Native binaries must include the full notice/source bundle produced by its installer.
+
 ## Licenses
 
 The repository remains private. [LICENSE-PLAN.md](LICENSE-PLAN.md) records the

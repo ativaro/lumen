@@ -1,6 +1,6 @@
 # Plan: Lumen Vault für Passwörter und Geheimnisse
 
-Stand: 04.10.2026 · **Architektur und Entwurf 1 freigegeben; native Designvorschau umgesetzt. Keine produktive Passwortverwaltung.**
+Stand: 04.10.2026 · **Architektur und Entwurf 1 freigegeben; native Testversion mit Rust-Prozess umgesetzt. Keine produktive Passwortverwaltung.**
 
 ## 1. Ziel und Empfehlung
 
@@ -345,3 +345,31 @@ Der Rust-Testkern wird nicht als freigegebener Passwortmanager installiert oder
 an KI/MCP gekoppelt. Die Laufzeit benötigt keine neue Kryptografie-Implementierung;
 Algorithmen und KDBX stammen aus den dokumentierten Bibliotheken. Kein KeePassXC-
 Code wurde übernommen und keine Projektlizenz umgestellt.
+
+## 13. Native Testversion und Lizenznachweise · 04.10.2026
+
+C++/Qt-Widgets-Oberfläche mit Rust-Broker über ausschließlich geerbte private
+Prozesskanäle implementiert. Erstellen/Entsperren, persistente geschützte Felder,
+Generator, Sammlungen/Favoriten/Papierkorb, maskierte Anzeige, zeitbegrenztes
+Kopieren, Sperren und verschlüsselte Sicherung/Wiederherstellung funktionieren
+im Testdatenmodus. Deutsch/Englisch und die vier Lumen-Themes sind enthalten.
+
+`lumen-vault --lab` startet die ausdrücklich installierte Testversion. Standard-
+Installation bleibt bei der Designvorschau; Restic wird nicht migriert. MCP meldet
+`native_laboratory` und weiterhin `available=false`/`real_secrets_supported=false`.
+KDF für neue Labor-Dateien wird gerätebezogen angenähert kalibriert. Dateizugriffe
+binden das Verzeichnis an einen offenen Deskriptor; fremde Programme können nach
+wie vor eine finale Revisionsprüfung umgehen, wenn sie unser Lock ignorieren.
+
+98 Rust-Abhängigkeiten samt tatsächlichen Notices, Paketmanifesten und Hashprüfung
+erfasst; Qt LGPLv3/GPLv3-Texte und Rust-Laufzeithinweise liegen bei. CMake verwendet
+nur dynamisches Qt Core/Gui/Widgets/DBus (Test zusätzlich in Tests). Kein KeePassXC-
+Code kopiert/verlinkt, keine Projektlizenz geändert. Der lokale Installer legt
+auch die neu kompilierbaren Quellen bei. Gesamtlizenzierung einschließlich
+PyMuPDF/AGPL bleibt separat gemäß LICENSE-PLAN.md zu prüfen.
+
+**Freigabe bleibt geschlossen:** Bibliotheks-/Qt-Speicherlebensdauer, breitere
+Fault-/Fuzz-/Dateisystemprüfungen, echte KDE-Clipboard-/Sperrrennen und das externe
+Expertenreview sind nicht durch die funktionierenden Tests ersetzt. Einzelne
+Labor-Limits und verbleibende Produktionsarbeit stehen ausdrücklich in
+`native/vault-ui/README.md` und `REVIEW.md`. Keine echte Zugangsdaten übernehmen.

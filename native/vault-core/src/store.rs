@@ -1,4 +1,4 @@
-//! Private implementation, deliberately not an IPC or user-facing secret API.
+//! Private KDBX storage; exposed only through the bounded native laboratory broker.
 use crate::{Error, Result, header};
 use keepass::{
     Database, DatabaseKey,
@@ -9,7 +9,10 @@ use sha2::{Digest, Sha256};
 use std::{
     fs::{self, File, OpenOptions},
     io::{Read, Write},
-    os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
+    os::{
+        fd::AsRawFd,
+        unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
+    },
     path::{Path, PathBuf},
 };
 use tempfile::NamedTempFile;
@@ -21,6 +24,7 @@ pub(crate) struct Session {
     root: PathBuf,
     revision: Option<[u8; 32]>,
     _writer: File,
+    _directory: File,
 }
 
 fn private_root(root: &Path) -> Result<()> {
@@ -29,6 +33,40 @@ fn private_root(root: &Path) -> Result<()> {
     // SAFETY: geteuid has no pointer arguments and no side effects.
     if !meta.is_dir() || meta.uid() != unsafe { libc::geteuid() } || meta.mode() & 0o077 != 0 {
         return Err(Error::InvalidInput);
+    }
+    Ok(())
+}
+// Pin the directory inode so ancestor replacement cannot redirect later writes.
+fn anchor(root: &Path) -> Result<(File, PathBuf)> {
+    let directory = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW)
+        .open(root)?;
+    let anchored = PathBuf::from(format!("/proc/self/fd/{}/.", directory.as_raw_fd()));
+    private_root(&anchored)?;
+    Ok((directory, anchored))
+}
+fn supported(db: &Database) -> Result<()> {
+    if db.root().groups().next().is_some() || db.root().entries().count() > 100 {
+        return Err(Error::Unsupported);
+    }
+    for entry in db.root().entries() {
+        if entry.attachments().next().is_some() {
+            return Err(Error::Unsupported);
+        }
+        let history = entry
+            .history
+            .as_ref()
+            .map(|h| h.get_entries().as_slice())
+            .unwrap_or(&[]);
+        if history.len() > 20 {
+            return Err(Error::Limit);
+        }
+        for fields in std::iter::once(&entry.fields).chain(history.iter().map(|e| &e.fields)) {
+            if fields.len() > 64 || fields.keys().any(|key| key.is_empty() || key.len() > 128) {
+                return Err(Error::Limit);
+            }
+        }
     }
     Ok(())
 }
@@ -71,7 +109,12 @@ fn writer(root: &Path) -> Result<File> {
         .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
         .open(root.join("writer.lock"))?;
     let m = file.metadata()?;
-    if !m.is_file() || m.nlink() != 1 || m.mode() & 0o077 != 0 {
+    // SAFETY: geteuid has no pointer arguments.
+    if !m.is_file()
+        || m.nlink() != 1
+        || m.mode() & 0o077 != 0
+        || m.uid() != unsafe { libc::geteuid() }
+    {
         return Err(Error::InvalidInput);
     }
     file.try_lock().map_err(|_| Error::Busy)?;
@@ -100,12 +143,46 @@ fn atomic(root: &Path, name: &str, data: &[u8], new: bool) -> Result<()> {
     Ok(())
 }
 
+/// Calibrate new laboratory files only. Existing/imported KDF settings are preserved.
+fn calibrated_kdf() -> Result<KdfConfig> {
+    let config = argon2::Config {
+        mem_cost: 128 * 1024,
+        time_cost: 3,
+        lanes: 2,
+        ..Default::default()
+    };
+    let started = std::time::Instant::now();
+    let _probe = Zeroizing::new(
+        argon2::hash_raw(
+            b"public calibration input",
+            b"public calibration salt",
+            &config,
+        )
+        .map_err(|_| Error::Io)?,
+    );
+    let milliseconds = started.elapsed().as_millis().max(1);
+    let iterations = (3 * 800 / milliseconds).clamp(3, 16) as u64;
+    Ok(KdfConfig::Argon2id {
+        iterations,
+        memory: 128 * 1024 * 1024,
+        parallelism: 2,
+        version: argon2::Version::Version13,
+    })
+}
 impl Session {
     pub(crate) fn create(root: &Path, password: Zeroizing<String>) -> Result<Self> {
+        Self::create_with_kdf(root, password, None)
+    }
+    fn create_with_kdf(
+        root: &Path,
+        password: Zeroizing<String>,
+        kdf: Option<KdfConfig>,
+    ) -> Result<Self> {
         if password.len() < 14 || password.len() > 4096 {
             return Err(Error::InvalidInput);
         }
-        let lock = writer(root)?;
+        let (directory, root) = anchor(root)?;
+        let lock = writer(&root)?;
         if root.join("vault.kdbx").try_exists()? {
             return Err(Error::Conflict);
         }
@@ -119,6 +196,9 @@ impl Session {
             parallelism: 2,
             version: argon2::Version::Version13,
         };
+        if let Some(config) = kdf {
+            db.config.kdf_config = config;
+        }
         db.root_mut().name = "Vault".into();
         let mut session = Self {
             db: Some(db),
@@ -126,25 +206,32 @@ impl Session {
             root: root.to_owned(),
             revision: None,
             _writer: lock,
+            _directory: directory,
         };
         session.save()?;
         Ok(session)
+    }
+    pub(crate) fn create_calibrated(root: &Path, password: Zeroizing<String>) -> Result<Self> {
+        Self::create_with_kdf(root, password, Some(calibrated_kdf()?))
     }
     pub(crate) fn open(root: &Path, password: Zeroizing<String>) -> Result<Self> {
         if password.len() > 4096 {
             return Err(Error::InvalidInput);
         }
-        let lock = writer(root)?;
+        let (directory, root) = anchor(root)?;
+        let lock = writer(&root)?;
         let data = read_file(&root.join("vault.kdbx"))?;
         header::inspect(&data)?;
         let key = DatabaseKey::new().with_password(&password);
         let db = Database::parse(&data, key.clone()).map_err(|_| Error::UnlockFailed)?;
+        supported(&db)?;
         Ok(Self {
             db: Some(db),
             key: Some(key),
             root: root.to_owned(),
             revision: Some(digest(&data)),
             _writer: lock,
+            _directory: directory,
         })
     }
     pub(crate) fn lock(&mut self) {
@@ -202,6 +289,101 @@ impl Session {
             .as_ref()
             .map_or(0, |h| h.get_entries().len()))
     }
+    pub(crate) fn entries(&self) -> Result<Vec<EntryId>> {
+        Ok(self
+            .database()?
+            .root()
+            .entries()
+            .map(|entry| entry.id())
+            .collect())
+    }
+    pub(crate) fn fields(&self, id: EntryId) -> Result<Vec<(String, Zeroizing<String>)>> {
+        let entry = self.database()?.entry(id).ok_or(Error::InvalidInput)?;
+        Ok(entry
+            .fields
+            .keys()
+            .map(|key| {
+                (
+                    key.clone(),
+                    Zeroizing::new(entry.get(key).unwrap_or("").to_owned()),
+                )
+            })
+            .collect())
+    }
+    pub(crate) fn update(
+        &mut self,
+        id: EntryId,
+        fields: &[(String, Zeroizing<String>)],
+    ) -> Result<()> {
+        if fields.len() > 32
+            || fields
+                .iter()
+                .any(|(k, v)| k.is_empty() || k.len() > 128 || v.len() > 16384)
+        {
+            return Err(Error::Limit);
+        }
+        // Bound history and aggregate working data before serializer allocations.
+        let db = self.db.as_mut().ok_or(Error::Locked)?;
+        let mut entry = db.entry_mut(id).ok_or(Error::InvalidInput)?;
+        let incoming: std::collections::HashSet<_> =
+            fields.iter().map(|(k, _)| k.as_str()).collect();
+        if incoming.len() != fields.len()
+            || entry
+                .fields
+                .keys()
+                .filter(|k| !incoming.contains(k.as_str()))
+                .count()
+                + fields.len()
+                > 64
+        {
+            return Err(Error::Limit);
+        }
+        if entry
+            .history
+            .as_ref()
+            .is_some_and(|h| h.get_entries().len() >= 20)
+        {
+            return Err(Error::Limit);
+        }
+        if fields.iter().map(|(k, v)| k.len() + v.len()).sum::<usize>() > 32768 {
+            return Err(Error::Limit);
+        }
+        entry.edit_tracking(|e| {
+            for (key, value) in fields {
+                e.set_protected(key, value.as_str());
+            }
+        });
+        Ok(())
+    }
+    pub(crate) fn restore_file(
+        root: &Path,
+        source: &Path,
+        password: Zeroizing<String>,
+    ) -> Result<Self> {
+        if password.is_empty() || password.len() > 4096 {
+            return Err(Error::InvalidInput);
+        }
+        let (directory, root) = anchor(root)?;
+        let lock = writer(&root)?;
+        if root.join("vault.kdbx").try_exists()? {
+            return Err(Error::Conflict);
+        }
+        let data = read_file(source)?;
+        header::inspect(&data)?;
+        let key = DatabaseKey::new().with_password(&password);
+        let db = Database::parse(&data, key.clone()).map_err(|_| Error::UnlockFailed)?;
+        supported(&db)?;
+        let mut session = Self {
+            db: Some(db),
+            key: Some(key),
+            root: root.to_owned(),
+            revision: None,
+            _writer: lock,
+            _directory: directory,
+        };
+        session.save()?;
+        Ok(session)
+    }
     pub(crate) fn save(&mut self) -> Result<()> {
         self.save_checked(|| Ok(()))
     }
@@ -226,17 +408,62 @@ impl Session {
     }
     pub(crate) fn encrypted_backup(&self, destination: &Path) -> Result<()> {
         self.database()?;
-        private_root(destination)?;
+        let (_directory, destination) = anchor(destination)?;
         let data = read_file(&self.root.join("vault.kdbx"))?;
         if Some(digest(&data)) != self.revision {
             return Err(Error::Conflict);
         }
-        atomic(destination, "vault.kdbx", &data, true)
+        atomic(&destination, "vault.kdbx", &data, true)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn directory_replacement_cannot_redirect_writes() {
+        use super::*;
+        let parent = tempfile::tempdir().unwrap();
+        let root = parent.path().join("active");
+        std::fs::create_dir(&root).unwrap();
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let mut session =
+            Session::create(&root, Zeroizing::new("synthetic master password".into())).unwrap();
+        let pinned = parent.path().join("pinned");
+        std::fs::rename(&root, &pinned).unwrap();
+        std::fs::create_dir(&root).unwrap();
+        session
+            .add("synthetic", Zeroizing::new("synthetic".into()))
+            .unwrap();
+        session.save().unwrap();
+        assert!(!root.join("vault.kdbx").exists());
+        assert!(pinned.join("vault.kdbx").exists());
+    }
+    #[test]
+    fn restore_validates_before_creating_and_preserves_original() {
+        use super::*;
+        let source = tempfile::tempdir().unwrap();
+        let dest = tempfile::tempdir().unwrap();
+        for dir in [source.path(), dest.path()] {
+            std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        let password = || Zeroizing::new("synthetic master password".into());
+        let mut session = Session::create(source.path(), password()).unwrap();
+        let id = session
+            .add("synthetic title", Zeroizing::new("synthetic secret".into()))
+            .unwrap();
+        session.save().unwrap();
+        let file = source.path().join("vault.kdbx");
+        assert!(Session::restore_file(dest.path(), &file, Zeroizing::new("wrong".into())).is_err());
+        assert!(!dest.path().join("vault.kdbx").exists());
+        let restored = Session::restore_file(dest.path(), &file, password()).unwrap();
+        assert_eq!(
+            restored.field(id, "Password").unwrap().as_str(),
+            "synthetic secret"
+        );
+        drop(restored);
+        assert!(Session::restore_file(dest.path(), &file, password()).is_err());
+    }
+
     use super::*;
     fn directory() -> tempfile::TempDir {
         let d = tempfile::tempdir().unwrap();

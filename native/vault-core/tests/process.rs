@@ -32,3 +32,29 @@ fn executable_rejects_all_user_input_arguments() {
     assert_eq!(output.status.code(), Some(2));
     assert!(output.stdout.is_empty());
 }
+
+#[test]
+fn private_broker_framing_errors_do_not_leak_or_stay_running() {
+    use std::io::Write;
+    use std::process::Stdio;
+    for frame in [
+        vec![255, 255, 255, 255],
+        vec![0, 0, 0, 4, 0, 0, 16, 1],
+        vec![0, 0, 0, 5, 0, 0, 0, 0, 99],
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let mut child = Command::new(env!("CARGO_BIN_EXE_lumen-vault-lab-broker"))
+            .arg("--laboratory-only")
+            .arg(dir.path())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child.stdin.take().unwrap().write_all(&frame).unwrap();
+        let output = child.wait_with_output().unwrap();
+        assert!(!output.status.success());
+        assert!(output.stdout.is_empty());
+        assert!(output.stderr.is_empty());
+    }
+}

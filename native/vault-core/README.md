@@ -1,8 +1,9 @@
 # Lumen Vault core — synthetic qualification milestone
 
-**Not a released password manager. `PRODUCTION_READY` is false.** The desktop
-preview remains synthetic-only. No runtime UI, MCP or agent is connected to this
-crate, and the normal Lumen installer does not install this executable.
+**Not a released password manager. `PRODUCTION_READY` is false.** A native C++/Qt laboratory now connects to the private Rust broker.
+It supports synthetic-data CRUD, lock/reopen and encrypted backup restore.
+MCP/agents remain disconnected; the normal installer does not install the native
+laboratory automatically. See [native UI](../vault-ui/README.md).
 
 This is an actual Rust KDBX read/write implementation around the pinned,
 MIT-licensed `keepass` **0.15.0** crate. Upstream still labels KDBX writing
@@ -16,10 +17,10 @@ Linux, Rust **1.89.0** (rustfmt + clippy), `keepassxc-cli` and `cargo-audit`:
 ```sh
 cd native/vault-core
 ./check.sh
-cargo run --locked --release
+cargo run --locked --release --bin lumen-vault-core
 ```
 
-The executable accepts **no arguments or user-supplied passwords, paths, files or
+The qualification executable `lumen-vault-core` accepts **no arguments or user-supplied passwords, paths, files or
 fields**. It creates fresh private directories, exercises fixed public synthetic
 fixtures, prints checkpoint labels only, then removes its test directories.
 Credentials for the reference CLI go through stdin. XML export remains in RAM.
@@ -33,8 +34,8 @@ infer the eventual Lumen distribution license from this inventory.
 
 ## Implemented boundary
 
-- The storage session is crate-private. Only the fixed synthetic qualification
-  routine and public-header validator are public; there is no secret-bearing RPC.
+- The storage session is crate-private. The laboratory broker has a bounded private pipe protocol; no named endpoint
+  or MCP secret API exists. The fixed qualification executable remains separate.
 - New files: KDBX **4.1**, AES-256 and authenticated KDBX storage, Argon2id
   **64 MiB / 3 iterations / 2 lanes**. This is a fixed test profile, **not** the
   planned device-calibrated production setting. OS randomness supplies both
@@ -78,9 +79,9 @@ Clippy with warnings denied, and the standalone reference probe passed.
 
 ## Remaining release gates
 
-1. **Native secure input and broker:** no real-secret UI or authenticated IPC yet.
-   Keep master passwords out of the general Python/QML layer. Add session
-   capabilities, lock/suspend races, and narrowly scoped native display/copy paths.
+1. **Native boundary review:** C++ input/display and inherited private-pipe IPC
+   are implemented for the laboratory. Independent review, full desktop lock/
+   suspend races, clipboard manager and alternate agent access tests remain required.
 2. **Memory lifetime:** library `DatabaseKey` and protected values use zeroization;
    caller-owned secret buffers use `Zeroizing`. This does **not** prove that every
    derived-key, serializer, cipher, parser or metadata allocation is erased.

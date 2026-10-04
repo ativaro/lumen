@@ -3,7 +3,9 @@
 Generated from the committed Cargo.lock and Cargo metadata, 2026-10-04.
 Includes all target platforms, not only Linux. Registry archives are integrity
 checked by Cargo against the checksums in Cargo.lock. No engine source is vendored.
-This inventory is not a legal opinion or a complete binary-distribution notice bundle.
+Full crate notices are collected in `licenses/`, verified by `check-licenses.py`.
+Qt/runtime texts, selected license alternatives and distribution obligations are
+documented in `../vault-ui/LICENSES.md`. This inventory is not a legal opinion.
 
 | Crate | Version | Declared license |
 |---|---|---|
