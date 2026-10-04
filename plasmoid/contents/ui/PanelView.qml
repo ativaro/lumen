@@ -11,9 +11,13 @@ ColumnLayout {
     function tr(source, args) { return I18n.tr(source, uiLanguage, args); }
     property var snapshot: ({active: [], recent: [], error: "", busy: false, attention: false})
     property string expandedTask: ""
-    property string title: panel.tr("Dein System")
+    property string title: "Lumen"
     property bool navigation: true
     property bool dismissBusy: false
+    property bool canLoadMore: true
+    property bool loadingTasks: false
+    signal moreTasks()
+    signal openApp(string appId)
     signal launch(string action)
     signal openTask(string taskId)
     signal dismissTask(string taskId)
@@ -52,6 +56,61 @@ ColumnLayout {
             PC.ToolTip.visible: hovered
             onClicked: panel.refresh()
         }
+    }
+    GridLayout {
+        id: appGrid
+        objectName: "appGrid"
+        visible: panel.navigation
+        Layout.fillWidth: true
+        columns: panel.width >= 440 ? 5 : 4
+        columnSpacing: 4; rowSpacing: 4
+        Repeater {
+            model: panel.snapshot.apps || []
+            PC.Button {
+                id: appButton
+                required property var modelData
+                objectName: "app-" + modelData.id
+                Layout.fillWidth: true
+                Layout.preferredWidth: 0
+                Layout.preferredHeight: 56
+                hoverEnabled: true
+                activeFocusOnTab: true
+                Accessible.name: modelData.title
+                PC.ToolTip.text: modelData.title + " · " + modelData.description
+                PC.ToolTip.visible: hovered
+                PC.ToolTip.delay: 700
+                background: Rectangle {
+                    radius: 12
+                    color: appButton.down ? Qt.alpha(Kirigami.Theme.highlightColor, 0.20)
+                        : appButton.hovered || appButton.visualFocus ? Kirigami.Theme.alternateBackgroundColor : "transparent"
+                    border.width: appButton.visualFocus ? 2 : 0
+                    border.color: Kirigami.Theme.highlightColor
+                }
+                contentItem: ColumnLayout {
+                    spacing: 4
+                    LumenIcon {
+                        name: appButton.modelData.icon
+                        color: Kirigami.Theme.textColor
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.preferredWidth: 22; Layout.preferredHeight: 22
+                    }
+                    PC.Label {
+                        text: appButton.modelData.label
+                        textFormat: Text.PlainText
+                        font.pixelSize: 11
+                        horizontalAlignment: Text.AlignHCenter
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
+                    }
+                }
+                onClicked: panel.openApp(modelData.id)
+            }
+        }
+    }
+    Kirigami.Separator { visible: panel.navigation; Layout.fillWidth: true }
+    Kirigami.Heading {
+        text: panel.tr("Aufgaben"); level: 3; font.pixelSize: 15
+        Layout.fillWidth: true
     }
     PC.Label {
         Layout.fillWidth: true
@@ -117,6 +176,15 @@ ColumnLayout {
                     onDismissTask: taskId => panel.dismissTask(taskId)
                 }
             }
+            LumenButton {
+                objectName: "moreTasksButton"
+                visible: !!panel.snapshot.more && panel.canLoadMore
+                enabled: !panel.loadingTasks
+                Layout.fillWidth: true; flat: true
+                text: panel.tr("Weitere Aufgaben laden")
+                icon.name: "arrow-down"
+                onClicked: panel.moreTasks()
+            }
         }
     }
     LumenButton {
@@ -127,35 +195,5 @@ ColumnLayout {
         icon.name: "view-task"
         icon.color: Kirigami.Theme.textColor
         onClicked: panel.launch("tasks")
-    }
-    GridLayout {
-        visible: panel.navigation
-        Layout.fillWidth: true
-        columns: panel.width < 440 ? 1 : 3
-        LumenButton {
-            Layout.fillWidth: true
-            flat: true
-            text: panel.tr("Dateien")
-            icon.name: "folder"
-            icon.color: Kirigami.Theme.textColor
-            onClicked: panel.launch("files")
-        }
-        LumenButton {
-            Layout.fillWidth: true
-            flat: true
-            text: panel.tr("Systemstatus")
-            icon.name: "utilities-system-monitor"
-            icon.color: Kirigami.Theme.textColor
-            onClicked: panel.launch("system")
-        }
-        LumenButton {
-            Layout.fillWidth: true
-            flat: true
-            text: panel.tr("Arbeitsplatz")
-            objectName: "workplaceButton"
-            icon.name: "user-desktop"
-            icon.color: Kirigami.Theme.textColor
-            onClicked: panel.launch("workplace")
-        }
     }
 }

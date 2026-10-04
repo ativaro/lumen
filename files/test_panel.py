@@ -96,6 +96,23 @@ class PanelTest(unittest.TestCase):
             store.path.write_bytes(b'broken')
             self.assertTrue(snapshot(directory)['error'])
 
+    def test_app_catalogue_launches_every_app_and_tasks_load_more(self):
+        from lumen_panel import applications, main
+        from lumen_apps import catalogue
+        from unittest.mock import patch
+        self.assertEqual({a['id'] for a in applications()}, {a[0] for a in catalogue()})
+        for app in applications():
+            with patch('sys.argv', ['lumen-panel','--open-app',app['id']]), patch('lumen_panel.subprocess.Popen') as start:
+                main()
+                self.assertTrue(Path(start.call_args.args[0][0]).is_file())
+                self.assertNotIn('shell',start.call_args.kwargs)
+        with tempfile.TemporaryDirectory() as tmp:
+            store=Store(tmp)
+            for i in range(31):store.create_task(str(i),directory=tmp,status='completed')
+            self.assertEqual(len(snapshot(tmp,20)['recent']),20);self.assertTrue(snapshot(tmp,20)['more'])
+            self.assertEqual(len(snapshot(tmp,40)['recent']),31);self.assertFalse(snapshot(tmp,40)['more'])
+            with self.assertRaises(ValueError):snapshot(tmp,1001)
+
     def test_task_ids_cannot_be_commands_or_paths(self):
         for value in ['../task', 'a;touch /tmp/x', '', '<b>', '0'*33]:
             with self.assertRaises(ValueError): valid_task(value)

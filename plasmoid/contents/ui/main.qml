@@ -11,6 +11,8 @@ PlasmoidItem {
     property string uiLanguage: Qt.locale().name.toLowerCase().indexOf("de") === 0 ? "de" : "en"
     function tr(source, args) { return I18n.tr(source, uiLanguage, args); }
     property var snapshot: ({active: [], recent: [], error: "", busy: false, attention: false})
+    property int taskLimit: 20
+    property string snapshotCommand: ""
     property bool loading: false
     property string signature: ""
     property string dismissCommand: ""
@@ -29,7 +31,8 @@ PlasmoidItem {
     function refresh() {
         if (loading || dismissCommand || surface === "search" || surface === "control") return;
         loading = true;
-        runner.connectSource(helper + " --snapshot");
+        snapshotCommand = helper + " --snapshot --task-limit " + taskLimit;
+        runner.connectSource(snapshotCommand);
     }
     function refreshSystem() {
         if (systemBusy || surface !== "control") return;
@@ -53,6 +56,12 @@ PlasmoidItem {
         runner.connectSource(action === "settings" ? helper + " --settings" : helper + " --open-page " + action);
         expanded = false;
     }
+    function openApp(appId) {
+        const apps = root.snapshot.apps || [];
+        if (!apps.some(app => app.id === appId) || !/^[a-z]+$/.test(appId)) return;
+        runner.connectSource(helper + " --open-app " + appId);
+        expanded = false;
+    }
     function openTask(taskId) {
         if (!/^[0-9a-f]{32}$/.test(taskId)) return;
         runner.connectSource(helper + " --open-task " + taskId);
@@ -61,7 +70,7 @@ PlasmoidItem {
     function dismissTask(taskId) {
         if (dismissCommand || !/^[0-9a-f]{32}$/.test(taskId)) return;
         discardSnapshot = loading;
-        dismissCommand = helper + " --dismiss-task " + taskId;
+        dismissCommand = helper + " --dismiss-task " + taskId + " --task-limit " + taskLimit;
         runner.connectSource(dismissCommand);
     }
     Component.onCompleted: runner.connectSource(helper + " --language")
@@ -85,8 +94,12 @@ PlasmoidItem {
         uiLanguage: root.uiLanguage
         snapshot: root.snapshot
         dismissBusy: root.dismissCommand !== ""
+        canLoadMore: root.taskLimit < 1000
+        loadingTasks: root.loading
+        onMoreTasks: { if (!root.loading) { root.taskLimit = Math.min(1000, root.taskLimit + 20); root.refresh(); } }
         onRefresh: root.refresh()
         onLaunch: action => root.launch(action)
+        onOpenApp: appId => root.openApp(appId)
         onOpenTask: taskId => root.openTask(taskId)
         onDismissTask: taskId => root.dismissTask(taskId)
     } }
@@ -123,7 +136,7 @@ PlasmoidItem {
                 return;
             }
             if (source === root.dismissCommand) root.dismissCommand = "";
-            else if (source === root.helper + " --snapshot") {
+            else if (source === root.snapshotCommand) {
                 root.loading = false;
                 if (root.discardSnapshot) { root.discardSnapshot = false; return; }
                 if (root.dismissCommand) return;
@@ -139,7 +152,7 @@ PlasmoidItem {
                 }
             } catch (error) {
                 root.signature = "";
-                root.snapshot = {active: [], recent: [], busy: false, attention: false,
+                root.snapshot = {apps: root.snapshot.apps || [], active: [], recent: [], busy: false, attention: false,
                     error: root.tr("Aufträge gerade nicht verfügbar. Bitte erneut aktualisieren.")};
             }
         }

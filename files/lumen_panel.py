@@ -31,9 +31,20 @@ def running(directory, task):
         os.close(fd)
 
 
-def snapshot(directory=None):
+def applications():
+    from lumen_apps import catalogue
+    labels = {'lumen': 'Lumen', 'files': tr('Dateien'), 'search': tr('Suche'),
+              'meetings': tr('Meetings'), 'household': tr('Haushalt'), 'workbench': tr('Werkbank'),
+              'radio': tr('Radio')}
+    return [dict(id=key, title=title, label=labels.get(key, title.removeprefix('Lumen ')),
+                 description=description, icon=icon) for key,title,description,icon in catalogue()]
+
+
+def snapshot(directory=None, task_limit=None):
+    if task_limit is not None and (type(task_limit) is not int or not 1 <= task_limit <= 1000):
+        raise ValueError('Invalid task limit')
     directory = Path(directory) if directory is not None else state_path()
-    result = {'active': [], 'recent': [], 'busy': False, 'attention': False, 'error': '', 'language': language()}
+    result = {'active': [], 'recent': [], 'busy': False, 'attention': False, 'error': '', 'language': language(), 'apps': applications(), 'more': False}
     path = directory / 'lumen.sqlite3'
     if not path.exists(): return result
     try:
@@ -50,6 +61,9 @@ def snapshot(directory=None):
                 ('active', "status IN ('running','needs_input','queued','paused','interrupted','draft')",
                  "CASE status WHEN 'needs_input' THEN 0 WHEN 'running' THEN 1 ELSE 2 END, updated DESC", 8),
                 ('recent', "status IN ('completed','failed','cancelled')", 'updated DESC', 5)]:
+                limit = task_limit or limit
+                count = db.execute(f'SELECT count(*) FROM tasks WHERE {condition} AND {VISIBLE_TASKS}').fetchone()[0]
+                result['more'] = result['more'] or count > limit
                 for raw in db.execute(f'SELECT {columns} FROM tasks WHERE {condition} AND {VISIBLE_TASKS} ORDER BY {order} LIMIT {limit}'):
                     row = dict(raw)
                     valid_task(row['id'])
@@ -76,6 +90,8 @@ def main():
     group.add_argument('--system-snapshot', action='store_true')
     group.add_argument('--control', choices=['volume', 'brightness', 'mute', 'search', 'network', 'audio', 'display', 'appearance', 'hardware', 'desktop-settings', 'lock'])
     parser.add_argument('--value', type=int)
+    parser.add_argument('--task-limit', type=int, choices=range(1,1001), metavar='1..1000')
+    group.add_argument('--open-app', choices=[item['id'] for item in applications()])
     group.add_argument('--open-task', type=valid_task)
     group.add_argument('--dismiss-task', type=valid_task)
     group.add_argument('--open-page', choices=['chat', 'files', 'system', 'tasks', 'settings', 'workplace'])
@@ -83,13 +99,18 @@ def main():
     group.add_argument('--voice', action='store_true')
     group.add_argument('--settings', action='store_true')
     args = parser.parse_args()
+    if args.open_app:
+        from lumen_launch import executable
+        binary = executable('lumen-agent-app' if args.open_app == 'lumen' else 'lumen-'+args.open_app)
+        subprocess.Popen([binary], start_new_session=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return
     if args.language:
         print(json.dumps({'language': language()})); return
     if args.dismiss_task:
         error = ''
         try: Store().dismiss_task(args.dismiss_task)
         except (OSError, sqlite3.Error, ValueError) as exc: error = tr('Aufgabe konnte nicht geschlossen werden. ') + str(exc)[:200]
-        result = snapshot()
+        result = snapshot(task_limit=args.task_limit)
         if error: result['error'] = error
         print(json.dumps(result, ensure_ascii=False)); return
     if args.system_snapshot or args.control:
@@ -108,7 +129,7 @@ def main():
         subprocess.Popen([str(binary), *arguments], start_new_session=True,
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return
-    print(json.dumps(snapshot(), ensure_ascii=False))
+    print(json.dumps(snapshot(task_limit=args.task_limit), ensure_ascii=False))
 
 
 if __name__ == '__main__': main()

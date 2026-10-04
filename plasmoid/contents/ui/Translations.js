@@ -2,6 +2,8 @@
 
 // Product-authored strings only; task titles, results and other user data stay unchanged.
 var english = {
+    "Aufgaben": "Tasks",
+    "Weitere Aufgaben laden": "Load more tasks",
     "Wird geladen …": "Loading …",
     "Suchen oder fragen": "Search or ask",
     "Einstellungen": "Settings",

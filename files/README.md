@@ -499,3 +499,10 @@ clients should allow a 300,000 ms MCP timeout. Existing client timeouts are pres
 Sibling app launches resolve against the running installation, rather than an old
 Plasma PATH entry. After a package update, close and reopen older windows to load the
 new code; updating does not replace an already running Python process.
+
+
+The Lumen panel menu lists the shared app catalogue in a compact four/five-column
+grid above its task list. App launches use `lumen-panel --open-app <id>` with an
+allowlisted app ID. Tasks scroll independently, keep active/input-needed tasks first,
+and load older records in batches via `--task-limit` (20 per group initially).
+The full task view remains available from the footer.
