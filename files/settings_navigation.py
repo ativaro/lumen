@@ -212,5 +212,5 @@ def categories(dialog):
             section(8, description=tr('Anbieter verbinden und Erweiterungen installieren')),
             section(5, description=tr('Autostart, Zeitpläne und automatische Analysen')),
             section(7, description=tr('Absturzerkennung, Wiederherstellung und Fehlerberichte')),
-            section(10, description=tr('Temperaturen, Lüfter und Leistungsaufnahme'))]),
+            section(dialog.hardware_page, description=tr('Leistung, Geräte und Hintergrundarbeit'))]),
     ]

@@ -14,7 +14,7 @@ ACTIONS = {
     'display': ['systemsettings', 'kcm_kscreen'],
     'appearance': ['lumen-settings', '--appearance'],
     'desktop-settings': ['systemsettings'],
-    'hardware': ['lumen-settings', '--hardware'],
+    'hardware': ['lumen-system'],
     'lock': ['qdbus6', 'org.freedesktop.ScreenSaver', '/ScreenSaver', 'org.freedesktop.ScreenSaver.Lock'],
 }
 

@@ -413,3 +413,11 @@ uses the [OpenCode server API](https://opencode.ai/docs/server/); see
 Meeting-Werkstatt, digitaler Haushalt, Projekt-Werkbank und persönliches Radio
 werden mit eigenen Startern installiert. Funktionen, Speicherung, Einrichtung
 und Grenzen: [Desktop-Werkzeuge](TOOLS.md).
+
+### Lumen System
+
+A native, local performance overview with CPU/GPU/RAM/storage cards, activity
+charts, current-user processes and device sensors. Open **Lumen System** from
+Lumen Apps, the panel's System controls, or run `lumen-system`. Shared settings
+retain the existing background-work preferences. Session history stays in memory;
+AI analysis only starts when requested. See [measurement details](files/README.md#lumen-system).

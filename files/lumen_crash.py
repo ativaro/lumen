@@ -15,7 +15,7 @@ import time
 
 from lumen_store import state_path
 
-NAMES = {'lumen': 'Lumen', 'files': 'Lumen Files', 'search': tr('Lumen Suche')}
+NAMES = {'lumen': 'Lumen', 'files': 'Lumen Files', 'search': tr('Lumen Suche'), 'system': 'Lumen System'}
 RUN = None
 LOCK = None
 HEARTBEAT = None

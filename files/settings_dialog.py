@@ -88,9 +88,10 @@ class SettingsDialog(QDialog):
         self.build_setup()
         self.build_mcp()
         from hardware_ui import HardwareView
-        hardware = self.page(tr('Hardware & Aktivität'), tr('Temperaturen, Lüfter und Leistungsaufnahme · nur lesend'))
+        self.hardware_page = self.stack.count()
+        hardware = self.page('Lumen System', tr('Leistung, Geräte und Systemaktivität verstehen'))
         hardware.addWidget(HardwareView(self))
-        self.app_pages = {'lumen': 0, 'files': 1}
+        self.app_pages = {'lumen': 0, 'files': 1, 'system': self.hardware_page}
         self.build_apps()
         self.build_speech_settings()
         from persona_settings import PersonaEditor
@@ -804,11 +805,16 @@ class SettingsDialog(QDialog):
 
 
 if __name__ == '__main__':
+    if '--hardware' in sys.argv:
+        from lumen_launch import executable
+        import subprocess
+        sys.exit(subprocess.call([executable('lumen-system')]))
     from app import create_app
     from PySide6.QtGui import QIcon
     app = create_app()
     app.setApplicationName('lumen-settings'); app.setApplicationDisplayName(tr('Lumen Einstellungen'))
-    dialog = SettingsDialog(page=10 if '--hardware' in sys.argv else 3 if '--appearance' in sys.argv else None); dialog.setWindowIcon(QIcon.fromTheme('configure'))
+    dialog = SettingsDialog(page=3 if '--appearance' in sys.argv else None); dialog.setWindowIcon(QIcon.fromTheme('configure'))
+    if '--system-settings' in sys.argv: dialog.open_page(dialog.hardware_page)
     if '--personality' in sys.argv: dialog.open_page(dialog.persona_page)
     dialog.show()
     sys.exit(app.exec())

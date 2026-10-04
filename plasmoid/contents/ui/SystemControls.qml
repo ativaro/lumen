@@ -22,7 +22,7 @@ ColumnLayout {
 
     Kirigami.Heading { text: "System"; level: 3; font.pixelSize: 19; font.weight: Font.DemiBold; color: Kirigami.Theme.textColor; Layout.bottomMargin: 8 }
     LumenButton {
-        Layout.fillWidth: true; flat: true; text: "Hardware"; hint: controls.tr("Temperatur · Lüfter · Leistung  ›")
+        Layout.fillWidth: true; flat: true; text: "Lumen System"; hint: controls.tr("Temperatur · Lüfter · Leistung  ›")
         icon.name: "utilities-system-monitor"; onClicked: controls.control("hardware", 0)
     }
     LumenButton {

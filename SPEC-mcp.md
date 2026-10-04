@@ -76,3 +76,12 @@ edits; new results reset them; recovery never replays submissions. Both Studio a
 use the same renderer and controller. Search also exposes file-presentation results as
 file cards; Studio keeps its image/PDF preview. Tests cover actual Qt interactions,
 malformed input, numeric sorting, selection, safe export, session isolation and recovery.
+
+### Lumen System
+
+`lumen_system_snapshot` is read-only with an empty argument schema. It samples a
+short CPU/network interval and optional local sensors, returning timestamps,
+nullable CPU/GPU/RAM/root-storage values and up to twelve current-user processes.
+It collects no argv/environment, retains no history, and does not alter the
+system or open a window. Process names are untrusted data. Missing measurements
+are not health verdicts; overall CPU and per-core process CPU have different scales.

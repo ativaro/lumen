@@ -32,9 +32,9 @@ def read_command(args):
                           env={**os.environ, 'LC_ALL': 'C'}).stdout
 
 
-def snapshot():
+def snapshot(include_activity=True):
     from lumen_store import Store
-    policy = Store().setting('modelPolicy', {})
+    policy = Store().setting('modelPolicy', {}) if include_activity else {}
     rows, unavailable = [], []
     try: rows = sensors(json.loads(read_command(['sensors', '-j'])))
     except (OSError, ValueError, subprocess.SubprocessError): unavailable.append(tr('lm_sensors nicht verfügbar'))
@@ -48,7 +48,7 @@ def snapshot():
                 if math.isfinite(value): rows.append({'device': gpu[0], 'name': name, 'value': value, 'unit': unit})
     except (OSError, subprocess.SubprocessError): pass
     return {'sensors': rows, 'unavailable': unavailable,
-            'activity': activity(extra_apps=policy.get('activity_apps', [])), 'measured': time.time()}
+            'activity': activity(extra_apps=policy.get('activity_apps', [])) if include_activity else [], 'measured': time.time()}
 
 
 def activity(proc_root=Path('/proc'), uid=None, extra_apps=()):

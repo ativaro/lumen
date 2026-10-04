@@ -18,6 +18,7 @@ def catalogue():
         ('inbox', 'Lumen Inbox', tr('Nachrichten und Kalender an einem Ort'), 'mail-unread'),
         ('vault', 'Lumen Vault', tr('Sicherungen planen und wiederherstellen'), 'document-save'),
         ('reader', 'Lumen Reader', tr('Lesen, markieren und vorlesen lassen'), 'application-pdf'),
+        ('system', 'Lumen System', tr('Leistung, Geräte und Systemaktivität verstehen'), 'utilities-system-monitor'),
         ('sound', 'Lumen Sound', tr('Audioausgabe und Lautstärke steuern'), 'audio-volume-high'),
         ('meetings', tr('Lumen Meeting-Werkstatt'), tr('Aufnahmen transkribieren und zusammenfassen'), 'audio-input-microphone'),
         ('household', tr('Lumen Digitaler Haushalt'), tr('Dokumente und Fristen im Blick behalten'), 'view-calendar'),
@@ -46,7 +47,7 @@ def launch(app, *, area=None):
         if area: args += ['--area', area]
         executable = sys.executable
     else:
-        name = {'lumen': 'lumen-agent-app', 'apps': 'lumen-agent-app', 'files': 'lumen-files', 'search': 'lumen-search'}[app]
+        name = {'lumen': 'lumen-agent-app', 'apps': 'lumen-agent-app', 'files': 'lumen-files', 'search': 'lumen-search', 'system': 'lumen-system'}[app]
         from lumen_launch import executable as resolve_executable
         executable = resolve_executable(name)
         args = ['--page', 'apps'] if app == 'apps' else []

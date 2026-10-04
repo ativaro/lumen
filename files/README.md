@@ -673,3 +673,30 @@ Search verwendet rechts eingerückte, dezente Nutzernachrichten und ruhige
 Antwortkarten mit Lumen-Kopf, gemeinsamer Schriftgröße und begrenzter Lesebreite.
 Kopieren, Notizbuch und Gedächtnis sind im Fuß der letzten Textantwort integriert;
 während der Bearbeitung sind sie ausgeblendet. Kopieren bestätigt sich direkt am Knopf.
+
+### Lumen System
+
+`lumen-system` opens the native system overview. The panel's hardware entry, Lumen
+Apps and shared settings link to the same application. Overview shows CPU, the
+primary reported GPU (NVIDIA first when available), RAM and **the root filesystem
+/**, with current-user processes. Activity offers 1-minute, 15-minute and 1-hour
+charts, CPU/RAM sorting and measured threshold crossings. Devices reveals all
+reported GPU readings and sensor groups. The existing background-work policies
+remain in Settings → Lumen System.
+
+CPU, memory, process and network counters refresh every two seconds in a separate
+worker; optional `lm_sensors` / `nvidia-smi` sensors refresh every ten seconds.
+AMD GPU utilization uses exposed DRM sysfs counters. Unavailable readings are
+shown as dashes; gaps are not interpolated. Process CPU is percent of **one logical
+core**, while total CPU is percent of all cores. Network sums non-loopback
+interfaces, including virtual interfaces (bridges/tunnels may count traffic twice).
+RAM uses Linux `MemAvailable`; process RAM is RSS and may include shared pages.
+
+History is bounded to one hour, stays in memory and is discarded on close. Pause
+stops collection, closing stops the worker. No process command lines, environments,
+other users' process details or file contents are collected. No privileged helper,
+background service or automatic AI request is added. “Mit Lumen prüfen” explicitly
+opens Lumen with the current timestamped measurements and at most twelve process
+rows; this context follows the configured model/provider. It cannot diagnose a
+cause from correlation alone. The read-only `lumen_system_snapshot` MCP tool gives
+Lumen the same measurement basis without opening the UI.
