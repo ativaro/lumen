@@ -65,3 +65,11 @@ immediately and reveals its background preferences underneath. Programmatic
 settings navigation and searches targeting a specific setting do not launch it.
 Launch errors remain visible in the settings status. Native pointer regression
 and real desktop cold-launch verification pass; 19 related UI tests pass.
+
+### Plasma control-panel dispatch correction
+The user clarified the failing entry was in the small upper-right panel. Its
+root action allowlist omitted `hardware`, so no helper was invoked. Admit the
+hardware action and allow app launches during periodic status reads; volume,
+brightness and mute remain serialized. Regression executes the actual main.qml
+JavaScript handler and a native ControlCenter pointer test covers the emitted
+action. The prior settings-window correction did not cover this distinct route.

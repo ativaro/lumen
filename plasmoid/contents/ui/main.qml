@@ -42,7 +42,9 @@ PlasmoidItem {
         runner.connectSource(systemCommand);
     }
     function control(action, value) {
-        if (systemBusy || ["volume", "brightness", "mute", "network", "audio", "display", "appearance", "desktop-settings", "lock"].indexOf(action) < 0) return;
+        if (["volume", "brightness", "mute", "network", "audio", "display", "appearance", "hardware", "desktop-settings", "lock"].indexOf(action) < 0) return;
+        // Opening an app must not lose its click during a periodic status read.
+        if (systemBusy && ["volume", "brightness", "mute"].indexOf(action) >= 0) return;
         let command = helper + " --control " + action;
         if (action === "volume" || action === "brightness") {
             if (!Number.isInteger(value) || value < 0 || value > 100) return;

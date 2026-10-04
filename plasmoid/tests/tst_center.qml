@@ -25,6 +25,15 @@ Rectangle {
     TestCase {
         name: "LumenControlCenter"
         when: windowShown
+        function test_hardware_pointer_reaches_center() {
+            action.clear();
+            const system = findChild(center, "lumenSystemButton");
+            verify(system !== null);
+            mouseClick(system, system.width / 2, system.height / 2);
+            compare(action.count, 1);
+            compare(action.signalArguments[0][0], "hardware");
+            compare(action.signalArguments[0][1], 0);
+        }
         function test_controls_keyboard_and_unavailable_state() {
             waitForRendering(center);
             const dnd = findChild(center, "doNotDisturb");
