@@ -375,7 +375,9 @@ Aktionen selbst bleiben reine Verlaufseinträge.
 
 ### Desktop-Suche und Einstellungen
 
-`lumen-search` öffnet eine native gemeinsame App-/Dateisuche mit Gespräch. Enter
+`lumen-search` öffnet eine native gemeinsame App-/Dateisuche mit Gespräch. Eine bereits laufende
+Suche wird aus dem Panel direkt über D-Bus aktiviert; nur beim ersten Start wird
+die vollständige Qt-Anwendung geladen. Enter
 öffnet den gewählten Treffer oder sendet im Gespräch. Umschalt+Enter fügt eine neue
 Zeile ein; Strg+Enter ist optional für eine direkte Frage. Natürlich formulierte Fragen
 stehen als Gesprächstreffer oben. Antworten und Folgefragen bleiben im Fenster.
