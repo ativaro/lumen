@@ -5,7 +5,7 @@ fixtures with user data is NOT a backend integration: see SPEC-vault-secrets.md.
 """
 from pathlib import Path
 import sys
-from PySide6.QtCore import QObject, Property, Signal, Slot, QTimer, QSettings, QUrl, QEvent, QStandardPaths, ClassInfo
+from PySide6.QtCore import QObject, Property, Signal, Slot, QTimer, QSettings, QUrl, QEvent, QStandardPaths, ClassInfo, SLOT
 from PySide6.QtGui import QGuiApplication, QPalette, QIcon, QColor
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtQml import QQmlApplicationEngine
@@ -182,7 +182,7 @@ def main():
     controller = VaultPreview(); engine, window = create_window(controller); activation = Activation(window)
     if bus.isConnected():
         bus.registerObject('/Preview',activation,QDBusConnection.ExportAllSlots)
-        bus.connect('org.freedesktop.ScreenSaver','/ScreenSaver','org.freedesktop.ScreenSaver','ActiveChanged',controller.screen_locked)
+        bus.connect('org.freedesktop.ScreenSaver','/ScreenSaver','org.freedesktop.ScreenSaver','ActiveChanged',controller,SLOT('screen_locked(bool)'))
     app.installEventFilter(controller); app.aboutToQuit.connect(controller.lock)
     window.show(); result = app.exec(); engine.deleteLater(); app.sendPostedEvents(None,0); return result
 

@@ -59,6 +59,27 @@ class VaultPreviewTest(unittest.TestCase):
         self.assertEqual(result,dict(available=False,stage='design_preview',real_secrets_supported=False,
                                    engine_qualified=False,independent_review_completed=False))
 
+    def test_application_starts_with_a_real_session_bus(self):
+        import os, shutil, subprocess, sys
+        from pathlib import Path
+        if not shutil.which('dbus-run-session'): self.skipTest('dbus-run-session unavailable')
+        source = """
+from PySide6.QtCore import QTimer
+from PySide6.QtGui import QGuiApplication
+import vault_preview
+original = vault_preview.create_window
+def create(controller):
+    result = original(controller)
+    QTimer.singleShot(50, QGuiApplication.instance().quit)
+    return result
+vault_preview.create_window = create
+raise SystemExit(vault_preview.main())
+"""
+        env=dict(os.environ, QT_QPA_PLATFORM='offscreen', PYTHONPATH=str(Path(__file__).resolve().parent))
+        result=subprocess.run(['dbus-run-session','--',sys.executable,'-c',source],env=env,
+                              capture_output=True,text=True,timeout=15)
+        self.assertEqual(result.returncode,0,result.stderr)
+
     def test_launcher_routes_preview_separately_and_preserves_backup_arguments(self):
         import json, shutil, subprocess, tempfile
         from pathlib import Path
