@@ -11,6 +11,36 @@ class NativeToolsTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):cls.app=QApplication.instance() or QApplication([])
 
+    def test_vault_sections_fit_large_fonts_and_switch_backup_views(self):
+        from PySide6.QtTest import QTest
+        from PySide6.QtGui import QFont
+        from PySide6.QtCore import QProcess
+        from appearance import apply_design
+        for theme in ('glass', 'graphite', 'atelier', 'midnight'):
+            apply_design(self.app, theme)
+            with tempfile.TemporaryDirectory() as tmp:
+                vault=Vault(tmp)
+                vault.show()
+                for size in (12, 20, 24):
+                    for tab in (vault.vault_tab, vault.backups_tab):
+                        tab.setFont(QFont('Noto Sans', size))
+                    QTest.qWait(25)
+                    for tab in (vault.vault_tab, vault.backups_tab):
+                        self.assertGreaterEqual(tab.width(), tab.fontMetrics().horizontalAdvance(tab.text()) + 40)
+                        self.assertGreaterEqual(tab.height(), tab.fontMetrics().tightBoundingRect(tab.text()).height() + 18)
+                self.assertEqual(vault.backup_stack.currentIndex(), 0)
+                with patch.object(QProcess, 'startDetached', return_value=(True, 123)) as launch:
+                    vault.vault_tab.click()
+                    launch.assert_called_once()
+                self.assertTrue(vault.backups_tab.isChecked())
+                plan=vault.library.create('Layout backup', repository='/media/example', sources=['/home/example/Documents'], interval=0)
+                vault.focus_record(plan)
+                self.assertEqual(vault.backup_stack.currentIndex(), 1)
+                self.assertTrue(vault.body.isEnabled())
+                vault.archive()
+                self.assertEqual(vault.backup_stack.currentIndex(), 0)
+                vault.close()
+
     def test_native_account_modes_draft_persistence_and_vault_selection(self):
         with tempfile.TemporaryDirectory() as tmp:
             window=Inbox(tmp);failures=[]

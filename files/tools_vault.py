@@ -2,9 +2,9 @@
 from lumen_i18n import tr
 from datetime import datetime
 from pathlib import Path
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QEvent
 from PySide6.QtWidgets import (QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QCheckBox,
-    QComboBox, QTabBar, QFileDialog, QInputDialog, QListWidget, QListWidgetItem, QMessageBox, QTreeWidget, QTreeWidgetItem)
+    QComboBox, QWidget, QLabel, QFrame, QPushButton, QHBoxLayout, QVBoxLayout, QStackedWidget, QScrollArea, QSizePolicy, QFileDialog, QInputDialog, QListWidget, QListWidgetItem, QMessageBox, QTreeWidget, QTreeWidgetItem)
 from tools_ui import ToolWindow, button, label, row, open_path
 import vault_data as vault
 
@@ -15,26 +15,7 @@ class Vault(ToolWindow):
         # Explicit laboratory installation; never silently enable production secrets.
         from PySide6.QtCore import QStandardPaths
         self.native_lab = (Path(QStandardPaths.writableLocation(QStandardPaths.GenericDataLocation)) / 'lumen/vault-lab/bin/lumen-vault-lab').is_file()
-        self.sections = QTabBar()
-        self.sections.setObjectName('vaultSections')
-        self.sections.setAccessibleName(tr('Bereich'))
-        self.sections.setDrawBase(False)
-        self.sections.setFixedSize(280, 44)
-        self.sections.addTab(tr('Tresor'))
-        self.sections.addTab(tr('Sicherungen'))
-        self.sections.setCurrentIndex(1)
-        self.sections.setStyleSheet("""
-            QTabBar::tab { padding: 10px 18px; border: 1px solid palette(mid);
-                background: palette(base); color: palette(text); }
-            QTabBar::tab:first { border-top-left-radius: 9px; border-bottom-left-radius: 9px; }
-            QTabBar::tab:last { border-top-right-radius: 9px; border-bottom-right-radius: 9px; border-left: 0; }
-            QTabBar::tab:selected { background: palette(alternate-base); font-weight: 600; }
-            QTabBar::tab:hover { color: palette(highlight); }
-        """)
-        self.sections.currentChanged.connect(self.open_section)
-        header = self.centralWidget().layout().itemAt(0).layout()
-        header.insertWidget(1, self.sections)
-        header.insertStretch(2, 1)
+        self.build_shell()
         self.add_button.setText(tr('Sicherung einrichten')); self.search.setPlaceholderText(tr('Sicherungspläne …'))
         self.summary=label(tr('Wähle einen Sicherungsplan oder richte deine erste Sicherung ein.'),'heading'); self.content.addWidget(self.summary)
         self.details=label(''); self.content.addWidget(self.details)
@@ -57,10 +38,152 @@ class Vault(ToolWindow):
         self.content.addWidget(label(tr('Wiederherstellungen landen in einem neuen Ordner. Das Sicherungspasswort zusätzlich außerhalb dieses Rechners aufbewahren.'),'muted'))
         self.body.setEnabled(False);self.refresh()
 
-    def open_section(self, index):
-        if index == 0:
-            self.open_preview()
-            self.sections.setCurrentIndex(1)
+    def build_shell(self):
+        """Keep the backup engine/widgets; give them the same Vault navigation."""
+        shell = self.centralWidget()
+        shell.setObjectName('vaultBackupShell')
+        outer = shell.layout()
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        header = outer.takeAt(0).layout()
+        brand = header.takeAt(0).widget()
+        apps = header.takeAt(0).widget()
+        settings = header.takeAt(0).widget()
+        header.deleteLater()
+        titles = brand.findChildren(QLabel)
+        titles[0].setObjectName('vaultBrand')
+        titles[1].setText(tr('Deine Daten. In deiner Hand.'))
+        titles[1].setObjectName('vaultTagline')
+        self.brand_icon = QLabel()
+        self.brand_icon.setFixedSize(48, 48)
+        brand_row = QHBoxLayout()
+        brand_row.setContentsMargins(8, 8, 0, 22)
+        brand_row.setSpacing(12)
+        brand_row.addWidget(self.brand_icon)
+        brand_row.addWidget(brand, 1)
+        side = self.sidebar.layout()
+        side.setContentsMargins(20, 20, 20, 20)
+        side.insertLayout(0, brand_row)
+        side.addSpacing(12)
+        side.addWidget(settings)
+        self.sidebar.setObjectName('vaultBackupSidebar')
+        self.sidebar.setMinimumWidth(300)
+        self.sidebar.setMaximumWidth(340)
+        self.split.setHandleWidth(1)
+
+        self.sections = QWidget()
+        self.sections.setObjectName('vaultSections')
+        self.sections.setAccessibleName(tr('Bereich'))
+        self.sections.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        segment = QHBoxLayout(self.sections)
+        segment.setContentsMargins(0, 0, 0, 0)
+        segment.setSpacing(0)
+        self.vault_tab = QPushButton(tr('Tresor'))
+        self.backups_tab = QPushButton(tr('Sicherungen'))
+        self.vault_tab.setObjectName('vaultTabLeft')
+        self.backups_tab.setObjectName('vaultTabRight')
+        self.backups_tab.setCheckable(True)
+        self.backups_tab.setChecked(True)
+        self.backups_tab.clicked.connect(lambda: self.backups_tab.setChecked(True))
+        self.vault_tab.clicked.connect(self.open_preview)
+        for tab in (self.vault_tab, self.backups_tab):
+            tab.setCursor(Qt.PointingHandCursor)
+            tab.setMinimumHeight(42)
+            segment.addWidget(tab)
+        main = QWidget()
+        layout = QVBoxLayout(main)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        top = QHBoxLayout()
+        top.setContentsMargins(22, 16, 22, 16)
+        top.addStretch()
+        top.addWidget(self.sections)
+        top.addStretch()
+        apps.setText('Apps')
+        apps.setToolTip('Lumen Apps')
+        top.addWidget(apps)
+        layout.addLayout(top)
+        separator = QFrame()
+        separator.setObjectName('vaultRule')
+        separator.setFixedHeight(1)
+        layout.addWidget(separator)
+        self.backup_stack = QStackedWidget()
+        empty = QWidget()
+        empty_layout = QVBoxLayout(empty)
+        empty_layout.setContentsMargins(44, 44, 44, 44)
+        empty_layout.setSpacing(16)
+        empty_layout.addStretch()
+        empty_layout.addWidget(label(tr('Deine Dateien. Gut gesichert.'), 'vaultEmptyTitle'))
+        empty_layout.addWidget(label(tr('Lege einen Sicherungsplan an oder wähle links einen vorhandenen Plan.'), 'muted'))
+        create = button(tr('Sicherung einrichten'), lambda: self.safe(self.create), 'list-add', True)
+        empty_layout.addWidget(create, 0, Qt.AlignLeft)
+        empty_layout.addStretch()
+        self.backup_stack.addWidget(empty)
+        scroll = QScrollArea()
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(self.body)
+        self.backup_stack.addWidget(scroll)
+        self.content.setContentsMargins(28, 26, 28, 24)
+        layout.addWidget(self.backup_stack, 1)
+        self.split.addWidget(main)
+        self.split.setStretchFactor(0, 0)
+        self.split.setStretchFactor(1, 1)
+        self.split.setSizes([310, 900])
+        footer = outer.itemAt(outer.count() - 1).widget()
+        footer.layout().setContentsMargins(24, 14, 24, 14)
+        self.resize(1440, 900)
+        self.setMinimumSize(1080, 720)
+        shell.setStyleSheet("""
+            QWidget#vaultBackupShell { background: palette(window); }
+            QWidget#vaultBackupSidebar { background: palette(base); border-right: 1px solid palette(mid); }
+            QLabel#vaultBrand { font-size: 24px; font-weight: 500; }
+            QLabel#vaultTagline { font-size: 12px; color: palette(placeholder-text); }
+            QLabel#vaultEmptyTitle { font-size: 28px; font-weight: 500; }
+            QWidget#vaultBackupShell QLabel#muted { font-size: 14px; color: palette(dark); }
+            QWidget#vaultBackupShell QPushButton#toolButton { font-size: 14px;
+                min-height: 26px; padding: 7px 12px; border: 1px solid palette(mid);
+                border-radius: 8px; background: palette(button); }
+            QWidget#vaultBackupSidebar QPushButton#toolButton { font-size: 16px;
+                background: transparent; border: 0; text-align: left; }
+            QWidget#vaultBackupShell QListWidget, QWidget#vaultBackupShell QTreeWidget {
+                border: 1px solid palette(mid); border-radius: 8px; padding: 4px; }
+            QWidget#vaultSections QPushButton { min-width: 110px; padding: 9px 20px;
+                margin: 0; border: 1px solid palette(mid); border-radius: 0;
+                background: palette(base); color: palette(text); }
+            QWidget#vaultSections QPushButton#vaultTabLeft { border-top-left-radius: 9px; border-bottom-left-radius: 9px; }
+            QWidget#vaultSections QPushButton#vaultTabRight { border-top-right-radius: 9px; border-bottom-right-radius: 9px; border-left: 0; }
+            QWidget#vaultSections QPushButton:checked { background: palette(highlight); color: palette(highlighted-text); }
+            QWidget#vaultSections QPushButton:hover { border-color: palette(highlight); }
+            QWidget#vaultSections QPushButton:focus { border: 2px solid palette(highlight); }
+            QFrame#vaultRule { background: palette(mid); }
+        """)
+        self.update_brand_icon()
+
+    def update_brand_icon(self):
+        from PySide6.QtGui import QPixmap, QPainter, QPalette
+        pixmap = QPixmap(str(Path(__file__).with_name('lumen-vault-mark.svg'))).scaled(
+            48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        if not pixmap.isNull():
+            painter = QPainter(pixmap)
+            painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
+            painter.fillRect(pixmap.rect(), self.palette().color(QPalette.WindowText))
+            painter.end()
+        self.brand_icon.setPixmap(pixmap)
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QEvent.PaletteChange and hasattr(self, 'brand_icon'):
+            self.update_brand_icon()
+
+    def refresh(self):
+        super().refresh()
+        if hasattr(self, 'backup_stack'):
+            self.backup_stack.setCurrentIndex(1 if self.current else 0)
+
+    def focus_record(self, key):
+        super().focus_record(key)
+        self.backup_stack.setCurrentIndex(1)
 
     def open_preview(self):
         from PySide6.QtCore import QProcess

@@ -69,5 +69,7 @@
   "Tresor · Vorschau": "Vault · Preview",
   "Die Tresor-Vorschau konnte nicht geöffnet werden.": "Could not open the vault preview.",
   "Tresor · Testversion": "Vault · Laboratory",
-  "Bereich": "Section"
+  "Bereich": "Section",
+  "Deine Dateien. Gut gesichert.": "Your files. Safely backed up.",
+  "Lege einen Sicherungsplan an oder wähle links einen vorhandenen Plan.": "Create a backup plan or choose an existing plan on the left."
 }
