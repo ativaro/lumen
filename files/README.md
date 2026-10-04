@@ -546,3 +546,36 @@ Initiative is bounded by the user's existing task authorization. Explicit task
 formats take precedence; structured file proposals and Translate bypass persona
 instructions. Names are length-limited, quoted labels, never instructions.
 Individual settings take precedence over the preset's default description.
+
+### Personal learning
+
+Wissen → Memory → About you is a view over the same editable memories, grouped
+into preferences, facts and decisions. Corrections and Solutions have their own
+filters. Opening a profile entry uses the existing editor, provenance, history and
+forget controls; project-specific knowledge stays outside the global profile.
+
+With both memory use and conversation learning enabled, the configured LLM reviews
+completed conversation turns in the background. Intent and language are interpreted
+by the model, without keyword triggers, a language list or fixed success phrases.
+It distinguishes durable corrections from one-off requests and may replace matching
+automatic entries. Manually maintained entries are protected by hash checks.
+
+The previous completed assistant answer provides context for user feedback. Only
+an LLM-classified explicit success confirmation, a quote from the current user
+message and a matching answer ID allow an automatic solution record. Failed or
+unfinished answers, other conversations and raw tool logs are not used. Saved
+solutions describe conditions and steps; their reuse requires checking the current
+situation and does not grant execution permissions. Relevant excerpts remain normal
+memory context. This is memory-assisted inference, not model training.
+
+The model receives the current user message, bounded existing-memory candidates
+and (when available) the previous answer. Quality depends on the configured model.
+The application validates evidence, bounds, scope, consent and conflicting edits;
+it does not replace semantic understanding with per-language code. Existing memory
+and learning switches remain unchanged by installation.
+
+For recall beyond the initial bounded context, the read-only MCP capabilities
+`lumen_memory_list` and `lumen_memory_read` let the agent browse titles/summaries
+and choose relevant entries semantically, even when the user's language differs
+from the stored memory. Both recheck memory enablement, project scope and forgetting;
+private notebook notes are not part of this catalogue. No extra permissions enabled.

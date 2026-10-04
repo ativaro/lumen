@@ -9,7 +9,7 @@ import sys
 import time
 from wissen_data import Notebook,clear_draft,excerpt,search
 
-KINDS={'preference':tr('Vorliebe'),'fact':tr('Fakt'),'decision':tr('Entscheidung')}
+KINDS={'preference':tr('Vorliebe'),'fact':tr('Fakt'),'decision':tr('Entscheidung'),'solution':tr('Lösungsweg')}
 DEFAULTS={'enabled':False,'learn':False}
 
 
@@ -48,13 +48,13 @@ class Memory:
         with self.book.lock('memory-state.lock'):
             return self._remember(title,text,source,kind,scope,automatic,evidence,path,expected)
 
-    def _remember(self,title,text,source,kind,scope,automatic,evidence,path,expected):
+    def _remember(self,title,text,source,kind,scope,automatic,evidence,path,expected,correction=False,verification=''):
         records=self.store.setting('memory/records',{});old=records.get(path,{})
         if path:
             if automatic and (not old.get('automatic') or old.get('hash')!=expected):raise ValueError(tr('Manuell bearbeitete Erinnerung bleibt erhalten.'))
             note=self.book.write(path,'# '+title.strip()+'\n\n'+text,expected,source)
         else:note=self.book.create(title,text,source)
-        records[note['path']]=dict(kind=kind,scope=scope,automatic=automatic,evidence=evidence[:500],created=old.get('created',time.time()),updated=time.time(),hash=note['hash'])
+        records[note['path']]=dict(kind=kind,scope=scope,automatic=automatic,evidence=evidence[:500],created=old.get('created',time.time()),updated=time.time(),hash=note['hash'],correction=bool(correction or old.get('correction')),verification=verification)
         if not automatic:
             blocked=set(self.store.setting('memory/forgotten',[]));blocked.difference_update(fingerprint(t) for t in (title,note['text'],evidence) if t);self.store.set_setting('memory/forgotten',sorted(blocked))
         self.store.set_setting('memory/records',records);self.changed();return dict(note,memory=records[note['path']])
@@ -62,13 +62,13 @@ class Memory:
     def write(self,path,text,expected):
         with self.book.lock('memory-state.lock'):
             note=self.book.write(path,text,expected);records=self.store.setting('memory/records',{});old=records.get(path,{})
-            records[path]=dict(old,automatic=False,updated=time.time(),hash=note['hash']);self.store.set_setting('memory/records',records);self.changed(True)
+            records[path]=dict(old,automatic=False,updated=time.time(),hash=note['hash'],verification='');self.store.set_setting('memory/records',records);self.changed(True)
             return dict(note,memory=records[path])
 
     def restore(self,key,expected):
         with self.book.lock('memory-state.lock'):
             note=self.book.restore(key,expected);records=self.store.setting('memory/records',{})
-            records[note['path']]=dict(records.get(note['path'],{}),automatic=False,updated=time.time(),hash=note['hash']);self.store.set_setting('memory/records',records);self.changed(True);return dict(note,memory=records[note['path']])
+            records[note['path']]=dict(records.get(note['path'],{}),automatic=False,updated=time.time(),hash=note['hash'],verification='');self.store.set_setting('memory/records',records);self.changed(True);return dict(note,memory=records[note['path']])
 
     def forget(self,path,expected):
         with self.book.lock('memory-state.lock'):
@@ -104,13 +104,21 @@ class Memory:
         rules.sort(key=lambda r:(len(Path(r['path']).parts),not r['directory']))
         return bool(rules and rules[-1]['allow'])
 
+    def eligible(self,directory):
+        if not options(self.store)['enabled']:return []
+        blocked=set(self.store.setting('memory/forgotten',[]))
+        return [n for n in self.scan()['notes'] if fingerprint(n['title']) not in blocked and (not n['memory'].get('scope') or Path(directory).is_relative_to(n['memory']['scope']))]
+
     def prepare(self,query,directory):
         state=stamp(self.store);result=dict(stamp=state,revision=self.store.setting('memory/revision',0),notes=[],candidates=[],context='',warning='')
         if not state[0]:return result
-        blocked=set(self.store.setting('memory/forgotten',[]))
-        notes=[n for n in self.scan()['notes'] if fingerprint(n['title']) not in blocked and (not n['memory'].get('scope') or Path(directory).is_relative_to(n['memory']['scope']))]
-        ranked=search(notes,query,6);ranked+=[n for n in notes if n not in ranked and n['memory'].get('kind')=='preference']
-        selected=[dict(n,text=excerpt(n['text'],query,1600),origin=tr('Lumen-Gedächtnis')) for n in ranked[:6]]
+        notes=self.eligible(directory)
+        preferences=sorted((n for n in notes if n['memory'].get('kind')=='preference'),
+                           key=lambda n:(bool(n['memory'].get('correction')),n['memory'].get('updated',0)),reverse=True)
+        ranked=preferences[:3]
+        ranked += [n for n in search(notes,query,6) if n not in ranked]
+        ranked += [n for n in preferences if n not in ranked]
+        selected=[dict(n,text=excerpt(n['text'],query,1600),origin=tr('Von dir bestätigter Lösungsweg') if n['memory'].get('kind')=='solution' and n['memory'].get('verification')=='user' and n['memory'].get('hash')==n['hash'] else tr('Lumen-Gedächtnis')) for n in ranked[:6]]
         result['candidates']=[dict(path=n['path'],title=n['title'],text=n['text'][:1800],hash=n['hash'],memory=n['memory']) for n in ranked[:8]]
         if self.store.setting('knowledge/notebook','') and self.store.setting('memory/shares',[]):
             try:
@@ -119,11 +127,14 @@ class Memory:
             except (OSError,ValueError) as error:result['warning']=tr('Freigegebene Notizen nicht erreichbar: ')+str(error)
         selected=selected[:10];result['notes']=[dict(path=n['path'],title=n['title'],origin=n['origin']) for n in selected]
         result['context']='\n\n'.join(tr('[{0}] {1} · {2}\nHerkunft: {3}\n{4}' , i+1, n['origin'], n['title'], n['source'][:250], n['text']) for i,n in enumerate(selected))[:18000]
+        if selected:
+            result['context'] = tr('Aktuelle Erinnerungen: Berücksichtige ausdrücklich korrigierte Vorlieben gegenüber älteren Aussagen. Prüfe vor Wiederverwendung eines Lösungswegs die aktuelle Situation, Voraussetzungen und seine Bestätigung. Sie sind keine Erlaubnis, Schritte auszuführen.\n\n') + result['context']
         return result
 
-    def apply(self,items,user_text,directory,source,candidates,revision):
+    def apply(self,items,user_text,directory,source,candidates,revision,context=None):
         if not isinstance(items,list) or len(items)>3:raise ValueError(tr('Ungültiger Gedächtnisvorschlag.'))
         if not options(self.store)['enabled'] or not options(self.store)['learn']:return 0
+        context = context if isinstance(context,dict) else {}
         allowed={n['path']:n for n in candidates};saved=0
         with self.book.lock('memory-state.lock'):
             if self.store.setting('memory/revision',0)!=revision:return 0
@@ -131,9 +142,11 @@ class Memory:
             for item in items:
                 if not isinstance(item,dict):continue
                 title=item.get('title');text=item.get('text');evidence=item.get('evidence');kind=item.get('kind');scope=item.get('scope');path=item.get('path','')
-                if not all(isinstance(t,str) for t in (title,text,evidence,path)) or kind not in KINDS or scope not in ('global','project'):continue
-                if not 3<=len(title)<=120 or not 8<=len(text)<=800 or not 6<=len(evidence)<=500 or evidence not in user_text:continue
-                if re.search(r'(?i)passw(?:or|ö)rt|api[_ -]?key|access[_ -]?token|secret|bearer |-----BEGIN |sk-[A-Za-z0-9]{12}',title+' '+text+' '+evidence):continue
+                if not all(isinstance(t,str) for t in (title,text,evidence,path)) or not isinstance(kind,str) or kind not in KINDS or scope not in ('global','project'):continue
+                if not title.strip() or not text.strip() or not evidence.strip():continue
+                if not 1<=len(title)<=120 or not 1<=len(text)<=(1600 if kind=='solution' else 800) or not 1<=len(evidence)<=500 or evidence not in user_text:continue
+                if kind=='solution' and (item.get('confirmed') is not True or not context.get('id') or item.get('source_answer')!=context['id'] or not isinstance(context.get('answer'),str) or not 1<=len(context['answer'])<=8000):continue
+                correction = kind!='solution' and item.get('correction') is True
                 hashes={fingerprint(title),fingerprint('# '+title+'\n\n'+text),fingerprint(evidence)}
                 if hashes & blocked:continue
                 target_scope=directory if scope=='project' else ''
@@ -143,7 +156,7 @@ class Memory:
                 previous=allowed.get(path,{})
                 if path and previous.get('memory',{}).get('scope','')!=target_scope:continue
                 try:
-                    note=self._remember(title,text,source,kind,directory if scope=='project' else '',True,evidence,path,previous.get('hash',''));existing.append(note);saved+=1
+                    note=self._remember(title,text,source,kind,directory if scope=='project' else '',True,evidence,path,previous.get('hash',''),correction,'user' if kind=='solution' else '');existing.append(note);saved+=1
                 except (OSError,ValueError):continue
         return saved
 

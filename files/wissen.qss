@@ -17,3 +17,6 @@ QLineEdit#wissenTitle:focus { border: none; }
 QPlainTextEdit#wissenEditor, QTextBrowser#wissenPreview { background: transparent; border: none; border-radius: 0; padding: 0; font-size: 16px; }
 QScrollArea#wissenDetails { background: palette(base); border: none; border-top: 1px solid palette(mid); }
 QScrollArea#wissenDetails QWidget { background: palette(base); }
+
+QPushButton#memoryProfileEntry { background: palette(base); color: palette(text); border: 1px solid palette(mid); border-radius: 8px; text-align: left; min-height: 72px; }
+QPushButton#memoryProfileEntry:hover, QPushButton#memoryProfileEntry:focus { border-color: palette(link); background: palette(midlight); }

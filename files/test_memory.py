@@ -61,7 +61,8 @@ class MemoryBackendTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from PySide6.QtWidgets import QApplication
-        cls.app=QApplication.instance() or QApplication([])
+        from app import create_app
+        cls.app=QApplication.instance() or create_app()
 
     def test_learning_recall_and_revocation_in_shared_backend(self):
         import json,threading,time
@@ -80,8 +81,13 @@ class MemoryBackendTest(unittest.TestCase):
                 if path=='/session' and method=='POST':
                     state['counter']+=1;result={'id':'session-'+str(state['counter'])};state['sessions'][result['id']]=[]
                 elif path.endswith('/prompt_async'):
-                    session=path.split('/')[2];state['prompts'].append((session,body))
-                    answer=json.dumps({'memories':[dict(title='Antwortlänge',text='Der Nutzer möchte kurze Antworten.',kind='preference',scope='global',evidence=user)]}) if body.get('tools')=={'*':False} else 'Verstanden.'
+                    session=path.split('/')[2]
+                    is_learning=body['parts'][0]['text'].startswith('You maintain the user-controlled memory')
+                    if not is_learning:state['prompts'].append((session,body))
+                    answer='Verstanden.'
+                    if is_learning:
+                        payload=json.loads(body['parts'][0]['text'].split('\n',1)[1])
+                        answer=json.dumps({'memories':[dict(title='Antwortlänge',text='Der Nutzer möchte kurze Antworten.',kind='preference',scope='global',evidence=user)] if payload['user_message']==user else []})
                     state['sessions'][session]=[{'info':{'role':'assistant','parentID':body['messageID'],'time':{'completed':123}},'parts':[{'type':'text','text':answer}]}]
                 elif path.endswith('/message'):result=state['sessions'][path.split('/')[2]]
                 elif path in ('/session','/permission','/question'):result=[]
@@ -96,26 +102,26 @@ class MemoryBackendTest(unittest.TestCase):
             backend=OpenCodeBackend(tmp,server_url='http://127.0.0.1:'+str(server.server_port),password='test');backend.ensure_server=lambda callback:callback()
             try:
                 backend.send(user);wait(lambda:memory.scan()['notes']);wait(lambda:not backend.busy)
-                first=state['prompts'][0][0];backend.send('Welche Antwortlänge passt?');wait(lambda:len(state['prompts'])>=3 and not backend.busy)
-                self.assertIn('kurze Antworten',state['prompts'][2][1]['system']);self.assertEqual(first,state['prompts'][2][0])
+                first=state['prompts'][0][0];backend.send('Welche Antwortlänge passt?');wait(lambda:len(state['prompts'])>=2 and not backend.busy)
+                self.assertIn('kurze Antworten',state['prompts'][1][1]['system']);self.assertEqual(first,state['prompts'][1][0])
                 note=memory.scan()['notes'][0];prepare=backend.memory.prepare
                 def revoke_while_preparing(text,directory,done):
                     backend.memory.prepare=prepare;memory.forget(note['path'],note['hash']);prepare(text,directory,done)
                 backend.memory.prepare=revoke_while_preparing
-                backend.send('Welche Antwortlänge passt jetzt?');wait(lambda:len(state['prompts'])>=4 and not backend.busy)
-                self.assertNotEqual(first,state['prompts'][3][0]);self.assertNotIn('kurze Antworten',state['prompts'][3][1]['system'])
-                backend.send('Native Vorschläge',proposal=True);wait(lambda:len(state['prompts'])>=5 and not backend.busy)
-                self.assertNotIn('lumen-memory',state['prompts'][4][1]['system']);self.assertEqual(state['prompts'][4][1]['tools'],{'*':False})
+                backend.send('Welche Antwortlänge passt jetzt?');wait(lambda:len(state['prompts'])>=3 and not backend.busy)
+                self.assertNotEqual(first,state['prompts'][2][0]);self.assertNotIn('kurze Antworten',state['prompts'][2][1]['system'])
+                backend.send('Native Vorschläge',proposal=True);wait(lambda:len(state['prompts'])>=4 and not backend.busy)
+                self.assertNotIn('lumen-memory',state['prompts'][3][1]['system']);self.assertEqual(state['prompts'][3][1]['tools'],{'*':False})
                 memory.remember('Schreibstil','Schreibe freundliche kurze Mails.',kind='preference')
                 other=OpenCodeBackend(tmp,server_url=backend.url,password='test');other.ensure_server=lambda callback:callback()
                 try:
-                    other.send('Mail entwerfen',proposal=True,memory_context=True,memory_text='Mail schreiben');wait(lambda:len(state['prompts'])>=6 and not other.busy)
-                    self.assertIn('freundliche kurze Mails',state['prompts'][5][1]['system']);self.assertEqual(state['prompts'][5][1]['tools'],{'*':False})
+                    other.send('Mail entwerfen',proposal=True,memory_context=True,memory_text='Mail schreiben');wait(lambda:len(state['prompts'])>=5 and not other.busy)
+                    self.assertIn('freundliche kurze Mails',state['prompts'][4][1]['system']);self.assertEqual(state['prompts'][4][1]['tools'],{'*':False})
                 finally:other.shutdown();other.deleteLater()
                 delayed=[];backend.memory.prepare=lambda text,directory,done:delayed.append(done)
                 backend.send('Diese Anfrage abbrechen');self.assertTrue(backend.busy);self.assertEqual(len(delayed),1)
                 backend.stop();delayed[0](memory.prepare('Antworten',tmp));QTest.qWait(50)
-                self.assertFalse(backend.busy);self.assertEqual(len(state['prompts']),6)
+                self.assertFalse(backend.busy);self.assertEqual(len(state['prompts']),5)
             finally:backend.shutdown();backend.deleteLater();QTest.qWait(30)
         server.shutdown();server.server_close()
 

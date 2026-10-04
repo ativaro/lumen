@@ -68,6 +68,7 @@ class OpenCodeBackend(QObject):
         self.memory = None
         self.memory_payload = {}
         self.memory_text = ''
+        self.memory_previous_answer = {}
         self.deadline = QTimer(self)
         self.deadline.setSingleShot(True)
         self.deadline.timeout.connect(lambda: self.fail(tr('Das Zeitlimit für diesen Auftrag wurde erreicht.')))
@@ -219,6 +220,7 @@ class OpenCodeBackend(QObject):
         self.timer.stop()
         self.polling = False
         self.session = self.message_id = ''
+        self.memory_previous_answer = {}
         self.pending_persona = ''
         self.personaChanged.emit()
         if directory:
@@ -250,6 +252,8 @@ class OpenCodeBackend(QObject):
             return
         if proposal:
             self.new_conversation()
+        from memory_learning import previous_answer
+        self.memory_previous_answer = previous_answer(self.messages) if not proposal and not self.background_task else {}
         self.proposal = proposal
         persona_choice = self.persona_choice()
         from lumen_store import Store
@@ -301,7 +305,7 @@ class OpenCodeBackend(QObject):
             if recall:
                 current_stamp=stamp(store);session_stamp=store.setting('memory/session/'+self.session)
                 if self.memory_payload.get('stamp')!=current_stamp or (session_stamp is not None and session_stamp!=current_stamp):
-                    self.session='';self.messages=[];self.messagesChanged.emit([]);prepare_memory(prepare_session);return
+                    self.session='';self.memory_previous_answer={};self.messages=[];self.messagesChanged.emit([]);prepare_memory(prepare_session);return
                 store.set_setting('memory/session/'+self.session,self.memory_payload['stamp'])
             self.prompt_submitted = True
             self.request('POST', f'/session/{self.session}/prompt_async', body, lambda _: self.poll())
@@ -431,7 +435,7 @@ class OpenCodeBackend(QObject):
                         and message['info'].get('parentID') == self.message_id
                         for part in message.get('parts', []) if part.get('type') == 'text')
                     if not error and not self.proposal and not self.background_task and self.memory and self.memory_payload:
-                        self.memory.learn(self.memory_text,self.directory,tr('Lumen-Gespräch · ')+self.memory_text.partition('\n')[0][:120],self.memory_payload)
+                        self.memory.learn(self.memory_text,self.directory,tr('Lumen-Gespräch · ')+self.memory_text.partition('\n')[0][:120],self.memory_payload,self.memory_previous_answer)
                     self.completed.emit(not bool(error), (error.get('data', {}).get('message') or error.get('name', tr('Anfrage fehlgeschlagen.'))) if error else answer)
             else:
                 if state == 'idle' and not self.permissions and not self.questions:

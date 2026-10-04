@@ -378,3 +378,8 @@ Existing user windows were left open; reopening them loads the new UI.
 - [x] Setup/shortcut refresh and newly generated Sound/Vault services use the chosen
   interpreter; known existing service templates migrate with a backup. Their
   focused regression checks passed after the full349-test suite.
+
+- [x] Personal learning: language-independent LLM contract, explicit correction metadata, confirmed solution references, bounded recall and existing consent/conflict protection.
+- [x] Wissen: profile over global memories, correction and solution filters, same editor/history/forget actions, DE/EN native views.
+- [x] Verify storage, backend, native UI, language, persona and MCP regressions; multilingual live-provider checks passed.
+- [ ] Finish user/system package rollout and private GitHub update.

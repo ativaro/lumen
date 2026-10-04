@@ -183,6 +183,21 @@ class NativeMCPTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'timed out'):mcp.tool_native('lumen_settings_get',{})
         kill.assert_called_once();self.assertEqual(process.communicate.call_count,2)
 
+    def test_memory_discovery_has_no_keyword_gate_and_rechecks_scope_and_consent(self):
+        from lumen_memory import Memory
+        memory=Memory(self.store);memory.configure(True,True)
+        global_note=memory.remember('照片','图片在网络磁盘上。',kind='fact')
+        project_note=memory.remember('Projeto','Informação deste projeto.',scope='/project-a')
+        listing=invoke('lumen_memory_list',dict(directory='/project-b',limit=1))
+        self.assertEqual([n['path'] for n in listing['items']],[global_note['path']])
+        self.assertEqual(listing['total'],1)
+        self.assertIn('图片',invoke('lumen_memory_read',dict(directory='/project-b',path=global_note['path']))['text'])
+        with self.assertRaises(ValueError):invoke('lumen_memory_read',dict(directory='/project-b',path=project_note['path']))
+        memory.forget(global_note['path'],global_note['hash'])
+        with self.assertRaises(ValueError):invoke('lumen_memory_read',dict(directory='/project-b',path=global_note['path']))
+        memory.configure(False,False)
+        self.assertEqual(invoke('lumen_memory_list',dict(directory='/project-a'))['items'],[])
+
     def test_explicit_memory_uses_native_store_and_disabled_worker_refuses_writes(self):
         from lumen_memory import Memory
         memory=Memory(self.store);memory.configure(True,False)

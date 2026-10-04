@@ -87,11 +87,15 @@ def build(w):
     w.links=QListWidget();w.links.setAccessibleName(tr('Verknüpfungen und Rückverweise'));w.links.setMaximumHeight(95);w.links.itemActivated.connect(lambda item:w.safe(w.follow_connection,item.data(Qt.UserRole)));dl.addWidget(w.links)
     w.memory_options=QWidget();ol=QVBoxLayout(w.memory_options);ol.setContentsMargins(0,0,0,0)
     w.use_memory=QCheckBox(tr('Gedächtnis verwenden'));w.learn_memory=QCheckBox(tr('Aus Gesprächen lernen'));ol.addWidget(w.use_memory);ol.addWidget(w.learn_memory)
-    ol.addWidget(label(tr('Passende Erinnerungen und freigegebene Notizen gehen an deinen eingerichteten KI-Anbieter. Lernen nutzt den bereits gesendeten Nutzertext.'),'muted'))
+    ol.addWidget(label(tr('Passende Erinnerungen und freigegebene Notizen gehen an deinen KI-Anbieter. Beim Lernen beurteilt das Modell deine Nachricht und die vorherige Antwort. Gespeichertes bleibt hier einsehbar.'),'muted'))
     w.use_memory.toggled.connect(lambda _:w.safe(w.configure_memory));w.learn_memory.toggled.connect(lambda _:w.safe(w.configure_memory));dl.addWidget(w.memory_options);w.memory_options.hide()
     w.tabs.addTab(writing,tr('Notizen'))
     questions(w);map_page=QWidget();ml=QVBoxLayout(map_page);ml.setContentsMargins(24,22,24,18);ml.addWidget(label(tr('Eine Notiz und ihre direkten Verbindungen · maximal 36 Nachbarn'),'muted'))
     w.map=KnowledgeMap();w.map.noteRequested.connect(lambda p:w.safe(w.open_note,p));w.map.objectRequested.connect(lambda url:w.safe(w.follow_connection,url));ml.addWidget(w.map,1);w.tabs.addTab(map_page,tr('Wissenskarte'));w.tabs.currentChanged.connect(w.tab_changed)
+    from memory_profile import MemoryProfile
+    dl.removeWidget(w.memory_options)
+    w.profile=MemoryProfile(w.memory_options);w.profile.noteRequested.connect(lambda path:w.safe(w.open_profile_note,path))
+    w.tabs.addTab(w.profile,tr('Über dich'))
     w.split.setSizes([165,240,775]);w.split.setStretchFactor(0,0);w.split.setStretchFactor(1,0);w.split.setStretchFactor(2,1)
     w.update_collections();old.deleteLater()
 

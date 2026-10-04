@@ -54,6 +54,7 @@ class Wissen(ToolWindow):
         config=memory.options(self.store)
         for control,key in ((self.use_memory,'enabled'),(self.learn_memory,'learn')):control.blockSignals(True);control.setChecked(config[key]);control.blockSignals(False)
         self.learn_memory.setEnabled(config['enabled']);self.initialize()
+        if area=='lumen':self.collection='profile:global';self.update_collections();self.profile.update_notes([]);self.tabs.setCurrentIndex(3)
     def configure_memory(self):
         if self.loading:return
         enabled=self.use_memory.isChecked();learn=self.learn_memory.isChecked()
@@ -222,6 +223,7 @@ class Wissen(ToolWindow):
     def show_note(self,note):
         self.loading=True
         try:
+            if self.area=='lumen':note.setdefault('memory',self.store.setting('memory/records',{}).get(note['path'],{}))
             note.setdefault('modified',self.notes.get(note['path'],{}).get('modified',0));self.doc=note;self.notes[note['path']]=note;self.load_text(note['text'],note['title']);self.editor.setEnabled(True);self.title.setEnabled(True);self.dirty=False;self.conflict=False
             if not self.in_collection(note):self.collection=''
             if self.search.text() and not data.search([note],self.search.text()):self.search.clear()
@@ -243,12 +245,17 @@ class Wissen(ToolWindow):
             if pending[1]:
                 from interop_open import focus_text
                 self.tabs.setCurrentIndex(0);self.views.setCurrentIndex(0);self.safe(focus_text,self.editor,pending[1])
+    def open_profile_note(self,path):
+        self.collection='';self.update_collections();self.open_note(path)
+
     def update_source(self,note):
         source=tr('Quelle: ')+note['source'] if note['source'] else tr('Eigene Notiz')
         if self.area=='lumen':
             from datetime import datetime
             meta=note.get('memory') or self.store.setting('memory/records',{}).get(note['path'],{});updated=meta.get('updated',0)
             details=memory.KINDS.get(meta.get('kind'),tr('Erinnerung'))+' · '+(tr('Automatisch gelernt') if meta.get('automatic') and meta.get('hash')==note['hash'] else tr('Von dir gepflegt'))
+            if meta.get('correction'):details+='\n'+tr('Nach deiner Korrektur aktualisiert')
+            if meta.get('verification')=='user' and meta.get('hash')==note['hash']:details+='\n'+tr('Erfolg von dir bestätigt · vor Wiederverwendung prüfen')
             if updated:details+='\n'+datetime.fromtimestamp(updated).strftime('%d.%m.%Y %H:%M')
             details+='\n'+(tr('Projekt: ')+meta['scope'] if meta.get('scope') else tr('Übergreifend'))
             if meta.get('evidence'):details+=tr('\n\nDeine Aussage: „')+meta['evidence']+'“'
@@ -291,11 +298,13 @@ class Wissen(ToolWindow):
         kind,_,value=self.collection.partition(':')
         if kind=='tag':return value in note['tags']
         if kind=='folder':return Path(note['path']).is_relative_to(value)
+        if kind=='profile':return not note.get('memory',{}).get('scope') and note.get('memory',{}).get('kind','fact') in ('preference','fact','decision')
+        if kind=='corrections':return bool(note.get('memory',{}).get('correction'))
         if kind=='kind':return note.get('memory',{}).get('kind')==value
         return True
     def update_collections(self):
         choices={'':tr('Alle Erinnerungen') if self.area=='lumen' else tr('Alle Notizen')}
-        if self.area=='lumen':choices.update({'kind:preference':tr('Vorlieben'),'kind:fact':tr('Fakten'),'kind:decision':tr('Entscheidungen')})
+        if self.area=='lumen':choices.update({'profile:global':tr('Über dich'),'corrections:all':tr('Korrekturen'),'kind:solution':tr('Lösungswege'),'kind:preference':tr('Vorlieben'),'kind:fact':tr('Fakten'),'kind:decision':tr('Entscheidungen')})
         else:
             folders=sorted((set(self.folders)|{str(Path(n['path']).parent) for n in self.notes.values()})-{'.'})
             choices.update({'folder:'+p:p for p in folders});choices.update({'tag:'+t:'#'+t for t in sorted({t for n in self.notes.values() for t in n['tags']})})
@@ -313,6 +322,7 @@ class Wissen(ToolWindow):
         self.set_collection(key)
     def set_collection(self,key):
         self.collection=key;self.update_collections();self.tabs.setCurrentIndex(0);self.refresh()
+        if key=='profile:global':self.profile.update_notes(self.notes.values());self.tabs.setCurrentIndex(3);return
         if self.doc and self.in_collection(self.doc):return
         if self.entries.count():self.open_note(self.entries.item(0).data(Qt.UserRole))
         else:self.clear_note(tr('Mit „Neu“ die erste Notiz erstellen'))
@@ -328,6 +338,7 @@ class Wissen(ToolWindow):
             area,self.pending_area=self.pending_area,None;QTimer.singleShot(0,lambda:self.switch_area(area))
     def scanned(self,result):
         self.folders=result.get('folders',[]);self.notes={n['path']:n for n in result['notes']};self.refresh()
+        if self.area=='lumen':self.profile.update_notes(self.notes.values())
         if self.doc:
             latest=self.notes.get(self.doc['path'])
             if latest and latest['hash']!=self.doc['hash']:
