@@ -287,8 +287,8 @@ VaultWindow::VaultWindow(const QString &root)
       language == "en" ||
       (language == "system" && QLocale::system().language() != QLocale::German);
   setWindowTitle("Lumen Vault");
-  resize(1440, 880);
-  setMinimumSize(980, 680);
+  resize(1510, 926);
+  setMinimumSize(1080, 720);
   idle.setSingleShot(true);
   idle.setInterval(300000);
   detailTimer.setSingleShot(true);
@@ -350,13 +350,35 @@ void VaultWindow::replacePage(QWidget *page) {
   }
   setCentralWidget(page);
 }
+class TintedIcon : public QIconEngine {
+public:
+  explicit TintedIcon(QString name) : name(std::move(name)) {}
+  QIconEngine *clone() const override { return new TintedIcon(name); }
+  QPixmap pixmap(const QSize &size, QIcon::Mode mode,
+                 QIcon::State state) override {
+    auto pix = QIcon(":/vault/" + name + ".svg").pixmap(size, mode, state);
+    QPainter painter(&pix);
+    painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+    painter.fillRect(pix.rect(),
+                     QApplication::palette().color(QPalette::WindowText));
+    return pix;
+  }
+  void paint(QPainter *painter, const QRect &rect, QIcon::Mode mode,
+             QIcon::State state) override {
+    painter->drawPixmap(rect, pixmap(rect.size(), mode, state));
+  }
+
+private:
+  QString name;
+};
+static QIcon glyph(const QString &name) { return QIcon(new TintedIcon(name)); }
 QWidget *VaultWindow::sectionTabs() {
   auto *tabs = new QTabBar;
   tabs->setObjectName("vaultSections");
   tabs->setAccessibleName(tx("Bereich", "Section"));
   tabs->setDrawBase(false);
   tabs->setExpanding(true);
-  tabs->setFixedSize(280, 44);
+  tabs->setFixedSize(290, 42);
   tabs->addTab(tx("Tresor", "Vault"));
   tabs->addTab(tx("Sicherungen", "Backups"));
   connect(tabs, &QTabBar::currentChanged, this, [this, tabs](int index) {
@@ -487,28 +509,91 @@ void VaultWindow::authorize(bool create, bool restore) {
     refresh();
   });
 }
-class TintedIcon : public QIconEngine {
+class EntryDelegate final : public QStyledItemDelegate {
 public:
-  explicit TintedIcon(QString name) : name(std::move(name)) {}
-  QIconEngine *clone() const override { return new TintedIcon(name); }
-  QPixmap pixmap(const QSize &size, QIcon::Mode mode,
-                 QIcon::State state) override {
-    auto pix = QIcon(":/vault/" + name + ".svg").pixmap(size, mode, state);
-    QPainter painter(&pix);
-    painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-    painter.fillRect(pix.rect(),
-                     QApplication::palette().color(QPalette::WindowText));
-    return pix;
+  using QStyledItemDelegate::QStyledItemDelegate;
+  void paint(QPainter *p, const QStyleOptionViewItem &option,
+             const QModelIndex &index) const override {
+    p->save();
+    p->setRenderHint(QPainter::Antialiasing);
+    const auto palette = QApplication::palette();
+    const bool selected = option.state & QStyle::State_Selected;
+    const bool hover = option.state & QStyle::State_MouseOver;
+    const QRect area = option.rect.adjusted(0, 2, -1, -2);
+    if (selected || hover) {
+      auto color = palette.color(QPalette::AlternateBase);
+      if (!selected) color.setAlpha(100);
+      p->setPen(Qt::NoPen);
+      p->setBrush(color);
+      p->drawRoundedRect(area, 8, 8);
+      if (selected) {
+        p->setBrush(palette.color(QPalette::Highlight));
+        p->drawRoundedRect(QRect(area.left(), area.top() + 3, 3,
+                                area.height() - 6), 1.5, 1.5);
+      }
+    } else {
+      p->setPen(palette.color(QPalette::Mid));
+      p->drawLine(area.left() + 16, area.bottom(), area.right() - 16,
+                  area.bottom());
+    }
+    const auto icon = qvariant_cast<QIcon>(index.data(Qt::DecorationRole));
+    icon.paint(p, QRect(area.left() + 26, area.center().y() - 17, 34, 34));
+    const auto title = index.data(Qt::UserRole + 1).toString();
+    const auto subtitle = index.data(Qt::UserRole + 2).toString();
+    QFont font = option.font;
+    font.setPixelSize(18);
+    p->setFont(font);
+    p->setPen(palette.color(QPalette::Text));
+    QRect text(area.left() + 94, area.top() + 14, area.width() - 136, 27);
+    p->drawText(text, Qt::AlignVCenter,
+                QFontMetrics(font).elidedText(title, Qt::ElideRight, text.width()));
+    font.setPixelSize(14);
+    p->setFont(font);
+    p->setPen(palette.color(QPalette::PlaceholderText));
+    text.translate(0, 27);
+    p->drawText(text, Qt::AlignVCenter,
+                QFontMetrics(font).elidedText(subtitle, Qt::ElideRight, text.width()));
+    glyph("go-next").paint(p, QRect(area.right() - 34, area.center().y() - 9, 18, 18));
+    if (option.state & QStyle::State_HasFocus) {
+      p->setPen(QPen(palette.color(QPalette::Highlight), 1));
+      p->setBrush(Qt::NoBrush);
+      p->drawRoundedRect(area.adjusted(1, 1, -1, -1), 8, 8);
+    }
+    p->restore();
   }
-  void paint(QPainter *painter, const QRect &rect, QIcon::Mode mode,
-             QIcon::State state) override {
-    painter->drawPixmap(rect, pixmap(rect.size(), mode, state));
-  }
-
-private:
-  QString name;
 };
-static QIcon glyph(const QString &name) { return QIcon(new TintedIcon(name)); }
+static QLabel *symbol(const QString &name, int size = 24) {
+  auto *label = new QLabel;
+  label->setProperty("glyph", name);
+  label->setProperty("glyphSize", size);
+  label->setPixmap(glyph(name).pixmap(size, size));
+  label->setFixedSize(size, size);
+  label->setAlignment(Qt::AlignCenter);
+  return label;
+}
+static void spacedButton(QPushButton *button) {
+  const auto text = button->text();
+  const auto icon = button->icon();
+  button->setAccessibleName(text);
+  button->setText({});
+  button->setIcon({});
+  auto *layout = new QHBoxLayout(button);
+  layout->setContentsMargins(16, 0, 16, 0);
+  layout->setSpacing(12);
+  auto *mark = new QLabel;
+  mark->setPixmap(icon.pixmap(button->iconSize()));
+  mark->setFixedSize(button->iconSize());
+  mark->setAttribute(Qt::WA_TransparentForMouseEvents);
+  layout->addWidget(mark);
+  auto *caption = new QLabel(text);
+  caption->setAttribute(Qt::WA_TransparentForMouseEvents);
+  layout->addWidget(caption);
+  layout->setAlignment(button->objectName() == "settings" ? Qt::AlignLeft : Qt::AlignCenter);
+  button->setMinimumWidth(layout->sizeHint().width());
+  // Refresh icons with the theme without re-reading any entry data.
+  mark->setProperty("buttonIcon", icon);
+  mark->setProperty("glyphSize", button->iconSize().width());
+}
 static QFrame *rule() {
   auto *r = new QFrame;
   r->setObjectName("rule");
@@ -533,41 +618,47 @@ QWidget *VaultWindow::openPage() {
   content->setSpacing(0);
   auto *sidebar = new QFrame;
   sidebar->setObjectName("sidebar");
-  sidebar->setFixedWidth(250);
+  sidebar->setFixedWidth(296);
   auto *sl = new QVBoxLayout(sidebar);
-  sl->setContentsMargins(18, 30, 18, 20);
+  sl->setContentsMargins(16, 28, 12, 22);
   sl->setSpacing(12);
-  auto *brand = new QLabel("◈  Lumen Vault");
+  auto *brandRow = new QHBoxLayout;
+  brandRow->setContentsMargins(12, 0, 6, 0);
+  brandRow->setSpacing(18);
+  brandRow->addWidget(symbol("lumen-mark", 54));
+  auto *brandText = new QVBoxLayout;
+  brandText->setSpacing(2);
+  auto *brand = new QLabel("Lumen Vault");
   brand->setObjectName("brand");
-  sl->addWidget(brand);
+  brandText->addWidget(brand);
   auto *tagline = new QLabel(
       tx("Deine Daten. In deiner Hand.", "Your data. In your hands."));
-  tagline->setObjectName("muted");
-  sl->addWidget(tagline);
-  sl->addSpacing(28);
+  tagline->setObjectName("tagline");
+  brandText->addWidget(tagline);
+  brandRow->addLayout(brandText);
+  sl->addLayout(brandRow);
+  sl->addSpacing(30);
   auto *caption = new QLabel(tx("Mein Tresor", "My vault"));
   caption->setObjectName("muted");
+  caption->setContentsMargins(12, 0, 0, 0);
   sl->addWidget(caption);
   navigation = new QListWidget;
   navigation->setObjectName("navigation");
-  navigation->setIconSize(QSize(23, 23));
+  navigation->setIconSize(QSize(26, 26));
   navigation->setSpacing(3);
   const QStringList labels{tx("Alle Einträge", "All entries"),
                            tx("Favoriten", "Favorites"),
                            tx("Passwörter", "Passwords"),
                            tx("API-Tokens", "API tokens"),
-                           tx("Sichere Notizen", "Secure notes"),
-                           tx("Wiederherstellung", "Recovery codes"),
-                           tx("Papierkorb", "Trash")};
-  const QStringList keys{"all",  "favorite", "login", "token",
-                         "note", "recovery", "trash"};
+                           tx("Sichere Notizen", "Secure notes")};
+  const QStringList keys{"all", "favorite", "login", "token", "note"};
   const QStringList icons{
-      "view-list-details", "favorite",     "dialog-password", "code-context",
-      "document-edit",     "view-barcode", "user-trash"};
+      "view-list-details", "favorite", "dialog-password", "code-context",
+      "document-edit"};
   for (int i = 0; i < labels.size(); ++i) {
     auto *item = new QListWidgetItem(glyph(icons[i]), labels[i], navigation);
     item->setData(Qt::UserRole, keys[i]);
-    item->setSizeHint(QSize(200, 44));
+    item->setSizeHint(QSize(200, 50));
   }
   navigation->setCurrentRow(0);
   connect(navigation, &QListWidget::currentRowChanged, this, [this] {
@@ -583,33 +674,56 @@ QWidget *VaultWindow::openPage() {
         tx("Verschlüsselte Sicherung exportieren…", "Export encrypted backup…"),
         this, &VaultWindow::backup);
     menu.addSeparator();
+    menu.addAction(tx("Wiederherstellungscodes", "Recovery codes"), [this] {
+      category = "recovery";
+      {
+        QSignalBlocker block(navigation);
+        navigation->setCurrentRow(-1);
+      }
+      filter();
+    });
+    menu.addAction(tx("Papierkorb", "Trash"), [this] {
+      category = "trash";
+      {
+        QSignalBlocker block(navigation);
+        navigation->setCurrentRow(-1);
+      }
+      filter();
+    });
+    menu.addSeparator();
     menu.addAction(
         tx("Über Lumen Vault · Lizenzen", "About Lumen Vault · Licenses"), this,
         &VaultWindow::about);
     menu.exec(QCursor::pos());
   });
-  settings->setObjectName("quiet");
+  settings->setObjectName("settings");
+  settings->setIcon(glyph("configure"));
+  settings->setIconSize(QSize(30, 30));
+  spacedButton(settings);
   sl->addWidget(settings);
   content->addWidget(sidebar);
   auto *main = new QVBoxLayout;
   main->setContentsMargins(0, 0, 0, 0);
   main->setSpacing(0);
-  auto *top = new QGridLayout;
-  top->setContentsMargins(24, 18, 24, 18);
-  top->setColumnStretch(0, 1);
-  top->setColumnStretch(2, 1);
-  top->addWidget(sectionTabs(), 0, 1, Qt::AlignCenter);
+  auto *top = new QHBoxLayout;
+  top->setContentsMargins(24, 16, 20, 16);
+  top->addStretch();
+  top->addWidget(sectionTabs());
+  top->addStretch();
   auto *actions = new QHBoxLayout;
-  actions->addStretch();
+  actions->setSpacing(8);
   auto *state = new QLabel(tx("Entsperrt", "Unlocked"));
   state->setObjectName("status");
+  actions->addWidget(symbol("object-unlocked", 26));
   actions->addWidget(state);
   actions->addSpacing(14);
   auto *lockButton = button(tx("Sperren", "Lock"), [this] { lock(); });
   lockButton->setObjectName("lock");
+  lockButton->setMinimumWidth(132);
   lockButton->setIcon(glyph("object-locked"));
+  spacedButton(lockButton);
   actions->addWidget(lockButton);
-  top->addLayout(actions, 0, 2);
+  top->addLayout(actions);
   main->addLayout(top);
   main->addWidget(rule());
   auto *columns = new QHBoxLayout;
@@ -617,40 +731,46 @@ QWidget *VaultWindow::openPage() {
   auto *middle = new QFrame;
   middle->setObjectName("middle");
   middle->setMinimumWidth(340);
-  middle->setMaximumWidth(465);
+  middle->setMaximumWidth(520);
   auto *ml = new QVBoxLayout(middle);
-  ml->setContentsMargins(14, 20, 14, 18);
+  ml->setContentsMargins(10, 20, 10, 18);
   ml->setSpacing(18);
   auto *tools = new QHBoxLayout;
   search = input("search");
-  search->setPlaceholderText(tx("Im Tresor suchen…", "Search this vault…"));
+  search->setPlaceholderText(tx("Im Tresor suchen …", "Search this vault …"));
+  search->addAction(glyph("edit-find"), QLineEdit::LeadingPosition);
   tools->addWidget(search, 1);
-  auto *add = button(tx("Neu", "New"), [this] { edit(); });
+  auto *add = button(tx("Neuer Eintrag", "New entry"), [this] { edit(); });
   add->setIcon(glyph("list-add"));
   add->setObjectName("new");
+  spacedButton(add);
   tools->addWidget(add);
   ml->addLayout(tools);
   connect(search, &QLineEdit::textChanged, this, [this] { filter(); });
   entries = new QListWidget;
   entries->setObjectName("entries");
   entries->setIconSize(QSize(30, 30));
-  entries->setSpacing(4);
+  entries->setSpacing(0);
+  entries->setSortingEnabled(true);
+  entries->setMouseTracking(true);
+  entries->setItemDelegate(new EntryDelegate(entries));
   ml->addWidget(entries, 1);
   connect(entries, &QListWidget::currentRowChanged, this, [this] { select(); });
   columns->addWidget(middle, 4);
   auto *detail = new QWidget;
   auto *dl = new QVBoxLayout(detail);
-  dl->setContentsMargins(28, 30, 28, 26);
-  dl->setSpacing(16);
+  dl->setContentsMargins(28, 28, 28, 32);
+  dl->setSpacing(12);
   auto *titleRow = new QHBoxLayout;
-  auto *avatar = new QLabel;
-  avatar->setPixmap(glyph("document-encrypt").pixmap(42, 42));
+  auto *avatar = symbol("dialog-password", 48);
   avatar->setAlignment(Qt::AlignCenter);
-  avatar->setFixedSize(76, 76);
+  avatar->setFixedSize(102, 102);
   avatar->setObjectName("avatar");
   titleRow->addWidget(avatar);
-  titleRow->addSpacing(8);
+  titleRow->addSpacing(12);
   auto *titleCol = new QVBoxLayout;
+  titleCol->setSpacing(4);
+  titleCol->addStretch();
   heading = new QLabel;
   heading->setObjectName("title");
   heading->setTextFormat(Qt::PlainText);
@@ -661,6 +781,7 @@ QWidget *VaultWindow::openPage() {
   subtitle->setTextFormat(Qt::PlainText);
   subtitle->setWordWrap(true);
   titleCol->addWidget(subtitle);
+  titleCol->addStretch();
   titleRow->addLayout(titleCol, 1);
   auto *fav = button("", [this] {
     auto id = selectedId();
@@ -697,15 +818,20 @@ QWidget *VaultWindow::openPage() {
   more->setAccessibleName(tx("Weitere Aktionen", "More actions"));
   titleRow->addWidget(more);
   dl->addLayout(titleRow);
-  dl->addSpacing(6);
+  dl->addSpacing(12);
   dl->addWidget(rule());
+  dl->addSpacing(8);
   auto addField = [this, dl](const QString &name, const QString &caption,
                              bool hidden) {
     auto *label = new QLabel(caption);
     label->setObjectName("muted");
     dl->addWidget(label);
-    auto *row = new QHBoxLayout;
-    row->setSpacing(6);
+    auto *frame = new QFrame;
+    frame->setObjectName("fieldRow");
+    frame->setFixedHeight(50);
+    auto *row = new QHBoxLayout(frame);
+    row->setContentsMargins(2, 1, 1, 1);
+    row->setSpacing(0);
     auto *field = input(name, hidden);
     field->setReadOnly(true);
     field->setFocusPolicy(Qt::NoFocus);
@@ -733,7 +859,8 @@ QWidget *VaultWindow::openPage() {
       show->setIcon(glyph("view-visible"));
       show->setToolTip(tx("10 Sekunden anzeigen", "Show for 10 seconds"));
       show->setAccessibleName(show->toolTip());
-      show->setFixedWidth(42);
+      show->setFixedSize(48, 46);
+      show->setProperty("fieldAction", true);
       row->addWidget(show);
     }
     auto *copy = button("", [this, name] {
@@ -756,37 +883,62 @@ QWidget *VaultWindow::openPage() {
     copy->setIcon(glyph("edit-copy"));
     copy->setToolTip(tx("Kopieren · 20 Sekunden", "Copy · 20 seconds"));
     copy->setAccessibleName(caption + " · " + tx("Kopieren", "Copy"));
-    copy->setFixedWidth(42);
+    copy->setFixedSize(48, 46);
+    copy->setProperty("fieldAction", true);
     if (hidden)
       copy->setObjectName("copy");
     row->addWidget(copy);
-    dl->addLayout(row);
+    dl->addWidget(frame);
+    dl->addSpacing(hidden ? 0 : 12);
     return field;
   };
   website = addField("website", tx("Website", "Website"), false);
   username = addField("username", tx("Benutzername", "Username"), false);
   secret = addField("secret", tx("Passwort / Token", "Password / token"), true);
-  secret->setText("••••••••••••");
-  auto *copyHint = new QLabel(tx("Nach dem Kopieren nach 20 Sekunden leeren",
+  secret->setText("••••••••••••••••••");
+  auto passwordFont = secret->font();
+  passwordFont.setLetterSpacing(QFont::AbsoluteSpacing, 1.4);
+  secret->setFont(passwordFont);
+  auto *copyHint = new QLabel(tx("Nach dem Kopieren nach 20 s leeren",
                                  "Clear clipboard 20 seconds after copying"));
-  copyHint->setObjectName("muted");
+  copyHint->setObjectName("caption");
   dl->addWidget(copyHint);
   dl->addSpacing(8);
   dl->addWidget(rule());
-  auto *access = new QLabel(tx("Zugriff durch Apps", "Access by apps"));
-  dl->addWidget(access);
-  auto *boundary =
-      new QLabel(tx("Nicht freigegeben. Deine Geheimnisse bleiben im Tresor.",
-                    "Not shared. Your secrets stay in the vault."));
-  boundary->setWordWrap(true);
+  auto *accessRow = new QHBoxLayout;
+  accessRow->setContentsMargins(0, 12, 0, 12);
+  accessRow->setSpacing(18);
+  accessRow->addWidget(symbol("package", 30), 0, Qt::AlignTop);
+  auto *accessText = new QVBoxLayout;
+  accessText->setSpacing(8);
+  accessText->addWidget(new QLabel(tx("Zugriff durch Apps", "Access by apps")));
+  auto *boundary = new QLabel(tx("Nicht freigegeben", "Not shared"));
   boundary->setObjectName("muted");
-  dl->addWidget(boundary);
+  accessText->addWidget(boundary);
+  auto *explanation = new QLabel(tx("Deine Geheimnisse bleiben im Tresor.",
+                                    "Your secrets stay in the vault."));
+  explanation->setObjectName("caption");
+  explanation->setWordWrap(true);
+  accessText->addWidget(explanation);
+  accessRow->addLayout(accessText, 1);
+  auto *permissions = button(tx("Zugriffsstatus", "Access status"), [this] {
+    QMessageBox::information(this, tx("Zugriff durch Apps", "Access by apps"),
+      tx("Apps und Lumen haben keinen Zugriff auf diesen Tresor. Eine automatische "
+         "Weitergabe von Passwörtern ist nicht aktiviert. Du kannst einzelne Werte "
+         "bewusst über die Kopieren-Schaltfläche übernehmen.",
+         "Apps and Lumen have no access to this vault. Automatic password sharing "
+         "is not enabled. You can explicitly copy individual values using the copy button."));
+  });
+  accessRow->addWidget(permissions, 0, Qt::AlignVCenter);
+  dl->addLayout(accessRow);
   dl->addStretch();
   dl->addWidget(rule());
   auto *bottom = new QHBoxLayout;
   auto *versions =
       button(tx("Versionsverlauf", "Version history"), [this] { history(); });
   versions->setObjectName("quiet");
+  versions->setIcon(glyph("clock"));
+  spacedButton(versions);
   bottom->addWidget(versions);
   bottom->addStretch();
   auto *editButton = button(tx("Bearbeiten", "Edit"), [this] {
@@ -803,9 +955,17 @@ QWidget *VaultWindow::openPage() {
     });
   });
   editButton->setIcon(glyph("document-edit"));
+  editButton->setMinimumWidth(160);
+  spacedButton(editButton);
   bottom->addWidget(editButton);
   dl->addLayout(bottom);
-  columns->addWidget(detail, 5);
+  auto *scroll = new QScrollArea;
+  scroll->setObjectName("detailScroll");
+  scroll->setFrameShape(QFrame::NoFrame);
+  scroll->setWidgetResizable(true);
+  scroll->setWidget(detail);
+  scroll->setMinimumWidth(410);
+  columns->addWidget(scroll, 5);
   main->addLayout(columns, 1);
   content->addLayout(main, 1);
   outer->addLayout(content, 1);
@@ -814,10 +974,13 @@ QWidget *VaultWindow::openPage() {
   footer->setContentsMargins(24, 14, 24, 14);
   status = new QLabel(tx("Lokaler Tresor", "Local vault"));
   status->setObjectName("muted");
+  footer->addWidget(symbol("database", 22));
+  footer->addSpacing(8);
   footer->addWidget(status, 1);
   auto *autoLock =
       new QLabel(tx("Automatisch sperren · 5 min", "Automatic lock · 5 min"));
   autoLock->setObjectName("muted");
+  footer->addWidget(symbol("clock", 22));
   footer->addWidget(autoLock);
   outer->addLayout(footer);
   return page;
@@ -1023,8 +1186,8 @@ void VaultWindow::loadPage(QString cursor) {
     }
     {
       QSignalBlocker block(navigation);
-      while (navigation->count() > 7)
-        delete navigation->takeItem(7);
+      while (navigation->count() > 5)
+        delete navigation->takeItem(5);
       QSet<QString> collections;
       for (int i = 0; i + 5 < rows.size(); i += 6)
         if (!rows[i + 3].isEmpty() && rows[i + 5] != "1")
@@ -1033,7 +1196,19 @@ void VaultWindow::loadPage(QString cursor) {
         auto *header =
             new QListWidgetItem(tx("Sammlungen", "Collections"), navigation);
         header->setFlags(Qt::NoItemFlags);
-        header->setSizeHint(QSize(170, 42));
+        header->setSizeHint(QSize(170, 60));
+        header->setText({});
+        header->setData(Qt::AccessibleTextRole, tx("Sammlungen", "Collections"));
+        auto *section = new QWidget;
+        section->setAttribute(Qt::WA_TransparentForMouseEvents);
+        auto *layout = new QVBoxLayout(section);
+        layout->setContentsMargins(14, 10, 16, 0);
+        layout->setSpacing(12);
+        layout->addWidget(rule());
+        auto *caption = new QLabel(tx("Sammlungen", "Collections"));
+        caption->setObjectName("muted");
+        layout->addWidget(caption);
+        navigation->setItemWidget(header, section);
       }
       auto sorted = collections.values();
       sorted.sort(Qt::CaseInsensitive);
@@ -1050,7 +1225,7 @@ void VaultWindow::loadPage(QString cursor) {
           found = true;
           break;
         }
-      if (!found) {
+      if (!found && category != "trash" && category != "recovery") {
         category = "all";
         navigation->setCurrentRow(0);
       }
@@ -1086,7 +1261,10 @@ void VaultWindow::filter() {
             (rows[i + 3].isEmpty() ? QString() : " · " + rows[i + 3]),
         entries);
     item->setData(Qt::UserRole, rows[i]);
-    item->setSizeHint(QSize(250, 72));
+    item->setData(Qt::UserRole + 1, rows[i + 1]);
+    item->setData(Qt::UserRole + 2, kind(rows[i + 2]) +
+        (rows[i + 3].isEmpty() ? QString() : " · " + rows[i + 3]));
+    item->setSizeHint(QSize(250, 84));
     if (rows[i] == old)
       entries->setCurrentItem(item);
   }
@@ -1118,6 +1296,14 @@ void VaultWindow::select() {
   auto i = rowIndex(id);
   heading->setText(i >= 0 ? rows.value(i + 1)
                           : tx("Noch kein Eintrag", "No entry selected"));
+  if (auto *avatar = findChild<QLabel *>("avatar")) {
+    const auto name = i >= 0 && rows.value(i + 2) == "token" ? "code-context"
+                    : i >= 0 && rows.value(i + 2) == "note" ? "document-edit"
+                    : i >= 0 && rows.value(i + 2) == "recovery" ? "view-barcode"
+                    : "dialog-password";
+    avatar->setProperty("glyph", name);
+    avatar->setPixmap(glyph(name).pixmap(48, 48));
+  }
   subtitle->setText(
       i >= 0 ? kind(rows.value(i + 2)) + (rows.value(i + 3).isEmpty()
                                               ? QString()
@@ -1132,7 +1318,7 @@ void VaultWindow::hideSecret() {
     secret->setText({});
     wipe(old);
     secret->setEchoMode(QLineEdit::Password);
-    secret->setText("••••••••••••");
+    secret->setText("••••••••••••••••••");
   }
 }
 void VaultWindow::copySecret(QString value) {
@@ -1443,17 +1629,31 @@ void VaultWindow::theme() {
   auto palette = qApp->palette();
   palette.setColor(QPalette::WindowText, QColor(fg));
   palette.setColor(QPalette::Text, QColor(fg));
+  palette.setColor(QPalette::Base, QColor(base));
+  palette.setColor(QPalette::AlternateBase, QColor(hover));
+  palette.setColor(QPalette::Highlight, QColor(accent));
+  palette.setColor(QPalette::HighlightedText, QColor(on));
+  palette.setColor(QPalette::PlaceholderText, QColor(muted));
+  palette.setColor(QPalette::Mid, QColor(border));
   qApp->setPalette(palette);
-  if (auto *avatar = findChild<QLabel *>("avatar"))
-    avatar->setPixmap(glyph("document-encrypt").pixmap(42, 42));
+  for (auto *label : findChildren<QLabel *>())
+    if (label->property("buttonIcon").isValid()) {
+      const int size = label->property("glyphSize").toInt();
+      label->setPixmap(qvariant_cast<QIcon>(label->property("buttonIcon")).pixmap(size, size));
+    } else if (label->property("glyph").isValid()) {
+      const int size = label->property("glyphSize").toInt();
+      label->setPixmap(glyph(label->property("glyph").toString()).pixmap(size, size));
+    }
   qApp->setStyleSheet(
       QString(
-          "QWidget{background:%1;color:%4;font-size:15px;} "
-          "QMainWindow,QDialog{background:%1;} "
+          "QWidget{background:transparent;color:%4;font-size:17px;} "
+          "QMainWindow{background:qlineargradient(x1:0,y1:0,x2:1,y2:1,"
+          "stop:0 %1,stop:0.55 %2,stop:1 %1);} QDialog{background:%1;} "
           "QFrame#sidebar,QFrame#middle{border:0;border-right:1px solid %5;} "
-          "QFrame#sidebar{background:%2;} QFrame#rule{background:%5;} "
+          "QFrame#sidebar{background:qlineargradient(x1:0,y1:0,x2:1,y2:1,"
+          "stop:0 %1,stop:1 %2);} QFrame#rule{background:%5;} "
           "QLabel#avatar{background:%3;border:1px solid "
-          "%5;border-radius:38px;} "
+          "%5;border-radius:51px;} "
           "QTabBar#vaultSections{background:transparent;} "
           "QTabBar#vaultSections::tab{background:%2;color:%6;border:1px solid %5;"
           "padding:10px 18px;} "
@@ -1461,19 +1661,23 @@ void VaultWindow::theme() {
           "border-bottom-left-radius:9px;} "
           "QTabBar#vaultSections::tab:last{border-top-right-radius:9px;"
           "border-bottom-right-radius:9px;border-left:0;} "
-          "QTabBar#vaultSections::tab:selected{background:%3;color:%7;"
+          "QTabBar#vaultSections::tab:selected{background:%7;color:%8;"
           "font-weight:600;} "
           "QTabBar#vaultSections::tab:hover{color:%4;} "
-          "QPushButton#quiet{border:0;padding:6px;} "
+          "QPushButton#quiet{background:transparent;border:0;padding:6px;} "
+          "QPushButton#settings{background:transparent;border:0;text-align:left;"
+          "padding:10px 16px;} "
           "QMenu{background:%2;border:1px solid %5;padding:6px;} "
           "QMenu::item{padding:10px 18px;} "
           "QMenu::item:selected{background:%3;} "
           "QFrame#card{background:%2;border:1px solid "
           "%5;border-radius:16px;} QLabel{background:transparent;} "
-          "QLabel#brand{font-size:22px;font-weight:600;} "
-          "QLabel#title{font-size:26px;font-weight:600;} "
+          "QLabel#brand{font-size:26px;font-weight:500;} "
+          "QLabel#title{font-size:28px;font-weight:600;} "
           "QLabel#muted{color:%6;} QLabel#status{color:%7;} "
-          "QPushButton{background:transparent;border:1px solid "
+          "QLabel#caption{color:%6;font-size:14px;} QLabel#tagline{color:%6;font-size:12px;} "
+          "QLineEdit#website{color:%7;} QLineEdit{lineedit-password-character:8226;} "
+          "QPushButton{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 %3,stop:1 %1);border:1px solid "
           "%5;border-radius:9px;padding:7px 14px;} "
           "QPushButton:hover{background:%3;border-color:%7;} "
           "QPushButton:focus{border:2px solid %7;} "
@@ -1483,8 +1687,15 @@ void VaultWindow::theme() {
           "solid %5;border-radius:8px;padding:6px "
           "10px;selection-background-color:%7;selection-color:%8;} "
           "QLineEdit:focus,QPlainTextEdit:focus{border:1px solid %7;} "
+          "QFrame#fieldRow{background:%2;border:1px solid %5;border-radius:8px;} "
+          "QFrame#fieldRow QLineEdit{background:transparent;border:0;} "
+          "QPushButton[fieldAction=true]{background:transparent;border:0;"
+          "border-left:1px solid %5;border-radius:6px;padding:8px;} "
+          "QPushButton[fieldAction=true]:hover{background:%3;} "
+          "QPushButton[fieldAction=true]:focus{border:1px solid %7;} "
+          "QScrollArea#detailScroll{background:transparent;border:0;} "
           "QListWidget{background:transparent;border:0;outline:0;} "
-          "QListWidget::item{padding:8px 12px;border-radius:10px;} "
+          "QListWidget::item{padding:8px 18px;border-radius:8px;} "
           "QListWidget::item:selected{background:%3;color:%4;border-left:3px "
           "solid %7;} "
           "QListWidget::item:hover{background:%2;} "

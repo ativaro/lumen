@@ -57,6 +57,68 @@ private slots:
     QVERIFY(!window.unlocked());
     QVERIFY(!window.findChild<QListWidget *>("entries"));
   }
+  void collectionsAndDetailLayout() {
+    QTemporaryDir root;
+    Channel seed(root.path());
+    bool ready = false;
+    seed.call({"create", "SYNTHETIC DESIGN MASTER"}, [&](QStringList) { ready = true; });
+    QTRY_VERIFY_WITH_TIMEOUT(ready, 10000);
+    const QList<QStringList> samples{
+      {"Mailkonto", "Privat", "login", "https://mail.example", "alex@example.test"},
+      {"Git-Server", "Arbeit", "login", "https://git.example", "alex"},
+      {"NAS", "Server", "login", "https://nas.example", "alex"},
+      {"Cloud API", "Arbeit", "token", "https://cloud.example", ""},
+      {"Sichere Notiz", "Privat", "note", "", ""}};
+    for (const auto &sample : samples) {
+      ready = false;
+      seed.call({"put", "", "Title", sample[0], "LumenCollection", sample[1],
+                 "LumenType", sample[2], "URL", sample[3], "UserName", sample[4],
+                 "Password", "SYNTHETIC ONLY"}, [&](QStringList) { ready = true; });
+      QTRY_VERIFY_WITH_TIMEOUT(ready, 10000);
+    }
+    seed.stop();
+    VaultWindow window(root.path());
+    window.show();
+    auto *master = window.findChild<QLineEdit *>("master");
+    master->setText("SYNTHETIC DESIGN MASTER");
+    QTest::keyClick(master, Qt::Key_Return);
+    QTRY_VERIFY_WITH_TIMEOUT(window.unlocked(), 10000);
+    auto *entries = window.findChild<QListWidget *>("entries");
+    auto *navigation = window.findChild<QListWidget *>("navigation");
+    QTRY_COMPARE(entries->count(), 5);
+    int privateRow = -1;
+    for (int i = 0; i < navigation->count(); ++i)
+      if (navigation->item(i)->data(Qt::UserRole).toString() == "collection:Privat")
+        privateRow = i;
+    QVERIFY(privateRow >= 0);
+    navigation->setCurrentRow(privateRow);
+    QCOMPARE(entries->count(), 2);
+    for (int i = 0; i < entries->count(); ++i)
+      if (entries->item(i)->data(Qt::UserRole + 1).toString() == "Mailkonto")
+        entries->setCurrentRow(i);
+    QTRY_COMPARE(window.findChild<QLineEdit *>("website")->text(), QString("https://mail.example"));
+    QCOMPARE(window.findChild<QLineEdit *>("secret")->echoMode(), QLineEdit::Password);
+    navigation->setCurrentRow(0);
+    QCOMPARE(entries->count(), 5);
+    for (int i = 0; i < entries->count(); ++i)
+      if (entries->item(i)->data(Qt::UserRole + 1).toString() == "Mailkonto")
+        entries->setCurrentRow(i);
+    QTRY_COMPARE(window.findChild<QLineEdit *>("website")->text(), QString("https://mail.example"));
+    if (qEnvironmentVariableIsSet("LUMEN_VAULT_CAPTURE")) {
+      for (const auto &theme : QStringList{"glass", "graphite", "atelier", "midnight"}) {
+        QSettings settings("Lumen", "Assistant");
+        settings.setValue("appearance", theme);
+        settings.sync();
+        QTest::qWait(2100);
+        window.grab().save("/tmp/lumen-vault-design-" + theme + ".png");
+      }
+      window.resize(1080, 720);
+      QTest::qWait(100);
+      window.grab().save("/tmp/lumen-vault-design-compact.png");
+    }
+    window.lock();
+    QVERIFY(!window.findChild<QListWidget *>("entries"));
+  }
   void createSaveLockReopen() {
     QTemporaryDir root;
     VaultWindow window(root.path());

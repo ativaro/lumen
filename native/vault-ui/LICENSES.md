@@ -6,7 +6,7 @@ still MIT. No license was silently replaced and no commercial rights are purchas
 
 ## Included code and notices
 
-- Lumen-authored C++ and Rust code: MIT, root `LICENSE`.
+- Lumen-authored C++, Rust code and interface SVG marks: MIT, root `LICENSE`.
 - KDBX engine: locally patched `keepass` 0.15.0, MIT, with original LICENSE and
   documented provenance in `../vault-core/vendor/keepass/LUMEN-PATCHES.md`. No KeePassXC source is copied or
   linked. KeePassXC is a separately installed reference program used by tests.

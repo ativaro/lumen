@@ -30,8 +30,14 @@ Binaries/source/notices: `$XDG_DATA_HOME/lumen/vault-lab`, default
 
 ## User interface and working flows
 
-- Four themes, German/English; navigation/collections, search and entry list,
-  field details with adjacent icons, favorite, edit and overflow actions.
+- Four themes, German/English; the approved three-column desktop layout with
+  a Lumen mark, centered section navigation, distinct title/subtitle rows,
+  collection separators and integrated reveal/copy actions. Detail fields scroll
+  at smaller window heights; labels and icons remain native, keyboard-accessible
+  controls. Recovery codes and Trash remain available in Settings.
+- Collections and entry details come from the encrypted store. App access shows
+  its actual disabled status; no nonfunctional sharing toggle or invented
+  modification date is displayed. Version history remains directly available.
 - Login, token, note, recovery codes, custom fields, trash, collections and tags.
   Expiry/permissions are notes, not verification against the provider.
 - Masked secrets, explicit 10-second reveal, 24-character OS-random generator.
