@@ -91,6 +91,12 @@ with tempfile.TemporaryDirectory() as tmp:
  try:
   composer=w.findChild(QObject,'composer')
   assert composer is not None
+  persona=w.findChild(QObject,'personaChoice'); assert persona is not None
+  c.set_persona('challenger');QTest.qWait(10)
+  assert persona.property('currentIndex')==4
+  saved=c.recovery_state();c.reset();assert c.persona==''
+  c.restore_recovery(saved);assert c.persona=='challenger'
+  c.reset()
   assert not QIcon.fromTheme('audio-input-microphone').pixmap(20,20).isNull()
   with patch.object(c.backend,'send') as send:
    composer.setProperty('text','How can I organize files?')
@@ -131,7 +137,7 @@ with tempfile.TemporaryDirectory() as tmp:
   with patch.object(c.backend,'question_reply') as reply:
    click(find('reply-form'))
    assert reply.call_args.args==('form',[['One','Two','Three'],['Here']]),reply.call_args
-  with patch('voice_session.executable',return_value='/local/test'),patch('voice_session.Path.is_file',return_value=True),patch.object(c.voice,'listen') as listen:
+  with patch('lumen_tts.available',return_value=True),patch('voice_session.executable',return_value='/local/test'),patch('voice_session.Path.is_file',return_value=True),patch.object(c.voice,'listen') as listen:
    Activation(w,c).Voice();assert c.voice.active;listen.assert_called_once()
    Activation(w,c).Voice();listen.assert_called_once()
    QTest.keyClick(w,Qt.Key_Escape);QTest.qWait(10)

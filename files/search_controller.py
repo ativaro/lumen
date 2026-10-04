@@ -56,6 +56,7 @@ class SearchController(QObject):
         self.backend.requestsChanged.connect(self.update_requests)
         self.backend.sessionsChanged.connect(self.update_sessions)
         self.backend.sessionChanged.connect(lambda _: self.sessionsChanged.emit())
+        self.backend.personaChanged.connect(self.sessionsChanged)
         self.backend.busyChanged.connect(lambda _: self.stateChanged.emit())
         self.backend.statusChanged.connect(self.set_status)
         self.backend.memoryStatus.connect(self.set_status)
@@ -84,6 +85,8 @@ class SearchController(QObject):
     permissions = Property('QVariantList', lambda self: self._permissions, notify=requestsChanged)
     questions = Property('QVariantList', lambda self: self._questions, notify=requestsChanged)
     sessions = Property('QVariantList', lambda self: self._sessions, notify=sessionsChanged)
+    persona = Property(str, lambda self: self.backend.persona_choice(), notify=sessionsChanged)
+    personaOptions = Property('QVariantList', lambda self: self.persona_options(), constant=True)
     session = Property(str, lambda self: self.backend.session, notify=sessionsChanged)
     theme = Property('QVariantMap', lambda self: self._theme, notify=themeChanged)
     mode = Property(str, lambda self: self._mode, notify=stateChanged)
@@ -97,6 +100,14 @@ class SearchController(QObject):
     @Slot(str, result=str)
     def text(self, source):
         return tr(source)
+
+    def persona_options(self):
+        from lumen_persona import PRESETS
+        return [dict(id='', title=tr('Persönlichkeit · Globale Einstellung'))] + [dict(id=key, title=tr(row[0])) for key, row in PRESETS.items()]
+
+    @Slot(str)
+    def set_persona(self, choice):
+        self.backend.set_persona(choice)
 
     @Slot()
     def reload_settings(self):
@@ -347,7 +358,7 @@ class SearchController(QObject):
 
     def recovery_state(self):
         messages = [dict(info=dict(role=m.get('info', {}).get('role')), parts=[dict(type='text', text='\n\n'.join(p.get('text', '') for p in m.get('parts', []) if p.get('type') == 'text')[:20000])]) for m in self.backend.messages[-20:]]
-        return dict(conversation=self._conversation, chat=dict(directory=self.backend.directory, session=self.backend.session, draft=self._query[:100000], messages=messages, paths=[], mode=self._mode))
+        return dict(conversation=self._conversation, chat=dict(directory=self.backend.directory, session=self.backend.session, draft=self._query[:100000], messages=messages, paths=[], mode=self._mode, persona=self.backend.persona_choice()))
 
     def restore_recovery(self, state):
         if self.backend.busy: raise ValueError(tr('Bitte den laufenden Auftrag zuerst abschließen.'))
@@ -355,6 +366,7 @@ class SearchController(QObject):
         if not isinstance(chat, dict) or not isinstance(chat.get('messages', []), list): raise ValueError(tr('Keine gültige Sitzungssicherung.'))
         self.backend.new_conversation(chat.get('directory') or self.directory)
         self.backend.session = str(chat.get('session', '')); self.backend.messages = chat.get('messages', [])
+        if not self.backend.session: self.backend.set_persona(chat.get('persona', ''))
         self._conversation = bool(state.get('conversation')); self._mode = 'plan' if chat.get('mode') == 'plan' else 'build'
         self.update_messages(self.backend.messages); self.set_query(str(chat.get('draft', ''))[:100000])
         self.set_status(tr('Wiederhergestellt · Kein Auftrag wurde erneut gestartet')); self.sessionsChanged.emit()

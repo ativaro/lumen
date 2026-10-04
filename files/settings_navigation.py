@@ -194,6 +194,7 @@ def categories(dialog):
             section(6, tr('Systemintegration'), tr('Standardprogramme, Benachrichtigungen und KDE'))]),
         dict(title=tr('KI & Sprache'), description=tr('Wie Lumen arbeitet, zuhört und spricht.'), sections=[
             section(0, tr('Modell & Arbeitsweise'), tr('KI-Modell, Sprache und Vorgaben für Gespräche')),
+            section(dialog.persona_page, description=tr('Vorlagen, Nähe, Anrede und Antwortstil')),
             section(dialog.speech_input_page, description=tr('Diktat, Erkennungssprache und Mikrofon')),
             section(dialog.speech_output_page, description=tr('Aussprache und Stimme in allen Lumen-Apps'))]),
         dict(title=tr('Dateien & Speicher'), description=tr('Deine Dateien, Vorschauen und verbundenen Orte.'), sections=[

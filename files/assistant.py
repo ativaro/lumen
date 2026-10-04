@@ -75,6 +75,15 @@ class ChatPanel(QWidget):
         self.sessions.addItem(tr('Neues Gespräch'), '')
         self.sessions.activated.connect(self.open_session)
         layout.addWidget(self.sessions)
+        from lumen_persona import PRESETS
+        self.persona = QComboBox(); self.persona.setAccessibleName(tr('Persönlichkeit für dieses Gespräch'))
+        self.persona.addItem(tr('Persönlichkeit · Globale Einstellung'), '')
+        for identity, (title, _, _) in PRESETS.items(): self.persona.addItem(tr(title), identity)
+        self.persona.setToolTip(tr('Nur dieses Gespräch. Neue Gespräche verwenden die globale Einstellung.'))
+        self.persona.activated.connect(lambda _: self.backend.set_persona(self.persona.currentData()))
+        self.backend.personaChanged.connect(self.refresh_persona)
+        self.backend.sessionChanged.connect(lambda _: self.refresh_persona())
+        self.refresh_persona(); layout.addWidget(self.persona)
         self.context = label('', 'muted')
         self.context.setWordWrap(True)
         self.context.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -207,7 +216,7 @@ class ChatPanel(QWidget):
                     for m in self.backend.messages[-20:]]
         return {'directory': self.backend.directory, 'session': self.backend.session,
                 'draft': self.composer.toPlainText()[:100000], 'messages': messages,
-                'paths': self.paths[:100], 'mode': self.mode.currentData()}
+                'persona': self.backend.persona_choice(), 'paths': self.paths[:100], 'mode': self.mode.currentData()}
 
     def restore_recovery(self, state):
         if self.backend.busy:
@@ -217,6 +226,8 @@ class ChatPanel(QWidget):
         self.paths = [p for p in state.get('paths', []) if isinstance(p, str)][:100]
         self.mode.setCurrentIndex(1 if state.get('mode') == 'plan' else 0)
         self.backend.session = str(state.get('session', ''))
+        if not self.backend.session: self.backend.set_persona(state.get('persona', ''))
+        self.refresh_persona()
         self.select_session_item(self.backend.session)
         self.backend.messages = state.get('messages', [])
         self.show_messages(self.backend.messages)
@@ -224,9 +235,13 @@ class ChatPanel(QWidget):
         self.update_context()
         self.status.setText(tr('Wiederhergestellt · Kein Auftrag wurde erneut gestartet'))
 
+    def refresh_persona(self):
+        self.persona.setCurrentIndex(max(0, self.persona.findData(self.backend.persona_choice())))
+
     def show_options(self, visible):
         if not hasattr(self, 'context_tools'): return
         self.sessions.setVisible(visible and not self.action)
+        self.persona.setVisible(visible and not self.action)
         self.mode.setVisible(visible and not self.action)
         self.context_tools.learn.setVisible(visible)
 
@@ -264,6 +279,7 @@ class ChatPanel(QWidget):
         self.new.setEnabled(not busy)
         self.mode.setEnabled(not busy)
         self.sessions.setEnabled(not busy)
+        self.persona.setEnabled(not busy)
         self.stop.setVisible(busy)
         self.progress.setVisible(bool(self.action) and busy)
         self.close_action.setEnabled(not busy)

@@ -93,6 +93,14 @@ class SettingsDialog(QDialog):
         self.app_pages = {'lumen': 0, 'files': 1}
         self.build_apps()
         self.build_speech_settings()
+        from persona_settings import PersonaEditor
+        self.persona_page = self.stack.count()
+        personality = self.page(tr('Persönlichkeit'), tr('Wie Lumen mit dir spricht und zusammenarbeitet.'))
+        self.persona_editor = PersonaEditor(self.assistant, lambda: self.open_page(self.speech_output_page), self)
+        self.persona_editor.saved.connect(lambda: (
+            self.preferencesChanged.emit(self.assistant.fileName(), ['personaProfile']),
+            self.status.setText(tr('Persönlichkeit gespeichert. Gilt ab der nächsten Nachricht.'))))
+        personality.addWidget(self.persona_editor); personality.addStretch()
         for action in self.stack.findChildren(QPushButton):
             action.setAutoDefault(False); action.setDefault(False)
         from settings_navigation import SettingsNavigation, categories
@@ -787,5 +795,7 @@ if __name__ == '__main__':
     from PySide6.QtGui import QIcon
     app = create_app()
     app.setApplicationName('lumen-settings'); app.setApplicationDisplayName(tr('Lumen Einstellungen'))
-    dialog = SettingsDialog(page=10 if '--hardware' in sys.argv else 3 if '--appearance' in sys.argv else None); dialog.setWindowIcon(QIcon.fromTheme('configure')); dialog.show()
+    dialog = SettingsDialog(page=10 if '--hardware' in sys.argv else 3 if '--appearance' in sys.argv else None); dialog.setWindowIcon(QIcon.fromTheme('configure'))
+    if '--personality' in sys.argv: dialog.open_page(dialog.persona_page)
+    dialog.show()
     sys.exit(app.exec())

@@ -30,6 +30,7 @@ class OpenCodeBackend(QObject):
     started = Signal(str, list, str)
     completed = Signal(bool, str)
     memoryStatus = Signal(str)
+    personaChanged = Signal()
 
     def __init__(self, directory, parent=None, server_url='', password='', project_config=True):
         super().__init__(parent)
@@ -46,6 +47,7 @@ class OpenCodeBackend(QObject):
         self.waiting = []
         self.generation = 0
         self.session = ''
+        self.pending_persona = ''
         self.message_id = ''
         self.idle_since = None
         self.busy = False
@@ -195,6 +197,21 @@ class OpenCodeBackend(QObject):
             self.sessionsChanged.emit([s for s in (sessions or []) if s.get('metadata', {}).get('client') == 'lumen'
                                       and s.get('directory') == self.directory])))
 
+    def persona_choice(self):
+        from lumen_persona import PRESETS
+        from lumen_store import Store
+        choice = Store().setting('persona/session/' + self.session, '') if self.session else self.pending_persona
+        return choice if isinstance(choice, str) and choice in PRESETS else ''
+
+    def set_persona(self, choice):
+        from lumen_persona import PRESETS
+        from lumen_store import Store
+        if self.busy or not isinstance(choice, str) or (choice and choice not in PRESETS): return False
+        if self.session: Store().set_setting('persona/session/' + self.session, choice)
+        else: self.pending_persona = choice
+        self.personaChanged.emit()
+        return True
+
     def new_conversation(self, directory=None):
         if self.busy:
             return False
@@ -202,6 +219,8 @@ class OpenCodeBackend(QObject):
         self.timer.stop()
         self.polling = False
         self.session = self.message_id = ''
+        self.pending_persona = ''
+        self.personaChanged.emit()
         if directory:
             directory = str(Path(directory).expanduser().absolute())
             if directory != self.directory:
@@ -223,6 +242,7 @@ class OpenCodeBackend(QObject):
             return
         self.session = session
         self.sessionChanged.emit(session)
+        self.personaChanged.emit()
         self.ensure_server(self.poll)
 
     def send(self, text, files=None, agent='build', title=None, proposal=False, memory_text=None,memory_context=False):
@@ -231,6 +251,7 @@ class OpenCodeBackend(QObject):
         if proposal:
             self.new_conversation()
         self.proposal = proposal
+        persona_choice = self.persona_choice()
         from lumen_store import Store
         store=Store();self.model_policy = store.setting('modelPolicy', {})
         from lumen_memory import stamp,options
@@ -257,8 +278,11 @@ class OpenCodeBackend(QObject):
             parts.append({'type': 'file', 'mime': mime, 'filename': Path(path).name,
                           'url': QUrl.fromLocalFile(str(Path(path).absolute())).toString()})
         body = {'messageID': self.message_id, 'agent': agent, 'parts': parts,
-                'system': tr('Du bist Lumen, der persönliche Desktop-Assistent. Antworte auf Deutsch, knapp und verständlich. Nutze die bereitgestellten Werkzeuge. Zeige keine Terminal-Banner oder internen Protokolle. Behaupte Änderungen nur, wenn die Werkzeuge sie bestätigt haben.')}
+                'system': tr('Du bist Lumen, der persönliche Desktop-Assistent. Antworte auf Deutsch und verständlich. Nutze die bereitgestellten Werkzeuge. Zeige keine Terminal-Banner oder internen Protokolle. Behaupte Änderungen nur, wenn die Werkzeuge sie bestätigt haben.')}
         self.settings.sync()
+        if not proposal:
+            from lumen_persona import effective, instruction
+            body['system'] += instruction(effective(self.settings, persona_choice))
         model = self.selected_model or self.settings.value('model', '')
         if isinstance(model, str) and '/' in model:
             provider, identifier = model.split('/', 1)
@@ -284,6 +308,8 @@ class OpenCodeBackend(QObject):
 
         def created(session):
             self.session = session['id']
+            if persona_choice: store.set_setting('persona/session/' + self.session, persona_choice)
+            self.personaChanged.emit()
             self.sessionChanged.emit(self.session)
             submit()
             self.refresh_sessions()

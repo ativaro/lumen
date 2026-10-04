@@ -526,3 +526,23 @@ grid above its task list. App launches use `lumen-panel --open-app <id>` with an
 allowlisted app ID. Tasks scroll independently, keep active/input-needed tasks first,
 and load older records in batches via `--task-limit` (20 per group initially).
 The full task view remains available from the footer.
+
+### Personality
+
+Settings → AI & Speech → Personality provides Guide (default), Professional,
+Companion, Sparring partner and Workshop partner. Expand Personalize for persona
+and user names, presentation, form of address, closeness, response length,
+directness, humor and initiative. The illustrative preview is local and makes no
+model call. Voice selection remains separate under Voice & Reading.
+
+The shared OpenCode backend reads the validated `personaProfile` preference at
+submission time. Changes apply from the next message in updated Lumen, Search and
+Files processes. Conversation options can override the style preset for one chat;
+identity remains global. Overrides are stored locally by session ID; new chats use
+the global profile. Recovery preserves a choice made before the first message.
+
+Personality does not modify tool permissions, memory consent or model selection.
+Initiative is bounded by the user's existing task authorization. Explicit task
+formats take precedence; structured file proposals and Translate bypass persona
+instructions. Names are length-limited, quoted labels, never instructions.
+Individual settings take precedence over the preset's default description.
