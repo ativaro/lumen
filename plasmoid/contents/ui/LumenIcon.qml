@@ -7,6 +7,16 @@ Image {
     property string name: ""
     property color color: Kirigami.Theme.textColor
     readonly property var paths: ({
+        "system-file-manager": "M3 7V5h6l2 2h10v13H3Z",
+        "system-search": "M21 21l-5-5 M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0",
+        "preferences-desktop-locale": "M3 6h12M9 3v3M5 6c0 7 8 10 8 10M13 6c0 7-8 10-8 10M14 21l4-10 4 10m-6-4h4",
+        "accessories-text-editor": "M5 3h15v18H5Z M8 3v18M3 7h4m-4 5h4m-4 5h4M11 8h6m-6 4h6",
+        "mail-unread": "M3 5h18v14H3Z M3 6l9 7 9-7",
+        "document-save": "M4 3h16v18H4Z M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M12 10v4m-2-2h4",
+        "application-pdf": "M5 3h9l5 5v13H5Z M14 3v5h5M8 12h8m-8 4h6",
+        "view-calendar": "M3 5h18v16H3Z M7 3v4m10-4v4M3 10h18M7 14h2m3 0h2m3 0h1M7 17h2m3 0h2",
+        "folder-development": "M3 7V5h6l2 2h10v13H3Z M9 11l-3 3 3 3m6-6 3 3-3 3",
+        "media-playback-start": "M8 4l13 8-13 8Z M3 7v10",
         "folder": "M3 7V5h6l2 2h10v13H3Z",
         "search": "M21 21l-5-5 M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0",
         "audio-input-microphone": "M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1-6 0Z M5 10v2a7 7 0 0 0 14 0v-2 M12 19v3m-4 0h8",
