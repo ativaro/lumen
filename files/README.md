@@ -599,7 +599,8 @@ und über `lumen-setup-wizard` erreichbar.
 ### Lumen Studio
 
 Die Desktop-App verwendet eine ruhige Navigation mit Gesprächen, Aufträgen und
-Arbeitsräumen. Die letzten tatsächlichen Gespräche stehen direkt darunter; Apps,
+Arbeitsräumen. Die fünf letzten tatsächlichen Gespräche stehen direkt darunter; „Mehr laden“
+blendet jeweils fünf weitere ein. Apps,
 Einstellungen und alle weiteren bisherigen Bereiche bleiben erreichbar. Die
 Seitenindizes für CLI/D-Bus bleiben unverändert. Der Chat verwendet native,
 selektierbare Nachrichtenflächen und eine kompakte Eingabe mit Kontextmenü,

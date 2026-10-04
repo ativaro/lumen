@@ -9,6 +9,7 @@ from preview import label
 class StudioNavigation(QWidget):
     def __init__(self, window):
         super().__init__(window)
+        self.session_limit = 5; self.sessions = []; self.session_directory = window.chat.backend.directory
         self.window = window; self.setObjectName('studioNavigation'); self.setFixedWidth(224)
         root = QVBoxLayout(self); root.setContentsMargins(16, 24, 16, 18); root.setSpacing(10)
         brand = QHBoxLayout(); mark = label(''); mark.setPixmap(QIcon.fromTheme('lumen').pixmap(34, 34)); brand.addWidget(mark)
@@ -22,6 +23,8 @@ class StudioNavigation(QWidget):
         self.recent.setAccessibleName(tr('Letzte Gespräche')); self.recent.setWordWrap(False)
         self.recent.itemActivated.connect(self.open_session); self.recent.itemClicked.connect(self.open_session)
         root.addWidget(self.recent, 1)
+        self.load_more = QPushButton(tr('Mehr laden')); self.load_more.setObjectName('toolButton')
+        self.load_more.clicked.connect(self.show_more); root.addWidget(self.load_more)
         self.empty = label(tr('Deine Gespräche erscheinen hier.'), 'muted'); self.empty.setWordWrap(True); root.addWidget(self.empty)
         more = self.entry(tr('Mehr'), 'view-more-symbolic', lambda: None); menu = QMenu(more)
         for index, title in [(1, tr('Systemstatus')), (3, tr('Dateien')), (5, tr('Wissen')), (6, tr('Abläufe')), (7, tr('Modelle'))]:
@@ -42,11 +45,24 @@ class StudioNavigation(QWidget):
         return control
 
     def set_sessions(self, sessions):
+        directory = self.window.chat.backend.directory
+        if directory != self.session_directory:
+            self.session_limit = 5; self.session_directory = directory
+        self.sessions = sorted(sessions, key=lambda s: s.get('time', {}).get('updated', 0), reverse=True)
+        self.render_sessions()
+
+    def show_more(self):
+        position = self.recent.verticalScrollBar().value()
+        self.session_limit += 5; self.render_sessions()
+        self.recent.verticalScrollBar().setValue(position)
+
+    def render_sessions(self):
         self.recent.clear()
-        for session in sorted(sessions, key=lambda s: s.get('time', {}).get('updated', 0), reverse=True)[:20]:
+        for session in self.sessions[:self.session_limit]:
             title = session.get('title') or tr('Gespräch')
             item = QListWidgetItem(QIcon.fromTheme('dialog-messages'), title)
             item.setData(Qt.UserRole, session['id']); item.setToolTip(title); item.setSizeHint(QSize(180, 44)); self.recent.addItem(item)
+        self.load_more.setVisible(len(self.sessions) > self.session_limit)
         self.empty.setVisible(not self.recent.count()); self.select_session(self.window.chat.backend.session)
 
     def select_session(self, session):

@@ -7,7 +7,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QSettings, Qt, QCoreApplication, QEvent
 from PySide6.QtGui import QImage, QColor
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QPushButton
@@ -33,7 +33,9 @@ class StudioTest(unittest.TestCase):
 
     def tearDown(self):
         self.window.chat.backend.busy = False
-        self.window.close(); self.window.deleteLater(); self.app.processEvents()
+        self.window.close(); self.window.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+        self.app.processEvents()
 
     def wait(self, condition):
         until = time.monotonic() + 8
