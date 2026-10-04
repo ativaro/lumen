@@ -5,6 +5,12 @@ Existing tool names and the `cachyos` OpenCode configuration key remain compatib
 
 ## Contract
 
+- Studio: `lumen_present_files(paths, title)` returns a bounded presentation manifest
+  for the calling conversation. Validates up to 100 existing regular local/mounted
+  files in the MCP worker; no writes, downloads or global-window activation. The UI
+  reads only successful matching tool results, never user text or path heuristics.
+  Empty paths clears results; repeated calls refresh edited files. Works with actions
+  disabled. Chat history stores the result, providing session isolation and reopening.
 - Files: list libraries/sources and search names in a selected configured source,
   preserving source labels. Network connections use KDE authentication and KIO-FUSE.
   Search is bounded and runs outside the server process. File writes continue through

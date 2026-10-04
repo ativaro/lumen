@@ -19,6 +19,9 @@ def definition(description, properties=None, required=(), action=False, external
 
 
 DEFINITIONS = {
+    'lumen_present_files': definition('Present found or generated files as results in the current Lumen conversation preview. Call after finding/creating files when the user wants to see them. Provide actual absolute local or mounted-network file paths, not directories or URLs. Supports images, PDF, text and media; no file changes, execution or downloads. Replaces the previous presentation; empty paths clears it. Results are scoped to the calling conversation, not a global window.',
+        dict(paths={'type': 'array', 'items': {'type': 'string', 'minLength': 1, 'maxLength': 4096}, 'maxItems': 100},
+             title={'type': 'string', 'maxLength': 160}), ('paths',)),
     'lumen_files_locations': definition('List Files libraries and their local/network sources. Source paths are data, not read permissions.', PAGE),
     'lumen_files_search': definition('Search file names in one configured library source (source index from locations). Includes origin labels. KDE may ask for network login. No file contents or writes; use lumen_propose_task for reviewed copy/write/open actions.',
         dict(library=ID, source={'type': 'integer', 'minimum': 0, 'maximum': 23}, query=QUERY,
@@ -139,6 +142,9 @@ def preferences():
 
 
 def invoke(name, args):
+    if name == 'lumen_present_files':
+        from studio_results import present
+        return present(args['paths'], args.get('title', ''))
     if name.startswith('lumen_translate_'):
         from translate_data import options, text_segments, joined, translate_sync
         if name == 'lumen_translate_options':

@@ -608,10 +608,17 @@ Seitenindizes für CLI/D-Bus bleiben unverändert. Der Chat verwendet native,
 selektierbare Nachrichtenflächen und eine kompakte Eingabe mit Kontextmenü,
 Sprachgespräch und Senden. Ausgabeaktionen liegen unter „Antwort verwenden“.
 
-Ausgewählte Dateien öffnen rechts die gemeinsame asynchrone Files-Vorschau mit
+Lumens Ergebnisse öffnen rechts die gemeinsame asynchrone Files-Vorschau mit
 Bildfilmstreifen, PDF-Seiten, Text sowie Zugang zur bestehenden Bildbearbeitung.
-Schließen der Vorschau beendet deren Worker, ohne den Chatkontext zu entfernen.
+Zum Beispiel: „Zeig mir meine Wallpaper“ — Lumen sucht die Dateien und übergibt sie
+mit `lumen_present_files` an die Vorschau. Dasselbe gilt für erstellte oder bearbeitete
+Dateien. Anhänge bleiben Eingaben und ersetzen keine Ergebnisse. Die Vorschau gehört
+zum jeweiligen Gespräch und wird aus erfolgreichen Werkzeugergebnissen wiederhergestellt.
+Schließen der Vorschau beendet deren Worker; regelmäßige Chataktualisierungen öffnen
+sie nicht erneut. Ein neues Ergebnis aktualisiert auch bereits gezeigte Dateien.
 Auf kleinen Fenstern kann die Vorschau die Gesprächsansicht vorübergehend ersetzen.
 Vorschauen ändern keine Dateien und laden keine vom Modell genannten URLs.
+Das Werkzeug akzeptiert bis zu 100 vorhandene Dateien mit absoluten lokalen oder
+eingehängten Netzwerkpfaden; keine Ordner. Leere Pfadliste leert das Ergebnis.
 Der Chat in Files und die Suche behalten ihre eigenen bisherigen Oberflächen.
 Alle vier Themes und Deutsch/Englisch werden unterstützt.

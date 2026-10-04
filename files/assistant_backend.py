@@ -64,6 +64,7 @@ class OpenCodeBackend(QObject):
         self.engine_policy = ''
         self.background_task = False
         self.read_only = False
+        self.presentation_enabled = False
         self.selected_model = ''
         self.memory = None
         self.memory_payload = {}
@@ -287,6 +288,9 @@ class OpenCodeBackend(QObject):
         if not proposal:
             from lumen_persona import effective, instruction
             body['system'] += instruction(effective(self.settings, persona_choice))
+            if self.presentation_enabled and not self.read_only:
+                from studio_results import INSTRUCTION
+                body['system'] += INSTRUCTION
         model = self.selected_model or self.settings.value('model', '')
         if isinstance(model, str) and '/' in model:
             provider, identifier = model.split('/', 1)

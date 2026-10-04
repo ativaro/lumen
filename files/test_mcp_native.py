@@ -224,9 +224,11 @@ class NativeMCPTest(unittest.TestCase):
         memory=Memory(self.store);memory.configure(True,False);memory.share(note['path'],True)
         task=self.store.create_task('Fixture task',directory=str(self.root))
         requests.extend([
+            dict(jsonrpc='2.0',id=9,method='tools/call',params={'name':'lumen_present_files','arguments':{'paths':[str(self.root/'result.txt')], 'title':'Result'}}),
             dict(jsonrpc='2.0',id=7,method='tools/call',params={'name':'lumen_notes_read','arguments':{'path':note['path']}}),
             dict(jsonrpc='2.0',id=8,method='tools/call',params={'name':'lumen_task_get','arguments':{'id':task}})])
         payload='[]\ninvalid json\n' +'\n'.join(json.dumps(r) for r in requests)+'\n'
+        (self.root/'result.txt').write_text('Synthetic preview result')
         env=dict(os.environ,LUMEN_MCP_ACTIONS='0')
         completed=subprocess.run([sys.executable,str(Path(mcp.__file__))],input=payload,text=True,capture_output=True,env=env,timeout=30)
         self.assertEqual(completed.returncode,0,completed.stderr)
@@ -235,6 +237,9 @@ class NativeMCPTest(unittest.TestCase):
         self.assertEqual(keyed[1]['result']['protocolVersion'],'2025-06-18')
         tools={t['name']:t for t in keyed[2]['result']['tools']}
         self.assertIn('lumen_notes_read',tools);self.assertNotIn('lumen_theme_set',tools)
+        self.assertTrue(tools['lumen_present_files']['annotations']['readOnlyHint'])
+        self.assertEqual(keyed[9]['result']['structuredContent']['paths'], [str(self.root/'result.txt')])
+        self.assertEqual(json.loads(keyed[9]['result']['content'][0]['text']), keyed[9]['result']['structuredContent'])
         self.assertTrue(tools['lumen_notes_read']['annotations']['readOnlyHint'])
         self.assertIn('preferences',keyed[3]['result']['structuredContent'])
         self.assertIn('error',keyed[4]);self.assertIn('error',keyed[5]);self.assertEqual(keyed[6]['result'],{})

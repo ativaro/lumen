@@ -1,5 +1,6 @@
 """Native Studio navigation, actual file previews and shared chat protections."""
 import importlib.util
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -42,6 +43,16 @@ class StudioTest(unittest.TestCase):
         while not condition() and time.monotonic() < until: QTest.qWait(20)
         self.assertTrue(condition())
 
+    def present(self, paths, title='Results'):
+        from lumen_mcp_tools import invoke
+        result = invoke('lumen_present_files', dict(paths=paths, title=title))
+        messages = [{'info': {'role': 'assistant'}, 'parts': [{'type': 'tool',
+            'tool': 'cachyos_lumen_present_files', 'state': {'status': 'completed',
+            'output': json.dumps(result)}}]}]
+        self.window.chat.backend.messages = messages
+        self.window.chat.backend.messagesChanged.emit(messages)
+        return messages
+
     def test_session_history_title_and_busy_navigation_use_backend(self):
         chat = self.window.chat
         sessions = [{'id':'one','title':'Research','time':{'updated':1}}, {'id':'two','title':'Photos','time':{'updated':2}}]
@@ -63,7 +74,7 @@ class StudioTest(unittest.TestCase):
             path = Path(self.tmp)/f'image{i}.png'
             image = QImage(160, 120, QImage.Format_RGB32); image.fill(QColor('blue')); image.save(str(path)); paths.append(str(path))
         chat = self.window.chat; surface = self.window.studio
-        chat.paths = paths; chat.update_context()
+        self.present(paths)
         self.wait(lambda: surface.preview.proc is None and not surface.preview.pixmap.isNull())
         self.assertTrue(surface.pane.isVisible()); self.assertEqual(str(surface.preview.path), paths[0])
         surface.preview.filmstrip.chosen.emit(1)
@@ -75,23 +86,23 @@ class StudioTest(unittest.TestCase):
         self.assertFalse(surface.pane.isVisible()); self.assertTrue(chat.isVisible())
         chat.preview_button.click(); self.assertTrue(surface.pane.isVisible()); self.assertFalse(chat.isVisible())
         surface.close_preview.click(); self.assertTrue(chat.isVisible())
-        self.assertEqual(chat.paths, paths)
+        self.assertEqual(chat.paths, [])
 
-    def test_text_and_pdf_preview_and_context_replacement(self):
+    def test_text_and_pdf_preview_and_result_replacement(self):
         import pymupdf
         pdf = Path(self.tmp)/'sample.pdf'; doc = pymupdf.open()
         for _ in range(2): doc.new_page().insert_text((30, 30), 'Preview sample')
         doc.save(pdf); doc.close()
         chat = self.window.chat; preview = self.window.studio.preview
-        chat.paths = [str(pdf)]; chat.update_context()
+        self.present([str(pdf)])
         self.wait(lambda: preview.proc is None and preview.pages == 2)
         preview.next.click(); self.wait(lambda: preview.proc is None)
         self.assertEqual(preview.page, 2)
         text = Path(self.tmp)/'note.txt'; text.write_text('An actual local note')
-        chat.paths = [str(text)]; chat.update_context()
+        self.present([str(text)])
         self.wait(lambda: preview.proc is None and 'actual local note' in preview.text.toPlainText())
         self.assertEqual(preview.path, text)
-        chat.context_tools.clear(); self.assertFalse(self.window.studio.pane.isVisible())
+        self.present([]); self.assertFalse(self.window.studio.pane.isVisible())
         self.assertIsNone(preview.path)
 
     def test_context_menu_permission_and_transcript_safety_are_preserved(self):
@@ -110,6 +121,29 @@ class StudioTest(unittest.TestCase):
         chat.output_menu.aboutToShow.emit()
         self.assertTrue(chat.output_menu.actions()[0].isEnabled())
         self.assertEqual(chat.backend.auto_approve, False)
+
+    def test_results_are_independent_of_attachments_and_reset_with_session(self):
+        file = Path(self.tmp)/'result.txt'; file.write_text('Lumen result')
+        attachment = Path(self.tmp)/'input.txt'; attachment.write_text('User input')
+        chat, surface = self.window.chat, self.window.studio
+        chat.paths = [str(attachment)]; chat.update_context()
+        self.assertEqual(surface.paths, []); self.assertFalse(surface.pane.isVisible())
+        messages = self.present([str(file)], 'Created document')
+        self.wait(lambda: 'Lumen result' in surface.preview.text.toPlainText())
+        self.assertEqual(surface.heading.text(), 'Created document')
+        chat.context_tools.clear(); self.assertEqual(surface.paths, [str(file)])
+        surface.close_pane(); chat.backend.messagesChanged.emit(messages)
+        self.assertFalse(surface.pane.isVisible())
+        file.write_text('Updated result'); self.present([str(file)])
+        self.wait(lambda: 'Updated result' in surface.preview.text.toPlainText())
+        state = self.window.recovery_state()
+        chat.backend.new_conversation()
+        self.assertEqual(surface.paths, []); self.assertFalse(surface.pane.isVisible())
+        with patch.object(chat.backend, 'send') as send:
+            self.window.restore_recovery(state); send.assert_not_called()
+        self.assertEqual(surface.paths, [str(file)])
+        chat.backend.new_conversation(); chat.backend.messagesChanged.emit(messages)
+        self.assertEqual(surface.paths, [str(file)])
 
     def test_recovery_keeps_draft_and_persona_without_replaying(self):
         chat = self.window.chat; chat.composer.setPlainText('Unsaved draft')

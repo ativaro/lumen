@@ -1,4 +1,4 @@
-"""Explicit file context alongside the conversation, using the Files workers."""
+"""Lumen's explicit results alongside the conversation, using Files workers."""
 from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QComboBox, QSplitter
@@ -56,7 +56,8 @@ class StudioSurface(QWidget):
         self.pane = QWidget(); self.pane.setObjectName('studioPreviewPane')
         layout = QVBoxLayout(self.pane); layout.setContentsMargins(0, 0, 0, 0); layout.setSpacing(8)
         top = QHBoxLayout(); top.setContentsMargins(20, 22, 16, 0)
-        top.addWidget(label(tr('Vorschau'), 'heading'), 1)
+        self.heading = label(tr('Vorschau'), 'heading'); self.heading.setWordWrap(True)
+        top.addWidget(self.heading, 1)
         self.close_preview = icon_button(tr('Vorschau schließen'), 'window-close', self.close_pane); top.addWidget(self.close_preview)
         layout.addLayout(top)
         self.choice = QComboBox(); self.choice.setAccessibleName(tr('Datei in der Vorschau'))
@@ -66,19 +67,28 @@ class StudioSurface(QWidget):
         self.split.addWidget(self.pane); self.split.setSizes([560, 540]); self.pane.hide()
         self.preview.filmstrip.chosen.connect(lambda i: self.choice.setCurrentIndex(
             self.choice.findData(self.preview.filmstrip.paths[i])))
-        chat.contextChanged.connect(self.set_paths); chat.previewRequested.connect(self.toggle_preview)
+        chat.resultChanged.connect(self.set_result); chat.previewRequested.connect(self.toggle_preview)
+        self.set_result(chat.presentation)
 
-    def set_paths(self, paths):
-        paths = list(dict.fromkeys(paths))
-        if self.paths == paths: return
+    def set_result(self, result):
+        paths = result['paths'] if result else []
+        self.heading.setText(result['title'] if result and result['title'] else tr('Vorschau'))
         self.paths = paths; self.choice.clear()
         for path in paths: self.choice.addItem(Path(path).name or '/', path)
         images = [p for p in paths if file_kind(p) == 'image']
+        self.preview.filmstrip.stop()
+        self.preview.filmstrip.loader.cache.clear()
+        self.preview.filmstrip.select([], -1)
         self.preview.filmstrip.select(images, 0 if images else -1)
         self.preview_wanted = bool(paths); self.narrow_preview = False
         self.preview.path = None
         self.update_visibility()
-        if not paths: self.preview.clear(); self.preview.shutdown()
+        if not paths:
+            self.preview.clear(); self.preview.shutdown()
+            self.preview.title.setText(tr('Ergebnisse von Lumen'))
+            self.preview.detail.setText(tr('Hier zeigt Lumen gefundene und erstellte Dateien.'))
+            self.preview.show_message(tr('Bitte Lumen, dir etwas zu zeigen.'))
+        self.choice.setVisible(bool(paths))
 
     def choose(self, index):
         path = self.choice.itemData(index)

@@ -24,12 +24,15 @@ def icon_button(title, icon, callback):
 
 
 class StudioChat(ChatPanel):
-    contextChanged = Signal(list)
+    resultChanged = Signal(object)
     previewRequested = Signal()
 
     def __init__(self, directory, **kwargs):
         super().__init__(directory, **kwargs)
         self.studio_ready = False
+        self.presentation = None
+        self.backend.presentation_enabled = True
+        self.backend.messagesChanged.connect(self.update_results)
         self.parking = QWidget(self); self.parking.hide()
         root = self.layout(); clear_layout(root, self.parking)
         root.setContentsMargins(28, 24, 28, 20); root.setSpacing(14)
@@ -95,6 +98,26 @@ class StudioChat(ChatPanel):
         self.mic.setChecked(voice.active); self.mic.setToolTip(voice.status)
         self.interrupt_voice.setVisible(voice.active and voice.state in ('thinking', 'preparing', 'speaking'))
 
+    def update_results(self, messages):
+        from studio_results import from_messages
+        result = from_messages(messages)
+        if result == self.presentation: return
+        self.presentation = result
+        self.resultChanged.emit(result)
+
+    def recovery_state(self):
+        state = super().recovery_state()
+        state['presentation'] = self.presentation
+        return state
+
+    def restore_recovery(self, state):
+        super().restore_recovery(state)
+        from studio_results import validate
+        try: result = validate(state.get('presentation'))
+        except ValueError: result = None
+        self.presentation = result
+        self.resultChanged.emit(result)
+
     def update_title(self):
         if self.action: return
         index = self.sessions.findData(self.backend.session) if self.backend.session else -1
@@ -112,7 +135,6 @@ class StudioChat(ChatPanel):
         self.context_chip.setText(tr('{0} · {1} Dateien', directory, len(self.paths)) if len(self.paths) > 1 else
             Path(self.paths[0]).name if self.paths else directory)
         self.context_chip.setToolTip(self.context.toolTip())
-        self.contextChanged.emit(list(self.paths))
 
     def set_action(self, action):
         super().set_action(action)
