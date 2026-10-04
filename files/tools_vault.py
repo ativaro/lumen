@@ -12,6 +12,10 @@ import vault_data as vault
 class Vault(ToolWindow):
     def __init__(self,root=None):
         super().__init__('vault',tr('Lumen Vault'),tr('Deine Dateien und Einstellungen. Verschlüsselt gesichert, gezielt zurückholen.'),'document-encrypt',root)
+        # The unfinished secret store is explicitly a synthetic-only preview.
+        preview = button(tr('Tresor · Vorschau'), self.open_preview, 'document-encrypt')
+        preview.setObjectName('vaultSecretsPreview')
+        self.centralWidget().layout().itemAt(0).layout().insertWidget(1, preview)
         self.add_button.setText(tr('Sicherung einrichten')); self.search.setPlaceholderText(tr('Sicherungspläne …'))
         self.summary=label(tr('Wähle einen Sicherungsplan oder richte deine erste Sicherung ein.'),'heading'); self.content.addWidget(self.summary)
         self.details=label(''); self.content.addWidget(self.details)
@@ -33,6 +37,12 @@ class Vault(ToolWindow):
             button(tr('Projektquellen prüfen'),lambda:self.safe(self.check_sources),'document-preview')))
         self.content.addWidget(label(tr('Wiederherstellungen landen in einem neuen Ordner. Das Sicherungspasswort zusätzlich außerhalb dieses Rechners aufbewahren.'),'muted'))
         self.body.setEnabled(False);self.refresh()
+
+    def open_preview(self):
+        from PySide6.QtCore import QProcess
+        from lumen_launch import executable
+        started, _ = QProcess.startDetached(executable('lumen-vault'), ['--preview'])
+        if not started: self.error(tr('Die Tresor-Vorschau konnte nicht geöffnet werden.'))
 
     def create(self,prefill_sources=None,on_done=None,source_ref=None,handoff=None):
         if self.job:return False

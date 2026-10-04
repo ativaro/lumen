@@ -700,3 +700,23 @@ opens Lumen with the current timestamped measurements and at most twelve process
 rows; this context follows the configured model/provider. It cannot diagnose a
 cause from correlation alone. The read-only `lumen_system_snapshot` MCP tool gives
 Lumen the same measurement basis without opening the UI.
+
+
+### Vault: Vorschau der Passwortverwaltung
+
+In Lumen Vault öffnet **Tresor · Vorschau** den freigegebenen Entwurf mit
+Sammlungen, Einträgen und Detailansicht. Alternativ: `lumen-vault --preview`.
+Die eigene Qt-Quick-Oberfläche folgt dem gemeinsamen Theme und der Sprache.
+Favoriten, Suche, Papierkorb, Wiederherstellen und Anzeigen eines Beispielwerts
+lassen sich ausprobieren; Sperren setzt alles zurück.
+
+**Noch kein Passwortmanager:** ausschließlich feste Beispieldaten, keine
+Eingabe/Import eigener Zugangsdaten, keine Speicherung und kein Kopieren von
+Secrets. Die Speicher-Engine ist noch nicht qualifiziert und eine unabhängige
+Sicherheitsprüfung steht aus. Der bestehende Restic-Sicherungsbereich bleibt
+unverändert nutzbar. Details, Prüfergebnisse und verbleibende Freigabestufen:
+[`SPEC-vault-secrets.md`](../SPEC-vault-secrets.md).
+
+`lumen_vault_secrets_status` gibt über MCP nur den Entwicklungsstand zurück,
+keine Eintragsdaten oder Geheimnisse. `lumen_vault_status` bleibt der Status
+bestehender Sicherungspläne.
