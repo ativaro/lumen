@@ -466,3 +466,36 @@ optional upstream downloads at pinned revisions: [CLIP image encoder](https://hu
 and [multilingual text encoder](https://huggingface.co/sentence-transformers/clip-ViT-B-32-multilingual-v1).
 Their model cards/licenses are downloaded alongside the safe-tensor weights.
 No PostgreSQL, server, Node/Electron runtime or private Pictus/Numen data is needed.
+
+
+## Lumen Translate
+
+`lumen-translate` opens the native text workbench. **Translate**, **Rewrite** and
+**Correct spelling** share a two-pane original/result view. Rewrite stays in the
+source language; correction preserves the author's tone and wording. Choose neutral,
+professional, casual, friendly or concise style when translating/rewriting. Paste
+explicitly, or use `lumen-translate --clipboard`; opening content never starts AI.
+Drafts/results are kept in the local app library and can be archived. Defaults live
+under Settings → Lumen Translate; both German and English UI use the shared themes.
+
+The shared “Send to Lumen” menu accepts selected text from Wissen, Reader, Inbox and
+other apps. Files can send a PDF. Results can return to notes, mail drafts and projects.
+Translate records participate in local object search and Vault app backups.
+
+PDF is an additional tab, for documents with a text layer (optional PyMuPDF dependency
+in the setup wizard). Original/result page previews and new-file export preserve the
+original. Page boxes, images, vector lines and links are retained; fonts may be
+substituted or reduced to fit. Always review the output. Scans, annotations, forms,
+signatures and rotated text are refused; embedded image text requires separate OCR.
+Limits: 12,000 characters per text, 50 MiB / 100 pages / 100,000 characters per PDF.
+
+MCP exposes `lumen_translate_options`, `lumen_translate_text` (modes: translate,
+rewrite, correct), and `lumen_translate_pdf`. The PDF tool requires the existing
+`LUMEN_MCP_ACTIONS=1` gate and a new absolute output path. Model calls use the current
+Lumen provider with tools and memory disabled; no new Translate library entry is
+created by MCP. Calls can take up to 150 seconds for text or 240 seconds for PDF;
+clients should allow a 300,000 ms MCP timeout. Existing client timeouts are preserved.
+
+Sibling app launches resolve against the running installation, rather than an old
+Plasma PATH entry. After a package update, close and reopen older windows to load the
+new code; updating does not replace an already running Python process.

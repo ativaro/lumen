@@ -13,7 +13,7 @@ import time
 import uuid
 from lumen_i18n import tr
 
-APPS = ('wissen', 'reader', 'workbench', 'household', 'meetings', 'radio', 'inbox', 'sound')
+APPS = ('wissen', 'reader', 'workbench', 'household', 'meetings', 'radio', 'inbox', 'sound', 'translate')
 
 
 def server_name(library_root):

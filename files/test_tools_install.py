@@ -31,7 +31,7 @@ class ToolsInstallTest(unittest.TestCase):
                 name='lumen-'+tool; binary=binaries/name
                 desktop=data/'applications'/f'{name}.desktop'
                 entry=Gio.DesktopAppInfo.new_from_filename(str(desktop))
-                self.assertIsNotNone(entry); self.assertEqual(GLib.shell_parse_argv(entry.get_commandline())[1], [str(binary)]+(['%f'] if tool=='reader' else []))
+                self.assertIsNotNone(entry); self.assertEqual(GLib.shell_parse_argv(entry.get_commandline())[1], [str(binary)]+(['%f'] if tool in ('reader','translate') else []))
                 subprocess.run(['desktop-file-validate',str(desktop)],check=True)
                 subprocess.run(['/bin/sh','-n',str(binary)],check=True)
                 self.assertIn(f'exec /usr/bin/{name}',binary.read_text())

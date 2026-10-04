@@ -326,7 +326,8 @@ class SearchController(QObject):
 
     @Slot()
     def open_setup(self):
-        try: subprocess.Popen(['lumen-settings'], start_new_session=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        from lumen_launch import executable
+        try: subprocess.Popen([executable('lumen-settings')], start_new_session=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except OSError as error: self.show_error(str(error))
 
     @Slot(bool)

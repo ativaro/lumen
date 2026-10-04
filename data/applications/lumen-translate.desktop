@@ -1,0 +1,19 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen Translate
+Comment=Translate, rewrite and correct texts; translate PDFs with layout
+Comment[de]=Texte übersetzen, umformulieren und korrigieren; PDFs mit Layout übersetzen
+Exec=%INSTALL_BIN%/lumen-translate %f
+Icon=lumen-translate
+Terminal=false
+Categories=Office;Utility;
+MimeType=application/pdf;
+Keywords=translate;translation;proofread;rewrite;Übersetzen;Rechtschreibung;
+StartupWMClass=lumen-translate
+Actions=clipboard;
+
+[Desktop Action clipboard]
+Name=Edit clipboard text
+Name[de]=Text aus Zwischenablage bearbeiten
+Exec=%INSTALL_BIN%/lumen-translate --clipboard
+Icon=edit-paste

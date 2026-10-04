@@ -485,7 +485,7 @@ def tool_native(name, args):
     process = subprocess.Popen([sys.executable, str(worker)], stdin=subprocess.PIPE,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
     try:
-        output, stderr = process.communicate(json.dumps(dict(name=name, arguments=args)), timeout=45)
+        output, stderr = process.communicate(json.dumps(dict(name=name, arguments=args)), timeout=270 if name == 'lumen_translate_pdf' else 165 if name == 'lumen_translate_text' else 45)
     except subprocess.TimeoutExpired:
         os.killpg(process.pid, signal.SIGKILL)
         process.communicate()

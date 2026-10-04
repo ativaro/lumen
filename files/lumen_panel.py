@@ -102,7 +102,8 @@ def main():
         return
     if args.open_task or args.open_page or args.search or args.voice or args.settings:
         name = 'lumen-search' if args.search or args.voice else 'lumen-settings' if args.settings else 'lumen-agent-app'
-        binary = Path(os.environ.get('LUMEN_BIN_DIR', '/usr/bin')) / name
+        from lumen_launch import executable
+        binary = executable(name)
         arguments = ['--voice'] if args.voice else [] if args.search or args.settings else ['--task', args.open_task] if args.open_task else ['--page', args.open_page]
         subprocess.Popen([str(binary), *arguments], start_new_session=True,
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

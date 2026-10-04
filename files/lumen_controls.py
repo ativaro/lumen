@@ -62,8 +62,9 @@ def control(action, value=None):
     elif action == 'mute': run(['wpctl', 'set-mute', '@DEFAULT_AUDIO_SINK@', 'toggle'])
     elif action in ACTIONS:
         arguments = list(ACTIONS[action])
-        if arguments[0].startswith('lumen-') and os.environ.get('LUMEN_BIN_DIR'):
-            arguments[0] = os.path.join(os.environ['LUMEN_BIN_DIR'], arguments[0])
+        if arguments[0].startswith('lumen-'):
+            from lumen_launch import executable
+            arguments[0] = executable(arguments[0])
         subprocess.Popen(arguments, start_new_session=True, stdin=subprocess.DEVNULL,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     else: raise ValueError(tr('Unbekannte Systemaktion.'))

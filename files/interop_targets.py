@@ -17,6 +17,7 @@ from tools_data import Library, document_text, media_duration, web_url
 
 
 ACTIONS = {
+    'translate.import': dict(target='translate', label=tr('In Lumen Translate bearbeiten …'), modes=['copy'], description=tr('Text oder PDF lokal vorbereiten. Übersetzen, Umformulieren oder Korrigieren erst in Translate starten.')),
     'wissen.import': dict(target='wissen', label=tr('Als Notiz speichern …'), modes=['copy', 'link'], description=tr('In Lumen Wissen speichern. Die Originaldatei bleibt unverändert.')),
     'workbench.add': dict(target='workbench', label=tr('Zu einem Projekt hinzufügen …'), modes=['copy', 'link','live'], description=tr('Material und Notizen einem neuen oder vorhandenen Projekt zuordnen.')),
     'workbench.question': dict(target='workbench', label=tr('Als offene Projektfrage übernehmen'), modes=['copy'], description=tr('Ausgewählten Text als offene Frage mit Herkunft speichern.')),
@@ -38,6 +39,7 @@ AUDIO_SUFFIXES = {'.wav', '.mp3', '.m4a', '.ogg', '.flac', '.opus', '.mp4', '.mk
 def available(payload):
     paths = payload.get('paths', []); text = bool(payload.get('text', '').strip())
     result = ['wissen.import', 'workbench.add', 'household.add', 'inbox.draft', 'inbox.task', 'inbox.event']
+    if (text and len(payload.get('text','')) <= 12000) or (not text and len(paths)==1 and Path(paths[0]).suffix.lower()=='.pdf'): result.append('translate.import')
     if text: result += ['workbench.question', 'meetings.agenda']
     if text or (paths and all(Path(p).suffix.lower() in TEXT_SUFFIXES for p in paths)): result.append('radio.add')
     if text or (len(paths) == 1 and Path(paths[0]).suffix.lower() in READER_SUFFIXES): result.append('reader.import')
@@ -52,7 +54,7 @@ def choices(action, root=None, store=None):
         from wissen_data import Notebook
         book = Notebook(store or Store())
         return [dict(id='.', title=tr('Notizordner'))] + [dict(id=p, title=p) for p in book.scan()['folders']]
-    if action in ('reader.import', 'meetings.import', 'inbox.task'): return []
+    if action in ('reader.import', 'meetings.import', 'inbox.task', 'translate.import'): return []
     records = Library(target, root).all()
     if target == 'inbox':
         kinds = ('imap', 'bridge') if action == 'inbox.draft' else ('caldav',)
@@ -238,6 +240,15 @@ def apply(action, payload, choice, job, root=None, store=None):
 
 def _prepare(library, action, payload, choice, job, created):
     mode = choice.get('mode', 'copy'); paths = list(dict.fromkeys(payload.get('paths', [])))
+    if action == 'translate.import':
+        from translate_data import text_segments
+        values = dict(source=payload.get('text', ''), result='')
+        if values['source'].strip(): text_segments(values['source'])
+        elif len(paths) == 1:
+            from translate_pdf import worker, MAX_FILE
+            imported = _copy(library, paths[0], job, created, limit=MAX_FILE)
+            values.update(document_name=imported['name'], document_asset=imported['asset'], manifest=worker(job, 'inspect', path=str(library.asset(imported['asset']))))
+        return values, ()
     if action.startswith('workbench.'):
         if action == 'workbench.question':
             return dict(questions=[dict(text=_body(payload), done=False)], notes='', resources=[]), ('questions', 'notes', 'resources')

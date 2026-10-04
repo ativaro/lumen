@@ -14,15 +14,17 @@ from app import create_app
 
 def main():
     parser=argparse.ArgumentParser(description=tr('Eigenständige Desktop-Werkzeuge'))
-    parser.add_argument('tool',choices=['meetings','household','workbench','radio','vault','inbox','reader','sound','wissen'])
+    parser.add_argument('tool',choices=['meetings','household','workbench','radio','vault','inbox','reader','sound','wissen','translate'])
     parser.add_argument('path',nargs='?')
+    parser.add_argument('--clipboard', action='store_true')
     parser.add_argument('--area', choices=['user', 'lumen'])
     destination=parser.add_mutually_exclusive_group()
     destination.add_argument('--handoff')
     destination.add_argument('--ref')
     args=parser.parse_args()
-    if args.path and args.tool not in ('reader','wissen'):parser.error(tr('Dateien können nur an Reader oder Wissen übergeben werden.'))
+    if args.path and args.tool not in ('reader','wissen','translate'):parser.error(tr('Dateien können nur an Reader, Wissen oder Translate übergeben werden.'))
     if args.area and args.tool != 'wissen': parser.error(tr('Der Bereich ist nur für Lumen Wissen verfügbar.'))
+    if args.clipboard and args.tool != 'translate': parser.error(tr('Die Zwischenablage ist hier nur für Translate verfügbar.'))
     requested=str(Path(args.path).expanduser().absolute()) if args.path else ''
     activation={key:value for key,value in [('path',requested),('handoff',args.handoff),('ref',args.ref),('area',args.area)] if value}
     from interop_ui import controller
@@ -35,14 +37,20 @@ def main():
     from tools_inbox import Inbox
     from tools_reader import Reader
     from tools_sound import Sound
+    if args.clipboard:
+        from PySide6.QtWidgets import QApplication
+        activation['text'] = QApplication.clipboard().text()
+        from translate_data import text_segments
+        text_segments(activation['text'])
+    from tools_translate import Translate
     from tools_wissen import Wissen
-    window={'meetings':Meetings,'household':Household,'workbench':Workbench,'radio':Radio,'vault':Vault,'inbox':Inbox,'reader':Reader,'sound':Sound,'wissen':Wissen}[args.tool]()
+    window={'meetings':Meetings,'household':Household,'workbench':Workbench,'radio':Radio,'vault':Vault,'inbox':Inbox,'reader':Reader,'sound':Sound,'wissen':Wissen,'translate':Translate}[args.tool]()
     app.setApplicationDisplayName(window.windowTitle())
     from interop_flush import server_name as native_server_name, serve_flush
     server_name=native_server_name(window.library.root)
     client=QLocalSocket(); client.connectToServer(server_name)
     if client.waitForConnected(400):
-        client.write(json.dumps(activation).encode()+b'\n'); client.waitForBytesWritten(1000); client.disconnectFromServer(); return 0
+        client.write(json.dumps(activation,ensure_ascii=False).encode()+b'\n'); client.waitForBytesWritten(1000); client.disconnectFromServer(); return 0
     lock=QLockFile(str(window.library.root/'window.lock'))
     if not lock.tryLock(0):
         from PySide6.QtWidgets import QMessageBox

@@ -14,7 +14,7 @@ MAX_OBJECTS = 5000
 MAX_TEXT = 120000
 MAX_BYTES = 64*1024*1024
 MAX_RECORD = 2*1024*1024
-APPS = ('reader', 'workbench', 'household', 'meetings', 'radio', 'inbox', 'vault', 'sound')
+APPS = ('translate', 'reader', 'workbench', 'household', 'meetings', 'radio', 'inbox', 'vault', 'sound')
 URL = re.compile(r'lumen://object/[a-f0-9]{32}(?:\?[^\s\)\]>\"\']+)?')
 
 
@@ -38,6 +38,7 @@ def _file_uri(value):
 
 def _record_text(app, record):
     fields = {
+        'translate': ('source', 'result', 'document_name'),
         'reader': ('author', 'subject', 'notes'),
         'workbench': ('notes', 'questions', 'question_draft', 'resources'),
         'household': ('notes', 'manufacturer', 'model', 'serial', 'seller', 'attachments'),

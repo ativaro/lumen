@@ -441,5 +441,15 @@ def capture(window):
     return _bounded(_CAPTURES[name](window, record))
 
 
-_CAPTURES = dict(reader=_reader, inbox=_inbox, meetings=_meetings, household=_household,
+def _translate(window, record):
+    editor = window.input if _focused(window, window.input) else window.output
+    text = _selected(editor) or _text(editor) or record.get('source', '')
+    paths = []
+    if window.tabs.currentIndex() == 1:
+        asset = record.get('pdf_result') or record.get('document_asset')
+        if asset: paths = [str(window.library.asset(asset))]
+    return _payload(_ref('translate', record['id'], record['title']), text=text, paths=paths)
+
+
+_CAPTURES = dict(translate=_translate, reader=_reader, inbox=_inbox, meetings=_meetings, household=_household,
                  workbench=_workbench, radio=_radio, vault=_vault, sound=_sound)

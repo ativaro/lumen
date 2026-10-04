@@ -14,6 +14,7 @@ import tempfile
 import urllib.request
 
 FEATURES = {
+    'translate_pdf': (tr('Translate: PDF-Layoutübersetzung'), ('pymupdf',), ('python-pymupdf',)),
     'sound': (tr('Sound: Lautstärke und App-Ausgänge'), ('pactl',), ('libpulse',)),
     'reader': (tr('Reader: PDF- und EPUB-Lesen'), ('pymupdf',), ('python-pymupdf',)),
     'keyring': (tr('System-Schlüsselbund für Vault und Inbox'), ('secret-tool',), ('libsecret',)),

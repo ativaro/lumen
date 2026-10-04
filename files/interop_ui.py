@@ -161,8 +161,9 @@ class Controller(QObject):
             window._interop_focus=new
 
     def enqueue(self,request):
-        if not isinstance(request,dict) or set(request)-{'path','ref','handoff'}:raise ValueError(tr('Ungültige Übergabe.'))
-        if any(not isinstance(v,str) or len(v)>4096 for v in request.values()):raise ValueError(tr('Ungültige Übergabe.'))
+        if not isinstance(request,dict) or set(request)-{'path','ref','handoff','text'}:raise ValueError(tr('Ungültige Übergabe.'))
+        if 'text' in request and getattr(self.window,'name','') != 'translate': raise ValueError(tr('Ungültige Übergabe.'))
+        if any(not isinstance(v,str) or len(v)>(12000 if k=='text' else 4096) for k,v in request.items()):raise ValueError(tr('Ungültige Übergabe.'))
         if len(self.queue)>=30:raise ValueError(tr('Zu viele wartende Übergaben.'))
         if request not in self.queue:self.queue.append(request)
         self.timer.start()
@@ -190,8 +191,10 @@ class Controller(QObject):
         w=self.window;registry=Registry(root_for(w))
         if request.get('ref'):
             focus(w,registry.resolve(request['ref']));return
+        if request.get('text'):
+            w.open_text(request['text']);return
         if request.get('path'):
-            if w.name in ('reader','wissen'):w.open_file(request['path'])
+            if w.name in ('reader','wissen','translate'):w.open_file(request['path'])
             return
         if not request.get('handoff'):return
         token=request['handoff'];value=registry.request(token)
@@ -369,7 +372,7 @@ def app_name(app):
     return {'files':'Lumen Files','wissen':'Lumen Wissen','reader':'Lumen Reader','inbox':'Lumen Inbox',
             'meetings':tr('Lumen Meeting-Werkstatt'),'household':tr('Lumen Digitaler Haushalt'),
             'workbench':tr('Lumen Projekt-Werkbank'),'radio':tr('Lumen Persönliches Radio'),
-            'vault':'Lumen Vault','sound':'Lumen Sound'}.get(app,'Lumen')
+            'vault':'Lumen Vault','sound':'Lumen Sound','translate':'Lumen Translate'}.get(app,'Lumen')
 
 
 def file_status(window,paths):

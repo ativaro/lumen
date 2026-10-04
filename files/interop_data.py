@@ -9,7 +9,7 @@ from urllib.parse import parse_qs, urlencode, urlsplit
 from lumen_i18n import tr
 from tools_data import Library
 
-APPS = frozenset(('files','wissen','reader','inbox','meetings','household','workbench','radio','vault','sound'))
+APPS = frozenset(('files','wissen','reader','inbox','meetings','household','workbench','radio','vault','sound','translate'))
 KINDS = frozenset(('record','note','message','task','event','file','draft','collection'))
 TOKEN = re.compile(r'[a-f0-9]{32}\Z')
 

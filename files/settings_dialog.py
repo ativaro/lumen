@@ -119,6 +119,7 @@ class SettingsDialog(QDialog):
     def build_apps(self):
         from lumen_apps import catalogue, COMPANIONS, launch
         explanations = {
+            'translate': tr('Texte übersetzen, den Schreibstil ändern oder nur Fehler korrigieren. PDFs werden als neue Datei exportiert. Das konfigurierte Lumen-Modell wird erst nach deinem Start verwendet.'),
             'search': tr('Suche und Gespräch nutzen das gemeinsame Modell, die Sprache und das Erscheinungsbild von Lumen. Diktieren wird im Einrichtungsassistenten eingerichtet.'),
             'wissen': tr('Notizbuch, Sammlungen und Freigaben verwaltest du in „Meine Notizen“. Im Lumen-Gedächtnis steuerst du Erinnerungen und automatisches Lernen.'),
             'inbox': tr('Mail- und Kalenderkonten werden in der Inbox verwaltet. Die KI-Lesefreigabe für lokale Nachrichten findest du unter MCP.'),
@@ -140,6 +141,18 @@ class SettingsDialog(QDialog):
             panel = self.page(title, description)
             panel.addWidget(text(explanations[key]))
             panel.addWidget(button(tr('App öffnen'), lambda _=False, app=key: open_app(app)))
+            if key == 'translate':
+                from translate_data import LANGUAGES, STYLES, MODES
+                form = QFormLayout(); panel.addLayout(form); defaults = {}
+                for pref, caption, choices, default in [('translateTarget', tr('Zielsprache'), LANGUAGES, 'de'), ('translateStyle', tr('Schreibstil'), STYLES, 'neutral'), ('translateMode', tr('Startmodus'), MODES, 'translate')]:
+                    control = combo([(tr(title), value) for value, title in choices.items()], self.field(self.assistant, pref, default))
+                    form.addRow(caption, control); defaults[pref] = control
+                def save_translate():
+                    try:
+                        self.save(self.assistant, {pref: control.currentData() for pref, control in defaults.items()})
+                        self.status.setText(tr('Translate-Vorgaben gespeichert. Gilt für neue Texte nach dem nächsten Start.'))
+                    except (OSError, ValueError) as error: self.status.setText(str(error))
+                panel.addWidget(button(tr('Translate-Vorgaben übernehmen'), save_translate))
             if key == 'wissen':
                 panel.addWidget(button(tr('Lumen-Gedächtnis öffnen'), lambda: open_app('wissen', 'lumen')))
             if key in COMPANIONS:

@@ -17,7 +17,7 @@ def add_actions(window, menu, payload=None):
     except ValueError: return
     source = payload.get('source', {})
     options = actions(payload)
-    primary = {'wissen.import', 'workbench.add', 'vault.sources'}
+    primary = {'translate.import', 'wissen.import', 'workbench.add', 'vault.sources'}
     extra = None
     for action, title in options:
         if action not in primary and extra is None: extra = menu.addMenu(tr('Weitere Aktionen'))
@@ -64,6 +64,7 @@ def install(window):
         timer.timeout.connect(lambda:safe_action(window,populate));timer.start();populate()
         menu.exec(widget.mapToGlobal(point));timer.stop();menu.deleteLater()
     widgets = [window.entries]
+    if window.name == 'translate': widgets += [window.input, window.output]
     if window.name == 'reader': widgets += [getattr(window,name) for name in ('canvas','text','notes','note') if hasattr(window,name)]
     if window.name == 'wissen' and hasattr(window,'editor'): widgets += [window.editor]
     for widget in widgets:

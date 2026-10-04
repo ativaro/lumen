@@ -13,6 +13,7 @@ def catalogue():
         ('lumen', 'Lumen', tr('Gespräche, Aufträge und dein System'), 'lumen'),
         ('files', 'Lumen Files', tr('Dateien, Netzwerkorte und Vorschauen'), 'system-file-manager'),
         ('search', tr('Lumen Suche'), tr('Apps und Dateien finden, mit Lumen sprechen'), 'system-search'),
+        ('translate', 'Lumen Translate', tr('Übersetzen, umformulieren und korrigieren'), 'preferences-desktop-locale'),
         ('wissen', tr('Lumen Wissen'), tr('Deine Notizen und Lumens Gedächtnis'), 'accessories-text-editor'),
         ('inbox', 'Lumen Inbox', tr('Nachrichten und Kalender an einem Ort'), 'mail-unread'),
         ('vault', 'Lumen Vault', tr('Sicherungen planen und wiederherstellen'), 'document-save'),
@@ -25,7 +26,7 @@ def catalogue():
     ]
 
 
-COMPANIONS = ('wissen', 'inbox', 'vault', 'reader', 'sound', 'meetings', 'household', 'workbench', 'radio')
+COMPANIONS = ('translate', 'wissen', 'inbox', 'vault', 'reader', 'sound', 'meetings', 'household', 'workbench', 'radio')
 
 
 def startup_preference(app, key, settings=None):
@@ -46,10 +47,8 @@ def launch(app, *, area=None):
         executable = sys.executable
     else:
         name = {'lumen': 'lumen-agent-app', 'apps': 'lumen-agent-app', 'files': 'lumen-files', 'search': 'lumen-search'}[app]
-        executable = str(folder.parent / 'bin' / name)
-        if not Path(executable).is_file():
-            import shutil
-            executable = shutil.which(name) or executable
+        from lumen_launch import executable as resolve_executable
+        executable = resolve_executable(name)
         args = ['--page', 'apps'] if app == 'apps' else []
     started, _ = QProcess.startDetached(executable, args)
     if not started: raise OSError(tr('Die App konnte nicht gestartet werden. Bitte die Lumen-Installation prüfen.'))

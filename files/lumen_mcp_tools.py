@@ -49,6 +49,23 @@ DEFINITIONS = {
 }
 
 
+from translate_data import LANGUAGES, STYLES, MODES, MAX_TEXT
+TRANSLATE_OPTIONS = dict(
+    source={'type':'string','enum':['auto',*LANGUAGES]},
+    target={'type':'string','enum':list(LANGUAGES)},
+    style={'type':'string','enum':list(STYLES)},
+    mode={'type':'string','enum':list(MODES)})
+DEFINITIONS.update({
+    'lumen_translate_options': definition('List supported text modes, languages, styles and limits. No model call.'),
+    'lumen_translate_text': definition('Translate, rewrite or correct explicitly supplied text using the configured Lumen model. Correction preserves the author tone; rewrite stays in the source language. Sends text to the configured provider, with tools and memory disabled. No local draft or file is written.',
+        dict(text={'type':'string','minLength':1,'maxLength':MAX_TEXT}, **TRANSLATE_OPTIONS), ('text',), external=True),
+    'lumen_translate_pdf': definition('Process the text layer of an explicitly selected PDF and save a NEW PDF. Never overwrites files. Sends extracted text to the configured model. Preserves page geometry, images and vector lines; font substitution/shrinking may occur. No OCR, forms, annotations or rotated text. Requires MCP actions enabled. Review the exported layout.',
+        dict(path=TEXT, output=TEXT, **TRANSLATE_OPTIONS), ('path','output'), action=True, external=True),
+})
+for _tool in ('lumen_translate_text','lumen_translate_pdf'):
+    DEFINITIONS[_tool]['annotations']['idempotentHint'] = False
+
+
 def page(items, args):
     offset, limit = args.get('offset', 0), args.get('limit', 30)
     selected = items[offset:offset+limit]
@@ -120,6 +137,25 @@ def preferences():
 
 
 def invoke(name, args):
+    if name.startswith('lumen_translate_'):
+        from translate_data import options, text_segments, joined, translate_sync
+        if name == 'lumen_translate_options':
+            return dict(languages=LANGUAGES, styles=STYLES, modes=MODES, max_text=MAX_TEXT,
+                        pdf=dict(max_bytes=50*1024**2, max_pages=100, max_characters=100000, ocr=False))
+        settings = options(**{k:args[k] for k in TRANSLATE_OPTIONS if k in args})
+        if name == 'lumen_translate_text':
+            segments = text_segments(args['text'])
+            return dict(text=joined(segments,translate_sync(segments,settings)), options=settings)
+        if name == 'lumen_translate_pdf':
+            from translate_pdf import inspect, write
+            if not os.path.isabs(args['path']) or not os.path.isabs(args['output']):
+                raise ValueError('PDF paths must be absolute.')
+            target=Path(args['output'])
+            if target.exists() or target.is_symlink() or target.suffix.lower() != '.pdf':
+                raise ValueError('Choose a new PDF output filename.')
+            manifest=inspect(args['path'])
+            result=translate_sync(manifest['segments'],settings,timeout=240)
+            return write(manifest,result,args['output'])
     from lumen_store import Store, VISIBLE_TASKS
     store = Store()
     if name == 'lumen_files_locations':
