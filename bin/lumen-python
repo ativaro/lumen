@@ -14,5 +14,5 @@ elif /usr/bin/python3 -c 'import PySide6.QtQuick, PySide6.QtWidgets, PySide6.QtS
 elif [ -x "$runtime/bin/python" ]; then
     exec "$runtime/bin/python" "$@"
 fi
-printf '%s\n' 'Lumen requires PySide6/Qt 6. Install python-pyside6 or run: lumen-python --install-runtime' >&2
+printf '%s\n' 'Lumen requires PySide6/Qt 6. Install pyside6 or run: lumen-python --install-runtime' >&2
 exit 1

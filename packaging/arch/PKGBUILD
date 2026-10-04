@@ -10,7 +10,7 @@ provides=('opencode-lumen')
 arch=('any')
 url="https://github.com/ativaro/lumen"
 license=('MIT' 'GPL-3.0-only')
-depends=('bash' 'python3' 'python-pyside6' 'python-gobject' 'python-pillow')
+depends=('bash' 'python3' 'pyside6' 'python-gobject' 'python-pillow')
 makedepends=()
 # OpenCode may be installed through its own installer. Native files/tasks remain
 # useful without inference; the app explains a missing engine when AI is requested.

@@ -11,7 +11,7 @@ Python remains the backend. OpenCode remains a separate engine process.
 
 ## Runtime
 
-On Arch/CachyOS, the installer uses `python-pyside6`. Alternatively install the
+On Arch/CachyOS, the installer uses `pyside6`. Alternatively install the
 shared user runtime without replacing system Python:
 
 ```bash

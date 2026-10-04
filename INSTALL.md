@@ -66,7 +66,7 @@ The Arch package workflow below is an alternative for a system-wide installation
 ## Install the package
 
 ```bash
-sudo pacman -S --needed base-devel git python-pyside6 python-gobject python-pillow \
+sudo pacman -S --needed base-devel git pyside6 python-gobject python-pillow \
   python-dbus qt6-tools plasma-workspace plasma-desktop kde-cli-tools \
   breeze-icons kio-extras kio-fuse poppler ffmpeg libnotify \
   wireplumber libpulse networkmanager systemsettings
@@ -165,7 +165,7 @@ configuration as a test fixture. See [PUBLISHING.md](PUBLISHING.md).
 ## Qt 6 runtime
 
 All desktop applications now require PySide6/Qt 6 (Widgets, QtQuick, QtSvg and
-QtDBus). The Arch bootstrap installs `python-pyside6`. For an existing user
+QtDBus). The Arch bootstrap installs `pyside6`. For an existing user
 installation without that system package, `bin/lumen-python --install-runtime`
 installs the shared user runtime; every Lumen starter then uses it. Settings and
 libraries keep their existing paths. The search pilot has become the normal

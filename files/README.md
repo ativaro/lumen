@@ -335,7 +335,7 @@ Gemessener Suchkern: 30.000 kleine Dateien in 100 Ordnern, 100 Treffer, erster T
 
 ## Voraussetzungen
 
-Python 3, PySide6/Qt 6 einschließlich QtDBus, QtSvg und QtQuick (`python-pyside6`), PyGObject/GIO, Pillow, GNU `du`/`find`, Poppler (`pdfinfo`, `pdftoppm`, `pdftotext`), FFmpeg (`ffprobe`, `ffmpeg`), KIO-FUSE und KIO-Extras. Sämtliche Komponenten waren auf diesem Rechner vorhanden. Dateioperationen nutzen die dokumentierte [GIO-Semantik](https://docs.gtk.org/gio/method.File.move.html); Bildvorschauen die [Qt-Bilddekodierung](https://doc.qt.io/qt-6/qimagereader.html), mit Prüfung gegen Qt 6.
+Python 3, PySide6/Qt 6 einschließlich QtDBus, QtSvg und QtQuick (`pyside6`), PyGObject/GIO, Pillow, GNU `du`/`find`, Poppler (`pdfinfo`, `pdftoppm`, `pdftotext`), FFmpeg (`ffprobe`, `ffmpeg`), KIO-FUSE und KIO-Extras. Sämtliche Komponenten waren auf diesem Rechner vorhanden. Dateioperationen nutzen die dokumentierte [GIO-Semantik](https://docs.gtk.org/gio/method.File.move.html); Bildvorschauen die [Qt-Bilddekodierung](https://doc.qt.io/qt-6/qimagereader.html), mit Prüfung gegen Qt 6.
 
 ## Entfernen
 

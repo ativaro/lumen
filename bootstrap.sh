@@ -47,7 +47,7 @@ bootstrap() {
         source="$stage/lumen-main"
     fi
 
-    local packages=(python python-pyside6 python-gobject python-pillow python-dbus
+    local packages=(python pyside6 python-gobject python-pillow python-dbus
         qt6-tools kde-cli-tools breeze-icons polkit)
     if ! pacman -T "${packages[@]}" >/dev/null; then
         message 'Die grafische Basis wird installiert. Dafür ist gegebenenfalls dein Systempasswort nötig.' 'Installing the graphical runtime. Your system password may be required.'
