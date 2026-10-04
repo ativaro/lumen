@@ -383,3 +383,9 @@ Existing user windows were left open; reopening them loads the new UI.
 - [x] Wissen: profile over global memories, correction and solution filters, same editor/history/forget actions, DE/EN native views.
 - [x] Verify storage, backend, native UI, language, persona and MCP regressions; multilingual live-provider checks passed.
 - [ ] Finish user/system package rollout and private GitHub update.
+
+
+- [x] Recommended five-step setup with expandable customization; existing values preserved.
+- [x] Explicit personality/memory choices, safe install/retry/skip flow and DE/EN copy.
+- [x] 56 setup, privacy, persona, settings, speech-output and localization tests;
+  native standard pages inspected at 780×690 and 600×540 in both languages.

@@ -33,8 +33,10 @@ class Memory:
         self.store.set_setting('memory/revision',self.store.setting('memory/revision',0)+1)
         if invalidate:self.store.set_setting('memory/privacy_revision',self.store.setting('memory/privacy_revision',0)+1)
 
-    def configure(self,enabled,learn):
+    def configure(self,enabled,learn,expected=None):
         with self.book.lock('memory-state.lock'):
+            if expected is not None and options(self.store)!=expected:
+                raise ValueError(tr('Das Gedächtnis wurde in einem anderen Fenster geändert. Bitte den Assistenten erneut öffnen.'))
             self.store.set_setting('memory/options',dict(enabled=bool(enabled),learn=bool(learn)));self.changed(True)
         return options(self.store)
 

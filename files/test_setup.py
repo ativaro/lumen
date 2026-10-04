@@ -93,8 +93,8 @@ class SetupTest(unittest.TestCase):
 class SetupDialogTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from PySide6.QtWidgets import QApplication
-        cls.app = QApplication.instance() or QApplication([])
+        from app import create_app
+        cls.app = create_app()
 
     def test_wizard_preserves_config_and_only_saves_auth_after_click(self):
         from PySide6.QtCore import QSettings
@@ -150,6 +150,105 @@ class SetupDialogTest(unittest.TestCase):
                 dialog.back.click(); dialog.apply_desktop.click()
                 start.assert_called_once_with('desktop')
                 self.assertEqual(settings.value('appearance'), 'midnight')
+            dialog.reject(); dialog.deleteLater()
+
+    def test_recommended_install_customization_failure_retry_and_skip(self):
+        from PySide6.QtCore import QSettings, QProcess
+        from PySide6.QtTest import QTest
+        from setup_dialog import SetupDialog, RECOMMENDED
+        import sys
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp + '/data'}), \
+                patch('setup_dialog.executable', return_value=''):
+            dialog = SetupDialog(settings=QSettings(tmp + '/prefs.ini', QSettings.IniFormat))
+            self.assertTrue(dialog.dependency_details.body.isHidden())
+            self.assertEqual([key for key, item in dialog.features.items() if item.isChecked()],
+                             [key for key in dialog.features if key in RECOMMENDED])
+            dialog.features['network'].setChecked(False)
+            dialog.features['ocr'].setChecked(True)
+            attempts = []; codes = iter([1, 0])
+            class Worker(QProcess):
+                def start(self, program, arguments):
+                    attempts.append(arguments)
+                    super().start(sys.executable, ['-c', 'import sys; sys.exit(' + str(next(codes)) + ')'])
+            with patch('setup_dialog.worker_process', side_effect=lambda parent: Worker(parent)):
+                for expected_page in (0, 1):
+                    dialog.next.click()
+                    self.assertFalse(dialog.next.isEnabled()); self.assertFalse(dialog.skip.isEnabled())
+                    dialog.reject()  # A running installation must not close the wizard.
+                    self.assertIsNotNone(dialog.job)
+                    until = time.monotonic() + 5
+                    while dialog.job and time.monotonic() < until: QTest.qWait(10)
+                    self.assertIsNone(dialog.job)
+                    self.assertEqual(dialog.stack.currentIndex(), expected_page)
+                    self.assertTrue(dialog.next.isEnabled())
+            self.assertEqual(attempts[0][1:], ['packages', 'engine', 'documents', 'media', 'ocr'])
+            self.assertEqual(attempts[0], attempts[1])
+            dialog.back.click()
+            with patch.object(dialog, 'start_job') as start:
+                dialog.skip.click(); start.assert_not_called()
+                self.assertEqual(dialog.stack.currentIndex(), 1)
+            dialog.reject(); dialog.deleteLater()
+
+    def test_cancelled_install_never_advances(self):
+        from PySide6.QtCore import QSettings, QProcess
+        from PySide6.QtTest import QTest
+        from setup_dialog import SetupDialog
+        import sys
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp + '/data'}), \
+                patch('setup_dialog.executable', return_value=''):
+            dialog = SetupDialog(settings=QSettings(tmp + '/prefs.ini', QSettings.IniFormat))
+            class Worker(QProcess):
+                def start(self, program, arguments):
+                    super().start(sys.executable, ['-c', 'import time; time.sleep(10)'])
+            with patch('setup_dialog.worker_process', side_effect=lambda parent: Worker(parent)):
+                dialog.next.click(); self.assertTrue(dialog.job.waitForStarted(1000))
+                dialog.cancellable = True; dialog.cancel_job()
+                until = time.monotonic() + 5
+                while dialog.job and time.monotonic() < until: QTest.qWait(10)
+                self.assertIsNone(dialog.job)
+                self.assertEqual(dialog.stack.currentIndex(), 0)
+                self.assertFalse(dialog.advance_after_job)
+            dialog.reject(); dialog.deleteLater()
+
+    def test_fresh_defaults_are_preserved_and_personalization_is_committed_only_on_finish(self):
+        from PySide6.QtCore import QSettings
+        from setup_dialog import SetupDialog
+        from lumen_store import Store
+        from lumen_memory import options
+        from lumen_persona import load
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp + '/data'}):
+            settings = QSettings(tmp + '/prefs.ini', QSettings.IniFormat)
+            dialog = SetupDialog(settings=settings, page=4)
+            self.assertEqual(options(Store()), {'enabled': False, 'learn': False})
+            dialog.personal.memory.setCurrentIndex(2)
+            dialog.personal.persona.preset.setCurrentIndex(1)
+            dialog.personal.persona.choose_preset(1)
+            dialog.reject()
+            self.assertFalse(options(Store())['enabled']); self.assertEqual(load(settings)['preset'], 'guide')
+            dialog.deleteLater()
+            dialog = SetupDialog(settings=settings, page=4)
+            dialog.personal.memory.setCurrentIndex(2)
+            dialog.personal.persona.preset.setCurrentIndex(1)
+            dialog.personal.persona.choose_preset(1)
+            dialog.next.click()
+            self.assertEqual(options(Store()), {'enabled': True, 'learn': True})
+            self.assertEqual(load(settings)['preset'], 'professional')
+            dialog.deleteLater()
+
+    def test_concurrent_privacy_change_is_preserved(self):
+        from PySide6.QtCore import QSettings
+        from setup_dialog import SetupDialog
+        from lumen_store import Store
+        from lumen_memory import Memory, options
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp + '/data'}):
+            settings = QSettings(tmp + '/prefs.ini', QSettings.IniFormat)
+            dialog = SetupDialog(settings=settings, page=4)
+            dialog.personal.memory.setCurrentIndex(2)
+            Memory(Store()).configure(True, False)
+            dialog.next.click()
+            self.assertFalse(settings.value('setupCompleted', False, type=bool))
+            self.assertEqual(options(Store()), {'enabled': True, 'learn': False})
+            self.assertIn('anderen Fenster', dialog.status.text())
             dialog.reject(); dialog.deleteLater()
 
     def test_microphone_test_uses_shared_process_flow_without_sending(self):

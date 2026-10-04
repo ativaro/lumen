@@ -579,3 +579,18 @@ For recall beyond the initial bounded context, the read-only MCP capabilities
 and choose relevant entries semantically, even when the user's language differs
 from the stored memory. Both recheck memory enablement, project scope and forgetting;
 private notebook notes are not part of this catalogue. No extra permissions enabled.
+
+
+### Empfohlene Einrichtung
+
+Der Einrichtungsassistent bietet fünf kurze Schritte mit einem Standardweg.
+Assistenz, Vorschauen und Netzwerkfunktionen sind vorausgewählt; bestehende
+Komponenten werden wiederverwendet. „Einrichten und weiter“ installiert die
+Auswahl und geht nur bei Erfolg weiter. „Ohne Ergänzungen weiter“ überspringt sie.
+Unter „Anpassen“ bleiben zusätzliche Komponenten, Modellwahl, Sprachmodelle und
+Designs erreichbar. Große Downloads und Desktop-Aktivierung bleiben ausdrücklich
+wählbar. Die letzte Seite zeigt Persönlichkeit und Gedächtnis; Änderungen daran
+werden erst beim Beenden gespeichert. Bestehende Entscheidungen bleiben erhalten,
+bei frischen Profilen ist Lernen aus. Abweichende Änderungen in anderen Fenstern
+werden nicht überschrieben. Der Assistent bleibt unter Einstellungen → Einrichtung
+und über `lumen-setup-wizard` erreichbar.

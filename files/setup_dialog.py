@@ -13,8 +13,11 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFil
     QScrollArea, QStackedWidget, QVBoxLayout, QWidget)
 
 from assistant_backend import OpenCodeBackend
-from lumen_setup import FEATURES, executable, missing_packages
+from lumen_setup import FEATURES, executable
 from settings_dialog import button, text
+from settings_navigation import Details
+
+RECOMMENDED = ('engine', 'documents', 'media', 'network')
 
 
 class DictationTest(QWidget):
@@ -49,21 +52,28 @@ class SetupDialog(QDialog):
         self.engine.settings = self.settings
         self.engine.failed.connect(self.engine_failed)
         self.job = None; self.checking = False; self.buffer = b''; self.last_message = ''
-        self.result_model = ''; self.cancellable = False; self.providers = []
+        self.result_model = ''; self.cancellable = False; self.providers = []; self.advance_after_job = False
         self.setWindowTitle(tr('Lumen einrichten')); self.setWindowIcon(QIcon.fromTheme('lumen'))
         self.resize(780, 690); self.setMinimumSize(600, 540)
         root = QVBoxLayout(self); root.setContentsMargins(28, 24, 28, 22); root.setSpacing(16)
-        self.step = text(''); self.step.setObjectName('eyebrow'); root.addWidget(self.step)
-        self.heading = text(''); self.heading.setObjectName('heading'); root.addWidget(self.heading)
+        header = QHBoxLayout(); header.setSpacing(20)
+        self.mark = text(''); self.mark.setFixedSize(64, 64); header.addWidget(self.mark)
+        copy = QVBoxLayout(); copy.setSpacing(6)
+        self.step = text(''); self.step.setObjectName('eyebrow'); copy.addWidget(self.step)
+        self.heading = text(''); self.heading.setObjectName('heading'); copy.addWidget(self.heading)
+        header.addLayout(copy, 1); root.addLayout(header)
+        self.setObjectName('setupWizard')
+        self.setStyleSheet('QDialog#setupWizard QLabel#heading { font-size: 24px; font-weight: 600; }')
         self.stack = QStackedWidget(); root.addWidget(self.stack, 1)
         self.titles = (tr('Willkommen bei Lumen'), tr('Deine KI-Anbindung'), tr('Mit deiner Stimme'), tr('Dein Desktop'), tr('Deine Einrichtung im Überblick'))
         self.build_dependencies(); self.build_engine(); self.build_speech(); self.build_desktop(); self.build_summary()
         self.progress = QProgressBar(); self.progress.hide(); self.progress.setAccessibleName(tr('Einrichtungsfortschritt'))
         root.addWidget(self.progress)
-        self.status = text(tr('Du entscheidest, welche Erweiterungen du nutzen möchtest.')); root.addWidget(self.status)
+        self.status = text(tr('Empfohlen starten. Jederzeit anpassen.')); root.addWidget(self.status)
         footer = QHBoxLayout()
         self.later = button(tr('Später'), self.reject); footer.addWidget(self.later)
         self.cancel = button(tr('Vorgang abbrechen'), self.cancel_job); self.cancel.hide(); footer.addWidget(self.cancel)
+        self.skip = button(tr('Ohne Ergänzungen weiter'), self.advance_page); footer.addWidget(self.skip)
         footer.addStretch()
         self.back = button(tr('Zurück'), lambda: self.change_page(-1)); footer.addWidget(self.back)
         self.next = button(tr('Weiter'), lambda: self.change_page(1)); self.next.setObjectName('primary'); footer.addWidget(self.next)
@@ -78,6 +88,12 @@ class SetupDialog(QDialog):
 
     def build_dependencies(self):
         page = self.page()
+        page.addWidget(text(tr('Dateien finden. Fragen stellen. Dinge erledigen.')))
+        page.addWidget(text(tr('Wir richten die Grundlagen für dich ein. Vorhandene Einstellungen bleiben erhalten.')))
+        self.recommendation = text(''); page.addWidget(self.recommendation)
+        page.addWidget(text(tr('Empfohlen: Assistenz, Datei- und Medienvorschauen sowie Netzwerkordner.')))
+        details = Details(tr('Einrichtung anpassen')); self.dependency_details = details
+        page.addWidget(details); page.addStretch(); page = details.content
         language_form = QFormLayout()
         self.ui_language = QComboBox()
         for title, code in [(tr('Systemsprache'), 'system'), ('Deutsch', 'de'), ('English', 'en')]:
@@ -93,11 +109,11 @@ class SetupDialog(QDialog):
                 self.status.setText(tr('Einstellungen konnten nicht gespeichert werden.'))
         self.ui_language.activated.connect(save_language)
         page.addWidget(text(tr('Lumen verbindet Dateien, Suche und Assistenz. Wir prüfen, was bereits vorhanden ist. '
-            'Zusätzliche Programme werden nur über „Auswahl installieren“ eingerichtet.')))
+            'Die Auswahl wird mit „Einrichten und weiter“ installiert.')))
         self.features = {}
         for key, (title, _commands, _packages) in FEATURES.items():
             item = QCheckBox(title); item.setAccessibleName(title); page.addWidget(item); self.features[key] = item
-        self.features['engine'].setChecked(bool(missing_packages(['engine'])))
+        for key in RECOMMENDED: self.features[key].setChecked(True)
         self.install = button(tr('Auswahl installieren'), self.install_selected); page.addWidget(self.install)
         for item in self.features.values(): item.toggled.connect(self.update_install)
         page.addWidget(text(tr('Systempakete: Arch/CachyOS mit grafischer Passwortabfrage. '
@@ -119,9 +135,10 @@ class SetupDialog(QDialog):
         self.models = QComboBox(); self.models.setAccessibleName(tr('Modell für Lumen'))
         self.models.setMinimumContentsLength(15); self.models.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
         self.models.addItem(tr('Bisherige Modellwahl beibehalten'), '')
-        form = QFormLayout(); form.addRow(tr('Modell'), self.models); page.addLayout(form)
+        self.model_details = Details(tr('Modell anpassen')); page.addWidget(self.model_details)
+        form = QFormLayout(); form.addRow(tr('Modell'), self.models); self.model_details.content.addLayout(form)
         toggle = button(tr('Weiteren Anbieter verbinden …'), lambda: self.auth_box.setVisible(toggle.isChecked()))
-        toggle.setCheckable(True); page.addWidget(toggle)
+        toggle.setCheckable(True); page.addWidget(toggle); self.auth_toggle = toggle
         self.auth_box = QWidget(); self.auth_box.hide()
         auth = QVBoxLayout(self.auth_box); auth.setContentsMargins(0, 0, 0, 0); auth.setSpacing(12)
         self.provider = QComboBox(); self.provider.setAccessibleName(tr('Anbieter mit API-Schlüssel'))
@@ -144,6 +161,9 @@ class SetupDialog(QDialog):
         self.speech_status = text(''); page.addWidget(self.speech_status)
         self.setup_speech = button(tr('Diktieren einrichten · 190 MB Modell'), lambda: self.start_job('dictation'))
         page.addWidget(self.setup_speech)
+        self.speech_test = DictationTest(self.settings, self); page.addWidget(self.speech_test)
+        details = Details(tr('Stimme und Erkennung anpassen')); self.speech_details = details
+        page.addWidget(details); page.addStretch(); page = details.content
         page.addWidget(text(tr('Mehrsprachiges Whisper Small, platzsparend gespeichert. Unterstützt Deutsch. '
             'Die Erkennung läuft auf CPU oder verfügbarer GPU. Falls nötig werden Build-Werkzeuge über die Paketverwaltung ergänzt; '
             'das Vorbereiten kann einige Minuten dauern.')))
@@ -165,7 +185,6 @@ class SetupDialog(QDialog):
         save_voice = add_voice_fields(voice_form, self.settings)
         self.voice_choice = voice_form.itemAt(0, QFormLayout.FieldRole).widget()
         page.addWidget(button(tr('Stimmeinstellungen speichern'), save_voice))
-        self.speech_test = DictationTest(self.settings, self); page.addWidget(self.speech_test)
         page.addWidget(text(tr('Der Mikrofontest startet nur auf Klick und stoppt nach spätestens 60 Sekunden. '
             'Für Gespräche mit automatischen Runden zusätzlich die lokale Sprachausgabe einrichten.')))
         page.addStretch()
@@ -179,7 +198,12 @@ class SetupDialog(QDialog):
         self.desktop_theme.setIconSize(QSize(96, 60))
         for title, name in DESIGNS: self.desktop_theme.addItem(theme_icon(name), title, name)
         self.desktop_theme.setCurrentIndex(max(0, self.desktop_theme.findData(self.settings.value('appearance', DEFAULT_DESIGN))))
-        form = QFormLayout(); form.addRow(tr('Design'), self.desktop_theme); page.addLayout(form)
+        self.design_summary = text(''); page.addWidget(self.design_summary)
+        details = Details(tr('Design anpassen')); page.addWidget(details)
+        form = QFormLayout(); form.addRow(tr('Design'), self.desktop_theme); details.content.addLayout(form)
+        self.desktop_theme.currentIndexChanged.connect(lambda: self.design_summary.setText(
+            tr('Dein Design: {0}', self.desktop_theme.currentText())))
+        self.design_summary.setText(tr('Dein Design: {0}', self.desktop_theme.currentText()))
         page.addWidget(text(tr('Das gewählte Design gilt für Panels und Fensterrahmen. Dazu kommt das '
             'Lumen-Hintergrundbild. Deine bisherigen Panels werden ersetzt; zuvor wird ihre '
             'Konfiguration lokal gesichert. Deine Dateien und Programme bleiben erhalten.')))
@@ -191,7 +215,12 @@ class SetupDialog(QDialog):
         page.addStretch()
 
     def build_summary(self):
-        page = self.page(); self.summary = text(''); page.addWidget(self.summary)
+        from setup_preferences import SetupPreferences
+        page = self.page()
+        self.personal = SetupPreferences(self.settings, lambda: self.go_to_page(2), self)
+        page.addWidget(self.personal)
+        details = Details(tr('Einrichtung prüfen')); page.addWidget(details)
+        self.summary = text(''); details.content.addWidget(self.summary)
         page.addWidget(text(tr('Du findest diesen Assistenten jederzeit unter Einstellungen → Einrichtung. '
             'Übersprungene Erweiterungen kannst du dort später ergänzen.')))
         page.addStretch()
@@ -207,7 +236,9 @@ class SetupDialog(QDialog):
         model = self.settings.value('speechModel', '')
         ready = bool(executable('whisper-cli') and executable('pw-record') and Path(model).is_file())
         self.speech_status.setText(tr('Diktieren verfügbar · ') + Path(model).name if ready else tr('Diktieren ist noch nicht vollständig eingerichtet.'))
+        self.speech_test.setVisible(ready)
         self.speech_test.record.setEnabled(ready)
+        self.setup_speech.setVisible(not ready)
         self.summary.setText('\n\n'.join([item.text() for item in self.features.values()] +
             [self.engine_status.text(), self.speech_status.text(), self.desktop_status.text()]))
 
@@ -217,7 +248,11 @@ class SetupDialog(QDialog):
         else: self.status.setText(tr('Wähle zuerst eine fehlende Erweiterung aus.'))
 
     def update_install(self):
-        self.install.setEnabled(any(item.isEnabled() and item.isChecked() for item in self.features.values()))
+        pending = [item for item in self.features.values() if item.isEnabled() and item.isChecked()]
+        self.install.setEnabled(bool(pending))
+        self.recommendation.setText(tr('Keine weiteren Installationen ausgewählt.') if not pending else
+            tr('{0} Komponenten werden noch ergänzt. Dafür kann dein Systempasswort nötig sein.', len(pending)))
+        if hasattr(self, 'next'): self.update_page()
 
     def start_job(self, action, groups=()):
         if self.job or self.checking or self.speech_test.tools.process: return
@@ -237,9 +272,12 @@ class SetupDialog(QDialog):
             if code == 0 and action == 'voice-multilingual':
                 self.settings.setValue('speechEngine', 'qwen'); self.settings.sync()
                 self.voice_choice.setCurrentIndex(self.voice_choice.findData('qwen'))
+            advance = self.advance_after_job and code == 0
+            self.advance_after_job = False
             self.set_busy(False); self.refresh()
             self.status.setText((self.last_message or tr('Einrichtung abgeschlossen.')) if code == 0 else
                 tr('Einrichtung nicht abgeschlossen. ') + (self.last_message or tr('Bitte erneut versuchen.')))
+            if advance: self.advance_page()
         proc.finished.connect(finished)
         proc.errorOccurred.connect(lambda error: finished(1) if error == QProcess.FailedToStart else None)
         self.set_busy(True); self.status.setText(tr('Einrichtung wird gestartet …'))
@@ -266,9 +304,11 @@ class SetupDialog(QDialog):
 
     def cancel_job(self):
         if self.job and self.cancellable:
+            self.advance_after_job = False
             self.cancel.setEnabled(False); self.job.terminate()
 
     def set_busy(self, busy):
+        self.skip.setEnabled(not busy)
         self.stack.setEnabled(not busy); self.next.setEnabled(not busy); self.later.setEnabled(not busy)
         self.back.setEnabled(not busy and self.stack.currentIndex() > 0)
         self.progress.setVisible(busy); self.progress.setRange(0, 0)
@@ -280,7 +320,7 @@ class SetupDialog(QDialog):
         self.engine.ensure_server(lambda: self.engine.request('GET', '/provider', callback=self.loaded_providers, error=self.engine_failed))
 
     def loaded_providers(self, data):
-        self.providers = data['all']; connected = set(data['connected'])
+        self.providers = data['all']; connected = set(data['connected']); self.connected = connected
         selected = self.models.currentData() or self.settings.value('model', '')
         self.models.clear(); self.models.addItem(tr('Bisherige Modellwahl beibehalten'), '')
         names = []
@@ -302,6 +342,8 @@ class SetupDialog(QDialog):
             if any(method.get('type') == 'api' and not method.get('prompts') for method in methods):
                 self.provider.addItem(provider.get('name', provider['id']), provider['id'])
         self.connect_provider.setEnabled(self.provider.count() > 0)
+        if not any(provider['id'] in self.connected for provider in self.providers):
+            self.auth_toggle.setChecked(True); self.auth_box.show()
         self.checking = False; self.set_busy(False); self.refresh()
         self.status.setText(tr('Vorhandene Konfiguration geladen. Wähle bei Bedarf ein Modell für Lumen.'))
 
@@ -327,24 +369,48 @@ class SetupDialog(QDialog):
             self.settings.setValue('speechModel', path); self.settings.sync(); self.refresh()
 
     def change_page(self, direction):
+        if self.job or self.checking: return
         if self.speech_test.tools.process:
             self.status.setText(tr('Bitte den Mikrofontest zuerst beenden und die Erkennung abwarten.')); return
+        if direction > 0 and self.stack.currentIndex() == 0:
+            groups = [key for key, item in self.features.items() if item.isEnabled() and item.isChecked()]
+            if groups:
+                self.advance_after_job = True
+                self.start_job('packages', groups)
+                return
         if direction > 0 and self.stack.currentIndex() == 1 and self.models.currentData():
             self.settings.setValue('model', self.models.currentData()); self.settings.sync()
         if direction > 0 and self.stack.currentIndex() == self.stack.count() - 1:
             self.accept(); return
-        self.stack.setCurrentIndex(self.stack.currentIndex() + direction); self.update_page(); self.refresh()
+        self.go_to_page(self.stack.currentIndex() + direction)
+
+    def advance_page(self):
+        if self.job or self.checking or self.speech_test.tools.process: return
+        self.go_to_page(self.stack.currentIndex() + 1)
+
+    def go_to_page(self, index):
+        self.stack.setCurrentIndex(index); self.update_page(); self.refresh()
+        self.next.setFocus()
         if self.stack.currentIndex() == 1 and not self.providers and executable('opencode'): self.load_engine()
 
     def update_page(self):
         index = self.stack.currentIndex()
         self.step.setText(tr('LUMEN EINRICHTEN   ·   {0} / {1}', index + 1, self.stack.count()))
         self.heading.setText(self.titles[index]); self.back.setEnabled(index > 0)
-        self.next.setText(tr('Einrichtung beenden') if index == self.stack.count() - 1 else tr('Weiter'))
+        self.mark.setPixmap(QIcon.fromTheme('lumen', QIcon.fromTheme('system-run')).pixmap(64, 64))
+        selected = index == 0 and any(item.isEnabled() and item.isChecked() for item in self.features.values())
+        self.skip.setVisible(selected)
+        self.next.setText(tr('Einrichten und weiter') if selected else
+            tr('Einrichtung beenden') if index == self.stack.count() - 1 else tr('Weiter'))
+        self.next.setAccessibleName(self.next.text())
 
     def done(self, result):
         if self.job:
             self.status.setText(tr('Bitte den Vorgang abwarten oder abbrechen. Eine laufende Paketinstallation muss zuerst fertig werden.')); return
+        if result == QDialog.Accepted:
+            try: self.personal.commit()
+            except (OSError, ValueError) as exc:
+                self.status.setText(str(exc)); return
         self.speech_test.tools.close(); self.engine.shutdown(); self.key.clear()
         self.settings.setValue('setupSeen', True)
         if result == QDialog.Accepted: self.settings.setValue('setupCompleted', True)
