@@ -594,3 +594,21 @@ werden erst beim Beenden gespeichert. Bestehende Entscheidungen bleiben erhalten
 bei frischen Profilen ist Lernen aus. Abweichende Änderungen in anderen Fenstern
 werden nicht überschrieben. Der Assistent bleibt unter Einstellungen → Einrichtung
 und über `lumen-setup-wizard` erreichbar.
+
+
+### Lumen Studio
+
+Die Desktop-App verwendet eine ruhige Navigation mit Gesprächen, Aufträgen und
+Arbeitsräumen. Die letzten tatsächlichen Gespräche stehen direkt darunter; Apps,
+Einstellungen und alle weiteren bisherigen Bereiche bleiben erreichbar. Die
+Seitenindizes für CLI/D-Bus bleiben unverändert. Der Chat verwendet native,
+selektierbare Nachrichtenflächen und eine kompakte Eingabe mit Kontextmenü,
+Sprachgespräch und Senden. Ausgabeaktionen liegen unter „Antwort verwenden“.
+
+Ausgewählte Dateien öffnen rechts die gemeinsame asynchrone Files-Vorschau mit
+Bildfilmstreifen, PDF-Seiten, Text sowie Zugang zur bestehenden Bildbearbeitung.
+Schließen der Vorschau beendet deren Worker, ohne den Chatkontext zu entfernen.
+Auf kleinen Fenstern kann die Vorschau die Gesprächsansicht vorübergehend ersetzen.
+Vorschauen ändern keine Dateien und laden keine vom Modell genannten URLs.
+Der Chat in Files und die Suche behalten ihre eigenen bisherigen Oberflächen.
+Alle vier Themes und Deutsch/Englisch werden unterstützt.

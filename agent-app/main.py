@@ -20,7 +20,10 @@ from PySide6.QtGui import QShortcut
 from PySide6.QtWidgets import (QApplication, QFileDialog, QGridLayout, QHBoxLayout, QMainWindow, QPushButton,
     QStackedWidget, QVBoxLayout, QWidget)
 from app import create_app, button
-from assistant import ChatPanel, Transcript
+from assistant import Transcript
+from studio_chat import StudioChat
+from studio_preview import StudioSurface
+from studio_navigation import StudioNavigation
 from preview import label
 
 
@@ -70,6 +73,7 @@ class LumenWindow(QMainWindow):
     def __init__(self, directory, file_settings=None):
         super().__init__()
         self.setWindowTitle('Lumen')
+        self.setStyleSheet((ROOT / 'files/studio.qss').read_text())
         icon = ROOT / 'icons/hicolor/scalable/apps/lumen.svg'
         self.setWindowIcon(QIcon(str(icon)) if icon.exists() else QIcon.fromTheme('lumen'))
         self.resize(1380, 860)
@@ -85,13 +89,11 @@ class LumenWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         row = QHBoxLayout(central)
-        self.navigation = QWidget()
-        navigation = QVBoxLayout(self.navigation)
-        navigation.setContentsMargins(10, 20, 10, 10)
-        navigation.addWidget(label(tr('DEIN ASSISTENT'), 'eyebrow'))
+        row.setContentsMargins(0, 0, 0, 0); row.setSpacing(0)
         self.pages = QStackedWidget()
-        self.chat = ChatPanel(directory, settings=self.settings)
-        self.pages.addWidget(self.chat)
+        self.chat = StudioChat(directory, settings=self.settings)
+        self.studio = StudioSurface(self.chat)
+        self.pages.addWidget(self.studio)
         self.chat.backend.busyChanged.connect(self.copy_answer_if_ready)
         self.chat.backend.failed.connect(lambda _: setattr(self, "copy_after_answer", False))
         self.system_page = self.build_system()
@@ -109,19 +111,9 @@ class LumenWindow(QMainWindow):
         self.pages.addWidget(self.workplace)
         from lumen_apps import AppCenter
         self.pages.addWidget(AppCenter(self))
-        self.nav_buttons = {}
-        for index, title in enumerate((tr('Gespräche'), tr('Systemstatus'), None, tr('Dateien'), tr('Aufträge'), tr('Wissen'), tr('Abläufe'), tr('Modelle'), tr('Arbeitsplatz'), 'Lumen Apps')):
-            if title is None: continue
-            item = button(title, lambda _=False, i=index: self.show_page(i))
-            item.setCheckable(True)
-            navigation.addWidget(item)
-            self.nav_buttons[index] = item
-        navigation.addStretch()
-        navigation.addWidget(button(tr('Arbeitsräume'), self.show_rooms, 'folder-favorites'))
-        navigation.addWidget(button(tr('Einstellungen'), self.show_settings, 'configure', tr('Strg+Komma')))
+        self.navigation = StudioNavigation(self)
+        self.nav_buttons = self.navigation.buttons
         QShortcut(QKeySequence('Ctrl+,'), self, activated=self.show_settings)
-        navigation.addWidget(button(tr('Ordner wählen'), self.choose_directory, 'folder-open'))
-        navigation.addWidget(button(tr('Dateien hinzufügen'), lambda: self.choose_files(), 'list-add'))
         row.addWidget(self.navigation)
         row.addWidget(self.pages, 1)
         self.show_page(0)
@@ -391,6 +383,7 @@ class LumenWindow(QMainWindow):
             return
         if self.file_window is not None and not self.file_window.close():
             event.ignore(); return
+        self.studio.preview.shutdown()
         self.chat.tracker.interrupt()
         self.workplace.shutdown()
         self.chat.context_tools.close()

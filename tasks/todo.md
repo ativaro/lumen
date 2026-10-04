@@ -389,3 +389,13 @@ Existing user windows were left open; reopening them loads the new UI.
 - [x] Explicit personality/memory choices, safe install/retry/skip flow and DE/EN copy.
 - [x] 56 setup, privacy, persona, settings, speech-output and localization tests;
   native standard pages inspected at 780×690 and 600×540 in both languages.
+
+
+- [x] Lumen Studio: selected reference implemented as native sidebar, conversation
+  and optional preview, with actual sessions and shared asynchronous file workers.
+- [x] Preserve CLI/D-Bus pages, permissions, voice, persona, memory, recovery and
+  output actions; existing Files/Search surfaces stay intact.
+- [x] 55 tests passed, including real image/text/PDF previews, compact navigation,
+  history, permission replies, Markdown safety and no replay on recovery.
+- [x] Native screenshots inspected in DE/EN, four themes and compact dimensions;
+  synthetic demo files only. Reference and renders remain in ignored artifacts/studio.

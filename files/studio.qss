@@ -1,0 +1,38 @@
+/* Studio uses the shared palette so every installed Lumen theme remains valid. */
+QWidget#studioNavigation { background: palette(base); border-right: 1px solid palette(mid); }
+QLabel#studioBrand { font-size: 23px; font-weight: 500; }
+QPushButton#studioNav { text-align: left; background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 0 12px; min-height: 46px; font-size: 14px; }
+QPushButton#studioNav:hover { background: palette(midlight); }
+QPushButton#studioNav:checked { background: palette(midlight); border-left: 3px solid palette(highlight); color: palette(text); }
+QPushButton#studioNav:focus { border-color: palette(link); }
+QListWidget#studioRecent { background: transparent; border: none; outline: none; font-size: 13px; }
+QListWidget#studioRecent::item { padding: 6px 8px; border: 1px solid transparent; border-radius: 8px; }
+QListWidget#studioRecent::item:selected { background: palette(midlight); color: palette(text); border-left: 3px solid palette(highlight); }
+QListWidget#studioRecent::item:hover { background: palette(midlight); }
+QListWidget#studioRecent::item:focus { border-color: palette(link); }
+QWidget#studioChat { background: palette(window); font-size: 14px; }
+QWidget#studioChat QLabel#heading { font-size: 26px; font-weight: 600; }
+QLabel#studioContext { color: palette(dark); font-size: 12px; padding: 6px 0; }
+QWidget#studioChat QTextBrowser#transcript { background: transparent; border: none; padding: 0; font-size: 15px; }
+QFrame#studioComposer { background: palette(base); border: 1px solid palette(mid); border-radius: 16px; }
+QPlainTextEdit#studioInput { background: transparent; border: none; border-radius: 0; padding: 6px 0; font-size: 14px; }
+QPlainTextEdit#studioInput:focus { border: none; }
+QPushButton#studioIcon { background: transparent; border: 1px solid transparent; border-radius: 10px; padding: 6px; }
+QPushButton#studioIcon:hover, QPushButton#studioIcon:checked { background: palette(midlight); }
+QPushButton#studioIcon:focus { border-color: palette(link); }
+QPushButton#studioIcon::menu-indicator { image: none; width: 0; }
+QWidget#studioChat QPushButton#primary { border-radius: 20px; padding: 0; font-size: 23px; }
+QWidget#studioPreviewPane { background: palette(base); border-left: 1px solid palette(mid); }
+QWidget#studioPreviewPane QWidget#preview { border: none; }
+QWidget#studioPreviewPane QComboBox { margin: 0 20px; }
+QWidget#studioPreviewPane QLabel#previewCanvas { background: transparent; }
+QWidget#studioPreviewPane QListWidget#filmstrip { background: transparent; border: none; outline: none; }
+QWidget#studioPreviewPane QListWidget#filmstrip::item { padding: 2px; margin: 2px; border: 1px solid transparent; border-radius: 8px; }
+QWidget#studioPreviewPane QListWidget#filmstrip::item:selected { border-color: palette(link); background: palette(midlight); }
+QWidget#studioPreviewPane QListWidget#filmstrip::item:focus { border-color: palette(link); }
+QSplitter::handle { background: palette(mid); }
+QScrollArea#studioTranscript, QWidget#studioMessages { background: transparent; border: none; }
+QFrame#studioUserMessage { background: palette(midlight); border: 1px solid palette(mid); border-radius: 14px; }
+QFrame#studioAssistantMessage { background: palette(base); border: 1px solid palette(mid); border-radius: 14px; }
+QTextBrowser#studioMessage { background: transparent; border: none; padding: 0; font-size: 15px; }
+QLabel#studioSpeaker { color: palette(link); font-size: 10px; letter-spacing: 1px; }
