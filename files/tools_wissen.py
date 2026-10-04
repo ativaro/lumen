@@ -48,6 +48,7 @@ class Wissen(ToolWindow):
         self.folder_action.setVisible(area=='user');self.share_folder_action.setVisible(area=='user');self.share_note.setVisible(area=='user');self.share_note.setEnabled(False);self.memory_options.setVisible(area=='lumen')
         self.backup_action.setVisible(area=='user');self.backup_info.setVisible(area=='user')
         self.origin.hide()
+        self.timestamp.clear();self.timestamp.hide()
         self.collection_button.setVisible(area=='user')
         self.add_button.setAccessibleName(tr('Neue Erinnerung') if area=='lumen' else tr('Neue Notiz'));self.remove_action.setText(tr('Vergessen …') if area=='lumen' else tr('Notiz entfernen …'));self.remove_action.setEnabled(False)
         self.location.setText(tr('Lumen-Gedächtnis') if area=='lumen' else tr('Meine Notizen'));self.update_collections()
@@ -195,7 +196,7 @@ class Wissen(ToolWindow):
             # Keep the live editor and undo stack; the worker may return after more typing.
             current=self.document_text()
             if not self.has_heading and snapshot.startswith(self.heading_prefix+'# '):self.has_heading=True
-            note['modified']=time.time();self.doc=note;self.notes[note['path']]=note;self.dirty=current!=snapshot
+            self.doc=note;self.notes[note['path']]=note;self.dirty=current!=snapshot
             if self.dirty:self.save()
             else:data.clear_draft(self.store,self.book.root,note['path'])
             self.refresh();self.update_collections();self.connections();self.update_source(note);self.status.setText(tr('Weitere Änderungen werden gespeichert …') if self.dirty else tr('Automatisch gespeichert'))
@@ -249,6 +250,7 @@ class Wissen(ToolWindow):
         self.collection='';self.update_collections();self.open_note(path)
 
     def update_source(self,note):
+        self.timestamp.setText(data.timestamp_text(note));self.timestamp.setVisible(bool(self.timestamp.text()))
         source=tr('Quelle: ')+note['source'] if note['source'] else tr('Eigene Notiz')
         if self.area=='lumen':
             from datetime import datetime
@@ -422,6 +424,7 @@ class Wissen(ToolWindow):
             data.clear_draft(self.store,self.book.root,path);self.show_note(note)
         self.action('create',done,title=(self.title.text() or self.doc['title'])+tr(' – Entwurf'),text=text,source=self.doc['source'])
     def clear_note(self,message):
+        self.timestamp.clear();self.timestamp.hide()
         self.origin.clear();self.origin.hide()
         self.doc=None;self.dirty=False;self.loading=True;self.editor.clear();self.title.clear();self.loading=False;self.editor.setEnabled(False);self.title.setEnabled(False);self.title.setPlaceholderText(message);self.title.show();self.preview.clear();self.views.setCurrentIndex(0);self.view_button.hide();self.links.clear();self.source.clear();self.share_note.setEnabled(False);self.remove_action.setEnabled(False)
     def archive(self):

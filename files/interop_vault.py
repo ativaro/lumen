@@ -527,7 +527,7 @@ def import_restored_note(comparison, store, expected, job):
             replacements[target] = os.path.relpath(copied, str(Path(relative).parent))
         text = expression.sub(lambda match: match.group(0).replace('('+match[1]+')', '('+replacements.get(match[1], match[1])+')'), recovered['text'])
         job.check()
-        result = book.write(relative, text, expected, source=recovered.get('source', ''), legacy=recovered.get('legacy', ''))
+        result = book.write(relative, text, expected, source=recovered.get('source', ''), legacy=recovered.get('legacy', ''), created=recovered.get('created', 0))
         return dict(app='wissen', kind='note', id=relative, title=result['title'], path=str(book.root/relative), locator=dict(root=str(book.root)))
     except BaseException:
         for relative in created:

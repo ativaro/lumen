@@ -10,6 +10,41 @@ class WissenTest(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name);self.store=Store(self.root/'state')
 
+    def test_timestamps_survive_edits_noop_restore_and_notebook_copy(self):
+        import shutil
+        from unittest.mock import patch
+        activate(self.store);book=Notebook(self.store)
+        with patch('wissen_data.time.time',return_value=1700000000):note=book.create('Timed','First')
+        self.assertEqual(note['created'],1700000000);self.assertGreater(note['modified'],0)
+        same=book.write(note['path'],note['text'],note['hash'])
+        self.assertEqual(same['hash'],note['hash']);self.assertEqual(same['modified'],note['modified']);self.assertEqual(book.versions(),[])
+        edited=book.write(note['path'],'# Timed\n\nSecond',note['hash'])
+        self.assertEqual(edited['created'],note['created'])
+        restored=book.restore(book.versions()[0]['id'],edited['hash']);self.assertEqual(restored['created'],note['created'])
+        removed=book.remove(note['path'],restored['hash']);restored=book.restore(removed,'');self.assertEqual(restored['created'],note['created'])
+        copied=self.root/'copy';shutil.copytree(book.root,copied)
+        self.assertEqual(Notebook(self.store,copied).read(note['path'])['created'],note['created'])
+
+    def test_existing_note_timestamp_is_read_only_and_frontmatter_stays_intact(self):
+        activate(self.store);book=Notebook(self.store);path=book.root/'external.md'
+        original='---\ntopic: example\n---\n\n# Existing\n\nKeep'
+        path.write_text(original);os.utime(path,(1700000100,1700000100))
+        note=book.read(path.name);self.assertEqual(note['created'],0);self.assertEqual(note['modified'],1700000100)
+        self.assertEqual(book.scan()['notes'][0]['modified'],1700000100);self.assertEqual(path.read_text(),original)
+        updated=book.write(path.name,original+'\nMore',note['hash'])
+        self.assertEqual(updated['created'],0);self.assertTrue(path.read_text().startswith('---\ntopic: example'))
+
+    def test_timestamp_labels_distinguish_known_creation_from_legacy_modification(self):
+        from wissen_data import timestamp_text,parse
+        from lumen_i18n import tr
+        self.assertIn(tr('Erstellt: {0}',''),timestamp_text(dict(created=1700000000,modified=1700000000)))
+        self.assertIn(tr('Geändert: {0}',''),timestamp_text(dict(created=0,modified=1700000000)))
+        self.assertIn(tr('Erstellt: {0}',''),timestamp_text(dict(modified=1700000000,memory=dict(created=1600000000))))
+        for value in ('yesterday',True,-1,float('inf'),1e100):
+            import json
+            raw=('<!-- lumen: '+json.dumps(dict(created=value))+' -->\n# Safe').encode()
+            self.assertEqual(parse('safe.md',raw)['created'],0)
+
     def test_migration_repeat_late_edits_and_deleted_notes(self):
         old=self.store.save_memory('Bücher','Eine Fundstelle','Reader Seite 2')
         activate(self.store);book=Notebook(self.store);notes=book.scan()['notes'];self.assertEqual(len(notes),1)
@@ -90,6 +125,43 @@ class WissenNativeTest(unittest.TestCase):
     def setUpClass(cls):
         from PySide6.QtWidgets import QApplication
         cls.app=QApplication.instance() or QApplication([])
+
+    def test_visible_timestamps_follow_saved_note_and_memory_without_entering_editor(self):
+        from unittest.mock import patch
+        from PySide6.QtCore import QCoreApplication,QEvent
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QLabel
+        from tools_wissen import Wissen
+        from wissen_data import timestamp_text
+        from lumen_i18n import tr
+        def ready(window):
+            for _ in range(300):
+                QTest.qWait(20)
+                if window.book and not window.job and not window.poller and not window.dirty:return
+            self.fail('Notebook did not become idle')
+        with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,{'LUMEN_DATA':tmp+'/state'}):
+            window=Wissen(Path(tmp)/'tools');errors=[];window.error=errors.append;window.show();ready(window)
+            try:
+                with patch('wissen_data.time.time',return_value=1700000000):note=window.book.create('Timed','A thought')
+                window.scanned(window.book.scan());window.open_note(note['path']);ready(window)
+                self.assertTrue(window.timestamp.isVisible());self.assertEqual(window.timestamp.text(),timestamp_text(window.doc))
+                self.assertNotIn('2023',window.editor.toPlainText())
+                window.editor.appendPlainText('Edited');ready(window)
+                self.assertEqual(window.doc['created'],1700000000);self.assertEqual(window.timestamp.text(),timestamp_text(window.book.read(note['path'])))
+                external=window.book.root/'legacy.md';external.write_text('# Legacy\nAn old note');os.utime(external,(1700000200,1700000200))
+                window.open_file(str(external));ready(window)
+                self.assertIn(tr('Geändert: {0}',''),window.timestamp.text());self.assertNotIn(tr('Erstellt: {0}',''),window.timestamp.text())
+                window.clear_note('No note');self.assertFalse(window.timestamp.isVisible())
+                import lumen_memory
+                memory=lumen_memory.Memory(window.store);entry=memory.remember('Preference','A saved preference',kind='preference')
+                window.switch_area('lumen');ready(window);window.open_note(entry['path']);ready(window)
+                self.assertTrue(window.timestamp.isVisible());self.assertIn(tr('Erstellt: {0}',''),window.timestamp.text())
+                window.profile.update_notes(window.notes.values())
+                self.assertTrue(any(tr('Erstellt: {0}','') in label.text() for label in window.profile.findChildren(QLabel)))
+                self.assertFalse(errors,errors)
+            finally:
+                if window.job:window.job.wait(5000);self.app.processEvents()
+                window.close();window.deleteLater();QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
 
     def test_note_loading_keeps_editor_geometry_stable(self):
         import threading

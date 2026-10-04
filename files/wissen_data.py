@@ -24,6 +24,21 @@ META=re.compile(r'^<!-- lumen: (\{[^\n]*\}) -->\n?')
 def digest(raw):return hashlib.sha256(raw).hexdigest()
 
 
+def timestamp(value):
+    return value if type(value) in (int,float) and 0<value<253402214400 else 0
+
+
+def timestamp_text(note):
+    from datetime import datetime
+    created=timestamp(note.get('created')) or timestamp(note.get('memory',{}).get('created'))
+    modified=timestamp(note.get('modified')) or timestamp(note.get('memory',{}).get('updated'))
+    def display(value):return datetime.fromtimestamp(value).strftime('%d.%m.%Y %H:%M') if value else ''
+    first,last=display(created),display(modified)
+    parts=[tr('Erstellt: {0}',first)] if first else []
+    if last and last!=first:parts.append(tr('Geändert: {0}',last))
+    return ' · '.join(parts)
+
+
 def parse(path,raw):
     text=raw.decode('utf-8-sig');meta={};match=META.match(text)
     if match:
@@ -36,11 +51,13 @@ def parse(path,raw):
     plain=re.sub(r'```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`]*`','',text)
     tags=sorted(set(re.findall(r'(?<![\w/#])#([^\W\d][\w/-]*)',plain)))[:100]
     links=re.findall(r'\[\[([^\]\n]+)\]\]',plain)+re.findall(r'(?<!!)\[[^\]\n]*\]\(([^)\n]+)\)',plain)
-    return dict(id=path,path=path,title=title[:300],text=text,source=str(meta.get('source',''))[:2000],legacy=str(meta.get('legacy',''))[:200],tags=tags,links=links,hash=digest(raw),raw_size=len(raw))
+    return dict(id=path,path=path,title=title[:300],text=text,source=str(meta.get('source',''))[:2000],legacy=str(meta.get('legacy',''))[:200],created=timestamp(meta.get('created')),tags=tags,links=links,hash=digest(raw),raw_size=len(raw))
 
 
-def encode(text,source='',legacy=''):
-    prefix='<!-- lumen: '+json.dumps(dict(source=source,legacy=legacy),ensure_ascii=False)+' -->\n' if source or legacy else ''
+def encode(text,source='',legacy='',created=0):
+    meta=dict(source=source,legacy=legacy)
+    if timestamp(created):meta['created']=created
+    prefix='<!-- lumen: '+json.dumps(meta,ensure_ascii=False)+' -->\n' if source or legacy or timestamp(created) else ''
     raw=(prefix+text).encode()
     if len(raw)>MAX_NOTE:raise ValueError(tr('Notiz größer als 1 MiB. Bitte aufteilen.'))
     return raw
@@ -115,7 +132,7 @@ class Notebook:
         if path.is_absolute() or '..' in path.parts or not path.parts or any(p.startswith('.') for p in path.parts) or path.suffix.lower()!='.md':raise ValueError(tr('Bitte eine Markdown-Notiz innerhalb des gewählten Ordners wählen.'))
         return path
 
-    def raw(self,path):
+    def _read(self,path):
         path=self.relative(path)
         with self.directory(path.parent) as parent:
             fd=os.open(path.name,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=parent)
@@ -123,10 +140,14 @@ class Notebook:
                 if not stat.S_ISREG(os.fstat(fd).st_mode):raise ValueError(tr('Keine reguläre Notizdatei.'))
                 with os.fdopen(os.dup(fd),'rb') as stream:raw=stream.read(MAX_NOTE+1)
                 if len(raw)>MAX_NOTE:raise ValueError(tr('Notiz größer als 1 MiB.'))
-                return raw
+                return raw,os.fstat(fd).st_mtime
             finally:os.close(fd)
 
-    def read(self,path):return parse(str(path),self.raw(path))
+    def raw(self,path):return self._read(path)[0]
+
+    def read(self,path):
+        raw,modified=self._read(path)
+        return dict(parse(str(path),raw),modified=modified)
 
     def image(self,path):
         path=Path(path)
@@ -188,7 +209,7 @@ class Notebook:
                         if path.parts[0]!='attachments':folders.append(str(path))
                     elif entry.name.lower().endswith('.md') and entry.is_file(follow_symlinks=False):
                         try:
-                            note=self.read(path);note['modified']=entry.stat(follow_symlinks=False).st_mtime;notes.append(note);size+=note['raw_size']
+                            note=self.read(path);notes.append(note);size+=note['raw_size']
                         except (OSError,ValueError,UnicodeError):errors+=1
         return dict(notes=notes,folders=sorted(folders),errors=errors,limited=bool(queue) or count>=10000 or size>=32*1024**2 or len(notes)>=5000,root=str(self.root),identity=self.identity)
 
@@ -197,21 +218,24 @@ class Notebook:
         with target.open('xb') as stream:target.chmod(0o600);stream.write(raw)
         return self.history.create(Path(path).name,root=str(self.root),path=str(path),asset=asset,created=time.time())
 
-    def write(self,path,text,expected,source=None,legacy=None):
+    def write(self,path,text,expected,source=None,legacy=None,created=None):
         path=self.relative(path)
         with self.lock():
-            try:before=self.raw(path)
-            except FileNotFoundError:before=None
+            try:before,modified=self._read(path)
+            except FileNotFoundError:before=None;modified=0
             if (digest(before) if before is not None else '')!=expected:raise ValueError(tr('CONFLICT: Die Datei wurde außerhalb dieses Fensters geändert. Entwurf bleibt erhalten.'))
             old=parse(str(path),before) if before is not None else {}
-            raw=encode(text,old.get('source','') if source is None else source,old.get('legacy','') if legacy is None else legacy)
-            if before==raw:return parse(str(path),raw)
+            if before is None:created_at=time.time() if created is None else created
+            else:created_at=old.get('created',0) or timestamp(created)
+            raw=encode(text,old.get('source','') if source is None else source,old.get('legacy','') if legacy is None else legacy,created_at)
+            if before==raw:return dict(parse(str(path),raw),modified=modified)
             if before is not None:self.backup(path,before)
             with self.directory(path.parent) as parent:
                 temporary='.lumen-'+uuid.uuid4().hex
                 fd=os.open(temporary,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600,dir_fd=parent)
                 try:
-                    with os.fdopen(fd,'wb') as stream:stream.write(raw);stream.flush();os.fsync(stream.fileno())
+                    with os.fdopen(fd,'wb') as stream:
+                        stream.write(raw);stream.flush();os.fsync(stream.fileno());modified=os.fstat(stream.fileno()).st_mtime
                     try:latest=self.raw(path)
                     except FileNotFoundError:latest=None
                     if latest!=before:raise ValueError(tr('CONFLICT: Die Datei wurde während des Speicherns geändert.'))
@@ -219,7 +243,7 @@ class Notebook:
                 finally:
                     try:os.unlink(temporary,dir_fd=parent)
                     except FileNotFoundError:pass
-            return parse(str(path),raw)
+            return dict(parse(str(path),raw),modified=modified)
 
     def create_collection(self,name):
         name=name.strip()
@@ -251,7 +275,7 @@ class Notebook:
         row=self.history.get(key)
         if row['root']!=str(self.root):raise ValueError(tr('Die Sicherung gehört zu einem anderen Ordner.'))
         note=parse(row['path'],self.history.asset(row['asset']).read_bytes())
-        return self.write(row['path'],note['text'],expected,note['source'],note['legacy'])
+        return self.write(row['path'],note['text'],expected,note['source'],note['legacy'],created=note['created'])
 
     def capture(self,title,text,source='',memory=None):
         if not memory:return self.create(title,text,source)['path']
