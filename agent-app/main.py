@@ -109,12 +109,13 @@ class LumenWindow(QMainWindow):
         self.pages.addWidget(self.workplace)
         from lumen_apps import AppCenter
         self.pages.addWidget(AppCenter(self))
-        self.nav_buttons = []
-        for index, title in enumerate((tr('Gespräche'), tr('Systemstatus'), tr('Aktionen'), tr('Dateien'), tr('Aufträge'), tr('Wissen'), tr('Abläufe'), tr('Modelle'), tr('Arbeitsplatz'), 'Lumen Apps')):
+        self.nav_buttons = {}
+        for index, title in enumerate((tr('Gespräche'), tr('Systemstatus'), None, tr('Dateien'), tr('Aufträge'), tr('Wissen'), tr('Abläufe'), tr('Modelle'), tr('Arbeitsplatz'), 'Lumen Apps')):
+            if title is None: continue
             item = button(title, lambda _=False, i=index: self.show_page(i))
             item.setCheckable(True)
             navigation.addWidget(item)
-            self.nav_buttons.append(item)
+            self.nav_buttons[index] = item
         navigation.addStretch()
         navigation.addWidget(button(tr('Arbeitsräume'), self.show_rooms, 'folder-favorites'))
         navigation.addWidget(button(tr('Einstellungen'), self.show_settings, 'configure', tr('Strg+Komma')))
@@ -160,7 +161,7 @@ class LumenWindow(QMainWindow):
         if self.file_window is None:
             self.show_page(3)
             self.pages.setCurrentIndex(current)
-            for index, item in enumerate(self.nav_buttons): item.setChecked(index == current)
+            for index, item in self.nav_buttons.items(): item.setChecked(index == current)
         return self.file_window
 
     def present_action(self, action):
@@ -187,7 +188,7 @@ class LumenWindow(QMainWindow):
             layout.addWidget(self.file_window)
             self.file_window.show()
         self.pages.setCurrentIndex(index)
-        for i, item in enumerate(self.nav_buttons):
+        for i, item in self.nav_buttons.items():
             item.setChecked(i == index)
         if index == 1:
             self.refresh_system()
