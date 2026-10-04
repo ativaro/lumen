@@ -51,7 +51,13 @@ def main():
     server_name=native_server_name(window.library.root)
     client=QLocalSocket(); client.connectToServer(server_name)
     if client.waitForConnected(400):
-        client.write(json.dumps(activation,ensure_ascii=False).encode()+b'\n'); client.waitForBytesWritten(1000); client.disconnectFromServer(); return 0
+        client.write(json.dumps(activation,ensure_ascii=False).encode()+b'\n')
+        client.waitForBytesWritten(1000)
+        client.disconnectFromServer()
+        if args.tool == 'vault':
+            from vault_activation import activate_existing_backup
+            activate_existing_backup(window.library.root)
+        return 0
     lock=QLockFile(str(window.library.root/'window.lock'))
     if not lock.tryLock(0):
         from PySide6.QtWidgets import QMessageBox
@@ -99,6 +105,10 @@ def main():
     def remember():
         state.setValue('geometry',window.saveGeometry()); state.setValue('record',window.current); state.sync(); server.close(); lock.unlock()
     app.aboutToQuit.connect(remember); window.show()
+    if args.tool == 'vault':
+        from vault_activation import activate_backup
+        # The window must be mapped before KWin can activate it.
+        QTimer.singleShot(150, lambda: activate_backup(os.getpid()))
     if activation:QTimer.singleShot(0,lambda:window.safe(dispatch,activation))
     return app.exec()
 

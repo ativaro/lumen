@@ -22,7 +22,10 @@ it is also reachable directly from the top Vault / Backups tabs, including on
 the unlock screen. Each section opens its existing native application; the
 credential process remains isolated from the file-backup application. The backup
 window shares the Vault sidebar and uses content-sized section buttons, avoiding
-the file manager tab style and overflow arrows at larger font sizes. Fresh production installs do
+the file manager tab style and overflow arrows at larger font sizes. Explicit
+backup navigation also activates the existing backup process through KWin on
+KDE, including minimized windows and windows on another virtual desktop. Qt
+activation remains the fallback on other desktops. Fresh production installs do
 not silently enable the native prerelease. No existing data is migrated.
 
 Binaries/source/notices: `$XDG_DATA_HOME/lumen/vault-lab`, default

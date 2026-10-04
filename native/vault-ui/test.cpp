@@ -1,5 +1,6 @@
 #include "vault.h"
 #include <QtTest>
+#include <QScopeGuard>
 class VaultTest : public QObject {
   Q_OBJECT
   QTemporaryDir config;
@@ -24,6 +25,28 @@ private slots:
                        config.path());
     QSettings settings("Lumen", "Assistant");
     settings.setValue("uiLanguage", "de");
+  }
+  void backupsTabStartsBackupLauncher() {
+    QTemporaryDir root;
+    const auto marker = root.path() + "/clicked";
+    QFile launcher(root.path() + "/lumen-vault");
+    QVERIFY(launcher.open(QIODevice::WriteOnly));
+    launcher.write(("#!/bin/sh\nprintf '%s' \"$1\" > '" + marker + "'\n").toUtf8());
+    launcher.close();
+    QVERIFY(launcher.setPermissions(QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+    const auto previous = qgetenv("PATH");
+    auto restore = qScopeGuard([previous] { qputenv("PATH", previous); });
+    qputenv("PATH", root.path().toUtf8() + ":" + previous);
+    VaultWindow window(root.path() + "/store");
+    window.show();
+    auto *tabs = window.findChild<QTabBar *>("vaultSections");
+    QVERIFY(tabs);
+    QTest::mouseClick(tabs, Qt::LeftButton, Qt::NoModifier, tabs->tabRect(1).center());
+    QTRY_COMPARE(QFileInfo(marker).size(), qint64(9));
+    QFile result(marker);
+    QVERIFY(result.open(QIODevice::ReadOnly));
+    QCOMPARE(result.readAll(), QByteArray("--backups"));
+    QCOMPARE(tabs->currentIndex(), 0);
   }
   void queuedRequestsAreNotDropped() {
     QTemporaryDir root;

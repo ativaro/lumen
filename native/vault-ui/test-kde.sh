@@ -18,13 +18,15 @@ for attempt in $(seq 1 60); do
     sleep 0.25
 done
 LUMEN_PRIVATE_KDE_TEST=1 "$LUMEN_TEST_BINARY" -o "$LUMEN_TEST_ROOT/result.txt",txt
+LUMEN_PRIVATE_KDE_TEST=1 python3 "$LUMEN_TEST_FILES/test_vault_activation.py" --kde >>"$LUMEN_TEST_ROOT/result.txt" 2>&1
 SESSION
 chmod +x "$testroot/session"
 set +e
-env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY HOME="$testroot" XDG_RUNTIME_DIR="$testroot/runtime" XDG_CONFIG_HOME="$testroot/config" XDG_DATA_HOME="$testroot/data" XDG_CACHE_HOME="$testroot/cache" LUMEN_TEST_ROOT="$testroot" LUMEN_TEST_BINARY="$here/build/vault-ui-test" QT_QPA_PLATFORM=offscreen KWIN_COMPOSE=Q XDG_CURRENT_DESKTOP=KDE timeout 90 dbus-run-session -- kwin_wayland --virtual --xwayland --no-lockscreen --no-global-shortcuts --no-kactivities --exit-with-session "$testroot/session" >"$testroot/kwin.log" 2>&1
+env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY HOME="$testroot" XDG_RUNTIME_DIR="$testroot/runtime" XDG_CONFIG_HOME="$testroot/config" XDG_DATA_HOME="$testroot/data" XDG_CACHE_HOME="$testroot/cache" LUMEN_TEST_ROOT="$testroot" LUMEN_TEST_BINARY="$here/build/vault-ui-test" LUMEN_TEST_FILES="$here/../../files" QT_QPA_PLATFORM=offscreen KWIN_COMPOSE=Q XDG_CURRENT_DESKTOP=KDE timeout 90 dbus-run-session -- kwin_wayland --virtual --xwayland --no-lockscreen --no-global-shortcuts --no-kactivities --exit-with-session "$testroot/session" >"$testroot/kwin.log" 2>&1
 result=$?
 set -e
 if [[ -f "$testroot/result.txt" ]]; then cat "$testroot/result.txt"; else tail -25 "$testroot/kwin.log"; fi
 if ! grep -Eq "Totals:.* 0 failed,.* 0 skipped," "$testroot/result.txt" 2>/dev/null; then result=1; fi
+if ! grep -q "VAULT_FOCUS_OK" "$testroot/result.txt" 2>/dev/null; then result=1; fi
 if [[ "$result" != 0 ]]; then tail -15 "$testroot/plasma.log" 2>/dev/null || true; fi
 exit "$result"
