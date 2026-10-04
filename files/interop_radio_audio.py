@@ -1,4 +1,4 @@
-"""Local speech sections with measured source times, using one Piper process."""
+"""Local speech sections with measured source times, using one speech process."""
 import hashlib
 import os
 from pathlib import Path
@@ -33,7 +33,7 @@ def source_sections(record):
 
 
 def synthesize_radio(record, library, job):
-    """Piper 1.8 --output-dir produces one numbered-by-time WAV per input line.
+    """Both speech workers produce one numerically named WAV per input line.
 
     One model load, one cancellable child, and frame counts rather than estimated
     speaking speed. Edited/manual scripts keep normal speech without guessed links.
@@ -44,18 +44,16 @@ def synthesize_radio(record, library, job):
         return dict(synthesize(script, library, job), audio_source_timeline=[], audio_source_hash='', audio_source_asset='')
     if not script.strip() or len(script) > 24000:
         raise ValueError(tr('Das Hörskript muss 1 bis 24.000 Zeichen enthalten.'))
-    from lumen_setup import executable, speech_root
-    voice = speech_root() / 'de_DE-thorsten-medium.onnx'
-    binary = executable('piper-tts')
-    if not binary or not voice.is_file():
+    from lumen_tts import available, command, prepare_text
+    if not available():
         raise ValueError(tr('Die lokale Stimme fehlt. Über Einrichtung den Sprachdialog installieren.'))
     name = uuid.uuid4().hex + '.wav'
     output = library.asset(name)
     try:
         with tempfile.TemporaryDirectory(prefix='.radio-speech-', dir=library.assets) as directory:
-            # Piper strips input lines; source paragraph boundaries remain explicit.
+            # Both workers strip input lines; source paragraph boundaries remain explicit.
             speech = '\n'.join(' '.join(item['text'].splitlines()) for item in sections) + '\n'
-            job.command([binary, '-m', str(voice), '--output-dir', directory], data=speech.encode(), timeout=1800)
+            job.command(command(directory, directory=True), data=prepare_text(speech).encode(), timeout=1800)
             parts = list(Path(directory).glob('*.wav'))
             if len(parts) != len(sections) or any(not path.stem.isdecimal() for path in parts):
                 raise ValueError(tr('Die lokale Stimme hat keine vollständige Abschnittsfolge erzeugt.'))

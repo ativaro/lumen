@@ -48,10 +48,12 @@ else:
         def controls(self):
             dialog = QDialog(self.panel); dialog.setWindowTitle(tr('Sprachgespräch')); layout = QVBoxLayout(dialog); form = QFormLayout(); layout.addLayout(form)
             from lumen_speech import add_recognition_fields
+            from lumen_tts import add_voice_fields
             self.panel.settings.sync(); save_recognition = add_recognition_fields(form, self.panel.settings)
+            save_voice = add_voice_fields(form, self.panel.settings)
             threshold = QSpinBox(); threshold.setRange(50,15000); threshold.setValue(self.panel.settings.value('voiceThreshold',450,type=int)); form.addRow(tr('Mikrofonschwelle (kleiner = empfindlicher)'), threshold)
             silence = QDoubleSpinBox(); silence.setRange(.3,4); silence.setSingleStep(.1); silence.setValue(self.panel.settings.value('voiceSilence',.9,type=float)); form.addRow(tr('Sprechpause vor dem Senden (Sekunden)'),silence)
             save = QPushButton(tr('Speichern')); layout.addWidget(save)
             def apply():
-                self.panel.settings.setValue('voiceThreshold',threshold.value()); self.panel.settings.setValue('voiceSilence',silence.value()); save_recognition(); dialog.accept()
+                self.panel.settings.setValue('voiceThreshold',threshold.value()); self.panel.settings.setValue('voiceSilence',silence.value()); save_recognition(); save_voice(); dialog.accept()
             save.clicked.connect(apply); dialog.exec()

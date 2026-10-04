@@ -35,6 +35,27 @@ class SetupTest(unittest.TestCase):
                 setup.download('https://example.test/model', path, hashlib.sha256(data).hexdigest(), len(data))
                 self.assertEqual(path.read_bytes(), data)
 
+    def test_multilingual_voice_is_ready_only_after_verified_files_and_smoke_test(self):
+        payload = b'verified model'
+        manifest = (('model.safetensors', hashlib.sha256(payload).hexdigest(), len(payload)),)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); (root/'qwen-env/bin').mkdir(parents=True)
+            (root/'qwen-env/bin/python').touch()
+            def download(url, target, checksum, size):
+                target.write_bytes(payload)
+            def failed_check(args, **kwargs):
+                if '--check' in args: raise RuntimeError('GPU test failed')
+            with patch.object(setup, 'speech_root', return_value=root), patch('speech_model.MODEL_FILES', manifest), \
+                    patch.object(setup, 'download', side_effect=download) as fetch, patch.object(setup, 'report'), \
+                    patch.object(setup, 'run', side_effect=failed_check) as run:
+                with self.assertRaises(RuntimeError): setup.install_multilingual_voice()
+                self.assertFalse((root/'qwen-0.6b/.ready').exists())
+                fetch.assert_called_once()
+                run.side_effect = None
+                setup.install_multilingual_voice()
+                self.assertTrue((root/'qwen-0.6b/.ready').is_file())
+                fetch.assert_called_once()  # A valid download is reused on retry.
+
     def test_existing_tools_and_models_are_reused_without_install_or_download(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); model = root / 'ggml-small-q5_1.bin'; model.write_bytes(b'model')

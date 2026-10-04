@@ -236,19 +236,20 @@ def meeting_result(answer, count):
 
 
 def synthesize(text, library, job):
-    from lumen_setup import executable, speech_root
+    from lumen_tts import available, command, prepare_text
     import wave
-    voice = speech_root() / 'de_DE-thorsten-medium.onnx'; binary = executable('piper-tts')
-    if not binary or not voice.is_file(): raise ValueError(tr('Die lokale Stimme fehlt. Über Einrichtung den Sprachdialog installieren.'))
+    if not available(): raise ValueError(tr('Die lokale Stimme fehlt. Über Einrichtung den Sprachdialog installieren.'))
     if not text.strip() or len(text) > 24000: raise ValueError(tr('Das Hörskript muss 1 bis 24.000 Zeichen enthalten.'))
     name = uuid.uuid4().hex + '.wav'; path = library.asset(name)
     try:
-        job.command([binary, '-m', str(voice), '-f', str(path)], data=(text+'\n').encode(), timeout=1800)
+        job.command(command(path), data=(prepare_text(text)+'\n').encode(), timeout=1800)
         with wave.open(str(path)) as audio: duration = round(audio.getnframes()/audio.getframerate()*1000)
         if duration <= 0: raise ValueError(tr('Keine Audiodaten erzeugt.'))
         path.chmod(0o600); return dict(audio=name, duration=duration)
     except BaseException:
-        path.unlink(missing_ok=True); raise
+        path.unlink(missing_ok=True)
+        path.with_name(path.name+'.partial').unlink(missing_ok=True)
+        raise
 
 
 if __name__ == '__main__':

@@ -208,6 +208,28 @@ def install_image_search():
     report(tr('Lokale Bildsuche ist bereit. In Files über „Bilder nach Motiv suchen“.'), 100)
 
 
+def install_multilingual_voice():
+    from speech_model import MODEL_REPO, MODEL_REVISION, MODEL_FILES
+    root = speech_root(); environment = root/'qwen-env'; model = root/'qwen-0.6b'
+    report(tr('Mehrsprachige Stimme vorbereiten · eigene Laufzeit, mehrere GB Download.'))
+    if not (environment/'bin/python').is_file(): run([sys.executable, '-m', 'venv', str(environment)])
+    run([str(environment/'bin/python'), '-m', 'pip', '--disable-pip-version-check', 'install',
+         'qwen-tts==0.1.1', 'torch==2.14.1', 'torchaudio==2.11.0'])
+    model.mkdir(parents=True, exist_ok=True)
+    for name, checksum, size in MODEL_FILES:
+        target = model/name
+        valid = target.is_file() and target.stat().st_size == size
+        if valid:
+            with target.open('rb') as stream: valid = hashlib.file_digest(stream, 'sha256').hexdigest() == checksum
+        if not valid:
+            report(tr('Mehrsprachiges Sprachmodell herunterladen · ca. 2,5 GB.'))
+            download(f'https://huggingface.co/{MODEL_REPO}/resolve/{MODEL_REVISION}/{name}', target, checksum, size)
+    report(tr('Mehrsprachige Stimme lokal prüfen …'))
+    run([str(environment/'bin/python'), str(Path(__file__).with_name('speech_worker.py')), '--check'], timeout=600)
+    (model/'.ready').write_text(MODEL_REVISION+'\n')
+    report(tr('Mehrsprachige Sprachausgabe ist bereit. Deutsch und Englisch werden gemeinsam verarbeitet.'), 100)
+
+
 def install_vault():
     import bz2
     import platform
@@ -239,7 +261,7 @@ def install_inbox():
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=('packages', 'dictation', 'dictation-quality', 'voice', 'desktop', 'image-search', 'vault', 'inbox'))
+    parser.add_argument('action', choices=('packages', 'dictation', 'dictation-quality', 'voice', 'voice-multilingual', 'desktop', 'image-search', 'vault', 'inbox'))
     parser.add_argument('groups', nargs='*', choices=tuple(FEATURES))
     parser.add_argument('--existing-model', default='')
     from appearance import DESIGNS
@@ -256,6 +278,7 @@ def main():
         elif args.action == 'dictation': install_dictation(args.existing_model)
         elif args.action == 'dictation-quality': install_dictation(quality=True)
         elif args.action == 'voice': install_voice(args.existing_model)
+        elif args.action == 'voice-multilingual': install_multilingual_voice()
         elif args.action == 'image-search': install_image_search()
         elif args.action == 'vault': install_vault()
         elif args.action == 'inbox': install_inbox()

@@ -153,10 +153,18 @@ class SetupDialog(QDialog):
         page.addWidget(button(tr('Vorhandenes Sprachmodell auswählen …'), self.choose_model))
         page.addWidget(button(tr('Sprachgespräch einrichten · zusätzlich ca. 65 MB Stimme und Laufzeit'), lambda: self.start_job('voice')))
         page.addWidget(text(tr('Deutsche Piper-Stimme Thorsten (CC0), lokal. Nur erkannter Text geht an deinen Lumen-Modellanbieter.')))
+        page.addWidget(button(tr('Mehrsprachige Stimme einrichten · ca. 2,5 GB Modell'), lambda: self.start_job('voice-multilingual')))
+        page.addWidget(text(tr('Deutsch und englische Begriffe in derselben Stimme, vollständig lokal. '
+            'Zusätzliche Laufzeit benötigt mehrere GB. Eine NVIDIA-GPU beschleunigt die Ausgabe; auf CPU dauert sie länger.')))
         from lumen_speech import add_recognition_fields
         form = QFormLayout(); page.addLayout(form)
         save_recognition = add_recognition_fields(form, self.settings)
         page.addWidget(button(tr('Erkennungseinstellungen speichern'), save_recognition))
+        from lumen_tts import add_voice_fields
+        voice_form = QFormLayout(); page.addLayout(voice_form)
+        save_voice = add_voice_fields(voice_form, self.settings)
+        self.voice_choice = voice_form.itemAt(0, QFormLayout.FieldRole).widget()
+        page.addWidget(button(tr('Stimmeinstellungen speichern'), save_voice))
         self.speech_test = DictationTest(self.settings, self); page.addWidget(self.speech_test)
         page.addWidget(text(tr('Der Mikrofontest startet nur auf Klick und stoppt nach spätestens 60 Sekunden. '
             'Für Gespräche mit automatischen Runden zusätzlich die lokale Sprachausgabe einrichten.')))
@@ -226,6 +234,9 @@ class SetupDialog(QDialog):
                     self.last_message = tr('Installiert, aber die Modellwahl konnte nicht gespeichert werden.')
             if code == 0 and action == 'desktop':
                 self.desktop_status.setText(tr('Lumen-Desktop aktiviert · ') + self.desktop_theme.currentText())
+            if code == 0 and action == 'voice-multilingual':
+                self.settings.setValue('speechEngine', 'qwen'); self.settings.sync()
+                self.voice_choice.setCurrentIndex(self.voice_choice.findData('qwen'))
             self.set_busy(False); self.refresh()
             self.status.setText((self.last_message or tr('Einrichtung abgeschlossen.')) if code == 0 else
                 tr('Einrichtung nicht abgeschlossen. ') + (self.last_message or tr('Bitte erneut versuchen.')))

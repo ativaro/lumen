@@ -8,7 +8,7 @@ import sys
 import tempfile
 import time
 import wave
-from lumen_setup import executable, speech_root
+from lumen_setup import executable
 from voice_capture import pcm_rms, normalized_level
 
 
@@ -30,13 +30,17 @@ class VoiceSession(QObject):
         self.playback_timer.timeout.connect(self.playback_level)
         self.timer = QTimer(self); self.timer.setSingleShot(True)
         self.timer.timeout.connect(lambda: self.fail(tr('Sprachverarbeitung hat das Zeitlimit erreicht.')))
+        from voice_output import VoiceOutput
+        self.speech_output = VoiceOutput(self)
+        self.speech_output.completed.connect(self.speech_completed)
         backend.completed.connect(self.answered); backend.failed.connect(self.fail)
 
     def toggle(self):
         if self.active: self.stop(); return
         if self.backend.busy: return
         self.settings.sync(); model = self.settings.value('speechModel', '')
-        if not executable('whisper-cli') or not Path(model).is_file() or not executable('piper-tts') or not (speech_root() / 'de_DE-thorsten-medium.onnx').is_file():
+        from lumen_tts import available
+        if not executable('whisper-cli') or not Path(model).is_file() or not available(self.settings):
             self.setupRequested.emit(); return
         self.active = True; self.temp = tempfile.TemporaryDirectory(prefix='lumen-conversation-')
         self.started.emit(); self.listen()
@@ -100,7 +104,20 @@ class VoiceSession(QObject):
         spoken = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', spoken); spoken = re.sub(r'[*#_`]', '', spoken).strip()
         if not spoken: self.listen(); return
         self.say_status('preparing', tr('Lumen bereitet die Stimme lokal vor …'))
-        self.run(executable('piper-tts'), ['-m', str(speech_root() / 'de_DE-thorsten-medium.onnx'), '-f', str(Path(self.temp.name) / 'reply.wav')], self.synthesized, data=spoken + '\n')
+        from lumen_tts import command, engine, prepare_text
+        spoken = prepare_text(spoken)
+        output = Path(self.temp.name) / 'reply.wav'
+        if engine(self.settings) == 'qwen':
+            self.timer.start(180000)
+            self.speech_output.synthesize(spoken, output, self.settings)
+        else:
+            self.speech_output.cancel()
+            program, *arguments = command(output, settings=self.settings)
+            self.run(program, arguments, self.synthesized, data=spoken + '\n')
+
+    def speech_completed(self, code, output):
+        if self.active and self.state == 'preparing':
+            self.timer.stop(); self.synthesized(code, output)
 
     def synthesized(self, code, output):
         if code: self.fail(tr('Sprachausgabe fehlgeschlagen: ') + output[-500:]); return
@@ -129,6 +146,7 @@ class VoiceSession(QObject):
 
     def cancel_process(self):
         self.clear_playback()
+        self.speech_output.cancel()
         self.timer.stop()
         if self.process:
             proc, self.process = self.process, None; proc.terminate()
