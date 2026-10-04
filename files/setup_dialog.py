@@ -238,7 +238,8 @@ class SetupDialog(QDialog):
         self.speech_status.setText(tr('Diktieren verfügbar · ') + Path(model).name if ready else tr('Diktieren ist noch nicht vollständig eingerichtet.'))
         self.speech_test.setVisible(ready)
         self.speech_test.record.setEnabled(ready)
-        self.setup_speech.setVisible(not ready)
+        self.setup_speech.setVisible(not ready or not executable('voice-vad'))
+        self.setup_speech.setText(tr('Sprechpausenerkennung einrichten') if ready else tr('Diktieren einrichten · 190 MB Modell'))
         self.summary.setText('\n\n'.join([item.text() for item in self.features.values()] +
             [self.engine_status.text(), self.speech_status.text(), self.desktop_status.text()]))
 

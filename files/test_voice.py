@@ -26,6 +26,30 @@ class VoiceTest(unittest.TestCase):
         self.assertTrue(any(detector.feed(quiet) for _ in range(40)))
         self.assertGreater(len(detector.frames), 30)
 
+    def test_background_noise_does_not_keep_speech_open(self):
+        # Loud background sound exceeds the old fixed threshold. The acoustic
+        # classifier rejects it; the waveform itself stays intact for Whisper.
+        class Vad:
+            speech = False
+            def is_speech(self, frame, rate):
+                self.rate = rate
+                return self.speech
+        vad = Vad(); detector = Utterance(450, .7, vad=vad)
+        noise = struct.pack('<320h', *([900, -900] * 160))
+        for _ in range(70): self.assertFalse(detector.feed(noise))
+        self.assertFalse(detector.started)
+        vad.speech = True
+        for _ in range(30): self.assertFalse(detector.feed(noise))
+        vad.speech = False
+        # Pauses shorter than the selected interval must not cut off speech.
+        for _ in range(20): self.assertFalse(detector.feed(noise))
+        vad.speech = True
+        for _ in range(20): self.assertFalse(detector.feed(noise))
+        vad.speech = False
+        self.assertTrue(any(detector.feed(noise) for _ in range(40)))
+        self.assertEqual(vad.rate, 16000)
+        self.assertTrue(all(frame == noise for frame in detector.frames))
+
     def test_shared_recognition_preferences_reach_voice_and_dictation(self):
         from PySide6.QtCore import QSettings
         from PySide6.QtWidgets import QComboBox, QFormLayout, QLineEdit, QWidget

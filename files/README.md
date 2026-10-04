@@ -657,3 +657,17 @@ erreichbar. Daten werden außerhalb der Oberfläche aktualisiert, solange Search
 ist. Auf kleinen Fenstern stehen die Listen untereinander. Die Farben folgen dem Theme;
 der gezeigte helle Entwurf entspricht Atelier. Die Fußzeile meldet den Zustand der
 Übersicht und behauptet keine ungeprüfte Systemdiagnose.
+
+### Sprechpausen und Gesprächsdarstellung
+
+Sprachgespräche verwenden nach Einrichtung eine lokale WebRTC-Sprachaktivitätserkennung
+(`webrtcvad-wheels==2.0.14`, isoliert unter `lumen/speech/vad-env`). Sie unterscheidet
+Sprache von Hintergrundgeräuschen, bevor die gewählte Sprechpause zählt. Der Pegel
+bleibt als Empfindlichkeitsschwelle bestehen; Whisper erhält unveränderte Audiodaten.
+Die vorhandene Pausenlänge gilt weiter. Der Setup-Wizard ergänzt die kleine Laufzeit
+auch bei vorhandenem Whisper-Modell; alte Installationen behalten bis dahin die
+bisherige Pegelerkennung. Keine Aufnahme wird zur Pausenerkennung hochgeladen.
+Die 20-ms-Frames entsprechen dem [WebRTC-VAD-Vertrag](https://github.com/wiseman/py-webrtcvad).
+
+Search verwendet wie Lumen rechts eingerückte, dezente Nutzernachrichten und
+ungerahmte Antworten mit gemeinsamer Schriftgröße und begrenzter Lesebreite.

@@ -26,14 +26,16 @@ def normalized_level(rms):
 
 class Utterance:
     """PCM16 frame detector, with configurable threshold/pause for real microphones."""
-    def __init__(self, threshold=450, silence=.9):
+    def __init__(self, threshold=450, silence=.9, vad=None):
+        self.vad = vad
         self.threshold = threshold; self.silence = silence; self.frames = []; self.pre = deque(maxlen=10)
         self.voiced = 0; self.quiet = 0; self.started = False
 
     def feed(self, frame):
         rms = pcm_rms(frame); self.level = normalized_level(rms)
         duration = len(frame) / 32000
-        if rms >= self.threshold:
+        speech = self.vad.is_speech(frame, 16000) if self.vad else True
+        if speech and rms >= self.threshold:
             if not self.started: self.frames.extend(self.pre); self.started = True
             self.voiced += duration; self.quiet = 0
         else: self.quiet += duration
@@ -46,7 +48,12 @@ class Utterance:
 
 
 def record(path, threshold, silence):
-    detector = Utterance(threshold, silence)
+    try:
+        import webrtcvad
+        vad = webrtcvad.Vad(2)
+    except ImportError:
+        vad = None  # Existing installations retain recording until setup is updated.
+    detector = Utterance(threshold, silence, vad=vad)
     child = subprocess.Popen(['pw-cat', '--record', '--raw', '--rate', '16000', '--channels', '1', '--format', 's16',
                               '--properties', '{ media.role = Communication node.name = lumen-voice }', '-'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     def stop(*_): raise InterruptedError()

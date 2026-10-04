@@ -11,5 +11,7 @@
   "Mehrsprachige Sprachausgabe ist bereit. Deutsch und Englisch werden gemeinsam verarbeitet.": "Multilingual speech is ready. German and English are processed together.",
   "Mehrsprachige Stimme einrichten · ca. 2,5 GB Modell": "Set up multilingual speech · about 2.5 GB model",
   "Deutsch und englische Begriffe in derselben Stimme, vollständig lokal. Zusätzliche Laufzeit benötigt mehrere GB. Eine NVIDIA-GPU beschleunigt die Ausgabe; auf CPU dauert sie länger.": "German and English terms in the same voice, entirely local. The additional runtime requires several GB. An NVIDIA GPU speeds up speech generation; CPU processing takes longer.",
-  "Stimmeinstellungen speichern": "Save voice settings"
+  "Stimmeinstellungen speichern": "Save voice settings",
+  "Lokale Erkennung von Sprechpausen vorbereiten …": "Preparing local speech pause detection …",
+  "Sprechpausenerkennung einrichten": "Set up speech pause detection"
 }

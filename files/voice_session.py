@@ -67,7 +67,7 @@ class VoiceSession(QObject):
         if not self.active: return
         self.level_buffer = ''
         self.say_status('listening', tr('Mikrofon aktiv · sprich mit Lumen · Sprechpause sendet automatisch'))
-        self.run(sys.executable, [str(Path(__file__).with_name('voice_capture.py')), str(Path(self.temp.name) / 'speech.wav'), str(self.settings.value('voiceThreshold',450,type=int)), str(self.settings.value('voiceSilence',.9,type=float))], self.recorded, 190000, meter=True)
+        self.run(executable('voice-vad') or sys.executable, [str(Path(__file__).with_name('voice_capture.py')), str(Path(self.temp.name) / 'speech.wav'), str(self.settings.value('voiceThreshold',450,type=int)), str(self.settings.value('voiceSilence',.9,type=float))], self.recorded, 190000, meter=True)
 
     def capture_level(self, proc):
         if self.process is not proc or self.state != 'listening': return

@@ -58,6 +58,8 @@ def executable(name):
         return shutil.which(opencode_binary()) or ''
     if name == 'piper-tts':
         return _executable(speech_root() / 'piper-env/bin/piper')
+    if name == 'voice-vad':
+        return _executable(speech_root()/'vad-env/bin/python') if (speech_root()/'vad-env/.ready').is_file() else ''
     if name == 'whisper-cli':
         return shutil.which(name) or _executable(speech_root() / f'whisper-{VERSION}')
     return shutil.which(name) or next((_executable(Path(folder) / name) for folder in
@@ -135,6 +137,19 @@ def download(url, destination, checksum, size):
             partial.unlink(missing_ok=True)
 
 
+def install_vad():
+    if executable('voice-vad'): return
+    # Some Python versions need to compile the small WebRTC extension.
+    install_packages([] if shutil.which('gcc') else ['gcc'])
+    environment = speech_root() / 'vad-env'
+    report(tr('Lokale Erkennung von Sprechpausen vorbereiten …'))
+    python = environment / 'bin/python'
+    if not python.is_file(): run([sys.executable, '-m', 'venv', str(environment)])
+    run([str(python), '-m', 'pip', '--disable-pip-version-check', 'install', 'webrtcvad-wheels==2.0.14'])
+    run([str(python), '-c', "import webrtcvad; assert not webrtcvad.Vad(2).is_speech(bytes(640), 16000)"], timeout=20)
+    (environment / '.ready').write_text('webrtcvad-wheels==2.0.14\n')
+
+
 def install_dictation(existing_model='', quality=False):
     if existing_model and not Path(existing_model).is_file():
         raise ValueError(tr('Das gewählte Sprachmodell ist nicht mehr erreichbar.'))
@@ -163,6 +178,7 @@ def install_dictation(existing_model='', quality=False):
             binary = build / 'bin/whisper-cli'
             run([str(binary), '--help'], timeout=20)
             binary.chmod(0o755); os.replace(binary, root / f'whisper-{VERSION}')
+    install_vad()
     if existing_model and not quality:
         report(tr('Spracherkennung bereit · dein vorhandenes Modell bleibt ausgewählt.'), 100, model=existing_model)
         return

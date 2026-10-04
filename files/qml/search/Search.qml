@@ -186,23 +186,38 @@ ApplicationWindow {
                     clip: true; contentWidth: availableWidth
                     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                     ColumnLayout {
-                        width: conversation.availableWidth; spacing: window.theme.spacing + 8
+                        width: Math.min(960, conversation.availableWidth); x: (conversation.availableWidth - width) / 2; spacing: window.theme.spacing + 8
                         Label { Layout.fillWidth: true; visible: window.controller.messages.length === 0 && !window.controller.busy; text: window.controller.text("Wobei kann ich dir helfen?"); color: window.theme.text; font.pixelSize: 24; font.weight: Font.Medium; wrapMode: Text.Wrap }
                         Repeater {
                             model: window.controller.messages
-                            ColumnLayout {
+                            Frame {
                                 id: messageRow
+                                objectName: "messageBubble"
                                 required property var modelData
-                                Layout.fillWidth: true; spacing: 7
-                                Label { text: messageRow.modelData.role === "user" ? window.controller.text("DU") : "LUMEN"; font.pixelSize: 10; font.weight: Font.DemiBold; font.letterSpacing: 1.5; color: messageRow.modelData.role === "user" ? window.theme.muted : window.theme.accent }
-                                TextArea {
-                                    Layout.fillWidth: true; text: messageRow.modelData.body
-                                    textFormat: TextEdit.RichText; readOnly: true; selectByMouse: true
-                                    wrapMode: TextEdit.Wrap; color: window.theme.text; font.pixelSize: window.theme.fontSize - 1
-                                    background: null; padding: 0
-                                    onLinkActivated: function(link) { window.controller.open_link(link) }
+                                readonly property bool userMessage: modelData.role === "user"
+                                Layout.fillWidth: true
+                                Layout.maximumWidth: userMessage ? Math.min(960, conversation.availableWidth) * 8 / 9 : 960
+                                Layout.alignment: userMessage ? Qt.AlignRight : Qt.AlignLeft
+                                leftPadding: 18; rightPadding: 18; topPadding: 14; bottomPadding: 14
+                                background: Rectangle {
+                                    radius: 14
+                                    color: messageRow.userMessage ? Qt.alpha(window.theme.accent, 0.07) : "transparent"
+                                    border.width: messageRow.userMessage ? 1 : 0
+                                    border.color: Qt.alpha(window.theme.border, 0.6)
                                 }
-                                Label { Layout.fillWidth: true; visible: messageRow.modelData.activity.length > 0; text: messageRow.modelData.activity + " …"; color: window.theme.muted; font.pixelSize: 12; wrapMode: Text.Wrap; textFormat: Text.PlainText }
+                                contentItem: ColumnLayout {
+                                    spacing: 8
+                                    Label { text: messageRow.userMessage ? window.controller.text("DU") : "LUMEN"; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 1; color: window.theme.muted }
+                                    TextArea {
+                                        objectName: "messageBody"
+                                        Layout.fillWidth: true; text: messageRow.modelData.body
+                                        textFormat: TextEdit.RichText; readOnly: true; selectByMouse: true
+                                        wrapMode: TextEdit.Wrap; color: window.theme.text; font.pixelSize: window.theme.fontSize
+                                        background: null; padding: 0
+                                        onLinkActivated: function(link) { window.controller.open_link(link) }
+                                    }
+                                    Label { Layout.fillWidth: true; visible: messageRow.modelData.activity.length > 0; text: messageRow.modelData.activity + " …"; color: window.theme.muted; font.pixelSize: 12; wrapMode: Text.Wrap; textFormat: Text.PlainText }
+                                }
                             }
                         }
                         ResultView { Layout.fillWidth: true; view: window.controller.richView; theme: window.theme }

@@ -67,6 +67,20 @@ class SetupTest(unittest.TestCase):
                 download.assert_not_called(); run.assert_not_called()
                 with self.assertRaises(ValueError): setup.install_packages(['unapproved-package'])
 
+    def test_pause_detector_is_marked_ready_only_after_validation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); (root/'vad-env/bin').mkdir(parents=True)
+            (root/'vad-env/bin/python').touch()
+            def fail_check(args, **kwargs):
+                if '-c' in args: raise RuntimeError('VAD unavailable')
+            with patch.object(setup, 'speech_root', return_value=root), patch.object(setup, 'executable', return_value=''), \
+                    patch.object(setup, 'install_packages'), patch.object(setup, 'report'), \
+                    patch.object(setup, 'run', side_effect=fail_check) as run:
+                with self.assertRaises(RuntimeError): setup.install_vad()
+                self.assertFalse((root/'vad-env/.ready').exists())
+                run.side_effect = None; setup.install_vad()
+                self.assertEqual((root/'vad-env/.ready').read_text(), 'webrtcvad-wheels==2.0.14\n')
+
     def test_discovery_uses_same_user_install_for_setup_and_dictation(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'XDG_DATA_HOME': tmp}), \
                 patch.object(setup.shutil, 'which', return_value=None):
