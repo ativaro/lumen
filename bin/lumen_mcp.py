@@ -264,7 +264,13 @@ def tool_screenshot(args):
     path = args.get("path", "/tmp/opencode-screenshot.png")
     if not path.startswith("/"):
         return ok("Bitte absoluten Zielpfad angeben.")
-    res = run(["spectacle", "-b", "-n", "-o", path], timeout=30)
+    lumen_modules()
+    from vault_privacy import capture_guard, MESSAGE
+    try:
+        with capture_guard():
+            res = run(["spectacle", "-b", "-n", "-o", path], timeout=30)
+    except OSError:
+        return ok(MESSAGE)
     if res["rc"] == 0:
         return ok(f"Screenshot gespeichert: {path}")
     return ok(fmt(res))

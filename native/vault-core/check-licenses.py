@@ -7,7 +7,7 @@ import tomllib
 
 root = Path(__file__).resolve().parent
 lock = tomllib.loads((root / 'Cargo.lock').read_text())
-packages = {(p['name'], p['version']) for p in lock['package'] if p.get('source')}
+packages = {(p['name'], p['version']) for p in lock['package'] if p.get('source') or p['name']=='keepass'}
 inventory = json.loads((root / 'licenses/inventory.json').read_text())
 assert packages == {(p['name'], p['version']) for p in inventory}, 'License inventory differs from Cargo.lock'
 reviewed = {
@@ -25,3 +25,12 @@ for p in inventory:
     for name, digest in p['sha256'].items():
         assert hashlib.sha256((directory / name).read_bytes()).hexdigest() == digest, f'{directory / name}: notice changed'
 print(f'{len(inventory)} dependency records: versions, reviewed expressions and notice hashes match')
+
+# Vendored engine remains MIT, with a complete, explicit modified-source manifest.
+provenance = json.loads((root / 'vendor/provenance.json').read_text())
+source = root / 'vendor/keepass'
+assert tomllib.loads((source / 'Cargo.toml').read_text())['package']['license'] == 'MIT'
+assert (source / 'LICENSE').read_bytes() == (root / 'licenses/keepass-0.15.0/LICENSE').read_bytes()
+actual = {str(p.relative_to(source)): hashlib.sha256(p.read_bytes()).hexdigest() for p in source.rglob('*') if p.is_file()}
+assert actual == provenance['local_files_sha256'], 'Vendored source changed; review and update provenance explicitly'
+print('Vendored keepass: MIT notice, source inventory and local patch hashes match')

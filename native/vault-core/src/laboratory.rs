@@ -80,7 +80,14 @@ fn decode(data: &[u8]) -> Result<Fields> {
     Ok(fields)
 }
 fn encode(fields: &[Zeroizing<String>]) -> Result<Zeroizing<Vec<u8>>> {
-    let mut bytes = Zeroizing::new(Vec::new());
+    if fields.len() > MAX_FIELDS || fields.iter().any(|f| f.len() > 16384) {
+        return Err(Error::Limit);
+    }
+    let size = 4 + fields.iter().map(|f| 4 + f.len()).sum::<usize>();
+    if size > MAX_FRAME {
+        return Err(Error::Limit);
+    }
+    let mut bytes = Zeroizing::new(Vec::with_capacity(size));
     bytes.extend_from_slice(&(fields.len() as u32).to_be_bytes());
     for field in fields {
         bytes.extend_from_slice(&(field.len() as u32).to_be_bytes());
@@ -135,9 +142,34 @@ fn dispatch(session: &mut Option<Session>, root: &Path, request: Fields) -> Resu
         _ => {
             let session = session.as_mut().ok_or(Error::Locked)?;
             match op {
-                "list" if request.len() == 1 => {
-                    let mut result = vec![];
-                    for id in session.entries()? {
+                "list" | "page" if request.len() == 1 || (op == "page" && request.len() == 2) => {
+                    let ids = session.entries()?;
+                    if op == "list" && ids.len() > 100 {
+                        return Err(Error::Limit);
+                    }
+                    let start = if op == "page" {
+                        arg(1)?.parse::<usize>().map_err(|_| Error::InvalidInput)?
+                    } else {
+                        0
+                    };
+                    if start > ids.len() {
+                        return Err(Error::InvalidInput);
+                    }
+                    let end = if op == "page" {
+                        (start + 64).min(ids.len())
+                    } else {
+                        ids.len().min(100)
+                    };
+                    let mut result = if op == "page" {
+                        vec![text(&if end < ids.len() {
+                            end.to_string()
+                        } else {
+                            String::new()
+                        })]
+                    } else {
+                        vec![]
+                    };
+                    for id in ids[start..end].iter().copied() {
                         result.push(text(&id.uuid().to_string()));
                         for key in [
                             "Title",
@@ -146,10 +178,19 @@ fn dispatch(session: &mut Option<Session>, root: &Path, request: Fields) -> Resu
                             "LumenFavorite",
                             "LumenTrash",
                         ] {
-                            result.push(session.field(id, key).unwrap_or_else(|_| text("")));
+                            result.push(session.field(id, key).unwrap_or_else(|_| {
+                                text(if key == "LumenType" { "login" } else { "" })
+                            }));
                         }
                     }
                     Ok(result)
+                }
+                "summary" if request.len() == 2 => {
+                    let id = entry(session, arg(1)?)?;
+                    Ok(vec![
+                        session.field(id, "URL").unwrap_or_else(|_| text("")),
+                        session.field(id, "UserName").unwrap_or_else(|_| text("")),
+                    ])
                 }
                 "get" if request.len() == 3 => {
                     let id = entry(session, arg(1)?)?;
@@ -177,7 +218,7 @@ fn dispatch(session: &mut Option<Session>, root: &Path, request: Fields) -> Resu
                         return Err(Error::InvalidInput);
                     }
                     let id = if arg(1)?.is_empty() {
-                        if session.entries()?.len() >= 100 {
+                        if session.entries()?.len() >= crate::store::MAX_ENTRIES {
                             return Err(Error::Limit);
                         }
                         session.add("New", text(""))?
@@ -199,6 +240,31 @@ fn dispatch(session: &mut Option<Session>, root: &Path, request: Fields) -> Resu
                         },
                         text(arg(2)?),
                     )?;
+                    session.save()?;
+                    Ok(vec![])
+                }
+                "history-fields" if request.len() == 3 => {
+                    let index = arg(2)?.parse::<usize>().map_err(|_| Error::InvalidInput)?;
+                    let mut result = vec![];
+                    for (k, v) in session.history_fields(entry(session, arg(1)?)?, index)? {
+                        result.push(text(&k));
+                        result.push(v);
+                    }
+                    Ok(result)
+                }
+                "history" if request.len() == 2 => Ok(session
+                    .history(entry(session, arg(1)?)?)?
+                    .iter()
+                    .map(|v| text(v))
+                    .collect()),
+                "prune" | "restore-fields" if request.len() == 3 => {
+                    let id = entry(session, arg(1)?)?;
+                    let n = arg(2)?.parse::<usize>().map_err(|_| Error::InvalidInput)?;
+                    if op == "prune" {
+                        session.prune_history(id, n)?;
+                    } else {
+                        session.restore_fields(id, n)?;
+                    }
                     session.save()?;
                     Ok(vec![])
                 }
@@ -233,9 +299,17 @@ pub fn serve(root: &Path) -> Result<()> {
         if !(4..=MAX_FRAME).contains(&length) {
             return Err(Error::Limit);
         }
-        let mut data = Zeroizing::new(vec![0; length]);
-        read_exact_deadline(&mut input, &mut data, deadline)?;
-        let request = decode(&data)?;
+        let mut data = crate::memory::LockedBytes::new(length)?;
+        read_exact_deadline(&mut input, data.bytes_mut(), deadline)?;
+        let request = decode(data.bytes())?;
+        drop(data);
+        let shutdown = request.len() == 1 && request[0].as_str() == "shutdown";
+        if shutdown {
+            drop(session);
+            output.write_all(&[0, 0, 0, 10, 0, 0, 0, 1, 0, 0, 0, 2, b'o', b'k'])?;
+            output.flush()?;
+            return Ok(());
+        }
         let response = match dispatch(&mut session, root, request) {
             Ok(mut fields) => {
                 fields.insert(0, text("ok"));

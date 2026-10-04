@@ -22,3 +22,10 @@ strip = true
 
 [lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
+
+[patch.crates-io]
+keepass = { path = "vendor/keepass" }
+
+[dev-dependencies]
+quick-xml = "=0.42.0"
+flate2 = "=1.1.10"

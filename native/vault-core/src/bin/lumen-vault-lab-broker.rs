@@ -1,4 +1,7 @@
 //! Private child of the explicitly opted-in laboratory UI; stdin/stdout are IPC.
+#[global_allocator]
+static ALLOCATOR: lumen_vault_core::memory::WipingAllocator =
+    lumen_vault_core::memory::WipingAllocator;
 fn main() {
     let args: Vec<_> = std::env::args_os().collect();
     if args.len() != 3 || args[1] != "--laboratory-only" {

@@ -1,84 +1,94 @@
-# Native Lumen Vault laboratory
+# Native Lumen Vault
 
-A functional **pre-release laboratory for synthetic credentials only**. It is
-not approved for real passwords, tokens, recovery codes or private notes.
-`PRODUCTION_READY` remains false; independent expert review has not taken place.
+A functional **prerelease for synthetic credentials only**. Independent expert
+review is pending; `PRODUCTION_READY=false`. The compact unlock/about notice is
+intentional. Diagnostic and backup controls no longer dominate the main view.
 
-## Build and run
+## Build and installation
 
-Linux, C++17 compiler, CMake, dynamically installed Qt 6.5+ Core/Gui/Widgets/DBus
-and Qt Test, Rust **1.89.0** with rustfmt/clippy. The isolated developer toolchain
-can be used by setting CARGO_HOME/RUSTUP_HOME/PATH; these are not product requirements.
+Linux, C++17, CMake, dynamic Qt 6.5+ Core/Gui/Widgets/DBus, the system Qt SVG icon
+plugin, Qt Test for tests, and Rust **1.89.0** with rustfmt/clippy:
 
 ```sh
 ./native/vault-ui/build.sh
-./native/vault-ui/build/lumen-vault-lab --laboratory-only
-```
-
-The application accepts only the laboratory flag, never passwords on the command
-line. Its child broker is a sibling executable. No service, open port or named
-socket is installed. Both processes disable core dumps and set nondumpable and
-no-new-privileges. This does not sandbox an unrestricted desktop agent or root.
-
-For a deliberate per-user installation:
-
-```sh
 ./native/vault-ui/install-laboratory.sh
-lumen-vault --lab
+lumen-vault
 ```
 
-The updated backup window then offers **Tresor · Testversion**. Fresh installs
-without the explicit native build keep **Tresor · Vorschau**. Restic plans,
-keyring credentials and existing backup behavior are unchanged. No production
-installer or MCP tool enables the laboratory automatically.
+Installation remains explicit and user-local. If that native installation exists,
+`lumen-vault` opens the native three-column vault. `lumen-vault --lab` remains an
+explicit alias. `lumen-vault --backups` opens the existing Restic application;
+it is also reachable from Vault's Settings menu. Fresh production installs do
+not silently enable the native prerelease. No existing data is migrated.
 
-Binaries and rebuildable source/notices install beneath
-`$XDG_DATA_HOME/lumen/vault-lab` (default `~/.local/share/lumen/vault-lab`). The
-separate test database lives in `$XDG_DATA_HOME/lumen-vault-lab`, directory 0700,
-files 0600. Neither location belongs in Git. Removing the program does not remove
-the encrypted database. No existing credentials are imported automatically.
+Binaries/source/notices: `$XDG_DATA_HOME/lumen/vault-lab`, default
+`~/.local/share/lumen/vault-lab`. Encrypted test store:
+`$XDG_DATA_HOME/lumen-vault-lab` (0700, files 0600). Neither belongs in Git.
+`XDG_RUNTIME_DIR` must identify an absolute, private directory owned by the user.
 
-## Working flows
+## User interface and working flows
 
-- Create with a confirmed master password, reopen, lock. No password-reset service.
-- Native C++ input/edit/display, no plaintext in Python, QML, general Lumen models,
-  settings, logs, draft recovery or global search. Qt still makes internal copies;
-  no claim that every RAM allocation has been securely erased.
-- Login, API token, secure note, recovery codes, collections, favorites, trash,
-  tags, expiry/permission notes and protected custom fields. Metadata is encrypted
-  alongside secrets. Permissions/expiry fields are user notes, not provider checks.
-- OS-random 24-character generator. Masked secrets; explicit reveal for 10 seconds.
-- Explicit copy with KDE's sensitive MIME hint; clears after 20 seconds or on lock
-  only if our ownership tag is still present. Other clipboard contents are left
-  alone. No PRIMARY writes. Other clipboard managers need their own validation.
-- Five-minute inactivity, screen-lock and suspend handlers; broker independently
-  expires its idle session. Lock destroys models and open edit dialogs. No drafts
-  are saved. Broker disconnection/malformed replies/timeouts lock the UI.
-- Encrypted export to a new private folder and restore into a fresh empty test
-  profile after password validation. Existing active files are never overwritten
-  by restore. Restoring requires the original master password.
-- Encrypted change history is preserved by the library, currently capped at 20
-  revisions per entry (then edits fail closed); history browsing/pruning is not
-  yet exposed. Max 100 entries, 32 edited fields, 16 KiB per value, 32 KiB per edit,
-  8 MiB encrypted file. Full-size production scalability is not claimed.
-- Imported files are deliberately restricted: uncompressed KDBX4.0/4.1 AES256 /
-  bounded Argon2id, no nested groups or current attachments. This is backup restore
-  for this laboratory, not a general KeePass import wizard.
-- New laboratory files calibrate Argon2id toward ~800ms on the machine, using
-  128 MiB, 2 lanes, 3–16 passes. This is an estimate, not a timing guarantee.
-  Reopening/restoring never silently weakens an existing KDF profile. The separate
-  reference probe keeps its fixed 64 MiB / 3-pass test fixture for repeatability.
+- Four themes, German/English; navigation/collections, search and entry list,
+  field details with adjacent icons, favorite, edit and overflow actions.
+- Login, token, note, recovery codes, custom fields, trash, collections and tags.
+  Expiry/permissions are notes, not verification against the provider.
+- Masked secrets, explicit 10-second reveal, 24-character OS-random generator.
+- Explicit copies and note cut/copy use KDE's sensitive MIME hint, ownership tag
+  and 20-second clearing timer. Other clipboard contents are left alone.
+- Five-minute idle lock, screen lock, suspend and broker failures lock the UI.
+  Lock hides the window first, clears models/dialogs, closes the private pipe
+  gracefully, and retires the desktop UI process before opening a locked window.
+  A hung broker is killed after the bounded graceful wait.
+- History lists timestamps, opens masked prior fields, restores selected fields,
+  or explicitly retains a chosen number of newest versions. Imports are sorted
+  by modification time; unknown timestamps sort last. No silent automatic pruning.
+- Up to 10,000 entries, 64 entries per IPC page, 1,000 historical versions per
+  entry, 64 stored fields, 32 changed fields/request, 16 KiB/value, 32 KiB/edit,
+  16 MiB aggregate logical field data, 64 MiB encrypted/decompressed file.
+  Limits fail closed. Version pruning frees history capacity explicitly.
+- Restore/import into an empty profile after password validation. KDBX4.0/4.1,
+  AES256, Argon2id (8–256 MiB, 1–16 passes, 1–4 lanes), gzip or uncompressed,
+  nested groups, ordinary/custom fields and histories. KDBX4.0 is resaved as4.1.
+  Attachments, custom icons, unknown XML/header extensions, keyfiles and other
+  cipher/KDF profiles are rejected. This is a bounded import profile.
+- New stores calibrate Argon2id near 800ms with 128 MiB/2 lanes/3–16 passes.
+  Existing/imported KDF parameters are preserved. The source file is not changed.
+
+## Protection boundaries
+
+Native widgets communicate only through inherited anonymous pipes with the Rust
+child. No secret endpoint in MCP/Python/QML, no drafts or global index. Both
+processes disable core dumps, are nondumpable and set no-new-privileges.
+Input frames have dedicated locked/no-dump mappings. Rust heap deallocation and
+reallocation wipe their owned storage; selected library key/payload buffers have
+explicit zeroizing lifetimes. Qt/stack/cipher/Argon allocations are not all locked
+or proven erased. Process retirement is not erasure of old swap or hibernation.
+
+Notes export empty PRIMARY MIME; masked password fields and nonselectable reveals
+do not copy PRIMARY. **Visible editable metadata such as titles/usernames may
+still use Qt's ordinary PRIMARY selection.** Do not place secrets in these fields.
+This is a remaining release boundary, not a claim of complete clipboard isolation.
+KDE hints cannot stop arbitrary other clipboard managers from collecting secrets.
+
+Lumen's Spectacle/MCP capture paths hold an exclusive runtime-file lease; native
+Vault windows hold a shared lease for their entire lifetime. Close Vault before
+Lumen screen analysis. This is cooperative exclusion, not protection from root,
+accessibility tools, other screenshot applications or an unrestricted agent.
+Protected MIME is refused by Lumen/Translate clipboard actions and text editors,
+and Search paste actions. No content is sent to an LLM by Vault itself.
 
 ## Verification
 
-`build.sh` runs native Qt tests against the real Rust process: create/save/copy/
-lock/reopen, plaintext canaries, clipboard ownership and destruction of locked
-models. Optional `LUMEN_VAULT_CAPTURE=1` on `vault-ui-test` renders all four themes
-to `/tmp/lumen-vault-native-*.png` using only synthetic data. Tests use temporary
-profiles/settings. `../vault-core/check.sh` adds Rust tests, KeePassXC roundtrip,
-formatter, Clippy, license-inventory verification and RustSec audit.
+`build.sh`: three native flows for queued requests and create/edit/copy/lock/reopen
+with the real broker, clipboard
+ownership, notes paste/IME bounds and plaintext canaries. `test-kde.sh`: isolated
+KWin/Xwayland/Plasma/Klipper session with temporary HOME/config/data/runtime;
+checks real PRIMARY selection, history hints and D-Bus screen-lock/suspend signals.
+No lock/suspend or clipboard changes are applied to the user's desktop.
+This does not simulate physical suspend/resume or every manager/platform race.
 
-Tests exercise handler behavior and offscreen clipboard semantics, **not** a
-completed full KDE/Wayland/third-party-manager security certification. See
-[REVIEW.md](REVIEW.md) for remaining release gates and [LICENSES.md](LICENSES.md)
-for exact license scope and Qt replacement/rebuild rights.
+`../vault-core/check.sh`: Rust tests, exact parser regressions, KeePassXC reference
+roundtrip, write-failure and subprocess SIGKILL tests, formatting, Clippy, license
+inventory and RustSec. `LUMEN_VAULT_CAPTURE=1 build/vault-ui-test` renders four
+synthetic theme screenshots under `/tmp`. See [REVIEW.md](REVIEW.md) for remaining
+release gates and [LICENSES.md](LICENSES.md) for distribution obligations.

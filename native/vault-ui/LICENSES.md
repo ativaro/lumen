@@ -7,7 +7,8 @@ still MIT. No license was silently replaced and no commercial rights are purchas
 ## Included code and notices
 
 - Lumen-authored C++ and Rust code: MIT, root `LICENSE`.
-- KDBX engine: unmodified `keepass` 0.15.0, MIT. No KeePassXC source is copied or
+- KDBX engine: locally patched `keepass` 0.15.0, MIT, with original LICENSE and
+  documented provenance in `../vault-core/vendor/keepass/LUMEN-PATCHES.md`. No KeePassXC source is copied or
   linked. KeePassXC is a separately installed reference program used by tests.
 - All 98 Cargo.lock dependencies, including non-Linux targets: exact package
   manifests and upstream notice texts are in `../vault-core/licenses/`.
@@ -33,7 +34,8 @@ still MIT. No license was silently replaced and no commercial rights are purchas
 The native application dynamically links the separately installed Qt 6 **Core,
 Gui, Widgets and D-Bus** libraries. Qt Test is used by tests only. These modules
 are used under LGPLv3; `licenses/qt/` contains LGPLv3 and its GPLv3 base text.
-The Licenses button prominently identifies Qt and these rights. We do not ship
+Settings → About / Licenses identifies Qt and these rights. SVG icons use the
+separately installed Qt SVG plugin (LGPLv3); its code is not bundled here. We do not ship
 Qt DLLs/shared libraries, plugins, or a Qt Python wheel in this laboratory bundle.
 Users obtain Qt through their distribution; its package carries the matching
 library notices and source information. The current developer host uses Qt 6.11.2.

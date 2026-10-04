@@ -5,6 +5,8 @@ pub mod header;
 #[derive(Debug, PartialEq, Eq)]
 pub enum Error {
     Io,
+    MemoryProtection,
+    CommitUncertain,
     InvalidFile,
     Unsupported,
     Limit,
@@ -24,6 +26,8 @@ impl From<std::io::Error> for Error {
 
 #[doc(hidden)]
 pub mod laboratory;
+#[doc(hidden)]
+pub mod memory;
 mod store;
 
 mod probe;

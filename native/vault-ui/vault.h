@@ -24,6 +24,7 @@ private:
   QTimer deadline;
   QByteArray buffer;
   Reply pending;
+  QList<QPair<QStringList, Reply>> queued;
   bool stopping = false;
 };
 class VaultWindow : public QMainWindow {
@@ -35,6 +36,8 @@ public:
   void copySecret(QString value);
   void clearOwnClipboard();
   bool unlocked() const { return isOpen; }
+signals:
+  void retire();
 public slots:
   void lock();
   void screenLock(bool active);
@@ -48,6 +51,12 @@ private:
   QWidget *openPage();
   void replacePage(QWidget *page);
   void refresh();
+  void loadPage(QString cursor);
+  void loadDetails();
+  void history();
+  void backup();
+  void about();
+  QString kind(const QString &key) const;
   void select();
   void filter();
   void edit(QStringList fields = {});
@@ -61,10 +70,11 @@ private:
   QString root;
   Channel channel;
   bool isOpen = false, english = false;
-  QTimer idle, revealTimer, clipboardTimer, themeTimer;
+  QTimer idle, revealTimer, clipboardTimer, themeTimer, detailTimer;
+  quint64 generation = 0;
   QString clipboardTag, currentTheme, category = "all";
   QStringList rows;
-  QPointer<QLineEdit> master, confirm, search, secret;
+  QPointer<QLineEdit> master, confirm, search, secret, username, website;
   QPointer<QListWidget> entries, navigation;
   QPointer<QLabel> heading, subtitle, status;
   QPointer<QDialog> editor;

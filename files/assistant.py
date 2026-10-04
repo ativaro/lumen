@@ -4,6 +4,7 @@ import mimetypes
 from pathlib import Path
 
 from lumen_i18n import tr
+from private_input import AssistantInput
 
 from PySide6.QtCore import QEvent, QSettings, Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QTextDocument, QPalette
@@ -136,7 +137,7 @@ class ChatPanel(QWidget):
         self.error.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.error.hide()
         layout.addWidget(self.error)
-        self.composer = QPlainTextEdit()
+        self.composer = AssistantInput()
         self.composer.installEventFilter(self)
         self.composer.setToolTip(tr('Enter sendet · Umschalt+Enter für eine neue Zeile'))
         self.composer.setPlaceholderText(tr('Was möchtest du tun?\nEnter sendet · Umschalt+Enter für eine neue Zeile'))

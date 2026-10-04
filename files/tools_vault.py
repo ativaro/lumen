@@ -15,7 +15,7 @@ class Vault(ToolWindow):
         # Explicit laboratory installation; never silently enable production secrets.
         from PySide6.QtCore import QStandardPaths
         self.native_lab = (Path(QStandardPaths.writableLocation(QStandardPaths.GenericDataLocation)) / 'lumen/vault-lab/bin/lumen-vault-lab').is_file()
-        preview = button(tr('Tresor · Testversion' if self.native_lab else 'Tresor · Vorschau'), self.open_preview, 'document-encrypt')
+        preview = button(tr('Tresor öffnen' if self.native_lab else 'Tresor · Vorschau'), self.open_preview, 'document-encrypt')
         preview.setObjectName('vaultSecretsPreview')
         self.centralWidget().layout().itemAt(0).layout().insertWidget(1, preview)
         self.add_button.setText(tr('Sicherung einrichten')); self.search.setPlaceholderText(tr('Sicherungspläne …'))

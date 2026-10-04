@@ -3,7 +3,7 @@ use crate::{Error, Result, header};
 use keepass::{
     Database, DatabaseKey,
     config::{CompressionConfig, DatabaseVersion, KdfConfig, OuterCipherConfig},
-    db::EntryId,
+    db::{EntryId, History},
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -46,11 +46,49 @@ fn anchor(root: &Path) -> Result<(File, PathBuf)> {
     private_root(&anchored)?;
     Ok((directory, anchored))
 }
-fn supported(db: &Database) -> Result<()> {
-    if db.root().groups().next().is_some() || db.root().entries().count() > 100 {
-        return Err(Error::Unsupported);
+pub(crate) const MAX_ENTRIES: usize = 10_000;
+const MAX_HISTORY: usize = 1000;
+fn all_entries(db: &Database) -> Result<Vec<EntryId>> {
+    let mut groups = vec![db.root().id()];
+    let mut entries = Vec::new();
+    let mut visited = 0;
+    while let Some(id) = groups.pop() {
+        visited += 1;
+        if visited > MAX_ENTRIES {
+            return Err(Error::Limit);
+        }
+        let group = db.group(id).ok_or(Error::InvalidFile)?;
+        if group.name.len() > 1024 {
+            return Err(Error::Limit);
+        }
+        entries.extend(group.entries().map(|e| e.id()));
+        if entries.len() > MAX_ENTRIES {
+            return Err(Error::Limit);
+        }
+        groups.extend(group.groups().map(|g| g.id()));
     }
-    for entry in db.root().entries() {
+    entries.sort_by_key(|id| id.uuid().to_string());
+    Ok(entries)
+}
+fn normalize_history(db: &mut Database) -> Result<()> {
+    for id in all_entries(db)? {
+        let mut entry = db.entry_mut(id).ok_or(Error::InvalidFile)?;
+        if let Some(old) = entry.history.take() {
+            let mut versions = old.get_entries().clone();
+            versions.sort_by(|a, b| b.times.last_modification.cmp(&a.times.last_modification));
+            let mut history = History::default();
+            for e in versions.into_iter().rev() {
+                history.add_entry(e);
+            }
+            entry.history = Some(history);
+        }
+    }
+    Ok(())
+}
+fn supported(db: &Database) -> Result<()> {
+    let mut total = 0usize;
+    for id in all_entries(db)? {
+        let entry = db.entry(id).ok_or(Error::InvalidFile)?;
         if entry.attachments().next().is_some() {
             return Err(Error::Unsupported);
         }
@@ -59,11 +97,26 @@ fn supported(db: &Database) -> Result<()> {
             .as_ref()
             .map(|h| h.get_entries().as_slice())
             .unwrap_or(&[]);
-        if history.len() > 20 {
+        if history.len() > MAX_HISTORY {
             return Err(Error::Limit);
         }
         for fields in std::iter::once(&entry.fields).chain(history.iter().map(|e| &e.fields)) {
-            if fields.len() > 64 || fields.keys().any(|key| key.is_empty() || key.len() > 128) {
+            if fields.len() > 64
+                || fields.iter().any(|(k, v)| {
+                    k.is_empty()
+                        || k.len() > 128
+                        || v.get().len() > 16384
+                        || (["Title", "LumenCollection"].contains(&k.as_str())
+                            && v.get().len() > 1024)
+                })
+            {
+                return Err(Error::Limit);
+            }
+            total += fields
+                .iter()
+                .map(|(k, v)| k.len() + v.get().len())
+                .sum::<usize>();
+            if total > 16 * 1024 * 1024 {
                 return Err(Error::Limit);
             }
         }
@@ -71,6 +124,9 @@ fn supported(db: &Database) -> Result<()> {
     Ok(())
 }
 fn read_file(path: &Path) -> Result<Vec<u8>> {
+    read_source(path, true)
+}
+fn read_source(path: &Path, private: bool) -> Result<Vec<u8>> {
     let file = OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
@@ -80,7 +136,7 @@ fn read_file(path: &Path) -> Result<Vec<u8>> {
     if !meta.is_file()
         || meta.nlink() != 1
         || meta.uid() != unsafe { libc::geteuid() }
-        || meta.mode() & 0o077 != 0
+        || (private && meta.mode() & 0o077 != 0)
     {
         return Err(Error::InvalidInput);
     }
@@ -128,18 +184,38 @@ fn encode(db: &Database, key: &DatabaseKey) -> Result<Vec<u8>> {
     Ok(encrypted)
 }
 fn atomic(root: &Path, name: &str, data: &[u8], new: bool) -> Result<()> {
+    atomic_checked(root, name, data, new, |_| Ok(()))
+}
+fn atomic_checked(
+    root: &Path,
+    name: &str,
+    data: &[u8],
+    new: bool,
+    mut stage: impl FnMut(u8) -> Result<()>,
+) -> Result<()> {
     let mut file = NamedTempFile::new_in(root)?;
     file.as_file()
         .set_permissions(fs::Permissions::from_mode(0o600))?;
-    file.write_all(data)?;
+    stage(0)?;
+    let split = data.len() / 2;
+    file.write_all(&data[..split])?;
+    stage(1)?;
+    file.write_all(&data[split..])?;
+    stage(2)?;
     file.as_file().sync_all()?;
+    stage(3)?;
     if new {
         file.persist_noclobber(root.join(name))
             .map_err(|_| Error::Conflict)?;
     } else {
         file.persist(root.join(name)).map_err(|_| Error::Io)?;
     }
-    File::open(root)?.sync_all()?;
+    // After rename, uncertainty must never be described as an unchanged file.
+    stage(4).map_err(|_| Error::CommitUncertain)?;
+    File::open(root)
+        .and_then(|f| f.sync_all())
+        .map_err(|_| Error::CommitUncertain)?;
+    stage(5).map_err(|_| Error::CommitUncertain)?;
     Ok(())
 }
 
@@ -223,8 +299,10 @@ impl Session {
         let data = read_file(&root.join("vault.kdbx"))?;
         header::inspect(&data)?;
         let key = DatabaseKey::new().with_password(&password);
-        let db = Database::parse(&data, key.clone()).map_err(|_| Error::UnlockFailed)?;
+        let mut db = Database::parse(&data, key.clone()).map_err(|_| Error::UnlockFailed)?;
         supported(&db)?;
+        normalize_history(&mut db)?;
+        db.config.version = DatabaseVersion::KDB4(1);
         Ok(Self {
             db: Some(db),
             key: Some(key),
@@ -246,7 +324,7 @@ impl Session {
             return Err(Error::InvalidInput);
         }
         let db = self.db.as_mut().ok_or(Error::Locked)?;
-        if db.root().entries().count() >= 1000 {
+        if all_entries(db)?.len() >= MAX_ENTRIES {
             return Err(Error::Limit);
         }
         let mut root = db.root_mut();
@@ -256,7 +334,11 @@ impl Session {
         Ok(entry.id())
     }
     pub(crate) fn set(&mut self, id: EntryId, field: &str, value: Zeroizing<String>) -> Result<()> {
-        if field.is_empty() || field.len() > 128 || value.len() > 16384 {
+        if field.is_empty()
+            || field.len() > 128
+            || value.len() > 16384
+            || (["Title", "LumenCollection"].contains(&field) && value.len() > 1024)
+        {
             return Err(Error::InvalidInput);
         }
         let db = self.db.as_mut().ok_or(Error::Locked)?;
@@ -267,7 +349,7 @@ impl Session {
         if entry
             .history
             .as_ref()
-            .is_some_and(|h| h.get_entries().len() >= 20)
+            .is_some_and(|h| h.get_entries().len() >= MAX_HISTORY)
         {
             return Err(Error::Limit);
         }
@@ -275,7 +357,14 @@ impl Session {
         Ok(())
     }
     pub(crate) fn field(&self, id: EntryId, key: &str) -> Result<Zeroizing<String>> {
-        let entry = self.database()?.entry(id).ok_or(Error::InvalidInput)?;
+        let db = self.database()?;
+        let entry = db.entry(id).ok_or(Error::InvalidInput)?;
+        if key == "LumenCollection"
+            && entry.get(key).is_none()
+            && entry.parent().id() != db.root().id()
+        {
+            return Ok(Zeroizing::new(entry.parent().name.clone()));
+        }
         Ok(Zeroizing::new(
             entry.get(key).ok_or(Error::InvalidInput)?.to_owned(),
         ))
@@ -290,13 +379,88 @@ impl Session {
             .map_or(0, |h| h.get_entries().len()))
     }
     pub(crate) fn entries(&self) -> Result<Vec<EntryId>> {
-        Ok(self
-            .database()?
-            .root()
-            .entries()
-            .map(|entry| entry.id())
+        all_entries(self.database()?)
+    }
+    pub(crate) fn history(&self, id: EntryId) -> Result<Vec<String>> {
+        let entry = self.database()?.entry(id).ok_or(Error::InvalidInput)?;
+        Ok(entry
+            .history
+            .as_ref()
+            .map(|h| {
+                h.get_entries()
+                    .iter()
+                    .map(|e| {
+                        e.times
+                            .last_modification
+                            .map(|t| t.to_string())
+                            .unwrap_or_default()
+                    })
+                    .collect()
+            })
+            .unwrap_or_default())
+    }
+    pub(crate) fn history_fields(
+        &self,
+        id: EntryId,
+        index: usize,
+    ) -> Result<Vec<(String, Zeroizing<String>)>> {
+        let entry = self.database()?.entry(id).ok_or(Error::InvalidInput)?;
+        let version = entry
+            .history
+            .as_ref()
+            .and_then(|h| h.get_entries().get(index))
+            .ok_or(Error::InvalidInput)?;
+        Ok(version
+            .fields
+            .iter()
+            .map(|(k, v)| (k.clone(), Zeroizing::new(v.get().clone())))
             .collect())
     }
+    pub(crate) fn prune_history(&mut self, id: EntryId, keep: usize) -> Result<()> {
+        if keep > MAX_HISTORY {
+            return Err(Error::Limit);
+        }
+        let mut entry = self
+            .db
+            .as_mut()
+            .ok_or(Error::Locked)?
+            .entry_mut(id)
+            .ok_or(Error::InvalidInput)?;
+        if let Some(old) = entry.history.take() {
+            let mut versions = old.get_entries().clone();
+            versions.sort_by(|a, b| b.times.last_modification.cmp(&a.times.last_modification));
+            let mut history = History::default();
+            for version in versions.iter().take(keep).rev() {
+                history.add_entry(version.clone());
+            }
+            entry.history = Some(history);
+        }
+        Ok(())
+    }
+    pub(crate) fn restore_fields(&mut self, id: EntryId, index: usize) -> Result<()> {
+        let mut entry = self
+            .db
+            .as_mut()
+            .ok_or(Error::Locked)?
+            .entry_mut(id)
+            .ok_or(Error::InvalidInput)?;
+        let history = entry.history.as_ref().ok_or(Error::InvalidInput)?;
+        if history.get_entries().len() >= MAX_HISTORY {
+            return Err(Error::Limit);
+        }
+        let fields = history
+            .get_entries()
+            .get(index)
+            .ok_or(Error::InvalidInput)?
+            .fields
+            .clone();
+        entry.edit_tracking(|e| {
+            e.fields = fields;
+            e.times.last_modification = Some(keepass::db::Times::now());
+        });
+        Ok(())
+    }
+
     pub(crate) fn fields(&self, id: EntryId) -> Result<Vec<(String, Zeroizing<String>)>> {
         let entry = self.database()?.entry(id).ok_or(Error::InvalidInput)?;
         Ok(entry
@@ -316,9 +480,12 @@ impl Session {
         fields: &[(String, Zeroizing<String>)],
     ) -> Result<()> {
         if fields.len() > 32
-            || fields
-                .iter()
-                .any(|(k, v)| k.is_empty() || k.len() > 128 || v.len() > 16384)
+            || fields.iter().any(|(k, v)| {
+                k.is_empty()
+                    || k.len() > 128
+                    || v.len() > 16384
+                    || (["Title", "LumenCollection"].contains(&k.as_str()) && v.len() > 1024)
+            })
         {
             return Err(Error::Limit);
         }
@@ -341,7 +508,7 @@ impl Session {
         if entry
             .history
             .as_ref()
-            .is_some_and(|h| h.get_entries().len() >= 20)
+            .is_some_and(|h| h.get_entries().len() >= MAX_HISTORY)
         {
             return Err(Error::Limit);
         }
@@ -368,11 +535,13 @@ impl Session {
         if root.join("vault.kdbx").try_exists()? {
             return Err(Error::Conflict);
         }
-        let data = read_file(source)?;
+        let data = read_source(source, false)?;
         header::inspect(&data)?;
         let key = DatabaseKey::new().with_password(&password);
-        let db = Database::parse(&data, key.clone()).map_err(|_| Error::UnlockFailed)?;
+        let mut db = Database::parse(&data, key.clone()).map_err(|_| Error::UnlockFailed)?;
         supported(&db)?;
+        normalize_history(&mut db)?;
+        db.config.version = DatabaseVersion::KDB4(1);
         let mut session = Self {
             db: Some(db),
             key: Some(key),
@@ -388,6 +557,7 @@ impl Session {
         self.save_checked(|| Ok(()))
     }
     fn save_checked(&mut self, before_commit: impl FnOnce() -> Result<()>) -> Result<()> {
+        supported(self.database()?)?;
         let data = encode(self.database()?, self.key.as_ref().ok_or(Error::Locked)?)?;
         // Tests inject a write failure / conflicting external write at this boundary.
         before_commit()?;
@@ -419,6 +589,29 @@ impl Session {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn exact_hmac_terminator_truncation_and_trailing_bytes_are_rejected() {
+        use super::*;
+        let root = tempfile::tempdir().unwrap();
+        fs::set_permissions(root.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        let password = || Zeroizing::new("SYNTHETIC MASTER PASSWORD".into());
+        drop(Session::create(root.path(), password()).unwrap());
+        let path = root.path().join("vault.kdbx");
+        let original = fs::read(&path).unwrap();
+        fs::write(&path, &original[..original.len() - 36]).unwrap();
+        assert!(
+            Session::open(root.path(), password()).is_err(),
+            "missing authenticated end block accepted"
+        );
+        let mut trailing = original;
+        trailing.push(0);
+        fs::write(&path, trailing).unwrap();
+        assert!(
+            Session::open(root.path(), password()).is_err(),
+            "trailing bytes accepted"
+        );
+    }
+
     #[test]
     fn directory_replacement_cannot_redirect_writes() {
         use super::*;
@@ -614,5 +807,214 @@ mod tests {
             Session::open(root.path(), password()),
             Err(Error::InvalidInput)
         ));
+    }
+
+    #[test]
+    fn more_than_100_entries_and_20_versions_remain_editable() {
+        let root = directory();
+        let mut s = Session::create(root.path(), password()).unwrap();
+        let id = s.add("history", Zeroizing::new("old".into())).unwrap();
+        for n in 0..30 {
+            s.set(id, "Password", Zeroizing::new(format!("value-{n}")))
+                .unwrap();
+        }
+        for n in 0..150 {
+            s.add(&format!("entry-{n}"), Zeroizing::new("synthetic".into()))
+                .unwrap();
+        }
+        s.save().unwrap();
+        drop(s);
+        let mut s = Session::open(root.path(), password()).unwrap();
+        assert_eq!(s.entries().unwrap().len(), 151);
+        assert_eq!(s.history_len(id).unwrap(), 30);
+        s.restore_fields(id, 0).unwrap();
+        assert_eq!(s.field(id, "Password").unwrap().as_str(), "value-28");
+        s.prune_history(id, 5).unwrap();
+        assert_eq!(s.history_len(id).unwrap(), 5);
+        s.save().unwrap();
+        drop(s);
+        assert_eq!(
+            Session::open(root.path(), password())
+                .unwrap()
+                .history_len(id)
+                .unwrap(),
+            5
+        );
+    }
+    #[test]
+    fn gzip_groups_custom_fields_and_history_roundtrip_without_pruning() {
+        let source = directory();
+        let dest = directory();
+        let mut s = Session::create(source.path(), password()).unwrap();
+        let db = s.db.as_mut().unwrap();
+        db.config.compression_config = CompressionConfig::GZip;
+        let mut root = db.root_mut();
+        let mut group = root.add_group();
+        group.name = "Servers & work".into();
+        let mut e = group.add_entry();
+        e.set_protected("Title", "nested");
+        e.set_protected("Custom & field", "value");
+        let id = e.id();
+        for n in 0..25 {
+            s.set(id, "Password", Zeroizing::new(format!("old-{n}")))
+                .unwrap();
+        }
+        s.save().unwrap();
+        drop(s);
+        let path = source.path().join("vault.kdbx");
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+        let imported = Session::restore_file(dest.path(), &path, password()).unwrap();
+        assert_eq!(imported.entries().unwrap().len(), 1);
+        assert_eq!(imported.history_len(id).unwrap(), 25);
+        assert_eq!(
+            imported.field(id, "Custom & field").unwrap().as_str(),
+            "value"
+        );
+        assert_eq!(
+            imported
+                .database()
+                .unwrap()
+                .entry(id)
+                .unwrap()
+                .parent()
+                .name,
+            "Servers & work"
+        );
+    }
+    #[test]
+    fn every_atomic_failure_boundary_preserves_a_complete_authenticated_file() {
+        let root = directory();
+        let mut s = Session::create(root.path(), password()).unwrap();
+        let old = fs::read(root.path().join("vault.kdbx")).unwrap();
+        s.add("new", Zeroizing::new("synthetic".into())).unwrap();
+        let new = encode(s.database().unwrap(), s.key.as_ref().unwrap()).unwrap();
+        for name in ["vault.kdbx", "previous.kdbx"] {
+            for failure in 0..6 {
+                fs::write(root.path().join(name), &old).unwrap();
+                let result = atomic_checked(root.path(), name, &new, false, |stage| {
+                    if stage == failure {
+                        Err(Error::Io)
+                    } else {
+                        Ok(())
+                    }
+                });
+                assert_eq!(
+                    result,
+                    Err(if failure < 4 {
+                        Error::Io
+                    } else {
+                        Error::CommitUncertain
+                    })
+                );
+                let data = fs::read(root.path().join(name)).unwrap();
+                assert_eq!(
+                    data,
+                    if failure < 4 {
+                        old.clone()
+                    } else {
+                        new.clone()
+                    }
+                );
+                Database::parse(&data, DatabaseKey::new().with_password(&password())).unwrap();
+            }
+        }
+    }
+
+    #[test]
+    fn imported_oldest_first_history_keeps_newest_on_prune() {
+        let root = directory();
+        let mut s = Session::create(root.path(), password()).unwrap();
+        let id = s.add("history", Zeroizing::new("current".into())).unwrap();
+        let entry = s.database().unwrap().entry(id).unwrap();
+        let mut old = (*entry).clone();
+        let mut new = old.clone();
+        old.times.last_modification = Some("2000-01-01T00:00:00".parse().unwrap());
+        old.set_protected("Password", "oldest");
+        new.times.last_modification = Some("2020-01-01T00:00:00".parse().unwrap());
+        new.set_protected("Password", "newest");
+        let mut history = History::default();
+        history.add_entry(new);
+        history.add_entry(old);
+        s.db.as_mut().unwrap().entry_mut(id).unwrap().history = Some(history);
+        s.save().unwrap();
+        drop(s);
+        let mut s = Session::open(root.path(), password()).unwrap();
+        s.prune_history(id, 1).unwrap();
+        let fields = s.history_fields(id, 0).unwrap();
+        assert_eq!(
+            fields
+                .iter()
+                .find(|(k, _)| k == "Password")
+                .unwrap()
+                .1
+                .as_str(),
+            "newest"
+        );
+    }
+
+    #[test]
+    #[ignore = "subprocess-only write crash worker"]
+    fn atomic_crash_worker() {
+        let root = std::env::var("LUMEN_TEST_CRASH_ROOT").unwrap();
+        let root = Path::new(&root);
+        let stage: u8 = std::env::var("LUMEN_TEST_CRASH_STAGE")
+            .unwrap()
+            .parse()
+            .unwrap();
+        let name = std::env::var("LUMEN_TEST_CRASH_FILE").unwrap();
+        let mut s = Session::open(root, password()).unwrap();
+        s.add("new after crash", Zeroizing::new("SYNTHETIC".into()))
+            .unwrap();
+        let data = encode(s.database().unwrap(), s.key.as_ref().unwrap()).unwrap();
+        atomic_checked(root, &name, &data, false, |at| {
+            if at == stage {
+                unsafe {
+                    libc::raise(libc::SIGKILL);
+                }
+            }
+            Ok(())
+        })
+        .unwrap();
+        panic!("crash stage was not reached");
+    }
+    #[test]
+    fn killed_writer_never_exposes_partial_active_or_backup_file() {
+        use std::process::{Command, Stdio};
+        for name in ["vault.kdbx", "previous.kdbx"] {
+            for stage in 0..6 {
+                let root = directory();
+                drop(Session::create(root.path(), password()).unwrap());
+                let old = fs::read(root.path().join("vault.kdbx")).unwrap();
+                fs::write(root.path().join("previous.kdbx"), &old).unwrap();
+                fs::set_permissions(
+                    root.path().join("previous.kdbx"),
+                    fs::Permissions::from_mode(0o600),
+                )
+                .unwrap();
+                let status = Command::new(std::env::current_exe().unwrap())
+                    .args(["--ignored", "--exact", "store::tests::atomic_crash_worker"])
+                    .env("LUMEN_TEST_CRASH_ROOT", root.path())
+                    .env("LUMEN_TEST_CRASH_STAGE", stage.to_string())
+                    .env("LUMEN_TEST_CRASH_FILE", name)
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status()
+                    .unwrap();
+                use std::os::unix::process::ExitStatusExt;
+                assert_eq!(status.signal(), Some(libc::SIGKILL));
+                let active = Session::open(root.path(), password()).unwrap();
+                assert_eq!(
+                    active.entries().unwrap().len(),
+                    usize::from(name == "vault.kdbx" && stage >= 4)
+                );
+                drop(active);
+                let backup = fs::read(root.path().join("previous.kdbx")).unwrap();
+                Database::parse(&backup, DatabaseKey::new().with_password(&password())).unwrap();
+                for path in fs::read_dir(root.path()).unwrap() {
+                    let bytes = fs::read(path.unwrap().path()).unwrap();
+                    assert!(!bytes.windows(9).any(|w| w == b"SYNTHETIC"));
+                }
+            }
+        }
     }
 }

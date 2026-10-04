@@ -107,6 +107,11 @@ class SearchController(QObject):
     voiceStatus = Property(str, lambda self: self.voice.status, notify=voiceChanged)
     voiceLevel = Property(float, lambda self: self._voice_level, notify=voiceChanged)
 
+    @Slot(result=bool)
+    def clipboard_protected(self):
+        from vault_privacy import protected_clipboard
+        return protected_clipboard(QGuiApplication.clipboard())
+
     @Slot(str, result=str)
     def text(self, source):
         return tr(source)

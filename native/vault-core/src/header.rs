@@ -3,7 +3,7 @@
 use crate::{Error, Result};
 use std::collections::BTreeMap;
 
-pub const MAX_FILE: usize = 8 * 1024 * 1024;
+pub const MAX_FILE: usize = 64 * 1024 * 1024;
 const MAX_HEADER: usize = 64 * 1024;
 const ARGON2ID: &[u8] = &hex_bytes();
 const fn hex_bytes() -> [u8; 16] {
@@ -73,9 +73,8 @@ pub fn inspect(blob: &[u8]) -> Result<Profile> {
     if fields.get(&2).copied() != Some(AES256) {
         return Err(Error::Unsupported);
     }
-    // No compressed input yet: prevents decompression bombs before resource isolation
-    // and bounded decompression have been independently reviewed.
-    if fields.get(&3).copied() != Some(&[0, 0, 0, 0][..]) {
+    // Only uncompressed or gzip; decompression is bounded in the vendored parser.
+    if ![Some(&[0, 0, 0, 0][..]), Some(&[1, 0, 0, 0][..])].contains(&fields.get(&3).copied()) {
         return Err(Error::Unsupported);
     }
     if fields.get(&4).map(|v| v.len()) != Some(32) || fields.get(&7).map(|v| v.len()) != Some(16) {
@@ -130,9 +129,9 @@ pub fn inspect(blob: &[u8]) -> Result<Profile> {
         iterations: read(b"I", 5, 8)?,
         parallelism: read(b"P", 4, 4)?,
     };
-    if !(64 * 1024 * 1024..=256 * 1024 * 1024).contains(&p.memory)
+    if !(8 * 1024 * 1024..=256 * 1024 * 1024).contains(&p.memory)
         || p.memory % 1024 != 0
-        || !(3..=16).contains(&p.iterations)
+        || !(1..=16).contains(&p.iterations)
         || !(1..=4).contains(&p.parallelism)
     {
         return Err(Error::Limit);

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SELF_DIR="$(dirname "$(readlink -f "$0")")"
+lab="${XDG_DATA_HOME:-$HOME/.local/share}/lumen/vault-lab/bin/lumen-vault-lab"
+if [[ "$#" == 0 && -x "$lab" ]]; then exec "$lab" --laboratory-only; fi
+if [[ "${1:-}" == "--backups" ]]; then shift; fi
 if [[ "${1:-}" == "--lab" ]]; then
     [[ "$#" == 1 ]] || exit 2
     lab="${XDG_DATA_HOME:-$HOME/.local/share}/lumen/vault-lab/bin/lumen-vault-lab"

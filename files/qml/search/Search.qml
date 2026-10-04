@@ -97,7 +97,13 @@ ApplicationWindow {
                             padding: 8; background: null
                             Accessible.name: window.controller.text("Suchen oder mit Lumen sprechen")
                             onTextChanged: if (text !== window.controller.query) window.controller.set_query(text)
+                            ContextMenu.menu: Menu {
+                                MenuItem { text: qsTr("Copy"); onTriggered: composer.copy() }
+                                MenuItem { text: qsTr("Cut"); onTriggered: composer.cut() }
+                                MenuItem { text: qsTr("Paste"); enabled: !window.controller.clipboard_protected(); onTriggered: { if (!window.controller.clipboard_protected()) composer.paste() } }
+                            }
                             Keys.onPressed: function(event) {
+                                if (event.matches(StandardKey.Paste) && window.controller.clipboard_protected()) { event.accepted = true; return }
                                 if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && !(event.modifiers & Qt.ShiftModifier)) { window.controller.submit(!!(event.modifiers & Qt.ControlModifier)); event.accepted = true }
                                 else if (!window.controller.conversation && (event.key === Qt.Key_Down || event.key === Qt.Key_Up)) { window.controller.move_selection(event.key === Qt.Key_Down ? 1 : -1); event.accepted = true }
                             }

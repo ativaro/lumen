@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QPlainTextEdit, QSplitte
     QVBoxLayout, QHBoxLayout, QTabWidget, QFileDialog, QScrollArea, QLabel, QSpinBox)
 from tools_ui import ToolWindow, button, label, row
 from lumen_i18n import tr
+from private_input import AssistantInput
 import translate_data as data
 import translate_pdf as pdf
 
@@ -32,7 +33,7 @@ class Translate(ToolWindow):
         self.content.addWidget(row(self.mode, self.source_language, self.language_arrow, self.target_language, self.style))
         self.tabs = QTabWidget(); self.content.addWidget(self.tabs, 1)
         text_page = QWidget(); text_box = QVBoxLayout(text_page); text_box.setContentsMargins(0, 14, 0, 0)
-        self.input = QPlainTextEdit(); self.input.setPlaceholderText(tr('Text eingeben oder einfügen …')); self.input.setAccessibleName(tr('Originaltext'))
+        self.input = AssistantInput(); self.input.setPlaceholderText(tr('Text eingeben oder einfügen …')); self.input.setAccessibleName(tr('Originaltext'))
         self.output = QPlainTextEdit(); self.output.setReadOnly(True); self.output.setPlaceholderText(tr('Dein Ergebnis erscheint hier.')); self.output.setAccessibleName(tr('Bearbeiteter Text'))
         split = QSplitter()
         for caption, editor in [(tr('Original'),self.input),(tr('Ergebnis'),self.output)]:
@@ -114,7 +115,10 @@ class Translate(ToolWindow):
         self.library.update(self.current,title=title,source=text,options=dict(source=self.source_language.currentData(),target=self.target_language.currentData(),style=self.style.currentData(),mode=self.mode.currentData()))
         self.refresh()
 
-    def paste(self):self.input.insertPlainText(QApplication.clipboard().text())
+    def paste(self):
+        from vault_privacy import protected_clipboard
+        if not protected_clipboard(QApplication.clipboard()):
+            self.input.insertPlainText(QApplication.clipboard().text())
     def copy_result(self):
         if self.output.toPlainText():QApplication.clipboard().setText(self.output.toPlainText())
     def use_result(self):

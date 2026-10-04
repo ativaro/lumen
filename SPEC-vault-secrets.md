@@ -111,7 +111,7 @@ inklusive Lizenzinventar und Verfahren für Sicherheitsupdates.
 | Anzeigen | Maskiert; ausdrücklich kurz einblenden, nach 10 Sekunden wieder verbergen; kein Inhalt in Vorschauen/Tooltips |
 | Sperren | Sofort bei Sitzungssperre und Suspend; nach 5 Minuten Tresor-Inaktivität; expliziter Sperrbutton; Wiederaufnahme gesperrt |
 | Kopieren | Bewusster Klick, nach 20 Sekunden bereinigen, sofern noch der eigene Inhalt; fremde Zwischenablage nicht löschen |
-| Zwischenablage-Historie | KDE-Kennzeichnung für sensible Inhalte, kein PRIMARY-Selection-Kopieren; Klipper und weitere Manager gezielt testen |
+| Zwischenablage-Historie | KDE-Kennzeichnung für sensible Kopien; Notizen/Passwort-Reveals ohne PRIMARY; sichtbare editierbare Metadaten haben noch normales Qt-PRIMARY; Manager gezielt testen |
 | System-Schlüsselbund | Hauptpasswort dort standardmäßig nicht hinterlegen. Bequeme Geräte-Entsperrung erst später, separat opt-in |
 | Netzverkehr | Tresorkern lokal; keine automatischen Favicons, Leak-Abfragen, Cloud-Synchronisation oder KI-Verbindung |
 
@@ -373,3 +373,28 @@ Fault-/Fuzz-/Dateisystemprüfungen, echte KDE-Clipboard-/Sperrrennen und das ext
 Expertenreview sind nicht durch die funktionierenden Tests ersetzt. Einzelne
 Labor-Limits und verbleibende Produktionsarbeit stehen ausdrücklich in
 `native/vault-ui/README.md` und `REVIEW.md`. Keine echte Zugangsdaten übernehmen.
+
+## 14. Härtung, nutzbare Historie und wiederhergestellte Ansicht · 05.10.2026
+
+Native Drei-Spalten-Ansicht mit ruhiger Navigation, Feldern und Icon-Aktionen;
+Versionen im Detailmenü, Export/Lizenzinfos/Dateisicherungen unter Einstellungen.
+Nach expliziter nativer Installation startet `lumen-vault` diese Ansicht,
+`--backups` die bisherigen Restic-Sicherungen. Keine automatische Datenmigration.
+
+100/20-Grenzen durch begrenzte Pagination und explizite Historienpflege ersetzt:
+10.000 Einträge,1.000 Versionen; gzip/Gruppenimport innerhalb dokumentiertem Profil.
+Lokale keepass-Korrekturen: authentifizierter Abschluss, XML-/gzip-Grenzen, keine
+stillschweigende Übernahme unbekannter/mehrdeutiger XML-Daten. Pufferlebensdauer
+gehärtet, gesperrte Input-Mappings, Broker-Heap beim Freigeben gelöscht, UI-Prozess
+beim Sperren erneuert. Keine Zusage vollständiger Qt-/Swap-/Hibernate-Löschung.
+
+18 Kern-,2 Parser-,3 Prozessfälle; zwölf SIGKILL-Schreibabbruchfälle im Kerntest;
+native Bedienung und echte isolierte KWin/Xwayland/Klipper-Prüfung bestanden.
+D-Bus-Sperr-/Suspend-Signale getestet, kein physischer Ruhezustand ausgelöst.
+Lumen-Aufnahmepfade bei offenem Vault kooperativ gesperrt; geschützte Zwischenablage
+wird in den Lumen-/Translate-Eingaben abgewiesen. Fremde Screenshot-Programme und
+unbeschränkte Agenten sind dadurch nicht isoliert.
+
+98 Lizenzdatensätze/Notices geprüft, lokale MIT-Änderungen gekennzeichnet, Qt
+dynamisch LGPLv3. Keine Umstellung der Projektlizenz und keine pauschale Freigabe
+der Gesamtdistribution. Externes Expertenreview und Produktionsfreigabe offen.

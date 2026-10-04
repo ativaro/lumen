@@ -39,7 +39,8 @@ def main():
     from tools_sound import Sound
     if args.clipboard:
         from PySide6.QtWidgets import QApplication
-        activation['text'] = QApplication.clipboard().text()
+        from vault_privacy import protected_clipboard
+        activation['text'] = '' if protected_clipboard(QApplication.clipboard()) else QApplication.clipboard().text()
         from translate_data import text_segments
         text_segments(activation['text'])
     from tools_translate import Translate

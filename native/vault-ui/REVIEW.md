@@ -31,15 +31,29 @@ race the last hash check; active files must remain exclusively managed by Vault.
    Existing deterministic corruption/KDF/framing/failure tests are a baseline.
 3. KDE/Wayland lock/suspend/reveal/clipboard races, actual Klipper history behavior,
    accessibility/screen-analysis exclusions and alternate clipboard managers. The
-   automated native tests cover handlers and offscreen clipboard ownership only.
+   automated tests now include a private KWin/Xwayland/Plasma/Klipper session,
+   PRIMARY notes and screen-lock/suspend D-Bus signals. Physical sleep/resume,
+   other managers and unrestricted capture remain unqualified.
 4. Whole-Lumen agent isolation before any claim that an unrestricted agent cannot
    obtain screen/clipboard/process data, and before any connector secret-use API.
    The current MCP endpoint returns readiness constants and exposes no secret API.
 5. Production UX/policy for history retention, broad KDBX import profiles, recovery
    documentation, larger vaults and new dependency/source distribution obligations.
 
-Do not remove the explicit laboratory flag, install in the default production
+The explicitly installed native build is now the default Vault view; the binary
+still requires its laboratory flag. Do not install it in the default production
 wizard, set PRODUCTION_READY, or label this audited merely because these tests pass.
 No personal credentials, encrypted user vaults, logs or screenshots belong in the
 review source bundle. Licensing checks cover the collected native dependencies;
 proprietary redistribution of all Lumen remains subject to LICENSE-PLAN.md.
+
+## 2026-10-05 reconciliation
+
+Three bounded internal review passes identified/fixed HMAC terminator acceptance,
+XML loss/duplicate/nested-history cases, imported history ordering, raw allocator
+wiping, stale reply cleanup, guarded notes export/paste and runtime lease path
+consistency. Native layout restored; diagnostics/exports are secondary actions.
+These are internal technical reviews, not independent expert approval. Visible
+editable metadata can still use ordinary Qt PRIMARY; secrets must remain in the
+protected password/notes/custom-secret fields. All known limitations are retained
+in the README, including swap/hibernation and post-rename uncertainty.
