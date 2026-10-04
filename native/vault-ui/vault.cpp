@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "vault.h"
+#include "backups.h"
 #include <QtEndian>
 #include <cstring>
 #include <signal.h>
@@ -318,6 +319,8 @@ VaultWindow::VaultWindow(const QString &root)
       "org.freedesktop.login1.Manager", "PrepareForSleep", this,
       SLOT(suspend(bool)));
   qApp->installEventFilter(this);
+  sections = new QStackedWidget;
+  setCentralWidget(sections);
   replacePage(lockedPage());
   theme();
   themeTimer.setInterval(2000);
@@ -343,12 +346,19 @@ QPushButton *VaultWindow::button(const QString &text,
   return b;
 }
 void VaultWindow::replacePage(QWidget *page) {
-  if (auto *old = takeCentralWidget()) {
+  const bool backupSelected = backups && sections->currentWidget() == backups;
+  if (auto *old = credentialPage.data()) {
+    sections->removeWidget(old);
     for (auto *field : old->findChildren<QLineEdit *>())
       field->setText({});
     delete old;
   }
-  setCentralWidget(page);
+  credentialPage = page;
+  sections->insertWidget(0, page);
+  if (!backupSelected) sections->setCurrentWidget(page);
+  for (auto *tabs : page->findChildren<QTabBar *>("vaultSections")) {
+    QSignalBlocker block(tabs); tabs->setCurrentIndex(backupSelected ? 1 : 0);
+  }
 }
 class TintedIcon : public QIconEngine {
 public:
@@ -381,21 +391,24 @@ QWidget *VaultWindow::sectionTabs() {
   tabs->setFixedSize(290, 42);
   tabs->addTab(tx("Tresor", "Vault"));
   tabs->addTab(tx("Sicherungen", "Backups"));
-  connect(tabs, &QTabBar::currentChanged, this, [this, tabs](int index) {
-    if (index != 1)
-      return;
-    // File backups run in their existing process; the credential broker and
-    // its private memory never cross into the Python backup application.
-    const auto app = QStandardPaths::findExecutable("lumen-vault");
-    const bool started = !app.isEmpty() &&
-                         QProcess::startDetached(app, {"--backups"});
-    tabs->setCurrentIndex(0);
-    if (!started)
-      QMessageBox::warning(this, "Lumen Vault",
-                           tx("Sicherungen konnten nicht geöffnet werden.",
-                              "Could not open backups."));
-  });
+  connect(tabs, &QTabBar::currentChanged, this, &VaultWindow::showSection);
   return tabs;
+}
+int VaultWindow::section() const {
+  return backups && sections->currentWidget() == backups ? 1 : 0;
+}
+void VaultWindow::showSection(int index) {
+  if (index != 0 && index != 1) return;
+  if (index == 1 && !backups) {
+    backups = new BackupPage(sectionTabs(), english, this);
+    sections->addWidget(backups);
+  }
+  if (index == 1) { hideSecret(); clearOwnClipboard(); }
+  sections->setCurrentWidget(index == 1 ? static_cast<QWidget *>(backups) : credentialPage.data());
+  for (auto *tabs : findChildren<QTabBar *>("vaultSections")) {
+    QSignalBlocker block(tabs); tabs->setCurrentIndex(index);
+  }
+  if (index == 1) backups->activate();
 }
 QWidget *VaultWindow::lockedPage() {
   auto *page = new QWidget;
@@ -1387,11 +1400,11 @@ bool VaultWindow::eventFilter(QObject *object, QEvent *event) {
       (event->type() == QEvent::MouseButtonPress ||
        event->type() == QEvent::KeyPress || event->type() == QEvent::Wheel)) {
     auto *widget = qobject_cast<QWidget *>(object);
-    if (widget && belongsTo(widget, this))
+    if (widget && belongsTo(widget, this) && !(backups && belongsTo(widget, backups)))
       idle.start();
   }
   auto *widget = qobject_cast<QWidget *>(object);
-  const bool ours = widget && belongsTo(widget, this);
+  const bool ours = widget && belongsTo(widget, this) && !(backups && belongsTo(widget, backups));
   auto *line = ours ? qobject_cast<QLineEdit *>(object) : nullptr;
   auto *notes = ours ? qobject_cast<QPlainTextEdit *>(object) : nullptr;
   if ((line || notes) && event->type() == QEvent::ContextMenu) {
@@ -1627,6 +1640,9 @@ void VaultWindow::theme() {
     on = "#18203d";
   }
   auto palette = qApp->palette();
+  palette.setColor(QPalette::Window, QColor(bg));
+  palette.setColor(QPalette::Button, QColor(base));
+  palette.setColor(QPalette::ButtonText, QColor(fg));
   palette.setColor(QPalette::WindowText, QColor(fg));
   palette.setColor(QPalette::Text, QColor(fg));
   palette.setColor(QPalette::Base, QColor(base));
@@ -1694,6 +1710,9 @@ void VaultWindow::theme() {
           "QPushButton[fieldAction=true]:hover{background:%3;} "
           "QPushButton[fieldAction=true]:focus{border:1px solid %7;} "
           "QScrollArea#detailScroll{background:transparent;border:0;} "
+          "QTreeWidget{background:%2;border:1px solid %5;border-radius:8px;outline:0;} "
+          "QTreeWidget::item{padding:10px;} QTreeWidget::item:selected{background:%3;color:%4;} "
+          "QHeaderView::section{background:%2;color:%6;padding:10px;border:0;border-bottom:1px solid %5;} "
           "QListWidget{background:transparent;border:0;outline:0;} "
           "QListWidget::item{padding:8px 18px;border-radius:8px;} "
           "QListWidget::item:selected{background:%3;color:%4;border-left:3px "

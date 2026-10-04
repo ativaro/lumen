@@ -4,6 +4,7 @@
 #include <QtWidgets>
 #include <functional>
 
+class BackupPage;
 using Reply = std::function<void(QStringList)>;
 void wipe(QString &text);
 void wipe(QByteArray &text);
@@ -36,6 +37,8 @@ public:
   void copySecret(QString value);
   void clearOwnClipboard();
   bool unlocked() const { return isOpen; }
+  int section() const;
+  void showSection(int index);
 signals:
   void retire();
 public slots:
@@ -69,6 +72,9 @@ private:
   QString selectedId() const;
   int rowIndex(const QString &id) const;
   QString root;
+  QStackedWidget *sections = nullptr;
+  QPointer<QWidget> credentialPage;
+  BackupPage *backups = nullptr;
   Channel channel;
   bool isOpen = false, english = false;
   QTimer idle, revealTimer, clipboardTimer, themeTimer, detailTimer;

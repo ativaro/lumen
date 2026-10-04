@@ -6,7 +6,7 @@ intentional. Diagnostic and backup controls no longer dominate the main view.
 
 ## Build and installation
 
-Linux, C++17, CMake, dynamic Qt 6.5+ Core/Gui/Widgets/DBus, the system Qt SVG icon
+Linux, C++17, CMake, dynamic Qt 6.5+ Core/Gui/Widgets/Network/DBus, the system Qt SVG icon
 plugin, Qt Test for tests, and Rust **1.89.0** with rustfmt/clippy:
 
 ```sh
@@ -17,16 +17,26 @@ lumen-vault
 
 Installation remains explicit and user-local. If that native installation exists,
 `lumen-vault` opens the native three-column vault. `lumen-vault --lab` remains an
-explicit alias. `lumen-vault --backups` opens the existing Restic application;
-it is also reachable directly from the top Vault / Backups tabs, including on
-the unlock screen. Each section opens its existing native application; the
-credential process remains isolated from the file-backup application. The backup
-window shares the Vault sidebar and uses content-sized section buttons, avoiding
-the file manager tab style and overflow arrows at larger font sizes. Explicit
-backup navigation also activates the existing backup process through KWin on
-KDE, including minimized windows and windows on another virtual desktop. Qt
-activation remains the fallback on other desktops. Fresh production installs do
-not silently enable the native prerelease. No existing data is migrated.
+explicit alias. `lumen-vault --backups` selects Backups in the same native
+window. Both tabs are retained widgets: selection and snapshots survive switching,
+with no second application window or focus handoff. Subsequent launches activate
+the existing native instance. Legacy explicit interop/handoff CLI arguments still
+use the established Python review dialogs; fresh production installs without the
+explicit native prerelease retain the Python backup application.
+
+The backup page uses the installed Lumen Python runtime and headless
+`files/vault_service.py` (PySide6 Core/Network). The service reuses Restic, keyring,
+Library, source-consistency and schedule code. It has one service-owned job,
+private owner-only local IPC, bounded requests/results and request IDs; it survives
+credential process retirement and reconnects without replaying mutations.
+Scheduled/legacy jobs remain separately protected by existing per-plan leases.
+Only backup requests cross this socket; KDBX credentials continue exclusively
+through the Rust broker's anonymous pipe. A tab switch does not lock the vault;
+it hides revealed secrets and clears its owned clipboard. Backup activity does
+not extend the credential idle timeout. Actual credential lock still retires the
+GUI and cancels any unsent backup dialog; accepted jobs continue. No existing data
+is migrated. Restores remain isolated new folders; advanced app-data merge dialogs
+remain available through the legacy backup workflow.
 
 Binaries/source/notices: `$XDG_DATA_HOME/lumen/vault-lab`, default
 `~/.local/share/lumen/vault-lab`. Encrypted test store:
@@ -69,8 +79,8 @@ Binaries/source/notices: `$XDG_DATA_HOME/lumen/vault-lab`, default
 
 ## Protection boundaries
 
-Native widgets communicate only through inherited anonymous pipes with the Rust
-child. No secret endpoint in MCP/Python/QML, no drafts or global index. Both
+Credential widgets communicate only through inherited anonymous pipes with the Rust
+child. The separate Restic service handles backup metadata and backup passwords only. No secret endpoint in MCP/Python/QML, no drafts or global index. Both
 processes disable core dumps, are nondumpable and set no-new-privileges.
 Input frames have dedicated locked/no-dump mappings. Rust heap deallocation and
 reallocation wipe their owned storage; selected library key/payload buffers have
@@ -92,7 +102,7 @@ and Search paste actions. No content is sent to an LLM by Vault itself.
 
 ## Verification
 
-`build.sh`: three native flows for queued requests and create/edit/copy/lock/reopen
+`build.sh`: same-window tabs/retained selection plus native flows for queued requests and create/edit/copy/lock/reopen
 with the real broker, clipboard
 ownership, notes paste/IME bounds and plaintext canaries. `test-kde.sh`: isolated
 KWin/Xwayland/Plasma/Klipper session with temporary HOME/config/data/runtime;
@@ -105,3 +115,12 @@ roundtrip, write-failure and subprocess SIGKILL tests, formatting, Clippy, licen
 inventory and RustSec. `LUMEN_VAULT_CAPTURE=1 build/vault-ui-test` renders four
 synthetic theme screenshots under `/tmp`. See [REVIEW.md](REVIEW.md) for remaining
 release gates and [LICENSES.md](LICENSES.md) for distribution obligations.
+
+`files/test_vault_service.py` covers real Restic create/preview/backup/restore with a
+synthetic repository and in-memory keyring, and separate-process socket reconnect,
+request deduplication, cancellation and singleton ownership. Set
+`LUMEN_TEST_RESTIC` to an installed Restic binary. Tests never use personal plans.
+
+`python3 native/vault-ui/test-launch.py` checks real native singleton activation
+and cold helper startup without a Lumen executable on PATH, in temporary HOME and
+XDG directories. It terminates only the processes created by that test.

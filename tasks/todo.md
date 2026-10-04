@@ -423,3 +423,12 @@ and the setup dialog's second QApplication), both reproduced by the unmodified
 rechecked alone against the changed tree; it also passes in the baseline. Two
 optional integrations are skipped. These wider-suite limitations remain separate
 from the passing timestamp checks; no unrelated runtime changes were made.
+
+## Vault tabs in one native window (2026-10-05)
+
+- [x] Replace launcher/focus handoffs with retained native stacked pages.
+- [x] Preserve credential broker isolation and retirement on actual lock; hide reveal and clear owned clipboard on tab departure.
+- [x] Keep Restic jobs in a private headless service across GUI retirement, with bounded requests/results, explicit cancellation and no mutation replay.
+- [x] Port plan/source/schedule/snapshot/restore/check controls; preserve explicit legacy interop dialogs.
+- [x] Verify same-window identity, retained selection, reconnect errors, real synthetic Restic backup/restore, cold helper startup and native singleton.
+- [x] Isolated KDE/clipboard tests pass; native prerelease/expert-review boundary remains unchanged.

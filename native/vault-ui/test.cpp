@@ -1,6 +1,7 @@
+#include "backups.h"
 #include "vault.h"
-#include <QtTest>
 #include <QScopeGuard>
+#include <QtTest>
 class VaultTest : public QObject {
   Q_OBJECT
   QTemporaryDir config;
@@ -26,27 +27,123 @@ private slots:
     QSettings settings("Lumen", "Assistant");
     settings.setValue("uiLanguage", "de");
   }
-  void backupsTabStartsBackupLauncher() {
+  void backupsTabsKeepOneWindowAndSelection() {
     QTemporaryDir root;
-    const auto marker = root.path() + "/clicked";
-    QFile launcher(root.path() + "/lumen-vault");
-    QVERIFY(launcher.open(QIODevice::WriteOnly));
-    launcher.write(("#!/bin/sh\nprintf '%s' \"$1\" > '" + marker + "'\n").toUtf8());
-    launcher.close();
-    QVERIFY(launcher.setPermissions(QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
-    const auto previous = qgetenv("PATH");
-    auto restore = qScopeGuard([previous] { qputenv("PATH", previous); });
-    qputenv("PATH", root.path().toUtf8() + ":" + previous);
+    const auto oldRuntime = qgetenv("XDG_RUNTIME_DIR");
+    const auto oldTools = qgetenv("LUMEN_TOOLS_DATA");
+    auto restore = qScopeGuard([=] {
+      qputenv("XDG_RUNTIME_DIR", oldRuntime);
+      qputenv("LUMEN_TOOLS_DATA", oldTools);
+    });
+    qputenv("XDG_RUNTIME_DIR", root.path().toUtf8());
+    qputenv("LUMEN_TOOLS_DATA", root.path().toUtf8());
+    const auto endpoint = root.path() + "/lumen-backups-" +
+                          QCryptographicHash::hash(root.path().toUtf8(),
+                                                   QCryptographicHash::Sha256)
+                              .toHex()
+                              .left(16);
+    QLocalServer service;
+    QVERIFY(service.listen(endpoint));
+    int requests = 0;
+    connect(&service, &QLocalServer::newConnection, &service, [&] {
+      auto *peer = service.nextPendingConnection();
+      connect(peer, &QLocalSocket::readyRead, &service, [&, peer] {
+        if (!peer->canReadLine())
+          return;
+        const auto request = QJsonDocument::fromJson(peer->readLine()).object();
+        ++requests;
+        QJsonObject reply{{"state", "idle"}};
+        if (request["command"] == "start")
+          reply = {{"state", "done"},
+                   {"op", "list"},
+                   {"result",
+                    QJsonArray{QJsonObject{
+                        {"id", "synthetic"},
+                        {"title", "Meine Sicherung"},
+                        {"repository", "/media/Backup"},
+                        {"sources", QJsonArray{"/home/example/Documents"}}}}}};
+        peer->write(QJsonDocument(reply).toJson(QJsonDocument::Compact) + '\n');
+        peer->disconnectFromServer();
+      });
+      connect(peer, &QLocalSocket::disconnected, peer, &QObject::deleteLater);
+    });
     VaultWindow window(root.path() + "/store");
     window.show();
+    const auto wid = window.winId();
+    auto *master = window.findChild<QLineEdit *>("master");
+    master->setText("SYNTHETIC UNSENT");
     auto *tabs = window.findChild<QTabBar *>("vaultSections");
-    QVERIFY(tabs);
-    QTest::mouseClick(tabs, Qt::LeftButton, Qt::NoModifier, tabs->tabRect(1).center());
-    QTRY_COMPARE(QFileInfo(marker).size(), qint64(9));
-    QFile result(marker);
-    QVERIFY(result.open(QIODevice::ReadOnly));
-    QCOMPARE(result.readAll(), QByteArray("--backups"));
-    QCOMPARE(tabs->currentIndex(), 0);
+    QTest::mouseClick(tabs, Qt::LeftButton, Qt::NoModifier,
+                      tabs->tabRect(1).center());
+    auto *page = window.findChild<BackupPage *>();
+    QVERIFY(page);
+    QTRY_COMPARE(page->findChild<QListWidget *>("backupPlans")->count(), 1);
+    auto *plans = page->findChild<QListWidget *>("backupPlans");
+    plans->setCurrentRow(0);
+    const auto count = requests;
+    for (int i = 0; i < 3; ++i) {
+      auto *backTabs = page->findChild<QTabBar *>("vaultSections");
+      QTest::mouseClick(backTabs, Qt::LeftButton, Qt::NoModifier,
+                        backTabs->tabRect(0).center());
+      QCOMPARE(window.section(), 0);
+      QCOMPARE(master->text(), QString("SYNTHETIC UNSENT"));
+      QTest::mouseClick(tabs, Qt::LeftButton, Qt::NoModifier,
+                        tabs->tabRect(1).center());
+      QCOMPARE(window.section(), 1);
+      QCOMPARE(window.winId(), wid);
+      QCOMPARE(plans->currentRow(), 0);
+      QCOMPARE(requests, count);
+      QCOMPARE(page->window(), static_cast<QWidget *>(&window));
+    }
+    if (qEnvironmentVariableIsSet("LUMEN_VAULT_CAPTURE")) {
+      QTest::qWait(100);
+      window.grab().save("/tmp/lumen-vault-tabs.png");
+    }
+    window.lock();
+    QCOMPARE(window.section(), 1);
+    QCOMPARE(page, window.findChild<BackupPage *>());
+  }
+  void backupReconnectKeepsFailureVisible() {
+    QTemporaryDir root;
+    const auto oldRuntime = qgetenv("XDG_RUNTIME_DIR");
+    const auto oldTools = qgetenv("LUMEN_TOOLS_DATA");
+    auto restore = qScopeGuard([=] {
+      qputenv("XDG_RUNTIME_DIR", oldRuntime);
+      qputenv("LUMEN_TOOLS_DATA", oldTools);
+    });
+    qputenv("XDG_RUNTIME_DIR", root.path().toUtf8());
+    qputenv("LUMEN_TOOLS_DATA", root.path().toUtf8());
+    const auto endpoint = root.path() + "/lumen-backups-" +
+                          QCryptographicHash::hash(root.path().toUtf8(),
+                                                   QCryptographicHash::Sha256)
+                              .toHex()
+                              .left(16);
+    QLocalServer service;
+    QVERIFY(service.listen(endpoint));
+    connect(&service, &QLocalServer::newConnection, &service, [&] {
+      auto *peer = service.nextPendingConnection();
+      connect(peer, &QLocalSocket::readyRead, &service, [peer] {
+        if (!peer->canReadLine())
+          return;
+        const auto request = QJsonDocument::fromJson(peer->readLine()).object();
+        QJsonObject reply =
+            request["command"] == "status"
+                ? QJsonObject{{"state", "error"},
+                              {"op", "backup"},
+                              {"error", "SYNTHETIC missing disk"}}
+                : QJsonObject{{"state", "done"},
+                              {"op", "list"},
+                              {"result", QJsonArray{}}};
+        peer->write(QJsonDocument(reply).toJson(QJsonDocument::Compact) + '\n');
+        peer->disconnectFromServer();
+      });
+      connect(peer, &QLocalSocket::disconnected, peer, &QObject::deleteLater);
+    });
+    BackupPage page(new QWidget, false);
+    page.show();
+    page.activate();
+    QTRY_COMPARE(page.findChild<QLabel *>("backupStatus")->text(),
+                 QString("SYNTHETIC missing disk"));
   }
   void queuedRequestsAreNotDropped() {
     QTemporaryDir root;
@@ -84,19 +181,22 @@ private slots:
     QTemporaryDir root;
     Channel seed(root.path());
     bool ready = false;
-    seed.call({"create", "SYNTHETIC DESIGN MASTER"}, [&](QStringList) { ready = true; });
+    seed.call({"create", "SYNTHETIC DESIGN MASTER"},
+              [&](QStringList) { ready = true; });
     QTRY_VERIFY_WITH_TIMEOUT(ready, 10000);
     const QList<QStringList> samples{
-      {"Mailkonto", "Privat", "login", "https://mail.example", "alex@example.test"},
-      {"Git-Server", "Arbeit", "login", "https://git.example", "alex"},
-      {"NAS", "Server", "login", "https://nas.example", "alex"},
-      {"Cloud API", "Arbeit", "token", "https://cloud.example", ""},
-      {"Sichere Notiz", "Privat", "note", "", ""}};
+        {"Mailkonto", "Privat", "login", "https://mail.example",
+         "alex@example.test"},
+        {"Git-Server", "Arbeit", "login", "https://git.example", "alex"},
+        {"NAS", "Server", "login", "https://nas.example", "alex"},
+        {"Cloud API", "Arbeit", "token", "https://cloud.example", ""},
+        {"Sichere Notiz", "Privat", "note", "", ""}};
     for (const auto &sample : samples) {
       ready = false;
       seed.call({"put", "", "Title", sample[0], "LumenCollection", sample[1],
-                 "LumenType", sample[2], "URL", sample[3], "UserName", sample[4],
-                 "Password", "SYNTHETIC ONLY"}, [&](QStringList) { ready = true; });
+                 "LumenType", sample[2], "URL", sample[3], "UserName",
+                 sample[4], "Password", "SYNTHETIC ONLY"},
+                [&](QStringList) { ready = true; });
       QTRY_VERIFY_WITH_TIMEOUT(ready, 10000);
     }
     seed.stop();
@@ -111,7 +211,8 @@ private slots:
     QTRY_COMPARE(entries->count(), 5);
     int privateRow = -1;
     for (int i = 0; i < navigation->count(); ++i)
-      if (navigation->item(i)->data(Qt::UserRole).toString() == "collection:Privat")
+      if (navigation->item(i)->data(Qt::UserRole).toString() ==
+          "collection:Privat")
         privateRow = i;
     QVERIFY(privateRow >= 0);
     navigation->setCurrentRow(privateRow);
@@ -119,16 +220,20 @@ private slots:
     for (int i = 0; i < entries->count(); ++i)
       if (entries->item(i)->data(Qt::UserRole + 1).toString() == "Mailkonto")
         entries->setCurrentRow(i);
-    QTRY_COMPARE(window.findChild<QLineEdit *>("website")->text(), QString("https://mail.example"));
-    QCOMPARE(window.findChild<QLineEdit *>("secret")->echoMode(), QLineEdit::Password);
+    QTRY_COMPARE(window.findChild<QLineEdit *>("website")->text(),
+                 QString("https://mail.example"));
+    QCOMPARE(window.findChild<QLineEdit *>("secret")->echoMode(),
+             QLineEdit::Password);
     navigation->setCurrentRow(0);
     QCOMPARE(entries->count(), 5);
     for (int i = 0; i < entries->count(); ++i)
       if (entries->item(i)->data(Qt::UserRole + 1).toString() == "Mailkonto")
         entries->setCurrentRow(i);
-    QTRY_COMPARE(window.findChild<QLineEdit *>("website")->text(), QString("https://mail.example"));
+    QTRY_COMPARE(window.findChild<QLineEdit *>("website")->text(),
+                 QString("https://mail.example"));
     if (qEnvironmentVariableIsSet("LUMEN_VAULT_CAPTURE")) {
-      for (const auto &theme : QStringList{"glass", "graphite", "atelier", "midnight"}) {
+      for (const auto &theme :
+           QStringList{"glass", "graphite", "atelier", "midnight"}) {
         QSettings settings("Lumen", "Assistant");
         settings.setValue("appearance", theme);
         settings.sync();

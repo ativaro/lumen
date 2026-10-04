@@ -32,7 +32,7 @@ still MIT. No license was silently replaced and no commercial rights are purchas
 ## Qt
 
 The native application dynamically links the separately installed Qt 6 **Core,
-Gui, Widgets and D-Bus** libraries. Qt Test is used by tests only. These modules
+Gui, Widgets, Network and D-Bus** libraries. Qt Test is used by tests only. These modules
 are used under LGPLv3; `licenses/qt/` contains LGPLv3 and its GPLv3 base text.
 Settings → About / Licenses identifies Qt and these rights. SVG icons use the
 separately installed Qt SVG plugin (LGPLv3); its code is not bundled here. We do not ship

@@ -16,11 +16,11 @@ cp -R licenses "$prefix/share/"
 mkdir -p "$prefix/share/rust-dependencies"
 cp -R ../vault-core/licenses/. "$prefix/share/rust-dependencies/"
 # Exact rebuildable Lumen source; never archives local vault data or build outputs.
-tar --exclude='native/vault-core/target' --exclude='native/vault-ui/build' -czf "$prefix/share/lumen-vault-source.tar.gz" -C ../.. LICENSE LICENSE-PLAN.md PUBLISHING.md native/vault-core native/vault-ui
+(cd ../.. && git ls-files -z -- LICENSE LICENSE-PLAN.md PUBLISHING.md native/vault-core native/vault-ui files bin/lumen-vault bin/lumen-python | tar --null -T - -czf "$prefix/share/lumen-vault-source.tar.gz")
 printf 'Laboratory installed. Start with lumen-vault --lab. Synthetic credentials only.\n'
 {
     git rev-parse HEAD
     (cd ../vault-core && rustc --version)
-    pkg-config --modversion Qt6Widgets Qt6DBus
+    pkg-config --modversion Qt6Widgets Qt6DBus Qt6Network
     sha256sum "$prefix/bin/"*
 } > "$prefix/share/build-info.txt"

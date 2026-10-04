@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "vault.h"
+#include <QtNetwork>
 #include <fcntl.h>
 #include <sys/file.h>
 #include <sys/prctl.h>
@@ -7,7 +8,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 int main(int argc, char **argv) {
-  if (argc != 2 || QByteArray(argv[1]) != "--laboratory-only")
+  if ((argc != 2 && argc != 3) || QByteArray(argv[1]) != "--laboratory-only" ||
+      (argc == 3 && QByteArray(argv[2]) != "--backups"))
     return 2;
   struct rlimit core{0, 0};
   if (setrlimit(RLIMIT_CORE, &core) != 0 || prctl(PR_SET_DUMPABLE, 0) != 0 ||
@@ -54,13 +56,62 @@ int main(int argc, char **argv) {
         "Screen capture is running. Open Vault when it has finished.");
     return 1;
   }
+  const auto endpoint = QString::fromUtf8(runtime) + "/lumen-vault-window";
+  const int requestedSection = argc == 3 ? 1 : 0;
+  QLockFile owner(endpoint + ".lock");
+  if (!owner.tryLock(0)) {
+    QLocalSocket client;
+    client.connectToServer(endpoint);
+    if (!client.waitForConnected(2000))
+      return 1;
+    client.write(requestedSection == 1 ? "backups\n" : "vault\n");
+    if (!client.waitForBytesWritten(2000))
+      return 1;
+    close(lease);
+    return 0;
+  }
+  QLocalServer::removeServer(endpoint);
+  QLocalServer server;
+  server.setSocketOptions(QLocalServer::UserAccessOption);
+  if (!server.listen(endpoint))
+    return 1;
   VaultWindow window(root);
+  QObject::connect(&server, &QLocalServer::newConnection, &window, [&] {
+    while (server.hasPendingConnections()) {
+      auto *peer = server.nextPendingConnection();
+      peer->setReadBufferSize(32);
+      QTimer::singleShot(2000, peer, &QLocalSocket::abort);
+      QObject::connect(peer, &QLocalSocket::readyRead, &window, [&, peer] {
+        if (!peer->canReadLine())
+          return;
+        const auto message = peer->readLine(32);
+        if ((message == "backups\n" || message == "vault\n") &&
+            !QApplication::activeModalWidget()) {
+          window.showSection(message == "backups\n" ? 1 : 0);
+          if (window.isMinimized())
+            window.showNormal();
+          else
+            window.show();
+          window.raise();
+          window.activateWindow();
+        }
+        peer->disconnectFromServer();
+      });
+      QObject::connect(peer, &QLocalSocket::disconnected, peer,
+                       &QObject::deleteLater);
+    }
+  });
   QObject::connect(&window, &VaultWindow::retire, &app, [&] {
     window.hide();
-    QProcess::startDetached(QCoreApplication::applicationFilePath(),
-                            {"--laboratory-only"});
+    QStringList arguments{"--laboratory-only"};
+    if (window.section() == 1)
+      arguments << "--backups";
+    server.close();
+    owner.unlock();
+    QProcess::startDetached(QCoreApplication::applicationFilePath(), arguments);
     app.quit();
   });
+  window.showSection(requestedSection);
   window.show();
   const int result = app.exec();
   close(lease);
