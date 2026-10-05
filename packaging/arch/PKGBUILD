@@ -7,7 +7,7 @@ provides=('opencode-lumen')
 # No automatic conflict removal: the legacy package's uninstall script deletes reports.
 # The supported build installer migrates it first; direct installation fails safely
 # on file conflicts until the old package has been migrated.
-arch=('any')
+arch=('x86_64' 'aarch64')
 url="https://github.com/ativaro/lumen"
 license=('LicenseRef-Lumen-EULA' 'GPL-3.0-only')
 depends=('bash' 'git' 'python3' 'pyside6' 'python-gobject' 'python-pillow')
