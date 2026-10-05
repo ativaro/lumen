@@ -35,7 +35,7 @@ for tool in meetings household workbench radio vault inbox reader sound wissen t
 done
 rm -f "$DATA_HOME/applications/lumen-ask.desktop"
 rm -f "$DATA_HOME/applications/lumen-ask-sel.desktop"
-rm -f "$DATA_HOME/applications/lumen-vision.desktop"
+rm -f "$DATA_HOME/applications/lumen-vision.desktop" "$DATA_HOME/applications/lumen-companion.desktop" "$DATA_HOME/applications/lumen-window-capture.desktop"
 rm -f "$DATA_HOME/applications/lumen-sel.desktop"
 rm -f "$DATA_HOME/krunner/dbusplugins/lumen-runner.desktop"
 rm -f "$DATA_HOME/dbus-1/services/org.lumen.runner.service"

@@ -57,7 +57,7 @@ bootstrap() {
     fi
 
     local packages=(git python pyside6 python-gobject python-pillow python-dbus
-        qt6-tools kde-cli-tools breeze-icons polkit)
+        qt6-tools kde-cli-tools breeze-icons polkit gcc pkgconf qt6-base)
     if ! pacman -T "${packages[@]}" >/dev/null; then
         message 'Die grafische Basis wird installiert. Dafür ist gegebenenfalls dein Systempasswort nötig.' 'Installing the graphical runtime. Your system password may be required.'
         sudo pacman -S --needed --noconfirm -- "${packages[@]}"

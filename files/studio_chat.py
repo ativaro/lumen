@@ -65,6 +65,7 @@ class StudioChat(ChatPanel):
         menu = QMenu(self.attach)
         menu.addAction(tr('Dateien hinzufügen'), self.context_tools.files)
         menu.addAction(tr('Bildschirm aufnehmen'), self.context_tools.screenshot)
+        menu.addAction(tr('Lumen begleitet mich'), self.context_tools.companion)
         menu.addAction(tr('Zwischenablage einfügen'), self.context_tools.clipboard)
         menu.addAction(self.context_tools.voice)
         menu.addSeparator(); menu.addAction(tr('Kontext entfernen'), self.context_tools.clear)

@@ -4,6 +4,9 @@ set -euo pipefail
 SELF_DIR="$(dirname "$(readlink -f "$0")")"
 PROMPT="${LUMEN_VISION_PROMPT:-Beschreibe das Bild. Wenn es ein Problem zeigt, erkläre die Ursache und sinnvolle nächste Schritte.}"
 mode="${1:-region}"
+if [ "$mode" = companion ]; then
+    exec "$SELF_DIR/lumen-companion"
+fi
 if [ "$mode" = clip ]; then
     exec "$SELF_DIR/lumen-agent-app" --clipboard-image --prompt="$PROMPT"
 fi

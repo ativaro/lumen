@@ -18,6 +18,7 @@ class ContextTools(QObject):
             button = QPushButton(title); button.clicked.connect(callback); row.addWidget(button)
         more = QPushButton('···'); more.setAccessibleName(tr('Weitere Kontextaktionen')); more.setToolTip(tr('Mehr: Zwischenablage, Diktieren und Kontext entfernen'))
         menu = QMenu(more)
+        menu.addAction(tr('Lumen begleitet mich'), self.companion)
         menu.addAction(tr('Zwischenablage einfügen'), self.clipboard)
         self.voice = menu.addAction(tr('Diktieren'), self.dictate)
         menu.addSeparator()
@@ -37,6 +38,11 @@ class ContextTools(QObject):
         if self.panel.backend.busy: return
         paths, _ = QFileDialog.getOpenFileNames(self.panel, tr('Kontext auswählen'), self.panel.backend.directory)
         if paths: self.panel.paths = list(dict.fromkeys(self.panel.paths + paths)); self.panel.update_context()
+
+    def companion(self):
+        from lumen_apps import launch
+        try: launch('companion')
+        except (OSError, ValueError) as error: self.panel.show_error(str(error))
 
     def screenshot(self):
         if self.process is not None or self.panel.backend.busy: return

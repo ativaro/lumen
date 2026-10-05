@@ -51,6 +51,15 @@ for c in bash python3 git; do command -v "$c" >/dev/null 2>&1 || missing+=("$c")
 [ ${#missing[@]} -gt 0 ] && { message "Fehlende Pflicht-Abhängigkeiten: ${missing[*]}" "Missing required dependencies: ${missing[*]}" >&2; exit 1; }
 
 "$REPO/bin/lumen-python" -c "import PySide6.QtWidgets, PySide6.QtSvg, PySide6.QtQuick, PySide6.QtQuickWidgets, gi, PIL" || { message "Benötigt: PySide6 mit QtQuick/QtSvg, PyGObject und Pillow" "Required: PySide6 with QtQuick/QtSvg, PyGObject and Pillow" >&2; exit 1; }
+if ! command -v g++ >/dev/null || ! command -v pkg-config >/dev/null || ! pkg-config --exists Qt6Core Qt6DBus; then
+    if command -v pacman >/dev/null && command -v pkexec >/dev/null; then
+        say "Richte den nativen Aufnahmehelfer ein" "Preparing the native capture helper"
+        pkexec pacman -S --needed --noconfirm -- gcc pkgconf qt6-base
+    else
+        message "Benötigt: g++, pkg-config und Qt-6-Core/DBus-Entwicklungsdateien." "Required: g++, pkg-config and Qt 6 Core/DBus development files." >&2
+        exit 1
+    fi
+fi
 if [ "$DESKTOP" = 1 ]; then
     for c in qdbus6 kreadconfig6 kwriteconfig6 plasma-apply-desktoptheme kbuildsycoca6; do
         command -v "$c" >/dev/null || { message "Desktop-Einrichtung benötigt $c und eine KDE-Plasma-6-Sitzung." "Desktop setup requires $c and a KDE Plasma 6 session." >&2; exit 1; }
@@ -74,6 +83,7 @@ install -m 0755 "$REPO/uninstall.sh" "$PREFIX/uninstall.sh"
 for bin_file in "$REPO/bin/"*; do
     [ -f "$bin_file" ] && install -m 0755 "$bin_file" "$BIN/"
 done
+bash "$REPO/native/build-capture.sh" "$BIN/lumen-window-capture"
 mkdir -p "$PREFIX/agent-app"
 install -m 0644 "$REPO/agent-app/main.py" "$PREFIX/agent-app/"
 mkdir -p "$PREFIX/files"
@@ -134,6 +144,8 @@ if [ -f "$DATA_HOME/plasma_icons/lumen.desktop" ]; then
 fi
 subst "$REPO/data/applications/lumen-ask.desktop" > "$DATA_HOME/applications/lumen-ask.desktop"
 subst "$REPO/data/applications/lumen-ask-sel.desktop" > "$DATA_HOME/applications/lumen-ask-sel.desktop"
+subst "$REPO/data/applications/lumen-companion.desktop" > "$DATA_HOME/applications/lumen-companion.desktop"
+subst "$REPO/data/applications/lumen-window-capture.desktop" > "$DATA_HOME/applications/lumen-window-capture.desktop"
 subst "$REPO/data/applications/lumen-vision.desktop" > "$DATA_HOME/applications/lumen-vision.desktop"
 subst "$REPO/data/applications/lumen-sel.desktop" > "$DATA_HOME/applications/lumen-sel.desktop"
 subst "$REPO/data/applications/lumen-files.desktop" > "$DATA_HOME/applications/lumen-files.desktop"

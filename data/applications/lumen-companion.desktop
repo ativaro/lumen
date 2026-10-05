@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen Companion
+Name[de]=Lumen begleitet mich
+Comment=Step-by-step help in a window you choose
+Comment[de]=Schritt für Schritt im gewählten Fenster begleitet werden
+Exec=%INSTALL_BIN%/lumen-companion
+Icon=lumen
+Terminal=false
+Categories=Utility;
+StartupWMClass=lumen-companion
+Keywords=Lumen;Screen;Guide;Help;Bildschirm;Begleitung;Hilfe;

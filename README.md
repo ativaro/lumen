@@ -100,6 +100,7 @@ gracefully on other setups.
 | **Shared settings** | Settings button / Ctrl+, in Lumen and Files: app preferences, models, global shortcuts, panels/tray, native KDE appearance editors, services and report schedules |
 | **File actions** | Explain / fix / review show a native result and progress view in Files or a compact standalone window; free chat remains separate |
 | **Global shortcuts** | `Meta+Shift+O` ask · `Meta+Shift+C` explain clipboard · `Meta+Shift+V` vision · `Meta+Shift+E` explain selection |
+| **Screen companion** (`lumen-companion`) | choose one window, review the image, and get the next step by text or local voice; optional guarded change monitoring; [privacy and setup](INSTALL.md#screen-companion) |
 | **Vision** | capture a screen region → opencode analyses the image (`lumen-vision`) |
 | **Selection actions** | explain / translate / fix / summarize selected or copied text (`lumen-sel`) |
 | **Shell integration** | `why` (explain last failed command), `vix`, `sel` — bash & fish (`shell/lumen.{bash,fish}`) |

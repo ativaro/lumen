@@ -89,7 +89,7 @@ so private clones do not trigger a second unauthenticated download. It installs
 missing base dependencies through pacman/sudo, copies Lumen into
 `~/.local/share/lumen` (`$XDG_DATA_HOME/lumen` when set), then opens **Set up Lumen**.
 The checkout and installed application files stay local. The bootstrap requests elevated rights
-only for missing base system packages. No compiler or manual package build is needed for Lumen itself.
+only for missing base system packages. The bootstrap also installs GCC/pkgconf and Qt 6 development files for the small native window-capture helper; no manual build step is needed.
 Internet access, sudo access for missing packages and an existing KDE Plasma 6 session are required.
 It does not install a Linux distribution, display manager or Plasma session.
 
@@ -325,3 +325,33 @@ Failures remain visible, and successfully updated components are retained on ret
 Update state is private/local under `$XDG_STATE_HOME/lumen/updater`. No credentials,
 notebooks, vault data, personal configurations or user files are sent to GitHub.
 Installation identity is stored in `install.json` alongside each runtime.
+
+## Screen companion
+
+Open **Lumen Companion** from Apps/Search, or choose **Lumen begleitet mich** in
+Lumen's attachment menu (Files: additional context actions). `lumen-vision companion`
+opens the same sidecar. Select one application window, enter a goal and review the
+local preview before sharing it. Enter sends; Shift+Enter inserts a line. Existing
+local voice setup is reused. A vision-capable configured model is required.
+
+Optional change monitoring checks at most every five seconds, requires two stable
+changed frames, and pauses after 30 requests or 20 minutes. It is available only
+when AT-SPI exposes an unambiguous window tree without visible password fields.
+Unknown protection state falls back to manual image approval; visible secrets in
+unmarked fields cannot be detected reliably. Pause before entering them. Minimize,
+pause or close stops capture and voice. Lumen Vault must be closed.
+
+Only the selected KWin window UUID is captured; there is no desktop/active-window
+fallback. KDE Plasma with OpenGL compositing, python-dbus and AT-SPI are used. The
+installer builds a dedicated Qt/DBus executable and registers its own restricted
+interface permission, never a general Python interpreter's permission. Direct
+`install.sh` runs require `g++`, `pkg-config` and Qt 6 Core/DBus development files.
+On CachyOS/Arch, missing helper build dependencies request graphical administrator
+authorization before application files are replaced; the update one-liner handles
+the same dependencies through the bootstrap.
+
+Images are held in memory and go to the configured model provider only after
+consent (including optional automatic sharing). Engine/provider history may retain
+them; this feature does not promise ephemeral provider storage. The companion
+has no execution tools and does not automatically learn screen content into Lumen
+Wissen. It explains the next step; the user operates the target application.

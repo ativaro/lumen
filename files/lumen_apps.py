@@ -13,6 +13,7 @@ def catalogue():
         ('lumen', 'Lumen', tr('Gespräche, Aufträge und dein System'), 'lumen'),
         ('files', 'Lumen Files', tr('Dateien, Netzwerkorte und Vorschauen'), 'system-file-manager'),
         ('search', tr('Lumen Suche'), tr('Apps und Dateien finden, mit Lumen sprechen'), 'system-search'),
+        ('companion', tr('Lumen begleitet mich'), tr('Hilfe im gewählten Fenster · Schritt für Schritt'), 'video-display'),
         ('translate', 'Lumen Translate', tr('Übersetzen, umformulieren und korrigieren'), 'preferences-desktop-locale'),
         ('wissen', tr('Lumen Wissen'), tr('Deine Notizen und Lumens Gedächtnis'), 'accessories-text-editor'),
         ('inbox', 'Lumen Inbox', tr('Nachrichten und Kalender an einem Ort'), 'mail-unread'),
@@ -49,7 +50,7 @@ def launch(app, *, area=None, page=None):
         if area: args += ['--area', area]
         executable = sys.executable
     else:
-        name = {'lumen': 'lumen-agent-app', 'apps': 'lumen-agent-app', 'files': 'lumen-files', 'search': 'lumen-search', 'system': 'lumen-system', 'updater': 'lumen-updater'}[app]
+        name = {'lumen': 'lumen-agent-app', 'apps': 'lumen-agent-app', 'files': 'lumen-files', 'search': 'lumen-search', 'system': 'lumen-system', 'updater': 'lumen-updater', 'companion': 'lumen-companion'}[app]
         from lumen_launch import executable as resolve_executable
         executable = resolve_executable(name)
         args = ['--page', 'apps'] if app == 'apps' else ['--page', page] if page else []
