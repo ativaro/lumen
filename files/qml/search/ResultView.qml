@@ -12,6 +12,7 @@ ColumnLayout {
     visible: view.active
     property real textSize: theme.fontSize
     property string exportKey: ""
+    readonly property bool dialogVisible: exportDialog.visible
     Label { Layout.fillWidth: true; visible: text.length > 0; text: root.view.title; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: root.theme.text; font.family: root.theme.fontFamily; font.pixelSize: root.textSize + 5; font.weight: Font.DemiBold }
     Repeater {
         model: root.view.blocks
