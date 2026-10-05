@@ -10,7 +10,7 @@
         "Description[de]": "Gemeinsame Aufgaben, Ergebnisse und Schnellaktionen aus Lumen und Lumen Files",
         "Icon": "lumen",
         "Id": "org.lumen.islands",
-        "License": "MIT",
+        "License": "LicenseRef-Lumen-EULA",
         "Name": "Lumen Panel",
         "Name[de]": "Lumen Leiste",
         "Version": "1.2.0",

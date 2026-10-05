@@ -8,7 +8,7 @@
         "Description[de]": "Gemeinsame Aufgaben, Ergebnisse und Schnellaktionen aus Lumen und Lumen Files",
         "Icon": "lumen",
         "Id": "org.lumen.agent",
-        "License": "MIT",
+        "License": "LicenseRef-Lumen-EULA",
         "Name": "Lumen",
         "Name[de]": "Lumen",
         "Version": "1.2.0",

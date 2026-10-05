@@ -1,5 +1,12 @@
 # Install Lumen on a fresh desktop
 
+Lumen-owned components use the [Lumen EULA](LICENSE). Read it before installing
+or updating; redistribution and commercial derivatives need written permission.
+Earlier license grants and [third-party rights](THIRD_PARTY_NOTICES.md) remain
+valid. The installer includes both documents in the user bundle; system packages
+include them under `/usr/share/licenses/lumen`. Proprietary distribution of the
+PyMuPDF integrations remains subject to [licensing clearance](LICENSE-PLAN.md).
+
 Supported full-desktop target: Arch Linux/CachyOS, KDE Plasma 6, logged in as a
 normal user. Install Plasma and a display manager through your distribution first.
 Lumen supplies its applications, applets, themes, decorations and wallpapers;

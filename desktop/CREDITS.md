@@ -10,7 +10,9 @@ The four original Lumen wallpapers (Nacht, Alpen, Nordlicht and Himmel) include
 their editable SVG sources and use GPL-3.0. Seven additional Lumen wallpaper
 illustrations were generated with OpenAI image generation: Alpenlicht,
 Polarlicht, Lichtstrom, Schildmaid, Nachtfahrt, Duenenmeer and Neonhafen.
-They are supplied under the project's MIT license to the extent copyright applies.
+These generated illustrations are supplied under the Lumen EULA in `../LICENSE`
+to the extent the licensor holds applicable rights. Earlier MIT grants remain valid.
+The GPL artwork listed above is unaffected.
 They retain their original 1672 × 941 resolution; the desktop scales them.
 
 This directory contains distributable artwork only. It contains no desktop

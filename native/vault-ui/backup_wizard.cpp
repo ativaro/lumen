@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LicenseRef-Lumen-EULA
 #include "backup_wizard.h"
 #include "vault.h"
 #include <QSaveFile>

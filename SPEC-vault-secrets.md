@@ -25,9 +25,9 @@ Schlüsseldatei, KDF und Integrationen liegen unter „Erweitert“.
   kein Speicher für Tresoreinträge, auch nicht für deren sensible Metadaten.
 - Gemeinsame Suche, Interop, Crash-Recovery, MCP und Lumen-Gedächtnis dürfen keine
   Tresorfelder automatisch übernehmen. Diese Ausschlüsse müssen technisch gelten.
-- Der aktuelle Repository-Lizenztext ist MIT; die diskutierte kommerzielle/
-  Community-Lizenzierung ist noch ein Vorschlag. Neue Abhängigkeiten dürfen diese
-  spätere Entscheidung nicht still vorwegnehmen.
+- Lumen-eigene Komponenten stehen unter der EULA in `LICENSE`. Bestehende
+  MIT-Rechte und Fremdlizenzen bleiben gültig. Neue Abhängigkeiten müssen mit
+  den beabsichtigten Verbreitungsrechten vereinbar sein; siehe `LICENSE-PLAN.md`.
 
 ## 3. Sicherheitsziel und Grenzen
 

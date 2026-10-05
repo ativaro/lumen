@@ -10,7 +10,7 @@
         "Description[de]": "Systemsteuerung, Einstellungen und Themes",
         "Icon": "configure",
         "Id": "org.lumen.control",
-        "License": "MIT",
+        "License": "LicenseRef-Lumen-EULA",
         "Name": "Lumen Settings",
         "Name[de]": "Lumen Einstellungen",
         "Version": "1.2.0",

@@ -1,5 +1,9 @@
 # Lumen — AI-first desktop for CachyOS
 
+**License: proprietary [Lumen EULA](LICENSE).** Personal and internal business use
+are allowed; redistribution, resale and commercial derivatives require prior
+written permission. [Third-party rights and release constraints](THIRD_PARTY_NOTICES.md) remain applicable.
+
 ## Install → setup wizard
 
 **Arch/CachyOS · KDE Plasma 6 · run as your normal user.**
@@ -385,12 +389,16 @@ install-system.sh         optional root-only tweaks
 
 ## License
 
-The current license for Lumen-authored code is MIT — see [LICENSE](LICENSE).
-The repository remains private. The proposed direction is dual licensing: an
-AGPLv3 community version and paid licenses for proprietary derivatives. Compliant
-AGPL redistribution, including sales, would remain permitted without a license fee.
-This proposal is not yet a license change.
-See [the licensing plan and dependency constraints](LICENSE-PLAN.md).
+Lumen-owned components are offered under the [Lumen EULA](LICENSE), not MIT.
+Personal and internal business use, local builds and internal customization are
+allowed. Redistribution, resale, commercial forks, OEM editions and hosted
+software offerings require the maintainer's express written permission.
+
+This does not revoke MIT rights already granted for earlier copies. Third-party
+licenses remain in force; Qt/PySide6, vendored libraries and GPL artwork are not
+relicensed by this change. PyMuPDF-based integrations still require licensing
+clearance before a proprietary distribution. See [third-party notices](THIRD_PARTY_NOTICES.md)
+and [licensing status](LICENSE-PLAN.md). The repository remains private.
 
 ## System-wide install (Arch / CachyOS)
 

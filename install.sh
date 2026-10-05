@@ -42,6 +42,8 @@ for arg in "$@"; do
 done
 
 
+say "Lizenz: Lumen-EULA unter $REPO/LICENSE; Fremdlizenzen bleiben gültig." "License: Lumen EULA at $REPO/LICENSE; third-party licenses remain in effect."
+
 # ---- dependency check ------------------------------------------------------
 say "Prüfe Abhängigkeiten" "Checking dependencies"
 missing=()
@@ -67,6 +69,7 @@ fi
 # ---- copy files ------------------------------------------------------------
 say "Installiere Dateien nach $PREFIX" "Installing files into $PREFIX"
 mkdir -p "$BIN"
+install -m 0644 "$REPO/LICENSE" "$REPO/THIRD_PARTY_NOTICES.md" "$PREFIX/"
 install -m 0755 "$REPO/uninstall.sh" "$PREFIX/uninstall.sh"
 for bin_file in "$REPO/bin/"*; do
     [ -f "$bin_file" ] && install -m 0755 "$bin_file" "$BIN/"
@@ -87,6 +90,7 @@ for plugin in agent islands system search control; do
     METADATA=metadata.json
     [ "$plugin" = agent ] || METADATA="$plugin-metadata.json"
     install -m 0644 "$REPO/plasmoid/$METADATA" "$APPLET/metadata.json"
+    install -m 0644 "$REPO/LICENSE" "$APPLET/LICENSE"
     install -m 0644 "$REPO/plasmoid/contents/ui/"*.qml "$REPO/plasmoid/contents/ui/"*.js "$APPLET/contents/ui/"
     install -m 0644 "$REPO/plasmoid/contents/config/"* "$APPLET/contents/config/"
     case "$plugin" in system) SURFACE=home;; search|control) SURFACE="$plugin";; *) SURFACE=tasks;; esac

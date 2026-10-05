@@ -1,66 +1,44 @@
-# Licensing direction — not a replacement license
+# Licensing status and release constraints
 
-The current LICENSE remains MIT for Lumen-authored code; third-party components
-retain their own licenses. The repository remains private. This document records
-the maintainer's intended policy, not new restrictions on existing recipients.
+## Adopted direction — 5 October 2026
 
-## Proposed direction — 2026-10-03
+The maintainer instructed an immediate change from the project-wide MIT offer
+to the original proprietary [Lumen EULA](LICENSE), identified as
+`LicenseRef-Lumen-EULA`. This supersedes the earlier proposed AGPL/commercial
+model; the proposal was never adopted as Lumen's general license.
 
-The maintainer wants a dual-licensing model similar to Riverbank's: a free
-community license and paid, separately negotiated rights for proprietary
-derivatives. This supersedes the earlier noncommercial-only proposal. AGPLv3 is
-the proposed community license; the exact grant and commercial terms have not
-been finalized or adopted.
+The EULA allows personal and internal business use, local builds and internal
+customization. Redistribution, resale, commercial forks, OEM editions and
+hosted offerings require the maintainer's express written agreement. It sets
+no price or revenue share. Source availability is not an open-source grant.
+The repository remains private. Microsoft is not a party and its terms have
+not been copied.
 
-| Route | Proposed terms |
-| --- | --- |
-| Community | AGPLv3, free of license fees. Private and business use, modification, redistribution and sales are permitted subject to its conditions. |
-| Commercial | A separately negotiated license for code the maintainer has authority to license, allowing agreed proprietary distribution without that code's AGPL obligations. Third-party rights must be resolved separately. |
+## Boundaries that remain
 
-**A compliant AGPL fork may be sold without paying the maintainer.** This model
-earns license revenue from customers needing proprietary rights; it does not
-require a royalty on every resale or guarantee revenue. Ordinary business use
-does not by itself require a paid license. AGPL source obligations concern
-conveying covered works and, under section 13, offering corresponding source to
-users interacting remotely with a modified version. They do not require uploading
-private user files or publishing every installation on GitHub.
+- This change cannot withdraw rights already granted for earlier MIT copies.
+  Historical license texts remain in Git. No history rewrite or retroactive
+  restriction is intended.
+- Only code and assets the maintainer owns or is authorized to relicense are
+  covered. Verify authorship and contribution rights before a release; a Git
+  author label does not establish copyright ownership. Third-party notices and
+  separately licensed contributions remain effective.
+- Qt/PySide6 LGPL obligations, including library replacement, corresponding
+  source and debugging/relinking rights, remain mandatory where applicable.
+- PyMuPDF/MuPDF integrations still require separate resolution before a
+  proprietary distribution: appropriate Artifex rights or a verified compatible
+  replacement. Changing LICENSE is not that resolution.
+- GPL desktop artwork and MIT vendored keepass (including its local patches)
+  retain their notices and rights. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-Developer seats, per-product/OEM agreements, fees, support and update periods
-remain commercial decisions. No price or revenue-sharing obligation is set here.
+Before a public/commercial release, confirm the licensor's full legal identity
+and contact details, have qualified counsel review the EULA and acceptance flow
+for the intended jurisdictions, and complete the dependency/contribution audit.
+The repository text and installer notice alone do not certify enforceability,
+user assent or clearance of the complete distribution. Do not publish a
+proprietary binary distribution with unresolved copyleft integrations.
 
-## Resolve before adopting or publishing
-
-- Lumen now uses PySide6/Qt 6 instead of PyQt5. This removes the application's
-  Riverbank binding dependency; it does not remove Qt's licensing obligations.
-  Audit the actual Qt modules and bundled libraries for every release. Preserve
-  notices, source/relinking rights and other applicable LGPL/GPL obligations, or
-  obtain appropriate commercial rights. See the official
-  [Qt for Python licenses](https://doc.qt.io/qtforpython-6/licenses.html) and
-  [Qt licensing overview](https://doc.qt.io/qt-6/licensing.html).
-- Reader and the optional document workshop use PyMuPDF/MuPDF, offered under
-  AGPL or commercial terms. Include these features in the dependency audit.
-  Proprietary distribution needs suitable Artifex rights or a verified replacement
-  for their rendering and editing functions; a Lumen license alone is insufficient.
-- Modified MacTahoe assets and other GPL artwork retain their original notices,
-  source availability and GPL rights. They must not be relabeled as proprietary.
-- Audit source provenance and any contributions before claiming exclusive
-  licensing authority. Use an appropriate contributor agreement if future
-  contributions must support commercial licensing; copyright does not transfer
-  merely because a pull request is accepted.
-- A new license does not simply withdraw rights already granted for existing
-  MIT copies. Recipients may retain rights to use those copies in proprietary
-  derivatives. Future changes and existing recipients need separate consideration.
-- Audit all shipped dependencies, assets and notices before adopting either route.
-  Keep the repository private while the exact community grant, licensing authority
-  and commercial agreement are resolved. Have the final terms reviewed by qualified
-  counsel before release. This plan neither changes LICENSE nor certifies that a
-  complete distribution can be licensed solely under MIT or solely by the maintainer.
-
-References:
-- https://www.gnu.org/licenses/agpl-3.0.en.html
-- https://www.gnu.org/licenses/gpl-faq.en.html#ReleaseUnderGPLAndNF
-- https://www.riverbankcomputing.com/commercial/license-faq
-- https://pymupdf.readthedocs.io/en/latest/about.html#license-and-copyright
-- https://doc.qt.io/qtforpython-6/licenses.html
-- https://choosealicense.com/licenses/mit/
-- desktop/CREDITS.md
+Primary references:
+- [Qt LGPL obligations](https://www.qt.io/development/open-source-lgpl-obligations)
+- [PyMuPDF licensing](https://pymupdf.readthedocs.io/en/latest/about.html#license-and-copyright)
+- [GNU license FAQ](https://www.gnu.org/licenses/gpl-faq.en.html)

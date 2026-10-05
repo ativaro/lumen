@@ -10,7 +10,7 @@
         "Description[de]": "Systemübersicht, Arbeitsplatz und Aufgaben",
         "Icon": "lumen",
         "Id": "org.lumen.system",
-        "License": "MIT",
+        "License": "LicenseRef-Lumen-EULA",
         "Name": "Lumen System",
         "Name[de]": "Lumen System",
         "Version": "1.2.0",

@@ -1,12 +1,14 @@
 # Native Vault laboratory: licensing and distribution
 
 This document covers the new native Vault laboratory, **not** a proprietary
-licensing clearance of the complete Lumen distribution. Lumen's root LICENSE is
-still MIT. No license was silently replaced and no commercial rights are purchased.
+licensing clearance of the complete Lumen distribution. Lumen-owned code now
+uses the root Lumen EULA (`LicenseRef-Lumen-EULA`); its third-party carve-outs
+preserve the rights below. No third-party commercial rights are purchased.
 
 ## Included code and notices
 
-- Lumen-authored C++, Rust code and interface SVG marks: MIT, root `LICENSE`.
+- Lumen-owned C++, Rust code and interface SVG marks: Lumen EULA, root `LICENSE`.
+  Existing MIT grants for earlier copies and independent contributor rights remain valid.
 - KDBX engine: locally patched `keepass` 0.15.0, MIT, with original LICENSE and
   documented provenance in `../vault-core/vendor/keepass/LUMEN-PATCHES.md`. No KeePassXC source is copied or
   linked. KeePassXC is a separately installed reference program used by tests.

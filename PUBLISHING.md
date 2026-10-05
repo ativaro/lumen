@@ -85,17 +85,22 @@ Native binaries must include the full notice/source bundle produced by its insta
 
 ## Licenses
 
-The repository remains private. [LICENSE-PLAN.md](LICENSE-PLAN.md) records the
-proposed AGPLv3 community/commercial dual-licensing direction, including permitted
-AGPL-compliant sales and the Qt/PyMuPDF rights to resolve for proprietary
-distribution. It does not replace the current license.
+The repository remains private. Lumen-owned components are covered by the
+[Lumen EULA](LICENSE), identified as `LicenseRef-Lumen-EULA`. Distribute that
+agreement and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) with the software.
+Do not label the entire project MIT. Prior MIT grants and third-party rights
+remain valid. [LICENSE-PLAN.md](LICENSE-PLAN.md) records the adopted direction
+and the remaining legal/provenance checks.
 
-Lumen-authored application code is currently MIT; dependencies retain their own
-licenses. The bundled modified MacTahoe Plasma/Aurorae artwork and
-four SVG wallpapers use GPL-3.0. Keep `desktop/CREDITS.md`, `COPYING.GPL-3.0` and
-editable graphics with the distribution. Image-generated wallpapers are identified
-separately in the credits. Do not include third-party account credentials or private
-configuration to make a clean installation work.
+**Proprietary binary release is not cleared for the PyMuPDF integrations.**
+Resolve Artifex rights or replace the incompatible dependency before distributing
+that combination under restrictive terms. Preserve applicable Qt/PySide6 LGPL
+notices, corresponding-source availability, library replacement and debugging
+rights. The EULA expressly preserves those rights.
+
+Keep the modified MacTahoe artwork and four SVG wallpapers under GPL-3.0 with
+`desktop/CREDITS.md`, `COPYING.GPL-3.0` and their editable sources. Preserve all
+vendored/library notices. Do not include personal configuration or credentials.
 
 Real image-model smoke (after explicitly installing the optional image search):
 

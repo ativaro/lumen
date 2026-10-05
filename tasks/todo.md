@@ -219,8 +219,9 @@ backups or screenshots are included in Git.
 
 Private GitHub main updated and visibility verified. README begins with the
 working authenticated clone/local-bootstrap route, tested without public download.
-Current LICENSE remains MIT; LICENSE-PLAN.md records the proposed noncommercial
-and separately agreed commercial model, including unresolved PyQt constraints.
+Historical license status at that release: MIT. Superseded on 2026-10-05 by the
+Lumen EULA for Lumen-owned components; earlier grants and third-party licenses
+remain valid. See LICENSE-PLAN.md for the current release constraints.
 
 ## Lumen interoperability
 

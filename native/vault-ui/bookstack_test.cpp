@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LicenseRef-Lumen-EULA
 #include "bookstack.h"
 #include "connection.h"
 #include "vault.h"
