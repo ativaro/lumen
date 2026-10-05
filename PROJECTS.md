@@ -27,6 +27,15 @@ Das allgemeine Lumen-Gedächtnis wird für Projektläufe nicht zusätzlich einge
 Die Webwerkzeuge und ihre Freigaberegeln entsprechen der
 [OpenCode-Dokumentation](https://opencode.ai/docs/tools/).
 
+Im Lumen-Chat lassen sich gespeicherte Projekte, Vorhaben, Aufgaben und Ergebnisse
+abfragen, etwa „Wie steht mein Projekt?“ oder „Was hat die Recherche ergeben?“.
+Lumen kann dafür die aktuellen Projektdaten gezielt nachschlagen. Material wird
+als Verknüpfung angezeigt; das Nachschlagen allein liest keine Dokumentdateien
+ein und startet keine Aufgabe. Notizen des Projekts und Vorhabens können über die
+jeweilige übergeordnete Ebene gelesen werden. Archivierte Einträge werden auf
+Anfrage einbezogen. Nach Installation dieser Anbindung Lumen einmal vollständig
+schließen und neu öffnen, damit die Chat-Engine die neuen Werkzeuge lädt.
+
 Unter „Ergebnisse“ lässt sich jeder Lauf auswählen. „Auftrag, Quellen und
 Arbeitsschritte ansehen“ zeigt den damaligen Kontext. Ergebnisse können als Notiz
 in Lumen Wissen gespeichert werden. Ein Rechtsklick auf ein Dokument bietet
