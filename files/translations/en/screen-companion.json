@@ -43,5 +43,7 @@
   "Unvollständige Fensteraufnahme.": "Incomplete window capture.",
   "Was ist mein nächster Schritt?": "What is my next step?",
   "Wähle ein Fenster und beschreibe, wobei ich dich begleiten soll.": "Choose a window and tell me what you need help with.",
-  "Änderungen automatisch begleiten": "Follow changes automatically"
+  "Änderungen automatisch begleiten": "Follow changes automatically",
+  "Fenster, Bildfreigabe und automatische Begleitung steuerst du direkt in Companion. Modell, Darstellung und lokale Sprache teilt sich Companion mit Lumen.": "Choose the window, approve images and control automatic guidance in Companion. Model, appearance and local voice settings are shared with Lumen.",
+  "Lumen antwortet …": "Lumen is responding …"
 }

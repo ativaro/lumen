@@ -149,6 +149,7 @@ class SettingsDialog(QDialog):
     def build_apps(self):
         from lumen_apps import catalogue, COMPANIONS, launch
         explanations = {
+            'companion': tr('Fenster, Bildfreigabe und automatische Begleitung steuerst du direkt in Companion. Modell, Darstellung und lokale Sprache teilt sich Companion mit Lumen.'),
             'updater': tr('Prüft Lumen, alle Apps und installierte Erweiterungen. Systempakete und Flatpaks sind zusätzlich auswählbar.'),
             'translate': tr('Texte übersetzen, den Schreibstil ändern oder nur Fehler korrigieren. PDFs werden als neue Datei exportiert. Das konfigurierte Lumen-Modell wird erst nach deinem Start verwendet.'),
             'search': tr('Suche und Gespräch nutzen das gemeinsame Modell, die Sprache und das Erscheinungsbild von Lumen. Diktieren wird im Einrichtungsassistenten eingerichtet.'),
@@ -170,7 +171,7 @@ class SettingsDialog(QDialog):
             if key in self.app_pages: continue
             self.app_pages[key] = self.stack.count()
             panel = self.page(title, description)
-            panel.addWidget(text(explanations[key]))
+            panel.addWidget(text(explanations.get(key, description)))
             panel.addWidget(button(tr('App öffnen'), lambda _=False, app=key: open_app(app)))
             if key == 'translate':
                 from translate_data import LANGUAGES, STYLES, MODES
@@ -204,7 +205,7 @@ class SettingsDialog(QDialog):
             panel.addWidget(text(tr('Gemeinsam für alle Lumen-Apps')))
             panel.addWidget(button(tr('Sprache, Modell und Arbeitsweise'), lambda: self.open_page(0)))
             panel.addWidget(button(tr('Erscheinungsbild'), lambda: self.open_page(3)))
-            if key in ('search', 'meetings', 'reader', 'radio'):
+            if key in ('search', 'meetings', 'reader', 'radio', 'companion'):
                 panel.addWidget(button(tr('Spracheingabe und Einrichtung'), lambda: self.open_page(self.speech_input_page)))
             if key == 'inbox': panel.addWidget(button(tr('KI-Zugriff auf die Inbox'), lambda: self.open_page(9)))
             panel.addStretch()

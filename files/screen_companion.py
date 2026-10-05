@@ -52,7 +52,7 @@ class FrameGate:
 class Companion(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(tr('Lumen begleitet mich')); self.setWindowIcon(QIcon.fromTheme('lumen'))
+        self.setWindowTitle('Lumen Companion'); self.setWindowIcon(QIcon.fromTheme('lumen'))
         self.setWindowFlag(Qt.WindowStaysOnTopHint)
         self.resize(460, 820); self.setMinimumSize(420, 720)
         from ui_typography import font
@@ -285,7 +285,7 @@ class Companion(QWidget):
 
 def main():
     from app import create_app
-    app = create_app(); app.setApplicationName('lumen-companion'); app.setApplicationDisplayName(tr('Lumen begleitet mich'))
+    app = create_app(); app.setApplicationName('lumen-companion'); app.setApplicationDisplayName('Lumen Companion')
     app.setDesktopFileName('lumen-companion')
     window = Companion(); window.show(); app.aboutToQuit.connect(window.pause)
     sys.exit(app.exec())

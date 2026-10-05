@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch, Mock
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QPushButton
 from lumen_apps import AppCenter, catalogue, launch, startup_preference
 from lumen_workspace import PlanDialog, StepDialog
 
@@ -27,6 +27,16 @@ class AppCenterTest(unittest.TestCase):
             with self.assertRaises(OSError): launch('inbox')
         with self.assertRaises(ValueError): launch('files', area='lumen')
         with self.assertRaises(ValueError): launch('not-an-app')
+
+    def test_companion_is_findable_and_launchable_by_its_app_name(self):
+        center = AppCenter(); self.addCleanup(center.close)
+        center.search.setText('Companion')
+        cards = [card for card, _ in center.cards if not card.isHidden()]
+        self.assertEqual(len(cards), 1)
+        with patch('lumen_apps.QProcess.startDetached', return_value=(True, 42)) as start:
+            cards[0].findChildren(QPushButton)[0].click()
+            self.assertTrue(start.call_args.args[0].endswith('/lumen-companion'))
+            self.assertEqual(start.call_args.args[1], [])
 
     def test_catalogue_filter_and_settings_coverage(self):
         from settings_dialog import SettingsDialog

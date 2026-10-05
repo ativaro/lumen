@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=Lumen Companion
-Name[de]=Lumen begleitet mich
+Name[de]=Lumen Companion
 Comment=Step-by-step help in a window you choose
 Comment[de]=Schritt für Schritt im gewählten Fenster begleitet werden
 Exec=%INSTALL_BIN%/lumen-companion
