@@ -1,6 +1,6 @@
 """Embed the same Qt Quick result components used by Search into Studio."""
 from pathlib import Path
-from PySide6.QtCore import QUrl, Qt, QTimer
+from PySide6.QtCore import QUrl, QTimer
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtQuickWidgets import QQuickWidget
 from ui_typography import metrics
@@ -24,8 +24,11 @@ class RichWidget(QQuickWidget):
         self.resize_timer=QTimer(self);self.resize_timer.setSingleShot(True)
         self.resize_timer.timeout.connect(self.fit)
         self.setResizeMode(QQuickWidget.SizeRootObjectToView)
-        self.setClearColor(QColor(Qt.transparent))
-        self.setInitialProperties(dict(view=controller,theme=palette_theme(settings)))
+        theme=palette_theme(settings)
+        # Results share the chat background; transparency needlessly retains
+        # underlying pixels when the scroll area moves/resizes the Quick layer.
+        self.setClearColor(QColor(theme['window']))
+        self.setInitialProperties(dict(view=controller,theme=theme))
         self.setSource(QUrl.fromLocalFile(str(Path(__file__).parent/'qml/search/ResultView.qml')))
         root=self.rootObject()
         if root:root.implicitHeightChanged.connect(lambda:self.resize_timer.start(0))
@@ -38,5 +41,7 @@ class RichWidget(QQuickWidget):
             if self.height()!=height:self.setFixedHeight(height)
 
     def refresh(self):
-        if self.rootObject():self.rootObject().setProperty('theme',palette_theme(self.settings))
+        theme=palette_theme(self.settings)
+        self.setClearColor(QColor(theme['window']))
+        if self.rootObject():self.rootObject().setProperty('theme',theme)
         self.fit()

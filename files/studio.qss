@@ -31,7 +31,7 @@ QWidget#studioPreviewPane QListWidget#filmstrip::item { padding: 2px; margin: 2p
 QWidget#studioPreviewPane QListWidget#filmstrip::item:selected { border-color: palette(link); background: palette(midlight); }
 QWidget#studioPreviewPane QListWidget#filmstrip::item:focus { border-color: palette(link); }
 QSplitter::handle { background: palette(mid); }
-QScrollArea#studioTranscript, QWidget#studioMessages { background: transparent; border: none; }
+QScrollArea#studioTranscript, QWidget#studioMessages { background: palette(window); border: none; }
 QFrame#studioUserMessage { background: palette(midlight); border: 1px solid palette(mid); border-radius: 14px; }
 QFrame#studioAssistantMessage { background: transparent; border: none; }
 QTextBrowser#studioMessage { background: transparent; border: none; padding: 0; }

@@ -22,6 +22,17 @@ files and escapes spreadsheet formulas. Bound counts, text and numeric ranges.
 Verify model/tool contract, GUI interaction in both surfaces, narrow layouts, themes,
 DE/EN, scaling, recovery, request controls and a real-engine synthetic round trip.
 
+## Embedded result repainting
+
+Studio's Qt Quick result layer and its scroll surface use the opaque chat palette
+background. Switching choices to results, scrolling, resizing or changing themes
+must erase old pixels rather than compositing new content over the previous frame.
+The regression composites the rendered result over a stale buffer after a browser
+choice/result transition and checks dark/light backgrounds at different widths.
+It failed with transparent results and passes with the opaque background on both
+software and OpenGL renderers. The reported Proxmox console artifact still needs
+confirmation on the affected VM; the local replay did not reproduce its full extent.
+
 ## Follow-up selected Search reference
 
 After components, replace the compact Search home with the user's overview design:

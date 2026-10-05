@@ -103,5 +103,40 @@ class RichResultTest(unittest.TestCase):
             widget.close();widget.deleteLater();QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
             qInstallMessageHandler(previous)
 
+    def test_result_replacement_clears_previous_pixels_and_tracks_theme(self):
+        from PySide6.QtCore import QSettings, QCoreApplication, QEvent
+        from PySide6.QtGui import QColor, QImage, QPainter, QPalette
+        from PySide6.QtTest import QTest
+        from rich_widget import RichWidget
+        palette = self.app.palette()
+        widget = RichWidget(self.view, QSettings(self.tmp+'/settings.ini', QSettings.IniFormat))
+        widget.resize(700, widget.height()); widget.show()
+        try:
+            self.view.set_result(present(dict(title='Browser', blocks=[dict(
+                id='browser', type='select', label='Browser wählen',
+                options=['Chrome', 'Chromium'], value='Chrome')], submit_label='Installieren')))
+            QTest.qWait(50)
+            self.view.set_value('browser', 'Chromium')
+            self.view.set_result(present(dict(title='Installation abgeschlossen', blocks=[
+                dict(id='progress', type='progress', label='Installation', value=100),
+                dict(id='result', type='table', label='Ergebnis', columns=['Paket', 'Status'],
+                     rows=[['Chromium', 'Installiert']])])))
+            for color, width in (('#242c31', 700), ('#f2f0eb', 380)):
+                theme = QPalette(palette); theme.setColor(QPalette.Window, QColor(color))
+                self.app.setPalette(theme); widget.refresh()
+                widget.resize(width, widget.height()); QTest.qWait(80)
+                frame = widget.grabFramebuffer()
+                self.assertFalse(frame.isNull())
+                # Composite onto stale pixels, just as a reused scroll backing
+                # store does. Empty result margins must erase the old content.
+                buffer = QImage(frame.size(), QImage.Format_ARGB32_Premultiplied)
+                buffer.fill(QColor('magenta'))
+                painter = QPainter(buffer); painter.drawImage(0, 0, frame); painter.end()
+                self.assertEqual(buffer.pixelColor(0, frame.height()-1), QColor(color))
+        finally:
+            widget.close(); widget.deleteLater()
+            QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+            self.app.setPalette(palette)
+
 
 if __name__=='__main__':unittest.main()
