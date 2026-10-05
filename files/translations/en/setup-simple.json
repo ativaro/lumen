@@ -29,5 +29,11 @@
   "Diagnose kopieren": "Copy diagnostics",
   "Kopiert technische Angaben ohne Schlüssel, Zugangsdaten oder Gesprächsinhalte.": "Copies technical details without keys, credentials or conversation contents.",
   "Technische Diagnose wird erstellt …": "Preparing technical diagnostics …",
-  "Diagnose kopiert. Du kannst sie zur Fehlersuche weitergeben.": "Diagnostics copied. You can share them for troubleshooting."
+  "Diagnose kopiert. Du kannst sie zur Fehlersuche weitergeben.": "Diagnostics copied. You can share them for troubleshooting.",
+  "Ohne eigene Auswahl richtet Lumen ein verfügbares Gratis-Modell ein.": "Without your own selection, Lumen sets up an available free model.",
+  "Gratis-Modell bereit: {0}": "Free model ready: {0}",
+  "Dein Modell: {0}": "Your model: {0}",
+  "Kein verfügbares Gratis-Modell gefunden. Bitte ein Modell wählen oder einen Anbieter verbinden.": "No available free model found. Please select a model or connect a provider.",
+  "Die Engine liefert keine gültige Modellliste.": "The engine did not return a valid model list.",
+  "Modell auswählen": "Select a model"
 }

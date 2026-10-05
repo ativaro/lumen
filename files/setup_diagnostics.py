@@ -14,7 +14,7 @@ def version_text(raw):
 
 def response_summary(path, code, network_error, content_type, data, size):
     if path.startswith('/auth/'): path = '/auth/<provider>'
-    if path not in ('/provider', '/provider/auth', '/auth/<provider>'): return None
+    if path not in ('/config', '/provider', '/provider/auth', '/auth/<provider>'): return None
     value = dict(endpoint=path, http=int(code), network_error=int(network_error), bytes=size,
                  format='json' if 'json' in content_type.lower() else 'html' if 'html' in content_type.lower() else 'other',
                  json_type=type(data).__name__)

@@ -161,7 +161,7 @@ class SetupDialogTest(unittest.TestCase):
                 calls.append((method, path, body))
                 if path == '/provider': callback({'all': [{'id': 'ollama-cloud', 'name': 'Ollama Cloud',
                     'models': {'existing': {'name': 'Existing'}}}], 'connected': ['ollama-cloud']})
-                elif path == '/provider/auth': callback({})
+                elif path in ('/config', '/provider/auth'): callback({})
                 elif path == '/auth/ollama-cloud': callback(True)
                 else: self.fail('Unexpected endpoint: ' + path)
             def ensure(callback): dialog.engine.url = 'http://127.0.0.1:1'; callback()
@@ -197,7 +197,9 @@ class SetupDialogTest(unittest.TestCase):
             dialog = SetupDialog(settings=settings)
             self.addCleanup(dialog.deleteLater); self.addCleanup(dialog.reject)
             inventory = {'all': [{'id': 'opencode', 'name': 'OpenCode Zen', 'models': {
-                'free-a': {'name': 'Free A'}, 'free-b': {'name': None}, 'unavailable': None}}],
+                'free-a': {'name': 'Free A', 'cost': {'input': 0, 'output': 0}, 'capabilities': {'toolcall': True}},
+                'free-b': {'name': None, 'cost': {'input': 0, 'output': 0}, 'capabilities': {'toolcall': True}},
+                'paid': {'cost': {'input': 1, 'output': 2}}, 'unavailable': None}}],
                 'connected': ['opencode'], 'default': {'opencode': 'free-b'}}
             def request(method, path, body=None, callback=None, error=None):
                 self.assertEqual((method, path), ('GET', '/provider/auth'))
@@ -206,7 +208,8 @@ class SetupDialogTest(unittest.TestCase):
                 dialog.loaded_providers(inventory)
                 self.assertEqual(dialog.models.currentData(), 'opencode/free-b')
                 self.assertEqual(dialog.models.currentText(), 'OpenCode Zen · free-b')
-                self.assertFalse(settings.contains('model'))  # Only save when advancing.
+                self.assertEqual(settings.value('model'), 'opencode/free-b')
+                self.assertIn('Gratis-Modell bereit', dialog.model_summary.text())
                 self.assertEqual(dialog.key.text(), '')
                 dialog.models.setCurrentIndex(dialog.models.findData('opencode/free-a'))
                 dialog.loaded_providers(inventory)
@@ -218,6 +221,31 @@ class SetupDialogTest(unittest.TestCase):
                 self.assertFalse(dialog.models.isEnabled())
                 self.assertIn('keine verfügbaren Modelle', dialog.status.text())
                 self.assertEqual(settings.value('model'), 'opencode/free-a')
+
+    def test_direct_model_setup_loads_automatically_and_keeps_engine_choice(self):
+        from PySide6.QtCore import QSettings
+        from PySide6.QtTest import QTest
+        from setup_dialog import SetupDialog
+        from test_model_default import catalogue
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp+'/data'}), \
+                patch('setup_dialog.executable', return_value='/test/opencode'):
+            settings = QSettings(tmp+'/prefs.ini', QSettings.IniFormat)
+            dialog = SetupDialog(settings=settings, page=1)
+            self.addCleanup(dialog.deleteLater); self.addCleanup(dialog.reject)
+            paths = []
+            def request(method, path, body=None, callback=None, **kwargs):
+                paths.append(path)
+                callback({'model': 'opencode/paid'} if path == '/config' else catalogue() if path == '/provider' else {})
+            with patch.object(dialog.engine, 'ensure_server', side_effect=lambda cb: cb()), \
+                    patch.object(dialog.engine, 'request', side_effect=request):
+                QTest.qWait(10)
+            self.assertEqual(paths, ['/config', '/provider', '/provider/auth'])
+            self.assertEqual(dialog.models.currentData(), 'opencode/paid')
+            self.assertFalse(settings.contains('model'))
+            dialog.models.setCurrentIndex(dialog.models.findData('opencode/free'))
+            dialog.models.activated.emit(dialog.models.currentIndex())
+            self.assertEqual(settings.value('model'), 'opencode/free')
+            self.assertIn('Dein Modell', dialog.model_summary.text())
 
     def test_shareable_diagnostic_copies_metadata_without_credentials(self):
         import json
@@ -330,7 +358,10 @@ class SetupDialogTest(unittest.TestCase):
                 dialog.load_engine(); wait()
                 self.assertTrue(dialog.connect_provider.isEnabled())
                 self.assertTrue(dialog.repair_engine.isHidden())
-                self.assertEqual(dialog.models.currentData(), 'example/test')
+                self.assertEqual(dialog.models.currentData(), '')
+                self.assertFalse(dialog.settings.contains('model'))
+                self.assertIn('Kein verfügbares Gratis-Modell', dialog.model_summary.text())
+                dialog.models.setCurrentIndex(dialog.models.findData('example/test'))
                 dialog.connect_provider.click(); wait()
                 self.assertEqual(dialog.key.text(), 'test-only-secret')
                 self.assertNotIn('test-only-secret', dialog.status.text())

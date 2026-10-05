@@ -141,10 +141,19 @@ are reused. The **KI-Anbindung** step reads configured providers and models; API
 providers, including Ollama Cloud, can be connected without a terminal. OAuth and
 other login methods still use OpenCode's existing provider setup. Listing configured
 models does not verify a cloud account's credentials or send a test prompt.
-On a fresh profile, the wizard preselects an available model using the engine's
-reported default. This also works with OpenCode Zen's available free models
-without entering a provider key. An empty model list is reported explicitly;
-existing model choices are preserved.
+On a fresh profile, Lumen automatically selects and saves an available free model
+from connected providers (preferring OpenCode Zen). Selection uses the live
+catalogue's zero input/output/cache prices and tool support, not hard-coded model
+names. The wizard displays the chosen model above **Modell anpassen**. The first
+conversation also sets up this default if the wizard was skipped. Existing Lumen
+and explicit OpenCode model choices remain in use. If no confirmed free model is
+available, Lumen asks for a selection instead of silently choosing a paid model.
+Loading the catalogue does not guarantee provider uptime or available quota.
+OpenCode Zen currently may reject free-tier requests when tools are disabled
+(see [upstream issue #51315](https://github.com/anomalyco/opencode/issues/51315)).
+This can affect Lumen's restricted proposal/project actions even when ordinary
+chat works. Lumen keeps those restrictions; use another configured model for
+affected actions rather than granting tools solely to bypass the provider error.
 
 The optional **Mit deiner Stimme** step installs a pinned, checksum-verified
 whisper.cpp executable and a multilingual Small Q5 model (190 MB) into

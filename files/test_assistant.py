@@ -43,7 +43,8 @@ class AssistantTest(unittest.TestCase):
                 path = self.path.split('?')[0]
                 body = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or 'null')
                 data = {}
-                if path == '/session': data = {'id':'ses_diagnosis'} if self.command == 'POST' else []
+                if path == '/config': data = {'model': 'test/model'}
+                elif path == '/session': data = {'id':'ses_diagnosis'} if self.command == 'POST' else []
                 elif path.endswith('/prompt_async'): state['prompt'] = body
                 elif path in ('/permission', '/question'): data = []
                 elif path.endswith('/message'):
@@ -127,7 +128,8 @@ class AssistantTest(unittest.TestCase):
                 body = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or 'null')
                 state['requests'].append((method, path, body, self.headers.get('Authorization')))
                 data = {}
-                if path == '/session' and method == 'POST':
+                if path == '/config': data = {'model': 'test/model'}
+                elif path == '/session' and method == 'POST':
                     data = {'id': 'ses_lumen'}
                 elif path.endswith('/prompt_async'):
                     state['messages'] = [{'info': {'id': body['messageID'], 'role': 'user'}, 'parts': body['parts']},
@@ -429,6 +431,7 @@ class AssistantTest(unittest.TestCase):
             backend.requestsChanged.connect(lambda permissions, questions: shown.append((permissions, questions)))
             try:
                 backend.set_auto_approve(True)
+                backend.selected_model = 'test/model'
                 backend.send('Vorschläge erstellen', proposal=True)
                 self.assertEqual(calls[-1][2]['permission'], [{'permission': '*', 'pattern': '*', 'action': 'deny'}])
                 backend.permissions = [{'id': 'per_proposal', 'permission': 'edit'}]

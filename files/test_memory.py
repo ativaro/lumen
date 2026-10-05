@@ -99,7 +99,7 @@ class MemoryBackendTest(unittest.TestCase):
             self.assertTrue(predicate())
         with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,{'LUMEN_DATA':tmp+'/state'}):
             store=Store();memory=Memory(store);memory.configure(True,True)
-            backend=OpenCodeBackend(tmp,server_url='http://127.0.0.1:'+str(server.server_port),password='test');backend.ensure_server=lambda callback:callback()
+            backend=OpenCodeBackend(tmp,server_url='http://127.0.0.1:'+str(server.server_port),password='test');backend.ensure_server=lambda callback:callback();backend.selected_model='test/model'
             try:
                 backend.send(user);wait(lambda:memory.scan()['notes']);wait(lambda:not backend.busy)
                 first=state['prompts'][0][0];backend.send('Welche Antwortlänge passt?');wait(lambda:len(state['prompts'])>=2 and not backend.busy)
@@ -115,6 +115,7 @@ class MemoryBackendTest(unittest.TestCase):
                 memory.remember('Schreibstil','Schreibe freundliche kurze Mails.',kind='preference')
                 other=OpenCodeBackend(tmp,server_url=backend.url,password='test');other.ensure_server=lambda callback:callback()
                 try:
+                    other.selected_model='test/model'
                     other.send('Mail entwerfen',proposal=True,memory_context=True,memory_text='Mail schreiben');wait(lambda:len(state['prompts'])>=5 and not other.busy)
                     self.assertIn('freundliche kurze Mails',state['prompts'][4][1]['system']);self.assertEqual(state['prompts'][4][1]['tools'],{'*':False})
                 finally:other.shutdown();other.deleteLater()

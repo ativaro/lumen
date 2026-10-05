@@ -4,6 +4,29 @@ import ipaddress
 from urllib.parse import urlsplit
 
 
+def free_default(inventory):
+    """Use the live catalogue, never a name containing 'free' or unknown pricing."""
+    if not isinstance(inventory, dict) or not isinstance(inventory.get('all'), list) or not isinstance(inventory.get('connected'), list):
+        raise ValueError(tr('Die Engine liefert keine gültige Modellliste.'))
+    def zero(value):
+        return all(zero(v) for v in value.values()) if isinstance(value, dict) else type(value) in (int, float) and value == 0
+    candidates = []
+    defaults = inventory.get('default') or {}
+    for provider in inventory['all']:
+        if not isinstance(provider, dict) or not isinstance(provider.get('id'), str) or provider['id'] not in inventory['connected']: continue
+        models = provider.get('models')
+        if not isinstance(models, dict): continue
+        for identifier, model in models.items():
+            if not isinstance(model, dict): continue
+            cost = model.get('cost'); capabilities = model.get('capabilities') or {}
+            if not isinstance(cost, dict) or cost.get('input') != 0 or cost.get('output') != 0 or not zero(cost): continue
+            if model.get('status') == 'deprecated' or not isinstance(capabilities, dict) or capabilities.get('toolcall') is not True: continue
+            candidates.append((provider['id'] != 'opencode',
+                not isinstance(defaults, dict) or defaults.get(provider['id']) != identifier,
+                provider['id'] + '/' + identifier))
+    return min(candidates)[2] if candidates else ''
+
+
 def loopback(url):
     try:
         parsed = urlsplit(url)

@@ -49,6 +49,7 @@ class PersonaIntegrationTest(unittest.TestCase):
         self.backend = OpenCodeBackend(self.tmp)
         self.settings = QSettings(self.tmp+'/assistant.ini', QSettings.IniFormat)
         self.backend.settings = self.settings
+        self.backend.selected_model = 'test/model'
         self.backend.ensure_server = lambda callback: callback()
         self.calls = []
         def request(method, path, body=None, callback=None, error=None):

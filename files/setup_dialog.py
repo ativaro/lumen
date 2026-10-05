@@ -82,6 +82,7 @@ class SetupDialog(QDialog):
         self.next = button(tr('Weiter'), lambda: self.change_page(1)); self.next.setObjectName('primary'); footer.addWidget(self.next)
         root.addLayout(footer)
         self.stack.setCurrentIndex(page); self.update_page(); self.refresh()
+        if page == 1 and executable('opencode'): QTimer.singleShot(0, self.load_engine)
 
     def page(self):
         scroll = QScrollArea(); scroll.setFrameShape(QScrollArea.NoFrame); scroll.setWidgetResizable(True)
@@ -145,6 +146,9 @@ class SetupDialog(QDialog):
         self.models.setMinimumContentsLength(15); self.models.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
         self.models.addItem(tr('Modelle noch nicht geladen'), '')
         self.models.setEnabled(False)
+        self.models.activated.connect(self.save_model)
+        self.model_summary = text(tr('Ohne eigene Auswahl richtet Lumen ein verfügbares Gratis-Modell ein.'))
+        page.addWidget(self.model_summary)
         self.model_details = Details(tr('Modell anpassen')); page.addWidget(self.model_details)
         form = QFormLayout(); form.addRow(tr('Modell'), self.models); self.model_details.content.addLayout(form)
         toggle = button(tr('Weiteren Anbieter verbinden …'), lambda: self.auth_box.setVisible(toggle.isChecked()))
@@ -331,9 +335,14 @@ class SetupDialog(QDialog):
         self.diagnostic_events = []; self.diagnostic_stage = 'engine_start'; self.diagnostic_outcome = 'checking'
         self.connect_provider.setEnabled(False)
         self.checking = True; self.set_busy(True); self.status.setText(tr('Vorhandene KI-Anbindung prüfen …'))
-        def ready():
+        def configured(config):
+            if not isinstance(config, dict): raise ValueError('Invalid engine configuration')
+            self.configured_model = config.get('model') or ''
             self.diagnostic_stage = 'provider_list'
             self.engine.request('GET', '/provider', callback=self.loaded_providers, error=self.engine_failed)
+        def ready():
+            self.diagnostic_stage = 'model_configuration'
+            self.engine.request('GET', '/config', callback=configured, error=self.engine_failed)
         self.engine.ensure_server(ready)
 
     def loaded_providers(self, data):
@@ -343,8 +352,18 @@ class SetupDialog(QDialog):
                not isinstance(p.get('models', {}), dict) for p in data['all']):
             raise ValueError('Invalid provider')
         self.providers = data['all']; connected = set(data['connected']); self.connected = connected
-        selected = self.models.currentData() or self.settings.value('model', '')
-        self.models.clear(); self.models.addItem(tr('Bisherige Modellwahl beibehalten') if selected else tr('Keine Modelle verfügbar'), '')
+        from lumen_models import free_default
+        from lumen_store import Store
+        policy = Store().setting('modelPolicy', {})
+        policy_model = policy.get('local_model', '') if policy.get('privacy') == 'local' else policy.get('model', '')
+        selected = self.models.currentData() or self.settings.value('model', '') or policy_model or getattr(self, 'configured_model', '')
+        if not isinstance(selected, str) or '/' not in selected: selected = ''
+        automatic = not selected
+        if automatic:
+            selected = free_default(data)
+            if selected:
+                self.settings.setValue('model', selected); self.settings.sync()
+        self.models.clear(); self.models.addItem(tr('Bisherige Modellwahl beibehalten') if selected else tr('Modell auswählen'), '')
         names = []
         for provider in self.providers:
             if provider['id'] not in connected: continue
@@ -353,15 +372,11 @@ class SetupDialog(QDialog):
             for identifier, model in provider.get('models', {}).items():
                 if not isinstance(model, dict): continue
                 self.models.addItem(name + ' · ' + (model.get('name') or identifier), provider['id'] + '/' + identifier)
-        if not selected and self.models.count() > 1:
-            self.models.removeItem(0)
-            defaults = data.get('default') or {}
-            if isinstance(defaults, dict):
-                selected = next((p['id'] + '/' + defaults[p['id']] for p in self.providers
-                    if isinstance(defaults.get(p['id']), str) and
-                    self.models.findData(p['id'] + '/' + defaults[p['id']]) >= 0), '')
         self.models.setEnabled(any(self.models.itemData(i) for i in range(self.models.count())))
         self.models.setCurrentIndex(max(0, self.models.findData(selected)))
+        self.model_summary.setText(tr('Gratis-Modell bereit: {0}', self.models.currentText()) if automatic and selected else
+            tr('Dein Modell: {0}', selected) if selected else
+            tr('Kein verfügbares Gratis-Modell gefunden. Bitte ein Modell wählen oder einen Anbieter verbinden.'))
         self.engine_status.setText(tr('Engine erreichbar · Konfiguriert: ') + (', '.join(names) or tr('noch kein Anbieter')) +
             tr('\nZugang und Antwortqualität der Anbieter wurden nicht mit einer Testanfrage geprüft.'))
         self.diagnostic_stage = 'authentication_methods'
@@ -443,6 +458,11 @@ class SetupDialog(QDialog):
         if path:
             self.settings.setValue('speechModel', path); self.settings.sync(); self.refresh()
 
+    def save_model(self):
+        if self.models.currentData():
+            self.settings.setValue('model', self.models.currentData()); self.settings.sync()
+            self.model_summary.setText(tr('Dein Modell: {0}', self.models.currentText()))
+
     def change_page(self, direction):
         if self.job or self.checking: return
         if self.speech_test.tools.process:
@@ -454,7 +474,7 @@ class SetupDialog(QDialog):
                 self.start_job('packages', groups)
                 return
         if direction > 0 and self.stack.currentIndex() == 1 and self.models.currentData():
-            self.settings.setValue('model', self.models.currentData()); self.settings.sync()
+            self.save_model()
         if direction > 0 and self.stack.currentIndex() == self.stack.count() - 1:
             self.accept(); return
         self.go_to_page(self.stack.currentIndex() + direction)

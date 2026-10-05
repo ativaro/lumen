@@ -399,7 +399,29 @@ class OpenCodeBackend(QObject):
                 if choice and '/' in choice:
                     provider, name = choice.split('/', 1)
                     body['model'] = {'providerID': provider, 'modelID': name}
+                    prepare_session()
+                else:
+                    self.request('GET', '/config', callback=default_config)
+
+        def default_config(config):
+            if not isinstance(config, dict): raise ValueError('Invalid engine configuration')
+            configured = config.get('model')
+            if isinstance(configured, str) and '/' in configured:
+                provider, name = configured.split('/', 1)
+                body['model'] = {'providerID': provider, 'modelID': name}
                 prepare_session()
+            else:
+                self.request('GET', '/provider', callback=default_loaded)
+
+        def default_loaded(data):
+            from lumen_models import free_default
+            choice = free_default(data)
+            if not choice:
+                self.fail(tr('Kein verfügbares Gratis-Modell gefunden. Bitte ein Modell wählen oder einen Anbieter verbinden.')); return
+            self.settings.setValue('model', choice); self.settings.sync()
+            provider, name = choice.split('/', 1)
+            body['model'] = {'providerID': provider, 'modelID': name}
+            prepare_session()
 
         def local_config(config):
             def providers_loaded(data):
