@@ -306,6 +306,20 @@ exact reviewed commit. A changed checkout is refused. User and system bundles ar
 both updated when installed. The existing installers retain data/settings and
 refresh app launchers, desktop assets and integrations without replacing panels.
 
+Lumen's native **Echo** window controls sit on the right (minimize,
+maximize/restore, close), including Files, tools, settings and the setup wizard.
+The symbols are 30% smaller than the Echo design preview, with independent
+32 × 32 logical-pixel mouse targets and native display scaling. Dialogs retain
+their supported window actions. All four Lumen palettes include Echo.
+
+Updates migrate a selected older Lumen decoration to Echo, saving the previous
+theme and button arrangement under `$XDG_STATE_HOME/lumen/settings-backups`.
+Panels, wallpaper and non-Lumen window themes are preserved. As a native KWin
+decoration, Echo also applies to other applications using system window frames.
+After a direct package upgrade (or the first update from an older system-only
+Updater), run `lumen-desktop-setup --refresh-decoration` as your normal Plasma
+user. Repeating this command preserves an already installed Echo arrangement.
+
 Only installed optional components are offered: compatible OpenCode, Qt runtime,
 dictation, installed voices/models, image search, calendar and backup runtimes.
 These use Lumen's tested/pinned versions, not unrestricted upstream upgrades.

@@ -79,6 +79,7 @@ class UpdaterTest(unittest.TestCase):
             updater.install_bundle(source,'f'*40)
         calls=[call.args[0] for call in run.call_args_list]
         self.assertIn(['pkexec','pacman','-U','--noconfirm',str(package)],calls)
+        self.assertIn([str(source/'bin/lumen-desktop-setup'),'--refresh-decoration'],calls)
         self.assertIn(['bash',str(source/'install.sh'),'--no-mcp'],calls)
         self.assertFalse(any('--desktop' in args or '--replace-panels' in args for args in calls))
         self.assertEqual(run.call_args.kwargs['env']['PREFIX'],str(self.install))

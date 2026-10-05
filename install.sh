@@ -212,7 +212,7 @@ say "Fertig." "Done."
 if [ "$DESKTOP" = 1 ]; then
     "$BIN/lumen-desktop-setup" --apply --replace-panels
 else
-    "$BIN/lumen-desktop-setup"
+    "$BIN/lumen-desktop-setup" --refresh-decoration
 fi
 case "${LUMEN_LANGUAGE:-${LC_ALL:-${LC_MESSAGES:-${LANG:-en}}}}" in de*)
 cat <<EOF

@@ -1,9 +1,9 @@
 {
   "KPlugin": {
     "Id": "LumenGraphite",
-    "Name": "Lumen Graphit",
-    "Version": "1.0.0",
-    "Description": "Graphitfarbene Fensterdekoration passend zu Lumen Files",
+    "Name": "Lumen Echo · Graphit",
+    "Version": "1.2.0",
+    "Description": "Echo-Fensteraktionen und Graphit-Rahmen für Lumen",
     "License": "GPL-3.0",
     "Authors": [
       {

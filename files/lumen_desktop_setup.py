@@ -1,4 +1,4 @@
-"""Install bundled desktop resources; change the running desktop only with --apply."""
+"""Install desktop resources; --apply sets up the desktop, --refresh-decoration updates legacy Lumen frames."""
 from lumen_i18n import tr
 import argparse
 import json
@@ -9,7 +9,7 @@ import subprocess
 import time
 
 from appearance import DESIGNS
-from lumen_desktop_theme import ARTWORK, apply, prepare, prepare_decoration
+from lumen_desktop_theme import ARTWORK, apply, prepare, prepare_decoration, refresh_decoration
 
 
 def install_resources():
@@ -88,12 +88,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--apply', action='store_true', help=tr('Lumen-Theme, Hintergrund und Panels aktivieren'))
     parser.add_argument('--replace-panels', action='store_true', help=tr('Vorhandene Panels nach Sicherung ersetzen'))
+    parser.add_argument('--refresh-decoration', action='store_true', help=tr('Aktive ältere Lumen-Fensterdekoration auf Echo aktualisieren'))
     parser.add_argument('--theme', choices=[name for _, name in DESIGNS], default='glass')
     parser.add_argument('--restore', metavar='BACKUP', help=tr('Gesicherte Konfiguration nach Abmeldung wiederherstellen'))
     args = parser.parse_args()
     if args.replace_panels and not args.apply:
         parser.error(tr('--replace-panels benötigt --apply'))
-    if args.restore and (args.apply or args.replace_panels):
+    if args.restore and (args.apply or args.replace_panels or args.refresh_decoration):
         parser.error(tr('--restore kann nicht mit --apply kombiniert werden'))
     try:
         if args.restore:
@@ -102,7 +103,11 @@ def main():
             configure_desktop(args.theme, args.replace_panels)
         else:
             install_resources()
-            print(tr('Vier Themes und elf Hintergrundbilder installiert; Desktop unverändert.'))
+            refreshed = (args.refresh_decoration and os.environ.get('DBUS_SESSION_BUS_ADDRESS')
+                         and all(shutil.which(command) for command in ('kreadconfig6', 'kwriteconfig6', 'qdbus6'))
+                         and refresh_decoration())
+            print(tr('Lumen Echo aktiviert; Fensteraktionen rechts.') if refreshed else
+                  tr('Vier Themes und elf Hintergrundbilder installiert; Desktop unverändert.'))
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
         parser.exit(1, str(error) + '\n')
 

@@ -2,11 +2,12 @@ import configparser
 import gzip
 import json
 import tempfile
+import shutil
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 from appearance import COLORS, DESIGNS
-from lumen_desktop_theme import apply, prepare, prepare_decoration
+from lumen_desktop_theme import ARTWORK, apply, prepare, prepare_decoration
 
 
 class DesktopThemeTest(unittest.TestCase):
@@ -17,8 +18,8 @@ class DesktopThemeTest(unittest.TestCase):
             root = install_resources()
             for _, name in DESIGNS:
                 self.assertTrue((root / 'plasma/desktoptheme' / ('org.lumen.' + name) / 'colors').is_file())
-                decoration = root / 'aurorae/themes' / ('org.lumen.' + name)
-                self.assertTrue((decoration / ('org.lumen.' + name + 'rc')).is_file())
+                decoration = root / 'aurorae/themes' / ('org.lumen.echo.' + name)
+                self.assertTrue((decoration / (decoration.name + 'rc')).is_file())
                 self.assertTrue((decoration / 'minimize.svg').is_file())
             self.assertEqual(len(list((root / 'wallpapers').iterdir())), 11)
             wallpaper = root / 'wallpapers/LumenLichtstrom/metadata.json'
@@ -26,14 +27,10 @@ class DesktopThemeTest(unittest.TestCase):
             install_resources()
             self.assertEqual(wallpaper.read_text(), '{"personal-edit": true}')
 
-    def test_decorations_match_all_palettes_and_preserve_buttons(self):
+    def test_echo_decorations_match_all_palettes_without_overwriting_previous_art(self):
         with tempfile.TemporaryDirectory() as tmp:
-            source = Path(tmp) / 'LumenGraphite'; source.mkdir()
-            (source / 'metadata.json').write_text(json.dumps({'KPlugin': {'Id': 'LumenGraphite', 'License': 'GPL-3.0'}}))
-            (source / 'metadata.desktop').write_text('[Desktop Entry]\nName=Lumen Graphit\n')
-            (source / 'LumenGraphiterc').write_text('[General]\nActiveTextColor=232,238,240\nInactiveTextColor=164,175,181\n[Layout]\nButtonWidth=16\n')
-            (source / 'decoration.svg').write_text('<svg><rect fill="#252b2e"/><path fill="#000000"/></svg>')
-            (source / 'minimize.svg').write_text('original minimize artwork')
+            source = Path(tmp) / 'LumenGraphite'
+            shutil.copytree(ARTWORK / 'aurorae/LumenGraphite', source)
             before = {p.name: p.read_bytes() for p in source.iterdir()}
             for _, name in DESIGNS:
                 target = prepare_decoration(name, Path(tmp) / 'themes', source)
@@ -41,8 +38,21 @@ class DesktopThemeTest(unittest.TestCase):
                 for key, color in (('ActiveTextColor', COLORS[name][3]), ('InactiveTextColor', COLORS[name][6])):
                     self.assertEqual(config['General'][key], ','.join(str(int(color[i:i+2],16)) for i in (1,3,5)))
                 self.assertIn(COLORS[name][0], (target / 'decoration.svg').read_text())
-                self.assertEqual((target / 'minimize.svg').read_bytes(), before['minimize.svg'])
-                self.assertEqual(config['Layout']['ButtonWidth'], '16')
+                self.assertEqual(config['Layout']['ButtonWidth'], '32')
+                self.assertEqual(config['Layout']['ButtonHeight'], '32')
+                from PySide6.QtSvg import QSvgRenderer
+                for button in ('minimize', 'maximize', 'restore', 'close'):
+                    art = (target / (button + '.svg')).read_text()
+                    self.assertIn(COLORS[name][7], art)
+                    renderer = QSvgRenderer(str(target / (button + '.svg')))
+                    self.assertTrue(renderer.isValid())
+                    for state in ('active', 'inactive', 'hover', 'pressed', 'hover-inactive',
+                                  'pressed-inactive', 'deactivated', 'deactivated-inactive'):
+                        self.assertEqual(renderer.boundsOnElement(state + '-center').width(), 32)
+                        bounds = renderer.boundsOnElement(state + '-glyph')
+                        self.assertLessEqual(bounds.width(), 22.4)
+                        self.assertLessEqual(bounds.height(), 19.6)
+                    self.assertIn('scale(0.6125)', art)
                 self.assertEqual(prepare_decoration(name, target.parent, source), target)
             self.assertEqual({p.name: p.read_bytes() for p in source.iterdir()}, before)
             with self.assertRaises(ValueError): prepare_decoration('../escape', Path(tmp) / 'themes', source)
@@ -50,24 +60,77 @@ class DesktopThemeTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'nicht überschrieben'):
                 prepare_decoration(name, target.parent, source)
 
-    def test_apply_updates_decoration_without_changing_button_order_and_guards_undo(self):
-        state = {'library': 'org.kde.kwin.aurorae.v2', 'theme': '__aurorae__svg__LumenGraphite', 'ButtonsOnLeft': 'XIA'}
+    def test_apply_moves_buttons_right_with_backup_and_guards_undo(self):
+        state = {'library': 'org.kde.kwin.aurorae.v2', 'theme': '__aurorae__svg__LumenGraphite', 'ButtonsOnLeft': 'XIA', 'ButtonsOnRight': ''}
         def run(args):
             if args[0] == 'qdbus6': return ''
             key = args[args.index('--key') + 1]
             if args[0] == 'kwriteconfig6': state[key] = args[-1]; return ''
             return 'org.lumen.glass' if key == 'name' else state[key]
         with patch('lumen_desktop_theme.prepare', return_value=Path('org.lumen.glass')), \
-             patch('lumen_desktop_theme.prepare_decoration', return_value=Path('org.lumen.glass')), \
-             patch('desktop_settings.backup'), patch('desktop_settings.run', side_effect=run) as commands:
-            self.assertEqual(apply({'design':'glass'})['decoration'], 'org.lumen.glass')
-            self.assertEqual(state['theme'], '__aurorae__svg__org.lumen.glass')
-            self.assertEqual(state['ButtonsOnLeft'], 'XIA')
+             patch('lumen_desktop_theme.prepare_decoration', return_value=Path('org.lumen.echo.glass')), \
+             patch('desktop_settings.backup') as backup, patch('desktop_settings.run', side_effect=run) as commands:
+            self.assertEqual(apply({'design':'glass'})['decoration'], 'org.lumen.echo.glass')
+            self.assertEqual(state['theme'], '__aurorae__svg__org.lumen.echo.glass')
+            self.assertEqual(state['ButtonsOnLeft'], '')
+            self.assertEqual(state['ButtonsOnRight'], 'IAX')
+            self.assertEqual(backup.call_args.args[1]['decoration_before']['ButtonsOnLeft'], 'XIA')
+            apply({'design':'glass', 'expected':'org.lumen.glass'})
             self.assertIn((['qdbus6', 'org.kde.KWin', '/KWin', 'org.kde.KWin.reconfigure'],), [c.args for c in commands.call_args_list])
             state['theme'] = 'manually-selected-decoration'
             with self.assertRaisesRegex(ValueError, 'Fensterdekoration wurde inzwischen geändert'):
                 apply({'design':'glass', 'expected':'org.lumen.glass'})
             self.assertEqual(state['theme'], 'manually-selected-decoration')
+
+    def test_refresh_only_migrates_legacy_lumen_and_rolls_back_on_failure(self):
+        from lumen_desktop_theme import refresh_decoration
+        state = {'library': 'org.kde.kwin.aurorae.v2',
+                 'theme': '__aurorae__svg__org.lumen.graphite',
+                 'ButtonsOnLeft': 'XIA', 'ButtonsOnRight': ''}
+        before = dict(state)
+        fail = False
+        def run(args):
+            if args[0] == 'qdbus6':
+                if fail and state != before: raise RuntimeError('KWin unavailable')
+                return ''
+            key = args[args.index('--key') + 1]
+            if args[0] == 'kwriteconfig6': state[key] = args[-1]; return ''
+            return state[key]
+        with patch('desktop_settings.run', side_effect=run), patch('desktop_settings.backup'), \
+             patch('lumen_desktop_theme.prepare_decoration', return_value=Path('org.lumen.echo.graphite')) as prepare:
+            fail = True
+            with self.assertRaisesRegex(RuntimeError, 'KWin unavailable'): refresh_decoration()
+            self.assertEqual(state, before)
+            fail = False
+            self.assertTrue(refresh_decoration())
+            self.assertEqual(state['ButtonsOnRight'], 'IAX')
+            prepare.reset_mock()
+            self.assertFalse(refresh_decoration())
+            prepare.assert_not_called()
+            for theme, library in [('custom', before['library']), (before['theme'], 'org.kde.breeze')]:
+                state.update(theme=theme, library=library)
+                custom = dict(state)
+                self.assertFalse(refresh_decoration())
+                self.assertEqual(state, custom)
+                prepare.assert_not_called()
+
+    def test_failed_activation_preserves_absent_kde_defaults(self):
+        from lumen_desktop_theme import current_decoration, decoration_settings, set_decoration
+        state = {}
+        def run(args):
+            if args[0] == 'qdbus6':
+                if state: raise RuntimeError('KWin unavailable')
+                return ''
+            key = args[args.index('--key') + 1]
+            if args[0] == 'kwriteconfig6':
+                if '--delete' in args: state.pop(key, None)
+                else: state[key] = args[-1]
+                return ''
+            return state.get(key, args[args.index('--default') + 1])
+        with patch('desktop_settings.run', side_effect=run):
+            with self.assertRaisesRegex(RuntimeError, 'KWin unavailable'):
+                set_decoration(decoration_settings('org.lumen.echo.glass'), current_decoration())
+            self.assertEqual(state, {})
 
     def test_native_variants_match_app_palette_without_changing_source(self):
         with tempfile.TemporaryDirectory() as tmp:

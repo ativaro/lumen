@@ -12,6 +12,50 @@ import tempfile
 from appearance import COLORS, DESIGNS
 
 ARTWORK = Path(__file__).resolve().parent.parent / 'desktop'
+DECORATION_GROUP = ['--file', 'kwinrc', '--group', 'org.kde.kdecoration2']
+
+
+def decoration_settings(identity):
+    return {'library': 'org.kde.kwin.aurorae.v2', 'theme': '__aurorae__svg__' + identity,
+            'ButtonsOnLeft': '', 'ButtonsOnRight': 'IAX'}
+
+
+def current_decoration():
+    from desktop_settings import run
+    values = {key: run(['kreadconfig6'] + DECORATION_GROUP + ['--key', key, '--default', '__LUMEN_UNSET__'])
+              for key in decoration_settings('')}
+    return {key: None if value == '__LUMEN_UNSET__' else value for key, value in values.items()}
+
+
+def set_decoration(selected, previous):
+    from desktop_settings import run
+    try:
+        for key, value in selected.items():
+            run(['kwriteconfig6'] + DECORATION_GROUP + ['--key', key, value])
+        run(['qdbus6', 'org.kde.KWin', '/KWin', 'org.kde.KWin.reconfigure'])
+        if current_decoration() != selected:
+            raise ValueError(tr('KWin hat die Fensterdekoration nicht übernommen.'))
+    except Exception:
+        for key, value in previous.items():
+            run(['kwriteconfig6'] + DECORATION_GROUP + ['--key', key] +
+                (['--delete'] if value is None else [value]))
+        run(['qdbus6', 'org.kde.KWin', '/KWin', 'org.kde.KWin.reconfigure'])
+        raise
+
+
+def refresh_decoration():
+    """Upgrade only a selected legacy Lumen frame; never reset panels or custom themes."""
+    from desktop_settings import backup
+    previous = current_decoration()
+    legacy = {'org.lumen.' + name: name for _, name in DESIGNS}
+    legacy.update(LumenGraphite='graphite', LumenDark='midnight')
+    name = legacy.get((previous['theme'] or '').removeprefix('__aurorae__svg__'))
+    if previous['library'] != 'org.kde.kwin.aurorae.v2' or name is None:
+        return False
+    selected = decoration_settings(prepare_decoration(name).name)
+    backup('appearance', {'decoration_before': previous, 'decoration_after': selected})
+    set_decoration(selected, previous)
+    return True
 
 
 def prepare(name, destination=None, source=None):
@@ -80,14 +124,13 @@ def apply(data):
         return {'desktop': False}
     target = prepare(name)
     decoration = prepare_decoration(name)
-    group = ['--file', 'kwinrc', '--group', 'org.kde.kdecoration2']
-    previous_decoration = {key: run(['kreadconfig6'] + group + ['--key', key]) for key in ('library', 'theme')}
-    selected_decoration = {'library': 'org.kde.kwin.aurorae.v2', 'theme': '__aurorae__svg__' + decoration.name}
+    previous_decoration = current_decoration()
+    selected_decoration = decoration_settings(decoration.name)
     previous = run(['kreadconfig6', '--file', 'plasmarc', '--group', 'Theme', '--key', 'name', '--default', 'default'])
     if data.get('expected') and previous != data['expected']:
         raise ValueError(tr('Der Plasma-Stil wurde inzwischen geändert. Rückgängig wurde nicht ausgeführt.'))
-    if data.get('expected') and previous_decoration != {
-            'library': selected_decoration['library'], 'theme': '__aurorae__svg__' + data['expected']}:
+    if data.get('expected') and previous_decoration != decoration_settings(
+            data['expected'].replace('org.lumen.', 'org.lumen.echo.', 1)):
         raise ValueError(tr('Die Fensterdekoration wurde inzwischen geändert. Rückgängig wurde nicht ausgeführt.'))
     if previous != target.name or previous_decoration != selected_decoration:
         backup('appearance', {'before': previous, 'after': target.name,
@@ -97,50 +140,40 @@ def apply(data):
         current = run(['kreadconfig6', '--file', 'plasmarc', '--group', 'Theme', '--key', 'name'])
         if current != target.name: raise ValueError(tr('Plasma hat das Theme nicht übernommen.'))
     if previous_decoration != selected_decoration:
-        try:
-            for key, value in selected_decoration.items():
-                run(['kwriteconfig6'] + group + ['--key', key, value])
-            run(['qdbus6', 'org.kde.KWin', '/KWin', 'org.kde.KWin.reconfigure'])
-            if any(run(['kreadconfig6'] + group + ['--key', key]) != value for key, value in selected_decoration.items()):
-                raise ValueError(tr('KWin hat die Fensterdekoration nicht übernommen.'))
-        except Exception:
-            for key, value in previous_decoration.items():
-                run(['kwriteconfig6'] + group + ['--key', key, value])
-            run(['qdbus6', 'org.kde.KWin', '/KWin', 'org.kde.KWin.reconfigure'])
-            raise
+        set_decoration(selected_decoration, previous_decoration)
     return {'desktop': True, 'theme': target.name, 'decoration': decoration.name}
 
 
 def prepare_decoration(name, destination=None, source=None):
-    """Keep the installed Aurorae geometry/buttons; match active and inactive colors."""
+    """Native Echo controls, shared by every decorated Lumen window and dialog."""
     titles = {value: title for title, value in DESIGNS}
     if name not in titles:
         raise ValueError(tr('Unbekanntes Lumen-Theme.'))
     destination = Path(destination or Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local/share')) / 'aurorae/themes')
-    identity = 'org.lumen.' + name
+    # A new identity avoids stale KWin SVG caches and preserves old user artwork.
+    identity = 'org.lumen.echo.' + name
     target = destination / identity
     if target.exists():
         if json.loads((target / 'metadata.json').read_text()).get('X-Lumen-Generated') != 1:
             raise ValueError(tr('Vorhandene eigene Fensterdekoration wird nicht überschrieben: ') + str(target))
         return target
-    source = Path(source) if source else next((path for path in [ARTWORK / 'aurorae/LumenGraphite',
-        destination / 'LumenGraphite', destination / 'LumenDark'] if path.is_dir()), None)
-    if source is None:
+    source = Path(source) if source else ARTWORK / 'aurorae/LumenGraphite'
+    if not source.is_dir():
         raise ValueError(tr('Die Lumen-Fensterdekoration muss zuerst installiert sein.'))
-    window, _, _, text, _, _, muted, _, _ = COLORS[name]
+    window, _, _, text, _, _, muted, accent, _ = COLORS[name]
     destination.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.lumen-decoration-', dir=destination) as temporary:
         stage = Path(temporary) / identity
         shutil.copytree(source, stage)
         metadata = json.loads((stage / 'metadata.json').read_text())
-        metadata['KPlugin'].update(Id=identity, Name='Lumen · ' + titles[name],
+        metadata['KPlugin'].update(Id=identity, Name='Lumen Echo · ' + titles[name],
                                   Description=tr('Fensterdekoration passend zum Lumen-Theme'))
         metadata['X-Lumen-Generated'] = 1
         (stage / 'metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
         desktop = stage / 'metadata.desktop'
         if desktop.exists():
             config = configparser.ConfigParser(); config.optionxform = str; config.read(desktop)
-            config['Desktop Entry']['Name'] = 'Lumen · ' + titles[name]
+            config['Desktop Entry']['Name'] = 'Lumen Echo · ' + titles[name]
             config['Desktop Entry']['X-KDE-PluginInfo-Name'] = identity
             with desktop.open('w') as stream: config.write(stream, space_around_delimiters=False)
         artwork = (stage / 'decoration.svg').read_text()
@@ -148,6 +181,11 @@ def prepare_decoration(name, destination=None, source=None):
             artwork = artwork.replace(color, window)
         artwork = artwork.replace('#f8fafc', text)
         (stage / 'decoration.svg').write_text(artwork)
+        for button in ('minimize', 'maximize', 'restore', 'close'):
+            path = stage / (button + '.svg')
+            artwork = path.read_text().replace('#72c9b1', accent).replace('#aebcb8', muted)
+            if name == 'atelier': artwork = artwork.replace('#ffb9b4', '#ab3539')
+            path.write_text(artwork)
         config = configparser.ConfigParser(); config.optionxform = str
         original_rc = stage / (source.name + 'rc'); config.read(original_rc)
         for key, color in (('ActiveTextColor', text), ('InactiveTextColor', muted)):

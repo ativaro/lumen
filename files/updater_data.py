@@ -149,6 +149,8 @@ def install_bundle(source, revision):
         packages = [Path(p) for p in run(['makepkg','--packagelist'], cwd=source/'packaging/arch', env={'LOCALSRC':'1'}).splitlines()]
         if len(packages)!=1: raise ValueError(tr('Das Update-Paket konnte nicht eindeutig bestimmt werden.'))
         run(['pkexec','pacman','-U','--noconfirm',str(packages[0])])
+        # Execute the new helper, even while this updater still runs the old code.
+        run([str(source/'bin/lumen-desktop-setup'),'--refresh-decoration'], cwd=source)
     for root in roots:
         if root == Path('/usr/share/lumen'): continue
         run(['bash',str(source/'install.sh'),'--no-mcp'], cwd=source,
