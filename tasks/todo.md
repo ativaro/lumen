@@ -439,4 +439,4 @@ from the passing timestamp checks; no unrelated runtime changes were made.
 - [x] Network: discover saved/advertised shares, inline login, keyring choice, write/read/delete probe, reconnect by URI.
 - [x] Native four-page wizard: defaults, customization, independent recovery key, first backup and test restore; DE/EN UI.
 - [x] Overview/restore: group coverage, honest status, safe restore/adopt and setup entry; second destination.
-- [ ] Native/worker/security checks, installation, private Git and local system/sync documentation.
+- [x] Native/worker/security checks, installation, private Git and local system/sync documentation.

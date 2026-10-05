@@ -60,3 +60,27 @@ These are internal technical reviews, not independent expert approval. Visible
 editable metadata can still use ordinary Qt PRIMARY; secrets must remain in the
 protected password/notes/custom-secret fields. All known limitations are retained
 in the README, including swap/hibernation and post-rename uncertainty.
+
+## Guided backups — 2026-10-05
+
+Internal review of the native wizard and headless backup path found and fixed:
+source reconnects blocking recovery when the original NAS is lost; editable wizard
+settings diverging from an already prepared plan on retry; directory/file symlink
+bypasses in recovery-key export; and credential retention defaulting on. Prepared
+plans now freeze navigation, recovery reconnects only the destination, key export
+rejects file links and canonicalizes parents, and remembering SMB access is opt-in.
+
+Verification: 46 Python checks across backup setup, Restic, private service,
+application backups, flushing and first-run setup; both native CTest suites; native
+singleton/cold helper launch. The new test creates a synthetic KDBX with the real
+Rust broker, backs it up with real Restic, restores it and unlocks the recovered
+entry. It also checks unavailable network sources, unchanged archive adoption,
+failed setup retries and memory-backed stdin. Native checks cover the four pages,
+failed first-run retry, and both export-link cases. Synthetic screenshots were
+inspected; live discovery returned a saved connection. No personal archive or NAS
+credential was used for these checks. Existing Qt test windows are explicitly
+disposed before interpreter shutdown to avoid a PySide teardown crash.
+
+The 98 native dependency records and vendored notice hashes still match. Optional
+GVfs/SMB/WSD components come from the system package manager; no new native library
+is bundled. This work does not change the prerelease/expert-review boundary above.
