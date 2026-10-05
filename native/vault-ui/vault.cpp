@@ -355,6 +355,8 @@ VaultWindow::VaultWindow(const QString &root)
   themeTimer.start();
 }
 VaultWindow::~VaultWindow() {
+  isOpen = false;
+  ++accessRevision;
   delete access;
   access = nullptr;
   qApp->removeEventFilter(this);
@@ -860,6 +862,7 @@ QWidget *VaultWindow::openPage() {
         [this] {
           auto id = selectedId();
           int i = rowIndex(id);
+          ++accessRevision;
           access->revoke();
           if (i >= 0)
             channel.call({"trash", id, rows.value(i + 5) == "1" ? "0" : "1"},
@@ -1082,20 +1085,31 @@ void VaultWindow::backup() {
   });
 }
 void VaultWindow::history() {
-  access->revoke();
   const auto id = selectedId();
-  if (id.isEmpty() || editor)
+  if (id.isEmpty() || editor || !isOpen)
     return;
+  const auto revision = ++accessRevision;
+  access->revoke();
   auto epoch = generation;
-  channel.call({"history", id}, [this, id, epoch](QStringList fields) {
-    if (!isOpen || generation != epoch || selectedId() != id) {
+  channel.call({"history", id}, [this, id, epoch,
+                                 revision](QStringList fields) {
+    if (!isOpen || generation != epoch || selectedId() != id || editor ||
+        revision != accessRevision) {
       for (auto &v : fields)
         wipe(v);
+      if (isOpen && generation == epoch && revision == accessRevision &&
+          !editor)
+        refreshAccess();
       return;
     }
     auto *dialog = new QDialog(this);
     editor = dialog;
     dialog->setAttribute(Qt::WA_DeleteOnClose);
+    connect(dialog, &QDialog::finished, this, [this] {
+      editor.clear();
+      if (isOpen)
+        refreshAccess();
+    });
     dialog->setWindowTitle(tx("Versionsverlauf", "Version history"));
     dialog->resize(520, 440);
     auto *layout = new QVBoxLayout(dialog);
@@ -1226,6 +1240,7 @@ void VaultWindow::loadDetails() {
   });
 }
 void VaultWindow::refresh() {
+  refreshAccess();
   for (auto &v : rows)
     wipe(v);
   rows.clear();
@@ -1414,9 +1429,13 @@ void VaultWindow::clearOwnClipboard() {
   clipboardTag.clear();
 }
 void VaultWindow::lock() {
+  const bool wasOpen = isOpen;
+  isOpen = false;
+  ++accessRevision;
+  enabledEntries.clear();
+  pendingProfiles.clear();
   if (access)
     access->revoke();
-  const bool wasOpen = isOpen;
   const bool wasVisible = isVisible();
   hide();
   ++generation;
@@ -1426,8 +1445,10 @@ void VaultWindow::lock() {
   clearOwnClipboard();
   isOpen = false;
   if (editor) {
-    editor->reject();
-    delete editor;
+    auto dialog = editor;
+    editor.clear();
+    dialog->reject();
+    delete dialog;
   }
   for (auto &v : rows)
     wipe(v);
@@ -1499,6 +1520,7 @@ bool VaultWindow::eventFilter(QObject *object, QEvent *event) {
   return QMainWindow::eventFilter(object, event);
 }
 void VaultWindow::edit(QStringList fields, bool createNew) {
+  ++accessRevision;
   if (!createNew)
     access->revoke();
   if (editor || !isOpen) {
@@ -1731,7 +1753,10 @@ void VaultWindow::edit(QStringList fields, bool createNew) {
   for (auto &v : fields)
     wipe(v);
   connect(dialog, &QDialog::finished, this,
-          [edits, notes, customName, customValue] {
+          [this, edits, notes, customName, customValue](int result) {
+            editor.clear();
+            if (result != QDialog::Accepted && isOpen)
+              QTimer::singleShot(0, this, &VaultWindow::refreshAccess);
             for (auto *field : edits)
               field->setText({});
             notes->setPlainText({});
@@ -1746,41 +1771,109 @@ void VaultWindow::stopAccessServer() { access->close(); }
 bool VaultWindow::startAccessServer(const QString &runtime) {
   return access->listen(runtime);
 }
+// Availability is persisted only inside KDBX. Runtime profiles contain no
+// credentials.
+void VaultWindow::refreshAccess() {
+  const auto revision = ++accessRevision;
+  accessLoading = true;
+  enabledEntries.clear();
+  pendingProfiles.clear();
+  access->revoke();
+  if (isOpen && !editor)
+    loadAccessPage("0", revision);
+}
+void VaultWindow::loadAccessPage(QString cursor, quint64 revision) {
+  channel.call({"connections", cursor}, [this, revision](QStringList ids) {
+    if (!isOpen || editor || revision != accessRevision || ids.isEmpty())
+      return;
+    const auto next = ids.takeFirst();
+    for (const auto &id : ids)
+      enabledEntries.insert(id);
+    loadAccessEntries(std::move(ids), next, revision);
+  });
+}
+void VaultWindow::loadAccessEntries(QStringList ids, QString cursor,
+                                    quint64 revision) {
+  if (!isOpen || editor || revision != accessRevision)
+    return;
+  if (ids.isEmpty()) {
+    if (!cursor.isEmpty())
+      loadAccessPage(cursor, revision);
+    else {
+      accessLoading = false;
+      access->setConnections(pendingProfiles);
+      pendingProfiles.clear();
+    }
+    return;
+  }
+  const auto id = ids.takeFirst();
+  channel.call({"edit", id},
+               [this, id, ids, cursor, revision](QStringList fields) {
+                 const bool valid =
+                     VaultConnection::value(fields, "LumenApiEnabled") == "1" &&
+                     VaultConnection::problem(fields).isEmpty();
+                 const auto profile = VaultConnection::settings(fields);
+                 for (auto &field : fields)
+                   wipe(field);
+                 if (!isOpen || editor || revision != accessRevision)
+                   return;
+                 if (valid)
+                   pendingProfiles.insert(id, profile);
+                 loadAccessEntries(ids, cursor, revision);
+               });
+}
 void VaultWindow::updateAccess() {
   if (!accessStatus || !accessButton)
     return;
-  const bool selected = access->armed() && access->entry() == selectedId();
-  accessStatus->setText(selected
-                            ? tx("Mit Lumen verbunden · höchstens 5 Minuten",
-                                 "Connected to Lumen · up to 5 minutes")
-                            : tx("Nicht verbunden", "Not connected"));
-  accessButton->setText(selected
-                            ? tx("Verbindung trennen", "Disconnect")
-                            : tx("Mit Lumen verbinden", "Connect to Lumen"));
+  const bool selected = enabledEntries.contains(selectedId());
+  accessStatus->setText(
+      selected ? tx("Für Lumen verfügbar · jede Anfrage bestätigen",
+                    "Available to Lumen · confirm each request")
+               : tx("Für Lumen nicht verfügbar", "Not available to Lumen"));
+  accessButton->setText(
+      selected ? tx("Verfügbarkeit ausschalten", "Turn availability off")
+               : tx("Für Lumen verfügbar machen", "Make available to Lumen"));
+  if (accessLoading)
+    accessStatus->setText(
+        tx("Verfügbarkeit wird geladen …", "Loading availability …"));
+  else if (selected && !access->enabled(selectedId()))
+    accessStatus->setText(
+        tx("Für Lumen vorgemerkt · Anbindung unter Bearbeiten prüfen",
+           "Enabled for Lumen · check connection in Edit"));
   const int row = rowIndex(selectedId());
-  accessButton->setEnabled(row >= 0 && rows.value(row + 2) == "token" &&
+  accessButton->setEnabled(!accessLoading && row >= 0 &&
+                           rows.value(row + 2) == "token" &&
                            rows.value(row + 5) != "1");
 }
 void VaultWindow::shareConnection() {
   const auto id = selectedId();
-  if (access->armed() && access->entry() == id) {
+  if (!isOpen || id.isEmpty() || editor || accessLoading)
+    return;
+  accessLoading = true;
+  updateAccess();
+  const auto revision = ++accessRevision;
+  if (enabledEntries.contains(id)) {
     access->revoke();
+    channel.call({"enable-api", id, "0"},
+                 [this](QStringList) { refreshAccess(); });
     return;
   }
-  if (!isOpen || id.isEmpty() || editor)
-    return;
   const auto current = generation;
-  channel.call({"edit", id}, [this, id, current](QStringList fields) {
-    const auto profile = VaultConnection::settings(fields);
+  channel.call({"edit", id}, [this, id, current, revision](QStringList fields) {
     const auto problem = VaultConnection::problem(fields);
     for (auto &field : fields)
       wipe(field);
-    if (!isOpen || generation != current || selectedId() != id)
+    if (!isOpen || generation != current || revision != accessRevision)
       return;
     if (problem.isEmpty()) {
-      access->arm(id, profile);
+      ++accessRevision;
+      access->revoke();
+      channel.call({"enable-api", id, "1"},
+                   [this](QStringList) { refreshAccess(); });
       return;
     }
+    accessLoading = false;
+    updateAccess();
     const QMap<QString, QString> hints{
         {"endpoint",
          tx("Die Dienstadresse muss eine HTTPS-URL ohne Benutzername, Query "

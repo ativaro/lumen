@@ -185,6 +185,50 @@ fn dispatch(session: &mut Option<Session>, root: &Path, request: Fields) -> Resu
                     }
                     Ok(result)
                 }
+                "connections" if request.len() == 2 => {
+                    let ids = session.entries()?;
+                    let start = arg(1)?.parse::<usize>().map_err(|_| Error::InvalidInput)?;
+                    if start > ids.len() {
+                        return Err(Error::InvalidInput);
+                    }
+                    let end = start.saturating_add(64).min(ids.len());
+                    let mut result = vec![text(&if end < ids.len() {
+                        end.to_string()
+                    } else {
+                        String::new()
+                    })];
+                    for id in ids[start..end].iter().copied() {
+                        if session
+                            .field(id, "LumenApiEnabled")
+                            .is_ok_and(|v| v.as_str() == "1")
+                            && session
+                                .field(id, "LumenType")
+                                .is_ok_and(|v| v.as_str() == "token")
+                            && !session
+                                .field(id, "LumenTrash")
+                                .is_ok_and(|v| v.as_str() == "1")
+                        {
+                            result.push(text(&id.uuid().to_string()));
+                        }
+                    }
+                    Ok(result)
+                }
+                "enable-api" if request.len() == 3 && ["0", "1"].contains(&arg(2)?) => {
+                    let id = entry(session, arg(1)?)?;
+                    if arg(2)? == "1"
+                        && (!session
+                            .field(id, "LumenType")
+                            .is_ok_and(|v| v.as_str() == "token")
+                            || session
+                                .field(id, "LumenTrash")
+                                .is_ok_and(|v| v.as_str() == "1"))
+                    {
+                        return Err(Error::InvalidInput);
+                    }
+                    session.set(id, "LumenApiEnabled", text(arg(2)?))?;
+                    session.save()?;
+                    Ok(vec![])
+                }
                 "summary" if request.len() == 2 => {
                     let id = entry(session, arg(1)?)?;
                     Ok(vec![
@@ -211,6 +255,10 @@ fn dispatch(session: &mut Option<Session>, root: &Path, request: Fields) -> Resu
                         .chunks_exact(2)
                         .map(|p| (p[0].to_string(), text(&p[1])))
                         .collect();
+                    // Only the dedicated native availability action may change this flag.
+                    if fields.iter().any(|(k, _)| k == "LumenApiEnabled") {
+                        return Err(Error::InvalidInput);
+                    }
                     if !fields
                         .iter()
                         .any(|(k, v)| k == "Title" && !v.trim().is_empty())
@@ -240,6 +288,9 @@ fn dispatch(session: &mut Option<Session>, root: &Path, request: Fields) -> Resu
                         },
                         text(arg(2)?),
                     )?;
+                    if op == "trash" && arg(2)? == "1" {
+                        session.set(id, "LumenApiEnabled", text("0"))?;
+                    }
                     session.save()?;
                     Ok(vec![])
                 }
@@ -264,6 +315,7 @@ fn dispatch(session: &mut Option<Session>, root: &Path, request: Fields) -> Resu
                         session.prune_history(id, n)?;
                     } else {
                         session.restore_fields(id, n)?;
+                        session.set(id, "LumenApiEnabled", text("0"))?;
                     }
                     session.save()?;
                     Ok(vec![])
@@ -336,6 +388,64 @@ mod tests {
         }
         let values = vec![text("مرحبا"), text("line\nsecond"), text("")];
         assert_eq!(decode(&encode(&values).unwrap()).unwrap(), values);
+    }
+    #[test]
+    fn connection_permission_is_explicit_persistent_and_revocable() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let mut session = None;
+        let mut call = |fields: &[&str]| {
+            dispatch(
+                &mut session,
+                dir.path(),
+                fields.iter().map(|v| text(v)).collect(),
+            )
+        };
+        call(&["create", "SYNTHETIC MASTER LONG"]).unwrap();
+        let id = call(&[
+            "put",
+            "",
+            "Title",
+            "Synthetic",
+            "LumenType",
+            "token",
+            "Password",
+            "SYNTHETIC SECRET",
+        ])
+        .unwrap()
+        .remove(0);
+        assert_eq!(call(&["connections", "0"]).unwrap().len(), 1);
+        assert!(call(&["put", &id, "Title", "Synthetic", "LumenApiEnabled", "1"]).is_err());
+        call(&["enable-api", &id, "1"]).unwrap();
+        call(&["put", &id, "Title", "Renamed"]).unwrap();
+        call(&["lock"]).unwrap();
+        assert!(call(&["connections", "0"]).is_err());
+        call(&["open", "SYNTHETIC MASTER LONG"]).unwrap();
+        assert_eq!(
+            call(&["connections", "0"]).unwrap(),
+            vec![text(""), text(&id)]
+        );
+        call(&["enable-api", &id, "0"]).unwrap();
+        assert_eq!(call(&["connections", "0"]).unwrap(), vec![text("")]);
+        call(&["enable-api", &id, "1"]).unwrap();
+        call(&["trash", &id, "1"]).unwrap();
+        assert!(call(&["enable-api", &id, "1"]).is_err());
+        call(&["trash", &id, "0"]).unwrap();
+        assert_eq!(
+            call(&["get", &id, "LumenApiEnabled"]).unwrap(),
+            vec![text("0")]
+        );
+        call(&["enable-api", &id, "1"]).unwrap();
+        call(&["restore-fields", &id, "0"]).unwrap();
+        assert_eq!(
+            call(&["get", &id, "LumenApiEnabled"]).unwrap(),
+            vec![text("0")]
+        );
+        for file in std::fs::read_dir(dir.path()).unwrap() {
+            let bytes = std::fs::read(file.unwrap().path()).unwrap();
+            assert!(!bytes.windows(15).any(|w| w == b"LumenApiEnabled"));
+        }
     }
     #[test]
     fn crud_lock_trash_restore_and_no_plaintext() {

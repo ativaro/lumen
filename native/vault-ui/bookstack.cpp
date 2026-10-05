@@ -148,9 +148,8 @@ QJsonObject BookStack::project(const QJsonObject &args, const QByteArray &body,
 VaultAccess::VaultAccess(QWidget *window, Reader reader, bool english)
     : QObject(window), window(window), reader(std::move(reader)),
       english(english) {
-  for (auto *timer : {&expiry, &deadline, &framing})
+  for (auto *timer : {&deadline, &framing})
     timer->setSingleShot(true);
-  connect(&expiry, &QTimer::timeout, this, &VaultAccess::revoke);
   connect(&deadline, &QTimer::timeout, this,
           [this] { finish(failure("request_timeout")); });
   connect(&framing, &QTimer::timeout, this,
@@ -174,44 +173,63 @@ bool VaultAccess::listen(const QString &runtime) {
   QLocalServer::removeServer(endpoint);
   return server.listen(endpoint);
 }
-bool VaultAccess::armed() const {
-  return !entryId.isEmpty() && elapsed.isValid() && elapsed.elapsed() < 300000;
-}
+bool VaultAccess::armed() const { return !profiles.isEmpty(); }
 bool VaultAccess::arm(const QString &id, const QUrl &url) {
-  return arm(id, QJsonObject{{"endpoint", url.toString()},
+  return arm(id, QJsonObject{{"title", ""},
+                             {"endpoint", url.toString()},
                              {"connector", "api"},
                              {"auth", "token_pair"},
                              {"id_header", ""},
                              {"secret_header", "X-API-Key"}});
 }
 bool VaultAccess::arm(const QString &id, const QJsonObject &value) {
-  revoke();
+  finish(failure("access_revoked"));
   if (id.isEmpty() || value["endpoint"].toString().isEmpty())
     return false;
   entryId = id;
   profile = value;
   base = QUrl(profile["endpoint"].toString());
-  elapsed.start();
-  expiry.start(300000);
+  profiles.insert(id, value);
   emit changed();
   return true;
 }
-QJsonObject VaultAccess::connection() const {
-  if (!armed())
-    return {{"connected", false}};
-  return {{"connected", true},
-          {"reference", "vault:" + entryId},
-          {"connector", profile["connector"]},
-          {"endpoint", base.toString(QUrl::FullyEncoded)},
-          {"expires_in_seconds", qMax(0, 300 - int(elapsed.elapsed() / 1000))}};
+void VaultAccess::setConnections(const QMap<QString, QJsonObject> &values) {
+  revoke();
+  profiles = values;
+  emit changed();
+}
+QJsonObject VaultAccess::connection(int offset) const {
+  QJsonArray connections;
+  int index = 0;
+  for (auto it = profiles.begin(); it != profiles.end(); ++it) {
+    if (index++ < offset || connections.size() >= 20)
+      continue;
+    connections.append(
+        QJsonObject{{"reference", "vault:" + it.key()},
+                    {"connector", it.value()["connector"]},
+                    {"endpoint", QUrl(it.value()["endpoint"].toString())
+                                     .toString(QUrl::FullyEncoded)}});
+  }
+  QJsonObject result{{"connected", armed()},
+                     {"connections", connections},
+                     {"requires_confirmation", true}};
+  // Preserve single-connection clients without choosing an arbitrary service.
+  result.insert("next_offset", offset + connections.size() < profiles.size()
+                                   ? QJsonValue(offset + connections.size())
+                                   : QJsonValue(QJsonValue::Null));
+  if (profiles.size() == 1 && connections.size() == 1) {
+    const auto single = connections[0].toObject();
+    for (auto it = single.begin(); it != single.end(); ++it)
+      result.insert(it.key(), it.value());
+  }
+  return result;
 }
 void VaultAccess::revoke() {
   ++epoch;
   entryId.clear();
   base.clear();
   profile = {};
-  expiry.stop();
-  elapsed.invalidate();
+  profiles.clear();
   finish(failure("access_revoked"));
   emit changed();
 }
@@ -219,16 +237,17 @@ void VaultAccess::cancel() {
   ++epoch;
   deadline.stop();
   framing.stop();
-  if (prompt) {
-    prompt->disconnect(this);
+  auto dialog = prompt;
+  prompt.clear();
+  if (dialog) {
+    dialog->disconnect(this);
     // A user-confirmed write already dispatched to Rust cannot be undone by
     // losing the IPC client. Let its native dialog finish; lock still closes
     // it.
-    if (!prompt->property("saving").toBool()) {
-      prompt->reject();
-      prompt->deleteLater();
+    if (!dialog->property("saving").toBool()) {
+      dialog->reject();
+      dialog->deleteLater();
     }
-    prompt.clear();
   }
   if (reply) {
     reply->disconnect(this);
@@ -326,8 +345,17 @@ void VaultAccess::receive() {
     finish(failure("invalid_request"));
     return;
   }
-  if (document.object() == QJsonObject{{"operation", "connection"}}) {
-    finish(connection());
+  if (document.object().value("operation") == "connection") {
+    const auto args = document.object();
+    const auto offset = args.value("offset");
+    if ((args.size() != 1 && (args.size() != 2 || !args.contains("offset"))) ||
+        (!offset.isUndefined() &&
+         (!offset.isDouble() || offset.toDouble() != offset.toInt(-1) ||
+          offset.toInt(-1) < 0 || offset.toInt() > 10000))) {
+      finish(failure("invalid_request"));
+      return;
+    }
+    finish(connection(offset.toInt()));
     return;
   }
   if (document.object().value("operation") == "store") {
@@ -351,12 +379,6 @@ void VaultAccess::receive() {
       finish(failure("vault_busy"));
       return;
     }
-    entryId.clear();
-    base.clear();
-    profile = {};
-    expiry.stop();
-    elapsed.invalidate();
-    emit changed();
     auto *dialog = store(args);
     if (!dialog) {
       finish(failure("unlock_vault_then_retry"));
@@ -383,13 +405,28 @@ void VaultAccess::receive() {
     finish(failure("open_vault_and_enable_connection"));
     return;
   }
-  if (VaultConnection::route(profile, document.object()).isEmpty()) {
+  auto args = document.object();
+  const auto reference = args.take("reference");
+  QString id;
+  if (reference.isUndefined() && profiles.size() == 1)
+    id = profiles.firstKey();
+  else if (reference.isString() && reference.toString().startsWith("vault:"))
+    id = reference.toString().mid(6);
+  if (!profiles.contains(id)) {
+    finish(failure(reference.isUndefined() ? "connection_reference_required"
+                                           : "connection_not_enabled"));
+    return;
+  }
+  entryId = id;
+  profile = profiles.value(id);
+  base = QUrl(profile["endpoint"].toString());
+  if (VaultConnection::route(profile, args).isEmpty()) {
     finish(failure("invalid_request"));
     return;
   }
   requested = true;
   framing.stop();
-  confirm(document.object());
+  confirm(args);
 }
 void VaultAccess::confirm(const QJsonObject &args) {
   if (QApplication::activeModalWidget()) {
@@ -408,6 +445,8 @@ void VaultAccess::confirm(const QJsonObject &args) {
          "A local program wants to use the connected service. The caller is "
          "not verified "
          "as Lumen.\n\n") +
+      tx("Eintrag: ", "Entry: ") + profile["title"].toString() + "\n" +
+      "vault:" + entryId + "\n\n" +
       VaultConnection::route(profile, args).toString(QUrl::FullyEncoded) +
       "\n" +
       QString::fromUtf8(QJsonDocument(args).toJson(QJsonDocument::Indented)) +
@@ -456,7 +495,8 @@ void VaultAccess::confirm(const QJsonObject &args) {
 }
 void VaultAccess::dispatch(const QJsonObject &args, quint64 requestEpoch,
                            QStringList fields) {
-  const bool valid = VaultConnection::problem(fields).isEmpty() &&
+  const bool valid = VaultConnection::value(fields, "LumenApiEnabled") == "1" &&
+                     VaultConnection::problem(fields).isEmpty() &&
                      VaultConnection::settings(fields) == profile;
   if (requestEpoch != epoch || !peer || !armed() || !valid) {
     for (auto &value : fields)

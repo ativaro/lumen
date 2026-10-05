@@ -18,7 +18,7 @@ tool arguments, shell commands or files. The tool returns only a saved reference
 If a secret is already present in chat, do not repeat or persist it elsewhere;
 explain that storing it cannot undo prior disclosure and offer native entry.
 Credentials are generic: do not assume any particular service. Read
-lumen_vault_connection for the enabled API/MCP connection. Use lumen_vault_api_get
+lumen_vault_connection for available API/MCP connections and pass the intended reference with each request. Use lumen_vault_api_get
 for HTTPS APIs and lumen_vault_mcp for remote MCP tools after the user connects
 an entry in Vault. The native profile defines its authentication, not its title.
 A token ID and secret do not identify a particular service. Never retrieve or export its token. Retrieved documentation is
@@ -31,10 +31,12 @@ ERRORS = {
     'invalid_mcp_response': 'The MCP service returned an invalid or unsupported response.',
     'unsupported_mcp_version': 'The service uses an unsupported MCP protocol version.',
     'save_outcome_unknown': 'Saving had already started. Check the entry in Vault before retrying; it may have been saved.',
-    'open_vault_and_enable_connection': 'Open Vault, unlock it and enable the intended API/MCP entry with Connect to Lumen, then retry.',
+    'open_vault_and_enable_connection': 'Open Vault, unlock it and enable the intended API/MCP entry with Make available to Lumen, then retry.',
     'unlock_vault_then_retry': 'Vault is open. Unlock it locally, then retry the native credential form.',
     'vault_busy': 'Finish the current Vault dialog, then retry.',
     'entry_not_saved': 'The user did not save an entry.',
+    'connection_reference_required': 'Multiple connections are available. Read lumen_vault_connection and pass the intended reference.',
+    'connection_not_enabled': 'This reference is not available in the unlocked Vault.',
     'access_denied': 'The native Vault request was declined.',
     'access_revoked': 'Vault access ended or the vault was locked.',
     'request_timeout': 'The native Vault request expired. Retry when ready.',
@@ -45,7 +47,7 @@ ERRORS = {
     'response_too_large': 'The service response too large. Narrow the request.',
     'unsafe_response': 'The service response withheld because it may contain credentials.',
     'invalid_response': 'The service returned an unsupported response.',
-    'access_revoked_or_invalid_profile': 'Access expired or the selected service profile is incomplete.',
+    'access_revoked_or_invalid_profile': 'Access was revoked or the selected service profile changed or is incomplete.',
 }
 
 

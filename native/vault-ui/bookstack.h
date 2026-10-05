@@ -26,7 +26,8 @@ public:
   bool listen(const QString &runtime);
   bool arm(const QString &id, const QUrl &base);
   bool arm(const QString &id, const QJsonObject &profile);
-  QJsonObject connection() const;
+  QJsonObject connection(int offset = 0) const;
+  void setConnections(const QMap<QString, QJsonObject> &values);
   void revoke();
   void close() {
     revoke();
@@ -34,6 +35,7 @@ public:
   }
   bool armed() const;
   QString entry() const { return entryId; }
+  bool enabled(const QString &id) const { return profiles.contains(id); }
 signals:
   void changed();
 
@@ -56,8 +58,8 @@ private:
   QPointer<QDialog> prompt;
   QPointer<QNetworkReply> reply;
   QPointer<QNetworkAccessManager> network;
-  QTimer expiry, deadline, framing;
-  QElapsedTimer elapsed;
+  QTimer deadline, framing;
+  QMap<QString, QJsonObject> profiles;
   QString entryId;
   QUrl base;
   QJsonObject profile;

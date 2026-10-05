@@ -58,6 +58,19 @@ class VaultAccessTest(unittest.TestCase):
             invoke('lumen_vault_mcp', {'operation': 'call', 'name': 'example', 'arguments': {}})
             native.assert_called_once_with({'operation': 'mcp_call', 'name': 'example', 'arguments': {}}, launch=False)
 
+    def test_connection_selection_and_pagination_reach_native_boundary(self):
+        cases = [
+            ('lumen_vault_connection', {'offset': 20}, {'offset': 20, 'operation': 'connection'}),
+            ('lumen_vault_api_get', {'reference': 'vault:example', 'path': '/status'}, {'reference': 'vault:example', 'path': '/status', 'operation': 'api_get'}),
+            ('lumen_vault_mcp', {'reference': 'vault:example', 'operation': 'list'}, {'reference': 'vault:example', 'operation': 'mcp_tools'}),
+            ('lumen_bookstack_read', {'reference': 'vault:example', 'operation': 'check'}, {'reference': 'vault:example', 'operation': 'check'}),
+        ]
+        for name, args, expected in cases:
+            self.assertTrue(set(args).issubset(DEFINITIONS[name]['schema']['properties']))
+            with patch('vault_access.request', return_value={}) as native:
+                invoke(name, args)
+                native.assert_called_once_with(expected, launch=False)
+
     def test_native_result(self):
         self.assertEqual(self.exercise(b'{"connected":true}\n'), {'connected': True})
 

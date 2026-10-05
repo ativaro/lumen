@@ -134,14 +134,15 @@ plaintext chat cannot be made private retroactively. No Markdown credential file
 is created. This is also available by manually choosing New entry in Vault.
 
 For the BookStack test connector, choose API token and enter the optional HTTPS
-origin, token ID and secret (Password/token field). Use with Lumen enables that
-entry for up to five minutes. Every `lumen_bookstack_read` request separately
+origin, token ID and secret (Password/token field). Make available to Lumen saves
+that entry's availability inside the encrypted vault until you turn it off. Every `lumen_bookstack_read` request separately
 asks native approval and returns only bounded read results. No write/delete
-operation exists. End access, lock, edit or expiry revokes pending access.
+operation exists. Disable, lock or edit revokes pending access. Each unlock reloads saved availability;
+the five-minute idle lock remains.
 The approval identifies a local program, not a verified app identity. Read
 results may reach the configured cloud model; the token stays local except for
 authentication to the approved service. The independent-review/production flags
-remain false; whole-agent isolation is outstanding. See `SPEC-vault-api-access.md`.
+remain false; whole-agent isolation is outstanding. See `../../SPEC-vault-api-access.md`.
 
 A submitted Save is a commit request: closing an IPC client or locking cannot
 reliably undo a write already sent to Rust. If a save is interrupted, check Vault
@@ -165,3 +166,14 @@ enter OpenCode's plaintext configuration. BookStack is a test case and an option
 legacy read adapter, not the credential type. Generic operations may alter remote
 state; native approval shows the exact request. Check remote state before retrying
 an interrupted MCP call whose outcome is unknown.
+
+Availability is a saved preference per API/MCP entry. Multiple entries can be
+available simultaneously. `lumen_vault_connection` returns only their references,
+endpoints and connector types, with pages of 20 (`offset` / `next_offset`). Pass
+`reference` to request tools when choosing a service; it is mandatory if multiple
+entries are available. Native approval identifies the entry and exact request.
+Every operation still needs local confirmation, and locking ends all active
+access. Missing/old flags stay off; enable each intended entry once. Invalid
+profiles cannot be used and can still be disabled. Trash and entry-history restore
+clear the permission. Neither settings nor secrets are written into plaintext
+configuration. These remain explicit prerelease features.

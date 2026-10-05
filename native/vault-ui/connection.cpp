@@ -60,7 +60,8 @@ QJsonObject VaultConnection::settings(const QStringList &fields) {
                : "bearer";
   const auto address =
       val("LumenApiBase").isEmpty() ? val("URL") : val("LumenApiBase");
-  return {{"connector", connector},
+  return {{"title", val("Title")},
+          {"connector", connector},
           {"auth", auth},
           {"endpoint", address},
           {"id_header", val("LumenApiIdHeader")},

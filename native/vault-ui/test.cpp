@@ -292,6 +292,7 @@ private slots:
     ime.setCommitString(QString(17000, 'x'));
     QApplication::sendEvent(notes, &ime);
     QCOMPARE(notes->toPlainText(), QString("SYNTHETIC NOTE"));
+    QTRY_VERIFY(!window.findChild<Channel *>()->busy());
     QTest::mouseClick(window.findChild<QPushButton *>("save"), Qt::LeftButton);
     QTRY_COMPARE_WITH_TIMEOUT(
         window.findChild<QListWidget *>("entries")->count(), 1, 10000);

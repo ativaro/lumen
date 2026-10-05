@@ -479,6 +479,9 @@ impl Session {
         id: EntryId,
         fields: &[(String, Zeroizing<String>)],
     ) -> Result<()> {
+        if fields.iter().any(|(k, _)| k == "LumenApiEnabled") {
+            return Err(Error::InvalidInput);
+        }
         if fields.len() > 32
             || fields.iter().any(|(k, v)| {
                 k.is_empty()

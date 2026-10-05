@@ -341,6 +341,71 @@ private slots:
     QVERIFY(!client.readAll().contains("SYNTHETIC"));
     QVERIFY(!access.findChild<QNetworkAccessManager *>());
   }
+  void multipleConnectionsRequireReferenceAndRevalidatePermission() {
+    QWidget window;
+    QTemporaryDir runtime;
+    QString readId;
+    std::function<void(QStringList)> pending;
+    VaultAccess access(
+        &window,
+        [&](QString id, auto callback) {
+          readId = id;
+          pending = callback;
+        },
+        true);
+    QVERIFY(access.listen(runtime.path()));
+    const QStringList fields{
+        "LumenType",           "token",    "LumenApiEnabled", "1", "URL",
+        "https://api.example", "Password", "SYNTHETIC_SECRET"};
+    const auto profile = VaultConnection::settings(fields);
+    access.setConnections({{"a", profile}, {"b", profile}});
+    QLocalSocket ambiguous;
+    send(ambiguous, runtime.path(),
+         R"({"operation":"api_get","path":"/status"})");
+    QTRY_VERIFY(ambiguous.bytesAvailable());
+    QCOMPARE(result(ambiguous)["error"].toString(),
+             QString("connection_reference_required"));
+    QVERIFY(readId.isEmpty());
+    QLocalSocket wrong;
+    send(wrong, runtime.path(),
+         R"({"operation":"api_get","reference":"vault:not-enabled"})");
+    QTRY_VERIFY(wrong.bytesAvailable());
+    QCOMPARE(result(wrong)["error"].toString(),
+             QString("connection_not_enabled"));
+    QVERIFY(!QApplication::activeModalWidget());
+    QLocalSocket selected;
+    send(selected, runtime.path(),
+         R"({"operation":"api_get","reference":"vault:b","path":"/status"})");
+    QTRY_VERIFY(QApplication::activeModalWidget());
+    QVERIFY(
+        readId.isEmpty()); // Merely selecting a reference never reads a secret.
+    QString approval;
+    for (auto *label :
+         QApplication::activeModalWidget()->findChildren<QLabel *>())
+      approval += label->text();
+    QVERIFY(approval.contains("vault:b"));
+    qobject_cast<QDialog *>(QApplication::activeModalWidget())->accept();
+    QCOMPARE(readId, QString("b"));
+    auto revoked = fields;
+    revoked[revoked.indexOf("LumenApiEnabled") + 1] = "0";
+    pending(revoked);
+    QTRY_VERIFY(selected.bytesAvailable());
+    QCOMPARE(result(selected)["error"].toString(),
+             QString("access_revoked_or_invalid_profile"));
+    QVERIFY(!access.findChild<QNetworkAccessManager *>());
+    QMap<QString, QJsonObject> many;
+    for (int i = 0; i < 43; ++i)
+      many.insert(QString::number(i).rightJustified(3, '0'), profile);
+    access.setConnections(many);
+    QCOMPARE(access.connection()["connections"].toArray().size(), 20);
+    QCOMPARE(access.connection()["next_offset"].toInt(), 20);
+    QCOMPARE(access.connection(20)["next_offset"].toInt(), 40);
+    QCOMPARE(access.connection(40)["connections"].toArray().size(), 3);
+    QVERIFY(access.connection(40)["next_offset"].isNull());
+    QVERIFY(!access.connection().contains("expires_in_seconds"));
+    access.revoke();
+    QVERIFY(access.connection()["connections"].toArray().isEmpty());
+  }
   void httpsOnlyApprovalAndBoundedResults() {
     QTemporaryDir runtime, certFiles;
     const QString keyPath = certFiles.path() + "/key.pem",
@@ -374,9 +439,9 @@ private slots:
         &window,
         [&](QString, auto callback) {
           ++secretReads;
-          callback({"LumenType", "token", "LumenApiBase", base.toString(),
-                    "LumenApiTokenId", "SYNTHETIC_ID_123", "Password",
-                    "SYNTHETIC_SECRET_123"});
+          callback({"LumenApiEnabled", "1", "LumenType", "token",
+                    "LumenApiBase", base.toString(), "LumenApiTokenId",
+                    "SYNTHETIC_ID_123", "Password", "SYNTHETIC_SECRET_123"});
         },
         true);
     QVERIFY(access.listen(runtime.path()));
@@ -426,7 +491,9 @@ private slots:
              QString("response_too_large"));
     // Generic API uses the same encrypted credential boundary, with a different
     // auth scheme.
-    QStringList generic{"LumenType",
+    QStringList generic{"LumenApiEnabled",
+                        "1",
+                        "LumenType",
                         "token",
                         "URL",
                         base.toString() + "/service",
@@ -549,16 +616,43 @@ private slots:
     auto *access = window.findChild<VaultAccess *>();
     auto *button = window.findChild<QPushButton *>("apiAccess");
     select(a);
+    QTRY_VERIFY(button->isEnabled());
     QTest::mouseClick(button, Qt::LeftButton);
-    QTRY_COMPARE(access->entry(), a);
+    QTRY_VERIFY(access->enabled(a));
     QVERIFY(!QApplication::activeModalWidget());
     const auto activeText = button->text();
     select(b);
     QVERIFY(button->text() != activeText);
-    QCOMPARE(access->entry(), a);
+    QVERIFY(access->enabled(a));
     QTest::mouseClick(button, Qt::LeftButton);
-    QTRY_COMPARE(access->entry(), b);
-    QCOMPARE(access->connection()["connector"].toString(), QString("mcp"));
+    QTRY_VERIFY(access->enabled(b));
+    QCOMPARE(access->connection()["connections"].toArray().size(), 2);
+    QVERIFY(!access->connection().contains("reference"));
+    // A stale history reply must restore availability without opening a dialog.
+    select(a);
+    QPushButton *historyButton = nullptr;
+    for (auto *candidate : window.findChildren<QPushButton *>())
+      if (candidate->accessibleName() == "Versionsverlauf" ||
+          candidate->accessibleName() == "Version history")
+        historyButton = candidate;
+    QVERIFY(historyButton);
+    historyButton->click();
+    select(b);
+    QTRY_VERIFY(access->enabled(a) && access->enabled(b));
+    QVERIFY(!QApplication::activeModalWidget());
+    // Persist across a complete broker/window lock-unlock cycle.
+    window.lock();
+    QVERIFY(!access->armed());
+    master = window.findChild<QLineEdit *>("master");
+    master->setText("SYNTHETIC GENERIC MASTER");
+    QTest::keyClick(master, Qt::Key_Return);
+    QTRY_VERIFY_WITH_TIMEOUT(window.unlocked(), 10000);
+    QTRY_VERIFY_WITH_TIMEOUT(access->enabled(a) && access->enabled(b), 10000);
+    entries = window.findChild<QListWidget *>("entries");
+    button = window.findChild<QPushButton *>("apiAccess");
+    select(a);
+    QTest::mouseClick(button, Qt::LeftButton);
+    QTRY_VERIFY(!access->enabled(a) && access->enabled(b));
     auto *channel = window.findChild<Channel *>();
     bool changed = false;
     channel->call({"put", a, "Title", "A API", "URL", "http://api.example"},
@@ -569,7 +663,36 @@ private slots:
     QTRY_VERIFY(
         window.findChild<QLabel *>("accessStatus")->text().contains("HTTPS"));
     QVERIFY(!QApplication::activeModalWidget());
-    QCOMPARE(access->entry(), b);
+    QVERIFY(access->enabled(b));
+    // Disabled stays disabled after another unlock; invalid profile did not
+    // enable it.
+    window.lock();
+    master = window.findChild<QLineEdit *>("master");
+    master->setText("SYNTHETIC GENERIC MASTER");
+    QTest::keyClick(master, Qt::Key_Return);
+    QTRY_VERIFY_WITH_TIMEOUT(access->enabled(b), 10000);
+    QVERIFY(!access->enabled(a));
+    // Persisted availability remains revocable even after the profile becomes
+    // invalid.
+    changed = false;
+    channel->call({"put", b, "Title", "B MCP", "URL", "http://mcp.example"},
+                  [&](QStringList) { changed = true; });
+    QTRY_VERIFY(changed);
+    window.lock();
+    master = window.findChild<QLineEdit *>("master");
+    master->setText("SYNTHETIC GENERIC MASTER");
+    QTest::keyClick(master, Qt::Key_Return);
+    QTRY_VERIFY_WITH_TIMEOUT(window.unlocked(), 10000);
+    entries = window.findChild<QListWidget *>("entries");
+    QTRY_COMPARE(entries->count(), 2);
+    button = window.findChild<QPushButton *>("apiAccess");
+    select(b);
+    QTRY_VERIFY(button->isEnabled());
+    QVERIFY(!access->enabled(b));
+    QCOMPARE(button->text(), activeText);
+    button->click();
+    QTRY_VERIFY(button->isEnabled());
+    QVERIFY(button->text() != activeText);
     window.lock();
   }
   void nativeIntakeSavesOnlyReferenceAndLocks() {

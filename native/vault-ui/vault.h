@@ -69,6 +69,13 @@ private:
   void edit(QStringList fields = {}, bool createNew = false);
   void shareConnection();
   void updateAccess();
+  void refreshAccess();
+  void loadAccessPage(QString cursor, quint64 revision);
+  void loadAccessEntries(QStringList ids, QString cursor, quint64 revision);
+  quint64 accessRevision = 0;
+  bool accessLoading = false;
+  QSet<QString> enabledEntries;
+  QMap<QString, QJsonObject> pendingProfiles;
   void theme();
   void hideSecret();
   void authorize(bool create, bool restore = false);

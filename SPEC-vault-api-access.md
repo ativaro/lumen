@@ -36,10 +36,12 @@ of a credential that a user has already submitted in chat.
 
 In an API-token entry, edit the optional BookStack HTTPS origin and protected
 Token ID. Store the token secret in the existing Password/token field. Choose
-**Mit Lumen verwenden / Use with Lumen** to enable that selected entry for at
-most five minutes while unlocked. A second click ends access. Editing, opening
-history, trashing/restoring, locking, expiry and profile changes revoke access.
-Only one entry is enabled, and only one request can be pending.
+**Für Lumen verfügbar machen / Make available to Lumen** to save availability
+for that entry inside the encrypted KDBX. A second click disables it persistently.
+Multiple entries may be available; only one request can be pending. Each unlock
+restores valid enabled profiles. Lock and profile edits revoke pending requests;
+trashing or restoring historical fields clears availability. The separate
+five-minute grant timer is removed; the existing five-minute idle lock remains.
 
 `lumen_bookstack_read` accepts fixed, validated operations:
 
@@ -72,7 +74,8 @@ stored in Lumen memory or sent to a model merely by enabling an entry.
   deadline and 90-second total request deadline. Both native code and MCP schema
   validate input; native validation is authoritative.
 - Every request is bound to one entry/origin and an epoch. Approval, credential
-  retrieval, dispatch and completion recheck expiry/revocation. A disconnected
+  retrieval, dispatch and completion recheck revocation. Credential retrieval also
+  rechecks the stored permission and exact profile. A disconnected
   client invalidates callbacks; rearming cannot revive an old request.
 - HTTPS with normal certificate verification; root origins only, no userinfo,
   query, fragment or subpath. No redirects, environment proxies, cookie load/save,
@@ -137,7 +140,7 @@ upgraded or used to transmit a secret: the inline hint requires an HTTPS address
 Connect reads the saved entry directly. It does not open a setup wizard. Missing
 or invalid fields produce a precise inline hint. Active state belongs to the
 selected entry; selecting B does not make B appear connected merely because A is
-active, and connecting B explicitly replaces A's temporary connection.
+active. Enabling B leaves A available; requests identify their intended entry.
 
 The native request is bound to the full resolved profile, including connector,
 auth mode, header names and exact endpoint. Custom header names are absolutely
@@ -148,16 +151,19 @@ in response-reflection checks. Profile edits still revoke pending access.
 
 ### Generic tools
 
-- `lumen_vault_connection`: the single explicitly enabled connection's opaque
-  reference, endpoint, connector and expiry only; no credentials/header values,
-  session IDs or enumeration of vault entries.
+- `lumen_vault_connection`: only explicitly enabled entries' opaque references,
+  endpoints and connector types, in pages of 20 (`offset` / `next_offset`). No
+  credentials/header values, session IDs or discovery of unshared entries. When
+  exactly one entry is available, legacy top-level metadata remains supported.
+  Request tools accept `reference`; it is required when multiple entries are
+  available. Unknown/disabled references fail before credentials are read.
 - `lumen_vault_api_get`: GET under the configured HTTPS origin/base path, with
   constrained path segments and structured encoded query parameters. No absolute
   references, traversal, encoded delimiters, arbitrary headers or host override.
   Result is bounded untrusted JSON. Confirmation does not claim that every remote
   implementation of GET is side-effect-free.
 - `lumen_vault_mcp`: list tools or invoke a named tool with explicit arguments.
-  Every operation has native approval showing its destination and arguments;
+  Every operation has native approval showing the local entry title/reference, destination and arguments;
   calls may mutate remote state. General MCP-write disablement does not prevent
   opening this independently confirmed native operation, and does not change
   access to any other writing tool.
@@ -186,3 +192,21 @@ status, missing-field hints, generic Bearer/JWT and custom headers, CR/LF reject
 path confinement, unused-ID reflection, TLS MCP initialization/headers with JSON
 and SSE, unexpected IDs/server requests, event bounds, and cancellation after a
 potentially mutating call without replay.
+
+### Persistent availability verification
+
+`LumenApiEnabled` is a protected KDBX field, changed only by the dedicated native
+broker action. Generic editing cannot write it. Missing flags stay off: old
+volatile grants do not silently migrate to permanent preferences. Runtime
+hydration is revision-guarded and published as one complete profile map. Invalid
+enabled profiles remain visibly enabled in the UI and can always be disabled;
+they cannot service requests. Editing suspends access until its dialog closes.
+The selected entry title/reference is shown locally at approval and is never
+forwarded as an HTTP/MCP argument. A saved permission is neither an unlocked
+vault nor automatic approval. Restore-from-backup restores the backup's settings;
+restoring an individual entry's historical fields instead clears its permission.
+
+Synthetic regressions cover persisted enable/disable across unlocks, reserved
+field rejection, trash/history clearing, ambiguity/unknown references, selected
+credential approval, permission revalidation, bounded discovery, lock/cancel and
+stale callbacks. No production qualification flag is changed.
