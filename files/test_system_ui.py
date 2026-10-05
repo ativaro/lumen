@@ -2,7 +2,7 @@
 import time
 import unittest
 from unittest.mock import patch
-from PySide6.QtCore import QObject, QPoint, QProcess, Qt
+from PySide6.QtCore import QObject, QPoint, QProcess, Qt, QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
@@ -29,7 +29,7 @@ class SystemUITest(unittest.TestCase):
         self.engine,self.window=create_window(self.controller); self.window.show(); QTest.qWait(50)
 
     def tearDown(self):
-        self.controller.shutdown(); self.window.close(); self.engine.deleteLater(); self.app.processEvents()
+        self.controller.shutdown(); self.window.close(); self.engine.deleteLater(); QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete); self.app.processEvents()
 
     def click(self,name):
         def descendants(item):

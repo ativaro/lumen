@@ -74,7 +74,7 @@ if not (folder / 'lumen-main/install.sh').is_file():
     raise SystemExit('The downloaded Lumen archive is incomplete.')
 PY
     fi
-    "${LUMEN_PYTHON:-/usr/bin/python3}" -c 'import PySide6.QtWidgets, PySide6.QtSvg, PySide6.QtQuick, PySide6.QtDBus, gi, PIL, dbus'
+    "${LUMEN_PYTHON:-/usr/bin/python3}" -c 'import PySide6.QtWidgets, PySide6.QtSvg, PySide6.QtQuick, PySide6.QtQuickWidgets, PySide6.QtDBus, gi, PIL, dbus'
     if ! qdbus6 org.kde.plasmashell /PlasmaShell >/dev/null 2>&1; then
         message 'Plasma 6 ist nicht erreichbar. Bitte in deiner Desktop-Sitzung erneut starten.' 'Plasma 6 is unavailable. Try again inside your desktop session.' >&2
         return 1

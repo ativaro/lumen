@@ -1,9 +1,10 @@
 """Lumen System: native overview, activity and device measurements."""
+import argparse
 import json
 from pathlib import Path
 import sys
 import time
-from PySide6.QtCore import QObject, Property, Signal, Slot, QTimer, QProcess, QSettings, QUrl, ClassInfo
+from PySide6.QtCore import QObject, Property, Signal, Slot, QTimer, QProcess, QSettings, QUrl, ClassInfo, QLockFile, QCoreApplication, QEvent
 from PySide6.QtGui import QGuiApplication, QPalette, QColor, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow
@@ -209,31 +210,65 @@ class SystemController(QObject):
 class Activation(QObject):
     def __init__(self, window): super().__init__(); self.window = window
     @Slot()
-    def Activate(self): self.window.showNormal(); self.window.raise_(); self.window.requestActivate()
+    def Activate(self): self.window.activate()
+    @Slot(str)
+    def OpenPage(self, page):
+        if page in self.window.pages: self.window.activate(page)
+    @Slot(str)
+    def OpenSound(self, value):
+        if len(value) > 65536: return
+        try: request = json.loads(value)
+        except ValueError: return
+        self.window.sound.safe(self.window.activate_sound, request)
 
 
 def create_window(controller):
     engine = QQmlApplicationEngine(); engine.setInitialProperties({'controller':controller})
-    engine.load(QUrl.fromLocalFile(str(Path(__file__).with_name('qml')/'system'/'System.qml')))
+    engine.load(QUrl.fromLocalFile(str(Path(__file__).with_name('qml')/'system'/'SystemWindow.qml')))
     if not engine.rootObjects(): raise RuntimeError('Lumen System QML failed to load')
     return engine, engine.rootObjects()[0]
 
 
-def main():
+def main(argv=None):
+    parser = argparse.ArgumentParser(description='Lumen System')
+    parser.add_argument('--page', choices=('system', 'sound', 'modes'), default='system')
+    destination = parser.add_mutually_exclusive_group()
+    destination.add_argument('--ref'); destination.add_argument('--handoff')
+    args = parser.parse_args(argv)
+    request = {key: getattr(args, key) for key in ('ref', 'handoff') if getattr(args, key)}
+    if request and args.page != 'sound': parser.error('Object references belong to Sound.')
     from lumen_crash import supervise, attach
     supervise('system')
-    app = QGuiApplication(sys.argv); app.setApplicationName('lumen-system')
-    app.setApplicationDisplayName('Lumen System'); app.setDesktopFileName('lumen-system'); install(app)
+    from app import create_app
+    app = create_app(); app.setApplicationName('lumen-system')
+    app.setApplicationDisplayName('Lumen System'); app.setDesktopFileName('lumen-system')
     app.setWindowIcon(QIcon.fromTheme('lumen-system', QIcon.fromTheme('utilities-system-monitor')))
     bus = QDBusConnection.sessionBus(); service = 'org.lumen.System'
     if bus.isConnected() and not bus.registerService(service):
-        reply = bus.call(QDBusMessage.createMethodCall(service, '/System', service, 'Activate'), QDBus.Block, 3000)
+        message = QDBusMessage.createMethodCall(service, '/System', service, 'OpenSound' if request else 'OpenPage')
+        message.setArguments([json.dumps(request) if request else args.page])
+        reply = bus.call(message, QDBus.Block, 3000)
         return int(reply.type() == QDBusMessage.ErrorMessage)
-    controller = SystemController(); engine, window = create_window(controller)
+    from tools_data import Library
+    library = Library('sound')
+    lock = QLockFile(str(library.root/'window.lock'))
+    if not lock.tryLock(0):
+        from PySide6.QtWidgets import QMessageBox
+        QMessageBox.information(None, 'Lumen System', tr('Bitte das bisherige Sound-Fenster schließen und Lumen System erneut öffnen.'))
+        return 1
+    from system_window import SystemWindow
+    from tools_app import listen_window
+    controller = SystemController(); window = SystemWindow(controller, args.page)
+    from interop_data import Registry
+    Registry(library.root.parent).recover('sound')
+    server = listen_window(window.sound, window.activate_sound)
     activation = Activation(window)
     if bus.isConnected(): bus.registerObject('/System', activation, QDBusConnection.ExportAllSlots)
+    app.aboutToQuit.connect(server.close); app.aboutToQuit.connect(lock.unlock)
     app.aboutToQuit.connect(controller.shutdown); attach(app, controller, 'system', offer_recovery=False)
-    window.show(); code = app.exec(); engine.deleteLater(); app.sendPostedEvents(None, 0)
+    window.show()
+    if request: QTimer.singleShot(0, lambda: window.sound.safe(window.activate_sound, request))
+    code = app.exec(); QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
     return code
 
 

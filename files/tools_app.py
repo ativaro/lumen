@@ -11,6 +11,36 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from app import create_app
 
 
+def listen_window(page, activate):
+    """Private activation and backup-save endpoint for a retained tool page."""
+    from interop_flush import server_name, serve_flush
+    endpoint = server_name(page.library.root)
+    server = QLocalServer(); QLocalServer.removeServer(endpoint)
+    server.setSocketOptions(QLocalServer.UserAccessOption)
+    if not server.listen(endpoint): raise RuntimeError(tr('Lokale Fensteraktivierung konnte nicht gestartet werden.'))
+    def accept():
+        socket=server.nextPendingConnection()
+        if socket:
+            buffer=bytearray();timer=QTimer(socket);timer.setSingleShot(True);timer.timeout.connect(socket.disconnectFromServer);timer.start(2000)
+            socket.disconnected.connect(socket.deleteLater)
+            def receive():
+                buffer.extend(bytes(socket.readAll()))
+                if len(buffer)>65536:socket.disconnectFromServer();return
+                if b'\n' not in buffer:return
+                try:
+                    request=json.loads(buffer.split(b'\n',1)[0])
+                    if isinstance(request,dict) and 'vault_flush' in request:
+                        timer.stop();socket.readyRead.disconnect(receive)
+                        serve_flush(page,socket,request)
+                        return
+                    page.safe(activate, request)
+                except (ValueError,AttributeError):pass
+                socket.disconnectFromServer()
+            socket.readyRead.connect(receive);receive()
+    server.newConnection.connect(accept)
+    return server
+
+
 def main():
     parser=argparse.ArgumentParser(description=tr('Eigenständige Desktop-Werkzeuge'))
     parser.add_argument('tool',choices=['meetings','household','workbench','radio','vault','inbox','reader','sound','wissen','translate'])
@@ -26,6 +56,12 @@ def main():
     if args.clipboard and args.tool != 'translate': parser.error(tr('Die Zwischenablage ist hier nur für Translate verfügbar.'))
     requested=str(Path(args.path).expanduser().absolute()) if args.path else ''
     activation={key:value for key,value in [('path',requested),('handoff',args.handoff),('ref',args.ref),('area',args.area)] if value}
+    if args.tool == 'sound':
+        from system_app import main as system_main
+        forwarded = ['--page', 'sound']
+        for key in ('handoff', 'ref'):
+            if activation.get(key): forwarded.extend(['--'+key, activation[key]])
+        return system_main(forwarded)
     from interop_ui import controller
     app=create_app(); app.setApplicationName('lumen-'+args.tool); app.setDesktopFileName('lumen-'+args.tool)
     from tools_household import Household
@@ -33,7 +69,6 @@ def main():
     from tools_vault import Vault
     from tools_inbox import Inbox
     from tools_reader import Reader
-    from tools_sound import Sound
     if args.clipboard:
         from PySide6.QtWidgets import QApplication
         from vault_privacy import protected_clipboard
@@ -49,10 +84,10 @@ def main():
         pages = window.pages
         app.setApplicationName('lumen-meetings'); app.setDesktopFileName('lumen-meetings')
     else:
-        window = {'household':Household,'workbench':Workbench,'vault':Vault,'inbox':Inbox,'reader':Reader,'sound':Sound,'wissen':Wissen,'translate':Translate}[args.tool]()
+        window = {'household':Household,'workbench':Workbench,'vault':Vault,'inbox':Inbox,'reader':Reader,'wissen':Wissen,'translate':Translate}[args.tool]()
         pages = {args.tool: window}
     app.setApplicationDisplayName(window.windowTitle())
-    from interop_flush import server_name as native_server_name, serve_flush
+    from interop_flush import server_name as native_server_name
     server_name=native_server_name(pages[args.tool].library.root)
     client=QLocalSocket(); client.connectToServer(server_name)
     if client.waitForConnected(400):
@@ -85,36 +120,14 @@ def main():
         if len(pages) > 1: window.select(page.name)
         if request: controller(page).enqueue(request)
 
-    def activate(server, page):
-        socket=server.nextPendingConnection()
-        if socket:
-            buffer=bytearray();timer=QTimer(socket);timer.setSingleShot(True);timer.timeout.connect(socket.disconnectFromServer);timer.start(2000)
-            socket.disconnected.connect(socket.deleteLater)
-            def receive():
-                buffer.extend(bytes(socket.readAll()))
-                if len(buffer)>65536:socket.disconnectFromServer();return
-                if b'\n' not in buffer:return
-                try:
-                    request=json.loads(buffer.split(b'\n',1)[0])
-                    if isinstance(request,dict) and 'vault_flush' in request:
-                        timer.stop();socket.readyRead.disconnect(receive)
-                        serve_flush(page,socket,request)
-                        return
-                    page.safe(dispatch,page,request)
-                    window.showNormal() if window.isMinimized() else window.show()
-                    window.raise_(); window.activateWindow()
-                except (ValueError,AttributeError):pass
-                socket.disconnectFromServer()
-            socket.readyRead.connect(receive);receive()
     from lumen_apps import startup_preference
     states = {}
     for name, page in pages.items():
-        endpoint = native_server_name(page.library.root)
-        server = QLocalServer(); QLocalServer.removeServer(endpoint)
-        server.setSocketOptions(QLocalServer.UserAccessOption)
-        if not server.listen(endpoint): raise RuntimeError(tr('Lokale Fensteraktivierung konnte nicht gestartet werden.'))
-        server.newConnection.connect(lambda s=server, p=page: activate(s, p))
-        servers.append(server)
+        def show(request, page=page):
+            dispatch(page, request)
+            window.showNormal() if window.isMinimized() else window.show()
+            window.raise_(); window.activateWindow()
+        servers.append(listen_window(page, show))
         state = QSettings(str(page.library.root/'window.ini'), QSettings.IniFormat)
         states[name] = state
         if name == args.tool and startup_preference(name, 'restoreGeometry') and state.value('geometry'):

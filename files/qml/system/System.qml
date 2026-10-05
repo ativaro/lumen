@@ -1,15 +1,15 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-ApplicationWindow {
+Pane {
     id: root
     required property var controller
     property var t: controller.theme
     property var d: controller.data
     property int page: 0
     property var expanded: ({})
-    width: 1280; height: 900; minimumWidth: 820; minimumHeight: 620
-    title: 'Lumen System'; color: t.window
+    width: 1280; height: 900; padding: 0
+    background: Rectangle { color: root.t.window }
     font.family: t.fontFamily; font.pixelSize: t.fontSize
     function tx(s) { return controller.text(s) }
     palette.window: t.window; palette.base: t.base; palette.text: t.text

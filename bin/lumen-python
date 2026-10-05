@@ -9,7 +9,7 @@ if [ "${1:-}" = --install-runtime ]; then
 fi
 if [ -n "${LUMEN_PYTHON:-}" ]; then
     exec "$LUMEN_PYTHON" "$@"
-elif /usr/bin/python3 -c 'import PySide6.QtQuick, PySide6.QtWidgets, PySide6.QtSvg, PySide6.QtDBus' >/dev/null 2>&1; then
+elif /usr/bin/python3 -c 'import PySide6.QtQuick, PySide6.QtQuickWidgets, PySide6.QtWidgets, PySide6.QtSvg, PySide6.QtDBus' >/dev/null 2>&1; then
     exec /usr/bin/python3 "$@"
 elif [ -x "$runtime/bin/python" ]; then
     exec "$runtime/bin/python" "$@"

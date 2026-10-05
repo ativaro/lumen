@@ -75,10 +75,10 @@ gracefully on other setups.
 | **Lumen Vault** (`lumen-vault`) | encrypted restic backups, snapshot browsing, verified restore and opt-in schedules. The native credential vault and its guided NAS backup UI require the [separate prerelease installation](native/vault-ui/README.md) |
 | **Lumen Meeting & Radio** (`lumen-meetings`, `lumen-radio`) | one window with Meeting/Radio tabs, local transcription, editable results and personal audio programmes; both starters keep the same window and retained state |
 | **Lumen Translate** (`lumen-translate`) | text translation, writing styles, spelling correction and PDF layout translation |
-| **Lumen System** (`lumen-system`) | live resource usage, hardware and system activity |
+| **Lumen System** (`lumen-system`) | retained System, Sound and Work modes tabs: live resource usage, hardware, audio and desktop presets with guarded undo |
 | **Lumen Inbox** (`lumen-inbox`) | local IMAP inbox and SMTP drafts, Proton Bridge preset, CalDAV calendars, read-only ICS subscriptions and local tasks; [setup and limits](VAULT-INBOX.md) |
 | **Lumen Reader** (`lumen-reader`) | PDFs, EPUBs and saved articles; reading position, highlights, margin notes, local read-aloud and cited passages in Lumen knowledge |
-| **Lumen Sound** (`lumen-sound`) | per-stream volume, mute and output; opt-in app rules and music ducking during calls; [Reader/Sound guide](READER-SOUND.md) |
+| **Sound in Lumen System** (`lumen-sound`) | opens the Sound tab in the existing System window: per-stream volume, mute, outputs, app rules and conversation ducking; [Reader/Sound guide](READER-SOUND.md) |
 | **Lumen Wissen** (`lumen-wissen`) | direct notebook with autosave, editable titles, folder/tag collections and separate Lumen memory; explicit sharing, optional learning, corrections and forgetting; images, links, knowledge map and sourced questions; [Wissen guide](WISSEN.md) |
 | **Application designs** | Glas by default, plus Graphit, Atelier and Mitternacht; shared live themes for Lumen, search, Files, the image viewer, desktop panels and their popups, with native previews in settings |
 | **System watchdog** | systemd timer checks failed units, kernel errors, disk, GPU temp; automatic opencode analysis |
@@ -433,3 +433,14 @@ charts, current-user processes and device sensors. Open **Lumen System** from
 Lumen Apps, the panel's System controls, or run `lumen-system`. Shared settings
 retain the existing background-work preferences. Session history stays in memory;
 AI analysis only starts when requested. See [measurement details](files/README.md#lumen-system).
+
+
+### Sound and work modes in System
+
+`lumen-system` opens one window with **System**, **Sound** and **Work modes** tabs.
+The existing `lumen-sound` command opens its Sound tab. `lumen-system --page modes`
+opens desktop modes; the Workplace entry and shared settings use the same route.
+Switching tabs retains monitoring, mixer controls and mode selection. Apply/save
+buttons retain their existing behavior; switching a tab changes no system setting.
+Mode history includes guarded undo; existing audio rules and mode profiles keep
+using their original local stores. The separate Sound app-menu entry is hidden.

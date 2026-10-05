@@ -181,21 +181,31 @@ class ModeDialog(QDialog):
 
 
 class Workplace(QWidget):
-    def __init__(self, parent=None, store=None, files_provider=None):
+    def __init__(self, parent=None, store=None, files_provider=None, system_only=False):
         super().__init__(parent)
+        self.system_only = system_only
         self.store = store or Store(); self.files_provider = files_provider
         self.jobs, self.connections = [], []
         self.generation = 0; self.busy = False; self.project = None; self.cached_rows = []
         self.setObjectName('workplace'); layout = QVBoxLayout(self); layout.setContentsMargins(28, 24, 28, 18); layout.setSpacing(16)
-        layout.addWidget(text(tr('LUMEN  /  ARBEITSPLATZ'), 'eyebrow'))
-        layout.addWidget(text(tr('Hier geht es weiter.'), 'workplaceHeading'))
-        self.summary = text(tr('Deine Projekte, dein System und alles, was gerade unterwegs ist.'), 'muted'); layout.addWidget(self.summary)
+        layout.addWidget(text(tr('Arbeitsmodi') if system_only else tr('Hier geht es weiter.'), 'workplaceHeading'))
+        self.summary = text(tr('Audio, Ruhezeit, Fenster und Netzwerkordner gemeinsam steuern.') if system_only else tr('Deine Projekte, dein System und alles, was gerade unterwegs ist.'), 'muted'); layout.addWidget(self.summary)
+        if not system_only:
+            layout.addWidget(button(tr('Arbeitsmodi in Lumen System'), self.open_modes))
         self.tabs = QTabWidget(); layout.addWidget(self.tabs, 1)
-        self.projects_page(); self.modes_page(); self.transfers_page(); self.history_page()
+        if system_only: self.modes_page()
+        else: self.projects_page(); self.transfers_page()
+        self.history_page()
         self.status = text('', 'muted'); layout.addWidget(self.status)
         self.timer = QTimer(self); self.timer.timeout.connect(self.refresh_activity); self.timer.start(1500)
         self.tabs.currentChanged.connect(lambda _: self.refresh_activity())
-        self.refresh_projects(); self.refresh_modes(); self.refresh_activity()
+        if system_only: self.refresh_modes()
+        else: self.refresh_projects()
+        self.refresh_activity()
+
+    def open_modes(self):
+        from lumen_apps import launch
+        self.guard(lambda: launch('system', page='modes'))
 
     def page(self, name):
         widget = QWidget(); widget.setObjectName('workplacePage'); box = QVBoxLayout(widget); box.setContentsMargins(4, 18, 4, 4); box.setSpacing(12)
@@ -331,15 +341,15 @@ class Workplace(QWidget):
     def connect_sources(self, addresses):
         pending = list(dict.fromkeys(addresses))
         if not pending: return
-        window = self.files()
+        window = self.files() if self.files_provider else None
         def next_source():
             if not pending:
                 self.scan(); return
             address = pending.pop(0)
-            if window.spaces.local_reference(address) != address: next_source(); return
+            if window and window.spaces.local_reference(address) != address: next_source(); return
             connection = Network(self); self.connections.append(connection)
             def connected(url, path):
-                window.network.mounts[path] = url
+                if window: window.network.mounts[path] = url
                 self.status.setText(tr('Verbunden: ') + server_label(url)); next_source()
             connection.connected.connect(connected)
             connection.failed.connect(lambda message: (self.status.setText(message), next_source()))
@@ -484,16 +494,18 @@ class Workplace(QWidget):
         if not identity or self.busy: return
         self.undo_button.setEnabled(False); self.status.setText(tr('Änderung wird geprüft und zurückgenommen …'))
         def complete(_, error):
-            self.status.setText(error or tr('Änderung zurückgenommen.')); self.refresh_activity(); self.refresh_modes(); self.refresh_projects()
+            self.status.setText(error or tr('Änderung zurückgenommen.')); self.refresh_activity()
+            if self.system_only: self.refresh_modes()
+            else: self.refresh_projects()
             value = next((v for v in self.history_values if v['id'] == identity), None)
-            if not error and value and value['kind'] == 'preferences':
+            if self.files_provider and not error and value and value['kind'] == 'preferences':
                 window = self.guard(lambda: self.files())
                 if window:
                     keys = list(value['after'])
                     window.reload_settings(value['target'], keys)
                     chat = window.spaces.chat()
                     if chat: chat.reload_settings(value['target'], keys)
-            if not error and value and value['kind'] == 'store-setting' and str(value['target']).startswith('files/spaces/room/'):
+            if self.files_provider and not error and value and value['kind'] == 'store-setting' and str(value['target']).startswith('files/spaces/room/'):
                 window = self.guard(lambda: self.files())
                 if window and window.spaces.active_room and value['target'].endswith('/' + window.spaces.active_room['id']):
                     # Do not let automatic room saving overwrite the restored snapshot.
@@ -507,14 +519,18 @@ class Workplace(QWidget):
     def refresh_activity(self):
         if not self.isVisible() and hasattr(self, 'transfer_values'): return
         try:
-            self.transfer_values = transfers.tickets(self.store)
-            action_names = {'copy': tr('Kopieren'), 'move': tr('Verschieben'), 'rename': tr('Umbenennen'), 'mkdir': tr('Neuer Ordner'), 'trash': tr('Papierkorb'), 'download': tr('Download')}
-            fill(self.transfers, [(v['id'], [action_names[v['action']] + ' · ' + (Path(v['target']).name if v['action'] == 'download' else v['current'] or Path(v['sources'][0]).name),
-                (size_text(v['bytes']) + (' / ' + size_text(v['total']) if v['total'] else '') if v['action'] == 'download'
-                 else f"{len(v['done'])} / {len(v['sources'])}" + (' · ' + size_text(v['bytes']) if v['bytes'] else '')),
-                tr('Wird angehalten') if v.get('cancel') and v['status'] in transfers.ACTIVE else transfers.LABELS[v['status']]]) for v in self.transfer_values[:200]])
-            self.transfer_details()
+            if not self.system_only:
+                self.transfer_values = transfers.tickets(self.store)
+                action_names = {'copy': tr('Kopieren'), 'move': tr('Verschieben'), 'rename': tr('Umbenennen'), 'mkdir': tr('Neuer Ordner'), 'trash': tr('Papierkorb'), 'download': tr('Download')}
+                fill(self.transfers, [(v['id'], [action_names[v['action']] + ' · ' + (Path(v['target']).name if v['action'] == 'download' else v['current'] or Path(v['sources'][0]).name),
+                    (size_text(v['bytes']) + (' / ' + size_text(v['total']) if v['total'] else '') if v['action'] == 'download'
+                     else f"{len(v['done'])} / {len(v['sources'])}" + (' · ' + size_text(v['bytes']) if v['bytes'] else '')),
+                    tr('Wird angehalten') if v.get('cancel') and v['status'] in transfers.ACTIVE else transfers.LABELS[v['status']]]) for v in self.transfer_values[:200]])
+                self.transfer_details()
             self.history_values = history.entries(self.store)
+            if self.system_only:
+                self.history_values = [value for value in self.history_values if value['kind'] == 'mode' or
+                    (value['kind'] == 'store-setting' and str(value['target']).startswith('files/spaces/mode/'))]
             fill(self.history, [(v['id'], [v['title'], date(v['created']), tr('Verfügbar') if history.can_undo(v) else tr('Zurückgenommen') if v['status'] == 'undone' else tr('Nur Verlauf')]) for v in self.history_values])
             self.history_details()
         except Exception as error: self.status.setText(str(error))

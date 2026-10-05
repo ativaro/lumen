@@ -66,8 +66,9 @@ if it was previously completed. Download or package errors stop before launching
 ### What the one-liner installs
 
 The user bundle contains Lumen, Files, Search, Wissen, Translate, System, Inbox,
-Reader, Sound, Projects, Household and the combined **Meeting & Radio** window,
-plus all desktop themes, decorations, wallpapers and panels. Both Meeting/Radio
+Reader, Projects, Household and the combined **Meeting & Radio** window,
+**System** also contains Sound and Work modes. All desktop themes, decorations,
+wallpapers and panels are included. Both Meeting/Radio
 launch commands remain supported. OpenCode, speech models and optional tools are
 prepared through the wizard, reusing an existing installation when available.
 

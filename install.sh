@@ -48,7 +48,7 @@ missing=()
 for c in bash python3; do command -v "$c" >/dev/null 2>&1 || missing+=("$c"); done
 [ ${#missing[@]} -gt 0 ] && { message "Fehlende Pflicht-Abhängigkeiten: ${missing[*]}" "Missing required dependencies: ${missing[*]}" >&2; exit 1; }
 
-"$REPO/bin/lumen-python" -c "import PySide6.QtWidgets, PySide6.QtSvg, PySide6.QtQuick, gi, PIL" || { message "Benötigt: PySide6 mit QtQuick/QtSvg, PyGObject und Pillow" "Required: PySide6 with QtQuick/QtSvg, PyGObject and Pillow" >&2; exit 1; }
+"$REPO/bin/lumen-python" -c "import PySide6.QtWidgets, PySide6.QtSvg, PySide6.QtQuick, PySide6.QtQuickWidgets, gi, PIL" || { message "Benötigt: PySide6 mit QtQuick/QtSvg, PyGObject und Pillow" "Required: PySide6 with QtQuick/QtSvg, PyGObject and Pillow" >&2; exit 1; }
 if [ "$DESKTOP" = 1 ]; then
     for c in qdbus6 kreadconfig6 kwriteconfig6 plasma-apply-desktoptheme kbuildsycoca6; do
         command -v "$c" >/dev/null || { message "Desktop-Einrichtung benötigt $c und eine KDE-Plasma-6-Sitzung." "Desktop setup requires $c and a KDE Plasma 6 session." >&2; exit 1; }

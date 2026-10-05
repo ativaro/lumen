@@ -89,10 +89,30 @@ class SettingsDialog(QDialog):
         self.build_mcp()
         from hardware_ui import HardwareView
         self.hardware_page = self.stack.count()
-        hardware = self.page('Lumen System', tr('Leistung, Geräte und Systemaktivität verstehen'))
+        hardware = self.page('Lumen System', tr('Leistung, Geräte, Sound und Arbeitsmodi'))
         hardware.addWidget(HardwareView(self))
         self.app_pages = {'lumen': 0, 'files': 1, 'system': self.hardware_page}
         self.build_apps()
+        from lumen_apps import launch
+        def open_system_page(page):
+            try: launch('system', page=page)
+            except (OSError, ValueError) as error: self.status.setText(str(error))
+        hardware.addWidget(button(tr('Sound öffnen'), lambda: open_system_page('sound')))
+        hardware.addWidget(button(tr('Arbeitsmodi öffnen'), lambda: open_system_page('modes')))
+        for app_key, preferences in (
+            ('system', [('restoreGeometry', tr('Fenstergröße und Position wiederherstellen'))]),
+            ('sound', [('restoreGeometry', tr('Fenstergröße und Position wiederherstellen')), ('restoreSelection', tr('Letzten Eintrag wieder öffnen'))]),
+        ):
+            hardware.addWidget(text(tr('System') if app_key == 'system' else tr('Sound')))
+            controls = {}; self.app_controls[app_key] = controls
+            for pref, caption in preferences:
+                control = QCheckBox(caption)
+                control.setChecked(self.field(self.assistant, f'apps/{app_key}/{pref}', True, bool))
+                hardware.addWidget(control); controls[pref] = control
+            def save_startup(_=False, app=app_key, fields=controls):
+                try: self.save(self.assistant, {f'apps/{app}/{pref}': control.isChecked() for pref, control in fields.items()})
+                except (OSError, ValueError) as error: self.status.setText(str(error))
+            hardware.addWidget(button(tr('App-Einstellungen übernehmen'), save_startup))
         self.build_speech_settings()
         from persona_settings import PersonaEditor
         self.persona_page = self.stack.count()
@@ -108,7 +128,7 @@ class SettingsDialog(QDialog):
         self.navigation = SettingsNavigation(self.stack, self.page_info, categories(self), self)
         self.nav = self.navigation.nav; self.nav_search = self.navigation.search
         root.insertWidget(0, self.navigation, 1)
-        destination = self.app_pages.get('meetings' if application == 'radio' else application, page)
+        destination = self.app_pages.get({'radio': 'meetings', 'sound': 'system'}.get(application, application), page)
         if destination is not None: self.open_page(destination)
         if load_system:
             QTimer.singleShot(0, self.reload)

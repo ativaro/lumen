@@ -18,15 +18,14 @@ def catalogue():
         ('inbox', 'Lumen Inbox', tr('Nachrichten und Kalender an einem Ort'), 'mail-unread'),
         ('vault', 'Lumen Vault', tr('Sicherungen planen und wiederherstellen'), 'document-save'),
         ('reader', 'Lumen Reader', tr('Lesen, markieren und vorlesen lassen'), 'application-pdf'),
-        ('system', 'Lumen System', tr('Leistung, Geräte und Systemaktivität verstehen'), 'utilities-system-monitor'),
-        ('sound', 'Lumen Sound', tr('Audioausgabe und Lautstärke steuern'), 'audio-volume-high'),
+        ('system', 'Lumen System', tr('Leistung, Geräte, Sound und Arbeitsmodi'), 'utilities-system-monitor'),
         ('meetings', tr('Lumen Meeting & Radio'), tr('Aufnahmen, Transkripte und dein persönliches Hörprogramm'), 'audio-input-microphone'),
         ('household', tr('Lumen Digitaler Haushalt'), tr('Dokumente und Fristen im Blick behalten'), 'view-calendar'),
         ('workbench', tr('Lumen Projekte'), tr('Projekte und ihre nächsten Schritte organisieren'), 'folder-development'),
     ]
 
 
-COMPANIONS = ('translate', 'wissen', 'inbox', 'vault', 'reader', 'sound', 'meetings', 'household', 'workbench', 'radio')
+COMPANIONS = ('translate', 'wissen', 'inbox', 'vault', 'reader', 'meetings', 'household', 'workbench', 'radio')
 
 
 def startup_preference(app, key, settings=None):
@@ -35,11 +34,14 @@ def startup_preference(app, key, settings=None):
     return prefs.value(f'apps/{app}/{key}', True, type=bool)
 
 
-def launch(app, *, area=None):
+def launch(app, *, area=None, page=None):
     known = {item[0] for item in catalogue()}
-    if app not in known | {'apps', 'radio'}: raise ValueError(tr('Unbekannte Lumen-App.'))
+    if app not in known | {'apps', 'radio', 'sound'}: raise ValueError(tr('Unbekannte Lumen-App.'))
     if area is not None and (app != 'wissen' or area not in ('user', 'lumen')):
         raise ValueError(tr('Unbekannter Wissensbereich.'))
+    if app == 'sound': app, page = 'system', 'sound'
+    if page is not None and (app != 'system' or page not in ('system', 'sound', 'modes')):
+        raise ValueError(tr('Unbekannter Systembereich.'))
     folder = Path(__file__).resolve().parent
     if app in COMPANIONS:
         args = [str(folder / 'tools_app.py'), app]
@@ -49,7 +51,7 @@ def launch(app, *, area=None):
         name = {'lumen': 'lumen-agent-app', 'apps': 'lumen-agent-app', 'files': 'lumen-files', 'search': 'lumen-search', 'system': 'lumen-system'}[app]
         from lumen_launch import executable as resolve_executable
         executable = resolve_executable(name)
-        args = ['--page', 'apps'] if app == 'apps' else []
+        args = ['--page', 'apps'] if app == 'apps' else ['--page', page] if page else []
     started, _ = QProcess.startDetached(executable, args)
     if not started: raise OSError(tr('Die App konnte nicht gestartet werden. Bitte die Lumen-Installation prüfen.'))
 
