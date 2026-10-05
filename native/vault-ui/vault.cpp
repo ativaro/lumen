@@ -306,12 +306,15 @@ VaultWindow::VaultWindow(const QString &root)
     activateWindow();
     if (!isOpen || editor)
       return nullptr;
-    edit({"Title", args.value("title").toString(), "LumenType",
-          args.value("kind").toString()},
-         true);
+    QStringList fields{"Title", args.value("title").toString(), "LumenType",
+                       args.value("kind").toString()};
+    const auto prefill = args.value("prefill").toObject();
+    for (auto it = prefill.begin(); it != prefill.end(); ++it)
+      fields << it.key() << it.value().toString();
+    edit(std::move(fields), true, args.contains("prefill"));
     if (editor)
-      editor->setWindowTitle(tx("Zugang für Lumen im Tresor speichern",
-                                "Save a credential for Lumen in Vault"));
+      editor->setWindowTitle(tx("Diesen Zugang im Tresor speichern?",
+                                "Save this credential in Vault?"));
     return editor;
   });
   setWindowTitle("Lumen Vault");
@@ -1519,7 +1522,7 @@ bool VaultWindow::eventFilter(QObject *object, QEvent *event) {
   }
   return QMainWindow::eventFilter(object, event);
 }
-void VaultWindow::edit(QStringList fields, bool createNew) {
+void VaultWindow::edit(QStringList fields, bool createNew, bool fromChat) {
   ++accessRevision;
   if (!createNew)
     access->revoke();
@@ -1667,20 +1670,50 @@ void VaultWindow::edit(QStringList fields, bool createNew) {
   auto *customValue = input("customValue", true);
   form->addRow(tx("Zusatzfeld: Name", "Custom field: name"), customName);
   form->addRow(tx("Zusatzfeld: Wert", "Custom field: value"), customValue);
+  if (fromChat) {
+    // Compact, editable review. Save is the only storage consent; no automatic
+    // connection grant and no general-purpose metadata intake from callers.
+    for (const auto &key : {"LumenCollection", "LumenTags", "LumenExpires", "LumenPermissions"}) {
+      edits[key]->hide();
+      form->labelForField(edits[key])->hide();
+    }
+    for (QWidget *widget : QList<QWidget *>{notes, customName, customValue, generator}) {
+      widget->hide();
+      if (auto *label = form->labelForField(widget)) label->hide();
+    }
+    auto *hide = new QTimer(dialog);
+    hide->setSingleShot(true);
+    hide->setInterval(10000);
+    connect(hide, &QTimer::timeout, dialog, [edits, type] {
+      edits["Password"]->setEchoMode(QLineEdit::Password);
+      if (type->currentData() == "token")
+        edits["UserName"]->setEchoMode(QLineEdit::Password);
+    });
+    auto *review = button(tx("Verdeckte Werte kurz anzeigen", "Briefly show hidden values"), [edits, hide] {
+      edits["Password"]->setEchoMode(QLineEdit::Normal);
+      edits["UserName"]->setEchoMode(QLineEdit::Normal);
+      hide->start();
+    });
+    review->setObjectName("prefillReveal");
+    form->addRow("", review);
+  }
   auto *formWidget = new QWidget;
   formWidget->setLayout(form);
   auto *scroll = new QScrollArea;
   scroll->setWidgetResizable(true);
   scroll->setFrameShape(QFrame::NoFrame);
   scroll->setWidget(formWidget);
-  scroll->setMinimumHeight(400);
+  scroll->setMinimumHeight(fromChat ? 250 : 400);
   layout->addWidget(scroll);
-  dialog->resize(640, 750);
+  dialog->resize(640, fromChat ? 560 : 750);
   auto *info = new QLabel(
       tx("Änderungen werden verschlüsselt gespeichert. Sperren verwirft offene "
          "Eingaben.",
          "Changes are saved encrypted. Locking discards unsaved edits."));
   info->setWordWrap(true);
+  if (fromChat)
+    info->setText(tx("Aus deiner Nachricht übernommen. Bitte prüfe die Felder. Erst mit Speichern wird ein neuer, verschlüsselter Eintrag angelegt.",
+                     "Filled from your message. Please review the fields. Only Save creates a new encrypted entry."));
   info->setObjectName("muted");
   layout->addWidget(info);
   auto *buttons = new QHBoxLayout;

@@ -491,13 +491,15 @@ def tool_native(name, args):
     from lumen_mcp_tools import DEFINITIONS
     if DEFINITIONS[name].get('action') and not DEFINITIONS[name].get('native_confirmation') and not ACTIONS_ENABLED:
         raise ValueError('MCP actions are disabled.')
-    mutation = (name == 'lumen_vault_api_request' and args.get('method') != 'GET') or (name == 'lumen_vault_mcp' and args.get('operation') == 'call')
-    uncertain = 'The remote operation outcome is unknown. Check remote state before retrying; do not automatically repeat the write.'
+    intake = name in ('lumen_vault_store', 'lumen_vault_store_from_chat')
+    mutation = intake or (name == 'lumen_vault_api_request' and args.get('method') != 'GET') or (name == 'lumen_vault_mcp' and args.get('operation') == 'call')
+    uncertain = ('Vault save outcome is unknown. Check Vault before retrying; do not automatically repeat the save.' if intake else
+                 'The remote operation outcome is unknown. Check remote state before retrying; do not automatically repeat the write.')
     worker = Path(sys.modules['lumen_mcp_tools'].__file__)
     process = subprocess.Popen([sys.executable, str(worker)], stdin=subprocess.PIPE,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
     try:
-        output, stderr = process.communicate(json.dumps(dict(name=name, arguments=args)), timeout=105 if name in ('lumen_vault_store', 'lumen_bookstack_read', 'lumen_vault_api_get', 'lumen_vault_api_request', 'lumen_vault_mcp') else 270 if name == 'lumen_translate_pdf' else 165 if name == 'lumen_translate_text' else 45)
+        output, stderr = process.communicate(json.dumps(dict(name=name, arguments=args)), timeout=115 if name in ('lumen_vault_store_from_chat', 'lumen_vault_store', 'lumen_bookstack_read', 'lumen_vault_api_get', 'lumen_vault_api_request', 'lumen_vault_mcp') else 270 if name == 'lumen_translate_pdf' else 165 if name == 'lumen_translate_text' else 45)
     except subprocess.TimeoutExpired:
         os.killpg(process.pid, signal.SIGKILL)
         process.communicate()

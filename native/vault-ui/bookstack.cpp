@@ -3,6 +3,7 @@
 #include "connection.h"
 #include "vault.h"
 #include <QStringDecoder>
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <sys/stat.h>
@@ -406,7 +407,7 @@ void VaultAccess::receive() {
     const auto args = document.object();
     for (auto it = args.begin(); it != args.end(); ++it)
       if (it.key() != "operation" && it.key() != "title" &&
-          it.key() != "kind") {
+          it.key() != "kind" && it.key() != "prefill") {
         finish(failure("invalid_request"));
         return;
       }
@@ -417,6 +418,26 @@ void VaultAccess::receive() {
       finish(failure("invalid_request"));
       return;
     }
+    if (args.contains("prefill")) {
+      const auto value = args.value("prefill");
+      const auto fields = value.toObject();
+      if (!value.isObject() || !fields.contains("Password")) {
+        finish(failure("invalid_request"));
+        return;
+      }
+      for (auto it = fields.begin(); it != fields.end(); ++it) {
+        const auto name = it.key();
+        const auto text = it.value().toString();
+        const int limit = name == "Password" || (name == "UserName" && args["kind"] == "token") ? 4096 : 1024;
+        if ((name != "UserName" && name != "Password" && name != "URL") ||
+            !it.value().isString() || text.isEmpty() || text.size() > limit ||
+            std::any_of(text.begin(), text.end(), [](QChar c) { return c.unicode() < 32 || c.unicode() == 127; })) {
+          finish(failure("invalid_request"));
+          return;
+        }
+      }
+    }
+    wipe(frame);
     requested = true;
     framing.stop();
     if (QApplication::activeModalWidget() || !store) {

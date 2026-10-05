@@ -424,7 +424,8 @@ class ChatPanel(QWidget):
         self.backend.background_task = False
         if self.context_tools.learn.isChecked():
             text += tr('\n\nErkläre die wesentlichen Schritte, ihre Wirkung und wie ich sie selbst wiederholen kann.')
-        self.backend.send(text, files, self.mode.currentData(), title=title,memory_text=self.last_prompt)
+        self.backend.send(text, files, self.mode.currentData(), title=title,memory_text=self.last_prompt,
+                          user_text=self.last_prompt if not self.action else None)
         if not self.action:
             self.composer.clear()
 

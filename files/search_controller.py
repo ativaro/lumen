@@ -271,7 +271,7 @@ class SearchController(QObject):
                 for path in self._attachments:
                     mime=mimetypes.guess_type(path)[0] or ''
                     if mime.startswith('image/') or mime=='application/pdf':files.append((path,mime))
-            self.backend.send(prompt, files, agent=self._mode, memory_text=query)
+            self.backend.send(prompt, files, agent=self._mode, memory_text=query, user_text=query)
             self.focusRequested.emit(); return
         if not self._results: self.submit(True); return
         row = self._results[self._selection]

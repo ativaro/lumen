@@ -80,7 +80,13 @@ Binaries/source/notices: `$XDG_DATA_HOME/lumen/vault-lab`, default
 ## Protection boundaries
 
 Credential widgets communicate only through inherited anonymous pipes with the Rust
-child. The separate Restic service handles backup metadata and backup passwords only. No secret endpoint in MCP/Python/QML, no drafts or global index. Both
+child. The separate Restic service handles backup metadata and backup passwords only.
+No Vault-secret export endpoint in MCP/Python/QML, no drafts or global index.
+The optional chat intake resolves numeric references to already supplied user
+text in transient local Python memory, then prefills native fields over private
+IPC. Only clicking Save creates an encrypted entry; no connection grant follows.
+The model/tool arguments never contain those resolved values. See
+`../../SPEC-vault-api-access.md` for retention and original-chat limitations. Both
 processes disable core dumps, are nondumpable and set no-new-privileges.
 Input frames have dedicated locked/no-dump mappings. Rust heap deallocation and
 reallocation wipe their owned storage; selected library key/payload buffers have

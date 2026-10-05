@@ -66,7 +66,7 @@ private:
   QString kind(const QString &key) const;
   void select();
   void filter();
-  void edit(QStringList fields = {}, bool createNew = false);
+  void edit(QStringList fields = {}, bool createNew = false, bool fromChat = false);
   void shareConnection();
   void updateAccess();
   void refreshAccess();

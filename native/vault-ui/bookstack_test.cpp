@@ -814,6 +814,7 @@ private slots:
     entries = window.findChild<QListWidget *>("entries");
     button = window.findChild<QPushButton *>("apiAccess");
     select(a);
+    QTRY_VERIFY(button->isEnabled());
     QTest::mouseClick(button, Qt::LeftButton);
     QTRY_VERIFY(!access->enabled(a) && access->enabled(b));
     auto *channel = window.findChild<Channel *>();
@@ -858,6 +859,27 @@ private slots:
     QVERIFY(button->text() != activeText);
     window.lock();
   }
+  void prefillRejectsUnknownAndTruncatedFields() {
+    QWidget window;
+    QTemporaryDir runtime;
+    VaultAccess access(&window, [](QString, auto callback) { callback({}); }, true);
+    int opened = 0;
+    access.setStore([&](const QJsonObject &) -> QDialog * { ++opened; return nullptr; });
+    QVERIFY(access.listen(runtime.path()));
+    const QList<QJsonObject> invalid{
+        {{"Password", "SYNTHETIC"}, {"LumenApiEnabled", "1"}},
+        {{"Password", "SYNTHETIC"}, {"UserName", QString(1025, 'a')}},
+        {{"Password", QString(4097, 'a')}},
+        {{"Password", "line\nbreak"}}, {{"Password", 123}}, {{"URL", "example"}}};
+    for (const auto &prefill : invalid) {
+      QLocalSocket client;
+      send(client, runtime.path(), QJsonDocument(QJsonObject{{"operation", "store"}, {"title", "Test"},
+          {"kind", "login"}, {"prefill", prefill}}).toJson(QJsonDocument::Compact));
+      QTRY_VERIFY(client.bytesAvailable());
+      QCOMPARE(result(client)["error"].toString(), QString("invalid_request"));
+    }
+    QCOMPARE(opened, 0);
+  }
   void nativeIntakeSavesOnlyReferenceAndLocks() {
     QTemporaryDir root, runtime;
     VaultWindow window(root.path());
@@ -872,15 +894,21 @@ private slots:
     QLocalSocket client;
     send(
         client, runtime.path(),
-        R"({"operation":"store","title":"Test documentation","kind":"token"})");
+        QJsonDocument(QJsonObject{{"operation", "store"}, {"title", "Test documentation"}, {"kind", "token"},
+          {"prefill", QJsonObject{{"Password", "SYNTHETIC_SECRET_123"}, {"UserName", "SYNTHETIC_ID_123"},
+                                 {"URL", "https://example.invalid"}}}}).toJson(QJsonDocument::Compact));
     QTRY_VERIFY(window.findChild<QLineEdit *>("editPassword"));
-    window.findChild<QLineEdit *>("editPassword")
-        ->setText("SYNTHETIC_SECRET_123");
-    window.findChild<QLineEdit *>("editURL")->setText(
-        "https://example.invalid");
+    QCOMPARE(window.findChild<QLineEdit *>("editPassword")->text(), QString("SYNTHETIC_SECRET_123"));
+    QCOMPARE(window.findChild<QLineEdit *>("editPassword")->echoMode(), QLineEdit::Password);
+    QCOMPARE(window.findChild<QLineEdit *>("editURL")->text(), QString("https://example.invalid"));
+    QVERIFY(!client.bytesAvailable());
+    QCOMPARE(window.findChild<QListWidget *>("entries")->count(), 0);
+    QVERIFY(!window.findChild<VaultAccess *>()->armed());
     auto *id = window.findChild<QLineEdit *>("editUserName");
     QCOMPARE(id->echoMode(), QLineEdit::Password);
-    id->setText("SYNTHETIC_ID_123");
+    QCOMPARE(id->text(), QString("SYNTHETIC_ID_123"));
+    QVERIFY(id->isVisible());
+    QVERIFY(window.findChild<QLineEdit *>("customValue")->isHidden());
     QTest::mouseClick(window.findChild<QPushButton *>("save"), Qt::LeftButton);
     QTRY_VERIFY_WITH_TIMEOUT(client.bytesAvailable(), 10000);
     const auto saved = result(client);
@@ -889,10 +917,30 @@ private slots:
     QVERIFY(saved.value("reference").toString().startsWith("vault:"));
     QTRY_VERIFY(!window.findChild<QLineEdit *>("editPassword"));
     QTRY_COMPARE(window.findChild<QListWidget *>("entries")->count(), 1);
+    QVERIFY(!window.findChild<VaultAccess *>()->armed());
+    QLocalSocket cancelled;
+    send(cancelled, runtime.path(),
+         R"({"operation":"store","title":"Cancel prefill","kind":"login","prefill":{"Password":"SYNTHETIC_CANCELLED"}})");
+    QTRY_VERIFY(window.findChild<QLineEdit *>("editPassword"));
+    qobject_cast<QDialog *>(QApplication::activeModalWidget())->reject();
+    QTRY_VERIFY(cancelled.bytesAvailable());
+    QCOMPARE(result(cancelled)["error"].toString(), QString("entry_not_saved"));
+    QTRY_VERIFY(!window.findChild<QLineEdit *>("editPassword"));
+    QCOMPARE(window.findChild<QListWidget *>("entries")->count(), 1);
+    QLocalSocket disconnected;
+    send(disconnected, runtime.path(),
+         R"({"operation":"store","title":"Disconnect prefill","kind":"login","prefill":{"Password":"SYNTHETIC_DISCONNECTED"}})");
+    QTRY_VERIFY(window.findChild<QLineEdit *>("editPassword"));
+    disconnected.abort();
+    QTRY_VERIFY(!window.findChild<QLineEdit *>("editPassword"));
+    QTest::qWait(1); // Run the editor's deferred availability refresh before clicking.
+    QCOMPARE(window.findChild<QListWidget *>("entries")->count(), 1);
     window.findChild<QListWidget *>("entries")->setCurrentRow(0);
+    QTRY_VERIFY(window.findChild<QPushButton *>("apiAccess")->isEnabled());
     QTest::mouseClick(window.findChild<QPushButton *>("apiAccess"),
                       Qt::LeftButton);
-    QTRY_VERIFY(window.findChild<VaultAccess *>()->armed());
+    QTRY_VERIFY2(window.findChild<VaultAccess *>()->armed(),
+                 qPrintable(window.findChild<QLabel *>("accessStatus")->text()));
     QVERIFY(!QApplication::activeModalWidget());
     // An invalid endpoint is shown inline, never as a setup wizard.
     QLocalSocket second;

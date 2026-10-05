@@ -15,7 +15,8 @@ from assistant_backend import OpenCodeBackend
 class AssistantTest(unittest.TestCase):
     def setUp(self):
         self.state_directory = self.enterContext(tempfile.TemporaryDirectory())
-        self.enterContext(patch.dict(os.environ, {'LUMEN_DATA': self.state_directory}))
+        self.enterContext(patch.dict(os.environ, {'LUMEN_DATA': self.state_directory,
+                                                  'XDG_RUNTIME_DIR': self.state_directory}))
 
     @classmethod
     def setUpClass(cls):
@@ -184,6 +185,10 @@ class AssistantTest(unittest.TestCase):
                 panel.composer.setPlainText('Erkläre die Auswahl')
                 panel.send_button.click()
                 self.wait(lambda: bool(backend.permissions and backend.questions))
+                self.assertIsNotNone(backend.vault_sources)
+                self.assertEqual([item[1] for item in backend.vault_sources.sources.values()], ['Erkläre die Auswahl'])
+                submitted = next(body for _, path, body, _ in state['requests'] if path.endswith('/prompt_async'))
+                self.assertIn('Native user-text source for this turn:', submitted['system'])
                 self.assertEqual(len(backend.permissions), 1)
                 self.assertEqual(backend.messages[-1]['parts'][0]['text'], 'Erste Antwort')
                 self.assertTrue(backend.busy)
@@ -339,7 +344,8 @@ class AssistantTest(unittest.TestCase):
             backend = OpenCodeBackend(tmp)
             calls = []
             backend.refresh_sessions = lambda: None
-            def send(text, files=None, agent='build', title=None,memory_text=None):
+            def send(text, files=None, agent='build', title=None,memory_text=None,user_text=None):
+                self.assertIsNone(user_text, 'Generated file-action prompts must not become credential sources')
                 calls.append((text, agent, title))
                 backend.message_id = 'msg_action'
                 backend.set_busy(True)

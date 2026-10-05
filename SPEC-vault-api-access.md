@@ -11,13 +11,47 @@ No personal hostname, token or vault data belongs in source or test fixtures.
 The shared assistant instruction in Lumen, Search and Files offers Vault storage
 once when the user actually supplies credentials, using semantic context in the
 user's language. There is no keyword scanner. Discussion, examples and retrieved
-content do not trigger this offer. Agreement opens the existing native intake;
-an explicit save request needs no redundant conversational confirmation. Decline
-or cancellation suppresses further offers for the same access until the user
-raises it again. This is model-directed behavior, not a deterministic detector.
-The user enters secrets locally: neither the offer nor the tool copies them
-from chat, removes prior disclosure, or grants permission for later API/MCP use.
+content do not trigger this offer. A current native user-text source permits
+`lumen_vault_store_from_chat(source, title, kind, fields)`: numeric field selectors
+are resolved locally into a prefilled native editor. Save is the single consent;
+there is no preliminary chat question or requirement to retype those values.
+Decline or cancellation suppresses further offers for the same access. This is
+model-directed behavior, not a deterministic detector. No flow removes prior chat
+disclosure or grants permission for later API/MCP use.
 When tools are unavailable, Lumen points the user to Vault without claiming a save.
+
+The source channel captures only explicit raw UI input, before appended paths,
+learning instructions or other generated context. It excludes file actions,
+background work and read-only/proposal modes. A random per-backend Unix socket in
+the private owned runtime directory has mode0600. Sources are random capabilities,
+bounded to16 messages/16 KiB each and10-minute expiry, cleared on session switch or
+shutdown. During a pending native request the selected text remains pinned until
+completion (at most95 seconds); expired idle sources are removed periodically.
+Sources are never written to files, telemetry, clipboard or MCP responses.
+Python strings cannot guarantee physical erasure and same-user processes are not
+isolated from one another. Existing original chat/engine/cloud history is unchanged.
+
+Selectors use 1-based lines (including blank lines), optionally 1-based whitespace
+words, and optional 0-based Unicode code-point start/end (end exclusive). Word
+selection avoids counting long credential offsets; slices handle adjacent labels
+and quotes without modifying the selected value. Native widgets allow review and
+correction. Only username/token ID, password/token secret and URL can be prefilled;
+native UTF-16 limits and control-character validation reject truncation. The
+secret field is required. No arbitrary protected/custom fields or connection
+grants are accepted. Token ID visibility/authentication uses existing profile rules.
+
+One source permits one confirmation attempt, consumed before native dispatch even
+on cancellation or an unknown outcome; equivalent selectors cannot replay it.
+Explicit locked/busy responses allow local unlock/dialog completion and retry.
+Multiple accesses in one message can use manual entry after the first attempt.
+Disconnecting the MCP worker or closing the conversation cancels pending native
+IPC. A Save already dispatched remains an unknown outcome until checked in Vault.
+Only an opaque saved reference is returned. Numeric selectors are the sole new
+tool arguments; resolved values travel directly from the local source service to
+native Vault. This is a one-way intake from already supplied chat, not a Vault
+credential export API.
+
+The manual fallback remains available without an eligible source:
 
 1. Lumen calls `lumen_vault_store(title, kind)` with a non-sensitive label and
    `login` or `token`. There is deliberately no password, token, username, raw
