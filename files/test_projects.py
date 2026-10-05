@@ -189,6 +189,29 @@ class ProjectsTest(TestCase):
             self.assertEqual(prompt['tools'],{'*':False}); self.assertEqual(len(session['permission']),1)
         engine.shutdown();engine.deleteLater()
 
+    def test_chat_discovers_projects_without_loading_them_into_every_prompt(self):
+        from assistant_backend import OpenCodeBackend
+        from lumen_store import Store
+        from projects_mcp import INSTRUCTION
+        store=Store(Path(self.temp.name)/'chat-state'); store.set_setting('memory/options',dict(enabled=False,learn=False))
+        calls=[]
+        engine=OpenCodeBackend(self.temp.name); engine.ensure_server=lambda callback:callback()
+        engine.refresh_sessions=lambda:None; engine.poll=lambda:None
+        def request(method,path,body=None,callback=None,**kwargs):
+            if path.endswith('prompt_async'):calls.append(body)
+            if path=='/session' and method=='POST':callback(dict(id='chat-test'))
+        engine.request=request
+        try:
+            with patch('lumen_store.Store',return_value=store),patch('projects_mcp.invoke',side_effect=AssertionError('No eager project read')):
+                engine.send('Wie steht mein Projekt?')
+                self.assertIn(INSTRUCTION,calls[-1]['system'])
+                self.assertNotIn('project context',str(calls[-1]))
+                engine.set_busy(False); engine.send('Only attached context',project_task=True)
+                self.assertNotIn(INSTRUCTION,calls[-1]['system'])
+                engine.set_busy(False); engine.send('Native proposal',proposal=True)
+                self.assertNotIn(INSTRUCTION,calls[-1]['system'])
+        finally:engine.shutdown();engine.deleteLater()
+
     def test_timer_records_exact_library_and_failure(self):
         from projects_runner import install_timer
         import os

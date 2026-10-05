@@ -21,6 +21,16 @@ Existing tool names and the `cachyos` OpenCode configuration key remain compatib
   is an optional action; MCP cannot change privacy rules or enable learning.
 - Tasks: paginated status summaries and bounded details/events/results; no implicit
   approval, execution or recovery of running tasks.
+- Projects: `lumen_projects_list` discovers saved projects and active task counts;
+  `lumen_project_read` reads one project, initiative or task with paged children and
+  material references; `lumen_project_runs` lists a task's runs or reads a selected
+  result in text chunks. Reads use the current project database in SQLite read-only
+  mode, including inherited archive state. Empty/legacy libraries need no migration.
+  No attached files are opened, no research is started, and nothing is remembered
+  or changed. The chat is instructed to consult these tools for project questions;
+  project contents remain untrusted data and are fetched only on demand.
+  Legacy questions already migrated into tasks are omitted from legacy context so
+  their old status cannot contradict current task status or archive state.
 - Settings: allowlisted preferences, designs, feature enablement and native desktop
   state. Optional preference/theme/shortcut updates reuse native conflict checks and
   history. No arbitrary config keys, shell commands or credentials.
@@ -44,6 +54,14 @@ semantics and JSON-RPC stdio recovery. No real emails, backups, themes or files 
 by tests. Smoke the installed server using an isolated profile.
 
 Protocol reference: https://modelcontextprotocol.io/specification/2025-06-18/server/tools
+
+Project-chat validation (2026-10-05): 38 targeted MCP, projects and memory checks
+passed, including live reads, inherited archives, Unicode discovery, legacy
+migration visibility, result chunking, read-only database bytes, stdio discovery
+with actions disabled and chat prompt isolation. The installed launcher returned
+the synthetic project/task/result; OpenCode 1.18.34 connected to that MCP server.
+No live provider completion was requested. A synthetic listing of 100 projects
+and 1,000 tasks completed in 0.053 seconds on the development host.
 
 ## Acceptance (2026-10-04)
 

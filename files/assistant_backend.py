@@ -327,6 +327,9 @@ class OpenCodeBackend(QObject):
 
         source = ''
         if not proposal and not project_task:
+            if not self.read_only:
+                from projects_mcp import INSTRUCTION as PROJECTS_INSTRUCTION
+                body['system'] += PROJECTS_INSTRUCTION
             from vault_access import INSTRUCTION as VAULT_INSTRUCTION
             body['system'] += VAULT_INSTRUCTION
             if isinstance(user_text, str) and not self.read_only and not self.background_task:
