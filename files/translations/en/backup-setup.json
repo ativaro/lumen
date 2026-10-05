@@ -23,5 +23,7 @@
   "Verschlüsselter Passwort-Tresor": "Encrypted password vault",
   "Wiederherstellungsschlüssel zuerst unabhängig aufbewahren.": "Keep the recovery key independently first.",
   "Zu viele Sicherungsquellen.": "Too many backup sources.",
-  "Zuerst die Einrichtung abschließen.": "Finish setup first."
+  "Zuerst die Einrichtung abschließen.": "Finish setup first.",
+  "Kein bestätigter Sicherungsstand.": "No verified snapshot.",
+  "Wiederherstellungsprobe fehlgeschlagen.": "Restore test failed."
 }

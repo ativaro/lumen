@@ -108,7 +108,7 @@ class SettingsDialog(QDialog):
         self.navigation = SettingsNavigation(self.stack, self.page_info, categories(self), self)
         self.nav = self.navigation.nav; self.nav_search = self.navigation.search
         root.insertWidget(0, self.navigation, 1)
-        destination = self.app_pages.get(application, page)
+        destination = self.app_pages.get('meetings' if application == 'radio' else application, page)
         if destination is not None: self.open_page(destination)
         if load_system:
             QTimer.singleShot(0, self.reload)
@@ -131,7 +131,7 @@ class SettingsDialog(QDialog):
             'vault': tr('Quellen, Ziele, Zeitpläne und Verschlüsselung werden je Sicherungsplan in Vault eingestellt.'),
             'reader': tr('Stimme und Audioausgabe wählst du im Reader. Bibliothek und Markierungen bleiben lokal gespeichert.'),
             'sound': tr('Ausgabegeräte, Lautstärken und Regeln für Anwendungen verwaltest du in Sound.'),
-            'meetings': tr('Aufnahmen und Transkriptionen verwaltest du in der Meeting-Werkstatt. Lokale Spracherkennung wird über die gemeinsame Einrichtung installiert.'),
+            'meetings': tr('Meeting und Radio teilen sich ein Fenster. Oben wechselst du zwischen Aufnahmen, Transkripten und deinem Hörprogramm. Beide Bibliotheken bleiben erhalten.'),
             'household': tr('Dokumente, Kategorien und Erinnerungsfristen stellst du je Eintrag im Digitalen Haushalt ein.'),
             'workbench': tr('Projekte, Vorhaben, Aufgaben und Material verwaltest du in Lumen Projekte.'),
             'radio': tr('Quellen, Programme, Stimmen und Audioausgabe verwaltest du im Persönlichen Radio.'),
@@ -161,18 +161,20 @@ class SettingsDialog(QDialog):
             if key == 'wissen':
                 panel.addWidget(button(tr('Lumen-Gedächtnis öffnen'), lambda: open_app('wissen', 'lumen')))
             if key in COMPANIONS:
-                controls = {}
-                for pref, caption in [('restoreGeometry', tr('Fenstergröße und Position wiederherstellen')), ('restoreSelection', tr('Letzten Eintrag wieder öffnen'))]:
-                    control = QCheckBox(caption)
-                    control.setChecked(self.field(self.assistant, f'apps/{key}/{pref}', True, bool))
-                    panel.addWidget(control); controls[pref] = control
-                self.app_controls[key] = controls
-                def save_app(_=False, app=key, fields=controls):
-                    try:
-                        self.save(self.assistant, {f'apps/{app}/{pref}': control.isChecked() for pref, control in fields.items()})
-                        self.status.setText(tr('App-Einstellungen gespeichert. Gilt beim nächsten Start.'))
-                    except (OSError, ValueError) as error: self.status.setText(str(error))
-                panel.addWidget(button(tr('App-Einstellungen übernehmen'), save_app))
+                for app_key in (('meetings', 'radio') if key == 'meetings' else (key,)):
+                    if key == 'meetings': panel.addWidget(text(tr('Meeting') if app_key == 'meetings' else tr('Radio')))
+                    controls = {}
+                    for pref, caption in [('restoreGeometry', tr('Fenstergröße und Position wiederherstellen')), ('restoreSelection', tr('Letzten Eintrag wieder öffnen'))]:
+                        control = QCheckBox(caption)
+                        control.setChecked(self.field(self.assistant, f'apps/{app_key}/{pref}', True, bool))
+                        panel.addWidget(control); controls[pref] = control
+                    self.app_controls[app_key] = controls
+                    def save_app(_=False, app=app_key, fields=controls):
+                        try:
+                            self.save(self.assistant, {f'apps/{app}/{pref}': control.isChecked() for pref, control in fields.items()})
+                            self.status.setText(tr('App-Einstellungen gespeichert. Gilt beim nächsten Start.'))
+                        except (OSError, ValueError) as error: self.status.setText(str(error))
+                    panel.addWidget(button(tr('App-Einstellungen übernehmen'), save_app))
             panel.addWidget(text(tr('Gemeinsam für alle Lumen-Apps')))
             panel.addWidget(button(tr('Sprache, Modell und Arbeitsweise'), lambda: self.open_page(0)))
             panel.addWidget(button(tr('Erscheinungsbild'), lambda: self.open_page(3)))

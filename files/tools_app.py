@@ -2,7 +2,6 @@
 """Separate native entry points, with one window per application and library."""
 from lumen_i18n import tr
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -29,10 +28,8 @@ def main():
     activation={key:value for key,value in [('path',requested),('handoff',args.handoff),('ref',args.ref),('area',args.area)] if value}
     from interop_ui import controller
     app=create_app(); app.setApplicationName('lumen-'+args.tool); app.setDesktopFileName('lumen-'+args.tool)
-    from tools_meetings import Meetings
     from tools_household import Household
     from tools_workbench import Workbench
-    from tools_radio import Radio
     from tools_vault import Vault
     from tools_inbox import Inbox
     from tools_reader import Reader
@@ -45,10 +42,18 @@ def main():
         text_segments(activation['text'])
     from tools_translate import Translate
     from tools_wissen import Wissen
-    window={'meetings':Meetings,'household':Household,'workbench':Workbench,'radio':Radio,'vault':Vault,'inbox':Inbox,'reader':Reader,'sound':Sound,'wissen':Wissen,'translate':Translate}[args.tool]()
+    if args.tool in ('meetings', 'radio'):
+        # The host owns both libraries and both legacy activation endpoints.
+        from tools_meeting_radio import MeetingRadio
+        window = MeetingRadio(args.tool)
+        pages = window.pages
+        app.setApplicationName('lumen-meetings'); app.setDesktopFileName('lumen-meetings')
+    else:
+        window = {'household':Household,'workbench':Workbench,'vault':Vault,'inbox':Inbox,'reader':Reader,'sound':Sound,'wissen':Wissen,'translate':Translate}[args.tool]()
+        pages = {args.tool: window}
     app.setApplicationDisplayName(window.windowTitle())
     from interop_flush import server_name as native_server_name, serve_flush
-    server_name=native_server_name(window.library.root)
+    server_name=native_server_name(pages[args.tool].library.root)
     client=QLocalSocket(); client.connectToServer(server_name)
     if client.waitForConnected(400):
         client.write(json.dumps(activation,ensure_ascii=False).encode()+b'\n')
@@ -58,24 +63,29 @@ def main():
             from vault_activation import activate_existing_backup
             activate_existing_backup(window.library.root)
         return 0
-    lock=QLockFile(str(window.library.root/'window.lock'))
-    if not lock.tryLock(0):
-        from PySide6.QtWidgets import QMessageBox
-        QMessageBox.information(None,window.windowTitle(),tr('Das Fenster wird bereits geöffnet. Bitte einen Moment warten.')); return 0
+    locks = []
+    for page in pages.values():
+        lock = QLockFile(str(page.library.root/'window.lock'))
+        if not lock.tryLock(0):
+            for owned in locks: owned.unlock()
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(None, window.windowTitle(), tr('Das Fenster wird bereits geöffnet. Bitte einen Moment warten.')); return 0
+        locks.append(lock)
     from interop_data import Registry
-    Registry(window.library.root.parent).recover(args.tool)
-    server=QLocalServer(); QLocalServer.removeServer(server_name); server.setSocketOptions(QLocalServer.UserAccessOption)
-    if not server.listen(server_name): raise RuntimeError(tr('Lokale Fensteraktivierung konnte nicht gestartet werden.'))
-    def dispatch(request):
+    for name, page in pages.items():
+        Registry(page.library.root.parent).recover(name)
+    servers = []
+    def dispatch(page, request):
         if not isinstance(request, dict): raise ValueError(tr('Ungültige App-Anfrage.'))
         request = dict(request)
         area = request.pop('area', None)
         if area is not None:
-            if args.tool != 'wissen' or area not in ('user', 'lumen'): raise ValueError(tr('Unbekannter Wissensbereich.'))
-            window.switch_area(area)
-        if request: controller(window).enqueue(request)
+            if page.name != 'wissen' or area not in ('user', 'lumen'): raise ValueError(tr('Unbekannter Wissensbereich.'))
+            page.switch_area(area)
+        if len(pages) > 1: window.select(page.name)
+        if request: controller(page).enqueue(request)
 
-    def activate():
+    def activate(server, page):
         socket=server.nextPendingConnection()
         if socket:
             buffer=bytearray();timer=QTimer(socket);timer.setSingleShot(True);timer.timeout.connect(socket.disconnectFromServer);timer.start(2000)
@@ -88,28 +98,42 @@ def main():
                     request=json.loads(buffer.split(b'\n',1)[0])
                     if isinstance(request,dict) and 'vault_flush' in request:
                         timer.stop();socket.readyRead.disconnect(receive)
-                        serve_flush(window,socket,request)
+                        serve_flush(page,socket,request)
                         return
-                    window.safe(dispatch,request)
+                    page.safe(dispatch,page,request)
                     window.showNormal() if window.isMinimized() else window.show()
                     window.raise_(); window.activateWindow()
                 except (ValueError,AttributeError):pass
                 socket.disconnectFromServer()
             socket.readyRead.connect(receive);receive()
-    server.newConnection.connect(activate)
-    state=QSettings(str(window.library.root/'window.ini'),QSettings.IniFormat)
     from lumen_apps import startup_preference
-    if startup_preference(args.tool, 'restoreGeometry') and state.value('geometry'): window.restoreGeometry(state.value('geometry'))
-    previous=state.value('record','')
-    if startup_preference(args.tool, 'restoreSelection') and previous and any(r['id']==previous for r in window.library.all()): window.focus_record(previous)
+    states = {}
+    for name, page in pages.items():
+        endpoint = native_server_name(page.library.root)
+        server = QLocalServer(); QLocalServer.removeServer(endpoint)
+        server.setSocketOptions(QLocalServer.UserAccessOption)
+        if not server.listen(endpoint): raise RuntimeError(tr('Lokale Fensteraktivierung konnte nicht gestartet werden.'))
+        server.newConnection.connect(lambda s=server, p=page: activate(s, p))
+        servers.append(server)
+        state = QSettings(str(page.library.root/'window.ini'), QSettings.IniFormat)
+        states[name] = state
+        if name == args.tool and startup_preference(name, 'restoreGeometry') and state.value('geometry'):
+            window.restoreGeometry(state.value('geometry'))
+        previous = state.value('record', '')
+        if startup_preference(name, 'restoreSelection') and previous and any(r['id'] == previous for r in page.library.all()):
+            page.focus_record(previous)
     def remember():
-        state.setValue('geometry',window.saveGeometry()); state.setValue('record',window.current); state.sync(); server.close(); lock.unlock()
+        for name, page in pages.items():
+            state = states[name]
+            state.setValue('geometry', window.saveGeometry()); state.setValue('record', page.current); state.sync()
+        for server in servers: server.close()
+        for lock in locks: lock.unlock()
     app.aboutToQuit.connect(remember); window.show()
     if args.tool == 'vault':
         from vault_activation import activate_backup
         # The window must be mapped before KWin can activate it.
         QTimer.singleShot(150, lambda: activate_backup(os.getpid()))
-    if activation:QTimer.singleShot(0,lambda:window.safe(dispatch,activation))
+    if activation:QTimer.singleShot(0,lambda:pages[args.tool].safe(dispatch,pages[args.tool],activation))
     return app.exec()
 
 

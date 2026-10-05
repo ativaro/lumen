@@ -355,9 +355,19 @@ class Controller(QObject):
             self.player.time.setText(tr('Audioausgang getrennt · Wiedergabe pausiert.'))
 
 
+def audio_page(player):
+    """Find the owning tool even when it is embedded in a shared window."""
+    page = player.parentWidget()
+    while page is not None:
+        if getattr(page, 'name', '') in NAMES and hasattr(page, 'library'):
+            return page
+        page = page.parentWidget()
+    return player.window()
+
+
 def controller(player):
     if not hasattr(player, '_lumen_audio'):
-        window = player.window()
+        window = audio_page(player)
         app = getattr(window, 'name', '')
         if app not in NAMES:
             return None
@@ -366,7 +376,7 @@ def controller(player):
 
 
 def options(player):
-    window = player.window()
+    window = audio_page(player)
     control = controller(player)
     if not control:
         return

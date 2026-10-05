@@ -1,12 +1,12 @@
 [Desktop Entry]
 Type=Application
-Name=Lumen Meeting Workshop
-Name[de]=Lumen Meeting-Werkstatt
-Comment=Recordings, transcripts and results
+Name=Lumen Meeting & Radio
+Name[de]=Lumen Meeting & Radio
+Comment=Recordings, transcripts and your personal radio
 Comment[de]=Aufnahmen, Transkripte und Ergebnisse
 Exec=%INSTALL_BIN%/lumen-meetings
 Icon=lumen-meetings
 Terminal=false
 Categories=AudioVideo;Audio;
 StartupWMClass=lumen-meetings
-Keywords=Lumen;meetings;
+Keywords=Lumen;meetings;radio;

@@ -726,3 +726,22 @@ Der erste echte Rust-Kern ist inzwischen unter
 Testkern vorhanden. Er speichert KDBX4.1/Argon2id, wird gegen KeePassXC geprüft
 und weist Backup/Restore mit festen Testdaten nach. Das ist noch keine Freigabe
 für reale Zugangsdaten und verändert die Desktop-Vorschau nicht.
+
+
+### Meeting & Radio: gemeinsames Fenster
+
+Meeting und Persönliches Radio öffnen jetzt **Lumen Meeting & Radio**. Die Tabs
+**Meeting** und **Radio** stehen oben; beim Wechsel bleiben Auswahl, Entwürfe,
+Verarbeitung und Wiedergabe erhalten. Apps, Panel und Einstellungen bieten einen
+gemeinsamen Eintrag. `lumen-meetings` öffnet den Meeting-Tab, `lumen-radio` den
+Radio-Tab im selben Fenster. Bestehende Verweise funktionieren weiterhin.
+
+Die Bibliotheken `lumen-tools/meetings` und `lumen-tools/radio` bleiben getrennt;
+es werden keine Daten verschoben. Beide Fensteraktivierungen und die jeweiligen
+Vault-Sicherungsfreigaben werden vom gemeinsamen Prozess bedient. Beim Schließen
+werden beide Seiten gespeichert; laufende Verarbeitung wird zuerst abgebrochen,
+Speicherfehler verhindern das Schließen. Die bisherigen Startvorgaben für beide
+Bereiche bleiben auf der gemeinsamen Einstellungsseite verfügbar.
+
+Prüfung: `QT_QPA_PLATFORM=offscreen python -m unittest test_meeting_radio` im
+Verzeichnis `files` mit einem isolierten Benutzerprofil ausführen.

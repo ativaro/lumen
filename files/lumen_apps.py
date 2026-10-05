@@ -20,10 +20,9 @@ def catalogue():
         ('reader', 'Lumen Reader', tr('Lesen, markieren und vorlesen lassen'), 'application-pdf'),
         ('system', 'Lumen System', tr('Leistung, Geräte und Systemaktivität verstehen'), 'utilities-system-monitor'),
         ('sound', 'Lumen Sound', tr('Audioausgabe und Lautstärke steuern'), 'audio-volume-high'),
-        ('meetings', tr('Lumen Meeting-Werkstatt'), tr('Aufnahmen transkribieren und zusammenfassen'), 'audio-input-microphone'),
+        ('meetings', tr('Lumen Meeting & Radio'), tr('Aufnahmen, Transkripte und dein persönliches Hörprogramm'), 'audio-input-microphone'),
         ('household', tr('Lumen Digitaler Haushalt'), tr('Dokumente und Fristen im Blick behalten'), 'view-calendar'),
         ('workbench', tr('Lumen Projekte'), tr('Projekte und ihre nächsten Schritte organisieren'), 'folder-development'),
-        ('radio', tr('Lumen Persönliches Radio'), tr('Deine Inhalte als Hörprogramm'), 'media-playback-start'),
     ]
 
 
@@ -38,7 +37,7 @@ def startup_preference(app, key, settings=None):
 
 def launch(app, *, area=None):
     known = {item[0] for item in catalogue()}
-    if app not in known | {'apps'}: raise ValueError(tr('Unbekannte Lumen-App.'))
+    if app not in known | {'apps', 'radio'}: raise ValueError(tr('Unbekannte Lumen-App.'))
     if area is not None and (app != 'wissen' or area not in ('user', 'lumen')):
         raise ValueError(tr('Unbekannter Wissensbereich.'))
     folder = Path(__file__).resolve().parent
