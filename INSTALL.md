@@ -182,6 +182,21 @@ Lumen respects the system's document associations. If PDF opening differs from
 other documents, choose a PDF application in KDE's default-application settings.
 No particular office suite or browser is imposed by this installer.
 
+## Share a model-setup diagnostic
+
+If checking the engine fails or the model list remains empty:
+
+1. Open **Settings → Setup → AI connection** and run the connection check.
+2. Click **Copy diagnostics / Diagnose kopieren** on the same page.
+3. Paste the report into your support conversation or issue.
+
+The report includes Lumen's installed revision/code fingerprint, OpenCode/Python/Qt
+versions, the setup stage, HTTP status, response format and model counts. It omits
+API keys, auth headers, response bodies, conversation contents, personal paths and
+custom provider/model names. Nothing is uploaded automatically. A hung/missing
+version command is marked unavailable after five seconds; other diagnostics can
+still be copied. If the button is missing, update Lumen and reopen the wizard.
+
 ## Recover the previous desktop
 
 The setup command prints a backup under

@@ -30,6 +30,7 @@ def opencode_binary():
 
 
 class OpenCodeBackend(QObject):
+    apiDiagnostic = Signal(dict)
     messagesChanged = Signal(list)
     requestsChanged = Signal(list, list)
     sessionsChanged = Signal(list)
@@ -124,15 +125,21 @@ class OpenCodeBackend(QObject):
         failed = reply.error() != QNetworkReply.NoError or not 200 <= code < 300
         description = reply.errorString()
         raw = bytes(reply.readAll())
+        route = reply.url().path()
+        content_type = str(reply.header(QNetworkRequest.ContentTypeHeader) or '')
+        network_error = reply.error().value
         reply.deleteLater()
         # No callback retains a reply/timer; nested UI events may delete the reply now.
         try:
             data = json.loads(raw) if raw else None
         except (ValueError, UnicodeError):
             data = None
+        from setup_diagnostics import response_summary
+        diagnostic = response_summary(route, code, network_error, content_type, data, len(raw))
         def dispatch():
             if _generation != self.generation:
                 return
+            if diagnostic is not None: self.apiDiagnostic.emit(diagnostic)
             if failed:
                 detail = ''
                 if isinstance(data, dict):
@@ -148,7 +155,9 @@ class OpenCodeBackend(QObject):
                     return
                 try:
                     callback(data)
-                except (TypeError, ValueError, KeyError, AttributeError):
+                except (TypeError, ValueError, KeyError, AttributeError) as exc:
+                    if diagnostic is not None:
+                        self.apiDiagnostic.emit(dict(diagnostic, callback_error=type(exc).__name__))
                     (error or self.fail)(tr('Unerwartetes Datenformat der Engine. Bitte die Anbindung erneut prüfen.'))
         # Callbacks may close the engine and run nested Qt events. Let Qt finish
         # processing this reply before allowing those callbacks to destroy it.

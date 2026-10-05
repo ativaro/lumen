@@ -219,6 +219,64 @@ class SetupDialogTest(unittest.TestCase):
                 self.assertIn('keine verfügbaren Modelle', dialog.status.text())
                 self.assertEqual(settings.value('model'), 'opencode/free-a')
 
+    def test_shareable_diagnostic_copies_metadata_without_credentials(self):
+        import json
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtTest import QTest
+        from setup_dialog import SetupDialog
+        from setup_diagnostics import response_summary, version_text
+        with tempfile.TemporaryDirectory() as tmp:
+            settings=QSettings(tmp+'/prefs.ini',QSettings.IniFormat)
+            secret='DO_NOT_SHARE_CREDENTIAL_OR_PRIVATE_PATH'
+            settings.setValue('model',secret)
+            dialog=SetupDialog(settings=settings)
+            self.addCleanup(dialog.deleteLater);self.addCleanup(dialog.reject)
+            dialog.key.setText(secret);dialog.engine.password=secret
+            data={'all':[{'id':secret,'name':secret,'models':{'private-model':{'name':secret,'apiKey':secret}}}],
+                  'connected':[secret],'default':{secret:secret},'message':secret}
+            event=response_summary('/provider',200,0,'application/json; '+secret,data,123)
+            dialog.record_diagnostic(event)
+            dialog.record_diagnostic(response_summary('/auth/'+secret,401,204,'application/json',{'message':secret},100))
+            dialog.diagnostic_stage='save_auth';dialog.engine_failed(secret)
+            binary=Path(tmp)/'test-engine';binary.write_text('#!/bin/sh\nprintf "2.1.0\\n"\n');binary.chmod(0o755)
+            with patch('assistant_backend.opencode_binary',return_value=str(binary)):
+                dialog.copy_diagnostic.click()
+                deadline=time.monotonic()+5
+                while dialog.diagnostic_process and time.monotonic()<deadline:QTest.qWait(10)
+                self.assertIsNone(dialog.diagnostic_process)
+            raw=QApplication.clipboard().text();report=json.loads(raw)
+            self.assertEqual(report['engine_version'],'2.1.0')
+            self.assertEqual(report['stage'],'save_auth');self.assertEqual(report['outcome'],'failed')
+            self.assertEqual(report['requests'][-1]['http'],401)
+            self.assertNotIn(secret,raw);self.assertNotIn(tmp,raw);self.assertNotIn('private-model',raw)
+            self.assertEqual(dialog.key.text(),secret)
+            self.assertEqual(version_text('2.1.0 '+secret),'unavailable')
+            self.assertIsNone(response_summary('/session/'+secret,200,0,'application/json',data,123))
+            QApplication.clipboard().clear()
+
+    def test_diagnostic_version_timeout_still_produces_report(self):
+        import json,sys
+        from PySide6.QtCore import QSettings,QTimer
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtTest import QTest
+        from setup_dialog import SetupDialog
+        with tempfile.TemporaryDirectory() as tmp:
+            binary=Path(tmp)/'slow-engine'
+            binary.write_text('#!'+sys.executable+'\nimport time\ntime.sleep(60)\n');binary.chmod(0o755)
+            dialog=SetupDialog(settings=QSettings(tmp+'/prefs.ini',QSettings.IniFormat))
+            self.addCleanup(dialog.deleteLater);self.addCleanup(dialog.reject)
+            with patch('assistant_backend.opencode_binary',return_value=str(binary)):
+                dialog.copy_diagnostic.click()
+                self.assertIsNotNone(dialog.diagnostic_process)
+                dialog.diagnostic_process.findChild(QTimer).start(30)
+                deadline=time.monotonic()+3
+                while dialog.diagnostic_process and time.monotonic()<deadline:QTest.qWait(10)
+                self.assertIsNone(dialog.diagnostic_process)
+            self.assertEqual(json.loads(QApplication.clipboard().text())['engine_version'],'unavailable')
+            self.assertTrue(dialog.copy_diagnostic.isEnabled())
+            QApplication.clipboard().clear()
+
     def test_provider_check_rejects_non_api_responses_and_recovers(self):
         import threading
         import json
@@ -254,6 +312,9 @@ class SetupDialogTest(unittest.TestCase):
                 for raw in (b'<html>OpenCode</html>', b'null', b'', b'{broken'):
                     state['response'] = raw; dialog.load_engine(); wait()
                     self.assertIn('API-Daten', dialog.status.text())
+                    self.assertEqual(dialog.diagnostic_events[-1]['http'],200)
+                    self.assertEqual(dialog.diagnostic_outcome,'failed')
+                    self.assertEqual(dialog.diagnostic_stage,'provider_list')
                     self.assertTrue(dialog.check_engine.isEnabled())
                     self.assertFalse(dialog.connect_provider.isEnabled())
                     self.assertFalse(dialog.repair_engine.isHidden())
@@ -262,6 +323,7 @@ class SetupDialogTest(unittest.TestCase):
                 for raw in (b'{}', b'{"all":null,"connected":[]}', b'{"all":[null],"connected":[]}'):
                     state['response'] = raw; dialog.load_engine(); wait()
                     self.assertNotIn('NoneType', dialog.status.text())
+                    self.assertEqual(dialog.diagnostic_events[-1]['callback_error'],'ValueError')
                     self.assertFalse(dialog.connect_provider.isEnabled())
                 state['response'] = json.dumps({'all':[{'id':'example', 'name':'Example',
                     'models':{'test':{'name':'Test'}}}], 'connected':['example']}).encode()

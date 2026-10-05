@@ -6,7 +6,7 @@ import sys
 from types import SimpleNamespace
 from urllib.parse import quote
 
-from PySide6.QtCore import QLockFile, QProcess, QSettings, QSize, QStandardPaths, QUrl
+from PySide6.QtCore import QLockFile, QProcess, QSettings, QSize, QStandardPaths, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFileDialog,
     QFormLayout, QHBoxLayout, QLineEdit, QPlainTextEdit, QProgressBar,
@@ -51,6 +51,9 @@ class SetupDialog(QDialog):
         self.engine = OpenCodeBackend(str(Path.home()), self, project_config=False)
         self.engine.settings = self.settings
         self.engine.failed.connect(self.engine_failed)
+        self.diagnostic_stage = 'not_started'; self.diagnostic_outcome = 'not_started'
+        self.diagnostic_events = []; self.diagnostic_process = None
+        self.engine.apiDiagnostic.connect(self.record_diagnostic)
         self.job = None; self.checking = False; self.buffer = b''; self.last_message = ''
         self.result_model = ''; self.cancellable = False; self.providers = []; self.advance_after_job = False
         self.setWindowTitle(tr('Lumen einrichten')); self.setWindowIcon(QIcon.fromTheme('lumen'))
@@ -135,6 +138,9 @@ class SetupDialog(QDialog):
         self.check_engine = button(tr('Anbindung prüfen und Modelle laden'), self.load_engine); page.addWidget(self.check_engine)
         self.repair_engine = button(tr('Kompatible Engine einrichten · ca. 61 MB'), self.install_engine)
         self.repair_engine.hide(); page.addWidget(self.repair_engine)
+        self.copy_diagnostic = button(tr('Diagnose kopieren'), self.copy_engine_diagnostic)
+        self.copy_diagnostic.setToolTip(tr('Kopiert technische Angaben ohne Schlüssel, Zugangsdaten oder Gesprächsinhalte.'))
+        page.addWidget(self.copy_diagnostic)
         self.models = QComboBox(); self.models.setAccessibleName(tr('Modell für Lumen'))
         self.models.setMinimumContentsLength(15); self.models.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
         self.models.addItem(tr('Modelle noch nicht geladen'), '')
@@ -322,9 +328,13 @@ class SetupDialog(QDialog):
 
     def load_engine(self):
         if self.job or self.checking: return
+        self.diagnostic_events = []; self.diagnostic_stage = 'engine_start'; self.diagnostic_outcome = 'checking'
         self.connect_provider.setEnabled(False)
         self.checking = True; self.set_busy(True); self.status.setText(tr('Vorhandene KI-Anbindung prüfen …'))
-        self.engine.ensure_server(lambda: self.engine.request('GET', '/provider', callback=self.loaded_providers, error=self.engine_failed))
+        def ready():
+            self.diagnostic_stage = 'provider_list'
+            self.engine.request('GET', '/provider', callback=self.loaded_providers, error=self.engine_failed)
+        self.engine.ensure_server(ready)
 
     def loaded_providers(self, data):
         if not isinstance(data, dict) or not isinstance(data.get('all'), list) or not isinstance(data.get('connected'), list):
@@ -354,6 +364,7 @@ class SetupDialog(QDialog):
         self.models.setCurrentIndex(max(0, self.models.findData(selected)))
         self.engine_status.setText(tr('Engine erreichbar · Konfiguriert: ') + (', '.join(names) or tr('noch kein Anbieter')) +
             tr('\nZugang und Antwortqualität der Anbieter wurden nicht mit einer Testanfrage geprüft.'))
+        self.diagnostic_stage = 'authentication_methods'
         self.engine.request('GET', '/provider/auth', callback=self.loaded_auth, error=self.engine_failed)
 
     def loaded_auth(self, data):
@@ -371,12 +382,15 @@ class SetupDialog(QDialog):
         self.status.setText(tr('Vorhandene Konfiguration geladen. Wähle bei Bedarf ein Modell für Lumen.') if self.models.isEnabled() else
             tr('Die Engine liefert keine verfügbaren Modelle. Erneut prüfen oder einen Anbieter verbinden.'))
         self.repair_engine.hide()
+        self.diagnostic_stage = 'model_selection'
+        self.diagnostic_outcome = 'ready' if self.models.isEnabled() else 'no_models'
 
     def save_auth(self):
         identifier = self.provider.currentData(); key = self.key.text().strip()
         if not identifier or not key or not self.engine.url:
             self.status.setText(tr('Bitte einen Anbieter auswählen und einen API-Schlüssel eingeben.')); return
         self.checking = True; self.set_busy(True)
+        self.diagnostic_stage = 'save_auth'; self.diagnostic_outcome = 'checking'
         self.status.setText(tr('Zugang im OpenCode-Benutzerprofil speichern …'))
         def saved(_):
             self.key.clear(); self.engine.shutdown(); self.checking = False; self.load_engine()
@@ -385,9 +399,39 @@ class SetupDialog(QDialog):
             error=lambda _: self.engine_failed(tr('Zugang konnte nicht gespeichert werden. Bitte erneut versuchen.')))
 
     def engine_failed(self, message):
+        self.diagnostic_outcome = 'failed'
         self.checking = False; self.set_busy(False)
         self.connect_provider.setEnabled(False); self.repair_engine.show()
         self.engine_status.setText(tr('Anbindung konnte nicht geprüft werden.')); self.status.setText(message)
+
+    def record_diagnostic(self, event):
+        self.diagnostic_events = (self.diagnostic_events + [event])[-12:]
+
+    def copy_engine_diagnostic(self):
+        if self.diagnostic_process: return
+        from assistant_backend import opencode_binary
+        from setup_diagnostics import build_report, version_text
+        proc = worker_process(self); self.diagnostic_process = proc
+        captured = bytearray()
+        self.copy_diagnostic.setEnabled(False)
+        self.status.setText(tr('Technische Diagnose wird erstellt …'))
+        def read():
+            raw = bytes(proc.readAllStandardOutput())
+            captured.extend(raw[:max(0, 256-len(captured))])
+        def finished(code):
+            if self.diagnostic_process is not proc: return
+            read(); self.diagnostic_process = None; self.copy_diagnostic.setEnabled(True)
+            version = version_text(bytes(captured)) if code == 0 else 'unavailable'
+            QApplication.clipboard().setText(build_report(self, version))
+            self.status.setText(tr('Diagnose kopiert. Du kannst sie zur Fehlersuche weitergeben.'))
+            proc.deleteLater()
+        proc.readyReadStandardOutput.connect(read)
+        proc.readyReadStandardError.connect(lambda: proc.readAllStandardError())
+        proc.finished.connect(finished)
+        proc.errorOccurred.connect(lambda error: finished(1) if error == QProcess.FailedToStart else None)
+        timeout = QTimer(proc); timeout.setSingleShot(True); timeout.timeout.connect(proc.kill); timeout.start(5000)
+        binary = self.engine.proc.program() if self.engine.proc else opencode_binary()
+        proc.start(binary, ['--version'])
 
     def install_engine(self):
         if self.job or self.checking: return
@@ -442,6 +486,9 @@ class SetupDialog(QDialog):
             try: self.personal.commit()
             except (OSError, ValueError) as exc:
                 self.status.setText(str(exc)); return
+        if self.diagnostic_process:
+            proc = self.diagnostic_process; self.diagnostic_process = None
+            proc.kill(); proc.waitForFinished(1000); proc.deleteLater()
         self.speech_test.tools.close(); self.engine.shutdown(); self.key.clear()
         self.settings.setValue('setupSeen', True)
         if result == QDialog.Accepted: self.settings.setValue('setupCompleted', True)
