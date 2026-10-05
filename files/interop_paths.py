@@ -42,6 +42,13 @@ def relocate(old,new,root=None):
         library=Library(app,registry.library.root.parent)
         with library.connect() as db:
             db.execute('BEGIN IMMEDIATE')
+            if app=='workbench' and db.execute("SELECT 1 FROM sqlite_master WHERE name='project_items'").fetchone():
+                for item in db.execute('SELECT id,data FROM project_items').fetchall():
+                    value=json.loads(item['data'])
+                    for resource in value.get('resources',[]):
+                        if resource.get('kind')=='file':resource['target']=mapped(resource['target'],changes)
+                    value['interop_path_revision']=seq
+                    db.execute('UPDATE project_items SET data=?,updated=? WHERE id=?',(json.dumps(value),time.time(),item['id']))
             for row in db.execute('SELECT id,data FROM records').fetchall():
                 value=json.loads(row['data']);before=json.dumps(value)
                 if app=='workbench':

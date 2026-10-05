@@ -36,6 +36,7 @@ def add_actions(window, menu, payload=None):
         if window.name == 'household':
             menu.addAction(tr('Zugehörige Dateien …'), lambda: safe_action(window, lambda: show_paths(window)))
     for name in ('_audio_profile_menu','_communications_menu','_workflow_menu'):
+        if getattr(window,'scope','') and name=='_workflow_menu':continue
         if hasattr(window,name):menu.addMenu(getattr(window,name))
 
 

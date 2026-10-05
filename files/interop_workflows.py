@@ -100,6 +100,11 @@ def prepare_event_update(library, values, event):
 
 def project_payload(library, key, workflow, text='', title='', due='', paths=()):
     record = library.get(key); questions = record.get('questions', [])
+    from projects_data import Projects
+    projects=Projects(library); projects.migrate(key)
+    children=projects.items(key); owners={item['id'] for item in children if item['kind']=='initiative'}
+    tasks=[item for item in children if item['kind']!='initiative' and item['parent'] in owners]
+    questions=[dict(text=item['title'],done=item.get('status')=='done') for item in tasks]
     if workflow == 'agenda':
         opened = [q['text'] for q in questions if not q.get('done')]
         if not opened: raise ValueError(tr('Dieses Projekt hat keine offenen Fragen.'))

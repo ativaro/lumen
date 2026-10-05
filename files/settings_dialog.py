@@ -133,7 +133,7 @@ class SettingsDialog(QDialog):
             'sound': tr('Ausgabegeräte, Lautstärken und Regeln für Anwendungen verwaltest du in Sound.'),
             'meetings': tr('Aufnahmen und Transkriptionen verwaltest du in der Meeting-Werkstatt. Lokale Spracherkennung wird über die gemeinsame Einrichtung installiert.'),
             'household': tr('Dokumente, Kategorien und Erinnerungsfristen stellst du je Eintrag im Digitalen Haushalt ein.'),
-            'workbench': tr('Arbeitsordner, Aufgaben und Projektverknüpfungen verwaltest du je Projekt in der Projekt-Werkbank.'),
+            'workbench': tr('Projekte, Vorhaben, Aufgaben und Material verwaltest du in Lumen Projekte.'),
             'radio': tr('Quellen, Programme, Stimmen und Audioausgabe verwaltest du im Persönlichen Radio.'),
         }
         self.app_controls = {}
