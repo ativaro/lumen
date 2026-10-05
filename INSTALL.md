@@ -16,14 +16,17 @@ git clone --branch main --single-branch https://github.com/ativaro/lumen.git && 
 **The repository is private.** Git and a GitHub account granted access to
 `ativaro/lumen` are required. Authenticate through your Git credential helper;
 do not paste access tokens into installation commands. Run from a directory that
-does not already contain `lumen`. To update an existing installation, run from
-the directory containing your clean `lumen` checkout on `main`:
+does not already contain `lumen`. To update an existing Lumen installation, run
+from **any directory** in your desktop session as your normal user. Neither an
+installed Updater nor the original checkout is needed:
 
 ```bash
-git -C lumen pull --ff-only origin main && bash lumen/bin/lumen-updater
+(d="$(mktemp -d)" && trap 'rm -rf -- "$d"' EXIT && git clone --depth 1 --branch main --single-branch https://github.com/ativaro/lumen.git "$d/lumen" && bash "$d/lumen/bin/lumen-updater")
 ```
 
-The update command opens the latest graphical **Lumen Updater**. Review the
+The update command downloads and opens the latest graphical **Lumen Updater**,
+then removes its temporary download when the window closes. It uses the existing
+Lumen Python/Qt runtime and requires Git with private repository access. Review the
 selection and click **Update all / Alles aktualisieren**; it does not reopen the
 setup wizard. See [native updates](#native-updates) for components and permissions.
 
@@ -64,8 +67,8 @@ backup mechanism. **Next** leaves the current desktop in place. Existing provide
 settings and speech models are reused; the document workshop remains disabled until
 enabled in Files settings. The wizard can be closed and resumed later from
 **Settings → Setup** or `~/.local/share/lumen/bin/lumen-setup-wizard`.
-Keep the installation checkout clean; the update command uses fast-forward-only
-Git updates. Preserve local changes before updating. Running `bootstrap.sh` again
+The update command uses a fresh temporary checkout and leaves your development
+checkout untouched. Running `bootstrap.sh` again
 reinstalls the user bundle and opens the setup wizard; use the Updater for normal
 updates. Download or package errors are reported before continuing.
 

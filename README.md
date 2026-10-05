@@ -19,17 +19,20 @@ wizard when ready. See [installation and recovery](INSTALL.md).
 
 ## Update → one command
 
-From the directory containing your original `lumen` checkout, run as your normal user:
+For an existing Lumen installation, run from **any directory as your normal user**.
+No installed Updater or original installation checkout is needed:
 
 ```bash
-git -C lumen pull --ff-only origin main && bash lumen/bin/lumen-updater
+(d="$(mktemp -d)" && trap 'rm -rf -- "$d"' EXIT && git clone --depth 1 --branch main --single-branch https://github.com/ativaro/lumen.git "$d/lumen" && bash "$d/lumen/bin/lumen-updater")
 ```
 
-This downloads and opens the latest **Lumen Updater**. Review the selection and
+This downloads the latest **Lumen Updater** into a temporary directory and opens it.
+The temporary download is removed when the Updater closes. Review the selection and
 click **Update all / Alles aktualisieren**. It updates installed Lumen apps,
 panels, themes, the compatible engine and installed local extensions without
 reopening the setup wizard. Your data, vault, settings and valid models are retained.
-The checkout must be clean and on `main`; private GitHub access is still required.
+Git, access to the private GitHub repository and the existing Lumen Qt/Python
+runtime are required. Run this inside your KDE desktop session, without `sudo`.
 
 Already have the Updater installed? Run `lumen-updater` from any directory, or open
 **Lumen → Updater** in the top panel, **Lumen Apps → Lumen Updater**, or
