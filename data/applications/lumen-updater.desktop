@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen Updater
+Comment=Update Lumen, apps and installed components
+Comment[de]=Lumen, Apps und installierte Komponenten aktualisieren
+Exec=%INSTALL_BIN%/lumen-updater
+Icon=system-software-update
+Terminal=false
+Categories=System;PackageManager;
+StartupWMClass=lumen-updater
+Keywords=Lumen;Updates;Aktualisieren;Updater;

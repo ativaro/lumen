@@ -92,6 +92,7 @@ class SetupTest(unittest.TestCase):
     def test_existing_tools_and_models_are_reused_without_install_or_download(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); model = root / 'ggml-small-q5_1.bin'; model.write_bytes(b'model')
+            (root/'vad-env').mkdir(); (root/'vad-env/.ready').write_text('webrtcvad-wheels==2.0.14\n')
             with patch.object(setup, 'speech_root', return_value=root), patch.object(setup, 'executable', return_value='/existing/tool'), \
                     patch.object(setup, 'MODEL_SIZE', 5), patch.object(setup, 'MODEL_HASH', hashlib.sha256(b'model').hexdigest()), \
                     patch.object(setup, 'download') as download, patch.object(setup, 'run') as run, patch.object(setup, 'report'):
@@ -113,6 +114,11 @@ class SetupTest(unittest.TestCase):
                 self.assertFalse((root/'vad-env/.ready').exists())
                 run.side_effect = None; setup.install_vad()
                 self.assertEqual((root/'vad-env/.ready').read_text(), 'webrtcvad-wheels==2.0.14\n')
+                (root/'vad-env/.ready').write_text('webrtcvad-wheels==2.0.13\n')
+                with patch.object(setup, 'executable', return_value='/existing/python'):
+                    run.reset_mock(); setup.install_vad()
+                    self.assertTrue(any('webrtcvad-wheels==2.0.14' in call.args[0] for call in run.call_args_list))
+                    run.reset_mock(); setup.install_vad(); run.assert_not_called()
 
     def test_discovery_uses_same_user_install_for_setup_and_dictation(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'XDG_DATA_HOME': tmp}), \

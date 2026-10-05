@@ -195,3 +195,31 @@ installation without that system package, `bin/lumen-python --install-runtime`
 installs the shared user runtime; every Lumen starter then uses it. Settings and
 libraries keep their existing paths. The search pilot has become the normal
 search; `lumen-search-preview` remains an alias. See [SEARCH-PREVIEW.md](SEARCH-PREVIEW.md).
+
+## Native updates
+
+Start `lumen-updater`, or use Lumen Apps / Settings → Maintenance. Checking fetches
+private `main` into `$XDG_CACHE_HOME/lumen/updater/source`; installation uses the
+exact reviewed commit. A changed checkout is refused. User and system bundles are
+both updated when installed. The existing installers retain data/settings and
+refresh app launchers, desktop assets and integrations without replacing panels.
+
+Only installed optional components are offered: compatible OpenCode, Qt runtime,
+dictation, installed voices/models, image search, calendar and backup runtimes.
+These use Lumen's tested/pinned versions, not unrestricted upstream upgrades.
+The first check offers verification of these existing components; subsequent
+checks compare the corresponding installer definitions with the last successful
+run. New extensions still belong in the setup wizard. The native Vault is only
+rebuilt if it was explicitly installed, with its existing license checks, locked
+Rust dependencies and build tests. Its build environment must still be present;
+the existing isolated `lumen-dev` toolchain is reused where available.
+
+Linux packages (`pacman -Syu`) and Flatpaks are explicit optional selections.
+System changes use Polkit. No AUR packages or unrelated standalone applications
+are updated. Open apps are not force-closed; reopen them after an update and log
+in again for panel changes. A running installation cannot be closed mid-step.
+Failures remain visible, and successfully updated components are retained on retry.
+
+Update state is private/local under `$XDG_STATE_HOME/lumen/updater`. No credentials,
+notebooks, vault data, personal configurations or user files are sent to GitHub.
+Installation identity is stored in `install.json` alongside each runtime.

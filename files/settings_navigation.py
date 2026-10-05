@@ -218,6 +218,7 @@ def categories(dialog):
             section(9, tr('KI-Zugriff & MCP'), tr('Zugriff auf lokale Nachrichten, Termine und Werkzeuge')),
             section(dialog.app_pages['wissen'], tr('Lumen-Gedächtnis'), tr('Erinnerungen, Notizen und ihre Freigaben'))]),
         dict(title=tr('Wartung'), description=tr('Einrichtung, Hintergrunddienste und Hilfe bei Problemen.'), sections=[
+            section(dialog.app_pages['updater']),
             section(8, description=tr('Anbieter verbinden und Erweiterungen installieren')),
             section(5, description=tr('Autostart, Zeitpläne und automatische Analysen')),
             section(7, description=tr('Absturzerkennung, Wiederherstellung und Fehlerberichte')),

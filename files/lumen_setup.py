@@ -173,16 +173,19 @@ def install_engine():
 
 
 def install_vad():
-    if executable('voice-vad'): return
+    requirement = 'webrtcvad-wheels==2.0.14'
+    environment = speech_root() / 'vad-env'
+    marker = environment / '.ready'
+    if executable('voice-vad') and marker.is_file() and marker.read_text().strip() == requirement: return
     # Some Python versions need to compile the small WebRTC extension.
     install_packages([] if shutil.which('gcc') else ['gcc'])
-    environment = speech_root() / 'vad-env'
+    marker.unlink(missing_ok=True)
     report(tr('Lokale Erkennung von Sprechpausen vorbereiten …'))
     python = environment / 'bin/python'
     if not python.is_file(): run([sys.executable, '-m', 'venv', str(environment)])
-    run([str(python), '-m', 'pip', '--disable-pip-version-check', 'install', 'webrtcvad-wheels==2.0.14'])
+    run([str(python), '-m', 'pip', '--disable-pip-version-check', 'install', requirement])
     run([str(python), '-c', "import webrtcvad; assert not webrtcvad.Vad(2).is_speech(bytes(640), 16000)"], timeout=20)
-    (environment / '.ready').write_text('webrtcvad-wheels==2.0.14\n')
+    marker.write_text(requirement+'\n')
 
 
 def install_dictation(existing_model='', quality=False):

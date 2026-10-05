@@ -48,7 +48,7 @@ cd "$ARCHDIR"
 rm -rf src pkg
 # -d: skip dependency checks so maintainers using the standalone opencode
 # installer can build locally. Published builds use the real deps.
-LOCALSRC=1 makepkg -d -f --noconfirm
+LUMEN_SOURCE_REVISION="$(git -C "$REPO" rev-parse HEAD 2>/dev/null || true)" LOCALSRC=1 makepkg -d -f --noconfirm
 
 echo
 mapfile -t PACKAGES < <(LOCALSRC=1 makepkg --packagelist)

@@ -14,13 +14,19 @@ git clone --branch main --single-branch https://github.com/ativaro/lumen.git && 
 The installer prepares missing dependencies, installs Lumen locally and opens
 the graphical wizard for AI, speech and desktop setup. Git authentication is
 handled by your Git credential helper; never put a token in the command or README.
-For updates from an existing clean checkout:
+After installation, open **Lumen Apps → Lumen Updater** (also under
+**Settings → Maintenance**) to check and install updates. It updates installed
+Lumen apps, panels/themes, compatible engine and optional local runtimes together.
+System packages and Flatpaks can be selected separately. Large voice/image models
+are reused when valid. Private GitHub access is still required.
+
+For a manual update from an existing clean checkout:
 
 ```bash
 git -C lumen pull --ff-only origin main && bash lumen/bootstrap.sh
 ```
 
-The same wizard opens after installation and updates. Existing app data, models
+The wizard opens after installation and manual bootstrap updates. Existing app data, models
 and provider settings stay local. Desktop panels, wallpapers and decorations
 are included; activate them in the wizard when ready.
 See [installation and recovery](INSTALL.md).

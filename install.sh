@@ -45,7 +45,7 @@ done
 # ---- dependency check ------------------------------------------------------
 say "Prüfe Abhängigkeiten" "Checking dependencies"
 missing=()
-for c in bash python3; do command -v "$c" >/dev/null 2>&1 || missing+=("$c"); done
+for c in bash python3 git; do command -v "$c" >/dev/null 2>&1 || missing+=("$c"); done
 [ ${#missing[@]} -gt 0 ] && { message "Fehlende Pflicht-Abhängigkeiten: ${missing[*]}" "Missing required dependencies: ${missing[*]}" >&2; exit 1; }
 
 "$REPO/bin/lumen-python" -c "import PySide6.QtWidgets, PySide6.QtSvg, PySide6.QtQuick, PySide6.QtQuickWidgets, gi, PIL" || { message "Benötigt: PySide6 mit QtQuick/QtSvg, PyGObject und Pillow" "Required: PySide6 with QtQuick/QtSvg, PyGObject and Pillow" >&2; exit 1; }
@@ -135,6 +135,7 @@ subst "$REPO/data/applications/lumen-sel.desktop" > "$DATA_HOME/applications/lum
 subst "$REPO/data/applications/lumen-files.desktop" > "$DATA_HOME/applications/lumen-files.desktop"
 subst "$REPO/data/applications/lumen-open.desktop" > "$DATA_HOME/applications/lumen-open.desktop"
 subst "$REPO/data/applications/lumen-search.desktop" > "$DATA_HOME/applications/lumen-search.desktop"
+subst "$REPO/data/applications/lumen-updater.desktop" > "$DATA_HOME/applications/lumen-updater.desktop"
 subst "$REPO/data/applications/lumen-apps.desktop" > "$DATA_HOME/applications/lumen-apps.desktop"
 subst "$REPO/data/applications/lumen-search-preview.desktop" > "$DATA_HOME/applications/lumen-search-preview.desktop"
 for tool in meetings household workbench radio vault inbox reader sound wissen translate system; do
@@ -235,3 +236,17 @@ Uninstall:  $PREFIX/uninstall.sh
 EOF
 ;;
 esac
+
+# Local installation identity for the native updater (never personal app data).
+/usr/bin/python3 - "$REPO" "$PREFIX" <<'PYCODE'
+import json, os, pathlib, subprocess
+import sys
+repo, prefix = map(pathlib.Path, sys.argv[1:])
+revision = os.environ.get('LUMEN_SOURCE_REVISION', '')
+if not revision:
+    result = subprocess.run(['git', '-C', str(repo), 'rev-parse', 'HEAD'], text=True, capture_output=True)
+    if result.returncode == 0: revision = result.stdout.strip()
+staged = prefix / 'install.json.next'
+staged.write_text(json.dumps({'revision': revision, 'kind': 'user'}))
+os.replace(staged, prefix / 'install.json')
+PYCODE

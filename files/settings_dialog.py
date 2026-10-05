@@ -144,6 +144,7 @@ class SettingsDialog(QDialog):
     def build_apps(self):
         from lumen_apps import catalogue, COMPANIONS, launch
         explanations = {
+            'updater': tr('Prüft Lumen, alle Apps und installierte Erweiterungen. Systempakete und Flatpaks sind zusätzlich auswählbar.'),
             'translate': tr('Texte übersetzen, den Schreibstil ändern oder nur Fehler korrigieren. PDFs werden als neue Datei exportiert. Das konfigurierte Lumen-Modell wird erst nach deinem Start verwendet.'),
             'search': tr('Suche und Gespräch nutzen das gemeinsame Modell, die Sprache und das Erscheinungsbild von Lumen. Diktieren wird im Einrichtungsassistenten eingerichtet.'),
             'wissen': tr('Notizbuch, Sammlungen und Freigaben verwaltest du in „Meine Notizen“. Im Lumen-Gedächtnis steuerst du Erinnerungen und automatisches Lernen.'),
@@ -288,6 +289,11 @@ class SettingsDialog(QDialog):
         page.addWidget(text(tr('Der Einrichtungsassistent prüft OpenCode, Vorschauen und Netzwerkfunktionen. '
             'Du kannst Anbieter verbinden, ein Modell auswählen und lokales Diktieren installieren und testen.')))
         page.addWidget(button(tr('Einrichtungsassistent öffnen'), self.open_setup_wizard))
+        from lumen_apps import launch
+        def open_updater():
+            try: launch('updater')
+            except (OSError, ValueError) as error: self.status.setText(str(error))
+        page.addWidget(button(tr('Lumen Updater öffnen'), open_updater))
         page.addStretch()
 
     def build_recovery(self):

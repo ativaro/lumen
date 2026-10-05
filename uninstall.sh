@@ -28,7 +28,7 @@ rm -f "$CONFIG_HOME/systemd/user/lumen-vault.service" "$CONFIG_HOME/systemd/user
 systemctl --user daemon-reload >/dev/null 2>&1 || true
 rm -f "$DATA_HOME/kio/servicemenus/lumen.desktop"
 rm -f "$DATA_HOME/applications/lumen.desktop" "$DATA_HOME/applications/lumen-files.desktop"
-rm -f "$DATA_HOME/applications/lumen-open.desktop" "$DATA_HOME/applications/lumen-apps.desktop"
+rm -f "$DATA_HOME/applications/lumen-open.desktop" "$DATA_HOME/applications/lumen-apps.desktop" "$DATA_HOME/applications/lumen-updater.desktop"
 rm -f "$DATA_HOME/applications/lumen-search.desktop" "$DATA_HOME/applications/lumen-search-preview.desktop"
 for tool in meetings household workbench radio vault inbox reader sound wissen translate; do
     rm -f "$DATA_HOME/applications/lumen-$tool.desktop" "$DATA_HOME/icons/hicolor/scalable/apps/lumen-$tool.svg"
