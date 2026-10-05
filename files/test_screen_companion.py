@@ -59,6 +59,13 @@ class CompanionTest(unittest.TestCase):
             QTest.keyClick(guide.composer,Qt.Key_Return)
             self.assertEqual(worker.call_args.args[0],'capture')
 
+    def test_typed_turn_interrupts_active_voice_before_capturing(self):
+        guide=self.guide(); guide.voice.active=True; guide.voice.state='listening'
+        with patch.object(guide.voice,'cancel_process') as cancel, patch.object(guide,'run_worker') as worker:
+            guide.submit('Next question'); cancel.assert_called_once()
+            self.assertEqual(guide.voice.state,'thinking'); worker.assert_called_once()
+        guide.voice.active=False
+
     def test_password_and_unknown_are_checked_before_capture(self):
         target=dict(uuid='fixed-window',pid=123,app='test',caption='test')
         with patch('screen_capture.window_info',return_value=target), patch('screen_capture.accessibility_state',return_value='password'), patch('screen_capture.subprocess.run') as run:

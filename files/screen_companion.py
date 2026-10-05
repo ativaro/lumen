@@ -173,6 +173,8 @@ class Companion(QWidget):
         if not isinstance(text, str): text = self.composer.toPlainText().strip()
         if not text: text = tr('Was ist mein nächster Schritt?') if self.goal else ''
         if not text: self.composer.setFocus(); return
+        if self.voice.active and self.voice.state != 'thinking':
+            self.voice.cancel_process(); self.voice.say_status('thinking', tr('Lumen antwortet …'))
         if not self.goal: self.goal = text
         self.composer.clear(); self.pending = text; self.active = True
         self.started = self.started or time.monotonic()
