@@ -54,6 +54,10 @@ protected:
 
 private:
   QWidget *sectionTabs();
+  QWidget *header();
+  void updateHeader();
+  QLabel *headerIcon = nullptr, *headerState = nullptr;
+  QPushButton *headerLock = nullptr;
   QWidget *lockedPage();
   QWidget *openPage();
   void replacePage(QWidget *page);

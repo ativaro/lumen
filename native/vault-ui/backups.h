@@ -6,7 +6,7 @@
 class BackupPage : public QWidget {
   Q_OBJECT
 public:
-  explicit BackupPage(QWidget *tabs, bool english, QWidget *parent = nullptr);
+  explicit BackupPage(bool english, QWidget *parent = nullptr);
   void activate();
   bool editing() const { return dialogOpen; }
 

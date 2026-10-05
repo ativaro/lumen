@@ -350,7 +350,13 @@ VaultWindow::VaultWindow(const QString &root)
       SLOT(suspend(bool)));
   qApp->installEventFilter(this);
   sections = new QStackedWidget;
-  setCentralWidget(sections);
+  auto *shell = new QWidget;
+  auto *layout = new QVBoxLayout(shell);
+  layout->setContentsMargins(0, 0, 0, 0);
+  layout->setSpacing(0);
+  layout->addWidget(header());
+  layout->addWidget(sections, 1);
+  setCentralWidget(shell);
   replacePage(lockedPage());
   theme();
   themeTimer.setInterval(2000);
@@ -391,10 +397,7 @@ void VaultWindow::replacePage(QWidget *page) {
   sections->insertWidget(0, page);
   if (!backupSelected)
     sections->setCurrentWidget(page);
-  for (auto *tabs : page->findChildren<QTabBar *>("vaultSections")) {
-    QSignalBlocker block(tabs);
-    tabs->setCurrentIndex(backupSelected ? 1 : 0);
-  }
+  updateHeader();
 }
 class TintedIcon : public QIconEngine {
 public:
@@ -437,7 +440,7 @@ void VaultWindow::showSection(int index) {
   if (index != 0 && index != 1)
     return;
   if (index == 1 && !backups) {
-    backups = new BackupPage(sectionTabs(), english, this);
+    backups = new BackupPage(english, this);
     sections->addWidget(backups);
   }
   if (index == 1) {
@@ -457,14 +460,6 @@ QWidget *VaultWindow::lockedPage() {
   auto *page = new QWidget;
   auto *outer = new QVBoxLayout(page);
   outer->setContentsMargins(36, 28, 36, 28);
-  auto *brand = new QLabel("◈  Lumen Vault");
-  brand->setObjectName("brand");
-  auto *header = new QGridLayout;
-  header->addWidget(brand, 0, 0, Qt::AlignLeft);
-  header->addWidget(sectionTabs(), 0, 1, Qt::AlignCenter);
-  header->setColumnStretch(0, 1);
-  header->setColumnStretch(2, 1);
-  outer->addLayout(header);
   outer->addStretch();
   auto *card = new QFrame;
   card->setObjectName("card");
@@ -660,6 +655,56 @@ static QFrame *rule() {
   r->setFixedHeight(1);
   return r;
 }
+QWidget *VaultWindow::header() {
+  auto *frame = new QFrame;
+  frame->setObjectName("vaultHeader");
+  auto *outer = new QVBoxLayout(frame);
+  outer->setContentsMargins(0, 0, 0, 0);
+  outer->setSpacing(0);
+  auto *row = new QHBoxLayout;
+  row->setContentsMargins(0, 0, 20, 0);
+  row->setSpacing(16);
+  auto *brand = new QWidget;
+  brand->setFixedWidth(296);
+  auto *brandRow = new QHBoxLayout(brand);
+  brandRow->setContentsMargins(28, 20, 12, 20);
+  brandRow->setSpacing(18);
+  brandRow->addWidget(symbol("lumen-mark", 54));
+  auto *copy = new QVBoxLayout;
+  copy->setSpacing(2);
+  auto *title = new QLabel("Lumen Vault");
+  title->setObjectName("brand");
+  copy->addWidget(title);
+  auto *tag = new QLabel(tx("Deine Daten. In deiner Hand.", "Your data. In your hands."));
+  tag->setObjectName("tagline");
+  copy->addWidget(tag);
+  brandRow->addLayout(copy);
+  row->addWidget(brand);
+  row->addStretch();
+  row->addWidget(sectionTabs());
+  row->addStretch();
+  headerIcon = symbol("object-locked", 26);
+  row->addWidget(headerIcon);
+  headerState = new QLabel;
+  headerState->setObjectName("status");
+  row->addWidget(headerState);
+  headerLock = button(tx("Sperren", "Lock"), [this] { lock(); });
+  headerLock->setObjectName("lock");
+  headerLock->setIcon(glyph("object-locked"));
+  spacedButton(headerLock);
+  headerLock->setMinimumWidth(144);
+  row->addWidget(headerLock);
+  outer->addLayout(row);
+  outer->addWidget(rule());
+  return frame;
+}
+void VaultWindow::updateHeader() {
+  const auto icon = isOpen ? "object-unlocked" : "object-locked";
+  headerIcon->setProperty("glyph", icon);
+  headerIcon->setPixmap(glyph(icon).pixmap(26, 26));
+  headerState->setText(isOpen ? tx("Entsperrt", "Unlocked") : tx("Gesperrt", "Locked"));
+  headerLock->setEnabled(isOpen);
+}
 QString VaultWindow::kind(const QString &key) const {
   if (key == "token")
     return tx("API-Token", "API token");
@@ -682,22 +727,6 @@ QWidget *VaultWindow::openPage() {
   auto *sl = new QVBoxLayout(sidebar);
   sl->setContentsMargins(16, 28, 12, 22);
   sl->setSpacing(12);
-  auto *brandRow = new QHBoxLayout;
-  brandRow->setContentsMargins(12, 0, 6, 0);
-  brandRow->setSpacing(18);
-  brandRow->addWidget(symbol("lumen-mark", 54));
-  auto *brandText = new QVBoxLayout;
-  brandText->setSpacing(2);
-  auto *brand = new QLabel("Lumen Vault");
-  brand->setObjectName("brand");
-  brandText->addWidget(brand);
-  auto *tagline = new QLabel(
-      tx("Deine Daten. In deiner Hand.", "Your data. In your hands."));
-  tagline->setObjectName("tagline");
-  brandText->addWidget(tagline);
-  brandRow->addLayout(brandText);
-  sl->addLayout(brandRow);
-  sl->addSpacing(30);
   auto *caption = new QLabel(tx("Mein Tresor", "My vault"));
   caption->setObjectName("muted");
   caption->setContentsMargins(12, 0, 0, 0);
@@ -763,27 +792,6 @@ QWidget *VaultWindow::openPage() {
   auto *main = new QVBoxLayout;
   main->setContentsMargins(0, 0, 0, 0);
   main->setSpacing(0);
-  auto *top = new QHBoxLayout;
-  top->setContentsMargins(24, 16, 20, 16);
-  top->addStretch();
-  top->addWidget(sectionTabs());
-  top->addStretch();
-  auto *actions = new QHBoxLayout;
-  actions->setSpacing(8);
-  auto *state = new QLabel(tx("Entsperrt", "Unlocked"));
-  state->setObjectName("status");
-  actions->addWidget(symbol("object-unlocked", 26));
-  actions->addWidget(state);
-  actions->addSpacing(14);
-  auto *lockButton = button(tx("Sperren", "Lock"), [this] { lock(); });
-  lockButton->setObjectName("lock");
-  lockButton->setMinimumWidth(132);
-  lockButton->setIcon(glyph("object-locked"));
-  spacedButton(lockButton);
-  actions->addWidget(lockButton);
-  top->addLayout(actions);
-  main->addLayout(top);
-  main->addWidget(rule());
   auto *columns = new QHBoxLayout;
   columns->setSpacing(0);
   auto *middle = new QFrame;
@@ -1483,7 +1491,7 @@ bool VaultWindow::eventFilter(QObject *object, QEvent *event) {
       (event->type() == QEvent::MouseButtonPress ||
        event->type() == QEvent::KeyPress || event->type() == QEvent::Wheel)) {
     auto *widget = qobject_cast<QWidget *>(object);
-    if (widget && belongsTo(widget, this) &&
+    if (widget && belongsTo(widget, this) && section() == 0 &&
         !(backups && belongsTo(widget, backups)))
       idle.start();
   }

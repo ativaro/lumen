@@ -34,7 +34,7 @@ QPushButton *BackupPage::button(const QString &text,
   connect(b, &QPushButton::clicked, this, std::move(action));
   return b;
 }
-BackupPage::BackupPage(QWidget *tabs, bool english, QWidget *parent)
+BackupPage::BackupPage(bool english, QWidget *parent)
     : QWidget(parent), english(english) {
   setObjectName("backupPage");
   auto root = qEnvironmentVariable("LUMEN_TOOLS_DATA");
@@ -59,28 +59,6 @@ BackupPage::BackupPage(QWidget *tabs, bool english, QWidget *parent)
   auto *side = new QVBoxLayout(sidebar);
   side->setContentsMargins(20, 28, 20, 22);
   side->setSpacing(16);
-  auto *brandRow = new QHBoxLayout;
-  auto *mark = new QLabel;
-  mark->setFixedSize(42, 42);
-  mark->setProperty("glyph", "lumen-mark");
-  mark->setProperty("glyphSize", 42);
-  auto brandPixmap = QIcon(":/vault/lumen-mark.svg").pixmap(42, 42);
-  {
-    QPainter painter(&brandPixmap);
-    painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-    painter.fillRect(brandPixmap.rect(), palette().color(QPalette::WindowText));
-  }
-  mark->setPixmap(brandPixmap);
-  brandRow->addWidget(mark);
-  auto *brand = new QLabel("Lumen Vault");
-  brand->setObjectName("brand");
-  brandRow->addWidget(brand);
-  side->addLayout(brandRow);
-  auto *tag = new QLabel(
-      tx("Deine Daten. In deiner Hand.", "Your data. In your hands."));
-  tag->setObjectName("tagline");
-  side->addWidget(tag);
-  side->addSpacing(24);
   search = new QLineEdit;
   search->setPlaceholderText(
       tx("Sicherungspläne suchen …", "Search backup plans …"));
@@ -128,16 +106,6 @@ BackupPage::BackupPage(QWidget *tabs, bool english, QWidget *parent)
   auto *main = new QVBoxLayout;
   main->setContentsMargins(0, 0, 0, 0);
   main->setSpacing(0);
-  auto *top = new QHBoxLayout;
-  top->setContentsMargins(24, 16, 24, 16);
-  top->addStretch();
-  top->addWidget(tabs);
-  top->addStretch();
-  main->addLayout(top);
-  auto *rule = new QFrame;
-  rule->setObjectName("rule");
-  rule->setFixedHeight(1);
-  main->addWidget(rule);
   pages = new QStackedWidget;
   auto *empty = new QWidget;
   auto *emptyLayout = new QVBoxLayout(empty);

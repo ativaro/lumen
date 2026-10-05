@@ -20,7 +20,10 @@ Installation remains explicit and user-local. If that native installation exists
 `lumen-vault` opens the native three-column vault. `lumen-vault --lab` remains an
 explicit alias. `lumen-vault --backups` selects Backups in the same native
 window. Both tabs are retained widgets: selection and snapshots survive switching,
-with no second application window or focus handoff. Subsequent launches activate
+with no second application window or focus handoff. Branding, tabs and the vault
+lock control live in one persistent header outside the page stack; their position
+and the window size remain stable when switching, including at 1080×720. The lock
+control is also available on Backups while the vault is unlocked. Subsequent launches activate
 the existing native instance. Legacy explicit interop/handoff CLI arguments still
 use the established Python review dialogs; fresh production installs without the
 explicit native prerelease retain the Python backup application.

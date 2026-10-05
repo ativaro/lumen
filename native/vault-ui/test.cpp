@@ -169,12 +169,18 @@ private slots:
       });
       connect(peer, &QLocalSocket::disconnected, peer, &QObject::deleteLater);
     });
-    VaultWindow window(root.path() + "/store");
+    QTemporaryDir store;
+    VaultWindow window(store.path());
     window.show();
     const auto wid = window.winId();
     auto *master = window.findChild<QLineEdit *>("master");
     master->setText("SYNTHETIC UNSENT");
     auto *tabs = window.findChild<QTabBar *>("vaultSections");
+    QTest::qWait(10);
+    const auto tabPosition = tabs->mapTo(&window, QPoint());
+    const auto windowSize = window.size();
+    if (qEnvironmentVariableIsSet("LUMEN_VAULT_CAPTURE"))
+      window.grab().save("/tmp/lumen-vault-tabs-locked.png");
     QTest::mouseClick(tabs, Qt::LeftButton, Qt::NoModifier,
                       tabs->tabRect(1).center());
     auto *page = window.findChild<BackupPage *>();
@@ -184,9 +190,11 @@ private slots:
     plans->setCurrentRow(0);
     const auto count = requests;
     for (int i = 0; i < 3; ++i) {
-      auto *backTabs = page->findChild<QTabBar *>("vaultSections");
-      QTest::mouseClick(backTabs, Qt::LeftButton, Qt::NoModifier,
-                        backTabs->tabRect(0).center());
+      QCOMPARE(window.findChildren<QTabBar *>("vaultSections").size(), 1);
+      QCOMPARE(tabs->mapTo(&window, QPoint()), tabPosition);
+      QCOMPARE(window.size(), windowSize);
+      QTest::mouseClick(tabs, Qt::LeftButton, Qt::NoModifier,
+                        tabs->tabRect(0).center());
       QCOMPARE(window.section(), 0);
       QCOMPARE(master->text(), QString("SYNTHETIC UNSENT"));
       QTest::mouseClick(tabs, Qt::LeftButton, Qt::NoModifier,
@@ -201,7 +209,39 @@ private slots:
       QTest::qWait(100);
       window.grab().save("/tmp/lumen-vault-tabs.png");
     }
+    window.showSection(0);
+    window.findChild<QLineEdit *>("confirm")->setText(master->text());
+    QTest::keyClick(master, Qt::Key_Return);
+    QTRY_VERIFY_WITH_TIMEOUT(window.unlocked(), 10000);
+    auto *lockButton = window.findChild<QPushButton *>("lock");
+    QVERIFY(lockButton->isEnabled());
+    for (const auto size : {QSize(1510, 926), QSize(1080, 720)}) {
+      window.resize(size);
+      QTest::qWait(10);
+      const auto position = tabs->mapTo(&window, QPoint());
+      const auto lockPosition = lockButton->mapTo(&window, QPoint());
+      const auto headerSize = window.findChild<QFrame *>("vaultHeader")->size();
+      QCOMPARE(window.size(), size);
+      for (auto *label : lockButton->findChildren<QLabel *>())
+        QVERIFY(label->width() >= label->fontMetrics().horizontalAdvance(label->text()));
+      for (int index : {1, 0, 1, 0}) {
+        QTest::mouseClick(tabs, Qt::LeftButton, Qt::NoModifier,
+                          tabs->tabRect(index).center());
+        QTest::qWait(10);
+        QCOMPARE(window.section(), index);
+        QCOMPARE(tabs->mapTo(&window, QPoint()), position);
+        QCOMPARE(lockButton->mapTo(&window, QPoint()), lockPosition);
+        QCOMPARE(window.findChild<QFrame *>("vaultHeader")->size(), headerSize);
+        QCOMPARE(window.size(), size);
+        QVERIFY(lockButton->isVisible());
+        QVERIFY(window.unlocked());
+        if (qEnvironmentVariableIsSet("LUMEN_VAULT_CAPTURE"))
+          window.grab().save(QString("/tmp/lumen-vault-switch-%1-%2.png").arg(size.width()).arg(index));
+      }
+    }
+    window.showSection(1);
     window.lock();
+    QVERIFY(!lockButton->isEnabled());
     QCOMPARE(window.section(), 1);
     QCOMPARE(page, window.findChild<BackupPage *>());
   }
@@ -241,7 +281,7 @@ private slots:
       });
       connect(peer, &QLocalSocket::disconnected, peer, &QObject::deleteLater);
     });
-    BackupPage page(new QWidget, false);
+    BackupPage page(false);
     page.show();
     page.activate();
     QTRY_COMPARE(page.findChild<QLabel *>("backupStatus")->text(),
