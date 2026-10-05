@@ -1,3 +1,4 @@
+#include "backup_wizard.h"
 #include "backups.h"
 #include "vault.h"
 #include <QScopeGuard>
@@ -26,6 +27,107 @@ private slots:
                        config.path());
     QSettings settings("Lumen", "Assistant");
     settings.setValue("uiLanguage", "de");
+  }
+  void recoveryKeyCannotFollowAliasesIntoRepository() {
+    QTemporaryDir root;
+    const auto repository = root.path() + "/backup";
+    QVERIFY(QDir().mkdir(repository));
+    QFile target(repository + "/key.txt");
+    QVERIFY(target.open(QIODevice::WriteOnly));
+    target.close();
+    QVERIFY(QFile::link(repository, root.path() + "/folder-alias"));
+    QVERIFY(QFile::link(target.fileName(), root.path() + "/file-alias"));
+    QVERIFY(!backupKeyDestinationAllowed(root.path() + "/folder-alias/key.txt",
+                                         repository));
+    QVERIFY(
+        !backupKeyDestinationAllowed(root.path() + "/file-alias", repository));
+    QVERIFY(backupKeyDestinationAllowed(root.path() + "/independent.txt",
+                                        repository));
+  }
+  void guidedBackupCompletesOnlyAfterProbe() {
+    QTemporaryDir root;
+    VaultWindow parent(root.path());
+    QStringList operations;
+    QJsonObject prepared;
+    std::function<void(QJsonValue)> finish;
+    std::function<void(QString)> fail;
+    BackupWizard wizard(
+        false,
+        [&](QJsonObject args, auto done, auto failed) {
+          fail = failed;
+          operations << args["op"].toString();
+          if (args["op"] == "setup_inventory")
+            done(QJsonObject{
+                {"files",
+                 QJsonArray{QJsonObject{{"label", "Dokumente"},
+                                        {"path", "/home/example/Documents"}}}},
+                {"lumen",
+                 QJsonArray{QJsonObject{{"label", "Wissen"},
+                                        {"path", "/home/example/Wissen"}}}},
+                {"vault",
+                 QJsonArray{QJsonObject{{"label", "Passwort-Tresor"},
+                                        {"path", "/home/example/Vault"}}}}});
+          else if (args["op"] == "test_target")
+            done(QJsonObject{{"path", "/media/Backup"},
+                             {"tested", true},
+                             {"free", 1024.0 * 1024 * 1024 * 500}});
+          else if (args["op"] == "configure") {
+            prepared = args;
+            done(QJsonObject{{"id", "synthetic-plan"}});
+          } else if (args["op"] == "finish_setup")
+            finish = done;
+        },
+        &parent);
+    wizard.show();
+    QTest::qWait(30);
+    QCOMPARE(wizard.pageIds().size(), 4);
+    auto capture = [&](const QString &name) {
+      const auto dir = qEnvironmentVariable("LUMEN_TEST_BACKUP_SCREENSHOTS");
+      if (!dir.isEmpty()) {
+        QDir().mkpath(dir);
+        QVERIFY(wizard.grab().save(dir + '/' + name + ".png"));
+      }
+    };
+    capture("sources");
+    wizard.next();
+    QCOMPARE(wizard.currentId(), 1);
+    wizard.findChild<QLineEdit *>("backupDestination")
+        ->setText("/media/Backup");
+    wizard.next();
+    QCOMPARE(wizard.currentId(), 2);
+    auto *key = wizard.findChild<QLineEdit *>("backupRecoveryKey");
+    QCOMPARE(key->echoMode(), QLineEdit::Password);
+    QCOMPARE(key->text().size(), 64);
+    for (auto *check : wizard.findChildren<QCheckBox *>())
+      if (check->text().contains("unabhängig"))
+        check->setChecked(true);
+    capture("protection");
+    wizard.next();
+    QCOMPARE(wizard.currentId(), 3);
+    capture("review");
+    QTest::mouseClick(wizard.button(QWizard::FinishButton), Qt::LeftButton);
+    QCOMPARE(prepared["groups"].toObject()["vault"].toArray().size(), 1);
+    QVERIFY(prepared["recovery_confirmed"].toBool());
+    QVERIFY(finish);
+    QVERIFY(!wizard.button(QWizard::FinishButton)->isEnabled());
+    QVERIFY(!wizard.button(QWizard::BackButton)->isEnabled());
+    QTimer::singleShot(0, [] {
+      if (auto *box =
+              qobject_cast<QMessageBox *>(QApplication::activeModalWidget()))
+        box->accept();
+    });
+    fail("Synthetic offline failure");
+    QVERIFY(!wizard.button(QWizard::BackButton)->isEnabled());
+    QVERIFY(wizard.button(QWizard::FinishButton)->isEnabled());
+    QTest::mouseClick(wizard.button(QWizard::FinishButton), Qt::LeftButton);
+    finish(QJsonObject{{"verified", true}});
+    QVERIFY(wizard.isVisible());
+    QVERIFY(!wizard.button(QWizard::BackButton)->isEnabled());
+    QVERIFY(key->text().isEmpty());
+    QTest::mouseClick(wizard.button(QWizard::FinishButton), Qt::LeftButton);
+    QCOMPARE(wizard.result(), int(QDialog::Accepted));
+    QCOMPARE(operations.count("configure"), 1);
+    QCOMPARE(operations.count("finish_setup"), 2);
   }
   void backupsTabsKeepOneWindowAndSelection() {
     QTemporaryDir root;

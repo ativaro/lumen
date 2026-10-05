@@ -106,7 +106,8 @@ def create(library, title, repository, sources, password, job, app_sources=None,
 def run(library, identity, action, job, snapshot='', selected='', destination='', full=False):
     with lease(library,identity):
         job.check()
-        plan = library.get(identity); password = secret('vault',identity)
+        from backup_setup import resolve_plan
+        plan = resolve_plan(library.get(identity), job, sources=action in ('backup', 'preview')); password = secret('vault',identity)
         verify(plan,password,job)
         if action in ('backup','preview'):
             _, sources = paths(plan['repository'], plan['sources'])
@@ -116,11 +117,19 @@ def run(library, identity, action, job, snapshot='', selected='', destination=''
             flushes=flush_for_plan(library.root.parent,plan,job) if action=='backup' else []
             from interop_vault import prepared_sources
             started=time.time()
-            with prepared_sources(dict(plan,sources=sources,flush_acknowledgements=flushes),job,root=library.root.parent) as (prepared,excluded,manifest):
+            from backup_setup import verification_source
+            with verification_source(action == 'backup' and bool(plan.get('groups'))) as marker, prepared_sources(dict(plan,sources=sources,flush_acknowledgements=flushes),job,root=library.root.parent) as (prepared,excluded,manifest):
                 # Application copies use SQLite's online backup API; ordinary
                 # parent sources exclude their live application directories.
                 exclude_args=[arg for path in excluded for arg in ('--exclude',path)]
-                text=command(plan,password,[*args,*exclude_args,'--',*prepared],job,86400)
+                text=command(plan,password,[*args,*exclude_args,'--',*prepared,*([str(marker)] if marker else [])],job,86400)
+                events=[json.loads(line) for line in text.splitlines() if line.strip()]
+                checked = next((e for e in reversed(events) if e.get('message_type')=='summary'), {})
+                if marker:
+                    snapshot_id = checked.get('snapshot_id', '')
+                    if not re.fullmatch('[a-f0-9]{8,64}', snapshot_id): raise ValueError(tr('Kein bestätigter Sicherungsstand.'))
+                    restored = command(plan,password,['dump',snapshot_id,str(marker)],job,120)
+                    if restored != marker.read_text(encoding='utf-8'): raise ValueError(tr('Wiederherstellungsprobe fehlgeschlagen.'))
             events=[json.loads(line) for line in text.splitlines() if line.strip()]
             result=next((e for e in reversed(events) if e.get('message_type')=='summary'),None)
             if not result: raise ValueError(tr('Restic meldet keinen abgeschlossenen Sicherungslauf.'))
@@ -129,6 +138,8 @@ def run(library, identity, action, job, snapshot='', selected='', destination=''
                 library.update(identity,last_backup=time.time(),backup_started=started,backup_sources=sources,
                     last_error='',next_run=time.time()+plan.get('interval',0),summary=result,
                     backup_consistency=manifest['consistency'] if manifest else 'saved-files',backup_flushes=flushes)
+                if plan.get('groups'):
+                    library.update(identity, sources=sources, groups=plan['groups'], remote_sources=plan.get('remote_sources', []), backup_groups=plan['groups'], last_restore_probe=time.time())
             return result
         if action=='snapshots': return json.loads(command(plan,password,['snapshots'],job,60)) or []
         if action=='check':
@@ -167,6 +178,9 @@ def run(library, identity, action, job, snapshot='', selected='', destination=''
 
 
 def schedule(library, identity, interval, job):
+    plan = library.get(identity)
+    if interval and plan.get('setup_pending') and not plan.get('last_restore_probe'):
+        raise ValueError(tr('Zuerst die Einrichtung abschließen.'))
     if interval not in (0,86400,604800): raise ValueError(tr('Ungültiger Zeitplan.'))
     config=Path(os.environ.get('XDG_CONFIG_HOME',str(Path.home()/'.config')))/'systemd/user'
     config.mkdir(parents=True,exist_ok=True)

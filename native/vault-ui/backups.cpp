@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "backups.h"
+#include "backup_wizard.h"
 #include "vault.h"
 #include <QScopeGuard>
 
@@ -172,6 +173,26 @@ BackupPage::BackupPage(QWidget *tabs, bool english, QWidget *parent)
   details->setWordWrap(true);
   details->setObjectName("muted");
   content->addWidget(details);
+  auto *coverageRow = new QHBoxLayout;
+  for (const QString group : {"files", "lumen", "vault"}) {
+    auto *card =
+        new QGroupBox(group == "files"   ? tx("Meine Dateien", "My files")
+                      : group == "lumen" ? tx("Mein Lumen", "My Lumen")
+                                         : tx("Mein Tresor", "My vault"));
+    auto *layout = new QVBoxLayout(card);
+    auto *label = new QLabel;
+    label->setWordWrap(true);
+    label->setTextFormat(Qt::PlainText);
+    layout->addWidget(label);
+    coverage[group] = label;
+    coverageRow->addWidget(card, 1);
+  }
+  content->addLayout(coverageRow);
+  resumeSetup = button(tx("Einrichtung abschließen", "Finish setup"), [this] {
+    start({{"op", "finish_setup"}, {"id", identity}},
+          [this](QJsonValue) { reload(); });
+  });
+  content->addWidget(resumeSetup);
   sources = new QListWidget;
   sources->setAccessibleName(tx("Geschützte Quellen", "Protected sources"));
   sources->setFixedHeight(100);
@@ -423,10 +444,15 @@ void BackupPage::activate() {
       reload();
   });
 }
-void BackupPage::start(QJsonObject request, Done done) {
+void BackupPage::start(QJsonObject request, Done done,
+                       std::function<void(QString)> failed) {
   if (busy) {
-    error(tx("Ein Sicherungsvorgang läuft bereits.",
-             "A backup operation is already running."));
+    const auto message = tx("Ein Sicherungsvorgang läuft bereits.",
+                            "A backup operation is already running.");
+    if (failed)
+      failed(message);
+    else
+      error(message);
     return;
   }
   busy = true;
@@ -435,6 +461,7 @@ void BackupPage::start(QJsonObject request, Done done) {
   controls->setEnabled(false);
   listing->setEnabled(false);
   completion = std::move(done);
+  failure = std::move(failed);
   request["command"] = "start";
   request["token"] = QUuid::createUuid().toString(QUuid::WithoutBraces);
   rpc(request, [this](QJsonObject value) {
@@ -477,9 +504,13 @@ void BackupPage::state(QJsonObject value) {
   listing->setEnabled(true);
   auto done = std::move(completion);
   completion = {};
+  auto failed = std::move(failure);
+  failure = {};
   if (value.contains("error")) {
     lastOutcome = value["error"].toString();
     error(lastOutcome);
+    if (failed)
+      failed(lastOutcome);
     if (!done && value.contains("state"))
       reload(value["id"].toString());
     return;
@@ -532,6 +563,20 @@ void BackupPage::select() {
     if (plan["id"].toString() != identity)
       continue;
     title->setText(plan["title"].toString());
+    resumeSetup->setVisible(plan["setup_pending"].toBool());
+    for (auto it = coverage.begin(); it != coverage.end(); ++it) {
+      const auto selected = plan["groups"].toObject()[it.key()].toArray();
+      const auto saved = plan["backup_groups"].toObject()[it.key()].toArray();
+      const bool checked = !selected.isEmpty() && selected == saved &&
+                           plan["sources"] == plan["backup_sources"];
+      it.value()->setText(
+          selected.isEmpty()
+              ? tx("Nicht im Plan ausgewählt", "Not selected in this plan")
+          : checked ? tx("Gesichert · Wiederherstellungsprobe erfolgreich",
+                         "Backed up · restore test succeeded")
+                    : tx("Ausgewählt · nächste Sicherung ausstehend",
+                         "Selected · awaiting next backup"));
+    }
     QString text = plan["repository"].toString() + '\n';
     text += plan["last_backup"].toDouble() > 0
                 ? QDateTime::fromSecsSinceEpoch(
@@ -561,70 +606,22 @@ void BackupPage::create() {
     return;
   dialogOpen = true;
   auto guard = qScopeGuard([this] { dialogOpen = false; });
-  QDialog dialog(this);
-  dialog.setWindowTitle(tx("Sicherung einrichten", "Set up backup"));
-  dialog.resize(620, 460);
-  auto *form = new QFormLayout(&dialog);
-  QLineEdit name(tx("Meine Sicherung", "My backup")), target, source, password,
-      confirm;
-  password.setEchoMode(QLineEdit::Password);
-  confirm.setEchoMode(QLineEdit::Password);
-  form->addRow(tx("Name", "Name"), &name);
-  auto choose = [&](QLineEdit *field) {
-    auto *row = new QHBoxLayout;
-    row->addWidget(field);
-    row->addWidget(button(tx("Wählen", "Choose"), [&, field] {
-      auto path = QFileDialog::getExistingDirectory(&dialog);
-      if (!path.isEmpty())
-        field->setText(path);
-    }));
-    return row;
-  };
-  form->addRow(tx("USB-/NAS-Zielordner", "USB/NAS destination"),
-               choose(&target));
-  form->addRow(tx("Erster Quellordner", "First source folder"),
-               choose(&source));
-  QCheckBox desktop(tx("Lumen- und KDE-Einstellungen ebenfalls sichern",
-                       "Include Lumen and KDE settings"));
-  form->addRow(&desktop);
-  form->addRow(tx("Sicherungspasswort", "Backup password"), &password);
-  form->addRow(tx("Wiederholen", "Repeat"), &confirm);
-  auto *hint = new QLabel(tx(
-      "Neues Ziel: leerer Ordner, mindestens 12 Zeichen. Vorhandenes "
-      "Restic-Ziel: bisheriges Passwort. Speicherung im System-Schlüsselbund.",
-      "New destination: empty folder, at least 12 characters. Existing Restic "
-      "destination: current password. Stored in the system keyring."));
-  hint->setWordWrap(true);
-  form->addRow(hint);
-  QDialogButtonBox buttons(QDialogButtonBox::Save | QDialogButtonBox::Cancel);
-  form->addRow(&buttons);
-  connect(&buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-  connect(&buttons, &QDialogButtonBox::accepted, &dialog, [&] {
-    if (password.text() != confirm.text()) {
-      QMessageBox::warning(&dialog, "Lumen Vault",
-                           tx("Die Passwörter stimmen nicht überein.",
-                              "Passwords do not match."));
-      return;
-    }
-    dialog.accept();
-  });
-  if (dialog.exec() == QDialog::Accepted) {
-    QJsonArray paths;
-    if (!source.text().trimmed().isEmpty())
-      paths.append(source.text());
-    start({{"op", "create"},
-           {"title", name.text()},
-           {"repository", target.text()},
-           {"sources", paths},
-           {"password", password.text()},
-           {"desktop", desktop.isChecked()}},
-          [this](QJsonValue id) {
-            archived = false;
-            reload(id.toString());
-          });
+  BackupWizard wizard(
+      english,
+      [this](QJsonObject args, Done done, std::function<void(QString)> failed) {
+        start(args, std::move(done), std::move(failed));
+      },
+      this);
+  wizard.exec();
+  archived = false;
+  if (!busy)
+    reload(wizard.planId);
+  else {
+    completion = [this](QJsonValue value) {
+      reload(value.toObject()["id"].toString());
+    };
+    failure = {};
   }
-  password.clear();
-  confirm.clear();
 }
 QString BackupPage::snapshot() {
   if (snapshots->currentItem())
@@ -695,22 +692,32 @@ void BackupPage::restore(QString snapshot, QString selected) {
                "Choose parent destination folder"));
   if (destination.isEmpty())
     return;
-  start({{"op", "restore"},
-         {"id", identity},
-         {"snapshot", snapshot},
-         {"selected", selected},
-         {"destination", destination}},
-        [this](QJsonValue value) {
-          const auto path = value.toString();
-          status->setText(
-              tx("Wiederhergestellt und geprüft: ", "Restored and verified: ") +
-              path);
-          if (QMessageBox::question(this, "Lumen Vault",
-                                    tx("Wiederhergestellten Ordner öffnen?",
-                                       "Open restored folder?")) ==
-              QMessageBox::Yes)
-            QDesktopServices::openUrl(QUrl::fromLocalFile(path));
-        });
+  start(
+      {{"op", "restore"},
+       {"id", identity},
+       {"snapshot", snapshot},
+       {"selected", selected},
+       {"destination", destination}},
+      [this](QJsonValue value) {
+        const auto path = value.toString();
+        status->setText(
+            tx("Wiederhergestellt und geprüft: ", "Restored and verified: ") +
+            path);
+        if (QMessageBox::question(
+                this, "Lumen Vault",
+                tx("Wiederhergestellten Ordner öffnen?\n\nDein verschlüsselter "
+                   "Tresor liegt im Paket unter native-vault/vault.kdbx. Auf "
+                   "einem neuen Rechner vor dem Anlegen eines Tresors: "
+                   "Verschlüsselte Sicherung wiederherstellen und diese Datei "
+                   "mit ihrem bisherigen Master-Passwort öffnen. Ein "
+                   "vorhandener Tresor wird nicht ersetzt.",
+                   "Open restored folder?\n\nYour encrypted vault is in the "
+                   "package under native-vault/vault.kdbx. On a new computer, "
+                   "before creating a vault: choose Restore encrypted backup "
+                   "and open this file with its original master password. An "
+                   "existing vault is not replaced.")) == QMessageBox::Yes)
+          QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+      });
 }
 void BackupPage::lumenSources() {
   start({{"op", "discover"}}, [this](QJsonValue value) {

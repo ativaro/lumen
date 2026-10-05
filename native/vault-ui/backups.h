@@ -16,7 +16,8 @@ private:
   QPushButton *button(const QString &text, std::function<void()> action);
   void rpc(QJsonObject request, std::function<void(QJsonObject)> done,
            int retries = 20);
-  void start(QJsonObject request, Done done = {});
+  void start(QJsonObject request, Done done = {},
+             std::function<void(QString)> failed = {});
   void poll();
   void state(QJsonObject value);
   void reload(QString selected = {});
@@ -31,6 +32,9 @@ private:
   bool archived = false, loaded = false;
   QString socketPath, identity, token, lastOutcome;
   Done completion;
+  std::function<void(QString)> failure;
+  QMap<QString, QLabel *> coverage;
+  QPushButton *resumeSetup;
   QJsonArray plans;
   QListWidget *listing, *sources;
   QTreeWidget *snapshots;

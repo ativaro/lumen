@@ -22,7 +22,7 @@ FEATURES = {
     'engine': (tr('Lumen-Assistent'), ('opencode',), ('opencode',)),
     'documents': (tr('PDF-Vorschau und Inhaltsuche'), ('pdfinfo', 'pdftoppm', 'pdftotext'), ('poppler',)),
     'media': (tr('Video- und Audiovorschau'), ('ffmpeg', 'ffprobe'), ('ffmpeg',)),
-    'network': (tr('NAS und Netzwerkordner'), ('kio-fuse', 'kioclient', 'kio-smb'), ('kio-fuse', 'kio-extras', 'kde-cli-tools')),
+    'network': (tr('NAS und Netzwerkordner'), ('kio-fuse', 'kioclient', 'kio-smb', 'gvfsd-smb', 'gvfsd-fuse', 'gvfsd-wsdd', 'smbclient'), ('kio-fuse', 'kio-extras', 'kde-cli-tools', 'gvfs', 'gvfs-smb', 'gvfs-wsdd', 'smbclient')),
     'workshop': (tr('PDF-Dokumentenwerkstatt'), ('pymupdf',), ('python-pymupdf',)),
     'ocr': (tr('Texterkennung in Bildern und Scans'), ('tesseract', 'tessdata-deu', 'tessdata-eng'), ('tesseract', 'tesseract-data-deu', 'tesseract-data-eng')),
     'capture': (tr('Bildschirmaufnahme'), ('spectacle',), ('spectacle',)),
@@ -63,7 +63,7 @@ def executable(name):
     if name == 'whisper-cli':
         return shutil.which(name) or _executable(speech_root() / f'whisper-{VERSION}')
     return shutil.which(name) or next((_executable(Path(folder) / name) for folder in
-        ('/usr/lib', '/usr/lib/kf6') if _executable(Path(folder) / name)), '')
+        ('/usr/lib', '/usr/lib/kf6', '/usr/lib/gvfs') if _executable(Path(folder) / name)), '')
 
 
 def _executable(path):

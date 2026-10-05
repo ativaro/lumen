@@ -194,3 +194,29 @@ writes report an unknown outcome; check remote state before retrying. Unbuffered
 non-rewindable HTTP/1 uploads prevent Qt from replaying mutations on connection
 errors, including empty DELETE requests. Synthetic HTTPS tests verify this.
 The same transport protection applies to remote MCP tool calls.
+
+## Guided backups
+
+The native **Backups → Set up backup** action now uses four pages: sources
+(My files/My Lumen/My vault), destination, independent recovery key/schedule, and
+review/first backup. It reuses the existing Restic service rather than introducing
+another storage format. The first run restores a random marker from its snapshot;
+only then does setup activate the chosen schedule. This is a small restore probe,
+not a full-media verification. Failed setup remains resumable from the plan.
+
+SMB discovery includes saved Files connections, GVfs SMB browsing and WSD discovery.
+`gvfs`, `gvfs-smb`, `gvfs-wsdd` and `smbclient` are optional system packages installed
+through the existing network setup. Manual server entry remains available when
+broadcast discovery is blocked. Sign-in is inline; remembering credentials requires
+checking the keyring option. Credentials travel via private IPC/stdin, never URLs,
+command arguments or plan records. Every run resolves saved URIs again; recovery
+requires only the backup destination, never the original network sources.
+
+Native vault snapshots copy only pinned, private regular `vault.kdbx` and optional
+`previous.kdbx` files (64 MiB limit), still encrypted. No master password is needed
+for backup. After a fresh installation, restore the Restic archive, then use
+**Restore encrypted backup** in the empty native vault with the original master
+password. The backup key does not replace that password. Existing vaults are not
+overwritten. Export the backup key outside the destination and retain it separately
+from both the computer and the vault. The original native prerelease qualification
+boundary above remains unchanged.

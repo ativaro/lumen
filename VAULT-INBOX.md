@@ -9,17 +9,34 @@ sudo. Persönliche Konten und Sicherungspläne gehören nicht zum Distributionsp
 
 ## Vault
 
-1. **Sicherung einrichten**: Namen, bereits eingebundenen USB-/NAS-Zielordner und
-   Quellordner auswählen. Das Ziel einer neuen Sicherung muss leer sein und darf
-   nicht innerhalb der Quellen liegen. Lumen-/KDE-Einstellungen sind optional.
-2. Ein langes Sicherungspasswort festlegen und außerhalb des Rechners aufbewahren.
-   Der lokale Schlüsselbund allein hilft bei Rechnerverlust nicht weiter.
-3. **Sicherungsvorschau**, anschließend **Jetzt sichern**. Restic verschlüsselt und
-   dedupliziert die Daten. Unvollständige Sicherungen werden als Fehler gemeldet.
-4. **Stände laden** → Inhalt ansehen oder einen Stand wiederherstellen. Das Ziel
-   ist immer ein neuer privater `Lumen-Wiederherstellung-*`-Ordner; Originaldateien
-   werden nicht überschrieben. Ein abgebrochener Restore bleibt als unvollständiger
-   Ordner erhalten. Dateien können danach bewusst zurückkopiert werden.
+Im nativen Vault führt **Sicherung einrichten** durch vier Schritte:
+
+1. **Was schützen?** Meine Dateien, Mein Lumen und Mein Tresor sind mit vorhandenen
+   Quellen vorausgewählt. Einzelne Quellen abwählen oder lokale/NAS-Ordner ergänzen.
+   Der Tresor wird ausschließlich als verschlüsselte KDBX-Datei kopiert.
+2. **Wohin?** USB/Ordner wählen oder NAS suchen. Bekannte Files-Verbindungen und
+   angekündigte SMB-Server erscheinen automatisch; manuelle Servereingabe bleibt
+   möglich. Freigabe wählen, Benutzername/Passwort eingeben, bei Bedarf **Zugang
+   merken** aktivieren und testen. Neue Archive erhalten einen eigenen Unterordner.
+3. **Automatisch und verschlüsselt:** Täglich ist vorgeschlagen, wöchentlich/manuell
+   wählbar. Den erzeugten Sicherungsschlüssel außerhalb des Sicherungsziels speichern
+   und seine unabhängige Aufbewahrung bestätigen. Für automatische Läufe liegt er
+   zusätzlich im System-Schlüsselbund. Das Tresor-Master-Passwort bleibt separat nötig.
+4. **Prüfen und starten:** Erst eine erfolgreiche Sicherung samt Wiederherstellung
+   einer kleinen Prüfdatei schaltet den Zeitplan frei. Bei einem Fehler **Einrichtung
+   abschließen** wiederholen. Drei Karten zeigen den Stand der gewählten Bereiche.
+
+**Stände laden → Wiederherstellen** stellt immer in einen neuen privaten
+`Lumen-Wiederherstellung-*`-Ordner wieder her. Originaldateien bleiben erhalten.
+Auf einem neuen Rechner führt auch die Lumen-Ersteinrichtung direkt zu Sicherungen.
+Der wiederhergestellte Tresor liegt im Anwendungspaket unter
+`native-vault/vault.kdbx`; vor dem Anlegen eines neuen Tresors über **Verschlüsselte
+Sicherung wiederherstellen** mit seinem ursprünglichen Master-Passwort öffnen.
+Ein bereits vorhandener Tresor wird nicht ersetzt. Weitere Sicherungsziele lassen
+sich mit demselben Wizard als eigener Plan einrichten.
+
+Ohne installierte native Tresor-Oberfläche bleibt die bisherige Python-Sicherungsapp
+mit manueller Quell-/Zielauswahl verfügbar.
 
 Ein vorhandenes Restic-Repository lässt sich mit seinem bisherigen Passwort
 übernehmen, auch ohne Quellordner für eine reine Wiederherstellung. Das Programm

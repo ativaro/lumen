@@ -5,7 +5,7 @@ import subprocess
 
 
 def secret(namespace, identity, value=None, remove=False):
-    if namespace not in ('vault', 'inbox') or not re.fullmatch(r'[a-f0-9]{32}', identity):
+    if namespace not in ('vault', 'inbox', 'backup-network') or not re.fullmatch(r'[a-f0-9]{32}', identity):
         raise ValueError(tr('Ungültiger Schlüsselbund-Eintrag.'))
     attributes = ['application', 'lumen-' + namespace, 'identity', identity]
     args = ['secret-tool', 'clear' if remove else 'lookup', *attributes]

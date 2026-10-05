@@ -1,4 +1,4 @@
-"""Headless Restic jobs for the native Vault tabs; never handles KDBX data.
+"""Headless Restic jobs for the native Vault tabs; copies only encrypted KDBX files.
 
 The service outlives GUI credential-memory retirement. Requests and results stay
 in an owner-only runtime socket; only backup metadata is stored by Library.
@@ -20,7 +20,8 @@ MAX_REQUEST = 128 * 1024
 MAX_REPLY = 36 * 1024**2
 OPERATIONS = {'list', 'create', 'backup', 'preview', 'snapshots', 'files', 'restore',
               'check', 'schedule', 'add_source', 'remove_source', 'discover',
-              'merge_sources', 'preflight', 'archive'}
+              'merge_sources', 'preflight', 'archive', 'setup_inventory', 'network',
+              'test_target', 'configure', 'finish_setup'}
 
 
 def socket_path():
@@ -38,6 +39,13 @@ def execute(library, request, job):
     op = request['op']
     if op not in OPERATIONS: raise ValueError('Unknown backup operation')
     identity = request.get('id', '')
+    if op in ('setup_inventory', 'network', 'test_target', 'configure', 'finish_setup'):
+        import backup_setup
+        if op == 'setup_inventory': return backup_setup.inventory()
+        if op == 'network': return backup_setup.network(request, job)
+        if op == 'test_target': return backup_setup.probe(request['path'])
+        if op == 'configure': return backup_setup.configure(library, request, job)
+        return backup_setup.finish_setup(library, identity, job)
     if op == 'list': return library.all(archived=bool(request.get('archived')))
     if op == 'discover':
         from interop_vault import discover_sources
@@ -73,7 +81,7 @@ def execute(library, request, job):
         plan = library.get(identity)
         sources = [p for p in plan['sources'] if p != request['path']]
         if not sources: raise ValueError('Mindestens eine Quelle muss erhalten bleiben.')
-        library.update(identity, sources=sources, app_sources=[r for r in plan.get('app_sources', []) if r['path'] in sources])
+        library.update(identity, sources=sources, groups={g: [p for p in rows if p in sources] for g, rows in plan.get('groups', {}).items()}, remote_sources=[r for r in plan.get('remote_sources', []) if r['path'] in sources], app_sources=[r for r in plan.get('app_sources', []) if r['path'] in sources])
         return True
 
 

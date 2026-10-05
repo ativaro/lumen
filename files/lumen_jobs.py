@@ -25,7 +25,8 @@ class Job(QThread):
     def command(self, args, data=None, timeout=300, max_output=2*1024**2):
         self.check()
         # Files prevent large decoder/model stderr output from filling RAM or a pipe.
-        with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr, tempfile.TemporaryFile() as stdin:
+        # Password-bearing stdin must not become a disk-backed temporary file.
+        with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr, os.fdopen(os.memfd_create('lumen-job-input', os.MFD_CLOEXEC), 'w+b') as stdin:
             if data: stdin.write(data); stdin.seek(0)
             proc = subprocess.Popen(args, env=worker_environment(), stdin=stdin, stdout=stdout, stderr=stderr, start_new_session=True)
             started = time.monotonic()
@@ -54,5 +55,4 @@ class Job(QThread):
     def run(self):
         try: self.result.emit(self.function(self))
         except Exception as error: self.failed.emit(str(error) or type(error).__name__)
-
 

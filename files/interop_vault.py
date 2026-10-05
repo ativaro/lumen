@@ -44,6 +44,11 @@ def discover_sources(root=None, store=None):
         if path.is_dir() and (path/'library.sqlite').is_file():
             result.append(dict(app=app, title=tr(title), path=str(path), slot='tools/'+app, kind='library'))
     if not include_state: return result
+    from backup_setup import vault_root
+    native = vault_root()
+    if (native/'vault.kdbx').is_file():
+        result.append(dict(app='vault', title=tr('Verschlüsselter Passwort-Tresor'),
+                           path=str(native), slot='native-vault', kind='native-vault'))
     notebook = store.setting('knowledge/notebook', '') if store else ''
     if store is None and (state/'lumen.sqlite3').is_file():
         with closing(sqlite3.connect((state/'lumen.sqlite3').as_uri()+'?mode=ro', uri=True)) as db:
@@ -139,7 +144,13 @@ def merge_sources(library, identity, sources, source_ref=None, token=None, signa
             if previous and previous['id'] != identity: raise ValueError(tr('Diese Übergabe gehört bereits zu einem anderen Sicherungsplan.'))
             receipts[token] = signature
         schedule = dict(schedule_pending=schedule_interval) if schedule_interval is not None else {}
-        library.update(identity, sources=paths, app_sources=list(apps.values()), interop_sources=refs, interop_handoffs=receipts, **schedule)
+        groups = dict(plan.get('groups', {}))
+        if groups:
+            for row in rows:
+                group = 'vault' if row.get('kind') == 'native-vault' else 'lumen' if row.get('app') else 'files'
+                path = str(Path(row['path']).expanduser().resolve(strict=True))
+                groups[group] = list(dict.fromkeys([*groups.get(group, []), path]))
+        library.update(identity, groups=groups, sources=paths, app_sources=list(apps.values()), interop_sources=refs, interop_handoffs=receipts, **schedule)
     return library.get(identity)
 
 
@@ -257,7 +268,10 @@ def prepared_sources(plan, job, root=None):
             slot = _slot(row['slot'])
             if str(slot) in slots: raise ValueError(tr('Mehrere Lumen-Quellen verwenden denselben Sicherungsplatz.'))
             slots.add(str(slot))
-            if row.get('kind') == 'inbox-local':
+            if row.get('kind') == 'native-vault':
+                from backup_setup import encrypted_copy
+                encrypted_copy(Path(row['path']), bundle/slot, job)
+            elif row.get('kind') == 'inbox-local':
                 from interop_inbox_backup import export_package
                 export_package(Path(row['path']), bundle/slot, job)
             else: _copy_source(Path(row['path']), bundle/slot, job)
@@ -313,6 +327,11 @@ def open_restored(bundle, app):
     matches = [entry for entry in restored_bundles(bundle.get('restore_root', base)) if entry['root'] == str(base)]
     if not matches or not any(r['app'] == app and r.get('kind') != 'inbox-local' for r in matches[0]['sources']):
         raise ValueError(tr('Keine geprüfte Anwendungskopie gefunden.'))
+    native = next((r for r in matches[0]['sources'] if r['app'] == app and r.get('kind') == 'native-vault'), None)
+    if native:
+        from PySide6.QtGui import QDesktopServices
+        from PySide6.QtCore import QUrl
+        return QDesktopServices.openUrl(QUrl.fromLocalFile(native['restored']))
     relocate_restored(matches[0])
     if app == 'wissen':
         from lumen_store import Store

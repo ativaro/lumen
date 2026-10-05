@@ -219,6 +219,15 @@ class VaultNativeHandoffTest(unittest.TestCase):
         from PySide6.QtWidgets import QApplication
         cls.app = QApplication.instance() or QApplication([])
 
+    @classmethod
+    def tearDownClass(cls):
+        # Dispose Qt-owned windows while Python signal callbacks are still alive.
+        from PySide6.QtCore import QCoreApplication, QEvent
+        cls.app.closeAllWindows()
+        for widget in cls.app.topLevelWidgets(): widget.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+        cls.app.processEvents()
+
     def test_existing_plan_native_handoff_and_cancel(self):
         from PySide6.QtCore import QTimer
         from PySide6.QtWidgets import QApplication, QListWidget

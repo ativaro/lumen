@@ -432,3 +432,11 @@ from the passing timestamp checks; no unrelated runtime changes were made.
 - [x] Port plan/source/schedule/snapshot/restore/check controls; preserve explicit legacy interop dialogs.
 - [x] Verify same-window identity, retained selection, reconnect errors, real synthetic Restic backup/restore, cold helper startup and native singleton.
 - [x] Isolated KDE/clipboard tests pass; native prerelease/expert-review boundary remains unchanged.
+
+# Guided backups — 2026-10-05
+
+- [x] Source inventory: three groups, explicit paths, stable encrypted Vault copy; real Restic roundtrip.
+- [x] Network: discover saved/advertised shares, inline login, keyring choice, write/read/delete probe, reconnect by URI.
+- [x] Native four-page wizard: defaults, customization, independent recovery key, first backup and test restore; DE/EN UI.
+- [x] Overview/restore: group coverage, honest status, safe restore/adopt and setup entry; second destination.
+- [ ] Native/worker/security checks, installation, private Git and local system/sync documentation.
