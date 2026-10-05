@@ -8,6 +8,17 @@ No personal hostname, token or vault data belongs in source or test fixtures.
 
 ## Native storage flow
 
+The shared assistant instruction in Lumen, Search and Files offers Vault storage
+once when the user actually supplies credentials, using semantic context in the
+user's language. There is no keyword scanner. Discussion, examples and retrieved
+content do not trigger this offer. Agreement opens the existing native intake;
+an explicit save request needs no redundant conversational confirmation. Decline
+or cancellation suppresses further offers for the same access until the user
+raises it again. This is model-directed behavior, not a deterministic detector.
+The user enters secrets locally: neither the offer nor the tool copies them
+from chat, removes prior disclosure, or grants permission for later API/MCP use.
+When tools are unavailable, Lumen points the user to Vault without claiming a save.
+
 1. Lumen calls `lumen_vault_store(title, kind)` with a non-sensitive label and
    `login` or `token`. There is deliberately no password, token, username, raw
    field dictionary or secret export argument. The tool is discoverable even

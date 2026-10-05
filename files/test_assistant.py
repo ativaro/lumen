@@ -237,6 +237,12 @@ class AssistantTest(unittest.TestCase):
                 self.assertEqual(backend.messages[-1]['parts'][0]['text'], 'Fertige Antwort')
                 backend.send('Noch eine Frage')
                 self.wait(lambda: len([r for r in state['requests'] if r[1].endswith('/prompt_async')]) == 2)
+                # Both the initial turn and continuation carry the shared Vault
+                # policy to OpenCode, including when general auto-approve changed.
+                from vault_access import INSTRUCTION as VAULT_INSTRUCTION
+                prompts = [body for _, path, body, _ in state['requests'] if path.endswith('/prompt_async')]
+                for prompt in prompts:
+                    self.assertIn(VAULT_INSTRUCTION, prompt['system'])
                 panel.stop.click()
                 self.wait(lambda: not backend.busy)
                 self.assertTrue(any(path.endswith('/abort') for _, path, _, _ in state['requests']))
