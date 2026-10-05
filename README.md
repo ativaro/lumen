@@ -7,9 +7,24 @@ written permission. [Third-party rights and release constraints](THIRD_PARTY_NOT
 ## Install → setup wizard
 
 **Arch/CachyOS · KDE Plasma 6 · run as your normal user.**
-This repository is currently **private**. With Git installed and your GitHub
-account authorized to access `ativaro/lumen`, run from a directory without a
-`lumen` checkout:
+This repository is currently **private**. Your GitHub account must have access to
+`ativaro/lumen`. On a fresh computer or VM, first authenticate Git **inside that
+computer or VM**; logging in to Linux or to GitHub in a browser alone is not enough.
+
+```bash
+sudo pacman -S --needed git github-cli
+gh auth login --hostname github.com --git-protocol https --web
+gh auth setup-git --hostname github.com
+```
+
+Complete the browser sign-in and enter the one-time code if prompted, using the
+GitHub account that can access Lumen. Only the package installation uses `sudo`;
+run `gh` and Git as your normal user. The `sudo` password is your VM/Linux password.
+GitHub does not accept your account password at Git's HTTPS password prompt;
+the browser flow above configures Git's authentication for you.
+
+Then run from a directory without a `lumen` checkout. **Keep `ativaro` in the URL**:
+it is the repository owner, not a placeholder for your Linux or GitHub username.
 
 ```bash
 git clone --branch main --single-branch https://github.com/ativaro/lumen.git && bash lumen/bootstrap.sh
@@ -18,6 +33,7 @@ git clone --branch main --single-branch https://github.com/ativaro/lumen.git && 
 The installer prepares missing dependencies, installs Lumen locally and opens
 the graphical wizard for AI, speech and desktop setup. Git authentication is
 handled by your Git credential helper; never put a token in the command or README.
+If authentication fails, follow the [access check and troubleshooting steps](INSTALL.md#github-access-on-a-fresh-computer-or-vm).
 Desktop panels, wallpapers and decorations are included; activate them in the
 wizard when ready. See [installation and recovery](INSTALL.md).
 

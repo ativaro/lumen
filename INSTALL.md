@@ -12,6 +12,54 @@ normal user. Install Plasma and a display manager through your distribution firs
 Lumen supplies its applications, applets, themes, decorations and wallpapers;
 it uses KDE's compositor, tray, clock, task manager and pager.
 
+## GitHub access on a fresh computer or VM
+
+**The repository is private.** Your GitHub account must be granted access to
+`ativaro/lumen`. Signing in to your Linux desktop or to GitHub in a browser does
+not by itself authenticate Git in the terminal. A new VM needs its own Git
+authentication, even when the same account already works on the host computer.
+
+Inside the VM's KDE Plasma session, install Git and the GitHub CLI, then sign in:
+
+```bash
+sudo pacman -S --needed git github-cli
+gh auth login --hostname github.com --git-protocol https --web
+gh auth setup-git --hostname github.com
+```
+
+The first command may ask for your **VM/Linux password** to install packages.
+Run the remaining commands as your normal user, **without `sudo`**. Follow the
+browser sign-in, enter the one-time code if prompted, and select the **GitHub
+account with access to Lumen**. The final command configures Git to use that
+GitHub CLI login. If Git already has working credentials in this VM, you can skip
+this setup.
+
+Check repository access before installing:
+
+```bash
+git ls-remote https://github.com/ativaro/lumen.git HEAD
+```
+
+Success prints a commit identifier followed by `HEAD`. **Do not replace `ativaro`
+in the URL**: it is the repository owner, not your VM username or a login field.
+
+If authentication still fails:
+
+- **`Authentication failed`, `Invalid username or token`, or password authentication
+  unsupported:** GitHub does not accept a normal account password for HTTPS Git
+  operations. Use the browser login above; do not paste a password or token into
+  the installation command.
+- **`Repository not found` or HTTP 404:** check the signed-in account with
+  `gh auth status --hostname github.com` and open
+  [the repository](https://github.com/ativaro/lumen) in a browser signed into that
+  same account. If it cannot access the repository, the account needs access from
+  the repository owner. Changing your Linux username does not grant access.
+- **The old `curl … | bash` command fails:** it downloads without Git credentials
+  and cannot access the private repository. Use the authenticated clone below.
+
+See GitHub's [authentication documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github)
+and [GitHub CLI credential setup](https://cli.github.com/manual/gh_auth_setup-git).
+
 ## One-command installation
 
 Inside your Plasma session, run this as your normal user (do not prefix it with sudo):
@@ -20,10 +68,9 @@ Inside your Plasma session, run this as your normal user (do not prefix it with 
 git clone --branch main --single-branch https://github.com/ativaro/lumen.git && bash lumen/bootstrap.sh
 ```
 
-**The repository is private.** Git and a GitHub account granted access to
-`ativaro/lumen` are required. Authenticate through your Git credential helper;
-do not paste access tokens into installation commands. Run from a directory that
-does not already contain `lumen`. To update an existing Lumen installation, run
+Run from a directory that does not already contain `lumen`, after completing the
+[GitHub access check](#github-access-on-a-fresh-computer-or-vm) above.
+To update an existing Lumen installation, run
 from **any directory** in your desktop session as your normal user. Neither an
 installed Updater nor the original checkout is needed:
 
