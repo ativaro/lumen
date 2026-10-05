@@ -34,7 +34,7 @@ def running(directory, task):
 def applications():
     from lumen_apps import catalogue
     labels = {'lumen': 'Lumen', 'files': tr('Dateien'), 'search': tr('Suche'),
-              'meetings': tr('Meetings'), 'household': tr('Haushalt'), 'workbench': tr('Werkbank'),
+              'meetings': tr('Meetings'), 'household': tr('Haushalt'),
               'radio': tr('Radio')}
     return [dict(id=key, title=title, label=labels.get(key, title.removeprefix('Lumen ')),
                  description=description, icon=icon) for key,title,description,icon in catalogue()]
