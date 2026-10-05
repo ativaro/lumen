@@ -488,13 +488,15 @@ def validate_schema(value, schema, path='arguments'):
 def tool_native(name, args):
     from pathlib import Path
     import signal
-    from lumen_mcp_tools import DEFINITIONS
-    if DEFINITIONS[name].get('action') and not DEFINITIONS[name].get('native_confirmation') and not ACTIONS_ENABLED:
+    from lumen_mcp_tools import DEFINITIONS, action_allowed
+    if not action_allowed(name):
         raise ValueError('MCP actions are disabled.')
     intake = name in ('lumen_vault_store', 'lumen_vault_store_from_chat')
-    mutation = intake or (name == 'lumen_vault_api_request' and args.get('method') != 'GET') or (name == 'lumen_vault_mcp' and args.get('operation') == 'call')
+    project_write = name in ('lumen_project_create', 'lumen_project_update', 'lumen_project_start')
+    mutation = project_write or intake or (name == 'lumen_vault_api_request' and args.get('method') != 'GET') or (name == 'lumen_vault_mcp' and args.get('operation') == 'call')
     uncertain = ('Vault save outcome is unknown. Check Vault before retrying; do not automatically repeat the save.' if intake else
                  'The remote operation outcome is unknown. Check remote state before retrying; do not automatically repeat the write.')
+    if project_write: uncertain = 'Project action outcome is unknown. Read the project and run history before retrying; do not automatically repeat the action.'
     worker = Path(sys.modules['lumen_mcp_tools'].__file__)
     process = subprocess.Popen([sys.executable, str(worker)], stdin=subprocess.PIPE,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
@@ -518,10 +520,10 @@ def tool_native(name, args):
 
 
 lumen_modules()
-from lumen_mcp_tools import DEFINITIONS
+from lumen_mcp_tools import DEFINITIONS, action_allowed
 from functools import partial
 for name, definition in DEFINITIONS.items():
-    if not definition.get('action') or definition.get('native_confirmation') or ACTIONS_ENABLED:
+    if action_allowed(name):
         TOOLS[name] = dict(definition, fn=partial(tool_native, name), native=True)
 
 

@@ -18,6 +18,8 @@ Existing running engine connections retain their old tool list until reconnected
 | Wissen | `lumen_notes_search`, `lumen_notes_read` | Only shared notebook entries while memory usage is enabled; resolved links exclude private notes. |
 | Memory | `lumen_memory_context` | The same enablement, project scope, forgetting and shared-note rules as Lumen conversations. |
 | Tasks | `lumen_propose_task`, `lumen_tasks_list`, `lumen_task_get` | Visible unapproved action drafts, progress, results, errors and events. No implicit execution. |
+| Projects | `lumen_projects_list`, `lumen_project_read`, `lumen_project_runs` | Saved hierarchy, notes, references and actual results; no execution. |
+| Project actions | `lumen_project_create`, `lumen_project_update`, `lumen_project_start` | With project actions enabled: create entries, edit against a read revision, start a single task through the native runner. |
 | Settings | `lumen_settings_get` | Allowlisted preferences, speech configuration status, memory/Inbox flags; optional live themes, panels, shortcuts and services. |
 | Vault | `lumen_vault_status` | Cached plans and last backup/check timestamps. No repository access, unlock, backup or restore. |
 | Inbox | `lumen_inbox_search`, `lumen_inbox_read`, `lumen_calendar_list` | Local synced cache only. No credentials, raw MIME, attachments, sending or live sync. |
@@ -85,3 +87,27 @@ Validation: `PYTHONPATH=files QT_QPA_PLATFORM=offscreen lumen-python -m unittest
 fixtures never send real email or modify real backups or desktop themes.
 
 Protocol: [MCP tools](https://modelcontextprotocol.io/specification/2025-06-18/server/tools).
+
+## Project skill and writes
+
+`lumen-projects` is installed alongside `lumen-admin` by `lumen-setup`. After an
+update using `--no-mcp`, rerun `lumen-setup` and reconnect the engine to load the
+new skill/tool catalogue. Existing MCP enablement and permission settings remain
+unchanged. Set `LUMEN_MCP_PROJECT_ACTIONS=1` in the `cachyos` MCP environment to
+permit only project writes while leaving general system actions off. The broader
+`LUMEN_MCP_ACTIONS=1` also permits project writes. Normal engine approvals still
+apply. Neither flag is enabled automatically by installation. The native Lumen conversation also receives project-tool guidance.
+
+Create a project, then initiatives, then manual/research/analysis/automation tasks
+using returned parent IDs. Read an entry and pass `item.revision` unchanged as
+`expected_updated` when editing or starting it. Stale revisions, inactive parents,
+dependency cycles and concurrent runs are refused. Only manual tasks can be
+marked done directly. Notes and goals are bounded to 20,000 characters per write.
+Native project windows refresh external changes while preserving editor drafts.
+
+Starting a task uses the existing attached sources and configured AI provider;
+research may browse the web. It returns a run ID immediately. Read that run with
+`lumen_project_runs` to determine success and retrieve results. Uncertain writes
+must be checked before retrying. Sources and schedules remain managed through
+the native UI; these tools cannot attach arbitrary private files, enable recurring
+execution, delete project data, grant access or fabricate completed results.

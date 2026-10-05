@@ -44,24 +44,28 @@ class Projects:
     def add(self, project, parent, title, kind='manual', **data):
         title = title.strip()
         if not title: raise ValueError(tr('Bitte einen Namen angeben.'))
-        self.library.get(project)
-        if kind != 'initiative':
-            owner = self.get(parent)
-            if owner['project'] != project or owner['kind'] != 'initiative' or owner['archived']:
-                raise ValueError(tr('Eine Aufgabe gehört zu einem aktiven Vorhaben.'))
-            if kind not in KINDS: raise ValueError(tr('Ungültige Aufgabenart.'))
-        elif parent: raise ValueError(tr('Ein Vorhaben gehört direkt zum Projekt.'))
         key = uuid.uuid4().hex; now = time.time()
         value = dict(notes='', resources=[], goal='', depends=[], status='open', enabled=False, interval=86400, next_run=0)
         value.update(data)
         with self.library.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            record = db.execute('SELECT archived FROM records WHERE id=?', (project,)).fetchone()
+            if record is None or record['archived']: raise ValueError('Project unavailable or archived.')
+            if kind != 'initiative':
+                owner = self.unpack(db.execute('SELECT * FROM project_items WHERE id=?', (parent,)).fetchone())
+                if owner['project'] != project or owner['kind'] != 'initiative' or owner['archived']:
+                    raise ValueError(tr('Eine Aufgabe gehört zu einem aktiven Vorhaben.'))
+                if kind not in KINDS: raise ValueError(tr('Ungültige Aufgabenart.'))
+            elif parent: raise ValueError(tr('Ein Vorhaben gehört direkt zum Projekt.'))
             db.execute('INSERT INTO project_items VALUES (?,?,?,?,?,?,?,?,0)', (key, project, parent, kind, title, json.dumps(value), now, now))
         return key
 
-    def update(self, key, **changes):
+    def update(self, key, expected_updated=None, **changes):
         with self.library.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             current = self.unpack(db.execute('SELECT * FROM project_items WHERE id=?', (key,)).fetchone())
+            if expected_updated is not None:
+                self.check_edit(db, current, expected_updated)
             if 'depends' in changes:
                 graph = {r['id']: self.unpack(r) for r in db.execute('SELECT * FROM project_items WHERE project=?', (current['project'],))}
                 graph[key]['depends'] = list(dict.fromkeys(changes['depends']))
@@ -128,11 +132,24 @@ class Projects:
                 data=json.loads(row[0]); data.update(changes)
                 db.execute('UPDATE project_runs SET data=? WHERE id=?',(json.dumps(data),run))
 
-    def begin_run(self, task, snapshot, scheduled=False):
+    @staticmethod
+    def check_edit(db, item, expected_updated):
+        project = db.execute('SELECT archived FROM records WHERE id=?', (item['project'],)).fetchone()
+        parent = db.execute('SELECT archived FROM project_items WHERE id=?', (item['parent'],)).fetchone()
+        if (str(item['updated']) != expected_updated or item['archived'] or not project or project[0]
+                or (item['kind'] != 'initiative' and (not parent or parent[0]))):
+            raise ValueError('Project entry changed or archived. Read it again before editing or starting.')
+        if db.execute("SELECT 1 FROM project_runs WHERE task=? AND status='running'", (item['id'],)).fetchone():
+            raise ValueError('Task is running. Wait for its result before editing or starting again.')
+
+    def begin_run(self, task, snapshot, scheduled=False, expected_updated=None):
         key = uuid.uuid4().hex; now = time.time()
         with self.library.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             item = self.unpack(db.execute('SELECT * FROM project_items WHERE id=?', (task,)).fetchone())
+            if item['kind'] not in ('research', 'analysis', 'automation') and expected_updated is not None:
+                raise ValueError('Only research, analysis and automation tasks can run.')
+            if expected_updated is not None: self.check_edit(db, item, expected_updated)
             if scheduled and (item['kind']!='automation' or not item.get('enabled') or item.get('next_run',0)>now):
                 raise ValueError(tr('Dieser Zeitplan ist nicht mehr fällig.'))
             project = db.execute('SELECT archived FROM records WHERE id=?', (item['project'],)).fetchone()

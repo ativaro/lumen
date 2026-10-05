@@ -171,7 +171,10 @@ fi
 mkdir -p "$PREFIX/shell" "$PREFIX/opencode-command" "$PREFIX/opencode-skill/lumen-admin"
 cp "$REPO/shell/"* "$PREFIX/shell/"
 cp "$REPO/opencode-command/"*.md "$PREFIX/opencode-command/"
-cp "$REPO/opencode-skill/lumen-admin/SKILL.md" "$PREFIX/opencode-skill/lumen-admin/"
+for skill in lumen-admin lumen-projects; do
+    mkdir -p "$PREFIX/opencode-skill/$skill"
+    cp "$REPO/opencode-skill/$skill/SKILL.md" "$PREFIX/opencode-skill/$skill/"
+done
 UNITDIR="$CONFIG_HOME/systemd/user"
 mkdir -p "$UNITDIR"
 subst "$REPO/system/systemd/user/lumen-jobs.service" > "$UNITDIR/lumen-jobs.service"

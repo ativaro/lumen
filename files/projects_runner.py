@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 import shutil
+import sqlite3
 from PySide6.QtCore import QObject, Signal, QTimer, QCoreApplication
 from lumen_i18n import tr
 from lumen_jobs import Job
@@ -91,7 +92,7 @@ class Runner(QObject):
         super().__init__(parent); self.projects=projects; self.background=background
         self.busy=False; self.fd=None; self.job=None; self.engine=None; self.run=''; self.cancelled=False; self.phase=0; self.answers=[]
 
-    def start(self,task):
+    def start(self,task,expected_updated=None):
         if self.busy:raise ValueError(tr('Bitte den laufenden Vorgang abwarten.'))
         self.phase=0; self.answers=[]; self.stages=[]; self.cancelled=False
         if self.engine:self.engine.deleteLater(); self.engine=None
@@ -99,7 +100,7 @@ class Runner(QObject):
         try:
             for previous in self.projects.runs(task):
                 if previous['status']=='running':self.projects.finish_run(previous['id'],'paused',error=tr('Unterbrochene Ausführung'))
-            self.run=self.projects.begin_run(task,{},scheduled=self.background)
+            self.run=self.projects.begin_run(task,{},scheduled=self.background,expected_updated=expected_updated)
         except Exception:os.close(self.fd); self.fd=None; raise
         self.busy=True; self.task=task; self.status.emit(tr('Angeheftete Quellen werden gelesen …'))
         self.job=Job(lambda job:snapshot(self.projects,task,job),self)
@@ -193,11 +194,26 @@ def install_timer(root):
 
 def main():
     import argparse
-    parser=argparse.ArgumentParser(); parser.add_argument('--tick',action='store_true',required=True); parser.add_argument('--root'); args=parser.parse_args()
+    parser=argparse.ArgumentParser()
+    mode=parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--tick',action='store_true'); mode.add_argument('--task')
+    parser.add_argument('--expected-updated'); parser.add_argument('--root'); args=parser.parse_args()
+    app=QCoreApplication.instance() or QCoreApplication(sys.argv)
+    projects=Projects(Library('workbench',args.root))
+    if args.task:
+        if not args.expected_updated: parser.error('--task requires --expected-updated')
+        runner=Runner(projects)
+        runner.finished.connect(lambda *_:QTimer.singleShot(0,app.quit))
+        try:
+            runner.start(args.task,expected_updated=args.expected_updated)
+        except (ValueError,OSError,sqlite3.Error) as error:
+            print(json.dumps(dict(error=str(error))),flush=True); return 1
+        print(json.dumps(dict(task=args.task,run=runner.run,status='running')),flush=True)
+        app.exec(); return 0
     from lumen_tasks import defer_background
     from lumen_store import Store
     if defer_background(Store()):return
-    app=QCoreApplication.instance() or QCoreApplication(sys.argv); projects=Projects(Library('workbench',args.root)); recover(projects)
+    recover(projects)
     queue=[]
     for project in projects.library.all():
         for item in projects.items(project['id']):
@@ -211,4 +227,4 @@ def main():
     runner.finished.connect(lambda *_:QTimer.singleShot(0,advance)); QTimer.singleShot(0,advance); app.exec()
 
 
-if __name__=='__main__':main()
+if __name__=='__main__':sys.exit(main())

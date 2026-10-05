@@ -72,6 +72,20 @@ class ProjectsTest(TestCase):
         self.assertFalse(self.projects.get(task)['archived'])
         w.close()
 
+    def test_external_project_edits_refresh_without_discarding_editor_draft(self):
+        from tools_workbench import Workbench
+        w=Workbench(self.temp.name); w.focus_record(self.project)
+        self.library.update(self.project,notes='Saved by project tool')
+        w.poll_runs(); self.assertEqual(w.notes.toPlainText(),'Saved by project tool')
+        w.notes.setPlainText('Unsent local edit')
+        self.library.update(self.project,notes='Another external edit')
+        w.poll_runs(); self.assertEqual(w.notes.toPlainText(),'Unsent local edit')
+        w.save()
+        self.assertEqual(self.library.get(self.project)['notes'],'Unsent local edit')
+        self.library.create('Added by tool')
+        w.poll_runs(); self.assertEqual(w.entries.topLevelItemCount(),2)
+        w.close()
+
     def test_due_check_is_atomic_and_history_selection_stays(self):
         from tools_workbench import Workbench
         task=self.projects.add(self.project,self.initiative,'Repeat','automation',enabled=True,next_run=0)

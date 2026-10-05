@@ -95,6 +95,7 @@ gracefully on other setups.
 | **Lumen Reader** (`lumen-reader`) | PDFs, EPUBs and saved articles; reading position, highlights, margin notes, local read-aloud and cited passages in Lumen knowledge |
 | **Sound in Lumen System** (`lumen-sound`) | opens the Sound tab in the existing System window: per-stream volume, mute, outputs, app rules and conversation ducking; [Reader/Sound guide](READER-SOUND.md) |
 | **Lumen Wissen** (`lumen-wissen`) | direct notebook with autosave, editable titles, folder/tag collections and separate Lumen memory; explicit sharing, optional learning, corrections and forgetting; images, links, knowledge map and sourced questions; [Wissen guide](WISSEN.md) |
+| **Project tools and skill** | `lumen-projects` guides native project planning; MCP tools read/create/edit projects, initiatives and tasks, and start research/analysis runs with real history. Project-only write permission is separate from system actions; [MCP setup](MCP.md#project-skill-and-writes). |
 | **Application designs** | Glas by default, plus Graphit, Atelier and Mitternacht; shared live themes for Lumen, search, Files, the image viewer, desktop panels and their popups, with native previews in settings |
 | **System watchdog** | systemd timer checks failed units, kernel errors, disk, GPU temp; automatic opencode analysis |
 | **App recovery** | Independent crash/hang detection for Lumen, Files and search; private reports and restoration of views and drafts |

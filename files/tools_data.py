@@ -58,11 +58,13 @@ class Library:
             db.execute('INSERT INTO records VALUES (?,?,?,?,?)', (key, title, json.dumps(data), 0, time.time()))
         return key
 
-    def update(self, key, **changes):
+    def update(self, key, expected_updated=None, **changes):
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             row = db.execute('SELECT * FROM records WHERE id=?', (key,)).fetchone()
             if row is None: raise ValueError(tr('Dieser Eintrag ist nicht mehr vorhanden.'))
+            if expected_updated is not None and (str(row['updated']) != expected_updated or row['archived']):
+                raise ValueError('Project changed or archived. Read it again before editing.')
             title = changes.pop('title', row['title']).strip()
             if not title: raise ValueError(tr('Bitte einen Namen angeben.'))
             data = json.loads(row['data']); data.update(changes)

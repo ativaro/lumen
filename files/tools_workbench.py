@@ -66,6 +66,7 @@ class Workbench(ToolWindow):
         update_window(self)
         self.load_task_fields(r)
         self.loaded_fields=self.editor_fields()
+        self.loaded_record=dict(r)
 
     def editor_fields(self):
         value=dict(title=self.title.text(),notes=self.notes.toPlainText(),resources=[self.resources.item(i).data(Qt.UserRole) for i in range(self.resources.count())],interop_path_revision=self.interop_path_revision)
@@ -412,7 +413,17 @@ class Workbench(ToolWindow):
         self.open_scope(self.scope)
 
     def poll_runs(self):
+        with self.library.connect() as db:
+            revision=tuple(tuple(r) for r in db.execute('SELECT id,updated,archived FROM records UNION ALL SELECT id,updated,archived FROM project_items ORDER BY id'))
+        if revision!=getattr(self,'tree_revision',None):
+            self.refresh(); self.tree_revision=revision
         if not self.current:return
+        if not self.save_timer.isActive() and self.editor_fields()==self.loaded_fields:
+            record=self.projects.get(self.scope) if self.scope else self.library.get(self.current)
+            if any(record.get(key)!=self.loaded_record.get(key) for key in self.loaded_fields):
+                self.loading=True
+                try:self.load_fields(record)
+                finally:self.loading=False
         self.refresh_tasks()
         self.refresh_run_status()
         if not self.save_timer.isActive():self.load_runs()
