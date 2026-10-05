@@ -189,6 +189,36 @@ class SetupDialogTest(unittest.TestCase):
             self.assertTrue(settings.value('setupCompleted', type=bool))
             dialog.deleteLater(); reopened.deleteLater()
 
+    def test_fresh_zen_profile_selects_engine_default_without_api_key(self):
+        from PySide6.QtCore import QSettings
+        from setup_dialog import SetupDialog
+        with tempfile.TemporaryDirectory() as tmp:
+            settings = QSettings(tmp+'/prefs.ini', QSettings.IniFormat)
+            dialog = SetupDialog(settings=settings)
+            self.addCleanup(dialog.deleteLater); self.addCleanup(dialog.reject)
+            inventory = {'all': [{'id': 'opencode', 'name': 'OpenCode Zen', 'models': {
+                'free-a': {'name': 'Free A'}, 'free-b': {'name': None}, 'unavailable': None}}],
+                'connected': ['opencode'], 'default': {'opencode': 'free-b'}}
+            def request(method, path, body=None, callback=None, error=None):
+                self.assertEqual((method, path), ('GET', '/provider/auth'))
+                callback({})
+            with patch.object(dialog.engine, 'request', side_effect=request):
+                dialog.loaded_providers(inventory)
+                self.assertEqual(dialog.models.currentData(), 'opencode/free-b')
+                self.assertEqual(dialog.models.currentText(), 'OpenCode Zen · free-b')
+                self.assertFalse(settings.contains('model'))  # Only save when advancing.
+                self.assertEqual(dialog.key.text(), '')
+                dialog.models.setCurrentIndex(dialog.models.findData('opencode/free-a'))
+                dialog.loaded_providers(inventory)
+                self.assertEqual(dialog.models.currentData(), 'opencode/free-a')
+                dialog.stack.setCurrentIndex(1); dialog.change_page(1)
+                self.assertEqual(settings.value('model'), 'opencode/free-a')
+                inventory['all'][0]['models'] = {}
+                dialog.loaded_providers(inventory)
+                self.assertFalse(dialog.models.isEnabled())
+                self.assertIn('keine verfügbaren Modelle', dialog.status.text())
+                self.assertEqual(settings.value('model'), 'opencode/free-a')
+
     def test_provider_check_rejects_non_api_responses_and_recovers(self):
         import threading
         import json
@@ -238,7 +268,7 @@ class SetupDialogTest(unittest.TestCase):
                 dialog.load_engine(); wait()
                 self.assertTrue(dialog.connect_provider.isEnabled())
                 self.assertTrue(dialog.repair_engine.isHidden())
-                self.assertEqual(dialog.models.itemData(1), 'example/test')
+                self.assertEqual(dialog.models.currentData(), 'example/test')
                 dialog.connect_provider.click(); wait()
                 self.assertEqual(dialog.key.text(), 'test-only-secret')
                 self.assertNotIn('test-only-secret', dialog.status.text())

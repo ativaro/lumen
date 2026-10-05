@@ -137,7 +137,8 @@ class SetupDialog(QDialog):
         self.repair_engine.hide(); page.addWidget(self.repair_engine)
         self.models = QComboBox(); self.models.setAccessibleName(tr('Modell für Lumen'))
         self.models.setMinimumContentsLength(15); self.models.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
-        self.models.addItem(tr('Bisherige Modellwahl beibehalten'), '')
+        self.models.addItem(tr('Modelle noch nicht geladen'), '')
+        self.models.setEnabled(False)
         self.model_details = Details(tr('Modell anpassen')); page.addWidget(self.model_details)
         form = QFormLayout(); form.addRow(tr('Modell'), self.models); self.model_details.content.addLayout(form)
         toggle = button(tr('Weiteren Anbieter verbinden …'), lambda: self.auth_box.setVisible(toggle.isChecked()))
@@ -333,13 +334,23 @@ class SetupDialog(QDialog):
             raise ValueError('Invalid provider')
         self.providers = data['all']; connected = set(data['connected']); self.connected = connected
         selected = self.models.currentData() or self.settings.value('model', '')
-        self.models.clear(); self.models.addItem(tr('Bisherige Modellwahl beibehalten'), '')
+        self.models.clear(); self.models.addItem(tr('Bisherige Modellwahl beibehalten') if selected else tr('Keine Modelle verfügbar'), '')
         names = []
         for provider in self.providers:
             if provider['id'] not in connected: continue
-            names.append(provider.get('name', provider['id']))
+            name = provider.get('name') or provider['id']
+            names.append(name)
             for identifier, model in provider.get('models', {}).items():
-                self.models.addItem(provider.get('name', provider['id']) + ' · ' + model.get('name', identifier), provider['id'] + '/' + identifier)
+                if not isinstance(model, dict): continue
+                self.models.addItem(name + ' · ' + (model.get('name') or identifier), provider['id'] + '/' + identifier)
+        if not selected and self.models.count() > 1:
+            self.models.removeItem(0)
+            defaults = data.get('default') or {}
+            if isinstance(defaults, dict):
+                selected = next((p['id'] + '/' + defaults[p['id']] for p in self.providers
+                    if isinstance(defaults.get(p['id']), str) and
+                    self.models.findData(p['id'] + '/' + defaults[p['id']]) >= 0), '')
+        self.models.setEnabled(any(self.models.itemData(i) for i in range(self.models.count())))
         self.models.setCurrentIndex(max(0, self.models.findData(selected)))
         self.engine_status.setText(tr('Engine erreichbar · Konfiguriert: ') + (', '.join(names) or tr('noch kein Anbieter')) +
             tr('\nZugang und Antwortqualität der Anbieter wurden nicht mit einer Testanfrage geprüft.'))
@@ -348,16 +359,17 @@ class SetupDialog(QDialog):
     def loaded_auth(self, data):
         if not isinstance(data, dict): raise ValueError('Invalid authentication methods')
         self.provider.clear()
-        for provider in sorted(self.providers, key=lambda p: (p['id'] != 'ollama-cloud', p.get('name', p['id']))):
+        for provider in sorted(self.providers, key=lambda p: (p.get('name') or p['id']).casefold()):
             # /provider/auth lists plugin overrides. Ordinary providers use API keys.
             methods = data.get(provider['id'], [{'type': 'api'}])
             if any(method.get('type') == 'api' and not method.get('prompts') for method in methods):
-                self.provider.addItem(provider.get('name', provider['id']), provider['id'])
+                self.provider.addItem(provider.get('name') or provider['id'], provider['id'])
         self.connect_provider.setEnabled(self.provider.count() > 0)
         if not any(provider['id'] in self.connected for provider in self.providers):
             self.auth_toggle.setChecked(True); self.auth_box.show()
         self.checking = False; self.set_busy(False); self.refresh()
-        self.status.setText(tr('Vorhandene Konfiguration geladen. Wähle bei Bedarf ein Modell für Lumen.'))
+        self.status.setText(tr('Vorhandene Konfiguration geladen. Wähle bei Bedarf ein Modell für Lumen.') if self.models.isEnabled() else
+            tr('Die Engine liefert keine verfügbaren Modelle. Erneut prüfen oder einen Anbieter verbinden.'))
         self.repair_engine.hide()
 
     def save_auth(self):

@@ -141,6 +141,10 @@ are reused. The **KI-Anbindung** step reads configured providers and models; API
 providers, including Ollama Cloud, can be connected without a terminal. OAuth and
 other login methods still use OpenCode's existing provider setup. Listing configured
 models does not verify a cloud account's credentials or send a test prompt.
+On a fresh profile, the wizard preselects an available model using the engine's
+reported default. This also works with OpenCode Zen's available free models
+without entering a provider key. An empty model list is reported explicitly;
+existing model choices are preserved.
 
 The optional **Mit deiner Stimme** step installs a pinned, checksum-verified
 whisper.cpp executable and a multilingual Small Q5 model (190 MB) into

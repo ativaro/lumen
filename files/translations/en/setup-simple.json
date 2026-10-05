@@ -22,5 +22,8 @@
   "So wird Lumen dich begleiten.": "How Lumen will work with you.",
   "Erinnerungen liegen lokal in Lumen Wissen. Bei aktivem Gedächtnis gehen passende Erinnerungen an deinen KI-Anbieter. Beim Lernen wertet dieser auch deine Nachricht und die vorherige Antwort aus. Du kannst Erinnerungen jederzeit ansehen, ändern und löschen.": "Memories are stored locally in Lumen Wissen. When memory is enabled, relevant memories are sent to your AI provider. When learning, it also reviews your message and the previous answer. You can view, edit and delete memories anytime.",
   "Deine Auswahl wird beim Beenden der Einrichtung übernommen.": "Your choices are saved when you finish setup.",
-  "Das Gedächtnis wurde in einem anderen Fenster geändert. Bitte den Assistenten erneut öffnen.": "Memory settings were changed in another window. Please reopen the setup wizard."
+  "Das Gedächtnis wurde in einem anderen Fenster geändert. Bitte den Assistenten erneut öffnen.": "Memory settings were changed in another window. Please reopen the setup wizard.",
+  "Modelle noch nicht geladen": "Models not loaded yet",
+  "Keine Modelle verfügbar": "No models available",
+  "Die Engine liefert keine verfügbaren Modelle. Erneut prüfen oder einen Anbieter verbinden.": "The engine returned no available models. Check again or connect a provider."
 }
