@@ -10,7 +10,7 @@ it uses KDE's compositor, tray, clock, task manager and pager.
 Inside your Plasma session, run this as your normal user (do not prefix it with sudo):
 
 ```bash
-git clone https://github.com/ativaro/lumen.git && bash lumen/bootstrap.sh --local
+git clone --branch main --single-branch https://github.com/ativaro/lumen.git && bash lumen/bootstrap.sh
 ```
 
 **The repository is private.** Git and a GitHub account granted access to
@@ -19,10 +19,11 @@ do not paste access tokens into installation commands. Run from a directory that
 does not already contain `lumen`. To update an existing checkout:
 
 ```bash
-git -C lumen pull --ff-only && bash lumen/bootstrap.sh --local
+git -C lumen pull --ff-only origin main && bash lumen/bootstrap.sh
 ```
 
-The script uses the authenticated local Git checkout, installs
+The script detects its local checkout automatically (`--local` remains supported),
+so private clones do not trigger a second unauthenticated download. It installs
 missing base dependencies through pacman/sudo, copies Lumen into
 `~/.local/share/lumen` (`$XDG_DATA_HOME/lumen` when set), then opens **Set up Lumen**.
 The checkout and installed application files stay local. The bootstrap requests elevated rights
@@ -58,8 +59,31 @@ backup mechanism. **Next** leaves the current desktop in place. Existing provide
 settings and speech models are reused; the document workshop remains disabled until
 enabled in Files settings. The wizard can be closed and resumed later from
 **Settings → Setup** or `~/.local/share/lumen/bin/lumen-setup-wizard`.
-Running the existing-checkout update command reinstalls the user bundle and opens the wizard even
+Keep the installation checkout clean; an update stops on Git conflicts instead of
+resetting local changes. Running the existing-checkout update command reinstalls the user bundle and opens the wizard even
 if it was previously completed. Download or package errors stop before launching it.
+
+### What the one-liner installs
+
+The user bundle contains Lumen, Files, Search, Wissen, Translate, System, Inbox,
+Reader, Sound, Projects, Household and the combined **Meeting & Radio** window,
+plus all desktop themes, decorations, wallpapers and panels. Both Meeting/Radio
+launch commands remain supported. OpenCode, speech models and optional tools are
+prepared through the wizard, reusing an existing installation when available.
+
+The Vault backup engine, SMB discovery and keyring integration are included.
+The four-step backup wizard is part of the separate native UI described below;
+the standard bundle opens the Python backup configuration. Restic and network
+dependencies can be added through setup. Backups
+need your source/target choices and a separately stored recovery key; no personal
+backup job or network password is distributed in Git.
+
+The **native credential vault is a separate prerelease**. The standard one-liner
+installs the backup app and Vault integration code, but does not build the Rust/C++
+credential UI. See [native Vault installation](native/vault-ui/README.md) for its
+explicit build/install procedure and current qualification limits. An existing
+native installation and encrypted vault are preserved; update its binary with that
+separate procedure. Updating Python files alone does not rebuild native binaries.
 
 The Arch package workflow below is an alternative for a system-wide installation.
 

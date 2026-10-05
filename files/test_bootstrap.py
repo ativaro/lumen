@@ -17,7 +17,7 @@ class BootstrapTest(unittest.TestCase):
             fixture = root / 'source.tar.gz'
             with tarfile.open(fixture, 'w:gz') as archive:
                 for name, content in {
-                    'install.sh': 'set -eu\nmkdir -p "$PREFIX/bin"\ncp "$(dirname "$0")/wizard" "$PREFIX/bin/lumen-setup-wizard"\n',
+                    'install.sh': 'set -eu\n[ "${TEST_FAIL:-}" != install ] || exit 1\nmkdir -p "$PREFIX/bin"\ncp "$(dirname "$0")/wizard" "$PREFIX/bin/lumen-setup-wizard"\n',
                     'wizard': '#!/bin/sh\nprintf "wizard\\n" >> "$TEST_EVENTS"\n',
                 }.items():
                     info = tarfile.TarInfo('lumen-main/' + name); data = content.encode()
@@ -44,7 +44,9 @@ elif name=='qdbus6': sys.exit(1 if os.environ.get('TEST_FAIL')=='desktop' else 0
             cases = ({}, {'TEST_PACKAGES': 'ready'}, {'TEST_FAIL': 'download'},
                      {'TEST_FAIL': 'packages'}, {'TEST_FAIL': 'desktop'},
                      {'TEST_UID': '0'}, {'XDG_CURRENT_DESKTOP': 'GNOME'}, {'DISPLAY': ''},
-                     {'TEST_LOCAL': '1', 'TEST_FAIL': 'download', 'TEST_PACKAGES': 'ready'})
+                     {'TEST_LOCAL': '1', 'TEST_FAIL': 'download', 'TEST_PACKAGES': 'ready'},
+                     {'TEST_LOCAL': 'auto', 'TEST_FAIL': 'download', 'TEST_PACKAGES': 'ready'},
+                     {'TEST_FAIL': 'install'})
             for index, overrides in enumerate(cases):
                 with self.subTest(overrides=overrides):
                     folder = root / str(index); folder.mkdir(); scratch = folder / 'tmp'; scratch.mkdir()
@@ -56,8 +58,9 @@ elif name=='qdbus6': sys.exit(1 if os.environ.get('TEST_FAIL')=='desktop' else 0
                                XDG_CURRENT_DESKTOP='KDE', DISPLAY=':test', WAYLAND_DISPLAY='',
                                DBUS_SESSION_BUS_ADDRESS='unix:path=/test/not-a-real-bus')
                     env.update(overrides)
-                    local = overrides.get('TEST_LOCAL') == '1'
-                    command = ['bash', str(checkout / 'bootstrap.sh'), '--local'] if local else ['bash']
+                    local = bool(overrides.get('TEST_LOCAL'))
+                    command = ['bash', str(checkout / 'bootstrap.sh')] if local else ['bash']
+                    if overrides.get('TEST_LOCAL') == '1': command.append('--local')
                     result = subprocess.run(command, input=None if local else script, text=True, env=env,
                                             capture_output=True, timeout=20)
                     log = events.read_text() if events.exists() else ''
@@ -81,6 +84,36 @@ elif name=='qdbus6': sys.exit(1 if os.environ.get('TEST_FAIL')=='desktop' else 0
                         self.assertEqual(again.returncode, 0, again.stderr)
                         self.assertEqual(events.read_text().count('wizard\n'), 2)
                         self.assertEqual(personal.read_bytes(), b'personal')
+
+    def test_invalid_options_and_truncated_stream_do_not_start_installation(self):
+        script = (REPO/'bootstrap.sh').read_text()
+        with tempfile.TemporaryDirectory() as tmp:
+            env = dict(os.environ, HOME=tmp, PREFIX=tmp+'/untouched', TMPDIR=tmp)
+            for arguments in (['--unknown'], ['--local', '--extra']):
+                result = subprocess.run(['bash', '-s', '--', *arguments], input=script,
+                                        text=True, env=env, capture_output=True, timeout=10)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse((Path(tmp)/'untouched').exists())
+            result = subprocess.run(['bash'], input=script[:script.index('    bash "$source/install.sh"')],
+                                    text=True, env=env, capture_output=True, timeout=10)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+
+    def test_fresh_user_wizard_resolves_sibling_apps_without_shell_path_setup(self):
+        with tempfile.TemporaryDirectory(prefix='lumen fresh ') as tmp:
+            root = Path(tmp); binaries = root/'bin'; binaries.mkdir()
+            (root/'files').mkdir(); (root/'files/setup_dialog.py').touch()
+            launcher = binaries/'lumen-setup-wizard'
+            launcher.write_bytes((REPO/'bin/lumen-setup-wizard').read_bytes())
+            for name, source in {
+                'lumen-python': '#!/bin/sh\ncommand -v lumen-vault\n',
+                'lumen-vault': '#!/bin/sh\nexit 0\n',
+            }.items():
+                helper = binaries/name; helper.write_text(source); helper.chmod(0o755)
+            result = subprocess.run(['bash', str(launcher)], env=dict(os.environ, PATH='/usr/bin'),
+                                    text=True, capture_output=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), str(binaries/'lumen-vault'))
 
 
 if __name__ == '__main__': unittest.main()

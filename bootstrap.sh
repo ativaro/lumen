@@ -10,6 +10,21 @@ bootstrap() {
             *) printf '%s\n' "$2";;
         esac
     }
+    local use_local=0 source='' stage='' prefix
+    if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "$1" != --local ]; }; then
+        message 'Aufruf: bootstrap.sh [--local]' 'Usage: bootstrap.sh [--local]' >&2
+        return 1
+    fi
+    # A downloaded/streamed script has no checkout. A local script must use its
+    # own sources, including authenticated private clones, rather than download again.
+    if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
+        source="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        if [ -f "$source/install.sh" ]; then use_local=1; fi
+    fi
+    if [ "${1:-}" = --local ] && [ "$use_local" = 0 ]; then
+        message 'Lokale Installationsdateien fehlen.' 'Local installation files are missing.' >&2
+        return 1
+    fi
     if [ "$(id -u)" = 0 ]; then
         message 'Bitte als normaler Benutzer starten, ohne sudo vor dem Einzeiler.' 'Run as your normal user, without sudo before the one-line command.' >&2
         return 1
@@ -26,17 +41,11 @@ bootstrap() {
         message 'Für den Einrichtungsassistenten wird eine grafische Sitzung benötigt.' 'The setup wizard needs a graphical session.' >&2
         return 1
     fi
-    local stage prefix source
-    stage="$(mktemp -d)"
-    trap "$(printf 'rm -rf -- %q' "$stage")" EXIT
     prefix="${PREFIX:-${XDG_DATA_HOME:-$HOME/.local/share}/lumen}"
     export PREFIX="$prefix"
-    if [ "$#" -eq 1 ] && [ "$1" = --local ]; then
-        source="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-        [ -f "$source/install.sh" ] || { message 'Lokale Installationsdateien fehlen.' 'Local installation files are missing.' >&2; return 1; }
-    elif [ "$#" -gt 0 ]; then
-        message 'Aufruf: bootstrap.sh [--local]' 'Usage: bootstrap.sh [--local]' >&2; return 1
-    else
+    if [ "$use_local" = 0 ]; then
+        stage="$(mktemp -d)"
+        trap "$(printf 'rm -rf -- %q' "$stage")" EXIT
         message 'Lumen wird heruntergeladen …' 'Downloading Lumen …'
         if ! curl --fail --location --proto '=https' --proto-redir '=https' --retry 2 \
         --connect-timeout 20 --max-time 300 \
@@ -54,7 +63,7 @@ bootstrap() {
         sudo pacman -S --needed --noconfirm -- "${packages[@]}"
     fi
     # Use Python's safe archive filter; never extract downloaded paths as root.
-    if [ "${1:-}" != --local ]; then
+    if [ "$use_local" = 0 ]; then
       /usr/bin/python3 - "$stage" <<'PY'
 from pathlib import Path
 import sys, tarfile
@@ -65,7 +74,7 @@ if not (folder / 'lumen-main/install.sh').is_file():
     raise SystemExit('The downloaded Lumen archive is incomplete.')
 PY
     fi
-    "${LUMEN_PYTHON:-/usr/bin/python3}" -c 'import PySide6.QtWidgets, PySide6.QtSvg, PySide6.QtQuick, gi, PIL, dbus'
+    "${LUMEN_PYTHON:-/usr/bin/python3}" -c 'import PySide6.QtWidgets, PySide6.QtSvg, PySide6.QtQuick, PySide6.QtDBus, gi, PIL, dbus'
     if ! qdbus6 org.kde.plasmashell /PlasmaShell >/dev/null 2>&1; then
         message 'Plasma 6 ist nicht erreichbar. Bitte in deiner Desktop-Sitzung erneut starten.' 'Plasma 6 is unavailable. Try again inside your desktop session.' >&2
         return 1

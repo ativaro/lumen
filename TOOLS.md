@@ -1,19 +1,21 @@
 # Eigenständige Desktop-Werkzeuge
 
-Die Werkzeuge werden mit Lumen installiert, haben aber eigene Fenster und
-Einträge im Anwendungsmenü. Kein Terminal, keine zusätzliche Weboberfläche.
+Die Werkzeuge werden mit Lumen installiert und haben eigene Einträge im
+Anwendungsmenü. **Meeting & Radio** teilen sich ein Fenster mit zwei Tabs oben;
+beide bisherigen Starter öffnen den jeweiligen Tab. Auswahl, Entwürfe und laufende
+Vorgänge bleiben beim Wechsel erhalten. Kein Terminal, keine zusätzliche Weboberfläche.
 Sie verwenden die vier Lumen-Themes und die vorhandene Einrichtung.
 
 | Anwendung | Start | Ablauf |
 |---|---|---|
-| Lumen Meeting-Werkstatt | `lumen-meetings` | Aufnahme importieren → lokal transkribieren → Zeitstelle anklicken → Ergebnisse vorschlagen → korrigieren/exportieren |
+| Lumen Meeting & Radio · Meeting | `lumen-meetings` | Aufnahme importieren → lokal transkribieren → Zeitstelle anklicken → Ergebnisse vorschlagen → korrigieren/exportieren |
 | Lumen Digitaler Haushalt | `lumen-household` | Gerät/Vertrag anlegen → Daten und Fristen eintragen → Belege/Handbücher hinzufügen → durchsuchen/öffnen |
-| Lumen Projekt-Werkbank | `lumen-workbench` | Projekt anlegen → Notizen und Fragen festhalten → Dateien, Ordner und Webseiten verknüpfen |
-| Lumen Persönliches Radio | `lumen-radio` | Ausgabe anlegen → Artikel/Dokumente/Text auswählen → Hörskript erzeugen und prüfen → lokal vertonen → abspielen/exportieren |
+| Lumen Projekte | `lumen-workbench` | Projekt anlegen → Notizen und Fragen festhalten → Dateien, Ordner und Webseiten verknüpfen |
+| Lumen Meeting & Radio · Radio | `lumen-radio` | Ausgabe anlegen → Artikel/Dokumente/Text auswählen → Hörskript erzeugen und prüfen → lokal vertonen → abspielen/exportieren |
 
 ## Ohne Administratorrechte installieren
 
-Wenn die Lumen-Abhängigkeiten bereits vorhanden sind, nur die vier Werkzeuge
+Wenn die Lumen-Abhängigkeiten bereits vorhanden sind, die eigenständigen Werkzeuge
 für den aktuellen Benutzer installieren:
 
 ```bash
@@ -21,7 +23,7 @@ für den aktuellen Benutzer installieren:
 ```
 
 Dies installiert eine eigene Laufzeitkopie unter
-`~/.local/share/lumen-tools/runtime/`, vier Starter in `~/.local/bin/` und
+`~/.local/share/lumen-tools/runtime/`, Starter in `~/.local/bin/` und
 Menüeinträge samt Icons. Bibliotheken, Panels und die laufenden Lumen-Fenster
 werden dabei nicht verändert. Die vorhandenen Sprachmodelle und Einstellungen
 werden weiterverwendet. Nach einer späteren Systeminstallation rufen die lokalen

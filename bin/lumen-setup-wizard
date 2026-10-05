@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SELF_DIR="$(dirname "$(readlink -f "$0")")"
+# Fresh user installs need no shell restart or prior ~/.local/bin PATH setup.
+export PATH="$SELF_DIR:$PATH"
 for main in "$SELF_DIR/../files/setup_dialog.py" "$SELF_DIR/../share/lumen/files/setup_dialog.py"; do
     if [ -f "$main" ]; then exec "$SELF_DIR/lumen-python" "$main" "$@"; fi
 done

@@ -5,6 +5,18 @@ GitHub Actions are disabled. Personal system inventories, session logs, app data
 credentials, backups and desktop screenshots do not belong in this repository.
 See [INSTALL.md](INSTALL.md) for installation and recovery.
 
+## Private one-line installer
+
+The README starts with the authenticated `main` clone and `bootstrap.sh` command.
+Keep that command and [INSTALL.md](INSTALL.md) aligned. Local bootstrap detects its
+checkout without another download and always starts the setup wizard after success.
+The public curl command remains explicitly unavailable while this repository is
+private. Never embed a token or personal Git/SSH configuration in the installer.
+
+Before publishing changes to this path, run `files/test_bootstrap.py` and the
+fresh-profile desktop check below. Include all Python/QML/translations and desktop
+assets; preserve the explicit native Vault prerelease boundary described below.
+
 ## Verify locally
 
 Use an isolated user profile:

@@ -8,13 +8,21 @@ account authorized to access `ativaro/lumen`, run from a directory without a
 `lumen` checkout:
 
 ```bash
-git clone https://github.com/ativaro/lumen.git && bash lumen/bootstrap.sh --local
+git clone --branch main --single-branch https://github.com/ativaro/lumen.git && bash lumen/bootstrap.sh
 ```
 
 The installer prepares missing dependencies, installs Lumen locally and opens
 the graphical wizard for AI, speech and desktop setup. Git authentication is
 handled by your Git credential helper; never put a token in the command or README.
-For an existing checkout: `git -C lumen pull --ff-only && bash lumen/bootstrap.sh --local`.
+For updates from an existing clean checkout:
+
+```bash
+git -C lumen pull --ff-only origin main && bash lumen/bootstrap.sh
+```
+
+The same wizard opens after installation and updates. Existing app data, models
+and provider settings stay local. Desktop panels, wallpapers and decorations
+are included; activate them in the wizard when ready.
 See [installation and recovery](INSTALL.md).
 
 **Deutsch / English:** choose **Settings → Lumen → Interface language**, or select
@@ -64,7 +72,10 @@ gracefully on other setups.
 | **KRunner runner** | Type `lumen <question>`, `ai <question>` or `oc <question>` in KRunner |
 | **Plasma applet** | panel widget with agent status + quick actions (`org.lumen.agent`) |
 | **Lumen Files** (`lumen-files`) | file manager with combined local/NAS libraries and visible origins, per-room collection shelves and saved workspaces, fast search, previews, tabs, gallery, disk analysis, KIO network folders, native rename/sort with preview and undo, integrated Lumen panel |
-| **Lumen Vault** (`lumen-vault`) | encrypted restic backups to mounted USB/NAS folders, preview, opt-in schedules, snapshot browsing and verified restore into new folders |
+| **Lumen Vault** (`lumen-vault`) | encrypted restic backups, snapshot browsing, verified restore and opt-in schedules. The native credential vault and its guided NAS backup UI require the [separate prerelease installation](native/vault-ui/README.md) |
+| **Lumen Meeting & Radio** (`lumen-meetings`, `lumen-radio`) | one window with Meeting/Radio tabs, local transcription, editable results and personal audio programmes; both starters keep the same window and retained state |
+| **Lumen Translate** (`lumen-translate`) | text translation, writing styles, spelling correction and PDF layout translation |
+| **Lumen System** (`lumen-system`) | live resource usage, hardware and system activity |
 | **Lumen Inbox** (`lumen-inbox`) | local IMAP inbox and SMTP drafts, Proton Bridge preset, CalDAV calendars, read-only ICS subscriptions and local tasks; [setup and limits](VAULT-INBOX.md) |
 | **Lumen Reader** (`lumen-reader`) | PDFs, EPUBs and saved articles; reading position, highlights, margin notes, local read-aloud and cited passages in Lumen knowledge |
 | **Lumen Sound** (`lumen-sound`) | per-stream volume, mute and output; opt-in app rules and music ducking during calls; [Reader/Sound guide](READER-SOUND.md) |
@@ -410,8 +421,9 @@ uses the [OpenCode server API](https://opencode.ai/docs/server/); see
 
 ## Eigenständige Werkzeuge
 
-Meeting-Werkstatt, digitaler Haushalt, Projekt-Werkbank und persönliches Radio
-werden mit eigenen Startern installiert. Funktionen, Speicherung, Einrichtung
+Lumen Meeting & Radio, Lumen Digitaler Haushalt und Lumen Projekte
+werden mit eigenen Startern installiert. Meeting und Radio teilen sich ein Fenster
+mit Tabs; beide bisherigen Startbefehle bleiben verfügbar. Funktionen, Speicherung, Einrichtung
 und Grenzen: [Desktop-Werkzeuge](TOOLS.md).
 
 ### Lumen System
