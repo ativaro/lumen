@@ -3,5 +3,6 @@
   <kcfgfile name=""/>
   <group name="General">
     <entry name="surface" type="String"><default>tasks</default></entry>
+    <entry name="panelWidth" type="Int"><default>0</default></entry>
   </group>
 </kcfg>

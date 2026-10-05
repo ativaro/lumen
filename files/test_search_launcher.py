@@ -4,10 +4,32 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 
 
 class SearchLauncherTest(unittest.TestCase):
+    def test_panel_releases_cold_start_so_the_next_click_can_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); (root/'files').mkdir()
+            shutil.copy2(Path(__file__).resolve().parents[1]/'bin/lumen-panel', root/'lumen-panel')
+            launcher = root/'lumen-search'
+            launcher.write_text('#!/usr/bin/python3\nimport os, time\nfrom pathlib import Path\n'
+                                'Path(os.environ["STARTED"]).write_text(str(os.getpid()))\n'
+                                'while not Path(os.environ["RELEASE"]).exists(): time.sleep(.02)\n')
+            launcher.chmod(0o755)
+            env = dict(os.environ, STARTED=str(root/'started'), RELEASE=str(root/'release'))
+            for action in ('--search', '--voice'):
+                (root/'started').unlink(missing_ok=True); (root/'release').unlink(missing_ok=True)
+                try:
+                    subprocess.run([str(root/'lumen-panel'), action], env=env,
+                                   capture_output=True, check=True, timeout=2)
+                    deadline = time.monotonic()+2
+                    while not (root/'started').exists() and time.monotonic()<deadline: time.sleep(.01)
+                    self.assertTrue((root/'started').exists())
+                finally:
+                    (root/'release').touch()
+
     def test_warm_routes_and_cold_fallback(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); binaries = root/'bin'; binaries.mkdir(); (root/'files').mkdir()
@@ -24,6 +46,11 @@ class SearchLauncherTest(unittest.TestCase):
             def run(name, *args):
                 log.write_text('')
                 subprocess.run([str(binaries/name), *args], env=env, check=True, timeout=5)
+                deadline = time.monotonic()+2
+                while not log.read_text() and time.monotonic()<deadline: time.sleep(.01)
+                # The panel intentionally detaches the cold-start child.
+                if env['BUS_EXIT'] == '1' and name == 'lumen-panel':
+                    while 'python:' not in log.read_text() and time.monotonic()<deadline: time.sleep(.01)
                 return log.read_text().splitlines()
             for name, args, method in [('lumen-search', [], 'Activate'), ('lumen-search', ['--voice'], 'Voice'),
                                        ('lumen-panel', ['--search'], 'Activate'), ('lumen-panel', ['--voice'], 'Voice')]:

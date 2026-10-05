@@ -121,6 +121,16 @@ backup mechanism. **Next** leaves the current desktop in place. Existing provide
 settings and speech models are reused; the document workshop remains disabled until
 enabled in Files settings. The wizard can be closed and resumed later from
 **Settings → Setup** or `~/.local/share/lumen/bin/lumen-setup-wizard`.
+
+The desktop uses three separate top islands from 960 logical pixels upwards,
+including typical 1024/1280-pixel VM displays; narrower displays use one compact
+bar. After updating an older single-bar installation, run the wizard's **Activate
+Lumen desktop** once more. Existing Lumen layout markers are upgraded after the
+replacement panels have been created; repeating setup does not duplicate panels.
+The previous desktop configuration is backed up before applying the layout.
+If speech is not yet configured, the panel microphone keeps Search open and offers
+**Set up speech**, opening the speech-input settings directly.
+
 The update command uses a fresh temporary checkout and leaves your development
 checkout untouched. Running `bootstrap.sh` again
 reinstalls the user bundle and opens the setup wizard; use the Updater for normal

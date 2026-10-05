@@ -44,6 +44,12 @@ Rectangle {
             home.forceActiveFocus(); keyClick(Qt.Key_Space); compare(toggles.count, 1);
             files.forceActiveFocus(); keyClick(Qt.Key_Space); compare(launches.signalArguments[0][0], "files");
             grabImage(scene).save("artifacts/islands/bar-home.png");
+            scene.width = 158; waitForRendering(bar);
+            verifyCentered(home); verifyCentered(files);
+            verify(files.mapToItem(scene, files.width, 0).x <= scene.width, "Compact home must fit a VM island");
+            compare(files.text, "");
+            files.forceActiveFocus(); keyClick(Qt.Key_Space); compare(launches.count, 2);
+            grabImage(scene).save("artifacts/islands/bar-home-compact.png");
             scene.width = 480; bar.surface = "search"; waitForRendering(bar);
             const search = findChild(bar, "searchButton"); search.forceActiveFocus(); keyClick(Qt.Key_Space);
             verifyCentered(search);
@@ -52,7 +58,7 @@ Rectangle {
             verify(voice.mapToItem(scene, voice.width, 0).x <= scene.width);
             voice.forceActiveFocus(); keyClick(Qt.Key_Space); compare(voices.count, 1);
             compare(searches.count, 1);
-            compare(findChild(bar, "askButton"), null); compare(launches.count, 1);
+            compare(findChild(bar, "askButton"), null); compare(launches.count, 2);
             grabImage(scene).save("artifacts/islands/bar-search.png");
             scene.width = 74; bar.surface = "control"; waitForRendering(bar);
             verify(!voice.visible);

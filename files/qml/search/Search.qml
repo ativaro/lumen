@@ -139,6 +139,11 @@ ApplicationWindow {
                 LumenButton { theme: window.theme; quiet: true; text: window.controller.text("Entfernen"); enabled: !window.controller.busy; onClicked: window.controller.clear_attachments() }
             }
             VoiceMeter { Layout.fillWidth: true; controller: window.controller; visible: window.controller.voiceActive }
+            LumenButton {
+                theme: window.theme; visible: window.controller.voiceSetupRequired
+                text: window.controller.text("Sprache einrichten")
+                onClicked: window.controller.open_voice_setup()
+            }
             Label {
                 Layout.fillWidth: true; visible: window.controller.error.length > 0
                 text: window.controller.error; textFormat: Text.PlainText; wrapMode: Text.Wrap

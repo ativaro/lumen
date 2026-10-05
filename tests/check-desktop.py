@@ -14,6 +14,51 @@ import time
 REPO = Path(__file__).resolve().parent.parent
 
 
+def search_activation(root):
+    """Observe mapped Search windows in the real disposable Wayland compositor."""
+    from PySide6.QtCore import QObject, Slot, ClassInfo
+    from PySide6.QtGui import QGuiApplication
+    from PySide6.QtQuick import QQuickWindow
+    from PySide6.QtDBus import QDBusConnection
+    from PySide6.QtTest import QTest
+    app = QGuiApplication.instance() or QGuiApplication([])
+    @ClassInfo(**{'D-Bus Interface': 'org.lumen.DesktopTest'})
+    class Observer(QObject):
+        result = None
+        @Slot(str)
+        def report(self, value): self.result = json.loads(value)
+    observer = Observer(); bus = QDBusConnection.sessionBus()
+    assert bus.registerService('org.lumen.DesktopTest')
+    assert bus.registerObject('/Test', observer, QDBusConnection.ExportAllSlots)
+    probe = root/'search-probe.js'
+    probe.write_text('''callDBus("org.lumen.DesktopTest", "/Test", "org.lumen.DesktopTest", "report",
+        JSON.stringify(workspace.windowList().filter(w => w.resourceClass === "lumen-search" || w.desktopFileName === "lumen-search").map(w => ({active:w.active,minimized:w.minimized}))));''')
+    def windows():
+        observer.result = None
+        identity = subprocess.check_output(['qdbus6','org.kde.KWin','/Scripting','org.kde.kwin.Scripting.loadScript',str(probe),'lumen-search-test'],text=True).strip()
+        subprocess.run(['qdbus6','org.kde.KWin','/Scripting/Script'+identity,'org.kde.kwin.Script.run'],check=True,capture_output=True)
+        deadline=time.monotonic()+2
+        while observer.result is None and time.monotonic()<deadline: QTest.qWait(10)
+        subprocess.run(['qdbus6','org.kde.KWin','/Scripting','org.kde.kwin.Scripting.unloadScript','lumen-search-test'],check=True,capture_output=True)
+        assert observer.result is not None, 'No reply from the private compositor'
+        return observer.result
+    other = QQuickWindow(); other.resize(300,200)
+    try:
+        for action in ('--search','--search','--voice'):
+            subprocess.run([str(root/'data/lumen/bin/lumen-panel'),action],check=True,capture_output=True,timeout=3)
+            deadline=time.monotonic()+12
+            while time.monotonic()<deadline:
+                QTest.qWait(100); rows=windows()
+                if len(rows)==1 and rows[0]['active']: break
+            else: raise AssertionError('Panel failed to show/activate Search: '+action+' '+str(rows))
+            QTest.qWait(500)
+            assert len(windows())==1, 'Search immediately disappeared after '+action
+            other.show();other.requestActivate();QTest.qWait(300)
+            assert windows()==[], 'Search must dismiss on an actual outside focus change'
+    finally:
+        other.hide();bus.unregisterObject('/Test');bus.unregisterService('org.lumen.DesktopTest')
+
+
 def session():
     root = Path(os.environ['HOME'])
     command = ['qdbus6', 'org.kde.plasmashell', '/PlasmaShell', 'org.kde.PlasmaShell.evaluateScript']
@@ -29,18 +74,32 @@ def session():
         else:
             raise RuntimeError('Disposable Plasma did not start')
         snapshots = []
-        for attempt in range(2):
+        for attempt in range(3):
+            if attempt == 2:
+                # Emulate the previous installer's single top bar and markers.
+                legacy = (REPO / 'desktop/layout.js').read_text()
+                legacy = legacy.replace('width >= 960', 'width >= 1600')
+                legacy = legacy.replace('"lumenLayoutVersion", "2"', '"lumenLayoutVersion", "1"')
+                legacy = legacy.replace('=== "2"', '=== "1"').replace('!== "2"', '!== "1"')
+                script = ('panels().forEach(function(p){p.remove();});\n'
+                          'var options={replacePanels:true,wallpaper:""};\n' + legacy)
+                subprocess.run(command+[script], check=True, capture_output=True, timeout=10)
             command_setup = ([sys.executable, str(root / 'data/lumen/files/lumen_setup.py'), 'desktop', '--theme', 'glass']
                              if attempt == 0 else [str(root / 'data/lumen/bin/lumen-desktop-setup'), '--apply', '--replace-panels'])
             subprocess.run(command_setup,
                            check=True, timeout=40)
             time.sleep(2)
             script = '''print(JSON.stringify(panels().map(function(p){return {
-                id:p.id,screen:p.screen,location:p.location,
+                id:p.id,screen:p.screen,location:p.location,length:p.length,offset:p.offset,alignment:p.alignment,
                 widgets:p.widgets().map(function(w){return w.type;})};})));'''
             rows = json.loads(subprocess.check_output(command + [script], text=True, timeout=5))
             assert rows and all(row['screen'] >= 0 for row in rows), rows
             for screen in range(int(ready.stdout)):
+                if int(os.environ.get('LUMEN_TEST_WIDTH', '1920')) >= 960:
+                    top = [row for row in rows if row['screen'] == screen and row['location'] == 'top']
+                    assert len(top) == 3, rows
+                    width = int(os.environ.get('LUMEN_TEST_WIDTH', '1920'))
+                    assert sum(p['length'] for p in top) <= width - 64, top
                 widgets = [w for row in rows if row['screen'] == screen for w in row['widgets']]
                 for name in ('system', 'search', 'control'):
                     assert widgets.count('org.lumen.' + name) == 1, widgets
@@ -48,7 +107,9 @@ def session():
                     assert widgets.count('org.kde.plasma.' + name) == 1, widgets
             snapshots.append(rows)
         assert snapshots[0] == snapshots[1], 'Setup created duplicate panels'
-        (root / 'passed.json').write_text(json.dumps(snapshots[1], indent=2))
+        assert [row['widgets'] for row in snapshots[0]] == [row['widgets'] for row in snapshots[2]], 'Legacy layout migration lost widgets'
+        (root / 'passed.json').write_text(json.dumps(snapshots[2], indent=2))
+        search_activation(root)
     finally:
         plasma.terminate()
         try:
@@ -83,6 +144,7 @@ def main():
                            stdout=log, stderr=subprocess.STDOUT, check=True, timeout=60)
         env.pop('DBUS_SESSION_BUS_ADDRESS')
         env.update(QT_QPA_PLATFORM='wayland', WAYLAND_DISPLAY='lumen-test', KWIN_COMPOSE='QPainter',
+                   LUMEN_TEST_WIDTH=str(args.width),
                    XDG_CURRENT_DESKTOP='KDE', XDG_SESSION_TYPE='wayland', KDE_FULL_SESSION='true', KDE_SESSION_VERSION='6')
         helper = root / 'session'
         helper.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' ' + shlex.quote(str(Path(__file__).resolve())) + ' --session\n')

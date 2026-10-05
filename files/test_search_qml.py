@@ -8,6 +8,29 @@ import unittest
 
 
 class Qt6SearchTest(unittest.TestCase):
+    def test_voice_without_setup_stays_visible_and_offers_setup(self):
+        self.run_qt6('''
+import tempfile
+from unittest.mock import patch
+from PySide6.QtGui import QGuiApplication
+from PySide6.QtTest import QTest
+from search_controller import SearchController
+from search_qml import create_window, Activation
+app=QGuiApplication([]); app.setQuitOnLastWindowClosed(False)
+with tempfile.TemporaryDirectory() as tmp:
+ c=SearchController(tmp,applications=[]);engine,w=create_window(app,c)
+ try:
+  with patch('voice_session.executable',return_value=None),patch('search_controller.subprocess.Popen') as launch:
+   Activation(w,c).Voice();QTest.qWait(60)
+   launch.assert_not_called()
+   assert w.isVisible() and not c.voice.active
+   assert c.voiceSetupRequired and c.error
+  with patch('search_controller.subprocess.Popen') as launch:
+   c.open_voice_setup()
+   assert launch.call_args.args[0][-1]=='--speech'
+ finally:c.shutdown();w.hide();engine.deleteLater();QTest.qWait(20)
+''')
+
     def run_qt6(self, script, timeout=25):
         python = Path(os.environ.get('LUMEN_QT6_PYTHON') or sys.executable)
         with tempfile.TemporaryDirectory() as tmp:

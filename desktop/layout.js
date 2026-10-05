@@ -19,6 +19,7 @@ function panel(screen, edge, alignment, width, offset) {
     p.lengthMode = "custom"; p.minimumLength = width; p.maximumLength = width; p.length = width;
     p.hiding = edge === "bottom" ? "dodgewindows" : "none";
     p.currentConfigGroup = ["General"]; p.writeConfig("lumenLayout", "1");
+    p.writeConfig("lumenLayoutVersion", "2");
     return p;
 }
 function widget(p, type, settings) {
@@ -31,22 +32,30 @@ function widget(p, type, settings) {
 }
 try {
     for (var screen = 0; screen < screenCount; screen++) {
-        if (old.some(function(p) { return p.screen === screen && owned(p); })) continue;
+        var existing = old.filter(function(p) { return p.screen === screen && owned(p); });
+        if (existing.length && existing.every(function(p) {
+            p.currentConfigGroup = ["General"];
+            return p.readConfig("lumenLayoutVersion", "") === "2";
+        })) continue;
         var width = screenGeometry(screen).width;
         var left, search, right;
-        if (width >= 1600) {
-            left = panel(screen, "top", "left", 334, 16);
-            search = panel(screen, "top", "center", 480, 0);
-            right = panel(screen, "top", "right", 410, 16);
+        if (width >= 960) {
+            var leftWidth = width >= 1400 ? 334 : 224;
+            var rightWidth = width >= 1400 ? 410 : 320;
+            var searchWidth = Math.min(480, width - leftWidth - rightWidth - 64);
+            left = panel(screen, "top", "left", leftWidth, 16);
+            // Center within the free space, accounting for unequal side islands.
+            search = panel(screen, "top", "center", searchWidth, (leftWidth - rightWidth) / 2);
+            right = panel(screen, "top", "right", rightWidth, 16);
         } else {
             left = panel(screen, "top", "center", width - 24, 0);
             search = left; right = left;
         }
         var launcher = widget(left, "org.kde.plasma.kickoff", {icon: "view-grid"});
         if (screen === 0) launcher.globalShortcut = "Meta+F1";
-        widget(left, "org.lumen.system", {surface: "home"});
+        widget(left, "org.lumen.system", {surface: "home", panelWidth: search !== left ? leftWidth - 68 : 154});
         if (search === left) widget(left, "org.kde.plasma.panelspacer", {expanding: true});
-        widget(search, "org.lumen.search", {surface: "search"});
+        widget(search, "org.lumen.search", {surface: "search", panelWidth: search !== left ? searchWidth - 28 : 220});
         if (search === left) widget(left, "org.kde.plasma.panelspacer", {expanding: true});
         widget(right, "org.lumen.control", {surface: "control"});
         widget(right, "org.kde.plasma.systemtray");
@@ -64,7 +73,12 @@ try {
     created.forEach(function(id) { var p = panelById(id); if (p) p.remove(); });
     throw error;
 }
-if (options.replacePanels) old.filter(function(p) { return !owned(p); }).forEach(function(p) { p.remove(); });
+// Upgrade only Lumen-owned panels after their replacements succeeded.
+old.filter(function(p) {
+    if (!owned(p)) return options.replacePanels;
+    p.currentConfigGroup = ["General"];
+    return p.readConfig("lumenLayoutVersion", "") !== "2";
+}).forEach(function(p) { p.remove(); });
 desktops().forEach(function(d) {
     d.wallpaperPlugin = "org.kde.image";
     d.currentConfigGroup = ["Wallpaper", "org.kde.image", "General"];

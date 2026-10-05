@@ -855,6 +855,7 @@ if __name__ == '__main__':
     dialog = SettingsDialog(page=3 if '--appearance' in sys.argv else None); dialog.setWindowIcon(QIcon.fromTheme('configure'))
     if '--system-settings' in sys.argv: dialog.open_page(dialog.hardware_page)
     if '--personality' in sys.argv: dialog.open_page(dialog.persona_page)
+    if '--speech' in sys.argv: dialog.open_page(dialog.speech_input_page)
     if '--troubleshooter' in sys.argv: dialog.open_page(dialog.troubleshooter_page)
     dialog.show()
     sys.exit(app.exec())

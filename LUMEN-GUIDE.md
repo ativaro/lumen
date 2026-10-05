@@ -49,6 +49,15 @@ Zustand zuerst zu prüfen. Nach einem Absturz werden verwaiste Ausführungen als
 unterbrochen angezeigt. Es gibt keine automatische Wiederholung eines
 möglicherweise bereits ausgeführten Schritts.
 
+Ein direkter Auftrag wie „Installiere diese Anwendung“ wird im laufenden Gespräch
+mit den verfügbaren Ausführungswerkzeugen bearbeitet. Lumen soll dafür keinen
+separaten Entwurf anlegen und dich nicht zur Freigabe in die Auftragsansicht
+schicken. Erforderliche Werkzeugfreigaben bleiben im Gespräch; Administratorrechte
+werden über den grafischen Systemdialog angefragt. Ein ausdrücklich gewünschter
+gespeicherter Entwurf oder späterer Ablauf behält seine eigene Freigabe.
+Die Paketnamen und das Ergebnis müssen geprüft werden; ein Snapshot setzt eine
+tatsächlich vorhandene und geeignete Snapshot-Konfiguration voraus.
+
 **Neuer Auftrag** bereitet native Schritte vor: Anwendungen/Dateien/Webseiten
 öffnen, Fenster anordnen, Textdateien schreiben, Dateien kopieren,
 Systemdiagnose, Dienstneustart mit Zustandsprüfung, Paketinstallation mit

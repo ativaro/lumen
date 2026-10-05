@@ -3,5 +3,6 @@
   "Die laufende Suche konnte nicht aktiviert werden.": "The running search could not be activated.",
   "Werkzeugfreigaben automatisch erlauben, auch Befehle und Dateiänderungen.": "Automatically approve tool actions, including commands and file changes.",
   "Wobei kann ich dir helfen?": "How can I help you?",
-  "Lumen Suche · Vorschau": "Lumen Search · Preview"
+  "Lumen Suche · Vorschau": "Lumen Search · Preview",
+  "Sprachgespräche sind noch nicht vollständig eingerichtet. Mikrofon, Spracherkennung und Stimme unter „Sprache einrichten“ prüfen.": "Voice conversations are not fully set up yet. Check your microphone, speech recognition and voice under “Set up speech”."
 }

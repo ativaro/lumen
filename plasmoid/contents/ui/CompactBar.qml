@@ -11,20 +11,23 @@ RowLayout {
     property string surface: "home"
     property var snapshot: ({active: [], attention: false, busy: false})
     property bool expanded: false
+    property int panelWidth: 0
+    readonly property bool compactHome: surface === "home" && width < 230
     signal toggle()
     signal launch(string action)
     signal search()
     signal voice()
-    spacing: 12
+    spacing: compactHome ? 4 : 12
     Layout.minimumHeight: 28
-    Layout.preferredWidth: surface === "home" ? 266 : surface === "search" ? 460 : 62
+    Layout.minimumWidth: surface === "home" ? 154 : surface === "search" ? 220 : 50
+    Layout.preferredWidth: panelWidth > 0 ? Math.max(Layout.minimumWidth, panelWidth) : surface === "home" ? 266 : surface === "search" ? 460 : 62
     LumenButton {
         objectName: "homeButton"
         visible: bar.surface === "home" || bar.surface === "tasks"
         Layout.fillWidth: true
         Layout.fillHeight: true
         topPadding: 0; bottomPadding: 0
-        text: bar.surface === "home" ? "Lumen" : ""
+        text: bar.surface === "home" && bar.width >= 180 ? "Lumen" : ""
         icon.name: "lumen"; symbolSize: 28
         font.pixelSize: 19; font.weight: Font.DemiBold
         flat: true; checkable: true; checked: bar.expanded
@@ -37,7 +40,8 @@ RowLayout {
         objectName: "filesButton"
         Layout.fillHeight: true
         topPadding: 0; bottomPadding: 0
-        text: bar.tr("Dateien"); icon.name: "folder"; font.pixelSize: 16
+        text: bar.compactHome ? "" : bar.tr("Dateien"); icon.name: "folder"; font.pixelSize: 16
+        Accessible.name: bar.tr("Dateien")
         flat: true; onClicked: bar.launch("files")
     }
     LumenButton {

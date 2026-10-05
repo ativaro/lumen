@@ -69,6 +69,7 @@ class AssistantTest(unittest.TestCase):
                     self.wait(lambda: state['prompt'] is not None and not backend.busy)
                     self.assertEqual(uncaught, [], 'An exception in a Qt status callback aborts the real app')
                     self.assertEqual(state['prompt']['agent'], 'plan')
+                    self.assertNotIn('Do not redirect the user to the Tasks page', state['prompt']['system'])
                     self.assertEqual(panel.action, 'diagnose')
                     prompt = state['prompt']['parts'][0]['text']
                     self.assertIn(str(report), prompt)
@@ -191,6 +192,9 @@ class AssistantTest(unittest.TestCase):
                 self.assertEqual([item[1] for item in backend.vault_sources.sources.values()], ['Erkläre die Auswahl'])
                 submitted = next(body for _, path, body, _ in state['requests'] if path.endswith('/prompt_async'))
                 self.assertIn('Native user-text source for this turn:', submitted['system'])
+                self.assertIn('Do not redirect the user to the Tasks page', submitted['system'])
+                self.assertIn('pkexec', submitted['system'])
+                self.assertNotIn('tools', submitted)  # Existing engine permission policy remains in force.
                 self.assertEqual(len(backend.permissions), 1)
                 self.assertEqual(backend.messages[-1]['parts'][0]['text'], 'Erste Antwort')
                 self.assertTrue(backend.busy)
@@ -250,6 +254,7 @@ class AssistantTest(unittest.TestCase):
                 prompts = [body for _, path, body, _ in state['requests'] if path.endswith('/prompt_async')]
                 for prompt in prompts:
                     self.assertIn(VAULT_INSTRUCTION, prompt['system'])
+                    self.assertIn('Do not redirect the user to the Tasks page', prompt['system'])
                 panel.stop.click()
                 self.wait(lambda: not backend.busy)
                 self.assertTrue(any(path.endswith('/abort') for _, path, _, _ in state['requests']))

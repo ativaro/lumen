@@ -2,11 +2,15 @@
 set -euo pipefail
 SELF_DIR="$(dirname "$(readlink -f "$0")")"
 export LUMEN_BIN_DIR="$SELF_DIR"
-# Opening Search does not need the task catalogue or a Python panel helper.
+# Plasma's executable source must finish before it accepts the next click.
+# Keep the long-lived search and its pipes independent of that source.
 if [ "$#" -eq 1 ] && [ -x "$SELF_DIR/lumen-search" ]; then
     case "$1" in
-        --search) exec "$SELF_DIR/lumen-search" ;;
-        --voice) exec "$SELF_DIR/lumen-search" --voice ;;
+        --search|--voice)
+            exec /usr/bin/python3 -c 'import subprocess, sys
+subprocess.Popen([sys.argv[1]] + (["--voice"] if sys.argv[2] == "--voice" else []),
+    start_new_session=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)' "$SELF_DIR/lumen-search" "$1"
+            ;;
     esac
 fi
 for helper in "$SELF_DIR/../files/lumen_panel.py" "$SELF_DIR/../share/lumen/files/lumen_panel.py" /usr/share/lumen/files/lumen_panel.py; do

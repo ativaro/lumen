@@ -29,7 +29,15 @@ Prefer the MCP tools over free-form shell:
 - `lumen_settings_get` — preferences and optional live desktop state
 - `lumen_vault_status` — cached backup metadata, not a current repository verification
 - `lumen_inbox_search` / `lumen_inbox_read` / `lumen_calendar_list` — opt-in local cache access; never bypass disabled access with raw database reads
-- `lumen_propose_task` — native task draft for the user to review in Lumen; never an execution approval
+- `lumen_propose_task` — only for explicitly requested saved drafts, reusable workflows or deferred execution; never an execution approval
+
+For an immediate user-requested action, including installing software, use the
+execution tools in the current conversation and verify the result. Do not create
+a draft and send the user to Tasks just to execute the request. Required engine
+permissions are handled in the conversation; keep them and system authentication
+intact. First check the OS, package manager and exact package names. Use `pkexec`
+for graphical administrator authentication: Lumen has no interactive sudo TTY.
+Never request passwords in chat. Report actual failures and incomplete work.
 
 Writing actions (`notify`, `restart_unit`, `media`, `wallpaper`, `screenshot`)
 and native `lumen_settings_set`, `lumen_theme_set`, `lumen_shortcut_set`,
@@ -46,10 +54,11 @@ reported accurately. Do not enable action/privacy grants on the user's behalf.
 - **Backups before system changes.** Prefer the smallest reversible change.
 - **Distro-agnostic where possible** — detect the package manager instead of
   assuming one; on Arch-based systems use `pacman` (no AUR helper assumed).
-- **Root**: use the system's configured sudo askpass; never assume a TTY.
+- **Root**: use graphical authorization (`pkexec`); never assume a TTY.
 - **Wayland/Plasma**: use `qdbus6` for Plasma scripting, `kreadconfig6`/
   `kwriteconfig6` for KDE config. Never restart `dbus` to apply a policy.
-- **Rollback**: prefer filesystem snapshots (e.g. snapper/btrfs) if available.
+- **Rollback**: inspect available backup/snapshot support first. Never assume
+  snapper, Btrfs or a `root` snapshot configuration exists on a fresh installation.
 
 ## Working method
 

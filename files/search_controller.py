@@ -50,6 +50,7 @@ class SearchController(QObject):
         self._auto_approve = False; self._learn = False; self.last_prompt = ''; self.last_answer = ''
         self.process = None; self.scan_jobs = []; self.generation = 0; self.last_query = ''
         self.navigated = False; self.memory_job = None; self._voice_level = 0.
+        self._voice_setup_required = False
         self.debounce = QTimer(self); self.debounce.setSingleShot(True); self.debounce.setInterval(220)
         self.debounce.timeout.connect(self.search)
         self.voice = VoiceSession(self.backend, self.settings, self)
@@ -58,7 +59,7 @@ class SearchController(QObject):
         self.voice.changed.connect(self.voiceChanged)
         self.voice.levelChanged.connect(self.set_voice_level)
         self.voice.failed.connect(self.show_error)
-        self.voice.setupRequested.connect(self.open_setup)
+        self.voice.setupRequested.connect(self.voice_setup_required)
         self.backend.messagesChanged.connect(self.update_messages)
         self.backend.requestsChanged.connect(self.update_requests)
         self.backend.sessionsChanged.connect(self.update_sessions)
@@ -106,6 +107,7 @@ class SearchController(QObject):
     voiceState = Property(str, lambda self: self.voice.state, notify=voiceChanged)
     voiceStatus = Property(str, lambda self: self.voice.status, notify=voiceChanged)
     voiceLevel = Property(float, lambda self: self._voice_level, notify=voiceChanged)
+    voiceSetupRequired = Property(bool, lambda self: self._voice_setup_required, notify=voiceChanged)
 
     @Slot(result=bool)
     def clipboard_protected(self):
@@ -365,7 +367,17 @@ class SearchController(QObject):
     def stop(self): self.voice.stop(); self.backend.stop()
 
     @Slot()
-    def toggle_voice(self): self.voice.toggle()
+    def toggle_voice(self):
+        self._voice_setup_required = False; self._error = ''
+        self.voice.toggle(); self.voiceChanged.emit(); self.stateChanged.emit()
+
+    def voice_setup_required(self):
+        self._voice_setup_required = True; self.voiceChanged.emit()
+        self.show_error(tr('Sprachgespräche sind noch nicht vollständig eingerichtet. Mikrofon, Spracherkennung und Stimme unter „Sprache einrichten“ prüfen.'))
+
+    @Slot()
+    def open_voice_setup(self):
+        self.open_setup('--speech')
 
     @Slot()
     def interrupt_voice(self): self.voice.interrupt()
@@ -389,9 +401,9 @@ class SearchController(QObject):
         if url.scheme() in ('https', 'http'): QDesktopServices.openUrl(url)
 
     @Slot()
-    def open_setup(self):
+    def open_setup(self, section=None):
         from lumen_launch import executable
-        try: subprocess.Popen([executable('lumen-settings')], start_new_session=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try: subprocess.Popen([executable('lumen-settings')] + ([section] if section else []), start_new_session=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except OSError as error: self.show_error(str(error))
 
     @Slot(bool)

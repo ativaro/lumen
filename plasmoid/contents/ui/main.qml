@@ -81,6 +81,7 @@ PlasmoidItem {
 
     compactRepresentation: CompactBar {
         uiLanguage: root.uiLanguage
+        panelWidth: Plasmoid.configuration.panelWidth || 0
         surface: root.surface; snapshot: root.snapshot; expanded: root.expanded
         onToggle: root.expanded = !root.expanded
         onLaunch: action => root.launch(action)
