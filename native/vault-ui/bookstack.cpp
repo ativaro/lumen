@@ -4,10 +4,54 @@
 #include "vault.h"
 #include <QStringDecoder>
 #include <cmath>
+#include <cstring>
 #include <sys/stat.h>
 #include <unistd.h>
 
 namespace {
+// Qt may rewind buffered uploads on connection errors. Refuse every rewind,
+// including zero-length requests, so a confirmed write cannot be sent again.
+class OneShotUpload final : public QIODevice {
+public:
+  OneShotUpload(QByteArray data, QObject *parent)
+      : QIODevice(parent), data(std::move(data)) {
+    open(QIODevice::ReadOnly | QIODevice::Unbuffered);
+  }
+  ~OneShotUpload() override { wipe(data); }
+  bool isSequential() const override { return true; }
+  bool reset() override { return false; }
+  bool seek(qint64) override { return false; }
+  bool atEnd() const override { return offset >= data.size(); }
+  qint64 bytesAvailable() const override {
+    return data.size() - offset + QIODevice::bytesAvailable();
+  }
+
+protected:
+  qint64 readData(char *out, qint64 maxSize) override {
+    const auto count = qMin(maxSize, qint64(data.size()) - offset);
+    if (count <= 0)
+      return -1;
+    std::memcpy(out, data.constData() + offset, size_t(count));
+    offset += count;
+    return count;
+  }
+  qint64 writeData(const char *, qint64) override { return -1; }
+
+private:
+  QByteArray data;
+  qint64 offset = 0;
+};
+QNetworkReply *sendOnce(QNetworkAccessManager *network, QNetworkRequest request,
+                        const QByteArray &method, QByteArray data) {
+  request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+  request.setAttribute(QNetworkRequest::HttpPipeliningAllowedAttribute, false);
+  request.setAttribute(QNetworkRequest::DoNotBufferUploadDataAttribute, true);
+  request.setHeader(QNetworkRequest::ContentLengthHeader, data.size());
+  auto *upload = new OneShotUpload(std::move(data), network);
+  auto *reply = network->sendCustomRequest(request, method, upload);
+  upload->setParent(reply);
+  return reply;
+}
 bool integer(const QJsonValue &value, int low, int high) {
   const double n = value.toDouble(-1);
   return value.isDouble() && std::isfinite(n) && n == std::floor(n) &&
@@ -447,6 +491,8 @@ void VaultAccess::confirm(const QJsonObject &args) {
          "as Lumen.\n\n") +
       tx("Eintrag: ", "Entry: ") + profile["title"].toString() + "\n" +
       "vault:" + entryId + "\n\n" +
+      (args["operation"] == "api_request" ? args["method"].toString() + " "
+                                          : QString()) +
       VaultConnection::route(profile, args).toString(QUrl::FullyEncoded) +
       "\n" +
       QString::fromUtf8(QJsonDocument(args).toJson(QJsonDocument::Indented)) +
@@ -461,7 +507,13 @@ void VaultAccess::confirm(const QJsonObject &args) {
   text->setTextFormat(Qt::PlainText);
   text->setWordWrap(true);
   text->setMinimumWidth(500);
-  layout->addWidget(text);
+  auto *scroll = new QScrollArea;
+  scroll->setWidgetResizable(true);
+  scroll->setFrameShape(QFrame::NoFrame);
+  scroll->setWidget(text);
+  scroll->setMinimumSize(580, 320);
+  layout->addWidget(scroll, 1);
+  dialog->resize(680, 540);
   auto *buttons = new QDialogButtonBox(QDialogButtonBox::Cancel);
   auto *allow =
       buttons->addButton(tx("Diese Anfrage erlauben", "Allow this request"),
@@ -564,9 +616,21 @@ void VaultAccess::sendRequest(const QJsonObject &args, quint64 requestEpoch,
       request.setRawHeader("MCP-Protocol-Version", protocol);
     if (stage == 2 && args["operation"] == "mcp_call")
       actionDispatched = true;
-    reply =
-        network->post(request, QJsonDocument(VaultConnection::rpc(args, stage))
-                                   .toJson(QJsonDocument::Compact));
+    const auto payload = QJsonDocument(VaultConnection::rpc(args, stage))
+                             .toJson(QJsonDocument::Compact);
+    reply = stage == 2 && args["operation"] == "mcp_call"
+                ? sendOnce(network, request, "POST", payload)
+                : network->post(request, payload);
+  } else if (args["operation"] == "api_request" && args["method"] != "GET") {
+    auto payload = VaultConnection::body(args);
+    if (args.contains("body"))
+      request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    // From this point onward a lost/unsafe response cannot establish
+    // non-execution.
+    actionDispatched = true;
+    reply = sendOnce(network, request, args["method"].toString().toLatin1(),
+                     std::move(payload));
+    wipe(payload);
   } else
     reply = network->get(request);
   reply->setReadBufferSize(65536);
@@ -601,7 +665,8 @@ void VaultAccess::received(const QJsonObject &args, quint64 requestEpoch,
   }
   const int status =
       reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-  if (status != 200 &&
+  const bool apiRequest = args["operation"] == "api_request";
+  if (!(apiRequest ? status >= 200 && status < 300 : status == 200) &&
       !(profile["connector"] == "mcp" && stage == 1 && status == 202)) {
     if (final || status)
       finish(failure(status == 401 || status == 403 ? "service_denied"
@@ -630,6 +695,14 @@ void VaultAccess::received(const QJsonObject &args, quint64 requestEpoch,
     }
     return;
   }
+  if (apiRequest && final && response.isEmpty()) {
+    finish({{"untrusted_content", true},
+            {"http_status", status},
+            {"result", QJsonValue(QJsonValue::Null)}});
+    return;
+  }
+  if (apiRequest && !final && response.isEmpty())
+    return;
   const auto contentType =
       reply->header(QNetworkRequest::ContentTypeHeader).toString();
   const bool sse = contentType.startsWith("text/event-stream");
@@ -684,7 +757,7 @@ void VaultAccess::received(const QJsonObject &args, quint64 requestEpoch,
   }
   if (!final)
     return;
-  if (args["operation"] != "api_get") {
+  if (args["operation"] != "api_get" && !apiRequest) {
     finish(BookStack::project(args, response, credentials));
     return;
   }
@@ -700,7 +773,11 @@ void VaultAccess::received(const QJsonObject &args, quint64 requestEpoch,
     finish(failure("unsafe_response"));
     return;
   }
-  finish({{"untrusted_content", true},
-          {"result", result.isObject() ? QJsonValue(result.object())
-                                       : QJsonValue(result.array())}});
+  QJsonObject output{{"untrusted_content", true},
+                     {"result", result.isObject()
+                                    ? QJsonValue(result.object())
+                                    : QJsonValue(result.array())}};
+  if (apiRequest)
+    output.insert("http_status", status);
+  finish(output);
 }

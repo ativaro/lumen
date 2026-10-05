@@ -159,7 +159,7 @@ without a setup dialog. Missing fields are identified inline. HTTP addresses mus
 be changed to HTTPS; TLS verification is never bypassed.
 
 Lumen reads the enabled connection metadata with `lumen_vault_connection`, then
-uses `lumen_vault_api_get` or `lumen_vault_mcp`. MCP supports remote Streamable HTTP
+uses `lumen_vault_api_get`, `lumen_vault_api_request` or `lumen_vault_mcp`. MCP supports remote Streamable HTTP
 (JSON/SSE), tool discovery and individually confirmed tool calls. It does not yet
 support local stdio servers, OAuth setup or old HTTP+SSE endpoints. Secrets never
 enter OpenCode's plaintext configuration. BookStack is a test case and an optional
@@ -177,3 +177,14 @@ access. Missing/old flags stay off; enable each intended entry once. Invalid
 profiles cannot be used and can still be disabled. Trash and entry-history restore
 clear the permission. Neither settings nor secrets are written into plaintext
 configuration. These remain explicit prerelease features.
+
+Generic API writes are available through `lumen_vault_api_request`: POST creates,
+PUT/PATCH updates and DELETE removes resources according to the service's API.
+GET remains supported. Lumen prepares the exact request; the native Vault shows
+its entry, method, destination and JSON body for individual approval. Authentication
+stays native. Object/array bodies are capped at32 KiB; GET/DELETE have no body.
+HTTP202 means only accepted, while empty204/205 responses are valid. Interrupted
+writes report an unknown outcome; check remote state before retrying. Unbuffered,
+non-rewindable HTTP/1 uploads prevent Qt from replaying mutations on connection
+errors, including empty DELETE requests. Synthetic HTTPS tests verify this.
+The same transport protection applies to remote MCP tool calls.

@@ -70,7 +70,7 @@ stored in Lumen memory or sent to a model merely by enabling an entry.
 
 - Credentials stay within native Qt/Rust and the approved HTTPS service. The
   Python/MCP adapter sends only operation arguments and receives projected data.
-- Private owned runtime socket, one active client, 4 KiB input, 3-second framing
+- Private owned runtime socket, one active client, 64 KiB input, 3-second framing
   deadline and 90-second total request deadline. Both native code and MCP schema
   validate input; native validation is authoritative.
 - Every request is bound to one entry/origin and an epoch. Approval, credential
@@ -162,6 +162,14 @@ in response-reflection checks. Profile edits still revoke pending access.
   references, traversal, encoded delimiters, arbitrary headers or host override.
   Result is bounded untrusted JSON. Confirmation does not claim that every remote
   implementation of GET is side-effect-free.
+- `lumen_vault_api_request`: GET, POST, PUT, PATCH or DELETE under the same
+  configured HTTPS origin/base path. Optional object/array JSON body up to 32 KiB
+  UTF-8; GET/DELETE do not accept a body. Only the method, path, query, JSON body
+  and optional entry reference are caller-controlled. No headers/host override,
+  credential arguments, form/multipart uploads or redirect following. Every
+  request requires native confirmation with entry identity and exact
+  method/URL/body in a scrollable plain-text view. Ordinary MCP action switches
+  cannot bypass it. The legacy read tools remain available.
 - `lumen_vault_mcp`: list tools or invoke a named tool with explicit arguments.
   Every operation has native approval showing the local entry title/reference, destination and arguments;
   calls may mutate remote state. General MCP-write disablement does not prevent
@@ -210,3 +218,38 @@ Synthetic regressions cover persisted enable/disable across unlocks, reserved
 field rejection, trash/history clearing, ambiguity/unknown references, selected
 credential approval, permission revalidation, bounded discovery, lock/cancel and
 stale callbacks. No production qualification flag is changed.
+
+### Generic API writes and uncertain outcomes
+
+API writes use the same post-approval encrypted-permission/profile recheck and
+native-only authentication. Successful 2xx responses return `http_status` and
+bounded untrusted JSON, or null for an empty response (including204/205). A202
+means accepted, not that the service has completed the operation; inspect the
+response or query its state. Neither server response headers nor raw error bodies
+are exported. After dispatch, lost, invalid, unsafe or interrupted responses are
+reported as an unknown outcome. The Python socket client and outer MCP worker
+preserve that uncertainty on disconnect, timeout, crash, oversized or malformed
+output. No automatic application replay occurs. This also applies to MCP calls.
+
+Qt's HTTP implementation can otherwise retry connection failures internally.
+Mutations therefore use a sequential upload that refuses reset/seek, explicit
+Content-Length even for empty requests, disabled upload buffering, HTTP/2 and
+pipelining, and sendCustomRequest. The same path protects MCP tools/call. This
+blocks rewinding before a transport resend. The synthetic TLS suite disconnects
+both immediately after headers and after a complete request and asserts exactly
+one HTTP write for POST/PUT/PATCH/bodyless DELETE. Cancellation before approval
+sends no request. Unknown outcome never means that a remote change was undone.
+
+The HTTP response remains bounded to1 MiB. Native/Python result envelopes have a
+separate2 MiB budget so wrapper/JSON whitespace expansion does not turn a valid
+near-limit successful write into a false failure. Real-worker socket fixtures
+verify near-limit ASCII and Unicode results without touching a user service.
+Tests also cover strict method/body/path validation, caller-header rejection,
+body size,201/202/204/205, token reflection, invalid JSON, denied approval and
+redirects. Existing TLS/certificate, lock and MCP tests continue to pass.
+
+Implementation references (read, not copied into Lumen):
+- https://doc.qt.io/qt-6/qnetworkaccessmanager.html#sendCustomRequest
+- https://www.rfc-editor.org/rfc/rfc9110.html#name-successful-2xx
+- https://github.com/qt/qtbase/blob/v6.11.2/src/network/access/qhttpnetworkconnection.cpp
+- https://github.com/qt/qtbase/blob/v6.11.2/src/corelib/io/qnoncontiguousbytedevice.cpp

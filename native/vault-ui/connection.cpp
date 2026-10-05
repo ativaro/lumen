@@ -127,6 +127,14 @@ VaultConnection::headers(const QStringList &fields) {
     out.append({p["id_header"].toString().toLatin1(), id});
   return out;
 }
+QByteArray VaultConnection::body(const QJsonObject &args) {
+  const auto value = args["body"];
+  if (value.isObject())
+    return QJsonDocument(value.toObject()).toJson(QJsonDocument::Compact);
+  if (value.isArray())
+    return QJsonDocument(value.toArray()).toJson(QJsonDocument::Compact);
+  return {};
+}
 QUrl VaultConnection::route(const QJsonObject &p, const QJsonObject &args) {
   const auto url = endpoint(p["endpoint"].toString());
   if (url.isEmpty())
@@ -139,8 +147,20 @@ QUrl VaultConnection::route(const QJsonObject &p, const QJsonObject &args) {
   QSet<QString> keys{"operation"};
   const auto op = args["operation"].toString();
   QUrl target = url;
-  if (p["connector"] == "api" && op == "api_get") {
+  if (p["connector"] == "api" && (op == "api_get" || op == "api_request")) {
     keys.unite({"path", "query"});
+    if (op == "api_request") {
+      keys.unite({"method", "body"});
+      const auto method = args["method"].toString();
+      if (!QStringList{"GET", "POST", "PUT", "PATCH", "DELETE"}.contains(
+              method))
+        return {};
+      if (args.contains("body") &&
+          (method == "GET" || method == "DELETE" ||
+           (!args["body"].isObject() && !args["body"].isArray()) ||
+           body(args).size() > 32 * 1024))
+        return {};
+    }
     const auto path = args.value("path");
     static const QRegularExpression safePath(
         QRegularExpression::anchoredPattern("(/[A-Za-z0-9_.~-]+)*/*"));

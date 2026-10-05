@@ -3,6 +3,8 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import socket
+import threading
 import sys
 import tempfile
 import unittest
@@ -183,6 +185,49 @@ class NativeMCPTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'timed out'):mcp.tool_native('lumen_settings_get',{})
         kill.assert_called_once();self.assertEqual(process.communicate.call_count,2)
 
+    def test_api_write_schema_and_worker_failure_boundary(self):
+        schema = DEFINITIONS['lumen_vault_api_request']['schema']
+        for body in ({'text':'hello'}, [{'op':'replace'}], [0]*1001):
+            mcp.validate_schema({'method':'POST','body':body}, schema)
+        for body in ('text', 1, True, None):
+            with self.assertRaises(ValueError): mcp.validate_schema({'method':'POST','body':body}, schema)
+        for method in ('CONNECT','post','POST\r\nHeader: x'):
+            with self.assertRaises(ValueError): mcp.validate_schema({'method':method}, schema)
+        for name,args in [('lumen_vault_api_request',{'method':'POST'}),('lumen_vault_mcp',{'operation':'call','name':'x','arguments':{}})]:
+            process=unittest.mock.Mock(pid=123)
+            process.communicate.side_effect=[subprocess.TimeoutExpired('worker',105),('','')]
+            with patch.object(mcp.subprocess,'Popen',return_value=process),patch.object(mcp.os,'killpg'):
+                with self.assertRaisesRegex(ValueError,'outcome is unknown'):mcp.tool_native(name,args)
+            for code,output in [(1,''),(0,'invalid'),(0,'[]'),(0,'{}'),(0,'x'*(2*1024*1024+1))]:
+                process=unittest.mock.Mock(pid=123,returncode=code)
+                process.communicate.return_value=(output,'')
+                with patch.object(mcp.subprocess,'Popen',return_value=process):
+                    with self.assertRaisesRegex(ValueError,'outcome is unknown'):mcp.tool_native(name,args)
+
+    def test_api_near_limit_reply_through_real_worker_and_adapter(self):
+        for char in ('a','ä'):
+            with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, XDG_RUNTIME_DIR=directory):
+                endpoint=Path(directory)/'lumen-vault-access'
+                service=socket.socket(socket.AF_UNIX);service.bind(str(endpoint));endpoint.chmod(0o600);service.listen(1)
+                service.settimeout(10)
+                body={'text':char*((1024*1024-12)//len(char.encode()))}
+                reply={'untrusted_content':True,'http_status':201,'result':body}
+                data=json.dumps(reply,ensure_ascii=False,separators=(',',':')).encode()+b'\n'
+                self.assertGreater(len(data),1024*1024)
+                received=[]
+                def serve():
+                    with service:
+                        client,_=service.accept()
+                        with client:
+                            received.append(json.loads(client.recv(65536)))
+                            client.sendall(data)
+                thread=threading.Thread(target=serve);thread.start()
+                try:
+                    result=mcp.tool_native('lumen_vault_api_request',{'method':'POST','path':'/pages','body':{'name':'Synthetic'}})
+                    self.assertEqual(result,reply)
+                    self.assertEqual(received,[{'operation':'api_request','method':'POST','path':'/pages','body':{'name':'Synthetic'}}])
+                finally:thread.join(timeout=12)
+
     def test_memory_discovery_has_no_keyword_gate_and_rechecks_scope_and_consent(self):
         from lumen_memory import Memory
         memory=Memory(self.store);memory.configure(True,True)
@@ -240,6 +285,9 @@ class NativeMCPTest(unittest.TestCase):
         self.assertIn('lumen_vault_store',tools)
         self.assertIn('lumen_vault_mcp',tools)
         self.assertIn('lumen_vault_api_get',tools)
+        self.assertIn('lumen_vault_api_request',tools)
+        self.assertFalse(tools['lumen_vault_api_request']['annotations']['readOnlyHint'])
+        self.assertTrue(tools['lumen_vault_api_request']['annotations']['destructiveHint'])
         self.assertIn('lumen_vault_connection',tools)
         self.assertFalse(tools['lumen_vault_store']['annotations']['readOnlyHint'])
         self.assertNotIn('password',tools['lumen_vault_store']['inputSchema']['properties'])

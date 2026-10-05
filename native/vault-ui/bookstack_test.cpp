@@ -12,7 +12,8 @@ public:
   QByteArray status = "200 OK";
   QByteArray extra;
   QByteArray received;
-  int requests = 0;
+  int requests = 0, starts = 0;
+  bool disconnectAfterHeaders = false, dropResponse = false, holdApi = false;
   bool mcpMode = false, stream = false, wrongId = false, holdCall = false;
   QList<QByteArray> history;
   QStringList methods;
@@ -30,6 +31,14 @@ public:
         return;
       const int headEnd = buffer.indexOf("\r\n\r\n");
       const auto head = buffer.left(headEnd);
+      if (!socket->property("headersCounted").toBool()) {
+        socket->setProperty("headersCounted", true);
+        ++starts;
+        if (disconnectAfterHeaders) {
+          socket->abort();
+          return;
+        }
+      }
       int length = 0;
       for (const auto &line : head.split('\n'))
         if (line.toLower().startsWith("content-length:"))
@@ -40,6 +49,12 @@ public:
       received = buffer;
       history.append(buffer);
       ++requests;
+      if (dropResponse) {
+        socket->abort();
+        return;
+      }
+      if (holdApi && !mcpMode)
+        return;
       if (mcpMode) {
         const auto rpc =
             QJsonDocument::fromJson(buffer.mid(headEnd + 4, length)).object();
@@ -199,6 +214,52 @@ private slots:
                  .toObject(),
              QJsonObject{});
   }
+  void apiWriteRoutesAndPayloadLimits() {
+    const QJsonObject profile{{"connector", "api"},
+                              {"endpoint", "https://api.example/base"}};
+    for (const auto *method : {"GET", "POST", "PUT", "PATCH", "DELETE"}) {
+      QJsonObject args{{"operation", "api_request"},
+                       {"method", method},
+                       {"path", "/pages/1"}};
+      QCOMPARE(VaultConnection::route(profile, args).path(),
+               QString("/base/pages/1"));
+      args.insert("body", QJsonObject{{"name", "A"}});
+      QCOMPARE(VaultConnection::route(profile, args).isEmpty(),
+               (QStringList{"GET", "DELETE"}.contains(method)));
+    }
+    QJsonObject args{
+        {"operation", "api_request"},
+        {"method", "PATCH"},
+        {"body", QJsonArray{QJsonObject{
+                     {"op", "replace"}, {"path", "/name"}, {"value", "New"}}}}};
+    QVERIFY(!VaultConnection::route(profile, args).isEmpty());
+    for (const QJsonValue &bad :
+         {QJsonValue("text"), QJsonValue(1), QJsonValue(true),
+          QJsonValue(QJsonValue::Null)}) {
+      args["body"] = bad;
+      QVERIFY(VaultConnection::route(profile, args).isEmpty());
+    }
+    args["body"] = QJsonObject{{"text", QString(32768, 'x')}};
+    QVERIFY(VaultConnection::route(profile, args).isEmpty());
+    args["body"] = QJsonObject{};
+    for (const auto *method : {"post", "CONNECT", "TRACE", "POST\r\nX:1", ""}) {
+      args["method"] = method;
+      QVERIFY(VaultConnection::route(profile, args).isEmpty());
+    }
+    args["method"] = "POST";
+    for (const auto *path :
+         {"https://evil.example", "/../out", "/%2e%2e/out", "/ok\r\n"}) {
+      args["path"] = path;
+      QVERIFY(VaultConnection::route(profile, args).isEmpty());
+    }
+    args["path"] = "/pages";
+    args["headers"] = QJsonObject{{"Authorization", "never"}};
+    QVERIFY(VaultConnection::route(profile, args).isEmpty());
+    args.remove("headers");
+    auto mcp = profile;
+    mcp["connector"] = "mcp";
+    QVERIFY(VaultConnection::route(mcp, args).isEmpty());
+  }
   void sseFramingAndLimits() {
     const QByteArray event =
         "data: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}";
@@ -276,7 +337,7 @@ private slots:
     QCOMPARE(result(extra).value("error").toString(),
              QString("invalid_request"));
     QLocalSocket large;
-    send(large, runtime.path(), QByteArray(5000, 'x'));
+    send(large, runtime.path(), QByteArray(BookStack::MaxFrame + 1, 'x'));
     QTRY_VERIFY(large.bytesAvailable());
     QCOMPARE(result(large).value("error").toString(),
              QString("invalid_request"));
@@ -534,6 +595,108 @@ private slots:
     QVERIFY(service.received.startsWith("GET /service/status HTTP/1.1"));
     QVERIFY(service.received.contains(
         "Authorization: Bearer SYNTHETIC.JWT.SECRET"));
+    // Exact generic writes use only the natively injected credential and
+    // approved body.
+    for (const auto *method : {"POST", "PUT", "PATCH", "DELETE"}) {
+      service.status = QByteArray(method) == "POST"     ? "201 Created"
+                       : QByteArray(method) == "PATCH"  ? "202 Accepted"
+                       : QByteArray(method) == "DELETE" ? "204 No Content"
+                                                        : "200 OK";
+      service.body = QByteArray(method) == "DELETE"
+                         ? QByteArray()
+                         : QByteArray(R"({"id":77,"name":"Created"})");
+      QJsonObject args{{"operation", "api_request"},
+                       {"method", method},
+                       {"path", "/pages/77"}};
+      if (QByteArray(method) != "DELETE")
+        args["body"] = QJsonObject{{"name", "Synthetic write"},
+                                   {"text", QString(8000, QChar(0x00e4))}};
+      const int before = service.requests;
+      auto output =
+          genericPerform(QJsonDocument(args).toJson(QJsonDocument::Compact));
+      QCOMPARE(output["http_status"].toInt(), service.status.left(3).toInt());
+      QCOMPARE(service.requests, before + 1);
+      QVERIFY(service.received.startsWith(QByteArray(method) +
+                                          " /service/pages/77 HTTP/1.1"));
+      QVERIFY(service.received.contains(
+          "Authorization: Bearer SYNTHETIC.JWT.SECRET"));
+      auto wireBody =
+          service.received.mid(service.received.indexOf("\r\n\r\n") + 4);
+      if (QByteArray(method) == "DELETE") {
+        QVERIFY(wireBody.isEmpty());
+        QVERIFY(output["result"].isNull());
+      } else
+        QCOMPARE(QJsonDocument::fromJson(wireBody).object(),
+                 args["body"].toObject());
+    }
+    service.status = "205 Reset Content";
+    service.body.clear();
+    QCOMPARE(
+        genericPerform(
+            R"({"operation":"api_request","method":"POST","path":"/reset"})")
+            ["http_status"]
+                .toInt(),
+        205);
+    // Declining never sends an HTTP request or retrieves credentials.
+    const int beforeDecline = service.starts;
+    QLocalSocket cancelledWrite;
+    send(cancelledWrite, genericRuntime.path(),
+         R"({"operation":"api_request","method":"DELETE","path":"/pages/77"})");
+    QTRY_VERIFY(QApplication::activeModalWidget());
+    QString approval;
+    for (auto *label :
+         QApplication::activeModalWidget()->findChildren<QLabel *>())
+      approval += label->text();
+    QVERIFY(approval.contains("DELETE https://127.0.0.1:"));
+    QVERIFY(approval.contains("/service/pages/77"));
+    qobject_cast<QDialog *>(QApplication::activeModalWidget())->reject();
+    QTRY_VERIFY(cancelledWrite.bytesAvailable());
+    QCOMPARE(result(cancelledWrite)["error"].toString(),
+             QString("access_denied"));
+    QCOMPARE(service.starts, beforeDecline);
+    service.status = "200 OK";
+    service.body = "invalid-json";
+    QCOMPARE(genericPerform(
+                 R"({"operation":"api_request","method":"POST"})")["error"]
+                 .toString(),
+             QString("operation_outcome_unknown"));
+    service.body = R"({"secret":"SYNTHETIC.JWT.SECRET"})";
+    QCOMPARE(genericPerform(
+                 R"({"operation":"api_request","method":"POST"})")["error"]
+                 .toString(),
+             QString("operation_outcome_unknown"));
+    // Both bodyless and body-carrying writes must not be replayed by Qt.
+    for (bool early : {false, true}) {
+      service.disconnectAfterHeaders = early;
+      service.dropResponse = !early;
+      for (const auto *method : {"POST", "PUT", "PATCH", "DELETE"}) {
+        QJsonObject args{{"operation", "api_request"},
+                         {"method", method},
+                         {"path", "/disconnect"}};
+        if (QByteArray(method) != "DELETE")
+          args["body"] = QJsonObject{{"text", QString(24000, 'x')}};
+        const int before = service.starts;
+        QCOMPARE(genericPerform(QJsonDocument(args).toJson(
+                     QJsonDocument::Compact))["error"]
+                     .toString(),
+                 QString("operation_outcome_unknown"));
+        QTest::qWait(30);
+        QCOMPARE(service.starts, before + 1);
+      }
+    }
+    service.disconnectAfterHeaders = false;
+    service.dropResponse = false;
+    service.body = R"({"ok":true})";
+    service.extra = "Location: https://127.0.0.1:9/unapproved\r\n";
+    service.status = "307 Temporary Redirect";
+    const int beforeRedirect = service.starts;
+    QCOMPARE(genericPerform(
+                 R"({"operation":"api_request","method":"POST"})")["error"]
+                 .toString(),
+             QString("operation_outcome_unknown"));
+    QCOMPARE(service.starts, beforeRedirect + 1);
+    service.extra.clear();
+    service.status = "200 OK";
     generic[generic.indexOf("LumenApiConnector") + 1] = "mcp";
     service.mcpMode = true;
     for (bool sse : {false, true}) {

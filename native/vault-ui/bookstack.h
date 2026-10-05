@@ -5,7 +5,7 @@
 #include <functional>
 
 namespace BookStack {
-constexpr int MaxFrame = 4096;
+constexpr int MaxFrame = 64 * 1024;
 constexpr int MaxBody = 1024 * 1024;
 QUrl origin(const QString &text);
 QUrl route(const QUrl &base, const QJsonObject &args);

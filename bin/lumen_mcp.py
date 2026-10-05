@@ -460,6 +460,10 @@ def validate_schema(value, schema, path='arguments'):
     """Validate the JSON Schema subset used by these local tool definitions."""
     kinds = {'object': dict, 'array': list, 'string': str, 'integer': int, 'boolean': bool}
     kind = schema.get('type')
+    if isinstance(kind, list):
+        match = next((candidate for candidate in kind if type(value) is kinds[candidate]), None)
+        if match is None: raise ValueError(path + ': expected ' + ' or '.join(kind))
+        return validate_schema(value, dict(schema, type=match), path)
     if kind and type(value) is not kinds[kind]:
         raise ValueError(path + ': expected ' + kind)
     if 'enum' in schema and value not in schema['enum']:
@@ -487,19 +491,26 @@ def tool_native(name, args):
     from lumen_mcp_tools import DEFINITIONS
     if DEFINITIONS[name].get('action') and not DEFINITIONS[name].get('native_confirmation') and not ACTIONS_ENABLED:
         raise ValueError('MCP actions are disabled.')
+    mutation = (name == 'lumen_vault_api_request' and args.get('method') != 'GET') or (name == 'lumen_vault_mcp' and args.get('operation') == 'call')
+    uncertain = 'The remote operation outcome is unknown. Check remote state before retrying; do not automatically repeat the write.'
     worker = Path(sys.modules['lumen_mcp_tools'].__file__)
     process = subprocess.Popen([sys.executable, str(worker)], stdin=subprocess.PIPE,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
     try:
-        output, stderr = process.communicate(json.dumps(dict(name=name, arguments=args)), timeout=105 if name in ('lumen_vault_store', 'lumen_bookstack_read', 'lumen_vault_api_get', 'lumen_vault_mcp') else 270 if name == 'lumen_translate_pdf' else 165 if name == 'lumen_translate_text' else 45)
+        output, stderr = process.communicate(json.dumps(dict(name=name, arguments=args)), timeout=105 if name in ('lumen_vault_store', 'lumen_bookstack_read', 'lumen_vault_api_get', 'lumen_vault_api_request', 'lumen_vault_mcp') else 270 if name == 'lumen_translate_pdf' else 165 if name == 'lumen_translate_text' else 45)
     except subprocess.TimeoutExpired:
         os.killpg(process.pid, signal.SIGKILL)
         process.communicate()
-        raise ValueError('Native tool timed out. Check the source/desktop connection and retry.') from None
+        raise ValueError(uncertain if mutation else 'Native tool timed out. Check the source/desktop connection and retry.') from None
     if process.returncode:
-        raise ValueError('Native tool failed. Verify the Lumen Qt6 runtime and installation.')
-    if len(output) > 1024*1024: raise ValueError('Result too large. Narrow the query or reduce the limit.')
-    response = json.loads(output)
+        raise ValueError(uncertain if mutation else 'Native tool failed. Verify the Lumen Qt6 runtime and installation.')
+    output_limit = 2*1024*1024 if name in ('lumen_vault_api_request','lumen_vault_api_get','lumen_vault_mcp','lumen_bookstack_read','lumen_vault_connection','lumen_vault_store') else 1024*1024
+    if len(output) > output_limit: raise ValueError(uncertain if mutation else 'Result too large. Narrow the query or reduce the limit.')
+    try:
+        response = json.loads(output)
+        if not isinstance(response, dict) or not ('data' in response or 'error' in response): raise ValueError()
+    except (ValueError, TypeError):
+        raise ValueError(uncertain if mutation else 'Invalid native tool response.') from None
     if 'error' in response: raise ValueError(response['error'])
     return response['data']
 
