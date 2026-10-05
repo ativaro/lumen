@@ -21,7 +21,7 @@ APP_NAMES = {
     'translate': 'Lumen Translate',
     'wissen': 'Lumen Wissen', 'reader': 'Lumen Reader', 'inbox': 'Lumen Inbox',
     'meetings': 'Lumen Meeting-Werkstatt', 'household': 'Lumen Digitaler Haushalt',
-    'workbench': 'Lumen Projekt-Werkbank', 'radio': 'Lumen Persönliches Radio',
+    'workbench': 'Lumen Projekte', 'radio': 'Lumen Persönliches Radio',
     'sound': 'Lumen Sound', 'vault': 'Lumen Vault', 'interop': tr('Lumen Verknüpfungen'),
 }
 MANIFEST = 'lumen-app-backup.json'
@@ -90,7 +90,11 @@ def payload_sources(payload, root=None, store=None):
             with closing(sqlite3.connect(dbpath.as_uri()+'?mode=ro', uri=True)) as db:
                 record = db.execute('SELECT data FROM records WHERE id=?', (source['id'],)).fetchone()
                 if record:
-                    for item in json.loads(record[0]).get('resources', []):
+                    resources=json.loads(record[0]).get('resources', [])
+                    if db.execute("SELECT 1 FROM sqlite_master WHERE name='project_items'").fetchone():
+                        for child in db.execute('SELECT data FROM project_items WHERE project=?',(source['id'],)):
+                            resources+=json.loads(child[0]).get('resources',[])
+                    for item in resources:
                         if item.get('kind') == 'file':
                             path = Path(item['target']).expanduser().resolve()
                             entries.append(dict(app='files', title=item.get('title', path.name), path=str(path),

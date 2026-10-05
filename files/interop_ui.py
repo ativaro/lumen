@@ -100,8 +100,12 @@ def review(window,request):
     title=QLineEdit(default_title);form.addRow(tr('Titel'),title)
     destination=QComboBox();rows=choices(action,root_for(window),store=getattr(window,'store',None))
     needs_choice=action in ('inbox.draft','inbox.event') or spec.get('requires_choice',False)
-    if not needs_choice and action!='wissen.import':destination.addItem(tr('Neuen Eintrag anlegen'),'')
+    if not needs_choice and action!='wissen.import':destination.addItem(tr('Neues Projekt') if action.startswith('workbench.') else tr('Neuen Eintrag anlegen'),'')
     for row in rows:destination.addItem(row['title'],row['id'])
+    if action=='workbench.add' and getattr(window,'name','')=='workbench' and window.current:
+        key=window.current+('/'+window.scope if getattr(window,'scope','') else '')
+        index=destination.findData(key)
+        if index>=0:destination.setCurrentIndex(index)
     if needs_choice and not rows:
         dialog.deleteLater()
         if getattr(window,'name','')=='inbox' and QMessageBox.question(window,tr('Lumen Inbox einrichten'),tr('Für diese Übergabe fehlt ein passendes Konto. Jetzt einrichten und anschließend die Übergabe fortsetzen?'))==QMessageBox.Yes:
@@ -371,7 +375,7 @@ def files_menu(window,menu,paths):
 def app_name(app):
     return {'files':'Lumen Files','wissen':'Lumen Wissen','reader':'Lumen Reader','inbox':'Lumen Inbox',
             'meetings':tr('Lumen Meeting-Werkstatt'),'household':tr('Lumen Digitaler Haushalt'),
-            'workbench':tr('Lumen Projekt-Werkbank'),'radio':tr('Lumen Persönliches Radio'),
+            'workbench':tr('Lumen Projekte'),'radio':tr('Lumen Persönliches Radio'),
             'vault':'Lumen Vault','sound':'Lumen Sound','translate':'Lumen Translate'}.get(app,'Lumen')
 
 

@@ -40,7 +40,8 @@ class FocusTest(unittest.TestCase):
         project = self.window(Workbench); key = project.library.create('Test', notes='', resources=[dict(kind='file', target='/tmp/one', title='One'), dict(kind='file', target='/tmp/two', title='Two')], questions=[dict(text='Question', done=False)])
         focus(project, self.ref(project, key, 'resource:1'))
         self.assertEqual(project.tabs.currentIndex(), 1); self.assertEqual(project.resources.currentRow(), 1)
-        focus(project, self.ref(project, key, 'question:0')); self.assertEqual(project.questions.currentRow(), 0)
+        focus(project, self.ref(project, key, 'question:0'))
+        self.assertEqual(project.projects.get(project.scope)['title'],'Question'); self.assertEqual(project.tabs.currentIndex(),2)
         house = self.window(Household); key = house.library.create('Device', kind='Gerät', notes='', attachments=[dict(asset='one.pdf', name='One'), dict(asset='two.pdf', name='Two')])
         focus(house, self.ref(house, key, 'attachment:two.pdf'))
         self.assertEqual(house.attachments.currentItem().data(Qt.UserRole)['asset'], 'two.pdf')
@@ -67,7 +68,7 @@ class FocusTest(unittest.TestCase):
         window.tabs.setCurrentIndex(0);window.questions.setCurrentRow(1);question=capture(window)['source']
         window.library.update(key,resources=[b,a],questions=[dict(qb,done=True),qa])
         focus(window,resource);self.assertEqual(window.resources.currentRow(),0)
-        focus(window,question);self.assertEqual(window.questions.currentRow(),0)
+        focus(window,question);self.assertEqual(window.projects.get(window.scope)['title'],'Chosen question')
         window.library.update(key,resources=[a],questions=[dict(qb,text='Changed question'),qa])
         for ref in (resource,question):
             with self.assertRaisesRegex(ValueError,'geändert, entfernt'):focus(window,ref)

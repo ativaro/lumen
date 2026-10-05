@@ -45,6 +45,13 @@ def process(payload):
         result=dict(pages=len(document),toc=document.get_toc()[:2000],title=document.metadata.get('title') or '',locked=False)
         action=payload['action']
         if action=='metadata':return result
+        if action=='text':
+            parts=[]; size=0
+            for page in document:
+                text=page.get_text(sort=True); size+=len(text)
+                if size>120000:raise ValueError(tr('Mehr als 120.000 Zeichen; bitte einen kürzeren Auszug importieren.'))
+                parts.append(text)
+            return dict(text='\n\n'.join(parts))
         if action=='search':
             needle=payload['query'].strip().casefold()
             if not needle or len(needle)>200:raise ValueError(tr('Suchbegriff mit 1 bis 200 Zeichen eingeben.'))

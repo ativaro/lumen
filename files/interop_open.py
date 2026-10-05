@@ -131,9 +131,15 @@ def focus_part(window,position):
     from PySide6.QtCore import Qt
     from interop_parts import match_part,window_parts
     part=position.get('part','');kind,_,value=part.partition(':');app=window.name
+    if app=='workbench' and kind=='item':
+        window.open_scope(value);return
     if app=='workbench' and kind in ('resource','question'):
         listing=window.resources if kind=='resource' else window.questions
         index=match_part(kind,value,window_parts(window,kind))
+        if kind=='question' and hasattr(window,'projects'):
+            for item in window.projects.items(window.current)+window.projects.items(window.current,archived=True):
+                if item.get('legacy_question')==index and item.get('legacy_text')==listing.item(index).text():
+                    listing.setCurrentRow(index);window.open_scope(item['id']);return
         window.tabs.setCurrentIndex(1 if kind=='resource' else 0);listing.setCurrentRow(index);listing.scrollToItem(listing.currentItem());return
     if app=='household' and kind=='attachment':
         for index in range(window.attachments.count()):

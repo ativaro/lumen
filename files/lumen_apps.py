@@ -22,7 +22,7 @@ def catalogue():
         ('sound', 'Lumen Sound', tr('Audioausgabe und Lautstärke steuern'), 'audio-volume-high'),
         ('meetings', tr('Lumen Meeting-Werkstatt'), tr('Aufnahmen transkribieren und zusammenfassen'), 'audio-input-microphone'),
         ('household', tr('Lumen Digitaler Haushalt'), tr('Dokumente und Fristen im Blick behalten'), 'view-calendar'),
-        ('workbench', tr('Lumen Projekt-Werkbank'), tr('Projekte und ihre nächsten Schritte organisieren'), 'folder-development'),
+        ('workbench', tr('Lumen Projekte'), tr('Projekte und ihre nächsten Schritte organisieren'), 'folder-development'),
         ('radio', tr('Lumen Persönliches Radio'), tr('Deine Inhalte als Hörprogramm'), 'media-playback-start'),
     ]
 

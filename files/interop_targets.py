@@ -20,7 +20,7 @@ ACTIONS = {
     'translate.import': dict(target='translate', label=tr('In Lumen Translate bearbeiten …'), modes=['copy'], description=tr('Text oder PDF lokal vorbereiten. Übersetzen, Umformulieren oder Korrigieren erst in Translate starten.')),
     'wissen.import': dict(target='wissen', label=tr('Als Notiz speichern …'), modes=['copy', 'link'], description=tr('In Lumen Wissen speichern. Die Originaldatei bleibt unverändert.')),
     'workbench.add': dict(target='workbench', label=tr('Zu einem Projekt hinzufügen …'), modes=['copy', 'link','live'], description=tr('Material und Notizen einem neuen oder vorhandenen Projekt zuordnen.')),
-    'workbench.question': dict(target='workbench', label=tr('Als offene Projektfrage übernehmen'), modes=['copy'], description=tr('Ausgewählten Text als offene Frage mit Herkunft speichern.')),
+    'workbench.question': dict(target='workbench', label=tr('Als Aufgabe in Lumen Projekte übernehmen'), modes=['copy'], description=tr('Ausgewählten Text als manuelle Aufgabe mit Herkunft speichern.')),
     'household.add': dict(target='household', label=tr('Zu einem Gerät oder Vertrag hinzufügen …'), modes=['copy','link','live'], description=tr('Belege, Handbücher und Notizen einem Gerät oder Vertrag zuordnen.')),
     'radio.add': dict(target='radio', label=tr('Für eine Radioausgabe sammeln …'), modes=['copy'], description=tr('Lokalen Text für eine neue oder vorhandene Radioausgabe sammeln.')),
     'reader.import': dict(target='reader', label=tr('In Lumen Reader öffnen'), modes=['copy'], description=tr('Eine private Lesekopie mit Herkunft anlegen.')),
@@ -59,7 +59,16 @@ def choices(action, root=None, store=None):
     if target == 'inbox':
         kinds = ('imap', 'bridge') if action == 'inbox.draft' else ('caldav',)
         records = [record for record in records if record.get('kind') in kinds]
-    return [dict(id=record['id'], title=record['title']) for record in records]
+    result=[dict(id=record['id'], title=record['title']) for record in records]
+    if target=='workbench' and action=='workbench.add':
+        from projects_data import Projects
+        projects=Projects(Library(target,root))
+        for record in records:
+            children=projects.items(record['id']); names={item['id']:item['title'] for item in children}
+            for item in children:
+                if item['parent'] and item['parent'] not in names:continue
+                result.append(dict(id=record['id']+'/'+item['id'],title=record['title']+' / '+(names.get(item['parent'],'')+' / ' if item['parent'] else '')+item['title']))
+    return result
 
 
 def _validate(action, payload, choice):
@@ -128,6 +137,20 @@ def _filename(payload, path):
 
 def _record(db, library, action, payload, choice, values, extend=()):
     key = choice.get('id') or uuid.uuid4().hex
+    if action=='workbench.add' and '/' in key:
+        project,child=key.split('/',1)
+        existing=db.execute('SELECT * FROM project_items WHERE project=? AND id=? AND archived=0',(project,child)).fetchone()
+        if not existing:raise ValueError(tr('Das gewählte Ziel ist nicht mehr vorhanden.'))
+        if not db.execute('SELECT 1 FROM records WHERE id=? AND archived=0',(project,)).fetchone() or (existing['parent'] and not db.execute('SELECT 1 FROM project_items WHERE id=? AND archived=0',(existing['parent'],)).fetchone()):
+            raise ValueError(tr('Das gewählte Ziel ist archiviert. Bitte zuerst wiederherstellen.'))
+        previous=json.loads(existing['data'])
+        if values.get('questions'):
+            values['notes']=values.get('notes','')+'\n'+'\n'.join(q['text'] for q in values.pop('questions'))
+        for field in extend:
+            if field in values and previous.get(field):values[field]=previous[field]+ ('\n\n' if isinstance(previous[field],str) else [])+values[field]
+        previous.update(values); previous['interop_token']=choice['token']
+        db.execute('UPDATE project_items SET data=?,updated=? WHERE id=?',(json.dumps(previous),time.time(),child))
+        return dict(app='workbench',kind='record',id=project,title=existing['title'],position=dict(part='item:'+child))
     existing = db.execute('SELECT * FROM records WHERE id=?', (key,)).fetchone() if choice.get('id') else None
     if choice.get('id') and not existing: raise ValueError(tr('Das gewählte Ziel ist nicht mehr vorhanden.'))
     previous = json.loads(existing['data']) if existing else {}
@@ -225,13 +248,14 @@ def apply(action, payload, choice, job, root=None, store=None):
             job.check()
             with library.connect() as db:
                 db.execute('BEGIN IMMEDIATE')
-                kind='event' if action=='inbox.event' else 'record'
+                kind='event' if action=='inbox.event' else 'project_item' if action=='workbench.add' and '/' in choice.get('id','') else 'record'
                 key=values.get('proposal_id') if kind=='event' else choice.get('id')
+                if kind=='project_item':key=key.split('/',1)[1]
                 before=snapshot(db,kind,key) if key and not action.startswith(('inbox.draft','inbox.task')) else None
                 result = (_inbox(db, library, action, payload, choice, values) if action.startswith('inbox.') else
                           _record(db, library, action, payload, choice, values, extend))
                 _remember(db, choice['token'], signature, result)
-                remember(db,choice['token'],result,before,snapshot(db,result['kind'],result['id']))
+                remember(db,choice['token'],result,before,snapshot(db,kind if kind=='project_item' else result['kind'],key if kind=='project_item' else result['id']))
             return result
         except BaseException:
             for path in created: path.unlink(missing_ok=True)

@@ -351,6 +351,7 @@ def _resource(value):
 
 
 def _workbench(window, record):
+    if getattr(window,'scope',''): return window.interop_payload()
     source = _ref('workbench', record['id'], _text(window.title) or record['title'])
     if window.tabs.currentIndex() == 1 and window.resources.currentItem():
         item = _resource(_item_data(window.resources))

@@ -4,7 +4,7 @@ import time
 from lumen_i18n import tr
 from tools_data import Library
 
-TABLES={'record':'records','task':'tasks','draft':'drafts','event':'interop_event_proposals'}
+TABLES={'record':'records','project_item':'project_items','task':'tasks','draft':'drafts','event':'interop_event_proposals'}
 
 
 def _same(left,right):
@@ -43,6 +43,9 @@ def undo(action,token,job,root=None,store=None):
         ref=json.loads(row['ref']);before=json.loads(row['before']);after=json.loads(row['after'])
         if row['undone']:return ref
         job.check();kind=ref['kind']
+        key=ref['id']
+        if ref.get('app')=='workbench' and ref.get('position',{}).get('part','').startswith('item:'):
+            kind='project_item';key=ref['position']['part'].split(':',1)[1]
         if kind=='note':
             from wissen_data import Notebook
             from lumen_store import Store
@@ -52,8 +55,22 @@ def undo(action,token,job,root=None,store=None):
             if note and note['hash']!=after['hash']:raise ValueError(tr('Der übernommene Inhalt wurde inzwischen geändert. Er bleibt erhalten.'))
             if note:book.remove(ref['id'],after['hash'])
         else:
-            current=snapshot(db,kind,ref['id'])
+            current=snapshot(db,kind,key)
             if not _same(current,after):raise ValueError(tr('Der übernommene Inhalt wurde inzwischen geändert. Er bleibt erhalten.'))
+            if before is not None and target=='workbench' and kind=='record' and db.execute("SELECT 1 FROM sqlite_master WHERE name='project_items'").fetchone():
+                import hashlib
+                questions=json.loads(before['data']).get('questions',[]) if before else []
+                retained={hashlib.sha256((str(index)+'\0'+question.get('text','').strip()).encode()).hexdigest() for index,question in enumerate(questions)}
+                imported={hashlib.sha256((str(index)+'\0'+question.get('text','').strip()).encode()).hexdigest() for index,question in enumerate(json.loads(current['data']).get('questions',[]))}-retained
+                for child in db.execute('SELECT * FROM project_items WHERE project=?',(key,)).fetchall():
+                    data=json.loads(child['data']); source=data.get('legacy_source')
+                    if not source or source not in imported:continue
+                    pristine=child['title']==data.get('legacy_text') and not any(data.get(k) for k in ('notes','resources','goal','depends')) and data.get('status')==('done' if data.get('legacy_done') else 'open')
+                    if not pristine or db.execute('SELECT 1 FROM project_runs WHERE task=?',(child['id'],)).fetchone():
+                        raise ValueError(tr('Die übernommene Aufgabe wurde inzwischen bearbeitet. Sie bleibt erhalten.'))
+                    data['legacy_origin']=data.pop('legacy_source')
+                    db.execute('UPDATE project_items SET archived=1,data=? WHERE id=?',(json.dumps(data),child['id']))
+                    db.execute('DELETE FROM project_migration WHERE project=? AND source=?',(key,source))
             if before is None:
                 if kind=='record':db.execute('UPDATE records SET archived=1 WHERE id=?',(ref['id'],))
                 else:

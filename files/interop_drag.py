@@ -4,7 +4,7 @@ import time
 
 from PySide6.QtCore import Qt, QObject, QEvent, QMimeData, QTimer
 from PySide6.QtGui import QDrag
-from PySide6.QtWidgets import QListWidget, QWidget
+from PySide6.QtWidgets import QListWidget, QTreeWidget, QWidget
 from lumen_i18n import tr
 from interop_data import Registry, validate_payload
 
@@ -50,6 +50,13 @@ class EntryList(QListWidget):
             except Exception as exc: error(self.owner, exc)
         try: with_saved(self.owner, drag)
         except Exception as exc: error(self.owner, exc)
+
+
+class EntryTree(QTreeWidget):
+    def __init__(self, window):
+        super().__init__(window); self.owner=window; self.setDragEnabled(True)
+
+    startDrag=EntryList.startDrag
 
 
 class DropFilter(QObject):
