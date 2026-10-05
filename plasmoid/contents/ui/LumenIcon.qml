@@ -23,6 +23,7 @@ Image {
         "configure": "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1Z",
         "adjustlevels": "M3 6h8m4 0h6M3 12h3m4 0h11M3 18h11m4 0h3 M11 3v6m-5 0v6m8 0v6",
         "view-refresh": "M20 8a8 8 0 1 0 0 8 M20 3v5h-5",
+        "system-software-update": "M20 8a8 8 0 1 0 0 8 M20 3v5h-5 M12 7v10m-3-3 3 3 3-3",
         "computer": "M3 3h18v14H3Z M12 17v4m-5 0h10",
         "utilities-system-monitor": "M3 3h18v14H3Z M12 17v4m-5 0h10",
         "system-lock-screen": "M5 10h14v11H5Z M8 10V6a4 4 0 0 1 8 0v4 M12 14v3",
