@@ -38,6 +38,9 @@ class Activation(QObject):
 
     @Slot()
     def Activate(self):
+        # Remap a background surface; raising an already-mapped Wayland window
+        # alone does not reliably bring it forward after a D-Bus activation.
+        if self.window.isVisible() and not self.window.isActive(): self.window.hide()
         self.controller.reload_settings()
         if not self.controller.conversation:
             self.controller.debounce.stop(); self.controller.search()
@@ -46,7 +49,8 @@ class Activation(QObject):
         self.window.setWidth(min(1240, max(620, area.width()-30)))
         self.window.setHeight(min(900, max(560, area.height()-70)))
         self.window.setPosition(area.x()+(area.width()-self.window.width())//2, min(area.bottom()-self.window.height(), max(area.y()+12, screen.geometry().y()+70)))
-        self.window.show(); self.window.raise_(); self.window.requestActivate()
+        self.window.showNormal(); self.window.raise_(); self.window.requestActivate()
+        self.controller.focusRequested.emit()
 
     @Slot()
     def Voice(self):

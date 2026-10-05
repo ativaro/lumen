@@ -56,3 +56,14 @@ honestly; a binding migration alone is not a full QML rewrite of every screen.
   repeated desktop setup. Existing service templates retain custom fields and
   backups when their interpreter is migrated. Installed launchers and package
   payloads were verified separately from the source tests.
+
+## Search activation and dismissal
+- Opening search from the panel or shortcut brings it to the foreground and
+  focuses the composer. Repeated activation keeps the existing session.
+- Clicking another window, closing or pressing Escape hides search; its draft
+  and conversation remain available on the next activation. Attachment and CSV
+  export dialogs do not dismiss their search window.
+- A remapped Wayland surface ignores the previous surface's delayed focus-out
+  until it receives focus itself. Native KWin checks cover another application's
+  focus and immediate close/reopen; the QML regression covers ordinary dismissal,
+  owned dialogs, Escape and draft preservation.

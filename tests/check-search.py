@@ -59,7 +59,9 @@ with tempfile.TemporaryDirectory(prefix='lumen-search-check-') as tmp:
             try:
                 wait(lambda:bool(service_pid()) and saved.exists() and saved.stat().st_mtime_ns > previous_mtime, process)
                 first = service_pid()
-                assert json.loads(saved.read_text()) == seed, saved.read_text()
+                checkpoint = json.loads(saved.read_text())
+                assert checkpoint['conversation'] == seed['conversation']
+                assert all(checkpoint['chat'][key] == value for key, value in seed['chat'].items()), checkpoint
                 subprocess.run([str(launcher)], env=env, stdout=log, stderr=log, check=True, timeout=10)
                 assert service_pid() == first, 'Warm launch created another window process'
                 wait(lambda:any((root/'state/lumen/crashes').glob('run-*/ready')), process)

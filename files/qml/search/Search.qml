@@ -11,9 +11,11 @@ ApplicationWindow {
     width: 1240; height: 900
     minimumWidth: 620; minimumHeight: 560
     property int section: 0
+    // A remapped Wayland surface can receive the previous surface's focus-out first.
+    property bool focusReceived: false
     readonly property bool homeVisible: !controller.conversation && !controller.query.trim() && section === 0
     visible: false; color: "transparent"
-    flags: Qt.Tool | Qt.FramelessWindowHint
+    flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
     title: window.controller.text("Lumen Suche")
     font.family: window.theme.fontFamily
     palette.windowText: window.theme.text; palette.text: window.theme.text
@@ -21,7 +23,13 @@ ApplicationWindow {
     palette.buttonText: window.theme.text; palette.highlight: window.theme.accent
     palette.highlightedText: window.theme.onAccent; palette.placeholderText: window.theme.muted
     onClosing: function(event) { event.accepted = false; hide() }
-    onVisibleChanged: { if (!visible) window.controller.hidden(); else { composer.forceActiveFocus(); window.controller.homeView.start() } }
+    onActiveChanged: {
+        if (active) focusReceived = true
+        else if (visible && focusReceived) Qt.callLater(function() {
+            if (window.visible && window.focusReceived && !window.active && !attachments.visible && !resultView.dialogVisible) window.hide()
+        })
+    }
+    onVisibleChanged: { if (!visible) { focusReceived = false; window.controller.hidden() } else { composer.forceActiveFocus(); window.controller.homeView.start() } }
     Shortcut { sequence: "Escape"; enabled: !options.opened; onActivated: window.hide() }
     Connections {
         target: window.controller
@@ -252,7 +260,7 @@ ApplicationWindow {
                                 }
                             }
                         }
-                        ResultView { Layout.fillWidth: true; view: window.controller.richView; theme: window.theme }
+                        ResultView { id: resultView; Layout.fillWidth: true; view: window.controller.richView; theme: window.theme }
                         Repeater {
                             model: window.controller.permissions
                             Rectangle {

@@ -19,6 +19,44 @@ class Qt6SearchTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
             return result
 
+    def test_search_dismisses_on_outside_focus_and_reopens_with_draft(self):
+        self.run_qt6('''
+import tempfile
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QGuiApplication
+from PySide6.QtQuick import QQuickWindow
+from PySide6.QtTest import QTest
+from search_controller import SearchController
+from search_qml import create_window, Activation
+app=QGuiApplication([]);app.setQuitOnLastWindowClosed(False)
+with tempfile.TemporaryDirectory() as tmp:
+ c=SearchController(tmp,applications=[]);engine,w=create_window(app,c);activation=Activation(w,c)
+ c.restore_recovery({'conversation':True,'chat':{'session':'preserved','draft':'Keep this draft'}})
+ other=QQuickWindow();child=QQuickWindow();child.setTransientParent(w);child.setFlags(Qt.Dialog)
+ for surface in (other,child):surface.resize(300,200)
+ try:
+  activation.Activate();QTest.qWait(50);assert w.isVisible() and w.isActive()
+  child.show();child.requestActivate();QTest.qWait(50)
+  assert child.isActive() and w.isVisible(), 'A search-owned dialog must not dismiss the search'
+  child.hide();w.requestActivate();QTest.qWait(30)
+  other.show();other.requestActivate();QTest.qWait(50)
+  assert other.isActive() and not w.isVisible(), 'Clicking another window must dismiss the search'
+  activation.Activate();QTest.qWait(50);assert w.isVisible() and w.isActive()
+  activation.Activate();QTest.qWait(30);assert w.isVisible(), 'Repeated opening must not toggle the search away'
+  assert c.query=='Keep this draft' and c.backend.session=='preserved'
+  w.close();QTest.qWait(20);assert not w.isVisible()
+  other.requestActivate();QTest.qWait(20)
+  activation.Activate();QTest.qWait(50);assert w.isVisible() and w.isActive()
+  QTest.keyClick(w,Qt.Key_Escape);QTest.qWait(20);assert not w.isVisible()
+  other.requestActivate();QTest.qWait(20)
+  activation.Activate();QTest.qWait(50);assert w.isVisible() and w.isActive()
+  other.show();other.requestActivate();QTest.qWait(50)
+  assert not w.isVisible(), 'Outside focus must still dismiss after reopening'
+  assert c.query=='Keep this draft' and c.backend.session=='preserved'
+ finally:
+  child.hide();other.hide();c.shutdown();w.hide();engine.deleteLater();QTest.qWait(20)
+''')
+
     def test_answer_actions_belong_to_latest_answer_card(self):
         self.run_qt6("""
 import tempfile
