@@ -447,5 +447,14 @@
   "Standardmäßig aus. Gelesene Inhalte können an deinen konfigurierten KI-Anbieter übermittelt werden. Es werden keine Nachrichten versendet und keine Konten synchronisiert. Der Entzug gilt ab dem nächsten Werkzeugaufruf; bereits gelesene Chat-Inhalte bleiben erhalten.": "Off by default. Read content may be sent to your configured AI provider. No messages are sent and no accounts are synced. Revoking access applies from the next tool call; previously read chat content remains.",
   "MCP-Freigabe gespeichert.": "MCP access saved.",
   "MCP-Einstellungen übernehmen": "Apply MCP settings",
-  "Ändernde Werkzeuge benötigen eine separate Freigabe in OpenCode. Die Lesefreigabe für die Inbox erlaubt keine Änderungen.": "Tools that make changes require separate permission in OpenCode. Read access to Inbox does not allow changes."
+  "Ändernde Werkzeuge benötigen eine separate Freigabe in OpenCode. Die Lesefreigabe für die Inbox erlaubt keine Änderungen.": "Tools that make changes require separate permission in OpenCode. Read access to Inbox does not allow changes.",
+  "Die Engine liefert keine gültigen API-Daten. Bitte im Einrichtungsassistenten die kompatible Engine einrichten.": "The engine did not return valid API data. Please set up the compatible engine in the setup wizard.",
+  "Unerwartetes Datenformat der Engine. Bitte die Anbindung erneut prüfen.": "Unexpected engine data format. Please check the connection again.",
+  "Kompatible Engine einrichten · ca. 61 MB": "Set up compatible engine · about 61 MB",
+  "LUMEN_OPENCODE_BIN überschreibt die Engine. Bitte diese Vorgabe zuerst entfernen.": "LUMEN_OPENCODE_BIN overrides the engine. Please remove this override first.",
+  "Die kompatible Engine ist für Linux x86_64 und ARM64 verfügbar.": "The compatible engine is available for Linux x86_64 and ARM64.",
+  "Kompatible Engine für Lumen einrichten …": "Setting up the compatible engine for Lumen …",
+  "Ungültiges Engine-Archiv.": "Invalid engine archive.",
+  "Die Engine-Version stimmt nicht mit der geprüften Version überein.": "The engine version does not match the verified version.",
+  "Kompatible Engine eingerichtet. Vorhandenes OpenCode und Zugangsdaten bleiben erhalten.": "Compatible engine installed. Existing OpenCode and credentials are preserved."
 }

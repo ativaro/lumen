@@ -133,6 +133,8 @@ class SetupDialog(QDialog):
             'Die Prüfung lädt die Modellliste und sendet keinen Gesprächsinhalt an einen KI-Anbieter.')))
         self.engine_status = text(tr('Noch nicht geprüft.')); page.addWidget(self.engine_status)
         self.check_engine = button(tr('Anbindung prüfen und Modelle laden'), self.load_engine); page.addWidget(self.check_engine)
+        self.repair_engine = button(tr('Kompatible Engine einrichten · ca. 61 MB'), self.install_engine)
+        self.repair_engine.hide(); page.addWidget(self.repair_engine)
         self.models = QComboBox(); self.models.setAccessibleName(tr('Modell für Lumen'))
         self.models.setMinimumContentsLength(15); self.models.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
         self.models.addItem(tr('Bisherige Modellwahl beibehalten'), '')
@@ -280,6 +282,7 @@ class SetupDialog(QDialog):
             self.status.setText((self.last_message or tr('Einrichtung abgeschlossen.')) if code == 0 else
                 tr('Einrichtung nicht abgeschlossen. ') + (self.last_message or tr('Bitte erneut versuchen.')))
             if advance: self.advance_page()
+            elif code == 0 and action == 'engine': self.load_engine()
         proc.finished.connect(finished)
         proc.errorOccurred.connect(lambda error: finished(1) if error == QProcess.FailedToStart else None)
         self.set_busy(True); self.status.setText(tr('Einrichtung wird gestartet …'))
@@ -318,10 +321,16 @@ class SetupDialog(QDialog):
 
     def load_engine(self):
         if self.job or self.checking: return
+        self.connect_provider.setEnabled(False)
         self.checking = True; self.set_busy(True); self.status.setText(tr('Vorhandene KI-Anbindung prüfen …'))
         self.engine.ensure_server(lambda: self.engine.request('GET', '/provider', callback=self.loaded_providers, error=self.engine_failed))
 
     def loaded_providers(self, data):
+        if not isinstance(data, dict) or not isinstance(data.get('all'), list) or not isinstance(data.get('connected'), list):
+            raise ValueError('Invalid provider inventory')
+        if any(not isinstance(p, dict) or not isinstance(p.get('id'), str) or
+               not isinstance(p.get('models', {}), dict) for p in data['all']):
+            raise ValueError('Invalid provider')
         self.providers = data['all']; connected = set(data['connected']); self.connected = connected
         selected = self.models.currentData() or self.settings.value('model', '')
         self.models.clear(); self.models.addItem(tr('Bisherige Modellwahl beibehalten'), '')
@@ -337,6 +346,7 @@ class SetupDialog(QDialog):
         self.engine.request('GET', '/provider/auth', callback=self.loaded_auth, error=self.engine_failed)
 
     def loaded_auth(self, data):
+        if not isinstance(data, dict): raise ValueError('Invalid authentication methods')
         self.provider.clear()
         for provider in sorted(self.providers, key=lambda p: (p['id'] != 'ollama-cloud', p.get('name', p['id']))):
             # /provider/auth lists plugin overrides. Ordinary providers use API keys.
@@ -348,6 +358,7 @@ class SetupDialog(QDialog):
             self.auth_toggle.setChecked(True); self.auth_box.show()
         self.checking = False; self.set_busy(False); self.refresh()
         self.status.setText(tr('Vorhandene Konfiguration geladen. Wähle bei Bedarf ein Modell für Lumen.'))
+        self.repair_engine.hide()
 
     def save_auth(self):
         identifier = self.provider.currentData(); key = self.key.text().strip()
@@ -363,7 +374,13 @@ class SetupDialog(QDialog):
 
     def engine_failed(self, message):
         self.checking = False; self.set_busy(False)
+        self.connect_provider.setEnabled(False); self.repair_engine.show()
         self.engine_status.setText(tr('Anbindung konnte nicht geprüft werden.')); self.status.setText(message)
+
+    def install_engine(self):
+        if self.job or self.checking: return
+        self.engine.shutdown()
+        self.start_job('engine')
 
     def choose_model(self):
         path, _ = QFileDialog.getOpenFileName(self, tr('Sprachmodell auswählen'), str(Path.home()), tr('Whisper-Modell (*.bin)'))

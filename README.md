@@ -179,6 +179,16 @@ Existing windows gain supervision when restarted. No additional system service i
 
 **Required:** `bash`, Python 3, PySide6 with QtSvg, QtQuick and QtDBus, PyGObject/GIO, Pillow. AI features additionally need [OpenCode](https://opencode.ai) with its server API.
 
+The wizard installs a SHA-256-verified **OpenCode 1.18.34** runtime for Lumen
+(Linux x86_64/ARM64, about 61 MB) when setting up the assistant. An existing
+OpenCode installation is initially reused. If “Check connection and load models”
+fails, choose **“Set up compatible engine”** and the wizard retries after installation.
+The runtime lives in `$XDG_DATA_HOME/lumen/engine/1.18.34/` (by default
+`~/.local/share/lumen/engine/1.18.34/`); it takes precedence for Lumen without
+replacing the system/CLI OpenCode or overwriting provider credentials. OpenCode 2's
+changed API is not supported by this client yet. An explicit `LUMEN_OPENCODE_BIN`
+override must be removed before using the managed runtime.
+
 **Optional** (individual features need these):
 - `notify-send` (libnotify) — watchdog notifications
 - `nvidia-smi` — GPU metrics
@@ -265,7 +275,7 @@ All scripts read these environment variables:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `LUMEN_OPENCODE_BIN` | `opencode` in `$PATH`, else `~/.opencode/bin/opencode` | opencode binary |
+| `LUMEN_OPENCODE_BIN` | managed Lumen engine if installed, else `opencode` in `$PATH` or `~/.opencode/bin/opencode` | explicit OpenCode binary override |
 | `LUMEN_WORKDIR` | `~/Documents/work` | default working directory |
 | `LUMEN_DATA` | `~/.local/state/lumen` | private task/workflow/knowledge database |
 | `LUMEN_STATE` | `~/.cache/lumen` | state/report/cache dir |

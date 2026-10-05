@@ -15,8 +15,18 @@ from lumen_qt import QObject, QProcess, QSettings, QTimer, QUrl, QUrlQuery, Sign
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 
 
+ENGINE_VERSION = '1.18.34'
+
+
+def managed_opencode():
+    return Path(os.environ.get('XDG_DATA_HOME') or Path.home() / '.local/share') / 'lumen/engine' / ENGINE_VERSION / 'opencode'
+
+
 def opencode_binary():
-    return os.environ.get('LUMEN_OPENCODE_BIN') or shutil.which('opencode') or str(Path.home() / '.opencode/bin/opencode')
+    managed = managed_opencode()
+    return (os.environ.get('LUMEN_OPENCODE_BIN') or
+            (str(managed) if managed.is_file() and os.access(managed, os.X_OK) else '') or
+            shutil.which('opencode') or str(Path.home() / '.opencode/bin/opencode'))
 
 
 class OpenCodeBackend(QObject):
@@ -93,6 +103,7 @@ class OpenCodeBackend(QObject):
         url.setQuery(query)
         request = QNetworkRequest(url)
         request.setHeader(QNetworkRequest.ContentTypeHeader, 'application/json')
+        request.setRawHeader(b'Accept', b'application/json')
         token = base64.b64encode(('opencode:' + self.password).encode())
         request.setRawHeader(b'Authorization', b'Basic ' + token)
         request.setAttribute(QNetworkRequest.RedirectPolicyAttribute, QNetworkRequest.ManualRedirectPolicy)
@@ -129,10 +140,16 @@ class OpenCodeBackend(QObject):
                     detail = (nested.get('message') if isinstance(nested, dict) else '') or data.get('message', '')
                 (error or self.fail)(detail or tr('Verbindung zur Engine fehlgeschlagen ({0}).', code or description))
             elif callback:
+                # Unknown routes may serve the web UI with HTTP 200. Never pass
+                # HTML, malformed JSON or null through as successful API data.
+                if data is None and code != 204:
+                    (error or self.fail)(tr('Die Engine liefert keine gültigen API-Daten. '
+                        'Bitte im Einrichtungsassistenten die kompatible Engine einrichten.'))
+                    return
                 try:
                     callback(data)
-                except (TypeError, ValueError, KeyError, AttributeError) as exc:
-                    self.fail(tr('Unerwartete Antwort der Engine: ') + str(exc))
+                except (TypeError, ValueError, KeyError, AttributeError):
+                    (error or self.fail)(tr('Unerwartetes Datenformat der Engine. Bitte die Anbindung erneut prüfen.'))
         # Callbacks may close the engine and run nested Qt events. Let Qt finish
         # processing this reply before allowing those callbacks to destroy it.
         QTimer.singleShot(0, dispatch)

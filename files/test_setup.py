@@ -11,6 +11,39 @@ import lumen_setup as setup
 
 
 class SetupTest(unittest.TestCase):
+    def test_managed_engine_install_is_verified_atomic_and_used_by_lumen(self):
+        import tarfile
+        from types import SimpleNamespace
+        from assistant_backend import ENGINE_VERSION, managed_opencode, opencode_binary
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'XDG_DATA_HOME':tmp, 'LUMEN_OPENCODE_BIN':''}):
+            target = managed_opencode(); target.parent.mkdir(parents=True)
+            target.write_bytes(b'previous-engine'); target.chmod(0o700)
+            def archive(_url, path, checksum, size):
+                self.assertIn('/v'+ENGINE_VERSION+'/', _url)
+                self.assertEqual(len(checksum), 64); self.assertGreater(size, 50_000_000)
+                with tarfile.open(path, 'w:gz') as bundle:
+                    data=b'verified-test-engine'; info=tarfile.TarInfo('opencode'); info.size=len(data)
+                    bundle.addfile(info, io.BytesIO(data))
+            with patch.object(setup.platform, 'machine', return_value='x86_64'), \
+                    patch.object(setup, 'download', side_effect=archive), patch.object(setup, 'report'), \
+                    patch.object(setup.subprocess, 'run', return_value=SimpleNamespace(stdout='wrong')) as version:
+                with self.assertRaises(ValueError): setup.install_engine()
+                self.assertEqual(target.read_bytes(), b'previous-engine')
+                version.return_value.stdout=ENGINE_VERSION+'\n'; setup.install_engine()
+                self.assertEqual(target.read_bytes(), b'verified-test-engine')
+                self.assertEqual(target.stat().st_mode & 0o777, 0o700)
+                self.assertEqual(opencode_binary(), str(target))
+                self.assertEqual(setup.executable('opencode'), str(target))
+                self.assertEqual(list(target.parent.iterdir()), [target])
+                with patch.dict(os.environ, {'LUMEN_OPENCODE_BIN':'/explicit/opencode'}):
+                    self.assertEqual(opencode_binary(), '/explicit/opencode')
+                    with self.assertRaises(RuntimeError): setup.install_engine()
+            with patch('sys.argv', ['lumen_setup.py','packages','engine']), \
+                    patch.object(setup, 'install_engine') as install, patch.object(setup, 'install_packages') as packages, \
+                    patch.object(setup, 'report'):
+                self.assertEqual(setup.main(), 0)
+                install.assert_called_once(); packages.assert_called_once_with([])
+
     def test_desktop_job_uses_existing_backup_flow_and_reports_failure(self):
         with patch('sys.argv', ['lumen_setup.py', 'desktop', '--theme', 'atelier']), \
                 patch('lumen_desktop_setup.configure_desktop') as configure, patch.object(setup, 'report') as report:
@@ -149,6 +182,66 @@ class SetupDialogTest(unittest.TestCase):
             reopened.next.click()
             self.assertTrue(settings.value('setupCompleted', type=bool))
             dialog.deleteLater(); reopened.deleteLater()
+
+    def test_provider_check_rejects_non_api_responses_and_recovers(self):
+        import threading
+        import json
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        from PySide6.QtCore import QSettings
+        from PySide6.QtTest import QTest
+        from setup_dialog import SetupDialog
+        state = {'response': b'<html>OpenCode</html>', 'writes': [], 'auth_code': 200,
+                 'auth_response': b'<html>test-only-secret</html>'}
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *_): pass
+            def do_GET(self):
+                raw = state['response'] if self.path.split('?')[0] == '/provider' else b'{}'
+                self.send_response(200); self.send_header('Content-Length', str(len(raw)))
+                self.end_headers(); self.wfile.write(raw)
+            def do_PUT(self):
+                state['writes'].append(json.loads(self.rfile.read(int(self.headers['Content-Length']))))
+                self.send_response(state['auth_code']); self.end_headers(); self.wfile.write(state['auth_response'])
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close); self.addCleanup(server.shutdown)
+        with tempfile.TemporaryDirectory() as tmp:
+            dialog = SetupDialog(settings=QSettings(tmp+'/prefs.ini', QSettings.IniFormat))
+            self.addCleanup(dialog.deleteLater); self.addCleanup(dialog.reject)
+            def ensure(callback):
+                dialog.engine.url = f'http://127.0.0.1:{server.server_port}'; callback()
+            def wait():
+                deadline = time.monotonic()+5
+                while dialog.checking and time.monotonic() < deadline: QTest.qWait(10)
+                self.assertFalse(dialog.checking)
+            with patch.object(dialog.engine, 'ensure_server', side_effect=ensure):
+                dialog.key.setText('test-only-secret')
+                for raw in (b'<html>OpenCode</html>', b'null', b'', b'{broken'):
+                    state['response'] = raw; dialog.load_engine(); wait()
+                    self.assertIn('API-Daten', dialog.status.text())
+                    self.assertTrue(dialog.check_engine.isEnabled())
+                    self.assertFalse(dialog.connect_provider.isEnabled())
+                    self.assertFalse(dialog.repair_engine.isHidden())
+                    self.assertEqual(dialog.key.text(), 'test-only-secret')
+                    self.assertEqual(state['writes'], [])
+                for raw in (b'{}', b'{"all":null,"connected":[]}', b'{"all":[null],"connected":[]}'):
+                    state['response'] = raw; dialog.load_engine(); wait()
+                    self.assertNotIn('NoneType', dialog.status.text())
+                    self.assertFalse(dialog.connect_provider.isEnabled())
+                state['response'] = json.dumps({'all':[{'id':'example', 'name':'Example',
+                    'models':{'test':{'name':'Test'}}}], 'connected':['example']}).encode()
+                dialog.load_engine(); wait()
+                self.assertTrue(dialog.connect_provider.isEnabled())
+                self.assertTrue(dialog.repair_engine.isHidden())
+                self.assertEqual(dialog.models.itemData(1), 'example/test')
+                dialog.connect_provider.click(); wait()
+                self.assertEqual(dialog.key.text(), 'test-only-secret')
+                self.assertNotIn('test-only-secret', dialog.status.text())
+                self.assertIn('Zugang konnte nicht gespeichert', dialog.status.text())
+                # Empty 204 is a valid success, unlike an empty 200 response.
+                state.update(auth_code=204, auth_response=b'')
+                dialog.load_engine(); wait(); dialog.connect_provider.click(); wait()
+                self.assertEqual(state['writes'], [{'type':'api','key':'test-only-secret'}]*2)
+                self.assertEqual(dialog.key.text(), '')
 
     def test_desktop_is_only_changed_after_explicit_activation(self):
         from PySide6.QtCore import QSettings

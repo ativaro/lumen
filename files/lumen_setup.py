@@ -3,6 +3,7 @@ from lumen_i18n import worker_environment, tr
 import hashlib
 import json
 import os
+import platform
 from pathlib import Path
 import shutil
 import signal
@@ -135,6 +136,40 @@ def download(url, destination, checksum, size):
             os.replace(partial, destination)
         finally:
             partial.unlink(missing_ok=True)
+
+
+def install_engine():
+    """Install Lumen's verified v1 engine without replacing a user's OpenCode."""
+    from assistant_backend import ENGINE_VERSION, managed_opencode
+    if os.environ.get('LUMEN_OPENCODE_BIN'):
+        raise RuntimeError(tr('LUMEN_OPENCODE_BIN überschreibt die Engine. Bitte diese Vorgabe zuerst entfernen.'))
+    assets = {
+        'x86_64': ('x64-baseline', 60665421, '24b0d458d21ef548b2752166303defcf7f4945b049fb4876ab78dfaf86d81b27'),
+        'aarch64': ('arm64', 60479105, 'bbdb3f00c2c51e42e315525233151309724226a8776da8e9145e3b0fa3d5310f'),
+    }
+    if sys.platform != 'linux' or platform.machine() not in assets:
+        raise RuntimeError(tr('Die kompatible Engine ist für Linux x86_64 und ARM64 verfügbar.'))
+    target = managed_opencode()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    arch, size, checksum = assets[platform.machine()]
+    report(tr('Kompatible Engine für Lumen einrichten …'))
+    with tempfile.TemporaryDirectory(dir=target.parent) as tmp:
+        archive = Path(tmp)/'engine.tar.gz'; candidate = Path(tmp)/'opencode'
+        download(f'https://github.com/anomalyco/opencode/releases/download/v{ENGINE_VERSION}/opencode-linux-{arch}.tar.gz',
+                 archive, checksum, size)
+        with tarfile.open(archive, 'r:gz') as bundle:
+            member = bundle.getmember('opencode')
+            if not member.isfile() or member.size > 300_000_000:
+                raise ValueError(tr('Ungültiges Engine-Archiv.'))
+            with bundle.extractfile(member) as source, candidate.open('wb') as destination:
+                shutil.copyfileobj(source, destination)
+        candidate.chmod(0o700)
+        result = subprocess.run([str(candidate), '--version'], capture_output=True, text=True,
+                                env=worker_environment(), timeout=15, check=True)
+        if result.stdout.strip() != ENGINE_VERSION:
+            raise ValueError(tr('Die Engine-Version stimmt nicht mit der geprüften Version überein.'))
+        os.replace(candidate, target)
+    report(tr('Kompatible Engine eingerichtet. Vorhandenes OpenCode und Zugangsdaten bleiben erhalten.'), 100)
 
 
 def install_vad():
@@ -277,7 +312,7 @@ def install_inbox():
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=('packages', 'dictation', 'dictation-quality', 'voice', 'voice-multilingual', 'desktop', 'image-search', 'vault', 'inbox'))
+    parser.add_argument('action', choices=('packages', 'engine', 'dictation', 'dictation-quality', 'voice', 'voice-multilingual', 'desktop', 'image-search', 'vault', 'inbox'))
     parser.add_argument('groups', nargs='*', choices=tuple(FEATURES))
     parser.add_argument('--existing-model', default='')
     from appearance import DESIGNS
@@ -291,6 +326,7 @@ def main():
             report(tr('Desktop-Konfiguration sichern und Lumen-Desktop aktivieren …'), cancellable=False)
             configure_desktop(args.theme, replace_panels=True)
             report(tr('Lumen-Desktop eingerichtet. Die vorherige Konfiguration wurde lokal gesichert.'), 100, cancellable=False)
+        elif args.action == 'engine': install_engine()
         elif args.action == 'dictation': install_dictation(args.existing_model)
         elif args.action == 'dictation-quality': install_dictation(quality=True)
         elif args.action == 'voice': install_voice(args.existing_model)
@@ -299,7 +335,8 @@ def main():
         elif args.action == 'vault': install_vault()
         elif args.action == 'inbox': install_inbox()
         else:
-            install_packages(missing_packages(args.groups))
+            if 'engine' in args.groups: install_engine()
+            install_packages(missing_packages([group for group in args.groups if group != 'engine']))
             missing = missing_packages(args.groups)
             if missing: raise RuntimeError(tr('Noch nicht verfügbar: ') + ', '.join(missing))
             report(tr('Ausgewählte Erweiterungen sind verfügbar.'), 100)
