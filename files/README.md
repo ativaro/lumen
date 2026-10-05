@@ -57,6 +57,16 @@ Die Navigation hat sechs Hauptbereiche: **Darstellung & Desktop**, **KI & Sprach
 Jeder Bereich öffnet eine kurze Übersicht seiner Unterseiten. Alle bisherigen
 Optionen, App-Verknüpfungen und nativen KDE-Dialoge bleiben erreichbar.
 
+**Wartung → Lumen Troubleshooter** prüft auf Wunsch die zentralen Programmdateien,
+KI-Engine, freien Datenspeicher, Lumen-Dienste, aktuelle Absturz-/Hängerberichte und
+Hilfsprogramme für Vorschauen und Diktieren. Die Prüfung läuft im Hintergrund,
+kann abgebrochen werden und verändert keine Einstellungen. Ergebnisse führen
+zur passenden Einrichtung oder Wartungsseite; optionale Erweiterungen und
+absichtlich deaktivierte Dienste gelten nicht als Fehler. „Diagnose kopieren“
+kopiert Prüfergebnisse mit Zeitstempel, ohne Dateipfade, Zugangsdaten oder
+Gesprächsinhalte. Anbieter-Anmeldung und Mikrofon werden erst in den jeweiligen
+Einrichtungsdialogen getestet. Direkt öffnen: `lumen-settings --troubleshooter`.
+
 Die Suche oben (auch **Strg+F**) findet einzelne Einstellungen und springt mit
 **Enter** direkt zum passenden Feld. Zugeklappte Details werden dabei geöffnet;
 persönliche Feldwerte wie Ordnerpfade oder Modellnamen werden nicht durchsucht.

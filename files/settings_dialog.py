@@ -122,6 +122,11 @@ class SettingsDialog(QDialog):
             self.preferencesChanged.emit(self.assistant.fileName(), ['personaProfile']),
             self.status.setText(tr('Persönlichkeit gespeichert. Gilt ab der nächsten Nachricht.'))))
         personality.addWidget(self.persona_editor); personality.addStretch()
+        from troubleshooter_ui import Troubleshooter
+        self.troubleshooter_page = self.stack.count()
+        troubleshooting = self.page('Lumen Troubleshooter', tr('Probleme erkennen und passende Lösungen finden'))
+        self.troubleshooter = Troubleshooter(self)
+        troubleshooting.addWidget(self.troubleshooter); troubleshooting.addStretch()
         for action in self.stack.findChildren(QPushButton):
             action.setAutoDefault(False); action.setDefault(False)
         from settings_navigation import SettingsNavigation, categories
@@ -834,6 +839,7 @@ class SettingsDialog(QDialog):
             return
         if self.engine:
             self.engine.shutdown()
+        self.troubleshooter.stop()
         super().done(result)
 
 
@@ -849,5 +855,6 @@ if __name__ == '__main__':
     dialog = SettingsDialog(page=3 if '--appearance' in sys.argv else None); dialog.setWindowIcon(QIcon.fromTheme('configure'))
     if '--system-settings' in sys.argv: dialog.open_page(dialog.hardware_page)
     if '--personality' in sys.argv: dialog.open_page(dialog.persona_page)
+    if '--troubleshooter' in sys.argv: dialog.open_page(dialog.troubleshooter_page)
     dialog.show()
     sys.exit(app.exec())

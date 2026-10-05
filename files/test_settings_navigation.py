@@ -129,5 +129,40 @@ class SettingsNavigationTest(unittest.TestCase):
         d.navigation.back.click(); self.assertEqual(d.navigation.content.currentIndex(),0)
         self.assertEqual(self.files.allKeys(),[])
 
+    def test_troubleshooter_is_in_maintenance_and_routes_repairs_without_changing_settings(self):
+        d = self.dialog; d.show(); d.nav.setCurrentRow(5); self.app.processEvents()
+        entry = next(b for b in d.navigation.overview.findChildren(QPushButton)
+                     if b.isVisible() and b.accessibleName().startswith('Lumen Troubleshooter.'))
+        QTest.mouseClick(entry, Qt.LeftButton)
+        self.assertEqual(d.stack.currentIndex(), d.troubleshooter_page)
+        self.assertIsNone(d.troubleshooter.job)
+        d.troubleshooter.show_report(dict(checked_at='2026-10-05T12:00:00+00:00', checks=[
+            dict(title='Engine', state='warning', message='Needs setup', action='model')]))
+        self.assertTrue(d.troubleshooter.copy.isEnabled())
+        with patch.object(d, 'open_setup_wizard') as wizard:
+            action = d.troubleshooter.results.itemAt(0).widget().findChild(QPushButton)
+            QTest.mouseClick(action, Qt.LeftButton); wizard.assert_called_once_with(1)
+        d.troubleshooter.copy.click(); self.assertIn('Needs setup', self.app.clipboard().text())
+        self.app.clipboard().clear()
+        self.assertEqual(self.settings.allKeys(), []); self.assertEqual(self.files.allKeys(), [])
+
+    def test_troubleshooter_worker_finishes_and_can_be_cancelled(self):
+        from assistant_backend import ENGINE_VERSION
+        from PySide6.QtCore import QProcess
+        tool = Path(self.tmp.name)/'opencode'
+        tool.write_text('#!/bin/sh\nprintf "%s\\n" "' + ENGINE_VERSION + '"\n'); tool.chmod(0o700)
+        t = self.dialog.troubleshooter
+        with patch.dict(os.environ, LUMEN_OPENCODE_BIN=str(tool), PATH=self.tmp.name):
+            t.run()
+            self.assertFalse(t.start.isEnabled())
+            for _ in range(100):
+                if t.job is None: break
+                QTest.qWait(30)
+            self.assertIsNone(t.job); self.assertTrue(t.copy.isEnabled(), t.status.text())
+            self.assertEqual(t.results.count(), 7); self.assertTrue(t.start.isEnabled())
+            t.run(); job = t.job; t.stop()
+            self.assertIsNone(t.job); self.assertEqual(job.state(), QProcess.NotRunning)
+            self.assertTrue(t.start.isEnabled()); self.assertFalse(t.copy.isEnabled())
+
 
 if __name__ == '__main__': unittest.main()
