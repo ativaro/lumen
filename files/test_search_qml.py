@@ -250,7 +250,8 @@ class Handler(BaseHTTPRequestHandler):
  def handle_request(self,method):
   path=self.path.split('?')[0];body=json.loads(self.rfile.read(int(self.headers.get('Content-Length',0))) or 'null')
   state['calls'].append((method,path,body,self.headers.get('Authorization')));data={}
-  if path=='/session' and method=='POST':data={'id':'ses_test'}
+  if path=='/config':data={'model':'test/model'}
+  elif path=='/session' and method=='POST':data={'id':'ses_test'}
   elif path.endswith('/prompt_async'):
    state['messages']=[dict(info=dict(role='assistant',id='answer',parentID=body['messageID'],time={}),parts=[dict(type='text',text='Verified response')])]
   elif path.endswith('/message'):data=state['messages']
