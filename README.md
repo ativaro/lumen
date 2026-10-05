@@ -14,23 +14,28 @@ git clone --branch main --single-branch https://github.com/ativaro/lumen.git && 
 The installer prepares missing dependencies, installs Lumen locally and opens
 the graphical wizard for AI, speech and desktop setup. Git authentication is
 handled by your Git credential helper; never put a token in the command or README.
-After installation, open **Lumen → Updater** in the top panel or
-**Lumen Apps → Lumen Updater** (also under
-**Settings → Maintenance**) to check and install updates. It updates installed
-Lumen apps, panels/themes, compatible engine and optional local runtimes together.
-System packages and Flatpaks can be selected separately. Large voice/image models
-are reused when valid. Private GitHub access is still required.
+Desktop panels, wallpapers and decorations are included; activate them in the
+wizard when ready. See [installation and recovery](INSTALL.md).
 
-For a manual update from an existing clean checkout:
+## Update → one command
+
+From the directory containing your original `lumen` checkout, run as your normal user:
 
 ```bash
-git -C lumen pull --ff-only origin main && bash lumen/bootstrap.sh
+git -C lumen pull --ff-only origin main && bash lumen/bin/lumen-updater
 ```
 
-The wizard opens after installation and manual bootstrap updates. Existing app data, models
-and provider settings stay local. Desktop panels, wallpapers and decorations
-are included; activate them in the wizard when ready.
-See [installation and recovery](INSTALL.md).
+This downloads and opens the latest **Lumen Updater**. Review the selection and
+click **Update all / Alles aktualisieren**. It updates installed Lumen apps,
+panels, themes, the compatible engine and installed local extensions without
+reopening the setup wizard. Your data, vault, settings and valid models are retained.
+The checkout must be clean and on `main`; private GitHub access is still required.
+
+Already have the Updater installed? Run `lumen-updater` from any directory, or open
+**Lumen → Updater** in the top panel, **Lumen Apps → Lumen Updater**, or
+**Settings → Maintenance**. This also checks GitHub for the latest Lumen version.
+System packages and Flatpaks are optional selections; system changes may ask for
+your password. Reopen apps after updating and log in again to reload the panels.
 
 **Deutsch / English:** choose **Settings → Lumen → Interface language**, or select
 a language in the setup wizard. System language is the default. Reopen apps to

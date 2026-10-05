@@ -16,13 +16,18 @@ git clone --branch main --single-branch https://github.com/ativaro/lumen.git && 
 **The repository is private.** Git and a GitHub account granted access to
 `ativaro/lumen` are required. Authenticate through your Git credential helper;
 do not paste access tokens into installation commands. Run from a directory that
-does not already contain `lumen`. To update an existing checkout:
+does not already contain `lumen`. To update an existing installation, run from
+the directory containing your clean `lumen` checkout on `main`:
 
 ```bash
-git -C lumen pull --ff-only origin main && bash lumen/bootstrap.sh
+git -C lumen pull --ff-only origin main && bash lumen/bin/lumen-updater
 ```
 
-The script detects its local checkout automatically (`--local` remains supported),
+The update command opens the latest graphical **Lumen Updater**. Review the
+selection and click **Update all / Alles aktualisieren**; it does not reopen the
+setup wizard. See [native updates](#native-updates) for components and permissions.
+
+The installation script detects its local checkout automatically (`--local` remains supported),
 so private clones do not trigger a second unauthenticated download. It installs
 missing base dependencies through pacman/sudo, copies Lumen into
 `~/.local/share/lumen` (`$XDG_DATA_HOME/lumen` when set), then opens **Set up Lumen**.
@@ -59,9 +64,10 @@ backup mechanism. **Next** leaves the current desktop in place. Existing provide
 settings and speech models are reused; the document workshop remains disabled until
 enabled in Files settings. The wizard can be closed and resumed later from
 **Settings → Setup** or `~/.local/share/lumen/bin/lumen-setup-wizard`.
-Keep the installation checkout clean; an update stops on Git conflicts instead of
-resetting local changes. Running the existing-checkout update command reinstalls the user bundle and opens the wizard even
-if it was previously completed. Download or package errors stop before launching it.
+Keep the installation checkout clean; the update command uses fast-forward-only
+Git updates. Preserve local changes before updating. Running `bootstrap.sh` again
+reinstalls the user bundle and opens the setup wizard; use the Updater for normal
+updates. Download or package errors are reported before continuing.
 
 ### What the one-liner installs
 
@@ -198,7 +204,8 @@ search; `lumen-search-preview` remains an alias. See [SEARCH-PREVIEW.md](SEARCH-
 
 ## Native updates
 
-Start `lumen-updater`, or use Lumen Apps / Settings → Maintenance. Checking fetches
+Start `lumen-updater`, or use Lumen → Updater in the top panel, Lumen Apps, or
+Settings → Maintenance. Checking fetches
 private `main` into `$XDG_CACHE_HOME/lumen/updater/source`; installation uses the
 exact reviewed commit. A changed checkout is refused. User and system bundles are
 both updated when installed. The existing installers retain data/settings and
