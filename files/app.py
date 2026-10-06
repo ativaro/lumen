@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDockWi
 from core import FileWorker, SearchWorker, file_kind, size_text, valid_name
 from network import Network, ConnectDialog, display_url, is_network_address, normalize_url, server_label
 from file_rename import RenameDelegate
+from google_drive import GoogleDrive
 from preview import Preview, label
 from gallery import Gallery, ImageLoader
 from disk_analysis import DiskAnalysis
@@ -192,7 +193,7 @@ class ThumbnailDelegate(RenameDelegate):
         return QRect(rect.x()+10, rect.bottom()-49, rect.width()-20, 20)
 
     def updateEditorGeometry(self, editor, option, index):
-        editor.setGeometry(self.caption_rect(option.rect.adjusted(10, 8, -10, -8)).adjusted(-2, -2, 2, 2))
+        editor.setGeometry(self.caption_rect(option.rect).adjusted(-2, -2, 2, 2))
 
     def sizeHint(self, option, index):
         return self.parent().gridSize()
@@ -342,6 +343,7 @@ class Window(QMainWindow):
         self.current_path = str(Path.home())
         self.current_location = self.current_path
         self.network = Network(self)
+        self.drive = GoogleDrive(self)
         self.spaces = FileSpaces(self, catalog)
         self.connection_request = None
         self.hidden = self.settings.value('hidden', False, type=bool)
@@ -395,7 +397,7 @@ class Window(QMainWindow):
                         pass
                     elif is_network_address(path):
                         path = normalize_url(path)
-                    elif not Path(path).is_dir():
+                    elif not self.drive.paths.contains(path) and not Path(path).is_dir():
                         continue
                     if position == saved_active:
                         restored_active = len(paths)
@@ -738,6 +740,7 @@ class Window(QMainWindow):
             for folder in folders(self.offline.store):
                 places.append((folder['name'] + tr(' · Offline'), folder['local'], 'folder-download'))
         places.append((tr('Dateisystem'), '/', 'drive-harddisk'))
+        places.append(('Google Drive', str(self.drive.paths.mount), 'folder-cloud'))
         seen = {path for _, path, _ in places}
         for storage in QStorageInfo.mountedVolumes():
             path = storage.rootPath()
@@ -839,6 +842,9 @@ class Window(QMainWindow):
             return
         menu = QMenu(self)
         menu.addAction(tr('In neuem Tab öffnen'), lambda: self.new_tab(path))
+        if self.drive.paths.contains(path):
+            from google_drive import open_drive_settings
+            menu.addAction(tr('Google-Drive-Einstellungen …'), lambda: open_drive_settings(self))
         if path.startswith(LIBRARY):
             self.spaces.library_menu(menu, path)
         if is_network_address(path):
@@ -922,7 +928,7 @@ class Window(QMainWindow):
                 remote = None
             path = str(Path.home())
         path = str(Path(path).expanduser())
-        if not Path(path).is_dir():
+        if not self.drive.paths.contains(path) and not Path(path).is_dir():
             path = str(Path.home())
         self.tabs_data.append({'history': [collection or remote or path], 'position': 0})
         self.tabs.blockSignals(True)
@@ -1007,6 +1013,7 @@ class Window(QMainWindow):
             self.navigate(tab['history'][position], record=False, history_position=position)
 
     def navigate(self, path, record=True, history_position=None):
+        self.drive.pending = None
         if virtual(path):
             self.show_collection(path, record, history_position)
             return
@@ -1017,6 +1024,9 @@ class Window(QMainWindow):
         self.cancel_connection()
         if str(path).startswith('file:'):
             path = QUrl(str(path)).toLocalFile()
+        if self.drive.paths.contains(path):
+            self.drive.open(path, record, history_position)
+            return
         self.show_folder(path, record, history_position=history_position)
 
     def show_folder(self, path, record=True, location=None, history_position=None):
@@ -1037,6 +1047,7 @@ class Window(QMainWindow):
         if record and tab['history'][tab['position']] != self.current_location:
             tab['history'] = tab['history'][:tab['position'] + 1] + [self.current_location]
             tab['position'] += 1
+        cloud = self.drive.paths.contains(path)
         title = server_label(location) if remote else Path(path).name or tr('Dateisystem')
         self.tabs.setTabText(self.tabs.currentIndex(), title)
         self.tabs.setTabToolTip(self.tabs.currentIndex(), display_url(location) if remote else path)
@@ -1063,7 +1074,7 @@ class Window(QMainWindow):
         else:
             storage = QStorageInfo(path)
             self.disk_label.setText(tr('{0} frei\nauf {1}', size_text(storage.bytesAvailable()), storage.displayName() or tr('diesem Laufwerk')))
-        self.location_badge.setText(tr('Netzwerk') if remote else tr('Lokales Laufwerk'))
+        self.location_badge.setText('Google Drive' if cloud else tr('Netzwerk') if remote else tr('Lokales Laufwerk'))
         for i in range(self.places.count()):
             self.places.item(i).setSelected(self.places.item(i).data(Qt.UserRole) == self.current_location)
         self.update_count()
@@ -1467,7 +1478,11 @@ class Window(QMainWindow):
         if self.file_job:
             self.error(tr('Bitte den laufenden Dateivorgang abwarten.'))
             return
-        job = FileWorker(action, paths, target, portable=bool(target and self.network.remote(target)))
+        if any(self.drive.paths.contains(p) for p in [*paths, *([target] if target else [])]) and not self.drive.paths.mounted():
+            self.error(tr('Bitte Google Drive zuerst über die Seitenleiste verbinden.'))
+            return
+        job = FileWorker(action, paths, target, portable=bool(target and
+                         (self.network.remote(target) or self.drive.paths.contains(target))))
         self.file_job = job
         job.progress.connect(lambda name: self.activity.setText(tr('Dateivorgang: {0}', name)))
         def completed(done, errors):
@@ -1729,6 +1744,7 @@ class Window(QMainWindow):
             self.fs.setOption(QFileSystemModel.DontWatchForChanges, True)
             self.fs.deleteLater()
         self.offline.close()
+        self.drive.close()
         self.network.close()
         self._closed = True
         event.accept()

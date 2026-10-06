@@ -23,6 +23,7 @@ FEATURES = {
     'engine': (tr('Lumen-Assistent'), ('opencode',), ('opencode',)),
     'documents': (tr('PDF-Vorschau und Inhaltsuche'), ('pdfinfo', 'pdftoppm', 'pdftotext'), ('poppler',)),
     'media': (tr('Video- und Audiovorschau'), ('ffmpeg', 'ffprobe'), ('ffmpeg',)),
+    'google_drive': (tr('Google Drive in Lumen Files'), ('rclone', 'fusermount3'), ('rclone', 'fuse3')),
     'network': (tr('NAS und Netzwerkordner'), ('kio-fuse', 'kioclient', 'kio-smb', 'gvfsd-smb', 'gvfsd-fuse', 'gvfsd-wsdd', 'smbclient'), ('kio-fuse', 'kio-extras', 'kde-cli-tools', 'gvfs', 'gvfs-smb', 'gvfs-wsdd', 'smbclient')),
     'workshop': (tr('PDF-Dokumentenwerkstatt'), ('pymupdf',), ('python-pymupdf',)),
     'ocr': (tr('Texterkennung in Bildern und Scans'), ('tesseract', 'tessdata-deu', 'tessdata-eng'), ('tesseract', 'tesseract-data-deu', 'tesseract-data-eng')),

@@ -501,6 +501,8 @@ class SettingsDialog(QDialog):
         remove = button(tr('Ausgewählten Eintrag entfernen'), lambda: self.places.takeItem(self.places.currentRow()) if self.places.currentRow() >= 0 else None)
         remove.setObjectName('danger'); page.addWidget(remove)
         page.addWidget(button(tr('Bibliotheken und Quellen verwalten …'), self.manage_libraries))
+        from google_drive import open_drive_settings
+        page.addWidget(button(tr('Google-Drive-Einstellungen …'), lambda: open_drive_settings(self)))
         page.addWidget(text(tr('Neue Server: Strg+K in Files (SMB, SFTP, WebDAV, NFS).\n'
             'Bilder bearbeiten: Leertaste auf einem Bild. Originale werden vor dem Speichern gesichert.\n'
             'Speicheranalyse: Menü ••• → Speicher analysieren. Umbenennen/Sortieren: Auswahl → Kontextmenü.')))

@@ -44,8 +44,48 @@ Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. Au
 - **Einmal auswählen:** Vorschauleiste. **Leertaste:** große Vorschau. Bilder, SVG, blätterbare PDFs, Text/Code, Video-Standbilder und Audio-Wellenformen. Medienwiedergabe über die Standard-App.
 - **Strg+L:** Pfad eingeben. **Alt+Links/Rechts/Hoch:** Verlauf / übergeordneter Ordner. Die seitlichen **Vor-/Zurück-Tasten der Maus** navigieren ebenfalls im Verlauf, unabhängig davon, über welchem Fensterbereich die Maus steht. Als Browser-Tasten gemeldete Signale werden ebenfalls unterstützt. In der Bildgalerie wechseln sie das Bild. **Strg+T / Strg+W:** Tab öffnen / schließen. **Strg+Tab:** nächster Tab.
 - **Strg+C / X / V:** kopieren / ausschneiden / einfügen. **F2:** umbenennen. **Strg+Umschalt+N:** Ordner erstellen. **Entf:** nach Bestätigung in den Systempapierkorb verschieben.
+- **Langsamer zweiter Klick auf den ausgewählten Dateinamen:** direkt in Liste oder Bildraster umbenennen; die Erweiterung bleibt zunächst unmarkiert. **Enter** bestätigt, **Esc** verwirft. Ein schneller Doppelklick öffnet weiterhin die Datei. **Einstellungen …** steht auch im Kontextmenü auf Dateien und freiem Hintergrund.
 - **Strg+H:** versteckte Dateien. **Ort merken** über das Lesezeichen-Symbol neben „Server verbinden“ ergänzt einen Favoriten. Rechtsklick auf einen gemerkten Ort entfernt ihn wieder. Die kompakte Seitenleiste zeigt bis zu zehn Orte auch bei 1000 × 640 Pixeln ohne Scrollen; lange Namen werden gekürzt, vollständige Pfade stehen im Tooltip.
 - Ziehen von Dateien kopiert sie in den Zielordner. Bestehende Ziele werden mit einer Fehlermeldung beibehalten.
+
+## Google Drive
+
+**Google Drive** in der Seitenleiste öffnet beim ersten Mal die Kontoeinrichtung.
+Fehlende Unterstützung (`rclone`, `fuse3`) lässt sich dort über den vorhandenen
+Lumen-Einrichtungsdialog installieren. Anschließend die OAuth-JSON-Datei einer
+eigenen Google-**Desktop-App** importieren (alternativ Client-ID und Client-Secret
+eintragen) und **Google-Konto verbinden** wählen. Lumen startet den Browser-Login;
+Passwort und Zwei-Faktor-Bestätigung bleiben bei Google. Der Dialog verlinkt die
+[aktuelle Anleitung zur Google-OAuth-App](https://rclone.org/drive/#making-your-own-client-id).
+Die Drive API muss aktiviert und das verwendete Google-Konto für die App zugelassen sein.
+Google-Apps im Testmodus können nach sieben Tagen eine neue Freigabe benötigen;
+die verlinkte Anleitung erklärt die Veröffentlichung für den persönlichen Gebrauch.
+
+Die erste Fassung verbindet ein persönliches Google-Konto. Dateien erscheinen
+als Laufwerk und nutzen dieselben Vorschau-, Kopier- und Umbenennungsfunktionen.
+Google-Dokumente stellt rclone standardmäßig als Office-Exporte dar; das ist kein
+Google-Docs-Editor und keine vollständige Offline-Spiegelung. Den Kontostatus
+erreichst du per Rechtsklick auf **Google Drive** oder über **Einstellungen →
+Dateien & Speicher → Lumen Files → Orte, Server und Bibliotheken**.
+
+Lumen speichert die Anmeldung separat in `~/.config/lumen/google-drive/rclone.conf`
+(Verzeichnis `0700`, Datei `0600`), ohne die vorhandene rclone-Konfiguration zu
+ändern. Abbruch und Zeitüberschreitung entfernen nur die temporäre Anmeldung.
+Client-Secret und Tokens stehen weder in Prozessargumenten noch in UI-Fehlermeldungen.
+
+Ein eigener systemd-Benutzerdienst `lumen-google-drive-…` hält das Laufwerk unter
+`~/.local/share/lumen/Google Drive` während der Sitzung bereit. Weitere Lumen-Fenster
+verwenden denselben Mount. Schließen von Tabs oder Lumen beendet ihn nicht und
+unterbricht keine Uploads. Der Schreibcache liegt in `~/.cache/lumen/google-drive`;
+noch nicht übertragene Dateien bleiben dort und werden beim nächsten Verbinden
+weiter übertragen. Die üblichen XDG-Pfadvariablen werden berücksichtigt.
+Lokales Abschließen eines Kopiervorgangs bedeutet noch nicht, dass Google den
+Upload vollständig empfangen hat. Der Mount gehört nicht zur KIO-FUSE-Bereinigung.
+
+Verifikation: native Dialog-, Abbruch-, Dateiansichts- und Regressionstests sowie
+ein echter rclone-FUSE-Mount mit lokalem Test-Backend. Ein vollständiger
+Google-Konto-Login und Cloud-Upload benötigen eigene OAuth-Zugangsdaten und sind
+ohne diese nicht automatisch verifiziert.
 
 ## Gemeinsame Einstellungen
 

@@ -33,7 +33,7 @@ class RenameTest(unittest.TestCase):
                     view.scrollTo(index)
                     rect = view.visualRect(index)
                     point = (QPoint(rect.x()+65, rect.center().y()) if mode == 'list' else
-                             view.itemDelegate().caption_rect(rect.adjusted(10, 8, -10, -8)).center())
+                             view.itemDelegate().caption_rect(rect).center())
                     QTest.mouseClick(view.viewport(), Qt.LeftButton, pos=point)
                     QTest.qWait(QApplication.doubleClickInterval()+50)
                     QTest.mouseClick(view.viewport(), Qt.LeftButton, pos=point)
