@@ -744,7 +744,7 @@ class Window(QMainWindow):
             for folder in folders(self.offline.store):
                 places.append((folder['name'] + tr(' · Offline'), folder['local'], 'folder-download'))
         places.append((tr('Dateisystem'), '/', 'drive-harddisk'))
-        places.append((tr('Online-Konten'), None, 'preferences-system-online-accounts'))
+        places.append((tr('Online-Konten'), None, 'network-server'))
         self.cloud.refresh()
         places.extend((drive.paths.label, str(drive.paths.mount), 'folder-cloud')
                       for drive in self.cloud.drives.values() if drive.paths.configured())
