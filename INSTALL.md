@@ -270,6 +270,14 @@ custom provider/model names. Nothing is uploaded automatically. A hung/missing
 version command is marked unavailable after five seconds; other diagnostics can
 still be copied. If the button is missing, update Lumen and reopen the wizard.
 
+Diagnostic v2 also retains the process exit code, crash/start/timeout outcome,
+startup duration and a fixed error category after the engine has stopped.
+Raw startup output is never copied: invalid-config errors can include credentials
+from the configuration file. The error remains visible after copying the report.
+An installed, version-compatible executable can still fail before any model API
+request; an empty `requests` list at `engine_start` therefore requires checking
+the startup error, rather than changing models or repeatedly reinstalling OpenCode.
+
 ## Recover the previous desktop
 
 The setup command prints a backup under

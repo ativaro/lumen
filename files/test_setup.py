@@ -305,6 +305,62 @@ class SetupDialogTest(unittest.TestCase):
             self.assertTrue(dialog.copy_diagnostic.isEnabled())
             QApplication.clipboard().clear()
 
+    def test_engine_exit_diagnostic_survives_cleanup_and_retry_without_raw_output(self):
+        import json, sys
+        from PySide6.QtCore import QSettings
+        from PySide6.QtTest import QTest
+        from setup_dialog import SetupDialog
+        from setup_diagnostics import build_report
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp + '/state'}):
+            secret = 'PRIVATE_KEY_AND_CONFIG_CONTENT'
+            binary = Path(tmp) / 'engine'
+            binary.write_text('#!' + sys.executable + '\nimport sys\n'
+                'print("Configuration is invalid at /private/opencode.json\\n' + secret + '", file=sys.stderr)\n'
+                'sys.exit(23)\n')
+            binary.chmod(0o700)
+            dialog = SetupDialog(settings=QSettings(tmp + '/prefs.ini', QSettings.IniFormat))
+            self.addCleanup(dialog.deleteLater); self.addCleanup(dialog.reject)
+            def wait():
+                deadline = time.monotonic() + 3
+                while dialog.checking and time.monotonic() < deadline: QTest.qWait(10)
+                self.assertFalse(dialog.checking)
+            with patch('assistant_backend.opencode_binary', return_value=str(binary)):
+                dialog.load_engine(); wait()
+                self.assertIsNone(dialog.engine.proc)
+                raw = build_report(dialog, '1.18.34'); report = json.loads(raw)
+                self.assertEqual(report['startup']['outcome'], 'exited')
+                self.assertEqual(report['startup']['exit_code'], 23)
+                self.assertEqual(report['startup']['hint'], 'invalid_config')
+                self.assertGreater(report['startup']['captured_bytes'], 0)
+                self.assertIn('Konfiguration', dialog.status.text())
+                self.assertNotIn(secret, raw); self.assertNotIn('/private', raw); self.assertNotIn(tmp, raw)
+                binary.write_text('#!' + sys.executable + '\nimport os,signal\nos.kill(os.getpid(), signal.SIGKILL)\n')
+                dialog.load_engine(); wait()
+                report = json.loads(build_report(dialog, '1.18.34'))
+                self.assertEqual(report['startup']['outcome'], 'crashed')
+                self.assertEqual(report['startup']['exit_code'], 9)
+                self.assertEqual(report['startup']['hint'], 'unknown')
+                binary.write_text('#!' + sys.executable + '\nimport time\ntime.sleep(60)\n')
+                dialog.load_engine(); dialog.engine.start_timer.start(30); wait()
+                report = json.loads(build_report(dialog, '1.18.34'))
+                self.assertEqual(report['startup']['outcome'], 'timeout')
+                self.assertNotIn('exit_code', report['startup'])
+                self.assertEqual(report['startup']['hint'], 'unknown')
+            self.assertEqual(dialog.engine.log, b'')
+
+    def test_startup_hints_export_only_fixed_categories(self):
+        import json
+        from setup_diagnostics import startup_summary
+        for hint, raw in [('database', 'SQLiteError: /private/profile'),
+                          ('permission_denied', 'EACCES: private-file'),
+                          ('disk_full', 'ENOSPC: secret'),
+                          ('address_in_use', 'EADDRINUSE: private-host'),
+                          ('tls', 'CERTIFICATE_VERIFY_FAILED: secret'),
+                          ('unknown', 'some completely private output')]:
+            summary = startup_summary('exited', raw.encode(), 100, 1)
+            self.assertEqual(summary['hint'], hint)
+            self.assertNotIn(raw, json.dumps(summary))
+
     def test_provider_check_rejects_non_api_responses_and_recovers(self):
         import threading
         import json

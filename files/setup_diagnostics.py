@@ -12,6 +12,27 @@ def version_text(raw):
     return value if re.fullmatch(r'\d{1,4}\.\d{1,4}\.\d{1,6}(?:[-+][A-Za-z0-9.-]{1,40})?', value) else 'unavailable'
 
 
+def startup_summary(outcome, raw, elapsed_ms, exit_code=None, process_error=None):
+    """Classify known startup failures without retaining paths, config or log excerpts."""
+    text = raw.decode('utf-8', errors='replace').lower()
+    hint = 'unknown'
+    for name, markers in (
+        ('invalid_config', ('configuration is invalid', 'is not valid json(c)', 'configinvaliderror', 'configjsonerror')),
+        ('permission_denied', ('eacces', 'eperm', 'permission denied')),
+        ('disk_full', ('enospc', 'no space left on device')),
+        ('database', ('sqlite_', 'sqliteerror', 'database is locked', 'unable to open database')),
+        ('address_in_use', ('eaddrinuse', 'address already in use')),
+        ('tls', ('certificate_verify_failed', 'unable_to_verify_leaf_signature', 'unable to verify the first certificate')),
+    ):
+        if any(marker in text for marker in markers):
+            hint = name
+            break
+    result = dict(outcome=outcome, hint=hint, elapsed_ms=elapsed_ms, captured_bytes=len(raw))
+    if exit_code is not None: result['exit_code'] = int(exit_code)
+    if process_error is not None: result['process_error'] = int(process_error)
+    return result
+
+
 def response_summary(path, code, network_error, content_type, data, size):
     if path.startswith('/auth/'): path = '/auth/<provider>'
     if path not in ('/config', '/provider', '/provider/auth', '/auth/<provider>'): return None
@@ -48,13 +69,14 @@ def build_report(dialog, engine_version):
     binary = dialog.engine.proc.program() if dialog.engine.proc else opencode_binary()
     try: distribution = platform.freedesktop_os_release()
     except OSError: distribution = {}
-    report = dict(report='Lumen setup diagnostic v1', utc=datetime.now(timezone.utc).isoformat(timespec='seconds'),
+    report = dict(report='Lumen setup diagnostic v2', utc=datetime.now(timezone.utc).isoformat(timespec='seconds'),
         lumen_revision=revision, code_fingerprint=digest.hexdigest()[:16],
         python=platform.python_version(), qt=qVersion(), architecture=platform.machine(),
         os=distribution.get('ID','unknown'), os_version=distribution.get('VERSION_ID','rolling-or-unknown'),
         engine_version=version_text(engine_version), compatible_engine=ENGINE_VERSION,
         engine_source='managed' if Path(binary)==managed_opencode() else 'external',
         engine_reachable=bool(dialog.engine.url), stage=dialog.diagnostic_stage,
+        startup=dialog.engine.startup_diagnostic,
         outcome=dialog.diagnostic_outcome, providers=len(dialog.providers),
         selectable_models=sum(bool(dialog.models.itemData(i)) for i in range(dialog.models.count())),
         model_selected=bool(dialog.models.currentData()), saved_model_configured=bool(dialog.settings.value('model','')),

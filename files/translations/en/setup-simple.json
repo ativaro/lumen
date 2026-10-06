@@ -37,5 +37,10 @@
   "Die Engine liefert keine gültige Modellliste.": "The engine did not return a valid model list.",
   "Modell auswählen": "Select a model",
   "Aktive ältere Lumen-Fensterdekoration auf Echo aktualisieren": "Update the active legacy Lumen window decoration to Echo",
-  "Lumen Echo aktiviert; Fensteraktionen rechts.": "Lumen Echo activated; window controls on the right."
+  "Lumen Echo aktiviert; Fensteraktionen rechts.": "Lumen Echo activated; window controls on the right.",
+  "OpenCode kann seine Konfiguration nicht laden. Bitte die OpenCode-Konfiguration prüfen; eine Neuinstallation der Engine behebt das nicht.": "OpenCode cannot load its configuration. Check the OpenCode configuration; reinstalling the engine will not fix it.",
+  "OpenCode fehlen Dateizugriffsrechte. Bitte die Rechte des OpenCode-Benutzerprofils prüfen.": "OpenCode lacks file access permissions. Check the permissions of the OpenCode user profile.",
+  "OpenCode kann seine Datenbank nicht öffnen. Bitte Diagnose kopieren; die Datenbank nicht löschen.": "OpenCode cannot open its database. Copy the diagnostic report; do not delete the database.",
+  "OpenCode konnte wegen fehlendem Speicherplatz nicht starten.": "OpenCode could not start because the disk is full.",
+  "Prozess beendet: Code {0} ({1}).": "Process stopped: code {0} ({1})."
 }

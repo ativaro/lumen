@@ -307,6 +307,8 @@ class AssistantTest(unittest.TestCase):
                 self.wait(lambda: bool(failures))
             self.assertFalse(backend.busy)
             self.assertIsNone(backend.proc)
+            self.assertEqual(backend.startup_diagnostic['outcome'], 'start_error')
+            self.assertEqual(backend.startup_diagnostic['process_error'], 0)
             backend.shutdown()
             root = Path(__file__).resolve().parents[1]
             target = Path(tmp)

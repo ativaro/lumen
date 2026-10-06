@@ -417,7 +417,7 @@ class SetupDialog(QDialog):
         self.diagnostic_outcome = 'failed'
         self.checking = False; self.set_busy(False)
         self.connect_provider.setEnabled(False); self.repair_engine.show()
-        self.engine_status.setText(tr('Anbindung konnte nicht geprüft werden.')); self.status.setText(message)
+        self.engine_status.setText(message); self.status.setText(message)
 
     def record_diagnostic(self, event):
         self.diagnostic_events = (self.diagnostic_events + [event])[-12:]

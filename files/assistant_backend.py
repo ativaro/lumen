@@ -71,6 +71,8 @@ class OpenCodeBackend(QObject):
         self.messages = []
         self.related_sessions = {}
         self.log = b''
+        self.startup_diagnostic = {'outcome': 'not_started'}
+        self.startup_started = None
         self.model_policy = {}
         self.engine_policy = ''
         self.background_task = False
@@ -179,6 +181,8 @@ class OpenCodeBackend(QObject):
         if self.proc:
             return
         binary = opencode_binary()
+        self.startup_started = time.monotonic()
+        self.startup_diagnostic = {'outcome': 'starting'}
         self.statusChanged.emit(tr('Lumen wird bereit …'))
         proc = worker_process(self)
         self.proc = proc
@@ -205,9 +209,10 @@ class OpenCodeBackend(QObject):
         proc.setWorkingDirectory(self.directory)
         proc.setProcessChannelMode(QProcess.MergedChannels)
         proc.readyReadStandardOutput.connect(lambda: self.read_startup(proc))
-        proc.errorOccurred.connect(lambda code: self.start_failed(tr('OpenCode konnte nicht gestartet werden. Installation und Pfad prüfen.'))
+        proc.errorOccurred.connect(lambda code: self.start_failed(tr('OpenCode konnte nicht gestartet werden. Installation und Pfad prüfen.'), 'start_error')
                                   if code == QProcess.FailedToStart and self.proc is proc else None)
-        proc.finished.connect(lambda *_: self.start_failed(tr('Die Hintergrund-Engine wurde beendet.')) if self.proc is proc else None)
+        proc.finished.connect(lambda code, status: self.start_failed(tr('Die Hintergrund-Engine wurde beendet.'),
+            'crashed' if status == QProcess.CrashExit else 'exited', code) if self.proc is proc else None)
         proc.start(binary, ['serve', '--hostname', '127.0.0.1', '--port', '0'])
         self.start_timer.start(25000)
 
@@ -218,6 +223,7 @@ class OpenCodeBackend(QObject):
         match = re.search(rb'http://127\.0\.0\.1:(\d+)', self.log)
         if match:
             self.url = 'http://127.0.0.1:' + match[1].decode()
+            self.startup_diagnostic = {'outcome': 'ready', 'elapsed_ms': round((time.monotonic() - self.startup_started) * 1000)}
             self.start_timer.stop()
             callbacks, self.waiting = self.waiting, []
             self.statusChanged.emit(tr('Bereit'))
@@ -658,8 +664,25 @@ class OpenCodeBackend(QObject):
         self.statusChanged.emit(tr('Anfrage fehlgeschlagen'))
         self.completed.emit(False, message)
 
-    def start_failed(self, message):
-        self.shutdown()
+    def start_failed(self, message, outcome='timeout', exit_code=None):
+        from setup_diagnostics import startup_summary
+        # QProcess may have one last stderr chunk when finished is delivered.
+        if self.proc:
+            self.log = (self.log + bytes(self.proc.readAllStandardOutput()))[-8000:]
+        self.startup_diagnostic = startup_summary(outcome, self.log,
+            round((time.monotonic() - self.startup_started) * 1000) if self.startup_started is not None else 0,
+            exit_code, self.proc.error().value if outcome == 'start_error' and self.proc else None)
+        hint = self.startup_diagnostic['hint']
+        if hint == 'invalid_config':
+            message = tr('OpenCode kann seine Konfiguration nicht laden. Bitte die OpenCode-Konfiguration prüfen; eine Neuinstallation der Engine behebt das nicht.')
+        elif hint == 'permission_denied':
+            message = tr('OpenCode fehlen Dateizugriffsrechte. Bitte die Rechte des OpenCode-Benutzerprofils prüfen.')
+        elif hint == 'database':
+            message = tr('OpenCode kann seine Datenbank nicht öffnen. Bitte Diagnose kopieren; die Datenbank nicht löschen.')
+        elif hint == 'disk_full':
+            message = tr('OpenCode konnte wegen fehlendem Speicherplatz nicht starten.')
+        if exit_code is not None:
+            message += ' ' + tr('Prozess beendet: Code {0} ({1}).', exit_code, outcome)
         self.fail(message)
 
     def shutdown(self):
