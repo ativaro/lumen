@@ -53,14 +53,18 @@ Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. Au
 
 **Google Drive** in der Seitenleiste öffnet beim ersten Mal die Kontoeinrichtung.
 Fehlende Unterstützung (`rclone`, `fuse3`) lässt sich dort über den vorhandenen
-Lumen-Einrichtungsdialog installieren. Anschließend die OAuth-JSON-Datei einer
-eigenen Google-**Desktop-App** importieren (alternativ Client-ID und Client-Secret
-eintragen) und **Google-Konto verbinden** wählen. Lumen startet den Browser-Login;
-Passwort und Zwei-Faktor-Bestätigung bleiben bei Google. Der Dialog verlinkt die
-[aktuelle Anleitung zur Google-OAuth-App](https://rclone.org/drive/#making-your-own-client-id).
-Die Drive API muss aktiviert und das verwendete Google-Konto für die App zugelassen sein.
-Google-Apps im Testmodus können nach sieben Tagen eine neue Freigabe benötigen;
-die verlinkte Anleitung erklärt die Veröffentlichung für den persönlichen Gebrauch.
+Lumen-Einrichtungsdialog installieren. **Mit Google verbinden** startet die
+Anmeldung mit der vom Herausgeber mitgelieferten Lumen-Desktop-App. Passwort und
+Zwei-Faktor-Bestätigung bleiben bei Google. Nutzer benötigen kein eigenes
+Cloud-Projekt, sofern der Herausgeber die App eingerichtet und für sie freigegeben hat.
+
+Eine Ausgabe ohne App-Konfiguration zeigt das ausdrücklich und deaktiviert die
+zentrale Anmeldung. Unter **Eigene Google-App verwenden (erweitert)** ist weiterhin
+der Import einer eigenen Desktop-OAuth-JSON oder die Eingabe von Client-ID und
+Client-Secret möglich. Es gibt keinen Rückfall auf fremde oder alte rclone-App-IDs.
+Bestehende Konten behalten ihre Zugangsdaten auch beim Austausch der mitgelieferten
+App-Konfiguration. Die [Einrichtung für Herausgeber](../packaging/GOOGLE_DRIVE.md)
+beschreibt Google-Freigabe, Testbetrieb und Paketierung.
 
 Die erste Fassung verbindet ein persönliches Google-Konto. Dateien erscheinen
 als Laufwerk und nutzen dieselben Vorschau-, Kopier- und Umbenennungsfunktionen.
@@ -85,7 +89,7 @@ Upload vollständig empfangen hat. Der Mount gehört nicht zur KIO-FUSE-Bereinig
 
 Verifikation: native Dialog-, Abbruch-, Dateiansichts- und Regressionstests sowie
 ein echter rclone-FUSE-Mount mit lokalem Test-Backend. Ein vollständiger
-Google-Konto-Login und Cloud-Upload benötigen eigene OAuth-Zugangsdaten und sind
+Google-Konto-Login und Cloud-Upload benötigen freigegebene OAuth-Zugangsdaten und sind
 ohne diese nicht automatisch verifiziert.
 
 ## Gemeinsame Einstellungen

@@ -10,8 +10,10 @@ import tempfile
 
 from PySide6.QtCore import QObject, QProcess, QTimer, Qt, QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QLineEdit, QVBoxLayout
+from PySide6.QtWidgets import QCheckBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QLineEdit, QVBoxLayout, QWidget
 from lumen_i18n import tr, worker_process
+
+APP_CLIENT_FILE = Path(__file__).with_name('google-drive-client.json')
 
 
 class DrivePaths:
@@ -73,6 +75,18 @@ def oauth_client(path):
         raise ValueError(tr('Bitte die Google-OAuth-JSON-Datei für eine Desktop-App auswählen.')) from None
 
 
+def bundle_oauth_client(source, destination):
+    """Ship only the Desktop app identity, never account tokens or custom endpoints."""
+    identity, secret = oauth_client(source)
+    destination = Path(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=destination.parent) as staging:
+        output = Path(staging)/'client.json'
+        output.write_text(json.dumps({'installed': {'client_id': identity, 'client_secret': secret}})+'\n')
+        output.chmod(0o644)  # A distributed Desktop client is public, unlike users' refresh tokens.
+        os.replace(output, destination)
+
+
 class DriveDialog(QDialog):
     def __init__(self, parent=None, paths=None):
         super().__init__(parent)
@@ -91,31 +105,47 @@ class DriveDialog(QDialog):
             buttons = QDialogButtonBox(QDialogButtonBox.Close)
             buttons.rejected.connect(self.reject); layout.addWidget(buttons)
             return
-        layout.addWidget(text(tr('Für die Anmeldung benötigst du die OAuth-Zugangsdaten einer eigenen Google-Desktop-App. Google-Passwort und Bestätigung gibst du ausschließlich im Browser ein.')))
-        layout.addWidget(button(tr('Anleitung für Google-Zugangsdaten öffnen'), lambda: QDesktopServices.openUrl(
-            QUrl('https://rclone.org/drive/#making-your-own-client-id'))))
+        layout.addWidget(text(tr('Melde dich im Browser bei Google an und erlaube Lumen den Zugriff auf deine Drive-Dateien. Dein Passwort bleibt bei Google.')))
+        self.app_client = None
+        try: self.app_client = oauth_client(APP_CLIENT_FILE)
+        except FileNotFoundError:
+            app_status = tr('Die Google-Anmeldung ist in dieser Lumen-Ausgabe noch nicht eingerichtet.')
+        except (OSError, ValueError):
+            app_status = tr('Die Google-Anmeldung dieser Lumen-Ausgabe ist fehlerhaft eingerichtet. Bitte Lumen aktualisieren.')
+        else:
+            app_status = tr('Mit Google verbinden öffnet die Anmeldung im Browser.')
+        layout.addWidget(text(app_status))
         self.install_button = button(tr('Google-Drive-Unterstützung installieren'), self.install_support)
         layout.addWidget(self.install_button)
+        self.custom_client = QCheckBox(tr('Eigene Google-App verwenden (erweitert)'))
+        layout.addWidget(self.custom_client)
+        self.credentials = QWidget(); advanced = QVBoxLayout(self.credentials); advanced.setContentsMargins(0, 0, 0, 0)
+        advanced.addWidget(button(tr('Anleitung für Google-Zugangsdaten öffnen'), lambda: QDesktopServices.openUrl(
+            QUrl('https://rclone.org/drive/#making-your-own-client-id'))))
         self.import_button = button(tr('Google-OAuth-JSON importieren …'), self.import_client)
-        layout.addWidget(self.import_button)
-        form = QFormLayout(); layout.addLayout(form)
+        advanced.addWidget(self.import_button)
+        form = QFormLayout(); advanced.addLayout(form)
         self.client = QLineEdit(); self.secret = QLineEdit(); self.secret.setEchoMode(QLineEdit.Password)
         form.addRow(tr('Client-ID'), self.client); form.addRow(tr('Client-Secret'), self.secret)
-        self.inputs = [self.client, self.secret, self.import_button, self.install_button]
+        layout.addWidget(self.credentials); self.credentials.hide()
+        self.inputs = [self.credentials, self.custom_client, self.install_button]
         self.browser = button(tr('Anmeldung im Browser öffnen'), lambda: QDesktopServices.openUrl(QUrl(self.login_url)))
         self.browser.hide(); layout.addWidget(self.browser)
         self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        self.buttons.button(QDialogButtonBox.Ok).setText(tr('Google-Konto verbinden'))
+        self.buttons.button(QDialogButtonBox.Ok).setText(tr('Mit Google verbinden'))
         self.buttons.accepted.connect(self.connect_account); self.buttons.rejected.connect(self.reject)
         layout.addWidget(self.buttons)
         self.timeout = QTimer(self); self.timeout.setSingleShot(True); self.timeout.setInterval(300000)
         self.timeout.timeout.connect(self.timed_out)
+        self.custom_client.toggled.connect(self.credentials.setVisible)
+        self.custom_client.toggled.connect(self.refresh_support)
         self.refresh_support()
 
     def refresh_support(self):
         missing = not all(shutil.which(name) for name in ('rclone', 'fusermount3', 'systemd-run'))
         self.install_button.setVisible(missing)
-        self.buttons.button(QDialogButtonBox.Ok).setEnabled(not missing and not self.job)
+        self.buttons.button(QDialogButtonBox.Ok).setEnabled(
+            not missing and not self.job and (bool(self.app_client) or self.custom_client.isChecked()))
         if missing: self.status.setText(tr('Bitte zuerst die Google-Drive-Unterstützung installieren.'))
 
     def install_support(self):
@@ -123,7 +153,8 @@ class DriveDialog(QDialog):
         dialog = SetupDialog(self)
         QTimer.singleShot(0, dialog, lambda: dialog.start_job('packages', ['google_drive']))
         dialog.exec(); dialog.deleteLater(); self.refresh_support()
-        if not self.install_button.isVisible(): self.status.setText(tr('Bereit für die Google-Anmeldung.'))
+        if self.buttons.button(QDialogButtonBox.Ok).isEnabled():
+            self.status.setText(tr('Bereit für die Google-Anmeldung.'))
 
     def import_client(self):
         path, _ = QFileDialog.getOpenFileName(self, tr('Google-OAuth-JSON importieren …'), '', 'JSON (*.json)')
@@ -136,7 +167,13 @@ class DriveDialog(QDialog):
 
     def connect_account(self):
         if self.job: return
-        identity, secret = self.client.text().strip(), self.secret.text().strip()
+        # Never silently fall back to rclone's retiring shared client or another app's identity.
+        if self.custom_client.isChecked():
+            identity, secret = self.client.text().strip(), self.secret.text().strip()
+        elif self.app_client:
+            identity, secret = self.app_client
+        else:
+            self.status.setText(tr('Die Google-Anmeldung ist in dieser Lumen-Ausgabe noch nicht eingerichtet.')); return
         if not re.fullmatch(r'[\w.-]+\.apps\.googleusercontent\.com', identity) or not secret or any(ord(c)<32 for c in secret):
             self.status.setText(tr('Bitte gültige Client-ID und Client-Secret eingeben oder importieren.')); return
         # Never overwrite a connection made concurrently by another Lumen window.
@@ -194,7 +231,7 @@ class DriveDialog(QDialog):
         for widget in self.inputs: widget.setEnabled(True)
         self.refresh_support()
         if success: self.secret.clear(); self.accept()
-        else: self.status.setText(tr('Google-Anmeldung nicht abgeschlossen. Bitte Internetverbindung, OAuth-Desktop-Zugangsdaten und die Freigabe des Kontos in der Google-App prüfen.'))
+        else: self.status.setText(tr('Google-Anmeldung nicht abgeschlossen. Bitte erneut versuchen und den Zugriff bei Google bestätigen. Falls Google die App blockiert, muss ihre Freigabe vom Anbieter geklärt werden.'))
 
     def clean_staging(self):
         if self.staging: self.staging.cleanup(); self.staging = None
@@ -269,3 +306,12 @@ def open_drive_settings(parent=None):
     dialog = DriveDialog(parent)
     try: return dialog.exec()
     finally: dialog.deleteLater()
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description='Bundle the Lumen Google Desktop client without account data.')
+    parser.add_argument('--bundle-client', nargs=2, metavar=('SOURCE', 'DESTINATION'), required=True)
+    args = parser.parse_args()
+    try: bundle_oauth_client(*args.bundle_client)
+    except (OSError, ValueError): parser.exit(1, 'Invalid or unreadable Google Desktop client; bundle unchanged.\n')

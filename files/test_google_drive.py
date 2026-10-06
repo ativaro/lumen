@@ -12,8 +12,8 @@ from urllib.request import urlopen
 
 from PySide6.QtCore import QSettings
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QDialog
-from google_drive import DriveDialog, DrivePaths, GoogleDrive, oauth_client
+from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox
+from google_drive import DriveDialog, DrivePaths, GoogleDrive, oauth_client, bundle_oauth_client
 
 
 class DriveTest(unittest.TestCase):
@@ -27,6 +27,8 @@ class DriveTest(unittest.TestCase):
             ('XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_CACHE_HOME')})
         self.env.start(); self.addCleanup(self.env.stop)
         self.paths = DrivePaths()
+        client_patch = patch('google_drive.APP_CLIENT_FILE', self.root/'bundled-client.json')
+        client_patch.start(); self.addCleanup(client_patch.stop)
 
     def wait(self, condition):
         deadline = time.monotonic()+8
@@ -54,10 +56,61 @@ class DriveTest(unittest.TestCase):
 
     def dialog(self):
         dialog = DriveDialog(paths=self.paths)
+        dialog.custom_client.setChecked(True)
         dialog.client.setText('example.apps.googleusercontent.com'); dialog.secret.setText('synthetic-private')
         dialog.show()
         self.addCleanup(lambda: (dialog.reject(), dialog.deleteLater(), QTest.qWait(10)))
         return dialog
+
+    def test_bundled_client_login_and_missing_or_invalid_bundle(self):
+        helper = self.fake_rclone("""import sys, configparser, json, os
+from pathlib import Path
+assert not any(key.startswith('RCLONE_') for key in os.environ)
+assert 'synthetic-app-secret' not in ' '.join(sys.argv)
+path = Path(sys.argv[sys.argv.index('--config')+1])
+config = configparser.ConfigParser(interpolation=None); config.read(path)
+assert config['drive']['client_id'] == 'lumen-test.apps.googleusercontent.com'
+assert config['drive']['client_secret'] == 'synthetic-app-secret'
+assert config['drive']['scope'] == 'drive'
+config['drive']['token'] = json.dumps({'refresh_token': 'synthetic-refresh'})
+with path.open('w') as output: config.write(output)
+""")
+        bundled = self.root/'bundled-client.json'
+        with patch('google_drive.shutil.which', return_value=helper):
+            for raw in (None, '{}', '{broken'):
+                if raw is not None: bundled.write_text(raw)
+                dialog = DriveDialog(paths=self.paths); dialog.show()
+                self.assertFalse(dialog.buttons.button(QDialogButtonBox.Ok).isEnabled())
+                dialog.connect_account(); self.assertIsNone(dialog.job)
+                self.assertFalse(dialog.credentials.isVisible())
+                dialog.custom_client.setChecked(True)
+                self.assertTrue(dialog.buttons.button(QDialogButtonBox.Ok).isEnabled())
+                dialog.reject(); dialog.deleteLater()
+            source = self.client_file({'installed': {'client_id': 'lumen-test.apps.googleusercontent.com',
+                'client_secret': 'synthetic-app-secret', 'token_uri': 'https://untrusted.invalid'},
+                'refresh_token': 'must-not-ship'})
+            bundle_oauth_client(source, bundled)
+            self.assertEqual(set(json.loads(bundled.read_text())), {'installed'})
+            self.assertEqual(set(json.loads(bundled.read_text())['installed']), {'client_id', 'client_secret'})
+            before = bundled.read_bytes()
+            with self.assertRaises(ValueError): bundle_oauth_client(self.client_file({'web': {}}), bundled)
+            self.assertEqual(bundled.read_bytes(), before)
+            with patch.dict(os.environ, {'RCLONE_CONFIG_DRIVE_CLIENT_ID': 'unwanted'}):
+                dialog = DriveDialog(paths=self.paths); dialog.show()
+                self.assertFalse(dialog.custom_client.isChecked()); self.assertFalse(dialog.credentials.isVisible())
+                self.assertEqual(dialog.client.text(), '')
+                self.assertTrue(dialog.buttons.button(QDialogButtonBox.Ok).isEnabled())
+                dialog.buttons.button(QDialogButtonBox.Ok).click()
+                self.wait(lambda: dialog.job is None)
+                self.assertEqual(dialog.result(), QDialog.Accepted)
+                dialog.deleteLater()
+            self.assertTrue(self.paths.configured())
+            self.assertEqual(self.paths.config.stat().st_mode & 0o777, 0o600)
+            # A package's client rotation must not change an existing account's identity.
+            bundled.write_text('{}')
+            before = self.paths.config.read_bytes()
+            dialog = DriveDialog(paths=self.paths); dialog.reject(); dialog.deleteLater()
+            self.assertEqual(self.paths.config.read_bytes(), before)
 
     def test_native_login_publishes_private_credentials_and_cancel_keeps_no_account(self):
         helper = self.fake_rclone("""import sys, configparser, json

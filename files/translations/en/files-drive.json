@@ -35,5 +35,12 @@
   "Google Drive wird verbunden …": "Connecting Google Drive …",
   "Google Drive · Änderungen werden im Hintergrund übertragen": "Google Drive · Changes are uploaded in the background",
   "Google Drive konnte nicht verbunden werden.": "Could not connect Google Drive.",
-  "Bitte Internetverbindung, rclone und die Google-Anmeldung prüfen. Dienstprotokoll: {0}": "Please check your internet connection, rclone and Google sign-in. Service log: {0}"
+  "Bitte Internetverbindung, rclone und die Google-Anmeldung prüfen. Dienstprotokoll: {0}": "Please check your internet connection, rclone and Google sign-in. Service log: {0}",
+  "Melde dich im Browser bei Google an und erlaube Lumen den Zugriff auf deine Drive-Dateien. Dein Passwort bleibt bei Google.": "Sign in to Google in your browser and allow Lumen to access your Drive files. Your password stays with Google.",
+  "Die Google-Anmeldung ist in dieser Lumen-Ausgabe noch nicht eingerichtet.": "Google sign-in has not been set up for this Lumen release yet.",
+  "Die Google-Anmeldung dieser Lumen-Ausgabe ist fehlerhaft eingerichtet. Bitte Lumen aktualisieren.": "Google sign-in is misconfigured in this Lumen release. Please update Lumen.",
+  "Mit Google verbinden öffnet die Anmeldung im Browser.": "Connect with Google opens sign-in in your browser.",
+  "Eigene Google-App verwenden (erweitert)": "Use your own Google app (advanced)",
+  "Mit Google verbinden": "Connect with Google",
+  "Google-Anmeldung nicht abgeschlossen. Bitte erneut versuchen und den Zugriff bei Google bestätigen. Falls Google die App blockiert, muss ihre Freigabe vom Anbieter geklärt werden.": "Google sign-in did not complete. Please try again and allow access at Google. If Google blocks the app, its provider must resolve the approval."
 }

@@ -76,6 +76,14 @@ if ! command -v opencode >/dev/null 2>&1 && [ ! -x "$HOME/.opencode/bin/opencode
 fi
 
 # ---- copy files ------------------------------------------------------------
+# Validate before changing the installation. Source updates without a client
+# preserve the existing app identity and all separately stored user tokens.
+GOOGLE_CLIENT="${LUMEN_GOOGLE_OAUTH_CLIENT_FILE:-$REPO/files/google-drive-client.json}"
+GOOGLE_STAGE="$(mktemp -d)"
+trap 'rm -rf "$GOOGLE_STAGE"' EXIT
+if [[ -n "${LUMEN_GOOGLE_OAUTH_CLIENT_FILE:-}" || -f "$GOOGLE_CLIENT" ]]; then
+    /usr/bin/python3 "$REPO/files/google_drive.py" --bundle-client "$GOOGLE_CLIENT" "$GOOGLE_STAGE/client.json"
+fi
 say "Installiere Dateien nach $PREFIX" "Installing files into $PREFIX"
 mkdir -p "$BIN"
 install -m 0644 "$REPO/LICENSE" "$REPO/THIRD_PARTY_NOTICES.md" "$PREFIX/"
@@ -88,6 +96,9 @@ mkdir -p "$PREFIX/agent-app"
 install -m 0644 "$REPO/agent-app/main.py" "$PREFIX/agent-app/"
 mkdir -p "$PREFIX/files"
 install -m 0644 "$REPO/files/"*.py "$REPO/files/"*.qss "$REPO/files/"*.svg "$PREFIX/files/"
+if [[ -f "$GOOGLE_STAGE/client.json" ]]; then
+    install -m 0644 "$GOOGLE_STAGE/client.json" "$PREFIX/files/google-drive-client.json"
+fi
 mkdir -p "$PREFIX/files/translations"
 cp -R "$REPO/files/translations/." "$PREFIX/files/translations/"
 mkdir -p "$PREFIX/files/qml"
