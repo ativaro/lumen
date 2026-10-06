@@ -135,6 +135,10 @@ class SettingsDialog(QDialog):
         troubleshooting = self.page('Lumen Troubleshooter', tr('Probleme erkennen und passende Lösungen finden'))
         self.troubleshooter = Troubleshooter(self)
         troubleshooting.addWidget(self.troubleshooter); troubleshooting.addStretch()
+        from online_accounts import AccountsWidget
+        self.accounts_page = self.stack.count()
+        accounts = self.page(tr('Online-Konten'), tr('Google Drive, OneDrive, Dropbox und WebDAV'))
+        accounts.addWidget(AccountsWidget(self)); accounts.addStretch()
         for action in self.stack.findChildren(QPushButton):
             action.setAutoDefault(False); action.setDefault(False)
         from settings_navigation import SettingsNavigation, categories
@@ -509,8 +513,8 @@ class SettingsDialog(QDialog):
         remove = button(tr('Ausgewählten Eintrag entfernen'), lambda: self.places.takeItem(self.places.currentRow()) if self.places.currentRow() >= 0 else None)
         remove.setObjectName('danger'); page.addWidget(remove)
         page.addWidget(button(tr('Bibliotheken und Quellen verwalten …'), self.manage_libraries))
-        from google_drive import open_drive_settings
-        page.addWidget(button(tr('Google-Drive-Einstellungen …'), lambda: open_drive_settings(self)))
+        from online_accounts import open_accounts
+        page.addWidget(button(tr('Online-Konten …'), lambda: open_accounts(self)))
         page.addWidget(text(tr('Neue Server: Strg+K in Files (SMB, SFTP, WebDAV, NFS).\n'
             'Bilder bearbeiten: Leertaste auf einem Bild. Originale werden vor dem Speichern gesichert.\n'
             'Speicheranalyse: Menü ••• → Speicher analysieren. Umbenennen/Sortieren: Auswahl → Kontextmenü.')))

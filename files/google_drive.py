@@ -18,6 +18,7 @@ APP_CLIENT_FILE = Path(__file__).with_name('google-drive-client.json')
 
 class DrivePaths:
     def __init__(self):
+        self.provider = 'drive'; self.label = 'Google Drive'
         self.root = Path(os.environ.get('XDG_CONFIG_HOME') or Path.home()/'.config')/'lumen/google-drive'
         self.config = self.root/'rclone.conf'
         self.mount = Path(os.environ.get('XDG_DATA_HOME') or Path.home()/'.local/share')/'lumen/Google Drive'
@@ -37,10 +38,10 @@ class DrivePaths:
         except OSError:
             return False
 
-    def configured(self):
+    def configured(self, path=None):
         try:
             config = configparser.ConfigParser(interpolation=None)
-            config.read(self.config)
+            config.read(path or self.config)
             token = json.loads(config.get('drive', 'token', fallback='{}'))
             return isinstance(token, dict) and bool(token.get('refresh_token')) and config.get('drive', 'type') == 'drive'
         except (OSError, ValueError, configparser.Error):
@@ -154,7 +155,7 @@ class DriveDialog(QDialog):
         QTimer.singleShot(0, dialog, lambda: dialog.start_job('packages', ['google_drive']))
         dialog.exec(); dialog.deleteLater(); self.refresh_support()
         if self.buttons.button(QDialogButtonBox.Ok).isEnabled():
-            self.status.setText(tr('Bereit für die Google-Anmeldung.'))
+            self.status.setText(tr('Bereit für die Anmeldung.'))
 
     def import_client(self):
         path, _ = QFileDialog.getOpenFileName(self, tr('Google-OAuth-JSON importieren …'), '', 'JSON (*.json)')
@@ -182,18 +183,26 @@ class DriveDialog(QDialog):
             self.paths.root.mkdir(mode=0o700, parents=True, exist_ok=True); self.paths.root.chmod(0o700)
             self.staging = tempfile.TemporaryDirectory(prefix='login-', dir=self.paths.root)
             config = configparser.ConfigParser(interpolation=None)
-            config['drive'] = dict(type='drive', client_id=identity, client_secret=secret, scope='drive')
+            config['drive'] = dict(type='drive', client_id=identity, client_secret=secret, scope='drive', description=self.paths.label)
             path = Path(self.staging.name)/'rclone.conf'
             with path.open('w') as output: config.write(output)
             path.chmod(0o600)
         except OSError:
             self.status.setText(tr('Die Zugangsdaten konnten nicht sicher gespeichert werden.')); self.clean_staging(); return
+        self.start_login(['config', 'update', 'drive', 'config_is_local', 'true',
+            'config_change_team_drive', 'false', '--non-interactive', '--config', str(path)])
+
+    def start_login(self, arguments, stdin=None):
         self.output = b''; self.login_url = ''; self.browser.hide()
         self.job = worker_process(self); proc = self.job
         env = proc.processEnvironment()
         for key in env.keys():
             if key.startswith('RCLONE_'): env.remove(key)
         proc.setProcessEnvironment(env)
+        if stdin is not None:
+            def write_input():
+                proc.write(stdin); proc.closeWriteChannel()
+            proc.started.connect(write_input)
         proc.setProcessChannelMode(QProcess.MergedChannels)
         proc.readyReadStandardOutput.connect(self.read_login)
         proc.finished.connect(self.login_finished)
@@ -202,8 +211,7 @@ class DriveDialog(QDialog):
         self.buttons.button(QDialogButtonBox.Ok).setEnabled(False)
         self.status.setText(tr('Bitte die Anmeldung im Browser abschließen …'))
         self.timeout.start()
-        proc.start(shutil.which('rclone') or 'rclone', ['config', 'update', 'drive', 'config_is_local', 'true',
-            'config_change_team_drive', 'false', '--non-interactive', '--config', str(path)])
+        proc.start(shutil.which('rclone') or 'rclone', arguments)
 
     def read_login(self):
         if not self.job: return
@@ -218,11 +226,11 @@ class DriveDialog(QDialog):
         self.read_login(); proc, self.job = self.job, None; proc.deleteLater(); self.timeout.stop()
         success = False
         try:
-            staged = DrivePaths(); staged.config = Path(self.staging.name)/'rclone.conf'
-            if code == 0 and staged.configured():
+            staged = Path(self.staging.name)/'rclone.conf'
+            if code == 0 and self.paths.configured(staged):
                 # link() is an atomic no-clobber publish; concurrent logins keep the first account.
-                staged.config.chmod(0o600)
-                try: os.link(staged.config, self.paths.config)
+                staged.chmod(0o600)
+                try: os.link(staged, self.paths.config)
                 except FileExistsError:
                     if not self.paths.configured(): raise OSError()
                 success = True
@@ -231,7 +239,7 @@ class DriveDialog(QDialog):
         for widget in self.inputs: widget.setEnabled(True)
         self.refresh_support()
         if success: self.secret.clear(); self.accept()
-        else: self.status.setText(tr('Google-Anmeldung nicht abgeschlossen. Bitte erneut versuchen und den Zugriff bei Google bestätigen. Falls Google die App blockiert, muss ihre Freigabe vom Anbieter geklärt werden.'))
+        else: self.status.setText(getattr(self, 'failure_message', tr('Google-Anmeldung nicht abgeschlossen. Bitte erneut versuchen und den Zugriff bei Google bestätigen. Falls Google die App blockiert, muss ihre Freigabe vom Anbieter geklärt werden.')))
 
     def clean_staging(self):
         if self.staging: self.staging.cleanup(); self.staging = None
@@ -246,7 +254,7 @@ class DriveDialog(QDialog):
     def timed_out(self):
         self.stop_login(); self.browser.hide()
         for widget in self.inputs: widget.setEnabled(True)
-        self.refresh_support(); self.status.setText(tr('Die Google-Anmeldung ist abgelaufen. Bitte erneut verbinden.'))
+        self.refresh_support(); self.status.setText(tr('Die Anmeldung ist abgelaufen. Bitte erneut verbinden.'))
 
     def done(self, result):
         self.stop_login()
@@ -254,14 +262,16 @@ class DriveDialog(QDialog):
 
 
 class GoogleDrive(QObject):
-    def __init__(self, window):
+    def __init__(self, window, paths=None):
         super().__init__(window)
-        self.window = window; self.paths = DrivePaths(); self.pending = None; self.job = None
+        self.window = window; self.paths = paths or DrivePaths(); self.pending = None; self.job = None
         self.timeout = QTimer(self); self.timeout.setSingleShot(True); self.timeout.setInterval(65000)
         self.timeout.timeout.connect(lambda: self.finished(1))
 
     def open(self, path, record, history_position):
         if not self.paths.configured():
+            if self.paths.provider != 'drive':
+                self.window.error(tr('Bitte das Konto unter Online-Konten erneut verbinden.')); return
             dialog = DriveDialog(self.window, self.paths)
             result = dialog.exec(); dialog.deleteLater()
             if result != QDialog.Accepted: return
@@ -271,8 +281,12 @@ class GoogleDrive(QObject):
         try: command = self.paths.command()
         except OSError:
             self.finished(1); return
-        self.window.activity.setText(tr('Google Drive wird verbunden …'))
+        self.window.activity.setText(tr('{0} wird verbunden …', self.paths.label))
         self.job = worker_process(self); proc = self.job
+        env = proc.processEnvironment()
+        for key in env.keys():
+            if key.startswith('RCLONE_'): env.remove(key)
+        proc.setProcessEnvironment(env)
         proc.setStandardOutputFile(QProcess.nullDevice()); proc.setStandardErrorFile(QProcess.nullDevice())
         proc.finished.connect(self.finished)
         proc.errorOccurred.connect(lambda error: self.finished(1) if error == QProcess.FailedToStart else None)
@@ -291,11 +305,11 @@ class GoogleDrive(QObject):
         if not request or not window.tabs_data or request[0] is not window.tabs_data[window.tabs.currentIndex()]: return
         if self.paths.mounted():
             window.show_folder(request[1], request[2], history_position=request[3])
-            window.activity.setText(tr('Google Drive · Änderungen werden im Hintergrund übertragen'))
+            window.activity.setText(tr('{0} · Änderungen werden im Hintergrund übertragen', self.paths.label))
         else:
-            window.activity.setText(tr('Google Drive konnte nicht verbunden werden.'))
-            window.error(tr('Google Drive konnte nicht verbunden werden.'),
-                         tr('Bitte Internetverbindung, rclone und die Google-Anmeldung prüfen. Dienstprotokoll: {0}',
+            window.activity.setText(tr('{0} konnte nicht verbunden werden.', self.paths.label))
+            window.error(tr('{0} konnte nicht verbunden werden.', self.paths.label),
+                         tr('Bitte Internetverbindung, rclone und die Konto-Anmeldung prüfen. Dienstprotokoll: {0}',
                             'journalctl --user -u '+self.paths.unit))
 
     def close(self):

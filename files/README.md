@@ -38,7 +38,7 @@ Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. Au
 
 ## Bedienung
 
-- **Einstellungen / Strg+Komma:** eigener Einstellungsdialog für Lumen Files. Startordner, versteckte Dateien, Vorschau, Suchverzögerung und Trefferlimit; gespeicherte Orte/Server, Bibliotheken und Google Drive verwalten. Änderungen wirken im aktuellen Files-Fenster, der Startordner im nächsten Fenster.
+- **Einstellungen / Strg+Komma:** eigener Einstellungsdialog für Lumen Files. Startordner, versteckte Dateien, Vorschau, Suchverzögerung und Trefferlimit; gespeicherte Orte/Server, Bibliotheken und Online-Konten verwalten. Änderungen wirken im aktuellen Files-Fenster, der Startordner im nächsten Fenster.
 - **Strg+F:** aktueller Ordner einschließlich Unterordner durchsuchen. Alle eingegebenen Wörter müssen im Dateinamen vorkommen, Großschreibung ist egal. Treffer erscheinen laufend; **Esc** beendet die Suche. Typfilter begrenzen die Anzeige.
 - **Rechtes Symbol im Suchfeld / Strg+Umschalt+F:** Text-, Code- und PDF-Inhalte im aktuellen Ordner einschließlich Unterordnern durchsuchen; Treffer zeigen echte Textstellen und eine Vorschau.
 - **Einmal auswählen:** Vorschauleiste. **Leertaste:** große Vorschau. Bilder, SVG, blätterbare PDFs, Text/Code, Video-Standbilder und Audio-Wellenformen. Medienwiedergabe über die Standard-App.
@@ -49,7 +49,38 @@ Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. Au
 - **Strg+H:** versteckte Dateien. **Ort merken** über das Lesezeichen-Symbol neben „Server verbinden“ ergänzt einen Favoriten. Rechtsklick auf einen gemerkten Ort entfernt ihn wieder. Die kompakte Seitenleiste zeigt bis zu zehn Orte auch bei 1000 × 640 Pixeln ohne Scrollen; lange Namen werden gekürzt, vollständige Pfade stehen im Tooltip.
 - Ziehen von Dateien kopiert sie in den Zielordner. Bestehende Ziele werden mit einer Fehlermeldung beibehalten.
 
-## Google Drive
+## Online-Konten
+
+Unter **Lumen-Einstellungen → Dateien & Speicher → Online-Konten** oder in
+**Lumen Files → ••• → Online-Konten …** lassen sich Google Drive, OneDrive,
+Dropbox und WebDAV hinzufügen. Jedes Konto erhält einen eigenen Namen und Eintrag
+in der Files-Seitenleiste; mehrere Konten desselben Anbieters sind möglich.
+Die Anmeldung gehört jedem Nutzer selbst. Ein Konto des Lumen-Herausgebers wird
+nicht verbunden. Es wird keine automatische KI-Analyse aktiviert.
+
+OneDrive und Dropbox öffnen den Browser für die rclone-Anmeldung. OneDrive fragt
+anschließend nach dem persönlichen oder geschäftlichen Laufwerk. SharePoint-Sites
+gehören nicht zu dieser ersten Fassung. WebDAV prüft die HTTPS-Ordneradresse mit
+Benutzername und Passwort; ein App-Passwort wird empfohlen. Die benötigten Pakete
+`rclone` und `fuse3` lassen sich im Verbindungsdialog installieren.
+
+Zugangsdaten liegen getrennt unter `~/.config/lumen/online-accounts/<id>/rclone.conf`
+(Verzeichnis `0700`, Datei `0600`). WebDAV-Passwörter sind rclone-obscured, **nicht
+verschlüsselt**; sie sind wie OAuth-Tokens durch lokale Dateirechte geschützt.
+Neue Laufwerke liegen unter `~/.local/share/lumen/Online Accounts/<id>`, ihr
+Schreibcache unter `~/.cache/lumen/online-accounts/<id>`. Es gibt keine vollständige
+Offline-Synchronisierung. Dateien werden direkt im Cloud-Laufwerk bearbeitet.
+
+**Konto entfernen** löscht die lokale Anmeldung, keine Cloud-Dateien. Eingebundene
+Konten bleiben bis zum Desktop-Logout geschützt, damit keine laufenden Uploads
+abgebrochen werden. Nach erneuter Desktop-Anmeldung das Konto vor dem Öffnen in
+Files entfernen. Die Freigabe kann zusätzlich beim Anbieter widerrufen werden.
+Vorhandene Google-Drive-Konten bleiben unter ihren bisherigen Pfaden erhalten.
+
+Google verwendet weiterhin die mitgelieferte Lumen-App und benötigt deren Freigabe
+beim Anbieter. Die neue Kontoübersicht hebt Googles Testnutzer-Beschränkung nicht auf.
+
+### Google Drive
 
 **Google Drive** in der Seitenleiste öffnet beim ersten Mal die Kontoeinrichtung.
 Fehlende Unterstützung (`rclone`, `fuse3`) lässt sich dort über den vorhandenen
@@ -66,14 +97,14 @@ Bestehende Konten behalten ihre Zugangsdaten auch beim Austausch der mitgeliefer
 App-Konfiguration. Die [Einrichtung für Herausgeber](../packaging/GOOGLE_DRIVE.md)
 beschreibt Google-Freigabe, Testbetrieb und Paketierung.
 
-Die erste Fassung verbindet ein persönliches Google-Konto. Dateien erscheinen
+Google-Konten lassen sich in der gemeinsamen Kontoübersicht hinzufügen. Dateien erscheinen
 als Laufwerk und nutzen dieselben Vorschau-, Kopier- und Umbenennungsfunktionen.
 Google-Dokumente stellt rclone standardmäßig als Office-Exporte dar; das ist kein
 Google-Docs-Editor und keine vollständige Offline-Spiegelung. Den Kontostatus
 erreichst du per Rechtsklick auf **Google Drive** oder in den Files-Einstellungen
-unter **Orte, Server und Bibliotheken → Google-Drive-Einstellungen …**.
+unter **Orte, Server und Bibliotheken → Online-Konten …**.
 
-Lumen speichert die Anmeldung separat in `~/.config/lumen/google-drive/rclone.conf`
+Der bisherige Google-Drive-Eintrag speichert die Anmeldung separat in `~/.config/lumen/google-drive/rclone.conf`
 (Verzeichnis `0700`, Datei `0600`), ohne die vorhandene rclone-Konfiguration zu
 ändern. Abbruch und Zeitüberschreitung entfernen nur die temporäre Anmeldung.
 Client-Secret und Tokens stehen weder in Prozessargumenten noch in UI-Fehlermeldungen.
