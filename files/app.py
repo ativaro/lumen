@@ -842,6 +842,8 @@ class Window(QMainWindow):
             return
         menu = QMenu(self)
         menu.addAction(tr('In neuem Tab öffnen'), lambda: self.new_tab(path))
+        if not virtual(path):
+            menu.addAction(tr('Eigenschaften …'), lambda: self.show_properties(path))
         if self.drive.paths.contains(path):
             from google_drive import open_drive_settings
             menu.addAction(tr('Google-Drive-Einstellungen …'), lambda: open_drive_settings(self))
@@ -892,6 +894,7 @@ class Window(QMainWindow):
                               ('F5', self.refresh), ('Escape', self.escape)]:
             self.shortcut(key, callback)
         for key, callback in [('Space', self.quicklook), ('Return', self.open_selected),
+                              ('Alt+Return', self.show_properties),
                               ('F2', self.rename), ('Delete', self.trash),
                               ('Ctrl+C', lambda: self.copy(False)), ('Ctrl+X', lambda: self.copy(True)),
                               ('Ctrl+V', self.paste)]:
@@ -1590,8 +1593,37 @@ class Window(QMainWindow):
         menu.addSeparator()
         menu.addAction(tr('Letzte Lumen-Dateiaktion rückgängig …'), lambda: self.organize_files('undo'))
         menu.addSeparator()
-        menu.addAction(tr('Einstellungen …'), self.show_settings)
+        property_path = (paths[0] if len(paths) == 1 else None) if index.isValid() else (
+            self.current_location if not virtual(self.current_location) else None)
+        properties = menu.addAction(tr('Eigenschaften …\tAlt+Enter'), lambda: self.show_properties(property_path))
+        properties.setEnabled(property_path is not None)
         menu.exec(view.viewport().mapToGlobal(position))
+
+    def show_properties(self, path=None):
+        import shutil
+        from lumen_i18n import language, worker_process
+        paths = [str(path)] if path is not None else self.context_paths()
+        if len(paths) != 1:
+            self.error(tr('Bitte eine einzelne Datei oder einen Ordner für die Eigenschaften auswählen.'))
+            return
+        helper = shutil.which('kioclient') or shutil.which('kioclient6')
+        if not helper:
+            self.error(tr('Dateieigenschaften benötigen kde-cli-tools. Bitte über die Lumen-Einrichtung „NAS und Netzwerkordner“ installieren.'))
+            return
+        path = paths[0]
+        if self.drive.paths.contains(path) and not self.drive.paths.mounted():
+            self.error(tr('Bitte Google Drive zuerst über die Seitenleiste verbinden.'))
+            return
+        remote = path if is_network_address(path) else self.network.remote(path)
+        url = QUrl(remote) if remote else QUrl.fromLocalFile(os.path.abspath(os.path.expanduser(path)))
+        process = worker_process(None)
+        environment = process.processEnvironment(); environment.insert('LANGUAGE', language())
+        process.setProcessEnvironment(environment)
+        process.setProgram(helper)
+        process.setArguments(['--desktopfile', 'lumen-files', '--qwindowtitle', tr('Lumen Files · Eigenschaften'),
+                              'openProperties', url.toString(QUrl.FullyEncoded)])
+        started, _pid = process.startDetached()
+        if not started: self.error(tr('Die Dateieigenschaften konnten nicht geöffnet werden.'))
 
     def refresh(self):
         self.proxy.folder_sizes.clear()

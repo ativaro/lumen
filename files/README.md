@@ -44,7 +44,8 @@ Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. Au
 - **Einmal auswählen:** Vorschauleiste. **Leertaste:** große Vorschau. Bilder, SVG, blätterbare PDFs, Text/Code, Video-Standbilder und Audio-Wellenformen. Medienwiedergabe über die Standard-App.
 - **Strg+L:** Pfad eingeben. **Alt+Links/Rechts/Hoch:** Verlauf / übergeordneter Ordner. Die seitlichen **Vor-/Zurück-Tasten der Maus** navigieren ebenfalls im Verlauf, unabhängig davon, über welchem Fensterbereich die Maus steht. Als Browser-Tasten gemeldete Signale werden ebenfalls unterstützt. In der Bildgalerie wechseln sie das Bild. **Strg+T / Strg+W:** Tab öffnen / schließen. **Strg+Tab:** nächster Tab.
 - **Strg+C / X / V:** kopieren / ausschneiden / einfügen. **F2:** umbenennen. **Strg+Umschalt+N:** Ordner erstellen. **Entf:** nach Bestätigung in den Systempapierkorb verschieben.
-- **Langsamer zweiter Klick auf den ausgewählten Dateinamen:** direkt in Liste oder Bildraster umbenennen; die Erweiterung bleibt zunächst unmarkiert. **Enter** bestätigt, **Esc** verwirft. Ein schneller Doppelklick öffnet weiterhin die Datei. **Einstellungen …** steht auch im Kontextmenü auf Dateien und freiem Hintergrund.
+- **Langsamer zweiter Klick auf den ausgewählten Dateinamen:** direkt in Liste oder Bildraster umbenennen; die Erweiterung bleibt zunächst unmarkiert. **Enter** bestätigt, **Esc** verwirft. Ein schneller Doppelklick öffnet weiterhin die Datei.
+- **Eigenschaften … / Alt+Enter:** Eigenschaften einer einzelnen Datei oder eines Ordners im nativen KDE-Dialog. „Allgemein“ zeigt Typ, „Öffnen mit“ samt Änderung der Standard-App, Speicherort, Größe, belegten Speicher und verfügbare Zeitstempel. Ordner zeigen zusätzlich Dateisystem und Einhängepunkt; „Berechtigungen“ verwaltet Zugriff, Eigentümer und Gruppe entsprechend deinen Rechten. Nicht jeder Netzwerkdienst liefert alle Werte. Ein Rechtsklick auf freien Hintergrund öffnet die Eigenschaften des aktuellen Ordners, auch wenn noch eine Datei ausgewählt ist. Voraussetzung: `kde-cli-tools`, auch über die Lumen-Einrichtung „NAS und Netzwerkordner“ installierbar.
 - **Strg+H:** versteckte Dateien. **Ort merken** über das Lesezeichen-Symbol neben „Server verbinden“ ergänzt einen Favoriten. Rechtsklick auf einen gemerkten Ort entfernt ihn wieder. Die kompakte Seitenleiste zeigt bis zu zehn Orte auch bei 1000 × 640 Pixeln ohne Scrollen; lange Namen werden gekürzt, vollständige Pfade stehen im Tooltip.
 - Ziehen von Dateien kopiert sie in den Zielordner. Bestehende Ziele werden mit einer Fehlermeldung beibehalten.
 
@@ -91,7 +92,7 @@ ohne diese nicht automatisch verifiziert.
 
 Die übergreifenden Lumen-Einstellungen öffnen sich im Assistenten über
 **Einstellungen** oder `lumen-agent-app --page settings`. In Lumen Files führen
-Menü, Kontextmenü, **Strg+Komma** und `lumen-files --settings` zum eigenen
+Menü, **Strg+Komma** und `lumen-files --settings` zum eigenen
 Files-Dialog. Dieselben Dateioptionen bleiben auch in den übergreifenden
 Lumen-Einstellungen erreichbar und verwenden denselben gespeicherten Stand.
 

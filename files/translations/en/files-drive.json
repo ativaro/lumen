@@ -1,4 +1,10 @@
 {
+  "Eigenschaften …": "Properties …",
+  "Eigenschaften …\tAlt+Enter": "Properties …\tAlt+Enter",
+  "Lumen Files · Eigenschaften": "Lumen Files · Properties",
+  "Bitte eine einzelne Datei oder einen Ordner für die Eigenschaften auswählen.": "Please select a single file or folder to view its properties.",
+  "Dateieigenschaften benötigen kde-cli-tools. Bitte über die Lumen-Einrichtung „NAS und Netzwerkordner“ installieren.": "File properties require kde-cli-tools. Please install it via “NAS and network folders” in Lumen setup.",
+  "Die Dateieigenschaften konnten nicht geöffnet werden.": "Could not open file properties.",
   "Lumen Files · Einstellungen": "Lumen Files · Settings",
   "Änderungen mit „Files-Einstellungen übernehmen“ speichern.": "Save changes with “Apply Files settings”.",
   "Einstellungen …": "Settings …",
