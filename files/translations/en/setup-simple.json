@@ -30,6 +30,8 @@
   "Kopiert technische Angaben ohne Schlüssel, Zugangsdaten oder Gesprächsinhalte.": "Copies technical details without keys, credentials or conversation contents.",
   "Technische Diagnose wird erstellt …": "Preparing technical diagnostics …",
   "Diagnose kopiert. Du kannst sie zur Fehlersuche weitergeben.": "Diagnostics copied. You can share them for troubleshooting.",
+  "Unvollständige Diagnose kopiert. Bitte Lumen neu starten und erneut prüfen.": "Partial diagnostics copied. Restart Lumen and check again.",
+  "Diagnose konnte nicht kopiert werden. Bitte erneut versuchen.": "Could not copy diagnostics. Please try again.",
   "Ohne eigene Auswahl richtet Lumen ein verfügbares Gratis-Modell ein.": "Without your own selection, Lumen sets up an available free model.",
   "Gratis-Modell bereit: {0}": "Free model ready: {0}",
   "Dein Modell: {0}": "Your model: {0}",

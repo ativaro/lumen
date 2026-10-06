@@ -305,6 +305,103 @@ class SetupDialogTest(unittest.TestCase):
             self.assertTrue(dialog.copy_diagnostic.isEnabled())
             QApplication.clipboard().clear()
 
+    def test_diagnostic_survives_missing_metadata_after_update(self):
+        import json, sys
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtTest import QTest
+        from setup_dialog import SetupDialog
+        with tempfile.TemporaryDirectory() as tmp:
+            binary = Path(tmp)/'engine'
+            binary.write_text('#!/bin/sh\nprintf "1.18.34\\n"\n'); binary.chmod(0o700)
+            dialog = SetupDialog(settings=QSettings(tmp+'/prefs.ini', QSettings.IniFormat))
+            self.addCleanup(dialog.deleteLater); self.addCleanup(dialog.reject)
+            # An open wizard can retain the old backend across an on-disk update.
+            del dialog.engine.startup_diagnostic
+            for unreadable in (False, True):
+                with self.subTest(unreadable=unreadable), \
+                        patch('assistant_backend.opencode_binary', return_value=str(binary)), \
+                        patch.object(Path, 'read_bytes', side_effect=OSError('private-path') if unreadable else None,
+                                     return_value=b'source'), patch.object(sys, 'excepthook') as errors:
+                    QApplication.clipboard().clear()
+                    dialog.copy_diagnostic.click()
+                    deadline = time.monotonic()+3
+                    while dialog.diagnostic_process and time.monotonic()<deadline: QTest.qWait(10)
+                    self.assertIsNone(dialog.diagnostic_process)
+                    errors.assert_not_called()
+                    report = json.loads(QApplication.clipboard().text())
+                    self.assertEqual(report['startup']['outcome'], 'unavailable')
+                    if unreadable: self.assertEqual(report['code_fingerprint'], 'unavailable')
+                    self.assertIn('Diagnose kopiert', dialog.status.text())
+                    self.assertTrue(dialog.copy_diagnostic.isEnabled())
+            QApplication.clipboard().clear()
+
+    def test_diagnostic_deadline_does_not_wait_for_process_exit(self):
+        import json, sys
+        from PySide6.QtCore import QProcess, QSettings, QTimer
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtTest import QTest
+        from setup_dialog import SetupDialog
+        with tempfile.TemporaryDirectory() as tmp:
+            binary = Path(tmp)/'engine'
+            binary.write_text('#!'+sys.executable+'\nimport time\ntime.sleep(60)\n'); binary.chmod(0o700)
+            dialog = SetupDialog(settings=QSettings(tmp+'/prefs.ini', QSettings.IniFormat))
+            self.addCleanup(dialog.deleteLater); self.addCleanup(dialog.reject)
+            class DelayedExit(QProcess):
+                def kill(self): pass
+            with patch('assistant_backend.opencode_binary', return_value=str(binary)), \
+                    patch('setup_dialog.worker_process', side_effect=DelayedExit):
+                QApplication.clipboard().clear(); dialog.copy_diagnostic.click()
+                proc = dialog.diagnostic_process
+                self.assertTrue(proc.waitForStarted(1000))
+                try:
+                    proc.findChild(QTimer).start(20)
+                    QTest.qWait(100)
+                    self.assertIsNone(dialog.diagnostic_process)
+                    report = QApplication.clipboard().text()
+                    self.assertEqual(json.loads(report)['engine_version'], 'unavailable')
+                    self.assertTrue(dialog.copy_diagnostic.isEnabled())
+                finally:
+                    QProcess.kill(proc); proc.waitForFinished(1000)
+                self.assertEqual(QApplication.clipboard().text(), report)
+            QApplication.clipboard().clear()
+
+    def test_diagnostic_reports_internal_errors_and_can_retry(self):
+        import json, sys
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtTest import QTest
+        from setup_dialog import SetupDialog
+        with tempfile.TemporaryDirectory() as tmp:
+            binary = Path(tmp)/'engine'
+            binary.write_text('#!/bin/sh\nprintf "1.18.34\\n"\n'); binary.chmod(0o700)
+            dialog = SetupDialog(settings=QSettings(tmp+'/prefs.ini', QSettings.IniFormat))
+            self.addCleanup(dialog.deleteLater); self.addCleanup(dialog.reject)
+            def copy():
+                dialog.copy_diagnostic.click()
+                deadline = time.monotonic()+3
+                while dialog.diagnostic_process and time.monotonic()<deadline: QTest.qWait(10)
+                self.assertIsNone(dialog.diagnostic_process)
+                self.assertTrue(dialog.copy_diagnostic.isEnabled())
+                self.assertNotIn('wird erstellt', dialog.status.text())
+            with patch('assistant_backend.opencode_binary', return_value=str(binary)), \
+                    patch.object(sys, 'excepthook') as errors:
+                with patch('setup_diagnostics.build_report', side_effect=RuntimeError('PRIVATE_CREDENTIAL')):
+                    copy()
+                raw = QApplication.clipboard().text()
+                self.assertEqual(json.loads(raw)['diagnostic_error'], 'RuntimeError')
+                self.assertNotIn('PRIVATE_CREDENTIAL', raw)
+                self.assertIn('Unvollständige Diagnose', dialog.status.text())
+                with patch('setup_dialog.QApplication.clipboard') as clipboard:
+                    clipboard.return_value.setText.side_effect = RuntimeError('clipboard unavailable')
+                    copy()
+                    self.assertIn('konnte nicht kopiert', dialog.status.text())
+                copy()
+                self.assertEqual(json.loads(QApplication.clipboard().text())['engine_version'], '1.18.34')
+                self.assertIn('Diagnose kopiert', dialog.status.text())
+                errors.assert_not_called()
+            QApplication.clipboard().clear()
+
     def test_engine_exit_diagnostic_survives_cleanup_and_retry_without_raw_output(self):
         import json, sys
         from PySide6.QtCore import QSettings

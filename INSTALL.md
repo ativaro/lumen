@@ -267,8 +267,12 @@ The report includes Lumen's installed revision/code fingerprint, OpenCode/Python
 versions, the setup stage, HTTP status, response format and model counts. It omits
 API keys, auth headers, response bodies, conversation contents, personal paths and
 custom provider/model names. Nothing is uploaded automatically. A hung/missing
-version command is marked unavailable after five seconds; other diagnostics can
-still be copied. If the button is missing, update Lumen and reopen the wizard.
+version command is marked unavailable after five seconds; the report is copied
+without waiting for that process to exit. Unreadable source files or startup
+metadata missing after an update are marked unavailable. Other collection errors
+produce an explicitly partial report with only the error type, never exception
+text. Clipboard failures are shown and allow retrying. After updating Lumen,
+fully quit and restart it before checking again.
 
 Diagnostic v2 also retains the process exit code, crash/start/timeout outcome,
 startup duration and a fixed error category after the engine has stopped.

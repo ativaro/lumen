@@ -435,16 +435,28 @@ class SetupDialog(QDialog):
             captured.extend(raw[:max(0, 256-len(captured))])
         def finished(code):
             if self.diagnostic_process is not proc: return
-            read(); self.diagnostic_process = None; self.copy_diagnostic.setEnabled(True)
+            timeout.stop(); read(); self.diagnostic_process = None; self.copy_diagnostic.setEnabled(True)
             version = version_text(bytes(captured)) if code == 0 else 'unavailable'
-            QApplication.clipboard().setText(build_report(self, version))
-            self.status.setText(tr('Diagnose kopiert. Du kannst sie zur Fehlersuche weitergeben.'))
-            proc.deleteLater()
+            message = tr('Diagnose kopiert. Du kannst sie zur Fehlersuche weitergeben.')
+            try: report = build_report(self, version)
+            except Exception as exc:
+                # A diagnostic must report its own failure, without private exception text.
+                report = json.dumps(dict(report='Lumen setup diagnostic v2', diagnostic_error=type(exc).__name__))
+                message = tr('Unvollständige Diagnose kopiert. Bitte Lumen neu starten und erneut prüfen.')
+            try: QApplication.clipboard().setText(report)
+            except Exception:
+                message = tr('Diagnose konnte nicht kopiert werden. Bitte erneut versuchen.')
+            self.status.setText(message)
+            if proc.state() == QProcess.NotRunning: proc.deleteLater()
+        def expired():
+            finished(1)
+            proc.kill()
         proc.readyReadStandardOutput.connect(read)
         proc.readyReadStandardError.connect(lambda: proc.readAllStandardError())
         proc.finished.connect(finished)
+        proc.finished.connect(proc.deleteLater)
         proc.errorOccurred.connect(lambda error: finished(1) if error == QProcess.FailedToStart else None)
-        timeout = QTimer(proc); timeout.setSingleShot(True); timeout.timeout.connect(proc.kill); timeout.start(5000)
+        timeout = QTimer(proc); timeout.setSingleShot(True); timeout.timeout.connect(expired); timeout.start(5000)
         binary = self.engine.proc.program() if self.engine.proc else opencode_binary()
         proc.start(binary, ['--version'])
 

@@ -64,19 +64,22 @@ def build_report(dialog, engine_version):
     except (OSError,ValueError,AttributeError): revision = ''
     if not isinstance(revision,str) or not re.fullmatch('[a-f0-9]{40}',revision): revision = 'source-or-unknown'
     digest = hashlib.sha256()
-    for name in ('setup_dialog.py','assistant_backend.py','setup_diagnostics.py'):
-        digest.update((Path(__file__).parent/name).read_bytes())
+    try:
+        for name in ('setup_dialog.py','assistant_backend.py','setup_diagnostics.py'):
+            digest.update((Path(__file__).parent/name).read_bytes())
+        fingerprint = digest.hexdigest()[:16]
+    except OSError: fingerprint = 'unavailable'
     binary = dialog.engine.proc.program() if dialog.engine.proc else opencode_binary()
     try: distribution = platform.freedesktop_os_release()
     except OSError: distribution = {}
     report = dict(report='Lumen setup diagnostic v2', utc=datetime.now(timezone.utc).isoformat(timespec='seconds'),
-        lumen_revision=revision, code_fingerprint=digest.hexdigest()[:16],
+        lumen_revision=revision, code_fingerprint=fingerprint,
         python=platform.python_version(), qt=qVersion(), architecture=platform.machine(),
         os=distribution.get('ID','unknown'), os_version=distribution.get('VERSION_ID','rolling-or-unknown'),
         engine_version=version_text(engine_version), compatible_engine=ENGINE_VERSION,
         engine_source='managed' if Path(binary)==managed_opencode() else 'external',
         engine_reachable=bool(dialog.engine.url), stage=dialog.diagnostic_stage,
-        startup=dialog.engine.startup_diagnostic,
+        startup=getattr(dialog.engine, 'startup_diagnostic', {'outcome': 'unavailable'}),
         outcome=dialog.diagnostic_outcome, providers=len(dialog.providers),
         selectable_models=sum(bool(dialog.models.itemData(i)) for i in range(dialog.models.count())),
         model_selected=bool(dialog.models.currentData()), saved_model_configured=bool(dialog.settings.value('model','')),
