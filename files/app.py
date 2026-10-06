@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDockWi
     QStyleOptionViewItem, QStyledItemDelegate, QTabBar, QTreeView, QVBoxLayout, QWidget)
 from core import FileWorker, SearchWorker, file_kind, size_text, valid_name
 from network import Network, ConnectDialog, display_url, is_network_address, normalize_url, server_label
+from file_rename import RenameDelegate
 from preview import Preview, label
 from gallery import Gallery, ImageLoader
 from disk_analysis import DiskAnalysis
@@ -44,6 +45,12 @@ def button(text, callback, icon=None, tip=None):
 
 
 class FileFilter(QSortFilterProxyModel):
+    def flags(self, index):
+        flags = super().flags(index)
+        if index.isValid() and index.column() == 0 and self.path(index):
+            return flags | Qt.ItemIsEditable
+        return flags & ~Qt.ItemIsEditable
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.kind = 'all'
@@ -180,7 +187,13 @@ class FileView(FileDropMixin, QTreeView):
     pass
 
 
-class ThumbnailDelegate(QStyledItemDelegate):
+class ThumbnailDelegate(RenameDelegate):
+    def caption_rect(self, rect):
+        return QRect(rect.x()+10, rect.bottom()-49, rect.width()-20, 20)
+
+    def updateEditorGeometry(self, editor, option, index):
+        editor.setGeometry(self.caption_rect(option.rect.adjusted(10, 8, -10, -8)).adjusted(-2, -2, 2, 2))
+
     def sizeHint(self, option, index):
         return self.parent().gridSize()
 
@@ -228,7 +241,7 @@ class ThumbnailDelegate(QStyledItemDelegate):
                                      photo.bottom() - side + 4, side, side), Qt.AlignCenter)
         font = QFont(option.font); font.setBold(False); painter.setFont(font)
         painter.setPen(option.palette.color(QPalette.Text))
-        text_rect = QRect(rect.x(), photo.bottom() + 7, rect.width(), 20)
+        text_rect = self.caption_rect(option.rect)
         alignment = Qt.AlignLeft if cached else Qt.AlignHCenter
         painter.drawText(text_rect, alignment | Qt.AlignVCenter,
                          painter.fontMetrics().elidedText(name, Qt.ElideMiddle, text_rect.width()))
@@ -263,7 +276,7 @@ class FileGrid(FileDropMixin, QListView):
         self.setTextElideMode(Qt.ElideMiddle)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.setEditTriggers(QAbstractItemView.SelectedClicked)
         self.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.setItemDelegate(ThumbnailDelegate(self))
         self.loader = ImageLoader(self, max_side=256, cache_limit=256)
@@ -619,7 +632,8 @@ class Window(QMainWindow):
         self.view.setIconSize(QSize(20, 20))
         self.view.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.view.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.view.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.view.setEditTriggers(QAbstractItemView.SelectedClicked)
+        self.view.setItemDelegate(RenameDelegate(self.view))
         self.view.setAlternatingRowColors(False)
         self.view.setSortingEnabled(True)
         self.view.setModel(self.proxy)
@@ -1560,6 +1574,8 @@ class Window(QMainWindow):
         menu.addAction(tr('Neuer Ordner'), self.mkdir)
         menu.addSeparator()
         menu.addAction(tr('Letzte Lumen-Dateiaktion rückgängig …'), lambda: self.organize_files('undo'))
+        menu.addSeparator()
+        menu.addAction(tr('Einstellungen …'), self.show_settings)
         menu.exec(view.viewport().mapToGlobal(position))
 
     def refresh(self):
