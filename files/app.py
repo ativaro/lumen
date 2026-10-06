@@ -1622,7 +1622,7 @@ class Window(QMainWindow):
 
     def show_settings(self):
         from settings_dialog import SettingsDialog
-        dialog = SettingsDialog(self, files_settings=self.settings, page=1)
+        dialog = SettingsDialog(self, files_settings=self.settings, files_only=True)
         dialog.preferencesChanged.connect(self.reload_settings)
         dialog.exec()
         dialog.deleteLater()

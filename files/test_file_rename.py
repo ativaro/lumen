@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from PySide6.QtCore import QPoint, QSettings, Qt, QTimer
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QLineEdit, QMenu
+from PySide6.QtWidgets import QApplication, QLineEdit, QMenu, QPushButton
 from app import Window, create_app
 
 
@@ -77,6 +77,45 @@ class RenameTest(unittest.TestCase):
                         timer.stop()
                         next(a for a in actions if a.text() == 'Einstellungen …').trigger()
                         settings.assert_called_once_with()
+            finally:
+                window.close(); window.deleteLater(); QTest.qWait(50)
+
+    def test_files_settings_dialog_saves_and_updates_only_file_preferences(self):
+        from settings_dialog import SettingsDialog
+        with tempfile.TemporaryDirectory() as tmp:
+            window = Window(tmp, QSettings(tmp+'/prefs.ini', QSettings.IniFormat)); window.show()
+            assistant = QSettings('Lumen', 'Assistant')
+            before = {key: assistant.value(key) for key in assistant.allKeys()}
+            observed = {}
+            def inspect():
+                dialog = QApplication.activeModalWidget()
+                try:
+                    observed['type'] = isinstance(dialog, SettingsDialog)
+                    observed['title'] = dialog.windowTitle()
+                    observed['pages'] = [page['title'] for page in dialog.page_info]
+                    observed['navigation'] = hasattr(dialog, 'navigation')
+                    observed['buttons'] = [button.text() for button in dialog.findChildren(QPushButton)]
+                    dialog.hidden.setChecked(True)
+                    dialog.save_files()
+                except Exception as error:
+                    observed['error'] = str(error)
+                finally:
+                    if dialog: dialog.reject()
+            try:
+                QTimer.singleShot(30, inspect)
+                with patch.object(SettingsDialog, 'reload') as reload:
+                    window.show_settings()
+                    QTest.qWait(40); reload.assert_not_called()
+                self.assertNotIn('error', observed)
+                self.assertTrue(observed['type'])
+                self.assertEqual(observed['title'], 'Lumen Files · Einstellungen')
+                self.assertEqual(observed['pages'], ['Lumen Files'])
+                self.assertFalse(observed['navigation'])
+                self.assertNotIn('Systemzustand neu laden', observed['buttons'])
+                self.assertIn('Google-Drive-Einstellungen …', observed['buttons'])
+                self.assertTrue(window.settings.value('hidden', False, type=bool))
+                self.assertTrue(window.hidden)
+                self.assertEqual({key: assistant.value(key) for key in assistant.allKeys()}, before)
             finally:
                 window.close(); window.deleteLater(); QTest.qWait(50)
 

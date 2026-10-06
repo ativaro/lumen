@@ -38,7 +38,7 @@ Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. Au
 
 ## Bedienung
 
-- **Einstellungen / Strg+Komma:** gemeinsame Einstellungen für Lumen und Files. Startordner, versteckte Dateien, Vorschau, Suchverzögerung und Trefferlimit; gespeicherte Orte/Server entfernen. Änderungen wirken im aktuellen Files-Fenster, der Startordner im nächsten Fenster.
+- **Einstellungen / Strg+Komma:** eigener Einstellungsdialog für Lumen Files. Startordner, versteckte Dateien, Vorschau, Suchverzögerung und Trefferlimit; gespeicherte Orte/Server, Bibliotheken und Google Drive verwalten. Änderungen wirken im aktuellen Files-Fenster, der Startordner im nächsten Fenster.
 - **Strg+F:** aktueller Ordner einschließlich Unterordner durchsuchen. Alle eingegebenen Wörter müssen im Dateinamen vorkommen, Großschreibung ist egal. Treffer erscheinen laufend; **Esc** beendet die Suche. Typfilter begrenzen die Anzeige.
 - **Rechtes Symbol im Suchfeld / Strg+Umschalt+F:** Text-, Code- und PDF-Inhalte im aktuellen Ordner einschließlich Unterordnern durchsuchen; Treffer zeigen echte Textstellen und eine Vorschau.
 - **Einmal auswählen:** Vorschauleiste. **Leertaste:** große Vorschau. Bilder, SVG, blätterbare PDFs, Text/Code, Video-Standbilder und Audio-Wellenformen. Medienwiedergabe über die Standard-App.
@@ -65,8 +65,8 @@ Die erste Fassung verbindet ein persönliches Google-Konto. Dateien erscheinen
 als Laufwerk und nutzen dieselben Vorschau-, Kopier- und Umbenennungsfunktionen.
 Google-Dokumente stellt rclone standardmäßig als Office-Exporte dar; das ist kein
 Google-Docs-Editor und keine vollständige Offline-Spiegelung. Den Kontostatus
-erreichst du per Rechtsklick auf **Google Drive** oder über **Einstellungen →
-Dateien & Speicher → Lumen Files → Orte, Server und Bibliotheken**.
+erreichst du per Rechtsklick auf **Google Drive** oder in den Files-Einstellungen
+unter **Orte, Server und Bibliotheken → Google-Drive-Einstellungen …**.
 
 Lumen speichert die Anmeldung separat in `~/.config/lumen/google-drive/rclone.conf`
 (Verzeichnis `0700`, Datei `0600`), ohne die vorhandene rclone-Konfiguration zu
@@ -89,8 +89,11 @@ ohne diese nicht automatisch verifiziert.
 
 ## Gemeinsame Einstellungen
 
-In beiden Apps über **Einstellungen** oder **Strg+Komma**; direkter Start mit
-`lumen-files --settings` oder `lumen-agent-app --page settings`.
+Die übergreifenden Lumen-Einstellungen öffnen sich im Assistenten über
+**Einstellungen** oder `lumen-agent-app --page settings`. In Lumen Files führen
+Menü, Kontextmenü, **Strg+Komma** und `lumen-files --settings` zum eigenen
+Files-Dialog. Dieselben Dateioptionen bleiben auch in den übergreifenden
+Lumen-Einstellungen erreichbar und verwenden denselben gespeicherten Stand.
 
 Die Navigation hat sechs Hauptbereiche: **Darstellung & Desktop**, **KI & Sprache**,
 **Dateien & Speicher**, **Apps**, **Datenschutz & Freigaben** und **Wartung**.

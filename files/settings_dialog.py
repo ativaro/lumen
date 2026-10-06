@@ -42,7 +42,7 @@ def combo(items, value):
 class SettingsDialog(QDialog):
     preferencesChanged = Signal(str, list)
 
-    def __init__(self, parent=None, files_settings=None, assistant_settings=None, page=None, load_system=True, application=None):
+    def __init__(self, parent=None, files_settings=None, assistant_settings=None, page=None, load_system=True, application=None, files_only=False):
         super().__init__(parent)
         self.setWindowTitle(tr('Einstellungen — Lumen'))
         self.resize(1000, 760)
@@ -60,10 +60,18 @@ class SettingsDialog(QDialog):
         self.status = text(tr('Änderungen mit „Übernehmen“ speichern. Systemdialoge übernehmen ihre eigenen Einstellungen.'))
         root.addWidget(self.status)
         bottom = QHBoxLayout()
-        bottom.addWidget(button(tr('Systemzustand neu laden'), self.reload))
+        if not files_only:
+            bottom.addWidget(button(tr('Systemzustand neu laden'), self.reload))
         bottom.addStretch()
         bottom.addWidget(button(tr('Schließen'), self.reject))
         root.addLayout(bottom)
+        if files_only:
+            self.setWindowTitle(tr('Lumen Files · Einstellungen'))
+            self.setMinimumSize(600, 540); self.resize(720, 720)
+            self.status.setText(tr('Änderungen mit „Files-Einstellungen übernehmen“ speichern.'))
+            self.build_files()
+            root.insertWidget(0, self.stack, 1)
+            return
         self.build_lumen()
         self.build_files()
         self.shortcut_page = self.page(tr('Tastenkürzel'), tr('Lumen überall aufrufen'))
@@ -842,7 +850,7 @@ class SettingsDialog(QDialog):
             return
         if self.engine:
             self.engine.shutdown()
-        self.troubleshooter.stop()
+        if hasattr(self, 'troubleshooter'): self.troubleshooter.stop()
         super().done(result)
 
 
