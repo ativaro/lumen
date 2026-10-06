@@ -52,9 +52,11 @@ Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. Au
 ## Online-Konten
 
 Unter **Lumen-Einstellungen → Dateien & Speicher → Online-Konten** oder in
-**Lumen Files → ••• → Online-Konten …** lassen sich Google Drive, OneDrive,
+**Lumen Files → Seitenleiste → Online-Konten** lassen sich Google Drive, OneDrive,
 Dropbox und WebDAV hinzufügen. Jedes Konto erhält einen eigenen Namen und Eintrag
-in der Files-Seitenleiste; mehrere Konten desselben Anbieters sind möglich.
+in der Files-Seitenleiste, sobald die Anmeldung erfolgreich abgeschlossen ist.
+Ohne fertige Einrichtung bleibt der Eintrag verborgen, auch bei Google Drive.
+Mehrere Konten desselben Anbieters sind möglich.
 Die Anmeldung gehört jedem Nutzer selbst. Ein Konto des Lumen-Herausgebers wird
 nicht verbunden. Es wird keine automatische KI-Analyse aktiviert.
 
@@ -82,7 +84,8 @@ beim Anbieter. Die neue Kontoübersicht hebt Googles Testnutzer-Beschränkung ni
 
 ### Google Drive
 
-**Google Drive** in der Seitenleiste öffnet beim ersten Mal die Kontoeinrichtung.
+**Online-Konten** in der Seitenleiste öffnet die Kontoeinrichtung. **Google Drive**
+erscheint dort erst nach erfolgreicher Anmeldung.
 Fehlende Unterstützung (`rclone`, `fuse3`) lässt sich dort über den vorhandenen
 Lumen-Einrichtungsdialog installieren. **Mit Google verbinden** startet die
 Anmeldung mit der vom Herausgeber mitgelieferten Lumen-Desktop-App. Passwort und

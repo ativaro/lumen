@@ -8,7 +8,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 from online_accounts import AccountPaths, AccountDialog, accounts, webdav_url, AccountsWidget
@@ -134,6 +134,32 @@ else:
                 self.wait(lambda: dialog.job is None)
                 self.assertNotEqual(dialog.result(), QDialog.Accepted); self.assertFalse(paths.config.exists())
                 dialog.deleteLater(); QTest.qWait(10)
+
+    def test_sidebar_shows_account_setup_until_google_login_is_complete(self):
+        from app import Window
+        window = Window(str(self.root), QSettings(str(self.root/'sidebar.ini'), QSettings.IniFormat))
+        def entries(): return [window.places.item(i) for i in range(window.places.count())]
+        try:
+            self.assertNotIn('Google Drive', [item.text() for item in entries()])
+            setup = next(item for item in entries() if item.text() == 'Online-Konten')
+            original = window.current_path
+            with patch.object(window, 'show_accounts') as show:
+                window.places.itemClicked.emit(setup)
+                window.places.itemActivated.emit(setup)
+                self.assertEqual(show.call_count, 2)
+            self.assertEqual(window.current_path, original)
+            paths = window.drive.paths; paths.root.mkdir(parents=True, exist_ok=True)
+            paths.config.write_text('[drive]\ntype=drive\ntoken={}\n')
+            window.populate_places()
+            self.assertNotIn('Google Drive', [item.text() for item in entries()])
+            paths.config.write_text('[drive]\ntype=drive\ntoken={"refresh_token":"synthetic"}\n')
+            window.populate_places()
+            item = next(item for item in entries() if item.text() == 'Google Drive')
+            self.assertEqual(item.data(Qt.UserRole), str(paths.mount))
+            self.assertIn('Online-Konten', [item.text() for item in entries()])
+            paths.config.unlink(); window.populate_places()
+            self.assertNotIn('Google Drive', [item.text() for item in entries()])
+        finally: window.close(); window.deleteLater(); QTest.qWait(100)
 
     def test_accounts_are_searchable_in_shared_settings(self):
         from settings_dialog import SettingsDialog

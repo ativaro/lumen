@@ -559,7 +559,8 @@ class Window(QMainWindow):
         self.places.setTextElideMode(Qt.ElideRight)
         self.places.setUniformItemSizes(True)
         self.places.setItemDelegate(PlacesDelegate(self.places))
-        self.places.itemClicked.connect(lambda item: self.navigate(item.data(Qt.UserRole)))
+        self.places.itemClicked.connect(self.activate_place)
+        self.places.itemActivated.connect(self.activate_place)
         self.places.setContextMenuPolicy(Qt.CustomContextMenu)
         self.places.customContextMenuRequested.connect(self.place_menu)
         self.populate_places()
@@ -743,8 +744,10 @@ class Window(QMainWindow):
             for folder in folders(self.offline.store):
                 places.append((folder['name'] + tr(' · Offline'), folder['local'], 'folder-download'))
         places.append((tr('Dateisystem'), '/', 'drive-harddisk'))
+        places.append((tr('Online-Konten'), None, 'preferences-system-online-accounts'))
         self.cloud.refresh()
-        places.extend((drive.paths.label, str(drive.paths.mount), 'folder-cloud') for drive in self.cloud.drives.values())
+        places.extend((drive.paths.label, str(drive.paths.mount), 'folder-cloud')
+                      for drive in self.cloud.drives.values() if drive.paths.configured())
         seen = {path for _, path, _ in places}
         for storage in QStorageInfo.mountedVolumes():
             path = storage.rootPath()
@@ -757,7 +760,8 @@ class Window(QMainWindow):
         for text, path, icon in places:
             item = QListWidgetItem(QIcon.fromTheme(icon), text)
             item.setData(Qt.UserRole, path)
-            item.setToolTip(path)
+            if path is None: item.setData(Qt.UserRole + 1, 'accounts')
+            item.setToolTip(path or text)
             self.places.addItem(item)
         servers = self.saved_servers()
         if servers:
@@ -837,9 +841,18 @@ class Window(QMainWindow):
             self.settings.setValue('favorites', paths)
             self.populate_places()
 
+    def activate_place(self, item):
+        if item.data(Qt.UserRole + 1) == 'accounts': self.show_accounts()
+        elif item.data(Qt.UserRole): self.navigate(item.data(Qt.UserRole))
+
     def place_menu(self, position):
         item = self.places.itemAt(position)
         if not item:
+            return
+        if item.data(Qt.UserRole + 1) == 'accounts':
+            menu = QMenu(self)
+            menu.addAction(tr('Online-Konten …'), self.show_accounts)
+            menu.exec(self.places.viewport().mapToGlobal(position))
             return
         path = item.data(Qt.UserRole)
         if not path:
