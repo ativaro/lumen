@@ -379,6 +379,9 @@ class SetupDialog(QDialog):
             tr('Kein verfügbares Gratis-Modell gefunden. Bitte ein Modell wählen oder einen Anbieter verbinden.'))
         self.engine_status.setText(tr('Engine erreichbar · Konfiguriert: ') + (', '.join(names) or tr('noch kein Anbieter')) +
             tr('\nZugang und Antwortqualität der Anbieter wurden nicht mit einer Testanfrage geprüft.'))
+        if getattr(self.engine, 'database_source', '') == 'lumen':
+            self.engine_status.setText(self.engine_status.text() + '\n' +
+                tr('Lumen verwendet eine eigene Gesprächsdatenbank, weil die bisherige Datenbank inkompatibel ist. Die bisherigen Daten bleiben erhalten.'))
         self.diagnostic_stage = 'authentication_methods'
         self.engine.request('GET', '/provider/auth', callback=self.loaded_auth, error=self.engine_failed)
 

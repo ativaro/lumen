@@ -6,8 +6,10 @@ import os
 import re
 import secrets
 import shutil
+import sqlite3
 import time
 import uuid
+from contextlib import closing
 from pathlib import Path
 
 from lumen_qt import is_deleted
@@ -27,6 +29,26 @@ def opencode_binary():
     return (os.environ.get('LUMEN_OPENCODE_BIN') or
             (str(managed) if managed.is_file() and os.access(managed, os.X_OK) else '') or
             shutil.which('opencode') or str(Path.home() / '.opencode/bin/opencode'))
+
+
+def opencode_database(binary, configured):
+    """Keep working stores; isolate the managed v1 engine from a foreign schema."""
+    if Path(binary) != managed_opencode() or configured == ':memory:': return configured
+    data = Path(os.environ.get('XDG_DATA_HOME') or Path.home()/'.local/share')/'opencode'
+    isolated = data/'lumen-v1.db'
+    # Reuse the chosen store after restart, even if the shared database changes.
+    if isolated.is_file(): return str(isolated)
+    shared = data/(configured or 'opencode.db')
+    if not shared.is_file(): return configured
+    try:
+        with closing(sqlite3.connect(shared.absolute().as_uri()+'?mode=ro', uri=True, timeout=0.1)) as db:
+            session, populated = db.execute("SELECT "
+                "EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='session'), "
+                "EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%')").fetchone()
+    except (OSError, sqlite3.Error):
+        # Permission, corruption and locking failures need their original diagnosis.
+        return configured
+    return str(isolated) if populated and not session else configured
 
 
 class OpenCodeBackend(QObject):
@@ -72,6 +94,7 @@ class OpenCodeBackend(QObject):
         self.related_sessions = {}
         self.log = b''
         self.startup_diagnostic = {'outcome': 'not_started'}
+        self.database_source = 'default'
         self.startup_started = None
         self.model_policy = {}
         self.engine_policy = ''
@@ -189,6 +212,10 @@ class OpenCodeBackend(QObject):
         environment = proc.processEnvironment()
         for key in ('OPENCODE', 'OPENCODE_PID'):
             environment.remove(key)
+        configured = environment.value('OPENCODE_DB')
+        database = opencode_database(binary, configured)
+        self.database_source = 'lumen' if database != configured else 'inherited' if configured else 'default'
+        if database: environment.insert('OPENCODE_DB', database)
         environment.insert('OPENCODE_SERVER_PASSWORD', self.password)
         environment.insert('OPENCODE_SERVER_USERNAME', 'opencode')
         if getattr(self,'project_research',False) and not environment.value('OPENCODE_ENABLE_PARALLEL'):
@@ -677,7 +704,7 @@ class OpenCodeBackend(QObject):
             message = tr('OpenCode kann seine Konfiguration nicht laden. Bitte die OpenCode-Konfiguration prüfen; eine Neuinstallation der Engine behebt das nicht.')
         elif hint == 'permission_denied':
             message = tr('OpenCode fehlen Dateizugriffsrechte. Bitte die Rechte des OpenCode-Benutzerprofils prüfen.')
-        elif hint == 'database':
+        elif hint in ('database', 'database_schema'):
             message = tr('OpenCode kann seine Datenbank nicht öffnen. Bitte Diagnose kopieren; die Datenbank nicht löschen.')
         elif hint == 'disk_full':
             message = tr('OpenCode konnte wegen fehlendem Speicherplatz nicht starten.')

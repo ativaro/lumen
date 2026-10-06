@@ -282,6 +282,22 @@ An installed, version-compatible executable can still fail before any model API
 request; an empty `requests` list at `engine_start` therefore requires checking
 the startup error, rather than changing models or repeatedly reinstalling OpenCode.
 
+If startup reports **Database is not empty and has no session table**, the selected
+SQLite database has a schema the managed OpenCode v1 engine cannot use. For example,
+an inherited `OPENCODE_DB` can point at another OpenCode version's database.
+Lumen checks the table names read-only and uses
+`$XDG_DATA_HOME/opencode/lumen-v1.db` (default
+`~/.local/share/opencode/lumen-v1.db`) for this specific conflict. Once created,
+that store is reused across Lumen restarts. The original database is not reset,
+renamed or imported; its conversations remain there. OpenCode configuration and
+`auth.json` stay in their existing locations. Credentials stored only in another
+version's incompatible database may need reconnecting in Lumen.
+Working v1 databases retain their existing location and conversations. Unreadable,
+locked or corrupt databases still report their original failure instead of being
+silently replaced; explicit external engine binaries and `:memory:` are unchanged.
+The diagnostic reports `engine_database: lumen` when isolation is used and
+`startup.hint: database_schema` if this schema error still occurs.
+
 ## Recover the previous desktop
 
 The setup command prints a backup under

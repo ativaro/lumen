@@ -5,12 +5,67 @@ from pathlib import Path
 import tempfile
 import unittest
 import time
+from contextlib import closing
 from unittest.mock import patch
 
 import lumen_setup as setup
 
 
 class SetupTest(unittest.TestCase):
+    def test_managed_engine_keeps_compatible_databases_and_isolates_foreign_schema(self):
+        import sqlite3
+        from assistant_backend import managed_opencode, opencode_database
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'XDG_DATA_HOME': tmp}):
+            binary = str(managed_opencode())
+            data = Path(tmp)/'opencode'; data.mkdir()
+            private = data/'lumen-v1.db'
+            self.assertEqual(opencode_database(binary, ''), '')
+            self.assertFalse((data/'opencode.db').exists())
+            for configured in ('', 'opencode2.db', str(Path(tmp)/'custom.db')):
+                with self.subTest(configured=configured):
+                    shared = data/(configured or 'opencode.db')
+                    with closing(sqlite3.connect(shared)) as db, db:
+                        db.execute('CREATE TABLE foreign_session (id TEXT)')
+                        db.execute("INSERT INTO foreign_session VALUES ('preserve-me')")
+                    before = shared.read_bytes()
+                    self.assertEqual(opencode_database(binary, configured), str(private))
+                    self.assertEqual(shared.read_bytes(), before)
+                    self.assertFalse(private.exists())  # Only OpenCode initializes its own schema.
+                    with closing(sqlite3.connect(shared)) as db, db:
+                        db.execute('CREATE TABLE session (id TEXT)')
+                    self.assertEqual(opencode_database(binary, configured), configured)
+                    self.assertEqual(opencode_database('/custom/opencode', configured), configured)
+            private.touch()
+            # Once created, reopening Lumen must keep its isolated conversations.
+            self.assertEqual(opencode_database(binary, ''), str(private))
+            self.assertEqual(opencode_database(binary, ':memory:'), ':memory:')
+            self.assertEqual(opencode_database('/custom/opencode', ''), '')
+
+    def test_database_inspection_does_not_reset_empty_corrupt_or_locked_databases(self):
+        import sqlite3
+        from assistant_backend import managed_opencode, opencode_database
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'XDG_DATA_HOME': tmp}):
+            binary = str(managed_opencode())
+            data = Path(tmp)/'opencode'; data.mkdir()
+            database = data/'opencode.db'
+            database.touch()
+            self.assertEqual(opencode_database(binary, ''), '')
+            database.write_bytes(b'not a database')
+            self.assertEqual(opencode_database(binary, ''), '')
+            self.assertEqual(database.read_bytes(), b'not a database')
+            database.unlink()
+            with closing(sqlite3.connect(database)) as db, db:
+                db.execute('CREATE TABLE foreign_session (id TEXT)'); db.commit()
+                db.execute('BEGIN EXCLUSIVE')
+                started = time.monotonic()
+                self.assertEqual(opencode_database(binary, ''), '')
+                self.assertLess(time.monotonic()-started, 1)
+            # A committed session table can still be in the WAL of another process.
+            with closing(sqlite3.connect(database)) as db, db:
+                db.execute('PRAGMA journal_mode=WAL')
+                db.execute('CREATE TABLE session (id TEXT)'); db.commit()
+                self.assertEqual(opencode_database(binary, ''), '')
+
     def test_managed_engine_install_is_verified_atomic_and_used_by_lumen(self):
         import tarfile
         from types import SimpleNamespace
@@ -449,6 +504,7 @@ class SetupDialogTest(unittest.TestCase):
         import json
         from setup_diagnostics import startup_summary
         for hint, raw in [('database', 'SQLiteError: /private/profile'),
+                          ('database_schema', 'Database is not empty and has no session table'),
                           ('permission_denied', 'EACCES: private-file'),
                           ('disk_full', 'ENOSPC: secret'),
                           ('address_in_use', 'EADDRINUSE: private-host'),

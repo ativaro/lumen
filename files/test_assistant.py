@@ -5,6 +5,7 @@ import tempfile
 import threading
 import time
 import unittest
+from contextlib import closing
 from unittest.mock import patch
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -30,6 +31,36 @@ class AssistantTest(unittest.TestCase):
         while not condition() and time.monotonic() < deadline:
             QTest.qWait(10)
         self.assertTrue(condition(), 'Assistant request timed out')
+
+    def test_managed_engine_isolates_foreign_database_without_changing_other_environment(self):
+        import sqlite3
+        from assistant_backend import managed_opencode
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {
+                'XDG_DATA_HOME': tmp, 'XDG_CONFIG_HOME': tmp+'/config',
+                'OPENCODE_DB': 'opencode2.db', 'LUMEN_OPENCODE_BIN': ''}):
+            data = Path(tmp)/'opencode'; data.mkdir()
+            foreign = data/'opencode2.db'
+            with closing(sqlite3.connect(foreign)) as db, db:
+                db.execute('CREATE TABLE foreign_session (id TEXT)')
+            before = foreign.read_bytes()
+            binary = managed_opencode(); binary.parent.mkdir(parents=True)
+            binary.write_text('#!'+sys.executable+'\nimport time\n'
+                'print("opencode server listening on http://127.0.0.1:54321", flush=True)\ntime.sleep(60)\n')
+            binary.chmod(0o700)
+            backend = OpenCodeBackend(tmp, project_config=False)
+            ready = []
+            try:
+                backend.ensure_server(lambda: ready.append(True))
+                self.wait(lambda: bool(ready))
+                environment = backend.proc.processEnvironment()
+                self.assertEqual(environment.value('OPENCODE_DB'), str(data/'lumen-v1.db'))
+                self.assertEqual(environment.value('XDG_DATA_HOME'), tmp)
+                self.assertEqual(environment.value('XDG_CONFIG_HOME'), tmp+'/config')
+                self.assertEqual(backend.database_source, 'lumen')
+                self.assertEqual(os.environ['OPENCODE_DB'], 'opencode2.db')
+                self.assertEqual(foreign.read_bytes(), before)
+            finally:
+                backend.shutdown(); backend.deleteLater()
 
     def test_crash_diagnosis_uses_plan_mode_and_explicit_report_context(self):
         from assistant import ChatPanel
