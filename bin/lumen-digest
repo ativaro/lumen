@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# lumen-digest — build a daily system digest and (optionally) have opencode
+# summarise it. Intended to run from a systemd user timer (e.g. mornings).
+#
+# Output: ~/.cache/lumen/digest-YYYYMMDD.md (+ latest-digest.md link)
+# and a desktop notification with the headline.
+#
+# Env: LUMEN_OPENCODE_BIN, LUMEN_WATCH_ANALYZE (default 1)
+
+set -uo pipefail
+
+STATE_DIR="${LUMEN_STATE:-$HOME/.cache/lumen}"
+mkdir -p "$STATE_DIR"
+LUMEN_OPENCODE_BIN="${LUMEN_OPENCODE_BIN:-$(command -v opencode || echo "$HOME/.opencode/bin/opencode")}"
+NOTIFY=(notify-send -a Lumen -i lumen)
+
+date_str="$(date +%Y%m%d)"
+out="$STATE_DIR/digest-$date_str.md"
+since="24 hours ago"
+
+# collect raw facts
+failed_sys=$(systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $1}' | grep -v '^$' | head)
+failed_user=$(systemctl --user --failed --no-legend --plain 2>/dev/null | awk '{print $1}' | grep -v '^$' | grep -vE '^app-' | head)
+kernel_err=$(journalctl -k -p err --since "$since" --no-pager 2>/dev/null | tail -15)
+user_err=$(journalctl --user -p err --since "$since" --no-pager 2>/dev/null | tail -10)
+updates=$(checkupdates 2>/dev/null | wc -l || echo "n/a")
+disk=$(df -h / | awk 'NR==2 {print $5" ("$4" frei)"}')
+mem=$(free -h | awk '/Mem:/ {print $3" / "$2}')
+uptime_s=$(uptime -p 2>/dev/null || uptime)
+
+raw="# Tages-Digest — $(date '+%A, %d.%m.%Y %H:%M')
+- Uptime: $uptime_s
+- RAM: $mem
+- Disk /: $disk
+- Updates verfügbar: $updates
+
+## Fehlgeschlagene System-Units
+${failed_sys:-(keine)}
+
+## Fehlgeschlagene User-Units
+${failed_user:-(keine)}
+
+## Kernel-Fehler (24 h)
+${kernel_err:-(keine)}
+
+## User-Fehler (24 h)
+${user_err:-(keine)}
+"
+
+{
+    echo "$raw"
+    echo
+    echo "## Lumen Zusammenfassung"
+    echo
+} > "$out"
+
+headline="System OK"
+if [ "${LUMEN_WATCH_ANALYZE:-1}" = "1" ] && { [ -x "$LUMEN_OPENCODE_BIN" ] || command -v "$LUMEN_OPENCODE_BIN" >/dev/null 2>&1; }; then
+    prompt="Fasse diesen System-Digest in 2–3 Sätzen zusammen. Nenne nur Auffälligkeiten und einen empfohlenen nächsten Schritt, sonst 'Alles im grünen Bereich'. Deutsch.
+
+$raw"
+    summary="$(env -u OPENCODE -u OPENCODE_PID timeout 120 "$(dirname "$(readlink -f "$0")")/lumen-run" "$prompt" </dev/null 2>/dev/null \
+        | sed -e 's/\x1b\[[0-9;]*m//g' | sed '/^[[:space:]]*$/d' | tail -n 8)"
+    [ -n "$summary" ] && { echo "$summary" >> "$out"; headline="$(printf '%s' "$summary" | head -c 140)"; }
+fi
+
+ln -sf "$out" "$STATE_DIR/latest-digest.md"
+
+"${NOTIFY[@]}" -u low --icon=office-calendar "Lumen Tages-Digest" "$headline" 2>/dev/null || true
+echo "Digest: $out"

@@ -1,0 +1,14 @@
+[Desktop Entry]
+Name=Lumen
+Comment=Ask Lumen: type "ai <question>"
+Comment[de]=Frag Lumen: tippe "ai <Frage>"
+Type=Service
+Icon=lumen
+X-KDE-PluginInfo-Name=lumen-runner
+X-KDE-PluginInfo-EnabledByDefault=true
+X-KDE-PluginInfo-License=MIT
+X-KDE-PluginInfo-Author=lumen
+X-Plasma-API=DBus
+X-Plasma-DBusRunner-Service=org.lumen.runner
+X-Plasma-DBusRunner-Path=/runner
+X-Plasma-Runner-Min-Letter-Count=2

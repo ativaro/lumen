@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen Apps
+Comment=All your Lumen apps in one place
+Comment[de]=Alle Lumen-Apps an einem Ort
+Exec=%INSTALL_BIN%/lumen-apps
+Icon=org.kde.plasma.kickoff
+Terminal=false
+Categories=Utility;
+StartupWMClass=lumen

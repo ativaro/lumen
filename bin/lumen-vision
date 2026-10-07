@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Capture with Spectacle, discuss the image in Lumen, remove only our temporary image.
+set -euo pipefail
+SELF_DIR="$(dirname "$(readlink -f "$0")")"
+PROMPT="${LUMEN_VISION_PROMPT:-Beschreibe das Bild. Wenn es ein Problem zeigt, erkläre die Ursache und sinnvolle nächste Schritte.}"
+mode="${1:-region}"
+if [ "$mode" = companion ]; then
+    exec "$SELF_DIR/lumen-companion"
+fi
+if [ "$mode" = clip ]; then
+    exec "$SELF_DIR/lumen-agent-app" --clipboard-image --prompt="$PROMPT"
+fi
+img="$(mktemp --suffix=.png /tmp/lumen-vision-XXXXXX)"
+trap 'rm -f "$img"' EXIT
+case "$mode" in
+    region) "$SELF_DIR/lumen-private-capture" spectacle -b -n -r -o "$img" || exit 0 ;;
+    screen) "$SELF_DIR/lumen-private-capture" spectacle -b -n -o "$img" || exit 0 ;;
+    *) echo "Unbekannter Modus: $mode" >&2; exit 2 ;;
+esac
+[ -s "$img" ] || exit 0
+"$SELF_DIR/lumen-agent-app" --file "$img" --prompt="$PROMPT"

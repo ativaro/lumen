@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.lumen.Agent
+Exec=/usr/bin/lumen-agentd
+SystemdService=lumen-agentd.service

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen Window Capture
+Exec=%INSTALL_BIN%/lumen-window-capture
+Icon=lumen
+NoDisplay=true
+Terminal=false
+X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2

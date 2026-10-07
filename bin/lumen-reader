@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+SELF_DIR="$(dirname "$(readlink -f "$0")")"
+for main in "$SELF_DIR/../files/tools_app.py" "$SELF_DIR/../share/lumen/files/tools_app.py" /usr/share/lumen/files/tools_app.py; do
+    if [ -f "$main" ]; then exec "$SELF_DIR/lumen-python" "$main" reader "$@"; fi
+done
+echo 'Die Anwendung wurde nicht gefunden. Bitte die Lumen-Installation prüfen.' >&2
+exit 1

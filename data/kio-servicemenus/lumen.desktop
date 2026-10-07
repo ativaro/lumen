@@ -1,0 +1,39 @@
+[Desktop Entry]
+Type=Service
+X-KDE-ServiceTypes=KonqPopupMenu/Plugin
+MimeType=all/allfiles;inode/directory;
+Actions=lumenOpen;lumenExplain;lumenFix;lumenReview;lumenAsk;
+
+X-KDE-Priority=TopLevel
+X-KDE-Submenu=Lumen
+Icon=lumen
+
+[Desktop Action lumenOpen]
+Name=Open with Lumen
+Name[de]=Mit Lumen öffnen
+Icon=lumen
+Exec=%INSTALL_BIN%/lumen-context open %F
+
+[Desktop Action lumenExplain]
+Name=Explain
+Name[de]=Erklären
+Icon=help-contents
+Exec=%INSTALL_BIN%/lumen-context explain %F
+
+[Desktop Action lumenFix]
+Name=Fix issues
+Name[de]=Fehler beheben
+Icon=system-run
+Exec=%INSTALL_BIN%/lumen-context fix %F
+
+[Desktop Action lumenReview]
+Name=Review changes
+Name[de]=Änderungen prüfen
+Icon=vcs-normal
+Exec=%INSTALL_BIN%/lumen-context review %F
+
+[Desktop Action lumenAsk]
+Name=Lumen: ask …
+Name[de]=Lumen: fragen …
+Icon=system-search
+Exec=%INSTALL_BIN%/lumen-context ask %F

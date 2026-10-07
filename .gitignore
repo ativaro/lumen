@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Editor / OS
+*.swp
+*~
+.DS_Store
+.projectatlas/
+artifacts/
+backups/
+.env
+.env.*
+*.pem
+*.key
+*.sqlite*
+*.db
+/system.md
+/sync.md
+
+# Arch package build artifacts
+packaging/arch/pkg/
+packaging/arch/src/
+packaging/arch/*.pkg.tar.zst
+packaging/arch/*.pkg.tar.zst.sig
+packaging/arch/*.tar.gz
+packaging/arch/.SRCINFO
+
+# AUR generated tree
+distro/aur/PKGBUILD
+distro/aur/*.install
+distro/aur/.SRCINFO
+distro/aur/*.tar.gz
+
+# local pacman repo
+distro/cachyos/repo/
+
+# Native prototype build output (source and Cargo.lock are tracked)
+native/vault-core/target/
+
+native/vault-ui/build/

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen Server Connection
+Name[de]=Lumen Server verbinden
+Exec=%INSTALL_BIN%/lumen-server-connect %u
+Icon=lumen
+Terminal=false
+NoDisplay=true
+MimeType=x-scheme-handler/lumen-server;
+StartupWMClass=Lumen Server Connection

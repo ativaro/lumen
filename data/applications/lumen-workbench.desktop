@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen Projects
+Name[de]=Lumen Projekte
+Comment=Projects, initiatives, tasks and results
+Comment[de]=Projekte, Vorhaben, Aufgaben und Ergebnisse
+Exec=%INSTALL_BIN%/lumen-workbench
+Icon=lumen-workbench
+Terminal=false
+Categories=Office;
+StartupWMClass=lumen-workbench
+Keywords=Lumen;projects;workbench;

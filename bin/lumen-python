@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# One Qt 6 runtime for every Lumen entry point; children inherit sys.executable.
+set -euo pipefail
+runtime="${XDG_DATA_HOME:-$HOME/.local/share}/lumen/qt6-env"
+if [ "${1:-}" = --install-runtime ]; then
+    /usr/bin/python3 -m venv --system-site-packages "$runtime"
+    "$runtime/bin/python" -m pip install 'PySide6-Essentials==6.11.2'
+    exit 0
+fi
+if [ -n "${LUMEN_PYTHON:-}" ]; then
+    exec "$LUMEN_PYTHON" "$@"
+elif /usr/bin/python3 -c 'import PySide6.QtQuick, PySide6.QtQuickWidgets, PySide6.QtWidgets, PySide6.QtSvg, PySide6.QtDBus' >/dev/null 2>&1; then
+    exec /usr/bin/python3 "$@"
+elif [ -x "$runtime/bin/python" ]; then
+    exec "$runtime/bin/python" "$@"
+fi
+printf '%s\n' 'Lumen requires PySide6/Qt 6. Install pyside6 or run: lumen-python --install-runtime' >&2
+exit 1

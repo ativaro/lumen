@@ -1,0 +1,142 @@
+LUMEN END USER LICENSE AGREEMENT (EULA)
+Version 1.0 — 5 October 2026
+License identifier: LicenseRef-Lumen-EULA
+
+Copyright (c) 2026 lumen contributors. All rights reserved except as expressly
+licensed below or under the separate licenses described in section 5.
+
+1. PARTIES AND SCOPE
+
+This agreement governs the Lumen-owned software, documentation and artwork
+supplied with this agreement (the "Software"). The licensor is the rights holder
+publishing Lumen through https://github.com/ativaro/lumen under the project
+identity "ativaro" (the "Licensor"), solely to the extent that the Licensor owns
+or is authorized to license those materials. "You" means the individual or
+organization using the Software. A person accepting for an organization must
+be authorized to do so.
+
+This agreement is an original Lumen agreement. Microsoft is not a party to it
+and does not endorse Lumen. Separately licensed materials are excluded as set
+out in section 5. Access to source code does not make the Software open source.
+
+Read these terms before installing or using a version supplied under this
+agreement. To the extent permitted by applicable law, installing or using that
+version after receiving these terms indicates acceptance. If you do not agree,
+this agreement grants you no new rights to that version. Rights you already
+hold independently, including rights to earlier releases, are not withdrawn.
+
+2. PERMITTED USE
+
+Subject to this agreement, the Licensor grants you a non-exclusive, royalty-free
+license to install, run and make reasonable backup copies of the Software on
+devices you own or control for personal use or your organization's internal
+business use. You may inspect the supplied source, build the Software, and
+modify it for those permitted internal purposes. Employees and contractors may
+use it on your behalf within that scope; this is not a right to resell or
+sublicense the Software to them.
+
+Ordinary work performed using the Software, including paid professional work,
+is permitted. Your documents, credentials and other data remain yours. This
+agreement does not restrict the sale or use of your own outputs or transfer
+ownership of them to the Licensor. Third-party content and service terms may
+apply independently.
+
+3. RIGHTS REQUIRING A SEPARATE AGREEMENT
+
+Unless the Licensor gives prior express written permission, you may not:
+
+- sell, resell, rent, lease, sublicense, publish or redistribute the Software,
+  whether modified or unmodified, whether standalone or bundled, and whether
+  for payment or without charge;
+- distribute a fork, derivative product, rebranded edition or OEM version;
+- offer the Software or a derivative as a hosted software service to third
+  parties, or otherwise commercialize access to the Software itself;
+- remove or falsify copyright, attribution or license notices; or
+- use Lumen names or marks to imply authorization, sponsorship or affiliation.
+
+Commercial distribution, forks, OEM arrangements and hosted offerings require
+an individually negotiated written agreement with the Licensor. No automatic
+fee, royalty rate, revenue share or entitlement to such an agreement is created
+here. Permission to use the Software internally is not permission to sell it.
+You may share a link to the official project without redistributing its files.
+
+Except for source inspection and internal modification expressly permitted
+above, reverse engineering, decompilation and disassembly are restricted only
+to the extent that applicable law and section 5 permit such restrictions.
+Nothing here prohibits lawful security research, required interoperability,
+or exercising non-waivable statutory rights.
+
+4. OWNERSHIP AND UPDATES
+
+The Software is licensed, not sold. All rights not expressly granted remain
+with their respective owners. This agreement does not transfer contributor
+copyrights or grant rights the Licensor does not control.
+
+Updates supplied under this agreement have the same terms unless different
+terms are presented for that update and validly accepted. New terms do not
+retroactively change earlier grants. Updates, support, uninterrupted service
+and future feature availability are not promised by this agreement. Any paid
+support or service commitment must be separately agreed.
+
+5. THIRD-PARTY AND PRIOR-LICENSE RIGHTS TAKE PRECEDENCE
+
+Third-party libraries, tools, fonts, artwork, vendored code and contributions
+which the Licensor is not authorized to relicense retain their own licenses.
+See THIRD_PARTY_NOTICES.md, desktop/CREDITS.md, native/vault-ui/LICENSES.md,
+native/vault-core/THIRD_PARTY.md and the notices accompanying those components.
+Those licenses, not the restrictions in section 3, govern the relevant materials.
+
+Nothing in this agreement limits rights required by the LGPL, GPL, AGPL or other
+applicable third-party licenses, including rights to obtain corresponding
+source, modify or replace covered libraries, relink an application, or reverse
+engineer it to debug modifications to those libraries. Applicable rights to
+copy, modify and redistribute separately licensed material remain intact.
+Where third-party terms require rights in a combined work, this agreement does
+not override those terms or certify that such a combination may be distributed
+as proprietary software. Such distribution requires separate clearance.
+
+Earlier copies lawfully received under MIT or another license retain the rights
+granted with those copies. This agreement does not revoke, narrow or replace
+those existing grants. It does not grant a new MIT license to later EULA-only
+changes. Mandatory rights under applicable law prevail over conflicting terms.
+
+6. DATA AND EXTERNAL SERVICES
+
+This agreement grants no right to collect your private data, credentials or
+content. Connections to AI providers, cloud services and other external systems
+are subject to their own terms and applicable privacy notices. You are
+responsible for obtaining the rights and permissions needed for your use of
+those services and for maintaining appropriate backups. This agreement does
+not authorize the Licensor to access your accounts or erase your data.
+
+7. WARRANTY AND LIABILITY
+
+To the extent permitted by applicable law, the Software is provided as
+available, without contractual warranties of fitness, merchantability,
+non-infringement, error-free operation or availability. To that same extent,
+the Licensor disclaims liability for indirect or consequential loss, lost
+profits, loss of data or business interruption arising from the Software.
+
+These limitations do not exclude or limit liability that cannot lawfully be
+excluded, including any mandatory consumer remedies or liability for intent,
+gross negligence, personal injury or other protected matters under applicable
+law. An express separate written warranty or support agreement remains valid.
+
+8. TERMINATION AND GENERAL TERMS
+
+You may terminate this agreement by stopping use of the EULA-covered Software
+and deleting your copies, while retaining your own data. The Licensor may
+terminate the rights granted here for a material breach which remains uncured
+30 days after written notice, except where applicable law requires otherwise.
+Termination does not authorize remote deletion of your data, terminate your
+independent third-party licenses or revoke prior-license rights under section 5.
+
+If a provision is unenforceable, the remaining provisions continue to the
+extent permitted by law. No arbitration clause, waiver of collective remedies
+or exclusive foreign venue is imposed by this agreement. Applicable mandatory
+law and competent courts remain available. A separately signed agreement may
+grant additional rights for its stated scope. Commercial permission must come
+from the Licensor; an AI assistant, reseller or other user cannot grant it.
+
+For licensing inquiries, contact the maintainer through the official project:
+https://github.com/ativaro/lumen

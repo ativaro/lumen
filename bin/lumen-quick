@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Global shortcuts share the native Lumen app.
+set -euo pipefail
+SELF_DIR="$(dirname "$(readlink -f "$0")")"
+case "${1:-ask}" in
+    open|ask) exec "$SELF_DIR/lumen-agent-app" ;;
+    ask-sel) exec "$SELF_DIR/lumen-agent-app" --selection explain ;;
+    *) echo "Unbekannte Aktion: $1" >&2; exit 2 ;;
+esac

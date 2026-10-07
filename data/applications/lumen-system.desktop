@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen System
+Comment=Performance, devices, sound and work modes
+Comment[de]=Leistung, Geräte, Sound und Arbeitsmodi
+Exec=%INSTALL_BIN%/lumen-system
+Icon=lumen-system
+Terminal=false
+Categories=System;Monitor;
+StartupWMClass=lumen-system
+Keywords=Lumen;System;CPU;GPU;RAM;Hardware;Sensors;Sound;Audio;Modes;

@@ -1,0 +1,15 @@
+<evaluation>
+  <!-- Synthetic fixtures correspond to files/test_mcp_native.py. Never use private
+       user databases for evaluation. Unit/integration assertions verify answers;
+       a model-based evaluation is optional and has not been run. -->
+  <qa_pair><question>In the library-search fixture, discover the Workshop library and search for Workshop. Which origin label accompanies Workshop.pdf, without following the linked private directory?</question><answer>NAS mirror</answer></qa_pair>
+  <qa_pair><question>In the network-places fixture, list saved sources and inspect the valid NAS source. What URL remains after the invalid embedded-password entry is excluded?</question><answer>smb://nas/share</answer></qa_pair>
+  <qa_pair><question>In the shared-notes fixture, search Workshop, then read Workshop and follow its available links. Which linked note can be read while Private remains excluded?</question><answer>Related</answer></qa_pair>
+  <qa_pair><question>In the shared-notes fixture, compare memory context outside the project with context inside it. What fact appears only in the project scope?</question><answer>Scoped to project</answer></qa_pair>
+  <qa_pair><question>In the task fixture, list visible tasks using two pages of size two and omit the dismissed completed task. How many distinct tasks remain?</question><answer>3</answer></qa_pair>
+  <qa_pair><question>In the task fixture, find Task 1 and inspect its events and status. What proposal detail is recorded, without approving or running the task?</question><answer>Visible draft</answer></qa_pair>
+  <qa_pair><question>In the settings fixture after the preference update, inspect Files settings and compare the saved search delay with the original 250. What value is now saved?</question><answer>400</answer></qa_pair>
+  <qa_pair><question>In the enabled Inbox fixture, search Workshop, page the results and read one matching message using all identifiers. What is its body, excluding raw MIME?</question><answer>Message body</answer></qa_pair>
+  <qa_pair><question>In the Inbox fixture, inspect the cached Workshop calendar result and its cache flag. Does the tool synchronize the calendar during this call?</question><answer>false</answer></qa_pair>
+  <qa_pair><question>In the Vault fixture, inspect the Backup plan timestamp and its verification flag. What last-backup timestamp is cached, despite the repository being unreachable?</question><answer>123</answer></qa_pair>
+</evaluation>

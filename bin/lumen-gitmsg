@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# lumen-gitmsg — generate a commit message from the staged/unstaged diff.
+#
+# Usage:
+#   lumen-gitmsg            # print a suggested message to stdout
+#   lumen-gitmsg --commit   # generate and open the editor with it preloaded
+#   lumen-gitmsg --apply    # write it to .git/COMMIT_EDITMSG (for hooks)
+#
+# Env: LUMEN_OPENCODE_BIN, LUMEN_GITMSG_STYLE, LUMEN_GITMSG_MODEL
+
+set -euo pipefail
+
+LUMEN_OPENCODE_BIN="${LUMEN_OPENCODE_BIN:-$(command -v opencode || echo "$HOME/.opencode/bin/opencode")}"
+STYLE="${LUMEN_GITMSG_STYLE:-Conventional Commits (type(scope): summary), englisch, Imperativ, max 72 Zeichen in der Betreffzeile, danach ein kurzer Body mit den wichtigsten Punkten}"
+
+mode="${1:-print}"
+
+# gather context
+diff="$(git diff --cached 2>/dev/null)"
+if [ -z "$diff" ]; then
+    diff="$(git diff 2>/dev/null)"
+fi
+status="$(git status --short 2>/dev/null)"
+branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
+
+if [ -z "$diff" ] && [ -z "$status" ]; then
+    echo "Keine Änderungen gefunden (nicht in einem Git-Repo?)." >&2
+    exit 1
+fi
+
+prompt="Erzeuge eine Commit-Message für die folgenden Änderungen.
+Stil: ${STYLE}.
+Gib NUR die Commit-Message aus (keine Erklärungen, keine Codeblöcke).
+
+Branch: ${branch}
+git status:
+${status}
+
+Diff (gekürzt):
+$(printf '%s' "$diff" | head -c 12000)"
+
+model_args=()
+[ -n "${LUMEN_GITMSG_MODEL:-}" ] && model_args=(--model "$LUMEN_GITMSG_MODEL")
+
+msg="$(env -u OPENCODE -u OPENCODE_PID timeout 120 "$(dirname "$(readlink -f "$0")")/lumen-run" --foreground "${model_args[@]}" "$prompt" </dev/null 2>/dev/null \
+    | sed -e 's/\x1b\[[0-9;]*m//g' | sed '/^[[:space:]]*$/d')"
+
+[ -z "$msg" ] && { echo "Keine Message erzeugt." >&2; exit 1; }
+
+case "$mode" in
+    print)  printf '%s\n' "$msg" ;;
+    --apply)
+        gitdir="$(git rev-parse --git-dir)"
+        printf '%s\n' "$msg" > "$gitdir/COMMIT_EDITMSG"
+        printf '%s\n' "$msg"
+        ;;
+    --commit)
+        git commit -e -m "$msg" ;;
+    *) echo "Unbekannter Modus: $mode" >&2; exit 2 ;;
+esac

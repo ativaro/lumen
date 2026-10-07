@@ -1,0 +1,115 @@
+"""The direct notebook layout; storage and actions live in tools_wissen."""
+from lumen_i18n import tr
+from pathlib import Path
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QLineEdit,QPlainTextEdit,
+    QTabWidget,QStackedWidget,QListWidget,QCheckBox,QMenu,QScrollArea)
+from tools_ui import button,label,row
+from assistant import Transcript
+from wissen_views import NotePreview,KnowledgeMap
+
+
+def build(w):
+    old=w.takeCentralWidget();shell=QWidget();shell.setObjectName('wissenShell');w.setCentralWidget(shell)
+    shell.setStyleSheet(Path(__file__).with_name('wissen.qss').read_text())
+    outer=QVBoxLayout(shell);outer.setContentsMargins(0,0,0,0);outer.setSpacing(0)
+    chrome=QWidget();chrome.setObjectName('wissenChrome');head=QHBoxLayout(chrome);head.setContentsMargins(20,8,16,8)
+    head.addWidget(label(tr('Lumen Wissen'),'wissenBrand'));head.addStretch();w.status.setMaximumWidth(400)
+    w.status.setWordWrap(False)
+    # Loading must not resize the chrome and move the entire notebook.
+    for control in (w.progress, w.cancel_button):
+        policy = control.sizePolicy(); policy.setRetainSizeWhenHidden(True); control.setSizePolicy(policy)
+    head.addWidget(w.status);head.addWidget(w.progress);head.addWidget(w.cancel_button);outer.addWidget(chrome)
+    outer.addWidget(w.split,1);w.split.setHandleWidth(1);w.split.setChildrenCollapsible(False)
+    w.navigation=QWidget();w.navigation.setObjectName('wissenNavigation');w.navigation.setMinimumWidth(155);w.navigation.setMaximumWidth(220)
+    nav=QVBoxLayout(w.navigation);nav.setContentsMargins(10,18,10,12);nav.setSpacing(6)
+    w.area_buttons={}
+    for title,area in [(tr('Meine Notizen'),'user'),(tr('Gedächtnis'),'lumen')]:
+        b=button(title,lambda checked=False,a=area:w.safe(w.switch_area,a),'');b.setCheckable(True);b.setChecked(area=='user');b.setObjectName('wissenArea');b.setAccessibleName(title)
+        w.area_buttons[area]=b;nav.addWidget(b)
+    w.collection_label=label(tr('SAMMLUNGEN'),'wissenCaption');nav.addWidget(w.collection_label)
+    w.collection_button=button(tr('Neue Sammlung'),lambda:w.safe(w.create_collection),'folder-new');w.collection_button.setAccessibleName(tr('Neue Sammlung'));nav.addWidget(w.collection_button)
+    w.collections=QListWidget();w.collections.setObjectName('wissenCollections');w.collections.setAccessibleName(tr('Sammlungen'));w.collections.currentItemChanged.connect(w.select_collection);nav.addWidget(w.collections,1)
+    w.rename_collection_button=button(tr('Sammlung umbenennen / verschieben'),lambda:w.safe(w.rename_collection),'edit-rename');nav.addWidget(w.rename_collection_button)
+    from server_memory_view import show_server_memory
+    nav.addWidget(button(tr('Server-Gedächtnis'),lambda:w.safe(show_server_memory,w),'network-server'))
+    w.questions_button=button(tr('Fragen'),lambda:w.tabs.setCurrentIndex(1),'edit-find');nav.addWidget(w.questions_button)
+    w.map_button=button(tr('Wissenskarte'),lambda:w.tabs.setCurrentIndex(2),'insert-link');nav.addWidget(w.map_button)
+    settings=button(tr('Einstellungen'),lambda:None,'configure');settings_menu=QMenu(settings)
+    w.notebook_menu=settings_menu
+    settings_menu.addAction(tr('Lumen einrichten …'),w.setup)
+    w.folder_action=settings_menu.addAction(tr('Notizordner wählen …'),lambda:w.safe(w.choose_folder))
+    settings_menu.addAction(tr('Aktuellen Ordner öffnen'),lambda:w.safe(w.open_folder))
+    w.share_folder_action=settings_menu.addAction(tr('Ordnerfreigaben …'),lambda:w.safe(w.share_folder))
+    settings_menu.addAction(tr('Frühere Fassungen …'),lambda:w.safe(w.history))
+    settings_menu.addSeparator()
+    w.backup_info=settings_menu.addAction(tr('Noch kein Sicherungsplan für dieses Notizbuch.'));w.backup_info.setEnabled(False)
+    w.backup_action=settings_menu.addAction(tr('Notizbuch sichern …'),lambda:w.safe(w.backup_notebook))
+    settings_menu.aboutToShow.connect(lambda:w.safe(w.backup_status))
+    settings_menu.addSeparator()
+    settings.setMenu(settings_menu);nav.addWidget(settings);w.split.insertWidget(0,w.navigation)
+    w.sidebar.setObjectName('wissenList');w.sidebar.setMinimumWidth(190);w.sidebar.setMaximumWidth(320)
+    side=w.sidebar.layout()
+    while side.count():side.takeAt(0)
+    side.setContentsMargins(12,18,12,12);side.setSpacing(10)
+    w.search.setPlaceholderText(tr('Notizen finden …'));w.search.setAccessibleName(tr('Notizen finden'));side.addWidget(w.search)
+    w.add_button.setText(tr('Neu'));w.add_button.setObjectName('toolButton');w.add_button.setAccessibleName(tr('Neue Notiz'))
+    w.list_title=label(tr('Zuletzt bearbeitet'),'muted');side.addWidget(row(w.list_title,w.add_button));side.addWidget(w.entries,1)
+    w.entries.setWordWrap(True);w.entries.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    w.archived.hide();w.archive_button.hide()
+    w.content.setContentsMargins(0,0,0,0);w.content.setSpacing(0);w.body.setObjectName('wissenPaper')
+    w.tabs=QTabWidget();w.tabs.setObjectName('wissenPages');w.tabs.tabBar().hide();w.content.addWidget(w.tabs,1)
+    writing=QWidget();wl=QVBoxLayout(writing);wl.setContentsMargins(28,22,28,18);wl.setSpacing(14)
+    w.location=label(tr('Meine Notizen'),'muted');w.location.setAccessibleName(tr('Notizbereich und Sammlung'))
+    w.share_note=button(tr('Nur für mich'),lambda:None,'object-locked');w.share_note.setCheckable(True);w.share_note.setEnabled(False)
+    w.share_note.setToolTip(tr('Freigeben erlaubt passende Auszüge als Kontext für zukünftige Lumen-Anfragen an deinen eingerichteten Anbieter.'))
+    w.share_note.toggled.connect(lambda allow:w.safe(w.set_note_shared,allow))
+    w.more_button=button(tr('Mehr'),lambda:None,'view-more-symbolic')
+    menu=QMenu(w.more_button)
+    for title,callback in [(tr('Notiz verknüpfen …'),w.insert_link),(tr('Bild einfügen …'),w.insert_image),(tr('Tag einfügen …'),w.insert_tag)]:menu.addAction(title,lambda checked=False,cb=callback:w.safe(cb))
+    menu.addSeparator();w.preview_action=menu.addAction(tr('Lesevorschau'),w.toggle_view)
+    menu.addAction(tr('Fokusmodus'),w.focus_mode);menu.addAction(tr('Jetzt speichern'),lambda:w.safe(w.save_note));menu.addAction(tr('Frühere Fassungen …'),lambda:w.safe(w.history))
+    menu.addSeparator();w.remove_action=menu.addAction(tr('Notiz entfernen …'),lambda:w.safe(w.archive));w.remove_action.setEnabled(False)
+    w.more_button.setMenu(menu)
+    top=row(w.location,w.share_note,w.more_button);top.layout().setStretch(0,1);wl.addWidget(top)
+    w.title=QLineEdit();w.title.setObjectName('wissenTitle');w.title.setPlaceholderText(tr('Deine erste Notiz'));w.title.setAccessibleName(tr('Notiztitel'));w.title.setMaxLength(300);w.title.setEnabled(False);w.title.textEdited.connect(w.edited);wl.addWidget(w.title)
+    w.banner=label('','muted');w.banner.hide();wl.addWidget(w.banner)
+    w.recovery=row(button(tr('Externe Fassung laden'),lambda:w.safe(w.reload_external),'view-refresh'),button(tr('Entwurf als Kopie'),lambda:w.safe(w.save_copy),'edit-copy'));w.recovery.hide();wl.addWidget(w.recovery)
+    w.timestamp=label('','muted');w.timestamp.setAccessibleDescription(tr('Zeitstempel der Notiz'));w.timestamp.setTextFormat(Qt.PlainText);w.timestamp.hide();wl.addWidget(w.timestamp)
+    w.views=QStackedWidget();wl.addWidget(w.views,1)
+    w.editor=QPlainTextEdit();w.editor.setObjectName('wissenEditor');w.editor.setAccessibleName(tr('Notiztext'));w.editor.setPlaceholderText(tr('Mit „Neu“ einen Gedanken festhalten.\n\nDeine Notizen bleiben zunächst privat.'));w.editor.setTabStopDistance(32);w.editor.textChanged.connect(w.edited);w.views.addWidget(w.editor)
+    w.preview=NotePreview();w.preview.interop_root=w.library.root.parent;w.preview.setObjectName('wissenPreview');w.preview.noteRequested.connect(lambda p:w.safe(w.open_note,p));w.views.addWidget(w.preview)
+    w.view_button=button(tr('Bearbeiten'),w.toggle_view,'document-edit');w.view_button.hide();wl.addWidget(w.view_button)
+    w.details_button=button(tr('Quelle und zugehörige Notizen'),w.toggle_details,'insert-link');w.details_button.setCheckable(True);wl.addWidget(w.details_button)
+    w.rail=QScrollArea();w.rail.setObjectName('wissenDetails');w.rail.setWidgetResizable(True);w.rail.setMaximumHeight(230);w.rail.hide()
+    details=QWidget();dl=QVBoxLayout(details);dl.setContentsMargins(12,12,12,12);dl.setSpacing(12);w.rail.setWidget(details);wl.addWidget(w.rail)
+    w.source=label(tr('Herkunft und Verbindungen erscheinen hier.'),'muted');w.source.setTextFormat(Qt.RichText);w.source.setTextInteractionFlags(Qt.TextSelectableByMouse|Qt.LinksAccessibleByMouse|Qt.LinksAccessibleByKeyboard)
+    from interop_open import open_url
+    w.source.linkActivated.connect(lambda url:w.safe(open_url,url,w.library.root.parent));dl.addWidget(w.source)
+    w.origin=label('','muted');w.origin.setTextFormat(Qt.RichText);w.origin.setTextInteractionFlags(Qt.TextSelectableByMouse|Qt.LinksAccessibleByMouse|Qt.LinksAccessibleByKeyboard)
+    w.origin.linkActivated.connect(lambda url:w.safe(open_url,url,w.library.root.parent));w.origin.hide();wl.insertWidget(wl.indexOf(w.views),w.origin)
+    w.links=QListWidget();w.links.setAccessibleName(tr('Verknüpfungen und Rückverweise'));w.links.setMaximumHeight(95);w.links.itemActivated.connect(lambda item:w.safe(w.follow_connection,item.data(Qt.UserRole)));dl.addWidget(w.links)
+    w.memory_options=QWidget();ol=QVBoxLayout(w.memory_options);ol.setContentsMargins(0,0,0,0)
+    w.use_memory=QCheckBox(tr('Gedächtnis verwenden'));w.learn_memory=QCheckBox(tr('Aus Gesprächen lernen'));ol.addWidget(w.use_memory);ol.addWidget(w.learn_memory)
+    ol.addWidget(label(tr('Passende Erinnerungen und freigegebene Notizen gehen an deinen KI-Anbieter. Beim Lernen beurteilt das Modell deine Nachricht und die vorherige Antwort. Gespeichertes bleibt hier einsehbar.'),'muted'))
+    w.use_memory.toggled.connect(lambda _:w.safe(w.configure_memory));w.learn_memory.toggled.connect(lambda _:w.safe(w.configure_memory));dl.addWidget(w.memory_options);w.memory_options.hide()
+    w.tabs.addTab(writing,tr('Notizen'))
+    questions(w);map_page=QWidget();ml=QVBoxLayout(map_page);ml.setContentsMargins(24,22,24,18);ml.addWidget(label(tr('Eine Notiz und ihre direkten Verbindungen · maximal 36 Nachbarn'),'muted'))
+    w.map=KnowledgeMap();w.map.noteRequested.connect(lambda p:w.safe(w.open_note,p));w.map.objectRequested.connect(lambda url:w.safe(w.follow_connection,url));ml.addWidget(w.map,1);w.tabs.addTab(map_page,tr('Wissenskarte'));w.tabs.currentChanged.connect(w.tab_changed)
+    from memory_profile import MemoryProfile
+    dl.removeWidget(w.memory_options)
+    w.profile=MemoryProfile(w.memory_options);w.profile.noteRequested.connect(lambda path:w.safe(w.open_profile_note,path))
+    w.tabs.addTab(w.profile,tr('Über dich'))
+    w.split.setSizes([165,240,775]);w.split.setStretchFactor(0,0);w.split.setStretchFactor(1,0);w.split.setStretchFactor(2,1)
+    w.update_collections();old.deleteLater()
+
+
+def questions(w):
+    asking=QWidget();al=QVBoxLayout(asking);al.setContentsMargins(24,22,24,18)
+    al.addWidget(label(tr('Dein Wissen befragen'),'heading'));al.addWidget(label(tr('Quellen lokal auswählen. Erst „Lumen fragen“ sendet die gewählten Auszüge an deinen eingerichteten Anbieter.'),'muted'))
+    w.question=QLineEdit();w.question.setPlaceholderText(tr('Was habe ich über das Projekt festgehalten?'));w.question.setAccessibleName(tr('Frage an dein Wissen'));w.question.returnPressed.connect(w.find_sources)
+    al.addWidget(w.question);al.addWidget(row(button(tr('Quellen finden'),w.find_sources,'edit-find'),button(tr('Lumen fragen'),lambda:w.safe(w.ask),'lumen',True)))
+    w.candidates=QListWidget();w.candidates.setAccessibleName(tr('Ausgewählte Quellen für die Antwort'));w.candidates.setMaximumHeight(180);w.candidates.setWordWrap(True);w.candidates.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff);al.addWidget(w.candidates)
+    w.candidates.itemActivated.connect(lambda item:w.safe(w.open_note,item.data(Qt.UserRole)))
+    w.response=Transcript();w.response.setReadOnly(True);w.response.setOpenExternalLinks(False);w.response.setAccessibleName(tr('Antwort mit Quellen'));w.response.anchorClicked.connect(w.answer_link);al.addWidget(w.response,1)
+    al.addWidget(button(tr('Antwort als Notiz'),lambda:w.safe(w.save_answer),'document-save'));w.tabs.addTab(asking,tr('Fragen'))

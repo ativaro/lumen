@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen Personal Radio
+Name[de]=Lumen Persönliches Radio
+Comment=Listen to your own sources
+Comment[de]=Eigene Quellen als hörbare Ausgabe
+Exec=%INSTALL_BIN%/lumen-radio
+Icon=lumen-radio
+Terminal=false
+NoDisplay=true
+Categories=AudioVideo;Audio;
+StartupWMClass=lumen-meetings
+Keywords=Lumen;radio;

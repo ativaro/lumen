@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+SELF_DIR="$(dirname "$(readlink -f "$0")")"
+exec "$SELF_DIR/lumen-agent-app" --page apps "$@"

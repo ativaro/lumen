@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2160" viewBox="0 0 3840 2160"><defs><linearGradient id="sky" x2="0" y2="1">
+      <stop stop-color="#0d1323"/><stop offset=".42" stop-color="#1e1a38"/>
+      <stop offset=".72" stop-color="#472a4d"/><stop offset="1" stop-color="#8f4a52"/>
+    </linearGradient></defs><rect width="3840" height="2160" fill="url(#sky)"/>
+            <g transform="translate(0 1598.4) scale(3.84 9.36)">
+            <path d="M0 60V30L34 24L61 29L96 15L124 23L152 19L183 8L214 20L247 16L276 25L309 11L337 18L371 5L400 17L431 13L466 22L497 10L529 19L560 14L594 24L626 9L655 18L688 12L719 21L750 7L781 17L815 13L846 22L878 11L909 19L941 15L972 23L1000 18V60Z" fill="#1a1530"/><path d="M0 60V41L28 37L57 43L88 33L117 39L149 35L178 44L209 31L241 38L270 34L303 42L331 36L364 45L396 32L427 40L459 36L488 43L521 35L553 41L584 30L616 38L648 42L679 34L711 40L742 36L776 44L807 33L839 39L870 35L903 42L934 37L966 43L1000 36V60Z" fill="#0b0a16"/></g></svg>

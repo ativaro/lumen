@@ -1,0 +1,21 @@
+{
+  "Organisieren": "Organize",
+  "Sichern & synchronisieren": "Back up & sync",
+  "Mit Lumen bearbeiten": "Work with Lumen",
+  "Alle Aktionen durchsuchen …": "Search all actions …",
+  "Lumen Files — Alle Aktionen": "Lumen Files — All actions",
+  "Aktion suchen …": "Search actions …",
+  "Alle Dateiaktionen durchsuchen": "Search all file actions",
+  "Verfügbare Dateiaktionen": "Available file actions",
+  "Keine passende Aktion.": "No matching action.",
+  "↑ ↓ auswählen · Enter ausführen · Esc schließen": "↑ ↓ select · Enter run · Esc close",
+  "{0} Einträge ausgewählt": "{0} items selected",
+  "Mehrfachauswahl": "Multiple selection",
+  "Papierkorb": "Trash",
+  "Strg+C": "Ctrl+C",
+  "Strg+X": "Ctrl+X",
+  "Entf": "Del",
+  "Ausschneiden": "Cut",
+  "Hier einfügen": "Paste here",
+  "Große Vorschau": "Large preview"
+}

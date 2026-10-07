@@ -1,0 +1,251 @@
+"""Encrypted restic backups, explicit sources and non-overwriting restores."""
+from lumen_i18n import tr
+from contextlib import contextmanager
+import fcntl
+import json
+import os
+from pathlib import Path, PurePosixPath
+import re
+import shutil
+import sys
+import time
+from tools_data import Library
+from tools_secrets import secret
+
+
+def binary():
+    local = Path(os.environ.get('XDG_DATA_HOME', str(Path.home()/'.local/share'))) / 'lumen/vault/restic-0.19.1'
+    return str(local) if local.is_file() else shutil.which('restic') or ''
+
+
+def config_sources():
+    root = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home()/'.config')))
+    return [str(p) for p in [root/'Lumen', root/'plasma-org.kde.plasma.desktop-appletsrc', root/'plasmarc',
+                            root/'kwinrc', root/'kglobalshortcutsrc', root/'kdeglobals'] if p.exists()]
+
+
+def paths(repository, sources):
+    if not str(repository).strip():raise ValueError(tr('Einen Sicherungszielordner auswählen.'))
+    remote = str(repository).startswith('rest:https://')
+    repo = None if remote else Path(repository).expanduser().resolve()
+    if repo is not None and not repo.is_dir(): raise ValueError(tr('Zielordner nicht erreichbar. USB/NAS verbinden.'))
+    if not sources: raise ValueError(tr('Mindestens eine Quelle auswählen.'))
+    checked = []
+    for value in sources:
+        path = Path(value).expanduser().resolve(strict=True)
+        if not (path.is_dir() or path.is_file()): raise ValueError(tr('Nur Dateien und Ordner sind zulässig.'))
+        if repo is not None and (repo == path or repo.is_relative_to(path) or path.is_relative_to(repo)):
+            raise ValueError(tr('Sicherung und Quellen müssen getrennt liegen.'))
+        checked.append(str(path))
+    return str(repository) if remote else str(repo), list(dict.fromkeys(checked))
+
+
+@contextmanager
+def lease(library, identity):
+    if not re.fullmatch('[a-f0-9]{32}', identity): raise ValueError(tr('Ungültiger Sicherungsplan.'))
+    fd = os.open(library.root/(identity+'.lock'), os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    try:
+        try: fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError: raise ValueError(tr('Dieser Sicherungsplan arbeitet bereits.')) from None
+        yield
+    finally: os.close(fd)
+
+
+def command(plan, password, args, job, timeout=3600):
+    program = binary()
+    if not program: raise ValueError(tr('Restic fehlt. Vault über die Einrichtung vorbereiten.'))
+    if not password or '\n' in password: raise ValueError(tr('Sicherungspasswort fehlt.'))
+    if plan.get('server_target'):
+        from vault_targets import command as remote_command
+        return remote_command(plan, password, args, job, program, timeout)
+    if not Path(plan['repository']).is_dir(): raise ValueError(tr('Sicherungsziel nicht erreichbar. USB/NAS verbinden.'))
+    output = job.command([program, '--quiet', '--repo', plan['repository'], '--password-file', '/dev/stdin',
+                          '--json', *args], data=(password+'\n').encode(), timeout=timeout,max_output=32*1024**2)
+    return output.decode('utf-8')
+
+
+def verify(plan, password, job):
+    data = json.loads(command(plan, password, ['cat','config'], job, 30))
+    if data.get('id') != plan.get('repository_id'):
+        raise ValueError(tr('Am Ziel liegt eine andere Sicherung.') if plan.get('server_target') else
+                         tr('Am Ziel liegt eine andere Sicherung. Den richtigen Datenträger verbinden.'))
+
+
+def create(library, title, repository, sources, password, job, app_sources=None, source_ref=None, handoff=None, interval=0, server_target=None):
+    if interval not in (0,86400,604800):raise ValueError(tr('Ungültiger Zeitplan.'))
+    if not title.strip():raise ValueError(tr('Bitte einen Namen angeben.'))
+    remote = None
+    if server_target:
+        from vault_targets import probe
+        remote = probe(server_target)
+        if repository != remote['path']: raise ValueError(tr('Ungültiges Sicherungsziel.'))
+    existing = remote['existing'] if remote else (Path(repository).expanduser()/'config').is_file()
+    if existing and not sources:
+        repository = repository if remote else str(Path(repository).expanduser().resolve(strict=True))
+    else: repository, sources = paths(repository, sources)
+    if not existing and len(password) < 12: raise ValueError(tr('Bitte mindestens 12 Zeichen für das Sicherungspasswort verwenden.'))
+    plan = dict(repository=repository, sources=sources, interval=0, next_run=0)
+    if remote: plan['server_target'] = remote['server_target']
+    if interval:plan['schedule_pending']=interval
+    if app_sources:
+        from interop_vault import APP_NAMES, _slot
+        plan['app_sources'] = []
+        for row in app_sources:
+            canonical = str(Path(row['path']).expanduser().resolve(strict=True))
+            if canonical not in sources: raise ValueError(tr('Die geprüfte Lumen-Quelle fehlt im Sicherungsplan.'))
+            if row.get('app') in APP_NAMES and row.get('slot'):
+                _slot(row['slot']); plan['app_sources'].append(dict(row, path=canonical))
+    if source_ref: plan['interop_sources'] = [source_ref]
+    if handoff:
+        from interop_vault import handoff_receipt
+        for token, signature in handoff.items():
+            previous = handoff_receipt(library, token, signature)
+            if previous: return previous['id']
+        plan['interop_handoffs'] = handoff
+    # An existing restic repository is adopted, never reset. A new one must be empty.
+    if not existing:
+        if not remote and any(Path(repository).iterdir()): raise ValueError(tr('Für eine neue Sicherung einen leeren Zielordner wählen.'))
+        command(plan,password,['init'],job,60)
+    data = json.loads(command(plan,password,['cat','config'],job,30))
+    identity = library.create(title,**plan,repository_id=data['id'])
+    try: secret('vault',identity,password)
+    except BaseException:
+        with library.connect() as db: db.execute('DELETE FROM records WHERE id=?',(identity,))
+        raise
+    return identity
+
+
+def run(library, identity, action, job, snapshot='', selected='', destination='', full=False):
+    from lumen_notifications import report, announce
+    try:
+        result=_run(library,identity,action,job,snapshot,selected,destination,full)
+    except Exception:
+        if action=='backup':
+            report('Lumen Vault',identity,True,tr('Sicherung braucht deine Aufmerksamkeit'),
+                   tr('Öffne die Sicherungen und prüfe den letzten Lauf.'),target='app:backups')
+        raise
+    if action=='backup':
+        report('Lumen Vault',identity,False,tr('Sicherung wieder in Ordnung'),target='app:backups')
+        announce('Lumen Vault','backup:'+identity,tr('Sicherung abgeschlossen'),
+                 target='app:backups',revision=time.time_ns())
+    return result
+
+
+def _run(library, identity, action, job, snapshot='', selected='', destination='', full=False):
+    from vault_targets import activity
+    with lease(library,identity), activity(library.get(identity), action, full):
+        job.check()
+        from backup_setup import resolve_plan
+        plan = resolve_plan(library.get(identity), job, sources=action in ('backup', 'preview')); password = secret('vault',identity)
+        verify(plan,password,job)
+        if action in ('backup','preview'):
+            _, sources = paths(plan['repository'], plan['sources'])
+            args=['backup','--tag','lumen-vault','--exclude-caches']
+            if action == 'preview': args.append('--dry-run')
+            from interop_flush import flush_for_plan
+            flushes=flush_for_plan(library.root.parent,plan,job) if action=='backup' else []
+            from interop_vault import prepared_sources
+            started=time.time()
+            from backup_setup import verification_source
+            with verification_source(action == 'backup' and bool(plan.get('groups'))) as marker, prepared_sources(dict(plan,sources=sources,flush_acknowledgements=flushes),job,root=library.root.parent) as (prepared,excluded,manifest):
+                # Application copies use SQLite's online backup API; ordinary
+                # parent sources exclude their live application directories.
+                exclude_args=[arg for path in excluded for arg in ('--exclude',path)]
+                text=command(plan,password,[*args,*exclude_args,'--',*prepared,*([str(marker)] if marker else [])],job,86400)
+                events=[json.loads(line) for line in text.splitlines() if line.strip()]
+                checked = next((e for e in reversed(events) if e.get('message_type')=='summary'), {})
+                if marker:
+                    snapshot_id = checked.get('snapshot_id', '')
+                    if not re.fullmatch('[a-f0-9]{8,64}', snapshot_id): raise ValueError(tr('Kein bestätigter Sicherungsstand.'))
+                    restored = command(plan,password,['dump',snapshot_id,str(marker)],job,120)
+                    if restored != marker.read_text(encoding='utf-8'): raise ValueError(tr('Wiederherstellungsprobe fehlgeschlagen.'))
+            events=[json.loads(line) for line in text.splitlines() if line.strip()]
+            result=next((e for e in reversed(events) if e.get('message_type')=='summary'),None)
+            if not result: raise ValueError(tr('Restic meldet keinen abgeschlossenen Sicherungslauf.'))
+            if action=='backup':
+                if not result.get('snapshot_id'): raise ValueError(tr('Kein neuer Sicherungsstand bestätigt.'))
+                library.update(identity,last_backup=time.time(),backup_started=started,backup_sources=sources,
+                    last_error='',next_run=time.time()+plan.get('interval',0),summary=result,
+                    backup_consistency=manifest['consistency'] if manifest else 'saved-files',backup_flushes=flushes)
+                if plan.get('groups'):
+                    library.update(identity, sources=sources, groups=plan['groups'], remote_sources=plan.get('remote_sources', []), backup_groups=plan['groups'], last_restore_probe=time.time())
+                if plan.get('server_target'):
+                    from vault_targets import report_complete
+                    try:
+                        report_complete(plan)
+                        library.update(identity, server_report_pending=False)
+                    except Exception:
+                        library.update(identity, server_report_pending=True)
+            return result
+        if action=='snapshots': return json.loads(command(plan,password,['snapshots'],job,60)) or []
+        if action=='check':
+            command(plan,password,['check',*(['--read-data'] if full else [])],job,86400)
+            library.update(identity,last_check=time.time(),check_full=full); return tr('Sicherungsdaten vollständig geprüft.') if full else tr('Sicherungsstruktur geprüft.')
+        if not re.fullmatch('[a-f0-9]{64}',snapshot): raise ValueError(tr('Einen konkreten Sicherungsstand auswählen.'))
+        if action=='files':
+            output=command(plan,password,['ls',snapshot],job,120)
+            return [v for line in output.splitlines() if (v:=json.loads(line)).get('struct_type')=='node']
+        if action=='manifest':
+            path=PurePosixPath(selected)
+            if not path.is_absolute() or '..' in path.parts or path.name!='lumen-app-backup.json' or any(c in selected for c in '\0\r\n'):
+                raise ValueError(tr('Ungültiger Pfad im Lumen-Sicherungspaket.'))
+            output=command(plan,password,['dump',snapshot,selected],job,120)
+            if len(output)>512*1024:raise ValueError(tr('Lumen-Sicherungsbeschreibung ist zu groß.'))
+            return json.loads(output)
+        if action=='restore':
+            parent=Path(destination).expanduser().resolve(strict=True)
+            if not parent.is_dir() or (not plan.get('server_target') and parent.is_relative_to(Path(plan['repository']).resolve())):
+                raise ValueError(tr('Wiederherstellungsordner außerhalb der Sicherung auswählen.'))
+            args=['restore',snapshot,'--verify']
+            if selected:
+                path=PurePosixPath(selected)
+                if not path.is_absolute() or '..' in path.parts or any(c in selected for c in '\0\r\n*?['):
+                    raise ValueError(tr('Dieser Pfad kann nicht einzeln wiederhergestellt werden. Gesamten Stand wählen.'))
+                args+=['--include',selected]
+            import tempfile
+            target=Path(tempfile.mkdtemp(prefix='Lumen-Wiederherstellung-',dir=parent))
+            try: command(plan,password,[*args,'--target',str(target)],job,86400)
+            except BaseException:
+                # Preserve completed files after cancellation; do not traverse/delete restored symlinks.
+                library.update(identity,restore_path=str(target),last_error=tr('Wiederherstellung unvollständig; Ziel prüfen.'))
+                raise
+            library.update(identity,restore_path=str(target),last_restore=time.time()); return str(target)
+        raise ValueError(tr('Unbekannte Sicherungsaktion.'))
+
+
+def schedule(library, identity, interval, job):
+    plan = library.get(identity)
+    if interval and plan.get('setup_pending') and not plan.get('last_restore_probe'):
+        raise ValueError(tr('Zuerst die Einrichtung abschließen.'))
+    if interval not in (0,86400,604800): raise ValueError(tr('Ungültiger Zeitplan.'))
+    config=Path(os.environ.get('XDG_CONFIG_HOME',str(Path.home()/'.config')))/'systemd/user'
+    config.mkdir(parents=True,exist_ok=True)
+    script=str(Path(__file__).resolve())
+    if any(c in script+sys.executable for c in '\n\r%"\\'): raise ValueError(tr('Installationspfad nicht für Zeitpläne geeignet.'))
+    unit='[Unit]\nDescription=Lumen Vault Sicherungsplaene\n[Service]\nType=oneshot\nExecStart="'+sys.executable+'" "'+script+'" --tick\nNice=10\n'
+    (config/'lumen-vault.service').write_text(unit)
+    (config/'lumen-vault.timer').write_text('[Unit]\nDescription=Lumen Vault Zeitplan\n[Timer]\nOnCalendar=*:0/15\nPersistent=true\n[Install]\nWantedBy=timers.target\n')
+    job.command(['systemctl','--user','daemon-reload'],timeout=20)
+    if interval: job.command(['systemctl','--user','enable','--now','lumen-vault.timer'],timeout=20)
+    library.update(identity,interval=interval,next_run=time.time()+interval)
+    if not any(p.get('interval') for p in library.all()):job.command(['systemctl','--user','disable','--now','lumen-vault.timer'],timeout=20)
+    library.update(identity,schedule_pending=None)
+
+
+def tick():
+    from tools_secrets import unlocked
+    from tools_ui import Job
+    from lumen_hardware import background_reason
+    from lumen_store import Store
+    library=Library('vault')
+    for plan in library.all():
+        if not plan.get('interval') or plan.get('next_run',0)>time.time(): continue
+        try:
+            reason=background_reason(Store())
+            if reason: raise ValueError(reason)
+            if not unlocked(): raise ValueError(tr('Schlüsselbund gesperrt. Sicherung wartet auf die nächste Anmeldung.'))
+            run(library,plan['id'],'backup',Job(lambda _:None))
+        except Exception as error: library.update(plan['id'],last_error=str(error)[:1000])
+
+
+if __name__=='__main__' and sys.argv[1:]==['--tick']: tick()

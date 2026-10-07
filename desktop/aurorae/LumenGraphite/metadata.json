@@ -1,0 +1,18 @@
+{
+  "KPlugin": {
+    "Id": "LumenGraphite",
+    "Name": "Lumen Echo · Graphit",
+    "Version": "1.2.0",
+    "Description": "Echo-Fensteraktionen und Graphit-Rahmen für Lumen",
+    "License": "GPL-3.0",
+    "Authors": [
+      {
+        "Name": "Vince Liuice (original MacTahoe artwork)"
+      },
+      {
+        "Name": "Lumen contributors"
+      }
+    ]
+  },
+  "KPackageStructure": "aurorae"
+}

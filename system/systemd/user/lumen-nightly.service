@@ -1,0 +1,6 @@
+[Unit]
+Description=Lumen nightly report
+
+[Service]
+Type=oneshot
+ExecStart=%INSTALL_BIN%/lumen-nightly

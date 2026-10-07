@@ -1,0 +1,12 @@
+{
+  "KPlugin": {
+    "Id": "LumenSchildmaid",
+    "Name": "Lumen · Schildmaid",
+    "Authors": [
+      {
+        "Name": "Lumen contributors"
+      }
+    ],
+    "License": "MIT"
+  }
+}

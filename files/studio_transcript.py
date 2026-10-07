@@ -1,0 +1,112 @@
+"""Selectable, rounded native messages with safe Markdown and incremental updates."""
+import math
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QDesktopServices, QTextDocument, QFont, QIcon
+from PySide6.QtWidgets import QScrollArea, QWidget, QFrame, QHBoxLayout, QVBoxLayout, QSizePolicy, QPushButton
+from assistant import Transcript, SafeDocument
+from lumen_i18n import tr
+from preview import label
+
+
+class MessageBody(Transcript):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName('studioMessage'); self.setFrameShape(QFrame.NoFrame)
+        self.setOpenLinks(False)
+        self.anchorClicked.connect(lambda url: QDesktopServices.openUrl(url) if url.scheme() in ('https', 'http') else None)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff); self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed); self.setMinimumWidth(0)
+        from ui_typography import font
+        self.setFont(font(parent.settings if parent is not None and hasattr(parent, 'settings') else None))
+        self.document().contentsChanged.connect(self.fit)
+
+    def fit(self):
+        height = max(32, math.ceil(self.document().size().height()) + 8)
+        if self.height() != height: self.setFixedHeight(height)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event); self.fit()
+
+
+class StudioTranscript(QScrollArea):
+    def __init__(self, backing, parent=None):
+        super().__init__(parent)
+        self.backing = backing; self.rows = []
+        self.setObjectName('studioTranscript'); self.setFrameShape(QFrame.NoFrame); self.setWidgetResizable(True)
+        self.setAccessibleName(tr('Gespräch mit Lumen'))
+        self.content = QWidget(); self.content.setObjectName('studioMessages')
+        self.content.setMaximumWidth(960); self.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+        self.box = QVBoxLayout(self.content); self.box.setContentsMargins(0, 12, 6, 0); self.box.setSpacing(24)
+        self.box.addStretch(); self.setWidget(self.content)
+        self.answer_actions = QFrame(self.content); self.answer_actions.setObjectName('answerActions')
+        actions = QHBoxLayout(self.answer_actions); actions.setContentsMargins(0, 12, 0, 0)
+        for title, icon, control in ((tr('Kopieren'), 'edit-copy', parent.copy), (tr('Für mich speichern'), 'bookmark-new', parent.save_note_button), (tr('Merk dir das'), 'view-history', parent.remember_button)):
+            button = QPushButton(title); button.setObjectName('answerAction'); button.setIcon(QIcon.fromTheme(icon)); button.clicked.connect(control.click); actions.addWidget(button)
+        actions.addStretch(); self.answer_actions.hide()
+        parent.backend.busyChanged.connect(lambda busy: self.answer_actions.setEnabled(not busy))
+        parent.backend.sessionChanged.connect(lambda _: self.entries([row[1] for row in self.rows], parent.action))
+
+    def refresh_typography(self):
+        from ui_typography import metrics
+        self.box.setSpacing(metrics(self.parent().settings)['spacing'] + 8)
+        entries = [row[1] for row in self.rows]
+        self.clear(); self.entries(entries)
+
+    def setHtml(self, value): self.backing.setHtml(value)
+    def toPlainText(self): return self.backing.toPlainText()
+    def loadResource(self, kind, url): return None
+
+    def textCursor(self):
+        return next((row[2].textCursor() for row in self.rows if row[2].textCursor().hasSelection()), self.backing.textCursor())
+
+    def entries(self, entries, action=False):
+        self.answer_actions.setParent(self.content)
+        empty = tr('Das Ergebnis erscheint hier.') if action else tr('## Was möchtest du erledigen?\n\nSchreib einen Gedanken oder füge eine Datei hinzu. Lumen hilft dir beim nächsten Schritt.')
+        values = entries or [('assistant', empty, [])]
+        while len(self.rows) > len(values):
+            container, _, _, _ = self.rows.pop(); self.box.removeWidget(container); container.deleteLater()
+        for index, entry in enumerate(values):
+            role, value, activity = entry
+            if index >= len(self.rows):
+                container = QWidget(); outer = QHBoxLayout(container); outer.setContentsMargins(0, 0, 0, 0)
+                bubble = QFrame(); bubble.setObjectName('studioUserMessage' if role == 'user' else 'studioAssistantMessage')
+                layout = QVBoxLayout(bubble); layout.setContentsMargins(18, 14, 18, 14); layout.setSpacing(8)
+                caption = label(tr('DU') if role == 'user' else 'Lumen', 'studioSpeaker'); layout.addWidget(caption)
+                if role == 'assistant':
+                    from answer_widget import AnswerBody
+                    body = AnswerBody(self.parent().settings, self.parent())
+                else: body = MessageBody(self.parent())
+                layout.addWidget(body)
+                activity_label = label('', 'muted'); layout.addWidget(activity_label)
+                if role == 'user': outer.addStretch(1)
+                outer.addWidget(bubble, 8)
+                self.box.insertWidget(index, container); self.rows.append((container, entry, body, activity_label))
+                changed = True
+            else:
+                container, previous, body, activity_label = self.rows[index]
+                # Session switches can change roles at the same position.
+                if previous[0] != role:
+                    self.clear(); return self.entries(entries, action)
+                changed = previous != entry or (role == 'assistant' and body.scope != (self.parent().backend.session, index))
+                self.rows[index] = (container, entry, body, activity_label)
+            if changed:
+                if role == 'assistant':
+                    body.set_answer(value, (self.parent().backend.session, index))
+                else:
+                    document = SafeDocument(); document.setDefaultFont(body.font())
+                    document.setMarkdown(value, QTextDocument.MarkdownFeatures(QTextDocument.MarkdownDialectGitHub | QTextDocument.MarkdownNoHTML))
+                    body.setHtml(document.toHtml())
+                    from ui_typography import format_document
+                    format_document(body.document(), self.parent().settings); body.fit()
+                activity_label.setText(' · '.join(activity) + (' …' if activity else '')); activity_label.setVisible(bool(activity))
+        last = next((i for i in range(len(values)-1, -1, -1) if values[i][0] == 'assistant' and values[i][1]), None)
+        if last is not None: self.rows[last][2].parentWidget().layout().addWidget(self.answer_actions)
+        self.answer_actions.setVisible(bool(entries) and last is not None)
+        self.answer_actions.setEnabled(not self.parent().backend.busy)
+        self.box.activate()
+
+    def clear(self):
+        self.answer_actions.setParent(self.content); self.answer_actions.hide()
+        for container, _, _, _ in self.rows:
+            self.box.removeWidget(container); container.deleteLater()
+        self.rows.clear()

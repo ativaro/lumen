@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Compatibility entry point for callers that already captured the text.
+set -euo pipefail
+SELF_DIR="$(dirname "$(readlink -f "$0")")"
+exec "$SELF_DIR/lumen-agent-app" --prompt="${LUMEN_PROMPT:-Erkläre diesen Text:}
+
+${LUMEN_TEXT:-}"

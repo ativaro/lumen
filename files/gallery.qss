@@ -1,0 +1,16 @@
+QDialog#gallery { background: palette(window); color: palette(text); }
+QDialog#gallery QLabel { background: transparent; color: palette(text); }
+QDialog#gallery QLabel#galleryBrand { font-size: 14px; font-weight: 600; }
+QDialog#gallery QLabel#galleryTitle { font-size: 16px; font-weight: 600; }
+QDialog#gallery QLabel#galleryMuted { color: palette(dark); font-size: 11px; }
+QDialog#gallery QLabel#gallerySource { background: palette(button); color: palette(text); border-radius: 6px; padding: 5px 10px; font-size: 11px; }
+QDialog#gallery QPushButton#galleryArrow { font-size: 32px; padding: 0; background: transparent; }
+QDialog#gallery QFrame#galleryEditor { background: palette(base); border: 1px solid palette(mid); border-radius: 8px; }
+QDialog#gallery QGraphicsView { background: #13171c; border: none; }
+QDialog#gallery QListWidget#filmstrip { background: transparent; border: none; outline: none; }
+QDialog#gallery QListWidget#filmstrip::item { background: palette(button); border: 2px solid transparent; border-radius: 6px; margin: 3px; padding: 3px; }
+QDialog#gallery QListWidget#filmstrip::item:selected { background: palette(midlight); border: 2px solid palette(highlight); }
+QDialog#gallery QListWidget#filmstrip::item:hover:!selected { border-color: palette(mid); }
+QDialog#gallery QScrollBar:horizontal { background: transparent; height: 7px; }
+QDialog#gallery QScrollBar::handle:horizontal { background: palette(mid); border-radius: 3px; min-width: 24px; }
+QDialog#gallery QScrollBar::add-line:horizontal, QDialog#gallery QScrollBar::sub-line:horizontal { width: 0; }

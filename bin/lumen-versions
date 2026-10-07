@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+SELF_DIR="$(dirname "$(readlink -f "$0")")"
+root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+[[ -f "$root/files/lumen_versions.py" ]] || root=/usr/share/lumen
+exec "$SELF_DIR/lumen-python" "$root/files/lumen_versions.py" --watch

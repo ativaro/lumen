@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen Vault
+Comment=Encrypted backups and safe recovery
+Comment[de]=Verschlüsselte Sicherungen und sichere Wiederherstellung
+Exec=%INSTALL_BIN%/lumen-vault
+Icon=lumen-vault
+Terminal=false
+Categories=Utility;Archiving;
+StartupWMClass=lumen-vault
+Keywords=Lumen;vault;

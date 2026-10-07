@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# lumen-notify — per-user bridge for the system watchdog.
+#
+# Reads findings written by the root service (/var/lib/lumen/findings.md),
+# notifies the desktop, and optionally runs an opencode analysis in the user's
+# context. Runs from a systemd **user** path unit that watches the findings file.
+#
+# Environment:
+#   LUMEN_WATCH_ANALYZE=0   disable the automatic analysis
+#   LUMEN_WATCH_MODEL=...   model override
+#   LUMEN_OPENCODE_BIN               opencode binary
+
+set -uo pipefail
+
+FINDINGS="/var/lib/lumen/findings.md"
+STATE_DIR="${LUMEN_STATE:-$HOME/.cache/lumen}"
+mkdir -p "$STATE_DIR"
+SEEN="$STATE_DIR/notify-seen"
+
+LUMEN_OPENCODE_BIN="${LUMEN_OPENCODE_BIN:-$(command -v opencode || echo "$HOME/.opencode/bin/opencode")}"
+NOTIFY=(notify-send -a Lumen -i lumen)
+
+[ -r "$FINDINGS" ] || exit 0
+
+sig="$(md5sum "$FINDINGS" | awk '{print $1}')"
+if [ -f "$SEEN" ] && [ "$(cat "$SEEN")" = "$sig" ]; then
+    exit 0
+fi
+
+body="$(grep -m1 '^\*\*Befund:\*\*' "$FINDINGS" | sed 's/^\*\*Befund:\*\* *//')"
+[ -z "$body" ] && body="Systemwarnung"
+
+report="$STATE_DIR/analysis-$(date +%Y%m%d-%H%M%S).md"
+
+if [ "${LUMEN_WATCH_ANALYZE:-1}" = "1" ] && { [ -x "$LUMEN_OPENCODE_BIN" ] || command -v "$LUMEN_OPENCODE_BIN" >/dev/null 2>&1; }; then
+    prompt="Systemwarnung auf diesem Rechner. Analysiere knapp: Ursache + konkreter Fix (max. 8 Zeilen). Fakten:
+$(cat "$FINDINGS")"
+
+    analysis=$(env -u OPENCODE -u OPENCODE_PID -u OPENCODE_SERVER_PASSWORD \
+        timeout 120 "$(dirname "$(readlink -f "$0")")/lumen-run" "$prompt" </dev/null 2>/dev/null \
+        | sed -e 's/\x1b\[[0-9;]*m//g' | sed '/^[[:space:]]*$/d' | tail -n 20)
+
+    {
+        echo "$(cat "$FINDINGS")"
+        echo
+        echo "## Lumen Analyse"
+        echo
+        echo "${analysis:-(keine Analyse verfügbar)}"
+    } > "$report"
+    ln -sf "$report" "$STATE_DIR/latest-analysis.md"
+
+    short=$(printf '%s' "${analysis:-$body}" | head -c 500)
+    chosen=$("${NOTIFY[@]}" -u critical --icon=dialog-warning \
+        -A "open=In Lumen öffnen" \
+        "⚠ Systemproblem" "$short" 2>/dev/null || true)
+    if [ "$chosen" = "open" ]; then
+        setsid "$(dirname "$(readlink -f "$0")")/lumen-agent-app" --page system >/dev/null 2>&1 &
+    fi
+else
+    "${NOTIFY[@]}" -u critical "⚠ Systemproblem" "$body" 2>/dev/null || true
+fi
+
+echo "$sig" > "$SEEN"

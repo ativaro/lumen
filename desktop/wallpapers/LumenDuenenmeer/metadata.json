@@ -1,0 +1,12 @@
+{
+  "KPlugin": {
+    "Id": "LumenDuenenmeer",
+    "Name": "Lumen · Dünenmeer",
+    "Authors": [
+      {
+        "Name": "Lumen contributors"
+      }
+    ],
+    "License": "MIT"
+  }
+}

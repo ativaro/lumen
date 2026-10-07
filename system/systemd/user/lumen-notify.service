@@ -1,0 +1,6 @@
+[Unit]
+Description=Lumen notification bridge (per user)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/lumen-notify

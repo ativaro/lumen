@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# lumen-setup — wire Lumen into the opencode config for the current user.
+#
+# Registers the Lumen MCP server (mcp.cachyos), the /sync,/sysreport,/fix
+# commands and the lumen-admin skill into ~/.config/opencode/.
+#
+# Safe to run repeatedly and from different install locations.
+#
+# Usage:
+#   lumen-setup              # wire everything (idempotent)
+#   lumen-setup --uninstall  # remove what we added
+#
+# Env:
+#   LUMEN_MCP_PY   path to lumen_mcp.py (default: next to this script, else /usr/bin)
+#   LUMEN_SHARE    share dir with opencode-command/skill (default: auto)
+#   OPENCODE_HOME  opencode config dir (default: ~/.config/opencode)
+
+set -euo pipefail
+
+OPENCODE_HOME="${OPENCODE_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/opencode}"
+
+SELF="$(readlink -f "$0")"
+SELF_DIR="$(dirname "$SELF")"
+
+# locate lumen_mcp.py
+if [ -n "${LUMEN_MCP_PY:-}" ]; then
+    MCP_PY="$LUMEN_MCP_PY"
+elif [ -f "$SELF_DIR/../bin/lumen_mcp.py" ]; then
+    MCP_PY="$(readlink -f "$SELF_DIR/../bin/lumen_mcp.py")"
+elif [ -f "$SELF_DIR/lumen_mcp.py" ]; then
+    MCP_PY="$SELF_DIR/lumen_mcp.py"
+elif [ -f /usr/bin/lumen_mcp.py ]; then
+    MCP_PY=/usr/bin/lumen_mcp.py
+else
+    echo "lumen-setup: lumen_mcp.py nicht gefunden" >&2
+    exit 1
+fi
+
+# locate share dir with opencode-command/ and opencode-skill/
+if [ -n "${LUMEN_SHARE:-}" ]; then
+    SHARE="$LUMEN_SHARE"
+elif [ -d "$SELF_DIR/../opencode-command" ]; then
+    SHARE="$(readlink -f "$SELF_DIR/..")"
+elif [ -d "$SELF_DIR/../share/lumen/opencode-command" ]; then
+    SHARE="$(readlink -f "$SELF_DIR/../share/lumen")"
+elif [ -d /usr/share/lumen/opencode-command ]; then
+    SHARE=/usr/share/lumen
+else
+    SHARE=""
+fi
+
+say() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
+
+if [ "${1:-}" = "--uninstall" ]; then
+    say "Entferne Lumen opencode-Integration"
+    python3 - "$OPENCODE_HOME/opencode.jsonc" <<'PY'
+import json, os, re, sys
+p = sys.argv[1]
+if os.path.exists(p):
+    raw = open(p).read()
+    stripped = re.sub(r'^\s*//.*$', '', raw, flags=re.M)
+    try:
+        d = json.loads(stripped) if stripped.strip() else {}
+    except Exception:
+        d = {}
+    if isinstance(d.get("mcp"), dict) and "cachyos" in d["mcp"]:
+        del d["mcp"]["cachyos"]
+        open(p, "w").write(json.dumps(d, indent=2) + "\n")
+        print("  MCP 'cachyos' entfernt")
+PY
+    rm -f "$OPENCODE_HOME/command/sync.md" "$OPENCODE_HOME/command/sysreport.md" "$OPENCODE_HOME/command/fix.md"
+    rm -rf "$OPENCODE_HOME/skill/lumen-admin" "$OPENCODE_HOME/skill/lumen-projects"
+    echo "  Commands/Skill entfernt"
+    exit 0
+fi
+
+mkdir -p "$OPENCODE_HOME/command" "$OPENCODE_HOME/skill"
+
+# ---- commands + skill ------------------------------------------------------
+if [ -n "$SHARE" ] && [ -d "$SHARE/opencode-command" ]; then
+    say "Installiere Commands + Skill nach $OPENCODE_HOME"
+    cp "$SHARE/opencode-command/"*.md "$OPENCODE_HOME/command/" 2>/dev/null || true
+    for skill in lumen-admin lumen-projects; do
+        if [ -d "$SHARE/opencode-skill/$skill" ]; then
+            mkdir -p "$OPENCODE_HOME/skill/$skill"
+            cp -r "$SHARE/opencode-skill/$skill/." "$OPENCODE_HOME/skill/$skill/"
+        fi
+    done
+    # backward-compat: also honor the old skill name if present
+    if [ -d "$SHARE/opencode-skill/cachyos-admin" ] && [ ! -d "$SHARE/opencode-skill/lumen-admin" ]; then
+        mkdir -p "$OPENCODE_HOME/skill/lumen-admin"
+        cp -r "$SHARE/opencode-skill/cachyos-admin/." "$OPENCODE_HOME/skill/lumen-admin/" 2>/dev/null || true
+    fi
+else
+    say "Kein Command/Skill-Verzeichnis gefunden – übersprungen"
+fi
+
+# ---- MCP -------------------------------------------------------------------
+say "Registriere MCP-Server 'cachyos' -> $MCP_PY"
+python3 - "$OPENCODE_HOME/opencode.jsonc" "$MCP_PY" <<'PY'
+import json, os, re, sys
+from pathlib import Path
+cfg, mcp_py = sys.argv[1], sys.argv[2]
+raw = open(cfg).read() if os.path.exists(cfg) else ""
+stripped = re.sub(r'^\s*//.*$', '', raw, flags=re.M)
+try:
+    d = json.loads(stripped) if stripped.strip() else {}
+except Exception:
+    print("  (bestehende opencode.jsonc nicht parsebar – bitte manuell ergänzen)")
+    raise SystemExit(0)
+d.setdefault("$schema", "https://opencode.ai/config.json")
+launcher = Path(mcp_py).with_name('lumen-mcp')
+previous = d.setdefault("mcp", {}).get("cachyos", {})
+d["mcp"]["cachyos"] = {
+    **previous,
+    "type": "local",
+    "command": [str(launcher)] if launcher.is_file() else ["python3", mcp_py],
+    "enabled": previous.get("enabled", True),
+    "timeout": previous.get("timeout", 120000),
+}
+open(cfg, "w").write(json.dumps(d, indent=2) + "\n")
+print("  eingetragen:", cfg)
+PY
+
+say "Fertig. opencode neu starten, damit MCP/Commands/Skill greifen."

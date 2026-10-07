@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen Notification
+Comment=Notifications, results and reminders
+Comment[de]=Meldungen, Ergebnisse und Erinnerungen
+Exec=%INSTALL_BIN%/lumen-notification
+Icon=notifications
+Terminal=false
+Categories=Utility;
+StartupNotify=false

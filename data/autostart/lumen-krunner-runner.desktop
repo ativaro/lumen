@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen KRunner Runner
+Comment=KRunner DBus runner for Lumen
+Exec=%INSTALL_BIN%/lumen_krunner.py
+Icon=lumen
+Terminal=false
+NoDisplay=true
+X-KDE-autostart-after=panel

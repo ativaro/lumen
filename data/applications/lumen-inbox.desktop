@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen Inbox
+Comment=Mail, calendar and tasks in one place
+Comment[de]=Mail, Kalender und Aufgaben an einem Ort
+Exec=%INSTALL_BIN%/lumen-inbox
+Icon=lumen-inbox
+Terminal=false
+Categories=Network;Office;Email;Calendar;
+StartupWMClass=lumen-inbox
+Keywords=Lumen;inbox;

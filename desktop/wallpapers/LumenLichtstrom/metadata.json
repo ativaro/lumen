@@ -1,0 +1,12 @@
+{
+  "KPlugin": {
+    "Id": "LumenLichtstrom",
+    "Name": "Lumen · Lichtstrom",
+    "Authors": [
+      {
+        "Name": "Lumen contributors"
+      }
+    ],
+    "License": "MIT"
+  }
+}

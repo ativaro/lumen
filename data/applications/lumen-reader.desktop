@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen Reader
+Comment=Books, documents and articles with notes and a local voice
+Comment[de]=Bücher, Dokumente und Artikel mit Notizen und lokaler Stimme
+Exec=%INSTALL_BIN%/lumen-reader %f
+Icon=lumen-reader
+Terminal=false
+Categories=Office;Viewer;
+MimeType=application/pdf;application/epub+zip;text/plain;text/markdown;text/html;
+StartupWMClass=lumen-reader
+Keywords=Lumen;Reader;Lesen;Bücher;

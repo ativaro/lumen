@@ -1,0 +1,12 @@
+{
+  "KPlugin": {
+    "Id": "LumenAlpenlicht",
+    "Name": "Lumen · Alpenlicht",
+    "Authors": [
+      {
+        "Name": "Lumen contributors"
+      }
+    ],
+    "License": "MIT"
+  }
+}

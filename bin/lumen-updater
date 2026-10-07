@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+SELF_DIR="$(dirname "$(readlink -f "$0")")"
+export LUMEN_BIN_DIR="$SELF_DIR"
+for main in "$SELF_DIR/../files/updater_app.py" "$SELF_DIR/../share/lumen/files/updater_app.py" /usr/share/lumen/files/updater_app.py; do
+    if [ -f "$main" ]; then exec "$SELF_DIR/lumen-python" "$main" "$@"; fi
+done
+echo 'Lumen Updater wurde nicht gefunden.' >&2
+exit 1

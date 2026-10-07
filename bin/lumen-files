@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Open the standalone file manager, sharing Lumen's settings and integrations.
+set -euo pipefail
+SELF_DIR="$(dirname "$(readlink -f "$0")")"
+for app in "$SELF_DIR/../files/app.py" "$SELF_DIR/../share/lumen/files/app.py" /usr/share/lumen/files/app.py; do
+    if [ -f "$app" ]; then
+        export LUMEN_BIN_DIR="$SELF_DIR"
+        exec "$SELF_DIR/lumen-python" "$app" "$@"
+    fi
+done
+echo 'Lumen Files: Die Anwendung wurde nicht gefunden. Bitte die Installation prüfen.' >&2
+exit 1

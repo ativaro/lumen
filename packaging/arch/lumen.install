@@ -1,0 +1,48 @@
+# lumen.install — pacman install scriptlet
+#
+# Service preferences are preserved. Newly introduced schedules are opt-in.
+
+post_install() {
+    systemctl daemon-reload 2>/dev/null || true
+    cat <<'EOF'
+Lumen installiert. Dateien, Aufträge, Wissen und Abläufe sind Bestandteile von Lumen.
+Starter: lumen · Dateien: lumen --page files · Engine-Anbindung: lumen-setup
+Desktop einrichten (als Benutzer in Plasma, ersetzt Panels nach Sicherung):
+  lumen-desktop-setup --apply --replace-panels
+Dienste und Zeitpläne werden unter Einstellungen bzw. Abläufe bewusst aktiviert.
+EOF
+}
+
+post_upgrade() {
+    # Do NOT re-enable here: a user who opted out must stay opted out.
+    cat <<'EOF'
+Lumen aktualisiert (bestehender Dienst-Zustand bleibt erhalten).
+Aktives älteres Lumen-Fenstertheme auf Echo aktualisieren (als Benutzer in Plasma):
+  lumen-desktop-setup --refresh-decoration
+
+Falls der D-Bus-Dienst aktiv ist, neue Dateien übernehmen:
+  sudo systemctl restart lumen-agentd.service
+  systemctl --user try-restart lumen-notify.path
+Kein D-Bus-Neustart nötig – Policy-Änderungen werden automatisch geladen.
+
+opencode-Integration nach Update erneut anwenden:  lumen-setup
+EOF
+}
+
+pre_remove() {
+    systemctl disable --now lumen-watch.timer 2>/dev/null || true
+    systemctl disable --now lumen-agentd.service 2>/dev/null || true
+    systemctl --global disable lumen-notify.path lumen-digest.timer lumen-nightly.timer lumen-jobs.timer 2>/dev/null || true
+    for d in /run/user/*/; do
+        uid=$(basename "$d" 2>/dev/null); [ -z "$uid" ] && continue
+        systemctl --machine="${uid}@.host" --user disable --now lumen-notify.path lumen-digest.timer lumen-nightly.timer lumen-jobs.timer 2>/dev/null || true
+    done
+}
+
+post_remove() {
+    # State and reports deliberately survive package removal.
+    echo "Lumen entfernt. opencode-Integration ggf. mit 'lumen-setup --uninstall' vor dem Entfernen bereinigen."
+}
+
+pre_install() { :; }
+pre_upgrade() { :; }

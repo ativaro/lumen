@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen
+GenericName=AI System Agent
+Comment=Your assistant for files, tasks and system status
+Comment[de]=Dein Assistent für Dateien, Aufgaben und Systemstatus
+Exec=%INSTALL_BIN%/lumen
+Icon=lumen
+Terminal=false
+Categories=Utility;Development;
+Keywords=opencode;ai;agent;chat;system;dashboard;assistant;
+StartupNotify=true
+StartupWMClass=Lumen

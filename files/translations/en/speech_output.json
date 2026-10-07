@@ -1,0 +1,17 @@
+{
+  "Sprachausgabe": "Speech output",
+  "Deutsch · Thorsten · sparsam": "German · Thorsten · lightweight",
+  "Mehrsprachig · Deutsch und Englisch gemischt": "Multilingual · mixed German and English",
+  "Die mehrsprachige Stimme verarbeitet auch neue englische Wörter im Satz. Benötigt die zusätzliche Einrichtung und mehr Rechenleistung; die Stimme klingt anders.": "The multilingual voice also handles new English words within a sentence. Requires additional setup and more computing power; the voice sounds different.",
+  "Mehrsprachige Stimme": "Multilingual voice",
+  "Die lokale Stimme wurde beendet.": "Local speech output stopped.",
+  "Mehrsprachige Stimme vorbereiten · eigene Laufzeit, mehrere GB Download.": "Preparing multilingual speech · separate runtime, several GB download.",
+  "Mehrsprachiges Sprachmodell herunterladen · ca. 2,5 GB.": "Downloading multilingual speech model · about 2.5 GB.",
+  "Mehrsprachige Stimme lokal prüfen …": "Testing multilingual speech locally …",
+  "Mehrsprachige Sprachausgabe ist bereit. Deutsch und Englisch werden gemeinsam verarbeitet.": "Multilingual speech is ready. German and English are processed together.",
+  "Mehrsprachige Stimme einrichten · ca. 2,5 GB Modell": "Set up multilingual speech · about 2.5 GB model",
+  "Deutsch und englische Begriffe in derselben Stimme, vollständig lokal. Zusätzliche Laufzeit benötigt mehrere GB. Eine NVIDIA-GPU beschleunigt die Ausgabe; auf CPU dauert sie länger.": "German and English terms in the same voice, entirely local. The additional runtime requires several GB. An NVIDIA GPU speeds up speech generation; CPU processing takes longer.",
+  "Stimmeinstellungen speichern": "Save voice settings",
+  "Lokale Erkennung von Sprechpausen vorbereiten …": "Preparing local speech pause detection …",
+  "Sprechpausenerkennung einrichten": "Set up speech pause detection"
+}

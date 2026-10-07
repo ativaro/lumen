@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen Links
+Name[de]=Lumen Verweise
+Exec=%INSTALL_BIN%/lumen-open %u
+Icon=lumen
+Terminal=false
+NoDisplay=true
+MimeType=x-scheme-handler/lumen;
+Categories=Utility;

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen: explain clipboard
+Name[de]=Lumen: Zwischenablage erklären
+Exec=%INSTALL_BIN%/lumen-quick ask-sel
+NoDisplay=true
+StartupNotify=false
+Icon=lumen
+X-KDE-GlobalAccel-CommandShortcut=true
+X-KDE-Shortcuts=Meta+Shift+C
