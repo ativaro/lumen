@@ -55,11 +55,8 @@ def proposal_context(items, temp, stopped=lambda: False):
         output = Path(temp) / f"{item['id']}.png"
         try:
             if kind == 'pdf':
-                text_file = Path(temp) / f"{item['id']}.txt"
-                subprocess.run(['pdftotext', '-f', '1', '-l', '3', '-layout', str(path), str(text_file)],
-                               capture_output=True, timeout=12, check=True)
-                with text_file.open('rb') as stream:
-                    record['excerpt'] = stream.read(4096).decode('utf-8', errors='replace')
+                result=subprocess.run([sys.executable,str(Path(__file__).with_name('lumen_pdf_worker.py')),'text',str(path),'--pages','3','--limit','4096'],capture_output=True,timeout=12,check=True)
+                record['excerpt']=result.stdout.decode('utf-8',errors='replace')
             elif kind == 'text' or (kind == 'image' and len(attachments) < 12):
                 result = subprocess.run([sys.executable, str(Path(__file__).with_name('preview.py')),
                                          '--data', str(path), str(output), '1024'],

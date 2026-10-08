@@ -7,6 +7,10 @@ Image {
     property string name: ""
     property color color: Kirigami.Theme.textColor
     readonly property var paths: ({
+        "notifications": "M6 9a6 6 0 0 1 12 0v5l2 3H4l2-3Z M9 20a3 3 0 0 0 6 0 M12 1v2",
+        "notifications-disabled": "M20 15A9 9 0 0 1 9 4a9 9 0 1 0 11 11",
+        "view-fullscreen": "M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5",
+        "edit-undo": "M4 5v6h6M4 11a8 8 0 1 1 1 8",
         "system-file-manager": "M3 7V5h6l2 2h10v13H3Z",
         "system-search": "M21 21l-5-5 M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0",
         "preferences-desktop-locale": "M3 6h12M9 3v3M5 6c0 7 8 10 8 10M13 6c0 7-8 10-8 10M14 21l4-10 4 10m-6-4h4",

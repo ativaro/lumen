@@ -223,3 +223,79 @@ password. The backup key does not replace that password. Existing vaults are not
 overwritten. Export the backup key outside the destination and retain it separately
 from both the computer and the vault. The original native prerelease qualification
 boundary above remains unchanged.
+
+A paired **Lumen Server** is now a destination in the same wizard. Pair once in
+Server → Devices → Connect this desktop, then reopen the wizard. The native
+connector supplies device-scoped access at execution time; plans store only the
+server/device reference, repository ID and selected sources. Restic's independent
+key stays in the system keyring and stdin, the access token in the child process
+environment. Neither is placed in URLs or arguments. HTTPS uses the connector's
+trusted CA set (including explicitly trusted local Lumen CAs); no insecure mode.
+A changed server/device or repository ID cannot silently redirect an existing plan.
+
+Each device currently has one server repository. Existing repositories can be
+adopted with their original key without modifying backup content. Preserve both
+that key and the matching device access separately: pairing a new device creates
+a new destination. A guided lost-device recovery access flow is still pending.
+The usual source selection, encrypted native vault copies, first-run restore
+probe, snapshots, full check, non-overwriting restore and schedules are reused.
+Server status-report failures are separate from successful backup completion.
+
+Checks: `files/test_vault_targets.py`, the existing Vault/setup/service/interop
+checks, Qt's local/server wizard flow, and the sibling server repository's
+`scripts/check_vault_desktop.py` for a real disposable-account HTTPS round trip.
+
+## Encrypted server synchronization
+
+Settings → Server synchronization opens the native version dialog. The paired
+server device must explicitly allow `vault_sync`; defaults remain off. Publishing
+sends only the managed encrypted KDBX file through `files/vault_sync.py` over the
+existing verified HTTPS connection. This helper never receives a master password
+or entry fields. User/server/directory binding and source hashes are checked again
+for each action. Server uploads use expected-head compare-and-swap and retain
+conflict versions. Interrupted transfers require refreshing the actual server state.
+
+Selecting a complete version for adoption requires confirmation. The Rust broker
+checks the selected SHA256, KDBX bounds/authentication, current local revision and
+master key before writing. The previous active ciphertext is retained as
+`sync-before-<SHA256>.kdbx`, independently of rotating `previous.kdbx`. API/MCP
+availability is reset on imported entries. Empty profiles restore with the original
+master password in a native protected input; existing profiles must unlock first.
+No password crosses the Python transport or goes to the server.
+
+Whole-version adoption remains manual. This does not implement shared vaults
+or new production qualification. Original prerelease boundaries remain. See `../../VAULT-INBOX.md`;
+server protocol and limits are in the server repository's `docs/vault-sync.md`.
+
+Native server sync also offers **Merge entries** for an unlocked vault. It keeps
+local entries and adds differing remote entries as visible `Sync conflict` copies,
+including history. API/MCP grants are disabled, previous ciphertext is retained,
+and publication remains a separate explicit action. A fresh/empty vault only
+allows whole-version restore. See [VAULT-INBOX.md](../../VAULT-INBOX.md) for the
+conservative same-origin limits and manual conflict resolution. New groups are
+included; existing local groups are retained and deleted groups require manual
+review. The hierarchy remains in the KDBX file; the existing collections view
+continues to show entry collections, not a new folder-tree editor.
+
+**Enable automatic sync** starts the existing desktop connector service once both
+versions match; the button remains disabled until then. If no server version exists,
+**Create first server version** is shown directly and requires confirmation before
+uploading. Review, merge, and adoption require an available server version.
+Automatic sync publishes encrypted local changes and receives remote ciphertext
+with Vault closed or locked. Private durable UUID receipts prevent duplicate uploads
+after lost responses. Remote changes are staged without replacing the active vault;
+review/adoption/merging still requires local unlock. Conflicts pause publishing,
+not reception. Account/token/root changes disable the binding. Disable works offline.
+The existing service waits 30 seconds between rounds; no new service or dependency.
+
+### Serverabgleich: lokale Änderungsvorschau
+
+„Änderungen prüfen“ lädt die ausgewählte verschlüsselte Fassung und vergleicht sie
+im lokalen Broker mit dem entsperrten Tresor. Geprüfte Prüfsummen binden beide
+Fassungen; weder Tresordatei noch Freigaben werden bei der Vorschau verändert.
+Die Vorschau zählt neue Einträge und aufzubewahrende Konfliktkopien. Passwort,
+Felder und Titel gehen dabei nicht an den Server. Anhänge/eigene Symbole bleiben
+beim konservativen Zusammenführen weiterhin eine ausdrückliche Formatgrenze.
+Beim ersten Abgleich ist „Erste Serverfassung erstellen“ direkt sichtbar. Danach
+liegen Veröffentlichen und Entfernen früherer Serverfassungen unter „Weitere
+Optionen“. Hintergrundtransport funktioniert weiterhin geschlossen/gesperrt.

@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from lumen_i18n import tr, worker_environment
 
 REMOTE = 'https://github.com/ativaro/lumen.git'
@@ -203,6 +204,9 @@ def apply(revision, selected):
     report(finished=True, success=not failures, progress=100,
            message=tr('Aktualisiert. Geöffnete Apps übernehmen Änderungen beim nächsten Start; Panels bei der nächsten Anmeldung.') if not failures else
                    tr('Nicht alles wurde aktualisiert. Fehlgeschlagene Schritte nach einer erneuten Prüfung wiederholen.'))
+    from lumen_notifications import announce
+    announce('Lumen Updater',revision,tr('Aktualisierung abgeschlossen') if not failures else tr('Aktualisierung braucht deine Aufmerksamkeit'),
+             target='app:updater',attention=bool(failures),revision=time.time_ns())
     return not failures
 
 

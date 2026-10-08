@@ -1,4 +1,4 @@
-"""Private reading copies and an isolated MuPDF renderer; annotations stay in SQLite."""
+"""Private reading copies and the isolated Lumen renderer; annotations stay in SQLite."""
 from lumen_i18n import tr
 import base64
 import html
@@ -6,70 +6,99 @@ import json
 from pathlib import Path
 import sys
 import uuid
-import zipfile
 from tools_data import ArticleParser, fetch_article
 
 MAX_FILE=200*1024**2
 
 
+ENGINE='lumen-1'
+
+
 def validate_epub(path):
-    with zipfile.ZipFile(path) as archive:
-        entries=archive.infolist()
-        if len(entries)>10000 or sum(e.file_size for e in entries)>256*1024**2:
-            raise ValueError(tr('Dieses EPUB enthält zu viele oder zu große Inhalte.'))
-        if any(e.file_size>32*1024**2 or e.flag_bits&1 for e in entries):
-            raise ValueError(tr('Verschlüsseltes oder übergroßes EPUB nicht unterstützt.'))
-        if 'mimetype' not in archive.namelist() or archive.read('mimetype')!=b'application/epub+zip':
-            raise ValueError(tr('Keine gültige EPUB-Datei.'))
+    from lumen_reflow import validate_epub as validate
+    return validate(path)
 
 
 def opened(path,password=''):
-    import pymupdf
+    from lumen_pdf import Document
+    from lumen_pdf_security import PasswordRequired
     path=Path(path)
     if not path.is_file() or path.stat().st_size>MAX_FILE:raise ValueError(tr('Lesedatei fehlt oder ist größer als 200 MiB.'))
-    if path.suffix.lower()=='.epub':validate_epub(path)
-    document=pymupdf.open(path)
-    if document.needs_pass and not document.authenticate(password):document.close();return None
-    if document.is_reflowable:document.layout(width=600,height=850,fontsize=14)
-    if not 0<len(document)<=10000:document.close();raise ValueError(tr('Das Dokument muss 1 bis 10.000 Seiten enthalten.'))
+    try:
+        if path.suffix.lower()=='.pdf':document=Document(path,password=password)
+        else:
+            from lumen_reflow import ReflowBook
+            document=ReflowBook(path)
+    except PasswordRequired:return None
+    if not 0<len(document)<=10000:raise ValueError(tr('Das Dokument muss 1 bis 10.000 Seiten enthalten.'))
     return document
 
 
+def reanchor(document,notes,reflow=False):
+    """Keep legacy anchors, and replace coordinates only for an exact unique quote."""
+    import re
+    result=[];cache={}
+    def words(index):
+        if index not in cache:cache[index]=document.page(index).words
+        return cache[index]
+    for original in notes:
+        if original.get('engine')==ENGINE:result.append(original);continue
+        note=dict(original,legacy_anchor=original.get('legacy_anchor') or {key:original.get(key) for key in ('page','words','selection')},words=[],selection=[],engine=ENGINE)
+        quote=re.findall(r'\S+',note.get('text',''));matches=[]
+        if quote:
+            for index in (range(len(document)) if reflow else [note['page']]):
+                if not 0<=index<len(document):continue
+                values=words(index);strings=[w[4] for w in values]
+                for first in range(len(strings)-len(quote)+1):
+                    if strings[first:first+len(quote)]==quote:matches.append((index,first,first+len(quote)))
+                if len(matches)>1:break
+        if len(matches)==1:
+            index,first,end=matches[0];note.update(page=index,words=list(range(first,end)),anchor_status='matched')
+            text=document.page(index).text();pattern=r'(?<!\S)'+r'\s+'.join(re.escape(word) for word in quote)+r'(?!\S)';found=list(re.finditer(pattern,text))
+            if len(found)==1:
+                hit=found[0];note['selection']=[len(text[:offset].encode('utf-16-le'))//2 for offset in (hit.start(),hit.end())]
+        elif not quote and not reflow and 0<=note['page']<len(document):note['anchor_status']='page'
+        else:note['anchor_status']='unresolved'
+        result.append(note)
+    return result
+
+
 def process(payload):
-    import pymupdf
-    path=Path(payload['path']);expected=payload.get('stamp')
-    if expected and expected!=[path.stat().st_size,path.stat().st_mtime_ns]:raise ValueError(tr('Die Lesekopie wurde extern geändert. Als neue Datei importieren, damit Markierungen korrekt bleiben.'))
+    from lumen_pdf_page import png
+    from lumen_pdf_worker import signature
+    path=Path(payload['path']);before=signature(path);expected=payload.get('stamp')
+    if expected and expected!=[before[2],before[3]]:raise ValueError(tr('Die Lesekopie wurde extern geändert. Als neue Datei importieren, damit Markierungen korrekt bleiben.'))
     document=opened(path,payload.get('password',''))
     if document is None:return dict(locked=True)
     with document:
-        result=dict(pages=len(document),toc=document.get_toc()[:2000],title=document.metadata.get('title') or '',locked=False)
+        result=dict(pages=len(document),toc=document.toc()[:2000],title=document.metadata.get('title') or '',locked=False,engine=ENGINE)
         action=payload['action']
-        if action=='metadata':return result
         if action=='text':
             parts=[]; size=0
-            for page in document:
-                text=page.get_text(sort=True); size+=len(text)
+            for index in range(len(document)):
+                text=document.page(index).text(); size+=len(text)
                 if size>120000:raise ValueError(tr('Mehr als 120.000 Zeichen; bitte einen kürzeren Auszug importieren.'))
                 parts.append(text)
-            return dict(text='\n\n'.join(parts))
-        if action=='search':
+            result=dict(text='\n\n'.join(parts))
+        elif action=='search':
             needle=payload['query'].strip().casefold()
             if not needle or len(needle)>200:raise ValueError(tr('Suchbegriff mit 1 bis 200 Zeichen eingeben.'))
-            hits=[]
+            result=[]
             for index in range(len(document)):
-                text=document[index].get_text();offset=text.casefold().find(needle)
-                if offset>=0:hits.append(dict(page=index,text=text[max(0,offset-60):offset+180].replace('\n',' ')))
-                if len(hits)>=100:break
-            return hits
-        index=int(payload.get('page',0))
-        if not 0<=index<len(document):raise ValueError(tr('Seite nicht vorhanden.'))
-        page=document[index];words=[]
-        for word in page.get_text('words',sort=True)[:30000]:
-            rect=pymupdf.Rect(word[:4])*page.rotation_matrix;words.append([*rect,word[4],word[5],word[6]])
-        scale=min(2,1800/max(page.rect.width,1),2600/max(page.rect.height,1))
-        if scale<=0:raise ValueError(tr('Ungültige Seitengröße.'))
-        pixmap=page.get_pixmap(matrix=pymupdf.Matrix(scale,scale),alpha=False,colorspace=pymupdf.csRGB)
-        result.update(page=index,width=page.rect.width,height=page.rect.height,words=words,text=page.get_text(sort=True)[:150000],png=base64.b64encode(pixmap.tobytes('png')).decode())
+                text=document.page(index).text();offset=text.casefold().find(needle)
+                if offset>=0:result.append(dict(page=index,text=text[max(0,offset-60):offset+180].replace('\n',' ')))
+                if len(result)>=100:break
+        elif action=='page':
+            index=int(payload.get('page',0))
+            if payload.get('legacy'):
+                result['notes']=reanchor(document,payload.get('notes',[]),path.suffix.lower()!='.pdf')
+                result['position_changed']=path.suffix.lower()!='.pdf'
+                index=min(max(0,index),len(document)-1)
+            if not 0<=index<len(document):raise ValueError(tr('Seite nicht vorhanden.'))
+            page=document.page(index);scale=min(2,1800/page.width,2600/page.height)
+            result.update(page=index,width=page.width,height=page.height,words=page.words[:30000],text=page.text()[:150000],png=base64.b64encode(png(page.render(scale))).decode())
+        elif action!='metadata':raise ValueError('Unbekannte Reader-Aktion.')
+        if signature(path)!=before:raise ValueError('Lesekopie wurde während des Lesens verändert.')
         return result
 
 
@@ -117,11 +146,13 @@ def add_note(library,key,page,text='',words=None,selection=None):
     if not 0<=page<record.get('pages',0) or len(text)>20000:raise ValueError(tr('Ungültige Markierung.'))
     notes=record.get('notes',[])
     if len(notes)>=3000:raise ValueError(tr('Maximal 3000 Markierungen pro Buch.'))
-    note=dict(id=uuid.uuid4().hex,page=page,text=text,note='',words=words or [],selection=selection or [])
+    note=dict(id=uuid.uuid4().hex,engine=ENGINE,page=page,text=text,note='',words=words or [],selection=selection or [])
     library.update(key,notes=notes+[note]);return note
 
 
 def main():
+    from lumen_pdf_worker import limits
+    limits()
     try:print(json.dumps(process(json.load(sys.stdin)),ensure_ascii=False));return 0
     except Exception as error:print(str(error)[:600],file=sys.stderr);return 1
 

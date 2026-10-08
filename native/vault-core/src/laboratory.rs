@@ -135,6 +135,16 @@ fn dispatch(session: &mut Option<Session>, root: &Path, request: Fields) -> Resu
             )?);
             Ok(vec![])
         }
+        "restore-sync" if request.len() == 4 => {
+            *session = None;
+            *session = Some(Session::restore_checked(
+                root,
+                Path::new(arg(1)?),
+                text(arg(2)?),
+                Some(arg(3)?),
+            )?);
+            Ok(vec![])
+        }
         "lock" if request.len() == 1 => {
             *session = None;
             Ok(vec![])
@@ -178,9 +188,17 @@ fn dispatch(session: &mut Option<Session>, root: &Path, request: Fields) -> Resu
                             "LumenFavorite",
                             "LumenTrash",
                         ] {
-                            result.push(session.field(id, key).unwrap_or_else(|_| {
+                            let mut value = session.field(id, key).unwrap_or_else(|_| {
                                 text(if key == "LumenType" { "login" } else { "" })
-                            }));
+                            });
+                            if key == "Title"
+                                && session
+                                    .field(id, "LumenSyncSource")
+                                    .is_ok_and(|v| !v.is_empty())
+                            {
+                                value.push_str(" · Sync conflict");
+                            }
+                            result.push(value);
                         }
                     }
                     Ok(result)
@@ -323,6 +341,20 @@ fn dispatch(session: &mut Option<Session>, root: &Path, request: Fields) -> Resu
                 "generate" if request.len() == 1 => Ok(vec![generate_password()?]),
                 "backup" if request.len() == 2 => {
                     session.encrypted_backup(Path::new(arg(1)?))?;
+                    Ok(vec![])
+                }
+                "preview-sync" if request.len() == 4 => {
+                    let (added, conflicts) =
+                        session.preview_combine(Path::new(arg(1)?), arg(2)?, arg(3)?)?;
+                    Ok(vec![text(&added.to_string()), text(&conflicts.to_string())])
+                }
+                "merge-sync" if request.len() == 4 => {
+                    let (added, conflicts) =
+                        session.combine_file(Path::new(arg(1)?), arg(2)?, arg(3)?, true)?;
+                    Ok(vec![text(&added.to_string()), text(&conflicts.to_string())])
+                }
+                "adopt-sync" if request.len() == 4 => {
+                    session.adopt_file(Path::new(arg(1)?), arg(2)?, arg(3)?)?;
                     Ok(vec![])
                 }
                 _ => Err(Error::InvalidInput),

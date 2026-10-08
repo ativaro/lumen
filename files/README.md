@@ -45,9 +45,33 @@ Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. Au
 - **Strg+L:** Pfad eingeben. **Alt+Links/Rechts/Hoch:** Verlauf / übergeordneter Ordner. Die seitlichen **Vor-/Zurück-Tasten der Maus** navigieren ebenfalls im Verlauf, unabhängig davon, über welchem Fensterbereich die Maus steht. Als Browser-Tasten gemeldete Signale werden ebenfalls unterstützt. In der Bildgalerie wechseln sie das Bild. **Strg+T / Strg+W:** Tab öffnen / schließen. **Strg+Tab:** nächster Tab.
 - **Strg+C / X / V:** kopieren / ausschneiden / einfügen. **F2:** umbenennen. **Strg+Umschalt+N:** Ordner erstellen. **Entf:** nach Bestätigung in den Systempapierkorb verschieben.
 - **Langsamer zweiter Klick auf den ausgewählten Dateinamen:** direkt in Liste oder Bildraster umbenennen; die Erweiterung bleibt zunächst unmarkiert. **Enter** bestätigt, **Esc** verwirft. Ein schneller Doppelklick öffnet weiterhin die Datei.
-- **Eigenschaften … / Alt+Enter:** Eigenschaften einer einzelnen Datei oder eines Ordners im nativen KDE-Dialog. „Allgemein“ zeigt Typ, „Öffnen mit“ samt Änderung der Standard-App, Speicherort, Größe, belegten Speicher und verfügbare Zeitstempel. Ordner zeigen zusätzlich Dateisystem und Einhängepunkt; „Berechtigungen“ verwaltet Zugriff, Eigentümer und Gruppe entsprechend deinen Rechten. Nicht jeder Netzwerkdienst liefert alle Werte. Ein Rechtsklick auf freien Hintergrund öffnet die Eigenschaften des aktuellen Ordners, auch wenn noch eine Datei ausgewählt ist. Voraussetzung: `kde-cli-tools`, auch über die Lumen-Einrichtung „NAS und Netzwerkordner“ installierbar.
+- **Eigenschaften … / Alt+Enter:** kompakte Lumen-Infokarte für Dateien und Ordner; „Mehr Details“ öffnet die vollständige Übersicht. Verfügbare Informationen und Bearbeitungsrechte hängen vom lokalen Dateisystem oder dem verbundenen Dienst ab. Online-Konten müssen vorher verbunden sein.
 - **Strg+H:** versteckte Dateien. **Ort merken** über das Lesezeichen-Symbol neben „Server verbinden“ ergänzt einen Favoriten. Rechtsklick auf einen gemerkten Ort entfernt ihn wieder. Die kompakte Seitenleiste zeigt bis zu zehn Orte auch bei 1000 × 640 Pixeln ohne Scrollen; lange Namen werden gekürzt, vollständige Pfade stehen im Tooltip.
 - Ziehen von Dateien kopiert sie in den Zielordner. Bestehende Ziele werden mit einer Fehlermeldung beibehalten.
+
+## Kompakte Aktionskarte
+
+Rechtsklick auf eine Datei oder Auswahl öffnet eine Karte mit den vier festen,
+beschrifteten Schnellaktionen **Kopieren**, **Ausschneiden**, **Umbenennen** und
+**Papierkorb**. Öffnen und die Einzelvorschau bleiben direkt erreichbar.
+**Organisieren**, **Sichern & synchronisieren** und **Mit Lumen bearbeiten** bündeln
+alle weiteren vorhandenen Befehle, einschließlich eigener Aktionen und App-Übergaben.
+Drive verwendet dieselbe Karte mit seinen tatsächlich verfügbaren Befehlen.
+
+Das abgesetzte Suchfeld **Alle Aktionen durchsuchen …** (auch **Strg+F** bei geöffneter Karte) durchsucht
+Befehle und Kategorien. Die Liste zeigt Befehlsname und dezente Kategorie in
+getrennten Zeilen; ihre Höhe passt sich bis zu sieben sichtbaren Treffern an.
+**Enter** führt den gewählten Originalbefehl aus,
+**Esc** schließt die Suche; deaktivierte Befehle bleiben gesperrt. **Tab** erreicht
+die Schnellaktionen, **Enter/Leertaste** löst die fokussierte Schaltfläche aus.
+Bestätigungen und Schutzregeln der bestehenden Dateiaktionen bleiben erhalten.
+Ein Rechtsklick auf die freie Fläche zeigt Einfügen, Neuer Ordner und Rückgängig;
+diese Befehle bleiben zusätzlich unter Organisieren und in der Aktionssuche verfügbar.
+Seitliche Maustasten lösen in der Karte und ihren Untermenüs keine Dateiaktion aus.
+Die Karte folgt dem eingestellten Theme und ist auf Deutsch und Englisch verfügbar.
+
+Prüfung: `QT_QPA_PLATFORM=offscreen LUMEN_LANGUAGE=de PYTHONPATH=files python -m unittest test_file_action_menu test_drive_browser`
+(im Repository-Hauptverzeichnis); Interop-Prüfungen separat über `test_interop_ui`.
 
 ## Online-Konten
 
@@ -314,7 +338,7 @@ Arbeitsordner; Projektanweisungen aus dem durchsuchten Ordner werden nicht
 automatisch geladen. Modellfehler lassen bisherige lokale Treffer erhalten.
 
 Ohne persistenten Index: bis zu 1 MiB Text pro Datei, PDF-Textextraktion mit
-`pdftotext` bis 128 MiB Dateigröße und 12 Sekunden pro PDF. Maximal 500 Treffer
+den eigenen PDF-Worker bis 128 MiB Dateigröße und 12 Sekunden pro PDF. Maximal 500 Treffer
 oder 100.000 besuchte Einträge je Suche. Teilweise durchsuchte, nicht lesbare und
 textlose Dateien werden im Ergebnisstatus gezählt. Versteckte Einträge sind
 optional, Symlinks und Spezialdateien werden ausgelassen. Keine OCR- oder
@@ -443,7 +467,7 @@ Gemessener Suchkern: 30.000 kleine Dateien in 100 Ordnern, 100 Treffer, erster T
 
 ## Voraussetzungen
 
-Python 3, PySide6/Qt 6 einschließlich QtDBus, QtSvg und QtQuick (`pyside6`), PyGObject/GIO, Pillow, GNU `du`/`find`, Poppler (`pdfinfo`, `pdftoppm`, `pdftotext`), FFmpeg (`ffprobe`, `ffmpeg`), KIO-FUSE und KIO-Extras. Sämtliche Komponenten waren auf diesem Rechner vorhanden. Dateioperationen nutzen die dokumentierte [GIO-Semantik](https://docs.gtk.org/gio/method.File.move.html); Bildvorschauen die [Qt-Bilddekodierung](https://doc.qt.io/qt-6/qimagereader.html), mit Prüfung gegen Qt 6.
+Python 3, PySide6/Qt 6 einschließlich QtDBus, QtSvg und QtQuick (`pyside6`), PyGObject/GIO, Pillow, GNU `du`/`find`, OpenSSL 3 (für Passwort-PDFs), FFmpeg (`ffprobe`, `ffmpeg`), KIO-FUSE und KIO-Extras. Sämtliche Komponenten waren auf diesem Rechner vorhanden. Dateioperationen nutzen die dokumentierte [GIO-Semantik](https://docs.gtk.org/gio/method.File.move.html); Bildvorschauen die [Qt-Bilddekodierung](https://doc.qt.io/qt-6/qimagereader.html), mit Prüfung gegen Qt 6.
 
 ## Entfernen
 
@@ -499,7 +523,7 @@ Unabhängige Änderungen werden in beide Richtungen übernommen. Bei konkurriere
 
 ### Bilder und Scans suchen
 
-**Strg+Umschalt+F** durchsucht Texte, PDFs, Bildbeschreibungen und optional lokal erkannte Schrift in Bildern/scannierten PDF-Seiten. Die Treffer zeigen Fundstelle, PDF-Seite, Herkunft und Vorschau. OCR nutzt Tesseract (Deutsch/Englisch) und Poppler; fehlende Pakete sind über **Texterkennung einrichten** installierbar. Ergebnisse werden privat zwischengespeichert und nach Dateiänderungen neu berechnet. OCR ist auf 80 Seiten pro PDF und 128 MiB pro Datei begrenzt; unvollständige und nicht lesbare Dateien werden gezählt.
+**Strg+Umschalt+F** durchsucht Texte, PDFs, Bildbeschreibungen und optional lokal erkannte Schrift in Bildern/scannierten PDF-Seiten. Die Treffer zeigen Fundstelle, PDF-Seite, Herkunft und Vorschau. OCR nutzt Tesseract (Deutsch/Englisch) und den eigenen PDF-Kern; fehlende Pakete sind über **Texterkennung einrichten** installierbar. Ergebnisse werden privat zwischengespeichert und nach Dateiänderungen neu berechnet. OCR ist auf 80 Seiten pro PDF und 128 MiB pro Datei begrenzt; unvollständige und nicht lesbare Dateien werden gezählt.
 
 Die ausdrücklich auswählbare **Bildinhalte mit Lumen erkennen**-Option sendet verkleinerte Bilder an den eingerichteten Modellanbieter (ein bildfähiges Modell ist nötig). Bis zu 100 neue Beschreibungen werden pro Suche angelegt. Spätere Suchläufe verwenden diese lokal, ohne die Bilder erneut zu senden; **Mit Lumen erweitern** ergänzt deutsche/englische Synonyme. Bilder und OCR-Texte bleiben außerhalb des Repositories. Die technische OCR-Anbindung folgt der [Tesseract-Dokumentation](https://tesseract-ocr.github.io/tessdoc/Command-Line-Usage.html).
 
@@ -535,7 +559,7 @@ PDFs auswählen und **Kontextmenü → Dokumentenwerkstatt** öffnen (oder über
 
 **Schwärzen** aktivieren und Bereiche in der großen Vorschau aufziehen. Beim Export werden Inhalte tatsächlich entfernt und betroffene Seiten anschließend als neues Bild aufgebaut, damit alte Inhalte und versteckte Textebenen dieser Seiten nicht enthalten bleiben. Die optionale lokale Texterkennung erzeugt danach eine neue Textebene aus dem sichtbaren Ergebnis. Die Qualität ist mit 150/200/300 dpi wählbar. Originale bleiben unangetastet. Strg+Mausrad vergrößert die Vorschau.
 
-Benötigt das optionale Paket `python-pymupdf`, für OCR außerdem Tesseract-Sprachdaten; beides im Setup verfügbar. Unterstützt unverschlüsselte PDFs bis 512 MiB und Arbeitsmappen bis 2.000 Seiten. Quelldateien werden gegen Änderungen während der Bearbeitung geprüft; Exporte werden vor der Veröffentlichung erneut geöffnet und geprüft. Grundlage: [PyMuPDF-Seitenbearbeitung](https://pymupdf.readthedocs.io/en/latest/page.html).
+PDF-Verarbeitung ist eingebaut; OCR benötigt zusätzlich Tesseract-Sprachdaten aus dem Setup. Unterstützt unverschlüsselte PDFs bis 512 MiB und Arbeitsmappen bis 2.000 Seiten. Quelldateien werden gegen Änderungen während der Bearbeitung geprüft; Exporte werden vor der Veröffentlichung erneut geöffnet und geprüft. Formatumfang und ausdrücklich abgelehnte Konstrukte: [eigener PDF-Kern](../SPEC-pdf-core.md).
 
 Die Dokumentenwerkstatt ist standardmäßig ausgeschaltet. Unter **Einstellungen →
 Lumen Files → PDF-Bearbeitung → Dokumentenwerkstatt aktivieren** einschalten und
@@ -599,8 +623,8 @@ The shared “Send to Lumen” menu accepts selected text from Wissen, Reader, I
 other apps. Files can send a PDF. Results can return to notes, mail drafts and projects.
 Translate records participate in local object search and Vault app backups.
 
-PDF is an additional tab, for documents with a text layer (optional PyMuPDF dependency
-in the setup wizard). Original/result page previews and new-file export preserve the
+PDF is an additional tab, for documents with a text layer, using the built-in Lumen
+PDF engine. Original/result page previews and new-file export preserve the
 original. Page boxes, images, vector lines and links are retained; fonts may be
 substituted or reduced to fit. Always review the output. Scans, annotations, forms,
 signatures and rotated text are refused; embedded image text requires separate OCR.
@@ -837,3 +861,89 @@ Bereiche bleiben auf der gemeinsamen Einstellungsseite verfügbar.
 
 Prüfung: `QT_QPA_PLATFORM=offscreen python -m unittest test_meeting_radio` im
 Verzeichnis `files` mit einem isolierten Benutzerprofil ausführen.
+
+
+### Lumen Drive im Dateifenster
+
+**Lumen Drive** in der Seitenleiste verwendet dieselbe Listen-/Kachelansicht,
+Tabs, Pfadleiste und Zurück/Vor-Navigation wie andere Verzeichnisse. Die bestehende
+Serverkopplung wird übernommen. Bereich und Unterordner öffnen; Suchen filtert
+den angezeigten Ordner. Kopieren/Einfügen und Drag-and-drop übertragen Dateien
+und Ordner, Ausschneiden/Einfügen verschiebt innerhalb desselben Serverbereichs.
+Umbenennen, neue Ordner und Papierkorb laufen über die bestehenden Serverrechte.
+Nicht leere Serverordner müssen vor dem Löschen geleert werden.
+
+Öffnen/Vorschau lädt eine geprüfte lokale Kopie in den privaten Cache; Änderungen
+in externen Anwendungen werden nicht ungefragt hochgeladen. Für dauerhafte
+beidseitige Bearbeitung im Kontextmenü **Offline verfügbar …** wählen. Dort wird
+der ausgewählte Serverordner im bestehenden Einrichtungsdialog vorausgewählt.
+64 MB pro Datei gelten auch beim manuellen Transfer; vorhandene lokale Dateien
+werden nicht überschrieben. Neue Serverfassungen benötigen eine bewusste Bestätigung.
+
+
+Notizbuch-Identität: Neu ausgewählte Notizordner verwenden Dateisystemkennung und
+Inode statt ausschließlich der flüchtigen Laufwerksnummer. Ein Remount darf den
+Abgleich nicht fälschlich als ausgetauschtes Notizbuch blockieren. Alte Kennungen
+bleiben lesbar; ein tatsächlich ersetzter Ordner benötigt weiterhin eine bewusste
+Neuauswahl. Der Notizabgleich bleibt an Konto und ausgewähltes Notizbuch gebunden.
+
+
+### Native Dateieigenschaften
+
+**Eigenschaften …** im Kontextmenü oder **Alt+Enter** öffnet eine kompakte
+Infokarte. **Mehr Details** erweitert denselben Dialog um Speicheraufteilung,
+Sicherungsstatus, Verknüpfungen und bestehende Versionsansichten; noch nicht
+übernommene Eingaben bleiben erhalten. Größe, Prüfsumme und Metadaten werden
+im Hintergrund ermittelt. Ordnergrößen folgen keinen symbolischen Links;
+SHA-256 wird nur auf Wunsch berechnet und erkennt währenddessen geänderte Dateien.
+
+Name und einfache lokale Zugriffsrechte werden erst mit **Übernehmen** gespeichert.
+Keine rekursiven Rechteänderungen, kein Überschreiben vorhandener Namen.
+Eigentümer, Gruppen, Sonderrechte und erweiterte ACLs bleiben unverändert;
+NAS-Rechte werden nur angezeigt. Drive verwendet Servermetadaten und bestehende
+Serverrechte, ohne Inhalte dafür herunterzuladen; Umbenennen ist revisionsgebunden.
+Ein passender Sicherungsplan ist ausdrücklich kein Nachweis gesicherter Inhalte.
+
+Gezielte Prüfung: `QT_QPA_PLATFORM=offscreen LUMEN_LANGUAGE=de python -m unittest
+test_file_properties` aus dem Verzeichnis `files`. Die Tests verwenden temporäre
+Dateien, keine Benutzerdateien oder echten Serverzugänge.
+
+### Arbeitsräume: Weiterarbeiten und Werkbank
+
+Unter **Arbeitsräume** in Lumen bzw. **Arbeitsräume · Weiterarbeiten** in Files
+zeigt die Startseite den zuletzt gewählten Raum und weitere Räume. **Raum ansehen**
+öffnet die Werkbank; **Weiterarbeiten** stellt den gespeicherten Arbeitsstand
+wieder her. Ein neuer Raum benötigt zunächst nur einen Namen und einen Ordner.
+
+Über **Hinzufügen** lassen sich Originaldateien, Wissen-Notizen, Weblinks, das
+aktuelle Gespräch und bestehende Aufträge verknüpfen. Das Menü **···** entfernt
+oder verschiebt Verknüpfungen und erlaubt für Dateien/Weblinks das Öffnen beim
+Weiterarbeiten. Entfernen löscht keine Originale. Wissen-Vorschauen werden live
+gelesen; Änderungen erfolgen weiterhin in Wissen. Dateien, Aufträge und Verlauf
+besitzen eigene Tabs. Globale Transfers und Änderungen bleiben unter **Aktivität**;
+Arbeitsmodi öffnen Lumen System.
+
+**Besprechen** öffnet die Frage mit dem Raumkontext als bearbeitbaren Lumen-Entwurf.
+Ein bereits vorhandener Gesprächsentwurf wird nicht ohne Rückfrage ersetzt.
+Die bestehende Raum-/Projektablage bleibt erhalten; keine neue Kopie der Dateien,
+keine automatisch erzeugten Aufgaben und keine zusätzliche Cloudübertragung.
+
+### Antwortgestaltung in Lumen und Search
+
+Markdown-Antworten verwenden einen gemeinsamen Qt-Parser (`answer_blocks.py`):
+Fließtext mit ruhiger Typografie, Tabellen und Checklisten als Ergebniskarten,
+Code und Zitate in getrennten Bereichen. Schmale Tabellen wechseln automatisch
+zu Datenzeilen; alle Zellen bleiben sichtbar. Die vorhandenen interaktiven
+Werkzeugansichten mit Formularen/Reglern bleiben separat verfügbar.
+
+Checkboxen sind lokale Lesehilfen: Sie lösen keine Werkzeuge aus und verändern
+weder Dateien noch den Engine-Verlauf. Eigene Haken bleiben während laufender
+Antworten erhalten; sie werden nicht dauerhaft gespeichert. Kopieren/Speichern
+verwendet weiterhin den ursprünglichen Antworttext. Antworten laden keine Bilder
+oder lokalen Ressourcen; Links dürfen ausschließlich HTTP(S) öffnen. Erkennung
+über Markdown-Strukturen, keine sprachabhängigen Schlüsselwörter.
+
+Prüfung aus `files`: `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software python
+-m unittest test_answer_blocks test_search_qml test_studio`. Die Prüffälle verwenden
+synthetische Antworten und temporäre Ablagen; optional schreibt
+`LUMEN_ANSWER_ARTIFACTS` Bildschirmansichten in ein vorhandenes Verzeichnis.

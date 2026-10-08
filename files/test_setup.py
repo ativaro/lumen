@@ -12,6 +12,10 @@ import lumen_setup as setup
 
 
 class SetupTest(unittest.TestCase):
+    def test_pdf_features_are_built_in_without_optional_packages(self):
+        with patch.object(setup,'executable',side_effect=AssertionError('PDF must not probe optional tools')):
+            self.assertEqual(setup.missing_packages(['reader','workshop','translate_pdf','documents']),[])
+
     def test_managed_engine_keeps_compatible_databases_and_isolates_foreign_schema(self):
         import sqlite3
         from assistant_backend import managed_opencode, opencode_database
@@ -199,10 +203,17 @@ class SetupTest(unittest.TestCase):
 
 
 class SetupDialogTest(unittest.TestCase):
+    def setUp(self):
+        state = tempfile.TemporaryDirectory(prefix='lumen-setup-test-')
+        self.addCleanup(state.cleanup)
+        environment = patch.dict(os.environ, {'LUMEN_DATA': state.name})
+        environment.start(); self.addCleanup(environment.stop)
+
     @classmethod
     def setUpClass(cls):
         from app import create_app
-        cls.app = create_app()
+        from PySide6.QtWidgets import QApplication
+        cls.app = QApplication.instance() or create_app()
 
     def test_wizard_preserves_config_and_only_saves_auth_after_click(self):
         from PySide6.QtCore import QSettings
@@ -607,7 +618,7 @@ class SetupDialogTest(unittest.TestCase):
             dialog = SetupDialog(settings=QSettings(tmp + '/prefs.ini', QSettings.IniFormat))
             self.assertTrue(dialog.dependency_details.body.isHidden())
             self.assertEqual([key for key, item in dialog.features.items() if item.isChecked()],
-                             [key for key in dialog.features if key in RECOMMENDED])
+                             [key for key in dialog.features if key in RECOMMENDED or not setup.FEATURES[key][1]])
             dialog.features['network'].setChecked(False)
             dialog.features['ocr'].setChecked(True)
             attempts = []; codes = iter([1, 0])
@@ -626,7 +637,7 @@ class SetupDialogTest(unittest.TestCase):
                     self.assertIsNone(dialog.job)
                     self.assertEqual(dialog.stack.currentIndex(), expected_page)
                     self.assertTrue(dialog.next.isEnabled())
-            self.assertEqual(attempts[0][1:], ['packages', 'engine', 'documents', 'media', 'ocr'])
+            self.assertEqual(attempts[0][1:], ['packages', 'engine', 'media', 'ocr'])
             self.assertEqual(attempts[0], attempts[1])
             dialog.back.click()
             with patch.object(dialog, 'start_job') as start:
@@ -664,7 +675,7 @@ class SetupDialogTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp + '/data'}):
             settings = QSettings(tmp + '/prefs.ini', QSettings.IniFormat)
             dialog = SetupDialog(settings=settings, page=4)
-            self.assertEqual(options(Store()), {'enabled': False, 'learn': False})
+            self.assertEqual(options(Store()), {'enabled': False, 'learn': False, 'solutions': True, 'automatic': True})
             dialog.personal.memory.setCurrentIndex(2)
             dialog.personal.persona.preset.setCurrentIndex(1)
             dialog.personal.persona.choose_preset(1)
@@ -673,10 +684,12 @@ class SetupDialogTest(unittest.TestCase):
             dialog.deleteLater()
             dialog = SetupDialog(settings=settings, page=4)
             dialog.personal.memory.setCurrentIndex(2)
+            dialog.personal.automatic.setChecked(False)
+            dialog.personal.solutions.setChecked(False)
             dialog.personal.persona.preset.setCurrentIndex(1)
             dialog.personal.persona.choose_preset(1)
             dialog.next.click()
-            self.assertEqual(options(Store()), {'enabled': True, 'learn': True})
+            self.assertEqual(options(Store()), {'enabled': True, 'learn': True, 'solutions': False, 'automatic': False})
             self.assertEqual(load(settings)['preset'], 'professional')
             dialog.deleteLater()
 
@@ -692,7 +705,7 @@ class SetupDialogTest(unittest.TestCase):
             Memory(Store()).configure(True, False)
             dialog.next.click()
             self.assertFalse(settings.value('setupCompleted', False, type=bool))
-            self.assertEqual(options(Store()), {'enabled': True, 'learn': False})
+            self.assertEqual(options(Store()), {'enabled': True, 'learn': False, 'solutions': True, 'automatic': True})
             self.assertIn('anderen Fenster', dialog.status.text())
             dialog.reject(); dialog.deleteLater()
 

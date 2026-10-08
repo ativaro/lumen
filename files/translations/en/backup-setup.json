@@ -25,5 +25,17 @@
   "Zu viele Sicherungsquellen.": "Too many backup sources.",
   "Zuerst die Einrichtung abschließen.": "Finish setup first.",
   "Kein bestätigter Sicherungsstand.": "No verified snapshot.",
-  "Wiederherstellungsprobe fehlgeschlagen.": "Restore test failed."
+  "Wiederherstellungsprobe fehlgeschlagen.": "Restore test failed.",
+  "Lumen Server zuerst unter Geräte mit diesem Desktop verbinden.": "First connect Lumen Server to this desktop under Devices.",
+  "Dieser Sicherungsplan gehört zu einer anderen Server-Verbindung.": "This backup plan belongs to a different server connection.",
+  "Serverzugang abgelehnt. Verbindung und Gerätefreigabe prüfen.": "Server access denied. Check the connection and device authorization.",
+  "Sicherungsserver nicht erreichbar oder Zertifikat ungültig.": "Backup server unreachable or certificate invalid.",
+  "Sicherungsziel stimmt nicht mit dem gekoppelten Server überein.": "The backup destination does not match the paired server.",
+  "Serversicherung fehlgeschlagen. Verbindung, Freigabe, Sicherungsschlüssel und Speicherplatz prüfen.": "Server backup failed. Check connectivity, authorization, backup key and storage space.",
+  "Ungültiges Sicherungsziel.": "Invalid backup destination.",
+  "Am Ziel liegt eine andere Sicherung.": "The destination contains a different backup.",
+  "Nur ein Sicherungsziel auswählen.": "Choose only one backup destination.",
+  "Bestehende Serversicherung zuerst mit ihrem bisherigen Schlüssel verbinden.": "First connect the existing server backup using its original key.",
+  "Wiederherstellungszugang im Server erneut freigeben.": "Grant recovery access again on the server.",
+  "Dieser Zugang ist nur zum Wiederherstellen freigegeben.": "This access is limited to recovery."
 }

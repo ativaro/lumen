@@ -158,9 +158,29 @@ Fassungen in `wissen-history`. Fensterzustand und letzte Notiz liegen unter
 Gedächtnisregister, Freigaben und Einstellungen liegen in der privaten lokalen
 Lumen-Datenbank; die Gedächtnisinhalte bleiben Markdown-Dateien.
 
+## Persönliche Notizen mit Lumen Server abgleichen
+
+Nach der Gerätekopplung im Server die Fähigkeit **Notizen synchronisieren**
+freigeben. In **Lumen Wissen → Einstellungen → Serverabgleich …** werden Server,
+Konto und persönlicher Ordner angezeigt. Erst **Diesen Notizordner synchronisieren**
+aktiviert den Abgleich; bei Installation und Kopplung bleibt er ausgeschaltet.
+
+Markdown-Texte werden mit dem privaten Serverbereich abgeglichen, manuell oder
+alle 60 Sekunden bei geöffnetem Wissen. Der Editor bleibt währenddessen nutzbar.
+Neue Servernotizen und erhaltene Konfliktfassungen erscheinen in der Sammlung
+**Server**. Parallele Änderungen sowie Änderung gegen Löschung behalten die
+bearbeitete Fassung; laufende Entwürfe werden nicht überschrieben. Löschungen
+werden ebenfalls übertragen, frühere lokale Fassungen bleiben im Verlauf.
+
+Anhänge, Ordnerstruktur, das Lumen-Gedächtnis und Team-Bereiche sind nicht Teil
+dieses Abgleichs. Text ist am Server lesbar, keine Ende-zu-Ende-Verschlüsselung.
+Maximal 5000 Servernotizen einschließlich Löschmarkern, 200 Titelzeichen und
+200.000 Textzeichen. Deaktivieren und Widerruf löschen keine vorhandenen Kopien;
+eine neue Gerätekopplung benötigt eine neue Aktivierung.
+
 ## Prüfung
 
-`PYTHONPATH=files QT_QPA_PLATFORM=offscreen python3 -m unittest test_memory test_wissen -v`
+`PYTHONPATH=files QT_QPA_PLATFORM=offscreen python3 -m unittest test_memory test_wissen test_wissen_sync -v`
 prüft Bereichstrennung, Freigaben, Lernen, Projektkontext, Vergessen, Abbruch,
 Migration, Konflikte, Wiederherstellung, Pfadgrenzen und die native Oberfläche.
 Die Modellintegration verwendet einen lokalen Testserver mit synthetischen

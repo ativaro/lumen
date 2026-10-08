@@ -165,12 +165,19 @@ class Runner(QObject):
         self.busy=False
         if self.engine:self.engine.shutdown()
         if self.fd is not None:os.close(self.fd); self.fd=None
-        if self.background and shutil.which('notify-send'):
+        if self.background:
             previous=self.projects.runs(self.task)[1:]
             changed=not previous or previous[0].get('result')!=result or not success
             if changed:
-                try:subprocess.Popen(['notify-send','-a',tr('Lumen Projekte'),tr('Lumen Projekte'),self.projects.get(self.task)['title']+' · '+tr('Neues Ergebnis' if success else 'Ausführung fehlgeschlagen')],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-                except OSError:pass
+                try:
+                    from lumen_notifications import publish
+                    from interop_data import Registry
+                    task=self.projects.get(self.task)
+                    target=Registry(self.projects.library.root.parent).register(dict(app='workbench', kind='record',
+                        id=task['project'], title=task['title'], position={'part':'item:'+self.task}))
+                    publish('Lumen Projekte', self.run, task['title'],
+                        tr('Neues Ergebnis' if success else 'Ausführung fehlgeschlagen'), target=target, attention=not success)
+                except (OSError, sqlite3.Error, ValueError):pass
         self.finished.emit(success,result)
 
     def cancel(self):

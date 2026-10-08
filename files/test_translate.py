@@ -53,28 +53,29 @@ class TextTest(unittest.TestCase):
 class PDFTest(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name)
-        import pymupdf
-        self.pdf=pymupdf
-        self.source=self.root/'source.pdf'
-        with pymupdf.open() as doc:
-            page=doc.new_page(width=450,height=500)
-            page.insert_text((40,60),'Hello world',fontsize=16)
-            page.draw_rect((35,100,400,250),color=(0,0,1))
-            image=pymupdf.Pixmap(pymupdf.csRGB,pymupdf.IRect(0,0,12,12),False);image.clear_with(90)
-            page.insert_image((40,300,130,390),pixmap=image)
-            page.insert_link(dict(kind=pymupdf.LINK_URI,**{'from':pymupdf.Rect(40,42,125,65),'uri':'https://example.org'}))
-            doc.save(self.source)
+        from test_pdf_fixtures import document,add_image,add_content,add_link
+        self.source=self.root/'source.pdf';writer=document(['Hello world'],size=(450,500),font_size=16,position=(40,60));page=writer.objects[writer.page_refs[0].number-1]
+        add_content(writer,page,b'0 0 1 RG 35 250 365 150 re S')
+        add_image(writer,page,bytes([90])*12*12*3,12,12,(40,300,130,390));add_link(writer,page);writer.save(self.source)
     def translations(self,manifest):return {s['id']:['Hallo Welt']*len(s['parts']) for s in manifest['segments']}
     def test_layout_images_lines_links_and_original_preserved(self):
         before=self.source.read_bytes();manifest=pdf.inspect(self.source);output=self.root/'translated.pdf'
         report=pdf.write(manifest,self.translations(manifest),output)
         self.assertEqual(self.source.read_bytes(),before);self.assertEqual(report['pages'],1)
-        with self.pdf.open(output) as doc,self.pdf.open(self.source) as source:
-            page=doc[0]
-            self.assertIn('Hallo Welt',page.get_text());self.assertNotIn('Hello world',page.get_text())
-            self.assertEqual(page.rect,source[0].rect);self.assertEqual(len(page.get_images()),1)
-            self.assertEqual([{k:v for k,v in d.items() if k!='seqno'} for d in page.get_drawings()], [{k:v for k,v in d.items() if k!='seqno'} for d in source[0].get_drawings()])
-            self.assertEqual([l.get('uri') for l in page.get_links()],['https://example.org'])
+        from lumen_pdf import Document,Ref,Stream
+        with Document(output) as doc,Document(self.source) as source:
+            page=doc.page(0);original=source.page(0)
+            self.assertIn('Hallo Welt',page.text());self.assertNotIn('Hello world',page.text())
+            self.assertEqual((page.width,page.height),(original.width,original.height));self.assertEqual(page.image_count,1)
+            # Independent geometry/pixel assertions retain the original vector and image contract.
+            self.assertIn(b'0 0 1 RG 35 250 365 150 re S',b' '.join(doc.contents(0).split()))
+            rendered=page.render();before_image=original.render()
+            for x,y in [(35,150),(100,250),(80,350),(180,180)]:self.assertEqual(rendered.pixelColor(x,y),before_image.pixelColor(x,y))
+            self.assertEqual([doc.resolve(a)['A']['URI'] for a in doc.pages[0]['Annots']],[b'https://example.org'])
+            for number in doc.xref:
+                if number:
+                    value=doc.resolve(Ref(number))
+                    if isinstance(value,Stream):self.assertNotIn(b'Hello world',doc.decode(value))
         with self.assertRaises(ValueError):pdf.write(manifest,self.translations(manifest),output)
     def test_missing_output_overflow_and_changed_source_never_publish(self):
         manifest=pdf.inspect(self.source);output=self.root/'new.pdf'
@@ -87,14 +88,14 @@ class PDFTest(unittest.TestCase):
         self.assertFalse(output.exists())
     def test_scans_and_annotations_refused(self):
         scan=self.root/'scan.pdf'
-        with self.pdf.open() as doc:
-            page=doc.new_page();image=self.pdf.Pixmap(self.pdf.csRGB,self.pdf.IRect(0,0,12,12),False);image.clear_with(90)
-            page.insert_image((20,20,200,200),pixmap=image);doc.save(scan)
+        from test_pdf_fixtures import document,add_image
+        from lumen_pdf import Document,Writer,Name
+        writer=document();page=writer.objects[writer.page_refs[0].number-1];add_image(writer,page,bytes([90])*12*12*3,12,12,(20,20,200,200));writer.save(scan)
         with self.assertRaises(ValueError):pdf.inspect(scan)
-        annotated=self.root/'annotated.pdf'
-        with self.pdf.open(self.source) as doc:
-            doc[0].add_text_annot((40,40),'Note');doc.save(annotated)
+        annotated=self.root/'annotated.pdf';writer=Writer();page=writer.copy_page(Document(self.source),0)
+        page['Annots'].append(writer.add({'Type':Name('Annot'),'Subtype':Name('Text'),'Rect':[40,40,60,60],'Contents':b'Note'}));writer.save(annotated)
         with self.assertRaises(ValueError):pdf.inspect(annotated)
+
 
 
 class NativeTest(unittest.TestCase):
@@ -129,11 +130,11 @@ class NativeTest(unittest.TestCase):
             self.assertFalse(w.engine.busy);self.assertTrue(w.body.isEnabled());self.assertEqual(w.output.toPlainText(),'')
             self.dispose(w)
     def test_pdf_native_import_preview_process_and_export(self):
-        import pymupdf
+        from test_pdf_fixtures import document
+        from lumen_pdf import Document
         from tools_translate import Translate
         source=self.root/'input.pdf'
-        with pymupdf.open() as doc:
-            doc.new_page().insert_text((40,60),'Helo world');doc.save(source)
+        document(['Helo world'],position=(40,60)).save(source)
         before=source.read_bytes()
         with patch('assistant_backend.OpenCodeBackend',FakeBackend):
             w=Translate(self.root/'tools');w.error=lambda message:self.fail(message);w.show()
@@ -146,7 +147,7 @@ class NativeTest(unittest.TestCase):
             with patch('tools_translate.QFileDialog.getSaveFileName',return_value=(str(target),'PDF')):
                 w.export_pdf();self.wait(lambda:not w.job)
             self.assertEqual(source.read_bytes(),before)
-            with pymupdf.open(target) as doc:self.assertIn('Hello world',doc[0].get_text())
+            with Document(target) as doc:self.assertIn('Hello world',doc.page(0).text())
             self.dispose(w)
 
     def test_mcp_processing_is_bounded_and_does_not_make_drafts(self):

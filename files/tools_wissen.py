@@ -28,7 +28,10 @@ class Wissen(ToolWindow):
         self.draft_timer=QTimer(self);self.draft_timer.setSingleShot(True);self.draft_timer.setInterval(450);self.draft_timer.timeout.connect(lambda:self.safe(self.save))
         self.autosave_timer=QTimer(self);self.autosave_timer.setSingleShot(True);self.autosave_timer.setInterval(1100);self.autosave_timer.timeout.connect(lambda:self.safe(self.save_note))
         self.poll_timer=QTimer(self);self.poll_timer.setInterval(5000);self.poll_timer.timeout.connect(self.poll);self.poll_timer.start()
+        self.poll_timer.timeout.connect(self.update_memory_status)
         QShortcut(QKeySequence.Save,self,activated=lambda:self.safe(self.save_note));QShortcut(QKeySequence.New,self,activated=lambda:self.safe(self.create));QShortcut(QKeySequence('Ctrl+F'),self,activated=self.search.setFocus)
+        from wissen_sync_ui import install
+        install(self)
         self.editor.setEnabled(False);QTimer.singleShot(0,self.initialize)
 
     def focus_record(self,key):self.current=key
@@ -45,32 +48,53 @@ class Wissen(ToolWindow):
         self.answer='';self.answer_sources=[];self.candidates.clear();self.response.clear();self.question.clear();self.tabs.setCurrentIndex(0)
         self.title.setPlaceholderText(tr('Eine Erinnerung festhalten') if area=='lumen' else tr('Deine erste Notiz'))
         for key,b in self.area_buttons.items():b.setChecked(key==area)
-        self.folder_action.setVisible(area=='user');self.share_folder_action.setVisible(area=='user');self.share_note.setVisible(area=='user');self.share_note.setEnabled(False);self.memory_options.setVisible(area=='lumen')
+        self.folder_action.setVisible(area=='user');self.share_folder_action.setVisible(area=='user');self.share_note.setVisible(True);self.share_note.setEnabled(False);self.memory_options.setVisible(area=='lumen')
         self.backup_action.setVisible(area=='user');self.backup_info.setVisible(area=='user')
         self.origin.hide()
         self.timestamp.clear();self.timestamp.hide()
-        self.collection_button.setVisible(area=='user')
+        self.collection_button.setVisible(area=='user');self.rename_collection_button.setVisible(area=='user')
         self.add_button.setAccessibleName(tr('Neue Erinnerung') if area=='lumen' else tr('Neue Notiz'));self.remove_action.setText(tr('Vergessen …') if area=='lumen' else tr('Notiz entfernen …'));self.remove_action.setEnabled(False)
         self.location.setText(tr('Lumen-Gedächtnis') if area=='lumen' else tr('Meine Notizen'));self.update_collections()
         config=memory.options(self.store)
-        for control,key in ((self.use_memory,'enabled'),(self.learn_memory,'learn')):control.blockSignals(True);control.setChecked(config[key]);control.blockSignals(False)
-        self.learn_memory.setEnabled(config['enabled']);self.initialize()
+        for control,key in ((self.use_memory,'enabled'),(self.learn_memory,'learn'),(self.reuse_solutions,'solutions'),(self.auto_memory,'automatic')):control.blockSignals(True);control.setChecked(config[key]);control.blockSignals(False)
+        self.learn_memory.setEnabled(config['enabled']);self.update_memory_status();self.initialize()
         if area=='lumen':self.collection='profile:global';self.update_collections();self.profile.update_notes([]);self.tabs.setCurrentIndex(3)
     def configure_memory(self):
         if self.loading:return
         enabled=self.use_memory.isChecked();learn=self.learn_memory.isChecked()
+        solutions=self.reuse_solutions.isChecked();automatic=self.auto_memory.isChecked()
         def done(config):
-            self.learn_memory.setEnabled(config['enabled']);self.status.setText(tr('Gedächtnis-Einstellungen gespeichert · gelten ab der nächsten Anfrage'))
-        self.work(tr('Gedächtnis-Einstellungen speichern …'),lambda job:memory.worker(job,self.store,'configure',enabled=enabled,learn=learn),done)
+            self.learn_memory.setEnabled(config['enabled']);self.update_memory_status();self.status.setText(tr('Gedächtnis-Einstellungen gespeichert · gelten ab der nächsten Anfrage'))
+        self.work(tr('Gedächtnis-Einstellungen speichern …'),lambda job:memory.worker(job,self.store,'configure',enabled=enabled,learn=learn,solutions=solutions,automatic=automatic),done)
+    def update_memory_status(self):
+        texts={'disabled':tr('Gedächtnis aus · keine neuen Suchanfragen'),
+               'not_installed':tr('Textsuche · Bedeutungsmodell noch nicht installiert'),
+               'ready':tr('Bedeutungssuche verfügbar · wird bei Bedarf geladen'),
+               'hybrid':tr('Bedeutungssuche bereit · Text- und Bedeutungstreffer werden kombiniert'),
+               'indexing':tr('Suchindex wird aufgebaut · Textsuche bleibt verfügbar'),
+               'no_sources':tr('Bedeutungssuche verfügbar · noch keine passenden freigegebenen Quellen'),
+               'unavailable':tr('Textsuche · Bedeutungssuche derzeit nicht verfügbar'),
+               'busy':tr('Letzte Suche: Textsuche · Suchmodell war beschäftigt'),
+               'capacity':tr('Textsuche · Grenze des lokalen Suchindex erreicht')}
+        self.memory_search_status.setText(texts.get(memory.retrieval_status(self.store),tr('Textsuche verfügbar')))
     def set_note_shared(self,allow):
-        if self.loading or not self.doc or self.area!='user':return
+        if self.loading or not self.doc:return
         path=self.doc['path']
         def done(_):self.update_sharing();self.status.setText(tr('Für Lumen freigegeben.') if allow else tr('Private Notiz · nur für dich.'))
         if self.writing:
             self.after_job=lambda:self.set_note_shared(allow);return
-        self.work(tr('Notizfreigabe speichern …'),lambda job:memory.worker(job,self.store,'share',path=path,allow=allow),done)
+        if self.area=='lumen':
+            expected=self.doc['hash']
+            self.work(tr('Notizfreigabe speichern …'),lambda job:memory.worker(job,self.store,'allow',path=path,expected=expected,allowed=allow),done)
+        else:self.work(tr('Notizfreigabe speichern …'),lambda job:memory.worker(job,self.store,'share',path=path,allow=allow),done)
     def update_sharing(self):
         shared=bool(self.doc and self.area=='user' and memory.Memory(self.store).shared(self.book,self.doc['path']))
+        self.share_note.setEnabled(True)
+        if self.doc and self.area=='lumen':
+            meta=memory.Memory(self.store).record(self.doc)
+            blocked=meta.get('sync_conflict') or meta.get('sync_blocked')
+            shared=meta.get('allowed',True) and not blocked
+            self.share_note.setEnabled(not blocked)
         self.share_note.blockSignals(True);self.share_note.setChecked(shared);self.share_note.blockSignals(False)
         self.share_note.setText(tr('Für Lumen freigegeben') if shared else tr('Nur für mich'));self.share_note.setAccessibleName(self.share_note.text())
     def share_folder(self):
@@ -127,7 +151,7 @@ class Wissen(ToolWindow):
         if not self.book:raise ValueError(tr('Zuerst einen erreichbaren Wissensordner wählen.'))
         special={'create':'remember','write':'write','remove':'forget','restore':'restore'}
         work=lambda job:memory.worker(job,self.store,special[action],**values) if self.area=='lumen' and action in special else data.worker(job,self.store,action,str(self.book.root),identity=self.book.identity,**values)
-        self.work(tr('Wissen · ')+{'write':tr('Notiz speichern'),'read':tr('Notiz laden'),'create':tr('Notiz anlegen'),'create_collection':tr('Sammlung anlegen'),'remove':tr('Eintrag entfernen'),'add_image':tr('Bild kopieren'),'versions':tr('Verlauf laden'),'restore':tr('Version wiederherstellen')}.get(action,action)+' …',work,done)
+        self.work(tr('Wissen · ')+{'write':tr('Notiz speichern'),'read':tr('Notiz laden'),'create':tr('Notiz anlegen'),'create_collection':tr('Sammlung anlegen'),'remove':tr('Eintrag entfernen'),'add_image':tr('Bild kopieren'),'versions':tr('Verlauf laden'),'restore':tr('Version wiederherstellen'),'sync':tr('Notizen abgleichen'),'sync_info':tr('Serververbindung prüfen'),'sync_config':tr('Serverabgleich einrichten')}.get(action,action)+' …',work,done)
     def job_finished(self):
         self.writing=False;super().job_finished();callback,self.after_job=self.after_job,None
         if self.closing:QTimer.singleShot(0,self.close)
@@ -221,17 +245,27 @@ class Wissen(ToolWindow):
         def done(folder):
             self.folders.append(folder);self.collection='folder:'+folder;self.search.clear();self.clear_note(tr('Neue Notiz in ')+folder);self.update_collections();self.refresh();self.tabs.setCurrentIndex(0);self.status.setText(tr('Sammlung angelegt · mit „Neu“ die erste Notiz erstellen'))
         self.action('create_collection',done,name=name)
+    def rename_collection(self):
+        if not self.book or self.area!='user' or not self.collection.startswith('folder:'):return
+        if self.dirty:self.save_note(self.rename_collection);return
+        source=self.collection.split(':',1)[1]
+        target,ok=QInputDialog.getText(self,tr('Sammlung umbenennen oder verschieben'),tr('Neuer Pfad innerhalb des Notizbuchs'),text=source)
+        if not ok or target==source:return
+        def done(folder):
+            self.collection='folder:'+folder;self.clear_note(tr('Sammlung verschoben'));self.refresh()
+        self.action('rename_collection',done,source=source,target=target)
+
     def show_note(self,note):
         self.loading=True
         try:
-            if self.area=='lumen':note.setdefault('memory',self.store.setting('memory/records',{}).get(note['path'],{}))
+            if self.area=='lumen':note.setdefault('memory',memory.Memory(self.store).record(note))
             note.setdefault('modified',self.notes.get(note['path'],{}).get('modified',0));self.doc=note;self.notes[note['path']]=note;self.load_text(note['text'],note['title']);self.editor.setEnabled(True);self.title.setEnabled(True);self.dirty=False;self.conflict=False
             if not self.in_collection(note):self.collection=''
             if self.search.text() and not data.search([note],self.search.text()):self.search.clear()
             self.title.setToolTip(note['path']);self.source.setText(tr('Quelle: ')+note['source'] if note['source'] else tr('Eigene Notiz'));self.banner.clear();self.banner.hide();self.recovery.hide();self.remove_action.setEnabled(True)
             parent=Path(note['path']).parent;self.location.setText((tr('Lumen-Gedächtnis') if self.area=='lumen' else tr('Meine Notizen'))+(' / '+str(parent) if str(parent)!='.' else ''))
             self.library.update(self.current,**({'last_note':note['path']} if self.area=='user' else {'last_memory':note['path']}));self.refresh();self.connections();self.preview.note_hash=''
-            self.share_note.setEnabled(self.area=='user');self.update_sharing();self.update_collections()
+            self.share_note.setEnabled(True);self.update_sharing();self.update_collections()
             self.update_source(note)
             if not self.job and self.views.currentIndex()==1:QTimer.singleShot(0,lambda:self.safe(self.prepare_preview))
             saved=data.draft(self.store,self.book.root,note['path'])
@@ -259,7 +293,11 @@ class Wissen(ToolWindow):
             if meta.get('correction'):details+='\n'+tr('Nach deiner Korrektur aktualisiert')
             if meta.get('verification')=='user' and meta.get('hash')==note['hash']:details+='\n'+tr('Erfolg von dir bestätigt · vor Wiederverwendung prüfen')
             if updated:details+='\n'+datetime.fromtimestamp(updated).strftime('%d.%m.%Y %H:%M')
-            details+='\n'+(tr('Projekt: ')+meta['scope'] if meta.get('scope') else tr('Übergreifend'))
+            scope=meta.get('scope','')
+            if scope.startswith('project:'):
+                from memory_projects import catalog
+                scope=next((r['title'] for r in catalog(self.store) if 'project:'+r['id']==scope),tr('Projekt nicht mehr verfügbar'))
+            details+='\n'+(tr('Projekt: ')+scope if scope else tr('Übergreifend'))
             if meta.get('evidence'):details+=tr('\n\nDeine Aussage: „')+meta['evidence']+'“'
             source=details+'\n\n'+source
         from interop_ui import source_markup
@@ -507,7 +545,7 @@ class Wissen(ToolWindow):
         try:self.save()
         except (OSError,ValueError) as error:
             self.status.setText(tr('Entwurf konnte nicht gesichert werden: ')+str(error));event.ignore();self.closing=False;return
-        self.poll_timer.stop();self.autosave_timer.stop();self.closing=True
+        self.sync_timer.stop();self.poll_timer.stop();self.autosave_timer.stop();self.closing=True
         if self.poller:self.poller.cancelled.set();event.ignore();return
         if self.job:
             if not self.writing:self.cancel()

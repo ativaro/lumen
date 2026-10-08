@@ -8,6 +8,7 @@ from pathlib import Path
 import sqlite3
 import time
 import uuid
+from lumen_paths import state_path
 
 STATES = {'draft': tr('Entwurf'), 'queued': tr('Geplant'), 'running': tr('Läuft'), 'paused': tr('Pausiert'),
           'interrupted': tr('Unterbrochen'), 'needs_input': tr('Braucht dich'), 'completed': tr('Erledigt'),
@@ -16,10 +17,6 @@ STATES = {'draft': tr('Entwurf'), 'queued': tr('Geplant'), 'running': tr('Läuft
 VISIBLE_TASKS = """NOT (status IN ('completed','cancelled') AND EXISTS (
     SELECT 1 FROM settings WHERE key='tasks/dismissed/' || tasks.id
     AND CAST(value AS REAL)=tasks.updated))"""
-
-
-def state_path():
-    return Path(os.environ.get('LUMEN_DATA', str(Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))) / 'lumen')))
 
 
 def identifier():

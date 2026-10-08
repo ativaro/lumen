@@ -1,13 +1,16 @@
 """Lumen's explicit results alongside the conversation, using Files workers."""
 from pathlib import Path
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QComboBox, QSplitter
+from PySide6.QtCore import Qt, QSize
+from PySide6.QtGui import QTextDocument
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QComboBox, QSplitter, QPushButton, QMenu, QFrame, QTabBar, QStackedWidget, QPlainTextEdit, QSizePolicy
+from assistant import Transcript, SafeDocument
 from core import file_kind
 from gallery import Gallery, ImageLoader
 from gallery_widgets import Filmstrip
 from lumen_i18n import tr
 from preview import Preview, label
 from studio_chat import icon_button
+from studio_design import surface, icon, font
 
 
 class StudioPreview(Preview):
@@ -49,30 +52,149 @@ class StudioPreview(Preview):
 class StudioSurface(QWidget):
     def __init__(self, chat, parent=None):
         super().__init__(parent)
-        self.chat = chat; self.paths = []; self.preview_wanted = False; self.narrow_preview = False
-        root = QVBoxLayout(self); root.setContentsMargins(0, 0, 0, 0)
+        self.chat = chat; self.paths = []; self.preview_wanted = True; self.narrow_preview = False
+        self.answer_key = None
+        self.setObjectName('studioWorkbench'); surface(self)
+        root = QVBoxLayout(self); root.setContentsMargins(0, 0, 0, 0); root.setSpacing(0)
+        header = QFrame(); header.setObjectName('studioWorkHead'); header.setFixedHeight(68)
+        head = QHBoxLayout(header); head.setContentsMargins(26, 0, 24, 0); head.setSpacing(14)
+        chat.heading.setObjectName('studioWorkTitle'); chat.heading.setWordWrap(False)
+        chat.heading.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred); chat.heading.setMaximumWidth(380); head.addWidget(chat.heading)
+        self.directory = label(Path(chat.backend.directory).name, 'studioWorkContext'); head.addWidget(self.directory, 1)
+        self.status_label = label(tr('Bereit'), 'studioWorkStatus'); head.addWidget(self.status_label)
+        for control, title, name in [(chat.new, tr('Neues Gespräch'), 'list-add'), (chat.options, tr('Optionen'), 'view-more-symbolic')]:
+            control.setText(''); control.setIcon(icon(name)); control.setObjectName('studioIcon')
+            control.setToolTip(title); control.setAccessibleName(title); control.setFixedSize(32, 32); head.addWidget(control); control.show()
+        chat.heading.show(); root.addWidget(header)
+        # Execution remains editable in the existing options panel.
+        chat.options_box.layout().insertWidget(0, chat.execution)
         self.split = QSplitter(Qt.Horizontal); self.split.setChildrenCollapsible(False); self.split.setHandleWidth(1)
-        root.addWidget(self.split); self.split.addWidget(chat)
-        self.pane = QWidget(); self.pane.setObjectName('studioPreviewPane')
-        layout = QVBoxLayout(self.pane); layout.setContentsMargins(0, 0, 0, 0); layout.setSpacing(8)
-        top = QHBoxLayout(); top.setContentsMargins(20, 22, 16, 0)
-        self.heading = label(tr('Vorschau'), 'heading'); self.heading.setWordWrap(True)
-        top.addWidget(self.heading, 1)
-        self.close_preview = icon_button(tr('Vorschau schließen'), 'window-close', self.close_pane); top.addWidget(self.close_preview)
-        layout.addLayout(top)
+        root.addWidget(self.split, 1); self.split.addWidget(chat); chat.setMinimumWidth(320)
+        self.pane = QWidget(); self.pane.setObjectName('studioPreviewPane'); self.pane.setMinimumWidth(0)
+        layout = QVBoxLayout(self.pane); layout.setContentsMargins(0, 0, 0, 0); layout.setSpacing(0)
+        toolbar = QFrame(); toolbar.setObjectName('studioResultToolbar'); toolbar.setFixedHeight(49)
+        top = QHBoxLayout(toolbar); top.setContentsMargins(22, 0, 18, 0)
+        self.result_tabs = QTabBar(); self.result_tabs.setObjectName('studioResultTabs'); self.result_tabs.setDrawBase(False)
+        self.result_tabs.addTab(tr('Ergebnis')); self.result_tabs.addTab(tr('Arbeitsschritte')); top.addWidget(self.result_tabs)
+        top.addStretch(); self.heading = label(tr('Vorschau'), 'studioResultCaption'); top.addWidget(self.heading)
+        self.close_preview = icon_button(tr('Vorschau schließen'), 'window-close', self.close_pane)
+        self.close_preview.setFixedSize(26, 26); top.addWidget(self.close_preview); layout.addWidget(toolbar)
         self.choice = QComboBox(); self.choice.setAccessibleName(tr('Datei in der Vorschau'))
         self.choice.setMinimumContentsLength(10); self.choice.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
         self.choice.activated.connect(self.choose); layout.addWidget(self.choice)
-        self.preview = StudioPreview(); layout.addWidget(self.preview, 1)
-        self.split.addWidget(self.pane); self.split.setSizes([560, 540]); self.pane.hide()
+        self.result_pages = QStackedWidget(); layout.addWidget(self.result_pages, 1)
+        self.stage = QWidget(); self.stage.setObjectName('studioPaperArea')
+        stage = QHBoxLayout(self.stage); stage.setContentsMargins(32, 24, 32, 24)
+        self.paper = QFrame(); self.paper.setObjectName('studioPaper'); self.paper.setMaximumWidth(650)
+        paper = QVBoxLayout(self.paper); paper.setContentsMargins(36, 30, 36, 24); paper.setSpacing(22)
+        topline = QHBoxLayout(); topline.addWidget(label('LUMEN', 'studioPaperBrand')); topline.addStretch()
+        self.result_status = label('', 'studioPaperMeta'); topline.addWidget(self.result_status); paper.addLayout(topline)
+        self.answer = Transcript(); self.answer.setDocument(SafeDocument(self.answer)); self.answer.setObjectName('studioResult')
+        self.answer.setFont(font(14)); self.answer.setAccessibleName(tr('Aktuelle Antwort von Lumen')); self.answer.setOpenLinks(False)
+        from PySide6.QtGui import QDesktopServices
+        self.answer.anchorClicked.connect(lambda url: QDesktopServices.openUrl(url) if url.scheme() in ('http', 'https') else None)
+        paper.addWidget(self.answer, 1); stage.addWidget(self.paper, 1)
+        self.preview = StudioPreview(); stage.addWidget(self.preview, 1)
+        self.result_pages.addWidget(self.stage)
+        self.execution_detail = QPlainTextEdit(); self.execution_detail.setReadOnly(True); self.execution_detail.setObjectName('studioExecution')
+        self.execution_detail.setAccessibleName(tr('Arbeitsschritte des Gesprächs')); self.result_pages.addWidget(self.execution_detail)
+        self.result_tabs.currentChanged.connect(self.result_pages.setCurrentIndex)
+        dock = QFrame(); dock.setObjectName('studioResultDock')
+        self.actions = QHBoxLayout(dock); self.actions.setContentsMargins(22, 14, 22, 14); self.actions.setSpacing(9)
+        self.actions.addWidget(label(tr('Ergebnis verwenden'), 'studioDockCaption')); self.actions.addStretch()
+        self.copy_answer = icon_button(tr('Kopieren'), 'edit-copy', chat.copy.click)
+        self.save_answer = QPushButton(tr('Speichern')); self.save_answer.setIcon(icon('document-save')); self.save_answer.setObjectName('studioSave')
+        self.result_menu = QMenu(self.save_answer)
+        self.result_menu.addAction(tr('Für mich speichern'), lambda: chat.capture_knowledge(False, text=self.result_text()))
+        self.result_menu.addAction(tr('Merk dir das'), lambda: chat.capture_knowledge(True, text=self.result_text()))
+        self.save_answer.setMenu(self.result_menu)
+        self.actions.addWidget(self.save_answer); layout.addWidget(dock)
+        self.split.addWidget(self.pane); self.split.setStretchFactor(0, 0); self.split.setStretchFactor(1, 1)
+        self.split.setSizes([370, 900]); self.pane.hide()
         self.preview.filmstrip.chosen.connect(lambda i: self.choice.setCurrentIndex(
             self.choice.findData(self.preview.filmstrip.paths[i])))
         chat.resultChanged.connect(self.set_result); chat.previewRequested.connect(self.toggle_preview)
+        chat.answerChanged.connect(self.show_answer); chat.backend.busyChanged.connect(self.show_answer)
         self.set_result(chat.presentation)
+        self.show_answer()
+
+    def bind_workspace(self, workspace):
+        self.workspace = workspace
+        self.export_answer = self.result_menu.addAction(tr('Als Datei speichern …'), workspace.guarded(lambda: self.use_task(workspace.export_task)))
+        self.reuse_answer = QPushButton(tr('Als Dateiaktion')); self.reuse_answer.setIcon(icon('system-run'))
+        self.reuse_answer.clicked.connect(workspace.guarded(lambda: self.use_task(workspace.task_to_file_action)))
+        self.actions.addWidget(self.reuse_answer)
+        more = icon_button(tr('Weitere Ergebnisaktionen'), 'view-more-symbolic', lambda: None)
+        menu = QMenu(more); menu.addAction(tr('Kopieren'), self.copy_answer.click)
+        menu.addAction(tr('Als Ablauf speichern'), workspace.guarded(lambda: self.use_task(workspace.task_to_flow)))
+        self.task_link = QPushButton(tr('Zum Auftrag')); self.task_link.clicked.connect(workspace.guarded(self.open_task))
+        self.task_link.hide(); self.task_link.setParent(self)
+        self.task_link_action = menu.addAction(tr('Zum Auftrag'), self.task_link.click)
+        more.setMenu(menu); self.actions.addWidget(more)
+        self.chat.tracker.changed.connect(self.update_task_actions)
+        self.chat.backend.busyChanged.connect(self.update_task_actions)
+        self.result_menu.aboutToShow.connect(self.update_task_actions)
+        self.update_task_actions()
+
+    def result_text(self):
+        return self.answer.textCursor().selectedText().replace('\u2029', '\n') or self.chat.last_answer
+
+    def update_task_actions(self, *_):
+        task = self.chat.answer_task() if not self.chat.backend.busy else None
+        show_text = not self.paths or self.choice.currentData() is None
+        self.export_answer.setEnabled(bool(task)); self.reuse_answer.setVisible(show_text); self.reuse_answer.setEnabled(bool(task))
+        self.task_link_action.setEnabled(bool(task)); self.task_link.setEnabled(bool(task))
+        self.update_execution()
+
+    def update_execution(self):
+        from lumen_store import STATES
+        task = self.chat.tracker.store.task(self.chat.tracker.task_id) if self.chat.tracker.task_id else None
+        if task and task['session'] != self.chat.backend.session: task = None
+        if not self.chat.backend.busy: task = self.chat.answer_task() or task
+        self.directory.setText(Path(self.chat.backend.directory).name or '/')
+        self.directory.setToolTip(self.chat.backend.directory)
+        status = STATES.get(task['status'], task['status']) if task else tr('Läuft') if self.chat.backend.busy else tr('Bereit')
+        self.status_label.setText('•  '+status)
+        from lumen_workspace import step_description
+        lines = [step_description(step) for step in task['steps']] if task else []
+        if task:
+            lines += [event['kind']+': '+event['detail'] for event in self.chat.tracker.store.events(task['id']) if event['kind'] != 'input']
+        self.execution_detail.setPlainText('\n\n'.join(lines) or tr('Noch keine Arbeitsschritte für dieses Gespräch.'))
+
+    def use_task(self, callback):
+        task = self.chat.answer_task() if not self.chat.backend.busy else None
+        if not task: raise ValueError(tr('Zu dieser Antwort ist kein gespeicherter Auftrag verfügbar.'))
+        callback(task['id'])
+
+    def open_task(self):
+        self.use_task(self.workspace.select_task); self.workspace.window.show_page(4)
+
+    def show_answer(self, *_):
+        key = getattr(self.chat, '_answer_key', None)
+        text = self.chat.last_answer
+        if (key, text) != getattr(self, 'rendered_answer', None):
+            position = self.answer.verticalScrollBar().value() if key == self.answer_key else 0
+            self.answer_key = key; self.rendered_answer = (key, text)
+            self.answer.document().setMarkdown(text or tr('## Platz für dein Ergebnis\n\nAntworte links im Gespräch. Hier bleibt die aktuelle Antwort griffbereit; Dateien zeigt Lumen nach ausdrücklicher Bereitstellung.'),
+                QTextDocument.MarkdownFeatures(QTextDocument.MarkdownDialectGitHub | QTextDocument.MarkdownNoHTML))
+            from ui_typography import format_document, metrics
+            format_document(self.answer.document(), self.chat.settings)
+            self.answer.document().setDefaultFont(font(max(14, metrics(self.chat.settings)['fontSize']-3)))
+            self.answer.verticalScrollBar().setValue(position)
+        if self.paths and text and self.choice.findData(None) < 0: self.choice.addItem(tr('Antwort'), None)
+        show_text = not self.paths or self.choice.currentData() is None
+        self.paper.setVisible(show_text)
+        self.answer.setVisible(show_text)
+        self.preview.setVisible(not show_text)
+        self.result_status.setText(tr('Lumen arbeitet …') if self.chat.backend.busy else tr('Aktuelle Antwort') if text else tr('Noch kein Ergebnis'))
+        self.copy_answer.setEnabled(bool(text))
+        self.save_answer.setEnabled(bool(text) and not self.chat.backend.busy)
+        self.copy_answer.hide(); self.save_answer.setVisible(show_text)
+        if hasattr(self, 'workspace'): self.update_task_actions()
 
     def set_result(self, result):
         paths = result['paths'] if result else []
-        self.heading.setText(result['title'] if result and result['title'] else tr('Vorschau'))
+        self.heading.setText(result['title'] if result and result['title'] else tr('Ergebnis'))
         self.paths = paths; self.choice.clear()
         for path in paths: self.choice.addItem(Path(path).name or '/', path)
         images = [p for p in paths if file_kind(p) == 'image']
@@ -80,7 +202,7 @@ class StudioSurface(QWidget):
         self.preview.filmstrip.loader.cache.clear()
         self.preview.filmstrip.select([], -1)
         self.preview.filmstrip.select(images, 0 if images else -1)
-        self.preview_wanted = bool(paths); self.narrow_preview = False
+        self.preview_wanted = True; self.narrow_preview = False
         self.preview.path = None
         self.update_visibility()
         if not paths:
@@ -89,13 +211,16 @@ class StudioSurface(QWidget):
             self.preview.detail.setText(tr('Hier zeigt Lumen gefundene und erstellte Dateien.'))
             self.preview.show_message(tr('Bitte Lumen, dir etwas zu zeigen.'))
         self.choice.setVisible(bool(paths))
+        self.show_answer()
 
     def choose(self, index):
         path = self.choice.itemData(index)
+        self.show_answer()
         if path:
             self.preview.show_path(path)
             images = self.preview.filmstrip.paths
             self.preview.filmstrip.select(images, images.index(path) if path in images else -1)
+        else: self.preview.shutdown()
 
     def toggle_preview(self):
         self.preview_wanted = not self.pane.isVisible(); self.narrow_preview = self.preview_wanted
@@ -106,7 +231,7 @@ class StudioSurface(QWidget):
         self.preview.shutdown(); self.chat.composer.setFocus()
 
     def update_visibility(self):
-        wide = self.width() >= 850
+        wide = self.width() >= 900
         show = self.preview_wanted and (wide or self.narrow_preview)
         was_visible = self.pane.isVisible()
         self.pane.setVisible(show); self.chat.setVisible(wide or not show)

@@ -42,10 +42,23 @@ class Workbench(ToolWindow):
         self.body.setEnabled(False); self.refresh()
         from interop_workflow_ui import install_menu
         install_menu(self)
+        self.server_material=QListWidget();self.server_material.setAccessibleName(tr('Material auf Lumen Server'));self.server_material.setMaximumHeight(110);self.server_material.hide();self.content.addWidget(self.server_material)
+        self.server_material.itemDoubleClicked.connect(lambda _:self.safe(self.open_server_material))
+        from projects_sync_ui import install
+        install(self)
 
     def create(self):
         title,ok=QInputDialog.getText(self,tr('Neues Projekt'),tr('Projektname'))
-        if ok and title.strip(): self.save(); self.focus_record(self.library.create(title,notes='',questions=[],resources=[]))
+        if ok and title.strip():
+            self.save()
+            from projects_sync import read_state,configure
+            location=tr('Lokal')
+            if read_state(self.library)['enabled']:
+                location,ok=QInputDialog.getItem(self,tr('Neues Projekt'),tr('Speicherort'),[tr('Lumen Server'),tr('Lokal')],0,False)
+                if not ok:return
+            key=self.library.create(title,notes='',questions=[],resources=[])
+            if location==tr('Lumen Server'):configure(self.library,True,key)
+            self.focus_record(key)
 
     def load(self,r):
         self.scope=''; self.initiative=''
@@ -66,7 +79,21 @@ class Workbench(ToolWindow):
         update_window(self)
         self.load_task_fields(r)
         self.loaded_fields=self.editor_fields()
+        owner=self.library.get(self.current)
+        readonly=owner.get('server_bound') and owner.get('server_role')=='reader'
+        self.title.setReadOnly(bool(readonly));self.notes.setReadOnly(bool(readonly))
+        self.new_task.setEnabled(not readonly)
+        if owner.get('server_bound'):
+            self.status.setText(tr('Lumen Server · Änderungen werden synchronisiert') if owner.get('server_role')!='reader' else tr('Lumen Server · Nur lesen'))
+        self.server_material.clear()
+        for reference in r.get('server_attachments',[]):
+            item=QListWidgetItem(reference.get('title') or reference['kind']+' · '+str(reference['id'])[:8]);item.setData(Qt.UserRole,reference);self.server_material.addItem(item)
+        self.server_material.setVisible(bool(r.get('server_attachments')))
         self.loaded_record=dict(r)
+        with self.library.connect() as db:
+            table='project_items' if self.scope else 'records'
+            stored=db.execute('SELECT updated FROM '+table+' WHERE id=?',(self.scope or self.current,)).fetchone()
+            self.loaded_updated=str(stored['updated']) if stored else None
 
     def editor_fields(self):
         value=dict(title=self.title.text(),notes=self.notes.toPlainText(),resources=[self.resources.item(i).data(Qt.UserRole) for i in range(self.resources.count())],interop_path_revision=self.interop_path_revision)
@@ -83,8 +110,11 @@ class Workbench(ToolWindow):
         update_window(self)
         fields=self.editor_fields(); changes={k:v for k,v in fields.items() if v!=self.loaded_fields.get(k)}
         if not changes:return
-        if self.scope:self.projects.update(self.scope,**changes)
-        else:self.library.update(self.current,**changes)
+        if self.scope:self.projects.update(self.scope,expected_updated=self.loaded_updated if self.library.get(self.current).get('server_bound') else None,**changes)
+        else:self.library.update(self.current,expected_updated=self.loaded_updated if self.library.get(self.current).get('server_bound') else None,**changes)
+        with self.library.connect() as db:
+            table='project_items' if self.scope else 'records'
+            self.loaded_updated=str(db.execute('SELECT updated FROM '+table+' WHERE id=?',(self.scope or self.current,)).fetchone()['updated'])
         self.loaded_fields=fields
         self.status.setText(tr('Lokal gespeichert')); self.refresh(); self.refresh_run_status()
 
@@ -116,6 +146,17 @@ class Workbench(ToolWindow):
         value,ok=QInputDialog.getText(self,tr('Webseite verknüpfen'),tr('Webadresse'))
         if ok and value.strip():
             address=web_url(value); self.add_resource('url',address,QUrl(address).host())
+
+    def open_server_material(self):
+        from projects_sync_ui import open_server
+        import lumen_connect
+        from uuid import UUID
+        item=self.server_material.currentItem()
+        if not item:return
+        reference=item.data(Qt.UserRole)
+        if reference['kind']=='file':
+            config=lumen_connect.read_config();QDesktopServices.openUrl(QUrl(config['server']+'/api/files/'+str(UUID(str(reference['id'])))+'/content'))
+        else:open_server(self)
 
     def open_resource(self):
         from interop_paths import update_window
@@ -403,6 +444,8 @@ class Workbench(ToolWindow):
 
     def set_schedule(self,enabled):
         self.save()
+        if self.library.get(self.current).get('server_bound'):
+            raise ValueError(tr('Zeitpläne dieses Projekts werden auf Lumen Server verwaltet.'))
         from projects_runner import install_timer
         try:
             if enabled:install_timer(self.library.root.parent)
@@ -478,6 +521,8 @@ class Workbench(ToolWindow):
         return _payload(source,text,paths=[v['path'] for v in materials],items=materials)
 
     def closeEvent(self,event):
+        if getattr(self,'project_sync_job',None):
+            self.sync_close_requested=True;event.ignore();return
         if self.runner and self.runner.busy:
             self.runner.cancel(); self.status.setText(tr('Abbruch läuft. Danach kann das Fenster geschlossen werden.')); event.ignore();return
         super().closeEvent(event)

@@ -11,7 +11,7 @@ Auftrag: Meeting-Werkstatt (3), digitaler Haushalt (4), Projekt-Werkbank (6), pe
 | radio | Gewählte Artikel/Dokumente zu hörbarer Ausgabe mit Quellen machen | tools-common, Piper |
 | vault | Verschlüsselte USB-/NAS-Sicherung, Vorschau, Zeitplan, Verlauf und Wiederherstellung in neue Ordner | tools-common, Restic, Secret Service |
 | inbox | IMAP/SMTP, Proton Bridge, CalDAV/ICS, lokale Entwürfe und Aufgaben | tools-common, Secret Service, optionales Kalender-Environment |
-| reader | PDF/EPUB/Artikel, Lesestand, Markierungen, Randnotizen, Vorlesen und zitierte Wissensstellen | tools-common, PyMuPDF; optional Piper/ffmpeg |
+| reader | PDF/EPUB/Artikel, Lesestand, Markierungen, Randnotizen, Vorlesen und zitierte Wissensstellen | tools-common, eigener PDF-Kern; optional Piper/ffmpeg |
 | sound | Lautstärke/Stumm/Ausgang je Stream, App-Regeln und optionale Gesprächsabsenkung | tools-common, pactl, Pulse-kompatibler Audioserver; systemd für Automatik |
 | wissen | Persönliches Markdown-Notizbuch und separates Lumen-Gedächtnis; Freigaben, optionales Lernen, Korrektur/Vergessen, Editor/Vorschau, Bilder, Links, Karte und Quellenfragen | tools-common, Pillow; OpenCode für Fragen und aktiviertes Lernen |
 

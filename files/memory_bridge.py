@@ -56,9 +56,9 @@ class MemoryBridge(QObject):
                 except (ValueError,KeyError,TypeError):items=None
                 if items:
                     def saved(count):
-                        if count:self.backend.memoryStatus.emit(tr('{0} Erinnerung gespeichert · in Lumen Wissen überprüfbar',count) if count==1 else tr('{0} Erinnerungen gespeichert · in Lumen Wissen überprüfbar',count))
+                        if count:self.backend.memoryStatus.emit(tr('{0} Gedächtnisvorschläge warten in Lumen Wissen',count) if not options(self.store)['automatic'] else tr('{0} Erinnerungen gespeichert · in Lumen Wissen überprüfbar',count))
                         QTimer.singleShot(0,self.next)
-                    self.job('apply',saved,lambda _:QTimer.singleShot(0,self.next),items=items,user_text=request['text'],directory=request['directory'],source=request['source'],candidates=candidates,revision=request['prepared']['revision'],context=request['context']);return
+                    self.job('apply',saved,lambda _:QTimer.singleShot(0,self.next),items=items,user_text=request['text'],directory=request['directory'],source=request['source'],candidates=candidates,revision=request['prepared']['revision'],context=request['context'],prepared_stamp=request['prepared']['stamp']);return
             QTimer.singleShot(0,self.next)
         engine.completed.connect(completed);engine.send(prompt,proposal=True);engine.deadline.start(60000)
 

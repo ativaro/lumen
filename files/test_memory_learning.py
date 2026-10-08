@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 from memory_learning import previous_answer, extraction_prompt
 from lumen_store import Store
-from lumen_memory import Memory
+from lumen_memory import Memory, options
 
 class LearningContextTest(unittest.TestCase):
     def test_only_complete_preceding_answer(self):
@@ -107,7 +107,7 @@ class LearningBridgeTest(unittest.TestCase):
             try:
                 window.switch_area('lumen');wait(window)
                 self.assertEqual(window.tabs.currentIndex(),3)
-                buttons=window.profile.findChildren(QPushButton)
+                buttons=window.profile.findChildren(QPushButton,'memoryProfileEntry')
                 self.assertEqual([b.accessibleName() for b in buttons],['Antwortstil'])
                 self.assertTrue(window.use_memory.isVisible())
                 window.learn_memory.setChecked(False);wait(window)
@@ -134,3 +134,55 @@ class LearningBridgeTest(unittest.TestCase):
                 self.assertEqual(backend.memory_previous_answer,{})
             finally:
                 backend.shutdown();backend.deleteLater();QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
+
+class MemoryReviewTest(unittest.TestCase):
+    def test_review_mode_manual_edits_and_solution_optout(self):
+        with tempfile.TemporaryDirectory() as temp:
+            store=Store(temp);memory=Memory(store);memory.configure(True,True,automatic=False,solutions=False)
+            item=dict(title='回答',text='短く答える。',evidence='短く',kind='preference',scope='global')
+            revision=store.setting('memory/revision',0)
+            self.assertEqual(memory.apply([item],'短く',temp,'Conversation',[],revision),1)
+            self.assertEqual(memory.scan()['notes'],[])
+            pending=memory.proposals();self.assertEqual(len(pending),1)
+            memory.review(pending[0]['id'],True)
+            note=memory.scan()['notes'][0];self.assertTrue(note['memory']['automatic'])
+            self.assertEqual(memory.proposals(),[])
+            solution=memory.remember('Solution','Do something',kind='solution')
+            self.assertNotIn(solution['id'],[n['id'] for n in memory.eligible(temp)])
+            memory.configure(True,True)
+            self.assertFalse(options(store)['automatic']);self.assertFalse(options(store)['solutions'])
+
+    def test_review_window_has_exact_evidence_and_native_approval(self):
+        from app import create_app
+        from PySide6.QtWidgets import QApplication,QPushButton,QPlainTextEdit
+        from PySide6.QtCore import QCoreApplication,QEvent
+        from PySide6.QtTest import QTest
+        from tools_wissen import Wissen
+        from wissen_data import activate
+        from lumen_i18n import tr
+        import memory_review_ui
+        from pathlib import Path
+        app=QApplication.instance() or create_app()
+        with tempfile.TemporaryDirectory() as temp,patch.dict(os.environ,{'LUMEN_DATA':temp+'/state'}):
+            store=Store();activate(store);memory=Memory(store);memory.configure(True,True,automatic=False)
+            item=dict(title='Antwortstil',text='Kurze Antworten.',evidence='Bitte kurz',kind='preference',scope='global')
+            memory.apply([item],'Bitte kurz',temp,'Synthetic conversation',[],store.setting('memory/revision',0))
+            window=Wissen(Path(temp)/'tools');window.show()
+            def wait():
+                for _ in range(400):
+                    QTest.qWait(20)
+                    if not window.job and not window.poller:return
+                self.fail('Native memory review timed out')
+            try:
+                wait();window.switch_area('lumen');wait()
+                self.assertFalse(window.auto_memory.isChecked());self.assertTrue(window.reuse_solutions.isChecked())
+                memory_review_ui.review(window);wait();dialog=window.memory_review_dialog
+                text=dialog.findChild(QPlainTextEdit).toPlainText()
+                self.assertIn('Kurze Antworten.',text);self.assertIn('Bitte kurz',text)
+                dialog.grab().save('/tmp/lumen-memory-review.png')
+                next(b for b in dialog.findChildren(QPushButton) if b.text()==tr('Genau so übernehmen')).click();wait()
+                self.assertEqual(len(memory.scan()['notes']),1);self.assertEqual(memory.proposals(),[])
+            finally:
+                window.close();window.deleteLater();QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
+
+if __name__=='__main__':unittest.main()

@@ -1,0 +1,149 @@
+"""Run with QT_QPA_PLATFORM=offscreen LUMEN_LANGUAGE=de python -m unittest test_file_action_menu."""
+import os
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+from PySide6.QtCore import QPoint, QSettings, Qt
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QAbstractButton, QMenu, QToolButton, QWidget
+from app import Window, create_app
+from file_action_menu import ActionMenu, ActionSearch, entries
+from file_spaces import SHELF
+
+
+class FileActionMenuTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = create_app()
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.env = patch.dict(os.environ, LUMEN_DATA=str(self.root / 'state'),
+                              LUMEN_TOOLS_DATA=str(self.root / 'tools'))
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        self.window = Window(str(self.root), QSettings(str(self.root / 'prefs.ini'), QSettings.IniFormat))
+        self.addCleanup(self.window.close)
+        self.folder = self.root / 'Norwegen'
+        self.folder.mkdir()
+
+    def names(self, menu):
+        return {a.text().split('\t')[0] for a, _ in entries(menu)}
+
+    def test_local_commands_all_survive_grouping_and_search(self):
+        menu = self.window.build_context_menu([str(self.folder)])
+        self.assertIsInstance(menu, ActionMenu)
+        expected = {'Öffnen', 'Große Vorschau', 'Dateiversionen …', 'Umbenennen', 'Kopieren',
+            'Ausschneiden', 'Papierkorb', 'Pfad kopieren', 'In Ordner kopieren …',
+            'Zur Sammelfläche hinzufügen', 'Enthaltenden Ordner öffnen', 'In neuem Tab öffnen',
+            'Mit Lumen Drive synchronisieren …', 'Ordnergröße berechnen', 'Speicher analysieren',
+            'Verwendet in …', 'Lesefortschritt und Sicherungen …', 'Versionen in Lumen Vault …',
+            'Mit Lumen öffnen', 'Erklären', 'Fehler beheben', 'Git-Diff prüfen',
+            'Intelligent umbenennen …', 'Dateien sortieren …', 'Hier einfügen', 'Neuer Ordner',
+            'Letzte Lumen-Dateiaktion rückgängig …'}
+        self.assertFalse(expected - self.names(menu), expected - self.names(menu))
+        self.assertEqual(len(menu.quick_actions), 4)
+        self.assertLessEqual(sum(not a.isSeparator() and a.text() != '' for a in menu.actions()), 7)
+        dialog = ActionSearch(menu)
+        dialog.search.setText('sichern version')
+        self.assertEqual(dialog.results.count(), 2)
+        dialog.search.setText('absolutely missing')
+        self.assertEqual(dialog.results.count(), 0)
+        dialog.search.returnPressed.emit()
+        self.assertIsNone(dialog.chosen)
+        dialog.close()
+
+    def test_pdf_network_shelf_and_multiselection_commands(self):
+        pdf = self.root / 'article.pdf'; pdf.write_bytes(b'')
+        self.assertIn('Mit Lumen Reader öffnen', self.names(self.window.build_context_menu([str(pdf)])))
+        with patch.object(self.window.network, 'remote', return_value='smb://nas/photos'):
+            menu = self.window.build_context_menu([str(self.folder)])
+        self.assertIn('Offline verfügbar machen …', self.names(menu))
+        self.window.current_location = SHELF
+        self.assertIn('Aus Sammelfläche entfernen (Dateien behalten)',
+                      self.names(self.window.build_context_menu([str(pdf)])))
+        menu = self.window.build_context_menu([str(pdf), str(self.folder)])
+        self.assertNotIn('Große Vorschau', self.names(menu))
+        self.assertIn('Intelligent umbenennen …', self.names(menu))
+        background = self.window.build_context_menu([])
+        self.assertNotIsInstance(background, ActionMenu)
+        self.assertEqual(self.names(background), {'Hier einfügen', 'Neuer Ordner', 'Letzte Lumen-Dateiaktion rückgängig …'})
+        self.window.current_location=str(self.root)
+        self.assertIn('Eigenschaften …',self.names(self.window.build_context_menu([])))
+
+    def test_quick_click_and_keyboard_invoke_existing_callback_once(self):
+        calls = []
+        self.window.copy = lambda cut: calls.append(('copy', cut))
+        self.window.rename = lambda: calls.append(('rename',))
+        self.window.trash = lambda: calls.append(('trash',))
+        menu = self.window.build_context_menu([str(self.folder)])
+        menu.popup(QPoint(0, 0)); QTest.qWait(10)
+        button = next(b for b in menu.findChildren(QToolButton) if b.text() == 'Kopieren')
+        QTest.mouseClick(button, Qt.LeftButton)
+        self.assertEqual(calls, [('copy', False)])
+        self.assertFalse(menu.isVisible())
+        menu.popup(QPoint(0, 0)); QTest.keyClick(menu, Qt.Key_F2)
+        self.assertEqual(calls[-1], ('rename',))
+        self.assertEqual(len(calls), 2)
+        menu.popup(QPoint(0, 0)); QTest.keyClick(menu, Qt.Key_Delete)
+        self.assertEqual(calls[-1], ('trash',))
+        self.assertEqual(len(calls), 3)
+
+    def test_search_uses_same_action_and_blocks_disabled_or_back_button(self):
+        calls = []; parent = QWidget(); menu = ActionMenu(parent, 'Selection')
+        menu.addMenu('History').addAction('Versions', lambda: calls.append('versions'))
+        disabled = menu.addAction('Disabled', lambda: calls.append('disabled')); disabled.setEnabled(False)
+        menu.finish(); dialog = ActionSearch(menu); dialog.show()
+        dialog.search.setText('disabled'); dialog.choose(dialog.results.item(0))
+        self.assertIsNone(dialog.chosen)
+        dialog.search.setText('history versions')
+        QTest.mouseClick(dialog.results.viewport(), Qt.BackButton)
+        self.assertIsNone(dialog.chosen)
+        QTest.keyClick(dialog.search, Qt.Key_Return)
+        self.assertEqual(calls, [])
+        dialog.chosen.trigger()
+        self.assertEqual(calls, ['versions'])
+        dialog = ActionSearch(menu); dialog.show(); QTest.keyClick(dialog.search, Qt.Key_Escape)
+        self.assertFalse(dialog.isVisible()); self.assertIsNone(dialog.chosen)
+
+    def test_side_mouse_buttons_never_activate_card_or_nested_menu(self):
+        calls = []
+        parent = QWidget(); menu = ActionMenu(parent, 'Selection')
+        menu.quick('Copy', 'edit-copy', lambda: calls.append('copy'))
+        child = menu.addMenu('Organize')
+        command = child.addAction('Remove', lambda: calls.append('remove'))
+        menu.finish(); menu.popup(QPoint(20, 20)); QTest.qWait(10)
+        for button in (Qt.BackButton, Qt.ForwardButton):
+            QTest.mouseClick(menu, button, pos=menu.actionGeometry(menu.actions()[-1]).center())
+        self.assertEqual(calls, [])
+        self.assertIsNone(self.app.activeModalWidget())
+        menu.popup(QPoint(20, 20))
+        QTest.keyClick(menu, Qt.Key_Tab)
+        self.assertIsInstance(menu.focusWidget(), QAbstractButton)
+        if not isinstance(menu.focusWidget(), QToolButton):
+            QTest.keyClick(menu.focusWidget(), Qt.Key_Tab)
+        self.assertIsInstance(menu.focusWidget(), QToolButton)
+        QTest.keyClick(menu.focusWidget(), Qt.Key_Return)
+        self.assertEqual(calls, ['copy'])
+        menu.popup(QPoint(20, 20)); child.popup(QPoint(390, 20))
+        for button in (Qt.BackButton, Qt.ForwardButton):
+            QTest.mouseClick(child, button, pos=child.actionGeometry(command).center())
+        self.assertEqual(calls, ['copy'])
+        child.close(); menu.close(); parent.close()
+
+    def test_drive_card_preserves_actions_and_multi_rename_is_disabled(self):
+        drive = self.window.drive
+        paths = ['lumen-drive://example/file/first', 'lumen-drive://example/file/second']
+        for p in paths: drive.entries[p] = ('file', {'name': p.rsplit('/', 1)[1]})
+        menu = drive.build_context_menu(paths)
+        self.assertFalse(menu.quick_actions[2].isEnabled())
+        self.assertTrue({'Öffnen', 'Kopieren', 'Ausschneiden', 'Umbenennen', 'Papierkorb',
+            'Herunterladen …', 'Hier einfügen', 'Neuer Ordner', 'Offline verfügbar …',
+            'Synchronisation und Offline-Verfügbarkeit …', 'Aktualisieren'} <= self.names(menu))
+        self.assertIsInstance(drive.build_context_menu([]), QMenu)
+
+
+if __name__ == '__main__': unittest.main()

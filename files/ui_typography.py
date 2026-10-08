@@ -1,6 +1,6 @@
 """Shared typography metrics for Studio and the Qt Quick search surface."""
 from PySide6.QtCore import QSettings
-from PySide6.QtGui import QFontDatabase, QFont, QTextCursor, QTextBlockFormat
+from PySide6.QtGui import QFontDatabase, QFont, QTextCursor, QTextBlockFormat, QTextCharFormat
 
 
 def metrics(settings=None):
@@ -24,3 +24,13 @@ def format_document(document, settings=None):
     block = QTextBlockFormat(); block.setLineHeight(140 if values['compact'] else 150, QTextBlockFormat.ProportionalHeight.value)
     block.setBottomMargin(8 if values['compact'] else 12)
     cursor.mergeBlockFormat(block)
+    current = document.begin()
+    while current.isValid():
+        level = current.blockFormat().headingLevel()
+        if level:
+            heading = QTextCursor(current); heading.select(QTextCursor.BlockUnderCursor)
+            style = QTextCharFormat(); style.setFontWeight(QFont.DemiBold)
+            style.setProperty(QTextCharFormat.FontPixelSize, values['fontSize'] + (9 if level <= 2 else 3))
+            style.clearProperty(QTextCharFormat.FontSizeAdjustment)
+            heading.mergeCharFormat(style)
+        current = current.next()

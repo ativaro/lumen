@@ -51,6 +51,7 @@ class Probe(desktop.LumenWindow):
         self.chat.composer.setPlainText('Entwurf bleibt erhalten')
         self.chat.backend.session = 'test-existing-conversation'
         self.chat.backend.busy = True
+        self.show_page(9)
         self.showMinimized()
         self.child.finished.connect(self.relaunched)
         self.child.start(sys.executable, [program])
@@ -58,6 +59,7 @@ class Probe(desktop.LumenWindow):
 
     def relaunched(self, code, status):
         okay = (code == 0 and not self.isMinimized() and self.isVisible()
+                and self.pages.currentIndex() == 9
                 and self.chat.composer.toPlainText() == 'Entwurf bleibt erhalten'
                 and self.chat.backend.session == 'test-existing-conversation'
                 and self.chat.backend.busy)

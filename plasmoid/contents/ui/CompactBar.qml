@@ -12,15 +12,17 @@ RowLayout {
     property var snapshot: ({active: [], attention: false, busy: false})
     property bool expanded: false
     property int panelWidth: 0
+    property int unreadNotifications: 0
     readonly property bool compactHome: surface === "home" && width < 230
     signal toggle()
     signal launch(string action)
     signal search()
     signal voice()
+    signal notifications()
     spacing: compactHome ? 4 : 12
     Layout.minimumHeight: 28
-    Layout.minimumWidth: surface === "home" ? 154 : surface === "search" ? 220 : 50
-    Layout.preferredWidth: panelWidth > 0 ? Math.max(Layout.minimumWidth, panelWidth) : surface === "home" ? 266 : surface === "search" ? 460 : 62
+    Layout.minimumWidth: surface === "home" ? 154 : surface === "search" ? 220 : surface === "control" ? 94 : 50
+    Layout.preferredWidth: panelWidth > 0 ? Math.max(Layout.minimumWidth, panelWidth) : surface === "home" ? 266 : surface === "search" ? 460 : surface === "control" ? 104 : 62
     LumenButton {
         objectName: "homeButton"
         visible: bar.surface === "home" || bar.surface === "tasks"
@@ -66,6 +68,15 @@ RowLayout {
         flat: true
         Accessible.name: bar.tr("Mit Lumen sprechen")
         onClicked: bar.voice()
+    }
+    LumenButton {
+        visible: bar.surface === "control"
+        objectName: "notificationButton"
+        Layout.preferredWidth: 40; Layout.fillHeight: true
+        topPadding: 0; bottomPadding: 0; flat: true; icon.name: "notifications"; symbolSize: 22
+        Accessible.name: "Lumen Notification" + (bar.unreadNotifications ? " · " + bar.unreadNotifications : "")
+        onClicked: bar.notifications()
+        Rectangle { visible: bar.unreadNotifications>0; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 6; width: 6; height: 6; radius: 3; color: Kirigami.Theme.highlightColor }
     }
     LumenButton {
         visible: bar.surface === "control"

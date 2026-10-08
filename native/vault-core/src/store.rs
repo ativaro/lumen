@@ -3,7 +3,7 @@ use crate::{Error, Result, header};
 use keepass::{
     Database, DatabaseKey,
     config::{CompressionConfig, DatabaseVersion, KdfConfig, OuterCipherConfig},
-    db::{EntryId, History},
+    db::{Entry, EntryId, GroupId, History},
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -530,6 +530,14 @@ impl Session {
         source: &Path,
         password: Zeroizing<String>,
     ) -> Result<Self> {
+        Self::restore_checked(root, source, password, None)
+    }
+    pub(crate) fn restore_checked(
+        root: &Path,
+        source: &Path,
+        password: Zeroizing<String>,
+        expected: Option<&str>,
+    ) -> Result<Self> {
         if password.is_empty() || password.len() > 4096 {
             return Err(Error::InvalidInput);
         }
@@ -539,11 +547,17 @@ impl Session {
             return Err(Error::Conflict);
         }
         let data = read_source(source, false)?;
+        if expected.is_some_and(|value| value != hex_digest(&data)) {
+            return Err(Error::Conflict);
+        }
         header::inspect(&data)?;
         let key = DatabaseKey::new().with_password(&password);
         let mut db = Database::parse(&data, key.clone()).map_err(|_| Error::UnlockFailed)?;
         supported(&db)?;
         normalize_history(&mut db)?;
+        if expected.is_some() {
+            disable_access(&mut db)?;
+        }
         db.config.version = DatabaseVersion::KDB4(1);
         let mut session = Self {
             db: Some(db),
@@ -555,6 +569,102 @@ impl Session {
         };
         session.save()?;
         Ok(session)
+    }
+    pub(crate) fn adopt_file(
+        &mut self,
+        source: &Path,
+        expected_source: &str,
+        expected_local: &str,
+    ) -> Result<()> {
+        self.combine_file(source, expected_source, expected_local, false)
+            .map(|_| ())
+    }
+    pub(crate) fn combine_file(
+        &mut self,
+        source: &Path,
+        expected_source: &str,
+        expected_local: &str,
+        merge: bool,
+    ) -> Result<(usize, usize)> {
+        self.combine_checked(source, expected_source, expected_local, merge, true)
+    }
+    pub(crate) fn preview_combine(
+        &mut self,
+        source: &Path,
+        expected_source: &str,
+        expected_local: &str,
+    ) -> Result<(usize, usize)> {
+        self.combine_checked(source, expected_source, expected_local, true, false)
+    }
+    fn combine_checked(
+        &mut self,
+        source: &Path,
+        expected_source: &str,
+        expected_local: &str,
+        merge: bool,
+        apply: bool,
+    ) -> Result<(usize, usize)> {
+        self.database()?;
+        let old = read_file(&self.root.join("vault.kdbx"))?;
+        if Some(digest(&old)) != self.revision || hex_digest(&old) != expected_local {
+            return Err(Error::Conflict);
+        }
+        let incoming = read_source(source, true)?;
+        if hex_digest(&incoming) != expected_source {
+            return Err(Error::Conflict);
+        }
+        header::inspect(&incoming)?;
+        let key = self.key.as_ref().ok_or(Error::Locked)?;
+        let mut db = Database::parse(&incoming, key.clone()).map_err(|_| Error::UnlockFailed)?;
+        supported(&db)?;
+        normalize_history(&mut db)?;
+        db.config.version = DatabaseVersion::KDB4(1);
+        let counts = if merge {
+            let mut combined = self.database()?.clone();
+            disable_access(&mut combined)?;
+            disable_access(&mut db)?;
+            let counts = merge_entries(&mut combined, &db)?;
+            db = combined;
+            counts
+        } else {
+            (0, 0)
+        };
+        let changed = disable_access(&mut db)?;
+        supported(&db)?;
+        let data = if changed || merge {
+            encode(&db, key)?
+        } else {
+            incoming
+        };
+        if merge {
+            // Individually valid trees can exceed format limits when combined.
+            // Authenticate and parse the exact output before replacing any file.
+            db = Database::parse(&data, key.clone()).map_err(|_| Error::InvalidFile)?;
+            normalize_history(&mut db)?;
+        }
+        if !apply {
+            return Ok(counts);
+        }
+        // Preserve the displaced ciphertext independently of rotating previous.kdbx.
+        let name = format!("sync-before-{}.kdbx", hex_digest(&old));
+        if self.root.join(&name).try_exists()? {
+            if read_file(&self.root.join(&name))? != old {
+                return Err(Error::Conflict);
+            }
+        } else {
+            atomic(&self.root, &name, &old, true)?;
+        }
+        if digest(&read_file(&self.root.join("vault.kdbx"))?) != digest(&old) {
+            return Err(Error::Conflict);
+        }
+        atomic(&self.root, "previous.kdbx", &old, false)?;
+        if digest(&read_file(&self.root.join("vault.kdbx"))?) != digest(&old) {
+            return Err(Error::Conflict);
+        }
+        atomic(&self.root, "vault.kdbx", &data, false)?;
+        self.revision = Some(digest(&data));
+        self.db = Some(db);
+        Ok(counts)
     }
     pub(crate) fn save(&mut self) -> Result<()> {
         self.save_checked(|| Ok(()))
@@ -590,8 +700,584 @@ impl Session {
     }
 }
 
+// Conservative entry union: no timestamp winner and no propagated deletions.
+// Existing group/database metadata stay local; new groups retain their metadata.
+fn merge_entries(local: &mut Database, remote: &Database) -> Result<(usize, usize)> {
+    if local.root().id() != remote.root().id()
+        || local.num_custom_icons() != 0
+        || remote.num_custom_icons() != 0
+        || local.num_attachments() != 0
+        || remote.num_attachments() != 0
+    {
+        return Err(Error::Unsupported);
+    }
+    let ids = all_entries(remote)?;
+    let mut groups = std::collections::VecDeque::from([remote.root().id()]);
+    while let Some(id) = groups.pop_front() {
+        let group = remote.group(id).ok_or(Error::InvalidFile)?;
+        if local.entry(EntryId::from_uuid(id.uuid())).is_some() {
+            return Err(Error::Conflict);
+        }
+        if local.group(id).is_none() {
+            if local.deleted_objects.contains_key(&id.uuid()) {
+                return Err(Error::Conflict);
+            }
+            if local.num_groups() >= MAX_ENTRIES {
+                return Err(Error::Limit);
+            }
+            let parent = group.parent().ok_or(Error::InvalidFile)?.id();
+            let mut destination = local.group_mut(parent).ok_or(Error::InvalidFile)?;
+            *destination
+                .add_group_with_id(id)
+                .map_err(|_| Error::Conflict)? = group.clone_empty();
+        }
+        groups.extend(group.group_ids());
+    }
+    let mut copies = std::collections::HashMap::<String, Vec<EntryId>>::new();
+    for entry in local.iter_all_entries() {
+        if let Some(origin) = entry.get("LumenSyncSource") {
+            copies
+                .entry(origin.to_owned())
+                .or_default()
+                .push(entry.id());
+        }
+    }
+    let (mut added, mut conflicts) = (0, 0);
+    for id in ids {
+        if local.group(GroupId::from_uuid(id.uuid())).is_some() {
+            return Err(Error::Conflict);
+        }
+        let remote_entry = remote.entry(id).ok_or(Error::InvalidFile)?;
+        let origin = remote_entry
+            .get("LumenSyncSource")
+            .unwrap_or("")
+            .parse()
+            .map(EntryId::from_uuid)
+            .unwrap_or(id);
+        if local
+            .entry(id)
+            .is_some_and(|entry| same_sync_entry(&entry, &remote_entry))
+            || local
+                .entry(origin)
+                .is_some_and(|entry| same_sync_entry(&entry, &remote_entry))
+            || copies.get(&origin.to_string()).is_some_and(|ids| {
+                ids.iter().any(|copy| {
+                    local
+                        .entry(*copy)
+                        .is_some_and(|entry| same_sync_entry(&entry, &remote_entry))
+                })
+            })
+        {
+            continue;
+        }
+        if local.num_entries() >= MAX_ENTRIES {
+            return Err(Error::Limit);
+        }
+        let conflict = local.entry(id).is_some() || local.deleted_objects.contains_key(&id.uuid());
+        let target_id = if conflict { EntryId::new() } else { id };
+        let mut copy = remote_entry.clone_with_id(target_id);
+        if conflict {
+            copy.set_protected("LumenSyncSource", origin.to_string());
+            conflicts += 1;
+        } else {
+            added += 1;
+        }
+        let mut group = local
+            .group_mut(remote_entry.parent().id())
+            .ok_or(Error::Unsupported)?;
+        let mut entry = group
+            .add_entry_with_id(target_id)
+            .map_err(|_| Error::Conflict)?;
+        *entry = copy;
+        if let Some(origin) = entry.get("LumenSyncSource") {
+            copies.entry(origin.to_owned()).or_default().push(target_id);
+        }
+    }
+    Ok((added, conflicts))
+}
+fn same_sync_entry(a: &Entry, b: &Entry) -> bool {
+    fn content(entry: &Entry, id: EntryId) -> Entry {
+        let mut copy = entry.clone_with_id(id);
+        copy.fields.remove("LumenSyncSource");
+        copy
+    }
+    content(a, b.id()) == content(b, b.id())
+}
+
+fn hex_digest(data: &[u8]) -> String {
+    digest(data).iter().map(|v| format!("{v:02x}")).collect()
+}
+fn disable_access(db: &mut Database) -> Result<bool> {
+    let mut changed = false;
+    for id in all_entries(db)? {
+        let mut entry = db.entry_mut(id).ok_or(Error::InvalidFile)?;
+        if entry.get("LumenApiEnabled") == Some("1") {
+            entry.set_protected("LumenApiEnabled", "0");
+            changed = true;
+        }
+    }
+    Ok(changed)
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn sync_new_groups_preserves_hierarchy_and_rejects_cross_type_ids() {
+        use super::*;
+        use keepass::db::GroupId;
+        let local = tempfile::tempdir().unwrap();
+        let remote = tempfile::tempdir().unwrap();
+        for root in [&local, &remote] {
+            fs::set_permissions(root.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        let password = || Zeroizing::new("SYNTHETIC GROUP SYNC MASTER".into());
+        let mut a = Session::create(local.path(), password()).unwrap();
+        let original = a
+            .add("Original", Zeroizing::new("GROUP SYNC CANARY".into()))
+            .unwrap();
+        a.save().unwrap();
+        a.encrypted_backup(remote.path()).unwrap();
+        let mut b = Session::open(remote.path(), password()).unwrap();
+        let parent = b.db.as_mut().unwrap().root_mut().add_group().id();
+        let child =
+            b.db.as_mut()
+                .unwrap()
+                .group_mut(parent)
+                .unwrap()
+                .add_group()
+                .id();
+        {
+            let mut group = b.db.as_mut().unwrap().group_mut(parent).unwrap();
+            group.name = "Work".into();
+            group.notes = Some("Group metadata".into());
+            group.tags = vec!["Shared".into()];
+            group.enable_autotype = Some(false);
+        }
+        b.db.as_mut().unwrap().group_mut(child).unwrap().name = "Servers".into();
+        b.db.as_mut()
+            .unwrap()
+            .group_mut(parent)
+            .unwrap()
+            .add_group()
+            .name = "Empty archive".into();
+        b.db.as_mut()
+            .unwrap()
+            .entry_mut(original)
+            .unwrap()
+            .move_to(child)
+            .unwrap();
+        let fresh = b
+            .add("New login", Zeroizing::new("NEW GROUP CANARY".into()))
+            .unwrap();
+        b.db.as_mut()
+            .unwrap()
+            .entry_mut(fresh)
+            .unwrap()
+            .move_to(child)
+            .unwrap();
+        b.save().unwrap();
+        let source = remote.path().join("vault.kdbx");
+        let active = local.path().join("vault.kdbx");
+        let hash = hex_digest(&read_file(&source).unwrap());
+        assert_eq!(
+            a.combine_file(
+                &source,
+                &hash,
+                &hex_digest(&read_file(&active).unwrap()),
+                true
+            )
+            .unwrap(),
+            (1, 1)
+        );
+        drop(a);
+        let mut a = Session::open(local.path(), password()).unwrap();
+        let db = a.database().unwrap();
+        let group = db.group(parent).unwrap();
+        assert_eq!(group.name, "Work");
+        assert_eq!(group.notes.as_deref(), Some("Group metadata"));
+        assert_eq!(group.tags, ["Shared"]);
+        assert_eq!(group.enable_autotype, Some(false));
+        assert_eq!(
+            group.group_ids().collect::<Vec<_>>(),
+            b.database()
+                .unwrap()
+                .group(parent)
+                .unwrap()
+                .group_ids()
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(db.group(child).unwrap().parent().unwrap().id(), parent);
+        assert_eq!(db.entry(fresh).unwrap().parent().id(), child);
+        assert_eq!(db.entry(original).unwrap().parent().id(), db.root().id());
+        assert!(
+            db.group(child)
+                .unwrap()
+                .entries()
+                .any(|e| e.get("LumenSyncSource") == Some(&original.to_string()))
+        );
+        assert_eq!(
+            a.combine_file(
+                &source,
+                &hash,
+                &hex_digest(&read_file(&active).unwrap()),
+                true
+            )
+            .unwrap(),
+            (0, 0)
+        );
+        assert_eq!(a.database().unwrap().num_groups(), 4);
+        // Each input is valid, but the union must not contain a group and entry
+        // sharing a UUID. The active encrypted file must stay unchanged.
+        let collision = GroupId::from_uuid(original.uuid());
+        b.db.as_mut().unwrap().entry_mut(original).unwrap().remove();
+        b.db.as_mut()
+            .unwrap()
+            .root_mut()
+            .add_group_with_id(collision)
+            .unwrap();
+        b.save().unwrap();
+        let before = read_file(&active).unwrap();
+        assert_eq!(
+            a.combine_file(
+                &source,
+                &hex_digest(&read_file(&source).unwrap()),
+                &hex_digest(&before),
+                true
+            ),
+            Err(Error::Conflict)
+        );
+        assert_eq!(read_file(&active).unwrap(), before);
+        assert_eq!(
+            &*a.field(original, "Password").unwrap(),
+            "GROUP SYNC CANARY"
+        );
+        // The reverse collision (remote entry versus local group) is also rejected.
+        b.db = Some(a.database().unwrap().clone());
+        let local_group = a.db.as_mut().unwrap().root_mut().add_group().id();
+        a.save().unwrap();
+        b.db.as_mut()
+            .unwrap()
+            .root_mut()
+            .add_entry_with_id(EntryId::from_uuid(local_group.uuid()))
+            .unwrap();
+        b.save().unwrap();
+        let before = read_file(&active).unwrap();
+        assert_eq!(
+            a.combine_file(
+                &source,
+                &hex_digest(&read_file(&source).unwrap()),
+                &hex_digest(&before),
+                true
+            ),
+            Err(Error::Conflict)
+        );
+        assert_eq!(read_file(&active).unwrap(), before);
+        // Each tree fits the parser depth bound separately. Grafting remote
+        // descendants onto a locally moved parent would exceed it after union.
+        b.db = Some(a.database().unwrap().clone());
+        let mut destination = a.database().unwrap().root().id();
+        for _ in 0..25 {
+            destination =
+                a.db.as_mut()
+                    .unwrap()
+                    .group_mut(destination)
+                    .unwrap()
+                    .add_group()
+                    .id();
+        }
+        a.db.as_mut()
+            .unwrap()
+            .group_mut(parent)
+            .unwrap()
+            .move_to(destination)
+            .unwrap();
+        destination = parent;
+        for _ in 0..25 {
+            destination =
+                b.db.as_mut()
+                    .unwrap()
+                    .group_mut(destination)
+                    .unwrap()
+                    .add_group()
+                    .id();
+        }
+        a.save().unwrap();
+        b.save().unwrap();
+        let before = read_file(&active).unwrap();
+        let group_count = a.database().unwrap().num_groups();
+        assert_eq!(
+            a.combine_file(
+                &source,
+                &hex_digest(&read_file(&source).unwrap()),
+                &hex_digest(&before),
+                true
+            ),
+            Err(Error::InvalidFile)
+        );
+        assert_eq!(read_file(&active).unwrap(), before);
+        assert_eq!(a.database().unwrap().num_groups(), group_count);
+        drop(a);
+        assert!(Session::open(local.path(), password()).is_ok());
+    }
+    #[test]
+    fn entry_sync_preserves_both_versions_history_and_replay_after_reopen() {
+        use super::*;
+        let local = tempfile::tempdir().unwrap();
+        let remote = tempfile::tempdir().unwrap();
+        for root in [&local, &remote] {
+            fs::set_permissions(root.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        let password = || Zeroizing::new("SYNTHETIC MERGE MASTER".into());
+        let mut a = Session::create(local.path(), password()).unwrap();
+        let id = a
+            .add("Shared entry", Zeroizing::new("ORIGINAL CANARY".into()))
+            .unwrap();
+        let unchanged = a
+            .add("Unchanged", Zeroizing::new("SAME CANARY".into()))
+            .unwrap();
+        a.save().unwrap();
+        a.encrypted_backup(remote.path()).unwrap();
+        let mut b = Session::open(remote.path(), password()).unwrap();
+        a.set(id, "Password", Zeroizing::new("LOCAL CANARY".into()))
+            .unwrap();
+        a.set(id, "LumenApiEnabled", Zeroizing::new("1".into()))
+            .unwrap();
+        let local_only = a
+            .add("Local only", Zeroizing::new("LOCAL ONLY CANARY".into()))
+            .unwrap();
+        a.save().unwrap();
+        b.set(id, "Password", Zeroizing::new("REMOTE CANARY".into()))
+            .unwrap();
+        b.set(id, "Custom secret", Zeroizing::new("CUSTOM CANARY".into()))
+            .unwrap();
+        b.set(id, "LumenApiEnabled", Zeroizing::new("1".into()))
+            .unwrap();
+        b.db.as_mut()
+            .unwrap()
+            .entry_mut(id)
+            .unwrap()
+            .set_unprotected("Title", "Shared entry");
+        let remote_only = b
+            .add("Remote only", Zeroizing::new("REMOTE ONLY CANARY".into()))
+            .unwrap();
+        b.save().unwrap();
+        let source = remote.path().join("vault.kdbx");
+        let hash = hex_digest(&read_file(&source).unwrap());
+        let active = local.path().join("vault.kdbx");
+        let before = read_file(&active).unwrap();
+        assert_eq!(
+            a.combine_file(&source, "bad", &hex_digest(&before), true),
+            Err(Error::Conflict)
+        );
+        assert_eq!(
+            a.combine_file(&source, &hash, "stale", true),
+            Err(Error::Conflict)
+        );
+        assert_eq!(read_file(&active).unwrap(), before);
+        assert_eq!(
+            a.preview_combine(&source, &hash, &hex_digest(&before))
+                .unwrap(),
+            (1, 1)
+        );
+        assert_eq!(read_file(&active).unwrap(), before);
+        assert_eq!(&*a.field(id, "LumenApiEnabled").unwrap(), "1");
+        assert_eq!(
+            a.combine_file(&source, &hash, &hex_digest(&before), true)
+                .unwrap(),
+            (1, 1)
+        );
+        assert_eq!(&*a.field(id, "Password").unwrap(), "LOCAL CANARY");
+        assert_eq!(&*a.field(id, "LumenApiEnabled").unwrap(), "0");
+        for present in [unchanged, local_only, remote_only] {
+            assert!(a.database().unwrap().entry(present).is_some());
+        }
+        let copy = a
+            .database()
+            .unwrap()
+            .iter_all_entries()
+            .find(|e| e.get("LumenSyncSource") == Some(&id.to_string()))
+            .unwrap()
+            .id();
+        assert_eq!(&*a.field(copy, "Password").unwrap(), "REMOTE CANARY");
+        assert_eq!(&*a.field(copy, "Custom secret").unwrap(), "CUSTOM CANARY");
+        assert_eq!(&*a.field(copy, "LumenApiEnabled").unwrap(), "0");
+        assert_eq!(a.history_len(copy).unwrap(), b.history_len(id).unwrap());
+        assert_eq!(
+            read_file(
+                &local
+                    .path()
+                    .join(format!("sync-before-{}.kdbx", hex_digest(&before)))
+            )
+            .unwrap(),
+            before
+        );
+        drop(a);
+        let mut a = Session::open(local.path(), password()).unwrap();
+        assert_eq!(
+            a.combine_file(
+                &source,
+                &hash,
+                &hex_digest(&read_file(&active).unwrap()),
+                true
+            )
+            .unwrap(),
+            (0, 0)
+        );
+        assert_eq!(a.entries().unwrap().len(), 5);
+        let mut repeated = a.database().unwrap().clone();
+        let remote_copy = repeated.entry(copy).unwrap().clone_with_id(EntryId::new());
+        let copy_id = remote_copy.id();
+        let mut group = repeated.root_mut();
+        *group.add_entry_with_id(copy_id).unwrap() = remote_copy;
+        assert_eq!(
+            merge_entries(a.db.as_mut().unwrap(), &repeated).unwrap(),
+            (0, 0)
+        );
+        // A remote omission must not delete local data; a local tombstone is
+        // retained, with the remote entry recovered under a fresh conflict ID.
+        a.db.as_mut()
+            .unwrap()
+            .entry_mut(remote_only)
+            .unwrap()
+            .track_changes()
+            .remove();
+        a.save().unwrap();
+        assert_eq!(
+            a.combine_file(
+                &source,
+                &hash,
+                &hex_digest(&read_file(&active).unwrap()),
+                true
+            )
+            .unwrap(),
+            (0, 1)
+        );
+        assert!(a.database().unwrap().entry(remote_only).is_none());
+        assert!(
+            a.database()
+                .unwrap()
+                .deleted_objects
+                .contains_key(&remote_only.uuid())
+        );
+        assert!(a.database().unwrap().entry(local_only).is_some());
+        // A deleted local group must not be silently resurrected.
+        b.db.as_mut().unwrap().root_mut().add_group().name = "Remote folder".into();
+        let moved = b.database().unwrap().root().groups().next().unwrap().id();
+        a.db.as_mut()
+            .unwrap()
+            .deleted_objects
+            .insert(moved.uuid(), None);
+        a.save().unwrap();
+        b.db.as_mut()
+            .unwrap()
+            .entry_mut(id)
+            .unwrap()
+            .move_to(moved)
+            .unwrap();
+        b.save().unwrap();
+        let before = read_file(&active).unwrap();
+        assert_eq!(
+            a.combine_file(
+                &source,
+                &hex_digest(&read_file(&source).unwrap()),
+                &hex_digest(&before),
+                true
+            ),
+            Err(Error::Conflict)
+        );
+        assert_eq!(read_file(&active).unwrap(), before);
+        for root in [&local, &remote] {
+            for item in fs::read_dir(root.path()).unwrap() {
+                let data = fs::read(item.unwrap().path()).unwrap();
+                assert!(!data.windows(6).any(|s| s == b"CANARY"));
+            }
+        }
+    }
+    #[test]
+    fn encrypted_sync_authenticates_preserves_and_revokes_imported_access() {
+        use super::*;
+        let local = tempfile::tempdir().unwrap();
+        let remote = tempfile::tempdir().unwrap();
+        let fresh = tempfile::tempdir().unwrap();
+        for directory in [&local, &remote, &fresh] {
+            fs::set_permissions(directory.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        let password = || Zeroizing::new("SYNTHETIC SYNC MASTER ONLY".into());
+        let mut a = Session::create(local.path(), password()).unwrap();
+        let id = a
+            .add(
+                "Synthetic sync",
+                Zeroizing::new("LOCAL CANARY SECRET".into()),
+            )
+            .unwrap();
+        a.save().unwrap();
+        a.encrypted_backup(remote.path()).unwrap();
+        let mut b = Session::open(remote.path(), password()).unwrap();
+        b.set(
+            id,
+            "Password",
+            Zeroizing::new("REMOTE CANARY SECRET".into()),
+        )
+        .unwrap();
+        b.set(id, "LumenApiEnabled", Zeroizing::new("1".into()))
+            .unwrap();
+        b.save().unwrap();
+        let source = remote.path().join("vault.kdbx");
+        let incoming = read_file(&source).unwrap();
+        let hash = hex_digest(&incoming);
+        let before = read_file(&local.path().join("vault.kdbx")).unwrap();
+        let old_hash = hex_digest(&before);
+        assert_eq!(
+            a.adopt_file(&source, "bad", &old_hash),
+            Err(Error::Conflict)
+        );
+        assert_eq!(a.adopt_file(&source, &hash, "stale"), Err(Error::Conflict));
+        let mut corrupt = incoming.clone();
+        let last = corrupt.len() - 1;
+        corrupt[last] ^= 1;
+        atomic(remote.path(), "bad.kdbx", &corrupt, true).unwrap();
+        assert!(
+            a.adopt_file(
+                &remote.path().join("bad.kdbx"),
+                &hex_digest(&corrupt),
+                &old_hash
+            )
+            .is_err()
+        );
+        assert_eq!(read_file(&local.path().join("vault.kdbx")).unwrap(), before);
+        a.adopt_file(&source, &hash, &old_hash).unwrap();
+        assert_eq!(&*a.field(id, "Password").unwrap(), "REMOTE CANARY SECRET");
+        assert_eq!(&*a.field(id, "LumenApiEnabled").unwrap(), "0");
+        assert_eq!(
+            read_file(&local.path().join(format!("sync-before-{old_hash}.kdbx"))).unwrap(),
+            before
+        );
+        a.set(id, "Title", Zeroizing::new("Later edit".into()))
+            .unwrap();
+        a.save().unwrap();
+        assert_eq!(
+            read_file(&local.path().join(format!("sync-before-{old_hash}.kdbx"))).unwrap(),
+            before
+        );
+        assert!(
+            Session::restore_checked(
+                fresh.path(),
+                &source,
+                Zeroizing::new("WRONG PASSWORD FOR TEST".into()),
+                Some(&hash)
+            )
+            .is_err()
+        );
+        assert!(!fresh.path().join("vault.kdbx").exists());
+        let c = Session::restore_checked(fresh.path(), &source, password(), Some(&hash)).unwrap();
+        assert_eq!(&*c.field(id, "LumenApiEnabled").unwrap(), "0");
+        for directory in [&local, &remote, &fresh] {
+            for file in fs::read_dir(directory.path()).unwrap() {
+                let data = fs::read(file.unwrap().path()).unwrap();
+                assert!(!data.windows(12).any(|s| s == b"CANARY SECRE"));
+            }
+        }
+    }
     #[test]
     fn exact_hmac_terminator_truncation_and_trailing_bytes_are_rejected() {
         use super::*;

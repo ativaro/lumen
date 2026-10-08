@@ -148,7 +148,7 @@ else:
                 window.places.itemActivated.emit(setup)
                 self.assertEqual(show.call_count, 2)
             self.assertEqual(window.current_path, original)
-            paths = window.drive.paths; paths.root.mkdir(parents=True, exist_ok=True)
+            paths = window.cloud.legacy.paths; paths.root.mkdir(parents=True, exist_ok=True)
             paths.config.write_text('[drive]\ntype=drive\ntoken={}\n')
             window.populate_places()
             self.assertNotIn('Google Drive', [item.text() for item in entries()])

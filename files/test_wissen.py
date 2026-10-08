@@ -10,6 +10,27 @@ class WissenTest(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name);self.store=Store(self.root/'state')
 
+    def test_notebook_mount_number_change_keeps_identity_but_replacement_fails(self):
+        from unittest.mock import patch
+        from types import SimpleNamespace
+        from wissen_data import directory_identity
+        activate(self.store);book=Notebook(self.store)
+        note=book.create('Keep','Body')
+        fd=os.open(book.root,os.O_RDONLY|os.O_DIRECTORY)
+        try:
+            original=os.fstat(fd)
+            with patch('wissen_data.os.fstat',return_value=SimpleNamespace(st_dev=original.st_dev+1,st_ino=original.st_ino)):
+                self.assertEqual(directory_identity(fd),book.identity)
+            with patch('wissen_data.os.fstatvfs',return_value=SimpleNamespace(f_fsid=0)):
+                self.assertNotEqual(directory_identity(fd),book.identity)
+        finally:os.close(fd)
+        self.assertEqual(len(Notebook(self.store,identity=[original.st_dev,original.st_ino]).scan()['notes']),1)
+        book.create_collection('Original');book.rename_collection('Original','Renamed')
+        self.assertIn('Renamed',book.scan()['folders'])
+        renamed=book.root.with_name('old-notebook');book.root.rename(renamed);book.root.mkdir()
+        with self.assertRaises(ValueError):book.scan()
+        self.assertTrue((renamed/note['path']).exists())
+
     def test_timestamps_survive_edits_noop_restore_and_notebook_copy(self):
         import shutil
         from unittest.mock import patch

@@ -4,8 +4,7 @@ Lumen-owned components use the [Lumen EULA](LICENSE). Read it before installing
 or updating; redistribution and commercial derivatives need written permission.
 Earlier license grants and [third-party rights](THIRD_PARTY_NOTICES.md) remain
 valid. The installer includes both documents in the user bundle; system packages
-include them under `/usr/share/licenses/lumen`. Proprietary distribution of the
-PyMuPDF integrations remains subject to [licensing clearance](LICENSE-PLAN.md).
+include them under `/usr/share/licenses/lumen`. Proprietary distribution remains subject to [licensing checks](LICENSE-PLAN.md).
 
 Supported full-desktop target: Arch Linux/CachyOS, KDE Plasma 6, logged in as a
 normal user. Install Plasma and a display manager through your distribution first.
@@ -166,7 +165,7 @@ The Arch package workflow below is an alternative for a system-wide installation
 ```bash
 sudo pacman -S --needed base-devel git pyside6 python-gobject python-pillow \
   python-dbus qt6-tools plasma-workspace plasma-desktop kde-cli-tools \
-  breeze-icons kio-extras kio-fuse poppler ffmpeg libnotify \
+  breeze-icons kio-extras kio-fuse openssl ffmpeg libnotify \
   wireplumber libpulse networkmanager systemsettings
 git clone https://github.com/ativaro/lumen.git
 cd lumen
@@ -233,8 +232,8 @@ Continuous turns use the existing OpenCode provider; speech recognition and spee
 output stay local. Interrupt output with the native button. Microphone sensitivity
 and pause duration are configurable from the conversation menu.
 
-OCR (`tesseract`, German/English data) and the PDF workshop (`python-pymupdf`) are
-additional dependency choices. Offline NAS copies and file versions are enabled
+PDF support is built in. OCR (`tesseract`, German/English data) is
+an optional dependency. Offline NAS copies and file versions are enabled
 per folder from Files; their contents and settings remain in private user state.
 The version watcher starts on login only when folders have been selected.
 

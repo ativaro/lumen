@@ -95,7 +95,7 @@ protected:
     QPlainTextEdit::keyPressEvent(event);
   }
 };
-static QLineEdit *input(const QString &name, bool hidden = false) {
+QLineEdit *vaultInput(const QString &name, bool hidden) {
   auto *edit = new QLineEdit;
   edit->setObjectName(name);
   edit->setMinimumHeight(42);
@@ -362,9 +362,17 @@ VaultWindow::VaultWindow(const QString &root)
   themeTimer.setInterval(2000);
   connect(&themeTimer, &QTimer::timeout, this, &VaultWindow::theme);
   themeTimer.start();
+  autoSyncTimer.setInterval(60000);
+  connect(&autoSyncTimer, &QTimer::timeout, this, &VaultWindow::pollServerSync);
+  autoSyncTimer.start();
 }
 VaultWindow::~VaultWindow() {
   isOpen = false;
+  if (autoSyncProcess) {
+    autoSyncProcess->disconnect(this);
+    autoSyncProcess->kill();
+    autoSyncProcess->waitForFinished(1000);
+  }
   ++accessRevision;
   delete access;
   access = nullptr;
@@ -480,11 +488,11 @@ QWidget *VaultWindow::lockedPage() {
   layout->addWidget(notice);
   const bool exists = QFileInfo::exists(root + "/vault.kdbx");
   layout->addSpacing(12);
-  master = input("master", true);
+  master = vaultInput("master", true);
   master->setPlaceholderText(tx("Hauptpasswort", "Master password"));
   layout->addWidget(master);
   if (!exists) {
-    confirm = input("confirm", true);
+    confirm = vaultInput("confirm", true);
     confirm->setPlaceholderText(
         tx("Hauptpasswort wiederholen", "Repeat master password"));
     layout->addWidget(confirm);
@@ -509,6 +517,7 @@ QWidget *VaultWindow::lockedPage() {
     layout->addWidget(button(tx("Verschlüsselte Sicherung wiederherstellen…",
                                 "Restore encrypted backup…"),
                              [this] { authorize(false, true); }));
+    layout->addWidget(button(tx("Tresor von Lumen Server übernehmen…", "Restore vault from Lumen Server…"), [this] { serverSync(); }));
   }
   status = new QLabel;
   status->setWordWrap(true);
@@ -757,6 +766,7 @@ QWidget *VaultWindow::openPage() {
   sl->addWidget(navigation, 1);
   auto *settings = button(tx("Einstellungen", "Settings"), [this] {
     QMenu menu(this);
+    menu.addAction(tx("Serverabgleich…", "Server synchronization…"), this, &VaultWindow::serverSync);
     menu.addAction(
         tx("Verschlüsselte Sicherung exportieren…", "Export encrypted backup…"),
         this, &VaultWindow::backup);
@@ -802,7 +812,7 @@ QWidget *VaultWindow::openPage() {
   ml->setContentsMargins(10, 20, 10, 18);
   ml->setSpacing(18);
   auto *tools = new QHBoxLayout;
-  search = input("search");
+  search = vaultInput("search");
   search->setPlaceholderText(tx("Im Tresor suchen …", "Search this vault …"));
   search->addAction(glyph("edit-find"), QLineEdit::LeadingPosition);
   tools->addWidget(search, 1);
@@ -900,7 +910,7 @@ QWidget *VaultWindow::openPage() {
     auto *row = new QHBoxLayout(frame);
     row->setContentsMargins(2, 1, 1, 1);
     row->setSpacing(0);
-    auto *field = input(name, hidden);
+    auto *field = vaultInput(name, hidden);
     field->setReadOnly(true);
     field->setFocusPolicy(Qt::NoFocus);
     field->setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -1159,7 +1169,7 @@ void VaultWindow::history() {
                 for (int i = 0; i + 1 < values.size(); i += 2) {
                   auto *label = new QLabel(values[i]);
                   label->setTextFormat(Qt::PlainText);
-                  auto *field = input("historyField", true);
+                  auto *field = vaultInput("historyField", true);
                   field->setReadOnly(true);
                   field->setMaxLength(16384);
                   field->setFocusPolicy(Qt::NoFocus);
@@ -1440,6 +1450,8 @@ void VaultWindow::clearOwnClipboard() {
   clipboardTag.clear();
 }
 void VaultWindow::lock() {
+  if (autoSyncProcess)
+    autoSyncProcess->kill();
   const bool wasOpen = isOpen;
   isOpen = false;
   ++accessRevision;
@@ -1600,7 +1612,7 @@ void VaultWindow::edit(QStringList fields, bool createNew, bool fromChat) {
       {"LumenPermissions", tx("Berechtigungen (Notiz)", "Permissions (note)")}};
   for (const auto &definition : definitions) {
     auto *field =
-        input("edit" + definition.first, definition.first == "Password" ||
+        vaultInput("edit" + definition.first, definition.first == "Password" ||
                                              (definition.first == "UserName" &&
                                               type->currentData() == "token"));
     field->setText(value(definition.first));
@@ -1649,7 +1661,7 @@ void VaultWindow::edit(QStringList fields, bool createNew, bool fromChat) {
     const auto &key = fields[i];
     if (edits.contains(key) || key == "Notes" || key.startsWith("Lumen"))
       continue;
-    auto *field = input("customExisting", true);
+    auto *field = vaultInput("customExisting", true);
     field->setMaxLength(16384);
     field->setText(fields[i + 1]);
     edits[key] = field;
@@ -1674,8 +1686,8 @@ void VaultWindow::edit(QStringList fields, bool createNew, bool fromChat) {
   notes->setMaximumHeight(105);
   notes->setInputMethodHints(Qt::ImhSensitiveData | Qt::ImhNoPredictiveText);
   form->addRow(tx("Notiz / Codes", "Note / codes"), notes);
-  auto *customName = input("customName");
-  auto *customValue = input("customValue", true);
+  auto *customName = vaultInput("customName");
+  auto *customValue = vaultInput("customValue", true);
   form->addRow(tx("Zusatzfeld: Name", "Custom field: name"), customName);
   form->addRow(tx("Zusatzfeld: Wert", "Custom field: value"), customValue);
   if (fromChat) {

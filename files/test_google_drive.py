@@ -167,18 +167,18 @@ print('{"State":"","Error":"","Result":""}')
         settings = QSettings(str(self.root/'prefs.ini'), QSettings.IniFormat)
         window = Window(str(self.root), settings); window.show()
         try:
-            with patch.object(window.drive.paths, 'mounted', return_value=True):
+            with patch.object(window.cloud.legacy.paths, 'mounted', return_value=True):
                 window.navigate(str(self.paths.mount/'folder'))
                 self.assertEqual(window.current_path, str(self.paths.mount/'folder'))
                 self.assertEqual(window.location_badge.text(), 'Google Drive')
-            with patch.object(window.drive.paths, 'mounted', return_value=False), patch.object(window, 'error') as error:
+            with patch.object(window.cloud.legacy.paths, 'mounted', return_value=False), patch.object(window, 'error') as error:
                 window.run_operation('mkdir', [str(self.paths.mount/'new-folder')])
                 error.assert_called_once(); self.assertIsNone(window.file_job)
-            window.drive.pending = (window.tabs_data[0], str(self.paths.mount), True, None)
+            window.cloud.legacy.pending = (window.tabs_data[0], str(self.paths.mount), True, None)
             window.navigate(str(self.root))
-            self.assertIsNone(window.drive.pending)
+            self.assertIsNone(window.cloud.legacy.pending)
             with patch('google_drive.worker_process') as launch:
-                window.drive.close(); launch.assert_not_called()
+                window.cloud.legacy.close(); launch.assert_not_called()
         finally: window.close(); window.deleteLater(); QTest.qWait(100)
 
 

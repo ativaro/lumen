@@ -366,7 +366,7 @@ erfasst; Qt LGPLv3/GPLv3-Texte und Rust-Laufzeithinweise liegen bei. CMake verwe
 nur dynamisches Qt Core/Gui/Widgets/DBus (Test zusätzlich in Tests). Kein KeePassXC-
 Code kopiert/verlinkt, keine Projektlizenz geändert. Der lokale Installer legt
 auch die neu kompilierbaren Quellen bei. Gesamtlizenzierung einschließlich
-PyMuPDF/AGPL bleibt separat gemäß LICENSE-PLAN.md zu prüfen.
+PDF-Verarbeitung nutzt den eigenen Lumen-Kern; verbleibende Lizenzprüfungen stehen in LICENSE-PLAN.md.
 
 **Freigabe bleibt geschlossen:** Bibliotheks-/Qt-Speicherlebensdauer, breitere
 Fault-/Fuzz-/Dateisystemprüfungen, echte KDE-Clipboard-/Sperrrennen und das externe

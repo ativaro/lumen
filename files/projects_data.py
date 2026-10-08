@@ -28,6 +28,12 @@ class Projects:
             ''')
 
     @staticmethod
+    def writable(db, project):
+        row=db.execute('SELECT data FROM records WHERE id=?',(project,)).fetchone()
+        data=json.loads(row['data']) if row else {}
+        if data.get('server_bound') and data.get('server_role')=='reader':raise ValueError(tr('Dieses Serverprojekt ist nur lesbar.'))
+
+    @staticmethod
     def unpack(row):
         if row is None: raise ValueError(tr('Dieser Eintrag ist nicht mehr vorhanden.'))
         value = dict(row); data = json.loads(value.pop('data')); return dict(data, **value)
@@ -49,6 +55,7 @@ class Projects:
         value.update(data)
         with self.library.connect() as db:
             db.execute('BEGIN IMMEDIATE')
+            self.writable(db,project)
             record = db.execute('SELECT archived FROM records WHERE id=?', (project,)).fetchone()
             if record is None or record['archived']: raise ValueError('Project unavailable or archived.')
             if kind != 'initiative':
@@ -64,6 +71,7 @@ class Projects:
         with self.library.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             current = self.unpack(db.execute('SELECT * FROM project_items WHERE id=?', (key,)).fetchone())
+            self.writable(db,current['project'])
             if expected_updated is not None:
                 self.check_edit(db, current, expected_updated)
             if 'depends' in changes:
@@ -152,7 +160,9 @@ class Projects:
             if expected_updated is not None: self.check_edit(db, item, expected_updated)
             if scheduled and (item['kind']!='automation' or not item.get('enabled') or item.get('next_run',0)>now):
                 raise ValueError(tr('Dieser Zeitplan ist nicht mehr fällig.'))
-            project = db.execute('SELECT archived FROM records WHERE id=?', (item['project'],)).fetchone()
+            project = db.execute('SELECT archived,data FROM records WHERE id=?', (item['project'],)).fetchone()
+            if project and json.loads(project['data']).get('server_bound'):
+                raise ValueError(tr('Dieses Projekt wird auf Lumen Server ausgeführt. Dort den Auftrag starten.'))
             owner = db.execute('SELECT archived FROM project_items WHERE id=?', (item['parent'],)).fetchone()
             if item['archived'] or not project or project[0] or not owner or owner[0]: raise ValueError(tr('Archivierte Aufgaben werden nicht ausgeführt.'))
             for dep in item.get('depends', []):

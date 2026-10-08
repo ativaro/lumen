@@ -90,6 +90,7 @@ def query(db, name, args):
             result[field] = dict(text=text[:20000], truncated=len(text)>20000)
         result['task'] = pick(value, ('deep', 'operation', 'enabled', 'interval', 'next_run', 'last_run'))
         result['dependencies'] = page(value.get('depends', []), args)
+        result['server'] = dict(bound=bool(value.get('server_bound')),role=value.get('server_role'),state=value.get('server_state'),materials=value.get('server_attachments',[]))
         result['materials'] = page(value.get('resources', []), args)
         result['materials']['items'] = [{k:str(v[k])[:4096] for k in ('title','kind','target') if k in v}
                                         for v in result['materials']['items']]

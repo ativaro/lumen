@@ -168,19 +168,30 @@ class Reader(ToolWindow):
                 QTimer.singleShot(0,lambda:self.unlock(key));return
             self.loading=True
             try:
-                self.data=data;self.library.update(key,pages=data['pages'],toc=data['toc'],locked=False)
-                self.page_number.setRange(1,data['pages']);self.page_number.setValue(index+1);self.page_count.setText(tr('von ')+str(data['pages']))
-                marks=[n for n in self.library.get(key).get('notes',[]) if n['page']==index]
+                self.data=data;self.page_index=data['page']
+                updates=dict(pages=data['pages'],toc=data['toc'],locked=False,engine=reader.ENGINE)
+                if 'notes' in data:
+                    if self.library.get(key).get('notes',[])!=record.get('notes',[]):raise ValueError(tr('Notizen wurden inzwischen geändert. Bitte erneut öffnen.'))
+                    updates.update(notes=data['notes'],legacy_page=record.get('page',0),position_changed=data.get('position_changed',False))
+                    if data.get('position_changed'):updates.update(legacy_ocr_text=record.get('ocr_text',{}),ocr_text={})
+                    self.restore_scroll=0
+                self.library.update(key,**updates);self.refresh_notes()
+                self.page_number.setRange(1,data['pages']);self.page_number.setValue(self.page_index+1);self.page_count.setText(tr('von ')+str(data['pages']))
+                marks=[n for n in self.library.get(key).get('notes',[]) if n['page']==self.page_index and n.get('anchor_status')!='unresolved']
                 self.canvas.load(data,marks,self.effective_zoom())
-                ocr=self.library.get(key).get('ocr_text',{}).get(str(index))
+                ocr=self.library.get(key).get('ocr_text',{}).get(str(self.page_index))
                 if ocr:data['text']=ocr
                 self.text.setPlainText(data['text']);self.highlight_text(marks)
                 self.toc.clear()
                 for level,title,page in data['toc']:
                     item=QListWidgetItem('  '*(min(level,8)-1)+title);item.setData(Qt.UserRole,max(0,page-1));self.toc.addItem(item)
-                self.status.setText(tr('Seite ')+str(index+1)+' · '+(tr('Text auswählen, um zu markieren oder vorzulesen') if data['text'].strip() else tr('Bildseite ohne Textschicht')))
+                self.status.setText(tr('Seite ')+str(self.page_index+1)+' · '+(tr('Text auswählen, um zu markieren oder vorzulesen') if data['text'].strip() else tr('Bildseite ohne Textschicht')))
             finally:self.loading=False
+            if self.library.get(key).get('position_changed') or any(n.get('anchor_status')=='unresolved' for n in self.library.get(key).get('notes',[])):
+                self.status.setText(tr('Neuer Textumbruch: bisherige Stellen bitte prüfen. Nicht eindeutig zugeordnete Notizen bleiben erhalten.'))
             position=self.pending_position;self.pending_position={}
+            if ('start' in position or position.get('part','').startswith('words:')) and position.get('engine')!=reader.ENGINE:
+                self.status.setText(tr('Älterer Stellenverweis: Die Seite ist geöffnet; die genaue Textstelle bitte neu auswählen.'));position={}
             if 'start' in position:
                 from interop_open import focus_text
                 self.mode.setCurrentIndex(1);self.safe(focus_text,self.text,position)
@@ -191,7 +202,7 @@ class Reader(ToolWindow):
                     try:self.canvas.first=_index(parts[1],len(self.canvas.words));self.canvas.last=_index(parts[2],len(self.canvas.words));self.canvas.update()
                     except ValueError as error:self.error(str(error))
             value=self.restore_scroll;QTimer.singleShot(0,lambda:self.restore_position(value));self.restore_scroll=0
-        self.work(tr('Seite wird geladen …'),lambda job:reader.worker(job,'page',self.library.asset(record['asset']),page=index,password=self.passwords.get(key,''),stamp=record['stamp']),done)
+        self.work(tr('Seite wird geladen …'),lambda job:reader.worker(job,'page',self.library.asset(record['asset']),page=index,password=self.passwords.get(key,''),stamp=record['stamp'],legacy=record.get('engine')!=reader.ENGINE,notes=record.get('notes',[])),done)
 
     def restore_position(self,value):
         self.loading=True
@@ -242,7 +253,7 @@ class Reader(ToolWindow):
     def refresh_notes(self,selected=''):
         self.notes.blockSignals(True);self.notes.clear();current=None
         for note in self.library.get(self.current).get('notes',[]):
-            item=QListWidgetItem(tr('S. ')+str(note['page']+1)+' · '+(note['text'] or tr('Lesezeichen'))[:90]);item.setData(Qt.UserRole,note);self.notes.addItem(item)
+            item=QListWidgetItem(tr('S. ')+str(note['page']+1)+' · '+((tr('Zuordnung prüfen · ') if note.get('anchor_status')=='unresolved' else '')+(note['text'] or tr('Lesezeichen')))[:90]);item.setData(Qt.UserRole,note);self.notes.addItem(item)
             if note['id']==(selected or self.note_id):current=item
         self.notes.setCurrentItem(current);self.notes.blockSignals(False)
         if selected and current:self.select_note(current,None)
@@ -283,7 +294,7 @@ class Reader(ToolWindow):
             for hit in hits:
                 item=QListWidgetItem(tr('S. ')+str(hit['page']+1)+' · '+hit['text']);item.setData(Qt.UserRole,hit['page']);self.hits.addItem(item)
             self.tabs.setCurrentIndex(2);self.rail.show();self.status.setText(str(len(hits))+tr(' Trefferseiten (maximal 100)'))
-        self.work(tr('Buch wird durchsucht …'),lambda job:reader.worker(job,'search',self.library.asset(record['asset']),query=query,password=self.passwords.get(key,''),stamp=record['stamp']),done)
+        self.work(tr('Buch wird durchsucht …'),lambda job:reader.worker(job,'search',self.library.asset(record['asset']),query=query,password=self.passwords.get(key,''),stamp=record['stamp'],legacy=record.get('engine')!=reader.ENGINE,notes=record.get('notes',[])),done)
 
     def send_marks(self,chapter=False):
         if not self.current:raise ValueError(tr('Zuerst ein Dokument öffnen.'))

@@ -46,18 +46,21 @@ def parse(path,raw):
             candidate=json.loads(match[1])
             if isinstance(candidate,dict):meta=candidate;text=text[match.end():]
         except ValueError:pass
+    try: note_id=str(uuid.UUID(str(meta.get('note_id',''))))
+    except ValueError: note_id=''
     heading=re.search(r'^# (.+)$',text,re.M)
     title=heading[1].strip() if heading else Path(path).stem
     plain=re.sub(r'```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`]*`','',text)
     tags=sorted(set(re.findall(r'(?<![\w/#])#([^\W\d][\w/-]*)',plain)))[:100]
     links=re.findall(r'\[\[([^\]\n]+)\]\]',plain)+re.findall(r'(?<!!)\[[^\]\n]*\]\(([^)\n]+)\)',plain)
-    return dict(id=path,path=path,title=title[:300],text=text,source=str(meta.get('source',''))[:2000],legacy=str(meta.get('legacy',''))[:200],created=timestamp(meta.get('created')),tags=tags,links=links,hash=digest(raw),raw_size=len(raw))
+    return dict(id=path,path=path,note_id=note_id,title=title[:300],text=text,source=str(meta.get('source',''))[:2000],legacy=str(meta.get('legacy',''))[:200],created=timestamp(meta.get('created')),tags=tags,links=links,hash=digest(raw),raw_size=len(raw))
 
 
-def encode(text,source='',legacy='',created=0):
+def encode(text,source='',legacy='',created=0,note_id=''):
     meta=dict(source=source,legacy=legacy)
+    if note_id:meta['note_id']=str(uuid.UUID(note_id))
     if timestamp(created):meta['created']=created
-    prefix='<!-- lumen: '+json.dumps(meta,ensure_ascii=False)+' -->\n' if source or legacy or timestamp(created) else ''
+    prefix='<!-- lumen: '+json.dumps(meta,ensure_ascii=False)+' -->\n' if source or legacy or timestamp(created) or note_id else ''
     raw=(prefix+text).encode()
     if len(raw)>MAX_NOTE:raise ValueError(tr('Notiz größer als 1 MiB. Bitte aufteilen.'))
     return raw
@@ -93,6 +96,19 @@ def excerpt(text,query,limit=3000):
     return ('…\n' if start else '')+text[start:start+limit]+('\n…' if start+limit<len(text) else '')
 
 
+def directory_identity(fd):
+    """Filesystem identity survives a remount; st_dev is only a runtime number."""
+    st=os.fstat(fd)
+    fsid=getattr(os.fstatvfs(fd),'f_fsid',0)
+    return ['fsid:'+str(fsid),st.st_ino] if fsid else [st.st_dev,st.st_ino]
+
+
+def root_identity(root):
+    fd=os.open(root,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+    try:return directory_identity(fd)
+    finally:os.close(fd)
+
+
 class Notebook:
     def __init__(self,store,root=None,create=False,identity=None):
         self.store=store
@@ -101,7 +117,7 @@ class Notebook:
         self.root=Path(chosen).expanduser()
         if create:self.root.mkdir(parents=True,exist_ok=True,mode=0o700)
         self.root=self.root.resolve(strict=True)
-        st=self.root.stat();self.identity=identity or (store.setting('knowledge/identity') if str(self.root)==store.setting('knowledge/notebook') else None) or [st.st_dev,st.st_ino]
+        self.identity=identity or (store.setting('knowledge/identity') if str(self.root)==store.setting('knowledge/notebook') else None) or root_identity(self.root)
         self.history=Library('wissen-history',store.directory)
 
     def context(self,paths,query):
@@ -113,7 +129,8 @@ class Notebook:
         fd=os.open(self.root,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
         try:
             st=os.fstat(fd)
-            if [st.st_dev,st.st_ino]!=self.identity:raise ValueError(tr('Der Notizordner wurde ersetzt oder getrennt. Erneut auswählen.'))
+            actual=directory_identity(fd) if isinstance(self.identity[0],str) else [st.st_dev,st.st_ino]
+            if actual!=self.identity:raise ValueError(tr('Der Notizordner wurde ersetzt oder getrennt. Erneut auswählen.'))
             part=Path(relative)
             if part.is_absolute() or '..' in part.parts:raise ValueError(tr('Pfad außerhalb des Notizordners.'))
             child=folder_fd(fd,part)
@@ -218,7 +235,7 @@ class Notebook:
         with target.open('xb') as stream:target.chmod(0o600);stream.write(raw)
         return self.history.create(Path(path).name,root=str(self.root),path=str(path),asset=asset,created=time.time())
 
-    def write(self,path,text,expected,source=None,legacy=None,created=None):
+    def write(self,path,text,expected,source=None,legacy=None,created=None,note_id=None):
         path=self.relative(path)
         with self.lock():
             try:before,modified=self._read(path)
@@ -227,7 +244,7 @@ class Notebook:
             old=parse(str(path),before) if before is not None else {}
             if before is None:created_at=time.time() if created is None else created
             else:created_at=old.get('created',0) or timestamp(created)
-            raw=encode(text,old.get('source','') if source is None else source,old.get('legacy','') if legacy is None else legacy,created_at)
+            raw=encode(text,old.get('source','') if source is None else source,old.get('legacy','') if legacy is None else legacy,created_at,old.get('note_id','') if note_id is None else note_id)
             if before==raw:return dict(parse(str(path),raw),modified=modified)
             if before is not None:self.backup(path,before)
             with self.directory(path.parent) as parent:
@@ -245,6 +262,19 @@ class Notebook:
                     except FileNotFoundError:pass
             return dict(parse(str(path),raw),modified=modified)
 
+    def rename_collection(self,source,target):
+        source,target=Path(source),Path(target)
+        for value in (source,target):
+            if value.is_absolute() or not value.parts or '..' in value.parts or any(p.startswith('.') for p in value.parts):raise ValueError(tr('Ungültiger Sammlungsname.'))
+        if target.is_relative_to(source):raise ValueError(tr('Eine Sammlung kann nicht in sich selbst verschoben werden.'))
+        from drive_local import move
+        with self.lock():
+            with self.directory(source):pass
+            with self.directory() as fd:
+                st=os.fstat(fd)
+                move(dict(path=str(self.root),identity=[st.st_dev,st.st_ino]),str(source),str(target))
+        return str(target)
+
     def create_collection(self,name):
         name=name.strip()
         if not name or name.startswith('.') or re.search(r'[/\\\x00-\x1f\x7f]',name) or len(name.encode())>200 or name=='attachments':
@@ -253,12 +283,12 @@ class Notebook:
             os.mkdir(name,mode=0o700,dir_fd=parent);os.fsync(parent)
         return name
 
-    def create(self,title,text='',source='',legacy='',folder='.'):
+    def create(self,title,text='',source='',legacy='',folder='.',note_id=''):
         title=' '.join(title.split()).strip()[:200]
         if not title:raise ValueError(tr('Bitte einen Titel eingeben.'))
         stem=re.sub(r'[^\w .-]','-',title).strip('. ')[:100] or 'Notiz'
         path=str(Path(folder)/(stem+'-'+uuid.uuid4().hex[:8]+'.md'))
-        return self.write(path,'# '+title+'\n\n'+text,'',source,legacy)
+        return self.write(path,'# '+title+'\n\n'+text,'',source,legacy,note_id=note_id)
 
     def remove(self,path,expected):
         with self.lock():
@@ -275,7 +305,7 @@ class Notebook:
         row=self.history.get(key)
         if row['root']!=str(self.root):raise ValueError(tr('Die Sicherung gehört zu einem anderen Ordner.'))
         note=parse(row['path'],self.history.asset(row['asset']).read_bytes())
-        return self.write(row['path'],note['text'],expected,note['source'],note['legacy'],created=note['created'])
+        return self.write(row['path'],note['text'],expected,note['source'],note['legacy'],created=note['created'],note_id=note.get('note_id') or None)
 
     def capture(self,title,text,source='',memory=None):
         if not memory:return self.create(title,text,source)['path']
@@ -310,7 +340,7 @@ def activate(store,root=None):
     chosen=root or store.setting('knowledge/notebook','') or str(store.directory/'wissen')
     identity=None
     if root:
-        st=Path(root).expanduser().stat();identity=[st.st_dev,st.st_ino]
+        identity=root_identity(Path(root).expanduser().resolve(strict=True))
     book=Notebook(store,chosen,create=not root and not store.setting('knowledge/notebook',''),identity=identity)
     book.migrate();store.set_setting('knowledge/notebook',str(book.root));store.set_setting('knowledge/identity',book.identity);return str(book.root)
 
@@ -342,7 +372,11 @@ def main():
     else:
         book=Notebook(store,root,identity=request.pop('identity',None))
         if action=='scan':book.migrate();result=book.scan()
-        elif action in ('read','write','create','create_collection','remove','versions','restore','capture','add_image','preview','context'):result=getattr(book,action)(**request)
+        elif action in ('sync_info','sync_config','sync'):
+            import wissen_sync
+            result=getattr(wissen_sync,action)(book,**request)
+            if action=='sync':result['scan']=book.scan()
+        elif action in ('read','write','create','create_collection','rename_collection','remove','versions','restore','capture','add_image','preview','context'):result=getattr(book,action)(**request)
         else:raise ValueError(tr('Unbekannte Notizaktion.'))
     print(json.dumps(result,ensure_ascii=False))
 

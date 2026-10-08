@@ -261,7 +261,7 @@ class LumenIntegrationTest(unittest.TestCase):
         import os
         import time
         from unittest.mock import patch
-        from PySide6.QtCore import QSettings
+        from PySide6.QtCore import QSettings, Qt
         from PySide6.QtTest import QTest
         from lumen_knowledge import index_root
         spec = importlib.util.spec_from_file_location('lumen_desktop_test', Path(__file__).resolve().parents[1] / 'agent-app/main.py')
@@ -275,7 +275,7 @@ class LumenIntegrationTest(unittest.TestCase):
                 for index in range(8): window.show_page(index); QTest.qWait(15)
                 self.assertEqual(window.file_window.window(), window)
                 space = window.workspace
-                space.store.set_setting('modelPolicy', {'gpu_limit': 100})
+                space.store.set_setting('modelPolicy', {'gpu_limit': 100, 'pause_on_activity': False})
                 flow = space.store.save_workflow('Bericht', [{'action': 'write', 'path': tmp+'/bericht.md', 'text': 'Prüfung bestanden'}], [tmp], trigger='interval', interval=60, enabled=True, approved=True, now=0)
                 space.tick()
                 deadline = time.monotonic()+10
@@ -295,7 +295,8 @@ class LumenIntegrationTest(unittest.TestCase):
                 space.close_task.click(); self.assertEqual(space.tasks.count(), 0)
                 self.assertFalse(space.close_task.isEnabled())
                 self.assertEqual(space.store.task(completed_id)['status'], 'completed')
-                space.show_closed.setChecked(True); self.assertEqual(space.tasks.count(), 1)
+                space.show_closed.setChecked(True)
+                self.assertEqual([space.tasks.item(i).data(Qt.UserRole) for i in range(space.tasks.count()) if space.tasks.item(i).data(Qt.UserRole)], [completed_id])
                 cancelled_id = space.store.create_task('Abgebrochener Auftrag', directory=tmp, status='cancelled')
                 space.select_task(cancelled_id)
                 self.assertTrue(space.close_task.isEnabled())

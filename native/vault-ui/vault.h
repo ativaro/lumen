@@ -7,6 +7,7 @@
 class BackupPage;
 class VaultAccess;
 using Reply = std::function<void(QStringList)>;
+QLineEdit *vaultInput(const QString &name, bool hidden = false);
 void wipe(QString &text);
 void wipe(QByteArray &text);
 class Channel : public QObject {
@@ -66,6 +67,10 @@ private:
   void loadDetails();
   void history();
   void backup();
+  void serverSync();
+  void pollServerSync();
+  QTimer autoSyncTimer;
+  QPointer<QProcess> autoSyncProcess;
   void about();
   QString kind(const QString &key) const;
   void select();

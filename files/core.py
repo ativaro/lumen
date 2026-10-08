@@ -10,7 +10,6 @@ import time
 from collections import deque
 from pathlib import Path
 
-from gi.repository import Gio
 from lumen_qt import QThread, Signal
 
 TEXT_EXTENSIONS = {'.md', '.py', '.js', '.ts', '.tsx', '.jsx', '.json', '.yaml', '.yml',
@@ -89,6 +88,7 @@ def check_destination(source, destination):
 
 
 def move_entry(source, destination, atomic=False, progress=None):
+    from gi.repository import Gio
     source, destination = Path(source), Path(destination)
     check_destination(source, destination)
     flags = Gio.FileCopyFlags.NOFOLLOW_SYMLINKS

@@ -231,7 +231,7 @@ def create_window(controller):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Lumen System')
-    parser.add_argument('--page', choices=('system', 'sound', 'modes'), default='system')
+    parser.add_argument('--page', choices=('system', 'sound', 'modes'))
     destination = parser.add_mutually_exclusive_group()
     destination.add_argument('--ref'); destination.add_argument('--handoff')
     args = parser.parse_args(argv)
@@ -245,8 +245,8 @@ def main(argv=None):
     app.setWindowIcon(QIcon.fromTheme('lumen-system', QIcon.fromTheme('utilities-system-monitor')))
     bus = QDBusConnection.sessionBus(); service = 'org.lumen.System'
     if bus.isConnected() and not bus.registerService(service):
-        message = QDBusMessage.createMethodCall(service, '/System', service, 'OpenSound' if request else 'OpenPage')
-        message.setArguments([json.dumps(request) if request else args.page])
+        message = QDBusMessage.createMethodCall(service, '/System', service, 'OpenSound' if request else 'OpenPage' if args.page else 'Activate')
+        message.setArguments([json.dumps(request)] if request else [args.page] if args.page else [])
         reply = bus.call(message, QDBus.Block, 3000)
         return int(reply.type() == QDBusMessage.ErrorMessage)
     from tools_data import Library
@@ -258,7 +258,7 @@ def main(argv=None):
         return 1
     from system_window import SystemWindow
     from tools_app import listen_window
-    controller = SystemController(); window = SystemWindow(controller, args.page)
+    controller = SystemController(); window = SystemWindow(controller, args.page or 'system')
     from interop_data import Registry
     Registry(library.root.parent).recover('sound')
     server = listen_window(window.sound, window.activate_sound)

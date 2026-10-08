@@ -12,17 +12,13 @@ import reader_data as reader
 
 class ReaderTest(unittest.TestCase):
     def setUp(self):
-        try:import pymupdf
-        except ImportError:self.skipTest('Optional PyMuPDF is required for document rendering')
-        self.pdf=pymupdf;self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name)
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name)
         self.library=Library('reader',self.root/'data');self.job=Job(lambda _:None)
 
     def test_pdf_copy_render_notes_search_rotation_and_password(self):
         path=self.root/'document.pdf'
-        with self.pdf.open() as doc:
-            for text in ['First page','Second page']:
-                page=doc.new_page();page.insert_text((50,80),text)
-            doc[1].set_rotation(90);doc.set_toc([[1,'Chapter two',2]]);doc.save(path)
+        from test_pdf_fixtures import document
+        document(['First page','Second page'],rotations=[0,90],toc=[[1,'Chapter two',2]]).save(path)
         original=path.read_bytes();key=reader.import_file(self.library,path,self.job);book=self.library.get(key);asset=self.library.asset(book['asset'])
         data=reader.worker(self.job,'page',asset,page=1,stamp=book['stamp'])
         self.assertGreater(data['width'],data['height']);self.assertTrue(data['png']);self.assertEqual(data['words'][0][4],'Second')
@@ -32,7 +28,7 @@ class ReaderTest(unittest.TestCase):
         asset.write_bytes(original+b'\n')
         with self.assertRaises(ValueError):reader.worker(self.job,'page',asset,page=1,stamp=book['stamp'])
         encrypted=self.root/'locked.pdf'
-        with self.pdf.open(path) as doc:doc.save(encrypted,encryption=self.pdf.PDF_ENCRYPT_AES_256,user_pw='test-reader-pass',owner_pw='test-owner-pass')
+        encrypted.write_bytes((Path(__file__).parent/'fixtures/pdf/aes-256.pdf').read_bytes())
         key=reader.import_file(self.library,encrypted,self.job);book=self.library.get(key)
         self.assertTrue(book['locked']);self.assertTrue(reader.worker(self.job,'page',self.library.asset(book['asset']),password='wrong')['locked'])
         self.assertEqual(reader.worker(self.job,'page',self.library.asset(book['asset']),password='test-reader-pass')['pages'],2)
@@ -51,7 +47,7 @@ class ReaderTest(unittest.TestCase):
         key=reader.import_file(self.library,page,self.job);book=self.library.get(key);body=self.library.asset(book['asset']).read_text()
         self.assertNotIn('private-script',body);self.assertNotIn('<img',body)
         self.assertIn('Lesbar',reader.worker(self.job,'page',self.library.asset(book['asset']))['text'])
-        with patch('reader_data.zipfile.ZipFile') as archive:
+        with patch('lumen_reflow.zipfile.ZipFile') as archive:
             entry=zipfile.ZipInfo('large');entry.file_size=300*1024**2;archive.return_value.__enter__.return_value.infolist.return_value=[entry]
             with self.assertRaises(ValueError):reader.validate_epub(path)
 

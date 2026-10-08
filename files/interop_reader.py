@@ -98,20 +98,18 @@ def compare_original(library, key, job):
 
 
 def _fingerprints(path, password=''):
-    import pymupdf
     document = reader_data.opened(path, password)
     if document is None: raise ValueError(tr('Zum Vergleichen das Dokument zuerst entsperren.'))
     with document:
         if len(document) > 500: raise ValueError(tr('Zum sicheren Abgleich Dokumente mit höchstens 500 Seiten verwenden.'))
         values = []
-        for page in document:
-            # Word indices/positions and visible appearance must match before existing marks move.
-            words = page.get_text('words', sort=True)
-            scale = min(.2, 600/max(page.rect.width, 1), 600/max(page.rect.height, 1))
-            pixmap = page.get_pixmap(matrix=pymupdf.Matrix(scale, scale), alpha=False, colorspace=pymupdf.csRGB)
-            digest = hashlib.sha256(json.dumps([list(page.rect), words]).encode()); digest.update(pixmap.samples)
+        for index in range(len(document)):
+            page=document.page(index)
+            scale=min(.2,600/page.width,600/page.height);image=page.render(scale)
+            digest=hashlib.sha256(json.dumps([[0,0,page.width,page.height],page.words]).encode());digest.update(__import__('lumen_pdf_page').png(image))
             values.append(digest.hexdigest())
-        return dict(fingerprints=values, pages=len(document), toc=document.get_toc()[:2000], locked=False)
+        return dict(fingerprints=values,pages=len(document),toc=document.toc()[:2000],locked=False)
+
 
 
 def refresh_original(library, key, job, password=''):
@@ -176,6 +174,8 @@ def search_ocr(record, query):
 
 
 if __name__ == '__main__':
+    from lumen_pdf_worker import limits
+    limits()
     try:
         request = json.load(sys.stdin)
         print(json.dumps({key: _fingerprints(request[key], request.get('password', '')) for key in ('old', 'new')}))

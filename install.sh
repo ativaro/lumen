@@ -96,11 +96,16 @@ mkdir -p "$PREFIX/agent-app"
 install -m 0644 "$REPO/agent-app/main.py" "$PREFIX/agent-app/"
 mkdir -p "$PREFIX/files"
 install -m 0644 "$REPO/files/"*.py "$REPO/files/"*.qss "$REPO/files/"*.svg "$PREFIX/files/"
+mkdir -p "$PREFIX/files/memory-runtime"
+cp -R "$REPO/files/memory-runtime/." "$PREFIX/files/memory-runtime/"
+
 if [[ -f "$GOOGLE_STAGE/client.json" ]]; then
     install -m 0644 "$GOOGLE_STAGE/client.json" "$PREFIX/files/google-drive-client.json"
 fi
 mkdir -p "$PREFIX/files/translations"
 cp -R "$REPO/files/translations/." "$PREFIX/files/translations/"
+mkdir -p "$PREFIX/files/fonts"
+cp -R "$REPO/files/fonts/." "$PREFIX/files/fonts/"
 mkdir -p "$PREFIX/files/qml"
 cp -R "$REPO/files/qml/." "$PREFIX/files/qml/"
 mkdir -p "$PREFIX/desktop"
@@ -156,6 +161,10 @@ fi
 subst "$REPO/data/applications/lumen-ask.desktop" > "$DATA_HOME/applications/lumen-ask.desktop"
 subst "$REPO/data/applications/lumen-ask-sel.desktop" > "$DATA_HOME/applications/lumen-ask-sel.desktop"
 subst "$REPO/data/applications/lumen-companion.desktop" > "$DATA_HOME/applications/lumen-companion.desktop"
+subst "$REPO/data/applications/lumen-server-connect.desktop" > "$DATA_HOME/applications/lumen-server-connect.desktop"
+mkdir -p "$CONFIG_HOME/systemd/user"
+subst "$REPO/system/systemd/user/lumen-server-connector.service" > "$CONFIG_HOME/systemd/user/lumen-server-connector.service"
+command -v xdg-mime >/dev/null 2>&1 && xdg-mime default lumen-server-connect.desktop x-scheme-handler/lumen-server || true
 subst "$REPO/data/applications/lumen-window-capture.desktop" > "$DATA_HOME/applications/lumen-window-capture.desktop"
 subst "$REPO/data/applications/lumen-vision.desktop" > "$DATA_HOME/applications/lumen-vision.desktop"
 subst "$REPO/data/applications/lumen-sel.desktop" > "$DATA_HOME/applications/lumen-sel.desktop"
@@ -163,6 +172,7 @@ subst "$REPO/data/applications/lumen-files.desktop" > "$DATA_HOME/applications/l
 subst "$REPO/data/applications/lumen-open.desktop" > "$DATA_HOME/applications/lumen-open.desktop"
 subst "$REPO/data/applications/lumen-search.desktop" > "$DATA_HOME/applications/lumen-search.desktop"
 subst "$REPO/data/applications/lumen-updater.desktop" > "$DATA_HOME/applications/lumen-updater.desktop"
+subst "$REPO/data/applications/lumen-notification.desktop" > "$DATA_HOME/applications/lumen-notification.desktop"
 subst "$REPO/data/applications/lumen-apps.desktop" > "$DATA_HOME/applications/lumen-apps.desktop"
 subst "$REPO/data/applications/lumen-search-preview.desktop" > "$DATA_HOME/applications/lumen-search-preview.desktop"
 for tool in meetings household workbench radio vault inbox reader sound wissen translate system; do

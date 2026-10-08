@@ -19,7 +19,7 @@ Build order: core → PDF → UI → integration.
 - Model receives explicitly supplied content only, without tools or memory context. A visible Translate action sends it; no clipboard monitoring or automatic translation.
 - PDF originals remain unchanged. Work from a private import; preserve page boxes, pictures and vector lines. Replace horizontal text blocks in their original rectangles; fit text within a bounded minimum scale and report downsizing. Refuse unreadable scans, interactive/signed PDFs and unsupported rotated text rather than claim a complete translation.
 - Preview original/result pages side by side. New-file export must not overwrite an existing file or original. No silent truncation or partial-success export. Changing source/options invalidates the previous result.
-- History/drafts remain local like the other native apps; users can archive records. PDF engine is the existing optional PyMuPDF dependency and is invoked in a separate process.
+- History/drafts remain local like the other native apps; users can archive records. PDF processing uses Lumen’s own engine in a separate process (see SPEC-pdf-core.md).
 - MCP: language catalogue, bounded text translation (no local history writes), PDF translation to an explicitly supplied new output path behind the existing action gate. Tools are disabled for model calls to avoid recursion. Existing action and privacy flags remain unchanged.
 - Integrate a PDF/text handoff target and a translation source so selected content from Wissen, Reader, Inbox etc. can enter Translate, and results can return to Wissen/Inbox/projects. Integrate AppCenter, app-specific defaults in settings, Files context menu, desktop launcher, setup dependency discovery and installers.
 - German and English UI. Existing themes and Qt 6 runtime. No new credentials or providers.
@@ -31,7 +31,7 @@ Modules in `files/translate_data.py`, `translate_pdf.py`, `tools_translate.py`; 
 Out of scope for this increment: OCR, layout translation of Office documents, live microphone interpreting and replacement of text embedded in images. These limits are visible in the PDF import UI.
 
 
-PDF API reference: https://pymupdf.readthedocs.io/en/latest/page.html
+PDF format reference: https://pdfa.org/resource/iso-32000-1/
 (text-only redactions; bounded `insert_htmlbox` fitting). Existing link annotations
 are restored when text redaction removes them. Source files are fingerprinted before
 and after processing; new output publication uses an exclusive same-directory link.

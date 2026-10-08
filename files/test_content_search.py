@@ -198,12 +198,16 @@ class ContentSearchUITest(unittest.TestCase):
             fake_bin = root / 'bin'
             fake_bin.mkdir()
             marker = root / 'decoder.pid'
-            fake = fake_bin / 'pdftotext'
+            fake = fake_bin / 'lumen_pdf_worker.py'
             fake.write_text('#!/usr/bin/python3\nimport os,time\nfrom pathlib import Path\n'
                             'Path(os.environ["LUMEN_TEST_DECODER_PID"]).write_text(str(os.getpid()))\ntime.sleep(30)\n')
+            # A copied scanner resolves its sibling decoder, without a production test hook.
+            (fake_bin/'content_search.py').write_bytes(Path(__file__).with_name('content_search.py').read_bytes())
+            import content_search_dialog
+            fake_dialog=fake_bin/'content_search_dialog.py'
             fake.chmod(0o755)
             (root / 'blocked.pdf').write_bytes(b'PDF test')
-            with patch.dict(os.environ, {'PATH': str(fake_bin) + ':' + os.environ['PATH'], 'LUMEN_TEST_DECODER_PID': str(marker)}):
+            with patch.object(content_search_dialog,'__file__',str(fake_dialog)), patch.dict(os.environ, {'PYTHONPATH':str(Path(__file__).parent), 'LUMEN_TEST_DECODER_PID': str(marker)}):
                 dialog = ContentSearchDialog(root)
                 dialog.show()
                 try:

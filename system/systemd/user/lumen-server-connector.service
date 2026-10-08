@@ -1,0 +1,15 @@
+[Unit]
+Description=Lumen Server desktop connection
+After=network-online.target
+ConditionPathExists=%E/lumen-server/connection.json
+
+[Service]
+Type=simple
+ExecStart=%INSTALL_BIN%/lumen-server-connect --watch
+Restart=on-failure
+RestartSec=15
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

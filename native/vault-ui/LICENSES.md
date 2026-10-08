@@ -63,7 +63,7 @@ Official references:
 
 ## Entire Lumen project
 
-Existing PyMuPDF/MuPDF and GPL artwork retain their own terms. The native Vault
+Existing third-party libraries and GPL artwork retain their own terms. The native Vault
 work does not remove them, convert them to MIT, or authorize a closed-source
 commercial redistribution of the entire product. See ../../LICENSE-PLAN.md and
 ../../desktop/CREDITS.md. Keep the repository private as requested; obtain a

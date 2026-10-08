@@ -20,6 +20,7 @@ def inventory():
     from PySide6.QtCore import QStandardPaths as Paths
     from interop_vault import discover_sources
     import vault_data
+    import vault_targets
     files = []
     for label, location in [('Dokumente', Paths.DocumentsLocation), ('Bilder', Paths.PicturesLocation),
                             ('Musik', Paths.MusicLocation), ('Videos', Paths.MoviesLocation), ('Schreibtisch', Paths.DesktopLocation)]:
@@ -31,7 +32,7 @@ def inventory():
     data = Path(os.environ.get('XDG_DATA_HOME', str(Path.home()/'.local/share')))
     for relative in ('color-schemes', 'aurorae/themes', 'plasma/desktoptheme', 'wallpapers'):
         if (data/relative).is_dir(): config.append(str(data/relative))
-    return dict(files=files, lumen=[dict(label=r['title'], path=r['path']) for r in apps] +
+    return dict(servers=vault_targets.available(), files=files, lumen=[dict(label=r['title'], path=r['path']) for r in apps] +
                 [dict(label=Path(p).name, path=p) for p in config],
                 vault=[dict(label=tr('Verschlüsselter Passwort-Tresor'), path=str(vault_root()))] if (vault_root()/'vault.kdbx').is_file() else [])
 
@@ -141,14 +142,23 @@ def configure(library, request, job):
     import vault_data as vault
     from interop_vault import discover_sources
     target = request['repository']
+    server_target = request.get('server_target')
+    remote = None
+    if server_target:
+        from vault_targets import probe as probe_server
+        if request.get('network_uri'): raise ValueError(tr('Nur ein Sicherungsziel auswählen.'))
+        remote = probe_server(server_target)
+        if remote['path'] != target: raise ValueError(tr('Ungültiges Sicherungsziel.'))
     if request.get('network_uri'):
         target = resolve_plan(dict(repository=target, **{k: request.get(k, '') for k in ('network_uri', 'network_id')}), job)['repository']
     if request.get('adopt'):
-        if not (Path(target)/'config').is_file(): raise ValueError(tr('Hier liegt keine bestehende Sicherung.'))
-        identity = vault.create(library, request['title'], target, [], request['password'], job)
+        if not (remote['existing'] if remote else (Path(target)/'config').is_file()): raise ValueError(tr('Hier liegt keine bestehende Sicherung.'))
+        identity = vault.create(library, request['title'], target, [], request['password'], job, server_target=server_target)
         library.update(identity, **{k: request.get(k, '') for k in ('network_uri', 'network_id')}, adopted=True)
         return dict(id=identity, restored_connection=True)
-    probe(target)
+    if remote:
+        if remote['existing']: raise ValueError(tr('Bestehende Serversicherung zuerst mit ihrem bisherigen Schlüssel verbinden.'))
+    else: probe(target)
     if not request.get('recovery_confirmed'): raise ValueError(tr('Wiederherstellungsschlüssel zuerst unabhängig aufbewahren.'))
     selected = request.get('groups', {})
     if not isinstance(selected, dict) or set(selected) - {'files', 'lumen', 'vault'}: raise ValueError(tr('Ungültige Quellenauswahl.'))
@@ -173,13 +183,14 @@ def configure(library, request, job):
         address(row['uri'])
     if request.get('interval', 86400) not in (0, 86400, 604800): raise ValueError(tr('Ungültiger Zeitplan.'))
     # Exclusive fresh directory. Never initialize or overwrite existing content.
-    parent = Path(target); child = 'Lumen-Sicherung-' + uuid.uuid4().hex[:8]
-    repository = parent/child; repository.mkdir(mode=0o700)
+    child = 'Lumen-Sicherung-' + uuid.uuid4().hex[:8]
+    repository = target if remote else Path(target)/child
+    if not remote: repository.mkdir(mode=0o700)
     apps = [r for r in discover_sources() if r['path'] in sources]
     try:
-        identity = vault.create(library, request['title'], str(repository), sources, request['password'], job, app_sources=apps)
+        identity = vault.create(library, request['title'], str(repository), sources, request['password'], job, app_sources=apps, server_target=server_target)
     except BaseException:
-        if not any(repository.iterdir()): repository.rmdir()
+        if not remote and not any(repository.iterdir()): repository.rmdir()
         raise
     uri = request.get('network_uri', '')
     if uri:

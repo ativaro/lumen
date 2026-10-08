@@ -5,11 +5,11 @@ from html import escape
 from pathlib import Path
 import sys
 
-from PySide6.QtCore import QObject, QProcess, QThread, QTimer, Qt, QUrl, Signal
+from PySide6.QtCore import QObject, QProcess, QThread, QTimer, Qt, QUrl, Signal, QEvent
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
     QFrame, QFormLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-    QMessageBox, QPlainTextEdit, QPushButton, QSizePolicy, QSpinBox, QSplitter, QTabWidget, QTextBrowser, QVBoxLayout, QWidget)
+    QMessageBox, QMenu, QPlainTextEdit, QProgressBar, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QSplitter, QTabWidget, QTextBrowser, QVBoxLayout, QWidget)
 from lumen_actions import ACTIONS, undo
 from lumen_knowledge import index_root, search
 from lumen_store import Store, STATES
@@ -230,52 +230,115 @@ class Workspace(QObject):
         return call
 
     def build_tasks(self):
-        widget, box = page(tr('Aufträge'), tr('Aufträge bleiben nach einem Neustart erhalten. Unterbrochene Schritte vor dem Fortsetzen prüfen.'))
-        self.show_closed = QCheckBox(tr('Geschlossene Aufgaben anzeigen'))
-        self.show_closed.toggled.connect(self.refresh_tasks); box.addWidget(self.show_closed)
-        split = QSplitter(); self.tasks = QListWidget(); self.tasks.setAccessibleName(tr('Gespeicherte Aufträge'))
-        self.detail = QPlainTextEdit(); self.detail.setReadOnly(True); self.detail.setAccessibleName(tr('Auftrag, Ergebnis und Verlauf'))
-        split.addWidget(self.tasks); split.addWidget(self.detail); split.setStretchFactor(1, 2); box.addWidget(split, 1)
-        self.tasks.currentItemChanged.connect(self.show_task)
-        buttons(box, [(tr('Neuer Auftrag'), self.guarded(self.new_task)), (tr('Ausführen / Fortsetzen'), self.guarded(self.run_task)),
-                      (tr('Pausieren'), self.guarded(lambda: self.stop_task('paused'))), (tr('Abbrechen'), self.guarded(lambda: self.stop_task('cancelled')))])
-        buttons(box, [(tr('Als Ablauf speichern'), self.guarded(self.task_to_flow)), (tr('Als Dateiaktion'), self.guarded(self.task_to_file_action)), (tr('Ergebnis speichern'), self.guarded(self.export_task)),
-                      (tr('Änderung rückgängig'), self.guarded(self.undo_change))])
-        buttons(box, [(tr('Ergebnis ins Wissen'),self.guarded(self.task_to_knowledge))])
-        self.close_task = QPushButton(tr('Schließen')); self.close_task.setEnabled(False)
-        self.close_task.setToolTip(tr('Erledigte oder abgebrochene Aufgabe aus der Übersicht entfernen. Ergebnis und Verlauf bleiben erhalten.'))
-        self.close_task.clicked.connect(self.guarded(self.dismiss_task)); box.addWidget(self.close_task)
-        return widget
+        from studio_tasks import build_task_page
+        return build_task_page(self)
 
-    def refresh_tasks(self):
-        rows = self.store.tasks(include_dismissed=self.show_closed.isChecked()); signature = [(r['id'], r['status'], r['updated']) for r in rows]
+    def eventFilter(self, watched, event):
+        if watched is getattr(self, 'tasks_page', None) and event.type() == QEvent.Resize:
+            self.task_inspector.setFixedWidth(max(260, min(342, int(watched.width() * .42))))
+            QTimer.singleShot(0, self.task_split, lambda: self.task_split.setSizes([self.tasks_page.width()-self.task_inspector.width()-1, self.task_inspector.width()]))
+        return super().eventFilter(watched, event)
+
+    def refresh_tasks(self, *_):
+        rows = self.store.tasks(include_dismissed=self.show_closed.isChecked())
+        query = self.task_search.text().casefold().strip()
+        signature = (query, [(r['id'], r['status'], r['updated']) for r in rows])
         if signature == self.task_signature: return
         previous = self.tasks.currentItem().data(Qt.UserRole) if self.tasks.currentItem() else None
-        self.task_signature = signature; self.tasks.clear()
-        for row in rows:
-            add_item(self.tasks, f"{STATES.get(row['status'], row['status'])} · {row['title']}", row['id'])
-            if row['id'] == previous: self.tasks.setCurrentRow(self.tasks.count()-1)
-        if self.tasks.currentRow() < 0 and self.tasks.count(): self.tasks.setCurrentRow(0)
+        self.task_signature = signature; self.tasks.blockSignals(True); self.tasks.clear()
+        rows = [r for r in rows if query in (r['title'] + ' ' + STATES.get(r['status'], r['status']) + ' ' + r['error']).casefold()]
+        groups = [(tr('Braucht dich'), ('needs_input', 'failed', 'interrupted')), (tr('In Arbeit'), ('running',)),
+                  (tr('Pausiert'), ('paused',)), (tr('Vorbereitet'), ('draft', 'queued')),
+                  (tr('Erledigt'), ('completed',)), (tr('Abgebrochen'), ('cancelled',))]
+        first = None
+        for title, states in groups:
+            group = [r for r in rows if r['status'] in states]
+            if not group: continue
+            header = QListWidgetItem(title); header.setFlags(Qt.NoItemFlags)
+            header.setData(Qt.UserRole+2, len(group))
+            self.tasks.addItem(header)
+            for row in group:
+                add_item(self.tasks, row['title'] + '\n' + STATES.get(row['status'], row['status']), row['id'])
+                item = self.tasks.item(self.tasks.count()-1); item.setToolTip(row['title'])
+                item.setData(Qt.UserRole+1, row)
+                if first is None: first = item
+                if row['id'] == previous: self.tasks.setCurrentItem(item)
+        if self.tasks.currentItem() is None and first is not None: self.tasks.setCurrentItem(first)
+        self.tasks.blockSignals(False)
+        self.tasks_empty.setText(tr('Keine Aufträge für diese Suche.') if query else tr('Noch keine Aufträge. Beginne ein Gespräch oder lege einen Auftrag an.'))
+        self.tasks_empty.setVisible(not rows); self.show_task()
+
+    def task_capabilities(self, task):
+        tracker = self.window.chat.tracker; backend = tracker.backend
+        active = tracker.task_id == task['id'] and backend.busy
+        running = task['status'] in ('running', 'needs_input')
+        return dict(run=(bool(task['steps']) or not backend.busy) and task['status'] in ('draft', 'queued', 'paused', 'interrupted', 'failed', 'needs_input'),
+            pause=running and (bool(task['steps']) or active and getattr(backend, 'execution', 'local') == 'local'),
+            cancel=task['status'] not in ('completed', 'cancelled') and (not running or bool(task['steps']) or active))
 
     def show_task(self, *_):
-        status = self.store.task(selected(self.tasks))['status'] if self.tasks.currentItem() else ''
+        item = self.tasks.currentItem(); task = self.store.task(item.data(Qt.UserRole)) if item and item.data(Qt.UserRole) else None
+        status = task['status'] if task else ''
         self.close_task.setEnabled(status in ('completed', 'cancelled'))
         self.close_task.setText(tr('Löschen') if status == 'cancelled' else tr('Schließen'))
-        if not self.tasks.currentItem(): self.detail.clear(); return
-        task = self.store.task(selected(self.tasks)); events = self.store.events(task['id'])
-        content = [task['title'], STATES.get(task['status'], task['status']), tr('Arbeitsordner: ') + task['directory'],
-                   tr('Fortschritt: ') + str(task['cursor']) + '/' + str(len(task['steps'])) if task['steps'] else '',
+        for key, control in self.task_buttons.items(): control.setVisible(bool(task) and self.task_capabilities(task)[key])
+        self.task_save.setEnabled(bool(task and task['result'])); self.task_save.setVisible(bool(task and task['result']) and status not in ('running', 'needs_input'))
+        self.task_reuse.setVisible(bool(task) and status not in ('running', 'needs_input'))
+        self.task_outputs.setVisible(bool(task) and status not in ('running', 'needs_input'))
+        self.task_result_link.setVisible(bool(task and task['result']))
+        self.task_reuse.setEnabled(bool(task) and status not in ('running', 'needs_input'))
+        self.task_conversation.setVisible(bool(task and task['session']))
+        self.task_details.setEnabled(bool(task)); self.undo_task.setEnabled(bool(task))
+        self.task_progress.setVisible(bool(task and (task['steps'] or status == 'running')))
+        if task and not task['steps']: self.task_progress.setRange(0, 0)
+        self.task_error.setVisible(bool(task and task['error']))
+        if not task:
+            self.task_result_key = None
+            self.task_title.setText(tr('Wähle einen Auftrag')); self.task_meta.clear(); self.task_state.clear(); self.task_steps.clear(); self.detail.clear(); self.task_result.clear(); return
+        self.task_title.setText(task['title'])
+        if item.data(Qt.UserRole+1) != task: item.setData(Qt.UserRole+1, task)
+        self.task_error.setText(task['error'])
+        self.task_state.setText('•  '+STATES.get(status, status))
+        self.task_meta.setText('▱  '+(Path(task['directory']).name or task['directory'])); self.task_meta.setToolTip(task['directory'])
+        self.task_steps.setText('\n\n'.join(('✓  ' if i < task['cursor'] else '◷  ' if i == task['cursor'] and status == 'running' else '·  ')+step_description(step).split('\n')[0] for i, step in enumerate(task['steps']))
+            or (tr('Lumen arbeitet am Auftrag.') if status == 'running' else STATES.get(status, status)))
+        self.task_buttons['run'].setText(tr('Ausführen') if status in ('draft', 'queued') else tr('Fortsetzen'))
+        self.task_buttons['pause'].setToolTip(tr('Der laufende native Schritt wird noch beendet.') if task['steps'] else tr('Unterbricht die Antwort. Fortsetzen prüft den bisherigen Stand.'))
+        if task['steps']: self.task_progress.setRange(0, len(task['steps'])); self.task_progress.setValue(task['cursor'])
+        key = (task['id'], task['result'], task['error'], status)
+        if key != getattr(self, 'task_result_key', None):
+            if not getattr(self, 'task_result_key', None) or self.task_result_key[0] != task['id']: self.task_result_link.setChecked(False)
+            self.task_result_key = key
+            from PySide6.QtGui import QTextDocument
+            self.task_result.document().setMarkdown(task['result'] or task['error'] or tr('Noch kein Ergebnis. Auftrag und freigegebene Schritte stehen in den Details.'),
+                QTextDocument.MarkdownFeatures(QTextDocument.MarkdownDialectGitHub | QTextDocument.MarkdownNoHTML))
+            from ui_typography import format_document
+            format_document(self.task_result.document(), self.window.settings)
+        events = self.store.events(task['id'])
+        content = [tr('Auftrag: ') + task['id'], task['title'], STATES.get(status, status), tr('Arbeitsordner: ') + task['directory'],
                    tr('Freigegebene Ordner: ') + ', '.join(task['roots']),
-                   tr('Schritte: ') + json.dumps(task['steps'], ensure_ascii=False, indent=2) if task['steps'] else '',
-                   task['prompt'], task['error'], task['result'], tr('\nVerlauf:')]
+                   tr('Schritte: ') + '\n\n'.join(step_description(step) for step in task['steps']) if task['steps'] else '',
+                   task['prompt'], task['error'], task['result'], tr('Verlauf:')]
         content += [e['kind'] + ': ' + e['detail'] for e in events if e['kind'] != 'input']
         self.detail.setPlainText('\n\n'.join(part for part in content if part))
+
+    def open_task_conversation(self, task_id=None):
+        task = self.store.task(task_id or selected(self.tasks)); chat = self.window.chat
+        if not task['session']: return
+        if task['session'] != chat.backend.session or task['directory'] != chat.backend.directory:
+            if chat.backend.busy or chat.composer.toPlainText().strip() or chat.paths:
+                raise ValueError(tr('Bitte das laufende Gespräch, den Entwurf oder angehängte Dateien zuerst abschließen.'))
+            chat.set_action('')
+            if not chat.backend.new_conversation(task['directory']): return
+            chat.backend.select_session(task['session']); chat.update_context()
+        self.window.show_page(0)
 
     def dismiss_task(self):
         self.store.dismiss_task(selected(self.tasks))
         self.show_closed.setChecked(False); self.refresh_tasks()
 
     def select_task(self, task_id):
+        self.task_search.clear()
         self.refresh_tasks()
         for row in range(self.tasks.count()):
             item = self.tasks.item(row)
@@ -285,8 +348,10 @@ class Workspace(QObject):
         try: task = self.store.task(task_id)
         except ValueError:
             self.tasks.setCurrentRow(-1); self.detail.setPlainText(tr('Dieser Auftrag ist nicht mehr vorhanden.'))
+            self.task_meta.setText(tr('Dieser Auftrag ist nicht mehr vorhanden.'))
             return
         add_item(self.tasks, f"{STATES.get(task['status'], task['status'])} · {task['title']}", task_id)
+        self.tasks.item(self.tasks.count()-1).setData(Qt.UserRole+1, task)
         self.tasks.setCurrentRow(self.tasks.count() - 1)
 
     def new_task(self):
@@ -319,6 +384,8 @@ class Workspace(QObject):
     def stop_task(self, state):
         task = self.store.task(selected(self.tasks)); tracker = self.window.chat.tracker
         if task['status'] in ('completed', 'cancelled'): return
+        if not self.task_capabilities(task)['pause' if state == 'paused' else 'cancel']:
+            raise ValueError(tr('Diese Steuerung ist für diesen Auftrag hier nicht verfügbar.'))
         if tracker.task_id == task['id'] and tracker.backend.busy:
             tracker.pause() if state == 'paused' else tracker.backend.stop()
         else:
@@ -337,16 +404,16 @@ class Workspace(QObject):
         process.errorOccurred.connect(lambda _: self.window.chat.show_error(tr('Auftragsprozess konnte nicht gestartet werden.')))
         process.start(sys.executable, args)
 
-    def task_to_file_action(self):
+    def task_to_file_action(self, task_id=None):
         from file_actions import save_action
-        save_action(self.window, self.store, self.store.task(selected(self.tasks)))
+        save_action(self.window, self.store, self.store.task(task_id or selected(self.tasks)))
         self.refresh_flows()
 
-    def task_to_flow(self):
-        task = self.store.task(selected(self.tasks)); self.flow_dialog(task)
+    def task_to_flow(self, task_id=None):
+        task = self.store.task(task_id or selected(self.tasks)); self.flow_dialog(task)
 
-    def export_task(self):
-        task = self.store.task(selected(self.tasks))
+    def export_task(self, task_id=None):
+        task = self.store.task(task_id or selected(self.tasks))
         if not task['result']: raise ValueError(tr('Dieser Auftrag hat noch kein Ergebnis.'))
         path, _ = QFileDialog.getSaveFileName(self.window, tr('Ergebnis speichern'), task['directory'] + '/lumen-ergebnis.md', 'Markdown (*.md);;Text (*.txt)')
         if not path: return
@@ -355,8 +422,8 @@ class Workspace(QObject):
         from lumen_tasks import run_steps
         run_steps(self.store, job); self.refresh_tasks()
 
-    def task_to_knowledge(self):
-        task=self.store.task(selected(self.tasks))
+    def task_to_knowledge(self, task_id=None):
+        task=self.store.task(task_id or selected(self.tasks))
         if not task['result']:raise ValueError(tr('Dieser Auftrag hat noch kein Ergebnis.'))
         self.knowledge_work('save_memory',lambda _:self.refresh_knowledge(),title=task['title'],text=task['result'],source=tr('Lumen-Auftrag · ')+task['id'])
 

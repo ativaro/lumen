@@ -561,6 +561,9 @@ void BackupPage::select() {
                         "Lumen data is backed up as consistent copies. Unsaved "
                         "edits are not included.");
     text += '\n' + plan["last_error"].toString();
+    if (plan["server_report_pending"].toBool())
+      text += '\n' + tx("Sicherung abgeschlossen; Statusmeldung an den Server ausstehend.",
+                        "Backup completed; server status report pending.");
     details->setText(text);
     for (auto source : plan["sources"].toArray())
       sources->addItem(source.toString());

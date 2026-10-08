@@ -8,6 +8,42 @@ import unittest
 
 
 class Qt6SearchTest(unittest.TestCase):
+    def test_new_answer_starts_visible_without_following_stream(self):
+        self.run_qt6("""
+import tempfile
+from PySide6.QtGui import QGuiApplication
+from PySide6.QtTest import QTest
+from search_controller import SearchController
+from search_qml import create_window
+app=QGuiApplication([])
+with tempfile.TemporaryDirectory() as tmp:
+ c=SearchController(tmp,applications=[]);engine,w=create_window(app,c)
+ try:
+  w.show();c.show_conversation();QTest.qWait(60)
+  def walk(item):
+   yield item
+   for child in item.childItems():yield from walk(child)
+  view=next(i for i in walk(w.contentItem()) if i.objectName()=='conversation')
+  flick=next(i for i in walk(view) if i.metaObject().indexOfProperty('contentY') >= 0)
+  def msg(role,text,key):return dict(info=dict(role=role,id=key),parts=[dict(type='text',text=text)])
+  history=[msg('user','Question','u1'),msg('assistant','Old answer\\n\\n'*80,'a1'),msg('user','Next','u2')]
+  c.update_messages(history);QTest.qWait(100);flick.setProperty('contentY',0)
+  answer=msg('assistant','New answer\\n\\n'*80,'a2')
+  c.update_messages(history+[answer]);QTest.qWait(100)
+  start=flick.property('contentY');maximum=view.property('contentHeight')-view.property('availableHeight')
+  assert start>500 and start<maximum-200,(start,maximum)
+  answer['parts'][0]['text']+='More text\\n\\n'*30
+  c.update_messages(history+[answer]);QTest.qWait(100)
+  assert abs(flick.property('contentY')-start)<2,(flick.property('contentY'),start)
+  flick.setProperty('contentY',120)
+  answer['parts'][0]['text']+='Another chunk'
+  c.update_messages(history+[answer]);QTest.qWait(100)
+  assert abs(flick.property('contentY')-120)<2,flick.property('contentY')
+  c.update_messages(history+[answer,msg('user','Again','u3'),msg('assistant','Third answer\\n\\n'*80,'a3')]);QTest.qWait(100)
+  assert flick.property('contentY')>start+500
+ finally:c.shutdown();w.hide();engine.deleteLater();QTest.qWait(20)
+""")
+
     def test_voice_without_setup_stays_visible_and_offers_setup(self):
         self.run_qt6('''
 import tempfile
@@ -260,7 +296,7 @@ import json, threading, time, tempfile
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtTest import QTest
-from assistant_backend import OpenCodeBackend
+from desktop_backend import DesktopBackend as OpenCodeBackend
 from search_controller import SearchController
 app=QGuiApplication([])
 from lumen_store import Store

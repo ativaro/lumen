@@ -80,8 +80,6 @@ class ContextTest(unittest.TestCase):
         review.assert_not_called()
 
     def test_reader_quote_native_review_saves_named_exact_source(self):
-        try:import pymupdf
-        except ImportError:self.skipTest('Optional PyMuPDF is required for document rendering')
         from tools_reader import Reader
         from tools_wissen import Wissen
         source=Reader(self.root/'tools');target=Wissen(self.root/'tools');self.windows.extend([source,target])

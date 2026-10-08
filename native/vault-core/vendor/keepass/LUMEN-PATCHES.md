@@ -25,6 +25,15 @@ Changes:
 - Explicit `Zeroizing` wrappers for KDBX4 derived-key and XML/payload buffers;
   enable `hybrid-array`'s zeroize feature. This is not total memory erasure.
 
+- 2026-10-06: `Entry::clone_with_id` also re-identifies its history snapshots,
+  preserving the parser's history-owner invariant for native conflict copies.
+  It retains parent/resource references; Lumen rejects attachments and custom
+  icons for this conservative merge.
+- 2026-10-06: `Group::clone_empty` retains group identity and metadata while
+  clearing child memberships and transient selection. Lumen inserts parents
+  before children, refuses locally deleted groups and cross-type UUID collisions,
+  and parses the final encrypted output before committing it.
+
 No cryptographic algorithm has been replaced. The local changes are not an
 upstream release, external audit, or production approval. The broker additionally
 uses a wiping allocator, bounded imports and process resource limits. Keep the

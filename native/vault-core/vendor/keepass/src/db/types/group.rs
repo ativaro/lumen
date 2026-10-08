@@ -106,6 +106,16 @@ pub struct Group {
 }
 
 impl Group {
+    /// Clone group metadata and identity without child memberships or view selection.
+    /// The destination must contain its parent and any referenced resources.
+    pub fn clone_empty(&self) -> Self {
+        let mut copy = self.clone();
+        copy.groups.clear();
+        copy.entries.clear();
+        copy.last_top_visible_entry = None;
+        copy
+    }
+
     /// Get the unique identifier for this group
     pub fn id(&self) -> GroupId {
         self.id

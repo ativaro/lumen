@@ -54,6 +54,52 @@ er gestoppt. Es gibt kein automatisches Löschen alter Sicherungsstände.
 verschlüsselten Datenblöcke. Vault erstellt Dateisicherungen, keine Btrfs-Snapshots
 und kein bootfähiges Systemabbild.
 
+## Manueller Tresorabgleich mit Lumen Server
+
+Der native Tresor kann verschlüsselte KDBX-Fassungen über einen gekoppelten Server
+austauschen. Im Server bei **Geräte → Fähigkeiten verwalten** ausdrücklich
+**Verschlüsselten Tresor abgleichen** aktivieren; die normale Sicherungsfreigabe
+reicht dafür nicht aus. Im entsperrten **Vault → Einstellungen → Serverabgleich…**
+Server/Konto prüfen und **Lokale Fassung veröffentlichen** wählen.
+
+Auf einem neuen Desktop bietet die leere Tresoransicht **Tresor von Lumen Server
+übernehmen…** an. Das ursprüngliche Hauptpasswort wird ausschließlich lokal im
+nativen Broker verarbeitet. **Fassung übernehmen** authentifiziert die Datei und
+ersetzt bewusst den vollständigen aktiven Tresor. API-/MCP-Freigaben müssen danach
+auf diesem Gerät neu erteilt werden. Gleichzeitige Veröffentlichungen bewahren
+beide Serverfassungen; kein stilles Überschreiben des neueren Serverstands.
+
+Die verdrängte lokale Fassung bleibt als `sync-before-<SHA256>.kdbx` im privaten
+Tresorordner erhalten, unabhängig von der rotierenden `previous.kdbx`. Empfangene
+Dateien liegen verschlüsselt unter `sync-incoming-<UUID>.kdbx`. Diese Kopien werden
+nicht automatisch gelöscht. Servergrenzen: 64 MiB je Fassung, 200 Fassungen,
+512 MiB pro Person; alte Serverfassungen gezielt im Dialog entfernen.
+
+**Einträge zusammenführen** ergänzt die gewählte Fassung lokal: unbekannte IDs
+werden übernommen, abweichende vorhandene Einträge als `· Sync conflict` kopiert,
+inklusive Verlauf und benutzerdefinierter Felder. Identische bereits übernommene
+Kopien werden nicht erneut angelegt. Lokale Löschmarkierungen bleiben bestehen;
+eine wieder auftauchende entfernte ID erhält eine neue Konfliktkopie. Auslassungen
+auf dem anderen Gerät löschen nichts. Alle API-/MCP-Freigaben werden deaktiviert.
+Danach zeigt der Dialogabschluss die Anzahl ergänzter Einträge und Konfliktkopien.
+Zum Teilen des Ergebnisses den Serverabgleich erneut öffnen und ausdrücklich
+**Lokale Fassung veröffentlichen** wählen.
+
+Dieser konservative Eintragsabgleich wählt keinen Gewinner anhand der Uhrzeit;
+auch einseitige Änderungen können deshalb eine Konfliktkopie erzeugen. Beide
+Fassungen lassen sich mit der normalen Bearbeitung prüfen und bereinigen.
+Neue Ordner werden einschließlich Unterordnern, leeren Ordnern, Reihenfolge und
+Metadaten ergänzt. Bereits vorhandene Ordner sowie Tresoreinstellungen bleiben
+lokal; entfernte Umbenennungen/Verschiebungen vorhandener Ordner werden noch
+nicht übernommen. Erforderlich ist derselbe Tresorursprung. Lokal gelöschte Ordner,
+widersprüchliche Kennungen, Anhänge/eigene Symbole oder überschrittene Formatgrenzen
+werden vor jeder Ersetzung abgewiesen. Das fertige verschlüsselte Ergebnis wird
+vor dem Schreiben nochmals authentifiziert und geöffnet.
+`LumenSyncSource` ist ein internes, verschlüsseltes Herkunftsfeld; der
+Konflikthinweis wird nur in der Liste ergänzt, Originaltitel bleiben erhalten.
+Vorerst kein automatischer Hintergrundabgleich. Restic-Sicherungen bleiben unabhängig. Bestehende
+Prerelease-/Auditgrenzen des nativen Tresors gelten unverändert.
+
 ## Inbox mit Proton
 
 Proton Mail benötigt die separat installierte, angemeldete **Proton Mail Bridge**
@@ -126,3 +172,16 @@ PYTHONPATH=files ~/.local/share/lumen/inbox-env-v1/bin/python -m unittest files/
 
 Die Mail-/Kalendertests verwenden ausschließlich lokale TLS-Testserver und
 `example.invalid`-Adressen; sie benötigen keine realen Konten.
+
+## Automatischer verschlüsselter Servertransport
+
+Vault → Einstellungen → Serverabgleich → Automatik aktivieren. Voraussetzung ist
+ein gemeinsamer lokaler/Serverstand und die Gerätefreigabe `vault_sync`. Danach läuft
+der vorhandene Desktop-Verbindungsdienst auch ohne Vault-Fenster oder Entsperren.
+Lokale Änderungen werden verschlüsselt veröffentlicht, Serverfassungen verschlüsselt
+empfangen. Neue Fassungen im Tresor prüfen/übernehmen oder zusammenführen; lokale
+aktive Dateien werden im Hintergrund nie ersetzt. Konflikte pausieren das Senden,
+weitere Serverstände können weiterhin empfangen werden. Ausgänge verlorener Uploads
+werden anhand gespeicherter UUIDs geprüft, unklare Ergebnisse stoppen das Senden.
+Konto-/Token-/Profilwechsel erfordern neues Aktivieren. Keine persönlichen Daten
+werden durch Installation/Update automatisch freigegeben. Standard bleibt aus.

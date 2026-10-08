@@ -30,6 +30,9 @@ def build(w):
     w.collection_label=label(tr('SAMMLUNGEN'),'wissenCaption');nav.addWidget(w.collection_label)
     w.collection_button=button(tr('Neue Sammlung'),lambda:w.safe(w.create_collection),'folder-new');w.collection_button.setAccessibleName(tr('Neue Sammlung'));nav.addWidget(w.collection_button)
     w.collections=QListWidget();w.collections.setObjectName('wissenCollections');w.collections.setAccessibleName(tr('Sammlungen'));w.collections.currentItemChanged.connect(w.select_collection);nav.addWidget(w.collections,1)
+    w.rename_collection_button=button(tr('Sammlung umbenennen / verschieben'),lambda:w.safe(w.rename_collection),'edit-rename');nav.addWidget(w.rename_collection_button)
+    from server_memory_view import show_server_memory
+    nav.addWidget(button(tr('Server-Gedächtnis'),lambda:w.safe(show_server_memory,w),'network-server'))
     w.questions_button=button(tr('Fragen'),lambda:w.tabs.setCurrentIndex(1),'edit-find');nav.addWidget(w.questions_button)
     w.map_button=button(tr('Wissenskarte'),lambda:w.tabs.setCurrentIndex(2),'insert-link');nav.addWidget(w.map_button)
     settings=button(tr('Einstellungen'),lambda:None,'configure');settings_menu=QMenu(settings)
@@ -66,6 +69,9 @@ def build(w):
     for title,callback in [(tr('Notiz verknüpfen …'),w.insert_link),(tr('Bild einfügen …'),w.insert_image),(tr('Tag einfügen …'),w.insert_tag)]:menu.addAction(title,lambda checked=False,cb=callback:w.safe(cb))
     menu.addSeparator();w.preview_action=menu.addAction(tr('Lesevorschau'),w.toggle_view)
     menu.addAction(tr('Fokusmodus'),w.focus_mode);menu.addAction(tr('Jetzt speichern'),lambda:w.safe(w.save_note));menu.addAction(tr('Frühere Fassungen …'),lambda:w.safe(w.history))
+    from memory_projects_ui import configure as configure_projects
+    project_copy=menu.addAction(tr('Als Projektwissen kopieren …'),lambda:w.safe(configure_projects,w,True))
+    menu.aboutToShow.connect(lambda:project_copy.setVisible(w.area=='lumen' and bool(w.doc)))
     menu.addSeparator();w.remove_action=menu.addAction(tr('Notiz entfernen …'),lambda:w.safe(w.archive));w.remove_action.setEnabled(False)
     w.more_button.setMenu(menu)
     top=row(w.location,w.share_note,w.more_button);top.layout().setStretch(0,1);wl.addWidget(top)
@@ -87,8 +93,21 @@ def build(w):
     w.origin.linkActivated.connect(lambda url:w.safe(open_url,url,w.library.root.parent));w.origin.hide();wl.insertWidget(wl.indexOf(w.views),w.origin)
     w.links=QListWidget();w.links.setAccessibleName(tr('Verknüpfungen und Rückverweise'));w.links.setMaximumHeight(95);w.links.itemActivated.connect(lambda item:w.safe(w.follow_connection,item.data(Qt.UserRole)));dl.addWidget(w.links)
     w.memory_options=QWidget();ol=QVBoxLayout(w.memory_options);ol.setContentsMargins(0,0,0,0)
-    w.use_memory=QCheckBox(tr('Gedächtnis verwenden'));w.learn_memory=QCheckBox(tr('Aus Gesprächen lernen'));ol.addWidget(w.use_memory);ol.addWidget(w.learn_memory)
+    w.use_memory=QCheckBox(tr('Gedächtnis verwenden'));w.learn_memory=QCheckBox(tr('Aus Gesprächen lernen'));ol.addWidget(w.use_memory)
+    w.memory_cost=label(tr('Lokale Bedeutungssuche: zusätzlich ca. 500 MiB RAM während der Nutzung. Einmalig ca. 128 MB Modelldaten plus Laufzeitpakete. Ohne Modell bleibt die Textsuche verfügbar.'),'muted');ol.addWidget(w.memory_cost)
+    w.use_memory.setAccessibleDescription(w.memory_cost.text())
+    from setup_dialog import open_setup
+    ol.addWidget(button(tr('Bedeutungssuche einrichten …'),lambda:open_setup(w)))
+    w.memory_search_status=label('','muted');ol.addWidget(w.memory_search_status);ol.addWidget(w.learn_memory)
+    w.reuse_solutions=QCheckBox(tr('Bestätigte Lösungen wiederverwenden'));ol.addWidget(w.reuse_solutions)
+    w.auto_memory=QCheckBox(tr('Gelernte Erinnerungen automatisch übernehmen'));ol.addWidget(w.auto_memory)
+    from memory_review_ui import review as review_memories
+    ol.addWidget(button(tr('Gedächtnisvorschläge prüfen …'),lambda:w.safe(review_memories,w)))
+    w.reuse_solutions.toggled.connect(lambda _:w.safe(w.configure_memory));w.auto_memory.toggled.connect(lambda _:w.safe(w.configure_memory))
     ol.addWidget(label(tr('Passende Erinnerungen und freigegebene Notizen gehen an deinen KI-Anbieter. Beim Lernen beurteilt das Modell deine Nachricht und die vorherige Antwort. Gespeichertes bleibt hier einsehbar.'),'muted'))
+    from memory_sync_ui import configure as configure_memory_sync
+    ol.addWidget(button(tr('Gedächtnis mit Lumen Server abgleichen …'),lambda:w.safe(configure_memory_sync,w),'network-server'))
+    ol.addWidget(button(tr('Projektordner zuordnen …'),lambda:w.safe(configure_projects,w),'folder'))
     w.use_memory.toggled.connect(lambda _:w.safe(w.configure_memory));w.learn_memory.toggled.connect(lambda _:w.safe(w.configure_memory));dl.addWidget(w.memory_options);w.memory_options.hide()
     w.tabs.addTab(writing,tr('Notizen'))
     questions(w);map_page=QWidget();ml=QVBoxLayout(map_page);ml.setContentsMargins(24,22,24,18);ml.addWidget(label(tr('Eine Notiz und ihre direkten Verbindungen · maximal 36 Nachbarn'),'muted'))

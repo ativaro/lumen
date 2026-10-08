@@ -42,3 +42,32 @@ def recent(root):
         elif 'limited' in entry: limited = True
     return dict(files=sorted(entries, key=lambda e: e['modified'], reverse=True)[:30],
                 errors=errors[:3], limited=limited, checked=time.time())
+
+
+def validate_pin(pin):
+    """Small allowlist for local room references; no executable launch strings."""
+    if not isinstance(pin,dict) or pin.get('kind') not in ('object','url','chat','task'):
+        raise ValueError(tr('Ungültige Arbeitsraum-Verknüpfung.'))
+    kind=pin['kind'];allowed={'kind','title','resume'}|{'object':{'url','app'},'url':{'url'},'chat':{'chat'},'task':{'id'}}[kind]
+    if set(pin)-allowed or not isinstance(pin.get('title'),str) or not 1<=len(pin['title'])<=4096:
+        raise ValueError(tr('Ungültige Arbeitsraum-Verknüpfung.'))
+    if 'resume' in pin and (type(pin['resume']) is not bool or kind not in ('object','url')):raise ValueError(tr('Ungültige Arbeitsraum-Verknüpfung.'))
+    if kind=='url':web_url(pin.get('url',''))
+    elif kind=='object':
+        from interop_data import Registry
+        ref=Registry().resolve(pin.get('url',''))
+        if pin.get('app')!=ref['app'] or ref['app'] not in ('files','reader','wissen'):
+            raise ValueError(tr('Diese Verknüpfung gehört nicht zu Dateien oder Wissen.'))
+    elif kind=='chat':
+        chat=pin.get('chat',{})
+        if not isinstance(chat,dict) or not isinstance(chat.get('session'),str) or not chat['session'] or len(chat['session'])>256:
+            raise ValueError(tr('Ungültiges Gespräch.'))
+        directory=chat.get('directory','')
+        from pathlib import Path
+        from network import is_network_address
+        if not isinstance(directory,str) or not (Path(directory).is_absolute() or is_network_address(directory)) or '\0' in chat['session']:
+            raise ValueError(tr('Ungültiges Gespräch.'))
+        canonical(directory)
+    elif not isinstance(pin.get('id'),str) or not pin['id'] or len(pin['id'])>256:
+        raise ValueError(tr('Ungültiger Auftrag.'))
+    return pin

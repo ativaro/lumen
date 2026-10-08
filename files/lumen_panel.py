@@ -88,6 +88,11 @@ def main():
     group.add_argument('--language', action='store_true')
     group.add_argument('--snapshot', action='store_true')
     group.add_argument('--system-snapshot', action='store_true')
+    group.add_argument('--notification-snapshot', action='store_true')
+    group.add_argument('--notification-settings', action='store_true')
+    group.add_argument('--notification-own-popups', action='store_true')
+    group.add_argument('--notification-action', choices=['open','read','unread','archive','restore','later','now'])
+    parser.add_argument('--notification-id')
     group.add_argument('--control', choices=['volume', 'brightness', 'mute', 'search', 'network', 'audio', 'display', 'appearance', 'hardware', 'desktop-settings', 'lock'])
     parser.add_argument('--value', type=int)
     parser.add_argument('--task-limit', type=int, choices=range(1,1001), metavar='1..1000')
@@ -99,6 +104,16 @@ def main():
     group.add_argument('--voice', action='store_true')
     group.add_argument('--settings', action='store_true')
     args = parser.parse_args()
+    if args.notification_snapshot or args.notification_action or args.notification_own_popups:
+        from lumen_notifications import snapshot as notification_snapshot, change, popup_context, configure_popups
+        try:
+            context=popup_context()
+            if args.notification_own_popups and context['native']: configure_popups(True)
+            if args.notification_action: change(args.notification_id or '', args.notification_action)
+            print(json.dumps(dict(notification_snapshot(), context=context), ensure_ascii=False))
+        except (OSError, sqlite3.Error, ValueError) as error:
+            print(json.dumps({'error': tr('Meldungsaktion fehlgeschlagen. ') + str(error)[:200]}))
+        return
     if args.open_app:
         from lumen_launch import executable
         binary = executable('lumen-agent-app' if args.open_app == 'lumen' else 'lumen-'+args.open_app)
@@ -121,11 +136,11 @@ def main():
         except (OSError, subprocess.SubprocessError, ValueError):
             print(json.dumps({'error': tr('Systemaktion fehlgeschlagen. Bitte erneut versuchen.')}))
         return
-    if args.open_task or args.open_page or args.search or args.voice or args.settings:
-        name = 'lumen-search' if args.search or args.voice else 'lumen-settings' if args.settings else 'lumen-agent-app'
+    if args.open_task or args.open_page or args.search or args.voice or args.settings or args.notification_settings:
+        name = 'lumen-search' if args.search or args.voice else 'lumen-settings' if args.settings or args.notification_settings else 'lumen-agent-app'
         from lumen_launch import executable
         binary = executable(name)
-        arguments = ['--voice'] if args.voice else [] if args.search or args.settings else ['--task', args.open_task] if args.open_task else ['--page', args.open_page]
+        arguments = ['--notifications'] if args.notification_settings else ['--voice'] if args.voice else [] if args.search or args.settings else ['--task', args.open_task] if args.open_task else ['--page', args.open_page]
         subprocess.Popen([str(binary), *arguments], start_new_session=True,
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return

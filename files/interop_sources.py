@@ -125,7 +125,8 @@ def _reader(window, record):
     page = max(0, window.page_index)
     selected, words, selection = window.selection()
     if _focused(window,getattr(window,'notes',None)) or _focused(window,window.note):selected=''
-    position = dict(page=page)
+    from reader_data import ENGINE
+    position = dict(page=page,engine=ENGINE)
     source['position'] = position
     if selected:
         if selection:

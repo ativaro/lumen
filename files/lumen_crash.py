@@ -13,9 +13,9 @@ import sys
 import tempfile
 import time
 
-from lumen_store import state_path
+from lumen_paths import state_path
 
-NAMES = {'lumen': 'Lumen', 'files': 'Lumen Files', 'search': tr('Lumen Suche'), 'system': 'Lumen System'}
+NAMES = {'lumen': 'Lumen', 'files': 'Lumen Files', 'search': 'Lumen Suche', 'system': 'Lumen System'}
 RUN = None
 LOCK = None
 HEARTBEAT = None
@@ -113,9 +113,9 @@ def notify(kind, hung=False):
     text = (tr('Die Oberfläche antwortet seit mindestens einer Minute nicht. Du kannst weiter warten. Beim Beenden können laufende Vorgänge unterbrochen werden.') if hung else
             tr('Die Anwendung wurde unerwartet beendet. Beim nächsten Start kannst du die letzte Ansicht wiederherstellen.'))
     try:
-        return subprocess.Popen(['notify-send', '--wait', '-a', 'Lumen', '-i', 'lumen',
+        return subprocess.Popen(['notify-send', '--wait', '-a', 'Lumen Wächter', '-i', 'lumen',
             '-A', 'restart=' + (tr('Beenden und neu öffnen') if hung else tr('Erneut öffnen')),
-            '-A', tr('wait=Weiter warten') if hung else tr('wait=Später'), NAMES[kind], text],
+            '-A', tr('wait=Weiter warten') if hung else tr('wait=Später'), tr(NAMES[kind]), text],
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     except OSError:
         return None
@@ -252,8 +252,8 @@ def attach(app, window, kind, offer_recovery=True):
                 lock.close(); continue
             box = QMessageBox(window)
             box.setWindowTitle(tr('Sitzung wiederherstellen'))
-            box.setText(NAMES[kind] + tr(' wurde unerwartet beendet.') if report.get('status') == 'crashed'
-                        else tr('Eine vorherige Sitzung von ') + NAMES[kind] + tr(' wurde unterbrochen.'))
+            box.setText(tr(NAMES[kind]) + tr(' wurde unerwartet beendet.') if report.get('status') == 'crashed'
+                        else tr('Eine vorherige Sitzung von ') + tr(NAMES[kind]) + tr(' wurde unterbrochen.'))
             box.setInformativeText(tr('Letzte Ansicht und Entwurf wiederherstellen? Laufende Dateiaktionen und KI-Aufträge werden nicht erneut gestartet.'))
             restore = box.addButton(tr('Wiederherstellen'), QMessageBox.AcceptRole)
             later = box.addButton(tr('Später'), QMessageBox.RejectRole)

@@ -28,6 +28,141 @@ private slots:
     QSettings settings("Lumen", "Assistant");
     settings.setValue("uiLanguage", "de");
   }
+  void vaultServerSyncStartsAsExplicitNativeDialog() {
+    QTemporaryDir root, isolatedConfig, runtime;
+    const auto oldConfig=qgetenv("XDG_CONFIG_HOME");
+    const auto oldData=qgetenv("XDG_DATA_HOME");
+    qputenv("XDG_CONFIG_HOME",isolatedConfig.path().toUtf8());
+    qputenv("XDG_DATA_HOME",runtime.path().toUtf8());
+    auto restoreData=qScopeGuard([&]{if(oldData.isNull())qunsetenv("XDG_DATA_HOME");else qputenv("XDG_DATA_HOME",oldData);});
+    auto restore=qScopeGuard([&]{if(oldConfig.isNull())qunsetenv("XDG_CONFIG_HOME");else qputenv("XDG_CONFIG_HOME",oldConfig);});
+    QVERIFY(QDir().mkpath(runtime.path()+"/lumen/files"));
+    QVERIFY(QDir().mkpath(runtime.path()+"/lumen/bin"));
+    QVERIFY(QFile::link("/usr/bin/python3",runtime.path()+"/lumen/bin/lumen-python"));
+    QFile helper(runtime.path()+"/lumen/files/vault_sync.py");QVERIFY(helper.open(QIODevice::WriteOnly));
+    helper.write(R"PY(import json,sys,hashlib
+from pathlib import Path
+r=json.load(sys.stdin)
+p=Path(r['root'],'vault.kdbx')
+h=hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else ''
+stage=Path(r['root'],'sync-test-stage')
+mode=stage.read_text() if stage.exists() else 'matching'
+if r['op']=='info':
+ versions=[] if mode=='empty' else [dict(id='11111111-1111-4111-8111-111111111111',current=True,sha256='a'*64 if mode=='different' else h or 'a'*64,size=8192,created='2026-10-06T12:00:00Z')]
+ print(json.dumps(dict(scope='synthetic',server='https://lumen.example',user='Beispielkonto',local_hash=h,versions=versions)))
+elif r['op']=='upload':
+ assert mode=='empty' and r['expected']=='' and r['local_hash']==h
+ stage.write_text('matching')
+ print(json.dumps(dict(applied=True)))
+else:
+ assert r['op']=='download'
+ print(json.dumps(dict(path=str(p),sha256=h)))
+)PY");helper.close();
+    VaultWindow window(root.path());window.show();
+    QPushButton *open=nullptr;
+    for(auto *button:window.findChildren<QPushButton*>())if(button->text()=="Tresor von Lumen Server übernehmen…")open=button;
+    QVERIFY(open);open->click();
+    auto *versions=window.findChild<QListWidget*>("syncVersions");
+    QVERIFY(versions);QTRY_COMPARE(versions->count(),1);
+    auto *password=window.findChild<QLineEdit*>("syncMaster");
+    QVERIFY(password);QCOMPARE(password->echoMode(),QLineEdit::Password);
+    QVERIFY(password->inputMethodHints()&Qt::ImhSensitiveData);
+    QCOMPARE(password->text(),QString());
+    QVERIFY(!QFileInfo::exists(root.path()+"/vault.kdbx"));
+    QTest::qWait(100);
+    if(qEnvironmentVariableIsSet("LUMEN_VAULT_SYNC_CAPTURE")){
+      auto *dialog=qobject_cast<QDialog*>(versions->window());QVERIFY(dialog);
+      QVERIFY(dialog->grab().save("/tmp/lumen-vault-sync-dialog.png"));
+    }
+    auto *merge = window.findChild<QPushButton *>("syncMerge");
+    QVERIFY(merge); QVERIFY(!merge->isVisible());
+    QPointer<QDialog> dialog = qobject_cast<QDialog *>(versions->window());
+    dialog->close(); QTRY_VERIFY(!dialog);
+    auto *master = window.findChild<QLineEdit *>("master");
+    master->setText("SYNTHETIC SYNC UI MASTER");
+    window.findChild<QLineEdit *>("confirm")->setText(master->text());
+    QTest::keyClick(master, Qt::Key_Return);
+    QTRY_VERIFY_WITH_TIMEOUT(window.unlocked(), 10000);
+    auto *channel = window.findChild<Channel *>();
+    QVERIFY(channel);
+    QTRY_VERIFY(!channel->busy());
+    QTimer::singleShot(0, &window, [] {
+      auto *menu = qobject_cast<QMenu *>(QApplication::activePopupWidget());
+      if (!menu) return;
+      for (auto *action : menu->actions()) {
+        if (action->text() == "Serverabgleich…") { menu->close(); action->trigger(); return; }
+      }
+    });
+    window.findChild<QPushButton *>("settings")->click();
+    QTRY_VERIFY(window.findChild<QPushButton *>("syncMerge"));
+    merge = window.findChild<QPushButton *>("syncMerge");
+    QTRY_COMPARE(window.findChild<QListWidget *>("syncVersions")->count(), 1);
+    QTRY_VERIFY(merge->isEnabled()); QVERIFY(merge->isVisible());
+    QFile active(root.path()+"/vault.kdbx"); QVERIFY(active.open(QIODevice::ReadOnly));
+    const auto before = active.readAll(); active.close();
+    auto *preview = window.findChild<QPushButton *>("syncPreview");
+    QVERIFY(preview); QVERIFY(preview->isEnabled()); preview->click();
+    QTRY_VERIFY_WITH_TIMEOUT(([&window] { for (auto *label : window.findChildren<QLabel *>())
+      if (label->text().contains("0 neue Einträge · 0 abweichende Einträge")) return true;
+      return false; })(), 10000);
+    QVERIFY(active.open(QIODevice::ReadOnly)); QCOMPARE(active.readAll(), before); active.close();
+    bool asked = false;
+    QTimer::singleShot(0, &window, [&asked] {
+      auto *question = qobject_cast<QMessageBox *>(QApplication::activeModalWidget());
+      if (question) { asked = true; question->button(QMessageBox::Cancel)->click(); }
+    });
+    merge->click();
+    QVERIFY(asked);
+    QTest::qWait(100);
+    QVERIFY(active.open(QIODevice::ReadOnly)); QCOMPARE(active.readAll(), before);
+    active.close();
+    if (qEnvironmentVariableIsSet("LUMEN_VAULT_SYNC_CAPTURE"))
+      QVERIFY(merge->window()->grab().save("/tmp/lumen-vault-merge-dialog.png"));
+    auto findButton = [&window](const QString &text) -> QPushButton * {
+      for (auto *button : window.findChildren<QPushButton *>())
+        if (button->text() == text) return button;
+      return nullptr;
+    };
+    auto *refresh = findButton("Aktualisieren");
+    auto *publish = findButton("Lokale Fassung veröffentlichen");
+    auto *automatic = findButton("Automatik aktivieren");
+    auto *take = findButton("Fassung übernehmen");
+    auto *options = findButton("Weitere Optionen");
+    QVERIFY(refresh && publish && automatic && take && options);
+    QVERIFY(automatic->isEnabled());
+    QFile stage(root.path()+"/sync-test-stage");
+    QVERIFY(stage.open(QIODevice::WriteOnly)); stage.write("different"); stage.close();
+    refresh->click(); QTRY_VERIFY(refresh->isEnabled());
+    QVERIFY(!automatic->isEnabled());
+    QVERIFY(preview->isEnabled() && merge->isEnabled() && take->isEnabled());
+    QVERIFY(stage.open(QIODevice::WriteOnly|QIODevice::Truncate)); stage.write("empty"); stage.close();
+    refresh->click(); QTRY_VERIFY(refresh->isEnabled());
+    QCOMPARE(window.findChild<QListWidget *>("syncVersions")->count(), 0);
+    QVERIFY(publish->isVisible() && publish->isEnabled());
+    QCOMPARE(publish->text(), QString("Erste Serverfassung erstellen"));
+    QVERIFY(!automatic->isEnabled());
+    QVERIFY(!preview->isEnabled() && !merge->isEnabled() && !take->isEnabled());
+    options->click(); options->click(); QVERIFY(publish->isVisible());
+    if (qEnvironmentVariableIsSet("LUMEN_VAULT_SYNC_CAPTURE"))
+      QVERIFY(publish->window()->grab().save("/tmp/lumen-vault-first-sync.png"));
+    asked = false;
+    QTimer::singleShot(0, &window, [&asked] {
+      auto *question = qobject_cast<QMessageBox *>(QApplication::activeModalWidget());
+      if (question) { asked = true; question->button(QMessageBox::Cancel)->click(); }
+    });
+    publish->click(); QVERIFY(asked);
+    QVERIFY(stage.open(QIODevice::ReadOnly)); QCOMPARE(stage.readAll(), QByteArray("empty")); stage.close();
+    QTimer::singleShot(0, &window, [] {
+      auto *question = qobject_cast<QMessageBox *>(QApplication::activeModalWidget());
+      if (question) question->button(QMessageBox::Yes)->click();
+    });
+    publish->click();
+    QTRY_COMPARE(window.findChild<QListWidget *>("syncVersions")->count(), 1);
+    QTRY_VERIFY(automatic->isEnabled());
+    QVERIFY(!publish->isVisible());
+    QVERIFY(active.open(QIODevice::ReadOnly)); QCOMPARE(active.readAll(), before);
+    window.lock();
+  }
   void recoveryKeyCannotFollowAliasesIntoRepository() {
     QTemporaryDir root;
     const auto repository = root.path() + "/backup";
@@ -45,10 +180,14 @@ private slots:
                                         repository));
   }
   void guidedBackupCompletesOnlyAfterProbe() {
+    QFETCH(bool, server);
     QTemporaryDir root;
     VaultWindow parent(root.path());
     QStringList operations;
     QJsonObject prepared;
+    const QJsonObject serverTarget{{"server", "https://server.test"},
+                                   {"device_id", "12345678-1234-1234-1234-123456789abc"}};
+    const QString serverRepo = "rest:https://server.test/backup/12345678-1234-1234-1234-123456789abc/";
     std::function<void(QJsonValue)> finish;
     std::function<void(QString)> fail;
     BackupWizard wizard(
@@ -58,6 +197,7 @@ private slots:
           operations << args["op"].toString();
           if (args["op"] == "setup_inventory")
             done(QJsonObject{
+                {"servers", QJsonArray{QJsonObject{{"label", "Lumen Server · https://server.test"}, {"server_target", serverTarget}}}},
                 {"files",
                  QJsonArray{QJsonObject{{"label", "Dokumente"},
                                         {"path", "/home/example/Documents"}}}},
@@ -67,10 +207,14 @@ private slots:
                 {"vault",
                  QJsonArray{QJsonObject{{"label", "Passwort-Tresor"},
                                         {"path", "/home/example/Vault"}}}}});
-          else if (args["op"] == "test_target")
-            done(QJsonObject{{"path", "/media/Backup"},
+          else if (args["op"] == "test_target") {
+            if (server) {
+              QCOMPARE(args["server_target"].toObject(), serverTarget);
+              done(QJsonObject{{"path", serverRepo}, {"server_target", serverTarget}, {"existing", false}});
+            } else done(QJsonObject{{"path", "/media/Backup"},
                              {"tested", true},
                              {"free", 1024.0 * 1024 * 1024 * 500}});
+          }
           else if (args["op"] == "configure") {
             prepared = args;
             done(QJsonObject{{"id", "synthetic-plan"}});
@@ -91,6 +235,13 @@ private slots:
     capture("sources");
     wizard.next();
     QCOMPARE(wizard.currentId(), 1);
+    if (server) {
+      auto *kind = wizard.findChild<QComboBox *>("backupTargetKind");
+      kind->setCurrentIndex(kind->findData("server"));
+      QCOMPARE(wizard.findChild<QComboBox *>("backupServer")->count(), 1);
+      capture("server-destination");
+      QVERIFY(backupKeyDestinationAllowed(root.path() + "/recovery.txt", serverRepo));
+    }
     wizard.findChild<QLineEdit *>("backupDestination")
         ->setText("/media/Backup");
     wizard.next();
@@ -107,6 +258,10 @@ private slots:
     capture("review");
     QTest::mouseClick(wizard.button(QWizard::FinishButton), Qt::LeftButton);
     QCOMPARE(prepared["groups"].toObject()["vault"].toArray().size(), 1);
+    if (server) {
+      QCOMPARE(prepared["server_target"].toObject(), serverTarget);
+      QCOMPARE(prepared["repository"].toString(), serverRepo);
+    }
     QVERIFY(prepared["recovery_confirmed"].toBool());
     QVERIFY(finish);
     QVERIFY(!wizard.button(QWizard::FinishButton)->isEnabled());
@@ -128,6 +283,11 @@ private slots:
     QCOMPARE(wizard.result(), int(QDialog::Accepted));
     QCOMPARE(operations.count("configure"), 1);
     QCOMPARE(operations.count("finish_setup"), 2);
+  }
+  void guidedBackupCompletesOnlyAfterProbe_data() {
+    QTest::addColumn<bool>("server");
+    QTest::newRow("local") << false;
+    QTest::newRow("server") << true;
   }
   void backupsTabsKeepOneWindowAndSelection() {
     QTemporaryDir root;

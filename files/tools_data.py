@@ -65,13 +65,18 @@ class Library:
             if row is None: raise ValueError(tr('Dieser Eintrag ist nicht mehr vorhanden.'))
             if expected_updated is not None and (str(row['updated']) != expected_updated or row['archived']):
                 raise ValueError('Project changed or archived. Read it again before editing.')
+            if json.loads(row['data']).get('server_bound') and json.loads(row['data']).get('server_role')=='reader':raise ValueError(tr('Dieses Serverprojekt ist nur lesbar.'))
             title = changes.pop('title', row['title']).strip()
             if not title: raise ValueError(tr('Bitte einen Namen angeben.'))
             data = json.loads(row['data']); data.update(changes)
             db.execute('UPDATE records SET title=?, data=?, updated=? WHERE id=?', (title, json.dumps(data), time.time(), key))
 
     def archive(self, key, value=True):
-        with self.connect() as db: db.execute('UPDATE records SET archived=? WHERE id=?', (int(value), key))
+        with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            row=db.execute('SELECT data FROM records WHERE id=?',(key,)).fetchone()
+            if row and json.loads(row['data']).get('server_bound') and json.loads(row['data']).get('server_role')=='reader':raise ValueError(tr('Dieses Serverprojekt ist nur lesbar.'))
+            db.execute('UPDATE records SET archived=?,updated=? WHERE id=?', (int(value),time.time(),key))
 
     def asset(self, name):
         if Path(name).name != name or not name: raise ValueError(tr('Ungültige lokale Datei.'))
@@ -145,7 +150,8 @@ def transcribe(path, settings, job):
 def document_text(path, job):
     path = Path(path); suffix = path.suffix.lower()
     if suffix == '.pdf':
-        text = job.command(['pdftotext', '-enc', 'UTF-8', str(path), '-'], timeout=90).decode(errors='replace')
+        text = job.command([sys.executable,str(Path(__file__).with_name('lumen_pdf_worker.py')),'text',str(path),'--characters','120000'], timeout=90).decode(errors='replace')
+        if len(text)>120000:raise ValueError(tr('Mehr als 120.000 Zeichen; bitte einen kürzeren Auszug importieren.'))
         pages=text.split('\f'); pages=pages[:-1] if pages[-1]=='' else pages
         if any(len(page.strip())<20 for page in pages):
             value=json.loads(job.command([sys.executable,str(Path(__file__)),'ocr',str(path)],data=text.encode(),timeout=3600))
@@ -257,6 +263,8 @@ def synthesize(text, library, job):
 if __name__ == '__main__':
     # Run existing OCR in a child group so cancelling also stops its decoders.
     if len(sys.argv)!=3 or sys.argv[1]!='ocr': raise SystemExit(tr('Nur interne Texterkennung.'))
+    from lumen_pdf_worker import limits
+    limits()
     from lumen_ocr import image_text, visual_content
     source=Path(sys.argv[2])
     if source.suffix.lower()=='.pdf':

@@ -92,9 +92,9 @@ Do not label the entire project MIT. Prior MIT grants and third-party rights
 remain valid. [LICENSE-PLAN.md](LICENSE-PLAN.md) records the adopted direction
 and the remaining legal/provenance checks.
 
-**Proprietary binary release is not cleared for the PyMuPDF integrations.**
-Resolve Artifex rights or replace the incompatible dependency before distributing
-that combination under restrictive terms. Preserve applicable Qt/PySide6 LGPL
+PDF processing uses Lumen's own engine; no external PDF engine is bundled or
+required. Verify [SPEC-pdf-core.md](SPEC-pdf-core.md), including the documented
+unsupported formats, when releasing changes. Preserve applicable Qt/PySide6 LGPL
 notices, corresponding-source availability, library replacement and debugging
 rights. The EULA expressly preserves those rights.
 

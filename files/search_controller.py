@@ -8,7 +8,7 @@ import sys
 from PySide6.QtCore import QObject, Property, Signal, Slot, QTimer, QProcess, QSettings, QUrl, QFileSystemWatcher
 from PySide6.QtGui import QDesktopServices, QGuiApplication, QPalette, QColor
 from lumen_i18n import tr, worker_process
-from assistant_backend import OpenCodeBackend
+from desktop_backend import DesktopBackend as OpenCodeBackend
 from appearance_tokens import COLORS, RADII, DEFAULT_DESIGN, normalize_design
 from lumen_tracking import TaskTracker
 from lumen_jobs import Job
@@ -22,6 +22,7 @@ class SearchController(QObject):
     selectionChanged = Signal()
     stateChanged = Signal()
     messagesChanged = Signal()
+    answerChecksChanged = Signal()
     requestsChanged = Signal()
     sessionsChanged = Signal()
     themeChanged = Signal()
@@ -35,6 +36,8 @@ class SearchController(QObject):
         self.settings = QSettings('Lumen', 'Assistant')
         self.backend = backend or OpenCodeBackend(self.directory, self)
         self.backend.settings = self.settings
+        if hasattr(self.backend, 'executionChanged'):
+            self.backend.executionChanged.connect(self.stateChanged)
         from rich_controller import RichController
         self.rich = RichController(self.backend, self, file_results=True)
         self.rich.submitted.connect(self.submit_view)
@@ -44,6 +47,7 @@ class SearchController(QObject):
         self.tracker = TaskTracker(self.backend, self)
         self._attachments = []
         self._query = ''; self._results = []; self._selection = 0
+        self._answer_checks = {}
         self._conversation = False; self._messages = []; self._permissions = []; self._questions = []
         self._sessions = [dict(id='', title=tr('Neues Gespräch'))]; self._theme = {}; self._hint = ''; self._error = ''; self._status = tr('Bereit')
         self._mode = self.settings.value('defaultMode', 'build')
@@ -63,6 +67,8 @@ class SearchController(QObject):
         self.backend.messagesChanged.connect(self.update_messages)
         self.backend.requestsChanged.connect(self.update_requests)
         self.backend.sessionsChanged.connect(self.update_sessions)
+        self._server_models=[dict(id="",name=tr("Serverstandard"))]
+        self.backend.serverModelsChanged.connect(self.update_server_models)
         self.backend.sessionChanged.connect(lambda _: self.sessionsChanged.emit())
         self.backend.personaChanged.connect(self.sessionsChanged)
         self.backend.busyChanged.connect(lambda _: self.stateChanged.emit())
@@ -95,11 +101,22 @@ class SearchController(QObject):
     messages = Property('QVariantList', lambda self: self._messages, notify=messagesChanged)
     permissions = Property('QVariantList', lambda self: self._permissions, notify=requestsChanged)
     questions = Property('QVariantList', lambda self: self._questions, notify=requestsChanged)
+    serverModels = Property('QVariantList',lambda self:self._server_models,notify=sessionsChanged)
+
+    def update_server_models(self, rows):
+        self._server_models=[dict(id='',name=tr('Serverstandard'))]+rows;self.sessionsChanged.emit()
+
+    @Slot(str)
+    def set_server_model(self, model):
+        if not self.backend.busy:self.backend.server_model=model
+
     sessions = Property('QVariantList', lambda self: self._sessions, notify=sessionsChanged)
     persona = Property(str, lambda self: self.backend.persona_choice(), notify=sessionsChanged)
     personaOptions = Property('QVariantList', lambda self: self.persona_options(), constant=True)
     session = Property(str, lambda self: self.backend.session, notify=sessionsChanged)
     theme = Property('QVariantMap', lambda self: self._theme, notify=themeChanged)
+    execution = Property(str, lambda self: getattr(self.backend, 'execution', 'local'), notify=stateChanged)
+    serverOrigin = Property(str, lambda self: getattr(self.backend, 'server_origin', ''), notify=stateChanged)
     mode = Property(str, lambda self: self._mode, notify=stateChanged)
     autoApprove = Property(bool, lambda self: self._auto_approve, notify=stateChanged)
     learn = Property(bool, lambda self: self._learn, notify=stateChanged)
@@ -249,6 +266,16 @@ class SearchController(QObject):
                 self._attachments.append(url.toLocalFile())
         self._attachments=self._attachments[:24];self.stateChanged.emit()
 
+    @Slot(str)
+    def set_execution(self, target):
+        if hasattr(self.backend, 'set_execution'):
+            self.backend.set_execution(target)
+            self.stateChanged.emit()
+
+    @Slot()
+    def check_server(self):
+        if self.execution == 'server': self.backend.poll()
+
     @Slot()
     def clear_attachments(self):
         if not self.backend.busy:self._attachments=[];self.stateChanged.emit()
@@ -261,6 +288,7 @@ class SearchController(QObject):
         query = self._query.strip()
         if self._conversation or ask:
             if not query: return
+            if hasattr(self.backend, 'preflight') and not self.backend.preflight(self._attachments): return
             self.cancel_scan(); self._conversation = True; self.last_prompt = query; self._error = ''
             self.set_hint(tr('Gespräch · Antworten und Rückfragen bleiben in dieser Suche.'))
             self.set_query('')
@@ -268,12 +296,15 @@ class SearchController(QObject):
             self.backend.background_task = False
             import mimetypes
             files=[]
-            if self._attachments:
+            if self._attachments and self.execution=='server':
+                files=[(path,mimetypes.guess_type(path)[0] or 'text/plain') for path in self._attachments]
+            elif self._attachments:
                 prompt += tr('\n\nAusgewählte Pfade (Kontext):\n')+'\n'.join(self._attachments)
                 for path in self._attachments:
                     mime=mimetypes.guess_type(path)[0] or ''
                     if mime.startswith('image/') or mime=='application/pdf':files.append((path,mime))
-            self.backend.send(prompt, files, agent=self._mode, memory_text=query, user_text=query)
+            if self.backend.send(prompt, files, agent=self._mode, memory_text=query, user_text=query) is False:
+                self.set_query(query)
             self.focusRequested.emit(); return
         if not self._results: self.submit(True); return
         row = self._results[self._selection]
@@ -298,6 +329,10 @@ class SearchController(QObject):
 
     def update_messages(self, messages):
         rows, answer = message_rows(messages)
+        for row in rows:
+            for block in row['blocks']:
+                for item in block.get('items', []):
+                    item['checked'] = self._answer_checks.get((self.backend.session, row['key'], item['key']), item['checked'])
         self.last_answer = answer
         if rows != self._messages: self._messages = rows; self.messagesChanged.emit()
 
@@ -392,6 +427,27 @@ class SearchController(QObject):
     @Slot()
     def hidden(self): self.home.stop(); self.debounce.stop(); self.voice.stop(); self.cancel_scan()
 
+    @Slot(str, str, bool)
+    def check_answer_item(self, message, key, checked):
+        # Local reading aid, never a tool invocation or a change to model history.
+        for row in self._messages:
+            if row['key'] != message: continue
+            for block in row['blocks']:
+                for item in block.get('items', []):
+                    if item['key'] == key:
+                        self._answer_checks[(self.backend.session, message, key)] = checked
+                        item['checked'] = checked
+        self.answerChecksChanged.emit()
+
+    @Slot(str, str, bool, result=bool)
+    def answer_item_checked(self, message, key, default):
+        return self._answer_checks.get((self.backend.session, message, key), default)
+
+    @Slot('QVariantMap', float, result=str)
+    def answer_table(self, block, width):
+        from answer_blocks import table_html
+        return table_html(block, width, self._theme['muted'], self._theme['border'], self._theme['fontSize'])
+
     @Slot()
     def copy_answer(self): QGuiApplication.clipboard().setText(self.last_answer)
 
@@ -423,13 +479,14 @@ class SearchController(QObject):
 
     def recovery_state(self):
         messages = [dict(info=dict(role=m.get('info', {}).get('role')), parts=[dict(type='text', text='\n\n'.join(p.get('text', '') for p in m.get('parts', []) if p.get('type') == 'text' and not p.get('synthetic'))[:20000])]) for m in self.backend.messages[-20:]]
-        return dict(conversation=self._conversation, rich_view=self.rich.recovery_state(), chat=dict(directory=self.backend.directory, session=self.backend.session, draft=self._query[:100000], messages=messages, paths=self._attachments, mode=self._mode, persona=self.backend.persona_choice()))
+        return dict(conversation=self._conversation, rich_view=self.rich.recovery_state(), chat=dict(directory=self.backend.directory, session=self.backend.session, draft=self._query[:100000], messages=messages, paths=self._attachments, mode=self._mode, execution=self.execution, persona=self.backend.persona_choice()))
 
     def restore_recovery(self, state):
         if self.backend.busy: raise ValueError(tr('Bitte den laufenden Auftrag zuerst abschließen.'))
         chat = state.get('chat')
         if not isinstance(chat, dict) or not isinstance(chat.get('messages', []), list): raise ValueError(tr('Keine gültige Sitzungssicherung.'))
         self.backend.new_conversation(chat.get('directory') or self.directory)
+        if chat.get('execution') == 'server': self.set_execution('server')
         self.backend.session = str(chat.get('session', '')); self.backend.messages = chat.get('messages', [])
         if not self.backend.session: self.backend.set_persona(chat.get('persona', ''))
         self._attachments=[p for p in chat.get('paths',[]) if isinstance(p,str) and p.startswith('/')][:24]

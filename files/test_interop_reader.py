@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 import unittest
 
-import pymupdf
+from test_pdf_fixtures import document,add_image
 from tools_data import Library, Cancelled
 from tools_ui import Job
 import reader_data
@@ -18,11 +18,7 @@ class ReaderBridgeTest(unittest.TestCase):
         self.job = Job(lambda _: None)
 
     def pdf(self, path, texts, toc=None):
-        with pymupdf.open() as document:
-            for text in texts:
-                page = document.new_page(); page.insert_text((50, 90), text, fontsize=20)
-            if toc: document.set_toc(toc)
-            document.save(path)
+        document(texts,font_size=20,position=(50,90),toc=toc).save(path)
 
     def test_progress_and_safe_refresh_relocate_marks_after_inserted_page(self):
         path = self.root/'book.pdf'; self.pdf(path, ['First chapter', 'Second chapter'])
@@ -67,8 +63,8 @@ class ReaderBridgeTest(unittest.TestCase):
         draw.text((70, 100), 'LUMEN LOCAL SCAN', fill='black', font=font)
         output = io.BytesIO(); image.save(output, format='PNG')
         path = self.root/'scan.pdf'
-        with pymupdf.open() as document:
-            page = document.new_page(width=800, height=200); page.insert_image(page.rect, stream=output.getvalue()); document.save(path)
+        writer=document(size=(800,200));page=writer.objects[writer.page_refs[0].number-1]
+        add_image(writer,page,image.tobytes(),1600,400,(0,0,800,200));writer.save(path)
         original = path.read_bytes(); key = reader_data.import_file(self.library, path, self.job)
         text = bridge.ocr_page(self.library, key, 0, self.job)
         self.assertIn('LUMEN', text); self.assertEqual(self.library.get(key)['ocr_text']['0'], text)

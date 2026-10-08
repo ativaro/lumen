@@ -1,0 +1,12 @@
+{
+  "Server-Gedächtnis": "Server memory",
+  "Vom Server freigegeben": "Shared by the server",
+  "Diese Erinnerungen bleiben auf dem Server verwaltet. Deine persönlichen Notizen werden nicht verändert. Bei aktivem Gedächtnis kann Lumen sie als Kontext verwenden.": "These memories are managed on the server. Your personal notes stay unchanged. When memory is enabled, Lumen can use them as context.",
+  "Geteilte Erinnerungen": "Shared memories",
+  "Inhalt und Herkunft": "Content and source",
+  "Auf diesem Desktop verwenden": "Use on this desktop",
+  "Revision: ": "Revision: ",
+  "Noch keine bestätigten Server-Erinnerungen vorhanden. Verbinde diesen Desktop und gib im Server einzelne Erinnerungen frei.": "No approved server memories yet. Connect this desktop and share individual memories on the server.",
+  "Freigegebenes Server-Gedächtnis": "Shared server memory",
+  "Das Gedächtnis konnte nicht konsistent geladen werden. Bitte Lumen neu starten.": "Memory could not be loaded consistently. Please restart Lumen."
+}

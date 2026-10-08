@@ -8,7 +8,11 @@ bool backupKeyDestinationAllowed(const QString &file,
   const QFileInfo info(file);
   const auto parent = info.dir().canonicalPath();
   const auto target = QFileInfo(destination).canonicalFilePath();
-  if (info.isSymLink() || parent.isEmpty() || target.isEmpty())
+  if (info.isSymLink() || parent.isEmpty())
+    return false;
+  if (destination.startsWith("rest:https://"))
+    return true;
+  if (target.isEmpty())
     return false;
   const auto chosen = QDir(parent).filePath(info.fileName());
   return chosen != target && !chosen.startsWith(target + '/');
@@ -269,15 +273,17 @@ BackupWizard::BackupWizard(bool english, BackupRequest request, QWidget *parent)
 
   auto *targetPage = page(tx("2 · Wo soll deine Sicherung liegen?",
                              "2 · Where should your backup live?"),
-                          tx("USB, NAS oder ein anderer Ordner. Wir prüfen das "
+                          tx("Lumen Server, USB, NAS oder ein Ordner. Wir prüfen das "
                              "Ziel vor dem ersten Lauf.",
-                             "USB, NAS or another folder. We test the "
+                             "Lumen Server, USB, NAS or a folder. We test the "
                              "destination before the first run."));
   auto *targets = new QVBoxLayout(targetPage);
   targetKind = new QComboBox;
+  targetKind->setObjectName("backupTargetKind");
   targetKind->addItem(tx("USB-Laufwerk / Ordner", "USB drive / folder"),
                       "local");
   targetKind->addItem(tx("NAS / Netzwerk", "NAS / network"), "network");
+  targetKind->addItem("Lumen Server", "server");
   targets->addWidget(targetKind);
   auto *local = new QWidget;
   auto *localLayout = new QHBoxLayout(local);
@@ -299,15 +305,32 @@ BackupWizard::BackupWizard(bool english, BackupRequest request, QWidget *parent)
   network = new NetworkPicker(english, true, this->request);
   targets->addWidget(network);
   network->hide();
+  auto *server = new QWidget;
+  auto *serverLayout = new QVBoxLayout(server);
+  serverChoice = new QComboBox;
+  serverChoice->setObjectName("backupServer");
+  serverChoice->setAccessibleName(tx("Gekoppelter Server", "Paired server"));
+  serverLayout->addWidget(serverChoice);
+  serverLayout->addWidget(copyLabel(tx(
+      "Dein gekoppelter Server wird automatisch angezeigt. Kein weiterer Login nötig. "
+      "Die Dateien werden vor dem Hochladen verschlüsselt.\n\n"
+      "Noch kein Server verbunden? Öffne Lumen Server im Browser → Geräte → Auf diesem Desktop verbinden.",
+      "Your paired server appears automatically. No additional login needed. "
+      "Files are encrypted before upload.\n\n"
+      "No server connected yet? Open Lumen Server in your browser → Devices → Connect this desktop.")));
+  targets->addWidget(server);
+  server->hide();
+  connect(serverChoice, &QComboBox::currentIndexChanged, this, [this] { destination = {}; });
   connect(network, &NetworkPicker::selected, this, [this](QJsonObject result) {
     destination = result;
     state->setText(tx("Netzwerkziel geprüft.", "Network destination checked."));
   });
   connect(targetKind, &QComboBox::currentIndexChanged, this,
-          [this, local](int index) {
+          [this, local, server](int index) {
             destination = {};
             local->setVisible(index == 0);
             network->setVisible(index == 1);
+            server->setVisible(index == 2);
             if (index == 1)
               network->discover();
           });
@@ -316,6 +339,8 @@ BackupWizard::BackupWizard(bool english, BackupRequest request, QWidget *parent)
   targets->addWidget(prepare);
   connect(prepare, &QPushButton::clicked, this,
           [] { QProcess::startDetached("lumen-setup-wizard", {}); });
+  connect(targetKind, &QComboBox::currentIndexChanged, prepare,
+          [prepare](int index) { prepare->setVisible(index != 2); });
   targets->addStretch();
 
   auto *automatic = page(
@@ -426,6 +451,12 @@ BackupWizard::BackupWizard(bool english, BackupRequest request, QWidget *parent)
   QTimer::singleShot(0, this, [this] {
     work({{"op", "setup_inventory"}}, [this](QJsonValue data) {
       const auto inventory = data.toObject();
+      for (const auto value : inventory["servers"].toArray()) {
+        const auto row = value.toObject();
+        serverChoice->addItem(row["label"].toString(), row["server_target"].toObject());
+      }
+      if (!serverChoice->count())
+        serverChoice->addItem(tx("Noch kein Server verbunden", "No server connected yet"));
       for (auto it = sourceLists.begin(); it != sourceLists.end(); ++it) {
         for (auto value : inventory[it.key()].toArray()) {
           const auto row = value.toObject();
@@ -501,7 +532,22 @@ bool BackupWizard::validateCurrentPage() {
   if (working)
     return false;
   if (currentId() == 1) {
-    if (targetKind->currentData() == "network") {
+    if (targetKind->currentData() == "server") {
+      const auto selected = serverChoice->currentData().toJsonObject();
+      if (selected.isEmpty()) {
+        QMessageBox::information(this, "Lumen Vault", tx(
+            "Zuerst im Server unter Geräte diesen Desktop verbinden. Den Assistenten danach neu öffnen.",
+            "First connect this desktop under Devices on your server, then reopen this wizard."));
+        return false;
+      }
+      if (destination["server_target"].toObject() != selected) {
+        work({{"op", "test_target"}, {"server_target", selected}}, [this](QJsonValue value) {
+          destination = value.toObject();
+          next();
+        });
+        return false;
+      }
+    } else if (targetKind->currentData() == "network") {
       destination = network->selection;
       if (destination["path"].toString().isEmpty()) {
         QMessageBox::information(this, "Lumen Vault",
@@ -594,7 +640,13 @@ void BackupWizard::exportKey() {
       (QString("Lumen · ") + name->text() + "\n" +
        destination["uri"].toString(destination["path"].toString()) + "\n" +
        tx("Sicherungsschlüssel: ", "Backup key: ") + key->text() + "\n\n" +
-       tx("Lumen installieren → Vault → Sicherungen → Ziel auswählen und "
+       (destination.contains("server_target")
+        ? tx("Serveradresse und Gerätekennung oben aufbewahren. Für eine Wiederherstellung "
+             "brauchst du außerdem den zugehörigen Serverzugang. Eine neue Gerätekopplung "
+             "erzeugt ein anderes Sicherungsziel.\n",
+             "Keep the server address and device ID above. Recovery also requires the corresponding "
+             "server access. Pairing a new device creates a different backup destination.\n")
+        : tx("Lumen installieren → Vault → Sicherungen → Ziel auswählen und "
           "bestehende Sicherung verbinden. Die Sicherung liegt im Unterordner "
           "Lumen-Sicherung-… .\nZum Öffnen des wiederhergestellten Tresors "
           "wird weiterhin dessen Master-Passwort benötigt. NAS-Zugang separat "
@@ -602,7 +654,7 @@ void BackupWizard::exportKey() {
           "Install Lumen → Vault → Backups → choose the existing repository. "
           "The backup lives in a Lumen-Sicherung-… subfolder.\nOpening the "
           "restored vault still requires its master password. Keep NAS access "
-          "independently too.\n"))
+          "independently too.\n")))
           .toUtf8();
   const bool written = output.write(text) == text.size() && output.commit();
   wipe(text);
@@ -666,6 +718,7 @@ void BackupWizard::accept() {
         {"repository", destination["path"]},
         {"network_uri", destination["uri"]},
         {"network_id", destination["network_id"]},
+        {"server_target", destination["server_target"]},
         {"password", key->text()},
         {"groups", groups()},
         {"remote_sources", selectedRemotes},

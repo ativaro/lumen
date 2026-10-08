@@ -17,6 +17,7 @@ def catalogue():
         ('translate', 'Lumen Translate', tr('Übersetzen, umformulieren und korrigieren'), 'preferences-desktop-locale'),
         ('wissen', tr('Lumen Wissen'), tr('Deine Notizen und Lumens Gedächtnis'), 'accessories-text-editor'),
         ('inbox', 'Lumen Inbox', tr('Nachrichten und Kalender an einem Ort'), 'mail-unread'),
+        ('notification', 'Lumen Notification', tr('Meldungen, Ergebnisse und Erinnerungen'), 'notifications'),
         ('vault', 'Lumen Vault', tr('Sicherungen planen und wiederherstellen'), 'document-save'),
         ('reader', 'Lumen Reader', tr('Lesen, markieren und vorlesen lassen'), 'application-pdf'),
         ('updater', 'Lumen Updater', tr('Lumen, Apps und Erweiterungen aktualisieren'), 'system-software-update'),
@@ -45,6 +46,10 @@ def launch(app, *, area=None, page=None):
     if page is not None and (app != 'system' or page not in ('system', 'sound', 'modes')):
         raise ValueError(tr('Unbekannter Systembereich.'))
     folder = Path(__file__).resolve().parent
+    if app == 'notification':
+        from lumen_notifications import open_center
+        open_center()
+        return
     if app in COMPANIONS:
         args = [str(folder / 'tools_app.py'), app]
         if area: args += ['--area', area]

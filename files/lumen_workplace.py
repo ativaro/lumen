@@ -77,10 +77,10 @@ class ProjectDialog(QDialog):
     def __init__(self, store, project, parent):
         super().__init__(parent)
         self.store, self.project, self.saved = store, project, None
-        self.setWindowTitle(tr('Projekt bearbeiten') if project else tr('Neues Projekt')); self.resize(760, 620)
+        self.setWindowTitle(tr('Lumen · Arbeitsraum bearbeiten') if project else tr('Lumen · Neuer Arbeitsraum')); self.resize(760, 620)
         value = project or {}; layout = QVBoxLayout(self); layout.setSpacing(14)
         self.name = QLineEdit(value.get('name', '')); self.name.setPlaceholderText(tr('Zum Beispiel: Reiseplanung'))
-        form = QFormLayout(); form.addRow(tr('Projektname'), self.name); layout.addLayout(form)
+        form = QFormLayout(); form.addRow(tr('Name des Arbeitsraums'), self.name); layout.addLayout(form)
         tabs = QTabWidget(); layout.addWidget(tabs)
         sources = QWidget(); sources_box = QVBoxLayout(sources)
         sources_box.addWidget(text(tr('Lokale Ordner und NAS gehören zusammen. Jede Datei behält ihre Herkunft.'), 'muted'))
@@ -188,10 +188,9 @@ class Workplace(QWidget):
         self.jobs, self.connections = [], []
         self.generation = 0; self.busy = False; self.project = None; self.cached_rows = []
         self.setObjectName('workplace'); layout = QVBoxLayout(self); layout.setContentsMargins(28, 24, 28, 18); layout.setSpacing(16)
-        layout.addWidget(text(tr('Arbeitsmodi') if system_only else tr('Hier geht es weiter.'), 'workplaceHeading'))
-        self.summary = text(tr('Audio, Ruhezeit, Fenster und Netzwerkordner gemeinsam steuern.') if system_only else tr('Deine Projekte, dein System und alles, was gerade unterwegs ist.'), 'muted'); layout.addWidget(self.summary)
-        if not system_only:
-            layout.addWidget(button(tr('Arbeitsmodi in Lumen System'), self.open_modes))
+        if system_only:
+            layout.addWidget(text(tr('Arbeitsmodi'),'workplaceHeading'))
+            self.summary=text(tr('Audio, Ruhezeit, Fenster und Netzwerkordner gemeinsam steuern.'),'muted');layout.addWidget(self.summary)
         self.tabs = QTabWidget(); layout.addWidget(self.tabs, 1)
         if system_only: self.modes_page()
         else: self.projects_page(); self.transfers_page()
@@ -199,6 +198,9 @@ class Workplace(QWidget):
         self.status = text('', 'muted'); layout.addWidget(self.status)
         self.timer = QTimer(self); self.timer.timeout.connect(self.refresh_activity); self.timer.start(1500)
         self.tabs.currentChanged.connect(lambda _: self.refresh_activity())
+        if not system_only:
+            self.tabs.tabBar().hide()
+            self.tabs.currentChanged.connect(lambda index:self.tabs.tabBar().setVisible(index!=0))
         if system_only: self.refresh_modes()
         else: self.refresh_projects()
         self.refresh_activity()
@@ -250,57 +252,30 @@ class Workplace(QWidget):
         return window
 
     def projects_page(self):
-        box = self.page(tr('Projekte'))
-        top = QHBoxLayout(); self.project_choice = QComboBox(); self.project_choice.setMinimumWidth(230)
-        self.project_choice.setAccessibleName(tr('Projekt wählen')); top.addWidget(self.project_choice, 1)
-        top.addWidget(button(tr('Neues Projekt'), lambda: self.edit_project(new=True)))
-        top.addWidget(button(tr('Bearbeiten'), self.edit_project)); box.addLayout(top)
-        self.project_choice.currentIndexChanged.connect(self.select_project)
-        card = QFrame(); card.setObjectName('workplaceCard'); card_box = QVBoxLayout(card)
-        self.project_title = text(tr('Alles an einem Ort'), 'heading'); card_box.addWidget(self.project_title)
-        self.note = text(tr('Lege ein Projekt mit lokalen Ordnern, NAS-Quellen und deinen nächsten Schritten an.')); card_box.addWidget(self.note)
-        actions = QHBoxLayout(); self.resume_button = button(tr('Weiterarbeiten'), self.resume, True); actions.addWidget(self.resume_button)
-        self.capture_button = button(tr('Aktuellen Stand merken'), self.capture); actions.addWidget(self.capture_button)
-        actions.addStretch(); card_box.addLayout(actions); box.addWidget(card)
-        box.addWidget(text(tr('DATEIQUELLEN'), 'eyebrow'))
-        self.sources = table([tr('Herkunft'), tr('Ort'), tr('Verfügbarkeit')]); self.sources.setMaximumHeight(165); box.addWidget(self.sources)
-        self.sources.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self.sources.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        row(box, [(tr('Quellen prüfen'), self.scan), (tr('Quelle öffnen / verbinden'), self.open_source),
-                  (tr('Alle Dateien gemeinsam'), self.combined)])
-        self.recent_label = text(tr('ZULETZT GEÄNDERT'), 'eyebrow'); box.addWidget(self.recent_label)
-        self.recent = table([tr('Datei'), tr('Herkunft'), tr('Geändert'), tr('Größe')]); box.addWidget(self.recent, 1)
-        self.sources.cellDoubleClicked.connect(lambda *_: self.open_source())
-        self.recent.cellDoubleClicked.connect(self.open_recent)
+        from workplace_rooms import Rooms
+        box=self.page(tr('Arbeitsräume'));self.rooms=Rooms(self);box.addWidget(self.rooms)
 
     def refresh_projects(self, identity=None):
-        identity = identity or self.project_choice.currentData()
-        self.project_choice.blockSignals(True); self.project_choice.clear()
-        for project in projects.projects(self.store): self.project_choice.addItem(project['name'], project['id'])
-        index = self.project_choice.findData(identity)
-        self.project_choice.setCurrentIndex(max(0, index)); self.project_choice.blockSignals(False); self.select_project()
+        if self.system_only:return
+        self.select_project(identity or (self.project or {}).get('id'))
 
-    def select_project(self):
-        self.generation += 1
-        self.project = next((p for p in projects.projects(self.store) if p['id'] == self.project_choice.currentData()), None)
-        for control in (self.resume_button, self.capture_button): control.setEnabled(bool(self.project))
-        if not self.project:
-            self.project_title.setText(tr('Alles an einem Ort'))
-            self.note.setText(tr('Lege ein Projekt mit lokalen Ordnern, NAS-Quellen und deinen nächsten Schritten an.'))
-            self.sources.setRowCount(0); self.recent.setRowCount(0); return
-        self.project_title.setText(self.project['name'])
-        self.note.setText(self.project.get('note') or tr('Noch keine Notiz. Halte unter „Bearbeiten“ fest, wo du weiterarbeiten möchtest.'))
-        fill(self.sources, [(s['location'], [s['label'], s['location'], tr('Noch nicht geprüft')]) for s in self.project['sources']])
-        self.cached_rows = []; self.render_recent()
+    def select_project(self, identity=None):
+        self.generation+=1
+        values=projects.projects(self.store)
+        self.project=next((p for p in values if p['id']==identity),values[0] if values else None)
+        self.cached_rows=[];self.render_recent()
+        fill(self.sources,[(s['location'],[s['label'],s['location'],tr('Noch nicht geprüft')]) for s in (self.project or {}).get('sources',[])])
+        self.rooms.render(values)
 
     def edit_project(self, _=False, new=False):
-        dialog = ProjectDialog(self.store, None if new else self.project, self)
+        from workplace_rooms import CreateRoom
+        dialog = CreateRoom(self.store,self) if new else ProjectDialog(self.store,self.project,self)
         if dialog.exec() == QDialog.Accepted:
             window = self.guard(lambda: self.files())
             if window and window.spaces.active_room and window.spaces.active_room['id'] == dialog.saved['id']:
                 window.spaces.active_room = dialog.saved
                 window.room_button.setText(dialog.saved['name'])
-            self.refresh_projects(dialog.saved['id'])
+            self.refresh_projects(dialog.saved['id']);self.rooms.open(dialog.saved['id'])
         dialog.deleteLater()
 
     def capture(self):
@@ -321,13 +296,17 @@ class Workplace(QWidget):
             chat = window.spaces.chat()
             if window.file_job or (chat and (chat.backend.busy or chat.context_tools.process)):
                 raise ValueError(tr('Bitte zuerst den laufenden Vorgang abschließen.'))
+            if chat and chat.composer.toPlainText().strip() and (window.spaces.active_room or {}).get('id')!=self.project['id']:
+                if QMessageBox.question(self,tr('Entwurf behalten?'),tr('Der aktuelle Gesprächsentwurf würde ersetzt. Fortfahren?'),QMessageBox.Yes|QMessageBox.No,QMessageBox.No)!=QMessageBox.Yes:return
             project = next(p for p in projects.projects(self.store) if p['id'] == self.project['id'])
             def restored():
                 self.connect_sources([s['location'] for s in project['sources'] if is_network_address(s['location'])])
                 self.job('launch', project, lambda result, error: self.status.setText(error or result), mutating=True)
                 for url in project.get('urls', []):
                     if not QDesktopServices.openUrl(QUrl(transfers.web_url(url))): self.status.setText(tr('Webseite konnte nicht geöffnet werden: ') + url)
-                history.record(self.store, tr('Projekt fortgesetzt: ') + project['name'])
+                history.record(self.store, tr('Projekt fortgesetzt: ') + project['name'],target='files/spaces/room/'+project['id'])
+                self.store.set_setting('workplace/last',project['id'])
+                self.files(True);self.rooms.resume_pins(project)
             window.spaces.open_room(project, on_open=restored)
         self.guard(open_project)
 
@@ -409,6 +388,7 @@ class Workplace(QWidget):
         self.mode_status = text(''); box.addWidget(self.mode_status)
 
     def refresh_modes(self):
+        if not self.system_only:return
         self.mode_values = modes.modes(self.store)
         names = {'keep': tr('Beibehalten'), 'tile': tr('Nebeneinander'), 'maximize': tr('Maximieren')}
         fill(self.mode_table, [(m['id'], [m['name'], names[m['layout']], tr('Beibehalten') if m['quiet'] < 0 else tr('Aus') if not m['quiet'] else str(m['quiet']) + ' min', len(m['connections'])]) for m in self.mode_values])
@@ -520,6 +500,7 @@ class Workplace(QWidget):
         if not self.isVisible() and hasattr(self, 'transfer_values'): return
         try:
             if not self.system_only:
+                self.rooms.refresh_tasks()
                 self.transfer_values = transfers.tickets(self.store)
                 action_names = {'copy': tr('Kopieren'), 'move': tr('Verschieben'), 'rename': tr('Umbenennen'), 'mkdir': tr('Neuer Ordner'), 'trash': tr('Papierkorb'), 'download': tr('Download')}
                 fill(self.transfers, [(v['id'], [action_names[v['action']] + ' · ' + (Path(v['target']).name if v['action'] == 'download' else v['current'] or Path(v['sources'][0]).name),
@@ -545,6 +526,21 @@ if __name__ == '__main__':
     try:
         store = Store(); action = sys.argv[1]; value = json.load(sys.stdin)
         if action == 'scan': result = projects.recent(value['root'])
+        elif action == 'notes':
+            from wissen_data import Notebook
+            book=Notebook(store);notes=book.scan()['notes']
+            result=[dict(app='wissen',kind='note',id=n['path'],title=n['title'],path=str(book.root/n['path']),locator=dict(root=str(book.root),area='user')) for n in notes]
+        elif action == 'room-notes':
+            from interop_data import Registry
+            from wissen_data import Notebook
+            result={}
+            for url in value['urls'][:8]:
+                try:
+                    ref=Registry().resolve(url)
+                    if ref['app']!='wissen':continue
+                    note=Notebook(store,root=ref['locator']['root']).read(ref['id'])
+                    result[url]=note['text'][:350]
+                except (OSError,ValueError,KeyError):result[url]=tr('Vorschau nicht verfügbar')
         elif action == 'audio': result = modes.audio_devices()
         elif action == 'mode': result = modes.apply_mode(store, value)
         elif action == 'undo': history.undo_record(store, value['id']); result = True

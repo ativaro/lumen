@@ -37,7 +37,7 @@ def validate_ref(ref):
         raise ValueError(tr('Ungültige Herkunftsangabe.'))
     for v in locator.values():_text(v)
     position=value.get('position',{})
-    if not isinstance(position,dict) or set(position)-{'page','time','note','part','start','end'}:
+    if not isinstance(position,dict) or set(position)-{'page','time','note','part','start','end','engine'}:
         raise ValueError(tr('Ungültige Fundstelle.'))
     for key,v in position.items():
         if key in ('page','time','start','end'):
@@ -72,7 +72,7 @@ def _parts(url):
     if p.scheme!='lumen' or p.netloc!='object' or p.fragment or not TOKEN.fullmatch(p.path.removeprefix('/')):
         raise ValueError(tr('Ungültiger Lumen-Verweis.'))
     values=parse_qs(p.query,keep_blank_values=True,strict_parsing=True)
-    if set(values)-{'page','time','note','part','start','end'} or any(len(v)!=1 for v in values.values()):
+    if set(values)-{'page','time','note','part','start','end','engine'} or any(len(v)!=1 for v in values.values()):
         raise ValueError(tr('Ungültige Fundstelle.'))
     position={k:int(v[0]) if k in ('page','time','start','end') else v[0] for k,v in values.items()}
     validate_ref(dict(app='files',id='position',position=position))

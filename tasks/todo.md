@@ -441,3 +441,68 @@ from the passing timestamp checks; no unrelated runtime changes were made.
 - [x] Native four-page wizard: defaults, customization, independent recovery key, first backup and test restore; DE/EN UI.
 - [x] Overview/restore: group coverage, honest status, safe restore/adopt and setup entry; second destination.
 - [x] Native/worker/security checks, installation, private Git and local system/sync documentation.
+
+# Eigener PDF-Kern
+
+- [x] Eigener Parser/Writer, xrefs, Objektstreams, Revisionen und Ressourcengrenzen.
+- [x] Text/Grafik/Rotation/Schriften/Bilder/Annotationen; unabhängige Vergleiche.
+- [x] Seitenexport, sichere Raster-Schwärzung, OCR-Textschicht und Layoutübersetzung.
+- [x] R2–R6 Passwort-PDFs; allgemeine Crypto über System-OpenSSL.
+- [x] Reader/EPUB/HTML und konservative Migration vorhandener Notizanker.
+- [x] Vorschau/Suche/Setup/Paketabhängigkeiten; keine fremde PDF-Engine erforderlich.
+- [x] 95 fokussierte Regressionen mit gesperrten Fremd-PDF-Modulen bestanden;
+  unabhängige Review-Befunde behoben und zusätzliche Regressionen ergänzt.
+- [x] Installations-/Lizenzdokumentation mit tatsächlichem Umfang aktualisiert.
+- [x] Lokale Installation aktualisiert, alte Programmdateien gesichert; installierter
+  Reader-Kalt-/Warmstart, Seitendarstellung, Übersetzung und Werkstatt-Export mit
+  gesperrten Fremd-PDF-Modulen bestanden.
+
+Formatgrenzen und Abnahme: SPEC-pdf-core.md. Zwei Setup-Providertests
+(`test_fresh_zen_profile_selects_engine_default_without_api_key`,
+`test_provider_check_rejects_non_api_responses_and_recovers`) scheitern identisch
+im unveränderten Ausgangsstand 5f39b91; PDF-Setup und die übrigen 19 Setup-Tests
+bestehen. Keine pauschale Freigabe der gesamten Distribution aus Lizenzsicht.
+
+## PDF-Vervollständigung — erneut geöffnet (2026-10-05)
+
+Die Entfernung der Fremd-Engine ist abgeschlossen; die Funktionsparität ist es
+nicht. Der Nutzer hat die bisher als Formatgrenzen dokumentierten Lücken
+ausdrücklich nicht als Endzustand akzeptiert. Diese Arbeit bleibt offen, bis
+Implementierung, unabhängige Vergleichsdateien und Lumen-Workflows sie abdecken.
+
+- [ ] Benannte Ziele, interne Links und Seitenkopien einschließlich Seiteneinheiten.
+- [ ] Bildmasken, weiche Masken, Dekodierbereiche, weitere Bittiefen/Farbräume und Filterketten.
+- [ ] Transparenz, Gruppen, Ebenen, Muster, Verläufe und vollständige Grafikzustände.
+- [ ] Weitere Fonts/Kodierungen/CMaps; Type3, CFF, vertikale und gedrehte Texte.
+- [ ] RTL, Unicode-Fallback, ActualText und zuverlässige Text-/Notizpositionen.
+- [ ] Annotationen/Formulardarstellungen und sichere Export-/Übersetzungsabläufe.
+- [ ] Unabhängige Dokumentvergleiche, vollständige Workflow-Prüfung und lokale Installation.
+
+### Konkreter Workshop-Fall (2026-10-06)
+
+- [x] Beide gemeldeten Dateien gefunden; identische 92-Seiten-PDF, Originale unverändert.
+- [x] Nullverweise, RGB-/Gray-Gruppen, Deckkraft, Masken und axiale/radiale Verläufe ergänzt.
+- [x] Gedrehte Texte einschließlich Auswahlrechtecken und Layoutübersetzung ergänzt.
+- [x] Alle 92 Seiten gerendert und unabhängig verglichen; Export erhält Pixel, Text und Wortrechtecke.
+- [x] Kleine unabhängige Regressionen für Transparenz, Masken, Muster und Export; konkrete Prüfbefunde behoben.
+- [x] Geprüften Stand lokal übernehmen und installierten Reader-/Files-Pfad erneut testen.
+
+Dies ersetzt nicht die offene PDF-Vervollständigung oben. Insbesondere weitere
+Schrifttypen, RTL, Ebenen, Mesh-Verläufe und Spezialfilter sind noch zu bearbeiten.
+
+67 fokussierte PDF-/Reader-/Workshop-/Translate-/OCR-Prüfungen mit gesperrten
+Fremd-PDF-Imports bestanden. Die 14 Files-Tests laufen separat, da sie ihre
+eigene QApplication-Unterklasse benötigen; zusätzlich bestehen 20 Crash-/I18n-/
+App-Center-Prüfungen. Ein gemischter Lauf mit der zuvor vom PDF-Kern angelegten
+Standard-QApplication hat zwei Maus-History-Fehler; der isolierte Files-Lauf
+besteht vollständig.
+
+Installationsabnahme: neun PDF-Kerndateien aktualisiert; das zwischenzeitlich
+installierte Echo-Update `7818b8f` hatte ältere PDF-Aufrufer und die Files-
+Startoptimierung zurückgebracht. Die 16 betroffenen PDF-Aufrufer/Notices und
+vier Performance-Dateien wurden nach Diff-Prüfung gezielt wiederhergestellt.
+Echo-Änderungen bleiben erhalten und sind auch in diesen Branch gemergt.
+Rückfallkopie: `~/.local/share/lumen-backups/pdf-workshop-20261006-000757/`.
+Installierter Reader mit echtem Workshop-Import und Seiten 21/25/32/92 sowie
+Files-Vorschau von Seite 21 bestehen auch bei gesperrten Fremd-PDF-Imports in
+Eltern- und Workerprozessen. Die Prüfung nutzt ein isoliertes Profil.

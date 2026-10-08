@@ -37,7 +37,7 @@ ApplicationWindow {
         function onFocusRequested() { composer.forceActiveFocus() }
         function onQueryChanged() { if (composer.text !== window.controller.query) composer.text = window.controller.query }
         function onSelectionChanged() { results.positionViewAtIndex(window.controller.selectedIndex, ListView.Contain) }
-        function onMessagesChanged() { if (conversation.atYEnd && conversation.scroller) Qt.callLater(function() { conversation.scroller.contentY = Math.max(0, conversation.contentHeight - conversation.height) }) }
+        function onMessagesChanged() { conversation.updatePosition() }
     }
     Rectangle {
         anchors.fill: surface; anchors.margins: -5
@@ -201,13 +201,44 @@ ApplicationWindow {
                 ScrollView {
                     id: conversation; objectName: "conversation"
                     readonly property Flickable scroller: contentItem as Flickable
-                    property bool atYEnd: scroller ? scroller.contentY >= contentHeight - height - 50 : true
+                    property string answerKey: ""
+                    function updatePosition() {
+                        const position = scroller ? scroller.contentY : 0
+                        const rows = window.controller.messages
+                        let answer = -1
+                        for (let i = rows.length - 1; i >= 0; --i) {
+                            if (rows[i].role === "assistant" && rows[i].text) { answer = i; break }
+                        }
+                        const key = answer >= 0 ? String(rows[answer].key) : ""
+                        const target = key !== answerKey ? answer : -1
+                        answerKey = key
+                        const followUser = rows.length && rows[rows.length - 1].role === "user" && scroller && position >= contentHeight - availableHeight - 50
+                        if (!scrollPosition.running || target >= 0) {
+                            scrollPosition.position = position
+                            scrollPosition.targetIndex = target >= 0 ? target : (followUser ? -2 : -1)
+                        }
+                        scrollPosition.restart()
+                    }
+                    Timer {
+                        id: scrollPosition
+                        // Wait one frame for the recreated message delegates to be laid out.
+                        interval: 16
+                        property real position: 0
+                        property int targetIndex: -1
+                        onTriggered: {
+                            if (!conversation.scroller) return
+                            const row = targetIndex >= 0 ? messageRepeater.itemAt(targetIndex) : null
+                            const y = row ? row.y : (targetIndex === -2 ? conversation.contentHeight : position)
+                            conversation.scroller.contentY = Math.max(0, Math.min(y, conversation.contentHeight - conversation.availableHeight))
+                        }
+                    }
                     clip: true; contentWidth: availableWidth
                     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                     ColumnLayout {
                         width: Math.min(960, conversation.availableWidth); x: (conversation.availableWidth - width) / 2; spacing: window.theme.spacing + 8
                         Label { Layout.fillWidth: true; visible: window.controller.messages.length === 0 && !window.controller.busy; text: window.controller.text("Wobei kann ich dir helfen?"); color: window.theme.text; font.pixelSize: 24; font.weight: Font.Medium; wrapMode: Text.Wrap }
                         Repeater {
+                            id: messageRepeater
                             model: window.controller.messages
                             Frame {
                                 id: messageRow
@@ -220,8 +251,8 @@ ApplicationWindow {
                                 leftPadding: userMessage ? 18 : 22; rightPadding: leftPadding; topPadding: userMessage ? 14 : 20; bottomPadding: topPadding
                                 background: Rectangle {
                                     radius: 14
-                                    color: messageRow.userMessage ? Qt.alpha(window.theme.accent, 0.07) : Qt.alpha(window.theme.base, 0.72)
-                                    border.width: 1
+                                    color: messageRow.userMessage ? Qt.alpha(window.theme.accent, 0.07) : "transparent"
+                                    border.width: messageRow.userMessage ? 1 : 0
                                     border.color: Qt.alpha(window.theme.border, 0.6)
                                 }
                                 contentItem: ColumnLayout {
@@ -235,11 +266,19 @@ ApplicationWindow {
                                     }
                                     TextArea {
                                         objectName: "messageBody"
+                                        visible: messageRow.userMessage
                                         Layout.fillWidth: true; text: messageRow.modelData.body
                                         textFormat: TextEdit.RichText; readOnly: true; selectByMouse: true
                                         wrapMode: TextEdit.Wrap; color: window.theme.text; font.pixelSize: window.theme.fontSize
                                         background: null; padding: 0
                                         onLinkActivated: function(link) { window.controller.open_link(link) }
+                                    }
+                                    AnswerBlocks {
+                                        visible: !messageRow.userMessage
+                                        Layout.fillWidth: true
+                                        blocks: messageRow.modelData.blocks
+                                        theme: window.theme; controller: window.controller
+                                        messageKey: messageRow.modelData.key
                                     }
                                     Label { Layout.fillWidth: true; visible: messageRow.modelData.activity.length > 0; text: messageRow.modelData.activity + " …"; color: window.theme.muted; font.pixelSize: 12; wrapMode: Text.Wrap; textFormat: Text.PlainText }
                                     ColumnLayout {
@@ -318,7 +357,7 @@ ApplicationWindow {
                 LumenButton { visible: !window.homeVisible; theme: window.theme; quiet: true; text: window.controller.text("Neue Suche"); enabled: !window.controller.busy; onClicked: window.controller.reset() }
                 Item { Layout.fillWidth: true }
                 LumenButton { visible: window.homeVisible; theme: window.theme; quiet: true; text: window.controller.text("Details") + " →"; onClicked: window.controller.homeView.open_page("system") }
-                Label { visible: !window.homeVisible; Layout.fillWidth: true; Layout.maximumWidth: 530; text: window.controller.conversation ? window.controller.status : window.controller.hint; textFormat: Text.PlainText; color: window.theme.muted; font.pixelSize: 11; horizontalAlignment: Text.AlignRight; wrapMode: Text.Wrap }
+                Label { visible: !window.homeVisible; Layout.fillWidth: true; Layout.maximumWidth: 530; text: window.controller.conversation ? (window.controller.execution === "server" ? window.controller.serverOrigin + " · " : "") + window.controller.status : window.controller.hint; textFormat: Text.PlainText; color: window.theme.muted; font.pixelSize: 11; horizontalAlignment: Text.AlignRight; wrapMode: Text.Wrap }
             }
         }
     }
@@ -333,9 +372,13 @@ ApplicationWindow {
             spacing: 12
             Label { text: window.controller.text("Gesprächsoptionen"); color: window.theme.text; font.pixelSize: window.theme.fontSize - 1; font.weight: Font.Medium }
             ComboBox { Layout.fillWidth: true; model: window.controller.sessions; textRole: "title"; valueRole: "id"; currentIndex: Math.max(0, window.controller.sessions.findIndex(function(s) { return s.id === window.controller.session })); enabled: !window.controller.busy; Accessible.name: window.controller.text("Gespräch auswählen"); onActivated: window.controller.select_session(currentValue) }
-            ComboBox { Layout.fillWidth: true; model: [window.controller.text("Aufgaben erledigen"), window.controller.text("Lesen & prüfen")]; currentIndex: window.controller.mode === "plan" ? 1 : 0; enabled: !window.controller.busy; Accessible.name: window.controller.text("Arbeitsweise von Lumen"); onActivated: window.controller.set_mode(currentIndex ? "plan" : "build") }
-            ComboBox { objectName: "personaChoice"; Layout.fillWidth: true; model: window.controller.personaOptions; textRole: "title"; valueRole: "id"; currentIndex: Math.max(0, window.controller.personaOptions.findIndex(function(p) { return p.id === window.controller.persona })); enabled: !window.controller.busy; Accessible.name: window.controller.text("Persönlichkeit für dieses Gespräch"); onActivated: window.controller.set_persona(currentValue) }
-            CheckBox { text: window.controller.text("Nicht mehr nachfragen"); checked: window.controller.autoApprove; onToggled: window.controller.set_auto_approve(checked); palette.windowText: window.theme.text; palette.highlight: window.theme.accent }
+            ComboBox { objectName: "executionChoice"; Layout.fillWidth: true; model: [window.controller.text("Dieses Gerät"), window.controller.text("Lumen Server · Textgespräch")]; currentIndex: window.controller.execution === "server" ? 1 : 0; enabled: !window.controller.busy; Accessible.name: window.controller.text("Ausführung"); onActivated: window.controller.set_execution(currentIndex ? "server" : "local") }
+            ComboBox { objectName: "serverModelChoice"; visible: window.controller.execution === "server"; Layout.fillWidth: true; model: window.controller.serverModels; textRole: "name"; valueRole: "id"; enabled: !window.controller.busy; Accessible.name: window.controller.text("Servermodell"); onActivated: window.controller.set_server_model(currentValue) }
+            Label { visible: window.controller.execution === "server"; Layout.fillWidth: true; text: window.controller.serverOrigin + "\n" + window.controller.text("Verwendet das auf dem Server konfigurierte Modell. Nur deine Nachrichten werden übertragen."); color: window.theme.muted; wrapMode: Text.Wrap }
+            LumenButton { visible: window.controller.execution === "server"; theme: window.theme; quiet: true; text: window.controller.text("Serververbindung prüfen"); onClicked: window.controller.check_server() }
+            ComboBox { Layout.fillWidth: true; model: [window.controller.text("Aufgaben erledigen"), window.controller.text("Lesen & prüfen")]; currentIndex: window.controller.mode === "plan" ? 1 : 0; enabled: !window.controller.busy && window.controller.execution === "local"; Accessible.name: window.controller.text("Arbeitsweise von Lumen"); onActivated: window.controller.set_mode(currentIndex ? "plan" : "build") }
+            ComboBox { objectName: "personaChoice"; Layout.fillWidth: true; model: window.controller.personaOptions; textRole: "title"; valueRole: "id"; currentIndex: Math.max(0, window.controller.personaOptions.findIndex(function(p) { return p.id === window.controller.persona })); enabled: !window.controller.busy && window.controller.execution === "local"; Accessible.name: window.controller.text("Persönlichkeit für dieses Gespräch"); onActivated: window.controller.set_persona(currentValue) }
+            CheckBox { enabled: window.controller.execution === "local"; text: window.controller.text("Nicht mehr nachfragen"); checked: window.controller.autoApprove; onToggled: window.controller.set_auto_approve(checked); palette.windowText: window.theme.text; palette.highlight: window.theme.accent }
             Label { Layout.fillWidth: true; text: window.controller.text("Werkzeugfreigaben automatisch erlauben, auch Befehle und Dateiänderungen."); color: window.theme.muted; font.pixelSize: 11; wrapMode: Text.Wrap }
             CheckBox { text: window.controller.text("Schritte erklären"); checked: window.controller.learn; onToggled: window.controller.set_learn(checked); palette.windowText: window.theme.text; palette.highlight: window.theme.accent }
             LumenButton { theme: window.theme; quiet: true; text: window.controller.text("Einstellungen"); onClicked: window.controller.open_setup() }

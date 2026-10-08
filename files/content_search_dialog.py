@@ -174,7 +174,7 @@ class ContentSearchDialog(QDialog):
 
     def kill_scanner(self, proc):
         pid = int(proc.property('scannerPid') or proc.processId())
-        # Stop the scanner and its pdftotext child; never signal a shared process group.
+        # Stop the scanner and its PDF decoder child; never signal a shared process group.
         if pid:
             try:
                 os.killpg(pid, signal.SIGKILL)

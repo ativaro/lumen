@@ -11,6 +11,29 @@ import lumen_crash as crash
 
 
 class CrashMonitorTest(unittest.TestCase):
+    def test_startup_imports_do_not_load_unused_libraries(self):
+        script = '''
+import os, sys
+from pathlib import Path
+from lumen_crash import state_path
+assert not {'PySide6', 'lumen_store', 'gi'}.intersection(sys.modules)
+assert state_path() == Path(os.environ['XDG_STATE_HOME']) / 'lumen'
+os.environ['LUMEN_DATA'] = str(Path(os.environ['XDG_STATE_HOME']) / 'custom')
+assert state_path() == Path(os.environ['LUMEN_DATA'])
+from lumen_store import state_path as stored_path
+assert stored_path() == state_path()
+import app
+assert 'gi' not in sys.modules
+assert 'setup_dialog' not in sys.modules
+'''
+        with tempfile.TemporaryDirectory() as tmp:
+            env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parent),
+                       XDG_CONFIG_HOME=tmp, XDG_STATE_HOME=tmp, LUMEN_LANGUAGE='')
+            env.pop('LUMEN_DATA', None)
+            result = crash.subprocess.run([sys.executable, '-c', script], env=env,
+                                          capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_diagnosis_selects_only_report_and_log_without_replaying_prompt(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); run = root/'crash report'; run.mkdir()

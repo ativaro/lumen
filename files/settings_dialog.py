@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import subprocess
 import sys
 
 from PySide6.QtCore import QProcess, QSettings, QSize, Qt, QTimer, QTime, QUrl, Signal
@@ -141,6 +142,15 @@ class SettingsDialog(QDialog):
         accounts.addWidget(AccountsWidget(self)); accounts.addStretch()
         for action in self.stack.findChildren(QPushButton):
             action.setAutoDefault(False); action.setDefault(False)
+        self.server_page = self.stack.count()
+        server = self.page('Lumen Server', tr('Verbindung, Aufträge, Sicherungen und geteiltes Gedächtnis'))
+        server.addWidget(text(tr('Verbinde diesen Desktop über die Geräteansicht deines Servers. Hier siehst du anschließend den aktuellen Abgleich und die freigegebenen Funktionen.')))
+        def open_server():
+            from lumen_connect_gui import ConnectionDialog
+            self.connection_dialog = ConnectionDialog(self)
+            self.connection_dialog.show()
+        server.addWidget(button(tr('Serververbindung öffnen'), open_server))
+        server.addStretch()
         from settings_navigation import SettingsNavigation, categories
         self.navigation = SettingsNavigation(self.stack, self.page_info, categories(self), self)
         self.nav = self.navigation.nav; self.nav_search = self.navigation.search
@@ -185,6 +195,28 @@ class SettingsDialog(QDialog):
             panel = self.page(title, description)
             panel.addWidget(text(explanations.get(key, description)))
             panel.addWidget(button(tr('App öffnen'), lambda _=False, app=key: open_app(app)))
+            if key == 'notification':
+                from lumen_notifications import preferences, set_preference, configure_popups
+                panel.addWidget(text(tr('Lumen zeigt deine Meldungen. Systemeinstellungen und App-Aktionen bleiben erhalten.')))
+                native = QCheckBox(tr('Popups mit Lumen anzeigen'))
+                native.setChecked(self.assistant.value('notifications/nativePopups', True, type=bool))
+                def set_popups(enabled):
+                    try: configure_popups(enabled)
+                    except (OSError, ValueError, subprocess.SubprocessError) as error:
+                        native.blockSignals(True); native.setChecked(not enabled); native.blockSignals(False)
+                        self.status.setText(str(error))
+                native.toggled.connect(set_popups); panel.addWidget(native)
+                quiet = QCheckBox(tr('Beim Spielen automatisch Ruhe aktivieren'))
+                quiet.setChecked(self.assistant.value('notifications/quietGames', True, type=bool))
+                quiet.toggled.connect(lambda enabled: self.save(self.assistant, {'notifications/quietGames':enabled}))
+                panel.addWidget(quiet)
+                self.launcher(panel, tr('Systembenachrichtigungen einstellen'), 'kcmshell6', 'kcm_notifications')
+                modes=preferences()
+                form=QFormLayout();panel.addLayout(form)
+                for source in ('Lumen','Lumen Projekte','Lumen Server','Lumen Drive','Lumen Wissen','Lumen Vault','Lumen Updater','Lumen Notification'):
+                    selector=combo([(tr('Popup und Zentrale'),'popup'),(tr('Nur Zentrale'),'center'),(tr('Stumm'),'muted')],modes.get(source,'popup'))
+                    selector.currentIndexChanged.connect(lambda _=0,s=source,c=selector:set_preference(s,c.currentData()))
+                    form.addRow(tr(source),selector)
             if key == 'translate':
                 from translate_data import LANGUAGES, STYLES, MODES
                 form = QFormLayout(); panel.addLayout(form); defaults = {}
@@ -871,6 +903,7 @@ if __name__ == '__main__':
     if '--system-settings' in sys.argv: dialog.open_page(dialog.hardware_page)
     if '--personality' in sys.argv: dialog.open_page(dialog.persona_page)
     if '--speech' in sys.argv: dialog.open_page(dialog.speech_input_page)
+    if '--notifications' in sys.argv: dialog.open_page(dialog.app_pages['notification'])
     if '--troubleshooter' in sys.argv: dialog.open_page(dialog.troubleshooter_page)
     dialog.show()
     sys.exit(app.exec())

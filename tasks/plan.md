@@ -44,3 +44,11 @@ Risks: offline mount must not create a local shadow repository; stable Vault ino
 copy must never decrypt; recovery key must be independent of the backed-up Vault;
 partial Restic results must never be advertised as complete. USB identity/repository
 identity checked on every run. Discovery absence exposes manual server entry.
+
+# Eigener PDF-Kern (Nutzerentscheidung 2026-10-05)
+
+Siehe SPEC-pdf-core.md. Eigenständige, begrenzte PDF-Verarbeitung zuerst an
+synthetischen Dateien prüfen; danach Rendering/Text, sichere Seitenexporte und
+Übersetzung. Erst nach bestandenen Kompatibilitätsprüfungen Reader/EPUB/HTML,
+Notizanker, Suche/Vorschau und Paketabhängigkeiten umstellen. Bestehende offene
+Aufgaben anderer Arbeitsbereiche bleiben erhalten.

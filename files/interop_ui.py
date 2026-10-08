@@ -354,7 +354,8 @@ def install(window):
     if hasattr(window,'entries'):install_context(window)
 
 
-def files_menu(window,menu,paths):
+def files_menu(window,menu,paths,*,safety=None):
+    if safety is None: safety=menu
     from interop_sources import from_paths
     payload=from_paths(paths)
     if all(Path(p).is_file() and Path(p).suffix.lower() in ('.pdf','.epub','.txt','.md','.html','.htm') for p in paths):
@@ -366,10 +367,10 @@ def files_menu(window,menu,paths):
         if action=='reader.import':continue
         targets.addAction(label,lambda checked=False,a=action:reviewed_send(window,payload,a))
     menu.addAction(tr('Verwendet in …'),lambda:safe_action(window,lambda:browse(window,'related',payload)))
-    menu.addAction(tr('Lesefortschritt und Sicherungen …'),lambda:file_status(window,paths))
+    safety.addAction(tr('Lesefortschritt und Sicherungen …'),lambda:file_status(window,paths))
     if len(paths)==1:
         from interop_vault import show_file_versions
-        menu.addAction(tr('Versionen in Lumen Vault …'),lambda:safe_action(window,lambda:show_file_versions(window,paths[0],root_for(window))))
+        safety.addAction(tr('Versionen in Lumen Vault …'),lambda:safe_action(window,lambda:show_file_versions(window,paths[0],root_for(window))))
 
 
 def app_name(app):

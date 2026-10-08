@@ -31,6 +31,7 @@ from disk_analysis import DiskAnalysis
 from file_spaces import LIBRARY, SHELF, virtual
 from file_spaces_ui import FileSpaces, ShelfButton
 from folder_icons import folder_icons
+from drive_browser import Browser as DriveBrowser, is_drive
 
 ROOT = Path(__file__).resolve().parent
 
@@ -69,6 +70,8 @@ class FileFilter(QSortFilterProxyModel):
             return self.folder_icons.get(self.path(index), self.folder_icons[''])
         if index.column() == 1 and role in (Qt.DisplayRole, Qt.ToolTipRole, Qt.ForegroundRole) and self.directory(index):
             value = self.folder_sizes.get(self.path(index))
+            if is_drive(self.path(index)):
+                return '' if role == Qt.DisplayRole else None
             if role == Qt.DisplayRole:
                 return size_text(value) if value is not None else tr('Berechnen')
             if role == Qt.ToolTipRole:
@@ -156,13 +159,13 @@ class FileDropMixin:
             return
         drag = QDrag(self)
         mime = QMimeData()
-        mime.setUrls([QUrl.fromLocalFile(path) for path in paths])
+        mime.setUrls([QUrl(path) if is_drive(path) else QUrl.fromLocalFile(path) for path in paths])
         drag.setMimeData(mime)
         # Copy-only external dragging avoids accidental destructive drop actions.
         drag.exec(Qt.CopyAction)
 
     def dragEnterEvent(self, event):
-        if event.mimeData().hasUrls() and all(u.isLocalFile() for u in event.mimeData().urls()):
+        if event.mimeData().hasUrls() and all(u.isLocalFile() or is_drive(u.toString()) for u in event.mimeData().urls()):
             event.setDropAction(Qt.CopyAction)
             event.accept()
 
@@ -170,7 +173,18 @@ class FileDropMixin:
         self.dragEnterEvent(event)
 
     def dropEvent(self, event):
+        if any(is_drive(u.toString()) for u in event.mimeData().urls()):
+            index = self.indexAt(event.pos())
+            target = self.main_window.proxy.path(index) if index.isValid() and self.main_window.proxy.directory(index) else None
+            self.main_window.drive.paste(event.mimeData(), target)
+            event.setDropAction(Qt.CopyAction); event.accept(); return
         paths = [url.toLocalFile() for url in event.mimeData().urls() if url.isLocalFile()]
+        if is_drive(self.main_window.current_location):
+            index = self.indexAt(event.pos())
+            address = self.main_window.proxy.path(index) if index.isValid() else None
+            folder = self.main_window.drive.entries.get(address)
+            self.main_window.drive.upload(paths, folder[1]['id'] if folder and folder[0] == 'folder' else None)
+            event.setDropAction(Qt.CopyAction); event.accept(); return
         index = self.indexAt(event.pos())
         target = None if virtual(self.main_window.current_location) else self.main_window.current_path
         if index.isValid():
@@ -207,7 +221,7 @@ class ThumbnailDelegate(RenameDelegate):
         if cached:
             grid.loader.cache.move_to_end(path)
             option.icon = QIcon(cached[0])
-        elif (file_kind(path) == 'image' and path not in grid.failed
+        elif (not is_drive(path) and file_kind(path) == 'image' and path not in grid.failed
               and path != grid.loader.loading and path not in grid.loader.pending):
             if len(grid.loader.pending) < grid.loader.cache_limit:
                 grid.loader.pending.append(path)
@@ -344,8 +358,7 @@ class Window(QMainWindow):
         self.current_path = str(Path.home())
         self.current_location = self.current_path
         self.network = Network(self)
-        self.drive = GoogleDrive(self)
-        self.cloud = CloudAccounts(self, self.drive)
+        self.cloud = CloudAccounts(self, GoogleDrive(self))
         self.cloud.refresh()
         self.spaces = FileSpaces(self, catalog)
         self.connection_request = None
@@ -365,6 +378,7 @@ class Window(QMainWindow):
         self.proxy = FileFilter(self)
         self.proxy.setSourceModel(self.fs)
         self.build_ui()
+        self.drive = DriveBrowser(self)
         from offline_ui import Offline
         self.offline = Offline(self)
         self.offline.catalogChanged.connect(self.populate_places)
@@ -396,7 +410,7 @@ class Window(QMainWindow):
         for position, path in enumerate(saved_paths):
             if isinstance(path, str):
                 try:
-                    if virtual(path):
+                    if virtual(path) or is_drive(path):
                         pass
                     elif is_network_address(path):
                         path = normalize_url(path)
@@ -743,6 +757,7 @@ class Window(QMainWindow):
             from lumen_offline import folders
             for folder in folders(self.offline.store):
                 places.append((folder['name'] + tr(' · Offline'), folder['local'], 'folder-download'))
+        places.append(('Lumen Drive', 'lumen-drive://', 'folder-cloud'))
         places.append((tr('Dateisystem'), '/', 'drive-harddisk'))
         places.append((tr('Online-Konten'), None, 'network-server'))
         self.cloud.refresh()
@@ -910,8 +925,7 @@ class Window(QMainWindow):
                               ('F5', self.refresh), ('Escape', self.escape)]:
             self.shortcut(key, callback)
         for key, callback in [('Space', self.quicklook), ('Return', self.open_selected),
-                              ('Alt+Return', self.show_properties),
-                              ('F2', self.rename), ('Delete', self.trash),
+                              ('F2', self.rename), ('Delete', self.trash), ('Alt+Return', self.show_properties),
                               ('Ctrl+C', lambda: self.copy(False)), ('Ctrl+X', lambda: self.copy(True)),
                               ('Ctrl+V', self.paste)]:
             self.shortcut(key, callback, local=True)
@@ -937,8 +951,9 @@ class Window(QMainWindow):
         self.grid.setRootIndex(index)
 
     def new_tab(self, path, activate=True):
+        drive = str(path) if is_drive(path) else None
         collection = str(path) if virtual(path) else None
-        remote = None if collection else str(path) if is_network_address(path) else self.network.remote(str(path))
+        remote = None if collection or drive else str(path) if is_network_address(path) else self.network.remote(str(path))
         if remote:
             try:
                 remote = normalize_url(remote)
@@ -949,9 +964,9 @@ class Window(QMainWindow):
         path = str(Path(path).expanduser())
         if not self.cloud.contains(path) and not Path(path).is_dir():
             path = str(Path.home())
-        self.tabs_data.append({'history': [collection or remote or path], 'position': 0})
+        self.tabs_data.append({'history': [drive or collection or remote or path], 'position': 0})
         self.tabs.blockSignals(True)
-        index = self.tabs.addTab(self.spaces.name(collection) if collection else server_label(remote) if remote else Path(path).name or tr('Dateisystem'))
+        index = self.tabs.addTab('Lumen Drive' if drive else self.spaces.name(collection) if collection else server_label(remote) if remote else Path(path).name or tr('Dateisystem'))
         if activate:
             self.tabs.setCurrentIndex(index)
         self.tabs.blockSignals(False)
@@ -1007,7 +1022,7 @@ class Window(QMainWindow):
 
     def release_unused_network(self):
         if self.file_job and self.file_job.isRunning(): return
-        if any(virtual(t['history'][t['position']]) for t in self.tabs_data): return
+        if any(virtual(t['history'][t['position']]) or is_drive(t['history'][t['position']]) for t in self.tabs_data): return
         if self.connection_request or any(is_network_address(t['history'][t['position']]) for t in self.tabs_data): return
         if not self.network.mounts: return
         self.cancel_search(); self.preview.clear(); self.grid.reset_thumbnails()
@@ -1033,6 +1048,8 @@ class Window(QMainWindow):
 
     def navigate(self, path, record=True, history_position=None):
         self.cloud.cancel_pending()
+        if is_drive(path):
+            self.drive.navigate(path, record, history_position); return
         if virtual(path):
             self.show_collection(path, record, history_position)
             return
@@ -1162,6 +1179,7 @@ class Window(QMainWindow):
         self.crumb_layout.addStretch()
 
     def up(self):
+        if is_drive(self.current_location): return self.drive.up()
         if virtual(self.current_location):
             self.history(-1)
         elif is_network_address(self.current_location):
@@ -1209,6 +1227,8 @@ class Window(QMainWindow):
             self.search_job = None
 
     def search_contents(self):
+        if is_drive(self.current_location):
+            self.activity.setText(tr('Diese Funktion benötigt einen offline verfügbaren Ordner.')); return
         from content_search_dialog import ContentSearchDialog
         root = self.spaces.choose_target() if virtual(self.current_location) else self.current_path
         if not root: return
@@ -1218,6 +1238,8 @@ class Window(QMainWindow):
         dialog.deleteLater()
 
     def photo_tools(self, mode='search'):
+        if is_drive(self.current_location):
+            self.activity.setText(tr('Diese Funktion benötigt einen offline verfügbaren Ordner.')); return
         from photo_tools_ui import PhotoToolsDialog
         root = self.spaces.choose_target() if virtual(self.current_location) else self.current_path
         if not root: return
@@ -1231,6 +1253,7 @@ class Window(QMainWindow):
         self.debounce.start()
 
     def start_search(self):
+        if is_drive(self.current_location): return self.drive.render()
         self.cancel_search()
         if virtual(self.current_location):
             self.spaces.reload()
@@ -1317,7 +1340,7 @@ class Window(QMainWindow):
         return [self.proxy.path(index) for index in self.view.selectionModel().selectedRows() if index.isValid()]
 
     def context_paths(self):
-        return self.selected_paths() or ([] if virtual(self.current_location) else [self.current_path])
+        return [] if is_drive(self.current_location) else self.selected_paths() or ([] if virtual(self.current_location) else [self.current_path])
 
     def selection_changed(self, *_args):
         if hasattr(self, 'preview_delay'):
@@ -1325,6 +1348,7 @@ class Window(QMainWindow):
         self.update_count()
 
     def preview_selection(self):
+        if is_drive(self.current_location): return self.drive.preview(self.selected_paths())
         paths = self.selected_paths()
         if len(paths) == 1:
             remote = self.network.remote(str(Path(paths[0]).parent))
@@ -1346,6 +1370,7 @@ class Window(QMainWindow):
             self.open_path(paths[0])
 
     def open_path(self, path):
+        if is_drive(path): return self.drive.open(path)
         if Path(path).is_dir():
             self.navigate(path)
         elif file_kind(path) == 'image':
@@ -1383,7 +1408,7 @@ class Window(QMainWindow):
     def lumen_menu(self, menu, paths):
         if not paths:
             return
-        submenu = menu.addMenu(QIcon.fromTheme('lumen'), 'Lumen')
+        submenu = menu.addMenu(QIcon.fromTheme('lumen'), tr('Mit Lumen bearbeiten'))
         for title, action in [(tr('Mit Lumen öffnen'), 'open'), (tr('Erklären'), 'explain'),
                               (tr('Fehler beheben'), 'fix'), (tr('Git-Diff prüfen'), 'review')]:
             submenu.addAction(title, lambda _=False, a=action: self.ask_lumen(a, paths))
@@ -1405,6 +1430,8 @@ class Window(QMainWindow):
         self.refresh()
 
     def quicklook(self):
+        if is_drive(self.current_location):
+            self.preview.show(); return self.drive.preview(self.selected_paths())
         paths = self.selected_paths()
         if len(paths) != 1:
             return
@@ -1454,10 +1481,14 @@ class Window(QMainWindow):
         self.preview_selection()
 
     def size_clicked(self, index):
+        if is_drive(self.current_location):
+            self.activity.setText(tr('Diese Funktion benötigt einen offline verfügbaren Ordner.')); return
         if index.column() == 1 and self.proxy.directory(index):
             self.open_analysis(self.proxy.path(index), apparent=True)
 
     def open_analysis(self, path=None, apparent=False):
+        if is_drive(self.current_location):
+            self.activity.setText(tr('Diese Funktion benötigt einen offline verfügbaren Ordner.')); return
         if not path and virtual(self.current_location):
             path = self.spaces.choose_target()
             if not path: return
@@ -1474,6 +1505,7 @@ class Window(QMainWindow):
             self.navigate(destination[0])
 
     def copy(self, cut):
+        if is_drive(self.current_location): return self.drive.copy(cut)
         paths = self.selected_paths()
         if not paths:
             return
@@ -1486,6 +1518,7 @@ class Window(QMainWindow):
         self.activity.setText(tr('{0} zum Verschieben vorgemerkt', len(paths)) if cut else tr('{0} zum Kopieren vorgemerkt', len(paths)))
 
     def paste(self):
+        if self.drive.paste(): return
         mime = QApplication.clipboard().mimeData()
         if not mime:
             return
@@ -1496,6 +1529,9 @@ class Window(QMainWindow):
             if target: self.run_operation('move' if cut else 'copy', paths, target)
 
     def run_operation(self, action, paths, target=None):
+        if is_drive(target): return self.drive.upload(paths)
+        if any(is_drive(p) for p in paths):
+            self.error(tr('Drive-Dateien über Kopieren und Einfügen übertragen.')); return
         if self.file_job:
             self.error(tr('Bitte den laufenden Dateivorgang abwarten.'))
             return
@@ -1536,6 +1572,7 @@ class Window(QMainWindow):
         job.start()
 
     def mkdir(self):
+        if is_drive(self.current_location): return self.drive.mkdir()
         target = self.spaces.choose_target() if virtual(self.current_location) else self.current_path
         if not target: return
         name, ok = QInputDialog.getText(self, tr('Neuer Ordner'), tr('Name des Ordners:'))
@@ -1547,6 +1584,7 @@ class Window(QMainWindow):
                 self.error(str(exc))
 
     def rename(self):
+        if is_drive(self.current_location): return self.drive.rename()
         paths = self.selected_paths()
         if len(paths) > 1:
             self.organize_files('rename', paths)
@@ -1562,6 +1600,7 @@ class Window(QMainWindow):
                 self.error(str(exc))
 
     def trash(self):
+        if is_drive(self.current_location): return self.drive.trash()
         paths = self.selected_paths()
         if paths and QMessageBox.question(self, tr('In den Papierkorb'),
                 tr('{0} ausgewählte Einträge in den Papierkorb verschieben?', len(paths)),
@@ -1569,81 +1608,85 @@ class Window(QMainWindow):
             self.run_operation('trash', paths)
 
     def context_menu(self, position):
+        if is_drive(self.current_location): return self.drive.context_menu(position)
         view = self.file_stack.currentWidget()
         index = view.indexAt(position)
         if index.isValid() and not self.view.selectionModel().isSelected(index):
             self.view.selectionModel().select(index, QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows)
-        paths = self.selected_paths()
-        menu = QMenu(self)
-        if paths:
-            menu.addAction(tr('Öffnen'), self.open_selected)
-            from interop_ui import files_menu
-            files_menu(self, menu, paths)
-            if all(Path(p).suffix.lower() == '.pdf' for p in paths):
-                self.add_workshop_action(menu, paths)
-            menu.addAction(tr('Zur Sammelfläche hinzufügen'), lambda: self.spaces.collect(paths))
-            menu.addAction(tr('In Ordner kopieren …'), self.spaces.copy_to)
-            if self.current_location == SHELF:
-                menu.addAction(tr('Aus Sammelfläche entfernen (Dateien behalten)'), lambda: self.spaces.remove_shelf(paths))
-            if len(paths) == 1:
-                menu.addAction(tr('Große Vorschau\tLeertaste'), self.quicklook)
-                menu.addAction(tr('Dateiversionen …'), lambda: self.show_versions(paths[0]))
-                menu.addAction(tr('Enthaltenden Ordner öffnen'), lambda: self.navigate(Path(paths[0]).parent))
-                if Path(paths[0]).is_dir():
-                    menu.addAction(tr('In neuem Tab öffnen'), lambda: self.new_tab(paths[0]))
-                    remote = self.network.remote(paths[0])
-                    if remote: menu.addAction(tr('Offline verfügbar machen …'), lambda: self.offline.add(remote))
-                    menu.addAction(tr('Ordnergröße berechnen'), lambda: self.open_analysis(paths[0], apparent=True))
-                    menu.addAction(tr('Speicher analysieren'), lambda: self.open_analysis(paths[0]))
-                menu.addAction(tr('Umbenennen\tF2'), self.rename)
-            menu.addSeparator()
-            menu.addAction(tr('Kopieren\tStrg+C'), lambda: self.copy(False))
-            menu.addAction(tr('Ausschneiden\tStrg+X'), lambda: self.copy(True))
-            menu.addAction(tr('Pfad kopieren'), lambda: QApplication.clipboard().setText('\n'.join(self.network.remote(p) or p for p in paths)))
-            menu.addSeparator()
-            self.lumen_menu(menu, paths)
-            from file_actions import menu as personal_actions_menu
-            personal_actions_menu(self, menu, paths)
-            menu.addSeparator()
-            menu.addAction(tr('In den Papierkorb\tEntf'), self.trash)
-        menu.addAction(tr('Hier einfügen\tStrg+V'), self.paste)
-        menu.addAction(tr('Neuer Ordner'), self.mkdir)
-        menu.addSeparator()
-        menu.addAction(tr('Letzte Lumen-Dateiaktion rückgängig …'), lambda: self.organize_files('undo'))
-        menu.addSeparator()
-        property_path = (paths[0] if len(paths) == 1 else None) if index.isValid() else (
-            self.current_location if not virtual(self.current_location) else None)
-        properties = menu.addAction(tr('Eigenschaften …\tAlt+Enter'), lambda: self.show_properties(property_path))
-        properties.setEnabled(property_path is not None)
-        menu.exec(view.viewport().mapToGlobal(position))
+        paths = self.selected_paths() if index.isValid() else []
+        menu = self.build_context_menu(paths)
+        try:
+            menu.exec(view.viewport().mapToGlobal(position))
+        finally:
+            menu.deleteLater()
 
-    def show_properties(self, path=None):
-        import shutil
-        from lumen_i18n import language, worker_process
-        paths = [str(path)] if path is not None else self.context_paths()
-        if len(paths) != 1:
-            self.error(tr('Bitte eine einzelne Datei oder einen Ordner für die Eigenschaften auswählen.'))
-            return
-        helper = shutil.which('kioclient') or shutil.which('kioclient6')
-        if not helper:
-            self.error(tr('Dateieigenschaften benötigen kde-cli-tools. Bitte über die Lumen-Einrichtung „NAS und Netzwerkordner“ installieren.'))
-            return
-        path = paths[0]
-        if self.cloud.contains(path) and not self.cloud.mounted(path):
+    def show_properties(self, paths=None):
+        from file_properties import show
+        paths = self.selected_paths() if paths is None else paths
+        if any(self.cloud.contains(p) and not self.cloud.mounted(p) for p in paths):
             self.error(tr('Bitte das Online-Konto zuerst über die Seitenleiste verbinden.'))
             return
-        remote = path if is_network_address(path) else self.network.remote(path)
-        url = QUrl(remote) if remote else QUrl.fromLocalFile(os.path.abspath(os.path.expanduser(path)))
-        process = worker_process(None)
-        environment = process.processEnvironment(); environment.insert('LANGUAGE', language())
-        process.setProcessEnvironment(environment)
-        process.setProgram(helper)
-        process.setArguments(['--desktopfile', 'lumen-files', '--qwindowtitle', tr('Lumen Files · Eigenschaften'),
-                              'openProperties', url.toString(QUrl.FullyEncoded)])
-        started, _pid = process.startDetached()
-        if not started: self.error(tr('Die Dateieigenschaften konnten nicht geöffnet werden.'))
+        show(self, paths)
+
+    def build_context_menu(self, paths):
+        from file_action_menu import ActionMenu
+        if not paths:
+            menu = QMenu(self)
+            menu.addAction(tr('Hier einfügen\tStrg+V'), self.paste)
+            menu.addAction(tr('Neuer Ordner'), self.mkdir)
+            menu.addSeparator()
+            menu.addAction(tr('Letzte Lumen-Dateiaktion rückgängig …'), lambda: self.organize_files('undo'))
+            if not virtual(self.current_location):
+                menu.addAction(tr('Eigenschaften …'), lambda: self.show_properties([self.current_path]))
+            return menu
+        title = Path(paths[0]).name if len(paths) == 1 else tr('{0} Einträge ausgewählt', len(paths))
+        directory = len(paths) == 1 and Path(paths[0]).is_dir()
+        menu = ActionMenu(self, title, str(Path(paths[0]).parent) if len(paths) == 1 else tr('Mehrfachauswahl'),
+                          'folder' if directory or len(paths) > 1 else 'text-x-generic')
+        menu.quick(tr('Kopieren'), 'edit-copy', lambda: self.copy(False), tr('Strg+C'))
+        menu.quick(tr('Ausschneiden'), 'edit-cut', lambda: self.copy(True), tr('Strg+X'))
+        menu.quick(tr('Umbenennen'), 'edit-rename', self.rename, 'F2')
+        menu.quick(tr('Papierkorb'), 'user-trash', self.trash, tr('Entf'))
+        menu.addAction(QIcon.fromTheme('document-open'), tr('Öffnen'), self.open_selected)
+        if len(paths) == 1:
+            preview_action = menu.addAction(QIcon.fromTheme('view-preview'), tr('Große Vorschau'), self.quicklook)
+            preview_action.setToolTip(tr('Große Vorschau\tLeertaste').replace('\t', ' · '))
+        menu.addSeparator()
+        organize = menu.addMenu(QIcon.fromTheme('folder'), tr('Organisieren'))
+        safety = menu.addMenu(QIcon.fromTheme('document-save'), tr('Sichern & synchronisieren').replace('&', '&&'))
+        from interop_ui import files_menu
+        files_menu(self, organize, paths, safety=safety)
+        if all(Path(p).suffix.lower() == '.pdf' for p in paths):
+            self.add_workshop_action(organize, paths)
+        organize.addAction(tr('Zur Sammelfläche hinzufügen'), lambda: self.spaces.collect(paths))
+        organize.addAction(tr('In Ordner kopieren …'), self.spaces.copy_to)
+        if self.current_location == SHELF:
+            organize.addAction(tr('Aus Sammelfläche entfernen (Dateien behalten)'), lambda: self.spaces.remove_shelf(paths))
+        if len(paths) == 1:
+            safety.addAction(tr('Dateiversionen …'), lambda: self.show_versions(paths[0]))
+            organize.addAction(tr('Enthaltenden Ordner öffnen'), lambda: self.navigate(Path(paths[0]).parent))
+            if directory:
+                organize.addAction(tr('In neuem Tab öffnen'), lambda: self.new_tab(paths[0]))
+                from drive_ui import show as show_drive
+                safety.addAction(tr('Mit Lumen Drive synchronisieren …'), lambda: show_drive(self, paths[0]))
+                remote = self.network.remote(paths[0])
+                if remote: safety.addAction(tr('Offline verfügbar machen …'), lambda: self.offline.add(remote))
+                organize.addAction(tr('Ordnergröße berechnen'), lambda: self.open_analysis(paths[0], apparent=True))
+                organize.addAction(tr('Speicher analysieren'), lambda: self.open_analysis(paths[0]))
+        organize.addAction(tr('Pfad kopieren'), lambda: QApplication.clipboard().setText('\n'.join(self.network.remote(p) or p for p in paths)))
+        from file_actions import menu as personal_actions_menu
+        personal_actions_menu(self, organize, paths)
+        organize.addSeparator()
+        organize.addAction(tr('Hier einfügen\tStrg+V'), self.paste)
+        organize.addAction(tr('Neuer Ordner'), self.mkdir)
+        organize.addAction(tr('Letzte Lumen-Dateiaktion rückgängig …'), lambda: self.organize_files('undo'))
+        self.lumen_menu(menu, paths)
+        menu.finish()
+        menu.addAction(QIcon.fromTheme('document-properties'), tr('Eigenschaften …'), lambda: self.show_properties(paths))
+        return menu
 
     def refresh(self):
+        if is_drive(self.current_location): return self.drive.navigate(self.current_location, record=False)
         self.proxy.folder_sizes.clear()
         self.proxy.invalidate()
         self.grid.reset_thumbnails()
@@ -1706,8 +1749,8 @@ class Window(QMainWindow):
 
     def show_menu(self):
         menu = QMenu(self)
-        menu.addAction(tr('Arbeitsplatz · Projekte & Verlauf'), self.show_workplace)
-        menu.addAction('Transfers', lambda: self.show_workplace(2))
+        menu.addAction(tr('Arbeitsräume · Weiterarbeiten'), self.show_workplace)
+        menu.addAction('Transfers', lambda: self.show_workplace(1))
         menu.addAction(tr('Offline verfügbare Ordner …'), self.offline.show)
         menu.addAction(tr('Dateiversionen …'), self.show_versions)
         self.add_workshop_action(menu)
@@ -1745,7 +1788,7 @@ class Window(QMainWindow):
                         dialog.page.status.setText(tr('Bitte die laufende Systemaktion abschließen lassen.')); return
                     super().reject()
             self.workplace_dialog = WorkplaceDialog(self)
-            self.workplace_dialog.setWindowTitle(tr('Arbeitsplatz — Lumen Files')); self.workplace_dialog.resize(1120, 800)
+            self.workplace_dialog.setWindowTitle(tr('Lumen Files · Arbeitsräume')); self.workplace_dialog.resize(1120, 800)
             layout = QVBoxLayout(self.workplace_dialog)
             self.workplace_dialog.page = Workplace(self.workplace_dialog, files_provider=lambda: self)
             layout.addWidget(self.workplace_dialog.page)
@@ -1761,6 +1804,10 @@ class Window(QMainWindow):
         box.exec()
 
     def closeEvent(self, event):
+        if self.drive.jobs:
+            self.activity.setText(tr('Drive-Übertragung läuft noch. Bitte kurz warten.')); event.ignore(); return
+        if getattr(getattr(self, 'drive_dialog', None), 'job', None):
+            self.error(tr('Drive-Übertragung läuft noch. Bitte kurz warten.')); event.ignore(); return
         if hasattr(self, 'workplace_dialog') and self.workplace_dialog.page.busy:
             self.error(tr('Bitte die laufende Systemaktion zuerst abschließen lassen.')); event.ignore(); return
         if getattr(self, '_closed', False):
@@ -1943,37 +1990,61 @@ def create_app(appearance=None):
     return app
 
 
-if __name__ == '__main__':
+def activate_files(window, request, initial=False):
+    from lumen_activation import present
+    location = request.get('location')
+    if (set(request) - {'location', 'select', 'settings'} or
+            (location is not None and (not isinstance(location, str) or '\0' in location)) or
+            any(type(request.get(key, False)) is not bool for key in ('select', 'settings'))):
+        raise ValueError('Invalid Files activation')
+    start = str(Path(location).parent) if location and Path(location).is_file() else location
+    if start and not initial: window.new_tab(start)
+    present(window)
+    if request.get('select') and location:
+        def select_requested():
+            if window.current_path != start: return
+            index = window.proxy.mapFromSource(window.fs.index(location))
+            if index.isValid():
+                window.view.selectionModel().select(index, QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows)
+                window.view.scrollTo(index)
+        QTimer.singleShot(500, select_requested)
+    if request.get('settings'):
+        def show_settings():
+            if not QApplication.activeModalWidget(): window.show_settings()
+        QTimer.singleShot(0, show_settings)
+
+
+def main(argv=None):
     import argparse
     parser = argparse.ArgumentParser(description=tr('Lumen Files – Dateimanager mit Lumen-Integration'))
     parser.add_argument('location', nargs='?', help=tr('Datei, Ordner oder Netzwerkadresse'))
     parser.add_argument('--select', action='store_true')
     parser.add_argument('--settings', action='store_true', help=tr('Gemeinsame Lumen-Einstellungen öffnen'))
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     from lumen_migrate import migrate_user
     migrate_user()
     app = create_app()
-    start = args.location
-    if start and start.startswith('file:'):
-        start = QUrl(start).toLocalFile()
-    if start and Path(start).is_file():
-        start = str(Path(start).parent)
+    location = args.location
+    if location and location.startswith('file:'): location = QUrl(location).toLocalFile()
+    if location and not (is_network_address(location) or is_drive(location) or virtual(location)):
+        location = str(Path(location).expanduser().absolute())
+    request = {'location': location, 'select': args.select, 'settings': args.settings}
+    from lumen_activation import SingleWindow
+    activation = SingleWindow('org.lumen.Files')
+    if activation.running: return activation.forward(request)
+    start = str(Path(location).parent) if location and Path(location).is_file() else location
     window = Window(start)
     from interop_ui import install
     install(window)
     window.show()
-    if args.select and args.location:
-        def select_requested():
-            index = window.proxy.mapFromSource(window.fs.index(args.location))
-            if index.isValid():
-                window.view.selectionModel().select(index, QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows)
-                window.view.scrollTo(index)
-        QTimer.singleShot(500, select_requested)
+    QTimer.singleShot(0, lambda: activate_files(window, request, initial=True))
+    activation.bind(lambda request: activate_files(window, request))
     from lumen_crash import attach
     attach(app, window, 'files', offer_recovery=not start and not args.settings)
-    if args.settings:
-        QTimer.singleShot(0, window.show_settings)
-    else:
+    if not args.settings and not QSettings('Lumen', 'Assistant').value('setupSeen', False, type=bool):
         from setup_dialog import offer_setup
         QTimer.singleShot(250, lambda: offer_setup(window))
-    sys.exit(app.exec())
+    return app.exec()
+
+
+if __name__ == '__main__': sys.exit(main())

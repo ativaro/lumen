@@ -75,7 +75,7 @@ class SourcesTest(unittest.TestCase):
             value = self.capture(window)
             self.assertEqual(value['text'], 'visible selection')
             self.assertEqual(value['paths'], [])
-            self.assertEqual(value['source']['position'], dict(page=2, start=0, end=17))
+            self.assertEqual(value['source']['position'], dict(page=2, start=0, end=17, engine='lumen-1'))
             self.select(window.text, 0, 0)
             window.note_id = 'note'
             window.note.setPlainText('edited unsaved margin')

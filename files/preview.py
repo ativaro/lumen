@@ -172,7 +172,7 @@ class Preview(QWidget):
             self.location.setText(('NAS · ' if remote.scheme() == 'smb' else tr('Netzwerk · ')) + remote.host()
                                   if remote.host() else tr('Dieser PC · ') + self.path.parent.name)
         if kind == 'pdf':
-            self.start('pdfinfo', [str(self.path)], self.pdf_info)
+            self.start(sys.executable,[str(Path(__file__).with_name('lumen_pdf_worker.py')),'info',str(self.path)],self.pdf_info)
         elif kind in {'video', 'audio'}:
             self.start('ffprobe', ['-v', 'error', '-protocol_whitelist', 'file,pipe',
                        '-show_entries', 'format=duration:stream=width,height', '-of', 'json',
@@ -226,8 +226,7 @@ class Preview(QWidget):
             self.show_message(data['message'])
 
     def pdf_info(self, proc):
-        lines = bytes(proc.readAllStandardOutput()).decode(errors='replace').splitlines()
-        self.pages = next((int(line.split(':', 1)[1]) for line in lines if line.startswith('Pages:')), 1)
+        self.pages=json.loads(bytes(proc.readAllStandardOutput()))['pages']
         self.page = min(self.page, self.pages)
         self.render_pdf()
 
@@ -239,9 +238,7 @@ class Preview(QWidget):
         self.note.setText(tr('PDF-Vorschau · Leertaste zum Vergrößern'))
         self.show_message(tr('Seite wird geladen …'))
         output = str(Path(self.temp.path()) / 'pdf')
-        self.start('pdftoppm', ['-f', str(self.page), '-l', str(self.page), '-scale-to', '1500',
-                   '-singlefile', '-png', str(self.path), output],
-                   lambda _proc: self.display_image(output + '.png'))
+        self.start(sys.executable,[str(Path(__file__).with_name('lumen_pdf_worker.py')),'render',str(self.path),'--page',str(self.page-1),'--scale-to','1500','--output',output+'.png'],lambda _proc:self.display_image(output+'.png'))
 
     def change_page(self, delta):
         self.page = max(1, min(self.pages, self.page + delta))

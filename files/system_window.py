@@ -30,8 +30,10 @@ class SystemWindow(QMainWindow):
         self.system.setFocusPolicy(Qt.StrongFocus)
         self.sound = Sound(root); self.sound.setWindowFlags(Qt.Widget)
         self.modes = Workplace(store=store, system_only=True)
-        self.pages = {'system': self.system, 'sound': self.sound, 'modes': self.modes}
-        for key, title in (('system', tr('System')), ('sound', tr('Sound')), ('modes', tr('Arbeitsmodi'))):
+        from server_workspace import ServerDevices
+        self.server_devices = ServerDevices(self)
+        self.pages = {'server': self.server_devices, 'system': self.system, 'sound': self.sound, 'modes': self.modes}
+        for key, title in (('system', tr('System')), ('sound', tr('Sound')), ('modes', tr('Arbeitsmodi')), ('server', tr('Server & Geräte'))):
             self.tabs.addTab(self.pages[key], title)
         self.tabs.currentChanged.connect(self.refresh_page)
         self.select(initial)
@@ -49,10 +51,10 @@ class SystemWindow(QMainWindow):
     def refresh_page(self):
         if self.tabs.currentWidget() is self.modes: self.modes.refresh_modes(); self.modes.refresh_activity()
 
-    def activate(self, page='system'):
-        self.select(page)
-        self.showNormal() if self.isMinimized() else self.show()
-        self.raise_(); self.activateWindow()
+    def activate(self, page=None):
+        from lumen_activation import present
+        if page is not None: self.select(page)
+        present(self)
 
     def activate_sound(self, request):
         if not isinstance(request, dict): raise ValueError(tr('Ungültige App-Anfrage.'))

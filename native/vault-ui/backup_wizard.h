@@ -52,7 +52,7 @@ private:
   QMap<QString, QGroupBox *> sourceGroups;
   QJsonArray remoteSources;
   QJsonObject destination;
-  QComboBox *targetKind, *schedule;
+  QComboBox *targetKind, *serverChoice, *schedule;
   QLineEdit *target, *key, *name;
   NetworkPicker *network;
   QLabel *state, *review, *keyHint;

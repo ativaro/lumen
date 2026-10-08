@@ -62,17 +62,17 @@ def visual_content(path, directory_fd=None, text='', ocr=False, thumbnail_dir=No
         if ocr and 'ocr' not in cache:
             with tempfile.TemporaryDirectory(prefix='lumen-ocr-') as tmp:
                 if path.suffix.lower() == '.pdf':
-                    parts = text.split('\f')
-                    if parts and not parts[-1].strip(): parts.pop()
-                    pages = parts or ['']; partial = len(pages) > 80
+                    from lumen_pdf import Document
+                    from lumen_pdf_page import Page
+                    document=Document(source.read());pages=text.split('\f')
+                    if pages and not pages[-1].strip():pages.pop()
+                    pages=(pages+['']*len(document))[:len(document)];partial=len(pages)>80
                     # ponytail: bounded per-file OCR; split larger scans to search all pages.
-                    for page in range(min(len(pages), 80)):
-                        if len(pages[page].strip()) >= 20: continue
-                        prefix = str(Path(tmp) / 'page')
-                        subprocess.run(['pdftoppm', '-f', str(page + 1), '-l', str(page + 1), '-singlefile', '-scale-to', '2200', '-png',
-                                        f'/proc/self/fd/{source.fileno()}', prefix], pass_fds=(source.fileno(),),
-                                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=40, check=True)
-                        pages[page] = image_text(prefix + '.png')
+                    for index in range(min(len(pages),80)):
+                        if len(pages[index].strip())>=20:continue
+                        page=Page(document,index);image=page.render(min(4,2200/max(page.width,page.height)));target=Path(tmp)/'page.png'
+                        if not image.save(str(target),'PNG'):raise ValueError(tr('OCR-Vorschau konnte nicht gespeichert werden.'))
+                        pages[index]=image_text(target)
                     cache['ocr'] = '\f'.join(pages)
                 else:
                     image = ImageOps.exif_transpose(Image.open(source)); image.thumbnail((3000, 3000))

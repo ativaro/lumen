@@ -29,6 +29,26 @@ class NativeMCPTest(unittest.TestCase):
         QSettings.setPath(QSettings.NativeFormat,QSettings.UserScope,self.config)
         self.addCleanup(QSettings.setPath,QSettings.NativeFormat,QSettings.UserScope,self.old_config)
         self.store = Store()
+        cwd=patch('lumen_mcp_tools.os.getcwd',return_value=str(self.root));cwd.start();self.addCleanup(cwd.stop)
+
+    def test_notification_options_share_ui_settings_and_validate_before_changes(self):
+        settings = QSettings('Lumen', 'Assistant')
+        settings.setValue('untouched', 'keep'); settings.sync()
+        self.assertEqual(invoke('lumen_notification_settings', {}), dict(native_popups=True, quiet_games=True))
+        with patch('lumen_notifications.configure_popups') as configure:
+            result = invoke('lumen_notification_configure', dict(quiet_games=False))
+            configure.assert_not_called()
+            self.assertEqual(result, dict(native_popups=True, quiet_games=False))
+            self.assertFalse(QSettings('Lumen', 'Assistant').value('notifications/quietGames', True, type=bool))
+            for args in ({}, {'quiet_games':'false'}, {'native_popups':False, 'unknown':True}):
+                with self.assertRaises(ValueError): invoke('lumen_notification_configure', args)
+            configure.assert_not_called()
+            self.assertEqual(settings.value('untouched'), 'keep')
+        with patch('lumen_notifications.configure_popups', side_effect=ValueError('tray unavailable')) as configure:
+            with self.assertRaises(ValueError):
+                invoke('lumen_notification_configure', dict(native_popups=False, quiet_games=True))
+            configure.assert_called_once_with(False)
+        self.assertEqual(invoke('lumen_notification_settings', {}), dict(native_popups=True, quiet_games=False))
 
     def test_library_search_has_origin_and_does_not_traverse_symlink(self):
         from file_spaces import Catalog
@@ -96,7 +116,9 @@ class NativeMCPTest(unittest.TestCase):
         with self.assertRaises(ValueError):invoke('lumen_notes_read',dict(path=visible['path']))
         memory.remember('Project fact','Scoped to project',scope=str(self.root/'project'))
         self.assertNotIn('Scoped to project',invoke('lumen_memory_context',dict(query='Project',directory=str(self.root)))['context'])
-        self.assertIn('Scoped to project',invoke('lumen_memory_context',dict(query='Project',directory=str(self.root/'project')))['context'])
+        with self.assertRaises(ValueError):invoke('lumen_memory_context',dict(query='Project',directory=str(self.root/'project')))
+        with patch('lumen_mcp_tools.os.getcwd',return_value=str(self.root/'project')):
+            self.assertIn('Scoped to project',invoke('lumen_memory_context',dict(query='Project'))['context'])
         memory.configure(False,False)
         self.assertEqual(invoke('lumen_memory_context',dict(query='Project',directory=str(self.root)))['context'],'')
         with self.assertRaises(ValueError):invoke('lumen_notes_search',dict(query='Workshop'))
@@ -313,15 +335,32 @@ class NativeMCPTest(unittest.TestCase):
         memory=Memory(self.store);memory.configure(True,True)
         global_note=memory.remember('照片','图片在网络磁盘上。',kind='fact')
         project_note=memory.remember('Projeto','Informação deste projeto.',scope='/project-a')
-        listing=invoke('lumen_memory_list',dict(directory='/project-b',limit=1))
+        listing=invoke('lumen_memory_list',dict(directory=str(self.root),limit=1))
         self.assertEqual([n['path'] for n in listing['items']],[global_note['path']])
         self.assertEqual(listing['total'],1)
-        self.assertIn('图片',invoke('lumen_memory_read',dict(directory='/project-b',path=global_note['path']))['text'])
-        with self.assertRaises(ValueError):invoke('lumen_memory_read',dict(directory='/project-b',path=project_note['path']))
+        self.assertIn('图片',invoke('lumen_memory_read',dict(directory=str(self.root),path=global_note['path']))['text'])
+        with self.assertRaises(ValueError):invoke('lumen_memory_read',dict(directory=str(self.root),path=project_note['path']))
         memory.forget(global_note['path'],global_note['hash'])
-        with self.assertRaises(ValueError):invoke('lumen_memory_read',dict(directory='/project-b',path=global_note['path']))
+        with self.assertRaises(ValueError):invoke('lumen_memory_read',dict(directory=str(self.root),path=global_note['path']))
         memory.configure(False,False)
-        self.assertEqual(invoke('lumen_memory_list',dict(directory='/project-a'))['items'],[])
+        self.assertEqual(invoke('lumen_memory_list',dict())['items'],[])
+
+    def test_memory_proposals_correct_and_forget_only_after_native_review(self):
+        from lumen_memory import Memory
+        memory=Memory(self.store);memory.configure(True,False)
+        request=dict(title='Preference',text='Brief answers',kind='preference')
+        proposed=invoke('lumen_memory_propose',request)
+        self.assertEqual(proposed['state'],'pending');self.assertEqual(memory.scan()['notes'],[])
+        memory.review(proposed['id'],True);note=memory.scan()['notes'][0]
+        corrected=invoke('lumen_memory_propose',dict(request,path=note['path'],revision=note['hash'],text='Detailed answers'))
+        self.assertIn('Brief',memory.book.read(note['path'])['text'])
+        memory.review(corrected['id'],True);current=memory.scan()['notes'][0]
+        self.assertEqual(current['id'],note['id']);self.assertIn('Detailed',current['text'])
+        with self.assertRaises(ValueError):invoke('lumen_memory_forget',dict(path=note['path'],revision=note['hash']))
+        deletion=invoke('lumen_memory_forget',dict(path=current['path'],revision=current['hash']))
+        self.assertEqual(len(memory.scan()['notes']),1)
+        memory.review(deletion['id'],True);self.assertEqual(memory.scan()['notes'],[])
+        self.assertEqual(memory.proposals(),[])
 
     def test_explicit_memory_uses_native_store_and_disabled_worker_refuses_writes(self):
         from lumen_memory import Memory
@@ -362,6 +401,7 @@ class NativeMCPTest(unittest.TestCase):
         self.assertEqual(keyed[1]['result']['protocolVersion'],'2025-06-18')
         tools={t['name']:t for t in keyed[2]['result']['tools']}
         self.assertIn('lumen_notes_read',tools);self.assertNotIn('lumen_theme_set',tools)
+        self.assertIn('lumen_notification_settings',tools);self.assertNotIn('lumen_notification_configure',tools)
         self.assertIn('lumen_vault_store',tools)
         self.assertIn('lumen_vault_store_from_chat',tools)
         self.assertIn('lumen_vault_mcp',tools)
@@ -384,6 +424,7 @@ class NativeMCPTest(unittest.TestCase):
         completed=subprocess.run([sys.executable,str(Path(mcp.__file__))],input=json.dumps(requests[2])+'\n',text=True,capture_output=True,env=env,timeout=10)
         names=[t['name'] for t in json.loads(completed.stdout)['result']['tools']]
         self.assertIn('lumen_theme_set',names);self.assertIn('lumen_memory_remember',names)
+        self.assertIn('lumen_notification_configure',names)
 
 
 if __name__=='__main__':unittest.main()

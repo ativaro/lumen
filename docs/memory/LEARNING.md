@@ -59,3 +59,24 @@ without a keyword query; `lumen_memory_read(directory, path)` reads the entry th
 LLM selects. This supports semantic and cross-language recall without adding
 language-specific search rewrites or another mandatory model call. Both are
 read-only and recheck the same consent, scope and forgetting rules as native recall.
+
+## Explicit project identity (2026-10-08)
+
+In Wissen → Gedächtnis → Über dich, **Projektordner zuordnen** binds a local
+folder to an existing Workbench project UUID. New project memories use
+`project:<uuid>`; the mapping is stored in `memory/project-folders` in the existing
+state database. Folder changes retain identity. Overlapping folders are rejected;
+archived/missing projects and retargeted symlinks cannot supply project context.
+The context stamp also checks active bindings before submitting or learning.
+
+Legacy path-scoped memories stay unchanged. **Mehr → Als Projektwissen kopieren**
+creates a new portable UUID, keeps the original, records its ID/revision and starts
+with AI consent off. Restrictive metadata is persisted before the new file, including
+on interrupted writes. Existing personal sync rejects all project-scoped payloads.
+This is local private project knowledge, not shared-workspace authorization or
+project sync. Server project mapping and online revocation checks remain separate
+work. Back up the state database together with memory files, as for personal memory.
+
+Checks: `python -m unittest test_memory_projects` (native Qt environment, offscreen);
+Server `test_memory_native_sync.py` verifies approved project copies do not upload
+through personal sync. No automatic project conversion, sharing or model download.

@@ -26,17 +26,18 @@ def config_sources():
 
 def paths(repository, sources):
     if not str(repository).strip():raise ValueError(tr('Einen Sicherungszielordner auswählen.'))
-    repo = Path(repository).expanduser().resolve()
-    if not repo.is_dir(): raise ValueError(tr('Zielordner nicht erreichbar. USB/NAS verbinden.'))
+    remote = str(repository).startswith('rest:https://')
+    repo = None if remote else Path(repository).expanduser().resolve()
+    if repo is not None and not repo.is_dir(): raise ValueError(tr('Zielordner nicht erreichbar. USB/NAS verbinden.'))
     if not sources: raise ValueError(tr('Mindestens eine Quelle auswählen.'))
     checked = []
     for value in sources:
         path = Path(value).expanduser().resolve(strict=True)
         if not (path.is_dir() or path.is_file()): raise ValueError(tr('Nur Dateien und Ordner sind zulässig.'))
-        if repo == path or repo.is_relative_to(path) or path.is_relative_to(repo):
+        if repo is not None and (repo == path or repo.is_relative_to(path) or path.is_relative_to(repo)):
             raise ValueError(tr('Sicherung und Quellen müssen getrennt liegen.'))
         checked.append(str(path))
-    return str(repo), list(dict.fromkeys(checked))
+    return str(repository) if remote else str(repo), list(dict.fromkeys(checked))
 
 
 @contextmanager
@@ -54,6 +55,9 @@ def command(plan, password, args, job, timeout=3600):
     program = binary()
     if not program: raise ValueError(tr('Restic fehlt. Vault über die Einrichtung vorbereiten.'))
     if not password or '\n' in password: raise ValueError(tr('Sicherungspasswort fehlt.'))
+    if plan.get('server_target'):
+        from vault_targets import command as remote_command
+        return remote_command(plan, password, args, job, program, timeout)
     if not Path(plan['repository']).is_dir(): raise ValueError(tr('Sicherungsziel nicht erreichbar. USB/NAS verbinden.'))
     output = job.command([program, '--quiet', '--repo', plan['repository'], '--password-file', '/dev/stdin',
                           '--json', *args], data=(password+'\n').encode(), timeout=timeout,max_output=32*1024**2)
@@ -63,17 +67,25 @@ def command(plan, password, args, job, timeout=3600):
 def verify(plan, password, job):
     data = json.loads(command(plan, password, ['cat','config'], job, 30))
     if data.get('id') != plan.get('repository_id'):
-        raise ValueError(tr('Am Ziel liegt eine andere Sicherung. Den richtigen Datenträger verbinden.'))
+        raise ValueError(tr('Am Ziel liegt eine andere Sicherung.') if plan.get('server_target') else
+                         tr('Am Ziel liegt eine andere Sicherung. Den richtigen Datenträger verbinden.'))
 
 
-def create(library, title, repository, sources, password, job, app_sources=None, source_ref=None, handoff=None, interval=0):
+def create(library, title, repository, sources, password, job, app_sources=None, source_ref=None, handoff=None, interval=0, server_target=None):
     if interval not in (0,86400,604800):raise ValueError(tr('Ungültiger Zeitplan.'))
     if not title.strip():raise ValueError(tr('Bitte einen Namen angeben.'))
-    existing = (Path(repository).expanduser()/'config').is_file()
-    if existing and not sources: repository, sources = str(Path(repository).expanduser().resolve(strict=True)), []
+    remote = None
+    if server_target:
+        from vault_targets import probe
+        remote = probe(server_target)
+        if repository != remote['path']: raise ValueError(tr('Ungültiges Sicherungsziel.'))
+    existing = remote['existing'] if remote else (Path(repository).expanduser()/'config').is_file()
+    if existing and not sources:
+        repository = repository if remote else str(Path(repository).expanduser().resolve(strict=True))
     else: repository, sources = paths(repository, sources)
     if not existing and len(password) < 12: raise ValueError(tr('Bitte mindestens 12 Zeichen für das Sicherungspasswort verwenden.'))
     plan = dict(repository=repository, sources=sources, interval=0, next_run=0)
+    if remote: plan['server_target'] = remote['server_target']
     if interval:plan['schedule_pending']=interval
     if app_sources:
         from interop_vault import APP_NAMES, _slot
@@ -91,8 +103,8 @@ def create(library, title, repository, sources, password, job, app_sources=None,
             if previous: return previous['id']
         plan['interop_handoffs'] = handoff
     # An existing restic repository is adopted, never reset. A new one must be empty.
-    if not (Path(repository)/'config').is_file():
-        if any(Path(repository).iterdir()): raise ValueError(tr('Für eine neue Sicherung einen leeren Zielordner wählen.'))
+    if not existing:
+        if not remote and any(Path(repository).iterdir()): raise ValueError(tr('Für eine neue Sicherung einen leeren Zielordner wählen.'))
         command(plan,password,['init'],job,60)
     data = json.loads(command(plan,password,['cat','config'],job,30))
     identity = library.create(title,**plan,repository_id=data['id'])
@@ -104,7 +116,24 @@ def create(library, title, repository, sources, password, job, app_sources=None,
 
 
 def run(library, identity, action, job, snapshot='', selected='', destination='', full=False):
-    with lease(library,identity):
+    from lumen_notifications import report, announce
+    try:
+        result=_run(library,identity,action,job,snapshot,selected,destination,full)
+    except Exception:
+        if action=='backup':
+            report('Lumen Vault',identity,True,tr('Sicherung braucht deine Aufmerksamkeit'),
+                   tr('Öffne die Sicherungen und prüfe den letzten Lauf.'),target='app:backups')
+        raise
+    if action=='backup':
+        report('Lumen Vault',identity,False,tr('Sicherung wieder in Ordnung'),target='app:backups')
+        announce('Lumen Vault','backup:'+identity,tr('Sicherung abgeschlossen'),
+                 target='app:backups',revision=time.time_ns())
+    return result
+
+
+def _run(library, identity, action, job, snapshot='', selected='', destination='', full=False):
+    from vault_targets import activity
+    with lease(library,identity), activity(library.get(identity), action, full):
         job.check()
         from backup_setup import resolve_plan
         plan = resolve_plan(library.get(identity), job, sources=action in ('backup', 'preview')); password = secret('vault',identity)
@@ -140,6 +169,13 @@ def run(library, identity, action, job, snapshot='', selected='', destination=''
                     backup_consistency=manifest['consistency'] if manifest else 'saved-files',backup_flushes=flushes)
                 if plan.get('groups'):
                     library.update(identity, sources=sources, groups=plan['groups'], remote_sources=plan.get('remote_sources', []), backup_groups=plan['groups'], last_restore_probe=time.time())
+                if plan.get('server_target'):
+                    from vault_targets import report_complete
+                    try:
+                        report_complete(plan)
+                        library.update(identity, server_report_pending=False)
+                    except Exception:
+                        library.update(identity, server_report_pending=True)
             return result
         if action=='snapshots': return json.loads(command(plan,password,['snapshots'],job,60)) or []
         if action=='check':
@@ -158,7 +194,7 @@ def run(library, identity, action, job, snapshot='', selected='', destination=''
             return json.loads(output)
         if action=='restore':
             parent=Path(destination).expanduser().resolve(strict=True)
-            if not parent.is_dir() or parent.is_relative_to(Path(plan['repository']).resolve()):
+            if not parent.is_dir() or (not plan.get('server_target') and parent.is_relative_to(Path(plan['repository']).resolve())):
                 raise ValueError(tr('Wiederherstellungsordner außerhalb der Sicherung auswählen.'))
             args=['restore',snapshot,'--verify']
             if selected:

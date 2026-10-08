@@ -59,7 +59,7 @@ im Haupt-README beschriebenen Systemabhängigkeiten.
 ## Voraussetzungen und Grenzen
 
 Vorhandene Lumen-Laufzeit: Python, PySide6, QtSvg, PyGObject, Pillow. Audio benötigt
-`ffmpeg` einschließlich `ffprobe`/`ffplay`; PDF-Text Poppler; gescannte Belege
+`ffmpeg` einschließlich `ffprobe`/`ffplay`; PDF-Text den eigenen Lumen-PDF-Kern; gescannte Belege
 Tesseract samt Sprachdaten. Lokale Whisper-/Piper-Modelle lassen sich über
 „Einrichtung“ installieren. Ohne Textindex bleibt ein Haushaltsbeleg gespeichert
 und kann weiterhin geöffnet werden.

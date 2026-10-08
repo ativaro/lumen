@@ -41,9 +41,9 @@ bounded decompression, strict XML admission, the inner stream ID check and selec
 buffer lifetimes. Exact origin and changes are in
 [vendor/keepass/LUMEN-PATCHES.md](vendor/keepass/LUMEN-PATCHES.md).
 
-## Checks (2026-10-05)
+## Checks (2026-10-06)
 
-`./check.sh` runs18 library tests,2 parser tests and3 process/reference tests.
+`./check.sh` runs20 library tests,2 parser tests and3 process/reference tests.
 The ignored crash-worker test is deliberately executed by the parent test in12
 subprocesses with SIGKILL at six stages each for active and backup files.
 
@@ -63,3 +63,22 @@ and filesystem qualification, complete Qt/library memory-lifetime audit, physica
 sleep/resume races, other clipboard managers and whole-agent isolation. Source
 and licensing obligations are recorded in [THIRD_PARTY.md](THIRD_PARTY.md) and
 [../vault-ui/LICENSES.md](../vault-ui/LICENSES.md).
+
+Encrypted sync adoption uses the same bounded parser and authenticated KDBX key.
+It checks both selected-source and current-local digests before commit, retains a
+non-rotating encrypted `sync-before-<hash>.kdbx`, and disables imported API/MCP
+availability. The added test covers corrupted content, wrong source/local hashes,
+wrong key, retained displaced ciphertext and a fresh-profile restore. No crypto
+primitive or dependency was changed. The server transport cannot decrypt entries.
+
+`merge-sync` shares adoption's digest, authentication, private-file and atomic
+commit guards. It works on an in-memory database clone, never mutating the active
+session on pre-commit failure. It unions entries conservatively, retaining
+conflicts under fresh UUIDs and re-identifying every history snapshot. This uses
+a documented MIT vendored-engine helper; no dependency or crypto changes. Existing group and database metadata remain local; new groups are imported
+parent-first, preserving metadata, empty groups and sibling order. Deleted local
+group IDs, cross-type UUID collisions, different roots and attached resources are
+rejected. The exact encrypted output is parsed again before replacing any file,
+including rejection when individually valid trees become too deep after union. The regression covers both secrets/custom fields/history,
+reopen/replay, tombstones, stale hashes and rejected structural changes. This is
+not timestamp-based, three-way or automatic synchronization.

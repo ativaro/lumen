@@ -23,6 +23,16 @@ PlasmoidItem {
     property string systemError: ""
     property bool systemBusy: false
     property string systemCommand: ""
+    property bool notificationPage: false
+    property string notificationRequest: Plasmoid.configuration.notificationRequest || ""
+    onNotificationRequestChanged: if (notificationRequest && notificationLoader.item) notificationLoader.item.showAll()
+    Loader {
+        id: notificationLoader
+        active: root.surface === "control"
+        sourceComponent: Component { NotificationHost {
+            helper: root.helper; uiLanguage: root.uiLanguage; panelOpen: root.expanded && root.notificationPage; popupAnchor: root
+        } }
+    }
     preferredRepresentation: compactRepresentation
     // The search surface has separate pointer targets; hover popups can cover them.
     toolTipMainText: surface === "search" ? "" : surface === "control" ? root.tr("Einstellungen") : root.tr("Dein System")
@@ -83,7 +93,9 @@ PlasmoidItem {
         uiLanguage: root.uiLanguage
         panelWidth: Plasmoid.configuration.panelWidth || 0
         surface: root.surface; snapshot: root.snapshot; expanded: root.expanded
-        onToggle: root.expanded = !root.expanded
+        unreadNotifications: notificationLoader.item ? notificationLoader.item.unread : 0
+        onToggle: { if(root.expanded && root.notificationPage) root.notificationPage=false; else {root.notificationPage=false;root.expanded=!root.expanded;} }
+        onNotifications: { if(root.expanded && root.notificationPage) root.expanded=false; else {root.notificationPage=true;root.expanded=true;} }
         onLaunch: action => root.launch(action)
         onSearch: { root.expanded = false; runner.connectSource(root.helper + " --search"); }
         onVoice: { root.expanded = false; runner.connectSource(root.helper + " --voice"); }
@@ -92,8 +104,19 @@ PlasmoidItem {
         Layout.minimumWidth: Kirigami.Units.gridUnit * (root.surface === "control" ? 26 : 20)
         Layout.preferredWidth: Kirigami.Units.gridUnit * (root.surface === "control" ? 29 : 27)
         Layout.preferredHeight: Kirigami.Units.gridUnit * (root.surface === "control" ? 32 : 30)
-        sourceComponent: root.surface === "control" ? centerView : taskView
+        sourceComponent: root.surface === "control" ? (root.notificationPage ? notificationView : centerView) : taskView
     }
+    Component { id: notificationView; NotificationCenter {
+        uiLanguage: root.uiLanguage
+        items: notificationLoader.item ? notificationLoader.item.items : []
+        inhibited: notificationLoader.item ? notificationLoader.item.inhibited : false
+        gaming: notificationLoader.item ? notificationLoader.item.gaming : false
+        error: notificationLoader.item ? notificationLoader.item.error : ""
+        onAction: (identity,system,operation)=>notificationLoader.item.act(identity,system,operation)
+        onToggleDnd: notificationLoader.item.toggleDnd()
+        onPreferences: notificationLoader.item.preferences()
+        onShowAll: {notificationLoader.item.showAll();root.expanded=false;}
+    } }
     Component { id: taskView; PanelView {
         uiLanguage: root.uiLanguage
         snapshot: root.snapshot

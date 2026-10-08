@@ -178,9 +178,4 @@ def open_workshop(parent, paths=()):
     if not isinstance(settings, QSettings): settings = QSettings('Lumen', 'Files')
     settings.sync()
     if not settings.value('documentWorkshopEnabled', False, type=bool): return
-    from lumen_setup import executable
-    if not executable('pymupdf'):
-        from setup_dialog import open_setup
-        open_setup(parent)
-        if not executable('pymupdf'): return
     dialog = DocumentWorkshop(paths, parent); dialog.exec(); dialog.deleteLater()

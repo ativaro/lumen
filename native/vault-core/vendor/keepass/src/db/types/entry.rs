@@ -121,7 +121,20 @@ impl Entry {
         }
     }
 
-    /// Get the unique identifier for the [Entry]
+    /// Clone under a new identity, retaining parent, history and resource references.
+    /// Callers must ensure the destination contains the referenced resources.
+    pub fn clone_with_id(&self, id: EntryId) -> Self {
+        let mut copy = self.clone();
+        copy.id = id;
+        if let Some(history) = &mut copy.history {
+            for entry in &mut history.entries {
+                entry.id = id;
+            }
+        }
+        copy
+    }
+
+    /// Get the unique identifier for the [Entry].
     pub fn id(&self) -> EntryId {
         self.id
     }

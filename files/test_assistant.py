@@ -482,6 +482,31 @@ class AssistantTest(unittest.TestCase):
             finally:
                 backend.shutdown()
 
+    def test_memory_version_drift_stops_before_creating_empty_sessions(self):
+        from memory_bridge import MemoryBridge
+        from lumen_store import Store
+        Store().set_setting('memory/options', {'enabled': True, 'learn': False})
+        backend = OpenCodeBackend(self.state_directory)
+        backend.selected_model = 'test/model'
+        backend.ensure_server = lambda callback: callback()
+        calls, failures, requests = [], [], []
+        backend.failed.connect(failures.append)
+        backend.request = lambda *args, **kwargs: requests.append(args)
+        def prepared(bridge, text, directory, done):
+            calls.append(text)
+            self.assertLessEqual(len(calls), 3, 'Memory drift must not retry forever')
+            done(dict(stamp=[True, 0, 'new-worker'], context='', notes=[], candidates=[], revision=0))
+        try:
+            with patch('lumen_memory.stamp', return_value=[True, 0]), patch.object(MemoryBridge, 'prepare', prepared):
+                backend.send('Synthetic memory compatibility check')
+            self.assertEqual(len(calls), 3)
+            self.assertFalse(backend.busy)
+            self.assertEqual(len(failures), 1)
+            self.assertIn('neu starten', failures[0])
+            self.assertEqual(requests, [], 'Inconsistent context must not create sessions or send prompts')
+        finally:
+            backend.shutdown()
+
     def test_native_process_closes_during_engine_startup(self):
         import os
         import shutil

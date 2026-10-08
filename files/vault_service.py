@@ -43,7 +43,11 @@ def execute(library, request, job):
         import backup_setup
         if op == 'setup_inventory': return backup_setup.inventory()
         if op == 'network': return backup_setup.network(request, job)
-        if op == 'test_target': return backup_setup.probe(request['path'])
+        if op == 'test_target':
+            if request.get('server_target'):
+                from vault_targets import probe
+                return probe(request['server_target'])
+            return backup_setup.probe(request['path'])
         if op == 'configure': return backup_setup.configure(library, request, job)
         return backup_setup.finish_setup(library, identity, job)
     if op == 'list': return library.all(archived=bool(request.get('archived')))

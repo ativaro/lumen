@@ -12,6 +12,8 @@ say() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 
 say "Entferne systemd-User-Timer"
 systemctl --user disable --now lumen-watch.timer lumen-jobs.timer >/dev/null 2>&1 || true
+systemctl --user disable --now lumen-server-connector.service >/dev/null 2>&1 || true
+rm -f "$CONFIG_HOME/systemd/user/lumen-server-connector.service"
 rm -f "$CONFIG_HOME/systemd/user/lumen-watch.service" \
       "$CONFIG_HOME/systemd/user/lumen-watch.timer" \
       "$CONFIG_HOME/systemd/user/lumen-jobs.service" \
@@ -22,6 +24,9 @@ systemctl --user disable --now lumen-sound.service >/dev/null 2>&1 || true
 rm -f "$CONFIG_HOME/systemd/user/lumen-sound.service"
 
 say "Entferne Desktop-Integration"
+if [ -x "$PREFIX/bin/lumen-notification" ]; then
+    "$PREFIX/bin/lumen-notification" --restore-kde || { echo 'KDE-Benachrichtigungen zuerst wiederherstellen.' >&2; exit 1; }
+fi
 systemctl --user disable --now lumen-vault.timer >/dev/null 2>&1 || true
 systemctl --user stop lumen-vault.service >/dev/null 2>&1 || true
 rm -f "$CONFIG_HOME/systemd/user/lumen-vault.service" "$CONFIG_HOME/systemd/user/lumen-vault.timer"
@@ -29,6 +34,8 @@ systemctl --user daemon-reload >/dev/null 2>&1 || true
 rm -f "$DATA_HOME/kio/servicemenus/lumen.desktop"
 rm -f "$DATA_HOME/applications/lumen.desktop" "$DATA_HOME/applications/lumen-files.desktop"
 rm -f "$DATA_HOME/applications/lumen-open.desktop" "$DATA_HOME/applications/lumen-apps.desktop" "$DATA_HOME/applications/lumen-updater.desktop"
+rm -f "$DATA_HOME/applications/lumen-server-connect.desktop"
+rm -f "$DATA_HOME/applications/lumen-notification.desktop"
 rm -f "$DATA_HOME/applications/lumen-search.desktop" "$DATA_HOME/applications/lumen-search-preview.desktop"
 for tool in meetings household workbench radio vault inbox reader sound wissen translate; do
     rm -f "$DATA_HOME/applications/lumen-$tool.desktop" "$DATA_HOME/icons/hicolor/scalable/apps/lumen-$tool.svg"

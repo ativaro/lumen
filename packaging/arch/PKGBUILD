@@ -10,7 +10,7 @@ provides=('opencode-lumen')
 arch=('x86_64' 'aarch64')
 url="https://github.com/ativaro/lumen"
 license=('LicenseRef-Lumen-EULA' 'GPL-3.0-only')
-depends=('bash' 'git' 'python3' 'pyside6' 'python-gobject' 'python-pillow')
+depends=('bash' 'git' 'python3' 'pyside6' 'python-gobject' 'python-pillow' 'openssl')
 makedepends=('gcc' 'pkgconf' 'qt6-base')
 # OpenCode may be installed through its own installer. Native files/tasks remain
 # useful without inference; the app explains a missing engine when AI is requested.
@@ -38,11 +38,9 @@ optdepends=(
     'libpulse: Lumen Sound mixer, app rules and audio outputs in work modes'
     'networkmanager: connection status in the Lumen bar'
     'systemsettings: native network, audio and display settings'
-    'python-pymupdf: native PDF workshop and Reader PDF/EPUB rendering'
     'tesseract: local text recognition in images and scans'
     'tesseract-data-deu: German OCR'
     'tesseract-data-eng: English OCR'
-    'poppler: Lumen Files PDF preview and search (pdfinfo, pdftoppm, pdftotext)'
     'ffmpeg: Lumen Files video/audio preview (ffprobe, ffmpeg)'
     'gvfs: Vault network discovery and reconnectable mounts'
     'gvfs-wsdd: automatic discovery of modern SMB servers'
@@ -118,6 +116,7 @@ package() {
     sub "$srcroot/data/applications/lumen-ask.desktop" "$pkgdir/usr/share/applications/lumen-ask.desktop"
     sub "$srcroot/data/applications/lumen-ask-sel.desktop" "$pkgdir/usr/share/applications/lumen-ask-sel.desktop"
     sub "$srcroot/data/applications/lumen-companion.desktop" "$pkgdir/usr/share/applications/lumen-companion.desktop"
+    sub "$srcroot/data/applications/lumen-server-connect.desktop" "$pkgdir/usr/share/applications/lumen-server-connect.desktop"
     sub "$srcroot/data/applications/lumen-window-capture.desktop" "$pkgdir/usr/share/applications/lumen-window-capture.desktop"
     sub "$srcroot/data/applications/lumen-vision.desktop" "$pkgdir/usr/share/applications/lumen-vision.desktop"
     sub "$srcroot/data/applications/lumen-sel.desktop" "$pkgdir/usr/share/applications/lumen-sel.desktop"
@@ -126,6 +125,7 @@ package() {
     sub "$srcroot/data/applications/lumen-search.desktop" "$pkgdir/usr/share/applications/lumen-search.desktop"
     sub "$srcroot/data/applications/lumen-apps.desktop" "$pkgdir/usr/share/applications/lumen-apps.desktop"
     sub "$srcroot/data/applications/lumen-updater.desktop" "$pkgdir/usr/share/applications/lumen-updater.desktop"
+    sub "$srcroot/data/applications/lumen-notification.desktop" "$pkgdir/usr/share/applications/lumen-notification.desktop"
     sub "$srcroot/data/applications/lumen-search-preview.desktop" "$pkgdir/usr/share/applications/lumen-search-preview.desktop"
 
     for tool in meetings household workbench radio vault inbox reader sound wissen translate system; do
@@ -153,6 +153,7 @@ package() {
     install -m0644 "$srcroot/system/systemd/lumen-watch.timer" "$pkgdir/usr/lib/systemd/system/"
 
     install -d "$pkgdir/usr/lib/systemd/user"
+    sub "$srcroot/system/systemd/user/lumen-server-connector.service" "$pkgdir/usr/lib/systemd/user/lumen-server-connector.service"
     install -m0644 "$srcroot/system/systemd/user/lumen-notify.service" "$pkgdir/usr/lib/systemd/user/"
     install -m0644 "$srcroot/system/systemd/user/lumen-notify.path" "$pkgdir/usr/lib/systemd/user/"
     install -m0644 "$srcroot/system/systemd/user/lumen-digest.service" "$pkgdir/usr/lib/systemd/user/"

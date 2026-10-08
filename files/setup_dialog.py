@@ -123,6 +123,8 @@ class SetupDialog(QDialog):
         for item in self.features.values(): item.toggled.connect(self.update_install)
         page.addWidget(text(tr('Systempakete: Arch/CachyOS mit grafischer Passwortabfrage. '
             'Dateien lassen sich auch ohne KI-Anbindung verwenden.')))
+        page.addWidget(button(tr('Bedeutungssuche einrichten · ca. 128 MB Modell'), lambda: self.start_job('memory-search')))
+        page.addWidget(text(tr('Zusätzlich ca. 500 MiB RAM während der Suche und Laufzeitpakete. Mindestens 1 GiB freier Speicher für die Einrichtung. Ohne Modell bleibt die Textsuche verfügbar.')))
         page.addWidget(button(tr('Lokale Bildsuche einrichten · ca. 2 GB'), lambda: self.start_job('image-search')))
         page.addWidget(text(tr('Mehrsprachige CLIP-Bildsuche inklusive deutscher Suchbegriffe. Modelle werden einmalig '
             'heruntergeladen; Fotos und Suchbegriffe bleiben danach auf diesem Rechner. Kein Administratorpasswort nötig.')))
@@ -242,7 +244,7 @@ class SetupDialog(QDialog):
     def refresh(self):
         for key, (title, commands, _packages) in FEATURES.items():
             ready = all(executable(command) for command in commands)
-            self.features[key].setText(title + (tr('  ·  Installiert') if ready else tr('  ·  Fehlt teilweise') if any(executable(c) for c in commands) else tr('  ·  Fehlt')))
+            self.features[key].setText(title + (tr('  ·  Integriert') if not commands else tr('  ·  Installiert') if ready else tr('  ·  Fehlt teilweise') if any(executable(c) for c in commands) else tr('  ·  Fehlt')))
             self.features[key].setEnabled(not ready)
             if ready: self.features[key].setChecked(True)
         self.update_install()

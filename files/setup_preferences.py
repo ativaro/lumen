@@ -1,6 +1,6 @@
 """Small setup summary backed by the same personality and memory preferences."""
 import json
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QComboBox, QFormLayout
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QComboBox, QFormLayout, QCheckBox
 from lumen_i18n import tr
 from lumen_memory import Memory, options
 from lumen_store import Store
@@ -30,6 +30,11 @@ class SetupPreferences(QWidget):
         self.memory.setCurrentIndex(2 if before['enabled'] and before['learn'] else 1 if before['enabled'] else 0)
         self.initial_memory_index = self.memory.currentIndex()
         form = QFormLayout(); form.addRow(tr('Gedächtnis'), self.memory); self.details.content.addLayout(form)
+        self.solutions = QCheckBox(tr('Bestätigte Lösungen wiederverwenden'))
+        self.automatic = QCheckBox(tr('Gelernte Erinnerungen automatisch übernehmen'))
+        for control, key in ((self.solutions, 'solutions'), (self.automatic, 'automatic')):
+            control.setChecked(before[key]); self.details.content.addWidget(control)
+        self.details.content.addWidget(label(tr('Lokale Bedeutungssuche: zusätzlich ca. 500 MiB RAM während der Nutzung. Einmalig ca. 128 MB Modelldaten plus Laufzeitpakete. Ohne Modell bleibt die Textsuche verfügbar.')))
         self.details.content.addWidget(label(tr('Erinnerungen liegen lokal in Lumen Wissen. Bei aktivem Gedächtnis '
             'gehen passende Erinnerungen an deinen KI-Anbieter. Beim Lernen wertet dieser auch deine Nachricht '
             'und die vorherige Antwort aus. Du kannst Erinnerungen jederzeit ansehen, ändern und löschen.')))
@@ -44,7 +49,9 @@ class SetupPreferences(QWidget):
             tr(PRESETS[self.persona.preset.currentData()][0]), self.memory.currentText()))
 
     def commit(self):
-        changed_memory = self.memory.currentIndex() != self.initial_memory_index
+        changed_memory = (self.memory.currentIndex() != self.initial_memory_index
+                          or self.solutions.isChecked() != self.original_memory['solutions']
+                          or self.automatic.isChecked() != self.original_memory['automatic'])
         # Do not overwrite privacy decisions made in another open Lumen window.
         if changed_memory and options(self.store) != self.original_memory:
             raise ValueError(tr('Das Gedächtnis wurde in einem anderen Fenster geändert. Bitte den Assistenten erneut öffnen.'))
@@ -55,6 +62,7 @@ class SetupPreferences(QWidget):
             self.persona.original = self.settings.value('personaProfile', '')
             self.persona.initial = self.persona.value()
         if changed_memory:
-            Memory(self.store).configure(*self.memory.currentData(), expected=self.original_memory)
+            Memory(self.store).configure(*self.memory.currentData(), expected=self.original_memory,
+                                        solutions=self.solutions.isChecked(), automatic=self.automatic.isChecked())
             self.original_memory = options(self.store)
             self.initial_memory_index = self.memory.currentIndex()

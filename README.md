@@ -1,5 +1,23 @@
 # Lumen — AI-first desktop for CachyOS
 
+## Private installation / Private Installation
+
+GitHub (repository access required):
+
+```sh
+git clone --branch main --single-branch https://github.com/ativaro/lumen.git && bash lumen/bootstrap.sh
+```
+
+Forgejo (repository access and a trusted server certificate required):
+
+```sh
+git clone --branch main --single-branch https://forge.example.invalid/ativaro/lumen.git && bash lumen/bootstrap.sh
+```
+
+Use your local Git credential manager. Do not paste passwords or tokens into these
+commands. Personal data, vaults and settings are not part of these repositories.
+See [FORGEJO.md](FORGEJO.md) for source-update scope.
+
 **License: proprietary [Lumen EULA](LICENSE).** Personal and internal business use
 are allowed; redistribution, resale and commercial derivatives require prior
 written permission. [Third-party rights and release constraints](THIRD_PARTY_NOTICES.md) remain applicable.
@@ -108,7 +126,7 @@ gracefully on other setups.
 | **KRunner runner** | Type `lumen <question>`, `ai <question>` or `oc <question>` in KRunner |
 | **Plasma applet** | panel widget with agent status + quick actions (`org.lumen.agent`) |
 | **Lumen Files** (`lumen-files`) | file manager with combined local/NAS libraries and visible origins, per-room collection shelves and saved workspaces, fast search, previews, tabs, gallery, disk analysis, KIO network folders, native rename/sort with preview and undo, integrated Lumen panel |
-| **Lumen Vault** (`lumen-vault`) | encrypted restic backups, snapshot browsing, verified restore and opt-in schedules. The native credential vault and its guided NAS backup UI require the [separate prerelease installation](native/vault-ui/README.md) |
+| **Lumen Vault** (`lumen-vault`) | encrypted restic backups, snapshot browsing, verified restore and opt-in schedules. The native credential vault and its guided NAS/Lumen Server backup UI require the [separate prerelease installation](native/vault-ui/README.md) |
 | **Lumen Meeting & Radio** (`lumen-meetings`, `lumen-radio`) | one window with Meeting/Radio tabs, local transcription, editable results and personal audio programmes; both starters keep the same window and retained state |
 | **Lumen Translate** (`lumen-translate`) | text translation, writing styles, spelling correction and PDF layout translation |
 | **Lumen System** (`lumen-system`) | retained System, Sound and Work modes tabs: live resource usage, hardware, audio and desktop presets with guarded undo |
@@ -413,8 +431,8 @@ software offerings require the maintainer's express written permission.
 
 This does not revoke MIT rights already granted for earlier copies. Third-party
 licenses remain in force; Qt/PySide6, vendored libraries and GPL artwork are not
-relicensed by this change. PyMuPDF-based integrations still require licensing
-clearance before a proprietary distribution. See [third-party notices](THIRD_PARTY_NOTICES.md)
+relicensed by this change. PDF processing uses Lumen’s own engine; the complete
+distribution still needs its dependency and provenance checks. See [third-party notices](THIRD_PARTY_NOTICES.md)
 and [licensing status](LICENSE-PLAN.md). The repository remains private.
 
 ## System-wide install (Arch / CachyOS)
@@ -495,3 +513,77 @@ Switching tabs retains monitoring, mixer controls and mode selection. Apply/save
 buttons retain their existing behavior; switching a tab changes no system setting.
 Mode history includes guarded undo; existing audio rules and mode profiles keep
 using their original local stores. The separate Sound app-menu entry is hidden.
+
+
+### Lumen Server verbinden
+
+Im Lumen Server unter **Geräte → Auf diesem Desktop verbinden** starten, das Öffnen von Lumen zulassen und Serveradresse/Konto im nativen Dialog bestätigen. Erst danach werden Gerätezugang und Hintergrundabgleich aktiviert. Ablehnen, Ablauf oder Wiedergabe einer alten Anfrage erzeugen keinen weiteren Zugang. Der Server kann den Gerätezugang jederzeit widerrufen. Die bestätigten Server-Erinnerungen werden derzeit separat gespiegelt; automatische Verwendung im Desktop-Modell und die native Vault-Zielauswahl folgen separat.
+
+Die beiden `files/lumen_connect*.py` sind die mitgelieferte Client-Komponente aus dem eigenständigen Lumen-Server-Repository (`desktop/`). Bei Protokolländerungen zusammen aktualisieren; keine zusätzlichen Qt-/PyQt-Pakete benötigt.
+
+### Gespräche über Lumen Server / Server conversations
+
+Nach der Gerätekopplung kann im Gespräch **Dieses Gerät** auf
+**Lumen Server · Textgespräch** umgestellt werden. In Lumen Search liegt die Auswahl
+unter **···**. Das Gespräch bleibt in der nativen Oberfläche; die Ausführung nutzt
+das auf dem Server eingerichtete Modell. Standard bleibt dieses Gerät. Lokale
+Anhänge müssen für diesen ersten Textanschluss entfernt werden; persönliche
+Dateien, lokales Gedächtnis und Tresor werden nicht automatisch hochgeladen.
+
+Bei einer unterbrochenen Verbindung **Serververbindung prüfen** verwenden. Unklare
+Übermittlungen erscheinen nach erneutem Öffnen des Serververlaufs als
+**Übermittlung prüfen**. Es wird kein Auftrag automatisch erneut gesendet.
+Schließen lässt Serveraufträge weiterlaufen; **Abbrechen** beendet den tatsächlichen
+Auftrag. Der native Verlauf zeigt die letzten fünf Gespräche; ältere Gespräche
+und serverseitige Freigaben sind vorerst in der Server-Weboberfläche erreichbar.
+
+After pairing, select **Lumen Server · Text conversation** in the native conversation
+or Search's **···** menu. This uses the server's configured model and permissions;
+local execution remains the default. This first connection sends text only.
+Use **Check server connection** after a connection error; uncertain submissions
+are resolved by receipt instead of resubmitting. Closing a window keeps the server
+task running. **Cancel** cancels it. This does not synchronize notes or vaults.
+
+
+### Lumen Notification
+
+Die Glocke im rechten Panel bündelt KDE- und Lumen-Meldungen. **Alle anzeigen**
+öffnet die vollständige Zentrale; auch in Apps und Einstellungen erreichbar.
+**Mit Lumen besprechen** bereitet aus der gewählten Meldung einen Gesprächsentwurf
+mit Quelle, Titel und Text vor. Erst Senden übermittelt ihn an den KI-Anbieter;
+laufende Gespräche und vorhandene Entwürfe bleiben in ihrem Fenster erhalten.
+Popups sitzen rechts bündig unter der Panel-Insel mit acht Pixeln Abstand;
+schwebende Ränder und die Bildschirmposition werden berücksichtigt.
+Lumen zeigt die Popups; KDE liefert Empfang, Originalaktionen, Ton und die
+bestehenden Ruhe-Einstellungen. Steam-/GameMode-Spiele und Gamescope schalten
+automatisch auf stilles Sammeln (Erkennung spätestens beim nächsten 5-Sekunden-Poll).
+Die KDE-Vollbildregel bleibt wirksam; nach Spielende gibt es keine Popup-Flut.
+Unter Einstellungen → Lumen Notification lassen sich Lumen-Popups und Spielruhe
+abschalten. Systemmeldungen bleiben ausschließlich lokal. Eigene Servermeldungen teilen Lesen/Archivieren/Später über den bestehenden
+Connector mit deinen Geräten. Die lokale Ansicht zeigt maximal 500 Karten;
+archivierte lokale Karten werden nach 30 Tagen entfernt. KDE-Verlauf folgt der
+Plasma-Sitzung. Lokale Erinnerungen benötigen das laufende Panel; verpasste
+Termine erscheinen beim nächsten Start.
+
+Notification-MCP: `lumen_notification_settings` liest die Popup-/Spielruhe-Optionen;
+`lumen_notification_configure` ändert `native_popups` und/oder `quiet_games` mit
+der vorhandenen Aktionsfreigabe. Nicht angegebene Optionen und manueller Ruhemodus
+bleiben unverändert. `native_popups=false` wechselt zu KDE-Popups, statt Meldungen
+stummzuschalten. Die bestehenden Werkzeuge lesen eigene Lumen-Meldungen, ändern
+Lesen/Archivieren/Später/Jetzt und legen Erinnerungen an.
+
+Verbundene Arbeitsräume: Im Arbeitsraum unter **Server** ein bestehendes
+Serverprojekt wählen und ausdrücklich verbinden. Die Bindung ist kontogebunden;
+Dateien bleiben an ihrem Ort. **Lumen Projekte → Serveraufträge** zeigt dieselbe
+native Ansicht mit Ergebnissen, bestehenden Zeitplänen und Mitgliedern.
+Projektzugriff benötigt die Gerätefreigaben `projects` und `tasks`; Materialtitel
+zusätzlich `notes` bzw. `drive`. Bearbeitete Zeitpläne werden pausiert und müssen
+wieder aktiviert werden. Es werden die bis zu 100 jüngsten Projektaufträge gezeigt.
+
+**Lumen System → Server & Geräte** bietet freigegebene Diagnosen, Dienstneustarts
+und eingerichtetes Wake-on-LAN mit Status/Ergebnis. Dafür auf dem Server die neue
+Freigabe **Andere Servergeräte von diesem Desktop verwalten** (`device_control`)
+aktivieren; Wake benötigt zusätzlich `wake`. Bestehende Geräte erhalten diese
+Rechte nicht automatisch. Server-Mitgliedschaft und Zielgerätefreigaben gelten
+weiter. Verbindungen/Freigaben werden über den Link zur vorhandenen Serveransicht
+verwaltet. Alle Aktionen verwenden die bestehende Queue und den Scheduler.

@@ -60,6 +60,9 @@ class TaskTracker(QObject):
         self.store.update_task(self.task_id, status=state, result=result,
                                error='' if success or state in ('paused', 'cancelled') else result)
         self.store.event(self.task_id, state, result)
+        if success and self.backend.session and self.backend.message_id:
+            self.store.update_task(self.task_id, session=self.backend.session)
+            self.store.event(self.task_id, 'conversation_turn', json.dumps([self.backend.session, self.backend.message_id]))
         if self.lease is not None:
             os.close(self.lease); self.lease = None
         self.changed.emit()

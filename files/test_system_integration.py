@@ -117,7 +117,7 @@ with open(folder/'child.log','w') as output:
    assert proc.poll() is None
    assert time.monotonic()<deadline
    time.sleep(.05)
-  for module,args in [('system_app.py',['--page','modes']),('tools_app.py',['sound']),('system_app.py',['--page','system'])]:
+  for module,args in [('system_app.py',['--page','modes']),('system_app.py',[]),('tools_app.py',['sound']),('system_app.py',['--page','system'])]:
    result=subprocess.run([sys.executable,str(Path(os.environ['TEST_SOURCE'])/module),*args],stdout=output,stderr=output,timeout=12)
    assert result.returncode==0
   deadline=time.monotonic()+3

@@ -25,9 +25,11 @@ not been copied.
   separately licensed contributions remain effective.
 - Qt/PySide6 LGPL obligations, including library replacement, corresponding
   source and debugging/relinking rights, remain mandatory where applicable.
-- PyMuPDF/MuPDF integrations still require separate resolution before a
-  proprietary distribution: appropriate Artifex rights or a verified compatible
-  replacement. Changing LICENSE is not that resolution.
+- The previous external PDF engine has been replaced with Lumen's own format
+  implementation. Runtime and installation no longer require that component.
+  This removes that dependency from the current distribution, without certifying
+  the complete application or changing obligations for earlier releases.
+  System OpenSSL 3, Qt and font licenses still apply.
 - GPL desktop artwork and MIT vendored keepass (including its local patches)
   retain their notices and rights. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
@@ -40,5 +42,5 @@ proprietary binary distribution with unresolved copyleft integrations.
 
 Primary references:
 - [Qt LGPL obligations](https://www.qt.io/development/open-source-lgpl-obligations)
-- [PyMuPDF licensing](https://pymupdf.readthedocs.io/en/latest/about.html#license-and-copyright)
+- [OpenSSL 3 migration and license](https://docs.openssl.org/3.0/man7/migration_guide/)
 - [GNU license FAQ](https://www.gnu.org/licenses/gpl-faq.en.html)

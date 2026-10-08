@@ -1,5 +1,6 @@
 """The same native conversation surface in Lumen and Lumen — Dateien."""
 import html
+import json
 import mimetypes
 from pathlib import Path
 
@@ -10,7 +11,7 @@ from PySide6.QtCore import QEvent, QSettings, Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QTextDocument, QPalette
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit,
     QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QScrollArea, QTextBrowser, QVBoxLayout, QWidget)
-from assistant_backend import OpenCodeBackend
+from desktop_backend import DesktopBackend as OpenCodeBackend
 from preview import label
 
 
@@ -84,6 +85,25 @@ class ChatPanel(QWidget):
         self.backend.personaChanged.connect(self.refresh_persona)
         self.backend.sessionChanged.connect(lambda _: self.refresh_persona())
         self.refresh_persona(); layout.addWidget(self.persona)
+        self.execution = QComboBox()
+        self.execution.setAccessibleName(tr('Ausführung'))
+        self.execution.addItem(tr('Dieses Gerät'), 'local')
+        self.execution.addItem(tr('Lumen Server · Textgespräch'), 'server')
+        self.execution.activated.connect(lambda _: self.choose_execution())
+        layout.addWidget(self.execution)
+        self.server_model = QComboBox(); self.server_model.setAccessibleName(tr('Servermodell'))
+        self.server_model.addItem(tr('Serverstandard'), '')
+        self.server_model.hide(); layout.addWidget(self.server_model)
+        if hasattr(self.backend,'serverModelsChanged'):
+            self.backend.serverModelsChanged.connect(self.show_server_models)
+            self.server_model.activated.connect(lambda _: setattr(self.backend,'server_model',self.server_model.currentData()))
+        self.server_retry = QPushButton(tr('Serververbindung prüfen'))
+        self.server_retry.clicked.connect(self.backend.poll)
+        self.server_retry.hide(); layout.addWidget(self.server_retry)
+        if hasattr(self.backend, 'executionChanged'):
+            self.backend.executionChanged.connect(self.execution_changed)
+        else:
+            self.execution.hide()
         self.context = label('', 'muted')
         self.context.setWordWrap(True)
         self.context.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -176,6 +196,8 @@ class ChatPanel(QWidget):
         for control in (self.save_note_button,self.remember_button):control.setObjectName('toolButton');control.setEnabled(False);memory_row.addWidget(control)
         self.save_note_button.clicked.connect(lambda:self.capture_knowledge(False));self.remember_button.clicked.connect(lambda:self.capture_knowledge(True));layout.addLayout(memory_row)
         self.memory_status=label('','muted');self.memory_status.hide();layout.addWidget(self.memory_status)
+        from memory_sources_ui import MemorySources
+        self.memory_sources=MemorySources(self.backend,self);layout.addWidget(self.memory_sources,0,Qt.AlignLeft)
         self.backend.memoryStatus.connect(lambda text:(self.memory_status.setText(text),self.memory_status.show()))
         self.backend.messagesChanged.connect(self.show_messages)
         self.backend.requestsChanged.connect(self.show_requests)
@@ -201,12 +223,20 @@ class ChatPanel(QWidget):
     def save_as_file_action(self):
         try:
             from file_actions import save_action
-            save_action(self, self.tracker.store, self.tracker.store.task(self.tracker.task_id), self.paths)
+            task = self.answer_task()
+            if not task: raise ValueError(tr('Zu dieser Antwort ist kein gespeicherter Auftrag verfügbar.'))
+            save_action(self, self.tracker.store, task, self.paths)
         except (ValueError, OSError) as error: self.show_error(str(error))
 
-    def capture_knowledge(self,remember):
+    def answer_task(self):
+        if not self.backend.session or not self.last_answer or not getattr(self, 'answer_turn', ''): return None
+        rows = self.tracker.store.rows("SELECT tasks.id FROM tasks JOIN events ON events.task=tasks.id WHERE events.kind='conversation_turn' AND events.detail=? AND tasks.session=? AND tasks.directory=? ORDER BY events.id DESC LIMIT 1",
+            (json.dumps([self.backend.session, self.answer_turn]), self.backend.session, self.backend.directory))
+        return self.tracker.store.task(rows[0]['id']) if rows else None
+
+    def capture_knowledge(self,remember,text=None):
         if self.memory_capture_job:return
-        text=self.transcript.textCursor().selectedText().replace('\u2029','\n') or self.last_answer
+        if text is None: text=self.transcript.textCursor().selectedText().replace('\u2029','\n') or self.last_answer
         if not text.strip():return
         if len(text)>20000:self.show_error(tr('Bitte einen Abschnitt bis 20.000 Zeichen auswählen.'));return
         from tools_ui import Job
@@ -220,13 +250,13 @@ class ChatPanel(QWidget):
 
     def recovery_state(self):
         # Keep the text view; omit backend credentials and structured tool results.
-        messages = [{'info': {'role': m.get('info', {}).get('role')},
+        messages = [{'info': {key: m['info'][key] for key in ('role', 'id', 'parentID') if isinstance(m.get('info', {}).get(key), str)},
                      'parts': [{'type': 'text', 'text': '\n\n'.join(p.get('text', '')
                                for p in m.get('parts', []) if p.get('type') == 'text' and not p.get('synthetic'))[:20000]}]}
                     for m in self.backend.messages[-20:]]
         return {'directory': self.backend.directory, 'session': self.backend.session,
                 'draft': self.composer.toPlainText()[:100000], 'messages': messages,
-                'persona': self.backend.persona_choice(), 'paths': self.paths[:100], 'mode': self.mode.currentData()}
+                'execution': getattr(self.backend, 'execution', 'local'), 'persona': self.backend.persona_choice(), 'paths': self.paths[:100], 'mode': self.mode.currentData()}
 
     def restore_recovery(self, state):
         if self.backend.busy:
@@ -235,6 +265,8 @@ class ChatPanel(QWidget):
         self.set_action('open')
         self.paths = [p for p in state.get('paths', []) if isinstance(p, str)][:100]
         self.mode.setCurrentIndex(1 if state.get('mode') == 'plan' else 0)
+        if state.get('execution') == 'server' and hasattr(self.backend, 'set_execution'):
+            self.backend.set_execution('server')
         self.backend.session = str(state.get('session', ''))
         if not self.backend.session: self.backend.set_persona(state.get('persona', ''))
         self.refresh_persona()
@@ -244,6 +276,27 @@ class ChatPanel(QWidget):
         self.composer.setPlainText(str(state.get('draft', ''))[:100000])
         self.update_context()
         self.status.setText(tr('Wiederhergestellt · Kein Auftrag wurde erneut gestartet'))
+
+    def choose_execution(self):
+        self.backend.set_execution(self.execution.currentData())
+        self.execution_changed()
+
+    def execution_changed(self):
+        remote = getattr(self.backend, 'execution', 'local') == 'server'
+        self.execution.setCurrentIndex(1 if remote else 0)
+        self.execution.setToolTip(self.backend.server_origin + '\n' + tr('Nachrichten und ausdrücklich ausgewählte Textanhänge werden an diesen Server übertragen.') if remote else tr('Dieses Gerät'))
+        self.server_retry.setVisible(remote)
+        self.server_model.setVisible(remote)
+        self.server_model.setEnabled(not self.backend.busy)
+        self.mode.setEnabled(not remote and not self.backend.busy)
+        self.persona.setEnabled(not remote and not self.backend.busy)
+        self.dont_ask.setEnabled(not remote)
+        self.execution.setEnabled(not self.backend.busy)
+
+    def show_server_models(self, rows):
+        self.server_model.clear();self.server_model.addItem(tr('Serverstandard'),'')
+        for row in rows:self.server_model.addItem(row['name'],row['id'])
+        self.server_model.setCurrentIndex(max(0,self.server_model.findData(self.backend.server_model)))
 
     def refresh_persona(self):
         self.persona.setCurrentIndex(max(0, self.persona.findData(self.backend.persona_choice())))
@@ -290,6 +343,7 @@ class ChatPanel(QWidget):
         self.mode.setEnabled(not busy)
         self.sessions.setEnabled(not busy)
         self.persona.setEnabled(not busy)
+        self.execution_changed()
         self.stop.setVisible(busy)
         self.progress.setVisible(bool(self.action) and busy)
         self.close_action.setEnabled(not busy)
@@ -356,10 +410,13 @@ class ChatPanel(QWidget):
     def open_session(self, index):
         if self.backend.busy:
             return
+        identity=self.sessions.itemData(index)
+        if '/more/' in identity or identity.endswith('/history'):
+            self.backend.select_session(identity);return
         self.paths = []
         self.update_context()
         self.error.hide()
-        self.backend.select_session(self.sessions.itemData(index))
+        self.backend.select_session(identity)
 
     def new_conversation(self):
         if self.backend.new_conversation():
@@ -411,10 +468,14 @@ class ChatPanel(QWidget):
         text = text.strip()
         if not text or self.backend.busy:
             return
+        if hasattr(self.backend, 'preflight') and not self.backend.preflight(self.paths):
+            return
         self.error.hide()
         self.last_prompt = text
         files = []
-        if self.paths:
+        if self.paths and getattr(self.backend,'execution','local') == 'server':
+            files=[(path,mimetypes.guess_type(path)[0] or 'text/plain') for path in self.paths]
+        elif self.paths:
             text += tr('\n\nAusgewählte Pfade (Kontext):\n') + '\n'.join(self.paths)
             for path in self.paths:
                 mime = mimetypes.guess_type(path)[0] or ''
@@ -424,15 +485,19 @@ class ChatPanel(QWidget):
         self.backend.background_task = False
         if self.context_tools.learn.isChecked():
             text += tr('\n\nErkläre die wesentlichen Schritte, ihre Wirkung und wie ich sie selbst wiederholen kann.')
-        self.backend.send(text, files, self.mode.currentData(), title=title,memory_text=self.last_prompt,
+        sent = self.backend.send(text, files, self.mode.currentData(), title=title,memory_text=self.last_prompt,
                           user_text=self.last_prompt if not self.action else None)
+        if sent is False: return
         if not self.action:
             self.composer.clear()
 
     def show_messages(self, messages):
         entries = []
+        answer_key = None
+        answer_index = None
         self.last_answer = ''
-        for message in messages:
+        self.answer_turn = ''
+        for index, message in enumerate(messages):
             info = message.get('info', {})
             role = info.get('role')
             if self.action and (role != 'assistant' or info.get('parentID') != self.backend.message_id):
@@ -445,6 +510,9 @@ class ChatPanel(QWidget):
                         if p.get('type') == 'tool' and p.get('state', {}).get('status') in ('running', 'pending')]
             if role == 'assistant' and text:
                 self.last_answer = text
+                self.answer_turn = info.get('parentID', '')
+                answer_key = (self.backend.session, info.get('id', index))
+                answer_index = len(entries)
             if text or (activity and not self.action):
                 entries.append((role, text, [] if self.action else activity))
         self.copy.setEnabled(bool(self.last_answer))
@@ -452,16 +520,19 @@ class ChatPanel(QWidget):
         self.action_more.setEnabled(bool(self.last_answer) and not self.backend.busy)
         if entries == self.rendered:
             return
+        new_answer = answer_index if answer_key != getattr(self, '_answer_key', None) else None
+        self._answer_key = answer_key
         self.rendered = entries
         scroll = self.transcript.verticalScrollBar()
         bottom = scroll.value() >= scroll.maximum() - 30
         position = scroll.value()
         document = []
-        for role, text, activity in entries:
+        for index, (role, text, activity) in enumerate(entries):
             # Qt's Markdown parser handles formatting without interpreting raw HTML.
             md = SafeDocument()
             md.setMarkdown(text, QTextDocument.MarkdownFeatures(QTextDocument.MarkdownDialectGitHub | QTextDocument.MarkdownNoHTML))
             body = md.toHtml().split('<body', 1)[1].split('>', 1)[1].rsplit('</body>', 1)[0]
+            document.append(f'<a name="message-{index}"></a>')
             if not self.action:
                 color = self.palette().color(QPalette.Link).name()
                 document.append(f'<p style="color:{color};font-size:11px"><b>' + (tr('DU') if role == 'user' else 'LUMEN') + '</b></p>')
@@ -473,7 +544,13 @@ class ChatPanel(QWidget):
                 document.append('<hr>')
         empty = tr('<p>Das Ergebnis erscheint hier.</p>') if self.action else tr('<h2>Wobei kann ich dir helfen?</h2><p>Dateien verstehen, etwas prüfen oder eine Aufgabe erledigen.</p>')
         self.transcript.setHtml(''.join(document) or empty)
-        scroll.setValue(scroll.maximum() if bottom else position)
+        self.position_messages(scroll.maximum() if bottom and entries and entries[-1][0] == 'user' else position, new_answer)
+
+    def position_messages(self, position, answer_index):
+        if answer_index is not None:
+            self.transcript.scrollToAnchor(f'message-{answer_index}')
+        else:
+            self.transcript.verticalScrollBar().setValue(position)
 
     def show_requests(self, permissions, questions):
         ids = tuple(p['id'] for p in permissions) + tuple(q['id'] for q in questions)
@@ -560,6 +637,7 @@ class ChatPanel(QWidget):
         if self.memory_capture_job:
             self.memory_capture_job.cancelled.set();self.memory_capture_job.wait(3000)
             if self.memory_capture_job.isRunning():return False
+        if getattr(self.backend, 'execution', 'local') == 'server': return True
         return not self.backend.busy or QMessageBox.question(
             self, tr('Lumen arbeitet noch'), tr('Den laufenden Vorgang abbrechen und schließen?'),
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes

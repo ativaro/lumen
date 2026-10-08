@@ -9,6 +9,7 @@ from PySide6.QtGui import QGuiApplication, QCursor, QIcon, QPixmap, QColor, QPai
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickImageProvider
 from PySide6.QtDBus import QDBusConnection, QDBusMessage, QDBus
+from lumen_activation import present
 from lumen_i18n import install, tr
 from search_controller import SearchController
 
@@ -49,7 +50,7 @@ class Activation(QObject):
         self.window.setWidth(min(1240, max(620, area.width()-30)))
         self.window.setHeight(min(900, max(560, area.height()-70)))
         self.window.setPosition(area.x()+(area.width()-self.window.width())//2, min(area.bottom()-self.window.height(), max(area.y()+12, screen.geometry().y()+70)))
-        self.window.showNormal(); self.window.raise_(); self.window.requestActivate()
+        present(self.window)
         self.controller.focusRequested.emit()
 
     @Slot()
