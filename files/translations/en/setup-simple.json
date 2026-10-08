@@ -24,12 +24,15 @@
   "Deine Auswahl wird beim Beenden der Einrichtung übernommen.": "Your choices are saved when you finish setup.",
   "Das Gedächtnis wurde in einem anderen Fenster geändert. Bitte den Assistenten erneut öffnen.": "Memory settings were changed in another window. Please reopen the setup wizard.",
   "Modelle noch nicht geladen": "Models not loaded yet",
+  "Lumen verwendet eine eigene Gesprächsdatenbank, weil die bisherige Datenbank inkompatibel ist. Die bisherigen Daten bleiben erhalten.": "Lumen uses its own conversation database because the previous database is incompatible. Existing data is preserved.",
   "Keine Modelle verfügbar": "No models available",
   "Die Engine liefert keine verfügbaren Modelle. Erneut prüfen oder einen Anbieter verbinden.": "The engine returned no available models. Check again or connect a provider.",
   "Diagnose kopieren": "Copy diagnostics",
   "Kopiert technische Angaben ohne Schlüssel, Zugangsdaten oder Gesprächsinhalte.": "Copies technical details without keys, credentials or conversation contents.",
   "Technische Diagnose wird erstellt …": "Preparing technical diagnostics …",
   "Diagnose kopiert. Du kannst sie zur Fehlersuche weitergeben.": "Diagnostics copied. You can share them for troubleshooting.",
+  "Unvollständige Diagnose kopiert. Bitte Lumen neu starten und erneut prüfen.": "Partial diagnostics copied. Restart Lumen and check again.",
+  "Diagnose konnte nicht kopiert werden. Bitte erneut versuchen.": "Could not copy diagnostics. Please try again.",
   "Ohne eigene Auswahl richtet Lumen ein verfügbares Gratis-Modell ein.": "Without your own selection, Lumen sets up an available free model.",
   "Gratis-Modell bereit: {0}": "Free model ready: {0}",
   "Dein Modell: {0}": "Your model: {0}",
@@ -37,5 +40,10 @@
   "Die Engine liefert keine gültige Modellliste.": "The engine did not return a valid model list.",
   "Modell auswählen": "Select a model",
   "Aktive ältere Lumen-Fensterdekoration auf Echo aktualisieren": "Update the active legacy Lumen window decoration to Echo",
-  "Lumen Echo aktiviert; Fensteraktionen rechts.": "Lumen Echo activated; window controls on the right."
+  "Lumen Echo aktiviert; Fensteraktionen rechts.": "Lumen Echo activated; window controls on the right.",
+  "OpenCode kann seine Konfiguration nicht laden. Bitte die OpenCode-Konfiguration prüfen; eine Neuinstallation der Engine behebt das nicht.": "OpenCode cannot load its configuration. Check the OpenCode configuration; reinstalling the engine will not fix it.",
+  "OpenCode fehlen Dateizugriffsrechte. Bitte die Rechte des OpenCode-Benutzerprofils prüfen.": "OpenCode lacks file access permissions. Check the permissions of the OpenCode user profile.",
+  "OpenCode kann seine Datenbank nicht öffnen. Bitte Diagnose kopieren; die Datenbank nicht löschen.": "OpenCode cannot open its database. Copy the diagnostic report; do not delete the database.",
+  "OpenCode konnte wegen fehlendem Speicherplatz nicht starten.": "OpenCode could not start because the disk is full.",
+  "Prozess beendet: Code {0} ({1}).": "Process stopped: code {0} ({1})."
 }

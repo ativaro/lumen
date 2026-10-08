@@ -283,12 +283,12 @@ class Notebook:
             os.mkdir(name,mode=0o700,dir_fd=parent);os.fsync(parent)
         return name
 
-    def create(self,title,text='',source='',legacy='',folder='.'):
+    def create(self,title,text='',source='',legacy='',folder='.',note_id=''):
         title=' '.join(title.split()).strip()[:200]
         if not title:raise ValueError(tr('Bitte einen Titel eingeben.'))
         stem=re.sub(r'[^\w .-]','-',title).strip('. ')[:100] or 'Notiz'
         path=str(Path(folder)/(stem+'-'+uuid.uuid4().hex[:8]+'.md'))
-        return self.write(path,'# '+title+'\n\n'+text,'',source,legacy)
+        return self.write(path,'# '+title+'\n\n'+text,'',source,legacy,note_id=note_id)
 
     def remove(self,path,expected):
         with self.lock():

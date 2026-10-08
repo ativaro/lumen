@@ -10,6 +10,7 @@ from PySide6.QtGui import QGuiApplication, QPalette, QIcon, QColor
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtDBus import QDBusConnection, QDBusMessage, QDBus
+from lumen_activation import present
 from lumen_i18n import tr, install
 
 
@@ -155,7 +156,7 @@ class VaultPreview(QObject):
 class Activation(QObject):
     def __init__(self, window): super().__init__(); self.window = window
     @Slot()
-    def Activate(self): self.window.showNormal(); self.window.raise_(); self.window.requestActivate()
+    def Activate(self): present(self.window)
 
 
 def create_window(controller):

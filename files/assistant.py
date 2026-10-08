@@ -1,5 +1,6 @@
 """The same native conversation surface in Lumen and Lumen — Dateien."""
 import html
+import json
 import mimetypes
 from pathlib import Path
 
@@ -195,6 +196,8 @@ class ChatPanel(QWidget):
         for control in (self.save_note_button,self.remember_button):control.setObjectName('toolButton');control.setEnabled(False);memory_row.addWidget(control)
         self.save_note_button.clicked.connect(lambda:self.capture_knowledge(False));self.remember_button.clicked.connect(lambda:self.capture_knowledge(True));layout.addLayout(memory_row)
         self.memory_status=label('','muted');self.memory_status.hide();layout.addWidget(self.memory_status)
+        from memory_sources_ui import MemorySources
+        self.memory_sources=MemorySources(self.backend,self);layout.addWidget(self.memory_sources,0,Qt.AlignLeft)
         self.backend.memoryStatus.connect(lambda text:(self.memory_status.setText(text),self.memory_status.show()))
         self.backend.messagesChanged.connect(self.show_messages)
         self.backend.requestsChanged.connect(self.show_requests)
@@ -220,12 +223,20 @@ class ChatPanel(QWidget):
     def save_as_file_action(self):
         try:
             from file_actions import save_action
-            save_action(self, self.tracker.store, self.tracker.store.task(self.tracker.task_id), self.paths)
+            task = self.answer_task()
+            if not task: raise ValueError(tr('Zu dieser Antwort ist kein gespeicherter Auftrag verfügbar.'))
+            save_action(self, self.tracker.store, task, self.paths)
         except (ValueError, OSError) as error: self.show_error(str(error))
 
-    def capture_knowledge(self,remember):
+    def answer_task(self):
+        if not self.backend.session or not self.last_answer or not getattr(self, 'answer_turn', ''): return None
+        rows = self.tracker.store.rows("SELECT tasks.id FROM tasks JOIN events ON events.task=tasks.id WHERE events.kind='conversation_turn' AND events.detail=? AND tasks.session=? AND tasks.directory=? ORDER BY events.id DESC LIMIT 1",
+            (json.dumps([self.backend.session, self.answer_turn]), self.backend.session, self.backend.directory))
+        return self.tracker.store.task(rows[0]['id']) if rows else None
+
+    def capture_knowledge(self,remember,text=None):
         if self.memory_capture_job:return
-        text=self.transcript.textCursor().selectedText().replace('\u2029','\n') or self.last_answer
+        if text is None: text=self.transcript.textCursor().selectedText().replace('\u2029','\n') or self.last_answer
         if not text.strip():return
         if len(text)>20000:self.show_error(tr('Bitte einen Abschnitt bis 20.000 Zeichen auswählen.'));return
         from tools_ui import Job
@@ -239,7 +250,7 @@ class ChatPanel(QWidget):
 
     def recovery_state(self):
         # Keep the text view; omit backend credentials and structured tool results.
-        messages = [{'info': {'role': m.get('info', {}).get('role')},
+        messages = [{'info': {key: m['info'][key] for key in ('role', 'id', 'parentID') if isinstance(m.get('info', {}).get(key), str)},
                      'parts': [{'type': 'text', 'text': '\n\n'.join(p.get('text', '')
                                for p in m.get('parts', []) if p.get('type') == 'text' and not p.get('synthetic'))[:20000]}]}
                     for m in self.backend.messages[-20:]]
@@ -485,6 +496,7 @@ class ChatPanel(QWidget):
         answer_key = None
         answer_index = None
         self.last_answer = ''
+        self.answer_turn = ''
         for index, message in enumerate(messages):
             info = message.get('info', {})
             role = info.get('role')
@@ -498,6 +510,7 @@ class ChatPanel(QWidget):
                         if p.get('type') == 'tool' and p.get('state', {}).get('status') in ('running', 'pending')]
             if role == 'assistant' and text:
                 self.last_answer = text
+                self.answer_turn = info.get('parentID', '')
                 answer_key = (self.backend.session, info.get('id', index))
                 answer_index = len(entries)
             if text or (activity and not self.action):

@@ -1,15 +1,22 @@
 # Lumen — AI-first desktop for CachyOS
 
-## Private Forgejo installation
+## Private installation / Private Installation
+
+GitHub (repository access required):
 
 ```sh
-git clone --branch main https://forge.example.invalid/ativaro/lumen.git && bash lumen/bootstrap.sh --local
+git clone --branch main --single-branch https://github.com/ativaro/lumen.git && bash lumen/bootstrap.sh
 ```
 
-Requires access to the private repository and a trusted certificate for `forge.example.invalid`.
-Use your local Git credential manager; do not place passwords in the command.
-See [FORGEJO.md](FORGEJO.md) for the source snapshot and update scope.
+Forgejo (repository access and a trusted server certificate required):
 
+```sh
+git clone --branch main --single-branch https://forge.example.invalid/ativaro/lumen.git && bash lumen/bootstrap.sh
+```
+
+Use your local Git credential manager. Do not paste passwords or tokens into these
+commands. Personal data, vaults and settings are not part of these repositories.
+See [FORGEJO.md](FORGEJO.md) for source-update scope.
 
 **License: proprietary [Lumen EULA](LICENSE).** Personal and internal business use
 are allowed; redistribution, resale and commercial derivatives require prior

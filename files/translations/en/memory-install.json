@@ -1,0 +1,17 @@
+{
+  "Bedeutungssuche benötigt Linux x86_64, AVX2 und Python 3.14. Textsuche bleibt verfügbar.": "Semantic search requires Linux x86_64, AVX2 and Python 3.14. Text search remains available.",
+  "Die Bedeutungssuche wird bereits eingerichtet.": "Semantic search setup is already running.",
+  "Für die Einrichtung wird mindestens 1 GiB freier Speicher benötigt.": "Setup requires at least 1 GiB of free storage.",
+  "Vorhandene Suchumgebung ist nicht verwaltet. Bitte ein neues Installationsverzeichnis wählen.": "The existing search environment is unmanaged. Please choose a new installation directory.",
+  "Getrennte Suchumgebung einrichten …": "Setting up isolated search environment …",
+  "Bedeutungsmodell herunterladen …": "Downloading semantic search model …",
+  "Die Prüfsumme des Suchmodells stimmt nicht.": "The search model checksum does not match.",
+  "Bedeutungssuche lokal prüfen …": "Verifying local semantic search …",
+  "Bedeutungssuche eingerichtet. Gedächtnisfreigaben bleiben unverändert.": "Semantic search is ready. Memory permissions are unchanged.",
+  "Bedeutungssuche einrichten · ca. 128 MB Modell": "Set up semantic search · approx. 128 MB model",
+  "Bedeutungssuche einrichten …": "Set up semantic search …",
+  "Zusätzlich ca. 500 MiB RAM während der Suche und Laufzeitpakete. Mindestens 1 GiB freier Speicher für die Einrichtung. Ohne Modell bleibt die Textsuche verfügbar.": "Approx. 500 MiB additional RAM during search, plus runtime packages. Setup requires at least 1 GiB free storage. Text search remains available without the model.",
+  "Bedeutungssuche wird eingerichtet …": "Setting up semantic search …",
+  "Mindestens 1 GiB freier Speicher für die Einrichtung. Die Installation ändert keine Gedächtnisfreigaben.": "Setup requires at least 1 GiB free storage. Installation does not change memory permissions.",
+  "Die Suchumgebung konnte nicht eingerichtet werden. Textsuche bleibt verfügbar.": "The search environment could not be set up. Text search remains available."
+}

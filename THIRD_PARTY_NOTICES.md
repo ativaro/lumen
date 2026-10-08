@@ -26,6 +26,9 @@ complete application can be distributed under proprietary terms.
   notice hashes remain in [native/vault-core/THIRD_PARTY.md](native/vault-core/THIRD_PARTY.md)
   and `native/vault-core/licenses/`. Rust and Qt notices are also shipped by the
   native installer. Those MIT and other notices must not be replaced by the EULA.
+- **Bundled DM Sans fonts:** copyright the DM Sans Project Authors; distributed
+  under the SIL Open Font License 1.1. The complete notice is shipped alongside
+  the unchanged font files in [files/fonts/OFL.txt](files/fonts/OFL.txt).
 - **Separately installed tools, fonts and models:** their accompanying licenses
   apply independently; installing them does not make them Lumen-owned materials.
 - **Earlier releases and contributions:** prior MIT grants remain valid for the
@@ -34,3 +37,10 @@ complete application can be distributed under proprietary terms.
   retain their existing licenses.
 
 Release decisions and remaining checks: [LICENSE-PLAN.md](LICENSE-PLAN.md).
+
+## Optional local memory search
+
+The opt-in multilingual MiniLM model and isolated CPU runtime are pinned, verified
+and installed separately. Original model card, Apache-2.0 license and dependency
+notices are included in files/memory-runtime/. Binary wheel licenses stay in the installed environment.
+No model weights or personal memory contents are included in this repository.

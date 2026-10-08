@@ -35,7 +35,7 @@ class Properties(QDialog):
         self.setMinimumSize(510, 550)
         from drive_browser import is_drive
         self.drive = all(is_drive(p) for p in paths)
-        self.remote = not self.drive and any(window.network.remote(p) for p in paths)
+        self.remote = not self.drive and any(window.network.remote(p) or window.cloud.contains(p) for p in paths)
         self.drive_rows = [(kind, dict(row)) for kind,row in (window.drive.entries[p] for p in paths)] if self.drive else []
         self.drive_config = dict(window.drive.config or {}) if self.drive else None
         self.drive_role = next((s['role'] for s in window.drive.spaces if s['id'] == window.drive.space), 'reader') if self.drive else None

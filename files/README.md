@@ -38,12 +38,14 @@ Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. Au
 
 ## Bedienung
 
-- **Einstellungen / Strg+Komma:** gemeinsame Einstellungen für Lumen und Files. Startordner, versteckte Dateien, Vorschau, Suchverzögerung und Trefferlimit; gespeicherte Orte/Server entfernen. Änderungen wirken im aktuellen Files-Fenster, der Startordner im nächsten Fenster.
+- **Einstellungen / Strg+Komma:** eigener Einstellungsdialog für Lumen Files. Startordner, versteckte Dateien, Vorschau, Suchverzögerung und Trefferlimit; gespeicherte Orte/Server, Bibliotheken und Online-Konten verwalten. Änderungen wirken im aktuellen Files-Fenster, der Startordner im nächsten Fenster.
 - **Strg+F:** aktueller Ordner einschließlich Unterordner durchsuchen. Alle eingegebenen Wörter müssen im Dateinamen vorkommen, Großschreibung ist egal. Treffer erscheinen laufend; **Esc** beendet die Suche. Typfilter begrenzen die Anzeige.
 - **Rechtes Symbol im Suchfeld / Strg+Umschalt+F:** Text-, Code- und PDF-Inhalte im aktuellen Ordner einschließlich Unterordnern durchsuchen; Treffer zeigen echte Textstellen und eine Vorschau.
 - **Einmal auswählen:** Vorschauleiste. **Leertaste:** große Vorschau. Bilder, SVG, blätterbare PDFs, Text/Code, Video-Standbilder und Audio-Wellenformen. Medienwiedergabe über die Standard-App.
 - **Strg+L:** Pfad eingeben. **Alt+Links/Rechts/Hoch:** Verlauf / übergeordneter Ordner. Die seitlichen **Vor-/Zurück-Tasten der Maus** navigieren ebenfalls im Verlauf, unabhängig davon, über welchem Fensterbereich die Maus steht. Als Browser-Tasten gemeldete Signale werden ebenfalls unterstützt. In der Bildgalerie wechseln sie das Bild. **Strg+T / Strg+W:** Tab öffnen / schließen. **Strg+Tab:** nächster Tab.
 - **Strg+C / X / V:** kopieren / ausschneiden / einfügen. **F2:** umbenennen. **Strg+Umschalt+N:** Ordner erstellen. **Entf:** nach Bestätigung in den Systempapierkorb verschieben.
+- **Langsamer zweiter Klick auf den ausgewählten Dateinamen:** direkt in Liste oder Bildraster umbenennen; die Erweiterung bleibt zunächst unmarkiert. **Enter** bestätigt, **Esc** verwirft. Ein schneller Doppelklick öffnet weiterhin die Datei.
+- **Eigenschaften … / Alt+Enter:** kompakte Lumen-Infokarte für Dateien und Ordner; „Mehr Details“ öffnet die vollständige Übersicht. Verfügbare Informationen und Bearbeitungsrechte hängen vom lokalen Dateisystem oder dem verbundenen Dienst ab. Online-Konten müssen vorher verbunden sein.
 - **Strg+H:** versteckte Dateien. **Ort merken** über das Lesezeichen-Symbol neben „Server verbinden“ ergänzt einen Favoriten. Rechtsklick auf einen gemerkten Ort entfernt ihn wieder. Die kompakte Seitenleiste zeigt bis zu zehn Orte auch bei 1000 × 640 Pixeln ohne Scrollen; lange Namen werden gekürzt, vollständige Pfade stehen im Tooltip.
 - Ziehen von Dateien kopiert sie in den Zielordner. Bestehende Ziele werden mit einer Fehlermeldung beibehalten.
 
@@ -71,10 +73,90 @@ Die Karte folgt dem eingestellten Theme und ist auf Deutsch und Englisch verfüg
 Prüfung: `QT_QPA_PLATFORM=offscreen LUMEN_LANGUAGE=de PYTHONPATH=files python -m unittest test_file_action_menu test_drive_browser`
 (im Repository-Hauptverzeichnis); Interop-Prüfungen separat über `test_interop_ui`.
 
+## Online-Konten
+
+Unter **Lumen-Einstellungen → Dateien & Speicher → Online-Konten** oder in
+**Lumen Files → Seitenleiste → Online-Konten** lassen sich Google Drive, OneDrive,
+Dropbox und WebDAV hinzufügen. Jedes Konto erhält einen eigenen Namen und Eintrag
+in der Files-Seitenleiste, sobald die Anmeldung erfolgreich abgeschlossen ist.
+Ohne fertige Einrichtung bleibt der Eintrag verborgen, auch bei Google Drive.
+Mehrere Konten desselben Anbieters sind möglich.
+Die Anmeldung gehört jedem Nutzer selbst. Ein Konto des Lumen-Herausgebers wird
+nicht verbunden. Es wird keine automatische KI-Analyse aktiviert.
+
+OneDrive und Dropbox öffnen den Browser für die rclone-Anmeldung. OneDrive fragt
+anschließend nach dem persönlichen oder geschäftlichen Laufwerk. SharePoint-Sites
+gehören nicht zu dieser ersten Fassung. WebDAV prüft die HTTPS-Ordneradresse mit
+Benutzername und Passwort; ein App-Passwort wird empfohlen. Die benötigten Pakete
+`rclone` und `fuse3` lassen sich im Verbindungsdialog installieren.
+
+Zugangsdaten liegen getrennt unter `~/.config/lumen/online-accounts/<id>/rclone.conf`
+(Verzeichnis `0700`, Datei `0600`). WebDAV-Passwörter sind rclone-obscured, **nicht
+verschlüsselt**; sie sind wie OAuth-Tokens durch lokale Dateirechte geschützt.
+Neue Laufwerke liegen unter `~/.local/share/lumen/Online Accounts/<id>`, ihr
+Schreibcache unter `~/.cache/lumen/online-accounts/<id>`. Es gibt keine vollständige
+Offline-Synchronisierung. Dateien werden direkt im Cloud-Laufwerk bearbeitet.
+
+**Konto entfernen** löscht die lokale Anmeldung, keine Cloud-Dateien. Eingebundene
+Konten bleiben bis zum Desktop-Logout geschützt, damit keine laufenden Uploads
+abgebrochen werden. Nach erneuter Desktop-Anmeldung das Konto vor dem Öffnen in
+Files entfernen. Die Freigabe kann zusätzlich beim Anbieter widerrufen werden.
+Vorhandene Google-Drive-Konten bleiben unter ihren bisherigen Pfaden erhalten.
+
+Google verwendet weiterhin die mitgelieferte Lumen-App und benötigt deren Freigabe
+beim Anbieter. Die neue Kontoübersicht hebt Googles Testnutzer-Beschränkung nicht auf.
+
+### Google Drive
+
+**Online-Konten** in der Seitenleiste öffnet die Kontoeinrichtung. **Google Drive**
+erscheint dort erst nach erfolgreicher Anmeldung.
+Fehlende Unterstützung (`rclone`, `fuse3`) lässt sich dort über den vorhandenen
+Lumen-Einrichtungsdialog installieren. **Mit Google verbinden** startet die
+Anmeldung mit der vom Herausgeber mitgelieferten Lumen-Desktop-App. Passwort und
+Zwei-Faktor-Bestätigung bleiben bei Google. Nutzer benötigen kein eigenes
+Cloud-Projekt, sofern der Herausgeber die App eingerichtet und für sie freigegeben hat.
+
+Eine Ausgabe ohne App-Konfiguration zeigt das ausdrücklich und deaktiviert die
+zentrale Anmeldung. Unter **Eigene Google-App verwenden (erweitert)** ist weiterhin
+der Import einer eigenen Desktop-OAuth-JSON oder die Eingabe von Client-ID und
+Client-Secret möglich. Es gibt keinen Rückfall auf fremde oder alte rclone-App-IDs.
+Bestehende Konten behalten ihre Zugangsdaten auch beim Austausch der mitgelieferten
+App-Konfiguration. Die [Einrichtung für Herausgeber](../packaging/GOOGLE_DRIVE.md)
+beschreibt Google-Freigabe, Testbetrieb und Paketierung.
+
+Google-Konten lassen sich in der gemeinsamen Kontoübersicht hinzufügen. Dateien erscheinen
+als Laufwerk und nutzen dieselben Vorschau-, Kopier- und Umbenennungsfunktionen.
+Google-Dokumente stellt rclone standardmäßig als Office-Exporte dar; das ist kein
+Google-Docs-Editor und keine vollständige Offline-Spiegelung. Den Kontostatus
+erreichst du per Rechtsklick auf **Google Drive** oder in den Files-Einstellungen
+unter **Orte, Server und Bibliotheken → Online-Konten …**.
+
+Der bisherige Google-Drive-Eintrag speichert die Anmeldung separat in `~/.config/lumen/google-drive/rclone.conf`
+(Verzeichnis `0700`, Datei `0600`), ohne die vorhandene rclone-Konfiguration zu
+ändern. Abbruch und Zeitüberschreitung entfernen nur die temporäre Anmeldung.
+Client-Secret und Tokens stehen weder in Prozessargumenten noch in UI-Fehlermeldungen.
+
+Ein eigener systemd-Benutzerdienst `lumen-google-drive-…` hält das Laufwerk unter
+`~/.local/share/lumen/Google Drive` während der Sitzung bereit. Weitere Lumen-Fenster
+verwenden denselben Mount. Schließen von Tabs oder Lumen beendet ihn nicht und
+unterbricht keine Uploads. Der Schreibcache liegt in `~/.cache/lumen/google-drive`;
+noch nicht übertragene Dateien bleiben dort und werden beim nächsten Verbinden
+weiter übertragen. Die üblichen XDG-Pfadvariablen werden berücksichtigt.
+Lokales Abschließen eines Kopiervorgangs bedeutet noch nicht, dass Google den
+Upload vollständig empfangen hat. Der Mount gehört nicht zur KIO-FUSE-Bereinigung.
+
+Verifikation: native Dialog-, Abbruch-, Dateiansichts- und Regressionstests sowie
+ein echter rclone-FUSE-Mount mit lokalem Test-Backend. Ein vollständiger
+Google-Konto-Login und Cloud-Upload benötigen freigegebene OAuth-Zugangsdaten und sind
+ohne diese nicht automatisch verifiziert.
+
 ## Gemeinsame Einstellungen
 
-In beiden Apps über **Einstellungen** oder **Strg+Komma**; direkter Start mit
-`lumen-files --settings` oder `lumen-agent-app --page settings`.
+Die übergreifenden Lumen-Einstellungen öffnen sich im Assistenten über
+**Einstellungen** oder `lumen-agent-app --page settings`. In Lumen Files führen
+Menü, **Strg+Komma** und `lumen-files --settings` zum eigenen
+Files-Dialog. Dieselben Dateioptionen bleiben auch in den übergreifenden
+Lumen-Einstellungen erreichbar und verwenden denselben gespeicherten Stand.
 
 Die Navigation hat sechs Hauptbereiche: **Darstellung & Desktop**, **KI & Sprache**,
 **Dateien & Speicher**, **Apps**, **Datenschutz & Freigaben** und **Wartung**.

@@ -7,6 +7,31 @@
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+static void activateWindow(QWidget *window) {
+  window->setWindowState(window->windowState() & ~Qt::WindowMinimized);
+  window->show();
+  auto *target = QApplication::activeModalWidget();
+  if (!target) target = window;
+  target->raise();
+  target->activateWindow();
+  if (target->windowHandle()) target->windowHandle()->requestActivate();
+  const auto data = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
+  const QStringList directories{
+      QCoreApplication::applicationDirPath() + "/../../files",
+      data + "/lumen/files", "/usr/share/lumen/files",
+      QCoreApplication::applicationDirPath() + "/../../../files"};
+  for (const auto &directory : directories) {
+    const auto script = QDir(directory).absoluteFilePath("lumen_activation.py");
+    const auto python = directory == "/usr/share/lumen/files"
+        ? QString("/usr/bin/lumen-python") : QDir(directory).absoluteFilePath("../bin/lumen-python");
+    if (QFileInfo::exists(script) && QFileInfo(python).isExecutable()) {
+      QProcess::startDetached(python, {script, QString::number(QCoreApplication::applicationPid()), "lumen-vault"});
+      break;
+    }
+  }
+}
+
 int main(int argc, char **argv) {
   if ((argc != 2 && argc != 3) || QByteArray(argv[1]) != "--laboratory-only" ||
       (argc == 3 && QByteArray(argv[2]) != "--backups"))
@@ -18,7 +43,9 @@ int main(int argc, char **argv) {
   umask(0077);
   QApplication app(argc, argv);
   app.setOrganizationName("Lumen");
-  app.setApplicationName("VaultLab");
+  app.setApplicationName("lumen-vault");
+  app.setApplicationDisplayName("Lumen Vault");
+  app.setDesktopFileName("lumen-vault");
   const auto root =
       QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) +
       "/lumen-vault-lab";
@@ -64,7 +91,7 @@ int main(int argc, char **argv) {
     client.connectToServer(endpoint);
     if (!client.waitForConnected(2000))
       return 1;
-    client.write(requestedSection == 1 ? "backups\n" : "vault\n");
+    client.write(requestedSection == 1 ? "backups\n" : "activate\n");
     if (!client.waitForBytesWritten(2000))
       return 1;
     close(lease);
@@ -87,15 +114,10 @@ int main(int argc, char **argv) {
         if (!peer->canReadLine())
           return;
         const auto message = peer->readLine(32);
-        if ((message == "backups\n" || message == "vault\n") &&
-            !QApplication::activeModalWidget()) {
-          window.showSection(message == "backups\n" ? 1 : 0);
-          if (window.isMinimized())
-            window.showNormal();
-          else
-            window.show();
-          window.raise();
-          window.activateWindow();
+        if (message == "backups\n" || message == "vault\n" || message == "activate\n") {
+          if (message != "activate\n" && !QApplication::activeModalWidget())
+            window.showSection(message == "backups\n" ? 1 : 0);
+          activateWindow(&window);
         }
         peer->disconnectFromServer();
       });

@@ -34,7 +34,7 @@ class DesktopActivation(QObject):
         super().__init__()
         self.window = None
         self.pending = False
-        self.page = 0
+        self.page = None
         self.task = ''
         self.discussions = []
 
@@ -82,16 +82,14 @@ class DesktopActivation(QObject):
         self.pending = True
         if self.window is None:
             return
-        window = QApplication.activeModalWidget() or self.window
-        self.window.setWindowState(self.window.windowState() & ~Qt.WindowMinimized)
-        self.window.show_page(self.page)
+        if self.page is not None:
+            self.window.show_page(self.page)
+            self.page = None
         if self.task:
             self.window.workspace.select_task(self.task)
             self.task = ''
-        self.window.show()
-        window.raise_()
-        window.activateWindow()
-        if window.windowHandle(): window.windowHandle().requestActivate()
+        from lumen_activation import present
+        present(self.window)
 
 
 class LumenWindow(QMainWindow):
@@ -131,6 +129,8 @@ class LumenWindow(QMainWindow):
         self.pages.addWidget(self.files_page)
         from lumen_workspace import Workspace
         self.workspace = Workspace(self)
+        self.studio.bind_workspace(self.workspace)
+        self.chat.taskRequested.connect(lambda task: (self.workspace.select_task(task), self.show_page(4)))
         for page in (self.workspace.tasks_page, self.workspace.knowledge_page, self.workspace.flows_page, self.workspace.models_page):
             self.pages.addWidget(page)
         from lumen_workplace import Workplace
@@ -138,6 +138,9 @@ class LumenWindow(QMainWindow):
         self.pages.addWidget(self.workplace)
         from lumen_apps import AppCenter
         self.pages.addWidget(AppCenter(self))
+        from studio_saved_results import StudioSavedResults
+        self.results_page = StudioSavedResults(self.workspace)
+        self.pages.addWidget(self.results_page)
         self.navigation = StudioNavigation(self)
         self.nav_buttons = self.navigation.buttons
         QShortcut(QKeySequence('Ctrl+,'), self, activated=self.show_settings)
@@ -186,7 +189,7 @@ class LumenWindow(QMainWindow):
     def present_action(self, action):
         was_action = self.navigation.isHidden()
         self.navigation.setVisible(not action)
-        self.setWindowTitle(self.chat.heading.text() + ' — Lumen' if action else 'Lumen')
+        self.setWindowTitle('Lumen — ' + self.chat.heading.text() if action else 'Lumen')
         self.setMinimumSize(560, 520) if action else self.setMinimumSize(760, 600)
         if action:
             self.resize(680, 740)
@@ -209,6 +212,7 @@ class LumenWindow(QMainWindow):
         self.pages.setCurrentIndex(index)
         for i, item in self.nav_buttons.items():
             item.setChecked(i == index)
+        if hasattr(self, 'navigation'): self.navigation.show_page(index)
         if index == 1:
             self.refresh_system()
         elif index == 5:
@@ -438,7 +442,7 @@ def main():
     parser.add_argument('--file', action='append', default=[])
     parser.add_argument('--selection')
     parser.add_argument('--clipboard-image', action='store_true')
-    parser.add_argument('--page', choices=['chat', 'system', 'actions', 'files', 'tasks', 'knowledge', 'workflows', 'models', 'workplace', 'settings', 'apps'], default='chat')
+    parser.add_argument('--page', choices=['chat', 'system', 'actions', 'files', 'tasks', 'knowledge', 'workflows', 'models', 'workplace', 'settings', 'apps', 'results'])
     args = parser.parse_args()
     from lumen_migrate import migrate_user
     migrate_user()
@@ -450,14 +454,13 @@ def main():
     plain_launch = (args.action == 'open' and args.page != 'settings' and not any(
         (args.directory, args.location, args.prompt, args.context, args.file, args.selection,
          args.clipboard_image, os.environ.get('LUMEN_ASK_PROMPT'))))
-    page_index = {'chat': 0, 'system': 1, 'actions': 2, 'files': 3, 'tasks': 4, 'knowledge': 5, 'workflows': 6, 'models': 7, 'workplace': 8, 'apps': 9}
-    activation.page = page_index.get(args.page, 0)
+    page_index = {'chat': 0, 'system': 1, 'actions': 2, 'files': 3, 'tasks': 4, 'knowledge': 5, 'workflows': 6, 'models': 7, 'workplace': 8, 'apps': 9, 'results': 10}
     bus = QDBusConnection.sessionBus()
     if plain_launch and bus.isConnected() and bus.registerObject('/Lumen', activation, QDBusConnection.ExportAllSlots):
         if not bus.registerService('org.lumen.Desktop'):
             request = QDBusMessage.createMethodCall('org.lumen.Desktop', '/Lumen', 'org.lumen.Desktop',
-                                                   'ActivateTask' if args.task else 'ActivatePage')
-            request.setArguments([args.task] if args.task else [page_index[args.page]])
+                                                   'ActivateTask' if args.task else 'ActivatePage' if args.page else 'Activate')
+            request.setArguments([args.task] if args.task else [page_index[args.page]] if args.page else [])
             reply = bus.call(request, QDBus.Block, 3000)
             if reply.type() == QDBusMessage.ErrorMessage:
                 if not (args.task and reply.errorName() == 'org.freedesktop.DBus.Error.UnknownMethod'):
@@ -466,6 +469,7 @@ def main():
                 # An older running window stays untouched; this context opens separately.
             else:
                 return 0
+    args.page = args.page or 'chat'
     directory = Path(args.directory or os.environ.get('LUMEN_WORKDIR') or
                      QSettings('Lumen', 'Assistant').value('workdir', str(Path.home() / 'Documents/work'))).expanduser()
     window = LumenWindow(str(directory if directory.is_dir() else Path.home()))

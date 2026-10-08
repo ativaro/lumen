@@ -493,7 +493,7 @@ def tool_native(name, args):
         raise ValueError('MCP actions are disabled.')
     intake = name in ('lumen_vault_store', 'lumen_vault_store_from_chat')
     project_write = name in ('lumen_project_create', 'lumen_project_update', 'lumen_project_start')
-    mutation = project_write or intake or (name == 'lumen_vault_api_request' and args.get('method') != 'GET') or (name == 'lumen_vault_mcp' and args.get('operation') == 'call')
+    mutation = name in ('lumen_memory_remember','lumen_memory_propose','lumen_memory_forget') or project_write or intake or (name == 'lumen_vault_api_request' and args.get('method') != 'GET') or (name == 'lumen_vault_mcp' and args.get('operation') == 'call')
     uncertain = ('Vault save outcome is unknown. Check Vault before retrying; do not automatically repeat the save.' if intake else
                  'The remote operation outcome is unknown. Check remote state before retrying; do not automatically repeat the write.')
     if project_write: uncertain = 'Project action outcome is unknown. Read the project and run history before retrying; do not automatically repeat the action.'

@@ -49,4 +49,7 @@ class MemoryProfile(QScrollArea):
                     caption=label(when,'muted');caption.setAttribute(Qt.WA_TransparentForMouseEvents);content.addWidget(caption)
                 if note.get('memory',{}).get('correction'):
                     caption=label(tr('Nach deiner Korrektur aktualisiert'),'muted');caption.setAttribute(Qt.WA_TransparentForMouseEvents);content.addWidget(caption)
+                if note.get('memory',{}).get('sync_conflict') or not note.get('memory',{}).get('allowed',True):
+                    caption=label(tr('Konflikt prüfen · nicht als Kontext verwendet') if note['memory'].get('sync_conflict') else tr('Noch nicht für Lumen freigegeben'),'muted')
+                    caption.setAttribute(Qt.WA_TransparentForMouseEvents);content.addWidget(caption)
                 self.entries.addWidget(entry)

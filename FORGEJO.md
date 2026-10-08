@@ -1,13 +1,15 @@
-# Private Forgejo source snapshot
+# Private Lumen source publication
 
-Imported on 2026-10-08 without local development history, runtime data, accounts,
-credentials or deployment configuration. GitHub repositories are unchanged.
+Reviewed source snapshot updated on 2026-10-08 from `a01cb8534d7f463cc4cc7177fb2b8057b2704a36`.
+Desktop also includes the reviewed navigation at `b890737` and existing GitHub
+cloud-account fixes at `3fb6dbd`; unfinished parallel work is excluded.
 
-Desktop source combines the distributable desktop at `d0897f6` with the native
-Desktop/Server integration work at `a090b4f`. The source trees merge without Git
-conflicts. This is a source publication, not a new packaged release or full
-fresh-system certification.
+Only distributable source, tests, documentation and artwork are published.
+Local development history, personal data, credentials, deployment overrides and
+backups are excluded. This is a source update, not a new binary release or
+a certification of every feature on a fresh system.
 
-The existing graphical updater still uses the GitHub source. Publishing this
-copy does not switch installed clients to Forgejo. To refresh this source clone,
-use `git pull --ff-only` here; installation is described in INSTALL.md.
+Private repositories: GitHub `ativaro/lumen` and Forgejo
+`https://forge.example.invalid/ativaro/lumen`. The graphical Desktop updater continues
+to use GitHub; publishing here does not restart installed applications.
+Update a clone with `git pull --ff-only`, then follow the installation guide.

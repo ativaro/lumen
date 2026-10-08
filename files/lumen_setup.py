@@ -23,6 +23,7 @@ FEATURES = {
     'engine': (tr('Lumen-Assistent'), ('opencode',), ('opencode',)),
     'documents': (tr('PDF-Vorschau und Inhaltsuche'), (), ()),
     'media': (tr('Video- und Audiovorschau'), ('ffmpeg', 'ffprobe'), ('ffmpeg',)),
+    'google_drive': (tr('Online-Konten: Cloud-Dateien'), ('rclone', 'fusermount3'), ('rclone', 'fuse3')),
     'network': (tr('NAS und Netzwerkordner'), ('kio-fuse', 'kioclient', 'kio-smb', 'gvfsd-smb', 'gvfsd-fuse', 'gvfsd-wsdd', 'smbclient'), ('kio-fuse', 'kio-extras', 'kde-cli-tools', 'gvfs', 'gvfs-smb', 'gvfs-wsdd', 'smbclient')),
     'workshop': (tr('PDF-Dokumentenwerkstatt'), (), ()),
     'ocr': (tr('Texterkennung in Bildern und Scans'), ('tesseract', 'tessdata-deu', 'tessdata-eng'), ('tesseract', 'tesseract-data-deu', 'tesseract-data-eng')),
@@ -312,7 +313,7 @@ def install_inbox():
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=('packages', 'engine', 'dictation', 'dictation-quality', 'voice', 'voice-multilingual', 'desktop', 'image-search', 'vault', 'inbox'))
+    parser.add_argument('action', choices=('packages', 'engine', 'dictation', 'dictation-quality', 'voice', 'voice-multilingual', 'desktop', 'image-search', 'memory-search', 'vault', 'inbox'))
     parser.add_argument('groups', nargs='*', choices=tuple(FEATURES))
     parser.add_argument('--existing-model', default='')
     from appearance import DESIGNS
@@ -332,6 +333,10 @@ def main():
         elif args.action == 'voice': install_voice(args.existing_model)
         elif args.action == 'voice-multilingual': install_multilingual_voice()
         elif args.action == 'image-search': install_image_search()
+        elif args.action == 'memory-search':
+            from memory_install import install
+            from lumen_memory import search_home
+            install(search_home(), run=run, download=download, report=lambda message:report(tr(message)))
         elif args.action == 'vault': install_vault()
         elif args.action == 'inbox': install_inbox()
         else:
@@ -342,7 +347,7 @@ def main():
             report(tr('Ausgewählte Erweiterungen sind verfügbar.'), 100)
         return 0
     except Exception as error:
-        report(str(error)); return 1
+        report(tr(str(error))); return 1
 
 
 if __name__ == '__main__': sys.exit(main())

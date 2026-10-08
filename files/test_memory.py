@@ -5,11 +5,40 @@ from pathlib import Path
 from lumen_store import Store
 from wissen_data import Notebook,activate
 from lumen_memory import Memory,stamp
+from lumen_i18n import tr
 
 
 class MemoryTest(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.base=Path(self.temp.name);self.store=Store(self.base/'state');activate(self.store);self.notes=Notebook(self.store);self.memory=Memory(self.store)
+
+    def test_identity_survives_reload_and_edit_but_isolates_profiles(self):
+        self.memory.remember('Original','PostgreSQL')
+        first=self.memory.scan()['notes'][0]
+        again=Memory(self.store).scan()['notes'][0]
+        self.assertEqual(first['id'],again['id'])
+        self.memory.write(first['path'],'# Neuer Titel\nSQLite',first['hash'])
+        edited=Memory(self.store).scan()['notes'][0]
+        self.assertEqual(first['id'],edited['id'])
+        self.assertNotEqual(first['revision'],edited['revision'])
+        other=Memory(Store(self.base/'other'))
+        self.assertNotEqual(first['id'],other.identity(first['path']))
+
+    def test_external_edit_during_search_is_not_returned_as_current(self):
+        from unittest.mock import patch
+        self.memory.configure(True,False)
+        note=self.memory.remember('Server','PostgreSQL')
+        def changed(*args,**kwargs):
+            self.memory.book.write(note['path'],'# Server\nSQLite',note['hash'])
+            return dict(mode='text',reason='not_installed',scores={})
+        with patch('memory_local.retrieve',side_effect=changed):
+            result=self.memory.prepare('PostgreSQL',str(self.base))
+        self.assertEqual(result['context'],'');self.assertEqual(result['notes'],[])
+        result=self.memory.prepare('SQLite',str(self.base))
+        self.assertIn('SQLite',result['context'])
+        for source in result['notes']:
+            self.assertIn(source['id'],result['context']);self.assertIn(source['revision'],result['context'])
+        self.assertLessEqual(len(result['context']),18000)
 
     def test_private_notes_and_folder_overrides_project_scope(self):
         self.memory.configure(True,True)
@@ -100,10 +129,14 @@ class MemoryBackendTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,{'LUMEN_DATA':tmp+'/state'}):
             store=Store();memory=Memory(store);memory.configure(True,True)
             backend=OpenCodeBackend(tmp,server_url='http://127.0.0.1:'+str(server.server_port),password='test');backend.ensure_server=lambda callback:callback();backend.selected_model='test/model'
+            seen=[];backend.memoryContextChanged.connect(seen.append)
             try:
                 backend.send(user);wait(lambda:memory.scan()['notes']);wait(lambda:not backend.busy)
                 first=state['prompts'][0][0];backend.send('Welche Antwortlänge passt?');wait(lambda:len(state['prompts'])>=2 and not backend.busy)
                 self.assertIn('kurze Antworten',state['prompts'][1][1]['system']);self.assertEqual(first,state['prompts'][1][0])
+                used=[x for x in seen if x['phase']=='submitted' and x['sources']][-1]
+                self.assertEqual(used['version'],1);self.assertEqual(used['sources'][0]['source_kind'],'memory')
+                self.assertNotIn('text',used['sources'][0]);self.assertTrue(used['message_id'])
                 note=memory.scan()['notes'][0];prepare=backend.memory.prepare
                 def revoke_while_preparing(text,directory,done):
                     backend.memory.prepare=prepare;memory.forget(note['path'],note['hash']);prepare(text,directory,done)
@@ -160,7 +193,7 @@ class MemoryBackendTest(unittest.TestCase):
                     QTest.qWait(20)
                     if panel.memory_capture_job is None:break
                 self.assertIsNone(panel.memory_capture_job)
-                self.assertEqual(panel.memory_status.text(),'Im Lumen-Gedächtnis gespeichert.' if remember else 'In deinem Notizbuch gespeichert.',panel.error.text())
+                self.assertEqual(panel.memory_status.text(),tr('Im Lumen-Gedächtnis gespeichert.' if remember else 'In deinem Notizbuch gespeichert.'),panel.error.text())
             self.assertEqual(len(book.scan()['notes']),2);self.assertEqual(len(memory.scan()['notes']),1)
             panel.context_tools.close();panel.backend.shutdown();panel.close();panel.deleteLater();QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
 

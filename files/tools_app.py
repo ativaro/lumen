@@ -6,9 +6,11 @@ import json
 import os
 from pathlib import Path
 import sys
+import time
 from PySide6.QtCore import QSettings, QTimer, QLockFile
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from app import create_app
+from lumen_activation import present
 
 
 def listen_window(page, activate):
@@ -64,17 +66,42 @@ def main():
         return system_main(forwarded)
     from interop_ui import controller
     app=create_app(); app.setApplicationName('lumen-'+args.tool); app.setDesktopFileName('lumen-'+args.tool)
-    from tools_household import Household
-    from tools_workbench import Workbench
-    from tools_vault import Vault
-    from tools_inbox import Inbox
-    from tools_reader import Reader
     if args.clipboard:
         from PySide6.QtWidgets import QApplication
         from vault_privacy import protected_clipboard
         activation['text'] = '' if protected_clipboard(QApplication.clipboard()) else QApplication.clipboard().text()
         from translate_data import text_segments
         text_segments(activation['text'])
+    # Claim libraries before constructing widgets or starting any background jobs.
+    from tools_data import Library
+    from interop_flush import server_name as native_server_name
+    names = ('meetings', 'radio') if args.tool in ('meetings', 'radio') else (args.tool,)
+    libraries = {name: Library(name) for name in names}
+    def forward():
+        client = QLocalSocket(); client.connectToServer(native_server_name(libraries[args.tool].root))
+        if not client.waitForConnected(400): return False
+        client.write(json.dumps(activation, ensure_ascii=False).encode()+b'\n')
+        sent = client.waitForBytesWritten(1000)
+        client.disconnectFromServer()
+        return sent
+    if forward(): return 0
+    locks = []
+    for library in libraries.values():
+        lock = QLockFile(str(library.root/'window.lock'))
+        if not lock.tryLock(0):
+            for owned in locks: owned.unlock()
+            deadline = time.monotonic()+5
+            while time.monotonic() < deadline:
+                if forward(): return 0
+                time.sleep(.05)
+            print(tr('Lumen: Das vorhandene Fenster antwortet nicht.'), file=sys.stderr)
+            return 1
+        locks.append(lock)
+    from tools_household import Household
+    from tools_workbench import Workbench
+    from tools_vault import Vault
+    from tools_inbox import Inbox
+    from tools_reader import Reader
     from tools_translate import Translate
     from tools_wissen import Wissen
     if args.tool in ('meetings', 'radio'):
@@ -87,25 +114,6 @@ def main():
         window = {'household':Household,'workbench':Workbench,'vault':Vault,'inbox':Inbox,'reader':Reader,'wissen':Wissen,'translate':Translate}[args.tool]()
         pages = {args.tool: window}
     app.setApplicationDisplayName(window.windowTitle())
-    from interop_flush import server_name as native_server_name
-    server_name=native_server_name(pages[args.tool].library.root)
-    client=QLocalSocket(); client.connectToServer(server_name)
-    if client.waitForConnected(400):
-        client.write(json.dumps(activation,ensure_ascii=False).encode()+b'\n')
-        client.waitForBytesWritten(1000)
-        client.disconnectFromServer()
-        if args.tool == 'vault':
-            from vault_activation import activate_existing_backup
-            activate_existing_backup(window.library.root)
-        return 0
-    locks = []
-    for page in pages.values():
-        lock = QLockFile(str(page.library.root/'window.lock'))
-        if not lock.tryLock(0):
-            for owned in locks: owned.unlock()
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.information(None, window.windowTitle(), tr('Das Fenster wird bereits geöffnet. Bitte einen Moment warten.')); return 0
-        locks.append(lock)
     from interop_data import Registry
     for name, page in pages.items():
         Registry(page.library.root.parent).recover(name)
@@ -117,7 +125,7 @@ def main():
         if area is not None:
             if page.name != 'wissen' or area not in ('user', 'lumen'): raise ValueError(tr('Unbekannter Wissensbereich.'))
             page.switch_area(area)
-        if len(pages) > 1: window.select(page.name)
+        if len(pages) > 1 and request: window.select(page.name)
         if request: controller(page).enqueue(request)
 
     from lumen_apps import startup_preference
@@ -125,8 +133,7 @@ def main():
     for name, page in pages.items():
         def show(request, page=page):
             dispatch(page, request)
-            window.showNormal() if window.isMinimized() else window.show()
-            window.raise_(); window.activateWindow()
+            present(window)
         servers.append(listen_window(page, show))
         state = QSettings(str(page.library.root/'window.ini'), QSettings.IniFormat)
         states[name] = state

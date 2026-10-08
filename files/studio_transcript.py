@@ -16,8 +16,9 @@ class MessageBody(Transcript):
         self.anchorClicked.connect(lambda url: QDesktopServices.openUrl(url) if url.scheme() in ('https', 'http') else None)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff); self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed); self.setMinimumWidth(0)
-        from ui_typography import font
-        self.setFont(font(parent.settings if parent is not None and hasattr(parent, 'settings') else None))
+        from ui_typography import metrics
+        from studio_design import font
+        self.setFont(font(max(13, metrics(parent.settings)['fontSize']-4)))
         self.document().contentsChanged.connect(self.fit)
 
     def fit(self):
@@ -41,7 +42,9 @@ class StudioTranscript(QScrollArea):
         self.answer_actions = QFrame(self.content); self.answer_actions.setObjectName('answerActions')
         actions = QHBoxLayout(self.answer_actions); actions.setContentsMargins(0, 12, 0, 0)
         for title, icon, control in ((tr('Kopieren'), 'edit-copy', parent.copy), (tr('Für mich speichern'), 'bookmark-new', parent.save_note_button), (tr('Merk dir das'), 'view-history', parent.remember_button)):
-            button = QPushButton(title); button.setObjectName('answerAction'); button.setIcon(QIcon.fromTheme(icon)); button.clicked.connect(control.click); actions.addWidget(button)
+            from studio_design import icon as tinted_icon
+            button = QPushButton(); button.setToolTip(title); button.setAccessibleName(title); button.setFixedSize(30, 28)
+            button.setObjectName('answerAction'); button.setIcon(tinted_icon(icon)); button.clicked.connect(control.click); actions.addWidget(button)
         actions.addStretch(); self.answer_actions.hide()
         parent.backend.busyChanged.connect(lambda busy: self.answer_actions.setEnabled(not busy))
         parent.backend.sessionChanged.connect(lambda _: self.entries([row[1] for row in self.rows], parent.action))
@@ -70,15 +73,17 @@ class StudioTranscript(QScrollArea):
             if index >= len(self.rows):
                 container = QWidget(); outer = QHBoxLayout(container); outer.setContentsMargins(0, 0, 0, 0)
                 bubble = QFrame(); bubble.setObjectName('studioUserMessage' if role == 'user' else 'studioAssistantMessage')
-                layout = QVBoxLayout(bubble); layout.setContentsMargins(18, 14, 18, 14); layout.setSpacing(8)
-                caption = label(tr('DU') if role == 'user' else 'Lumen', 'studioSpeaker'); layout.addWidget(caption)
+                layout = QVBoxLayout(bubble); layout.setContentsMargins(14, 10, 14, 10) if role == 'user' else layout.setContentsMargins(0, 0, 0, 0); layout.setSpacing(8)
+                caption = label('Lumen', 'studioSpeaker'); caption.setVisible(role != 'user'); layout.addWidget(caption)
                 if role == 'assistant':
                     from answer_widget import AnswerBody
                     body = AnswerBody(self.parent().settings, self.parent())
                 else: body = MessageBody(self.parent())
                 layout.addWidget(body)
                 activity_label = label('', 'muted'); layout.addWidget(activity_label)
-                if role == 'user': outer.addStretch(1)
+                if role == 'assistant':
+                    mark = label('✧', 'studioAvatar'); mark.setAlignment(Qt.AlignCenter); mark.setFixedSize(26,26)
+                    outer.addWidget(mark, 0, Qt.AlignTop); outer.setSpacing(9)
                 outer.addWidget(bubble, 8)
                 self.box.insertWidget(index, container); self.rows.append((container, entry, body, activity_label))
                 changed = True

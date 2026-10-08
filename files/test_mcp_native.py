@@ -29,6 +29,7 @@ class NativeMCPTest(unittest.TestCase):
         QSettings.setPath(QSettings.NativeFormat,QSettings.UserScope,self.config)
         self.addCleanup(QSettings.setPath,QSettings.NativeFormat,QSettings.UserScope,self.old_config)
         self.store = Store()
+        cwd=patch('lumen_mcp_tools.os.getcwd',return_value=str(self.root));cwd.start();self.addCleanup(cwd.stop)
 
     def test_notification_options_share_ui_settings_and_validate_before_changes(self):
         settings = QSettings('Lumen', 'Assistant')
@@ -115,7 +116,9 @@ class NativeMCPTest(unittest.TestCase):
         with self.assertRaises(ValueError):invoke('lumen_notes_read',dict(path=visible['path']))
         memory.remember('Project fact','Scoped to project',scope=str(self.root/'project'))
         self.assertNotIn('Scoped to project',invoke('lumen_memory_context',dict(query='Project',directory=str(self.root)))['context'])
-        self.assertIn('Scoped to project',invoke('lumen_memory_context',dict(query='Project',directory=str(self.root/'project')))['context'])
+        with self.assertRaises(ValueError):invoke('lumen_memory_context',dict(query='Project',directory=str(self.root/'project')))
+        with patch('lumen_mcp_tools.os.getcwd',return_value=str(self.root/'project')):
+            self.assertIn('Scoped to project',invoke('lumen_memory_context',dict(query='Project'))['context'])
         memory.configure(False,False)
         self.assertEqual(invoke('lumen_memory_context',dict(query='Project',directory=str(self.root)))['context'],'')
         with self.assertRaises(ValueError):invoke('lumen_notes_search',dict(query='Workshop'))
@@ -332,15 +335,32 @@ class NativeMCPTest(unittest.TestCase):
         memory=Memory(self.store);memory.configure(True,True)
         global_note=memory.remember('照片','图片在网络磁盘上。',kind='fact')
         project_note=memory.remember('Projeto','Informação deste projeto.',scope='/project-a')
-        listing=invoke('lumen_memory_list',dict(directory='/project-b',limit=1))
+        listing=invoke('lumen_memory_list',dict(directory=str(self.root),limit=1))
         self.assertEqual([n['path'] for n in listing['items']],[global_note['path']])
         self.assertEqual(listing['total'],1)
-        self.assertIn('图片',invoke('lumen_memory_read',dict(directory='/project-b',path=global_note['path']))['text'])
-        with self.assertRaises(ValueError):invoke('lumen_memory_read',dict(directory='/project-b',path=project_note['path']))
+        self.assertIn('图片',invoke('lumen_memory_read',dict(directory=str(self.root),path=global_note['path']))['text'])
+        with self.assertRaises(ValueError):invoke('lumen_memory_read',dict(directory=str(self.root),path=project_note['path']))
         memory.forget(global_note['path'],global_note['hash'])
-        with self.assertRaises(ValueError):invoke('lumen_memory_read',dict(directory='/project-b',path=global_note['path']))
+        with self.assertRaises(ValueError):invoke('lumen_memory_read',dict(directory=str(self.root),path=global_note['path']))
         memory.configure(False,False)
-        self.assertEqual(invoke('lumen_memory_list',dict(directory='/project-a'))['items'],[])
+        self.assertEqual(invoke('lumen_memory_list',dict())['items'],[])
+
+    def test_memory_proposals_correct_and_forget_only_after_native_review(self):
+        from lumen_memory import Memory
+        memory=Memory(self.store);memory.configure(True,False)
+        request=dict(title='Preference',text='Brief answers',kind='preference')
+        proposed=invoke('lumen_memory_propose',request)
+        self.assertEqual(proposed['state'],'pending');self.assertEqual(memory.scan()['notes'],[])
+        memory.review(proposed['id'],True);note=memory.scan()['notes'][0]
+        corrected=invoke('lumen_memory_propose',dict(request,path=note['path'],revision=note['hash'],text='Detailed answers'))
+        self.assertIn('Brief',memory.book.read(note['path'])['text'])
+        memory.review(corrected['id'],True);current=memory.scan()['notes'][0]
+        self.assertEqual(current['id'],note['id']);self.assertIn('Detailed',current['text'])
+        with self.assertRaises(ValueError):invoke('lumen_memory_forget',dict(path=note['path'],revision=note['hash']))
+        deletion=invoke('lumen_memory_forget',dict(path=current['path'],revision=current['hash']))
+        self.assertEqual(len(memory.scan()['notes']),1)
+        memory.review(deletion['id'],True);self.assertEqual(memory.scan()['notes'],[])
+        self.assertEqual(memory.proposals(),[])
 
     def test_explicit_memory_uses_native_store_and_disabled_worker_refuses_writes(self):
         from lumen_memory import Memory

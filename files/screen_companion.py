@@ -287,8 +287,12 @@ def main():
     from app import create_app
     app = create_app(); app.setApplicationName('lumen-companion'); app.setApplicationDisplayName('Lumen Companion')
     app.setDesktopFileName('lumen-companion')
+    from lumen_activation import SingleWindow, present
+    activation = SingleWindow('org.lumen.Companion')
+    if activation.running: return activation.forward()
     window = Companion(); window.show(); app.aboutToQuit.connect(window.pause)
-    sys.exit(app.exec())
+    activation.bind(lambda request: present(window))
+    return app.exec()
 
 
-if __name__ == '__main__': main()
+if __name__ == '__main__': sys.exit(main())

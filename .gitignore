@@ -14,6 +14,9 @@ backups/
 .env.*
 *.pem
 *.key
+# Maintainer-supplied Google Desktop app identity; injected into release packages.
+/files/google-drive-client.json
+client_secret_*.json
 *.sqlite*
 *.db
 /system.md

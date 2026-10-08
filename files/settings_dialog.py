@@ -43,7 +43,7 @@ def combo(items, value):
 class SettingsDialog(QDialog):
     preferencesChanged = Signal(str, list)
 
-    def __init__(self, parent=None, files_settings=None, assistant_settings=None, page=None, load_system=True, application=None):
+    def __init__(self, parent=None, files_settings=None, assistant_settings=None, page=None, load_system=True, application=None, files_only=False):
         super().__init__(parent)
         self.setWindowTitle(tr('Einstellungen — Lumen'))
         self.resize(1000, 760)
@@ -61,10 +61,18 @@ class SettingsDialog(QDialog):
         self.status = text(tr('Änderungen mit „Übernehmen“ speichern. Systemdialoge übernehmen ihre eigenen Einstellungen.'))
         root.addWidget(self.status)
         bottom = QHBoxLayout()
-        bottom.addWidget(button(tr('Systemzustand neu laden'), self.reload))
+        if not files_only:
+            bottom.addWidget(button(tr('Systemzustand neu laden'), self.reload))
         bottom.addStretch()
         bottom.addWidget(button(tr('Schließen'), self.reject))
         root.addLayout(bottom)
+        if files_only:
+            self.setWindowTitle(tr('Lumen Files · Einstellungen'))
+            self.setMinimumSize(600, 540); self.resize(720, 720)
+            self.status.setText(tr('Änderungen mit „Files-Einstellungen übernehmen“ speichern.'))
+            self.build_files()
+            root.insertWidget(0, self.stack, 1)
+            return
         self.build_lumen()
         self.build_files()
         self.shortcut_page = self.page(tr('Tastenkürzel'), tr('Lumen überall aufrufen'))
@@ -128,6 +136,10 @@ class SettingsDialog(QDialog):
         troubleshooting = self.page('Lumen Troubleshooter', tr('Probleme erkennen und passende Lösungen finden'))
         self.troubleshooter = Troubleshooter(self)
         troubleshooting.addWidget(self.troubleshooter); troubleshooting.addStretch()
+        from online_accounts import AccountsWidget
+        self.accounts_page = self.stack.count()
+        accounts = self.page(tr('Online-Konten'), tr('Google Drive, OneDrive, Dropbox und WebDAV'))
+        accounts.addWidget(AccountsWidget(self)); accounts.addStretch()
         for action in self.stack.findChildren(QPushButton):
             action.setAutoDefault(False); action.setDefault(False)
         self.server_page = self.stack.count()
@@ -533,6 +545,8 @@ class SettingsDialog(QDialog):
         remove = button(tr('Ausgewählten Eintrag entfernen'), lambda: self.places.takeItem(self.places.currentRow()) if self.places.currentRow() >= 0 else None)
         remove.setObjectName('danger'); page.addWidget(remove)
         page.addWidget(button(tr('Bibliotheken und Quellen verwalten …'), self.manage_libraries))
+        from online_accounts import open_accounts
+        page.addWidget(button(tr('Online-Konten …'), lambda: open_accounts(self)))
         page.addWidget(text(tr('Neue Server: Strg+K in Files (SMB, SFTP, WebDAV, NFS).\n'
             'Bilder bearbeiten: Leertaste auf einem Bild. Originale werden vor dem Speichern gesichert.\n'
             'Speicheranalyse: Menü ••• → Speicher analysieren. Umbenennen/Sortieren: Auswahl → Kontextmenü.')))
@@ -872,7 +886,7 @@ class SettingsDialog(QDialog):
             return
         if self.engine:
             self.engine.shutdown()
-        self.troubleshooter.stop()
+        if hasattr(self, 'troubleshooter'): self.troubleshooter.stop()
         super().done(result)
 
 

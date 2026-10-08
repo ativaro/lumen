@@ -51,10 +51,10 @@ class SystemWindow(QMainWindow):
     def refresh_page(self):
         if self.tabs.currentWidget() is self.modes: self.modes.refresh_modes(); self.modes.refresh_activity()
 
-    def activate(self, page='system'):
-        self.select(page)
-        self.showNormal() if self.isMinimized() else self.show()
-        self.raise_(); self.activateWindow()
+    def activate(self, page=None):
+        from lumen_activation import present
+        if page is not None: self.select(page)
+        present(self)
 
     def activate_sound(self, request):
         if not isinstance(request, dict): raise ValueError(tr('Ungültige App-Anfrage.'))

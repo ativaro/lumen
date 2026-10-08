@@ -162,7 +162,7 @@ class StudioTest(unittest.TestCase):
             self.window.navigation.open_session(recent.item(1)); select.assert_called_once()
         chat.backend.busy = False; chat.backend.session = 'two'; chat.backend.sessionChanged.emit('two')
         self.assertEqual(chat.heading.text(), 'Photos')
-        self.assertEqual(set(self.window.nav_buttons), {0,4,8,9})
+        self.assertEqual(set(self.window.nav_buttons), {0,4,8,10})
 
     def test_real_image_preview_strip_close_and_compact_view(self):
         paths = []
@@ -196,7 +196,8 @@ class StudioTest(unittest.TestCase):
         self.present([str(text)])
         self.wait(lambda: preview.proc is None and 'actual local note' in preview.text.toPlainText())
         self.assertEqual(preview.path, text)
-        self.present([]); self.assertFalse(self.window.studio.pane.isVisible())
+        self.present([]); self.assertTrue(self.window.studio.pane.isVisible())
+        self.assertTrue(self.window.studio.answer.isVisible())
         self.assertIsNone(preview.path)
 
     def test_context_menu_permission_and_transcript_safety_are_preserved(self):
@@ -221,7 +222,7 @@ class StudioTest(unittest.TestCase):
         attachment = Path(self.tmp)/'input.txt'; attachment.write_text('User input')
         chat, surface = self.window.chat, self.window.studio
         chat.paths = [str(attachment)]; chat.update_context()
-        self.assertEqual(surface.paths, []); self.assertFalse(surface.pane.isVisible())
+        self.assertEqual(surface.paths, []); self.assertTrue(surface.pane.isVisible())
         messages = self.present([str(file)], 'Created document')
         self.wait(lambda: 'Lumen result' in surface.preview.text.toPlainText())
         self.assertEqual(surface.heading.text(), 'Created document')
@@ -232,7 +233,7 @@ class StudioTest(unittest.TestCase):
         self.wait(lambda: 'Updated result' in surface.preview.text.toPlainText())
         state = self.window.recovery_state()
         chat.backend.new_conversation()
-        self.assertEqual(surface.paths, []); self.assertFalse(surface.pane.isVisible())
+        self.assertEqual(surface.paths, []); self.assertTrue(surface.pane.isVisible())
         with patch.object(chat.backend, 'send') as send:
             self.window.restore_recovery(state); send.assert_not_called()
         self.assertEqual(surface.paths, [str(file)])
@@ -248,6 +249,184 @@ class StudioTest(unittest.TestCase):
             self.window.restore_recovery(state); send.assert_not_called()
         self.assertEqual(chat.composer.toPlainText(), 'Unsaved draft')
         self.assertEqual(chat.backend.persona_choice(), 'professional')
+
+    def test_workbench_answer_copy_and_session_reset(self):
+        chat, surface = self.window.chat, self.window.studio
+        self.assertTrue(surface.pane.isVisible()); self.assertFalse(surface.save_answer.isEnabled())
+        chat.show_messages([{'info': {'role': 'assistant', 'id': 'answer'}, 'parts': [
+            {'type': 'text', 'text': '**Ergebnis**\n<img src="file:///private-test">'}]}])
+        self.assertIn('Ergebnis', surface.answer.toPlainText())
+        self.assertIsNone(surface.answer.loadResource(2, None))
+        surface.copy_answer.click(); self.assertEqual(self.app.clipboard().text(), chat.last_answer)
+        chat.backend.busy = True; chat.backend.busyChanged.emit(True)
+        self.assertFalse(surface.save_answer.isEnabled())
+        chat.backend.busy = False; chat.backend.new_conversation()
+        self.assertNotIn('private-test', surface.answer.toPlainText())
+        self.assertFalse(surface.copy_answer.isEnabled())
+
+    def test_theme_and_permission_hint(self):
+        from PySide6.QtGui import QPalette
+        from appearance import apply_design
+        chat, space, surface = self.window.chat, self.window.workspace, self.window.studio
+        chat.mode.setCurrentIndex(chat.mode.findData('build'))
+        chat.dont_ask.setChecked(True); self.assertIn('Automatische', chat.mode_hint.text())
+        chat.dont_ask.setChecked(False); self.assertEqual(chat.mode_hint.text(), 'Mit Freigaben')
+        chat.mode.setCurrentIndex(chat.mode.findData('plan')); self.assertEqual(chat.mode_hint.text(), 'Nur lesen')
+        for theme in ('graphite', 'atelier', 'midnight', 'glass'):
+            apply_design(self.app, theme); QTest.qWait(30)
+            for widget in (chat, surface, self.window.navigation, space.tasks_page):
+                self.assertEqual(widget.palette().color(QPalette.Window), self.app.palette().color(QPalette.Window))
+        surface.result_tabs.setCurrentIndex(1); self.assertTrue(surface.execution_detail.isVisible())
+        surface.result_tabs.setCurrentIndex(0); self.assertTrue(surface.answer.isVisible())
+    def test_results_have_their_own_preview_selection_and_actions(self):
+        space = self.window.workspace
+        pending = space.store.create_task('Pending', directory=self.tmp, status='paused')
+        done = space.store.create_task('Done', directory=self.tmp, status='completed')
+        space.store.update_task(done, result='Saved output')
+        space.select_task(pending)
+        self.window.navigation.show_results(); self.assertTrue(self.window.navigation.results.isChecked())
+        self.assertFalse(self.window.navigation.buttons[4].isChecked())
+        self.assertNotEqual(self.window.pages.currentWidget(), space.tasks_page)
+        results = self.window.results_page
+        self.assertEqual(results.preview.toPlainText(), 'Saved output')
+        self.assertEqual(space.tasks.currentItem().data(Qt.UserRole), pending)
+        with patch('lumen_workspace.QFileDialog.getSaveFileName', return_value=(self.tmp+'/result.md', '')):
+            results.export.click()
+        self.assertEqual(Path(self.tmp+'/result.md').read_text(), 'Saved output')
+        results.search.setText('missing'); self.assertFalse(results.export.isEnabled()); self.assertEqual(results.preview.toPlainText(), '')
+        self.window.navigation.navigate(4); self.assertTrue(self.window.navigation.buttons[4].isChecked())
+        self.assertFalse(self.window.navigation.results.isChecked())
+        self.window.resize(760,600); QTest.qWait(50)
+        self.assertEqual(self.window.size().toTuple(), (760,600))
+        self.assertTrue(space.task_buttons['run'].isVisible())
+        self.assertLess(space.task_inspector.width(), 342)
+
+    def test_conversation_sidebar_keeps_history_visible_and_drafts_safe(self):
+        chat, navigation = self.window.chat, self.window.navigation
+        chat.backend.sessionsChanged.emit([{'id':'one','title':'First'}, {'id':'two','title':'Second'}])
+        chat.backend.session = 'one'; chat.backend.sessionChanged.emit('one')
+        self.assertTrue(navigation.recent.isVisible()); self.assertTrue(navigation.create.isVisible())
+        width = navigation.width()
+        self.window.show_page(4); self.window.show_page(0)
+        self.assertEqual(navigation.width(), width); self.assertTrue(navigation.recent.isVisible())
+        chat.composer.setPlainText('Unsaved draft')
+        with patch.object(chat.backend, 'select_session') as select:
+            QTest.mouseClick(navigation.recent.viewport(), Qt.LeftButton, pos=navigation.recent.visualItemRect(navigation.recent.item(1)).center())
+            select.assert_not_called()
+            self.assertEqual(navigation.recent.currentItem().data(Qt.UserRole), 'one')
+        self.assertEqual(chat.composer.toPlainText(), 'Unsaved draft')
+        chat.composer.clear()
+        with patch.object(chat.backend, 'select_session') as select:
+            navigation.open_session(navigation.recent.item(1)); select.assert_called_once_with('two')
+
+    def test_task_overview_search_controls_export_and_conversation(self):
+        from lumen_workspace import selected
+        space, chat = self.window.workspace, self.window.chat
+        task = space.store.create_task('Küche', directory=self.tmp, roots=[self.tmp], approved=True,
+            steps=[{'action': 'write', 'path': self.tmp + '/notiz.md', 'text': 'Erhaltenes Ergebnis'}])
+        waiting = space.store.create_task('Rückfrage', directory=self.tmp, status='needs_input')
+        space.refresh_tasks(); space.select_task(task); self.window.show_page(4)
+        chat.backend.busy = True; chat.backend.busyChanged.emit(True)
+        self.assertTrue(space.task_buttons['run'].isVisible())
+        space.task_buttons['run'].click(); self.wait(lambda: not space.processes)
+        chat.backend.busy = False; chat.backend.busyChanged.emit(False); space.refresh_tasks()
+        self.assertFalse(space.task_buttons['pause'].isVisible())
+        self.assertIn('notiz.md', space.task_result.toPlainText())
+        result = space.store.task(task)['result']
+        with patch('lumen_workspace.QFileDialog.getSaveFileName', return_value=(self.tmp + '/export.md', '')):
+            space.export_task()
+        self.assertEqual(Path(self.tmp + '/export.md').read_text(), result)
+        space.task_search.setText('Rückfrage'); self.assertEqual(selected(space.tasks), waiting)
+        space.task_search.setText('nicht vorhanden'); self.assertIsNone(space.tasks.currentItem())
+        self.assertTrue(space.tasks_empty.isVisible()); self.assertFalse(space.task_save.isEnabled())
+        space.select_task(task); self.assertEqual(space.task_search.text(), '')
+        self.assertEqual(space.task_result.toPlainText(), result)
+        space.store.update_task(task, session='origin-session'); space.refresh_tasks()
+        chat.composer.setPlainText('Mein Entwurf')
+        with patch.object(chat.backend, 'select_session') as select, patch.object(chat.backend, 'send') as send:
+            with self.assertRaises(ValueError): space.open_task_conversation()
+            self.assertEqual(chat.composer.toPlainText(), 'Mein Entwurf'); select.assert_not_called()
+            chat.composer.clear(); space.open_task_conversation()
+            select.assert_called_once_with('origin-session'); send.assert_not_called()
+        space.select_task(task); space.close_task.click()
+        self.assertEqual(space.store.task(task)['result'], result)
+        self.assertFalse(any(space.tasks.item(i).data(Qt.UserRole) == task for i in range(space.tasks.count())))
+
+    def test_pause_uses_tracker_and_is_not_offered_as_server_cancel(self):
+        chat, space = self.window.chat, self.window.workspace
+        chat.backend.busy = True
+        chat.tracker.started('Ein Auftrag', [], 'build')
+        task = chat.tracker.task_id
+        space.select_task(task); self.window.show_page(4)
+        self.assertTrue(space.task_buttons['pause'].isVisible())
+        self.window.show_page(0); self.assertTrue(chat.pause_task.isVisible())
+        chat.open_task.click(); self.assertEqual(self.window.pages.currentIndex(), 4)
+        with patch.object(chat.backend, 'stop', side_effect=lambda: chat.backend.completed.emit(False, 'Abgebrochen')) as stop:
+            space.task_buttons['pause'].click(); stop.assert_called_once()
+        self.assertEqual(space.store.task(task)['status'], 'paused')
+        chat.backend.busy = False; chat.backend.busyChanged.emit(False)
+        with patch.object(chat.tracker, 'resume') as resume:
+            space.task_buttons['run'].click(); resume.assert_called_once_with(task, chat)
+        space.store.update_task(task, status='running'); chat.backend.busy = True; chat.backend.execution = 'server'
+        space.refresh_tasks(); self.window.show_page(4)
+        self.assertFalse(space.task_buttons['pause'].isVisible()); self.assertTrue(space.task_buttons['cancel'].isVisible())
+        with patch.object(chat.backend, 'stop') as stop:
+            with self.assertRaises(ValueError): space.stop_task('paused')
+            stop.assert_not_called()
+        chat.backend.execution = 'local'; chat.backend.busy = False
+
+    def test_result_actions_follow_answer_identity_not_last_tracked_task(self):
+        chat, space, surface = self.window.chat, self.window.workspace, self.window.studio
+        def answer(session, text, turn='turn'):
+            chat.backend.session = session
+            chat.show_messages([{'info': {'role': 'assistant', 'id': 'answer', 'parentID': turn}, 'parts': [{'type': 'text', 'text': text}]}])
+        first = space.store.create_task('Erstes Ergebnis', directory=self.tmp, status='completed')
+        second = space.store.create_task('Zweites Ergebnis', directory=self.tmp, status='completed')
+        space.store.update_task(first, session='one', result='Antwort eins')
+        space.store.update_task(second, session='two', result='Antwort zwei')
+        space.store.event(first, 'conversation_turn', json.dumps(['one', 'turn']))
+        space.store.event(second, 'conversation_turn', json.dumps(['two', 'turn']))
+        chat.tracker.task_id = second; space.select_task(second)
+        answer('one', 'Antwort eins')
+        self.assertEqual(chat.answer_task()['id'], first)
+        with patch('file_actions.save_action') as save:
+            chat.save_as_file_action(); self.assertEqual(save.call_args.args[2]['id'], first)
+        with patch('lumen_workspace.QFileDialog.getSaveFileName', return_value=(self.tmp + '/antwort.md', '')):
+            surface.export_answer.trigger()
+        self.assertEqual(Path(self.tmp + '/antwort.md').read_text(), 'Antwort eins')
+        surface.task_link.click(); self.assertEqual(space.tasks.currentItem().data(Qt.UserRole), first)
+        answer('two', 'Noch nicht gespeichert', 'new-turn')
+        self.assertIsNone(chat.answer_task()); self.assertFalse(surface.export_answer.isEnabled())
+        with patch('file_actions.save_action') as save:
+            chat.save_as_file_action(); save.assert_not_called()
+
+    def test_multi_message_turn_binding_and_right_hand_memory_selection(self):
+        from PySide6.QtGui import QTextCursor
+        chat, surface = self.window.chat, self.window.studio
+        chat.backend.session = 'same-session'; chat.backend.message_id = 'turn-one'
+        chat.tracker.started('Prüfen', [], 'build')
+        first = chat.tracker.task_id
+        history = [{'info': {'role': 'assistant', 'id': key, 'parentID': 'turn-one'},
+                    'parts': [{'type': 'text', 'text': text}]} for key, text in [('a1', 'Ich prüfe …'), ('a2', 'Fertig')]]
+        chat.backend.messages = history; chat.show_messages(history)
+        chat.tracker.finished(True, 'Ich prüfe …\n\nFertig')
+        self.assertEqual(chat.answer_task()['id'], first)
+        chat.backend.message_id = 'turn-two'; chat.tracker.started('Anderer Auftrag', [], 'build')
+        chat.tracker.finished(True, 'Ich prüfe …\n\nFertig')
+        self.assertEqual(chat.answer_task()['id'], first)
+        # Both turns have identical text; only the recorded identity selects the first.
+        left = chat.transcript.rows[0][2].findChildren(__import__('answer_widget').AnswerText)[0]
+        cursor = left.textCursor(); cursor.select(QTextCursor.Document); left.setTextCursor(cursor)
+        with patch.object(chat, 'capture_knowledge') as capture:
+            surface.result_menu.actions()[1].trigger()
+            capture.assert_called_once_with(True, text='Fertig')
+        cursor = surface.answer.textCursor(); cursor.setPosition(0); cursor.setPosition(3, QTextCursor.KeepAnchor); surface.answer.setTextCursor(cursor)
+        with patch.object(chat, 'capture_knowledge') as capture:
+            surface.result_menu.actions()[0].trigger()
+            capture.assert_called_once_with(False, text='Fer')
+        saved = chat.recovery_state()
+        chat.restore_recovery(saved)
+        self.assertEqual(chat.answer_task()['id'], first)
 
 
 if __name__ == '__main__': unittest.main()

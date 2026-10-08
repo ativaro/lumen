@@ -5,6 +5,7 @@ from contextlib import closing
 import argparse
 import fcntl
 import getpass
+import hashlib
 import json
 import os
 import platform
@@ -294,7 +295,19 @@ def report_inventory(config):
             raise
 
 
+def connection_scope(config):
+    """Bind private mirrors to credentials as well as origin; never persist the token."""
+    if not isinstance(config.get("token"), str) or not config["token"]:
+        raise ValueError("Geräteschlüssel fehlt.")
+    return hashlib.sha256(json.dumps(
+        [config["server"], config.get("device_id", ""), config["token"]]
+    ).encode()).hexdigest()
+
+
 def synchronize(config):
+    scope = connection_scope(config)
+    if connection_scope(read_config()) != scope:
+        raise ValueError("Die Serververbindung wurde geändert.")
     try:
         data = request(config, "/bridge/sync")
         cursor = data.get("memory_cursor")
@@ -309,12 +322,15 @@ def synchronize(config):
             data["memories"].extend(page["memories"])
             cursor = page.get("memory_cursor")
     except urllib.error.HTTPError as error:
-        if error.code in (401, 403):
+        if error.code in (401, 403) and CONFIG.exists() and connection_scope(read_config()) == scope:
             if (ROOT / "memory.sqlite3").exists():
                 with closing(sqlite3.connect(ROOT / "memory.sqlite3")) as db, db:
-                    for table in ("memories", "handoffs"):
-                        if db.execute("SELECT 1 FROM sqlite_master WHERE name=?", (table,)).fetchone():
-                            db.execute("DELETE FROM " + table)
+                    db.execute("BEGIN IMMEDIATE")
+                    owner = db.execute("SELECT 1 FROM sqlite_master WHERE name='memory_owner'").fetchone()
+                    if not owner or db.execute("SELECT scope FROM memory_owner").fetchone() == (scope,):
+                        for table in ("memories", "handoffs"):
+                            if db.execute("SELECT 1 FROM sqlite_master WHERE name=?", (table,)).fetchone():
+                                db.execute("DELETE FROM " + table)
             if CONFIG.exists() and json.loads(CONFIG.read_text()).get("token") == config.get("token"):
                 # Preserve the old backup coordinates/key; a revoked connection can be paired again in the UI.
                 save_private(
@@ -333,17 +349,28 @@ def synchronize(config):
     notify = False
     with closing(sqlite3.connect(ROOT / "memory.sqlite3")) as db, db:
         db.execute("BEGIN IMMEDIATE")
+        if connection_scope(read_config()) != scope:
+            raise ValueError("Die Serververbindung wurde während des Abgleichs geändert.")
+        db.execute("CREATE TABLE IF NOT EXISTS memory_owner(scope TEXT NOT NULL)")
         db.execute("CREATE TABLE IF NOT EXISTS sync_state(source TEXT PRIMARY KEY,version TEXT)")
+        previous_owner = db.execute("SELECT scope FROM memory_owner").fetchone()
+        if previous_owner != (scope,):
+            db.execute("DELETE FROM sync_state")
+            # A new account must not inherit acknowledgement IDs from the old one.
+            if db.execute("SELECT 1 FROM sqlite_master WHERE name='notifications'").fetchone():
+                db.execute("DELETE FROM notifications")
+        db.execute("DELETE FROM memory_owner")
+        db.execute("INSERT INTO memory_owner VALUES (?)", (scope,))
         if version:
             incoming = tuple(int(x) for x in version.split(":"))
             if len(incoming) != 2:
                 raise ValueError("Ungültige Abgleich-Version.")
             previous = db.execute(
-                "SELECT version FROM sync_state WHERE source=?", (config["server"],)
+                "SELECT version FROM sync_state WHERE source=?", (scope,)
             ).fetchone()
             if previous and any(a < b for a, b in zip(incoming, map(int, previous[0].split(":")))):
                 raise ValueError("Veralteter Abgleich wurde verworfen.")
-            db.execute("INSERT OR REPLACE INTO sync_state VALUES (?,?)", (config["server"], version))
+            db.execute("INSERT OR REPLACE INTO sync_state VALUES (?,?)", (scope, version))
         db.execute(
             "CREATE TABLE IF NOT EXISTS memories(id TEXT PRIMARY KEY,title TEXT,body TEXT,revision INT,source TEXT)"
         )
@@ -386,27 +413,32 @@ def shared_memories():
     """Read the confirmed server mirror without copying it into the personal notebook."""
     try:
         config = read_config()
+        scope = connection_scope(config)
         path = ROOT / "memory.sqlite3"
         if not path.is_file():
             return []
         with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)) as db:
+            db.execute("BEGIN")
+            if db.execute("SELECT scope FROM memory_owner").fetchone() != (scope,):
+                return []
             db.row_factory = sqlite3.Row
-            return [
+            rows = [
                 dict(row)
                 for row in db.execute(
                     "SELECT id,title,body,revision,source FROM memories WHERE source=? ORDER BY id LIMIT 500",
                     (config["server"],),
                 )
             ]
+        return rows if connection_scope(read_config()) == scope else []
     except (OSError, ValueError, KeyError, sqlite3.Error):
         return []
 
 
 def memory_stamp():
-    import hashlib
-
     rows = shared_memories()
-    return hashlib.sha256(json.dumps(rows, sort_keys=True).encode()).hexdigest() if rows else ""
+    try:scope=connection_scope(read_config())
+    except (OSError,ValueError,KeyError):scope=''
+    return hashlib.sha256(json.dumps([scope,rows], sort_keys=True).encode()).hexdigest() if scope or rows else ""
 
 
 def receive_artifact(config, action):
@@ -826,7 +858,7 @@ def sync_vault():
         print("Tresorabgleich unterbrochen; nächster Durchlauf prüft den Ausgang.", file=sys.stderr)
 
 
-_NOTES_PROCESS = None
+_NOTES_PROCESSES = {}
 _PROJECTS_PROCESS = None
 _DRIVE_PROCESS = None
 _DRIVE_NEXT = 0
@@ -876,15 +908,17 @@ def sync_projects():
     )
 
 
-def sync_notes():
+def sync_notes(helper_name="wissen_sync.py"):
     """The existing opted-in notebook synchronizer runs separately from heartbeats."""
-    global _NOTES_PROCESS
-    if _NOTES_PROCESS is not None and _NOTES_PROCESS.poll() is None:
+    if helper_name not in ("wissen_sync.py", "memory_sync.py"):
+        raise ValueError("Invalid notebook synchronizer")
+    process = _NOTES_PROCESSES.get(helper_name)
+    if process is not None and process.poll() is None:
         return
     data = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
-    helper = Path(__file__).with_name("wissen_sync.py")
+    helper = Path(__file__).with_name(helper_name)
     if not helper.exists():
-        helper = data / "lumen/files/wissen_sync.py"
+        helper = data / "lumen/files" / helper_name
     state = Path(
         os.environ.get(
             "LUMEN_DATA", str(Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "lumen")
@@ -892,7 +926,7 @@ def sync_notes():
     )
     if not helper.exists() or not (state / "lumen.sqlite3").exists():
         return
-    _NOTES_PROCESS = subprocess.Popen(
+    _NOTES_PROCESSES[helper_name] = subprocess.Popen(
         [sys.executable, str(helper)],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
@@ -978,10 +1012,12 @@ def main():
             # Custom connector profiles must never sync the default personal vault.
             if not args.config_dir:
                 sync_notes()
+                sync_notes("memory_sync.py")
                 sync_projects()
                 sync_drive()
                 sync_vault()
             try:
+                cfg = read_config()
                 report_inventory(cfg)
                 synchronize(cfg)
             except urllib.error.HTTPError as error:

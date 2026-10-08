@@ -123,6 +123,8 @@ class SetupDialog(QDialog):
         for item in self.features.values(): item.toggled.connect(self.update_install)
         page.addWidget(text(tr('Systempakete: Arch/CachyOS mit grafischer Passwortabfrage. '
             'Dateien lassen sich auch ohne KI-Anbindung verwenden.')))
+        page.addWidget(button(tr('Bedeutungssuche einrichten · ca. 128 MB Modell'), lambda: self.start_job('memory-search')))
+        page.addWidget(text(tr('Zusätzlich ca. 500 MiB RAM während der Suche und Laufzeitpakete. Mindestens 1 GiB freier Speicher für die Einrichtung. Ohne Modell bleibt die Textsuche verfügbar.')))
         page.addWidget(button(tr('Lokale Bildsuche einrichten · ca. 2 GB'), lambda: self.start_job('image-search')))
         page.addWidget(text(tr('Mehrsprachige CLIP-Bildsuche inklusive deutscher Suchbegriffe. Modelle werden einmalig '
             'heruntergeladen; Fotos und Suchbegriffe bleiben danach auf diesem Rechner. Kein Administratorpasswort nötig.')))
@@ -379,6 +381,9 @@ class SetupDialog(QDialog):
             tr('Kein verfügbares Gratis-Modell gefunden. Bitte ein Modell wählen oder einen Anbieter verbinden.'))
         self.engine_status.setText(tr('Engine erreichbar · Konfiguriert: ') + (', '.join(names) or tr('noch kein Anbieter')) +
             tr('\nZugang und Antwortqualität der Anbieter wurden nicht mit einer Testanfrage geprüft.'))
+        if getattr(self.engine, 'database_source', '') == 'lumen':
+            self.engine_status.setText(self.engine_status.text() + '\n' +
+                tr('Lumen verwendet eine eigene Gesprächsdatenbank, weil die bisherige Datenbank inkompatibel ist. Die bisherigen Daten bleiben erhalten.'))
         self.diagnostic_stage = 'authentication_methods'
         self.engine.request('GET', '/provider/auth', callback=self.loaded_auth, error=self.engine_failed)
 
@@ -417,7 +422,7 @@ class SetupDialog(QDialog):
         self.diagnostic_outcome = 'failed'
         self.checking = False; self.set_busy(False)
         self.connect_provider.setEnabled(False); self.repair_engine.show()
-        self.engine_status.setText(tr('Anbindung konnte nicht geprüft werden.')); self.status.setText(message)
+        self.engine_status.setText(message); self.status.setText(message)
 
     def record_diagnostic(self, event):
         self.diagnostic_events = (self.diagnostic_events + [event])[-12:]
@@ -435,16 +440,28 @@ class SetupDialog(QDialog):
             captured.extend(raw[:max(0, 256-len(captured))])
         def finished(code):
             if self.diagnostic_process is not proc: return
-            read(); self.diagnostic_process = None; self.copy_diagnostic.setEnabled(True)
+            timeout.stop(); read(); self.diagnostic_process = None; self.copy_diagnostic.setEnabled(True)
             version = version_text(bytes(captured)) if code == 0 else 'unavailable'
-            QApplication.clipboard().setText(build_report(self, version))
-            self.status.setText(tr('Diagnose kopiert. Du kannst sie zur Fehlersuche weitergeben.'))
-            proc.deleteLater()
+            message = tr('Diagnose kopiert. Du kannst sie zur Fehlersuche weitergeben.')
+            try: report = build_report(self, version)
+            except Exception as exc:
+                # A diagnostic must report its own failure, without private exception text.
+                report = json.dumps(dict(report='Lumen setup diagnostic v2', diagnostic_error=type(exc).__name__))
+                message = tr('Unvollständige Diagnose kopiert. Bitte Lumen neu starten und erneut prüfen.')
+            try: QApplication.clipboard().setText(report)
+            except Exception:
+                message = tr('Diagnose konnte nicht kopiert werden. Bitte erneut versuchen.')
+            self.status.setText(message)
+            if proc.state() == QProcess.NotRunning: proc.deleteLater()
+        def expired():
+            finished(1)
+            proc.kill()
         proc.readyReadStandardOutput.connect(read)
         proc.readyReadStandardError.connect(lambda: proc.readAllStandardError())
         proc.finished.connect(finished)
+        proc.finished.connect(proc.deleteLater)
         proc.errorOccurred.connect(lambda error: finished(1) if error == QProcess.FailedToStart else None)
-        timeout = QTimer(proc); timeout.setSingleShot(True); timeout.timeout.connect(proc.kill); timeout.start(5000)
+        timeout = QTimer(proc); timeout.setSingleShot(True); timeout.timeout.connect(expired); timeout.start(5000)
         binary = self.engine.proc.program() if self.engine.proc else opencode_binary()
         proc.start(binary, ['--version'])
 
