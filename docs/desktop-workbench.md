@@ -120,3 +120,8 @@ Mitternacht, Deutsch/Englisch und große/kleine Fenster. Das Render-Skript unter
 nun `LUMEN_RENDER_THEME` und bildet auch die eigene Ergebnisseite ab. Bilder stehen
 in `lumen-desktop-entwuerfe/output/navigation-fix/` im benachbarten Arbeitsordner.
 Die bekannten Fehler der gesamten Basissuite sind hiervon unabhängig.
+
+
+Die Sidebar ist über den nativen Splitter verstellbar. Eine dauerhafte Trennlinie und
+der zusätzliche Ergebnisse-Menüpunkt entfallen; Ergebnisse bleiben direkt am
+Gespräch beziehungsweise Auftrag zugänglich.

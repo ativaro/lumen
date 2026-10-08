@@ -1,6 +1,6 @@
 /* Studio layout inherits the active Lumen / KDE palette. */
 QWidget#studioWorkbench, QWidget#studioNavigation, QWidget#taskOverview, QWidget#studioSavedResults { font-family: "DM Sans 9pt"; font-size: 13px; }
-QWidget#studioNavigation { background: palette(window); color: palette(placeholder-text); border-right: 1px solid palette(mid); }
+QWidget#studioNavigation { background: palette(window); color: palette(placeholder-text); border: none; }
 QLabel#studioMark { background: palette(highlight); color: palette(highlighted-text); border-radius: 8px; font-size: 24px; font-weight: 600; }
 QLabel#studioBrand { font-size: 23px; font-weight: 500; color: palette(text); background: transparent; }
 QPushButton#studioNav, QPushButton#studioAccount { text-align: left; background: transparent; color: palette(placeholder-text); border: 1px solid transparent; border-radius: 8px; padding: 0 9px; min-height: 36px; font-size: 13px; }
@@ -97,6 +97,8 @@ QPushButton#taskCancel:hover { background: palette(midlight); }
 QPushButton#taskMore { background: transparent; border: none; padding: 0; color: palette(placeholder-text); }
 QSplitter::handle { background: palette(mid); }
 QWidget#studioWorkbench QSplitter::handle { background: palette(mid); }
+QSplitter#studioNavigationSplit::handle { background: transparent; }
+QSplitter#studioNavigationSplit::handle:hover { background: palette(midlight); }
 QPushButton#studioNav:focus, QPushButton#studioIcon:focus, QPushButton#studioNewChat:focus, QPushButton#taskResultLink:focus, QLineEdit#taskSearch:focus, QFrame#studioResultDock QPushButton:focus { border: 1px solid palette(highlight); }
 
 QWidget#studioSavedResults { background: palette(window); color: palette(text); }

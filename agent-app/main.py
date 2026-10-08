@@ -18,7 +18,7 @@ from PySide6.QtDBus import QDBus, QDBusConnection, QDBusMessage
 from PySide6.QtGui import QIcon, QKeySequence, QTextDocument
 from PySide6.QtGui import QShortcut
 from PySide6.QtWidgets import (QApplication, QFileDialog, QGridLayout, QHBoxLayout, QMainWindow, QPushButton,
-    QStackedWidget, QVBoxLayout, QWidget)
+    QSplitter, QStackedWidget, QVBoxLayout, QWidget)
 from app import create_app, button
 from assistant import Transcript
 from studio_chat import StudioChat
@@ -144,8 +144,17 @@ class LumenWindow(QMainWindow):
         self.navigation = StudioNavigation(self)
         self.nav_buttons = self.navigation.buttons
         QShortcut(QKeySequence('Ctrl+,'), self, activated=self.show_settings)
-        row.addWidget(self.navigation)
-        row.addWidget(self.pages, 1)
+        self.navigation_split = QSplitter(Qt.Horizontal)
+        self.navigation_split.setObjectName('studioNavigationSplit')
+        self.navigation_split.setChildrenCollapsible(False); self.navigation_split.setHandleWidth(8)
+        self.navigation_split.addWidget(self.navigation); self.navigation_split.addWidget(self.pages)
+        self.navigation_split.setStretchFactor(0, 0); self.navigation_split.setStretchFactor(1, 1)
+        self.navigation_split.setSizes([220, self.width() - 228])
+        if state := self.settings.value('studio/sidebar'):
+            self.navigation_split.restoreState(state)
+        self.navigation_split.splitterMoved.connect(
+            lambda *_: self.settings.setValue('studio/sidebar', self.navigation_split.saveState()))
+        row.addWidget(self.navigation_split)
         self.show_page(0)
         self.chat.actionChanged.connect(self.present_action)
         self.chat.closeRequested.connect(self.close)

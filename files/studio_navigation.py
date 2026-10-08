@@ -12,6 +12,7 @@ class StudioNavigation(QWidget):
         super().__init__(window)
         self.session_limit = 5; self.sessions = []; self.session_directory = window.chat.backend.directory
         self.window = window; self.setObjectName('studioNavigation'); surface(self)
+        self.setMinimumWidth(200); self.setMaximumWidth(420)
         self.root = QVBoxLayout(self); self.root.setContentsMargins(16, 20, 16, 12); self.root.setSpacing(6)
         brand = QHBoxLayout(); brand.setSpacing(10)
         self.mark = label('L', 'studioMark'); self.mark.setFixedSize(29, 29); self.mark.setAlignment(Qt.AlignCenter)
@@ -23,9 +24,6 @@ class StudioNavigation(QWidget):
         for index, title, name in [(0, tr('Gespräche'), 'dialog-messages'), (4, tr('Aufträge'), 'view-task')]:
             control = self.entry(title, name, lambda _=False, i=index: self.navigate(i)); control.setCheckable(True)
             self.root.addWidget(control); self.buttons[index] = control
-        self.results = self.entry(tr('Ergebnisse'), 'text-x-generic', self.show_results); self.results.setCheckable(True)
-        self.buttons[10] = self.results
-        self.root.addWidget(self.results)
         self.divider = QFrame(); self.divider.setObjectName('studioNavDivider'); self.divider.setFixedHeight(1)
         self.root.addSpacing(12); self.root.addWidget(self.divider); self.root.addSpacing(12)
         self.workspace_caption = label(tr('ARBEITSRAUM'), 'studioEyebrow'); self.root.addWidget(self.workspace_caption)
@@ -63,16 +61,12 @@ class StudioNavigation(QWidget):
         return control
 
     def show_page(self, index):
-        self.setFixedWidth(220)
         self.history.setVisible(index == 0); self.spacer.setVisible(index != 0)
         self.workspace_caption.setVisible(index != 0); self.buttons[8].setVisible(index != 0)
         for key, control in self.buttons.items(): control.setChecked(key == index)
 
     def navigate(self, index):
         self.window.show_page(index)
-
-    def show_results(self):
-        self.window.show_page(10)
 
     def new_chat(self):
         self.window.show_page(0); self.window.chat.new_conversation()

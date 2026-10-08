@@ -162,7 +162,7 @@ class StudioTest(unittest.TestCase):
             self.window.navigation.open_session(recent.item(1)); select.assert_called_once()
         chat.backend.busy = False; chat.backend.session = 'two'; chat.backend.sessionChanged.emit('two')
         self.assertEqual(chat.heading.text(), 'Photos')
-        self.assertEqual(set(self.window.nav_buttons), {0,4,8,10})
+        self.assertEqual(set(self.window.nav_buttons), {0,4,8})
 
     def test_real_image_preview_strip_close_and_compact_view(self):
         paths = []
@@ -284,7 +284,7 @@ class StudioTest(unittest.TestCase):
         done = space.store.create_task('Done', directory=self.tmp, status='completed')
         space.store.update_task(done, result='Saved output')
         space.select_task(pending)
-        self.window.navigation.show_results(); self.assertTrue(self.window.navigation.results.isChecked())
+        self.window.show_page(10)
         self.assertFalse(self.window.navigation.buttons[4].isChecked())
         self.assertNotEqual(self.window.pages.currentWidget(), space.tasks_page)
         results = self.window.results_page
@@ -295,11 +295,34 @@ class StudioTest(unittest.TestCase):
         self.assertEqual(Path(self.tmp+'/result.md').read_text(), 'Saved output')
         results.search.setText('missing'); self.assertFalse(results.export.isEnabled()); self.assertEqual(results.preview.toPlainText(), '')
         self.window.navigation.navigate(4); self.assertTrue(self.window.navigation.buttons[4].isChecked())
-        self.assertFalse(self.window.navigation.results.isChecked())
+        self.assertNotIn(10, self.window.navigation.buttons)
         self.window.resize(760,600); QTest.qWait(50)
         self.assertEqual(self.window.size().toTuple(), (760,600))
         self.assertTrue(space.task_buttons['run'].isVisible())
         self.assertLess(space.task_inspector.width(), 342)
+
+    def test_sidebar_drag_keeps_width_across_pages_and_reopening(self):
+        from PySide6.QtCore import QPoint
+        navigation, split = self.window.navigation, self.window.navigation_split
+        width = navigation.width(); handle = split.handle(1); start = handle.rect().center()
+        QTest.mousePress(handle, Qt.LeftButton, pos=start)
+        QTest.mouseMove(handle, start + QPoint(90, 0), delay=20)
+        QTest.mouseRelease(handle, Qt.LeftButton, pos=handle.rect().center())
+        self.app.processEvents()
+        self.assertGreater(navigation.width(), width + 50)
+        width = navigation.width()
+        self.window.show_page(4); self.window.show_page(0); self.app.processEvents()
+        self.assertEqual(navigation.width(), width)
+        self.assertNotIn(10, self.window.nav_buttons)
+        with patch.object(self.desktop, 'QSettings', return_value=self.settings):
+            reopened = self.desktop.LumenWindow(self.tmp)
+        try:
+            reopened.resize(1480, 900); reopened.show(); self.app.processEvents()
+            self.assertEqual(reopened.navigation.width(), width)
+            reopened.resize(760, 600); self.app.processEvents()
+            self.assertEqual(reopened.size().toTuple(), (760, 600))
+        finally:
+            reopened.close(); reopened.deleteLater()
 
     def test_conversation_sidebar_keeps_history_visible_and_drafts_safe(self):
         chat, navigation = self.window.chat, self.window.navigation
