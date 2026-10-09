@@ -43,10 +43,10 @@ def sync_info(book):
             value=lumen_connect.request(config,'/bridge/note-workspaces')
             if isinstance(value,list):spaces=value
         except Exception:pass
-    return dict(attachments=state.get('attachments',False),workspace=workspace(book),workspaces=spaces,scope=scope(book,config),server=config['server'],user=user['name'],enabled=state['enabled'],allowed='notes' in user['capabilities'],reachable=reachable,last_sync=state.get('last_sync',0))
+    return dict(server_context=state.get("server_context",False),context_available="knowledge_context_v1" in user.get("sync_features",[]) and "memory" in user["capabilities"],attachments=state.get('attachments',False),workspace=workspace(book),workspaces=spaces,scope=scope(book,config),server=config['server'],user=user['name'],enabled=state['enabled'],allowed='notes' in user['capabilities'],reachable=reachable,last_sync=state.get('last_sync',0))
 
 
-def sync_config(book, expected, enabled, target_workspace=None, attachments=None):
+def sync_config(book, expected, enabled, target_workspace=None, attachments=None, server_context=None):
     config=lumen_connect.read_config()
     if scope(book,config)!=expected:raise ValueError(tr('Die Serververbindung hat sich geändert. Bitte erneut öffnen.'))
     info=sync_info(book) if enabled else {}
@@ -59,6 +59,9 @@ def sync_config(book, expected, enabled, target_workspace=None, attachments=None
             book.store.set_setting(workspace_key(book),target_workspace)
         key,state=settings(book,config);state['enabled']=bool(enabled)
         if attachments is not None:state['attachments']=bool(attachments)
+        if server_context is not None:
+            if server_context and not info.get('context_available'):raise ValueError(tr('Server-Kontext ist für diese Verbindung nicht freigegeben.'))
+            state['server_context']=bool(server_context)
         if info:state['user']=info['user']
         book.store.set_setting(key,state)
     # Explicit activation binds background work to this notebook inode and account.

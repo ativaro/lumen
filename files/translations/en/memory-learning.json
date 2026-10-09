@@ -39,5 +39,8 @@
   "Erinnerung wurde geändert oder ist nicht freigegeben.": "Memory has changed or is not shared.",
   "Erinnerung zuerst lesen.": "Read the memory first.",
   "Ausdrücklicher Vorschlag von Lumen": "Explicit proposal from Lumen",
-  "Zuerst vorhandene Gedächtnisvorschläge prüfen.": "Review existing memory suggestions first."
+  "Zuerst vorhandene Gedächtnisvorschläge prüfen.": "Review existing memory suggestions first.",
+  "Lumen prüft deine Aussage …": "Lumen is reviewing your statement …",
+  "Geprüft · keine neue Erinnerung übernommen": "Reviewed · no new memory saved",
+  "Lernen zuletzt nicht möglich · nichts automatisch wiederholt": "Learning was unavailable · no automatic retry"
 }

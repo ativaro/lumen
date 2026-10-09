@@ -78,7 +78,7 @@ def tls_context(config):
     return context
 
 
-def request(config, path, body=None):
+def request(config, path, body=None, *, timeout=15):
     headers = {"Authorization": "Bearer " + config["token"]} if config.get("token") else {}
     if body is not None:
         headers["Content-Type"] = "application/json"
@@ -88,7 +88,7 @@ def request(config, path, body=None):
     opener = urllib.request.build_opener(
         urllib.request.HTTPSHandler(context=tls_context(config)), NoRedirect()
     )
-    with opener.open(req, timeout=15) as r:
+    with opener.open(req, timeout=timeout) as r:
         data = r.read(4 * 1024 * 1024 + 1)
         if len(data) > 4 * 1024 * 1024:
             raise ValueError("Serverantwort ist zu groß.")
@@ -128,10 +128,12 @@ def parse_pairing_uri(uri):
     return {"server": server}, {"id": str(UUID(params["id"][0])), "code": params["code"][0]}
 
 
-def pairing_request(uri, action):
+def pairing_request(uri, action, capabilities=None):
     if action not in ("preview", "approve", "decline"):
         raise ValueError("Ungültige Aktion.")
     config, body = parse_pairing_uri(uri)
+    if action == "approve" and capabilities is not None:
+        body["capabilities"] = capabilities
     result = request(config, "/bridge/pairings/" + action, body)
     if not isinstance(result, dict):
         raise ValueError("Ungültige Serverantwort.")

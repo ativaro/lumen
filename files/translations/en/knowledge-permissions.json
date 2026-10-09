@@ -1,0 +1,8 @@
+{
+  "Serverfreigaben für KI-Kontext auch auf diesem Desktop verwenden": "Use server AI permissions on this desktop",
+  "Nur freigegebene Servernotizen; aktuelle Rechte werden vor jeder Nutzung geprüft. Offline bleibt dieser Kontext aus. Lokale Ausschlüsse bleiben erhalten.": "Only shared server notes; current permissions are checked before every use. No server context is used offline. Local exclusions remain in effect.",
+  "Server-Kontext ist für diese Verbindung nicht freigegeben.": "Server context is not available for this connection.",
+  "Server-Kontext derzeit nicht verfügbar.": "Server context is currently unavailable.",
+  "Serverfreigabe geändert. Server-Kontext wurde ausgelassen.": "Server permission changed. Server context was omitted.",
+  "Freigegebene Servernotiz": "Shared server note"
+}

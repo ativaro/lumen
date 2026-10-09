@@ -56,14 +56,14 @@ class MemorySources(QPushButton):
 
     def open_source(self, source):
         try:
-            if source.get('source_kind') == 'server_memory':
+            if source.get('source_kind') in ('server_memory','server_note'):
                 from lumen_connect import memory_stamp, read_config
                 from PySide6.QtCore import QUrl
                 from PySide6.QtGui import QDesktopServices
                 if self.snapshot.get('server_stamp') != memory_stamp():
                     raise ValueError(tr('Die Serverquelle wurde geändert. Bitte erneut fragen.'))
                 from uuid import UUID
-                identity = str(UUID(source['id'].removeprefix('server:')))
+                identity = str(UUID(source['id'].removeprefix('server:').removeprefix('server-note:')))
                 QDesktopServices.openUrl(QUrl(read_config()['server']+'/?app=note&document='+identity))
                 return
             book, note = local_source(Store(), source)

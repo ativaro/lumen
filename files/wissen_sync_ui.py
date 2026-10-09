@@ -33,6 +33,9 @@ def show_dialog(window,info):
     enabled=QCheckBox(tr('Diesen Notizordner synchronisieren'));enabled.setChecked(info['enabled'])
     enabled.setEnabled(info['allowed'] or info['enabled']);box.addWidget(enabled)
     assets=QCheckBox(tr('Verknüpfte Bilder und Anhänge mitsynchronisieren'));assets.setChecked(info.get('attachments',False));box.addWidget(assets)
+    context=QCheckBox(tr('Serverfreigaben für KI-Kontext auch auf diesem Desktop verwenden'))
+    context.setChecked(info.get('server_context',False));context.setEnabled(info.get('context_available',False) or context.isChecked());box.addWidget(context)
+    box.addWidget(label(tr('Nur freigegebene Servernotizen; aktuelle Rechte werden vor jeder Nutzung geprüft. Offline bleibt dieser Kontext aus. Lokale Ausschlüsse bleiben erhalten.'),'muted'))
     message=tr('Automatisch auch bei geschlossenem Lumen Wissen über den Verbindungsdienst. Deaktivieren behält vorhandene Kopien.')
     if not info['reachable']:message=tr('Server derzeit nicht erreichbar. Du kannst den Abgleich weiterhin deaktivieren.')
     elif not info['allowed']:message=tr('Auf dem Server unter Geräte die Fähigkeit „Notizen synchronisieren“ freigeben.')
@@ -45,7 +48,7 @@ def show_dialog(window,info):
         def saved(_):
             window.status.setText(tr('Serverabgleich aktiviert') if value else tr('Serverabgleich deaktiviert'))
             if value:window.after_job=lambda:synchronize(window)
-        window.action('sync_config',saved,expected=info['scope'],enabled=value,**({'attachments':assets.isChecked()} if assets.isChecked()!=info.get('attachments',False) else {}),**({'target_workspace':area.currentData()} if area.currentData()!=info.get('workspace','') else {}))
+        window.action('sync_config',saved,expected=info['scope'],enabled=value,**({'server_context':context.isChecked()} if context.isChecked()!=info.get('server_context',False) else {}),**({'attachments':assets.isChecked()} if assets.isChecked()!=info.get('attachments',False) else {}),**({'target_workspace':area.currentData()} if area.currentData()!=info.get('workspace','') else {}))
     buttons.accepted.connect(save)
     now=QPushButton(tr('Jetzt abgleichen'));now.setEnabled(info['enabled'] and info['allowed'])
     now.clicked.connect(lambda:(dialog.accept(),synchronize(window)));buttons.addButton(now,QDialogButtonBox.ActionRole)
