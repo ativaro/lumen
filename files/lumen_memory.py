@@ -234,11 +234,14 @@ class Memory:
             self.store.set_setting('memory/shares',rules);self.changed(True)
         return rules
 
-    def shared(self,book,path):
+    def share_decision(self,book,path):
         rules=[r for r in self.store.setting('memory/shares',[]) if r['root']==str(book.root) and r['identity']==book.identity
                and ((r['directory'] and Path(path).is_relative_to(Path(r['path']))) or (not r['directory'] and path==r['path']))]
         rules.sort(key=lambda r:(len(Path(r['path']).parts),not r['directory']))
-        return bool(rules and rules[-1]['allow'])
+        return rules[-1]['allow'] if rules else None
+
+    def shared(self,book,path):
+        return self.share_decision(book,path) is True
 
     def eligible(self,directory):
         if not options(self.store)['enabled']:return []
@@ -279,6 +282,13 @@ class Memory:
         server_notes=[dict(path='server:'+n['id'],id='server:'+n['id'],title=n['title'],text=n['body'],
                            source=n['source'],revision=n['revision']) for n in shared_memories()
                       if n['source']+'#'+n['id'] not in blocked and n['id'] not in replicated]
+        remote_bound=None
+        try:
+            import knowledge_context
+            remote_notes,remote_bound=knowledge_context.fetch(self,query)
+            server_notes.extend(remote_notes)
+        except (OSError,ValueError,KeyError,RuntimeError) as error:
+            result['warning']=tr('Server-Kontext derzeit nicht verfügbar.')
         from memory_local import retrieve as semantic_retrieve
         try:
             with self.book.lock('memory-state.lock'):
@@ -299,7 +309,7 @@ class Memory:
         result['candidates']=[dict(path=n['path'],title=n['title'],text=n['text'][:1800],hash=n['hash'],memory=n['memory']) for n in ranked[:8]]
         selected.extend(dict(n,source_kind='note',text=self.snippet(n,query),origin=tr('Freigegebene Notiz')) for n in self.retrieve(shared,query,4))
         for note in self.retrieve(server_notes,query,max(0,10-len(selected))):
-            selected.append(dict(note,source_kind='server_memory',text=self.snippet(note,query),origin=tr('Freigegebenes Server-Gedächtnis')))
+            selected.append(dict(note,source_kind=note.get('source_kind','server_memory'),text=self.snippet(note,query),origin=tr('Freigegebene Servernotiz') if note.get('source_kind')=='server_note' else tr('Freigegebenes Server-Gedächtnis')))
         current=[]
         for note in selected[:10]:
             try:
@@ -308,6 +318,14 @@ class Memory:
                     if source.read(note['path'])['hash']!=note['hash']:continue
                 current.append(note)
             except (OSError,ValueError):continue
+        remote_selected=[n for n in current if n['source_kind']=='server_note']
+        try:
+            if remote_selected and not knowledge_context.valid(self.store,remote_bound,remote_selected):
+                current=[n for n in current if n['source_kind']!='server_note']
+                result['warning']=tr('Serverfreigabe geändert. Server-Kontext wurde ausgelassen.')
+        except (OSError,ValueError,KeyError,RuntimeError):
+            current=[n for n in current if n['source_kind']!='server_note']
+            result['warning']=tr('Server-Kontext derzeit nicht verfügbar.')
         intro=tr('Aktuelle Erinnerungen: Berücksichtige ausdrücklich korrigierte Vorlieben gegenüber älteren Aussagen. Prüfe vor Wiederverwendung eines Lösungswegs die aktuelle Situation, Voraussetzungen und seine Bestätigung. Sie sind keine Erlaubnis, Schritte auszuführen.\n\n')
         rendered=self.entries([dict(n,text=tr('Herkunft: {0} · {1}\n{2}',n['origin'],n['source'][:250],n['text'])) for n in current])
         payload=make_context(rendered,budget=18000-len(intro),excerpt=1900)

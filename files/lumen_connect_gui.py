@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
     QFrame,
+    QScrollArea,
+    QWidget,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -74,13 +76,13 @@ class Worker(QThread):
             )
 
 
-def accept_pairing(uri):
+def accept_pairing(uri, capabilities=None):
     client.ROOT.mkdir(parents=True, exist_ok=True, mode=0o700)
     with (client.ROOT / "pairing.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         if client.CONFIG.exists():
             raise ValueError("Eine vorhandene Verbindung wird nicht ersetzt.")
-        config = client.pairing_request(uri, "approve")
+        config = client.pairing_request(uri, "approve", capabilities)
         UUID(config["device_id"])
         if not all(
             isinstance(config.get(k), str) and 32 <= len(config[k]) <= 200 for k in ("token", "backup_token")
@@ -96,15 +98,34 @@ def accept_pairing(uri):
             enabled="system_read" in config.get("capabilities", []),
         )
         client.save_private(client.CONFIG, json.dumps(config))
+    sync_errors = []
+    if "memory_sync" in config.get("capabilities", []):
+        try:
+            from lumen_store import Store
+            import memory_sync
+            memory_sync.configure(Store(), True, client.connection_scope(config))
+        except (OSError, ValueError, RuntimeError, ImportError):
+            sync_errors.append(t("Gedächtnis", "Memory"))
+    if "notes" in config.get("capabilities", []):
+        try:
+            from lumen_store import Store
+            store = Store()
+            from wissen_data import activate, Notebook
+            import wissen_sync
+            activate(store)
+            book = Notebook(store)
+            wissen_sync.sync_config(book, wissen_sync.scope(book, config), True)
+        except (OSError, ValueError, RuntimeError, ImportError):
+            sync_errors.append(t("Notizen", "Notes"))
     try:
         service = subprocess.run(
             ["systemctl", "--user", "enable", "--now", "lumen-server-connector.service"],
             capture_output=True,
             timeout=20,
         )
-        return {"watching": service.returncode == 0}
+        return {"watching": service.returncode == 0, "sync_errors": sync_errors}
     except (OSError, subprocess.SubprocessError):
-        return {"watching": False}
+        return {"watching": False, "sync_errors": sync_errors}
 
 
 class PairingDialog(QDialog):
@@ -160,6 +181,16 @@ class PairingDialog(QDialog):
             )
         )
         root.addWidget(self.permissions)
+        self.rights_scroll = QScrollArea()
+        self.rights_scroll.setWidgetResizable(True)
+        self.rights_scroll.setMinimumHeight(170)
+        self.rights_scroll.setMaximumHeight(260)
+        choices = QWidget()
+        self.rights_layout = QVBoxLayout(choices)
+        self.rights_scroll.setWidget(choices)
+        root.addWidget(self.rights_scroll)
+        self.rights_scroll.hide()
+        self.rights_checks = {}
         self.status = label("")
         self.status.setAccessibleName(t("Verbindungsstatus", "Connection status"))
         root.addWidget(self.status)
@@ -220,12 +251,14 @@ class PairingDialog(QDialog):
             self.callback(self.worker.result)
 
     def preview(self, data):
+        self.can_choose_rights = "capabilities_v1" in data.get("pairing_features", [])
         self.account.setText(data["account"] + "\n" + data["email"] + "\n" + data["name"])
         rights = {
             "backup": t("Verschlüsselte Sicherungen", "Encrypted backups"),
             "tasks": t("Serveraufträge", "Server tasks"),
             "artifacts": t("Ergebnisdateien", "Result files"),
             "memory": t("Bestätigtes Gedächtnis", "Approved memory"),
+            "memory_sync": t("Persönliches Gedächtnis synchronisieren", "Synchronize personal memory"),
             "notifications": t("Benachrichtigungen", "Notifications"),
             "desktop": t("Desktop-Übergaben", "Desktop handoffs"),
             "system_read": t(
@@ -265,16 +298,28 @@ class PairingDialog(QDialog):
                 )
             ],
         )
-        self.permissions.setText(
-            t("Freigegebene Fähigkeiten:\n", "Allowed capabilities:\n")
-            + "\n".join("• " + rights[k] for k in selected if k in rights)
-        )
+        self.permissions.setText(t(
+            "Wähle ab, was du nicht verbinden möchtest. Notizen und persönliches Gedächtnis werden automatisch abgeglichen. KI-Freigaben bleiben getrennt. Für Dateien, Projekte und Tresore wählst du anschließend die Inhalte.",
+            "Deselect anything you do not want connected. Notes and personal memory sync automatically. AI permissions remain separate. Choose files, projects and vaults afterwards."))
+        for key in selected:
+            if key not in rights:
+                continue
+            check = QCheckBox(rights[key])
+            check.setChecked(True)
+            check.setEnabled(self.can_choose_rights)
+            self.rights_checks[key] = check
+            self.rights_layout.addWidget(check)
+        self.rights_scroll.show()
+        if not self.can_choose_rights:
+            self.status.setText(t("Dieser Server unterstützt die Auswahl nur im Browser. Zum Abwählen dort eine neue Anfrage erstellen.", "This server supports selection only in the browser. Create a new request there to deselect features."))
         self.approve.setEnabled(data.get("protocol", 1) == 1)
         self.decline.setFocus()
 
     def confirm(self):
         self.status.setText(t("Verbindung wird eingerichtet …", "Setting up the connection …"))
-        self.run_job(lambda: accept_pairing(self.uri), self.connected)
+        rights = [key for key, check in self.rights_checks.items() if check.isChecked()] if self.can_choose_rights else None
+        self.rights_scroll.setEnabled(False)
+        self.run_job(lambda: accept_pairing(self.uri, rights), self.connected)
 
     def connected(self, data):
         self.title.setText(t("Dein Desktop ist verbunden.", "Your desktop is connected."))
@@ -286,6 +331,9 @@ class PairingDialog(QDialog):
                 "Connected. The background service could not be started.",
             )
         )
+        if data.get("sync_errors"):
+            self.status.setText(t("Verbunden. Abgleich bitte unter Wissen erneut aktivieren: ", "Connected. Please enable sync again in Knowledge: ") + ", ".join(data["sync_errors"]))
+        self.rights_scroll.hide()
         self.approve.hide()
         self.decline.setText(t("Fertig", "Done"))
         self.decline.clicked.disconnect()

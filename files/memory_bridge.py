@@ -47,6 +47,7 @@ class MemoryBridge(QObject):
         self.learner=engine;engine.selected_model=self.backend.selected_model;engine.read_only=True
         candidates=request['prepared']['candidates']
         prompt=extraction_prompt(request['text'],candidates,request['context'])
+        self.backend.memoryStatus.emit(tr('Lumen prüft deine Aussage …'))
         def completed(success,result):
             if self.learner is not engine:return
             self.learner=None;engine.shutdown();engine.deleteLater()
@@ -54,11 +55,19 @@ class MemoryBridge(QObject):
             if success:
                 try:items=parse_answer(result)['memories']
                 except (ValueError,KeyError,TypeError):items=None
-                if items:
+                if isinstance(items,list) and len(items)<=3:
+                    if not items:
+                        self.backend.memoryStatus.emit(tr('Geprüft · keine neue Erinnerung übernommen'))
+                        QTimer.singleShot(0,self.next);return
                     def saved(count):
                         if count:self.backend.memoryStatus.emit(tr('{0} Gedächtnisvorschläge warten in Lumen Wissen',count) if not options(self.store)['automatic'] else tr('{0} Erinnerungen gespeichert · in Lumen Wissen überprüfbar',count))
+                        else:self.backend.memoryStatus.emit(tr('Geprüft · keine neue Erinnerung übernommen'))
                         QTimer.singleShot(0,self.next)
-                    self.job('apply',saved,lambda _:QTimer.singleShot(0,self.next),items=items,user_text=request['text'],directory=request['directory'],source=request['source'],candidates=candidates,revision=request['prepared']['revision'],context=request['context'],prepared_stamp=request['prepared']['stamp']);return
+                    def failed(_):
+                        self.backend.memoryStatus.emit(tr('Lernen zuletzt nicht möglich · nichts automatisch wiederholt'))
+                        QTimer.singleShot(0,self.next)
+                    self.job('apply',saved,failed,items=items,user_text=request['text'],directory=request['directory'],source=request['source'],candidates=candidates,revision=request['prepared']['revision'],context=request['context'],prepared_stamp=request['prepared']['stamp']);return
+            self.backend.memoryStatus.emit(tr('Lernen zuletzt nicht möglich · nichts automatisch wiederholt'))
             QTimer.singleShot(0,self.next)
         engine.completed.connect(completed);engine.send(prompt,proposal=True);engine.deadline.start(60000)
 

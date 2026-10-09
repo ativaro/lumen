@@ -32,6 +32,13 @@ def show(window,info):
     if info['user']:layout.addWidget(label(info['user'],'muted'))
     layout.addWidget(label(tr('Persönliche Erinnerungen werden in beide Richtungen abgeglichen und bleiben offline verfügbar. Lokales Projektwissen bleibt auf diesem Gerät. Änderungen und Vergessen gelten auch auf verbundenen Geräten.')))
     layout.addWidget(label(tr('Abgleichen ist keine KI-Freigabe: neue Server-Erinnerungen prüfst du hier und gibst sie bei Bedarf für Lumen frei. Konflikte werden bis zur Entscheidung nicht als Kontext verwendet.'),'muted'))
+    layout.addWidget(label(tr('Auch auf dem Server brauchen neue oder geänderte Kopien eine Freigabe. Dort kannst du mehrere Erinnerungen gemeinsam prüfen.'),'muted'))
+    if info['server']:
+        def open_review():
+            from PySide6.QtCore import QUrl
+            from PySide6.QtGui import QDesktopServices
+            QDesktopServices.openUrl(QUrl(info['server'].rstrip('/')+'/?app=note&memory=1'))
+        layout.addWidget(button(tr('Erinnerungen auf dem Server prüfen'),open_review))
     enabled=QCheckBox(tr('Persönliches Gedächtnis synchronisieren'));enabled.setChecked(info['enabled']);enabled.setEnabled(info['allowed'] or info['enabled']);layout.addWidget(enabled)
     if not info['reachable']:layout.addWidget(label(tr('Server nicht erreichbar. Vorhandene Kopien bleiben erhalten.'),'muted'))
     elif not info['allowed']:layout.addWidget(label(tr('Auf dem Server zuerst „Persönliches Gedächtnis synchronisieren“ freigeben.'),'muted'))

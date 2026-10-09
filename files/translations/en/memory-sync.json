@@ -30,5 +30,7 @@
   "Für den Serverabgleich die Erinnerung auf 16.000 Zeichen und den Titel auf 200 Zeichen kürzen. Die lokale Fassung bleibt erhalten.": "For server synchronization, shorten the memory to 16,000 characters and its title to 200 characters. The local version is kept.",
   "Vollständig vergleichen": "Compare everything",
   "Der Serverstand wurde zurückgesetzt. In den Abgleicheinstellungen „Vollständig vergleichen“ wählen.": "The server was restored to an earlier state. Choose “Compare everything” in synchronization settings.",
-  "Nach einer Server-Wiederherstellung: lokale Erinnerungen erneut abgleichen, fehlende Kopien wieder übertragen und abweichende Fassungen zur Prüfung behalten.": "After a server restore: compare local memories again, upload missing copies and retain differing versions for review."
+  "Nach einer Server-Wiederherstellung: lokale Erinnerungen erneut abgleichen, fehlende Kopien wieder übertragen und abweichende Fassungen zur Prüfung behalten.": "After a server restore: compare local memories again, upload missing copies and retain differing versions for review.",
+  "Auch auf dem Server brauchen neue oder geänderte Kopien eine Freigabe. Dort kannst du mehrere Erinnerungen gemeinsam prüfen.": "New or changed copies also need approval on the server. You can review several memories together there.",
+  "Erinnerungen auf dem Server prüfen": "Review memories on the server"
 }

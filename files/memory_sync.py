@@ -81,7 +81,7 @@ def row(value, identity=None):
     return value
 
 
-def payload(note, revision):
+def payload(note, revision, categories=False):
     if note and (len(note['text'])>16000 or len(note['title'])>200):
         raise ValueError(tr('Für den Serverabgleich die Erinnerung auf 16.000 Zeichen und den Titel auf 200 Zeichen kürzen. Die lokale Fassung bleibt erhalten.'))
     meta=note.get('memory',{}) if note else {}
@@ -91,7 +91,8 @@ def payload(note, revision):
                 body=note['text'] if note else '',deleted=note is None,
                 metadata=dict(kind=meta.get('kind','fact'),source=note.get('source','') if note else '',
                               evidence=meta.get('evidence',''),automatic=bool(meta.get('automatic')),
-                              verification=meta.get('verification',''),scope='global'))
+                              verification=meta.get('verification',''),scope='global',
+                              **({'correction':bool(meta.get('correction'))} if categories else {})))
 
 
 def mark(memory, identity, **values):
@@ -173,7 +174,9 @@ def synchronize(store):
                 state['refs'][identity]=dict(revision=remote['revision'],hash='forgotten-remote',path='')
                 save();return
             if remote['revision']<=base.get('revision',0) and 'full_scan' not in state:return
-            same=bool(note and note['text']==remote_text(remote) and note['title']==remote['title'])
+            same=bool(note and note['text']==remote_text(remote) and note['title']==remote['title'] and
+                      note['memory'].get('kind','fact')==remote.get('memory_meta',{}).get('kind','fact') and
+                      bool(note['memory'].get('correction'))==bool(remote.get('memory_meta',{}).get('correction')))
             accepted=bool(note and state.get('accept_remote',{}).get(identity)==dict(hash=note['hash'],revision=remote['revision']))
             if note and not same and not accepted and (note['hash']!=base.get('hash') or identity in state['conflicts'] or remote['revision']<=base.get('revision',0)):
                 conflict(identity,remote);return
@@ -248,7 +251,7 @@ def synchronize(store):
             note=notes.get(identity);base=state['refs'].get(identity,{})
             checksum=note['hash'] if note else ''
             if checksum==base.get('hash'):continue
-            change=payload(note,base.get('revision',0));change['operation_id']=str(uuid4())
+            change=payload(note,base.get('revision',0),'memory_categories_v1' in user.get('sync_features',[]));change['operation_id']=str(uuid4())
             state['pending'][identity]=dict(body=change,hash=checksum,path=note['path'] if note else base.get('path',''))
             save();deliver(identity)
         state['last_sync']=time.time();save()

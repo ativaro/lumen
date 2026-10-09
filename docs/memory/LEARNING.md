@@ -80,3 +80,11 @@ work. Back up the state database together with memory files, as for personal mem
 Checks: `python -m unittest test_memory_projects` (native Qt environment, offscreen);
 Server `test_memory_native_sync.py` verifies approved project copies do not upload
 through personal sync. No automatic project conversion, sharing or model download.
+
+### Server connection (2026-10-08)
+New connections show preselected capabilities that can be deselected on either
+side. Selecting personal-memory or note sync starts its existing background
+synchronizer after pairing; existing connections are not silently upgraded.
+Memory categories and correction markers travel with entries on compatible
+servers. AI approvals remain separate from replication. Other capabilities keep
+their existing content/target selection (Drive folders, projects, vaults, backups).

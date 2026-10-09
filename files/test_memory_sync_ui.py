@@ -49,6 +49,10 @@ class MemorySyncUITest(unittest.TestCase):
                     QTest.qWait(50)
                     dialog=window.memory_sync_dialog
                     self.assertTrue(dialog.isVisible())
+                    review=next(b for b in dialog.findChildren(QPushButton) if b.text()==tr('Erinnerungen auf dem Server prüfen'))
+                    with patch('PySide6.QtGui.QDesktopServices.openUrl') as open_url:
+                        review.click()
+                        self.assertEqual(open_url.call_args.args[0].toString(),'https://lumen.example.test/?app=note&memory=1')
                     dialog.grab().save('/tmp/lumen-memory-sync-settings.png')
                     dialog.findChild(QDialogButtonBox).button(QDialogButtonBox.Save).click();self.wait(window)
                     self.assertIn(('configure',dict(enabled=True,expected='synthetic-binding')),calls)
