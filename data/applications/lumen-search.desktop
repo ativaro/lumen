@@ -1,12 +1,13 @@
 [Desktop Entry]
 Type=Application
-Name=Lumen Search
-Name[de]=Lumen Suche
+Name=Lumen
+Name[de]=Lumen
 Comment=Find applications and files, or talk to Lumen
 Comment[de]=Anwendungen und Dateien finden oder mit Lumen sprechen
 Exec=%INSTALL_BIN%/lumen-search
-Icon=system-search
+Icon=lumen
 Terminal=false
 Categories=Utility;
 StartupWMClass=lumen-search
 Keywords=Lumen;Search;Suche;
+NoDisplay=true

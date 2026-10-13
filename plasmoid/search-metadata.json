@@ -11,8 +11,8 @@
         "Icon": "system-search",
         "Id": "org.lumen.search",
         "License": "LicenseRef-Lumen-EULA",
-        "Name": "Lumen Search",
-        "Name[de]": "Lumen Suche",
+        "Name": "Lumen",
+        "Name[de]": "Lumen",
         "Version": "1.2.0",
         "Website": "https://github.com/ativaro/lumen"
     },

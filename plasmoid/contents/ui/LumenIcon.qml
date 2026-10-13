@@ -46,9 +46,9 @@ Image {
         "dialog-error": "M12 8v5m0 4h.01 M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20",
         "dialog-question": "M9 8a3 3 0 1 1 5 2c-2 1-2 2-2 3m0 4h.01 M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20"
     })
-    source: "data:image/svg+xml;utf8," + encodeURIComponent(name === "lumen"
-        ? '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="' + Kirigami.Theme.highlightColor + '"><ellipse cx="12" cy="5" rx="2.5" ry="4"/><ellipse cx="12" cy="19" rx="2.5" ry="4"/><ellipse cx="5" cy="12" rx="4" ry="2.5"/><ellipse cx="19" cy="12" rx="4" ry="2.5"/><g transform="rotate(45 12 12)" opacity=".7"><ellipse cx="12" cy="5" rx="2.5" ry="4"/><ellipse cx="12" cy="19" rx="2.5" ry="4"/><ellipse cx="5" cy="12" rx="4" ry="2.5"/><ellipse cx="19" cy="12" rx="4" ry="2.5"/></g></g></svg>'
-        : '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="' + color + '" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="' + (paths[name] || paths["view-task"]) + '"/></svg>')
+    source: name === "lumen" ? Qt.resolvedUrl("lumen-halo.png")
+        : name.indexOf("lumen-") === 0 ? Qt.resolvedUrl(name + ".svg")
+        : "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="' + color + '" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="' + (paths[name] || paths["view-task"]) + '"/></svg>')
     sourceSize.width: Math.ceil(width * Screen.devicePixelRatio)
     sourceSize.height: Math.ceil(height * Screen.devicePixelRatio)
     fillMode: Image.PreserveAspectFit

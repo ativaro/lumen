@@ -1,11 +1,11 @@
 [Desktop Entry]
 Type=Application
-Name=Lumen Search (compatibility alias)
-Name[de]=Lumen Suche (Kompatibilitätsstarter)
+Name=Lumen (compatibility alias)
+Name[de]=Lumen (Kompatibilitätsstarter)
 Comment=Open the normal Lumen search
 Comment[de]=Die normale Lumen-Suche öffnen
 Exec=%INSTALL_BIN%/lumen-search-preview
-Icon=lumen
+Icon=lumen-search
 Terminal=false
 Categories=Utility;
 StartupWMClass=lumen-search

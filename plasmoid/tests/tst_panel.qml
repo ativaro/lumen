@@ -5,14 +5,14 @@ import "../contents/ui" as Lumen
 
 Rectangle {
     id: scene
-    width: 420
-    height: 580
+    width: 510
+    height: panel.implicitHeight + 24
     Kirigami.Theme.inherit: false
-    Kirigami.Theme.textColor: "#eaf3f6"
-    Kirigami.Theme.backgroundColor: "#20353f"
-    Kirigami.Theme.alternateBackgroundColor: "#304b58"
-    Kirigami.Theme.disabledTextColor: "#a0b7c2"
-    Kirigami.Theme.highlightColor: "#97ddd4"
+    Kirigami.Theme.textColor: "#eff1f3"
+    Kirigami.Theme.backgroundColor: "#222529"
+    Kirigami.Theme.alternateBackgroundColor: "#2a2e33"
+    Kirigami.Theme.disabledTextColor: "#aab1ba"
+    Kirigami.Theme.highlightColor: "#d7dce2"
     color: Kirigami.Theme.backgroundColor
     Lumen.PanelView {
         id: panel
@@ -20,14 +20,24 @@ Rectangle {
         anchors.margins: 12
     }
     SignalSpy { id: apps; target: panel; signalName: "openApp" }
-    SignalSpy { id: more; target: panel; signalName: "moreTasks" }
-    SignalSpy { id: dismissed; target: panel; signalName: "dismissTask" }
+    SignalSpy { id: launches; target: panel; signalName: "launch" }
     TestCase {
         name: "LumenPanel"
         when: windowShown
-        function test_compact_apps_stay_above_tasks_and_launch_by_keyboard() {
-            const catalog = ["lumen", "files", "search", "translate", "wissen", "inbox", "vault", "reader", "sound", "meetings", "household", "workbench", "radio"].map(id => ({id: id, title: "Lumen " + id, label: id, description: "Open " + id, icon: "lumen-" + id}));
-            panel.snapshot = {apps: catalog, active: [], recent: [], error: "", busy: false, attention: false, more: true};
+        function test_apps_and_all_tasks_only() {
+            const catalog = [
+                ["lumen", "Lumen", "lumen"], ["files", "Dateien", "system-file-manager"],
+                ["search", "Suche", "system-search"], ["companion", "Companion", "view-task"],
+                ["translate", "Translate", "preferences-desktop-locale"], ["wissen", "Wissen", "accessories-text-editor"],
+                ["inbox", "Inbox", "mail-unread"], ["notification", "Notification", "notifications"],
+                ["vault", "Vault", "document-save"], ["reader", "Reader", "application-pdf"],
+                ["updater", "Updater", "system-software-update"], ["system", "System", "computer"],
+                ["meetings", "Meeting & Radio", "audio-input-microphone"], ["household", "Haushalt", "view-calendar"],
+                ["workbench", "Projekte", "folder-development"]
+            ].map(app => ({id: app[0], title: "Lumen " + app[1], label: app[1], description: "Open " + app[1], icon: app[2]}));
+            panel.uiLanguage = "de";
+            panel.snapshot = {apps: catalog, active: [{id: "active", title: "ACTIVE TASK"}],
+                recent: [{id: "done", title: "DONE TASK"}], error: "", busy: true, attention: true, more: true};
             for (const width of [510, 420, 340]) {
                 scene.width = width; waitForRendering(panel);
                 const grid = findChild(panel, "appGrid");
@@ -36,64 +46,27 @@ Rectangle {
                     const tile = findChild(panel, "app-" + app.id);
                     verify(tile !== null); verify(tile.visible);
                     verify(tile.mapToItem(panel, tile.width, 0).x <= panel.width + 1);
-                    verify(tile.height <= 60);
+                    const icon = findChild(panel, "appIcon-" + app.id);
+                    verify(icon.width >= 40); verify(icon.height >= 40);
                     tile.forceActiveFocus(); keyClick(Qt.Key_Space);
                     compare(apps.signalArguments[apps.count-1][0], app.id);
                 }
+                const tasks = findChild(panel, "allTasksButton");
+                verify(tasks.visible); tasks.forceActiveFocus(); keyClick(Qt.Key_Space);
+                compare(launches.signalArguments[launches.count-1][0], "tasks");
+                verify(tasks.mapToItem(panel, 0, tasks.height).y <= panel.height + 1);
+                verify(panel.height < 470);
+                compare(findChild(panel, "moreTasksButton"), null);
+                compare(findChild(panel, "taskToggle-active"), null);
+                compare(findChild(panel, "taskToggle-done"), null);
                 grabImage(scene).save("artifacts/panel/apps-" + width + ".png");
             }
-            const loadMore = findChild(panel, "moreTasksButton");
-            verify(loadMore.visible); loadMore.forceActiveFocus(); keyClick(Qt.Key_Space);
-            compare(more.count, 1);
-            panel.loadingTasks = true; verify(!loadMore.enabled); panel.loadingTasks = false;
-            scene.width = 420;
-        }
-        function test_results_keyboard_errors_and_compact_layout() {
-            panel.snapshot = {active: [], recent: [
-                {id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", title: "Fotos für die Familie vorbereitet",
-                 state: "Erledigt", status: "completed", cursor: 3, total: 3,
-                 result: "24 Bilder verkleinert. <b>Dieser Text bleibt Klartext.</b>", error: "", truncated: false}
-            ], busy: false, attention: false, error: ""};
-            waitForRendering(panel);
-            const toggle = findChild(panel, "taskToggle-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-            verify(toggle !== null);
-            toggle.forceActiveFocus();
-            keyClick(Qt.Key_Return);
-            compare(panel.expandedTask, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-            const result = findChild(panel, "taskResult-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-            verify(result.visible);
-            compare(result.textFormat, Text.PlainText);
-            const changed = JSON.parse(JSON.stringify(panel.snapshot));
-            changed.recent[0].result = "Aktualisiertes Ergebnis aus Files";
-            panel.snapshot = changed;
-            waitForRendering(panel);
-            verify(toggle.activeFocus);
-            compare(result.text, "Aktualisiertes Ergebnis aus Files");
-            const close = findChild(panel, "taskClose-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-            verify(close.visible); verify(close.enabled);
-            panel.dismissBusy = true; verify(!close.enabled); panel.dismissBusy = false;
-            close.forceActiveFocus(); keyClick(Qt.Key_Space);
-            compare(dismissed.count, 1); compare(dismissed.signalArguments[0][0], "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-            compare(panel.expandedTask, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-            scene.width = 340;
-            waitForRendering(panel);
-            verify(toggle.width <= panel.width);
-            verify(result.width <= panel.width);
-            grabImage(scene).save("artifacts/panel/menu-compact.png");
-            scene.width = 420;
-            waitForRendering(panel);
-            grabImage(scene).save("artifacts/panel/menu.png");
-            const cancelled = JSON.parse(JSON.stringify(panel.snapshot));
-            cancelled.recent[0].status = "cancelled"; cancelled.recent[0].state = "Abgebrochen";
-            panel.snapshot = cancelled; waitForRendering(panel);
-            verify(close.visible); close.forceActiveFocus(); keyClick(Qt.Key_Space);
-            compare(dismissed.count, 2); compare(dismissed.signalArguments[1][0], "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-            const running = JSON.parse(JSON.stringify(panel.snapshot));
-            running.recent[0].status = "running"; panel.snapshot = running; waitForRendering(panel);
-            verify(!close.visible);
-            panel.snapshot = {active: [], recent: [], busy: false, attention: false, error: "Aufträge gerade nicht lesbar."};
-            waitForRendering(panel);
-            compare(panel.snapshot.recent.length, 0);
+            panel.snapshot = {apps: catalog, active: [], recent: [], error: "Tasks unavailable", busy: false, attention: false};
+            panel.uiLanguage = "en"; waitForRendering(panel);
+            const tasks = findChild(panel, "allTasksButton");
+            compare(tasks.text, "All tasks");
+            verify(tasks.visible); tasks.forceActiveFocus(); keyClick(Qt.Key_Return);
+            compare(launches.signalArguments[launches.count-1][0], "tasks");
         }
     }
 }

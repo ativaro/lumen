@@ -67,6 +67,10 @@ Native Studio-Tests verwenden private Einstellungen und einen temporären Store.
 - Git-Probezusammenführung mit dem separaten Gedächtnisstand `12ab5d1` ist
   konfliktfrei. Das ist keine gemeinsame Laufzeitabnahme. Keine Installation.
 
+Lokale Prüfprotokolle liegen unter `/tmp/lumen-workbench-final-focused.log`,
+`/tmp/lumen-workbench-final-suite.log` und `/tmp/lumen-workbench-baseline-full.log`.
+Die nativen Vorschauen liegen im Arbeitsordner
+`lumen-desktop-entwuerfe/output/native/` neben den ursprünglichen HTML-Entwürfen.
 
 ## Visuelle Korrektur nach den Nutzerbildern
 
@@ -82,7 +86,7 @@ lokal ausgeliefert.
 Die Vorschaukarten verwenden ausschließlich vorhandene Aufträge und gespeicherte
 Zustände. Schrittzahlen sind nur verfügbar, wenn echte Schritte vorliegen. Die
 Beispielzahlen der Entwürfe werden nicht in Benutzerdaten übernommen. Ergebnisse
-sind auch direkt über die Navigation erreichbar; weitere Apps und Einstellungen
+sind im Gespräch und am Auftrag erreichbar; weitere Apps und Einstellungen
 liegen im Arbeitsraum-Menü. Die Anzeige automatischer Werkzeugfreigaben folgt der
 wirklich eingestellten Freigabeoption.
 
@@ -121,7 +125,40 @@ nun `LUMEN_RENDER_THEME` und bildet auch die eigene Ergebnisseite ab. Bilder ste
 in `lumen-desktop-entwuerfe/output/navigation-fix/` im benachbarten Arbeitsordner.
 Die bekannten Fehler der gesamten Basissuite sind hiervon unabhängig.
 
+## Verstellbare Sidebar
 
-Die Sidebar ist über den nativen Splitter verstellbar. Eine dauerhafte Trennlinie und
-der zusätzliche Ergebnisse-Menüpunkt entfallen; Ergebnisse bleiben direkt am
-Gespräch beziehungsweise Auftrag zugänglich.
+Die Sidebar lässt sich am rechten Rand zwischen 200 und 420 Pixeln ziehen. Ein
+nativer Qt-Splitter ersetzt die feste Breite und die dauerhafte vertikale Linie;
+der acht Pixel breite Griff wird beim Überfahren sichtbar. Qt speichert die
+gewählte Aufteilung in den bestehenden Einstellungen. Seitenwechsel behalten die
+Breite. Der zusätzliche Sidebar-Punkt „Ergebnisse“ entfällt; Ergebnisse bleiben
+im Gespräch und am Auftrag verfügbar, ebenso der bisherige direkte Seitenaufruf.
+
+Ein Regressionstest zieht den echten Splitter mit Mausereignissen, wechselt die
+Seite und öffnet eine neue Fensterinstanz. Er prüft auch die Mindestgröße 760 × 600.
+Native Graphit-Screenshots: `lumen-desktop-entwuerfe/output/sidebar-resize/`.
+
+## Live-Modellverlauf in Arbeitsschritte
+
+Der Werkbank-Tab „Arbeitsschritte“ zeigt die vom bestehenden Engine-Polling
+gelieferten Nachrichten des aktuellen Turns: Denktext, Modelltext und
+Werkzeugaufrufe einschließlich Status, Eingaben, Ausgaben und Fehlern. Er liest
+nicht mehr das gespeicherte Auftragsprotokoll, dessen Abschlussereignis lediglich
+das fertige Ergebnis enthielt. Die Engine-Anbindung bleibt unverändert (450 ms
+Pause zwischen Polling-Durchläufen). Denktext ist nur vorhanden, wenn das Modell
+ihn liefert. Die Server-Bridge liefert aktuell keine solchen Parts; dort erscheint
+ein entsprechender Hinweis anstelle eines vorgetäuschten Streams.
+
+Markdown wird mit dem bestehenden sicheren Qt-Dokument dargestellt, Werkzeugdaten
+als escaped Text. Kein automatisches Laden von Bildern oder Öffnen von Links.
+Neue Ausgabe folgt am unteren Rand; beim Zurückscrollen bleibt die Leseposition
+erhalten. Ein neuer Turn oder Gesprächswechsel ersetzt den bisherigen Verlauf.
+Der Regressionstest prüft wachsenden Denktext, Werkzeugzustände, formatierten
+Antworttext, Lesen während des Streams sowie Turn-/Session-Wechsel. Die 20
+Studio-Tests bestehen; unabhängiger statischer Review APPROVED.
+
+Die Ergebnisleiste wechselt bei Arbeitsbeginn automatisch auf „Arbeitsschritte“.
+Eine erfolgreiche fertige Textantwort oder neu bereitgestellte Dateien wählen
+„Ergebnis“. Zwischenmeldungen, ein Abbruch oder ein leeres Ergebnis lösen diesen
+Wechsel nicht aus. Wiederholte Statusmeldungen überschreiben eine manuelle
+Tab-Auswahl nicht. Die Tab-Automatik selbst öffnet keine geschlossene Leiste.

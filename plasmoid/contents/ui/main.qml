@@ -103,7 +103,9 @@ PlasmoidItem {
     fullRepresentation: Loader {
         Layout.minimumWidth: Kirigami.Units.gridUnit * (root.surface === "control" ? 26 : 20)
         Layout.preferredWidth: Kirigami.Units.gridUnit * (root.surface === "control" ? 29 : 27)
-        Layout.preferredHeight: Kirigami.Units.gridUnit * (root.surface === "control" ? 32 : 30)
+        Layout.preferredHeight: root.surface === "control" ? Kirigami.Units.gridUnit * 32
+            : (item ? item.implicitHeight : Kirigami.Units.gridUnit * 24) + Kirigami.Units.largeSpacing * 2
+        Layout.maximumHeight: root.surface === "control" ? Infinity : Layout.preferredHeight
         sourceComponent: root.surface === "control" ? (root.notificationPage ? notificationView : centerView) : taskView
     }
     Component { id: notificationView; NotificationCenter {
@@ -120,15 +122,9 @@ PlasmoidItem {
     Component { id: taskView; PanelView {
         uiLanguage: root.uiLanguage
         snapshot: root.snapshot
-        dismissBusy: root.dismissCommand !== ""
-        canLoadMore: root.taskLimit < 1000
-        loadingTasks: root.loading
-        onMoreTasks: { if (!root.loading) { root.taskLimit = Math.min(1000, root.taskLimit + 20); root.refresh(); } }
         onRefresh: root.refresh()
         onLaunch: action => root.launch(action)
         onOpenApp: appId => root.openApp(appId)
-        onOpenTask: taskId => root.openTask(taskId)
-        onDismissTask: taskId => root.dismissTask(taskId)
     } }
     Component { id: centerView; ControlCenter {
         uiLanguage: root.uiLanguage

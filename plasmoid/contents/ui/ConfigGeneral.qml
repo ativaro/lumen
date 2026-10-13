@@ -27,7 +27,7 @@ Kirigami.FormLayout {
         Kirigami.FormData.label: form.tr("Lumen-Bereich:")
         textRole: "label"; valueRole: "value"
         model: [{label: form.tr("Aufgabenmenü"), value: "tasks"}, {label: form.tr("Lumen und Dateien"), value: "home"},
-                {label: form.tr("Suche"), value: "search"}, {label: form.tr("Lumen Zentrale"), value: "control"}]
+                {label: "Lumen", value: "search"}, {label: form.tr("Lumen Zentrale"), value: "control"}]
         currentIndex: Math.max(0, indexOfValue(form.cfg_surface))
         onActivated: form.cfg_surface = currentValue
     }
