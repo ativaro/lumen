@@ -164,7 +164,7 @@ class ContextTest(unittest.TestCase):
         self.assertEqual(window.library.get(key)['interval'],86400);self.assertIsNone(window.library.get(key)['schedule_pending'])
         self.assertEqual(errors,['Timer unavailable'])
 
-    def test_new_native_backup_setup_keeps_schedule_separate_from_backup(self):
+    def test_prefilled_backup_setup_keeps_schedule_separate_from_backup(self):
         from tools_vault import Vault
         from tools_ui import Job
         window=Vault(self.root/'tools');self.windows.append(window);errors=[];window.error=errors.append
@@ -176,7 +176,7 @@ class ContextTest(unittest.TestCase):
             dialog.accept()
         completed=[];QTimer.singleShot(0,accept)
         with patch('vault_data.binary',return_value='/synthetic/restic'),patch('vault_data.command',return_value='{"id":"synthetic"}'),patch('vault_data.secret'),patch.object(Job,'command',return_value=b''):
-            self.assertTrue(window.create(on_done=completed.append));self.wait(lambda:not window.job)
+            self.assertTrue(window.create(prefill_sources=[dict(path=str(source))],on_done=completed.append));self.wait(lambda:not window.job)
         self.assertFalse(errors,errors);self.assertEqual(len(completed),1)
         plan=window.library.get(completed[0]);self.assertEqual(plan['interval'],604800)
         self.assertFalse(plan.get('last_backup'));self.assertIsNone(plan['schedule_pending'])

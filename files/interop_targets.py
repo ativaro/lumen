@@ -18,7 +18,7 @@ from tools_data import Library, document_text, media_duration, web_url
 
 ACTIONS = {
     'translate.import': dict(target='translate', label=tr('In Lumen Translate bearbeiten …'), modes=['copy'], description=tr('Text oder PDF lokal vorbereiten. Übersetzen, Umformulieren oder Korrigieren erst in Translate starten.')),
-    'wissen.import': dict(target='wissen', label=tr('Als Notiz speichern …'), modes=['copy', 'link'], description=tr('In Lumen Wissen speichern. Die Originaldatei bleibt unverändert.')),
+    'wissen.import': dict(target='wissen', label=tr('Als Notiz speichern …'), modes=['copy', 'link'], description=tr('In Lumen Notes speichern. Die Originaldatei bleibt unverändert.')),
     'workbench.add': dict(target='workbench', label=tr('Zu einem Projekt hinzufügen …'), modes=['copy', 'link','live'], description=tr('Material und Notizen einem neuen oder vorhandenen Projekt zuordnen.')),
     'workbench.question': dict(target='workbench', label=tr('Als Aufgabe in Lumen Projekte übernehmen'), modes=['copy'], description=tr('Ausgewählten Text als manuelle Aufgabe mit Herkunft speichern.')),
     'household.add': dict(target='household', label=tr('Zu einem Gerät oder Vertrag hinzufügen …'), modes=['copy','link','live'], description=tr('Belege, Handbücher und Notizen einem Gerät oder Vertrag zuordnen.')),
@@ -75,7 +75,7 @@ def _validate(action, payload, choice):
     if action not in ACTIONS or choice.get('mode', 'copy') not in ACTIONS[action]['modes']:
         raise ValueError(tr('Diese Übergabeart wird nicht unterstützt.'))
     if choice.get('mode')=='live' and not (payload.get('source',{}).get('app')=='wissen' and payload['source'].get('kind') in ('note','collection')):
-        raise ValueError(tr('Live-Verknüpfungen benötigen eine Notiz oder Sammlung aus Lumen Wissen.'))
+        raise ValueError(tr('Live-Verknüpfungen benötigen eine Notiz oder Sammlung aus Lumen Notes.'))
     if not isinstance(payload.get('title'), str) or not payload['title'].strip() or len(payload['title']) > 1000:
         raise ValueError(tr('Die Übergabe benötigt einen Titel.'))
     text = payload.get('text', '')

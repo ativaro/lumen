@@ -45,7 +45,7 @@ Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. Au
 - **Strg+L:** Pfad eingeben. **Alt+Links/Rechts/Hoch:** Verlauf / übergeordneter Ordner. Die seitlichen **Vor-/Zurück-Tasten der Maus** navigieren ebenfalls im Verlauf, unabhängig davon, über welchem Fensterbereich die Maus steht. Als Browser-Tasten gemeldete Signale werden ebenfalls unterstützt. In der Bildgalerie wechseln sie das Bild. **Strg+T / Strg+W:** Tab öffnen / schließen. **Strg+Tab:** nächster Tab.
 - **Strg+C / X / V:** kopieren / ausschneiden / einfügen. **F2:** umbenennen. **Strg+Umschalt+N:** Ordner erstellen. **Entf:** nach Bestätigung in den Systempapierkorb verschieben.
 - **Langsamer zweiter Klick auf den ausgewählten Dateinamen:** direkt in Liste oder Bildraster umbenennen; die Erweiterung bleibt zunächst unmarkiert. **Enter** bestätigt, **Esc** verwirft. Ein schneller Doppelklick öffnet weiterhin die Datei.
-- **Eigenschaften … / Alt+Enter:** kompakte Lumen-Infokarte für Dateien und Ordner; „Mehr Details“ öffnet die vollständige Übersicht. Verfügbare Informationen und Bearbeitungsrechte hängen vom lokalen Dateisystem oder dem verbundenen Dienst ab. Online-Konten müssen vorher verbunden sein.
+- **Eigenschaften … / Alt+Enter:** Eigenschaften einer einzelnen Datei oder eines Ordners im nativen KDE-Dialog. „Allgemein“ zeigt Typ, „Öffnen mit“ samt Änderung der Standard-App, Speicherort, Größe, belegten Speicher und verfügbare Zeitstempel. Ordner zeigen zusätzlich Dateisystem und Einhängepunkt; „Berechtigungen“ verwaltet Zugriff, Eigentümer und Gruppe entsprechend deinen Rechten. Nicht jeder Netzwerkdienst liefert alle Werte. Ein Rechtsklick auf freien Hintergrund öffnet die Eigenschaften des aktuellen Ordners, auch wenn noch eine Datei ausgewählt ist. Voraussetzung: `kde-cli-tools`, auch über die Lumen-Einrichtung „NAS und Netzwerkordner“ installierbar.
 - **Strg+H:** versteckte Dateien. **Ort merken** über das Lesezeichen-Symbol neben „Server verbinden“ ergänzt einen Favoriten. Rechtsklick auf einen gemerkten Ort entfernt ihn wieder. Die kompakte Seitenleiste zeigt bis zu zehn Orte auch bei 1000 × 640 Pixeln ohne Scrollen; lange Namen werden gekürzt, vollständige Pfade stehen im Tooltip.
 - Ziehen von Dateien kopiert sie in den Zielordner. Bestehende Ziele werden mit einer Fehlermeldung beibehalten.
 
@@ -651,7 +651,7 @@ The full task view remains available from the footer.
 ### Personality
 
 Settings → AI & Speech → Personality provides Guide (default), Professional,
-Companion, Sparring partner and Workshop partner. Expand Personalize for persona
+Companion, Sparring partner, Workshop partner and Kate. Expand Personalize for persona
 and user names, presentation, form of address, closeness, response length,
 directness, humor and initiative. The illustrative preview is local and makes no
 model call. Voice selection remains separate under Voice & Reading.
@@ -667,6 +667,12 @@ Initiative is bounded by the user's existing task authorization. Explicit task
 formats take precedence; structured file proposals and Translate bypass persona
 instructions. Names are length-limited, quoted labels, never instructions.
 Individual settings take precedence over the preset's default description.
+
+Kate adapts the source-defined Kate character: warm, direct, honest, with reasoned
+views and empathy without theatrics. It imports no private memories or user data,
+and keeps the configured assistant name and existing permissions. Desktop and
+Server share the same character text; provenance is in `lumen-server/docs/personas.md`.
+The default remains Guide. Restart an already running app to load the new preset.
 
 ### Personal learning
 

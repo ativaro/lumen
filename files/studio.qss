@@ -50,7 +50,7 @@ QTabBar#studioResultTabs::tab { color: palette(placeholder-text); background: tr
 QTabBar#studioResultTabs::tab { min-width: 0; border-radius: 0; }
 QTabBar#studioResultTabs::tab:selected { color: palette(link); border-bottom: 2px solid palette(highlight); }
 QLabel#studioResultCaption { color: palette(placeholder-text); font-size: 11px; background: transparent; }
-QFrame#studioPaper { background: palette(base); border: 1px solid palette(mid); border-radius: 4px; }
+QFrame#studioPaper { background: palette(base); border: none; border-radius: 0; }
 QLabel#studioPaperBrand { color: palette(link); font-size: 12px; font-weight: 700; background: transparent; border: none; }
 QLabel#studioPaperMeta { color: palette(placeholder-text); font-size: 9px; letter-spacing: 1px; background: transparent; border: none; }
 QTextBrowser#studioResult { color: palette(text); background: palette(base); border: none; padding: 0; }
@@ -66,7 +66,7 @@ QFrame#studioResultDock QPushButton { border: 1px solid palette(mid); border-rad
 QFrame#studioResultDock QPushButton#studioSave { background: palette(highlight); color: palette(highlighted-text); border-color: palette(highlight); font-weight: 600; }
 QFrame#studioResultDock QPushButton:disabled { color: palette(placeholder-text); border-color: palette(mid); background: palette(base); }
 QFrame#studioResultDock QPushButton#studioIcon { background: transparent; border: none; padding: 3px; }
-QPlainTextEdit#studioExecution { background: palette(window); color: palette(text); border: none; padding: 24px; font-size: 13px; }
+QTextBrowser#studioExecution { background: palette(window); color: palette(text); border: none; padding: 24px; font-size: 13px; }
 QWidget#taskOverview { background: palette(window); color: palette(text); }
 QFrame#taskOverviewHead { background: palette(window); border: none; border-bottom: 1px solid palette(mid); }
 QLabel#taskOverviewTitle { color: palette(text); font-size: 27px; font-weight: 500; background: transparent; }
@@ -103,3 +103,12 @@ QPushButton#studioNav:focus, QPushButton#studioIcon:focus, QPushButton#studioNew
 
 QWidget#studioSavedResults { background: palette(window); color: palette(text); }
 QTextBrowser#savedResultPreview { color: palette(text); background: palette(base); border: 1px solid palette(mid); border-radius: 8px; padding: 22px; }
+
+/* Panorama: visible workspaces and flat, equal work surfaces. */
+QFrame#studioWorkspaceBar { background: palette(base); border: none; border-bottom: 1px solid palette(mid); }
+QScrollArea#studioWorkspaceScroll, QWidget#studioWorkspaceList { background: transparent; border: none; }
+QPushButton#studioWorkspace { background: transparent; color: palette(text); border: 1px solid transparent; border-radius: 7px; padding: 10px 16px; text-align: left; font-size: 13px; }
+QPushButton#studioWorkspace:hover, QPushButton#studioWorkspace:checked { background: palette(midlight); border-color: palette(mid); }
+QPushButton#studioWorkspace:focus { border-color: palette(highlight); }
+QPushButton#studioNav:disabled, QPushButton#studioWorkspace:disabled { color: palette(placeholder-text); }
+QListWidget#studioRecent::item:focus { border: 1px solid palette(highlight); }

@@ -67,3 +67,18 @@ reported accurately. Do not enable action/privacy grants on the user's behalf.
 3. Apply/propose the smallest reversible fix; create a backup first.
 4. Verify the result.
 5. Offer to record the change in the project's changelog.
+
+## Reviewed note changes and connections
+
+For “what would happen?” previews, read shared notes first and use
+`lumen_notes_propose_edit` with the current hash as `revision`, the complete
+replacement text and a concise, evidence-based reason. For relationships, read
+source and targets and use `lumen_notes_propose_connections`. Discover IDs/paths
+with the existing note search; do not rely on language-specific keyword rules.
+These tools save proposals, not active edits. Direct the user to
+**Lumen → Vorschläge & Verlauf** for before/after, explanation and approval.
+Never use shell writes to bypass this review. A pending proposal is not applied.
+Links reference originals, never copy them or change their permissions.
+After conflicts or revoked access, read the current authorized source again.
+For “why”, cite recorded source/revision/status; a proposal reason is an
+explanation supplied by the assistant, not proof of an unrecorded event.

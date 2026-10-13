@@ -360,6 +360,8 @@ def files_menu(window,menu,paths,*,safety=None):
     payload=from_paths(paths)
     if all(Path(p).is_file() and Path(p).suffix.lower() in ('.pdf','.epub','.txt','.md','.html','.htm') for p in paths):
         def reader():
+            if len(paths) == 1 and hasattr(window, 'open_reader'):
+                window.open_reader(paths[0]); return
             for path in paths:launch('reader',[path],root_for(window))
         menu.addAction(tr('Mit Lumen Reader öffnen'),lambda:safe_action(window,reader))
     targets=menu.addMenu(tr('Weitere Aktionen'))
@@ -374,7 +376,7 @@ def files_menu(window,menu,paths,*,safety=None):
 
 
 def app_name(app):
-    return {'files':'Lumen Files','wissen':'Lumen Wissen','reader':'Lumen Reader','inbox':'Lumen Inbox',
+    return {'files':'Lumen Files','wissen':'Lumen Notes','reader':'Lumen Reader','inbox':'Lumen Inbox',
             'meetings':tr('Lumen Meeting-Werkstatt'),'household':tr('Lumen Digitaler Haushalt'),
             'workbench':tr('Lumen Projekte'),'radio':tr('Lumen Persönliches Radio'),
             'vault':'Lumen Vault','sound':'Lumen Sound','translate':'Lumen Translate'}.get(app,'Lumen')

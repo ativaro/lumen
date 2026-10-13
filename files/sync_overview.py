@@ -1,99 +1,124 @@
-"""One local overview of explicitly configured notebook, project and Drive sync."""
-
-import json
-import os
-from pathlib import Path
+"""Shared native settings page; the existing background helpers own all writes."""
+from sync_settings import snapshot
 from lumen_i18n import tr
 
 
-def snapshot():
-    from lumen_store import Store
-    from drive_sync import read
-
-    store = Store()
-    notes = [
-        json.loads(row["value"])
-        for row in store.rows("SELECT value FROM settings WHERE key LIKE 'knowledge/server-sync/%'")
-    ]
-    tools = Path(
-        os.environ.get(
-            "LUMEN_TOOLS_DATA",
-            Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "lumen-tools",
-        )
-    )
-    try:
-        projects = json.loads((tools / "workbench/server-sync.json").read_text())
-    except FileNotFoundError:
-        projects = {}
-    roots = read()["roots"]
-    return dict(
-        notes=dict(enabled=sum(bool(n.get("enabled")) for n in notes)),
-        projects=dict(
-            enabled=bool(projects.get("enabled")),
-            count=len(projects.get("projects", {})),
-            conflicts=len(projects.get("conflicts", {})),
-            last_sync=projects.get("last_sync"),
-        ),
-        drive=[
-            dict(
-                id=r["id"],
-                name=Path(r["path"]).name,
-                enabled=r["enabled"],
-                status=r.get("status", ""),
-                conflicts=len(r.get("conflicts", {})),
-                skipped=len(r.get("errors", [])),
-                last_sync=r.get("last_sync"),
-            )
-            for r in roots
-        ],
-    )
-
-
-def widget(parent):
-    from PySide6.QtCore import QTimer
-    from PySide6.QtWidgets import QWidget, QVBoxLayout
+def widget(parent, heading=True):
+    import json
+    import sys
+    from pathlib import Path
+    from PySide6.QtCore import QTimer, QProcess
+    from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QCheckBox, QFrame
     from tools_ui import label, button
+    from lumen_i18n import worker_process
     from lumen_apps import launch
 
     page = QWidget(parent)
+    page.setObjectName('syncSettings')
     layout = QVBoxLayout(page)
-    layout.addWidget(label(tr("Einmal verbinden, danach automatisch"), "heading"))
-    layout.addWidget(
-        label(
-            tr("Nur ausdrücklich ausgewählte Daten werden abgeglichen. Pausieren behält vorhandene Kopien.")
-        )
-    )
-    status = label("")
-    layout.addWidget(status)
+    layout.setContentsMargins(0, 8, 0, 8)
+    layout.setSpacing(12)
+    if heading: layout.addWidget(label(tr('Server & Synchronisation'), 'heading'))
+    server = label('', 'muted')
+    layout.addWidget(server)
+    layout.addWidget(label(tr('Einmal auswählen, automatisch aktuell. Pausieren behält deine Daten. KI-Zugriff wird separat freigegeben.')))
+    domains = [
+        ('notes', 'Notizen & Sammlungen', 'Dein ausgewähltes Notizbuch in beide Richtungen.', 'wissen'),
+        ('attachments', 'Bilder & Notizanhänge', 'Anhänge deines synchronisierten Notizbuchs.', 'wissen'),
+        ('memory', 'Persönliches Gedächtnis', 'Erinnerungen und Kategorien. Keine zusätzliche KI-Freigabe.', 'wissen'),
+        ('projects', 'Projekte', 'Eigene Projekte automatisch verbinden. Führt keine Aufgaben aus.', 'workbench'),
+        ('vault', 'Verschlüsselter Tresor', 'Auch geschlossen und gesperrt. Erste Zuordnung im Tresor einrichten.', 'vault'),
+        ('preferences', 'Persönliche Einstellungen', 'Sprache und Desktop-Design. Serverfassung wird übernommen; Änderungen gelten beim nächsten App-Start.', None),
+    ]
+    checks, statuses = {}, {}
+    process = worker_process(page)
+    page.process = process
+    message = label('', 'muted')
+    retry = button(tr('Jetzt abgleichen'), lambda: run(dict(action='sync',manual=True)), 'view-refresh')
 
     def refresh():
+        if process.state() != QProcess.ProcessState.NotRunning: return
         try:
             data = snapshot()
-            status.setText(
-                tr("Notizbücher: {0}", data["notes"]["enabled"])
-                + "\n"
-                + tr(
-                    "Projekte: {0} · Konflikte: {1}", data["projects"]["count"], data["projects"]["conflicts"]
-                )
-                + "\n"
-                + "\n".join(
-                    r["name"] + " · " + (r["status"] if r["enabled"] else tr("Pausiert"))
-                    for r in data["drive"]
-                )
-            )
-        except Exception as error:
-            status.setText(str(error))
+            server.setText(data['server'] or tr('Noch kein Server verbunden'))
+            for domain, check in checks.items():
+                row = data[domain]
+                check.blockSignals(True)
+                check.setChecked(bool(row.get('enabled')))
+                check.blockSignals(False)
+                detail = row['status']
+                if row.get('last_sync'):
+                    from datetime import datetime
+                    detail += ' · '+tr('Zuletzt {0}', datetime.fromtimestamp(row['last_sync']).strftime('%d.%m. %H:%M'))
+                statuses[domain].setText(detail)
+            roots = data['drive']
+            drive_check.blockSignals(True)
+            drive_check.setChecked(any(r['enabled'] for r in roots))
+            drive_check.setEnabled(bool(roots))
+            drive_check.blockSignals(False)
+            drive_status.setText(tr('{0} Ordner · {1} aktiv', len(roots), sum(bool(r['enabled']) for r in roots)))
+        except Exception:
+            message.setText(tr('Abgleichstatus konnte nicht geladen werden.'))
 
-    layout.addWidget(button(tr("Notizen einrichten"), lambda: launch("wissen"), "accessories-text-editor"))
-    layout.addWidget(button(tr("Projekte einrichten"), lambda: launch("workbench"), "folder-development"))
+    def run(request):
+        if process.state() != QProcess.ProcessState.NotRunning: return
+        message.setText(tr('Abgleich wird geprüft …'))
+        for check in checks.values(): check.setEnabled(False)
+        retry.setEnabled(False)
+        drive_check.setEnabled(False)
+        process.start(sys.executable, [str(Path(__file__).with_name('sync_settings.py'))])
+        process.write(json.dumps(request).encode())
+        process.closeWriteChannel()
 
+    def finished(code, _status):
+        for check in checks.values(): check.setEnabled(True)
+        retry.setEnabled(True)
+        raw = bytes(process.readAllStandardOutput())
+        process.readAllStandardError()
+        try: result = json.loads(raw)
+        except ValueError: result = {}
+        problem = code != 0 or any(isinstance(value, dict) and value.get('error') for value in result.values())
+        message.setText(tr('Abgleich braucht Aufmerksamkeit. Verbindung und Bereich prüfen; Tresor zuerst zuordnen.') if problem else tr('Einstellungen übernommen. Der Hintergrundabgleich läuft für aktive Bereiche.'))
+        refresh()
+    process.finished.connect(finished)
+    process.errorOccurred.connect(lambda error: finished(-1, None) if error == QProcess.ProcessError.FailedToStart else None)
+
+    for domain, title, description, application in domains:
+        card = QFrame(page)
+        card.setObjectName('syncCard')
+        card.setStyleSheet('QFrame#syncCard { border: 1px solid palette(mid); border-radius: 10px; }')
+        body = QVBoxLayout(card)
+        body.setContentsMargins(14, 10, 14, 10)
+        top = QHBoxLayout()
+        check = QCheckBox(tr(title).replace("&", "&&"))
+        check.setAccessibleName(tr(title))
+        check.toggled.connect(lambda enabled, key=domain: run(dict(action='configure', domain=key, enabled=enabled)))
+        top.addWidget(check, 1)
+        if domain == 'preferences':
+            top.addWidget(button(tr('Serverfassung übernehmen'), lambda: run(dict(action='configure',domain='preferences',enabled=True))))
+        if application:
+            top.addWidget(button(tr('Einrichten / prüfen') if domain == 'vault' else tr('Öffnen'),
+                                 lambda _=False, app=application: launch(app)))
+        body.addLayout(top)
+        body.addWidget(label(tr(description), 'muted'))
+        status = label('', 'muted')
+        body.addWidget(status)
+        checks[domain], statuses[domain] = check, status
+        layout.addWidget(card)
+
+    drive_row = QHBoxLayout()
+    drive_check = QCheckBox(tr('Ausgewählte Drive-Ordner'))
+    drive_check.toggled.connect(lambda enabled: run(dict(action='configure', domain='drive', enabled=enabled)))
+    layout.addWidget(drive_check)
+    drive_status = label('')
+    drive_row.addWidget(drive_status, 1)
     def drive():
         from drive_ui import show
-
         show(page)
-
-    layout.addWidget(button(tr("Drive-Ordner einrichten"), drive, "folder-cloud"))
-    layout.addStretch()
+    drive_row.addWidget(button(tr('Drive-Ordner auswählen'), drive, 'folder-cloud'))
+    layout.addLayout(drive_row)
+    layout.addWidget(retry)
+    layout.addWidget(message)
     page.timer = QTimer(page)
     page.timer.setInterval(5000)
     page.timer.timeout.connect(refresh)

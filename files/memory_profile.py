@@ -14,7 +14,7 @@ class MemoryProfile(QScrollArea):
         self.setWidgetResizable(True); self.setFrameShape(QScrollArea.NoFrame)
         body=QWidget(); self.setWidget(body)
         root=QVBoxLayout(body); root.setContentsMargins(28,22,28,18); root.setSpacing(14)
-        root.addWidget(label(tr('Über dich'),'heading'))
+        root.addWidget(label(tr('Was Lumen über dich weiß'),'heading'))
         root.addWidget(label(tr('Was du Lumen über deine Vorlieben und Arbeitsweise mitgeteilt hast. Öffne einen Eintrag, um ihn zu korrigieren oder vergessen zu lassen.'),'muted'))
         root.addWidget(controls)
         self.entries=QVBoxLayout(); self.entries.setSpacing(10); root.addLayout(self.entries)

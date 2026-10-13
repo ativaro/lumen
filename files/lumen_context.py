@@ -40,6 +40,10 @@ class ContextTools(QObject):
         if paths: self.panel.paths = list(dict.fromkeys(self.panel.paths + paths)); self.panel.update_context()
 
     def companion(self):
+        host = self.panel.window()
+        if hasattr(host, 'companion_page'):
+            host.show_page(11)
+            return
         from lumen_apps import launch
         try: launch('companion')
         except (OSError, ValueError) as error: self.panel.show_error(str(error))

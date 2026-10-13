@@ -11,8 +11,13 @@ from lumen_memory import Memory
 from wissen_sync import remote_text
 
 
+def connection_scope(config):
+    from sync_identity import scope as stable_scope
+    return stable_scope(config, ['memory'], connector.connection_scope(config))
+
+
 def binding(store, config, user):
-    connection=connector.connection_scope(config)
+    connection=connection_scope(config)
     account=str(UUID(user['id']));workspace=str(UUID(user['workspace_id']))
     scope=hashlib.sha256(json.dumps([connection,account,workspace,str(Memory(store).namespace)]).encode()).hexdigest()
     return dict(connection=connection,scope=scope,user_id=account,workspace_id=workspace)
@@ -28,7 +33,7 @@ def info(store):
         state=store.setting(key(choice),{})
         result.update(conflicts=len(state.get('conflicts',{})),last_sync=state.get('last_sync',0))
     try:
-        config=connector.read_config();result.update(server=config['server'],connection=connector.connection_scope(config))
+        config=connector.read_config();result.update(server=config['server'],connection=connection_scope(config))
         result['enabled']=result['enabled'] and choice.get('connection')==result['connection']
         user=connector.request(config,'/bridge/me')
         result.update(reachable=True,user=user.get('name',''),allowed='memory_sync' in user.get('capabilities',[]) and 'memory_sync_v1' in user.get('sync_features',[]))
@@ -44,14 +49,14 @@ def configure(store, enabled, expected):
             store.set_setting('memory/sync-choice',choice)
         return dict(enabled=False)
     config=connector.read_config()
-    if connector.connection_scope(config)!=expected:raise ValueError(tr('Die Serververbindung wurde geändert.'))
+    if connection_scope(config)!=expected:raise ValueError(tr('Die Serververbindung wurde geändert.'))
     user=connector.request(config,'/bridge/me')
     if 'memory_sync' not in user.get('capabilities',[]) or 'memory_sync_v1' not in user.get('sync_features',[]):
         raise ValueError(tr('Auf dem Server zuerst „Persönliches Gedächtnis synchronisieren“ freigeben.'))
     choice=binding(store,config,user)
     memory.migrate(False)
     with memory.book.lock('memory-sync.lock'):
-        if connector.connection_scope(connector.read_config())!=choice['connection']:
+        if connection_scope(connector.read_config())!=choice['connection']:
             raise ValueError(tr('Die Serververbindung wurde geändert.'))
         store.set_setting('memory/sync-choice',dict(choice,enabled=True))
         with memory.book.lock('memory-state.lock'):
@@ -115,7 +120,7 @@ def synchronize(store):
                     if meta.get('sync_remote') and meta.get('sync_connection')==choice['connection']:meta['sync_blocked']=True
                 store.set_setting('memory/records',records);memory.changed(True)
         def request(path,body=None):
-            if connector.connection_scope(connector.read_config())!=choice['connection']:
+            if connection_scope(connector.read_config())!=choice['connection']:
                 raise ValueError(tr('Die Serververbindung wurde geändert.'))
             try:result=connector.request(config,path,body)
             except HTTPError as error:
@@ -124,7 +129,7 @@ def synchronize(store):
                     block_remote()
                     raise ValueError(tr('Der Serverstand wurde zurückgesetzt. In den Abgleicheinstellungen „Vollständig vergleichen“ wählen.')) from None
                 raise
-            if connector.connection_scope(connector.read_config())!=choice['connection']:
+            if connection_scope(connector.read_config())!=choice['connection']:
                 raise ValueError(tr('Die Serververbindung wurde geändert.'))
             return result
         user=request('/bridge/me')
@@ -263,7 +268,7 @@ def rescan(store):
     memory=Memory(store)
     with memory.book.lock('memory-sync.lock'),memory.book.lock('memory-state.lock'):
         choice=store.setting('memory/sync-choice',{})
-        if not choice.get('enabled') or connector.connection_scope(connector.read_config())!=choice.get('connection'):
+        if not choice.get('enabled') or connection_scope(connector.read_config())!=choice.get('connection'):
             raise ValueError(tr('Die Serververbindung wurde geändert.'))
         state=store.setting(key(choice),dict(refs={},pending={},conflicts={},cursor=0))
         state.update(cursor=0,full_scan={});store.set_setting(key(choice),state)
@@ -273,7 +278,7 @@ def rescan(store):
 def conflicts(store, identity=None):
     choice=store.setting('memory/sync-choice',{})
     if not choice.get('scope'):return []
-    if connector.connection_scope(connector.read_config())!=choice['connection']:return []
+    if connection_scope(connector.read_config())!=choice['connection']:return []
     state=store.setting(key(choice),{});notes={n['id']:n for n in Memory(store).scan()['notes']}
     entries=state.get('conflicts',{})
     if identity:
@@ -286,7 +291,7 @@ def resolve(store, identity, use_server, expected_revision, expected_hash):
     memory=Memory(store)
     with memory.book.lock('memory-sync.lock'),memory.book.lock('memory-state.lock'):
         choice=store.setting('memory/sync-choice',{})
-        if connector.connection_scope(connector.read_config())!=choice.get('connection'):
+        if connection_scope(connector.read_config())!=choice.get('connection'):
             raise ValueError(tr('Die Serververbindung wurde geändert.'))
         state=store.setting(key(choice),{})
         if identity in state.get('pending',{}):raise ValueError(tr('Eine Änderung wartet noch auf Bestätigung. Zuerst erneut abgleichen.'))

@@ -115,7 +115,7 @@ def build_task_page(w):
     actions.addStretch(); controls.addLayout(actions)
     w.task_outputs = QWidget(); outputs = QHBoxLayout(w.task_outputs); outputs.setContentsMargins(0, 0, 0, 0)
     w.task_save = QPushButton(tr('Speichern')); menu = QMenu(w.task_save)
-    menu.addAction(tr('Als Datei speichern …'), w.guarded(w.export_task)); menu.addAction(tr('Ins Wissen speichern'), w.guarded(w.task_to_knowledge))
+    menu.addAction(tr('Als Datei speichern …'), w.guarded(w.export_task)); menu.addAction(tr('In Lumen Notes speichern'), w.guarded(w.task_to_knowledge))
     w.task_save.setMenu(menu); outputs.addWidget(w.task_save)
     w.task_reuse = QPushButton(tr('Verwenden')); menu = QMenu(w.task_reuse)
     menu.addAction(tr('Als Dateiaktion'), w.guarded(w.task_to_file_action)); menu.addAction(tr('Als Ablauf speichern'), w.guarded(w.task_to_flow))
@@ -134,5 +134,6 @@ def build_task_page(w):
     extra.setMenu(menu); links.addWidget(extra); outputs.addStretch(); controls.addWidget(w.task_outputs); details.addWidget(footer)
     w.task_inspector = inspector; w.task_split.addWidget(inspector); w.task_split.setStretchFactor(0, 1); w.task_split.setStretchFactor(1, 0)
     w.task_split.setSizes([800, 342]); root.addWidget(w.task_split, 1)
-    w.tasks.currentItemChanged.connect(w.show_task); w.window.chat.backend.busyChanged.connect(w.show_task)
+    w.tasks.currentItemChanged.connect(w.show_task)
+    if hasattr(w.window, 'chat'): w.window.chat.backend.busyChanged.connect(w.show_task)
     return page

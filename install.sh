@@ -117,7 +117,7 @@ for plugin in agent islands system search control; do
     [ "$plugin" = agent ] || METADATA="$plugin-metadata.json"
     install -m 0644 "$REPO/plasmoid/$METADATA" "$APPLET/metadata.json"
     install -m 0644 "$REPO/LICENSE" "$APPLET/LICENSE"
-    install -m 0644 "$REPO/plasmoid/contents/ui/"*.qml "$REPO/plasmoid/contents/ui/"*.js "$APPLET/contents/ui/"
+    install -m 0644 "$REPO/plasmoid/contents/ui/"*.qml "$REPO/plasmoid/contents/ui/"*.js "$REPO/plasmoid/contents/ui/lumen-halo.png" "$REPO/plasmoid/contents/ui/"*.svg "$APPLET/contents/ui/"
     install -m 0644 "$REPO/plasmoid/contents/config/"* "$APPLET/contents/config/"
     case "$plugin" in system) SURFACE=home;; search|control) SURFACE="$plugin";; *) SURFACE=tasks;; esac
     sed -i "s|<default>tasks</default>|<default>$SURFACE</default>|" "$APPLET/contents/config/main.xml"
@@ -146,11 +146,7 @@ mkdir -p "$DATA_HOME/applications" "$DATA_HOME/kio/servicemenus" \
          "$CONFIG_HOME/autostart"
 
 # icon
-install -m 0644 "$REPO/icons/hicolor/scalable/apps/lumen.svg" "$DATA_HOME/icons/hicolor/scalable/apps/lumen.svg"
-install -m 0644 "$REPO/icons/hicolor/scalable/apps/lumen-files.svg" "$DATA_HOME/icons/hicolor/scalable/apps/lumen-files.svg"
-for tool in meetings household workbench radio vault inbox reader sound wissen translate system; do
-    install -m 0644 "$REPO/icons/hicolor/scalable/apps/lumen-$tool.svg" "$DATA_HOME/icons/hicolor/scalable/apps/"
-done
+install -m 0644 "$REPO/icons/hicolor/scalable/apps/"*.svg "$DATA_HOME/icons/hicolor/scalable/apps/"
 
 subst "$REPO/data/kio-servicemenus/lumen.desktop" > "$DATA_HOME/kio/servicemenus/lumen.desktop"
 subst "$REPO/data/applications/lumen.desktop" > "$DATA_HOME/applications/lumen.desktop"
@@ -208,7 +204,7 @@ fi
 mkdir -p "$PREFIX/shell" "$PREFIX/opencode-command" "$PREFIX/opencode-skill/lumen-admin"
 cp "$REPO/shell/"* "$PREFIX/shell/"
 cp "$REPO/opencode-command/"*.md "$PREFIX/opencode-command/"
-for skill in lumen-admin lumen-projects; do
+for skill in lumen-admin lumen-projects lumen-service-access; do
     mkdir -p "$PREFIX/opencode-skill/$skill"
     cp "$REPO/opencode-skill/$skill/SKILL.md" "$PREFIX/opencode-skill/$skill/"
 done

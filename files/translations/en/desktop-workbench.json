@@ -40,7 +40,7 @@
   "Auf diesem Desktop": "On this desktop",
   "Aufträge finden": "Find tasks",
   "Aus Übersicht entfernen": "Remove from overview",
-  "Dein Arbeitsraum": "Your workspace",
+  "Dein Projekt": "Your project",
   "Deine Ergebnisse.": "Your results.",
   "Deine Gespräche arbeiten weiter. Hier behältst du den Überblick.": "Your conversations keep working. Keep track of them here.",
   "Details und weitere Aktionen": "Details and more actions",
@@ -63,5 +63,6 @@
   "Gespeicherte Ergebnisse": "Saved results",
   "Gespeichertes Ergebnis": "Saved result",
   "Keine Ergebnisse für diese Suche.": "No results match this search.",
-  "Wähle ein Ergebnis": "Select a result"
+  "Wähle ein Ergebnis": "Select a result",
+  "In Lumen Notes speichern": "Save in Lumen Notes"
 }

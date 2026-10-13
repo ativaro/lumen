@@ -6,6 +6,7 @@
 class VaultTest : public QObject {
   Q_OBJECT
   QTemporaryDir config;
+  QUrl passkeyUrl;
   static QStringList history() {
     QDBusInterface k("org.kde.klipper", "/klipper", "org.kde.klipper.klipper");
     QDBusPendingCallWatcher watcher(k.asyncCall("getClipboardHistoryMenu"));
@@ -27,6 +28,151 @@ private slots:
                        config.path());
     QSettings settings("Lumen", "Assistant");
     settings.setValue("uiLanguage", "de");
+  }
+  void requestedUnlockIsSeparateFromUseAndCanBeCancelled() {
+    QTemporaryDir root, runtime;
+    VaultWindow window(root.path()); window.show();
+    auto *master = window.findChild<QLineEdit *>("master");
+    master->setText("SYNTHETIC REQUEST UNLOCK MASTER");
+    window.findChild<QLineEdit *>("confirm")->setText(master->text());
+    QTest::keyClick(master, Qt::Key_Return);
+    QTRY_VERIFY_WITH_TIMEOUT(window.unlocked(), 10000);
+    QTRY_VERIFY(!window.findChild<Channel *>()->busy());
+    window.lock(); QVERIFY(!window.unlocked());
+    QVERIFY(window.startAccessServer(runtime.path()));
+    QLocalSocket socket;
+    socket.connectToServer(runtime.path()+"/lumen-vault-access"); QVERIFY(socket.waitForConnected());
+    socket.write("{\"operation\":\"unlock\"}\n"); socket.flush();
+    QTRY_VERIFY(window.findChild<QDialog *>("vaultUnlockRequest"));
+    window.findChild<QDialog *>("vaultUnlockRequest")->reject();
+    QTRY_VERIFY(socket.bytesAvailable());
+    QVERIFY(socket.readAll().contains("access_denied")); QVERIFY(!window.unlocked());
+    socket.abort(); QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    socket.connectToServer(runtime.path()+"/lumen-vault-access"); QVERIFY(socket.waitForConnected());
+    socket.write("{\"operation\":\"unlock\"}\n"); socket.flush();
+    QTRY_VERIFY(window.findChild<QLineEdit *>("requestMaster"));
+    window.findChild<QLineEdit *>("requestMaster")->setText("WRONG SYNTHETIC PASSWORD");
+    window.findChild<QPushButton *>("requestUnlock")->click();
+    QTRY_VERIFY_WITH_TIMEOUT(!window.findChild<QLabel *>("requestUnlockError")->text().isEmpty(), 10000);
+    QVERIFY(!window.unlocked()); QVERIFY(!socket.bytesAvailable());
+    window.findChild<QLineEdit *>("requestMaster")->setText("SYNTHETIC REQUEST UNLOCK MASTER");
+    window.findChild<QPushButton *>("requestUnlock")->click();
+    QTRY_VERIFY_WITH_TIMEOUT(socket.bytesAvailable(), 10000);
+    const auto result=QJsonDocument::fromJson(socket.readAll()).object();
+    QCOMPARE(result["unlocked"].toBool(), true); QVERIFY(window.unlocked());
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(!window.findChild<QDialog *>("vaultUnlockRequest"));
+    // A separate credential action still sees no enabled connection in this vault.
+    socket.abort(); socket.connectToServer(runtime.path()+"/lumen-vault-access"); QVERIFY(socket.waitForConnected());
+    socket.write("{\"operation\":\"api_get\",\"path\":\"/status\"}\n"); socket.flush();
+    QTRY_VERIFY(socket.bytesAvailable()); QVERIFY(socket.readAll().contains("open_vault_and_enable_connection"));
+  }
+  void capturePasskeyUrl(const QUrl &url) { passkeyUrl = url; }
+  void passkeyNativeEnrollmentAndUnlock() {
+    QTemporaryDir root;
+    QDesktopServices::setUrlHandler("http", this, "capturePasskeyUrl");
+    auto handler = qScopeGuard([] { QDesktopServices::unsetUrlHandler("http"); });
+    VaultWindow window(root.path()); window.show();
+    auto *master = window.findChild<QLineEdit *>("master");
+    master->setText("SYNTHETIC PASSKEY UI MASTER");
+    window.findChild<QLineEdit *>("confirm")->setText(master->text());
+    QTest::keyClick(master, Qt::Key_Return);
+    QTRY_VERIFY_WITH_TIMEOUT(window.unlocked(), 10000);
+    QTRY_VERIFY(!window.findChild<Channel *>()->busy());
+    QTimer::singleShot(0, &window, [] {
+      auto *menu = qobject_cast<QMenu *>(QApplication::activePopupWidget());
+      if (!menu) return;
+      for (auto *action : menu->actions())
+        if (action->text() == "Proton Pass / Passkey einrichten…") { menu->close(); action->trigger(); return; }
+    });
+    window.findChild<QPushButton *>("settings")->click();
+    auto *password = window.findChild<QLineEdit *>("passkeyMaster");
+    QVERIFY(password); password->setText("SYNTHETIC PASSKEY UI MASTER");
+    window.findChild<QPushButton *>("passkeyStart")->click();
+    QVERIFY(!passkeyUrl.isEmpty());
+    auto complete = [this](const QString &key) {
+      const auto enc = [](const QByteArray &v) { return QString::fromLatin1(v.toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals)); };
+      QNetworkAccessManager network;
+      const auto token = passkeyUrl.fragment().toLatin1();
+      auto url = passkeyUrl; url.setFragment({}); url.setPath("/config");
+      QNetworkRequest request(url); request.setRawHeader("X-Lumen-Token", token);
+      auto *reply = network.get(request);
+      QTRY_VERIFY(reply->isFinished());
+      QCOMPARE(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt(), 200);
+      auto config = QJsonDocument::fromJson(reply->readAll()).object(); delete reply;
+      const auto origin = url.adjusted(QUrl::RemovePath).toString();
+      QJsonObject client{{"type", "webauthn.get"}, {"challenge", config["challenge"]}, {"origin", origin}};
+      auto auth = QCryptographicHash::hash("localhost", QCryptographicHash::Sha256) + QByteArray(1, char(5)) + QByteArray(4, 0);
+      QJsonObject response{{"key",key},{"credential","synthetic-credential"},{"clientData",enc(QJsonDocument(client).toJson())},{"authData",enc(auth)}};
+      url.setPath("/complete"); request.setUrl(url); request.setRawHeader("Origin",origin.toLatin1());
+      request.setHeader(QNetworkRequest::ContentTypeHeader,"application/json");
+      reply = network.post(request,QJsonDocument(response).toJson());
+      QTRY_VERIFY(reply->isFinished());
+      QCOMPARE(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt(),200); delete reply;
+    };
+    complete(QString(64,'a'));
+    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(root.path()+"/passkey/browser.json"),10000);
+    QVERIFY(window.unlocked());
+    window.lock();
+    QTRY_VERIFY(!window.findChild<QLineEdit *>("passkeyMaster"));
+    auto *quick = window.findChild<QPushButton *>("passkeyUnlock"); QVERIFY(quick); quick->click();
+    window.findChild<QPushButton *>("passkeyStart")->click();
+    complete(QString(64,'a'));
+    QTRY_VERIFY_WITH_TIMEOUT(window.unlocked(),10000);
+    QTRY_VERIFY(!window.findChild<Channel *>()->busy());
+    window.lock();
+    QTRY_VERIFY(!window.findChild<QLineEdit *>("passkeyMaster"));
+    quick = window.findChild<QPushButton *>("passkeyUnlock"); QVERIFY(quick); quick->click();
+    window.findChild<QPushButton *>("passkeyStart")->click();
+    complete(QString(64,'b'));
+    QTRY_VERIFY_WITH_TIMEOUT(!window.findChild<QLineEdit *>("passkeyMaster"),10000);
+    QVERIFY(!window.unlocked());
+    QVERIFY(window.findChild<QLineEdit *>("master"));
+  }
+  void sessionComfortClosesWithoutLockingAndKeepsBrokerAlive() {
+    QTemporaryDir root;
+    QSettings("Lumen", "Vault").setValue("idleMinutes", -1);
+    VaultWindow window(root.path()); window.show();
+    auto *idle = window.findChild<QTimer *>("vaultIdleTimer");
+    auto *keepalive = window.findChild<QTimer *>("vaultKeepaliveTimer");
+    QVERIFY(idle && keepalive);
+    QCOMPARE(idle->interval(), 900000);
+    auto *master = window.findChild<QLineEdit *>("master");
+    master->setText("SYNTHETIC COMFORT MASTER");
+    window.findChild<QLineEdit *>("confirm")->setText(master->text());
+    QTest::keyClick(master, Qt::Key_Return);
+    QTRY_VERIFY_WITH_TIMEOUT(window.unlocked(), 10000);
+    auto *channel = window.findChild<Channel *>();
+    QTRY_VERIFY(!channel->busy());
+    auto *selector = window.findChild<QComboBox *>("vaultAutoLock");
+    QVERIFY(selector); QCOMPARE(selector->currentData().toInt(), 15);
+    selector->setCurrentIndex(selector->findData(30));
+    QCOMPARE(idle->interval(), 1800000);
+    QCOMPARE(QSettings("Lumen", "Vault").value("idleMinutes").toInt(), 30);
+    window.copySecret("SYNTHETIC CLIPBOARD");
+    window.close();
+    QVERIFY(!window.isVisible()); QVERIFY(window.unlocked());
+    QVERIFY(QApplication::clipboard()->text().isEmpty());
+    window.show(); QVERIFY(window.unlocked());
+    idle->start(1000);
+    const auto remaining = idle->remainingTime();
+    QTest::qWait(60);
+    QVERIFY(QMetaObject::invokeMethod(keepalive, "timeout", Qt::DirectConnection));
+    QTRY_VERIFY(!channel->busy());
+    QVERIFY(window.unlocked());
+    QVERIFY(idle->remainingTime() < remaining);
+    // Programmatically sent input and background work must not prolong access.
+    QKeyEvent injected(QEvent::KeyPress, Qt::Key_A, Qt::NoModifier);
+    QApplication::sendEvent(&window, &injected);
+    QVERIFY(idle->remainingTime() < remaining);
+    window.close();
+    QSignalSpy retired(&window, &VaultWindow::retire);
+    QTRY_VERIFY_WITH_TIMEOUT(!window.unlocked(), 2500);
+    QCOMPARE(retired.count(), 1);
+    QVERIFY(!window.isVisible()); QVERIFY(!keepalive->isActive());
+    QSignalSpy quit(&window, &VaultWindow::quitRequested);
+    window.close(); QCOMPARE(quit.count(), 1);
+    QSettings("Lumen", "Vault").remove("idleMinutes");
   }
   void vaultServerSyncStartsAsExplicitNativeDialog() {
     QTemporaryDir root, isolatedConfig, runtime;
@@ -161,6 +307,14 @@ else:
     QTRY_VERIFY(automatic->isEnabled());
     QVERIFY(!publish->isVisible());
     QVERIFY(active.open(QIODevice::ReadOnly)); QCOMPARE(active.readAll(), before);
+    // Closing sync must release the editor guard before another native form opens.
+    QPointer<QDialog> closing = qobject_cast<QDialog *>(publish->window());
+    QVERIFY(closing); closing->close();
+    QTRY_VERIFY(!closing);
+    QTRY_VERIFY(!channel->busy());
+    QVERIFY(window.findChild<QPushButton *>("new"));
+    window.findChild<QPushButton *>("new")->click();
+    QTRY_VERIFY(window.findChild<QPushButton *>("save"));
     window.lock();
   }
   void recoveryKeyCannotFollowAliasesIntoRepository() {
@@ -289,121 +443,84 @@ else:
     QTest::newRow("local") << false;
     QTest::newRow("server") << true;
   }
-  void backupsTabsKeepOneWindowAndSelection() {
+  void backupsRouteLeavesVaultPrivate() {
     QTemporaryDir root;
-    const auto oldRuntime = qgetenv("XDG_RUNTIME_DIR");
-    const auto oldTools = qgetenv("LUMEN_TOOLS_DATA");
-    auto restore = qScopeGuard([=] {
-      qputenv("XDG_RUNTIME_DIR", oldRuntime);
-      qputenv("LUMEN_TOOLS_DATA", oldTools);
-    });
-    qputenv("XDG_RUNTIME_DIR", root.path().toUtf8());
-    qputenv("LUMEN_TOOLS_DATA", root.path().toUtf8());
-    const auto endpoint = root.path() + "/lumen-backups-" +
-                          QCryptographicHash::hash(root.path().toUtf8(),
-                                                   QCryptographicHash::Sha256)
-                              .toHex()
-                              .left(16);
-    QLocalServer service;
-    QVERIFY(service.listen(endpoint));
-    int requests = 0;
-    connect(&service, &QLocalServer::newConnection, &service, [&] {
-      auto *peer = service.nextPendingConnection();
-      connect(peer, &QLocalSocket::readyRead, &service, [&, peer] {
-        if (!peer->canReadLine())
-          return;
-        const auto request = QJsonDocument::fromJson(peer->readLine()).object();
-        ++requests;
-        QJsonObject reply{{"state", "idle"}};
-        if (request["command"] == "start")
-          reply = {{"state", "done"},
-                   {"op", "list"},
-                   {"result",
-                    QJsonArray{QJsonObject{
-                        {"id", "synthetic"},
-                        {"title", "Meine Sicherung"},
-                        {"repository", "/media/Backup"},
-                        {"sources", QJsonArray{"/home/example/Documents"}}}}}};
-        peer->write(QJsonDocument(reply).toJson(QJsonDocument::Compact) + '\n');
-        peer->disconnectFromServer();
-      });
-      connect(peer, &QLocalSocket::disconnected, peer, &QObject::deleteLater);
-    });
-    QTemporaryDir store;
-    VaultWindow window(store.path());
+    VaultWindow window(root.path());
+    QSignalSpy requests(&window, &VaultWindow::backupsRequested);
     window.show();
-    const auto wid = window.winId();
     auto *master = window.findChild<QLineEdit *>("master");
+    QVERIFY(master);
     master->setText("SYNTHETIC UNSENT");
-    auto *tabs = window.findChild<QTabBar *>("vaultSections");
-    QTest::qWait(10);
-    const auto tabPosition = tabs->mapTo(&window, QPoint());
-    const auto windowSize = window.size();
-    if (qEnvironmentVariableIsSet("LUMEN_VAULT_CAPTURE"))
-      window.grab().save("/tmp/lumen-vault-tabs-locked.png");
-    QTest::mouseClick(tabs, Qt::LeftButton, Qt::NoModifier,
-                      tabs->tabRect(1).center());
-    auto *page = window.findChild<BackupPage *>();
-    QVERIFY(page);
-    QTRY_COMPARE(page->findChild<QListWidget *>("backupPlans")->count(), 1);
-    auto *plans = page->findChild<QListWidget *>("backupPlans");
-    plans->setCurrentRow(0);
-    const auto count = requests;
+    window.copySecret("SYNTHETIC CLIPBOARD");
     for (int i = 0; i < 3; ++i) {
-      QCOMPARE(window.findChildren<QTabBar *>("vaultSections").size(), 1);
-      QCOMPARE(tabs->mapTo(&window, QPoint()), tabPosition);
-      QCOMPARE(window.size(), windowSize);
-      QTest::mouseClick(tabs, Qt::LeftButton, Qt::NoModifier,
-                        tabs->tabRect(0).center());
+      window.showSection(1);
       QCOMPARE(window.section(), 0);
+      QCOMPARE(requests.size(), i + 1);
+      QCOMPARE(requests.last().size(), 0); // No secret or backup key forwarded.
       QCOMPARE(master->text(), QString("SYNTHETIC UNSENT"));
-      QTest::mouseClick(tabs, Qt::LeftButton, Qt::NoModifier,
-                        tabs->tabRect(1).center());
-      QCOMPARE(window.section(), 1);
-      QCOMPARE(window.winId(), wid);
-      QCOMPARE(plans->currentRow(), 0);
-      QCOMPARE(requests, count);
-      QCOMPARE(page->window(), static_cast<QWidget *>(&window));
+      QVERIFY(QApplication::clipboard()->text().isEmpty());
+      QVERIFY(window.findChildren<BackupPage *>().isEmpty());
+      QVERIFY(window.findChildren<QTabBar *>("vaultSections").isEmpty());
+      QVERIFY(!window.unlocked());
+      window.showSection(0);
     }
-    if (qEnvironmentVariableIsSet("LUMEN_VAULT_CAPTURE")) {
-      QTest::qWait(100);
-      window.grab().save("/tmp/lumen-vault-tabs.png");
-    }
-    window.showSection(0);
     window.findChild<QLineEdit *>("confirm")->setText(master->text());
     QTest::keyClick(master, Qt::Key_Return);
     QTRY_VERIFY_WITH_TIMEOUT(window.unlocked(), 10000);
-    auto *lockButton = window.findChild<QPushButton *>("lock");
-    QVERIFY(lockButton->isEnabled());
-    for (const auto size : {QSize(1510, 926), QSize(1080, 720)}) {
-      window.resize(size);
-      QTest::qWait(10);
-      const auto position = tabs->mapTo(&window, QPoint());
-      const auto lockPosition = lockButton->mapTo(&window, QPoint());
-      const auto headerSize = window.findChild<QFrame *>("vaultHeader")->size();
-      QCOMPARE(window.size(), size);
-      for (auto *label : lockButton->findChildren<QLabel *>())
-        QVERIFY(label->width() >= label->fontMetrics().horizontalAdvance(label->text()));
-      for (int index : {1, 0, 1, 0}) {
-        QTest::mouseClick(tabs, Qt::LeftButton, Qt::NoModifier,
-                          tabs->tabRect(index).center());
-        QTest::qWait(10);
-        QCOMPARE(window.section(), index);
-        QCOMPARE(tabs->mapTo(&window, QPoint()), position);
-        QCOMPARE(lockButton->mapTo(&window, QPoint()), lockPosition);
-        QCOMPARE(window.findChild<QFrame *>("vaultHeader")->size(), headerSize);
-        QCOMPARE(window.size(), size);
-        QVERIFY(lockButton->isVisible());
-        QVERIFY(window.unlocked());
-        if (qEnvironmentVariableIsSet("LUMEN_VAULT_CAPTURE"))
-          window.grab().save(QString("/tmp/lumen-vault-switch-%1-%2.png").arg(size.width()).arg(index));
-      }
-    }
     window.showSection(1);
+    QVERIFY(window.unlocked());
     window.lock();
-    QVERIFY(!lockButton->isEnabled());
-    QCOMPARE(window.section(), 1);
-    QCOMPARE(page, window.findChild<BackupPage *>());
+    QVERIFY(!window.unlocked());
+  }
+  void catalogueSurvivesLockWithoutGrantingSecretUse() {
+    QTemporaryDir root;
+    Channel seed(root.path());
+    bool ready=false;
+    seed.call({"create","SYNTHETIC CATALOGUE MASTER"},[&](QStringList){ready=true;});
+    QTRY_VERIFY_WITH_TIMEOUT(ready,10000);
+    ready=false;
+    seed.call({"put","","Title","Example API","LumenType","token","URL","https://api.example/path?private=hidden",
+      "UserName","PRIVATE USER","Password","PRIVATE SECRET","Notes","PRIVATE NOTE"},[&](QStringList){ready=true;});
+    QTRY_VERIFY_WITH_TIMEOUT(ready,10000);
+    ready=false;
+    seed.call({"connections","0"},[&](QStringList fields){QCOMPARE(fields.size(),2);ready=true;});
+    QTRY_VERIFY(ready);
+    seed.stop();
+    VaultWindow window(root.path());window.show();
+    auto *master=window.findChild<QLineEdit *>("master");
+    master->setText("SYNTHETIC CATALOGUE MASTER");QTest::keyClick(master,Qt::Key_Return);
+    QTRY_VERIFY_WITH_TIMEOUT(window.unlocked(),10000);
+    const auto path=root.path()+"/assistant-catalogue.json";
+    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(path),10000);
+    QFile file(path);QVERIFY(file.open(QIODevice::ReadOnly));
+    const auto bytes=file.readAll();file.close();
+    for (const auto *hidden:{"PRIVATE USER","PRIVATE SECRET","PRIVATE NOTE","hidden","/path"}) QVERIFY(!bytes.contains(hidden));
+    const auto entries=QJsonDocument::fromJson(bytes).object()["entries"].toArray();
+    QCOMPARE(entries.size(),1);QCOMPARE(entries[0].toObject()["origin"].toString(),QString("https://api.example"));
+    QVERIFY(!(QFileInfo(path).permissions() & (QFileDevice::ReadGroup | QFileDevice::ReadOther)));
+    auto *toggle=window.findChild<QCheckBox *>("apiAccess");
+    QVERIFY(toggle);
+    QTRY_VERIFY(toggle->isEnabled());
+    QVERIFY(!toggle->isChecked());
+    auto publishedCount=[&] {
+      QFile current(path);
+      if (!current.open(QIODevice::ReadOnly)) return -1;
+      return int(QJsonDocument::fromJson(current.readAll()).object()["entries"].toArray().size());
+    };
+    toggle->click();
+    QTRY_COMPARE(publishedCount(),0);
+    window.lock();QVERIFY(QFileInfo::exists(path));
+    QCOMPARE(publishedCount(),0);
+    master=window.findChild<QLineEdit *>("master");
+    master->setText("SYNTHETIC CATALOGUE MASTER");QTest::keyClick(master,Qt::Key_Return);
+    QTRY_VERIFY_WITH_TIMEOUT(window.unlocked(),10000);
+    toggle=window.findChild<QCheckBox *>("apiAccess");
+    QTRY_VERIFY(toggle->isEnabled());
+    QVERIFY(toggle->isChecked());
+    toggle->click();
+    QTRY_COMPARE(publishedCount(),1);
+    window.lock();
+    QCOMPARE(publishedCount(),1);
   }
   void backupReconnectKeepsFailureVisible() {
     QTemporaryDir root;
@@ -667,7 +784,12 @@ else:
     for (const auto &file : QDir(root.path()).entryList(QDir::Files)) {
       QFile f(root.path() + "/" + file);
       QVERIFY(f.open(QIODevice::ReadOnly));
-      QVERIFY(!f.readAll().contains("SYNTHETIC"));
+      const auto bytes = f.readAll();
+      if (file == "assistant-catalogue.json") {
+        QVERIFY(!bytes.contains("SYNTHETIC SECRET"));
+        QVERIFY(!bytes.contains("SYNTHETIC NOTE"));
+        QVERIFY(!bytes.contains("SYNTHETIC TEST MASTER"));
+      } else QVERIFY(!bytes.contains("SYNTHETIC"));
     }
   }
 };

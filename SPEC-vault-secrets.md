@@ -2,6 +2,22 @@
 
 Stand: 04.10.2026 · **Architektur und Entwurf 1 freigegeben; native Testversion mit Rust-Prozess umgesetzt. Keine produktive Passwortverwaltung.**
 
+## Ergänzung vom 13.10.2026: ausdrücklich sichtbares Eintragsverzeichnis
+
+Der Nutzer hat für Desktop und Server dauerhaft sichtbare Einträge bei weiterhin
+einzeln bestätigter Secret-Nutzung beauftragt. Für das bewusst eingeschaltete
+Assistant-Verzeichnis ersetzt dies die folgenden älteren Verbote bezüglich
+Titel/Typ/Dienstursprung und gesperrter Eintragslisten. Veröffentlicht werden nur
+Referenz, Titel, Typ und reiner HTTPS-Ursprung, keine Benutzernamen, URL-Pfade,
+Notizen oder Secrets. Desktop-Datei `assistant-catalogue.json`, privat/atomar mit
+0600; `lumen_vault_entries` darf diese Projektion auch gesperrt lesen.
+
+Entsperren und Katalogsichtbarkeit erteilen keine Verwendungserlaubnis. Bestehende
+native Connectoren bestätigen weiterhin jede konkrete Aktion separat. Niemals
+Klartext-Secrets an das Modell oder generische Exportwerkzeuge. Ausschalten
+entfernt das Verzeichnis; bereits in Gespräche übernommene Metadaten bleiben dort.
+Umfang, installierter Stand und Nachweise: `../tasks/vault-assistant-access.md`.
+
 ## 1. Ziel und Empfehlung
 
 Vault bekommt zwei gleichberechtigte Bereiche: **Tresor** und **Sicherungen**.

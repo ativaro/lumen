@@ -3,7 +3,7 @@
   "Serverkonto geändert. Ansicht neu laden.": "Server account changed. Reload this view.",
   "Server wird abgefragt …": "Contacting server …",
   "Serverprojekt": "Server project",
-  "Mit Arbeitsraum verbinden": "Connect to workspace",
+  "Mit Projekt verbinden": "Connect to project",
   "Diese Verbindung zeigt Serverinhalte. Lokale Dateien werden nicht hochgeladen.": "This connection shows server content. Local files are not uploaded.",
   "Projektaufgaben": "Project tasks",
   "Durchläufe": "Runs",

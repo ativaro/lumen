@@ -67,15 +67,15 @@ def show_knowledge_note(window, registry, url):
     note = comm.knowledge_note(registry, url)
     dock = getattr(window, '_knowledge_dock', None)
     if dock is None:
-        dock = QDockWidget(tr('Lumen Wissen neben der Besprechung'), window)
+        dock = QDockWidget(tr('Lumen Notes neben der Besprechung'), window)
         dock.setObjectName('meetingKnowledgeDock')
         dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
         pane = QWidget(dock)
         layout = QVBoxLayout(pane)
         title = QLabel(); title.setWordWrap(True); title.setTextFormat(Qt.PlainText)
         text = QPlainTextEdit(); text.setReadOnly(True)
-        text.setAccessibleName(tr('Wissensnotiz zur Besprechung'))
-        open_button = QPushButton(tr('In Lumen Wissen öffnen'))
+        text.setAccessibleName(tr('Notiz zur Besprechung'))
+        open_button = QPushButton(tr('In Lumen Notes öffnen'))
         def open_note():
             from interop_open import open_url
             window.safe(open_url, dock.source_url, window.library.root.parent)
@@ -181,13 +181,13 @@ def meeting(window, action):
             comm.link_meeting_event(window.library, window.current, event['account'], event['uid'], event['start'])
             window.status.setText(tr('Besprechung mit dem Kalendertermin verknüpft.'))
     elif action == 'knowledge':
-        query, accepted = QInputDialog.getText(window, tr('Frühere Wissensnotizen finden'), tr('Thema oder Suchwort'), text=record['title'])
+        query, accepted = QInputDialog.getText(window, tr('Frühere Notizen finden'), tr('Thema oder Suchwort'), text=record['title'])
         if not accepted or not query.strip(): return
         registry = Registry(window.library.root.parent)
         from interop_catalog import index_local
-        result = run_job(window, tr('Lokale Wissensquellen werden durchsucht …'), lambda job: index_local(registry, job=job))
+        result = run_job(window, tr('Lokale Notizquellen werden durchsucht …'), lambda job: index_local(registry, job=job))
         if result is None: return
-        row = _choose(window, tr('Passende Lumen-Wissensnotiz öffnen'), [item for item in registry.search(query, 200) if item['app'] == 'wissen'])
+        row = _choose(window, tr('Passende Lumen-Notiz öffnen'), [item for item in registry.search(query, 200) if item['app'] == 'wissen'])
         if row:
             source = registry.register(comm._meeting_ref(record))
             registry.link(source, row['url'], 'background_note')
@@ -248,9 +248,9 @@ def install(window):
     menu = QMenu(tr('Passende Aktionen'),window)
     window._communications_menu = menu
     choices = {
-        'inbox': [(tr('Unterhaltung in Lumen Wissen sichern'), 'wissen.import'), (tr('Unterhaltung Lumen Projekte zuordnen'), 'workbench.add'), (tr('Unterhaltung mit Anhängen an Lumen Vault'), 'vault'), (tr('Newsletter als Quelle für Lumen Persönliches Radio'), 'newsletter'), (tr('Kalendertermin als Meeting-Agenda'), 'meeting'), (tr('Mailanhang mit vorhandener Fassung vergleichen'), 'compare'), (tr('Mailanhang mit Herkunft ablegen'), 'save'), (tr('Supportentwurf mit Haushaltsunterlagen'), 'support')],
-        'meetings': [(tr('Protokoll mit Zeitlinks in Lumen Wissen'), 'protocol'), (tr('Geprüfte Aufgaben an Lumen Inbox'), 'tasks'), (tr('Geprüfte Entscheidungen an Lumen Projekte'), 'decisions'), (tr('Geprüfte Ergebnisse für Lumen Persönliches Radio'), 'radio'), (tr('Follow-up-Entwurf in Lumen Inbox'), 'followup'), (tr('Offenen Punkt als Projektfrage übernehmen'), 'question'), (tr('Transkriptstelle mit Lumen Reader verknüpfen'), 'document'), (tr('Besprechung einem Kalendertermin zuordnen'), 'event'), (tr('Frühere Lumen-Wissensnotizen zum Thema'), 'knowledge')],
-        'radio': [(tr('Originalquelle der Radioausgabe öffnen'), 'source'), (tr('Hörnotiz mit Zeitmarke in Lumen Wissen'), 'note'), (tr('Hörtermin in Lumen Inbox vorbereiten'), 'event'), (tr('Hörskript mit Quellen als Mailentwurf'), 'draft'), (tr('Audio, Hörskript und Quellen gemeinsam exportieren'), 'export')],
+        'inbox': [(tr('Unterhaltung in Lumen Notes sichern'), 'wissen.import'), (tr('Unterhaltung Lumen Projekte zuordnen'), 'workbench.add'), (tr('Unterhaltung mit Anhängen an Lumen Vault'), 'vault'), (tr('Newsletter als Quelle für Lumen Persönliches Radio'), 'newsletter'), (tr('Kalendertermin als Meeting-Agenda'), 'meeting'), (tr('Mailanhang mit vorhandener Fassung vergleichen'), 'compare'), (tr('Mailanhang mit Herkunft ablegen'), 'save'), (tr('Supportentwurf mit Haushaltsunterlagen'), 'support')],
+        'meetings': [(tr('Protokoll mit Zeitlinks in Lumen Notes'), 'protocol'), (tr('Geprüfte Aufgaben an Lumen Inbox'), 'tasks'), (tr('Geprüfte Entscheidungen an Lumen Projekte'), 'decisions'), (tr('Geprüfte Ergebnisse für Lumen Persönliches Radio'), 'radio'), (tr('Follow-up-Entwurf in Lumen Inbox'), 'followup'), (tr('Offenen Punkt als Projektfrage übernehmen'), 'question'), (tr('Transkriptstelle mit Lumen Reader verknüpfen'), 'document'), (tr('Besprechung einem Kalendertermin zuordnen'), 'event'), (tr('Frühere Lumen-Notizen zum Thema'), 'knowledge')],
+        'radio': [(tr('Originalquelle der Radioausgabe öffnen'), 'source'), (tr('Hörnotiz mit Zeitmarke in Lumen Notes'), 'note'), (tr('Hörtermin in Lumen Inbox vorbereiten'), 'event'), (tr('Hörskript mit Quellen als Mailentwurf'), 'draft'), (tr('Audio, Hörskript und Quellen gemeinsam exportieren'), 'export')],
     }
     handler = {'inbox': mail, 'meetings': meeting, 'radio': radio}[name]
     from interop_ui import with_saved

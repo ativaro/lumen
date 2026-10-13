@@ -126,6 +126,14 @@ fn dispatch(session: &mut Option<Session>, root: &Path, request: Fields) -> Resu
             });
             Ok(vec![])
         }
+        "open-passkey" if request.len() == 2 => {
+            if arg(1)?.len() != 64 || !arg(1)?.bytes().all(|b| b.is_ascii_hexdigit()) {
+                return Err(Error::InvalidInput);
+            }
+            *session = None;
+            *session = Some(Session::open_passkey(root, text(arg(1)?))?);
+            Ok(vec![])
+        }
         "restore" if request.len() == 3 => {
             *session = None;
             *session = Some(Session::restore_file(
@@ -152,6 +160,14 @@ fn dispatch(session: &mut Option<Session>, root: &Path, request: Fields) -> Resu
         _ => {
             let session = session.as_mut().ok_or(Error::Locked)?;
             match op {
+                "keepalive" if request.len() == 1 => Ok(vec![]),
+                "enroll-passkey" if request.len() == 3 => {
+                    if arg(2)?.len() != 64 || !arg(2)?.bytes().all(|b| b.is_ascii_hexdigit()) {
+                        return Err(Error::InvalidInput);
+                    }
+                    session.enroll_passkey(text(arg(1)?), text(arg(2)?))?;
+                    Ok(vec![])
+                }
                 "list" | "page" if request.len() == 1 || (op == "page" && request.len() == 2) => {
                     let ids = session.entries()?;
                     if op == "list" && ids.len() > 100 {
@@ -203,6 +219,24 @@ fn dispatch(session: &mut Option<Session>, root: &Path, request: Fields) -> Resu
                     }
                     Ok(result)
                 }
+                "catalogue" if request.len() == 2 => {
+                    let ids = session.entries()?;
+                    let start = arg(1)?.parse::<usize>().map_err(|_| Error::InvalidInput)?;
+                    if start > ids.len() { return Err(Error::InvalidInput); }
+                    let end = start.saturating_add(64).min(ids.len());
+                    let mut result = vec![text(&if end < ids.len() { end.to_string() } else { String::new() })];
+                    for id in ids[start..end].iter().copied() {
+                        if session.field(id, "LumenTrash").is_ok_and(|v| v.as_str() == "1")
+                            || session.field(id, "LumenHidden").is_ok_and(|v| v.as_str() == "1")
+                            || session.field(id, "LumenConflict").is_ok_and(|v| v.as_str() == "1")
+                            || session.field(id, "LumenSyncSource").is_ok_and(|v| !v.is_empty()) { continue; }
+                        result.push(text(&id.uuid().to_string()));
+                        for key in ["Title", "LumenType", "URL", "LumenApiBase"] {
+                            result.push(session.field(id, key).unwrap_or_else(|_| text("")));
+                        }
+                    }
+                    Ok(result)
+                }
                 "connections" if request.len() == 2 => {
                     let ids = session.entries()?;
                     let start = arg(1)?.parse::<usize>().map_err(|_| Error::InvalidInput)?;
@@ -216,12 +250,14 @@ fn dispatch(session: &mut Option<Session>, root: &Path, request: Fields) -> Resu
                         String::new()
                     })];
                     for id in ids[start..end].iter().copied() {
-                        if session
-                            .field(id, "LumenApiEnabled")
+                        if !session
+                            .field(id, "LumenHidden")
                             .is_ok_and(|v| v.as_str() == "1")
+                            && !session.field(id, "LumenConflict").is_ok_and(|v| v.as_str() == "1")
+                            && !session.field(id, "LumenSyncSource").is_ok_and(|v| !v.is_empty())
                             && session
                                 .field(id, "LumenType")
-                                .is_ok_and(|v| v.as_str() == "token")
+                                .is_ok_and(|v| ["token", "login"].contains(&v.as_str()))
                             && !session
                                 .field(id, "LumenTrash")
                                 .is_ok_and(|v| v.as_str() == "1")
@@ -236,7 +272,10 @@ fn dispatch(session: &mut Option<Session>, root: &Path, request: Fields) -> Resu
                     if arg(2)? == "1"
                         && (!session
                             .field(id, "LumenType")
-                            .is_ok_and(|v| v.as_str() == "token")
+                            .is_ok_and(|v| ["token", "login"].contains(&v.as_str()))
+                            || session
+                                .field(id, "LumenHidden")
+                                .is_ok_and(|v| v.as_str() == "1")
                             || session
                                 .field(id, "LumenTrash")
                                 .is_ok_and(|v| v.as_str() == "1"))
@@ -247,11 +286,19 @@ fn dispatch(session: &mut Option<Session>, root: &Path, request: Fields) -> Resu
                     session.save()?;
                     Ok(vec![])
                 }
+                "lumen-hidden" if request.len() == 3 && ["0", "1"].contains(&arg(2)?) => {
+                    let id = entry(session, arg(1)?)?;
+                    session.set(id, "LumenHidden", text(arg(2)?))?;
+                    session.set(id, "LumenApiEnabled", text("0"))?;
+                    session.save()?;
+                    Ok(vec![])
+                }
                 "summary" if request.len() == 2 => {
                     let id = entry(session, arg(1)?)?;
                     Ok(vec![
                         session.field(id, "URL").unwrap_or_else(|_| text("")),
                         session.field(id, "UserName").unwrap_or_else(|_| text("")),
+                        session.field(id, "LumenHidden").unwrap_or_else(|_| text("0")),
                     ])
                 }
                 "get" if request.len() == 3 => {
@@ -292,6 +339,9 @@ fn dispatch(session: &mut Option<Session>, root: &Path, request: Fields) -> Resu
                         entry(session, arg(1)?)?
                     };
                     session.update(id, &fields)?;
+                    if session.field(id, "LumenHidden").is_ok_and(|v| v.as_str() == "1") {
+                        session.set(id, "LumenApiEnabled", text("0"))?;
+                    }
                     session.save()?;
                     Ok(vec![text(&id.uuid().to_string())])
                 }
@@ -422,7 +472,7 @@ mod tests {
         assert_eq!(decode(&encode(&values).unwrap()).unwrap(), values);
     }
     #[test]
-    fn connection_permission_is_explicit_persistent_and_revocable() {
+    fn entry_visibility_defaults_on_and_can_be_hidden_persistently() {
         use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
         std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
@@ -447,7 +497,7 @@ mod tests {
         ])
         .unwrap()
         .remove(0);
-        assert_eq!(call(&["connections", "0"]).unwrap().len(), 1);
+        assert_eq!(call(&["connections", "0"]).unwrap().len(), 2);
         assert!(call(&["put", &id, "Title", "Synthetic", "LumenApiEnabled", "1"]).is_err());
         call(&["enable-api", &id, "1"]).unwrap();
         call(&["put", &id, "Title", "Renamed"]).unwrap();
@@ -458,9 +508,21 @@ mod tests {
             call(&["connections", "0"]).unwrap(),
             vec![text(""), text(&id)]
         );
-        call(&["enable-api", &id, "0"]).unwrap();
+        call(&["lumen-hidden", &id, "1"]).unwrap();
         assert_eq!(call(&["connections", "0"]).unwrap(), vec![text("")]);
+        assert_eq!(call(&["catalogue", "0"]).unwrap(), vec![text("")]);
+        assert!(call(&["enable-api", &id, "1"]).is_err());
+        call(&["put", &id, "Title", "Still hidden"]).unwrap();
+        call(&["lock"]).unwrap();
+        call(&["open", "SYNTHETIC MASTER LONG"]).unwrap();
+        assert_eq!(call(&["catalogue", "0"]).unwrap(), vec![text("")]);
+        call(&["lumen-hidden", &id, "0"]).unwrap();
+        assert_eq!(call(&["catalogue", "0"]).unwrap().len(), 6);
         call(&["enable-api", &id, "1"]).unwrap();
+        call(&["put", &id, "Title", "Hidden in editor", "LumenHidden", "1"]).unwrap();
+        assert_eq!(call(&["get", &id, "LumenApiEnabled"]).unwrap(), vec![text("0")]);
+        assert_eq!(call(&["catalogue", "0"]).unwrap(), vec![text("")]);
+        call(&["lumen-hidden", &id, "0"]).unwrap();
         call(&["trash", &id, "1"]).unwrap();
         assert!(call(&["enable-api", &id, "1"]).is_err());
         call(&["trash", &id, "0"]).unwrap();
@@ -478,6 +540,63 @@ mod tests {
             let bytes = std::fs::read(file.unwrap().path()).unwrap();
             assert!(!bytes.windows(15).any(|w| w == b"LumenApiEnabled"));
         }
+    }
+    #[test]
+    fn passkey_wrapper_is_encrypted_and_requires_correct_key() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let mut session = None;
+        let mut call = |args: &[&str]| {
+            dispatch(
+                &mut session,
+                dir.path(),
+                args.iter().map(|v| text(v)).collect(),
+            )
+        };
+        let key = "a".repeat(64);
+        call(&["create", "SYNTHETIC PASSKEY MASTER"]).unwrap();
+        assert!(call(&["enroll-passkey", "WRONG PASSWORD", &key]).is_err());
+        assert!(!dir.path().join("passkey").exists());
+        call(&["enroll-passkey", "SYNTHETIC PASSKEY MASTER", &key]).unwrap();
+        assert!(call(&["enroll-passkey", "SYNTHETIC PASSKEY MASTER", &key]).is_err());
+        call(&["lock"]).unwrap();
+        assert!(call(&["open-passkey", &"b".repeat(64)]).is_err());
+        call(&["open-passkey", &key]).unwrap();
+        call(&["keepalive"]).unwrap();
+        call(&["lock"]).unwrap();
+        call(&["open", "SYNTHETIC PASSKEY MASTER"]).unwrap();
+        let bytes = std::fs::read(dir.path().join("passkey/vault.kdbx")).unwrap();
+        assert!(!bytes.windows(9).any(|w| w == b"SYNTHETIC"));
+    }
+    #[test]
+    fn keepalive_requires_an_unlocked_session() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let mut session = None;
+        assert!(dispatch(&mut session, dir.path(), vec![text("keepalive")]).is_err());
+        dispatch(
+            &mut session,
+            dir.path(),
+            vec![text("create"), text("SYNTHETIC TEST MASTER")],
+        )
+        .unwrap();
+        assert!(
+            dispatch(&mut session, dir.path(), vec![text("keepalive")])
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            dispatch(
+                &mut session,
+                dir.path(),
+                vec![text("keepalive"), text("extra")]
+            )
+            .is_err()
+        );
+        dispatch(&mut session, dir.path(), vec![text("lock")]).unwrap();
+        assert!(dispatch(&mut session, dir.path(), vec![text("keepalive")]).is_err());
     }
     #[test]
     fn crud_lock_trash_restore_and_no_plaintext() {

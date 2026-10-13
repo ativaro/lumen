@@ -22,10 +22,10 @@ class Icons(QQuickImageProvider):
         name, _, query = name.partition('?')
         tint = parse_qs(query).get('tint', [''])[0]
         target = requested if requested.width() > 0 else QSize(24, 24)
-        icon = QIcon.fromTheme(name, QIcon.fromTheme('system-search' if name == 'lumen' else 'application-x-executable'))
+        icon = QIcon.fromTheme('lumen-mark' if name == 'lumen' else name, QIcon.fromTheme('system-search' if name == 'lumen' else 'application-x-executable'))
         pixmap = icon.pixmap(target)
         if pixmap.isNull(): pixmap = QPixmap(target); pixmap.fill(Qt.transparent)
-        if tint and QColor(tint).isValid():
+        if name != 'lumen' and not name.startswith('lumen-') and tint and QColor(tint).isValid():
             painter = QPainter(pixmap); painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
             painter.fillRect(pixmap.rect(), QColor(tint)); painter.end()
         size.setWidth(pixmap.width()); size.setHeight(pixmap.height())
@@ -48,7 +48,7 @@ class Activation(QObject):
         screen = QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
         area = screen.availableGeometry()
         self.window.setWidth(min(1240, max(620, area.width()-30)))
-        self.window.setHeight(min(900, max(560, area.height()-70)))
+        self.window.setHeight(min(700 if self.window.property('homeVisible') else 900, max(560, area.height()-70)))
         self.window.setPosition(area.x()+(area.width()-self.window.width())//2, min(area.bottom()-self.window.height(), max(area.y()+12, screen.geometry().y()+70)))
         present(self.window)
         self.controller.focusRequested.emit()
@@ -84,10 +84,14 @@ def main():
     parser.add_argument('--voice', action='store_true')
     parser.add_argument('--restore-state', type=Path)
     args = parser.parse_args()
+    if args.restore_state is None:
+        import os
+        main = Path(__file__).resolve().parents[1] / 'agent-app/main.py'
+        os.execv(sys.executable, [sys.executable, str(main), '--search'] + (['--voice'] if args.voice else []))
     from lumen_crash import supervise, attach, read_json, write_json
     supervise('search')
     app = QGuiApplication(sys.argv); app.setApplicationName('lumen-search')
-    app.setApplicationDisplayName(tr('Lumen Suche')); app.setDesktopFileName('lumen-search')
+    app.setApplicationDisplayName('Lumen'); app.setDesktopFileName('lumen')
     app.setQuitOnLastWindowClosed(False); install(app)
     bus = QDBusConnection.sessionBus()
     service = 'org.lumen.Search'

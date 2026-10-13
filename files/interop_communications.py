@@ -253,7 +253,7 @@ def knowledge_note(registry, url):
     if (ref['app'] != 'wissen' or ref['kind'] != 'note' or not root.is_absolute()
             or relative.is_absolute() or '..' in relative.parts or relative.suffix.lower() != '.md'
             or any(part.startswith('.') for part in relative.parts)):
-        raise ValueError(tr('Dieser Verweis zeigt nicht auf eine lokale Wissensnotiz.'))
+        raise ValueError(tr('Dieser Verweis zeigt nicht auf eine lokale Notiz.'))
     root_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
         parent = folder_fd(root_fd, relative.parent)

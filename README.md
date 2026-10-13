@@ -1,23 +1,5 @@
 # Lumen — AI-first desktop for CachyOS
 
-## Private installation / Private Installation
-
-GitHub (repository access required):
-
-```sh
-git clone --branch main --single-branch https://github.com/ativaro/lumen.git && bash lumen/bootstrap.sh
-```
-
-Forgejo (repository access and a trusted server certificate required):
-
-```sh
-git clone --branch main --single-branch https://forge.example.invalid/ativaro/lumen.git && bash lumen/bootstrap.sh
-```
-
-Use your local Git credential manager. Do not paste passwords or tokens into these
-commands. Personal data, vaults and settings are not part of these repositories.
-See [FORGEJO.md](FORGEJO.md) for source-update scope.
-
 **License: proprietary [Lumen EULA](LICENSE).** Personal and internal business use
 are allowed; redistribution, resale and commercial derivatives require prior
 written permission. [Third-party rights and release constraints](THIRD_PARTY_NOTICES.md) remain applicable.
@@ -133,7 +115,7 @@ gracefully on other setups.
 | **Lumen Inbox** (`lumen-inbox`) | local IMAP inbox and SMTP drafts, Proton Bridge preset, CalDAV calendars, read-only ICS subscriptions and local tasks; [setup and limits](VAULT-INBOX.md) |
 | **Lumen Reader** (`lumen-reader`) | PDFs, EPUBs and saved articles; reading position, highlights, margin notes, local read-aloud and cited passages in Lumen knowledge |
 | **Sound in Lumen System** (`lumen-sound`) | opens the Sound tab in the existing System window: per-stream volume, mute, outputs, app rules and conversation ducking; [Reader/Sound guide](READER-SOUND.md) |
-| **Lumen Wissen** (`lumen-wissen`) | direct notebook with autosave, editable titles, folder/tag collections and separate Lumen memory; explicit sharing, optional learning, corrections and forgetting; images, links, knowledge map and sourced questions; [Wissen guide](WISSEN.md) |
+| **Lumen Notes** (`lumen-wissen`) | direct notebook with autosave, editable titles, folder/tag collections and separate Lumen memory; explicit sharing, optional learning, corrections and forgetting; images, links, knowledge map and sourced questions; [Wissen guide](WISSEN.md) |
 | **Project tools and skill** | `lumen-projects` guides native project planning; MCP tools read/create/edit projects, initiatives and tasks, and start research/analysis runs with real history. Project-only write permission is separate from system actions; [MCP setup](MCP.md#project-skill-and-writes). |
 | **Application designs** | Glas by default, plus Graphit, Atelier and Mitternacht; shared live themes for Lumen, search, Files, the image viewer, desktop panels and their popups, with native previews in settings |
 | **System watchdog** | systemd timer checks failed units, kernel errors, disk, GPU temp; automatic opencode analysis |

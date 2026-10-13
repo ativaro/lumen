@@ -133,6 +133,8 @@ def focus_part(window,position):
     part=position.get('part','');kind,_,value=part.partition(':');app=window.name
     if app=='workbench' and kind=='item':
         window.open_scope(value);return
+    if app=='workbench' and kind=='question' and hasattr(window,'open_legacy_question'):
+        window.open_legacy_question(value);return
     if app=='workbench' and kind in ('resource','question'):
         listing=window.resources if kind=='resource' else window.questions
         index=match_part(kind,value,window_parts(window,kind))

@@ -69,6 +69,10 @@ def encode(text,source='',legacy='',created=0,note_id=''):
 def resolve_link(origin,target,notes):
     target=unquote(target.split('|',1)[0].split('#',1)[0].strip())
     if not target:return origin
+    if target.startswith('/?document='):
+        identity=target.removeprefix('/?document=')
+        matches=[p for p,n in notes.items() if n.get('note_id')==identity]
+        return matches[0] if len(matches)==1 else None
     if urlsplit(target).scheme or target.startswith(('/', '\\')):return None
     if not target.lower().endswith('.md'):target+='.md'
     local=os.path.normpath(str(Path(origin).parent/target))
@@ -113,7 +117,7 @@ class Notebook:
     def __init__(self,store,root=None,create=False,identity=None):
         self.store=store
         chosen=root or store.setting('knowledge/notebook','')
-        if not chosen:raise ValueError(tr('Lumen Wissen zuerst öffnen und einen Notizordner wählen.'))
+        if not chosen:raise ValueError(tr('Lumen Notes zuerst öffnen und einen Notizordner wählen.'))
         self.root=Path(chosen).expanduser()
         if create:self.root.mkdir(parents=True,exist_ok=True,mode=0o700)
         self.root=self.root.resolve(strict=True)
@@ -316,7 +320,7 @@ class Notebook:
     def memory_path(self,memory):
         if memory.endswith('.md'):return memory
         imported=self.store.setting('knowledge/imports',{}).get(memory,{})
-        if imported.get('root')!=str(self.root):raise ValueError(tr('Die alte Erinnerung zuerst in Lumen Wissen öffnen.'))
+        if imported.get('root')!=str(self.root):raise ValueError(tr('Die alte Erinnerung zuerst im Lumen-Gedächtnis öffnen.'))
         return imported['path']
 
     def migrate(self):

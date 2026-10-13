@@ -8,7 +8,20 @@ PRESETS = {
     'companion': ('Begleiter', 'Warm, geduldig und entspannt.', dict(length='balanced', directness='gentle', humor='casual', closeness='personal', initiative='suggest')),
     'challenger': ('Sparringspartner', 'Neugierig, kritisch und kreativ.', dict(length='detailed', directness='direct', humor='occasional', closeness='familiar', initiative='suggest')),
     'maker': ('Werkstattpartner', 'Praktisch und lösungsorientiert.', dict(length='short', directness='clear', humor='occasional', closeness='familiar', initiative='act')),
+    'kate': ('Kate', 'Warm, direkt und ehrlich. Mit begründeter eigener Einschätzung.', dict(length='short', directness='direct', humor='occasional', closeness='familiar', initiative='suggest')),
 }
+# Kate source provenance: lumen-server/docs/personas.md.
+KATE_STYLE = (
+    "\nKate character: Be warm, clear and direct, concise without being abrupt. "
+    "Acknowledge distress briefly before offering solutions, without pathos, flattery or forced celebration. "
+    "Offer a reasoned point of view only when directly relevant; distinguish opinion, assumptions and verified facts. "
+    "Prefer understandable tools, practical results and simple user experiences; explain the tradeoffs. "
+    "Say when information is unavailable. Never invent access, evidence, memories or completed actions. "
+    "Be software with character, without an invented human body, biography or team. 'We' means the user and you. "
+    "Use the configured display_name as your name; Kate is the style preset, not a claim to run Kate's infrastructure. "
+    "Distinguish your assistant name from the technical model/provider; disclose those only from available runtime facts. "
+    "Explicit style selections and the task, output and permission constraints above still take precedence."
+)
 FIELDS = {
     'presentation': ('Auftreten', [('neutral', 'Neutral'), ('female', 'Weiblich'), ('male', 'Männlich')]),
     'address': ('Anrede', [('du', 'Du'), ('sie', 'Sie')]),
@@ -67,7 +80,8 @@ def instruction(value):
         'do not claim feelings or a human relationship. Sparring means constructively challenging assumptions. '
         'Initiative applies only within the existing user authorization; it grants no new tools, permissions, '
         'memory access or background activity. Preserve task-specific translation style, filenames, structured '
-        'output and factual accuracy. Do not add greetings or chatter to file-action results.')
+        'output and factual accuracy. Do not add greetings or chatter to file-action results.'
+        + (KATE_STYLE if value['preset'] == 'kate' else ''))
 
 
 def preview(value):
@@ -78,6 +92,7 @@ def preview(value):
         'companion': 'Schauen wir gemeinsam nach. Ich prüfe zuerst die Verbindung zum NAS.',
         'challenger': 'Betrifft es alle Freigaben oder nur eine? So unterscheiden wir Netzwerk und Anmeldung.',
         'maker': 'Ich prüfe die Verbindung und grenze den Fehler Schritt für Schritt ein.',
+        'kate': 'Das ist lästig. Ich würde zuerst die Erreichbarkeit prüfen, bevor wir Einstellungen ändern.',
     }
     result = tr(openings[value['preset']])
     if value['length'] != 'short': result += ' ' + tr('Danach sehen wir, ob die Anmeldung oder die Freigabe betroffen ist.')

@@ -8,15 +8,16 @@ ApplicationWindow {
     id: window
     required property var controller
     readonly property var theme: window.controller.theme
-    width: 1240; height: 900
+    width: 1240; height: 700
     minimumWidth: 620; minimumHeight: 560
     property int section: 0
     // A remapped Wayland surface can receive the previous surface's focus-out first.
     property bool focusReceived: false
     readonly property bool homeVisible: !controller.conversation && !controller.query.trim() && section === 0
+    onHomeVisibleChanged: if (homeVisible && visible && visibility === Window.Windowed && height > 700) height = 700
     visible: false; color: "transparent"
     flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
-    title: window.controller.text("Lumen Suche")
+    title: "Lumen"
     font.family: window.theme.fontFamily
     palette.windowText: window.theme.text; palette.text: window.theme.text
     palette.base: window.theme.base; palette.button: window.theme.button
@@ -46,53 +47,69 @@ ApplicationWindow {
     Rectangle {
         id: surface
         anchors.fill: parent; anchors.margins: 10
-        radius: window.theme.radius + 12
+        radius: window.theme.radius + 7
         color: window.theme.window; border.color: Qt.alpha(window.theme.border, 0.8)
         clip: true
-        Rectangle {
-            anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: 1
-            height: 150; radius: surface.radius
-            gradient: Gradient { GradientStop { position: 0; color: Qt.alpha(window.theme.accent, 0.06) } GradientStop { position: 1; color: "transparent" } }
-        }
         ColumnLayout {
             anchors.fill: parent; anchors.margins: 24; spacing: 16
-            RowLayout {
-                Layout.fillWidth: true; Layout.preferredHeight: 38; Layout.maximumHeight: 38; spacing: 8
-                Image { source: "image://icons/lumen?" + window.theme.name; sourceSize: Qt.size(24, 24); Layout.preferredWidth: 24; Layout.preferredHeight: 24 }
-                Label { text: "Lumen"; color: window.theme.text; font.pixelSize: 16; font.weight: Font.DemiBold }
-                Item { Layout.fillWidth: true; Layout.fillHeight: true; DragHandler { target: null; onActiveChanged: if (active) window.startSystemMove() } }
-                Frame { visible: window.width >= 900; padding: 3; background: Rectangle { radius: 12; color: "transparent"; border.color: Qt.alpha(window.theme.border,0.5) }
-                    contentItem: RowLayout { spacing: 2
-                    Repeater { model: [window.controller.text("Übersicht"),window.controller.text("Aufträge"),window.controller.text("Gespräche")]
-                        LumenButton { required property string modelData; required property int index; theme: window.theme; quiet: true; checkable: true; checked: !window.controller.conversation && window.section === index; text: modelData; onClicked: { window.section=index; window.controller.browse(); if(index===2)window.controller.load_sessions() } }
-                    }
+            Item {
+                id: header
+                Layout.fillWidth: true; Layout.preferredHeight: 38
+                readonly property real navSpace: width - 2 * Math.max(brand.width, windowActions.width) - 24
+                DragHandler { target: null; onActiveChanged: if (active) window.startSystemMove() }
+                RowLayout {
+                    id: brand
+                    anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; spacing: 10
+                    Image { source: "image://icons/lumen?" + window.theme.name; sourceSize: Qt.size(21,21); Layout.preferredWidth: 21; Layout.preferredHeight: 21 }
+                    Label { text: "Lumen"; color: window.theme.text; font.pixelSize: 16; font.weight: Font.DemiBold }
+                }
+                Frame {
+                    id: navigation
+                    objectName: "homeNavigation"
+                    anchors.centerIn: parent; visible: implicitWidth <= header.navSpace; padding: 3
+                    background: Rectangle { radius: 10; color: Qt.alpha(window.theme.base,0.65); border.color: Qt.alpha(window.theme.border,0.8) }
+                    contentItem: RowLayout { spacing: 3
+                        Repeater { model: [window.controller.text("Übersicht"),window.controller.text("Aufträge"),window.controller.text("Gespräche")]
+                            LumenButton {
+                                required property string modelData; required property int index
+                                theme: window.theme; quiet: true; checkable: true; checked: !window.controller.conversation && window.section === index
+                                implicitHeight: 34; font.pixelSize: Math.max(13,window.theme.fontSize-4); text: modelData
+                                onClicked: { window.section=index; window.controller.browse(); if(index===2)window.controller.load_sessions() }
+                            }
+                        }
                     }
                 }
-                ComboBox { visible: window.width < 900; model: [window.controller.text("Übersicht"),window.controller.text("Aufträge"),window.controller.text("Gespräche")]; currentIndex: window.section; onActivated: { window.section=currentIndex;window.controller.browse();if(currentIndex===2)window.controller.load_sessions() } }
-                Item { Layout.fillWidth: true; Layout.fillHeight: true; DragHandler { target: null; onActiveChanged: if (active) window.startSystemMove() } }
-                LumenButton { theme: window.theme; quiet: true; icon.name: "configure"; hint: window.controller.text("Einstellungen"); onClicked: window.controller.open_setup() }
-                LumenButton { theme: window.theme; quiet: true; visible: window.width>=800; text: "−"; hint: window.controller.text("Minimieren"); onClicked: window.showMinimized() }
-                LumenButton { theme: window.theme; quiet: true; visible: window.width>=800; text: "□"; hint: window.controller.text("Maximieren oder wiederherstellen"); onClicked: window.visibility === Window.Maximized ? window.showNormal() : window.showMaximized() }
-                LumenButton {
-                    id: optionsButton; theme: window.theme; quiet: true; text: "···"; font.pixelSize: 23
-                    hint: window.controller.text("Gesprächsoptionen und Verlauf")
-                    visible: window.controller.conversation; onClicked: { options.open(); window.controller.load_sessions() }
+                ComboBox {
+                    anchors.centerIn: parent; visible: !navigation.visible; width: Math.min(190,header.navSpace)
+                    model: [window.controller.text("Übersicht"),window.controller.text("Aufträge"),window.controller.text("Gespräche")]
+                    currentIndex: window.section; Accessible.name: window.controller.text("Ansicht")
+                    onActivated: { window.section=currentIndex;window.controller.browse();if(currentIndex===2)window.controller.load_sessions() }
                 }
-                LumenButton { theme: window.theme; quiet: true; text: "×"; font.pixelSize: 24; implicitWidth: 36; leftPadding: 6; rightPadding: 6; hint: window.controller.text("Suche schließen · Esc"); onClicked: window.hide() }
-            }
-            ColumnLayout { Layout.fillWidth: true; visible: window.homeVisible; Layout.topMargin: window.height > 730 ? 30 : 8; Layout.bottomMargin: window.height > 730 ? 12 : 0; spacing: 8
-                Label { Layout.fillWidth: true; text: window.controller.text("Alles an einem Ort."); horizontalAlignment: Text.AlignHCenter; color: window.theme.text; font.pixelSize: window.width < 800 ? 32 : 40; font.weight: Font.Medium }
-                Label { Layout.fillWidth: true; text: window.controller.text("Deine Apps. Deine Aufgaben. Dein Lumen."); horizontalAlignment: Text.AlignHCenter; color: window.theme.muted; font.pixelSize: window.theme.fontSize+3; wrapMode: Text.Wrap }
+                RowLayout {
+                    id: windowActions
+                    anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; spacing: 3
+                    LumenButton { objectName: "openDetails"; theme: window.theme; quiet: true; visible: window.controller.sharedConversation; icon.name: "window-new"; icon.width: 16; icon.height: 16; implicitWidth: 32; implicitHeight: 32; leftPadding: 8; rightPadding: 8; hint: window.controller.text("Detailansicht"); onClicked: window.controller.expand() }
+                    LumenButton { theme: window.theme; quiet: true; icon.name: "configure"; icon.width: 16; icon.height: 16; implicitWidth: 32; implicitHeight: 32; leftPadding: 8; rightPadding: 8; hint: window.controller.text("Einstellungen"); onClicked: window.controller.open_setup() }
+                    LumenButton { theme: window.theme; quiet: true; visible: window.width>=800; text: "−"; implicitWidth: 32; implicitHeight: 32; leftPadding: 8; rightPadding: 8; hint: window.controller.text("Minimieren"); onClicked: window.showMinimized() }
+                    LumenButton { theme: window.theme; quiet: true; visible: window.width>=800; text: "□"; implicitWidth: 32; implicitHeight: 32; leftPadding: 8; rightPadding: 8; hint: window.controller.text("Maximieren oder wiederherstellen"); onClicked: window.visibility === Window.Maximized ? window.showNormal() : window.showMaximized() }
+                    LumenButton {
+                        id: optionsButton; theme: window.theme; quiet: true; text: "···"; font.pixelSize: 23
+                        implicitWidth: 32; implicitHeight: 32; leftPadding: 8; rightPadding: 8
+                        hint: window.controller.text("Gesprächsoptionen und Verlauf")
+                        visible: window.controller.conversation; onClicked: { options.open(); window.controller.load_sessions() }
+                    }
+                    LumenButton { theme: window.theme; quiet: true; text: "×"; font.pixelSize: 20; implicitWidth: 32; implicitHeight: 32; leftPadding: 8; rightPadding: 8; hint: window.controller.text("Lumen ausblenden · Esc"); onClicked: window.hide() }
+                }
             }
             Rectangle {
-                Layout.fillWidth: true; Layout.leftMargin: window.homeVisible && window.width>1000 ? 64 : 0; Layout.rightMargin: Layout.leftMargin
-                implicitHeight: inputRow.implicitHeight + (window.homeVisible ? 30 : 20)
-                color: Qt.alpha(window.theme.base, 0.85); radius: window.homeVisible ? 22 : window.theme.radius + 6
+                Layout.fillWidth: true; Layout.leftMargin: window.homeVisible && window.width>700 ? 14 : 0; Layout.rightMargin: Layout.leftMargin
+                implicitHeight: inputRow.implicitHeight + (window.homeVisible ? 34 : 20)
+                color: Qt.alpha(window.theme.base, 0.85); radius: window.homeVisible ? 17 : window.theme.radius + 6
                 border.color: composer.activeFocus ? Qt.alpha(window.theme.accent, 0.8) : window.theme.border
                 border.width: 1
                 RowLayout {
                     id: inputRow
-                    anchors.fill: parent; anchors.margins: 10; spacing: 8
+                    anchors.fill: parent; anchors.margins: 14; spacing: 10
                     Image { source: "image://icons/system-search?" + window.theme.name + "&tint=" + encodeURIComponent(window.theme.muted); sourceSize: Qt.size(20, 20); Layout.preferredWidth: 20; Layout.preferredHeight: 20; Layout.leftMargin: 8; opacity: 0.7 }
                     ScrollView {
                         Layout.fillWidth: true; Layout.preferredHeight: Math.max(40, Math.min(100, composer.implicitHeight))
@@ -101,7 +118,7 @@ ApplicationWindow {
                             id: composer; objectName: "composer"
                             placeholderText: window.controller.text(window.homeVisible ? "Was möchtest du erledigen?" : "Dateien, Apps oder eine Frage …")
                             text: window.controller.query; color: window.theme.text; placeholderTextColor: window.theme.muted
-                            font.pixelSize: window.theme.fontSize; selectByMouse: true; wrapMode: TextEdit.Wrap
+                            font.pixelSize: window.homeVisible ? Math.max(14,window.theme.fontSize-1) : window.theme.fontSize; selectByMouse: true; wrapMode: TextEdit.Wrap
                             padding: 8; background: null
                             Accessible.name: window.controller.text("Suchen oder mit Lumen sprechen")
                             onTextChanged: if (text !== window.controller.query) window.controller.set_query(text)
@@ -117,10 +134,10 @@ ApplicationWindow {
                             }
                         }
                     }
-                    LumenButton { theme: window.theme; quiet: true; icon.name: "mail-attachment"; hint: window.controller.text("Dateien hinzufügen"); enabled: !window.controller.busy; onClicked: attachments.open() }
+                    LumenButton { theme: window.theme; quiet: true; icon.name: "mail-attachment"; icon.width: 16; icon.height: 16; implicitWidth: 32; implicitHeight: 32; leftPadding: 8; rightPadding: 8; hint: window.controller.text("Dateien hinzufügen"); enabled: !window.controller.busy; onClicked: attachments.open() }
                     LumenButton {
                         theme: window.theme; quiet: !window.controller.voiceActive; primary: window.controller.voiceActive
-                        icon.name: "audio-input-microphone"; implicitWidth: 40; leftPadding: 10; rightPadding: 10
+                        icon.name: "audio-input-microphone"; icon.width: 16; icon.height: 16; implicitWidth: 32; implicitHeight: 32; leftPadding: 8; rightPadding: 8
                         hint: window.controller.text("Sprachgespräch starten oder beenden")
                         enabled: window.controller.voiceActive || !window.controller.busy
                         onClicked: window.controller.toggle_voice()
@@ -198,141 +215,162 @@ ApplicationWindow {
                         Label { anchors.centerIn: parent; visible: results.count === 0; text: window.controller.text("Dateien, Apps oder eine Frage …"); color: window.theme.muted }
                     }
                 }
-                ScrollView {
-                    id: conversation; objectName: "conversation"
-                    readonly property Flickable scroller: contentItem as Flickable
-                    property string answerKey: ""
-                    function updatePosition() {
-                        const position = scroller ? scroller.contentY : 0
-                        const rows = window.controller.messages
-                        let answer = -1
-                        for (let i = rows.length - 1; i >= 0; --i) {
-                            if (rows[i].role === "assistant" && rows[i].text) { answer = i; break }
+                Item {
+                    ScrollView {
+                        anchors.fill: parent
+                        id: conversation; objectName: "conversation"
+                        readonly property Flickable scroller: contentItem as Flickable
+                        property string answerKey: ""
+                        readonly property bool newerBelow: scroller !== null && contentHeight - availableHeight - scroller.contentY > 48
+                        function goToLatest() {
+                            scrollPosition.stop()
+                            if (!scroller) return
+                            scroller.cancelFlick()
+                            scroller.contentY = Math.max(0, contentHeight - availableHeight)
+                            composer.forceActiveFocus()
                         }
-                        const key = answer >= 0 ? String(rows[answer].key) : ""
-                        const target = key !== answerKey ? answer : -1
-                        answerKey = key
-                        const followUser = rows.length && rows[rows.length - 1].role === "user" && scroller && position >= contentHeight - availableHeight - 50
-                        if (!scrollPosition.running || target >= 0) {
-                            scrollPosition.position = position
-                            scrollPosition.targetIndex = target >= 0 ? target : (followUser ? -2 : -1)
+                        function updatePosition() {
+                            const position = scroller ? scroller.contentY : 0
+                            const rows = window.controller.messages
+                            let answer = -1
+                            for (let i = rows.length - 1; i >= 0; --i) {
+                                if (rows[i].role === "assistant" && rows[i].text) { answer = i; break }
+                            }
+                            const key = answer >= 0 ? String(rows[answer].key) : ""
+                            const target = key !== answerKey ? answer : -1
+                            answerKey = key
+                            const followUser = rows.length && rows[rows.length - 1].role === "user" && scroller && position >= contentHeight - availableHeight - 50
+                            if (!scrollPosition.running || target >= 0) {
+                                scrollPosition.position = position
+                                scrollPosition.targetIndex = target >= 0 ? target : (followUser ? -2 : -1)
+                            }
+                            scrollPosition.restart()
                         }
-                        scrollPosition.restart()
-                    }
-                    Timer {
-                        id: scrollPosition
-                        // Wait one frame for the recreated message delegates to be laid out.
-                        interval: 16
-                        property real position: 0
-                        property int targetIndex: -1
-                        onTriggered: {
-                            if (!conversation.scroller) return
-                            const row = targetIndex >= 0 ? messageRepeater.itemAt(targetIndex) : null
-                            const y = row ? row.y : (targetIndex === -2 ? conversation.contentHeight : position)
-                            conversation.scroller.contentY = Math.max(0, Math.min(y, conversation.contentHeight - conversation.availableHeight))
+                        Timer {
+                            id: scrollPosition
+                            // Wait one frame for the recreated message delegates to be laid out.
+                            interval: 16
+                            property real position: 0
+                            property int targetIndex: -1
+                            onTriggered: {
+                                if (!conversation.scroller) return
+                                const row = targetIndex >= 0 ? messageRepeater.itemAt(targetIndex) : null
+                                const y = row ? row.y : (targetIndex === -2 ? conversation.contentHeight : position)
+                                conversation.scroller.contentY = Math.max(0, Math.min(y, conversation.contentHeight - conversation.availableHeight))
+                            }
                         }
-                    }
-                    clip: true; contentWidth: availableWidth
-                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                    ColumnLayout {
-                        width: Math.min(960, conversation.availableWidth); x: (conversation.availableWidth - width) / 2; spacing: window.theme.spacing + 8
-                        Label { Layout.fillWidth: true; visible: window.controller.messages.length === 0 && !window.controller.busy; text: window.controller.text("Wobei kann ich dir helfen?"); color: window.theme.text; font.pixelSize: 24; font.weight: Font.Medium; wrapMode: Text.Wrap }
-                        Repeater {
-                            id: messageRepeater
-                            model: window.controller.messages
-                            Frame {
-                                id: messageRow
-                                objectName: "messageBubble"
-                                required property var modelData
-                                readonly property bool userMessage: modelData.role === "user"
-                                Layout.fillWidth: true
-                                Layout.maximumWidth: userMessage ? Math.min(960, conversation.availableWidth) * 8 / 9 : 960
-                                Layout.alignment: userMessage ? Qt.AlignRight : Qt.AlignLeft
-                                leftPadding: userMessage ? 18 : 22; rightPadding: leftPadding; topPadding: userMessage ? 14 : 20; bottomPadding: topPadding
-                                background: Rectangle {
-                                    radius: 14
-                                    color: messageRow.userMessage ? Qt.alpha(window.theme.accent, 0.07) : "transparent"
-                                    border.width: messageRow.userMessage ? 1 : 0
-                                    border.color: Qt.alpha(window.theme.border, 0.6)
-                                }
-                                contentItem: ColumnLayout {
-                                    spacing: messageRow.userMessage ? 8 : 16
-                                    Label { visible: messageRow.userMessage; text: window.controller.text("DU"); font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 1; color: window.theme.muted }
-                                    RowLayout {
-                                        visible: !messageRow.userMessage; spacing: 9
-                                        Image { source: "image://icons/lumen?" + window.theme.name; sourceSize: Qt.size(26, 26); Layout.preferredWidth: 26; Layout.preferredHeight: 26 }
-                                        Label { text: "Lumen"; color: window.theme.text; font.pixelSize: 14; font.weight: Font.DemiBold }
-                                        Item { Layout.fillWidth: true }
+                        clip: true; contentWidth: availableWidth
+                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                        ColumnLayout {
+                            width: Math.min(960, conversation.availableWidth); x: (conversation.availableWidth - width) / 2; spacing: window.theme.spacing + 8
+                            Label { Layout.fillWidth: true; visible: window.controller.messages.length === 0 && !window.controller.busy; text: window.controller.text("Wobei kann ich dir helfen?"); color: window.theme.text; font.pixelSize: 24; font.weight: Font.Medium; wrapMode: Text.Wrap }
+                            Repeater {
+                                id: messageRepeater
+                                model: window.controller.messages
+                                Frame {
+                                    id: messageRow
+                                    objectName: "messageBubble"
+                                    required property var modelData
+                                    readonly property bool userMessage: modelData.role === "user"
+                                    Layout.fillWidth: true
+                                    Layout.maximumWidth: userMessage ? Math.min(960, conversation.availableWidth) * 8 / 9 : 960
+                                    Layout.alignment: userMessage ? Qt.AlignRight : Qt.AlignLeft
+                                    leftPadding: userMessage ? 18 : 22; rightPadding: leftPadding; topPadding: userMessage ? 14 : 20; bottomPadding: topPadding
+                                    background: Rectangle {
+                                        radius: 14
+                                        color: messageRow.userMessage ? Qt.alpha(window.theme.accent, 0.07) : "transparent"
+                                        border.width: messageRow.userMessage ? 1 : 0
+                                        border.color: Qt.alpha(window.theme.border, 0.6)
                                     }
-                                    TextArea {
-                                        objectName: "messageBody"
-                                        visible: messageRow.userMessage
-                                        Layout.fillWidth: true; text: messageRow.modelData.body
-                                        textFormat: TextEdit.RichText; readOnly: true; selectByMouse: true
-                                        wrapMode: TextEdit.Wrap; color: window.theme.text; font.pixelSize: window.theme.fontSize
-                                        background: null; padding: 0
-                                        onLinkActivated: function(link) { window.controller.open_link(link) }
-                                    }
-                                    AnswerBlocks {
-                                        visible: !messageRow.userMessage
-                                        Layout.fillWidth: true
-                                        blocks: messageRow.modelData.blocks
-                                        theme: window.theme; controller: window.controller
-                                        messageKey: messageRow.modelData.key
-                                    }
-                                    Label { Layout.fillWidth: true; visible: messageRow.modelData.activity.length > 0; text: messageRow.modelData.activity + " …"; color: window.theme.muted; font.pixelSize: 12; wrapMode: Text.Wrap; textFormat: Text.PlainText }
-                                    ColumnLayout {
-                                        objectName: "answerActions"
-                                        Layout.fillWidth: true; spacing: 8
-                                        visible: messageRow.modelData.actions && !window.controller.busy
-                                        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Qt.alpha(window.theme.border, 0.5) }
-                                        Flow {
-                                            Layout.fillWidth: true; spacing: 4
-                                            LumenButton {
-                                                id: copyAnswer; objectName: "copyAnswer"
-                                                property bool copied: false
-                                                theme: window.theme; quiet: true
-                                                icon.name: copied ? "emblem-ok-symbolic" : "edit-copy"
-                                                text: window.controller.text(copied ? "Kopiert" : "Kopieren")
-                                                onClicked: { window.controller.copy_answer(); copied = true; copiedReset.restart() }
-                                                Timer { id: copiedReset; interval: 1800; onTriggered: copyAnswer.copied = false }
+                                    contentItem: ColumnLayout {
+                                        spacing: messageRow.userMessage ? 8 : 16
+                                        Label { visible: messageRow.userMessage; text: window.controller.text("DU"); font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 1; color: window.theme.muted }
+                                        RowLayout {
+                                            visible: !messageRow.userMessage; spacing: 9
+                                            Image { source: "image://icons/lumen?" + window.theme.name; sourceSize: Qt.size(26, 26); Layout.preferredWidth: 26; Layout.preferredHeight: 26 }
+                                            Label { text: "Lumen"; color: window.theme.text; font.pixelSize: 14; font.weight: Font.DemiBold }
+                                            Item { Layout.fillWidth: true }
+                                        }
+                                        TextArea {
+                                            objectName: "messageBody"
+                                            visible: messageRow.userMessage
+                                            Layout.fillWidth: true; text: messageRow.modelData.body
+                                            textFormat: TextEdit.RichText; readOnly: true; selectByMouse: true
+                                            wrapMode: TextEdit.Wrap; color: window.theme.text; font.pixelSize: window.theme.fontSize
+                                            background: null; padding: 0
+                                            onLinkActivated: function(link) { window.controller.open_link(link) }
+                                        }
+                                        AnswerBlocks {
+                                            visible: !messageRow.userMessage
+                                            Layout.fillWidth: true
+                                            blocks: messageRow.modelData.blocks
+                                            theme: window.theme; controller: window.controller
+                                            messageKey: messageRow.modelData.key
+                                        }
+                                        Label { Layout.fillWidth: true; visible: messageRow.modelData.activity.length > 0; text: messageRow.modelData.activity + " …"; color: window.theme.muted; font.pixelSize: 12; wrapMode: Text.Wrap; textFormat: Text.PlainText }
+                                        ColumnLayout {
+                                            objectName: "answerActions"
+                                            Layout.fillWidth: true; spacing: 8
+                                            visible: messageRow.modelData.actions && !window.controller.busy
+                                            Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Qt.alpha(window.theme.border, 0.5) }
+                                            Flow {
+                                                Layout.fillWidth: true; spacing: 4
+                                                LumenButton {
+                                                    id: copyAnswer; objectName: "copyAnswer"
+                                                    property bool copied: false
+                                                    theme: window.theme; quiet: true
+                                                    icon.name: copied ? "emblem-ok-symbolic" : "edit-copy"
+                                                    text: window.controller.text(copied ? "Kopiert" : "Kopieren")
+                                                    onClicked: { window.controller.copy_answer(); copied = true; copiedReset.restart() }
+                                                    Timer { id: copiedReset; interval: 1800; onTriggered: copyAnswer.copied = false }
+                                                }
+                                                LumenButton { objectName: "saveAnswer"; theme: window.theme; quiet: true; icon.name: "bookmark-new"; text: window.controller.text("Für mich speichern"); onClicked: window.controller.capture_knowledge(false) }
+                                                LumenButton { objectName: "rememberAnswer"; theme: window.theme; quiet: true; icon.name: "view-history"; text: window.controller.text("Merk dir das"); onClicked: window.controller.capture_knowledge(true) }
                                             }
-                                            LumenButton { objectName: "saveAnswer"; theme: window.theme; quiet: true; icon.name: "bookmark-new"; text: window.controller.text("Für mich speichern"); onClicked: window.controller.capture_knowledge(false) }
-                                            LumenButton { objectName: "rememberAnswer"; theme: window.theme; quiet: true; icon.name: "view-history"; text: window.controller.text("Merk dir das"); onClicked: window.controller.capture_knowledge(true) }
                                         }
                                     }
                                 }
                             }
-                        }
-                        ResultView { id: resultView; Layout.fillWidth: true; view: window.controller.richView; theme: window.theme }
-                        Repeater {
-                            model: window.controller.permissions
-                            Rectangle {
-                                id: permission
-                                required property var modelData
-                                Layout.fillWidth: true; implicitHeight: permissionBody.implicitHeight + 32
-                                color: window.theme.button; radius: window.theme.radius; border.color: Qt.alpha(window.theme.accent, 0.45)
-                                ColumnLayout {
-                                    id: permissionBody
-                                    anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: 16; spacing: 10
-                                    Label { text: window.controller.text("Aktion erlauben?"); color: window.theme.text; font.pixelSize: window.theme.fontSize - 1; font.weight: Font.Medium }
-                                    Label { Layout.fillWidth: true; text: permission.modelData.label + "\n" + (permission.modelData.patterns || []).join("\n"); textFormat: Text.PlainText; wrapMode: Text.WrapAnywhere; color: window.theme.muted; font.pixelSize: 12 }
-                                    RowLayout {
-                                        Layout.fillWidth: true
-                                        LumenButton { theme: window.theme; quiet: true; text: window.controller.text("Ablehnen"); onClicked: window.controller.permission_reply(permission.modelData.id, false) }
-                                        Item { Layout.fillWidth: true }
-                                        LumenButton { theme: window.theme; primary: true; text: window.controller.text("Einmal erlauben"); onClicked: window.controller.permission_reply(permission.modelData.id, true) }
+                            ResultView { id: resultView; Layout.fillWidth: true; view: window.controller.richView; theme: window.theme }
+                            Repeater {
+                                model: window.controller.permissions
+                                Rectangle {
+                                    id: permission
+                                    required property var modelData
+                                    Layout.fillWidth: true; implicitHeight: permissionBody.implicitHeight + 32
+                                    color: window.theme.button; radius: window.theme.radius; border.color: Qt.alpha(window.theme.accent, 0.45)
+                                    ColumnLayout {
+                                        id: permissionBody
+                                        anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: 16; spacing: 10
+                                        Label { text: window.controller.text("Aktion erlauben?"); color: window.theme.text; font.pixelSize: window.theme.fontSize - 1; font.weight: Font.Medium }
+                                        Label { Layout.fillWidth: true; text: permission.modelData.label + "\n" + (permission.modelData.patterns || []).join("\n"); textFormat: Text.PlainText; wrapMode: Text.WrapAnywhere; color: window.theme.muted; font.pixelSize: 12 }
+                                        RowLayout {
+                                            Layout.fillWidth: true
+                                            LumenButton { theme: window.theme; quiet: true; text: window.controller.text("Ablehnen"); onClicked: window.controller.permission_reply(permission.modelData.id, false) }
+                                            Item { Layout.fillWidth: true }
+                                            LumenButton { theme: window.theme; primary: true; text: window.controller.text("Einmal erlauben"); onClicked: window.controller.permission_reply(permission.modelData.id, true) }
+                                        }
                                     }
                                 }
                             }
+                            Repeater { model: window.controller.questions; QuestionCard { required property var modelData; controller: window.controller; request: modelData; Layout.fillWidth: true } }
+                            RowLayout {
+                                Layout.fillWidth: true; visible: window.controller.busy
+                                BusyIndicator { running: window.controller.busy; implicitWidth: 24; implicitHeight: 24 }
+                                Label { text: window.controller.status; color: window.theme.muted; font.pixelSize: 12; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                            }
+                            Item { Layout.preferredHeight: 10; Layout.fillWidth: true }
                         }
-                        Repeater { model: window.controller.questions; QuestionCard { required property var modelData; controller: window.controller; request: modelData; Layout.fillWidth: true } }
-                        RowLayout {
-                            Layout.fillWidth: true; visible: window.controller.busy
-                            BusyIndicator { running: window.controller.busy; implicitWidth: 24; implicitHeight: 24 }
-                            Label { text: window.controller.status; color: window.theme.muted; font.pixelSize: 12; wrapMode: Text.Wrap; Layout.fillWidth: true }
-                        }
-                        Item { Layout.preferredHeight: 10; Layout.fillWidth: true }
+                    }
+                    LumenButton {
+                        objectName: "latestMessage"
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.bottom: parent.bottom; anchors.bottomMargin: 12
+                        visible: conversation.newerBelow
+                        theme: window.theme
+                        icon.name: "go-down-symbolic"
+                        text: window.controller.text("Zur neuesten Nachricht")
+                        onClicked: conversation.goToLatest()
                     }
                 }
                 ScrollView { id: tasksPage; contentWidth: availableWidth; clip: true
@@ -351,12 +389,12 @@ ApplicationWindow {
             Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Qt.alpha(window.theme.border, 0.5) }
             RowLayout {
                 Layout.fillWidth: true; Layout.preferredHeight: 38; Layout.maximumHeight: 38
-                Rectangle { visible: window.homeVisible; width: 10; height: 10; radius: 5; color: window.theme.accent }
-                Label { visible: window.homeVisible; text: window.controller.homeView.status; color: window.theme.text; font.pixelSize: window.theme.fontSize-2 }
-                Label { visible: window.homeVisible && window.width>800; text: window.controller.homeView.detail; color: window.theme.muted; font.pixelSize: window.theme.fontSize-3 }
+                Rectangle { visible: window.homeVisible; width: 6; height: 6; radius: 3; color: window.theme.accent }
+                Label { visible: window.homeVisible; text: window.controller.homeView.status; color: window.theme.text; font.pixelSize: Math.max(11,window.theme.fontSize-6) }
+                Label { visible: window.homeVisible && window.width>800; text: window.controller.homeView.detail; color: window.theme.muted; font.pixelSize: Math.max(11,window.theme.fontSize-6) }
                 LumenButton { visible: !window.homeVisible; theme: window.theme; quiet: true; text: window.controller.text("Neue Suche"); enabled: !window.controller.busy; onClicked: window.controller.reset() }
                 Item { Layout.fillWidth: true }
-                LumenButton { visible: window.homeVisible; theme: window.theme; quiet: true; text: window.controller.text("Details") + " →"; onClicked: window.controller.homeView.open_page("system") }
+                LumenButton { visible: window.homeVisible; theme: window.theme; quiet: true; font.pixelSize: Math.max(11,window.theme.fontSize-6); text: window.controller.text("Systemstatus") + " →"; onClicked: window.controller.homeView.open_page("system") }
                 Label { visible: !window.homeVisible; Layout.fillWidth: true; Layout.maximumWidth: 530; text: window.controller.conversation ? (window.controller.execution === "server" ? window.controller.serverOrigin + " · " : "") + window.controller.status : window.controller.hint; textFormat: Text.PlainText; color: window.theme.muted; font.pixelSize: 11; horizontalAlignment: Text.AlignRight; wrapMode: Text.Wrap }
             }
         }

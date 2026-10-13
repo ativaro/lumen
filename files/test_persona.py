@@ -1,7 +1,7 @@
 import tempfile
 import unittest
 from PySide6.QtCore import QSettings
-from lumen_persona import load, save, effective, normalize, instruction, PRESETS
+from lumen_persona import load, save, effective, normalize, instruction, preview, PRESETS, KATE_STYLE
 
 class PersonaTest(unittest.TestCase):
     def setUp(self):
@@ -32,6 +32,19 @@ class PersonaTest(unittest.TestCase):
             prompt = instruction(dict(preset=preset))
             self.assertIn('grants no new tools', prompt)
             self.assertIn('structured', prompt)
+
+    def test_kate_keeps_identity_overrides_and_is_optional(self):
+        save(self.settings, dict(preset='kate', name='Nova', address='sie', length='detailed', humor='none'))
+        profile = load(self.settings)
+        self.assertEqual(profile['length'], 'detailed')
+        self.assertEqual(profile['humor'], 'none')
+        self.assertIn(KATE_STYLE, instruction(profile))
+        self.assertTrue(preview(profile))
+        alternative = effective(self.settings, 'guide')
+        self.assertEqual(alternative['name'], 'Nova')
+        self.assertEqual(alternative['address'], 'sie')
+        self.assertNotIn(KATE_STYLE, instruction(alternative))
+        self.assertEqual(normalize({})['preset'], 'guide')
 
 class PersonaIntegrationTest(unittest.TestCase):
     @classmethod
@@ -86,12 +99,12 @@ class PersonaIntegrationTest(unittest.TestCase):
 
     def test_session_override_survives_switch_and_new_chat_resets(self):
         from lumen_store import Store
-        self.assertTrue(self.backend.set_persona('challenger'))
+        self.assertTrue(self.backend.set_persona('kate'))
         result = self.prompt()
-        self.assertIn('challenger', result['system'])
-        self.assertEqual(Store().setting('persona/session/ses_test'), 'challenger')
+        self.assertIn(KATE_STYLE, result['system'])
+        self.assertEqual(Store().setting('persona/session/ses_test'), 'kate')
         self.backend.new_conversation(); self.assertEqual(self.backend.persona_choice(), '')
-        self.backend.select_session('ses_test'); self.assertEqual(self.backend.persona_choice(), 'challenger')
+        self.backend.select_session('ses_test'); self.assertEqual(self.backend.persona_choice(), 'kate')
         self.assertTrue(self.backend.set_persona(''))
         self.assertEqual(self.backend.persona_choice(), '')
         self.backend.set_busy(True)
@@ -105,12 +118,13 @@ class PersonaIntegrationTest(unittest.TestCase):
         other = PersonaEditor(self.settings, lambda: None)
         try:
             editor.fields['name'].setText('Nova')
-            editor.preset.setCurrentIndex(editor.preset.findData('professional'))
+            editor.preset.setCurrentIndex(editor.preset.findData('kate'))
             editor.choose_preset(0)
             self.assertEqual(editor.fields['name'].text(), 'Nova')
             self.assertEqual(load(self.settings)['name'], 'Lumen')
             self.assertEqual(editor.fields['length'].currentData(), 'short')
             editor.commit(); self.assertEqual(load(self.settings)['name'], 'Nova')
+            self.assertEqual(load(self.settings)['preset'], 'kate')
             other.fields['name'].setText('Conflict'); other.commit()
             self.assertEqual(load(self.settings)['name'], 'Nova')
             self.assertIn('anderen Fenster', other.description.text())

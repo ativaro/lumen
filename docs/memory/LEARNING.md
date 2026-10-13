@@ -1,5 +1,22 @@
 # Personal learning
 
+## Native candidate, 13 October 2026
+
+The current source uses the `lumen-memory-learning` Skill and two scoped native
+MCP tools (`lumen_memory_learning_context`, `lumen_memory_learn`), implemented in
+`memory_agent.py`, `memory_agent_config.py` and `memory_agent_stdio.py`. The bounded
+private backend in `memory_bridge.py` reuses storage/consent/revision checks.
+Actual Japanese-to-English correction and synthetic Qt navigation passed against
+a selective candidate based on the newer installed runtime. It is not installed
+on the personal desktop; do not replace the whole runtime with this workbench.
+Notes and system memory now have distinct entry points; technical `wissen` IDs
+remain compatible. Full per-conversation privacy control remains open.
+
+The older contract below describes the retained storage/consent rules; its
+"no tool permissions" statement refers to general-purpose tools. The new learner
+receives only its two memory-specific tools, not the full assistant toolset.
+
+
 ## Scope and build order
 
 | Capability | Responsibility | Depends on |

@@ -96,7 +96,8 @@ def main():
     group.add_argument('--control', choices=['volume', 'brightness', 'mute', 'search', 'network', 'audio', 'display', 'appearance', 'hardware', 'desktop-settings', 'lock'])
     parser.add_argument('--value', type=int)
     parser.add_argument('--task-limit', type=int, choices=range(1,1001), metavar='1..1000')
-    group.add_argument('--open-app', choices=[item['id'] for item in applications()])
+    from lumen_apps import catalogue
+    group.add_argument('--open-app', choices=[item[0] for item in catalogue(include_utilities=True)])
     group.add_argument('--open-task', type=valid_task)
     group.add_argument('--dismiss-task', type=valid_task)
     group.add_argument('--open-page', choices=['chat', 'files', 'system', 'tasks', 'settings', 'workplace'])

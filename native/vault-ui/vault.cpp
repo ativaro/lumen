@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LicenseRef-Lumen-EULA
 #include "vault.h"
-#include "backups.h"
+#include "passkey.h"
+#include <KIdleTime>
 #include "bookstack.h"
 #include "connection.h"
 #include <QtEndian>
@@ -9,6 +10,8 @@
 #include <sys/prctl.h>
 #include <sys/resource.h>
 #include <unistd.h>
+
+static QIcon glyph(const QString &name);
 
 void wipe(QString &text) {
   text.detach();
@@ -299,6 +302,34 @@ VaultWindow::VaultWindow(const QString &root)
         channel.call({"edit", id}, std::move(callback));
       },
       english);
+  access->setUnlock([this] { return isOpen && !accessLoading; }, [this]() -> QDialog * {
+    if (isOpen || !QFileInfo::exists(this->root + "/vault.kdbx")) return nullptr;
+    show(); raise(); activateWindow();
+    auto *dialog = new QDialog(this);
+    dialog->setObjectName("vaultUnlockRequest");
+    dialog->setWindowTitle(tx("Lumen Vault entsperren", "Unlock Lumen Vault"));
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setWindowModality(Qt::WindowModal);
+    auto *layout = new QVBoxLayout(dialog);
+    auto *notice = new QLabel(tx("Lumen benötigt deinen Tresor. Entsperre ihn lokal; die konkrete Aktion bestätigst du danach separat.",
+      "Lumen needs your vault. Unlock it locally; confirm the exact action separately afterwards."));
+    notice->setWordWrap(true); layout->addWidget(notice);
+    auto *message = new QLabel; message->setObjectName("requestUnlockError");
+    message->setWordWrap(true); layout->addWidget(message);
+    auto *password = vaultInput("requestMaster", true);
+    password->setPlaceholderText(tx("Hauptpasswort", "Master password")); layout->addWidget(password);
+    auto *submit = button(tx("Entsperren", "Unlock"), [this, password] {
+      if (channel.busy() || isOpen) return;
+      master->setText(password->text()); password->clear(); authorize(false);
+    });
+    submit->setObjectName("requestUnlock"); layout->addWidget(submit);
+    connect(password, &QLineEdit::returnPressed, submit, &QPushButton::click);
+    layout->addWidget(button(tx("Abbrechen", "Cancel"), [dialog] { dialog->reject(); }));
+    connect(dialog, &QDialog::finished, this, [this, password] {
+      password->clear(); if (!isOpen) channel.stop();
+    });
+    dialog->open(); password->setFocus(); return dialog;
+  });
   access->setStore([this](const QJsonObject &args) -> QDialog * {
     showSection(0);
     show();
@@ -321,7 +352,27 @@ VaultWindow::VaultWindow(const QString &root)
   resize(1510, 926);
   setMinimumSize(1080, 720);
   idle.setSingleShot(true);
-  idle.setInterval(300000);
+  idle.setParent(this);
+  keepalive.setParent(this);
+  idle.setObjectName("vaultIdleTimer");
+  QSettings vaultSettings("Lumen", "Vault");
+  setIdleMinutes(vaultSettings.value("idleMinutes", 15).toInt());
+  keepalive.setObjectName("vaultKeepaliveTimer");
+  keepalive.setInterval(60000);
+  connect(&keepalive, &QTimer::timeout, this, [this] {
+    if (isOpen && idle.isActive() && !channel.busy())
+      channel.call({"keepalive"}, [](QStringList) {});
+  });
+  // On Wayland idleTime() cannot be polled; use compositor resume events.
+  if (QGuiApplication::platformName() == "wayland" ||
+      QGuiApplication::platformName() == "xcb") {
+    auto *activity = KIdleTime::instance();
+    connect(activity, &KIdleTime::resumingFromIdle, this, [this, activity] {
+      sessionActivity();
+      activity->catchNextResumeEvent();
+    });
+    activity->catchNextResumeEvent();
+  }
   detailTimer.setSingleShot(true);
   detailTimer.setInterval(60);
   connect(&detailTimer, &QTimer::timeout, this, &VaultWindow::loadDetails);
@@ -334,6 +385,11 @@ VaultWindow::VaultWindow(const QString &root)
   connect(&clipboardTimer, &QTimer::timeout, this,
           &VaultWindow::clearOwnClipboard);
   connect(&channel, &Channel::failed, this, [this](const QString &code) {
+    if (!isOpen && access->waitingForUnlock()) {
+      if (auto *message = findChild<QLabel *>("requestUnlockError"))
+        message->setText(tx("Entsperren fehlgeschlagen. Bitte Hauptpasswort prüfen oder abbrechen.", "Unlock failed. Check the master password or cancel."));
+      return;
+    }
     lock();
     if (status)
       status->setText(tx("Vorgang nicht abgeschlossen. Tresor gesperrt: ",
@@ -358,6 +414,26 @@ VaultWindow::VaultWindow(const QString &root)
   layout->addWidget(sections, 1);
   setCentralWidget(shell);
   replacePage(lockedPage());
+  tray = new QSystemTrayIcon(glyph("object-locked"), this);
+  auto *trayMenu = new QMenu(this);
+  trayMenu->addAction(tx("Lumen Vault öffnen", "Open Lumen Vault"), this, [this] {
+    showNormal(); raise(); activateWindow();
+  });
+  trayLock = trayMenu->addAction(tx("Jetzt sperren", "Lock now"), this, &VaultWindow::lock);
+  trayMenu->addSeparator();
+  trayMenu->addAction(tx("Sperren und beenden", "Lock and quit"), this, [this] {
+    hide();
+    // Avoid the normal process-retirement restart when quitting explicitly.
+    disconnect(this, &VaultWindow::retire, nullptr, nullptr);
+    lock();
+    emit quitRequested();
+  });
+  tray->setContextMenu(trayMenu);
+  connect(tray, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
+    if (reason == QSystemTrayIcon::Trigger) { showNormal(); raise(); activateWindow(); }
+  });
+  updateHeader();
+  tray->show();
   theme();
   themeTimer.setInterval(2000);
   connect(&themeTimer, &QTimer::timeout, this, &VaultWindow::theme);
@@ -368,6 +444,8 @@ VaultWindow::VaultWindow(const QString &root)
 }
 VaultWindow::~VaultWindow() {
   isOpen = false;
+  visibilityId.clear();
+  if (passkeyBridge) delete passkeyBridge;
   if (autoSyncProcess) {
     autoSyncProcess->disconnect(this);
     autoSyncProcess->kill();
@@ -394,7 +472,6 @@ QPushButton *VaultWindow::button(const QString &text,
   return b;
 }
 void VaultWindow::replacePage(QWidget *page) {
-  const bool backupSelected = backups && sections->currentWidget() == backups;
   if (auto *old = credentialPage.data()) {
     sections->removeWidget(old);
     for (auto *field : old->findChildren<QLineEdit *>())
@@ -403,8 +480,7 @@ void VaultWindow::replacePage(QWidget *page) {
   }
   credentialPage = page;
   sections->insertWidget(0, page);
-  if (!backupSelected)
-    sections->setCurrentWidget(page);
+  sections->setCurrentWidget(page);
   updateHeader();
 }
 class TintedIcon : public QIconEngine {
@@ -429,40 +505,15 @@ private:
   QString name;
 };
 static QIcon glyph(const QString &name) { return QIcon(new TintedIcon(name)); }
-QWidget *VaultWindow::sectionTabs() {
-  auto *tabs = new QTabBar;
-  tabs->setObjectName("vaultSections");
-  tabs->setAccessibleName(tx("Bereich", "Section"));
-  tabs->setDrawBase(false);
-  tabs->setExpanding(true);
-  tabs->setFixedSize(290, 42);
-  tabs->addTab(tx("Tresor", "Vault"));
-  tabs->addTab(tx("Sicherungen", "Backups"));
-  connect(tabs, &QTabBar::currentChanged, this, &VaultWindow::showSection);
-  return tabs;
-}
-int VaultWindow::section() const {
-  return backups && sections->currentWidget() == backups ? 1 : 0;
-}
+int VaultWindow::section() const { return 0; }
 void VaultWindow::showSection(int index) {
-  if (index != 0 && index != 1)
-    return;
-  if (index == 1 && !backups) {
-    backups = new BackupPage(english, this);
-    sections->addWidget(backups);
-  }
   if (index == 1) {
     hideSecret();
     clearOwnClipboard();
+    emit backupsRequested();
+  } else if (index == 0) {
+    sections->setCurrentWidget(credentialPage.data());
   }
-  sections->setCurrentWidget(index == 1 ? static_cast<QWidget *>(backups)
-                                        : credentialPage.data());
-  for (auto *tabs : findChildren<QTabBar *>("vaultSections")) {
-    QSignalBlocker block(tabs);
-    tabs->setCurrentIndex(index);
-  }
-  if (index == 1)
-    backups->activate();
 }
 QWidget *VaultWindow::lockedPage() {
   auto *page = new QWidget;
@@ -502,6 +553,11 @@ QWidget *VaultWindow::lockedPage() {
                         [this, exists] { authorize(!exists); });
   submit->setObjectName("primary");
   layout->addWidget(submit);
+  if (exists && !passkeyMetadata().isEmpty()) {
+    auto *quick = button(tx("Mit Passkey entsperren", "Unlock with passkey"), [this] { passkey(false); });
+    quick->setObjectName("passkeyUnlock");
+    layout->addWidget(quick);
+  }
   connect(master, &QLineEdit::returnPressed, submit, &QPushButton::click);
   if (confirm)
     connect(confirm, &QLineEdit::returnPressed, submit, &QPushButton::click);
@@ -563,7 +619,8 @@ void VaultWindow::authorize(bool create, bool restore) {
   status->setText(tx("Tresor wird geöffnet…", "Opening vault…"));
   channel.call(std::move(args), [this](QStringList) {
     isOpen = true;
-    idle.start();
+    sessionActivity();
+    keepalive.start();
     replacePage(openPage());
     refresh();
   });
@@ -690,8 +747,6 @@ QWidget *VaultWindow::header() {
   brandRow->addLayout(copy);
   row->addWidget(brand);
   row->addStretch();
-  row->addWidget(sectionTabs());
-  row->addStretch();
   headerIcon = symbol("object-locked", 26);
   row->addWidget(headerIcon);
   headerState = new QLabel;
@@ -709,6 +764,12 @@ QWidget *VaultWindow::header() {
 }
 void VaultWindow::updateHeader() {
   const auto icon = isOpen ? "object-unlocked" : "object-locked";
+  if (tray) {
+    tray->setIcon(glyph(icon));
+    tray->setToolTip(tx("Lumen Vault · ", "Lumen Vault · ") +
+                     (isOpen ? tx("Entsperrt", "Unlocked") : tx("Gesperrt", "Locked")));
+    trayLock->setEnabled(isOpen);
+  }
   headerIcon->setProperty("glyph", icon);
   headerIcon->setPixmap(glyph(icon).pixmap(26, 26));
   headerState->setText(isOpen ? tx("Entsperrt", "Unlocked") : tx("Gesperrt", "Locked"));
@@ -766,6 +827,10 @@ QWidget *VaultWindow::openPage() {
   sl->addWidget(navigation, 1);
   auto *settings = button(tx("Einstellungen", "Settings"), [this] {
     QMenu menu(this);
+    menu.addAction(tx("Proton Pass / Passkey einrichten…", "Set up Proton Pass / passkey…"), this, [this] { passkey(true); });
+    if (QFileInfo::exists(root + "/passkey"))
+      menu.addAction(tx("Passkey-Verknüpfung entfernen…", "Remove passkey link…"), this, &VaultWindow::removePasskey);
+    menu.addSeparator();
     menu.addAction(tx("Serverabgleich…", "Server synchronization…"), this, &VaultWindow::serverSync);
     menu.addAction(
         tx("Verschlüsselte Sicherung exportieren…", "Export encrypted backup…"),
@@ -991,7 +1056,7 @@ QWidget *VaultWindow::openPage() {
   accessRow->addWidget(symbol("package", 30), 0, Qt::AlignTop);
   auto *accessText = new QVBoxLayout;
   accessText->setSpacing(8);
-  accessText->addWidget(new QLabel(tx("Zugriff durch Apps", "Access by apps")));
+  accessText->addWidget(new QLabel(tx("Lumen Zugriff", "Lumen access")));
   auto *boundary = new QLabel;
   accessStatus = boundary;
   boundary->setObjectName("accessStatus");
@@ -999,16 +1064,14 @@ QWidget *VaultWindow::openPage() {
   boundary->setWordWrap(true);
   accessText->addWidget(boundary);
   auto *explanation =
-      new QLabel(tx("API oder MCP. Zugangsdaten bleiben im Tresor; jede "
-                    "Dienstanfrage wird hier bestätigt.",
-                    "API or MCP. Credentials stay in Vault; confirm every "
-                    "service request here."));
+      new QLabel(tx("Lumen sieht Name, Typ und Dienst. Jede Verwendung braucht deine Bestätigung. Ausgeblendete Einträge bleiben für Lumen unsichtbar.",
+                    "Lumen sees name, type and service. Each use needs your confirmation. Hidden entries stay invisible to Lumen."));
   explanation->setObjectName("caption");
   explanation->setWordWrap(true);
   accessText->addWidget(explanation);
   accessRow->addLayout(accessText, 1);
-  auto *permissions = button(tx("Mit Lumen verwenden", "Use with Lumen"),
-                             [this] { shareConnection(); });
+  auto *permissions = new QCheckBox(tx("Für Lumen nicht freigeben", "Hide from Lumen"));
+  connect(permissions, &QCheckBox::clicked, this, [this] { shareConnection(); });
   permissions->setObjectName("apiAccess");
   accessButton = permissions;
   connect(access, &VaultAccess::changed, boundary, [this] { updateAccess(); });
@@ -1061,9 +1124,18 @@ QWidget *VaultWindow::openPage() {
   footer->addWidget(symbol("database", 22));
   footer->addSpacing(8);
   footer->addWidget(status, 1);
-  auto *autoLock =
-      new QLabel(tx("Automatisch sperren · 5 min", "Automatic lock · 5 min"));
-  autoLock->setObjectName("muted");
+  auto *autoLock = new QComboBox;
+  autoLock->setObjectName("vaultAutoLock");
+  autoLock->setAccessibleName(tx("Sperren bei Inaktivität", "Lock when idle"));
+  for (int minutes : {5, 15, 30})
+    autoLock->addItem(tx("Bei Inaktivität · %1 min", "When idle · %1 min").arg(minutes), minutes);
+  autoLock->setCurrentIndex(autoLock->findData(idleMinutes));
+  autoLock->setToolTip(tx("Aktivität am PC zählt. Bildschirmsperre und Standby sperren sofort. Ohne Desktop-Aktivitätserkennung zählt nur die Bedienung im Tresor.",
+                         "PC activity counts. Screen lock and sleep lock immediately. Without desktop activity detection, only Vault interaction counts."));
+  connect(autoLock, &QComboBox::currentIndexChanged, this, [this, autoLock] {
+    setIdleMinutes(autoLock->currentData().toInt());
+    QSettings("Lumen", "Vault").setValue("idleMinutes", idleMinutes);
+  });
   footer->addWidget(symbol("clock", 22));
   footer->addWidget(autoLock);
   outer->addLayout(footer);
@@ -1074,12 +1146,12 @@ void VaultWindow::about() {
       this, tx("Über Lumen Vault", "About Lumen Vault"),
       tx("Vorabversion · Nur Testdaten verwenden. Die unabhängige "
          "Sicherheitsprüfung steht noch aus.\n\nQt 6 wird dynamisch unter "
-         "LGPLv3 eingebunden. Austausch und Debugging sind erlaubt. "
+         "LGPLv3 eingebunden, libssh und KDE IdleTime unter LGPL-2.1-or-later. Austausch und Debugging sind erlaubt. "
          "Tresorkern: keepass-rs (MIT), mit dokumentierten lokalen "
          "Korrekturen. Lizenztexte und Quellcode liegen neben der Installation "
          "unter share.",
          "Prerelease · Use synthetic data only. Independent security review is "
-         "still pending.\n\nQt 6 is dynamically linked under LGPLv3. "
+         "still pending.\n\nQt 6 is dynamically linked under LGPLv3; libssh and KDE IdleTime under LGPL-2.1-or-later. "
          "Replacement and debugging are permitted. Core: keepass-rs (MIT), "
          "with documented local patches. Notices and source are included in "
          "the installation's share directory."));
@@ -1252,20 +1324,73 @@ void VaultWindow::loadDetails() {
   auto epoch = generation;
   channel.call({"summary", id}, [this, id, epoch](QStringList fields) {
     if (isOpen && generation == epoch && selectedId() == id &&
-        fields.size() == 2 && website && username) {
+        fields.size() == 3 && website && username && accessButton) {
       website->setText(fields[0]);
       username->setText(fields[1]);
+      visibilityId = id;
+      accessButton->setChecked(fields[2] == "1");
+      updateAccess();
     }
     for (auto &v : fields)
       wipe(v);
   });
 }
 void VaultWindow::refresh() {
+  visibilityId.clear();
+  updateCatalogue();
   refreshAccess();
   for (auto &v : rows)
     wipe(v);
   rows.clear();
   loadPage("0");
+}
+void VaultWindow::updateCatalogue() {
+  const auto revision = ++catalogueRevision;
+  catalogueEntries = {};
+  QFile encrypted(root+"/vault.kdbx");
+  QCryptographicHash digest(QCryptographicHash::Sha256);
+  if (!isOpen || !encrypted.open(QIODevice::ReadOnly) || !digest.addData(&encrypted)) return;
+  catalogueHash = digest.result();
+  loadCataloguePage("0", revision);
+}
+void VaultWindow::loadCataloguePage(QString cursor, quint64 revision) {
+  channel.call({"catalogue", cursor}, [this, revision](QStringList fields) {
+    if (!isOpen || revision != catalogueRevision || fields.isEmpty()) {
+      for (auto &field : fields) wipe(field);
+      return;
+    }
+    const auto next = fields.takeFirst();
+    for (int i=0; i+4<fields.size(); i+=5) {
+      const auto url = QUrl(fields[i+4].isEmpty() ? fields[i+3] : fields[i+4], QUrl::StrictMode);
+      QString origin;
+      if (url.isValid() && url.scheme()=="https" && !url.host().isEmpty() && !url.authority().contains('@')) {
+        QUrl target; target.setScheme("https"); target.setHost(url.host()); target.setPort(url.port());
+        origin = target.toString(QUrl::FullyEncoded);
+      }
+      auto kind=fields[i+2];
+      if (kind=="api") kind="token";
+      if (kind.isEmpty()) kind="login";
+      if (!QStringList{"login","token","note","recovery"}.contains(kind)) kind="other";
+      catalogueEntries.append(QJsonObject{{"id",fields[i]},{"title",fields[i+1].left(200)},
+                                         {"kind",kind},{"origin",origin}});
+    }
+    for (auto &field : fields) wipe(field);
+    if (!next.isEmpty()) { loadCataloguePage(next, revision); return; }
+    QFile encrypted(root+"/vault.kdbx");
+    QCryptographicHash digest(QCryptographicHash::Sha256);
+    if (!encrypted.open(QIODevice::ReadOnly) || !digest.addData(&encrypted)) return;
+    if (digest.result() != catalogueHash) return;
+    QSaveFile output(root+"/assistant-catalogue.json");
+    output.setDirectWriteFallback(false);
+    if (!output.open(QIODevice::WriteOnly)) return;
+    output.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    const auto data=QJsonDocument(QJsonObject{{"version",1},{"sha256",QString::fromLatin1(digest.result().toHex())},
+      {"updated",QDateTime::currentDateTimeUtc().toString(Qt::ISODate)}, {"entries",catalogueEntries}}).toJson(QJsonDocument::Compact);
+    if (output.write(data)!=data.size() || !output.commit()) {
+      if (status) status->setText(tx("Eintragsverzeichnis konnte nicht aktualisiert werden.", "Could not update entry catalogue."));
+    }
+    catalogueEntries = {};
+  });
 }
 void VaultWindow::loadPage(QString cursor) {
   auto epoch = generation;
@@ -1450,13 +1575,18 @@ void VaultWindow::clearOwnClipboard() {
   clipboardTag.clear();
 }
 void VaultWindow::lock() {
+  ++catalogueRevision;
+  catalogueEntries = {};
+  if (passkeyBridge) { delete passkeyBridge; passkeyBridge.clear(); }
   if (autoSyncProcess)
     autoSyncProcess->kill();
   const bool wasOpen = isOpen;
   isOpen = false;
+  visibilityId.clear();
   ++accessRevision;
   enabledEntries.clear();
   pendingProfiles.clear();
+  pendingEntries.clear();
   if (access)
     access->revoke();
   const bool wasVisible = isVisible();
@@ -1464,9 +1594,11 @@ void VaultWindow::lock() {
   ++generation;
   detailTimer.stop();
   idle.stop();
+  keepalive.stop();
   hideSecret();
   clearOwnClipboard();
   isOpen = false;
+  visibilityId.clear();
   if (editor) {
     auto dialog = editor;
     editor.clear();
@@ -1503,13 +1635,11 @@ bool VaultWindow::eventFilter(QObject *object, QEvent *event) {
       (event->type() == QEvent::MouseButtonPress ||
        event->type() == QEvent::KeyPress || event->type() == QEvent::Wheel)) {
     auto *widget = qobject_cast<QWidget *>(object);
-    if (widget && belongsTo(widget, this) && section() == 0 &&
-        !(backups && belongsTo(widget, backups)))
-      idle.start();
+    if (event->spontaneous() && widget && belongsTo(widget, this))
+      sessionActivity();
   }
   auto *widget = qobject_cast<QWidget *>(object);
-  const bool ours = widget && belongsTo(widget, this) &&
-                    !(backups && belongsTo(widget, backups));
+  const bool ours = widget && belongsTo(widget, this);
   auto *line = ours ? qobject_cast<QLineEdit *>(object) : nullptr;
   auto *notes = ours ? qobject_cast<QPlainTextEdit *>(object) : nullptr;
   if ((line || notes) && event->type() == QEvent::ContextMenu) {
@@ -1576,6 +1706,10 @@ void VaultWindow::edit(QStringList fields, bool createNew, bool fromChat) {
   type->addItem(tx("Wiederherstellungscodes", "Recovery codes"), "recovery");
   type->setCurrentIndex(qMax(0, type->findData(value("LumenType"))));
   form->addRow(tx("Typ", "Type"), type);
+  auto *hidden = new QCheckBox(tx("Für Lumen nicht freigeben", "Hide from Lumen"));
+  hidden->setObjectName("editLumenHidden");
+  hidden->setChecked(value("LumenHidden") == "1");
+  form->addRow("", hidden);
   const auto connectionSettings = VaultConnection::settings(fields);
   auto *connector = new QComboBox;
   connector->setObjectName("editConnector");
@@ -1603,7 +1737,7 @@ void VaultWindow::edit(QStringList fields, bool createNew, bool fromChat) {
       {"Title", tx("Name", "Name")},
       {"LumenCollection", tx("Sammlung", "Collection")},
       {"UserName", tx("Benutzername", "Username")},
-      {"URL", tx("Website", "Website")},
+      {"URL", tx("Website / SSH-Adresse", "Website / SSH address")},
       {"Password", tx("Passwort / Token-Secret", "Password / token secret")},
       {"LumenApiIdHeader", tx("Header für Token-ID", "Token ID header")},
       {"LumenApiSecretHeader", tx("Header für Secret", "Secret header")},
@@ -1652,7 +1786,7 @@ void VaultWindow::edit(QStringList fields, bool createNew, bool fromChat) {
                         : tx("Benutzername", "Username"));
     qobject_cast<QLabel *>(form->labelForField(edits["URL"]))
         ->setText(token ? tx("Dienstadresse (HTTPS)", "Service address (HTTPS)")
-                        : QString::fromUtf8("Website"));
+                        : tx("Website / SSH-Adresse", "Website / SSH address"));
   };
   connect(type, &QComboBox::currentIndexChanged, dialog, updateApiFields);
   connect(auth, &QComboBox::currentIndexChanged, dialog, updateApiFields);
@@ -1743,7 +1877,7 @@ void VaultWindow::edit(QStringList fields, bool createNew, bool fromChat) {
   auto *save =
       button(tx("Speichern", "Save"), [this, dialog = QPointer<QDialog>(dialog),
                                        id, edits, type, notes, customName,
-                                       customValue, info, connector, auth] {
+                                       customValue, info, connector, auth, hidden] {
         if (!dialog || dialog->property("saving").toBool())
           return;
         if (channel.busy()) {
@@ -1764,7 +1898,8 @@ void VaultWindow::edit(QStringList fields, bool createNew, bool fromChat) {
         }
         QStringList request{"put",       id,
                             "LumenType", type->currentData().toString(),
-                            "Notes",     notes->toPlainText()};
+                            "Notes",     notes->toPlainText(),
+                            "LumenHidden", hidden->isChecked() ? "1" : "0"};
         for (auto it = edits.begin(); it != edits.end(); ++it)
           request << it.key() << it.value()->text();
         request << "LumenApiConnector" << connector->currentData().toString()
@@ -1831,7 +1966,8 @@ void VaultWindow::refreshAccess() {
   accessLoading = true;
   enabledEntries.clear();
   pendingProfiles.clear();
-  access->revoke();
+  pendingEntries.clear();
+  access->revoke(true);
   if (isOpen && !editor)
     loadAccessPage("0", revision);
 }
@@ -1854,22 +1990,29 @@ void VaultWindow::loadAccessEntries(QStringList ids, QString cursor,
       loadAccessPage(cursor, revision);
     else {
       accessLoading = false;
-      access->setConnections(pendingProfiles);
+      access->setConnections(pendingProfiles, pendingEntries);
       pendingProfiles.clear();
+      pendingEntries.clear();
     }
     return;
   }
   const auto id = ids.takeFirst();
   channel.call({"edit", id},
                [this, id, ids, cursor, revision](QStringList fields) {
-                 const bool valid =
-                     VaultConnection::value(fields, "LumenApiEnabled") == "1" &&
+                 const auto kind = VaultConnection::value(fields, "LumenType");
+                 const auto title = VaultConnection::value(fields, "Title");
+                 const auto loginScheme = QUrl(VaultConnection::value(fields, "URL")).scheme();
+                 const bool enabled = VaultConnection::value(fields, "LumenHidden") != "1";
+                 const bool valid = kind == "token" &&
+                     VaultConnection::value(fields, "LumenHidden") != "1" &&
                      VaultConnection::problem(fields).isEmpty();
                  const auto profile = VaultConnection::settings(fields);
                  for (auto &field : fields)
                    wipe(field);
                  if (!isOpen || editor || revision != accessRevision)
                    return;
+                 if (enabled && (kind == "login" || kind == "token"))
+                   pendingEntries.insert(id, {{"title", title}, {"kind", kind}, {"login_scheme", loginScheme}});
                  if (valid)
                    pendingProfiles.insert(id, profile);
                  loadAccessEntries(ids, cursor, revision);
@@ -1878,81 +2021,24 @@ void VaultWindow::loadAccessEntries(QStringList ids, QString cursor,
 void VaultWindow::updateAccess() {
   if (!accessStatus || !accessButton)
     return;
-  const bool selected = enabledEntries.contains(selectedId());
-  accessStatus->setText(
-      selected ? tx("Für Lumen verfügbar · jede Anfrage bestätigen",
-                    "Available to Lumen · confirm each request")
-               : tx("Für Lumen nicht verfügbar", "Not available to Lumen"));
-  accessButton->setText(
-      selected ? tx("Verfügbarkeit ausschalten", "Turn availability off")
-               : tx("Für Lumen verfügbar machen", "Make available to Lumen"));
-  if (accessLoading)
-    accessStatus->setText(
-        tx("Verfügbarkeit wird geladen …", "Loading availability …"));
-  else if (selected && !access->enabled(selectedId()))
-    accessStatus->setText(
-        tx("Für Lumen vorgemerkt · Anbindung unter Bearbeiten prüfen",
-           "Enabled for Lumen · check connection in Edit"));
+  const bool hidden = accessButton->isChecked();
+  accessStatus->setText(hidden
+      ? tx("Für Lumen vollständig verborgen", "Completely hidden from Lumen")
+      : tx("Für Lumen sichtbar · jede Verwendung bestätigen", "Visible to Lumen · confirm each use"));
   const int row = rowIndex(selectedId());
-  accessButton->setEnabled(!accessLoading && row >= 0 &&
-                           rows.value(row + 2) == "token" &&
+  accessButton->setEnabled(!accessLoading && row >= 0 && visibilityId == selectedId() &&
                            rows.value(row + 5) != "1");
 }
 void VaultWindow::shareConnection() {
   const auto id = selectedId();
-  if (!isOpen || id.isEmpty() || editor || accessLoading)
+  if (!isOpen || id.isEmpty() || editor || accessLoading || visibilityId != id)
     return;
+  const auto hidden = accessButton->isChecked() ? "1" : "0";
   accessLoading = true;
+  ++accessRevision;
+  access->revoke();
   updateAccess();
-  const auto revision = ++accessRevision;
-  if (enabledEntries.contains(id)) {
-    access->revoke();
-    channel.call({"enable-api", id, "0"},
-                 [this](QStringList) { refreshAccess(); });
-    return;
-  }
-  const auto current = generation;
-  channel.call({"edit", id}, [this, id, current, revision](QStringList fields) {
-    const auto problem = VaultConnection::problem(fields);
-    for (auto &field : fields)
-      wipe(field);
-    if (!isOpen || generation != current || revision != accessRevision)
-      return;
-    if (problem.isEmpty()) {
-      ++accessRevision;
-      access->revoke();
-      channel.call({"enable-api", id, "1"},
-                   [this](QStringList) { refreshAccess(); });
-      return;
-    }
-    accessLoading = false;
-    updateAccess();
-    const QMap<QString, QString> hints{
-        {"endpoint",
-         tx("Die Dienstadresse muss eine HTTPS-URL ohne Benutzername, Query "
-            "oder Fragment sein. Unter Bearbeiten korrigieren.",
-            "The service address must be an HTTPS URL without user info, query "
-            "or fragment. Correct it in Edit.")},
-        {"secret", tx("Token-Secret fehlt oder enthält unzulässige Zeichen. "
-                      "Unter Bearbeiten ergänzen.",
-                      "Token secret is missing or contains invalid characters. "
-                      "Complete it in Edit.")},
-        {"token_id",
-         tx("Für diese Anmeldung fehlt die Token-ID. Unter Bearbeiten ergänzen "
-            "oder eine andere Anmeldung wählen.",
-            "This authentication mode needs a token ID. Complete it in Edit or "
-            "choose another mode.")},
-        {"id_header",
-         tx("Name des Token-ID-Headers fehlt, ist reserviert oder doppelt.",
-            "Token ID header name is missing, reserved or duplicated.")},
-        {"secret_header",
-         tx("Name des Secret-Headers fehlt oder ist reserviert.",
-            "Secret header name is missing or reserved.")}};
-    if (accessStatus)
-      accessStatus->setText(hints.value(
-          problem, tx("Bitte Anbindung und Anmeldung unter Bearbeiten prüfen.",
-                      "Check the connection and authentication in Edit.")));
-  });
+  channel.call({"lumen-hidden", id, hidden}, [this](QStringList) { refresh(); });
 }
 void VaultWindow::theme() {
   QSettings settings("Lumen", "Assistant");
@@ -2089,4 +2175,28 @@ void VaultWindow::theme() {
           "QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{"
           "height:0;}")
           .arg(bg, base, hover, fg, border, muted, accent, on));
+}
+
+void VaultWindow::setIdleMinutes(int minutes) {
+  idleMinutes = (minutes == 5 || minutes == 15 || minutes == 30) ? minutes : 15;
+  idle.setInterval(idleMinutes * 60000);
+}
+void VaultWindow::sessionActivity() {
+  if (isOpen) idle.start();
+}
+void VaultWindow::closeEvent(QCloseEvent *event) {
+  if (editor && editor->isVisible()) {
+    event->ignore();
+    editor->raise();
+    return;
+  }
+  if (isOpen) {
+    hideSecret();
+    clearOwnClipboard();
+    hide();
+    event->ignore();
+  } else {
+    event->accept();
+    emit quitRequested();
+  }
 }

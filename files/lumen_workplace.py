@@ -73,72 +73,6 @@ def date(value):
     return time.strftime('%d.%m. · %H:%M', time.localtime(value))
 
 
-class ProjectDialog(QDialog):
-    def __init__(self, store, project, parent):
-        super().__init__(parent)
-        self.store, self.project, self.saved = store, project, None
-        self.setWindowTitle(tr('Lumen · Arbeitsraum bearbeiten') if project else tr('Lumen · Neuer Arbeitsraum')); self.resize(760, 620)
-        value = project or {}; layout = QVBoxLayout(self); layout.setSpacing(14)
-        self.name = QLineEdit(value.get('name', '')); self.name.setPlaceholderText(tr('Zum Beispiel: Reiseplanung'))
-        form = QFormLayout(); form.addRow(tr('Name des Arbeitsraums'), self.name); layout.addLayout(form)
-        tabs = QTabWidget(); layout.addWidget(tabs)
-        sources = QWidget(); sources_box = QVBoxLayout(sources)
-        sources_box.addWidget(text(tr('Lokale Ordner und NAS gehören zusammen. Jede Datei behält ihre Herkunft.'), 'muted'))
-        self.sources = table([tr('Bezeichnung'), tr('Ordner oder Netzwerkadresse')])
-        self.sources.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed)
-        self.sources.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self.sources.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        sources_box.addWidget(self.sources)
-        for source in value.get('sources', []): self.add_source(source['label'], source['location'])
-        row(sources_box, [(tr('Ordner …'), self.local), (tr('Netzwerk …'), self.remote), (tr('Entfernen'), self.remove_source)])
-        tabs.addTab(sources, tr('Dateiquellen'))
-        launch = QWidget(); launch_box = QVBoxLayout(launch)
-        launch_box.addWidget(text(tr('Diese Programme und Webseiten werden nur beim Klick auf „Weiterarbeiten“ geöffnet.'), 'muted'))
-        self.apps = QListWidget(); self.apps.setAccessibleName(tr('Programme beim Weiterarbeiten'))
-        from gi.repository import Gio
-        apps = sorted([a for a in Gio.AppInfo.get_all() if a.should_show() and a.get_id()], key=lambda a: a.get_display_name().casefold())
-        selected = value.get('applications', [])
-        for app in apps:
-            item = QListWidgetItem(QIcon.fromTheme(app.get_icon().to_string()) if app.get_icon() else QIcon(), app.get_display_name())
-            item.setData(Qt.UserRole, app.get_id()); item.setCheckState(Qt.Checked if app.get_id() in selected else Qt.Unchecked)
-            self.apps.addItem(item)
-        launch_box.addWidget(self.apps)
-        self.urls = QPlainTextEdit('\n'.join(value.get('urls', []))); self.urls.setMaximumHeight(100)
-        self.urls.setPlaceholderText(tr('Webseiten · eine HTTP(S)-Adresse pro Zeile')); self.urls.setAccessibleName(tr('Webseiten'))
-        launch_box.addWidget(self.urls); tabs.addTab(launch, tr('Beim Fortsetzen öffnen'))
-        notes = QWidget(); notes_box = QVBoxLayout(notes)
-        notes_box.addWidget(text(tr('Wo bist du stehen geblieben? Was ist der nächste Schritt?'), 'muted'))
-        self.note = QPlainTextEdit(value.get('note', '')); self.note.setAccessibleName(tr('Notiz zum Weiterarbeiten'))
-        notes_box.addWidget(self.note); tabs.addTab(notes, tr('Weiterarbeiten'))
-        self.error = text(''); layout.addWidget(self.error)
-        box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
-        box.accepted.connect(self.save); box.rejected.connect(self.reject); layout.addWidget(box)
-
-    def add_source(self, label, location):
-        r = self.sources.rowCount(); self.sources.insertRow(r)
-        self.sources.setItem(r, 0, QTableWidgetItem(label)); self.sources.setItem(r, 1, QTableWidgetItem(location))
-
-    def local(self):
-        path = QFileDialog.getExistingDirectory(self, tr('Projektordner wählen'))
-        if path: self.add_source(Path(path).name, path)
-
-    def remote(self):
-        dialog = ConnectDialog(self)
-        if dialog.exec() == QDialog.Accepted: self.add_source(server_label(dialog.url), dialog.url)
-        dialog.deleteLater()
-
-    def remove_source(self):
-        if self.sources.currentRow() >= 0: self.sources.removeRow(self.sources.currentRow())
-
-    def save(self):
-        try:
-            sources = [dict(label=self.sources.item(r, 0).text(), location=self.sources.item(r, 1).text())
-                       for r in range(self.sources.rowCount())]
-            apps = [self.apps.item(i).data(Qt.UserRole) for i in range(self.apps.count()) if self.apps.item(i).checkState() == Qt.Checked]
-            self.saved = projects.save_project(self.store, self.project, self.name.text(), sources, apps,
-                [url.strip() for url in self.urls.toPlainText().splitlines() if url.strip()], self.note.toPlainText())
-            self.accept()
-        except (ValueError, OSError) as error: self.error.setText(str(error))
 
 
 class ModeDialog(QDialog):
@@ -181,7 +115,7 @@ class ModeDialog(QDialog):
 
 
 class Workplace(QWidget):
-    def __init__(self, parent=None, store=None, files_provider=None, system_only=False):
+    def __init__(self, parent=None, store=None, files_provider=None, system_only=False, activity_only=False):
         super().__init__(parent)
         self.system_only = system_only
         self.store = store or Store(); self.files_provider = files_provider
@@ -193,16 +127,18 @@ class Workplace(QWidget):
             self.summary=text(tr('Audio, Ruhezeit, Fenster und Netzwerkordner gemeinsam steuern.'),'muted');layout.addWidget(self.summary)
         self.tabs = QTabWidget(); layout.addWidget(self.tabs, 1)
         if system_only: self.modes_page()
-        else: self.projects_page(); self.transfers_page()
+        else:
+            if not activity_only: self.projects_page()
+            self.transfers_page()
         self.history_page()
         self.status = text('', 'muted'); layout.addWidget(self.status)
         self.timer = QTimer(self); self.timer.timeout.connect(self.refresh_activity); self.timer.start(1500)
         self.tabs.currentChanged.connect(lambda _: self.refresh_activity())
-        if not system_only:
+        if not system_only and not activity_only:
             self.tabs.tabBar().hide()
             self.tabs.currentChanged.connect(lambda index:self.tabs.tabBar().setVisible(index!=0))
         if system_only: self.refresh_modes()
-        else: self.refresh_projects()
+        elif not activity_only: self.refresh_projects()
         self.refresh_activity()
 
     def open_modes(self):
@@ -248,15 +184,15 @@ class Workplace(QWidget):
         window = self.files_provider()
         if show:
             if hasattr(window, 'lumen_host'): window.lumen_host.show_page(3)
-            else: window.raise_(); window.activateWindow()
+            else: window.show(); window.raise_(); window.activateWindow()
         return window
 
     def projects_page(self):
         from workplace_rooms import Rooms
-        box=self.page(tr('Arbeitsräume'));self.rooms=Rooms(self);box.addWidget(self.rooms)
+        box=self.page(tr('Projekte'));self.rooms=Rooms(self);box.addWidget(self.rooms)
 
     def refresh_projects(self, identity=None):
-        if self.system_only:return
+        if self.system_only or not hasattr(self, 'rooms'):return
         self.select_project(identity or (self.project or {}).get('id'))
 
     def select_project(self, identity=None):
@@ -268,17 +204,22 @@ class Workplace(QWidget):
         self.rooms.render(values)
 
     def edit_project(self, _=False, new=False):
-        from workplace_rooms import CreateRoom
-        dialog = CreateRoom(self.store,self) if new else ProjectDialog(self.store,self.project,self)
-        if dialog.exec() == QDialog.Accepted:
-            window = self.guard(lambda: self.files())
-            if window and window.spaces.active_room and window.spaces.active_room['id'] == dialog.saved['id']:
-                window.spaces.active_room = dialog.saved
-                window.room_button.setText(dialog.saved['name'])
-            self.refresh_projects(dialog.saved['id']);self.rooms.open(dialog.saved['id'])
-        dialog.deleteLater()
+        owner=self.window()
+        if hasattr(owner, 'home'):
+            owner.home.create() if new else owner.home.edit_environment()
+        else:
+            from lumen_detail_routes import open_page
+            open_page(8)
+
+    def remote_action(self, action, value=''):
+        if not self.project: raise ValueError(tr('Bitte zuerst ein Projekt wählen.'))
+        from lumen_detail_routes import room_action
+        result = room_action(self.project['id'], action, value)
+        self.refresh_projects(self.project['id'])
+        self.status.setText(result.get('status') or tr('In Lumen übernommen.'))
 
     def capture(self):
+        if getattr(self, 'remote_conversations', False): return self.remote_action('capture')
         if not self.project: return
         def save():
             window = self.files()
@@ -290,6 +231,7 @@ class Workplace(QWidget):
         self.guard(save)
 
     def resume(self):
+        if getattr(self, 'remote_conversations', False): return self.remote_action('resume')
         if not self.project or self.busy: return
         def open_project():
             window = self.files()
@@ -490,20 +432,20 @@ class Workplace(QWidget):
                 if window and window.spaces.active_room and value['target'].endswith('/' + window.spaces.active_room['id']):
                     # Do not let automatic room saving overwrite the restored snapshot.
                     window.spaces.active_room = None
-                    window.room_button.setText(tr('Arbeitsräume'))
+                    window.room_button.setText(tr('Projekte'))
                     window.spaces.catalog.use_room_shelf(); window.spaces.update_shelf()
                     if window.current_location == 'lumen:shelf': window.spaces.reload()
-                    self.status.setText(tr('Projektänderung zurückgenommen. Den gespeicherten Stand mit „Weiterarbeiten“ öffnen.'))
+                    self.status.setText(tr('Projektänderung zurückgenommen. Den gespeicherten Stand mit „Arbeitsstand laden“ öffnen.'))
         self.job('undo', {'id': identity}, complete, mutating=True)
 
     def refresh_activity(self):
         if not self.isVisible() and hasattr(self, 'transfer_values'): return
         try:
             if not self.system_only:
-                self.rooms.refresh_tasks()
+                if hasattr(self, 'rooms'): self.rooms.refresh_tasks()
                 self.transfer_values = transfers.tickets(self.store)
                 action_names = {'copy': tr('Kopieren'), 'move': tr('Verschieben'), 'rename': tr('Umbenennen'), 'mkdir': tr('Neuer Ordner'), 'trash': tr('Papierkorb'), 'download': tr('Download')}
-                fill(self.transfers, [(v['id'], [action_names[v['action']] + ' · ' + (Path(v['target']).name if v['action'] == 'download' else v['current'] or Path(v['sources'][0]).name),
+                fill(self.transfers, [(v['id'], [action_names.get(v['action'], v['action']) + ' · ' + (Path(v['target']).name if v['action'] == 'download' else v['current'] or Path(v['sources'][0]).name),
                     (size_text(v['bytes']) + (' / ' + size_text(v['total']) if v['total'] else '') if v['action'] == 'download'
                      else f"{len(v['done'])} / {len(v['sources'])}" + (' · ' + size_text(v['bytes']) if v['bytes'] else '')),
                     tr('Wird angehalten') if v.get('cancel') and v['status'] in transfers.ACTIVE else transfers.LABELS[v['status']]]) for v in self.transfer_values[:200]])
@@ -516,7 +458,14 @@ class Workplace(QWidget):
             self.history_details()
         except Exception as error: self.status.setText(str(error))
 
+    def can_close(self):
+        try: return not hasattr(self, 'rooms') or self.rooms.can_close()
+        except Exception as error:
+            self.status.setText(str(error)); return False
+
     def shutdown(self):
+        if hasattr(self, 'rooms') and self.rooms.household is not None:
+            self.rooms.household.close()
         self.timer.stop(); self.generation += 1
         for connection in self.connections: connection.close()
         for job in self.jobs[:]: job.kill(); job.waitForFinished(1000)

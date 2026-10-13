@@ -19,7 +19,7 @@
   "Fensterbild vergrößern": "Enlarge window preview",
   "Fensterzugriff fehlgeschlagen.": "Could not access the window.",
   "Fensterzugriff hat zu lange gedauert. Erneut auswählen oder fortsetzen.": "Window access timed out. Select again or resume.",
-  "Fensterzugriff nicht möglich. KDE Plasma und Bildschirmfreigabe prüfen; Lumen Vault muss geschlossen sein.": "Window access unavailable. Check KDE Plasma and screen sharing; close Lumen Vault first.",
+  "Fensterzugriff nicht möglich. KDE Plasma und Bildschirmfreigabe prüfen; Lumen Vault über „Sperren und beenden“ im Infobereich beenden.": "Window access unavailable. Check KDE Plasma and screen sharing; use “Lock and quit” in the Lumen Vault tray menu.",
   "Hier erscheint deine lokale Vorschau": "Your local preview appears here",
   "Hilfe im gewählten Fenster · Schritt für Schritt": "Step-by-step help in your selected window",
   "KDE hat die Aufnahme nicht freigegeben. Bitte Lumen neu installieren und erneut anmelden.": "KDE did not allow capture. Reinstall Lumen and sign in again.",

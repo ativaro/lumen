@@ -213,13 +213,26 @@ class Activation(QObject):
     def Activate(self): self.window.activate()
     @Slot(str)
     def OpenPage(self, page):
-        if page in self.window.pages: self.window.activate(page)
+        if page in self.window.pages or page == 'tasks': self.window.activate(page)
+    @Slot(str)
+    def OpenTask(self, identity):
+        from lumen_panel import valid_task
+        try: identity = valid_task(identity)
+        except ValueError: return
+        self.window.diagnostics.open_tasks(identity); self.window.activate('tasks')
     @Slot(str)
     def OpenSound(self, value):
         if len(value) > 65536: return
         try: request = json.loads(value)
         except ValueError: return
         self.window.sound.safe(self.window.activate_sound, request)
+
+    @Slot(str)
+    def OpenBackup(self, value):
+        if len(value) > 65536: return
+        try: request = json.loads(value)
+        except ValueError: return
+        self.window.backups.safe(self.window.activate_backup, request)
 
 
 def create_window(controller):
@@ -231,12 +244,14 @@ def create_window(controller):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Lumen System')
-    parser.add_argument('--page', choices=('system', 'sound', 'modes'))
+    parser.add_argument('--page', choices=('system', 'sound', 'modes', 'server', 'updates', 'diagnostics', 'backups', 'tasks'))
+    from lumen_panel import valid_task
+    parser.add_argument('--task', type=valid_task)
     destination = parser.add_mutually_exclusive_group()
     destination.add_argument('--ref'); destination.add_argument('--handoff')
     args = parser.parse_args(argv)
     request = {key: getattr(args, key) for key in ('ref', 'handoff') if getattr(args, key)}
-    if request and args.page != 'sound': parser.error('Object references belong to Sound.')
+    if request and args.page not in ('sound', 'backups'): parser.error('Object references belong to Sound or Backups.')
     from lumen_crash import supervise, attach
     supervise('system')
     from app import create_app
@@ -245,8 +260,8 @@ def main(argv=None):
     app.setWindowIcon(QIcon.fromTheme('lumen-system', QIcon.fromTheme('utilities-system-monitor')))
     bus = QDBusConnection.sessionBus(); service = 'org.lumen.System'
     if bus.isConnected() and not bus.registerService(service):
-        message = QDBusMessage.createMethodCall(service, '/System', service, 'OpenSound' if request else 'OpenPage' if args.page else 'Activate')
-        message.setArguments([json.dumps(request)] if request else [args.page] if args.page else [])
+        message = QDBusMessage.createMethodCall(service, '/System', service, ('OpenBackup' if args.page == 'backups' else 'OpenSound') if request else 'OpenTask' if args.task else 'OpenPage' if args.page else 'Activate')
+        message.setArguments([json.dumps(request)] if request else [args.task] if args.task else [args.page] if args.page else [])
         reply = bus.call(message, QDBus.Block, 3000)
         return int(reply.type() == QDBusMessage.ErrorMessage)
     from tools_data import Library
@@ -256,18 +271,31 @@ def main(argv=None):
         from PySide6.QtWidgets import QMessageBox
         QMessageBox.information(None, 'Lumen System', tr('Bitte das bisherige Sound-Fenster schließen und Lumen System erneut öffnen.'))
         return 1
+    backup_library = Library('vault')
+    backup_lock = QLockFile(str(backup_library.root/'window.lock'))
+    if not backup_lock.tryLock(0):
+        from PySide6.QtWidgets import QMessageBox
+        QMessageBox.information(None, 'Lumen System', tr('Bitte das bisherige Sicherungsfenster schließen und Lumen System erneut öffnen.'))
+        lock.unlock()
+        return 1
     from system_window import SystemWindow
     from tools_app import listen_window
     controller = SystemController(); window = SystemWindow(controller, args.page or 'system')
     from interop_data import Registry
     Registry(library.root.parent).recover('sound')
+    Registry(backup_library.root.parent).recover('vault')
     server = listen_window(window.sound, window.activate_sound)
+    backup_server = listen_window(window.backups, window.activate_backup)
     activation = Activation(window)
     if bus.isConnected(): bus.registerObject('/System', activation, QDBusConnection.ExportAllSlots)
+    app.aboutToQuit.connect(backup_server.close); app.aboutToQuit.connect(backup_lock.unlock)
     app.aboutToQuit.connect(server.close); app.aboutToQuit.connect(lock.unlock)
     app.aboutToQuit.connect(controller.shutdown); attach(app, controller, 'system', offer_recovery=False)
     window.show()
-    if request: QTimer.singleShot(0, lambda: window.sound.safe(window.activate_sound, request))
+    if args.task: activation.OpenTask(args.task)
+    if request:
+        page, activate = (window.backups, window.activate_backup) if args.page == 'backups' else (window.sound, window.activate_sound)
+        QTimer.singleShot(0, lambda: page.safe(activate, request))
     code = app.exec(); QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
     return code
 

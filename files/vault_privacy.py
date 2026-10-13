@@ -12,7 +12,7 @@ import stat
 import subprocess
 import sys
 
-MESSAGE = 'Close Lumen Vault before starting screen analysis.'
+MESSAGE = 'Use Lock and quit in the Lumen Vault tray menu before starting screen analysis.'
 
 
 def acquire_capture():

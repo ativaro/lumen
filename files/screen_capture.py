@@ -117,7 +117,7 @@ def main():
         print(json.dumps(result))
     except Exception as error:
         # No raw DBus errors (which may contain private window titles).
-        text = str(error) if isinstance(error, (ValueError, TimeoutError)) else tr('Fensterzugriff nicht möglich. KDE Plasma und Bildschirmfreigabe prüfen; Lumen Vault muss geschlossen sein.')
+        text = str(error) if isinstance(error, (ValueError, TimeoutError)) else tr('Fensterzugriff nicht möglich. KDE Plasma und Bildschirmfreigabe prüfen; Lumen Vault über „Sperren und beenden“ im Infobereich beenden.')
         if isinstance(error, dbus.DBusException): text += ' (' + error.get_dbus_name() + ')'
         else: text += ' (' + type(error).__name__ + ')'
         print(json.dumps(dict(error=text))); sys.exit(1)

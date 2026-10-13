@@ -32,11 +32,16 @@ class ServerTargetTest(unittest.TestCase):
                     assert 'synthetic-key' not in ' '.join(args)
                     assert kwargs['env']['RESTIC_REST_PASSWORD'] == 'synthetic-backup-token'
                     assert kwargs['data'] == b'synthetic-key\n'
+                    if args[-1] == 'backup':
+                        assert '--option' in args and args[args.index('--option')+1] == 'rest.connections=1'
+                    else:
+                        assert '--option' not in args
                     assert 'BEGIN CERTIFICATE' in Path(args[args.index('--cacert')+1]).read_text()
                     raise ValueError('remote echoed synthetic-backup-token synthetic-key')
-            with self.assertRaises(ValueError) as error:
-                target.command(plan, 'synthetic-key', ['snapshots'], Runner(), 'restic', 30)
-            self.assertNotIn('synthetic', str(error.exception))
+            for action in ('backup', 'check'):
+                with self.assertRaises(ValueError) as error:
+                    target.command(plan, 'synthetic-key', [action], Runner(), 'restic', 30)
+                self.assertNotIn('synthetic', str(error.exception))
             with self.assertRaises(ValueError):
                 target.command(dict(plan, repository='rest:https://other.test/'), 'key', [], None, 'restic', 30)
 

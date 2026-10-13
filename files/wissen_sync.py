@@ -20,7 +20,9 @@ def workspace(book):
 
 def scope(book, config):
     extra=('\0'+workspace(book)) if workspace(book) else ''
-    return digest((config['server']+'\0'+config['token']+'\0'+str(book.root)+'\0'+str(book.identity)+extra).encode())
+    from sync_identity import scope as stable_scope
+    return stable_scope(config, ['notes',str(book.root),list(book.identity),workspace(book)],
+        digest((config['server']+'\0'+config['token']+'\0'+str(book.root)+'\0'+str(book.identity)+extra).encode()))
 
 
 def settings(book, config):
@@ -271,17 +273,17 @@ if __name__=='__main__':
     store=Store()
     try:
         result=background(store)
-        store.set_setting('knowledge/background-status',dict(time=time.time(),ok=True,
+        store.set_setting('knowledge/background-status',dict(time=time.time(),ok=True,enabled=result.get('enabled',False),
             changed=result.get('changed',0),conflicts=len(result.get('conflicts',[]))))
         if result.get('enabled'):
             from lumen_notifications import report
             bad=bool(result.get('conflicts'))
             report('Lumen Wissen','background-sync',bad,tr('Notizabgleich braucht deine Aufmerksamkeit') if bad else tr('Notizabgleich wieder in Ordnung'),
-                   tr('Öffne Lumen Wissen und prüfe den Abgleich.') if bad else '',target='app:wissen')
+                   tr('Öffne Lumen Notes und prüfe den Abgleich.') if bad else '',target='app:wissen')
     except Exception:
         store.set_setting('knowledge/background-status',dict(time=time.time(),ok=False))
         from lumen_notifications import report
         report('Lumen Wissen','background-sync',True,tr('Notizabgleich braucht deine Aufmerksamkeit'),
-               tr('Öffne Lumen Wissen und prüfe den Abgleich.'),target='app:wissen')
-        print('Notizabgleich nicht abgeschlossen. Status in Lumen Wissen prüfen.',file=sys.stderr)
+               tr('Öffne Lumen Notes und prüfe den Abgleich.'),target='app:wissen')
+        print('Notizabgleich nicht abgeschlossen. Status in Lumen Notes prüfen.',file=sys.stderr)
         sys.exit(1)

@@ -2,10 +2,10 @@
 set -euo pipefail
 # A warm search only needs a D-Bus call, not another Qt application and supervisor.
 if [ "$#" -eq 0 ] || { [ "$#" -eq 1 ] && [ "$1" = --voice ]; }; then
-    method=Activate
-    if [ "${1:-}" = --voice ]; then method=Voice; fi
+    voice=false
+    if [ "${1:-}" = --voice ]; then voice=true; fi
     if command -v qdbus6 >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1 &&
-        timeout 2 qdbus6 org.lumen.Search /Search "org.lumen.Search.$method" >/dev/null 2>&1; then
+        timeout 2 qdbus6 org.lumen.Desktop /Lumen org.lumen.Desktop.ActivateSearch "$voice" >/dev/null 2>&1; then
         exit 0
     fi
 fi

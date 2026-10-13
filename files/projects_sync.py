@@ -16,7 +16,9 @@ def identity(value):
 
 
 def scope(config):
-    return hashlib.sha256((config["server"] + "\0" + config["token"]).encode()).hexdigest()
+    from sync_identity import scope as stable_scope
+    legacy = hashlib.sha256((config["server"] + "\0" + config["token"]).encode()).hexdigest()
+    return stable_scope(config, ["projects"], legacy)
 
 
 def state_path(library):
@@ -66,20 +68,21 @@ def locked(library):
         yield
 
 
-def configure(library, enabled, project=None, remote_project=None):
+def configure(library, enabled, project=None, remote_project=None, all_projects=None):
     with locked(library):
-        config = lumen_connect.read_config()
         state = read_state(library)
         if not enabled:
             state["enabled"] = False
             save_state(library, state)
             return
+        config = lumen_connect.read_config()
         user = lumen_connect.request(config, "/bridge/me")
         if "projects" not in user["capabilities"]:
             raise ValueError(tr("Auf dem Server zuerst „Projekte synchronisieren“ freigeben."))
         if state.get("scope") not in ("", scope(config)):
             raise ValueError(tr("Anderes Serverkonto. Bestehende Projektbindungen zuerst getrennt prüfen."))
         state.update(enabled=True, scope=scope(config))
+        if all_projects is not None: state["all_projects"] = bool(all_projects)
         if remote_project:
             available = lumen_connect.request(config, "/bridge/projects")
             if not any(p["id"] == remote_project for p in available):
@@ -90,23 +93,26 @@ def configure(library, enabled, project=None, remote_project=None):
                     if db.execute("SELECT 1 FROM records WHERE id=?", (local,)).fetchone():
                         raise ValueError(tr("Lokale Projektkennung ist bereits belegt."))
                 state["projects"][local] = dict(remote=remote_project, nodes={})
-        if project:
-            library.get(project)
-            with library.connect() as db:
-                db.execute("BEGIN IMMEDIATE")
-                if db.execute(
-                    "SELECT 1 FROM project_runs r JOIN project_items i ON i.id=r.task WHERE i.project=? AND r.status='running'",
-                    (project,),
-                ).fetchone():
-                    raise ValueError(tr("Zuerst die laufenden lokalen Projektaufträge beenden."))
-                stored = db.execute("SELECT data FROM records WHERE id=?", (project,)).fetchone()
-                data = json.loads(stored["data"])
-                data["server_bound"] = True
-                db.execute(
-                    "UPDATE records SET data=?,updated=? WHERE id=?", (json.dumps(data), time.time(), project)
-                )
-            state["projects"].setdefault(project, dict(remote=identity(project), nodes={}, publish=True))
+        if project: bind_local(library, state, project)
         save_state(library, state)
+
+
+def bind_local(library, state, project):
+    library.get(project)
+    with library.connect() as db:
+        db.execute("BEGIN IMMEDIATE")
+        if db.execute(
+            "SELECT 1 FROM project_runs r JOIN project_items i ON i.id=r.task WHERE i.project=? AND r.status='running'",
+            (project,),
+        ).fetchone():
+            raise ValueError(tr("Zuerst die laufenden lokalen Projektaufträge beenden."))
+        stored = db.execute("SELECT data FROM records WHERE id=?", (project,)).fetchone()
+        data = json.loads(stored["data"])
+        data["server_bound"] = True
+        db.execute(
+            "UPDATE records SET data=?,updated=? WHERE id=?", (json.dumps(data), time.time(), project)
+        )
+    state["projects"].setdefault(project, dict(remote=identity(project), nodes={}, publish=True))
 
 
 def payload(row, root=False):
@@ -214,10 +220,10 @@ def synchronize(library):
     Projects(library)
     with (library.root / "server-sync.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        config = lumen_connect.read_config()
         state = read_state(library)
         if not state["enabled"]:
             return dict(changed=0, conflicts=[])
+        config = lumen_connect.read_config()
         if state["scope"] != scope(config):
             raise ValueError(tr("Serverkonto geändert. Projektabgleich angehalten."))
 
@@ -236,6 +242,10 @@ def synchronize(library):
                         if db.execute("SELECT 1 FROM records WHERE id=?", (key,)).fetchone():
                             raise ValueError(tr("Lokale Projektkennung ist bereits belegt."))
                     state["projects"][key] = dict(remote=space["id"], nodes={})
+        if state.get("all_projects"):
+            for project in library.all():
+                if project["id"] not in state["projects"]:
+                    bind_local(library, state, project["id"])
         save_state(library, state)
         for project, binding in state["projects"].items():
             remote = binding["remote"]

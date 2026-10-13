@@ -14,7 +14,7 @@ def projects(store):
 
 
 def save_project(store, previous, name, sources, applications, urls, note, state=None):
-    if not 1 <= len(sources) <= 24: raise ValueError(tr('Bitte 1 bis 24 Projektordner angeben.'))
+    if len(sources) > 24: raise ValueError(tr('Bis zu 24 Projektordner sind möglich.'))
     sources = [dict(label=title(s['label']), location=canonical(s['location'])) for s in sources]
     if any(virtual(s['location']) for s in sources) or len({s['location'] for s in sources}) != len(sources):
         raise ValueError(tr('Bitte unterschiedliche lokale Ordner oder Netzwerkordner verwenden.'))
@@ -47,17 +47,17 @@ def recent(root):
 def validate_pin(pin):
     """Small allowlist for local room references; no executable launch strings."""
     if not isinstance(pin,dict) or pin.get('kind') not in ('object','url','chat','task'):
-        raise ValueError(tr('Ungültige Arbeitsraum-Verknüpfung.'))
+        raise ValueError(tr('Ungültige Projekt-Verknüpfung.'))
     kind=pin['kind'];allowed={'kind','title','resume'}|{'object':{'url','app'},'url':{'url'},'chat':{'chat'},'task':{'id'}}[kind]
     if set(pin)-allowed or not isinstance(pin.get('title'),str) or not 1<=len(pin['title'])<=4096:
-        raise ValueError(tr('Ungültige Arbeitsraum-Verknüpfung.'))
-    if 'resume' in pin and (type(pin['resume']) is not bool or kind not in ('object','url')):raise ValueError(tr('Ungültige Arbeitsraum-Verknüpfung.'))
+        raise ValueError(tr('Ungültige Projekt-Verknüpfung.'))
+    if 'resume' in pin and (type(pin['resume']) is not bool or kind not in ('object','url')):raise ValueError(tr('Ungültige Projekt-Verknüpfung.'))
     if kind=='url':web_url(pin.get('url',''))
     elif kind=='object':
         from interop_data import Registry
         ref=Registry().resolve(pin.get('url',''))
         if pin.get('app')!=ref['app'] or ref['app'] not in ('files','reader','wissen'):
-            raise ValueError(tr('Diese Verknüpfung gehört nicht zu Dateien oder Wissen.'))
+            raise ValueError(tr('Diese Verknüpfung gehört nicht zu Dateien oder Notes.'))
     elif kind=='chat':
         chat=pin.get('chat',{})
         if not isinstance(chat,dict) or not isinstance(chat.get('session'),str) or not chat['session'] or len(chat['session'])>256:

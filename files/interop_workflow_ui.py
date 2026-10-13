@@ -194,7 +194,7 @@ def install_menu(window):
         for value, title in [('remind', tr('Kündigungsfrist im Kalender planen')), ('until', tr('Garantie / Vertragsende im Kalender planen')), ('cancel', tr('Kündigungsentwurf vorbereiten')), ('support', tr('Supportentwurf mit Belegen vorbereiten')), ('repair', tr('Reparaturprojekt anlegen')), ('handover', tr('Übergabepaket exportieren'))]:
             add(title, lambda value=value: household(window, value))
     else:
-        for value, title in [('agenda', tr('Agenda aus offenen Fragen')), ('milestone', tr('Meilenstein im Kalender planen')), ('lessons', tr('Erkenntnisse in Lumen Wissen festhalten')), ('handover', tr('Projektübergabe als Mailentwurf')), ('export', tr('Übergabepaket exportieren')), ('status', tr('Projektstand lokal vorlesen'))]:
+        for value, title in [('agenda', tr('Agenda aus offenen Fragen')), ('milestone', tr('Meilenstein im Kalender planen')), ('lessons', tr('Erkenntnisse in Lumen Notes festhalten')), ('handover', tr('Projektübergabe als Mailentwurf')), ('export', tr('Übergabepaket exportieren')), ('status', tr('Projektstand lokal vorlesen'))]:
             add(title, lambda value=value: project(window, value))
         add(tr('Leseliste ordnen und öffnen'), lambda: reading(window)); add(tr('Zuletzt geänderte Dateien'), lambda: recent(window)); add(tr('Fehlende Dateiverknüpfungen reparieren'), lambda: repair(window))
         add(tr('Arbeitskontext speichern'), lambda: context(window)); add(tr('Arbeitskontext öffnen'), lambda: context(window, True))

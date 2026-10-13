@@ -227,28 +227,30 @@ class FileSpaces(QObject):
             self.active_room = self.catalog.save_room(self.active_room, self.active_room['name'], self.capture())
             return True
         except (ValueError, OSError) as error:
-            self.window.error(tr('Arbeitsraum konnte nicht gespeichert werden.'), str(error) +
-                tr('\nDu kannst die aktuelle Ansicht als neuen Arbeitsraum speichern.')); return False
+            self.window.error(tr('Dateiansicht konnte nicht gespeichert werden.'), str(error) +
+                tr('\nDu kannst die aktuelle Ansicht als neue Dateiansicht speichern.')); return False
 
     def room_menu(self):
         menu = QMenu(self.window)
         for room in self.catalog.rooms():
+            if room.get('project'):continue
             action = menu.addAction(room['name'], lambda _=False, value=room: self.open_room(value))
             action.setCheckable(True); action.setChecked(bool(self.active_room and self.active_room['id'] == room['id']))
         menu.addSeparator()
-        menu.addAction(tr('Ansicht als neuen Arbeitsraum speichern …'), self.new_room)
-        if self.active_room:
-            menu.addAction(tr('Arbeitsraum aktualisieren'), self.save_active_room)
-            menu.addAction(tr('Arbeitsraum umbenennen …'), self.rename_room)
+        menu.addAction(tr('Dateiansicht speichern …'), self.new_room)
+        if self.active_room and not self.active_room.get('project'):
+            menu.addAction(tr('Dateiansicht aktualisieren'), self.save_active_room)
+            menu.addAction(tr('Dateiansicht umbenennen …'), self.rename_room)
             menu.addAction(tr('Aufträge zuordnen …'), self.room_tasks)
             for task in self.catalog.store.tasks():
                 if task['id'] in self.active_room['state'].get('tasks', []):
                     menu.addAction(tr('Auftrag: ') + task['title'], lambda _=False, t=task: self.open_task(t))
-            menu.addAction(tr('Arbeitsraum entfernen (Dateien behalten)'), self.delete_room)
+            menu.addAction(tr('Dateiansicht entfernen (Dateien behalten)'), self.delete_room)
+        menu.addSeparator();menu.addAction(tr('Lumen Projekte öffnen'), self.window.show_workplace)
         menu.exec(self.window.room_button.mapToGlobal(self.window.room_button.rect().bottomLeft()))
 
     def new_room(self):
-        name, ok = QInputDialog.getText(self.window, tr('Arbeitsraum speichern'), tr('Name:'))
+        name, ok = QInputDialog.getText(self.window, tr('Dateiansicht speichern'), tr('Name:'))
         if ok:
             try:
                 self.active_room = self.catalog.save_room(None, name, self.capture())
@@ -259,7 +261,7 @@ class FileSpaces(QObject):
             except ValueError as error: self.window.error(str(error))
 
     def rename_room(self):
-        name, ok = QInputDialog.getText(self.window, tr('Arbeitsraum umbenennen'), tr('Name:'), text=self.active_room['name'])
+        name, ok = QInputDialog.getText(self.window, tr('Dateiansicht umbenennen'), tr('Name:'), text=self.active_room['name'])
         if ok:
             try:
                 self.active_room = self.catalog.save_room(self.active_room, name, self.capture())
@@ -273,10 +275,10 @@ class FileSpaces(QObject):
         self.active_room = None
         self.catalog.use_room_shelf(); self.update_shelf()
         if self.window.current_location == SHELF: self.reload()
-        self.window.room_button.setText(tr('Arbeitsräume'))
+        self.window.room_button.setText(tr('Dateiansichten'))
 
     def room_tasks(self):
-        dialog = QDialog(self.window); dialog.setWindowTitle(tr('Aufträge diesem Arbeitsraum zuordnen'))
+        dialog = QDialog(self.window); dialog.setWindowTitle(tr('Aufträge dieser Dateiansicht zuordnen'))
         layout = QVBoxLayout(dialog); tasks = QListWidget(); layout.addWidget(tasks)
         chosen = self.active_room['state'].get('tasks', [])
         for task in self.catalog.store.tasks():

@@ -22,7 +22,7 @@ class PathMoveTest(unittest.TestCase):
             record=window.library.get(project)
             self.assertEqual(record['notes'],'unsaved');self.assertEqual(record['resources'][0]['target'],str(new/'book.txt'))
             self.assertEqual(reader.get(book)['original_path'],str(new/'book.txt'))
-            old.mkdir();file.write_text('new different file');window.add_resource('file',str(file),'new book')
+            old.mkdir();file.write_text('new different file');window.add_resource('file',str(file),'new book');window.save()
             self.assertEqual(window.library.get(project)['resources'][1]['target'],str(file))
             window.close();window.deleteLater();self.app.processEvents()
 if __name__=='__main__':unittest.main()

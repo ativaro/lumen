@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QLineEdit,QPlainT
 from tools_ui import button,label,row
 from assistant import Transcript
 from wissen_views import NotePreview,KnowledgeMap
+from notes_editor import NotesEditor
 
 
 def build(w):
@@ -14,7 +15,7 @@ def build(w):
     shell.setStyleSheet(Path(__file__).with_name('wissen.qss').read_text())
     outer=QVBoxLayout(shell);outer.setContentsMargins(0,0,0,0);outer.setSpacing(0)
     chrome=QWidget();chrome.setObjectName('wissenChrome');head=QHBoxLayout(chrome);head.setContentsMargins(20,8,16,8)
-    head.addWidget(label(tr('Lumen Wissen'),'wissenBrand'));head.addStretch();w.status.setMaximumWidth(400)
+    w.brand=label(tr('Lumen Notes'),'wissenBrand');head.addWidget(w.brand);head.addStretch();w.status.setMaximumWidth(400)
     w.status.setWordWrap(False)
     # Loading must not resize the chrome and move the entire notebook.
     for control in (w.progress, w.cancel_button):
@@ -32,9 +33,9 @@ def build(w):
     w.collections=QListWidget();w.collections.setObjectName('wissenCollections');w.collections.setAccessibleName(tr('Sammlungen'));w.collections.currentItemChanged.connect(w.select_collection);nav.addWidget(w.collections,1)
     w.rename_collection_button=button(tr('Sammlung umbenennen / verschieben'),lambda:w.safe(w.rename_collection),'edit-rename');nav.addWidget(w.rename_collection_button)
     from server_memory_view import show_server_memory
-    nav.addWidget(button(tr('Server-Gedächtnis'),lambda:w.safe(show_server_memory,w),'network-server'))
+    w.server_memory_button=button(tr('Server-Gedächtnis'),lambda:w.safe(show_server_memory,w),'network-server');nav.addWidget(w.server_memory_button)
     w.questions_button=button(tr('Fragen'),lambda:w.tabs.setCurrentIndex(1),'edit-find');nav.addWidget(w.questions_button)
-    w.map_button=button(tr('Wissenskarte'),lambda:w.tabs.setCurrentIndex(2),'insert-link');nav.addWidget(w.map_button)
+    w.map_button=button(tr('Notizkarte'),lambda:w.tabs.setCurrentIndex(2),'insert-link');nav.addWidget(w.map_button)
     settings=button(tr('Einstellungen'),lambda:None,'configure');settings_menu=QMenu(settings)
     w.notebook_menu=settings_menu
     settings_menu.addAction(tr('Lumen einrichten …'),w.setup)
@@ -80,7 +81,21 @@ def build(w):
     w.recovery=row(button(tr('Externe Fassung laden'),lambda:w.safe(w.reload_external),'view-refresh'),button(tr('Entwurf als Kopie'),lambda:w.safe(w.save_copy),'edit-copy'));w.recovery.hide();wl.addWidget(w.recovery)
     w.timestamp=label('','muted');w.timestamp.setAccessibleDescription(tr('Zeitstempel der Notiz'));w.timestamp.setTextFormat(Qt.PlainText);w.timestamp.hide();wl.addWidget(w.timestamp)
     w.views=QStackedWidget();wl.addWidget(w.views,1)
-    w.editor=QPlainTextEdit();w.editor.setObjectName('wissenEditor');w.editor.setAccessibleName(tr('Notiztext'));w.editor.setPlaceholderText(tr('Mit „Neu“ einen Gedanken festhalten.\n\nDeine Notizen bleiben zunächst privat.'));w.editor.setTabStopDistance(32);w.editor.textChanged.connect(w.edited);w.views.addWidget(w.editor)
+    w.editor=NotesEditor();w.editor.setObjectName('wissenEditor');w.editor.setAccessibleName(tr('Notiztext'));w.editor.setPlaceholderText(tr('Mit „Neu“ einen Gedanken festhalten.\n\nDeine Notizen bleiben zunächst privat.'));w.editor.setTabStopDistance(32);w.editor.textChanged.connect(w.edited);w.views.addWidget(w.editor)
+    w.format_button=button(tr('Formatieren'),lambda:None,'format-text-bold')
+    formatting=QMenu(w.format_button)
+    for title,action in [(tr('Fett (Strg+B)'),lambda:w.editor.wrap('**')),
+                         (tr('Kursiv (Strg+I)'),lambda:w.editor.wrap('*')),
+                         (tr('Code'),lambda:w.editor.wrap('`')),
+                         (tr('Überschrift'),lambda:w.editor.prefix_lines('## ')),
+                         (tr('Liste'),lambda:w.editor.prefix_lines('- ')),
+                         (tr('Aufgabe umschalten'),w.editor.toggle_checkbox),
+                         (tr('Tabelle einfügen'),w.editor.insert_table)]:
+        formatting.addAction(title,action)
+    w.format_button.setMenu(formatting)
+    w.source_mode=QCheckBox(tr('Quelltext'));w.source_mode.toggled.connect(w.editor.set_source_mode)
+    w.editor_tools=row(w.format_button,w.source_mode);wl.insertWidget(wl.indexOf(w.views),w.editor_tools)
+    w.views.currentChanged.connect(lambda index:w.editor_tools.setVisible(index==0))
     w.preview=NotePreview();w.preview.interop_root=w.library.root.parent;w.preview.setObjectName('wissenPreview');w.preview.noteRequested.connect(lambda p:w.safe(w.open_note,p));w.views.addWidget(w.preview)
     w.view_button=button(tr('Bearbeiten'),w.toggle_view,'document-edit');w.view_button.hide();wl.addWidget(w.view_button)
     w.details_button=button(tr('Quelle und zugehörige Notizen'),w.toggle_details,'insert-link');w.details_button.setCheckable(True);wl.addWidget(w.details_button)
@@ -111,7 +126,7 @@ def build(w):
     w.use_memory.toggled.connect(lambda _:w.safe(w.configure_memory));w.learn_memory.toggled.connect(lambda _:w.safe(w.configure_memory));dl.addWidget(w.memory_options);w.memory_options.hide()
     w.tabs.addTab(writing,tr('Notizen'))
     questions(w);map_page=QWidget();ml=QVBoxLayout(map_page);ml.setContentsMargins(24,22,24,18);ml.addWidget(label(tr('Eine Notiz und ihre direkten Verbindungen · maximal 36 Nachbarn'),'muted'))
-    w.map=KnowledgeMap();w.map.noteRequested.connect(lambda p:w.safe(w.open_note,p));w.map.objectRequested.connect(lambda url:w.safe(w.follow_connection,url));ml.addWidget(w.map,1);w.tabs.addTab(map_page,tr('Wissenskarte'));w.tabs.currentChanged.connect(w.tab_changed)
+    w.map=KnowledgeMap();w.map.noteRequested.connect(lambda p:w.safe(w.open_note,p));w.map.objectRequested.connect(lambda url:w.safe(w.follow_connection,url));ml.addWidget(w.map,1);w.tabs.addTab(map_page,tr('Notizkarte'));w.tabs.currentChanged.connect(w.tab_changed)
     from memory_profile import MemoryProfile
     dl.removeWidget(w.memory_options)
     w.profile=MemoryProfile(w.memory_options);w.profile.noteRequested.connect(lambda path:w.safe(w.open_profile_note,path))
@@ -122,8 +137,8 @@ def build(w):
 
 def questions(w):
     asking=QWidget();al=QVBoxLayout(asking);al.setContentsMargins(24,22,24,18)
-    al.addWidget(label(tr('Dein Wissen befragen'),'heading'));al.addWidget(label(tr('Quellen lokal auswählen. Erst „Lumen fragen“ sendet die gewählten Auszüge an deinen eingerichteten Anbieter.'),'muted'))
-    w.question=QLineEdit();w.question.setPlaceholderText(tr('Was habe ich über das Projekt festgehalten?'));w.question.setAccessibleName(tr('Frage an dein Wissen'));w.question.returnPressed.connect(w.find_sources)
+    al.addWidget(label(tr('Deine Notizen befragen'),'heading'));al.addWidget(label(tr('Quellen lokal auswählen. Erst „Lumen fragen“ sendet die gewählten Auszüge an deinen eingerichteten Anbieter.'),'muted'))
+    w.question=QLineEdit();w.question.setPlaceholderText(tr('Was habe ich über das Projekt festgehalten?'));w.question.setAccessibleName(tr('Frage an deine Notizen'));w.question.returnPressed.connect(w.find_sources)
     al.addWidget(w.question);al.addWidget(row(button(tr('Quellen finden'),w.find_sources,'edit-find'),button(tr('Lumen fragen'),lambda:w.safe(w.ask),'lumen',True)))
     w.candidates=QListWidget();w.candidates.setAccessibleName(tr('Ausgewählte Quellen für die Antwort'));w.candidates.setMaximumHeight(180);w.candidates.setWordWrap(True);w.candidates.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff);al.addWidget(w.candidates)
     w.candidates.itemActivated.connect(lambda item:w.safe(w.open_note,item.data(Qt.UserRole)))

@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 import time
+import threading
 import urllib.request
 from urllib.parse import urlsplit
 import uuid
@@ -16,7 +17,7 @@ from lumen_store import Store
 PREFIX = 'workplace/transfer/'
 ACTIVE = ('queued', 'running', 'cancelling')
 LABELS = {'queued': tr('Wartet'), 'running': tr('Läuft'), 'cancelling': tr('Wird angehalten'),
-          'paused': tr('Angehalten'), 'failed': tr('Fehlgeschlagen'), 'completed': tr('Fertig')}
+          'paused': tr('Angehalten'), 'failed': tr('Fehlgeschlagen'), 'completed': tr('Fertig'), 'cancelled': tr('Abgebrochen')}
 
 
 def tickets(store):
@@ -50,40 +51,99 @@ def web_url(url):
     return url
 
 
-def create(store, action, sources, target=None, portable=False, expected=None):
-    if action not in ('copy', 'move', 'rename', 'mkdir', 'trash', 'download') or not sources:
+def create(store, action, sources, target=None, portable=False, expected=None, drive=None):
+    if action not in ('copy', 'move', 'rename', 'mkdir', 'trash', 'download', 'drive-upload', 'drive-download', 'drive-copy') or not sources:
         raise ValueError(tr('Ungültiger Dateivorgang.'))
     if action == 'download':
         if len(sources) != 1: raise ValueError(tr('Ein Download benötigt genau eine Adresse.'))
         web_url(sources[0])
+    elif action in ('drive-download', 'drive-copy'):
+        if any(not p.startswith('lumen-drive://') for p in sources): raise ValueError(tr('Ungültige Drive-Adresse.'))
     elif any(not os.path.isabs(p) or '\x00' in p for p in sources):
         raise ValueError(tr('Absolute Dateipfade sind erforderlich.'))
-    if action in ('copy', 'move', 'rename', 'download') and (not target or not os.path.isabs(target) or '\x00' in target):
+    if action in ('copy', 'move', 'rename', 'download', 'drive-download') and (not target or not os.path.isabs(target) or '\x00' in target):
         raise ValueError(tr('Ein absoluter Zielpfad ist erforderlich.'))
     value = dict(id=uuid.uuid4().hex, action=action, sources=sources, target=target,
                  portable=portable, status='queued', created=time.time(), updated=time.time(),
-                 done=[], errors=[], current='', bytes=0, total=0, cancel=False, expected=expected)
+                 done=[], errors=[], current='', bytes=0, total=0, cancel=False, expected=expected, drive=drive)
+    if action.startswith('drive-') and not drive: raise ValueError(tr('Drive-Verbindung fehlt.'))
     store.set_setting(PREFIX + value['id'], value)
     return value
 
 
 def start(store, value):
     env = worker_environment(LUMEN_DATA=str(store.directory))
-    return subprocess.Popen([sys.executable, str(Path(__file__)), '--supervise', value['id']],
+    process = subprocess.Popen([sys.executable, str(Path(__file__)), '--supervise', value['id']],
                             env=env, start_new_session=True, stdin=subprocess.DEVNULL,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    threading.Thread(target=process.wait, daemon=True).start()
+    return process
 
 
 def pause(store, identity):
-    return update(store, identity, cancel=True)
+    value = store.setting(PREFIX + identity)
+    if value and value['status'] in ACTIVE: return update(store, identity, cancel=True)
+
+
+def cancel(store, identity):
+    value = store.setting(PREFIX + identity)
+    if not value or value['status'] in ('completed', 'cancelled'): return
+    active = value['status'] in ACTIVE
+    value = update(store, identity, cancel=True, discard=True, status=value['status'] if active else 'queued')
+    if not active: start(store, value)
+
+
+def cleanup(store, value):
+    import shutil
+    import drive_local as local
+    if value.get('upload_plan'):
+        import drive_sync as sync
+        import drive_transport as transport
+        import lumen_connect
+        config = lumen_connect.read_config()
+        if sync.scope(config) != value['drive']['scope']: raise ValueError(tr('Zum Aufräumen die ursprüngliche Serververbindung wiederherstellen.'))
+        from urllib.error import HTTPError
+        from urllib.parse import urlencode
+        for item in value['upload_plan']['files']:
+            if item['request'] in value.get('upload_done', []): continue
+            try:
+                transport.request(config, '/uploads/' + item['request'] + '?' + urlencode({'workspace': value['drive']['space']}), method='DELETE')
+            except HTTPError as error:
+                if error.code != 404: raise
+    for plan_name in ('copy_plan', 'download_plan'):
+        plan = value.get(plan_name)
+        if not plan: continue
+        root, stage = plan['root'], plan['stage']
+        if value['action'] == 'drive-copy' and not Path(root['path']).exists(): continue
+        with local.directory(root): pass
+        try:
+            with local.directory(root, Path(stage).parent) as parent:
+                try:
+                    info = os.stat(Path(stage).name, dir_fd=parent, follow_symlinks=False)
+                except FileNotFoundError: continue
+                expected = plan.get('stage_root', {}).get('identity') or value.get('stage_identity')
+                if expected and [info.st_dev, info.st_ino] != expected: raise ValueError(tr('Zwischenablage der Kopie wurde ersetzt.'))
+                shutil.rmtree(Path(stage).name, dir_fd=parent)
+                os.fsync(parent)
+        except FileNotFoundError:
+            continue
+    if value['action'] == 'download':
+        part = Path(value['target']).with_name('.lumen-download-' + value['id'] + '.part')
+        if part.parent.resolve() != part.parent: raise ValueError(tr('Zielordner wurde ersetzt.'))
+        part.unlink(missing_ok=True)
+    if value['action'] == 'drive-copy' and value.get('download_plan'):
+        temporary = store.directory / ('drive-copy-' + value['id'])
+        if temporary.exists():
+            with local.directory(value['download_plan']['root']):
+                shutil.rmtree(temporary)
 
 
 def retry(store, identity):
     value = store.setting(PREFIX + identity)
-    if not value or value['status'] in ACTIVE or value['status'] == 'completed':
+    if not value or value['status'] in ACTIVE or value['status'] in ('completed', 'cancelled'):
         raise ValueError(tr('Dieser Transfer kann gerade nicht fortgesetzt werden.'))
     # Only the supervisor holding this lease may transition the job to running.
-    value = update(store, identity, status='queued', cancel=False, errors=[])
+    value = update(store, identity, status='queued', cancel=bool(value.get('discard')), errors=[])
     start(store, value)
 
 
@@ -139,6 +199,7 @@ def download(store, value):
 
 def execute(store, identity):
     value = store.setting(PREFIX + identity)
+    if value.get('transfer_done'): return
     if value['action'] == 'download':
         download(store, value)
         return
@@ -153,6 +214,14 @@ def execute(store, identity):
         if time.monotonic() - last > .3:
             update(store, identity, bytes=count, total=total or 0)
             last = time.monotonic()
+    if value['action'] == 'copy':
+        from transfer_copy import execute as copy
+        copy(store, value, progress)
+        return
+    if value['action'].startswith('drive-'):
+        from drive_transfers import execute as drive
+        drive(store, value, progress)
+        return
     for source in value['sources']:
         if source in done: continue
         path, destination = Path(source), None
@@ -185,7 +254,8 @@ def supervise(store, identity):
         value = store.setting(PREFIX + identity)
         if not value or value['status'] not in ACTIVE: return
         if value['cancel']:
-            update(store, identity, status='paused', errors=[tr('Angehalten.')])
+            if value.get('discard'): cleanup(store, value)
+            update(store, identity, status='cancelled' if value.get('discard') else 'paused', errors=[])
             return
         update(store, identity, status='running')
         child = subprocess.Popen([sys.executable, str(Path(__file__)), '--execute', identity],
@@ -213,7 +283,14 @@ def supervise(store, identity):
         errors = value['errors']
         if interrupted: errors = [interrupted]
         elif child.returncode and not errors: errors = [tr('Übertragung wurde unterbrochen. Vor erneutem Versuch das Ziel prüfen.')]
-        update(store, identity, status='paused' if interrupted else 'failed' if errors else 'completed', errors=errors, **fields)
+        if value.get('discard'):
+            cleanup(store, value)
+            update(store, identity, status='cancelled', errors=[], **fields)
+        else:
+            if not errors and value['action'].startswith('drive-'): cleanup(store, value)
+            update(store, identity, status='paused' if interrupted else 'failed' if errors else 'completed', errors=errors, **fields)
+    except Exception as error:
+        update(store, identity, status='failed', errors=[str(error)])
     finally:
         if child and child.poll() is None: child.kill(); child.wait(timeout=3)
         os.close(lease)
@@ -227,6 +304,8 @@ if __name__ == '__main__':
         from lumen_history import fingerprint
         print(json.dumps(fingerprint(identity)))
     elif mode == '--execute':
-        try: execute(store, identity)
+        try:
+            execute(store, identity)
+            update(store, identity, transfer_done=True)
         except Exception as error:
             update(store, identity, errors=[str(error)]); sys.exit(1)

@@ -1,6 +1,7 @@
 """Files uses its normal model/history for Drive; no popup or local-path fallback."""
 
 import tempfile
+import lumen_transfers as transfers
 import time
 import unittest
 from pathlib import Path
@@ -17,6 +18,10 @@ class DriveBrowserTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QApplication.instance() or create_app()
+
+    def start_transfer(self, store, value):
+        transfers.execute(store, value['id'])
+        transfers.update(store, value['id'], status='completed')
 
     def wait(self, predicate):
         end = time.monotonic() + 6
@@ -59,6 +64,7 @@ class DriveBrowserTest(unittest.TestCase):
         with (
             tempfile.TemporaryDirectory() as tmp,
             patch.object(browser.lumen_connect, "read_config", return_value=config),
+            patch.object(transfers, "start", side_effect=self.start_transfer),
             patch.object(browser.sync, "request", side_effect=request),
             patch.object(browser.sync, "inventory", return_value=cache),
             patch.object(browser.transport, "download", side_effect=download),

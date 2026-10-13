@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 from urllib.parse import urlsplit, unquote
 
 
@@ -16,6 +17,25 @@ def address(value):
     if url.scheme != 'smb' or url.username or url.password or url.query or url.fragment or url.port:
         raise ValueError('Use an SMB address without credentials')
     return 'smb://' + url.netloc + (url.path or '/')
+
+
+def mounted_path(file, timeout=2):
+    """GVfs can announce a share before its FUSE directory is available."""
+    runtime = Path(os.environ.get('XDG_RUNTIME_DIR', '')) / 'gvfs'
+    if not runtime.is_absolute() or not os.path.ismount(runtime):
+        return None
+    deadline = time.monotonic() + timeout
+    while True:
+        path = file.get_path()
+        if path:
+            candidate = Path(path)
+            if not candidate.resolve().is_relative_to(runtime.resolve()):
+                return None
+            if candidate.is_dir():
+                return str(candidate)
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(.05)
 
 
 def worker(request, discovery_uri=None):
@@ -87,11 +107,9 @@ def worker(request, discovery_uri=None):
             rows.append({'label': item.get_display_name()[:256], 'uri': child})
     finally: enumerator.close(None)
     path = file.get_path()
-    if request.get('op') == 'mount' and (not path or not Path(path).is_dir()):
-        return {'error': 'path_unavailable'}
     if request.get('op') == 'mount':
-        runtime = Path(os.environ.get('XDG_RUNTIME_DIR', ''))/'gvfs'
-        if not runtime.is_absolute() or not os.path.ismount(runtime) or not Path(path).resolve().is_relative_to(runtime.resolve()):
+        path = mounted_path(file)
+        if not path:
             return {'error': 'path_unavailable'}
         try: file.find_enclosing_mount(None)
         except GLib.Error: return {'error': 'path_unavailable'}

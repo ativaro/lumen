@@ -35,7 +35,7 @@ class SetupPreferences(QWidget):
         for control, key in ((self.solutions, 'solutions'), (self.automatic, 'automatic')):
             control.setChecked(before[key]); self.details.content.addWidget(control)
         self.details.content.addWidget(label(tr('Lokale Bedeutungssuche: zusätzlich ca. 500 MiB RAM während der Nutzung. Einmalig ca. 128 MB Modelldaten plus Laufzeitpakete. Ohne Modell bleibt die Textsuche verfügbar.')))
-        self.details.content.addWidget(label(tr('Erinnerungen liegen lokal in Lumen Wissen. Bei aktivem Gedächtnis '
+        self.details.content.addWidget(label(tr('Erinnerungen liegen lokal im Lumen-Gedächtnis. Bei aktivem Gedächtnis '
             'gehen passende Erinnerungen an deinen KI-Anbieter. Beim Lernen wertet dieser auch deine Nachricht '
             'und die vorherige Antwort aus. Du kannst Erinnerungen jederzeit ansehen, ändern und löschen.')))
         self.details.content.addWidget(self.persona)

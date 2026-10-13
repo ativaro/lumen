@@ -19,7 +19,7 @@
   "Deine Gedanken und Lumens Gedächtnis — verbunden, mit getrennten Freigaben.": "Your thoughts and Lumen’s memory — connected, with separate permissions.",
   "Deine Inhalte als Hörprogramm": "Your content as an audio program",
   "Deine Notizen und Lumens Gedächtnis": "Your notes and Lumen’s memory",
-  "Der Bereich ist nur für Lumen Wissen verfügbar.": "Areas are only available for Lumen Knowledge.",
+  "Der Bereich ist nur für Lumen Wissen verfügbar.": "Areas are only available for Lumen Notes.",
   "Die App konnte nicht gestartet werden. Bitte die Lumen-Installation prüfen.": "The app could not be started. Please check your Lumen installation.",
   "Dokumente und Fristen im Blick behalten": "Keep track of documents and deadlines",
   "Dokumente, Kategorien und Erinnerungsfristen stellst du je Eintrag im Digitalen Haushalt ein.": "Configure documents, categories and reminder dates per entry in Digital Household.",
@@ -65,5 +65,7 @@
   "Was soll Lumen für dich erledigen?": "What should Lumen do for you?",
   "Ordner & Zeitplan": "Folders & schedule",
   "Bereich finden …": "Find a section …",
-  "Einstellungsbereich suchen": "Search settings sections"
+  "Einstellungsbereich suchen": "Search settings sections",
+  "Der Bereich ist nur für Lumen Notes verfügbar.": "Areas are only available for Lumen Notes.",
+  "Unbekannter Bereich.": "Unknown knowledge area."
 }

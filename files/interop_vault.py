@@ -19,7 +19,7 @@ from lumen_i18n import tr
 
 APP_NAMES = {
     'translate': 'Lumen Translate',
-    'wissen': 'Lumen Wissen', 'reader': 'Lumen Reader', 'inbox': 'Lumen Inbox',
+    'wissen': 'Lumen Notes', 'reader': 'Lumen Reader', 'inbox': 'Lumen Inbox',
     'meetings': 'Lumen Meeting-Werkstatt', 'household': 'Lumen Digitaler Haushalt',
     'workbench': 'Lumen Projekte', 'radio': 'Lumen Persönliches Radio',
     'sound': 'Lumen Sound', 'vault': 'Lumen Vault', 'interop': tr('Lumen Verknüpfungen'),
@@ -55,14 +55,14 @@ def discover_sources(root=None, store=None):
             row = db.execute("SELECT value FROM settings WHERE key='knowledge/notebook'").fetchone()
             if row: notebook = json.loads(row[0])
     if notebook and Path(notebook).is_dir():
-        result.append(dict(app='wissen', title=tr('Lumen Wissen · Notizordner mit Bildern'),
+        result.append(dict(app='wissen', title=tr('Lumen Notes · Notizordner mit Bildern'),
                            path=str(Path(notebook).resolve()), slot='notebook', kind='notebook'))
     for relative, slot in [('lumen.sqlite3', 'state/lumen.sqlite3'), ('wissen-history', 'state/wissen-history'),
                            ('lumen-memory', 'state/lumen-memory')]:
         path = state/relative
         if path.exists():
             title = {'lumen.sqlite3': tr('Lumen · gemeinsame Einstellungen, Aufgaben und Verlauf'),
-                     'wissen-history': tr('Lumen Wissen · Notizverlauf'), 'lumen-memory': tr('Lumen Wissen · Gedächtnis')}[relative]
+                     'wissen-history': tr('Lumen Notes · Notizverlauf'), 'lumen-memory': tr('Lumen Gedächtnis')}[relative]
             result.append(dict(app='wissen', title=title,
                                path=str(path), slot=slot, kind='state'))
     return result
@@ -77,10 +77,10 @@ def payload_sources(payload, root=None, store=None):
         notebook = source.get('locator', {}).get('notebook') or source.get('locator', {}).get('root')
         if notebook and source.get('id') == 'collection:' and payload.get('paths') == [notebook]:
             if not Path(notebook).is_dir():raise ValueError(tr('Notizordner nicht erreichbar.'))
-            return [dict(app='wissen',title=tr('Lumen Wissen · Notizordner mit Bildern'),
+            return [dict(app='wissen',title=tr('Lumen Notes · Notizordner mit Bildern'),
                          path=str(Path(notebook).resolve()),slot='notebook',kind='notebook')]+[e for e in discover_sources(root,store) if e['app']=='interop']
         if notebook and Path(notebook).is_dir() and not any(e['path'] == str(Path(notebook).resolve()) for e in entries):
-            entries.append(dict(app='wissen', title=tr('Lumen Wissen · Notizordner mit Bildern'),
+            entries.append(dict(app='wissen', title=tr('Lumen Notes · Notizordner mit Bildern'),
                                 path=str(Path(notebook).resolve()), slot='notebook', kind='notebook'))
     if entries:
         links = [e for e in discover_sources(root, store) if e['app'] == 'interop']
@@ -573,16 +573,16 @@ def show_note_comparison(parent, directory, store=None):
     notebook = next((root for root in notebooks if Path(path).absolute().is_relative_to(Path(root))), None)
     if not notebook: raise ValueError(tr('Notiz außerhalb der wiederhergestellten Kopie.'))
     store = store or Store(); comparison = note_comparison(path, notebook, store)
-    dialog = QDialog(parent); dialog.setWindowTitle(tr('Lumen Wissen · Notizvergleich')); dialog.resize(1080, 650)
+    dialog = QDialog(parent); dialog.setWindowTitle(tr('Lumen Notes · Notizvergleich')); dialog.resize(1080, 650)
     layout = QVBoxLayout(dialog); layout.addWidget(label(comparison['path']))
     columns = QHBoxLayout()
     for title, text in ((tr('Aktuell gespeichert'), comparison['current']['text']), (tr('Wiederhergestellte Fassung'), comparison['recovered']['text'])):
         column = QVBoxLayout(); column.addWidget(label(title)); editor = QPlainTextEdit(); editor.setReadOnly(True); editor.setPlainText(text); editor.setAccessibleName(title); column.addWidget(editor); columns.addLayout(column)
     layout.addLayout(columns)
-    layout.addWidget(label(tr('Beim Übernehmen werden lokale Bilder kopiert. Eine inzwischen geänderte Notiz wird nicht überschrieben; die bisherige Fassung bleibt im Lumen-Wissen-Verlauf.')))
+    layout.addWidget(label(tr('Beim Übernehmen werden lokale Bilder kopiert. Eine inzwischen geänderte Notiz wird nicht überschrieben; die bisherige Fassung bleibt im Notizverlauf.')))
     def apply():
         def done(_):
-            QMessageBox.information(dialog, tr('Lumen Wissen'), tr('Die geprüfte Notizfassung wurde übernommen.')); dialog.accept()
+            QMessageBox.information(dialog, tr('Lumen Notes'), tr('Die geprüfte Notizfassung wurde übernommen.')); dialog.accept()
         _run_job(dialog, tr('Notiz und Bilder werden übernommen …'),
                  lambda job: import_restored_note(comparison, store, comparison['current']['hash'], job), done)
     layout.addWidget(button(tr('Geprüfte Fassung übernehmen'), apply))

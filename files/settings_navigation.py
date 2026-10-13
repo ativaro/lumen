@@ -203,7 +203,9 @@ def categories(dialog):
             section(6, tr('Systemintegration'), tr('Standardprogramme, Benachrichtigungen und KDE'))]),
         dict(title=tr('KI & Sprache'), description=tr('Wie Lumen arbeitet, zuhört und spricht.'), sections=[
             section(0, tr('Modell & Arbeitsweise'), tr('KI-Modell, Sprache und Vorgaben für Gespräche')),
+            section(dialog.models_page, description=tr('Standard-, Hintergrund- und lokale Modelle, Zeitlimit und GPU')) ,
             section(dialog.persona_page, description=tr('Vorlagen, Nähe, Anrede und Antwortstil')),
+            section(dialog.app_pages['wissen'], tr('Gedächtnis'), tr('Was Lumen über dich weiß und aus Gesprächen lernt'), activate=lambda: __import__('lumen_apps').launch('wissen', area='lumen')),
             section(dialog.speech_input_page, description=tr('Diktat, Erkennungssprache und Mikrofon')),
             section(dialog.speech_output_page, description=tr('Aussprache und Stimme in allen Lumen-Apps'))]),
         dict(title=tr('Dateien & Speicher'), description=tr('Deine Dateien, Vorschauen und verbundenen Orte.'), sections=[
@@ -211,14 +213,14 @@ def categories(dialog):
             section(1, tr('Dateisuche'), tr('Tipp-Pause und Anzahl der Suchtreffer'), dialog.delay),
             section(1, tr('Orte & Server'), tr('Favoriten, Bibliotheken und NAS · SMB, SFTP, WebDAV'), dialog.places),
             section(dialog.accounts_page),
-            section(dialog.app_pages['vault'], tr('Sicherungen'), tr('Lumen Vault und seine Sicherungspläne')),
-            section(dialog.server_page, 'Lumen Server', tr('Verbindung, Aufträge, Sicherungen und geteiltes Gedächtnis'))]),
+            section(dialog.app_pages['vault'], tr('Sicherungen'), tr('Sicherungspläne in Lumen System')),
+            section(dialog.server_page, tr('Server & Synchronisation'), tr('Verbindung und automatischer Datenabgleich'))]),
         dict(title=tr('Apps'), description=tr('Eigene Einstellungen für jede Lumen-App.'), sections=[
-            section(dialog.app_pages[key], title, description, activate=dialog.open_system if key == 'system' else None) for key, title, description, icon in catalogue()]),
+            section(dialog.app_pages[key], tr('Sicherungen') if key == 'vault' else title, tr('Sicherungspläne in Lumen System') if key == 'vault' else description, activate=dialog.open_system if key == 'system' else None) for key, title, description, icon in catalogue(include_utilities=True) if key != 'search']),
         dict(title=tr('Datenschutz & Freigaben'), description=tr('Was Lumen lesen, behalten und verändern darf.'), sections=[
             section(0, tr('Werkzeugfreigaben'), tr('Nachfragen und Freigaben für Befehle und Dateiänderungen'), dialog.auto),
             section(9, tr('KI-Zugriff & MCP'), tr('Zugriff auf lokale Nachrichten, Termine und Werkzeuge')),
-            section(dialog.app_pages['wissen'], tr('Lumen-Gedächtnis'), tr('Erinnerungen, Notizen und ihre Freigaben'))]),
+            section(dialog.app_pages['wissen'], tr('Lumen-Gedächtnis'), tr('Erinnerungen und ihre Freigaben'), activate=lambda: __import__('lumen_apps').launch('wissen', area='lumen'))]),
         dict(title=tr('Wartung'), description=tr('Einrichtung, Hintergrunddienste und Hilfe bei Problemen.'), sections=[
             section(dialog.troubleshooter_page, description=tr('Lumen prüfen und Hilfe zu gefundenen Problemen erhalten')),
             section(dialog.app_pages['updater']),

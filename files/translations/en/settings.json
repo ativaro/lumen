@@ -442,7 +442,7 @@
   "Leiste fehlt": "Panel missing",
   "{0} öffnen …": "Open {0} …",
   "Lumen-Funktionen für die KI": "Lumen functions for AI",
-  "Die KI kann Dateien suchen, freigegebene Notizen lesen und Aufträge sowie Sicherungsstände abfragen. Wissen verwendet dieselben Freigaben wie Gespräche.": "AI can search files, read shared notes, and check tasks and backup status. Wissen uses the same sharing rules as conversations.",
+  "Die KI kann Dateien suchen, freigegebene Notizen lesen und Aufträge sowie Sicherungsstände abfragen. Wissen verwendet dieselben Freigaben wie Gespräche.": "AI can search files, read shared notes, and check tasks and backup status. Notes uses the same sharing rules as conversations.",
   "Lokale Nachrichten und Termine über MCP lesen": "Read local messages and calendar events through MCP",
   "Standardmäßig aus. Gelesene Inhalte können an deinen konfigurierten KI-Anbieter übermittelt werden. Es werden keine Nachrichten versendet und keine Konten synchronisiert. Der Entzug gilt ab dem nächsten Werkzeugaufruf; bereits gelesene Chat-Inhalte bleiben erhalten.": "Off by default. Read content may be sent to your configured AI provider. No messages are sent and no accounts are synced. Revoking access applies from the next tool call; previously read chat content remains.",
   "MCP-Freigabe gespeichert.": "MCP access saved.",
@@ -459,5 +459,6 @@
   "Kompatible Engine eingerichtet. Vorhandenes OpenCode und Zugangsdaten bleiben erhalten.": "Compatible engine installed. Existing OpenCode and credentials are preserved.",
   "Verbindung, Aufträge, Sicherungen und geteiltes Gedächtnis": "Connection, tasks, backups and shared memory",
   "Verbinde diesen Desktop über die Geräteansicht deines Servers. Hier siehst du anschließend den aktuellen Abgleich und die freigegebenen Funktionen.": "Connect this desktop from the devices page of your server. Then review sync status and granted features here.",
-  "Serververbindung öffnen": "Open server connection"
+  "Serververbindung öffnen": "Open server connection",
+  "Die KI kann Dateien suchen, freigegebene Notizen lesen und Aufträge sowie Sicherungsstände abfragen. Lumen Notes verwendet dieselben Freigaben wie Gespräche.": "AI can search files, read shared notes, and check tasks and backup status. Notes uses the same sharing rules as conversations."
 }

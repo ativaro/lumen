@@ -1,4 +1,4 @@
-"""Review bounded learned suggestions in the existing Wissen window."""
+'Review bounded learned suggestions in the memory settings.'
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QPlainTextEdit,QListWidget
 from lumen_i18n import tr

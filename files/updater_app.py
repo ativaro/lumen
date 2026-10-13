@@ -2,9 +2,9 @@
 import json
 from pathlib import Path
 import sys
-from PySide6.QtCore import QProcess, QSettings, QTimer, Qt
+from PySide6.QtCore import QProcess, Qt
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QCheckBox, QScrollArea, QFrame, QProgressBar, QPlainTextEdit)
 from lumen_i18n import tr, worker_process
 from settings_navigation import Details
@@ -16,15 +16,14 @@ def label(text, style=''):
     return item
 
 
-class UpdaterWindow(QMainWindow):
+class UpdaterPage(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('Lumen Updater'); self.setWindowIcon(QIcon.fromTheme('system-software-update'))
+        self.setWindowTitle('Lumen Updater'); self.setWindowIcon(QIcon.fromTheme('lumen-updater', QIcon.fromTheme('system-software-update')))
         self.resize(880,740); self.setMinimumSize(620,540)
         self.plan=None; self.rows={}; self.buffer=b''; self.running=False; self.received_result=False
-        root=QWidget(); self.setCentralWidget(root)
-        layout=QVBoxLayout(root); layout.setContentsMargins(32,28,32,24); layout.setSpacing(18)
-        top=QHBoxLayout(); mark=QLabel(); mark.setPixmap(QIcon.fromTheme('system-software-update').pixmap(42,42)); top.addWidget(mark)
+        layout=QVBoxLayout(self); layout.setContentsMargins(32,28,32,24); layout.setSpacing(18)
+        top=QHBoxLayout(); mark=QLabel(); mark.setPixmap(QIcon.fromTheme('lumen-updater', QIcon.fromTheme('system-software-update')).pixmap(42,42)); top.addWidget(mark)
         heading=QVBoxLayout(); heading.addWidget(label('Lumen Updater','heading'))
         heading.addWidget(label(tr('Updates an einem Ort.'),'muted')); top.addLayout(heading,1)
         self.check_button=QPushButton(tr('Nach Updates suchen')); self.check_button.clicked.connect(self.check); top.addWidget(self.check_button)
@@ -135,16 +134,13 @@ class UpdaterWindow(QMainWindow):
         event.accept()
 
 
+# Keep integrations that construct the previous widget working.
+UpdaterWindow = UpdaterPage
+
+
 def main():
-    from app import create_app
-    app=create_app();app.setApplicationName('lumen-updater');app.setApplicationDisplayName('Lumen Updater')
-    app.setDesktopFileName('lumen-updater')
-    from lumen_activation import SingleWindow, present
-    activation = SingleWindow('org.lumen.Updater')
-    if activation.running: return activation.forward()
-    window=UpdaterWindow();window.show();QTimer.singleShot(0,window.check)
-    activation.bind(lambda request: present(window))
-    return app.exec()
+    from system_app import main as system_main
+    return system_main(['--page', 'updates'])
 
 
 if __name__=='__main__':raise SystemExit(main())

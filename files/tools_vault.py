@@ -10,15 +10,22 @@ import vault_data as vault
 
 
 class Vault(ToolWindow):
-    def __init__(self,root=None):
+    def __init__(self,root=None,*,embedded=False):
+        self.embedded = embedded
+        self.setup_dialog = None
         super().__init__('vault',tr('Lumen Vault'),tr('Deine Dateien und Einstellungen. Verschlüsselt gesichert, gezielt zurückholen.'),'document-encrypt',root)
         # Explicit laboratory installation; never silently enable production secrets.
         from PySide6.QtCore import QStandardPaths
         self.native_lab = (Path(QStandardPaths.writableLocation(QStandardPaths.GenericDataLocation)) / 'lumen/vault-lab/bin/lumen-vault-lab').is_file()
         self.build_shell()
+        if embedded:
+            self.setWindowFlags(Qt.Widget)
+            self.setMinimumSize(0, 0)
         self.add_button.setText(tr('Sicherung einrichten')); self.search.setPlaceholderText(tr('Sicherungspläne …'))
         self.summary=label(tr('Wähle einen Sicherungsplan oder richte deine erste Sicherung ein.'),'heading'); self.content.addWidget(self.summary)
         self.details=label(''); self.content.addWidget(self.details)
+        self.resume_setup = button(tr('Einrichtung abschließen'), self.finish_setup)
+        self.resume_setup.hide(); self.content.addWidget(self.resume_setup)
         self.sources=QListWidget(); self.sources.setAccessibleName(tr('Geschützte Quellen')); self.sources.setMaximumHeight(115); self.content.addWidget(self.sources)
         self.content.addWidget(row(button(tr('Quelle hinzufügen'),lambda:self.safe(self.add_source),'list-add'),
                                   button(tr('Lumen-Daten hinzufügen'),lambda:self.safe(self.add_lumen_sources),'lumen'),
@@ -37,6 +44,7 @@ class Vault(ToolWindow):
             button(tr('Projektquellen prüfen'),lambda:self.safe(self.check_sources),'document-preview')))
         self.content.addWidget(label(tr('Wiederherstellungen landen in einem neuen Ordner. Das Sicherungspasswort zusätzlich außerhalb dieses Rechners aufbewahren.'),'muted'))
         self.body.setEnabled(False);self.refresh()
+        self.backup_rows = [item.widget().layout() for i in range(self.content.count()) if (item := self.content.itemAt(i)).widget() and isinstance(item.widget().layout(), QHBoxLayout)]
 
     def build_shell(self):
         """Keep the backup engine/widgets; give them the same Vault navigation."""
@@ -59,6 +67,8 @@ class Vault(ToolWindow):
         brand_row = QHBoxLayout()
         brand_row.setContentsMargins(8, 8, 0, 22)
         brand_row.setSpacing(12)
+        brand.setVisible(not self.embedded)
+        self.brand_icon.setVisible(not self.embedded)
         brand_row.addWidget(self.brand_icon)
         brand_row.addWidget(brand, 1)
         side = self.sidebar.layout()
@@ -67,8 +77,8 @@ class Vault(ToolWindow):
         side.addSpacing(12)
         side.addWidget(settings)
         self.sidebar.setObjectName('vaultBackupSidebar')
-        self.sidebar.setMinimumWidth(300)
-        self.sidebar.setMaximumWidth(340)
+        self.sidebar.setMinimumWidth(240 if self.embedded else 300)
+        self.sidebar.setMaximumWidth(260 if self.embedded else 340)
         self.split.setHandleWidth(1)
 
         self.sections = QWidget()
@@ -97,6 +107,9 @@ class Vault(ToolWindow):
         top = QHBoxLayout()
         top.setContentsMargins(22, 16, 22, 16)
         top.addStretch()
+        self.sections.setVisible(not self.embedded)
+        if self.embedded:
+            top.addWidget(label(tr('Sicherungen'), 'heading'))
         top.addWidget(self.sections)
         top.addStretch()
         apps.setText('Apps')
@@ -129,7 +142,7 @@ class Vault(ToolWindow):
         self.split.addWidget(main)
         self.split.setStretchFactor(0, 0)
         self.split.setStretchFactor(1, 1)
-        self.split.setSizes([310, 900])
+        self.split.setSizes([260 if self.embedded else 310, 900])
         footer = outer.itemAt(outer.count() - 1).widget()
         footer.layout().setContentsMargins(24, 14, 24, 14)
         self.resize(1440, 900)
@@ -159,6 +172,12 @@ class Vault(ToolWindow):
             QFrame#vaultRule { background: palette(mid); }
         """)
         self.update_brand_icon()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self.embedded:
+            for layout in getattr(self, 'backup_rows', []):
+                layout.setDirection(QHBoxLayout.TopToBottom if self.width() < 1100 else QHBoxLayout.LeftToRight)
 
     def update_brand_icon(self):
         from PySide6.QtGui import QPixmap, QPainter, QPalette
@@ -194,6 +213,17 @@ class Vault(ToolWindow):
     def create(self,prefill_sources=None,on_done=None,source_ref=None,handoff=None):
         if self.job:return False
         if not vault.binary():self.status.setText(tr('Bitte zuerst unter Einrichtung „Vault vorbereiten“ wählen.'));self.setup();return False
+        if not prefill_sources and not source_ref and not handoff:
+            from backup_setup_ui import BackupWizard
+            dialog = BackupWizard(self.library, self); self.setup_dialog = dialog
+            try:
+                result = dialog.exec()
+                if result != QDialog.Accepted: dialog.reject()
+                if dialog.plan_id: self.focus_record(dialog.plan_id)
+                if on_done: on_done(dialog.plan_id or None)
+                return bool(dialog.plan_id)
+            finally:
+                self.setup_dialog = None; dialog.deleteLater()
         prefill_sources=prefill_sources or []
         dialog=QDialog(self);dialog.setWindowTitle(tr('Sicherung einrichten'));dialog.resize(620,440);form=QFormLayout(dialog)
         title=QLineEdit(tr('Meine Sicherung'));repo=QLineEdit();source=QLineEdit();password=QLineEdit();password.setEchoMode(QLineEdit.Password)
@@ -233,11 +263,33 @@ class Vault(ToolWindow):
         self.work(tr('Sicherungsziel wird vorbereitet …'),prepare,complete,failed=failed)
         return bool(self.job)
 
+    def archive(self):
+        if not self.current or self.job: return
+        from vault_service import execute
+        identity, archived = self.current, not self.archived.isChecked()
+        if archived and QMessageBox.question(self, tr('Sicherungsplan archivieren'),
+                tr('Zeitplan deaktivieren und diesen Plan archivieren? Sicherungsdaten und Schlüssel bleiben erhalten.'),
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes: return
+        def done(_):
+            self.current=''; self.body.setEnabled(False); self.refresh()
+        self.work(tr('Sicherungsplan wird aktualisiert …'),
+                  lambda job: execute(self.library, dict(op='archive', id=identity, archived=archived), job), done)
+
     def load(self,plan):
+        self.resume_setup.setVisible(bool(plan.get('setup_pending')))
         self.summary.setText(plan['title']);self.sources.clear();self.sources.addItems(plan['sources']);self.snapshots.clear()
         self.interval.setCurrentIndex(self.interval.findData(plan.get('interval',0)))
         last=plan.get('last_backup');when=datetime.fromtimestamp(last).strftime('%d.%m.%Y %H:%M') if last else tr('Noch keine abgeschlossene Sicherung')
         self.details.setText(plan['repository']+'\n'+when+('\n'+plan['last_error'] if plan.get('last_error') else ''))
+        groups = plan.get('groups', {})
+        if groups:
+            lines=[]
+            for key, title in [('files', tr('Meine Dateien')), ('lumen', tr('Mein Lumen')), ('vault', tr('Mein Tresor'))]:
+                selected=groups.get(key, [])
+                verified=bool(selected) and selected==plan.get('backup_groups', {}).get(key, []) and plan['sources']==plan.get('backup_sources')
+                state=tr('Nicht im Plan ausgewählt') if not selected else tr('Gesichert · Wiederherstellungsprobe erfolgreich') if verified else tr('Ausgewählt · nächste Sicherung ausstehend')
+                lines.append(title+': '+state)
+            self.details.setText(self.details.text()+'\n'+'\n'.join(lines))
         if plan.get('schedule_pending') is not None:
             self.interval.setCurrentIndex(self.interval.findData(plan['schedule_pending']))
             self.details.setText(self.details.text()+'\n'+tr('Zeitplan noch nicht aktiviert. „Zeitplan übernehmen“ erneut wählen.'))
@@ -250,6 +302,14 @@ class Vault(ToolWindow):
         if any(row.get('kind')=='inbox-local' for row in plan.get('app_sources',[])):
             self.details.setText(self.details.text()+'\n'+tr('Lumen Inbox: nur lokale Aufgaben und ungesendete Entwürfe mit Anhängen sichern'))
         self.status.setText(tr('Sicherungsplan lokal gespeichert · Ziel wird erst bei einer Aktion geöffnet'))
+
+    def finish_setup(self):
+        from backup_setup import finish_setup
+        key = self.current
+        if not key: return
+        self.work(tr('Erste Sicherung und Wiederherstellungsprobe …'),
+                  lambda job: finish_setup(self.library, key, job),
+                  lambda _: self.focus_record(key))
 
     def add_source(self):
         folder=QFileDialog.getExistingDirectory(self,tr('Quellordner hinzufügen'),str(Path.home()))

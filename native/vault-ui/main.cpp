@@ -32,16 +32,43 @@ static void activateWindow(QWidget *window) {
   }
 }
 
+static bool openSystemBackups() {
+  const QStringList candidates{
+      QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) +
+          "/lumen/bin/lumen-system",
+      "/usr/bin/lumen-system"};
+  for (const auto &program : candidates)
+    if (QFileInfo(program).isExecutable())
+      return QProcess::startDetached(program, {"--page", "backups"});
+  return false;
+}
+
 int main(int argc, char **argv) {
-  if ((argc != 2 && argc != 3) || QByteArray(argv[1]) != "--laboratory-only" ||
-      (argc == 3 && QByteArray(argv[2]) != "--backups"))
-    return 2;
+  if (argc < 2 || argc > 4 || QByteArray(argv[1]) != "--laboratory-only") return 2;
+  bool background = false, backups = false;
+  for (int i = 2; i < argc; ++i) {
+    if (QByteArray(argv[i]) == "--background") background = true;
+    else if (QByteArray(argv[i]) == "--backups") backups = true;
+    else return 2;
+  }
+  // Route backups before creating a restricted secret-vault process. System has
+  // its own update/diagnostic policy and must not inherit the vault sandbox.
+  if (backups) {
+    QCoreApplication routing(argc, argv);
+    return openSystemBackups() ? 0 : 1;
+  }
   struct rlimit core{0, 0};
   if (setrlimit(RLIMIT_CORE, &core) != 0 || prctl(PR_SET_DUMPABLE, 0) != 0 ||
       prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0)
     return 1;
   umask(0077);
+  // Vault web sessions never expose a debugging port or accept sandbox bypass flags.
+  qunsetenv("QTWEBENGINE_REMOTE_DEBUGGING");
+  qunsetenv("QTWEBENGINE_CHROMIUM_FLAGS");
+  qunsetenv("QTWEBENGINE_DISABLE_SANDBOX");
+  QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
   QApplication app(argc, argv);
+  app.setQuitOnLastWindowClosed(false);
   app.setOrganizationName("Lumen");
   app.setApplicationName("lumen-vault");
   app.setApplicationDisplayName("Lumen Vault");
@@ -84,7 +111,7 @@ int main(int argc, char **argv) {
     return 1;
   }
   const auto endpoint = QString::fromUtf8(runtime) + "/lumen-vault-window";
-  const int requestedSection = argc == 3 ? 1 : 0;
+  const int requestedSection = backups ? 1 : 0;
   QLockFile owner(endpoint + ".lock");
   if (!owner.tryLock(0)) {
     QLocalSocket client;
@@ -103,6 +130,11 @@ int main(int argc, char **argv) {
   if (!server.listen(endpoint))
     return 1;
   VaultWindow window(root);
+  QObject::connect(&window, &VaultWindow::backupsRequested, &window, [&] {
+    if (!openSystemBackups())
+      QMessageBox::warning(&window, "Lumen System", window.tx(
+          "Sicherungen konnten nicht geöffnet werden.", "Could not open backups."));
+  });
   if (!window.startAccessServer(QString::fromUtf8(runtime)))
     return 1;
   QObject::connect(&server, &QLocalServer::newConnection, &window, [&] {
@@ -117,7 +149,7 @@ int main(int argc, char **argv) {
         if (message == "backups\n" || message == "vault\n" || message == "activate\n") {
           if (message != "activate\n" && !QApplication::activeModalWidget())
             window.showSection(message == "backups\n" ? 1 : 0);
-          activateWindow(&window);
+          if (message != "backups\n") activateWindow(&window);
         }
         peer->disconnectFromServer();
       });
@@ -125,11 +157,12 @@ int main(int argc, char **argv) {
                        &QObject::deleteLater);
     }
   });
+  QObject::connect(&window, &VaultWindow::quitRequested, &app, &QApplication::quit);
   QObject::connect(&window, &VaultWindow::retire, &app, [&] {
+    const bool visible = window.isVisible();
     window.hide();
     QStringList arguments{"--laboratory-only"};
-    if (window.section() == 1)
-      arguments << "--backups";
+    if (!visible) arguments << "--background";
     window.stopAccessServer();
     server.close();
     owner.unlock();
@@ -137,7 +170,7 @@ int main(int argc, char **argv) {
     app.quit();
   });
   window.showSection(requestedSection);
-  window.show();
+  if (!background) window.show();
   const int result = app.exec();
   close(lease);
   return result;
