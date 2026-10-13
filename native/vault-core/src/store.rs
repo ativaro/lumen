@@ -11,7 +11,7 @@ use std::{
     io::{Read, Write},
     os::{
         fd::AsRawFd,
-        unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
+        unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt},
     },
     path::{Path, PathBuf},
 };
@@ -312,6 +312,38 @@ impl Session {
             _directory: directory,
         })
     }
+    pub(crate) fn enroll_passkey(
+        &self,
+        password: Zeroizing<String>,
+        key: Zeroizing<String>,
+    ) -> Result<()> {
+        self.database()?;
+        let data = read_file(&self.root.join("vault.kdbx"))?;
+        header::inspect(&data)?;
+        // Validate the recovery password before storing its encrypted wrapper.
+        Database::parse(&data, DatabaseKey::new().with_password(&password))
+            .map_err(|_| Error::UnlockFailed)?;
+        let destination = self.root.join("passkey");
+        std::fs::DirBuilder::new()
+            .mode(0o700)
+            .create(&destination)?;
+        let mut wrapper = Self::create(&destination, key)?;
+        wrapper.add("Lumen desktop unlock", password)?;
+        wrapper.save()
+    }
+    pub(crate) fn open_passkey(root: &Path, key: Zeroizing<String>) -> Result<Self> {
+        let (directory, anchored) = anchor(root)?;
+        let wrapper = Self::open(&anchored.join("passkey"), key)?;
+        let ids = wrapper.entries()?;
+        if ids.len() != 1 {
+            return Err(Error::InvalidFile);
+        }
+        let password = wrapper.field(ids[0], "Password")?;
+        drop(wrapper);
+        let result = Self::open(&anchored, password);
+        drop(directory);
+        result
+    }
     pub(crate) fn lock(&mut self) {
         self.db = None;
         self.key = None;
@@ -345,6 +377,11 @@ impl Session {
         let mut entry = db.entry_mut(id).ok_or(Error::InvalidInput)?;
         if entry.fields.len() >= 64 && !entry.fields.contains_key(field) {
             return Err(Error::Limit);
+        }
+        // Device-local consent is not a credential edit or a sync conflict.
+        if field == "LumenApiEnabled" {
+            entry.set_protected(field, value.to_string());
+            return Ok(());
         }
         if entry
             .history
@@ -621,7 +658,6 @@ impl Session {
         db.config.version = DatabaseVersion::KDB4(1);
         let counts = if merge {
             let mut combined = self.database()?.clone();
-            disable_access(&mut combined)?;
             disable_access(&mut db)?;
             let counts = merge_entries(&mut combined, &db)?;
             db = combined;
@@ -629,7 +665,11 @@ impl Session {
         } else {
             (0, 0)
         };
-        let changed = disable_access(&mut db)?;
+        let changed = if merge {
+            false
+        } else {
+            disable_access(&mut db)?
+        };
         supported(&db)?;
         let data = if changed || merge {
             encode(&db, key)?
@@ -799,6 +839,8 @@ fn same_sync_entry(a: &Entry, b: &Entry) -> bool {
     fn content(entry: &Entry, id: EntryId) -> Entry {
         let mut copy = entry.clone_with_id(id);
         copy.fields.remove("LumenSyncSource");
+        // Availability belongs to this device, not synchronized entry content.
+        copy.fields.remove("LumenApiEnabled");
         copy
     }
     content(a, b.id()) == content(b, b.id())
@@ -1087,7 +1129,7 @@ mod tests {
             (1, 1)
         );
         assert_eq!(&*a.field(id, "Password").unwrap(), "LOCAL CANARY");
-        assert_eq!(&*a.field(id, "LumenApiEnabled").unwrap(), "0");
+        assert_eq!(&*a.field(id, "LumenApiEnabled").unwrap(), "1");
         for present in [unchanged, local_only, remote_only] {
             assert!(a.database().unwrap().entry(present).is_some());
         }
@@ -1192,6 +1234,55 @@ mod tests {
                 assert!(!data.windows(6).any(|s| s == b"CANARY"));
             }
         }
+    }
+    #[test]
+    fn sync_keeps_local_grants_without_importing_remote_grants() {
+        use super::*;
+        let local = tempfile::tempdir().unwrap();
+        let remote = tempfile::tempdir().unwrap();
+        for root in [&local, &remote] {
+            fs::set_permissions(root.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        let password = || Zeroizing::new("SYNTHETIC GRANT SYNC MASTER".into());
+        let mut a = Session::create(local.path(), password()).unwrap();
+        let id = a
+            .add("Shared", Zeroizing::new("SYNTHETIC SECRET".into()))
+            .unwrap();
+        a.save().unwrap();
+        a.encrypted_backup(remote.path()).unwrap();
+        let mut b = Session::open(remote.path(), password()).unwrap();
+        a.set(id, "LumenApiEnabled", Zeroizing::new("1".into()))
+            .unwrap();
+        a.save().unwrap();
+        let remote_id = b
+            .add("New remote", Zeroizing::new("SYNTHETIC REMOTE".into()))
+            .unwrap();
+        b.set(remote_id, "LumenApiEnabled", Zeroizing::new("1".into()))
+            .unwrap();
+        b.save().unwrap();
+        let source = remote.path().join("vault.kdbx");
+        let hash = hex_digest(&read_file(&source).unwrap());
+        let active = local.path().join("vault.kdbx");
+        let before = read_file(&active).unwrap();
+        assert_eq!(
+            a.preview_combine(&source, &hash, &hex_digest(&before))
+                .unwrap(),
+            (1, 0)
+        );
+        assert_eq!(read_file(&active).unwrap(), before);
+        assert_eq!(
+            a.combine_file(&source, &hash, &hex_digest(&before), true)
+                .unwrap(),
+            (1, 0)
+        );
+        assert_eq!(&*a.field(id, "LumenApiEnabled").unwrap(), "1");
+        assert_eq!(&*a.field(remote_id, "LumenApiEnabled").unwrap(), "0");
+        let current = read_file(&active).unwrap();
+        assert_eq!(
+            a.preview_combine(&source, &hash, &hex_digest(&current))
+                .unwrap(),
+            (0, 0)
+        );
     }
     #[test]
     fn encrypted_sync_authenticates_preserves_and_revokes_imported_access() {

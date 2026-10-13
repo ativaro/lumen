@@ -142,14 +142,14 @@ public:
               ? tx("Einträge und neue Ordner lokal zusammenführen? Abweichende "
                    "Einträge bleiben als ‚Sync conflict‘ erhalten. Es wird "
                    "nichts gelöscht. Bestehende Ordner und Tresoreinstellungen "
-                   "bleiben lokal. API-/MCP-Freigaben müssen neu erlaubt "
-                   "werden. "
+                   "bleiben lokal. Lokale Freigaben bleiben erhalten; importierte "
+                   "Einträge benötigen eine lokale Freigabe. "
                    "Lokal gelöschte Ordner benötigen eine manuelle Prüfung. "
                    "Anhänge und eigene Symbole werden noch nicht unterstützt.",
                    "Merge entries and new folders locally? Differing entries "
                    "are kept as 'Sync conflict' copies. Nothing is deleted. "
-                   "Existing folders and vault settings stay local. API/MCP "
-                   "access must be allowed again. Locally deleted folders "
+                   "Existing folders and vault settings stay local. Local grants remain; "
+                   "imported entries require local approval. Locally deleted folders "
                    "require manual review. Attachments and custom icons are "
                    "not yet supported.")
               : tx("Diese vollständige Fassung lokal übernehmen? Dein "
@@ -393,6 +393,13 @@ private:
       const auto reason = automatic["reason"].toString();
       status->setText(
           !message.isEmpty() ? message
+          : reason == "connection_changed"
+              ? tx("Die Serververbindung wurde geändert. Prüfe beide Fassungen, "
+                   "führe sie bei Bedarf zusammen und veröffentliche den "
+                   "abgeglichenen Stand. Danach Automatik wieder aktivieren.",
+                   "The server connection changed. Review both versions, merge "
+                   "if needed and publish the reconciled version, then enable "
+                   "automatic sync again.")
           : reason == "incoming" || reason == "conflict"
               ? tx("Serverfassung empfangen. Bitte prüfen und übernehmen oder "
                    "zusammenführen; Veröffentlichung bleibt bis zum Abgleich "
@@ -471,6 +478,7 @@ void VaultWindow::serverSync() {
         ++accessRevision;
         enabledEntries.clear();
         pendingProfiles.clear();
+        pendingEntries.clear();
         if (access)
           access->revoke();
         if (editor)
@@ -488,7 +496,8 @@ void VaultWindow::serverSync() {
           if (editor)
             editor->close();
           isOpen = true;
-          idle.start();
+          sessionActivity();
+          keepalive.start();
           replacePage(openPage());
           refresh();
           if (status)
@@ -503,6 +512,13 @@ void VaultWindow::serverSync() {
         });
       });
   editor = dialog;
+  connect(dialog, &QDialog::finished, this, [this, dialog] {
+    if (editor == dialog) {
+      editor.clear();
+      if (isOpen)
+        refreshAccess();
+    }
+  });
   dialog->show();
 }
 

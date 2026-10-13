@@ -2,6 +2,9 @@
 #include "bookstack.h"
 #include "connection.h"
 #include "vault.h"
+#include "web_login.h"
+#include "vault_ssh.h"
+#include "vault_http.h"
 #include <QStringDecoder>
 #include <algorithm>
 #include <cmath>
@@ -190,9 +193,10 @@ QJsonObject BookStack::project(const QJsonObject &args, const QByteArray &body,
   return out;
 }
 
-VaultAccess::VaultAccess(QWidget *window, Reader reader, bool english)
+VaultAccess::VaultAccess(QWidget *window, Reader reader, bool english, const QString &knownHosts)
     : QObject(window), window(window), reader(std::move(reader)),
       english(english) {
+  sshKnownHosts = knownHosts.isEmpty() ? QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/lumen-vault-lab/ssh_known_hosts" : knownHosts;
   for (auto *timer : {&deadline, &framing})
     timer->setSingleShot(true);
   connect(&deadline, &QTimer::timeout, this,
@@ -235,32 +239,50 @@ bool VaultAccess::arm(const QString &id, const QJsonObject &value) {
   profile = value;
   base = QUrl(profile["endpoint"].toString());
   profiles.insert(id, value);
+  catalog.insert(id, {{"title", value["title"]}, {"kind", "token"}});
   emit changed();
   return true;
 }
-void VaultAccess::setConnections(const QMap<QString, QJsonObject> &values) {
-  revoke();
+void VaultAccess::setConnections(const QMap<QString, QJsonObject> &values,
+                                 const QMap<QString, QJsonObject> &entries) {
+  revoke(true);
   profiles = values;
+  catalog = entries;
+  for (auto it = profiles.begin(); it != profiles.end(); ++it)
+    if (!catalog.contains(it.key()))
+      catalog.insert(it.key(), {{"title", it.value()["title"]}, {"kind", "token"}});
   emit changed();
+  if (unlocking) finish({{"unlocked", true}});
 }
 QJsonObject VaultAccess::connection(int offset) const {
-  QJsonArray connections;
+  QJsonArray connections, entries;
   int index = 0;
-  for (auto it = profiles.begin(); it != profiles.end(); ++it) {
-    if (index++ < offset || connections.size() >= 20)
+  for (auto it = catalog.begin(); it != catalog.end(); ++it) {
+    if (index++ < offset || entries.size() >= 20)
       continue;
-    connections.append(
-        QJsonObject{{"reference", "vault:" + it.key()},
-                    {"connector", it.value()["connector"]},
-                    {"endpoint", QUrl(it.value()["endpoint"].toString())
-                                     .toString(QUrl::FullyEncoded)}});
+    // Discovery never includes usernames, passwords, notes or custom fields.
+    entries.append(QJsonObject{{"reference", "vault:" + it.key()},
+                               {"title", it.value()["title"]},
+                               {"kind", it.value()["kind"]},
+                               {"shared_with_lumen", true},
+                               {"http_available", QStringList{"http", "https"}.contains(it.value()["login_scheme"].toString()) || profiles.contains(it.key())},
+                               {"usage", profiles.contains(it.key()) ? "api_mcp"
+                                   : it.value()["kind"] == "login" ? (it.value()["login_scheme"] == "ssh" ? "ssh_login" : "web_login")
+                                                                   : "connection_incomplete"},
+                               {"api_available", profiles.contains(it.key())},
+                               {"web_login_available", it.value()["kind"] == "login" && it.value()["login_scheme"] != "ssh"},
+                               {"ssh_available", it.value()["kind"] == "login" && QStringList{"ssh", "http", "https"}.contains(it.value()["login_scheme"].toString())}});
+    if (profiles.contains(it.key())) {
+      const auto value = profiles.value(it.key());
+      connections.append(QJsonObject{
+          {"reference", "vault:" + it.key()}, {"connector", value["connector"]},
+          {"endpoint", QUrl(value["endpoint"].toString()).toString(QUrl::FullyEncoded)}});
+    }
   }
-  QJsonObject result{{"connected", armed()},
-                     {"connections", connections},
-                     {"requires_confirmation", true}};
-  // Preserve single-connection clients without choosing an arbitrary service.
-  result.insert("next_offset", offset + connections.size() < profiles.size()
-                                   ? QJsonValue(offset + connections.size())
+  QJsonObject result{{"connected", armed()}, {"entries", entries},
+                     {"connections", connections}, {"requires_confirmation", true}};
+  result.insert("next_offset", offset + entries.size() < catalog.size()
+                                   ? QJsonValue(offset + entries.size())
                                    : QJsonValue(QJsonValue::Null));
   if (profiles.size() == 1 && connections.size() == 1) {
     const auto single = connections[0].toObject();
@@ -269,17 +291,23 @@ QJsonObject VaultAccess::connection(int offset) const {
   }
   return result;
 }
-void VaultAccess::revoke() {
+void VaultAccess::revoke(bool preserveUnlock) {
   ++epoch;
+  closeWeb();
+  closeHttp();
   entryId.clear();
   base.clear();
   profile = {};
   profiles.clear();
-  finish(failure("access_revoked"));
+  catalog.clear();
+  if (!preserveUnlock || !unlocking) finish(failure("access_revoked"));
   emit changed();
 }
 void VaultAccess::cancel() {
   ++epoch;
+  unlocking = false;
+  if (http && http->busy()) closeHttp();
+  if (ssh) { ssh->cancel(); ssh.clear(); }
   deadline.stop();
   framing.stop();
   auto dialog = prompt;
@@ -320,7 +348,7 @@ void VaultAccess::cancel() {
 }
 void VaultAccess::finish(const QJsonObject &result) {
   QJsonObject delivered = result;
-  if (result.contains("error") && actionDispatched)
+  if (result.contains("error") && (actionDispatched || (ssh && ssh->dispatched())))
     delivered = failure("operation_outcome_unknown");
   if (result.contains("error") && prompt && prompt->property("saving").toBool())
     delivered = failure("save_outcome_unknown");
@@ -388,6 +416,21 @@ void VaultAccess::receive() {
   if (utf8.hasError() || error.error != QJsonParseError::NoError ||
       !document.isObject()) {
     finish(failure("invalid_request"));
+    return;
+  }
+  if (document.object().value("operation") == "unlock") {
+    if (document.object().size() != 1 || !unlockReady || !unlockPrompt) {
+      finish(failure("invalid_request")); return;
+    }
+    if (unlockReady()) { finish({{"unlocked", true}}); return; }
+    if (QApplication::activeModalWidget()) { finish(failure("vault_busy")); return; }
+    requested = true; framing.stop(); wipe(frame);
+    auto *dialog = unlockPrompt();
+    if (!dialog) { finish(failure("vault_busy")); return; }
+    unlocking = true; prompt = dialog;
+    connect(dialog, &QDialog::finished, this, [this] {
+      if (unlocking) finish(failure("access_denied"));
+    });
     return;
   }
   if (document.object().value("operation") == "connection") {
@@ -464,6 +507,18 @@ void VaultAccess::receive() {
                                        ? "save_outcome_unknown"
                                        : "entry_not_saved"));
             });
+    return;
+  }
+  if (document.object()["operation"].toString().startsWith("http_")) {
+    requested = true; framing.stop(); httpRequest(document.object()); return;
+  }
+  if (document.object()["operation"].toString().startsWith("ssh_")) {
+    requested = true; framing.stop(); sshRequest(document.object()); return;
+  }
+  if (document.object()["operation"].toString().startsWith("web_")) {
+    requested = true;
+    framing.stop();
+    webRequest(document.object());
     return;
   }
   if (!armed()) {
@@ -568,7 +623,7 @@ void VaultAccess::confirm(const QJsonObject &args) {
 }
 void VaultAccess::dispatch(const QJsonObject &args, quint64 requestEpoch,
                            QStringList fields) {
-  const bool valid = VaultConnection::value(fields, "LumenApiEnabled") == "1" &&
+  const bool valid = VaultConnection::value(fields, "LumenHidden") != "1" &&
                      VaultConnection::problem(fields).isEmpty() &&
                      VaultConnection::settings(fields) == profile;
   if (requestEpoch != epoch || !peer || !armed() || !valid) {

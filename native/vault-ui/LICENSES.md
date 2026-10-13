@@ -34,13 +34,20 @@ preserve the rights below. No third-party commercial rights are purchased.
 ## Qt
 
 The native application dynamically links the separately installed Qt 6 **Core,
-Gui, Widgets, Network and D-Bus** libraries. Qt Test is used by tests only. These modules
+Gui, Widgets, Network, D-Bus, WebEngineCore and WebEngineWidgets** libraries. Qt Test is used by tests only. These modules
 are used under LGPLv3; `licenses/qt/` contains LGPLv3 and its GPLv3 base text.
 Settings → About / Licenses identifies Qt and these rights. SVG icons use the
 separately installed Qt SVG plugin (LGPLv3); its code is not bundled here. We do not ship
 Qt DLLs/shared libraries, plugins, or a Qt Python wheel in this laboratory bundle.
 Users obtain Qt through their distribution; its package carries the matching
-library notices and source information. The current developer host uses Qt 6.11.2.
+library notices and source information. The current developer host uses Qt 6.12.0.
+
+Qt WebEngine also includes Chromium and third-party components under their own
+licenses (including LGPL-2.1-only components); the separately installed
+`qt6-webengine` package supplies these notices and matching source information.
+No WebEngine/Chromium binaries are bundled in this application archive.
+If bundling them later, preserve the complete WebEngine third-party notices and
+provide the corresponding source/relinking materials as required.
 
 Users may replace the Qt libraries and debug/reverse engineer the application
 for the purpose of modifying those libraries. No EULA, integrity lock, signature
@@ -58,8 +65,20 @@ permission to bundle arbitrary Qt modules: some other modules are GPL-only.
 Official references:
 - https://www.qt.io/development/open-source-lgpl-obligations
 - https://doc.qt.io/qt-6/licensing.html
+- https://doc.qt.io/qt-6/qtwebengine-licensing.html
 - https://doc.qt.io/qt-6/qtwidgets-index.html#licenses-and-attributions
 - https://doc.qt.io/qt-6/qtdbus-index.html#licenses-and-attributions
+
+## libssh
+
+Native SSH dynamically links the separately installed libssh (LGPL-2.1-or-later).
+It is not bundled. The development host uses distribution libssh 0.12.2; its
+source and notices are supplied by that distribution. The LGPL 2.1 text is
+included in `licenses/libssh/`. Users may replace/debug the library; the Lumen
+EULA's third-party carve-outs retain these rights. The application sources and
+build instructions are supplied for relinking. Bundling libssh in a future
+release additionally requires its complete matching notices/source obligations.
+Reference: https://api.libssh.org/stable/libssh_linking.html .
 
 ## Entire Lumen project
 
@@ -68,3 +87,12 @@ work does not remove them, convert them to MIT, or authorize a closed-source
 commercial redistribution of the entire product. See ../../LICENSE-PLAN.md and
 ../../desktop/CREDITS.md. Keep the repository private as requested; obtain a
 qualified review before adopting/distributing the proposed commercial edition.
+
+## KDE IdleTime
+
+The native app dynamically links the separately installed KDE KIdleTime
+library (LGPL-2.1-or-later); it is not bundled. Copyright Dario Freddi and
+Harald Sitter and other KDE contributors. Upstream:
+https://invent.kde.org/frameworks/kidletime. The applicable LGPL-2.1 text is
+already included in licenses/libssh/LGPL-2.1-or-later.txt. Users may replace
+the shared library and debug their modifications; no static linking is used.

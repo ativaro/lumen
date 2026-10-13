@@ -1,3 +1,4 @@
+#include <QCheckBox>
 // SPDX-License-Identifier: LicenseRef-Lumen-EULA
 #include "bookstack.h"
 #include "connection.h"
@@ -448,7 +449,7 @@ private slots:
     qobject_cast<QDialog *>(QApplication::activeModalWidget())->accept();
     QCOMPARE(readId, QString("b"));
     auto revoked = fields;
-    revoked[revoked.indexOf("LumenApiEnabled") + 1] = "0";
+    revoked << "LumenHidden" << "1";
     pending(revoked);
     QTRY_VERIFY(selected.bytesAvailable());
     QCOMPARE(result(selected)["error"].toString(),
@@ -459,6 +460,9 @@ private slots:
       many.insert(QString::number(i).rightJustified(3, '0'), profile);
     access.setConnections(many);
     QCOMPARE(access.connection()["connections"].toArray().size(), 20);
+    const auto sharedApi = access.connection()["entries"].toArray()[0].toObject();
+    QVERIFY(sharedApi["shared_with_lumen"].toBool());
+    QCOMPARE(sharedApi["usage"].toString(), QString("api_mcp"));
     QCOMPARE(access.connection()["next_offset"].toInt(), 20);
     QCOMPARE(access.connection(20)["next_offset"].toInt(), 40);
     QCOMPARE(access.connection(40)["connections"].toArray().size(), 3);
@@ -777,18 +781,22 @@ private slots:
           entries->setCurrentRow(i);
     };
     auto *access = window.findChild<VaultAccess *>();
-    auto *button = window.findChild<QPushButton *>("apiAccess");
+    auto *button = window.findChild<QCheckBox *>("apiAccess");
     select(a);
     QTRY_VERIFY(button->isEnabled());
-    QTest::mouseClick(button, Qt::LeftButton);
-    QTRY_VERIFY(access->enabled(a));
+    QTRY_VERIFY(access->enabled(a) && access->enabled(b));
+    QVERIFY(!button->isChecked());
+    button->click();
+    QTRY_VERIFY(!access->enabled(a) && access->enabled(b));
     QVERIFY(!QApplication::activeModalWidget());
-    const auto activeText = button->text();
     select(b);
-    QVERIFY(button->text() != activeText);
-    QVERIFY(access->enabled(a));
-    QTest::mouseClick(button, Qt::LeftButton);
-    QTRY_VERIFY(access->enabled(b));
+    QTRY_VERIFY(button->isEnabled());
+    QVERIFY(!button->isChecked());
+    select(a);
+    QTRY_VERIFY(button->isEnabled());
+    QVERIFY(button->isChecked());
+    button->click();
+    QTRY_VERIFY(access->enabled(a) && access->enabled(b));
     QCOMPARE(access->connection()["connections"].toArray().size(), 2);
     QVERIFY(!access->connection().contains("reference"));
     // A stale history reply must restore availability without opening a dialog.
@@ -812,7 +820,7 @@ private slots:
     QTRY_VERIFY_WITH_TIMEOUT(window.unlocked(), 10000);
     QTRY_VERIFY_WITH_TIMEOUT(access->enabled(a) && access->enabled(b), 10000);
     entries = window.findChild<QListWidget *>("entries");
-    button = window.findChild<QPushButton *>("apiAccess");
+    button = window.findChild<QCheckBox *>("apiAccess");
     select(a);
     QTRY_VERIFY(button->isEnabled());
     QTest::mouseClick(button, Qt::LeftButton);
@@ -823,13 +831,14 @@ private slots:
                   [&](QStringList) { changed = true; });
     QTRY_VERIFY(changed);
     select(a);
+    QTRY_VERIFY(button->isEnabled());
     QTest::mouseClick(button, Qt::LeftButton);
-    QTRY_VERIFY(
-        window.findChild<QLabel *>("accessStatus")->text().contains("HTTPS"));
+    QTRY_VERIFY(button->isEnabled());
+    QVERIFY(!button->isChecked());
+    QVERIFY(!access->enabled(a));
     QVERIFY(!QApplication::activeModalWidget());
     QVERIFY(access->enabled(b));
-    // Disabled stays disabled after another unlock; invalid profile did not
-    // enable it.
+    // Visible metadata does not make an invalid connector usable.
     window.lock();
     master = window.findChild<QLineEdit *>("master");
     master->setText("SYNTHETIC GENERIC MASTER");
@@ -849,14 +858,74 @@ private slots:
     QTRY_VERIFY_WITH_TIMEOUT(window.unlocked(), 10000);
     entries = window.findChild<QListWidget *>("entries");
     QTRY_COMPARE(entries->count(), 2);
-    button = window.findChild<QPushButton *>("apiAccess");
+    button = window.findChild<QCheckBox *>("apiAccess");
     select(b);
     QTRY_VERIFY(button->isEnabled());
     QVERIFY(!access->enabled(b));
-    QCOMPARE(button->text(), activeText);
+    QVERIFY(!button->isChecked());
     button->click();
     QTRY_VERIFY(button->isEnabled());
-    QVERIFY(button->text() != activeText);
+    QVERIFY(button->isChecked());
+    window.lock();
+  }
+  void sharedLoginIsDiscoverableWithoutCredentialExport() {
+    QTemporaryDir root;
+    Channel seed(root.path());
+    bool created = false;
+    seed.call({"create", "SYNTHETIC LOGIN MASTER"}, [&](QStringList) { created = true; });
+    QTRY_VERIFY_WITH_TIMEOUT(created, 10000);
+    QString id;
+    seed.call({"put", "", "Title", "Website login", "LumenType", "login",
+               "URL", "https://login.example/?secret=SYNTHETIC_URL_CANARY",
+               "UserName", "SYNTHETIC_USER_CANARY", "Password", "SYNTHETIC_PASSWORD_CANARY"},
+              [&](QStringList result) { id = result.value(0); });
+    QTRY_VERIFY_WITH_TIMEOUT(!id.isEmpty(), 10000);
+    seed.stop();
+    VaultWindow window(root.path()); window.show();
+    auto unlock = [&] {
+      auto *master = window.findChild<QLineEdit *>("master");
+      master->setText("SYNTHETIC LOGIN MASTER");
+      QTest::keyClick(master, Qt::Key_Return);
+    };
+    unlock();
+    QTRY_VERIFY_WITH_TIMEOUT(window.unlocked(), 10000);
+    auto *access = window.findChild<VaultAccess *>();
+    auto *button = window.findChild<QCheckBox *>("apiAccess");
+    QTRY_VERIFY(button->isEnabled());
+    QVERIFY(!button->isChecked());
+    QTRY_COMPARE(access->connection()["entries"].toArray().size(), 1);
+    auto result = access->connection();
+    QCOMPARE(result["entries"].toArray()[0].toObject()["kind"].toString(), QString("login"));
+    QCOMPARE(result["entries"].toArray()[0].toObject()["title"].toString(), QString("Website login"));
+    QVERIFY(!result["entries"].toArray()[0].toObject()["api_available"].toBool());
+    QVERIFY(result["connections"].toArray().isEmpty());
+    QVERIFY(!access->armed());
+    QVERIFY(!QJsonDocument(result).toJson().contains("CANARY"));
+    QTemporaryDir runtime;
+    QVERIFY(window.startAccessServer(runtime.path()));
+    QLocalSocket catalog;
+    send(catalog, runtime.path(), R"({"operation":"connection"})");
+    QTRY_VERIFY(catalog.bytesAvailable());
+    const auto wire = AccessTest::result(catalog);
+    QCOMPARE(wire["entries"].toArray().size(), 1);
+    const auto shared = wire["entries"].toArray()[0].toObject();
+    QVERIFY(shared["shared_with_lumen"].toBool());
+    QCOMPARE(shared["usage"].toString(), QString("web_login"));
+    QVERIFY(!shared["api_available"].toBool());
+    QVERIFY(!QJsonDocument(wire).toJson().contains("CANARY"));
+    QLocalSocket denied;
+    send(denied, runtime.path(), QJsonDocument(QJsonObject{
+        {"operation", "api_get"}, {"reference", "vault:" + id}, {"path", "/"}}).toJson(QJsonDocument::Compact));
+    QTRY_VERIFY(denied.bytesAvailable());
+    QVERIFY(AccessTest::result(denied).contains("error"));
+    QVERIFY(!QApplication::activeModalWidget());
+    window.lock();
+    QVERIFY(access->connection()["entries"].toArray().isEmpty());
+    unlock();
+    QTRY_COMPARE_WITH_TIMEOUT(access->connection()["entries"].toArray().size(), 1, 10000);
+    button = window.findChild<QCheckBox *>("apiAccess");
+    QTRY_VERIFY(button->isEnabled()); button->click();
+    QTRY_VERIFY(access->connection()["entries"].toArray().isEmpty());
     window.lock();
   }
   void prefillRejectsUnknownAndTruncatedFields() {
@@ -891,6 +960,7 @@ private slots:
         "SYNTHETIC ACCESS MASTER");
     QTest::keyClick(master, Qt::Key_Return);
     QTRY_VERIFY_WITH_TIMEOUT(window.unlocked(), 10000);
+    QTRY_VERIFY(!window.findChild<Channel *>()->busy());
     QLocalSocket client;
     send(
         client, runtime.path(),
@@ -917,7 +987,7 @@ private slots:
     QVERIFY(saved.value("reference").toString().startsWith("vault:"));
     QTRY_VERIFY(!window.findChild<QLineEdit *>("editPassword"));
     QTRY_COMPARE(window.findChild<QListWidget *>("entries")->count(), 1);
-    QVERIFY(!window.findChild<VaultAccess *>()->armed());
+    QTRY_VERIFY(window.findChild<VaultAccess *>()->armed());
     QLocalSocket cancelled;
     send(cancelled, runtime.path(),
          R"({"operation":"store","title":"Cancel prefill","kind":"login","prefill":{"Password":"SYNTHETIC_CANCELLED"}})");
@@ -936,9 +1006,8 @@ private slots:
     QTest::qWait(1); // Run the editor's deferred availability refresh before clicking.
     QCOMPARE(window.findChild<QListWidget *>("entries")->count(), 1);
     window.findChild<QListWidget *>("entries")->setCurrentRow(0);
-    QTRY_VERIFY(window.findChild<QPushButton *>("apiAccess")->isEnabled());
-    QTest::mouseClick(window.findChild<QPushButton *>("apiAccess"),
-                      Qt::LeftButton);
+    QTRY_VERIFY(window.findChild<QCheckBox *>("apiAccess")->isEnabled());
+    QVERIFY(!window.findChild<QCheckBox *>("apiAccess")->isChecked());
     QTRY_VERIFY2(window.findChild<VaultAccess *>()->armed(),
                  qPrintable(window.findChild<QLabel *>("accessStatus")->text()));
     QVERIFY(!QApplication::activeModalWidget());

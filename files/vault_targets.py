@@ -88,8 +88,10 @@ def command(plan, password, args, job, program, timeout):
             ca.write(ssl.DER_cert_to_PEM_cert(cert))
         ca.flush()
         try:
+            # Lumen accepts one buffered upload at a time; parallel Restic requests can starve retries.
+            uploads = ['--option', 'rest.connections=1'] if args and args[0] == 'backup' else []
             return job.command([program, '--quiet', '--repo', plan['repository'], '--cacert', ca.name,
-                                '--password-file', '/dev/stdin', '--json', *args],
+                                *uploads, '--password-file', '/dev/stdin', '--json', *args],
                                data=(password+'\n').encode(), timeout=timeout,
                                max_output=32*1024**2, env=env).decode('utf-8')
         except ValueError:

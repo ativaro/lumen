@@ -7,8 +7,8 @@ intentional. Diagnostic and backup controls no longer dominate the main view.
 
 ## Build and installation
 
-Linux, C++17, CMake, dynamic Qt 6.5+ Core/Gui/Widgets/Network/DBus, the system Qt SVG icon
-plugin, Qt Test for tests, and Rust **1.89.0** with rustfmt/clippy:
+Linux, C++17, CMake, dynamic Qt 6.8+ Core/Gui/Widgets/Network/DBus/WebEngineCore/WebEngineWidgets, the system Qt SVG icon
+plugin (`qt6-base`, `qt6-webengine`, `qt6-svg` on Arch/CachyOS), libssh 0.11+ (`libssh`), KDE IdleTime (`kidletime`), Qt Test for tests, and Rust **1.89.0** with rustfmt/clippy:
 
 ```sh
 ./native/vault-ui/build.sh
@@ -36,8 +36,8 @@ credential process retirement and reconnects without replaying mutations.
 Scheduled/legacy jobs remain separately protected by existing per-plan leases.
 Only backup requests cross this socket; KDBX credentials continue exclusively
 through the Rust broker's anonymous pipe. A tab switch does not lock the vault;
-it hides revealed secrets and clears its owned clipboard. Backup activity does
-not extend the credential idle timeout. Actual credential lock still retires the
+it hides revealed secrets and clears its owned clipboard. Human desktop activity
+extends the idle timeout; automated backup/tool activity does not. Actual credential lock still retires the
 GUI and cancels any unsent backup dialog; accepted jobs continue. No existing data
 is migrated. Restores remain isolated new folders; advanced app-data merge dialogs
 remain available through the legacy backup workflow.
@@ -61,7 +61,7 @@ Binaries/source/notices: `$XDG_DATA_HOME/lumen/vault-lab`, default
 - Masked secrets, explicit 10-second reveal, 24-character OS-random generator.
 - Explicit copies and note cut/copy use KDE's sensitive MIME hint, ownership tag
   and 20-second clearing timer. Other clipboard contents are left alone.
-- Five-minute idle lock, screen lock, suspend and broker failures lock the UI.
+- Configurable 5/15/30-minute idle lock (default 15), immediate screen/suspend lock; broker failures lock the UI.
   Lock hides the window first, clears models/dialogs, closes the private pipe
   gracefully, and retires the desktop UI process before opening a locked window.
   A hung broker is killed after the bounded graceful wait.
@@ -147,7 +147,7 @@ origin, token ID and secret (Password/token field). Make available to Lumen save
 that entry's availability inside the encrypted vault until you turn it off. Every `lumen_bookstack_read` request separately
 asks native approval and returns only bounded read results. No write/delete
 operation exists. Disable, lock or edit revokes pending access. Each unlock reloads saved availability;
-the five-minute idle lock remains.
+the desktop inactivity lock remains.
 The approval identifies a local program, not a verified app identity. Read
 results may reach the configured cloud model; the token stays local except for
 authentication to the approved service. The independent-review/production flags
@@ -176,12 +176,24 @@ legacy read adapter, not the credential type. Generic operations may alter remot
 state; native approval shows the exact request. Check remote state before retrying
 an interrupted MCP call whose outcome is unknown.
 
-Availability is a saved preference per API/MCP entry. Multiple entries can be
-available simultaneously. `lumen_vault_connection` returns only their references,
-endpoints and connector types, with pages of 20 (`offset` / `next_offset`). Pass
+Availability is a saved preference per login or API/MCP entry. Multiple entries
+can be available simultaneously. `lumen_vault_connection` returns an `entries`
+catalog with reference, title, kind, `shared_with_lumen=true`, `usage` and
+`api_available`. Every returned entry is already shared; `api_available=false`
+is a capability limitation, never a missing sharing permission. `usage` distinguishes
+`api_mcp`, `web_login`, `ssh_login` and `connection_incomplete`. Login usernames,
+passwords, URLs, notes and custom fields are never exported. Only valid API/MCP
+profiles also appear in `connections`, with endpoint and connector type. Pages
+contain up to 20 catalog entries (`offset` / `next_offset`). Shared logins support temporary browser sessions through the six `lumen_vault_web_*`
+tools; credentials are inserted locally after approval. `web_login_available`
+identifies this capability; a valid stored HTTPS URL is required at use time.
+See [the web-access contract](WEB-LOGIN.md) for limits and verification. SSH password logins accept `ssh://host[:port]` or propose the saved HTTP(S) website host on port 22 (optional SSH port argument). Website credentials require separate native consent each time; the saved URL remains unchanged. `ssh_available` may therefore be true alongside `usage=web_login`. Use the
+`lumen_vault_ssh_check`/`lumen_vault_ssh_exec` tools with native host-key and command
+approval. See [the SSH contract](SSH.md). No password export is provided. Pass
 `reference` to request tools when choosing a service; it is mandatory if multiple
 entries are available. Native approval identifies the entry and exact request.
-Every operation still needs local confirmation, and locking ends all active
+API requests and browser actions need local confirmation; inspecting a browser
+session uses the read consent from opening it. Locking ends all active
 access. Missing/old flags stay off; enable each intended entry once. Invalid
 profiles cannot be used and can still be disabled. Trash and entry-history restore
 clear the permission. Neither settings nor secrets are written into plaintext
@@ -269,7 +281,10 @@ server protocol and limits are in the server repository's `docs/vault-sync.md`.
 
 Native server sync also offers **Merge entries** for an unlocked vault. It keeps
 local entries and adds differing remote entries as visible `Sync conflict` copies,
-including history. API/MCP grants are disabled, previous ciphertext is retained,
+including history. Local grants on retained entries remain unchanged; imported
+entries and conflict copies have grants disabled. Availability changes do not
+create credential-history versions or new content conflicts. Whole-version
+adoption still resets grants. Previous ciphertext is retained,
 and publication remains a separate explicit action. A fresh/empty vault only
 allows whole-version restore. See [VAULT-INBOX.md](../../VAULT-INBOX.md) for the
 conservative same-origin limits and manual conflict resolution. New groups are
@@ -299,3 +314,32 @@ beim konservativen Zusammenführen weiterhin eine ausdrückliche Formatgrenze.
 Beim ersten Abgleich ist „Erste Serverfassung erstellen“ direkt sichtbar. Danach
 liegen Veröffentlichen und Entfernen früherer Serverfassungen unter „Weitere
 Optionen“. Hintergrundtransport funktioniert weiterhin geschlossen/gesperrt.
+
+## Generic service sessions
+
+Lumen preserves ordinary OpenCode tool choice. Shared logins and tokens support
+`lumen_vault_http_open/request/close` for documented JSON HTTP/RPC authentication
+and subsequent requests. Username/password placeholders are filled natively;
+cookies and captured bearer tokens stay native. No service-specific RPC envelope
+or conversion of logins into API tokens. See [HTTP access](HTTP-ACCESS.md) and
+the installed `lumen-service-access` OpenCode skill. HTTPS verification (or explicit plaintext HTTP consent for the displayed workflow), origin binding and
+native confirmation remain enforced. An optional exact ordered request plan bundles
+login and follow-up requests into one approval; deviations need a new review.
+Login submission requires a follow-up
+authenticated read before claiming success.
+
+## Comfortable sessions and optional passkeys
+
+See [SESSION-UNLOCK.md](SESSION-UNLOCK.md). Closing an unlocked window hides it;
+use the Lumen Vault tray menu to reopen, lock, or lock and quit. A hidden timed-out
+window stays hidden after process retirement. The footer selects 5/15/30 minutes
+of desktop inactivity. KIdleTime resume events reset the timer; if unavailable,
+only spontaneous input inside Vault resets it. Native keepalive retains the broker
+while the UI controls this policy; broker pipe loss still closes the store.
+
+Settings → Proton Pass / Passkey sets up quick unlock using a browser provider
+with WebAuthn PRF. The master password is validated and wrapped in a separate
+KDBX entirely by the native broker, never sent to the browser. The locked page
+then offers Unlock with passkey. Remove the local link through Settings; remove
+the authenticator entry separately in Proton Pass. The master password remains
+required for recovery. No secret files are automatically imported or deleted.

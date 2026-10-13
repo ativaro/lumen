@@ -51,7 +51,12 @@ class BackgroundSyncTest(unittest.TestCase):
                 with self.assertRaises(ValueError):run('auto-enable',scope=scope)
                 cfg['token']='different account';network.reset_mock()
                 self.assertEqual(run('auto-poll')['reason'],'connection_changed');network.assert_not_called()
-                cfg['token']='synthetic';active.write_bytes(contents[remote2['id']]);run('auto-enable',scope=scope)
+                cfg['token']='synthetic'
+                self.assertEqual(run('auto-poll')['reason'],'conflict')
+                active.write_bytes(contents[remote2['id']]);run('auto-enable',scope=scope)
+                run('auto-disable');network.reset_mock()
+                self.assertEqual(run('auto-poll')['reason'],'disabled');network.assert_not_called()
+                run('auto-enable',scope=scope)
                 active.write_bytes(original+b'unknown upload');retain[0]=False
                 with self.assertRaises(TimeoutError):run('auto-poll')
                 self.assertEqual(run('auto-poll')['reason'],'uncertain')

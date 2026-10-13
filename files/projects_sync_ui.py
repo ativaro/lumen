@@ -70,6 +70,7 @@ def configure(window):
 
 
 def run(window):
+    if window.editor.dirty() or window.editor.draft_kind:return
     if window.job or window.save_timer.isActive() or (window.runner and window.runner.busy):
         return
     if not sync.read_state(window.library)["enabled"]:
@@ -85,6 +86,8 @@ def run(window):
         # Never reload over a draft typed while the worker was in flight.
         if (
             window.current
+            and not window.editor.draft_kind
+            and not window.editor.dirty()
             and not window.save_timer.isActive()
             and window.editor_fields() == window.loaded_fields
         ):
@@ -154,18 +157,11 @@ def conflicts(window):
 
 
 def install(window):
-    from tools_ui import row
-
-    window.content.insertWidget(
-        0,
-        row(
-            button(tr("Serverabgleich …"), lambda: window.safe(configure, window), "network-server"),
-            button(tr("Jetzt abgleichen"), lambda: window.safe(run, window), "view-refresh"),
-            button(tr("Konflikte"), lambda: window.safe(conflicts, window), "dialog-warning"),
-            button(tr("Serveraufträge …"), lambda: window.safe(server_workspace, window), "network-server"),
-            button(tr("Auf Server öffnen"), lambda: window.safe(open_server, window), "globe"),
-        ),
-    )
+    for index,(title,action,icon) in enumerate([
+        ('Serverabgleich …',configure,'network-server'),('Jetzt abgleichen',run,'view-refresh'),
+        ('Konflikte',conflicts,'dialog-warning'),('Serveraufträge …',server_workspace,'network-server'),
+        ('Auf Server öffnen',open_server,'globe')]):
+        window.content.insertWidget(index,button(tr(title),lambda _=False,fn=action:window.safe(fn,window),icon))
     window.project_sync_timer = QTimer(window)
     window.project_sync_timer.setInterval(60000)
     window.project_sync_timer.timeout.connect(lambda: window.safe(run, window))

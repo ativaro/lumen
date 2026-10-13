@@ -16,7 +16,7 @@ def configure(window):
 
 
 def show_dialog(window,info):
-    dialog=QDialog(window);dialog.setWindowTitle(tr('Lumen Wissen · Serverabgleich'));dialog.resize(570,380)
+    dialog=QDialog(window);dialog.setWindowTitle(tr('Lumen Notes · Serverabgleich'));dialog.resize(570,380)
     dialog.setWindowModality(Qt.WindowModal)
     box=QVBoxLayout(dialog);box.setContentsMargins(24,24,24,24);box.setSpacing(16)
     box.addWidget(label(info['server']+'\n'+info['user'],'heading'))
@@ -36,7 +36,7 @@ def show_dialog(window,info):
     context=QCheckBox(tr('Serverfreigaben für KI-Kontext auch auf diesem Desktop verwenden'))
     context.setChecked(info.get('server_context',False));context.setEnabled(info.get('context_available',False) or context.isChecked());box.addWidget(context)
     box.addWidget(label(tr('Nur freigegebene Servernotizen; aktuelle Rechte werden vor jeder Nutzung geprüft. Offline bleibt dieser Kontext aus. Lokale Ausschlüsse bleiben erhalten.'),'muted'))
-    message=tr('Automatisch auch bei geschlossenem Lumen Wissen über den Verbindungsdienst. Deaktivieren behält vorhandene Kopien.')
+    message=tr('Automatisch auch bei geschlossenem Lumen Notes über den Verbindungsdienst. Deaktivieren behält vorhandene Kopien.')
     if not info['reachable']:message=tr('Server derzeit nicht erreichbar. Du kannst den Abgleich weiterhin deaktivieren.')
     elif not info['allowed']:message=tr('Auf dem Server unter Geräte die Fähigkeit „Notizen synchronisieren“ freigeben.')
     box.addWidget(label(message,'muted'))

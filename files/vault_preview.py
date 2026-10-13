@@ -144,7 +144,7 @@ class VaultPreview(QObject):
     def backups(self):
         from PySide6.QtCore import QProcess
         from lumen_launch import executable
-        ok, _ = QProcess.startDetached(executable('lumen-vault'), [])
+        ok, _ = QProcess.startDetached(executable('lumen-system'), ['--page', 'backups'])
         if not ok: self.message = tr('Sicherungen konnten nicht geöffnet werden.'); self.changed.emit()
 
     def eventFilter(self, watched, event):

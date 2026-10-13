@@ -34,9 +34,9 @@ def save(state):
 
 
 def scope(config):
-    return hashlib.sha256(
-        (config["server"] + "\0" + config["token"]).encode()
-    ).hexdigest()
+    from sync_identity import scope as stable_scope
+    legacy = hashlib.sha256((config["server"] + "\0" + config["token"]).encode()).hexdigest()
+    return stable_scope(config, ["drive"], legacy)
 
 
 @contextmanager
@@ -520,7 +520,7 @@ def reconcile(config, root, persist, progress):
                     while chunk := source.read(128 * 1024):
                         copied += len(chunk)
                         if copied > local.LIMIT:
-                            raise ValueError(tr("Maximal 64 MB pro Datei."))
+                            raise ValueError(tr("Ungültige Dateigröße."))
                         output.write(chunk)
                     output.flush()
                     os.fsync(output.fileno())
@@ -727,7 +727,7 @@ def reconcile(config, root, persist, progress):
             persist()
         elif rc or base is None:
             if row["size"] > local.LIMIT:
-                errors.append(rpath + tr(" · Maximal 64 MB pro Datei."))
+                errors.append(rpath + tr(" · Ungültige Dateigröße."))
                 continue
             if path and path != rpath and not row["trashed"]:
                 local.move(root, path, rpath)

@@ -280,6 +280,15 @@ class NativeMCPTest(unittest.TestCase):
                 with self.assertRaises(ValueError):mcp.validate_schema(args,DEFINITIONS[name]['schema'])
                 worker.assert_not_called()
 
+    def test_http_plan_schema(self):
+        schema = DEFINITIONS['lumen_vault_http_open']['schema']
+        step = dict(method='POST', path='/session', body={'secret':{'$vault':'password'}})
+        valid = dict(reference='vault:example', requests=[step, dict(method='GET',path='/status')])
+        mcp.validate_schema(valid, schema)
+        for plan in ([], [step]*13, ['bad'], [dict(step, session='override')], [dict(step, headers={})], [dict(path='/status')]):
+            with self.subTest(plan=plan), self.assertRaises(ValueError):
+                mcp.validate_schema(dict(reference='vault:example', requests=plan), schema)
+
     def test_timeout_kills_worker_process_group(self):
         process=unittest.mock.Mock(pid=123)
         process.communicate.side_effect=[subprocess.TimeoutExpired('worker',45),('','')]
@@ -295,7 +304,7 @@ class NativeMCPTest(unittest.TestCase):
             with self.assertRaises(ValueError): mcp.validate_schema({'method':'POST','body':body}, schema)
         for method in ('CONNECT','post','POST\r\nHeader: x'):
             with self.assertRaises(ValueError): mcp.validate_schema({'method':method}, schema)
-        for name,args in [('lumen_vault_api_request',{'method':'POST'}),('lumen_vault_mcp',{'operation':'call','name':'x','arguments':{}})]:
+        for name,args in [('lumen_vault_api_request',{'method':'POST'}),('lumen_vault_mcp',{'operation':'call','name':'x','arguments':{}}), ('lumen_vault_ssh_exec',{'reference':'vault:x','command':'uname -a'}), ('lumen_vault_http_request',{'session':'s','method':'GET','path':'/rpc'}), *[(f'lumen_vault_web_{op}', {'session':'opaque','snapshot':'snap','node':'1'}) for op in ('login','click','fill')]]:
             process=unittest.mock.Mock(pid=123)
             process.communicate.side_effect=[subprocess.TimeoutExpired('worker',105),('','')]
             with patch.object(mcp.subprocess,'Popen',return_value=process),patch.object(mcp.os,'killpg'):
@@ -319,15 +328,16 @@ class NativeMCPTest(unittest.TestCase):
                 received=[]
                 def serve():
                     with service:
-                        client,_=service.accept()
-                        with client:
-                            received.append(json.loads(client.recv(65536)))
-                            client.sendall(data)
+                        for payload in (b'{"unlocked":true}\n', data):
+                            client,_=service.accept()
+                            with client:
+                                received.append(json.loads(client.recv(65536)))
+                                client.sendall(payload)
                 thread=threading.Thread(target=serve);thread.start()
                 try:
                     result=mcp.tool_native('lumen_vault_api_request',{'method':'POST','path':'/pages','body':{'name':'Synthetic'}})
                     self.assertEqual(result,reply)
-                    self.assertEqual(received,[{'operation':'api_request','method':'POST','path':'/pages','body':{'name':'Synthetic'}}])
+                    self.assertEqual(received,[{'operation':'unlock'},{'operation':'api_request','method':'POST','path':'/pages','body':{'name':'Synthetic'}}])
                 finally:thread.join(timeout=12)
 
     def test_memory_discovery_has_no_keyword_gate_and_rechecks_scope_and_consent(self):

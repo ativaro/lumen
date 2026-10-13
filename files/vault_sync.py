@@ -2,6 +2,7 @@
 import fcntl
 import hashlib
 import json
+import time
 import os
 from pathlib import Path
 import stat
@@ -105,7 +106,7 @@ def valid_state(state):
 
 
 def auto_status(state):
-    return dict(enabled=state.get('enabled') is True,reason=state.get('reason','disabled'))
+    return dict(enabled=state.get('enabled') is True,reason=state.get('reason','disabled'),last_sync=state.get('last_sync',0))
 
 
 def automatic(root, fd, state, info, data, config, enable=False):
@@ -150,6 +151,13 @@ def automatic(root, fd, state, info, data, config, enable=False):
     return auto_status(state)
 
 
+def scope(root, config, meta=None):
+    from sync_identity import scope as stable_scope
+    meta=meta or root.stat()
+    legacy=digest((config['server']+'\0'+config['token']+'\0'+str(root.absolute())+'\0'+str((meta.st_dev,meta.st_ino))).encode())
+    return stable_scope(config, ['vault',str(root.absolute()),[meta.st_dev,meta.st_ino]], legacy)
+
+
 def execute(request):
     root=Path(request['root']);fd=os.open(root,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
     lock=None
@@ -168,13 +176,13 @@ def execute(request):
         if op=='auto-status':return auto_status(state)
         if op=='auto-disable':
             state.update(enabled=False,reason='disabled');save_auto(pinned,state);return auto_status(state)
-        if op=='auto-poll' and state.get('enabled') is not True:return auto_status(state)
+        if op=='auto-poll' and state.get('enabled') is not True and state.get('reason')!='connection_changed':return auto_status(state)
         try:config=lumen_connect.read_config()
         except FileNotFoundError:raise ValueError(tr('Diesen Desktop zuerst mit Lumen Server verbinden.')) from None
-        scope=digest((config['server']+'\0'+config['token']+'\0'+str(root.absolute())+'\0'+str((meta.st_dev,meta.st_ino))).encode())
-        if op=='auto-poll' and state.get('scope')!=scope:
+        current_scope=scope(root,config,meta)
+        if op=='auto-poll' and state.get('scope')!=current_scope:
             state.update(enabled=False,reason='connection_changed');save_auto(pinned,state);return auto_status(state)
-        if op not in ('info','auto-poll') and request.get('scope')!=scope:raise ValueError(tr('Verbindung oder Tresor geändert. Serverabgleich erneut öffnen.'))
+        if op not in ('info','auto-poll') and request.get('scope')!=current_scope:raise ValueError(tr('Verbindung oder Tresor geändert. Serverabgleich erneut öffnen.'))
         user=lumen_connect.request(config,'/bridge/me')
         if 'vault_sync' not in user['capabilities']:raise ValueError(tr('Auf Lumen Server zuerst die Gerätefähigkeit „Verschlüsselten Tresor abgleichen“ freigeben.'))
         if op in ('info','auto-enable','auto-poll'):
@@ -185,9 +193,16 @@ def execute(request):
                 UUID(item['id'])
                 if len(item['sha256'])!=64 or any(c not in '0123456789abcdef' for c in item['sha256']) or not 12<=item['size']<=MAX_FILE:raise ValueError(tr('Ungültige Tresorübersicht.'))
             if sum(v['current'] is True for v in versions)>1:raise ValueError(tr('Ungültige Tresorübersicht.'))
-            info=dict(scope=scope,server=config['server'],user=user['name'],local_hash=digest(data) if data else '',versions=versions)
-            if op!='info':return automatic(pinned,fd,state,info,data,config,op=='auto-enable')
-            info['automatic']=auto_status(state) if state.get('scope')==scope else dict(enabled=False,reason='disabled')
+            info=dict(scope=current_scope,server=config['server'],user=user['name'],local_hash=digest(data) if data else '',versions=versions)
+            if op!='info':
+                if op=='auto-poll' and state.get('reason')=='connection_changed' and state.get('scope')==current_scope:
+                    state.update(enabled=True,reason='ready')
+                    save_auto(pinned,state)
+                result=automatic(pinned,fd,state,info,data,config,op=='auto-enable')
+                state=json.loads(private_read(pinned,'sync-auto.json') or b'{}')
+                state['last_sync']=time.time();save_auto(pinned,state)
+                return result
+            info['automatic']=auto_status(state) if state.get('scope')==current_scope else dict(enabled=False,reason='disabled')
             return info
         identity=str(UUID(request['id']))
         if op=='upload':

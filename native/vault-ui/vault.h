@@ -4,8 +4,8 @@
 #include <QtWidgets>
 #include <functional>
 
-class BackupPage;
 class VaultAccess;
+class PasskeyBridge;
 using Reply = std::function<void(QStringList)>;
 QLineEdit *vaultInput(const QString &name, bool hidden = false);
 void wipe(QString &text);
@@ -44,7 +44,9 @@ public:
   void stopAccessServer();
   bool startAccessServer(const QString &runtime);
 signals:
+  void backupsRequested();
   void retire();
+  void quitRequested();
 public slots:
   void lock();
   void screenLock(bool active);
@@ -52,9 +54,9 @@ public slots:
 
 protected:
   bool eventFilter(QObject *object, QEvent *event) override;
+  void closeEvent(QCloseEvent *event) override;
 
 private:
-  QWidget *sectionTabs();
   QWidget *header();
   void updateHeader();
   QLabel *headerIcon = nullptr, *headerState = nullptr;
@@ -63,6 +65,11 @@ private:
   QWidget *openPage();
   void replacePage(QWidget *page);
   void refresh();
+  void updateCatalogue();
+  void loadCataloguePage(QString cursor, quint64 revision);
+  quint64 catalogueRevision = 0;
+  QJsonArray catalogueEntries;
+  QByteArray catalogueHash;
   void loadPage(QString cursor);
   void loadDetails();
   void history();
@@ -72,6 +79,10 @@ private:
   QTimer autoSyncTimer;
   QPointer<QProcess> autoSyncProcess;
   void about();
+  void passkey(bool enroll);
+  void removePasskey();
+  QJsonObject passkeyMetadata() const;
+  QPointer<PasskeyBridge> passkeyBridge;
   QString kind(const QString &key) const;
   void select();
   void filter();
@@ -84,7 +95,7 @@ private:
   quint64 accessRevision = 0;
   bool accessLoading = false;
   QSet<QString> enabledEntries;
-  QMap<QString, QJsonObject> pendingProfiles;
+  QMap<QString, QJsonObject> pendingProfiles, pendingEntries;
   void theme();
   void hideSecret();
   void authorize(bool create, bool restore = false);
@@ -95,18 +106,23 @@ private:
   QString root;
   QStackedWidget *sections = nullptr;
   QPointer<QWidget> credentialPage;
-  BackupPage *backups = nullptr;
   Channel channel;
   VaultAccess *access = nullptr;
   bool isOpen = false, english = false;
-  QTimer idle, revealTimer, clipboardTimer, themeTimer, detailTimer;
+  QTimer idle, keepalive, revealTimer, clipboardTimer, themeTimer, detailTimer;
+  void sessionActivity();
+  void setIdleMinutes(int minutes);
+  int idleMinutes = 15;
+  QSystemTrayIcon *tray = nullptr;
+  QAction *trayLock = nullptr;
   quint64 generation = 0;
   QString clipboardTag, currentTheme, category = "all";
   QStringList rows;
   QPointer<QLineEdit> master, confirm, search, secret, username, website;
   QPointer<QListWidget> entries, navigation;
   QPointer<QLabel> heading, subtitle, status, accessStatus;
-  QPointer<QPushButton> accessButton;
+  QPointer<QCheckBox> accessButton;
+  QString visibilityId;
   QPointer<QDialog> editor;
   QPointer<QWidget> body;
 };

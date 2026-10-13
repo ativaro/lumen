@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QMessageBox,
     QVBoxLayout,
 )
 
@@ -99,24 +100,12 @@ def accept_pairing(uri, capabilities=None):
         )
         client.save_private(client.CONFIG, json.dumps(config))
     sync_errors = []
-    if "memory_sync" in config.get("capabilities", []):
-        try:
-            from lumen_store import Store
-            import memory_sync
-            memory_sync.configure(Store(), True, client.connection_scope(config))
-        except (OSError, ValueError, RuntimeError, ImportError):
-            sync_errors.append(t("Gedächtnis", "Memory"))
-    if "notes" in config.get("capabilities", []):
-        try:
-            from lumen_store import Store
-            store = Store()
-            from wissen_data import activate, Notebook
-            import wissen_sync
-            activate(store)
-            book = Notebook(store)
-            wissen_sync.sync_config(book, wissen_sync.scope(book, config), True)
-        except (OSError, ValueError, RuntimeError, ImportError):
-            sync_errors.append(t("Notizen", "Notes"))
+    try:
+        from sync_settings import prepare_connection
+        config = prepare_connection()
+    except (OSError, ValueError, RuntimeError, ImportError):
+        sync_errors.append(t("Verbindungsprüfung", "Connection verification"))
+    # Pairing grants access; publishing existing local data needs separate setup.
     try:
         service = subprocess.run(
             ["systemctl", "--user", "enable", "--now", "lumen-server-connector.service"],
@@ -266,6 +255,7 @@ class PairingDialog(QDialog):
                 "System status and device information without further prompts",
             ),
             "projects": t("Projekte synchronisieren", "Synchronize projects"),
+            "preferences_sync": t("Persönliche Einstellungen synchronisieren", "Synchronize personal preferences"),
             "drive": t("Lumen Drive synchronisieren", "Synchronize Lumen Drive"),
             "notes": t("Notizen synchronisieren", "Synchronize notes"),
             "approvals": t("Serveränderungen am Desktop freigeben", "Approve server changes on desktop"),
@@ -299,13 +289,13 @@ class PairingDialog(QDialog):
             ],
         )
         self.permissions.setText(t(
-            "Wähle ab, was du nicht verbinden möchtest. Notizen und persönliches Gedächtnis werden automatisch abgeglichen. KI-Freigaben bleiben getrennt. Für Dateien, Projekte und Tresore wählst du anschließend die Inhalte.",
-            "Deselect anything you do not want connected. Notes and personal memory sync automatically. AI permissions remain separate. Choose files, projects and vaults afterwards."))
+            "Wähle die erlaubten Serverfunktionen. Deine lokalen Daten bleiben erhalten. Den Datenabgleich richtest du danach ausdrücklich unter Einstellungen → Server & Synchronisation ein. Die Kopplung lädt keine lokalen Notizen, Erinnerungen oder Projekte hoch. KI-Freigaben bleiben getrennt.",
+            "Choose the allowed server features. Your local data is preserved. Set up data sync explicitly afterwards under Settings → Server & Synchronization. Pairing does not upload local notes, memories or projects. AI permissions remain separate."))
         for key in selected:
             if key not in rights:
                 continue
             check = QCheckBox(rights[key])
-            check.setChecked(True)
+            check.setChecked(key != "preferences_sync")
             check.setEnabled(self.can_choose_rights)
             self.rights_checks[key] = check
             self.rights_layout.addWidget(check)
@@ -324,7 +314,7 @@ class PairingDialog(QDialog):
     def connected(self, data):
         self.title.setText(t("Dein Desktop ist verbunden.", "Your desktop is connected."))
         self.status.setText(
-            t("Der Abgleich läuft jetzt im Hintergrund.", "Sync is now running in the background.")
+            t("Die Verbindung läuft im Hintergrund. Datenabgleich unter Einstellungen → Server & Synchronisation einrichten.", "The connection runs in the background. Set up data sync under Settings → Server & Synchronization.")
             if data["watching"]
             else t(
                 "Verbunden. Der Hintergrunddienst konnte nicht gestartet werden.",
@@ -332,12 +322,19 @@ class PairingDialog(QDialog):
             )
         )
         if data.get("sync_errors"):
-            self.status.setText(t("Verbunden. Abgleich bitte unter Wissen erneut aktivieren: ", "Connected. Please enable sync again in Knowledge: ") + ", ".join(data["sync_errors"]))
+            self.status.setText(t("Verbunden. Prüfung unter Einstellungen → Server & Synchronisation erforderlich: ", "Connected. Review Settings → Server & Synchronization: ") + ", ".join(data["sync_errors"]))
         self.rights_scroll.hide()
-        self.approve.hide()
+        self.approve.clicked.disconnect()
+        self.approve.setText(t("Abgleich einrichten", "Set up synchronization"))
+        self.approve.setEnabled(True)
+        self.approve.clicked.connect(self.open_sync_settings)
         self.decline.setText(t("Fertig", "Done"))
         self.decline.clicked.disconnect()
         self.decline.clicked.connect(self.accept)
+
+    def open_sync_settings(self):
+        dialog = ConnectionDialog()
+        dialog.exec()
 
     def reject_request(self):
         if self.approve.isEnabled():
@@ -839,7 +836,10 @@ class ConnectionDialog(QDialog):
         try:
             from sync_overview import widget
 
-            tabs.addTab(widget(self), t("Synchronisation", "Synchronization"))
+            sync_area = QScrollArea()
+            sync_area.setWidgetResizable(True)
+            sync_area.setWidget(widget(self))
+            tabs.addTab(sync_area, t("Synchronisation", "Synchronization"))
         except ImportError:
             pass  # Standalone connector without the native apps.
         layout.addWidget(tabs, 1)
@@ -861,12 +861,83 @@ class ConnectionDialog(QDialog):
         self.browser = QPushButton(t("Im Browser verwalten", "Manage in browser"))
         self.browser.clicked.connect(self.open_browser)
         controls.addWidget(self.browser)
+        self.disconnect_button = QPushButton(t("Verbindung trennen", "Disconnect"))
+        self.disconnect_button.clicked.connect(self.prepare_disconnect)
+        controls.addWidget(self.disconnect_button)
         controls.addStretch()
         close = QPushButton(t("Schließen", "Close"))
         close.clicked.connect(self.reject)
         controls.addWidget(close)
         layout.addLayout(controls)
         self.refresh()
+
+    def prepare_disconnect(self):
+        if self.worker and self.worker.isRunning():
+            return
+        self.refresh_button.setEnabled(False)
+        self.disconnect_button.setEnabled(False)
+        pending = getattr(self, "disconnect_pending", None)
+        if pending:
+            self.worker = Worker(lambda: client.disconnect(pending), self)
+            self.worker.finished.connect(self.disconnected)
+            self.worker.start()
+            return
+        self.worker = Worker(lambda: client.request(self.config, "/bridge/disconnect"), self)
+        self.worker.finished.connect(self.confirm_disconnect)
+        self.worker.start()
+
+    def confirm_disconnect(self):
+        self.refresh_button.setEnabled(True)
+        self.disconnect_button.setEnabled(True)
+        if self.worker.error:
+            self.status.setText(t(
+                "Trennung nicht bestätigt. Verbindung und Daten bleiben erhalten. Prüfe den Server und versuche es erneut.",
+                "Disconnection not confirmed. The connection and data are preserved. Check the server and retry."))
+            return
+        capabilities = set(self.worker.result.get("capabilities", []))
+        groups = [
+            ({"notes", "memory", "memory_sync", "preferences_sync", "projects", "drive", "vault_sync"},
+             t("Abgleich und Zugriff auf freigegebene Notizen, Gedächtnis, Projekte, Drive, Einstellungen und Tresor", "Synchronization and access to shared notes, memory, projects, Drive, preferences and vault")),
+            ({"backup"}, t("Neue Sicherungen und Zugriff auf bisherige Serversicherungen über diese Verbindung", "New backups and access to previous server backups through this connection")),
+            ({"tasks", "artifacts", "notifications", "desktop", "approvals"}, t("Servergespräche, Ergebnisse, Benachrichtigungen und Desktop-Übergaben", "Server conversations, results, notifications and desktop handoffs")),
+            ({"manage", "wake", "system_read", "device_control", "services", "inbox", "household"}, t("Geräteverwaltung, Systemabfragen und weitere freigegebene Serverdienste", "Device management, system queries and other granted server services")),
+        ]
+        lost = "\n".join("• " + text for keys, text in groups if keys & capabilities)
+        dialog = QMessageBox(self)
+        dialog.setWindowTitle(t("Lumen · Verbindung trennen", "Lumen · Disconnect"))
+        dialog.setTextFormat(Qt.PlainText)
+        dialog.setText(self.config["server"] + "\n\n" + t("Das fällt für diesen Desktop weg:", "This desktop loses:") + "\n" + lost)
+        dialog.setInformativeText(t(
+            "Lokale Originale und dein Tresor bleiben erhalten. Kontodaten und Sicherungen bleiben auf dem Server; das Gerät wird dort als getrennt / verwaist angezeigt. Über die Sicherungen entscheidest du anschließend im Server. Bereits gestartete Serveraufträge und Automationen laufen weiter. Ein neuer Server erhält keine automatische vollständige Datenübernahme.",
+            "Local originals and your vault are preserved. Account data and backups stay on the server; the device remains visible as disconnected / orphaned. Decide what to do with backups on the server afterwards. Existing server jobs and automations continue. Connecting another server does not migrate all your data."))
+        cancel = dialog.addButton(t("Abbrechen", "Cancel"), QMessageBox.RejectRole)
+        proceed = dialog.addButton(t("Trennen und Daten behalten", "Disconnect and keep data"), QMessageBox.AcceptRole)
+        dialog.setDefaultButton(cancel)
+        dialog.exec()
+        if dialog.clickedButton() != proceed:
+            return
+        self.disconnect_pending = dict(self.config)
+        self.refresh_button.setEnabled(False)
+        self.disconnect_button.setEnabled(False)
+        pending = self.disconnect_pending
+        self.worker = Worker(lambda: client.disconnect(pending), self)
+        self.worker.finished.connect(self.disconnected)
+        self.worker.start()
+
+    def disconnected(self):
+        self.refresh_button.setEnabled(True)
+        if self.worker.error:
+            self.disconnect_button.setEnabled(True)
+            self.status.setText(t(
+                "Keine sichere Bestätigung. Prüfe den Gerätestatus im Server; erneut trennen ist sicher. Lokale Daten wurden nicht gelöscht.",
+                "No reliable confirmation. Check the device on the server; retrying disconnect is safe. No local data was deleted."))
+            return
+        self.identity.setText(t("Verbindung getrennt", "Disconnected"))
+        self.disconnect_pending = None
+        self.status.setText(t("Daten behalten. Im Server unter Geräte über die Sicherungen entscheiden.", "Data preserved. Decide what to do with backups under Devices on the server."))
+        self.system_access_button.setEnabled(False)
+        for content in self.sections.values():
+            content.clear()
 
     def change_system_access(self):
         enabled = self.system_access_button.isChecked()
@@ -906,12 +977,14 @@ class ConnectionDialog(QDialog):
                 )
             )
             self.browser.setEnabled(False)
+            self.disconnect_button.setEnabled(False)
             self.system_access_button.setText(
                 t("Systemabfragen: zuerst verbinden", "System queries: connect first")
             )
             self.system_access_button.setEnabled(False)
             return
         self.system_access_button.setEnabled(True)
+        self.disconnect_button.setEnabled(False)
         self.system_access_button.setChecked(client.system_access_allowed(self.config))
         self.identity.setText(self.config["server"])
         self.status.setText(t("Verbindung wird geprüft …", "Checking connection …"))
@@ -927,6 +1000,7 @@ class ConnectionDialog(QDialog):
 
     def loaded(self):
         self.refresh_button.setEnabled(True)
+        self.disconnect_button.setEnabled(True)
         if self.worker.error:
             self.status.setText(
                 t(
@@ -1012,8 +1086,8 @@ class ConnectionDialog(QDialog):
                 + str(memory["memory_synced_at"] or t("Noch nicht bestätigt", "Not acknowledged yet"))
                 + "\n\n"
                 + t(
-                    "Persönliche Notizen bleiben getrennt. Freigaben verwaltest du im Server; lokal kannst du Erinnerungen in Lumen Wissen ausschließen.",
-                    "Personal notes remain separate. Manage sharing on the server; exclude memories locally in Lumen Knowledge.",
+                    'Persönliche Notizen bleiben getrennt. Freigaben verwaltest du im Server; lokal kannst du Erinnerungen in den Gedächtniseinstellungen ausschließen.',
+                    'Personal notes remain separate. Manage sharing on the server; exclude memories locally in the memory settings.',
                 )
             )
             if memory

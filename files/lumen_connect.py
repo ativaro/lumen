@@ -57,6 +57,23 @@ def read_config():
     return config
 
 
+def disconnect(config):
+    """Keep the old backup coordinates; detach locally only after the server confirms."""
+    with (ROOT / "pairing.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if CONFIG.exists() and read_config() != config:
+            raise ValueError("Die Serververbindung wurde geändert. Bitte erneut öffnen.")
+        result = request(config, "/bridge/disconnect", {})
+        if result.get("ok") is not True or result.get("device_id") != config["device_id"]:
+            raise ValueError("Der Server hat die Trennung nicht bestätigt.")
+        save_private(ROOT / ("disconnected-" + str(UUID(config["device_id"])) + ".json"), json.dumps(config))
+        if CONFIG.exists():
+            if read_config() != config:
+                raise ValueError("Die Serververbindung wurde geändert. Bitte erneut öffnen.")
+            CONFIG.unlink()
+    return result
+
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
@@ -832,6 +849,30 @@ def restic(config, args):
     subprocess.run(command + args, env=env, check=True)
 
 
+_DATA_PROCESS = None
+_DATA_NEXT = 0
+
+
+def sync_data():
+    """One bounded pass and one status per area; retries run without open windows."""
+    global _DATA_PROCESS, _DATA_NEXT
+    if _DATA_PROCESS and _DATA_PROCESS.poll() is None: return
+    if time.monotonic() < _DATA_NEXT: return
+    _DATA_NEXT = time.monotonic() + 60
+    helper = Path(__file__).with_name("sync_settings.py")
+    if not helper.exists():
+        helper = Path.home()/".local/share/lumen/files/sync_settings.py"
+    if not helper.exists():
+        sync_notes(); sync_notes("memory_sync.py"); sync_projects(); sync_drive(); sync_vault()
+        return
+    _DATA_PROCESS = subprocess.Popen([sys.executable, str(helper)], stdin=subprocess.PIPE,
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        _DATA_PROCESS.stdin.write(b'{"action":"sync"}')
+        _DATA_PROCESS.stdin.close()
+    except (BrokenPipeError, OSError): pass
+
+
 def sync_vault():
     """Ciphertext-only, independently of Vault windows and unlock state."""
     data = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
@@ -1013,11 +1054,7 @@ def main():
         while True:
             # Custom connector profiles must never sync the default personal vault.
             if not args.config_dir:
-                sync_notes()
-                sync_notes("memory_sync.py")
-                sync_projects()
-                sync_drive()
-                sync_vault()
+                sync_data()
             try:
                 cfg = read_config()
                 report_inventory(cfg)

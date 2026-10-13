@@ -4,6 +4,10 @@
 #include <QtWidgets>
 #include <functional>
 
+class VaultHttp;
+class VaultWeb;
+class VaultSsh;
+
 namespace BookStack {
 constexpr int MaxFrame = 64 * 1024;
 constexpr int MaxBody = 1024 * 1024;
@@ -19,7 +23,7 @@ class VaultAccess : public QObject {
   Q_OBJECT
 public:
   using Reader = std::function<void(QString, std::function<void(QStringList)>)>;
-  VaultAccess(QWidget *window, Reader reader, bool english);
+  VaultAccess(QWidget *window, Reader reader, bool english, const QString &knownHosts = {});
   ~VaultAccess() override;
   using Store = std::function<QDialog *(const QJsonObject &)>;
   void setStore(Store callback) { store = std::move(callback); }
@@ -27,19 +31,40 @@ public:
   bool arm(const QString &id, const QUrl &base);
   bool arm(const QString &id, const QJsonObject &profile);
   QJsonObject connection(int offset = 0) const;
-  void setConnections(const QMap<QString, QJsonObject> &values);
-  void revoke();
+  void setConnections(const QMap<QString, QJsonObject> &values,
+                      const QMap<QString, QJsonObject> &entries = {});
+  void revoke(bool preserveUnlock = false);
+  void setUnlock(std::function<bool()> ready, std::function<QDialog *()> ask) {
+    unlockReady = std::move(ready); unlockPrompt = std::move(ask);
+  }
   void close() {
     revoke();
     server.close();
   }
   bool armed() const;
+  bool waitingForUnlock() const { return unlocking; }
   QString entry() const { return entryId; }
   bool enabled(const QString &id) const { return profiles.contains(id); }
 signals:
   void changed();
 
 private:
+  void httpRequest(const QJsonObject &args);
+  void httpRead(const QJsonObject &args, bool confirmed, const QUrl &approved = {});
+  void closeHttp();
+  QPointer<VaultHttp> http;
+  QString httpEntry;
+  QJsonArray httpPlan;
+  void sshRequest(const QJsonObject &args);
+  void sshRevalidate(const QString &id, quint64 generation, int stage);
+  QPointer<VaultSsh> ssh;
+  QString sshKnownHosts;
+  void webRequest(const QJsonObject &args);
+  void webRead(const QJsonObject &args, bool confirmed, const QUrl &approvedUrl = {});
+  void webConfirm(const QJsonObject &args, const QString &id, const QUrl &url);
+  void closeWeb();
+  QPointer<VaultWeb> web;
+  QString webEntry;
   void accept();
   void receive();
   void confirm(const QJsonObject &args);
@@ -52,6 +77,9 @@ private:
   QWidget *window;
   Reader reader;
   Store store;
+  std::function<bool()> unlockReady;
+  std::function<QDialog *()> unlockPrompt;
+  bool unlocking = false;
   bool english;
   QLocalServer server;
   QPointer<QLocalSocket> peer;
@@ -59,7 +87,7 @@ private:
   QPointer<QNetworkReply> reply;
   QPointer<QNetworkAccessManager> network;
   QTimer deadline, framing;
-  QMap<QString, QJsonObject> profiles;
+  QMap<QString, QJsonObject> profiles, catalog;
   QString entryId;
   QUrl base;
   QJsonObject profile;
