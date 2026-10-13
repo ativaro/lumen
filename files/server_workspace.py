@@ -119,7 +119,7 @@ class ServerWorkspace(RemotePage):
         super().__init__(parent); self.fixed = workspace; self.room = ''; self.data = {}; self.requests = {}
         self.preferences = QSettings('Lumen','ServerWorkspaces')
         self.project = QComboBox(); self.project.setAccessibleName(tr('Serverprojekt'))
-        self.bind = button(tr('Mit Arbeitsraum verbinden'), self.bind_room, 'insert-link')
+        self.bind = button(tr('Mit Projekt verbinden'), self.bind_room, 'insert-link')
         self.body.addWidget(row(self.project, self.bind, button(tr('Aktualisieren'),self.reload,'view-refresh'),
                                 button(tr('Auf Server öffnen'),lambda:self.web('projects',workspace=self.project.currentData() or ''))))
         self.hint = label(tr('Diese Verbindung zeigt Serverinhalte. Lokale Dateien werden nicht hochgeladen.'),'muted');self.body.addWidget(self.hint)
@@ -208,7 +208,7 @@ class ServerWorkspace(RemotePage):
              ('\n'+tr('Nächster Lauf: ')+str(i['automation']['next_run']) if (i.get('automation') or {}).get('enabled') else '')+
              ('\n'+str(i['automation']['project_error']) if (i.get('automation') or {}).get('project_error') else ''))
         fill(self.members,[dict(m,id=m.get('id',m.get('email'))) for m in data['members']],lambda m:m['name']+' · '+tr({'manager':'Verwalter','editor':'Bearbeiten','reader':'Lesen'}.get(m['role'],m['role'])))
-        fill(self.material,[dict(n,source='Lumen Wissen') for n in data['notes']]+[dict(f,source='Lumen Drive') for f in data['files']],lambda m:m.get('title',m.get('name',''))+' · '+m['source'])
+        fill(self.material,[dict(n,source='Lumen Notes') for n in data['notes']]+[dict(f,source='Lumen Drive') for f in data['files']],lambda m:m.get('title',m.get('name',''))+' · '+m['source'])
         self.show_runs();self.controls()
 
     def show_runs(self):

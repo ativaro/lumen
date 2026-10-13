@@ -45,7 +45,7 @@ def show_live(window):
             if self.job:self.closing=True;self.job.cancelled.set()
             else:super().reject()
         def closeEvent(self,event):self.reject();event.ignore()
-    dialog=Live(window);dialog.setWindowTitle(tr('Live aus Lumen Wissen'));dialog.resize(780,640)
+    dialog=Live(window);dialog.setWindowTitle(tr('Live aus Lumen Notes'));dialog.resize(780,640)
     layout=QVBoxLayout(dialog);status=QLabel(tr('Notizen werden alle fünf Sekunden neu gelesen. Die Quelle bleibt bearbeitbar.'));layout.addWidget(status)
     listing=QListWidget();listing.setAccessibleName(tr('Verknüpfte Notizen'));layout.addWidget(listing)
     preview=QPlainTextEdit();preview.setReadOnly(True);preview.setAccessibleName(tr('Aktueller Notizinhalt'));layout.addWidget(preview,2)

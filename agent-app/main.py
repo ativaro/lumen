@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 """Native Lumen desktop application; OpenCode runs only behind the scenes."""
 import argparse
+import json
 import os
 from pathlib import Path
 import shutil
@@ -23,7 +24,7 @@ from app import create_app, button
 from assistant import Transcript
 from studio_chat import StudioChat
 from studio_preview import StudioSurface
-from studio_navigation import StudioNavigation
+from studio_workspaces import StudioWorkspaces
 from preview import label
 
 
@@ -67,35 +68,158 @@ class DesktopActivation(QObject):
         from lumen_panel import valid_task
         try: self.task = valid_task(task)
         except ValueError: return False
-        self.page = 4
-        self.Activate()
+        from lumen_detail_routes import open_tasks
+        open_tasks(self.task); self.task = ''
         return True
 
     @Slot(int)
     def ActivatePage(self, page):
-        self.task = ''
-        self.page = page
-        self.Activate()
+        from lumen_detail_routes import open_page
+        if open_page(page): return
+        self.task = ''; self.page = page; self.Activate()
+
+    @Slot(bool)
+    def ActivateSearch(self, voice=False):
+        if self.window is not None: self.window.open_search(voice)
+
+    @Slot(str, result=bool)
+    def ActivateHousehold(self, value):
+        try:
+            if len(value)>16384: return False
+            request=json.loads(value)
+            if not isinstance(request,dict) or set(request)-{'ref','handoff'} or any(not isinstance(v,str) or len(v)>4096 for v in request.values()): return False
+            if self.window is None: return False
+            from lumen_detail_routes import launch
+            arguments = ['--section','household']
+            for key, val in request.items(): arguments.extend(['--'+key, val])
+            launch('lumen-workbench', arguments)
+            return True
+        except (ValueError, OSError): return False
+
+    @Slot(str, result=str)
+    def TaskCapabilities(self, identity):
+        try:
+            from lumen_panel import valid_task
+            task = self.window.workspace.store.task(valid_task(identity)) if self.window else None
+            return json.dumps(self.window.workspace.task_capabilities(task)) if task else '{}'
+        except (ValueError, OSError): return '{}'
+
+    @Slot(str, str, result=str)
+    def TaskAction(self, identity, action):
+        try:
+            from lumen_panel import valid_task
+            identity = valid_task(identity)
+            if self.window is None: raise ValueError(tr('Lumen startet noch. Bitte erneut versuchen.'))
+            if action not in ('run','pause','cancel','conversation'): raise ValueError(tr('Unbekannte Auftragsaktion.'))
+            workspace = self.window.workspace
+            task = workspace.store.task(identity)
+            if not task: raise ValueError(tr('Auftrag nicht mehr vorhanden.'))
+            if action != 'conversation' and not workspace.task_capabilities(task)['run' if action == 'run' else action]:
+                raise ValueError(tr('Diese Steuerung ist für diesen Auftrag hier nicht verfügbar.'))
+            workspace.select_task(identity)
+            # Native confirmation dialogs and engine work happen after the IPC reply.
+            def perform():
+                try:
+                    workspace.select_task(identity)
+                    if action in ('run','conversation'):
+                        if hasattr(self.window, 'search_window'): self.window.search_window.hide()
+                        from lumen_activation import present
+                        present(self.window)
+                    if action == 'run': workspace.run_task(identity)
+                    elif action == 'conversation': workspace.open_task_conversation(identity)
+                    else: workspace.stop_task('paused' if action == 'pause' else 'cancelled')
+                    if action in ('run','conversation'):
+                        if hasattr(self.window, 'search_window'): self.window.search_window.hide()
+                        from lumen_activation import present
+                        present(self.window)
+                except (ValueError, OSError) as error: self.window.chat.show_error(str(error))
+            if action in ('pause','cancel'): workspace.stop_task('paused' if action == 'pause' else 'cancelled')
+            elif action == 'conversation':
+                workspace.open_task_conversation(identity)
+                if hasattr(self.window, 'search_window'): self.window.search_window.hide()
+                from lumen_activation import present
+                present(self.window)
+            else: QTimer.singleShot(0, perform)
+            return ''
+        except (ValueError, OSError) as error: return str(error)
+
+    @Slot(result=int)
+    def ProjectContextVersion(self):
+        return 1
+
+    @Slot(str, result=str)
+    def RoomAction(self, value):
+        try:
+            if len(value) > 32768: raise ValueError(tr('Anfrage zu groß.'))
+            data = json.loads(value)
+            if not isinstance(data, dict) or set(data) != {'room','action','value'} or not all(isinstance(v,str) for v in data.values()):
+                raise ValueError(tr('Ungültige Projektanfrage.'))
+            if self.window is None: raise ValueError(tr('Lumen startet noch. Bitte erneut versuchen.'))
+            action = data['action']; window = self.window; page = window.workplace
+            if action not in ('capture','resume','pin','discuss','project-discuss','chat'): raise ValueError(tr('Unbekannte Projektaktion.'))
+            from lumen_projects import projects
+            project = next((p for p in projects(page.store) if p['id'] == data['room']), None)
+            if project is None: raise ValueError(tr('Projekt nicht mehr vorhanden.'))
+            if page.busy: raise ValueError(tr('Bitte den laufendas Projektvorgang abwarten.'))
+            chat = window.chat
+            if action in ('resume','discuss','project-discuss','chat') and (chat.backend.busy or chat.context_tools.process or chat.composer.toPlainText().strip() or chat.paths):
+                raise ValueError(tr('Bitte das laufende Gespräch, den Entwurf oder angehängte Dateien zuerst abschließen.'))
+            page.select_project(project['id'])
+            previous_guard = page.guard
+            page.guard = lambda fn: fn()
+            try:
+                if action == 'capture': page.capture()
+                elif action == 'resume': page.resume()
+                elif action == 'pin': page.rooms.add_conversation()
+                elif action == 'discuss':
+                    if not data['value'].strip(): raise ValueError(tr('Bitte eine Frage eingeben.'))
+                    page.rooms.prompt.setText(data['value']); page.rooms.discuss()
+                elif action == 'project-discuss':
+                    request=json.loads(data['value'])
+                    if not isinstance(request,dict) or set(request)!={'project','scope','prompt'} or not all(isinstance(v,str) for v in request.values()) or not request['prompt'].strip():
+                        raise ValueError(tr('Ungültige Projektanfrage.'))
+                    from projects_rooms import ProjectRooms
+                    from tools_data import Library
+                    library=Library('workbench')
+                    if ProjectRooms(library,page.store).links().get(request['project'])!=project['id']:
+                        raise ValueError(tr('Projekt und Projekt gehören nicht zusammen.'))
+                    page.rooms.prompt.setText(request['prompt']);page.rooms.discuss((request['project'],request['scope']))
+                else:
+                    pin = next((p for p in project.get('pins', []) if p['kind']=='chat' and p['chat']['session']==data['value']), None)
+                    if pin is None: raise ValueError(tr('Gespräch nicht mehr angeheftet.'))
+                    page.rooms.open_pin(pin)
+            finally: page.guard = previous_guard
+            if action in ('discuss','project-discuss','chat'):
+                if hasattr(window,'search_window'): window.search_window.hide()
+                from lumen_activation import present
+                present(window)
+            return json.dumps({'status': page.status.text()})
+        except (ValueError, OSError, KeyError, TypeError) as error: return json.dumps({'error': str(error)})
 
     @Slot()
     def Activate(self):
         self.pending = True
         if self.window is None:
             return
+        if self.page is None and not self.task:
+            self.window.open_search()
+            return
         if self.page is not None:
-            self.window.show_page(self.page)
-            self.page = None
+            page, self.page = self.page, None
+            self.window.show_page(page)
+            if page in (2, 9): return
         if self.task:
             self.window.workspace.select_task(self.task)
             self.task = ''
         from lumen_activation import present
+        if hasattr(self.window, 'search_window'): self.window.search_window.hide()
         present(self.window)
 
 
 class LumenWindow(QMainWindow):
     def __init__(self, directory, file_settings=None):
         super().__init__()
-        self.setWindowTitle('Lumen')
+        self.setWindowTitle(tr('Lumen · Detailansicht'))
         self.setStyleSheet((ROOT / 'files/studio.qss').read_text())
         icon = ROOT / 'icons/hicolor/scalable/apps/lumen.svg'
         self.setWindowIcon(QIcon(str(icon)) if icon.exists() else QIcon.fromTheme('lumen'))
@@ -113,7 +237,7 @@ class LumenWindow(QMainWindow):
         self.copy_after_answer = False
         central = QWidget()
         self.setCentralWidget(central)
-        row = QHBoxLayout(central)
+        row = QVBoxLayout(central)
         row.setContentsMargins(0, 0, 0, 0); row.setSpacing(0)
         self.pages = QStackedWidget()
         self.chat = StudioChat(directory, settings=self.settings)
@@ -121,46 +245,25 @@ class LumenWindow(QMainWindow):
         self.pages.addWidget(self.studio)
         self.chat.backend.busyChanged.connect(self.copy_answer_if_ready)
         self.chat.backend.failed.connect(lambda _: setattr(self, "copy_after_answer", False))
-        self.system_page = self.build_system()
-        self.pages.addWidget(self.system_page)
-        self.pages.addWidget(self.build_actions())
-        self.files_page = QWidget()
         self.file_window = None
-        self.pages.addWidget(self.files_page)
+        self.companion = None
         from lumen_workspace import Workspace
-        self.workspace = Workspace(self)
+        self.workspace = Workspace(self, sections=('tasks',))
+        self.workspace.tasks_page.hide()
         self.studio.bind_workspace(self.workspace)
-        self.chat.taskRequested.connect(lambda task: (self.workspace.select_task(task), self.show_page(4)))
-        for page in (self.workspace.tasks_page, self.workspace.knowledge_page, self.workspace.flows_page, self.workspace.models_page):
-            self.pages.addWidget(page)
+        from lumen_detail_routes import open_tasks
+        self.chat.taskRequested.connect(open_tasks)
+        # Keep the existing state/restore logic for cross-app room actions.
         from lumen_workplace import Workplace
         self.workplace = Workplace(self, self.workspace.store, self.workplace_files)
-        self.pages.addWidget(self.workplace)
-        from lumen_apps import AppCenter
-        self.pages.addWidget(AppCenter(self))
-        from studio_saved_results import StudioSavedResults
-        self.results_page = StudioSavedResults(self.workspace)
-        self.pages.addWidget(self.results_page)
-        self.navigation = StudioNavigation(self)
-        self.nav_buttons = self.navigation.buttons
+        self.workplace.hide()
         QShortcut(QKeySequence('Ctrl+,'), self, activated=self.show_settings)
-        self.navigation_split = QSplitter(Qt.Horizontal)
-        self.navigation_split.setObjectName('studioNavigationSplit')
-        self.navigation_split.setChildrenCollapsible(False); self.navigation_split.setHandleWidth(8)
-        self.navigation_split.addWidget(self.navigation); self.navigation_split.addWidget(self.pages)
-        self.navigation_split.setStretchFactor(0, 0); self.navigation_split.setStretchFactor(1, 1)
-        self.navigation_split.setSizes([220, self.width() - 228])
-        if state := self.settings.value('studio/sidebar'):
-            self.navigation_split.restoreState(state)
-        self.navigation_split.splitterMoved.connect(
-            lambda *_: self.settings.setValue('studio/sidebar', self.navigation_split.saveState()))
-        row.addWidget(self.navigation_split)
+        self.workspace_bar = StudioWorkspaces(self)
+        row.addWidget(self.workspace_bar)
+        row.addWidget(self.pages, 1)
         self.show_page(0)
         self.chat.actionChanged.connect(self.present_action)
         self.chat.closeRequested.connect(self.close)
-        self.refresh_timer = QTimer(self)
-        self.refresh_timer.timeout.connect(lambda: self.refresh_system() if self.pages.currentIndex() == 1 else None)
-        self.refresh_timer.start(5000)
 
     def recovery_state(self):
         return {'page': self.pages.currentIndex(), 'chat': self.chat.recovery_state(),
@@ -170,7 +273,7 @@ class LumenWindow(QMainWindow):
     def restore_recovery(self, state):
         self.chat.restore_recovery(state.get('chat', {}))
         if state.get('files'):
-            self.show_page(3)
+            self.workplace_files()
             self.file_window.restore_recovery(state['files'])
         self.show_page(int(state.get('page', 0)))
         if state.get('geometry'): self.restoreGeometry(bytes.fromhex(state['geometry']))
@@ -188,50 +291,29 @@ class LumenWindow(QMainWindow):
         self.file_window.spaces.room_menu()
 
     def workplace_files(self):
-        current = self.pages.currentIndex()
-        if self.file_window is None:
-            self.show_page(3)
-            self.pages.setCurrentIndex(current)
-            for index, item in self.nav_buttons.items(): item.setChecked(index == current)
-        return self.file_window
-
-    def present_action(self, action):
-        was_action = self.navigation.isHidden()
-        self.navigation.setVisible(not action)
-        self.setWindowTitle('Lumen — ' + self.chat.heading.text() if action else 'Lumen')
-        self.setMinimumSize(560, 520) if action else self.setMinimumSize(760, 600)
-        if action:
-            self.resize(680, 740)
-        elif was_action:
-            self.resize(1380, 860)
-
-    def show_page(self, index):
-        if not 0 <= index < self.pages.count(): index = 0
-        if index == 3 and self.file_window is None:
+        if self.file_window is None or getattr(self.file_window, '_closed', False):
             from app import Window
             self.file_window = Window(self.chat.backend.directory, settings=self.file_settings)
             self.file_window.lumen_host = self
-            for shortcut in self.file_window.findChildren(QShortcut):
-                shortcut.setContext(Qt.WidgetWithChildrenShortcut)
-            self.file_window.setWindowFlags(Qt.Widget)
-            self.file_window.setMinimumSize(0, 0)
-            layout = QVBoxLayout(self.files_page); layout.setContentsMargins(0, 0, 0, 0)
-            layout.addWidget(self.file_window)
-            self.file_window.show()
-        self.pages.setCurrentIndex(index)
-        for i, item in self.nav_buttons.items():
-            item.setChecked(i == index)
-        if hasattr(self, 'navigation'): self.navigation.show_page(index)
-        if index == 1:
-            self.refresh_system()
-        elif index == 5:
-            self.workspace.refresh_knowledge()
-        elif index == 6:
-            self.workspace.refresh_flows()
-        elif index == 8:
-            self.workplace.refresh_projects()
-            self.workplace.refresh_modes()
-            self.workplace.refresh_activity()
+        return self.file_window
+
+    def present_action(self, action):
+        self.workspace_bar.setVisible(not action)
+        self.setWindowTitle('Lumen — ' + self.chat.heading.text() if action else tr('Lumen · Detailansicht'))
+        self.setMinimumSize(560, 520) if action else self.setMinimumSize(760, 600)
+
+    def show_page(self, index):
+        if index == 3:
+            from lumen_activation import present
+            present(self.workplace_files()); return
+        if index in (2, 9):
+            self.open_search()
+            self.search_controller.browse()
+            if index == 9: self.search_controller.homeView.show_all_apps()
+            return
+        from lumen_detail_routes import open_page
+        if open_page(index): return
+        self.pages.setCurrentIndex(0)
 
     def choose_directory(self):
         if self.chat.backend.busy:
@@ -252,128 +334,6 @@ class LumenWindow(QMainWindow):
         if paths:
             self.chat.begin_context(action, paths=paths)
             self.show_page(0)
-
-    def build_system(self):
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.addWidget(label(tr('Systemstatus'), 'heading'))
-        layout.addWidget(label(tr('Auslastung und der letzte Wächter-Bericht'), 'muted'))
-        grid = QGridLayout()
-        self.metrics = {}
-        for i, (name, title) in enumerate((('CPU', 'CPU'), ('Arbeitsspeicher', tr('Arbeitsspeicher')),
-                ('Laufwerk /', tr('Laufwerk /')), ('Grafikkarte', tr('Grafikkarte')),
-                ('Benutzerdienste', tr('Benutzerdienste')), ('Systemdienste', tr('Systemdienste')))):
-            card = QWidget()
-            box = QVBoxLayout(card)
-            box.addWidget(label(title, 'muted'))
-            value = label('…', 'previewTitle')
-            value.setWordWrap(True)
-            box.addWidget(value)
-            self.metrics[name] = value
-            grid.addWidget(card, i // 3, i % 3)
-        layout.addLayout(grid)
-        self.report = Transcript()
-        self.report.setAccessibleName(tr('Letzter Systembericht'))
-        layout.addWidget(self.report, 1)
-        self.report_status = label('', 'muted')
-        self.report_status.setWordWrap(True)
-        layout.addWidget(self.report_status)
-        actions = QHBoxLayout()
-        actions.addWidget(button(tr('Aktualisieren'), self.refresh_system))
-        self.watch_button = button(tr('Wächter prüfen'), self.run_watch)
-        actions.addWidget(self.watch_button)
-        actions.addWidget(button(tr('Mit Lumen besprechen'), self.discuss_report))
-        layout.addLayout(actions)
-        return page
-
-    def build_actions(self):
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(28, 24, 28, 24)
-        layout.addWidget(label(tr('Direkt loslegen'), 'heading'))
-        for title, callback in [
-            (tr('Dateien erklären'), lambda: self.choose_files('explain')),
-            (tr('Dateifehler beheben'), lambda: self.choose_files('fix')),
-            (tr('Zwischenablage besprechen'), lambda: self.selection('explain')),
-            (tr('Text korrigieren'), lambda: self.selection('fix')),
-            (tr('Text übersetzen'), lambda: self.selection('translate')),
-            (tr('Systembericht ansehen'), lambda: self.show_page(1)),
-            (tr('Dateibereich öffnen'), self.open_files)]:
-            layout.addWidget(button(title, callback))
-        layout.addStretch()
-        return page
-
-    def run_job(self, program, arguments, callback, timeout=10000):
-        job = QProcess(self)
-        self.jobs.append(job)
-        done = False
-        timer = QTimer(job)
-        timer.setSingleShot(True)
-        timer.timeout.connect(job.kill)
-        def finish(code):
-            nonlocal done
-            if done:
-                return
-            done = True
-            timer.stop()
-            output = bytes(job.readAllStandardOutput()).decode(errors='replace').strip()
-            callback(code, output)
-            self.jobs.remove(job)
-            job.deleteLater()
-        job.finished.connect(lambda code, _status: finish(code))
-        job.errorOccurred.connect(lambda error: finish(-1) if error == QProcess.FailedToStart else None)
-        job.start(program, arguments)
-        timer.start(timeout)
-
-    def refresh_system(self):
-        try:
-            cpu = [int(v) for v in Path('/proc/stat').read_text().splitlines()[0].split()[1:9]]
-            total, idle = sum(cpu), cpu[3] + cpu[4]
-            if self.cpu_previous and total > self.cpu_previous[0]:
-                usage = 100 * (1 - (idle - self.cpu_previous[1]) / (total - self.cpu_previous[0]))
-                self.metrics['CPU'].setText(f'{usage:.0f} %')
-            self.cpu_previous = (total, idle)
-            mem = {line.split(':')[0]: int(line.split()[1]) for line in Path('/proc/meminfo').read_text().splitlines()}
-            self.metrics['Arbeitsspeicher'].setText(f"{(mem['MemTotal'] - mem['MemAvailable']) / 1048576:.1f} / {mem['MemTotal'] / 1048576:.1f} GiB")
-            disk = shutil.disk_usage('/')
-            self.metrics['Laufwerk /'].setText(tr('{0:.0f} % belegt', 100 * disk.used / disk.total))
-        except (OSError, ValueError, KeyError):
-            self.report_status.setText(tr('Einige Systemwerte sind nicht verfügbar.'))
-        if not self.jobs:
-            self.run_job('nvidia-smi', ['--query-gpu=utilization.gpu,temperature.gpu', '--format=csv,noheader,nounits'],
-                         lambda code, out: self.metrics['Grafikkarte'].setText(out.replace(',', ' % ·') + ' °C' if code == 0 else tr('Nicht verfügbar')))
-            for user, name in [(True, 'Benutzerdienste'), (False, 'Systemdienste')]:
-                self.run_job('systemctl', (['--user'] if user else []) + ['--failed', '--no-legend', '--plain'],
-                             lambda code, out, n=name: self.metrics[n].setText(tr('{0} fehlgeschlagen', len(out.splitlines())) if code == 0 else tr('Nicht verfügbar')))
-        reports = [Path(os.environ.get('LUMEN_STATE', str(Path.home() / '.cache/lumen'))) / 'latest-analysis.md', Path('/var/lib/lumen/findings.md')]
-        self.report_text = ''
-        for path in reports:
-            try:
-                self.report_text += f'## {path.name}\n\n' + path.read_text() + '\n\n'
-            except OSError:
-                pass
-        self.report.document().setMarkdown(self.report_text or tr('Noch kein Systembericht vorhanden.'), QTextDocument.MarkdownFeatures(QTextDocument.MarkdownDialectGitHub | QTextDocument.MarkdownNoHTML))
-
-    def run_watch(self):
-        self.watch_button.setEnabled(False)
-        self.report_status.setText(tr('Wächter-Prüfung wird angefordert …'))
-        system_install = Path('/usr/share/dbus-1/system-services/org.lumen.Agent.service').exists()
-        def finished(code, out):
-            self.watch_button.setEnabled(True)
-            self.refresh_system()
-            okay = code == 0 and (not system_install or out == 'b true')
-            self.report_status.setText(tr('Prüfung angefordert. Der Bericht wird automatisch aktualisiert.') if okay
-                                       else tr('Prüfung konnte nicht gestartet werden. Der Wächter-Dienst ist möglicherweise nicht verfügbar.'))
-        if system_install:
-            self.run_job('busctl', ['--system', '--timeout=10s', 'call', 'org.lumen.Agent',
-                                  '/org/lumen/Agent', 'org.lumen.Agent', 'RefreshWatch'], finished)
-        else:
-            self.run_job(str(Path(os.environ.get('LUMEN_BIN_DIR', '/usr/bin')) / 'lumen-watch'), [], finished, 300000)
-
-    def discuss_report(self):
-        self.show_page(0)
-        self.chat.begin_context(prompt=tr('Erkläre den folgenden Systembericht und priorisiere sinnvolle nächste Schritte.\n\n') + self.report_text)
 
     def open_files(self):
         self.show_page(3)
@@ -409,7 +369,34 @@ class LumenWindow(QMainWindow):
         self.copy_after_answer = action in ("translate", "fix", "summarize")
         self.chat.begin_context(prompt=prompts.get(action, action) + '\n\n' + text)
 
+    def open_search(self, voice=False):
+        if QApplication.activeModalWidget() is not None:
+            from lumen_activation import present
+            present(self)
+            return
+        if not hasattr(self, 'search_window'):
+            from search_controller import SearchController
+            from search_qml import create_window, Activation
+            self.search_controller = SearchController(self.chat.backend.directory, panel=self.chat, parent=self)
+            self.search_engine, self.search_window = create_window(QApplication.instance(), self.search_controller)
+            self.search_engine.setParent(self)
+            self.search_activation = Activation(self.search_window, self.search_controller)
+            self.search_controller.expandRequested.connect(self.expand_search)
+        self.search_controller.sync_panel()
+        if not self.chat.backend.busy: self.search_controller.load_sessions()
+        if self.companion is not None: self.companion.pause()
+        self.hide()
+        self.search_activation.Voice() if voice else self.search_activation.Activate()
+
+    def expand_search(self):
+        self.search_window.hide()
+        self.show_page(0)
+        from lumen_activation import present
+        present(self); self.chat.composer.setFocus()
+
     def closeEvent(self, event):
+        if not self.workplace.can_close():
+            self.show_page(8); event.ignore(); return
         if self.workplace.busy:
             self.show_page(8)
             self.workplace.status.setText(tr('Bitte die laufende Systemaktion zuerst abschließen lassen.'))
@@ -419,16 +406,15 @@ class LumenWindow(QMainWindow):
         if not self.chat.can_close():
             event.ignore()
             return
-        if self.jobs and not self.watch_button.isEnabled():
-            self.report_status.setText(tr('Bitte die laufende Wächter-Prüfung vor dem Schließen abwarten.'))
-            self.show_page(1)
-            event.ignore()
-            return
         if self.file_window is not None and not self.file_window.close():
             event.ignore(); return
+        if hasattr(self, 'search_window'):
+            self.search_window.hide(); self.search_controller.shutdown()
         self.studio.preview.shutdown()
+        if self.companion is not None: self.companion.close()
         self.chat.tracker.interrupt()
         self.workplace.shutdown()
+        self.workspace.shutdown()
         self.chat.context_tools.close()
         self.chat.backend.shutdown()
         for job in self.jobs[:]:
@@ -442,8 +428,16 @@ class LumenWindow(QMainWindow):
 def main():
     parser = argparse.ArgumentParser(description=tr('Lumen – dein Desktop-Assistent'))
     parser.add_argument('--directory')
+    parser.add_argument('--search', action='store_true')
+    parser.add_argument('--details', action='store_true', help=tr('Lumen-Detailansicht öffnen'))
+    parser.add_argument('--restore-state', type=Path)
+    parser.add_argument('--voice', action='store_true')
+    household_target = parser.add_mutually_exclusive_group()
+    household_target.add_argument('--household-ref')
+    household_target.add_argument('--household-handoff')
     from lumen_panel import valid_task
     parser.add_argument('--task', type=valid_task, help=tr('Gespeicherten Auftrag anzeigen'))
+    parser.add_argument('--task-action', choices=['run','pause','cancel','conversation'])
     parser.add_argument('--location', help=tr('Datei- oder Netzwerkordner im Dateibereich'))
     parser.add_argument('--prompt', default='')
     parser.add_argument('--action', choices=['open', 'ask', 'explain', 'fix', 'review', 'diagnose'], default='open')
@@ -451,10 +445,16 @@ def main():
     parser.add_argument('--file', action='append', default=[])
     parser.add_argument('--selection')
     parser.add_argument('--clipboard-image', action='store_true')
-    parser.add_argument('--page', choices=['chat', 'system', 'actions', 'files', 'tasks', 'knowledge', 'workflows', 'models', 'workplace', 'settings', 'apps', 'results'])
+    parser.add_argument('--page', choices=['chat', 'system', 'actions', 'files', 'tasks', 'knowledge', 'workflows', 'models', 'workplace', 'settings', 'apps', 'results', 'companion', 'household'])
     args = parser.parse_args()
+    if args.details and not args.page: args.page = 'chat'
+    household_request = {key:value for key,value in [('ref',args.household_ref),('handoff',args.household_handoff)] if value}
+    if household_request and args.page != 'household': parser.error('Household targets require --page household')
+    if args.task_action and not args.task: parser.error('--task-action requires --task')
     from lumen_migrate import migrate_user
     migrate_user()
+    from PySide6.QtQuickControls2 import QQuickStyle
+    QQuickStyle.setStyle('Basic')  # Lumen supplies its palette; avoid KDE's mixed QWidget/QML theme adapter.
     app = create_app()
     app.setApplicationName('Lumen')
     app.setApplicationDisplayName('Lumen')
@@ -463,14 +463,30 @@ def main():
     plain_launch = (args.action == 'open' and args.page != 'settings' and not any(
         (args.directory, args.location, args.prompt, args.context, args.file, args.selection,
          args.clipboard_image, os.environ.get('LUMEN_ASK_PROMPT'))))
-    page_index = {'chat': 0, 'system': 1, 'actions': 2, 'files': 3, 'tasks': 4, 'knowledge': 5, 'workflows': 6, 'models': 7, 'workplace': 8, 'apps': 9, 'results': 10}
+    args.search = args.search or (plain_launch and not (args.page or args.task or args.restore_state))
+    page_index = {'chat': 0, 'system': 1, 'actions': 2, 'files': 3, 'tasks': 4, 'knowledge': 5, 'workflows': 6, 'models': 7, 'workplace': 8, 'apps': 9, 'results': 10, 'companion': 11, 'household': 12}
+    from lumen_detail_routes import open_page
+    if args.task and not args.task_action:
+        open_page(4, args.task); return 0
+    if args.page in page_index and args.page not in ('chat','apps','actions') and not args.restore_state:
+        if args.page == 'household': activation.window = True; activation.ActivateHousehold(json.dumps(household_request))
+        elif args.page == 'files' and args.location:
+            from lumen_detail_routes import launch
+            launch('lumen-files', [args.location])
+        else: open_page(page_index[args.page])
+        return 0
     bus = QDBusConnection.sessionBus()
     if plain_launch and bus.isConnected() and bus.registerObject('/Lumen', activation, QDBusConnection.ExportAllSlots):
         if not bus.registerService('org.lumen.Desktop'):
             request = QDBusMessage.createMethodCall('org.lumen.Desktop', '/Lumen', 'org.lumen.Desktop',
-                                                   'ActivateTask' if args.task else 'ActivatePage' if args.page else 'Activate')
-            request.setArguments([args.task] if args.task else [page_index[args.page]] if args.page else [])
+                                                   'TaskAction' if args.task_action else 'ActivateHousehold' if args.page=='household' else 'ActivateSearch' if args.search else 'ActivateTask' if args.task else 'ActivatePage' if args.page else 'Activate')
+            request.setArguments([args.task, args.task_action] if args.task_action else [json.dumps(household_request)] if args.page=='household' else [args.voice] if args.search else [args.task] if args.task else [page_index[args.page]] if args.page else [])
             reply = bus.call(request, QDBus.Block, 3000)
+            if args.task_action and reply.type() != QDBusMessage.ErrorMessage and reply.arguments() != ['']:
+                print(str(reply.arguments()[0]), file=sys.stderr); return 1
+            if args.page == 'household' and reply.type() != QDBusMessage.ErrorMessage and reply.arguments() != [True]:
+                print(tr('Der Haushalt konnte nicht geöffnet werden.'), file=sys.stderr)
+                return 1
             if reply.type() == QDBusMessage.ErrorMessage:
                 if not (args.task and reply.errorName() == 'org.freedesktop.DBus.Error.UnknownMethod'):
                     print(tr('Lumen: Das vorhandene Fenster antwortet nicht: ') + reply.errorMessage(), file=sys.stderr)
@@ -483,15 +499,23 @@ def main():
                      QSettings('Lumen', 'Assistant').value('workdir', str(Path.home() / 'Documents/work'))).expanduser()
     window = LumenWindow(str(directory if directory.is_dir() else Path.home()))
     activation.window = window
+    if household_request: activation.ActivateHousehold(json.dumps(household_request))
     if args.action in window.chat.action_titles:
         window.chat.set_action(args.action)
-    window.show()
+    if not args.search: window.show()
     if activation.pending:
         activation.Activate()
     def start():
-        if args.task:
-            window.show_page(4)
-            window.workspace.select_task(args.task)
+        if args.restore_state:
+            from lumen_crash import read_json
+            window.restore_recovery(read_json(args.restore_state))
+            if args.search: window.open_search(args.voice)
+            return
+        if args.search:
+            window.open_search(args.voice); return
+        if args.task_action:
+            error = activation.TaskAction(args.task, args.task_action)
+            if error: window.chat.show_error(error)
             return
         if args.page == 'settings':
             window.show_settings()
@@ -517,7 +541,7 @@ def main():
             window.file_window.navigate(args.location)
     QTimer.singleShot(0, start)
     from lumen_crash import attach
-    attach(app, window, 'lumen', offer_recovery=plain_launch)
+    attach(app, window, 'lumen', offer_recovery=plain_launch and args.restore_state is None)
     if plain_launch:
         from setup_dialog import offer_setup
         QTimer.singleShot(250, lambda: offer_setup(window))

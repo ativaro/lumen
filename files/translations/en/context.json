@@ -8,7 +8,7 @@
   "Fällig am": "Due on",
   "Für eine Radioausgabe sammeln …": "Collect for a radio episode…",
   "Gerät oder Vertrag": "Device or contract",
-  "In Lumen Wissen speichern. Die Originaldatei bleibt unverändert.": "Save in Lumen Wissen. The original file stays unchanged.",
+  "In Lumen Wissen speichern. Die Originaldatei bleibt unverändert.": "Save in Lumen Notes. The original file stays unchanged.",
   "In allen Lumen-Anwendungen suchen …": "Search all Lumen apps…",
   "In der Zielanwendung „Letzte Aktionen …“ öffnen und dort rückgängig machen.": "Open “Recent actions…” in the destination app and undo the action there.",
   "In {0} fortsetzen.": "Continue in {0}.",
@@ -44,5 +44,6 @@
   "Zu einem Projekt hinzufügen …": "Add to a project…",
   "Zugehörige Dateien …": "Related files…",
   "Zugehörige Inhalte ({0})": "Related content ({0})",
-  "Zugehörige Notizen …": "Related notes…"
+  "Zugehörige Notizen …": "Related notes…",
+  "In Lumen Notes speichern. Die Originaldatei bleibt unverändert.": "Save in Lumen Notes. The original file stays unchanged."
 }

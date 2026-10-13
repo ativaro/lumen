@@ -44,6 +44,7 @@ def window_parts(window, kind):
     if kind == 'resource':
         return [window.resources.item(index).data(Qt.UserRole) for index in range(window.resources.count())]
     if kind == 'question':
+        if not hasattr(window,'questions'):return window.library.get(window.current).get('questions',[])
         return [dict(text=window.questions.item(index).text()) for index in range(window.questions.count())]
     if kind == 'segment':
         return [dict(window.transcript.item(index, 0).data(Qt.UserRole), text=window.transcript.item(index, 1).text()) for index in range(window.transcript.rowCount())]

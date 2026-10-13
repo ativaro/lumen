@@ -133,6 +133,7 @@ def publish(
 
 
 def toast(source, identity):
+    source = "Lumen Notes" if source == "Lumen Wissen" else source
     # KDE remains the only popup owner and applies its own DND/lock-screen rules.
     # Keep private task titles/bodies out of the lock-screen toast.
     try:
@@ -195,6 +196,10 @@ def snapshot(path=None, wake=True):
         ]
     for row in due:
         toast(row["source"], row["id"])
+    # Display name only: existing source IDs still govern deduplication and mutes.
+    for row in rows:
+        if row["source"] == "Lumen Wissen":
+            row["source"] = "Lumen Notes"
     return {
         "items": rows,
         "unread": sum(
@@ -249,11 +254,13 @@ def change(identity, action, path=None):
                 "app:backups",
                 "app:updater",
                 "app:system",
+                "app:settings",
             ):
                 from lumen_launch import executable
 
                 name, args = {
                     "app:drive": ("files", ["lumen-drive://"]),
+                    "app:settings": ("settings", ["--sync"]),
                     "app:backups": ("vault", ["--backups"]),
                 }.get(target, (target[4:], []))
                 subprocess.Popen(

@@ -73,6 +73,10 @@ class NotePreview(QTextBrowser):
         except (OSError,ValueError):return None
 
     def follow(self,url):
+        if url.query().startswith('document=') and self.book:
+            path=resolve_link(self.origin,'/?'+url.query(),self.notes)
+            if path:self.noteRequested.emit(path)
+            return
         if url.scheme()=='lumen-note':self.noteRequested.emit(unquote(url.path().lstrip('/')));return
         if url.scheme() in ('https','http'):
             from PySide6.QtGui import QDesktopServices
@@ -105,7 +109,7 @@ class KnowledgeMap(QGraphicsView):
     objectRequested=Signal(str)
     def __init__(self):
         super().__init__();self.setScene(QGraphicsScene(self));self.setRenderHints(self.renderHints()|QPainter.Antialiasing)
-        self.setDragMode(QGraphicsView.ScrollHandDrag);self.setAccessibleName(tr('Wissenskarte; dieselben Verbindungen sind in der Notizliste per Tastatur erreichbar'))
+        self.setDragMode(QGraphicsView.ScrollHandDrag);self.setAccessibleName(tr('Notizkarte; dieselben Verbindungen sind in der Notizliste per Tastatur erreichbar'))
     def display(self,notes,current,external=()):
         scene=self.scene();scene.clear()
         if not notes:return

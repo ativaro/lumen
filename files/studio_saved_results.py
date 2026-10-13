@@ -40,7 +40,7 @@ class StudioSavedResults(QWidget):
             actions.addWidget(button); self.controls.append(button)
         self.export = self.controls[0]; self.export.setObjectName('primary'); actions.addStretch()
         more = QPushButton('···'); more.setAccessibleName(tr('Weitere Ergebnisaktionen')); menu = QMenu(more)
-        for title, callback in [(tr('Ins Wissen speichern'), workspace.task_to_knowledge), (tr('Als Ablauf speichern'), workspace.task_to_flow), (tr('Zum Auftrag'), self.open_task)]:
+        for title, callback in [(tr('In Lumen Notes speichern'), workspace.task_to_knowledge), (tr('Als Ablauf speichern'), workspace.task_to_flow), (tr('Zum Auftrag'), self.open_task)]:
             menu.addAction(title, workspace.guarded(lambda fn=callback: self.use(fn)))
         self.conversation = menu.addAction(tr('Zum Gespräch'), workspace.guarded(lambda: self.use(workspace.open_task_conversation)))
         more.setMenu(menu); self.controls.append(more); actions.addWidget(more); content.addLayout(actions)

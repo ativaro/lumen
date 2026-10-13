@@ -1,8 +1,10 @@
 """Lumen's explicit results alongside the conversation, using Files workers."""
 from pathlib import Path
+import html
+import json
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QTextDocument
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QComboBox, QSplitter, QPushButton, QMenu, QFrame, QTabBar, QStackedWidget, QPlainTextEdit, QSizePolicy
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QComboBox, QSplitter, QPushButton, QMenu, QFrame, QTabBar, QStackedWidget, QSizePolicy
 from assistant import Transcript, SafeDocument
 from core import file_kind
 from gallery import Gallery, ImageLoader
@@ -11,6 +13,36 @@ from lumen_i18n import tr
 from preview import Preview, label
 from studio_chat import icon_button
 from studio_design import surface, icon, font
+
+
+def model_stream(messages, turn):
+    blocks = []
+    states = {'pending': tr('Wartet'), 'running': tr('Läuft'), 'completed': tr('Fertig'), 'error': tr('Fehlgeschlagen')}
+    for message in messages:
+        info = message.get('info', {})
+        if info.get('role') != 'assistant' or info.get('parentID', '') != turn: continue
+        for part in message.get('parts', []):
+            kind = part.get('type')
+            if kind in ('reasoning', 'text') and part.get('text') and not part.get('synthetic'):
+                document = SafeDocument()
+                document.setMarkdown(part['text'], QTextDocument.MarkdownDialectGitHub | QTextDocument.MarkdownNoHTML)
+                body = document.toHtml().split('<body', 1)[1].split('>', 1)[1].rsplit('</body>', 1)[0]
+                title = tr('Denktext') if kind == 'reasoning' else tr('Modelltext')
+                blocks.append('<h3>' + html.escape(title) + '</h3>' + body)
+            elif kind == 'tool':
+                state = part.get('state', {})
+                title = tr('Werkzeug · {0} · {1}', part.get('tool', ''), states.get(state.get('status'), state.get('status', '')))
+                blocks.append('<h3>' + html.escape(title) + '</h3>')
+                if state.get('title'): blocks.append('<p>' + html.escape(state['title']) + '</p>')
+                for key in ('input', 'output', 'error'):
+                    value = state.get(key)
+                    if value in (None, '', {}): continue
+                    text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, indent=2)
+                    blocks.append('<pre>' + html.escape(text) + '</pre>')
+        if error := info.get('error'):
+            detail = error.get('data', {}).get('message') or error.get('name', tr('Fehlgeschlagen'))
+            blocks.append('<p>' + html.escape(detail) + '</p>')
+    return ''.join(blocks)
 
 
 class StudioPreview(Preview):
@@ -53,6 +85,7 @@ class StudioSurface(QWidget):
     def __init__(self, chat, parent=None):
         super().__init__(parent)
         self.chat = chat; self.paths = []; self.preview_wanted = True; self.narrow_preview = False
+        self.work_busy = False
         self.answer_key = None
         self.setObjectName('studioWorkbench'); surface(self)
         root = QVBoxLayout(self); root.setContentsMargins(0, 0, 0, 0); root.setSpacing(0)
@@ -84,9 +117,9 @@ class StudioSurface(QWidget):
         self.choice.activated.connect(self.choose); layout.addWidget(self.choice)
         self.result_pages = QStackedWidget(); layout.addWidget(self.result_pages, 1)
         self.stage = QWidget(); self.stage.setObjectName('studioPaperArea')
-        stage = QHBoxLayout(self.stage); stage.setContentsMargins(32, 24, 32, 24)
-        self.paper = QFrame(); self.paper.setObjectName('studioPaper'); self.paper.setMaximumWidth(650)
-        paper = QVBoxLayout(self.paper); paper.setContentsMargins(36, 30, 36, 24); paper.setSpacing(22)
+        stage = QHBoxLayout(self.stage); stage.setContentsMargins(28, 24, 28, 24)
+        self.paper = QFrame(); self.paper.setObjectName('studioPaper'); self.paper.setMaximumWidth(900)
+        paper = QVBoxLayout(self.paper); paper.setContentsMargins(0, 0, 0, 0); paper.setSpacing(22)
         topline = QHBoxLayout(); topline.addWidget(label('LUMEN', 'studioPaperBrand')); topline.addStretch()
         self.result_status = label('', 'studioPaperMeta'); topline.addWidget(self.result_status); paper.addLayout(topline)
         self.answer = Transcript(); self.answer.setDocument(SafeDocument(self.answer)); self.answer.setObjectName('studioResult')
@@ -96,7 +129,8 @@ class StudioSurface(QWidget):
         paper.addWidget(self.answer, 1); stage.addWidget(self.paper, 1)
         self.preview = StudioPreview(); stage.addWidget(self.preview, 1)
         self.result_pages.addWidget(self.stage)
-        self.execution_detail = QPlainTextEdit(); self.execution_detail.setReadOnly(True); self.execution_detail.setObjectName('studioExecution')
+        self.execution_detail = Transcript(); self.execution_detail.setDocument(SafeDocument(self.execution_detail))
+        self.execution_detail.setOpenLinks(False); self.execution_detail.setObjectName('studioExecution'); self.execution_detail.setFont(font(14))
         self.execution_detail.setAccessibleName(tr('Arbeitsschritte des Gesprächs')); self.result_pages.addWidget(self.execution_detail)
         self.result_tabs.currentChanged.connect(self.result_pages.setCurrentIndex)
         dock = QFrame(); dock.setObjectName('studioResultDock')
@@ -109,14 +143,19 @@ class StudioSurface(QWidget):
         self.result_menu.addAction(tr('Merk dir das'), lambda: chat.capture_knowledge(True, text=self.result_text()))
         self.save_answer.setMenu(self.result_menu)
         self.actions.addWidget(self.save_answer); layout.addWidget(dock)
-        self.split.addWidget(self.pane); self.split.setStretchFactor(0, 0); self.split.setStretchFactor(1, 1)
-        self.split.setSizes([370, 900]); self.pane.hide()
+        self.split.addWidget(self.pane); self.split.setStretchFactor(0, 1); self.split.setStretchFactor(1, 1)
+        self.split.setSizes([560, 560]); self.pane.hide()
         self.preview.filmstrip.chosen.connect(lambda i: self.choice.setCurrentIndex(
             self.choice.findData(self.preview.filmstrip.paths[i])))
         chat.resultChanged.connect(self.set_result); chat.previewRequested.connect(self.toggle_preview)
         chat.answerChanged.connect(self.show_answer); chat.backend.busyChanged.connect(self.show_answer)
+        chat.backend.busyChanged.connect(self.follow_work)
+        chat.backend.completed.connect(self.finish_work)
+        chat.backend.statusChanged.connect(lambda _: self.update_execution())
+        chat.backend.sessionChanged.connect(lambda _: self.update_execution())
         self.set_result(chat.presentation)
         self.show_answer()
+        self.follow_work(chat.backend.busy)
 
     def bind_workspace(self, workspace):
         self.workspace = workspace
@@ -127,9 +166,9 @@ class StudioSurface(QWidget):
         more = icon_button(tr('Weitere Ergebnisaktionen'), 'view-more-symbolic', lambda: None)
         menu = QMenu(more); menu.addAction(tr('Kopieren'), self.copy_answer.click)
         menu.addAction(tr('Als Ablauf speichern'), workspace.guarded(lambda: self.use_task(workspace.task_to_flow)))
-        self.task_link = QPushButton(tr('Zum Auftrag')); self.task_link.clicked.connect(workspace.guarded(self.open_task))
+        self.task_link = QPushButton(tr('Ausführung prüfen')); self.task_link.clicked.connect(workspace.guarded(self.open_task))
         self.task_link.hide(); self.task_link.setParent(self)
-        self.task_link_action = menu.addAction(tr('Zum Auftrag'), self.task_link.click)
+        self.task_link_action = menu.addAction(tr('Ausführung prüfen'), self.task_link.click)
         more.setMenu(menu); self.actions.addWidget(more)
         self.chat.tracker.changed.connect(self.update_task_actions)
         self.chat.backend.busyChanged.connect(self.update_task_actions)
@@ -155,11 +194,22 @@ class StudioSurface(QWidget):
         self.directory.setToolTip(self.chat.backend.directory)
         status = STATES.get(task['status'], task['status']) if task else tr('Läuft') if self.chat.backend.busy else tr('Bereit')
         self.status_label.setText('•  '+status)
-        from lumen_workspace import step_description
-        lines = [step_description(step) for step in task['steps']] if task else []
-        if task:
-            lines += [event['kind']+': '+event['detail'] for event in self.chat.tracker.store.events(task['id']) if event['kind'] != 'input']
-        self.execution_detail.setPlainText('\n\n'.join(lines) or tr('Noch keine Arbeitsschritte für dieses Gespräch.'))
+        backend = self.chat.backend
+        turn = backend.message_id or next((m.get('info', {}).get('parentID', '') for m in reversed(backend.messages)
+            if m.get('info', {}).get('role') == 'assistant'), '')
+        key = (backend.session, turn)
+        if getattr(backend, 'execution', 'local') == 'server':
+            content = '<p>' + tr('Der Server stellt hier keinen Live-Modellverlauf bereit.') + '</p>'
+        else:
+            content = model_stream(backend.messages, turn)
+            if not content:
+                content = '<p>' + (tr('Warte auf Modellausgabe …') if backend.busy else tr('Noch kein Modellverlauf für dieses Gespräch.')) + '</p>'
+        if (key, content) == getattr(self, 'rendered_execution', None): return
+        scroll = self.execution_detail.verticalScrollBar(); position = scroll.value()
+        follow = position >= scroll.maximum() - 30 or key != getattr(self, 'execution_key', None)
+        self.execution_key = key; self.rendered_execution = (key, content)
+        self.execution_detail.setHtml(content)
+        scroll.setValue(scroll.maximum() if follow else position)
 
     def use_task(self, callback):
         task = self.chat.answer_task() if not self.chat.backend.busy else None
@@ -167,7 +217,22 @@ class StudioSurface(QWidget):
         callback(task['id'])
 
     def open_task(self):
-        self.use_task(self.workspace.select_task); self.workspace.window.show_page(4)
+        from lumen_detail_routes import open_tasks
+        self.use_task(open_tasks)
+
+    def follow_work(self, busy):
+        if busy and not self.work_busy: self.result_tabs.setCurrentIndex(1)
+        self.work_busy = busy
+
+    def finish_work(self, success, text):
+        if not success or not text.strip(): return
+        from studio_results import from_messages
+        backend = self.chat.backend
+        result = from_messages([m for m in backend.messages if m.get('info', {}).get('parentID') == backend.message_id])
+        if not result or not result['paths']:
+            index = self.choice.findData(None)
+            if index >= 0: self.choice.setCurrentIndex(index); self.choose(index)
+        self.result_tabs.setCurrentIndex(0)
 
     def show_answer(self, *_):
         key = getattr(self.chat, '_answer_key', None)
@@ -196,6 +261,7 @@ class StudioSurface(QWidget):
         paths = result['paths'] if result else []
         self.heading.setText(result['title'] if result and result['title'] else tr('Ergebnis'))
         self.paths = paths; self.choice.clear()
+        if paths: self.result_tabs.setCurrentIndex(0)
         for path in paths: self.choice.addItem(Path(path).name or '/', path)
         images = [p for p in paths if file_kind(p) == 'image']
         self.preview.filmstrip.stop()

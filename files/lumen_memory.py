@@ -148,12 +148,14 @@ class Memory:
         for note in result['notes']:note['identity_conflict']=counts[note['id']]>1
         return dict(result,options=options(self.store))
 
-    def remember(self,title,text='',source=tr('Von mir'),kind='fact',scope='',automatic=False,evidence='',path='',expected=''):
+    def remember(self,title,text='',source=tr('Von mir'),kind='fact',scope='',automatic=False,evidence='',path='',expected='',verification=''):
         if kind not in KINDS or not isinstance(text,str) or (automatic and not text.strip()) or len(text)>20000:raise ValueError(tr('Gültiger Gedächtniseintrag erforderlich (maximal 20.000 Zeichen).'))
+        if verification not in ('', 'user') or (verification and (kind != 'solution' or automatic)):
+            raise ValueError(tr('Nur manuell bestätigte Lösungswege können verifiziert werden.'))
         with self.book.lock('memory-state.lock'):
             from memory_projects import bindings,scope as project_scope
             scope=project_scope(scope,bindings(self.store)) if scope else ''
-            return self._remember(title,text,source,kind,scope,automatic,evidence,path,expected)
+            return self._remember(title,text,source,kind,scope,automatic,evidence,path,expected,verification=verification)
 
     def project_info(self):
         from memory_projects import catalog

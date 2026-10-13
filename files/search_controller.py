@@ -29,23 +29,25 @@ class SearchController(QObject):
     voiceChanged = Signal()
     hideRequested = Signal()
     focusRequested = Signal()
+    expandRequested = Signal()
 
-    def __init__(self, directory=None, backend=None, applications=None, parent=None):
+    def __init__(self, directory=None, backend=None, applications=None, parent=None, panel=None):
         super().__init__(parent)
+        self.panel = panel
         self.directory = str(directory or Path.home())
-        self.settings = QSettings('Lumen', 'Assistant')
-        self.backend = backend or OpenCodeBackend(self.directory, self)
+        self.settings = panel.settings if panel else QSettings('Lumen', 'Assistant')
+        self.backend = panel.backend if panel else backend or OpenCodeBackend(self.directory, self)
         self.backend.settings = self.settings
         if hasattr(self.backend, 'executionChanged'):
             self.backend.executionChanged.connect(self.stateChanged)
         from rich_controller import RichController
-        self.rich = RichController(self.backend, self, file_results=True)
-        self.rich.submitted.connect(self.submit_view)
+        self.rich = panel.rich if panel else RichController(self.backend, self, file_results=True)
+        if not panel: self.rich.submitted.connect(self.submit_view)
         self.rich.failed.connect(self.show_error)
         from search_home import SearchHome
         self.home = SearchHome(self); self.home.failed.connect(self.show_error)
-        self.tracker = TaskTracker(self.backend, self)
-        self._attachments = []
+        self.tracker = panel.tracker if panel else TaskTracker(self.backend, self)
+        self._attachments = list(panel.paths) if panel else []
         self._query = ''; self._results = []; self._selection = 0
         self._answer_checks = {}
         self._conversation = False; self._messages = []; self._permissions = []; self._questions = []
@@ -57,9 +59,9 @@ class SearchController(QObject):
         self._voice_setup_required = False
         self.debounce = QTimer(self); self.debounce.setSingleShot(True); self.debounce.setInterval(220)
         self.debounce.timeout.connect(self.search)
-        self.voice = VoiceSession(self.backend, self.settings, self)
+        self.voice = panel.context_tools.conversation if panel else VoiceSession(self.backend, self.settings, self)
         self.voice.started.connect(self.start_voice)
-        self.voice.transcribedText.connect(self.voice_submit)
+        if not panel: self.voice.transcribedText.connect(self.voice_submit)
         self.voice.changed.connect(self.voiceChanged)
         self.voice.levelChanged.connect(self.set_voice_level)
         self.voice.failed.connect(self.show_error)
@@ -86,7 +88,29 @@ class SearchController(QObject):
             applications = [(a.get_display_name(), a.get_id()) for a in Gio.AppInfo.get_all() if a.should_show() and a.get_id()]
         self.applications = sorted(applications, key=lambda item: item[0].casefold())
         self.search()
+        if panel:
+            panel.composer.textChanged.connect(lambda: self.set_query(panel.composer.toPlainText()))
+            self.queryChanged.connect(lambda: panel.composer.setPlainText(self._query) if panel.composer.toPlainText() != self._query else None)
+            panel.backend.sessionChanged.connect(lambda _: self.sync_panel())
+            self.sync_panel()
 
+    def sync_panel(self):
+        if not self.panel: return
+        self.directory = self.backend.directory
+        self._attachments = list(self.panel.paths)
+        self._mode = self.panel.mode.currentData()
+        self._learn = self.panel.context_tools.learn.isChecked()
+        self._auto_approve = self.panel.dont_ask.isChecked()
+        self._conversation = bool(self.backend.session or self.backend.messages or self.backend.busy)
+        self.set_query(self.panel.composer.toPlainText())
+        self.update_messages(self.backend.messages)
+        self.update_requests(self.backend.permissions, self.backend.questions)
+        self.stateChanged.emit()
+
+    @Slot()
+    def expand(self): self.expandRequested.emit()
+
+    sharedConversation = Property(bool, lambda self: self.panel is not None, constant=True)
     attachments = Property('QVariantList', lambda self: self._attachments, notify=stateChanged)
     query = Property(str, lambda self: self._query, notify=queryChanged)
     homeView = Property(QObject, lambda self: self.home, constant=True)
@@ -264,7 +288,9 @@ class SearchController(QObject):
             url=QUrl(str(value))
             if url.isLocalFile() and url.toLocalFile() not in self._attachments:
                 self._attachments.append(url.toLocalFile())
-        self._attachments=self._attachments[:24];self.stateChanged.emit()
+        self._attachments=self._attachments[:24]
+        if self.panel: self.panel.paths=list(self._attachments);self.panel.update_context()
+        self.stateChanged.emit()
 
     @Slot(str)
     def set_execution(self, target):
@@ -278,7 +304,10 @@ class SearchController(QObject):
 
     @Slot()
     def clear_attachments(self):
-        if not self.backend.busy:self._attachments=[];self.stateChanged.emit()
+        if not self.backend.busy:
+            self._attachments=[]
+            if self.panel: self.panel.paths=[];self.panel.update_context()
+            self.stateChanged.emit()
 
     @Slot(bool)
     def submit(self, ask=False):
@@ -288,6 +317,9 @@ class SearchController(QObject):
         query = self._query.strip()
         if self._conversation or ask:
             if not query: return
+            if self.panel:
+                self._conversation = True; self.panel.submit(query)
+                self.stateChanged.emit(); self.focusRequested.emit(); return
             if hasattr(self.backend, 'preflight') and not self.backend.preflight(self._attachments): return
             self.cancel_scan(); self._conversation = True; self.last_prompt = query; self._error = ''
             self.set_hint(tr('Gespräch · Antworten und Rückfragen bleiben in dieser Suche.'))
@@ -351,7 +383,7 @@ class SearchController(QObject):
         self._permissions = permissions; self._questions = questions; self.requestsChanged.emit()
 
     def update_sessions(self, sessions):
-        self._sessions = [dict(id='', title=tr('Neues Gespräch'))] + [dict(id=s['id'], title=s.get('title') or tr('Gespräch')) for s in sorted(sessions, key=lambda s: s.get('time', {}).get('updated', 0), reverse=True)]
+        self._sessions = [dict(id='', title=tr('Neues Gespräch'))] + [dict(id=s['id'], title=s.get('title') or tr('Gespräch'), updated=s.get('time', {}).get('updated', 0)) for s in sorted(sessions, key=lambda s: s.get('time', {}).get('updated', 0), reverse=True)]
         if self.backend.session and not any(s['id'] == self.backend.session for s in self._sessions):
             self._sessions.append(dict(id=self.backend.session, title=tr('Aktuelles Gespräch')))
         self.sessionsChanged.emit()
@@ -359,7 +391,11 @@ class SearchController(QObject):
     @Slot(str)
     def select_session(self, identity):
         if self.backend.busy: return
+        if identity != self.backend.session and self.panel and (self.panel.composer.toPlainText().strip() or self.panel.paths):
+            self.show_error(tr('Bitte den Entwurf oder angehängte Dateien zuerst abschließen.')); return
         self.voice.stop(); self._conversation = bool(identity); self._error = ''
+        if self.panel and identity:
+            self.panel.paths=[];self.panel.update_context()
         self.backend.select_session(identity) if identity else self.reset()
         self.stateChanged.emit()
 
@@ -383,19 +419,30 @@ class SearchController(QObject):
     @Slot(bool)
     def set_auto_approve(self, enabled):
         self._auto_approve = enabled; self.settings.setValue('autoApproveTools', enabled); self.settings.sync()
-        self.backend.set_auto_approve(enabled); self.stateChanged.emit()
+        self.backend.set_auto_approve(enabled)
+        if self.panel: self.panel.dont_ask.setChecked(enabled)
+        self.stateChanged.emit()
 
     @Slot(str)
     def set_mode(self, mode):
-        if mode in ('build', 'plan') and not self.backend.busy: self._mode = mode; self.stateChanged.emit()
+        if mode in ('build', 'plan') and not self.backend.busy:
+            self._mode = mode
+            if self.panel: self.panel.mode.setCurrentIndex(self.panel.mode.findData(mode))
+            self.stateChanged.emit()
 
     @Slot(bool)
-    def set_learn(self, enabled): self._learn = enabled; self.stateChanged.emit()
+    def set_learn(self, enabled):
+        self._learn = enabled
+        if self.panel: self.panel.context_tools.learn.setChecked(enabled)
+        self.stateChanged.emit()
 
     @Slot()
     def reset(self):
         if self.backend.busy: return
-        self.voice.stop(); self.backend.new_conversation(); self._conversation = False
+        self.voice.stop()
+        if self.panel: self.panel.new_conversation();self.panel.paths=[];self.panel.update_context()
+        else: self.backend.new_conversation()
+        self._conversation = False
         self._error = ''; self.last_prompt = ''; self._attachments=[]; self.set_query(''); self.search(); self.stateChanged.emit(); self.focusRequested.emit()
 
     @Slot()
@@ -501,4 +548,4 @@ class SearchController(QObject):
         self.debounce.stop(); self.theme_timer.stop(); self.cancel_scan(); self.voice.stop()
         for process in self.scan_jobs[:]: process.kill(); process.waitForFinished(1000)
         if self.memory_job: self.memory_job.cancelled.set(); self.memory_job.wait(3000)
-        self.tracker.interrupt(); self.backend.shutdown()
+        if not self.panel: self.tracker.interrupt(); self.backend.shutdown()

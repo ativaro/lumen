@@ -10,15 +10,16 @@ import stat
 from uuid import uuid4
 from lumen_i18n import tr
 
-LIMIT = 64 * 1024**2
+LIMIT = 2**63 - 1  # Storage metadata uses signed 64-bit sizes; available space remains checked.
 
 
-def relative(value):
+def relative(value, strict=True):
     p = Path(value)
     if (
         p.is_absolute()
         or ".." in p.parts
-        or any(
+        or "\x00" in str(value)
+        or strict and any(
             len(part) > 200
             or part != part.strip()
             or "\\" in part
@@ -37,7 +38,7 @@ def directory(root, path="."):
         st = os.fstat(fd)
         if [st.st_dev, st.st_ino] != root["identity"]:
             raise ValueError(tr("Drive-Ordner wurde ersetzt oder ist nicht verbunden."))
-        for part in relative(path).parts:
+        for part in relative(path, not root.get("native_names")).parts:
             child = os.open(
                 part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd
             )
@@ -54,7 +55,7 @@ def signature(info):
 
 @contextmanager
 def source(root, path):
-    p = relative(path)
+    p = relative(path, not root.get("native_names"))
     with directory(root, p.parent) as fd:
         handle = os.open(p.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
         with os.fdopen(handle, "rb") as stream:
@@ -62,7 +63,7 @@ def source(root, path):
             if not stat.S_ISREG(info.st_mode):
                 raise ValueError(tr("Keine reguläre Drive-Datei."))
             if info.st_size > LIMIT:
-                raise ValueError(tr("Maximal 64 MB pro Datei."))
+                raise ValueError(tr("Ungültige Dateigröße."))
             yield stream
 
 
@@ -137,7 +138,7 @@ def scan(root, cache=None):
                 if blocked:
                     errors.append(
                         item
-                        + tr(" · Nicht synchronisiert (Dateigrenze oder Tresordatei)")
+                        + tr(" · Nicht synchronisiert (Tresordatei oder ungültige Größe)")
                     )
                 if len(files) + len(folders) > 10000:
                     raise ValueError(tr("Maximal 10.000 Einträge pro Drive-Ordner."))
@@ -145,7 +146,7 @@ def scan(root, cache=None):
 
 
 def mkdir(root, path):
-    p = relative(path)
+    p = relative(path, not root.get("native_names"))
     with directory(root, p.parent) as fd:
         try:
             os.mkdir(p.name, 0o700, dir_fd=fd)
@@ -157,7 +158,7 @@ def mkdir(root, path):
 
 def move(root, old, new):
     """renameat2 prevents overwriting a file created between scan and commit."""
-    a, b = relative(old), relative(new)
+    a, b = relative(old, not root.get("native_names")), relative(new, not root.get("native_names"))
     with directory(root, a.parent) as src, directory(root, b.parent) as dst:
         libc = ctypes.CDLL(None, use_errno=True)
         if libc.renameat2(src, os.fsencode(a.name), dst, os.fsencode(b.name), 1):
@@ -170,7 +171,8 @@ def move(root, old, new):
 def capacity(root, needed):
     with directory(root) as fd:
         free = os.fstatvfs(fd)
-        if free.f_bavail * free.f_frsize < needed + 64 * 1024**2:
+        # KIO-FUSE reports zero blocks when the remote capacity is unknown.
+        if free.f_blocks and free.f_bavail * free.f_frsize < needed + 64 * 1024**2:
             raise ValueError(tr("Zu wenig lokaler Speicher. Drive-Abgleich pausiert."))
 
 
@@ -195,7 +197,7 @@ def install(root, path, staged, expected):
 
 
 def remove_empty(root, path):
-    p = relative(path)
+    p = relative(path, not root.get("native_names"))
     with directory(root, p.parent) as fd:
         try:
             os.rmdir(p.name, dir_fd=fd)

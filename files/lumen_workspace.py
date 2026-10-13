@@ -215,11 +215,15 @@ class Indexer(QThread):
 
 
 class Workspace(QObject):
-    def __init__(self, window):
-        super().__init__(window); self.window = window; self.store = window.chat.tracker.store
+    def __init__(self, window, store=None, sections=None):
+        super().__init__(window); self.window = window
+        self.store = store or (window.chat.tracker.store if hasattr(window, 'chat') else Store())
+        self.sections = set(sections or ('tasks', 'flows', 'knowledge', 'models'))
+        self.model_backend = None
         self.store.recover(); self.processes = []; self.indexer = None; self.task_signature = None; self.knowledge_job = None
-        self.tasks_page = self.build_tasks(); self.flows_page = self.build_flows()
-        self.knowledge_page = self.build_knowledge(); self.models_page = self.build_models()
+        for name in self.sections:
+            widget = getattr(self, 'build_' + name)(); widget.setParent(window)
+            setattr(self, name + '_page', widget)
         self.timer = QTimer(self); self.timer.timeout.connect(self.refresh_tasks); self.timer.start(1500)
         self.refresh_tasks(); self.refresh_flows(); self.refresh_knowledge()
 
@@ -231,7 +235,9 @@ class Workspace(QObject):
 
     def build_tasks(self):
         from studio_tasks import build_task_page
-        return build_task_page(self)
+        widget = build_task_page(self)
+        widget.setStyleSheet(Path(__file__).with_name('studio.qss').read_text())
+        return widget
 
     def eventFilter(self, watched, event):
         if watched is getattr(self, 'tasks_page', None) and event.type() == QEvent.Resize:
@@ -240,6 +246,7 @@ class Workspace(QObject):
         return super().eventFilter(watched, event)
 
     def refresh_tasks(self, *_):
+        if 'tasks' not in self.sections: return
         rows = self.store.tasks(include_dismissed=self.show_closed.isChecked())
         query = self.task_search.text().casefold().strip()
         signature = (query, [(r['id'], r['status'], r['updated']) for r in rows])
@@ -269,6 +276,14 @@ class Workspace(QObject):
         self.tasks_empty.setVisible(not rows); self.show_task()
 
     def task_capabilities(self, task):
+        if not hasattr(self.window, 'chat'):
+            if not task['steps']:
+                from lumen_detail_routes import task_capabilities
+                remote = task_capabilities(task['id'])
+                if remote is not None: return remote
+            running = task['status'] in ('running', 'needs_input')
+            return dict(run=task['status'] in ('draft', 'queued', 'paused', 'interrupted', 'failed', 'needs_input'),
+                        pause=running and bool(task['steps']), cancel=task['status'] not in ('completed', 'cancelled') and (not running or bool(task['steps'])))
         tracker = self.window.chat.tracker; backend = tracker.backend
         active = tracker.task_id == task['id'] and backend.busy
         running = task['status'] in ('running', 'needs_input')
@@ -281,7 +296,8 @@ class Workspace(QObject):
         status = task['status'] if task else ''
         self.close_task.setEnabled(status in ('completed', 'cancelled'))
         self.close_task.setText(tr('Löschen') if status == 'cancelled' else tr('Schließen'))
-        for key, control in self.task_buttons.items(): control.setVisible(bool(task) and self.task_capabilities(task)[key])
+        capabilities = self.task_capabilities(task) if task else {}
+        for key, control in self.task_buttons.items(): control.setVisible(bool(task) and capabilities[key])
         self.task_save.setEnabled(bool(task and task['result'])); self.task_save.setVisible(bool(task and task['result']) and status not in ('running', 'needs_input'))
         self.task_reuse.setVisible(bool(task) and status not in ('running', 'needs_input'))
         self.task_outputs.setVisible(bool(task) and status not in ('running', 'needs_input'))
@@ -313,7 +329,7 @@ class Workspace(QObject):
             self.task_result.document().setMarkdown(task['result'] or task['error'] or tr('Noch kein Ergebnis. Auftrag und freigegebene Schritte stehen in den Details.'),
                 QTextDocument.MarkdownFeatures(QTextDocument.MarkdownDialectGitHub | QTextDocument.MarkdownNoHTML))
             from ui_typography import format_document
-            format_document(self.task_result.document(), self.window.settings)
+            format_document(self.task_result.document(), getattr(self.window, 'settings', None))
         events = self.store.events(task['id'])
         content = [tr('Auftrag: ') + task['id'], task['title'], STATES.get(status, status), tr('Arbeitsordner: ') + task['directory'],
                    tr('Freigegebene Ordner: ') + ', '.join(task['roots']),
@@ -323,6 +339,9 @@ class Workspace(QObject):
         self.detail.setPlainText('\n\n'.join(part for part in content if part))
 
     def open_task_conversation(self, task_id=None):
+        if not hasattr(self.window, 'chat'):
+            from lumen_detail_routes import task_action
+            task_action(task_id or selected(self.tasks), 'conversation'); return
         task = self.store.task(task_id or selected(self.tasks)); chat = self.window.chat
         if not task['session']: return
         if task['session'] != chat.backend.session or task['directory'] != chat.backend.directory:
@@ -355,15 +374,18 @@ class Workspace(QObject):
         self.tasks.setCurrentRow(self.tasks.count() - 1)
 
     def new_task(self):
-        dialog = PlanDialog(self.window, {'roots': [self.window.chat.backend.directory]})
+        dialog = PlanDialog(self.window, {'roots': [self.directory()]})
         if dialog.exec():
             value = dialog.value
             task = self.store.create_task(value['name'], prompt=value['prompt'], roots=value['roots'],
                 directory=value['roots'][0], steps=value['steps'], approved=True)
             self.store.event(task, 'approved', tr('Schritte und Ordner im Lumen-Dialog freigegeben.')); self.refresh_tasks()
 
-    def run_task(self):
-        task = self.store.task(selected(self.tasks))
+    def run_task(self, identity=None):
+        task = self.store.task(identity or selected(self.tasks))
+        if not hasattr(self.window, 'chat') and not task['steps']:
+            from lumen_detail_routes import task_action
+            task_action(task['id'], 'run'); return
         if task['status'] in ('completed', 'running', 'cancelled'): raise ValueError(tr('Dieser Auftrag kann nicht fortgesetzt werden.'))
         if not task['approved'] and task['steps']:
             dialog = PlanDialog(self.window, task)
@@ -382,6 +404,15 @@ class Workspace(QObject):
         self.refresh_tasks()
 
     def stop_task(self, state):
+        if not hasattr(self.window, 'chat'):
+            from lumen_detail_routes import task_action
+            task = self.store.task(selected(self.tasks))
+            if not task['steps'] and task['status'] in ('running','needs_input'):
+                task_action(task['id'], 'pause' if state == 'paused' else 'cancel'); return
+            if task['status'] not in ('completed', 'cancelled'):
+                self.store.update_task(task['id'], status=state)
+                self.store.event(task['id'], state, tr('Angefordert. Ein bereits laufender nativer Schritt wird noch beendet.'))
+            self.refresh_tasks(); return
         task = self.store.task(selected(self.tasks)); tracker = self.window.chat.tracker
         if task['status'] in ('completed', 'cancelled'): return
         if not self.task_capabilities(task)['pause' if state == 'paused' else 'cancel']:
@@ -401,7 +432,7 @@ class Workspace(QObject):
             if code and output: QMessageBox.warning(self.window, tr('Auftrag fehlgeschlagen'), output[-2000:])
             self.processes.remove(process); process.deleteLater(); self.refresh_tasks()
         process.finished.connect(done)
-        process.errorOccurred.connect(lambda _: self.window.chat.show_error(tr('Auftragsprozess konnte nicht gestartet werden.')))
+        process.errorOccurred.connect(lambda _: QMessageBox.warning(self.window, 'Lumen', tr('Auftragsprozess konnte nicht gestartet werden.')))
         process.start(sys.executable, args)
 
     def task_to_file_action(self, task_id=None):
@@ -460,7 +491,7 @@ class Workspace(QObject):
         return widget
 
     def flow_dialog(self, task=None, workflow=None):
-        dialog = PlanDialog(self.window, task or {'roots': [self.window.chat.backend.directory]}, workflow=True)
+        dialog = PlanDialog(self.window, task or {'roots': [self.directory()]}, workflow=True)
         if dialog.exec():
             self.store.save_workflow(**dialog.value, workflow=workflow); self.refresh_flows()
 
@@ -468,6 +499,7 @@ class Workspace(QObject):
         flow = selected(self.flows); self.flow_dialog(flow, workflow=flow['id'])
 
     def refresh_flows(self):
+        if 'flows' not in self.sections: return
         current = self.flows.currentItem().data(Qt.UserRole)['id'] if self.flows.currentItem() else None
         self.flows.clear()
         for flow in self.store.workflows():
@@ -506,6 +538,10 @@ class Workspace(QObject):
         if not flow['approved']: raise PermissionError(tr('Ablauf ist nicht freigegeben. Neu speichern.'))
         task = self.store.create_task(flow['name'], prompt=flow['prompt'], directory=flow['roots'][0], roots=flow['roots'], steps=flow['steps'], approved=True)
         self.store.event(task, 'workflow', flow['id']); self.refresh_tasks()
+        if 'tasks' not in self.sections:
+            self.run_task(task)
+            from lumen_detail_routes import open_tasks
+            open_tasks(task); return
         for i in range(self.tasks.count()):
             if self.tasks.item(i).data(Qt.UserRole) == task: self.tasks.setCurrentRow(i)
         self.window.show_page(4); self.run_task()
@@ -527,30 +563,16 @@ class Workspace(QObject):
     def tick(self): self.start_process([str(Path(__file__).with_name('lumen_tasks.py')), '--tick'])
 
     def build_knowledge(self):
-        widget, box = page(tr('Lumen Wissen'), tr('Deine Gedanken und Lumens Gedächtnis — verbunden, mit getrennten Freigaben.'))
+        widget, box = page(tr('Dokumentquellen'), tr('Freigegebene Ordner durchsuchen und ausgewählte Quellen im Gespräch verwenden.'))
         box.setContentsMargins(24, 20, 24, 16); box.setSpacing(16)
-        row = QHBoxLayout()
-        for area, title, description in [
-            ('user', tr('Meine Notizen'), tr('Schreiben, sammeln und verknüpfen. Du bestimmst, welche Notizen Lumen lesen darf.')),
-            ('lumen', tr('Lumen-Gedächtnis'), tr('Erinnerungen prüfen, korrigieren und vergessen. Hier steuerst du, was Lumen behält.'))]:
-            card = QFrame(); card.setObjectName('knowledgeCard')
-            card.setStyleSheet('QFrame#knowledgeCard { background: palette(base); border: 1px solid palette(mid); border-radius: 16px; }')
-            layout = QVBoxLayout(card); layout.setContentsMargins(20, 20, 20, 20); layout.setSpacing(14)
-            heading = QLabel(title); heading.setObjectName('heading'); layout.addWidget(heading)
-            text = QLabel(description); text.setWordWrap(True); layout.addWidget(text); layout.addStretch()
-            open_button = QPushButton(tr('Öffnen')); open_button.setAccessibleName(title + ' · ' + tr('Öffnen'))
-            open_button.clicked.connect(self.guarded(lambda target=area: self.open_notebook(area=target))); layout.addWidget(open_button)
-            row.addWidget(card)
-        box.addLayout(row)
         self.knowledge_status = QLabel(); self.knowledge_status.setWordWrap(True); self.knowledge_status.setObjectName('muted'); box.addWidget(self.knowledge_status)
-        tabs = QTabWidget(); sources = QWidget(); source_box = QVBoxLayout(sources)
-        tabs.addTab(sources, tr('Dokumentquellen')); box.addWidget(tabs, 1)
+        source_box = box
         info = QLabel(tr('Nur ausgewählte Ordner werden lokal indexiert. Quellen werden erst mit „Im Gespräch verwenden“ an das gewählte Modell übergeben.')); info.setWordWrap(True); source_box.addWidget(info)
-        self.roots = QListWidget(); self.roots.setMaximumHeight(85); self.roots.setAccessibleName(tr('Wissensordner')); source_box.addWidget(self.roots)
+        self.roots = QListWidget(); self.roots.setMaximumHeight(85); self.roots.setAccessibleName(tr('Notizordner')); source_box.addWidget(self.roots)
         buttons(source_box, [(tr('Ordner aufnehmen'), self.guarded(self.add_knowledge)), (tr('Neu indexieren'), self.guarded(lambda: self.start_index(selected(self.roots)))),
                       (tr('Freigabe entfernen'), self.guarded(self.remove_knowledge)), (tr('Indexierung stoppen'), self.cancel_index)])
         self.index_status = QLabel(); self.index_status.setWordWrap(True); source_box.addWidget(self.index_status)
-        self.query = QLineEdit(); self.query.setPlaceholderText(tr('Dokumente durchsuchen …')); self.query.setAccessibleName(tr('Wissenssuche'))
+        self.query = QLineEdit(); self.query.setPlaceholderText(tr('Dokumente durchsuchen …')); self.query.setAccessibleName(tr('Notizsuche'))
         self.query.returnPressed.connect(self.guarded(self.search)); source_box.addWidget(self.query)
         self.results = QListWidget(); self.results.setAccessibleName(tr('Dokumente mit Quellen')); source_box.addWidget(self.results, 1)
         buttons(source_box, [(tr('Suchen'), self.guarded(self.search)), (tr('Quelle öffnen'), self.guarded(self.open_source)),
@@ -558,6 +580,7 @@ class Workspace(QObject):
         return widget
 
     def refresh_knowledge(self):
+        if 'knowledge' not in self.sections: return
         self.roots.clear()
         for row in self.store.rows('SELECT * FROM roots ORDER BY path'): add_item(self.roots, row['path'], row['path'])
         notebook = self.store.setting('knowledge/notebook', '')
@@ -566,13 +589,18 @@ class Workspace(QObject):
     def knowledge_work(self,action,done,**values):
         from tools_ui import Job
         from wissen_data import worker
-        if self.knowledge_job:raise ValueError(tr('Den laufenden Wissensvorgang kurz abwarten.'))
+        if self.knowledge_job:raise ValueError(tr('Den laufenden Notizvorgang kurz abwarten.'))
         job=Job(lambda job:worker(job,self.store,action,**values),self);self.knowledge_job=job;results=[]
-        self.index_status.setText(tr('Wissensordner wird verarbeitet …'))
+        if not hasattr(self, 'index_status'):
+            self.index_status = getattr(self.window, 'status', None)
+            if self.index_status is None:
+                self.index_status = QLabel(self.tasks_page)
+                self.tasks_page.layout().addWidget(self.index_status)
+        self.index_status.setText(tr('Notizordner wird verarbeitet …'))
         job.result.connect(results.append);job.failed.connect(lambda message:self.index_status.setText(message))
         def finished():
             self.knowledge_job=None;job.deleteLater()
-            if results and not job.cancelled.is_set():self.index_status.setText(tr('Wissensordner aktualisiert.'));self.guarded(lambda:done(results[0]))()
+            if results and not job.cancelled.is_set():self.index_status.setText(tr('Notizordner aktualisiert.'));self.guarded(lambda:done(results[0]))()
         job.finished.connect(finished);job.start()
 
     def open_notebook(self, area='user'):
@@ -580,7 +608,7 @@ class Workspace(QObject):
         launch('wissen', area=area)
 
     def add_knowledge(self):
-        root = QFileDialog.getExistingDirectory(self.window, tr('Wissensordner freigeben'))
+        root = QFileDialog.getExistingDirectory(self.window, tr('Notizordner freigeben'))
         if root: self.start_index(root)
 
     def start_index(self, root):
@@ -608,6 +636,10 @@ class Workspace(QObject):
         self.to_chat(tr('Quelle: {0} (Seite {1})\nAuszug: {2}\n\n', row['path'], row['page'], row['snippet']), [row['path']])
 
     def to_chat(self, text, paths=None):
+        if not hasattr(self.window, 'chat'):
+            from lumen_detail_routes import launch
+            launch('lumen-agent-app', ['--prompt', text] + [arg for p in paths or [] for arg in ('--file', p)])
+            return
         if self.window.chat.backend.busy: raise ValueError(tr('Bitte den laufenden Auftrag zuerst pausieren.'))
         self.window.chat.begin_context(paths=paths or [])
         self.window.chat.composer.setPlainText(text); self.window.show_page(0)
@@ -628,7 +660,12 @@ class Workspace(QObject):
         buttons(box, [(tr('Verfügbare Modelle laden'), self.load_models), (tr('Speichern'), self.guarded(self.save_models))]); box.addStretch(); return widget
 
     def load_models(self):
-        backend = self.window.chat.backend
+        if hasattr(self.window, 'chat'): backend = self.window.chat.backend
+        else:
+            if self.model_backend is None:
+                from desktop_backend import DesktopBackend
+                self.model_backend = DesktopBackend(self.directory(), self)
+            backend = self.model_backend
         def loaded(data):
             names = [p['id'] + '/' + model for p in data.get('providers', []) for model in p.get('models', {})]
             for control in self.model_controls.values():
@@ -641,8 +678,11 @@ class Workspace(QObject):
         policy.update({key: c.currentText().strip() for key,c in self.model_controls.items()})
         if self.privacy.currentData() == 'local' and '/' not in policy['local_model']: raise ValueError(tr('Lokales Modell als anbieter/modell auswählen.'))
         policy.update(privacy=self.privacy.currentData(),timeout_seconds=self.timeout.value()*60,gpu_limit=self.gpu.value(),pause_background=self.pause_background.isChecked())
+        from PySide6.QtCore import QSettings
+        settings = self.window.chat.settings if hasattr(self.window, 'chat') else getattr(self.window, 'assistant', None) or QSettings('Lumen', 'Assistant')
+        if hasattr(self.window, 'preferencesChanged'): self.window.save(settings, {'model': policy['model']})
+        else: settings.setValue('model', policy['model']); settings.sync()
         self.store.set_setting('modelPolicy',policy)
-        self.window.chat.settings.setValue('model', policy['model']); self.window.chat.settings.sync()
         self.model_status.setText(tr('Gespeichert. Die Richtlinie gilt ab dem nächsten Auftrag.'))
 
     def can_close(self):
@@ -655,3 +695,12 @@ class Workspace(QObject):
             self.knowledge_job.cancelled.set();self.knowledge_job.wait(3000)
             if self.knowledge_job.isRunning():return False
         return True
+
+    def directory(self):
+        if hasattr(self.window, 'chat'): return self.window.chat.backend.directory
+        from PySide6.QtCore import QSettings
+        return QSettings('Lumen', 'Assistant').value('workdir', str(Path.home()))
+
+    def shutdown(self):
+        self.timer.stop()
+        if self.model_backend is not None: self.model_backend.shutdown()

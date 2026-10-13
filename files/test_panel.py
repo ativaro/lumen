@@ -101,8 +101,8 @@ class PanelTest(unittest.TestCase):
         from lumen_apps import catalogue
         from unittest.mock import patch
         self.assertEqual({a['id'] for a in applications()}, {a[0] for a in catalogue()})
-        for app in applications():
-            with patch('sys.argv', ['lumen-panel','--open-app',app['id']]), patch('lumen_panel.subprocess.Popen') as start:
+        for key, *_ in catalogue(include_utilities=True):
+            with patch('sys.argv', ['lumen-panel','--open-app',key]), patch('lumen_panel.subprocess.Popen') as start:
                 main()
                 self.assertTrue(Path(start.call_args.args[0][0]).is_file())
                 self.assertNotIn('shell',start.call_args.kwargs)

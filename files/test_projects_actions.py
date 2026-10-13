@@ -119,7 +119,8 @@ class ProjectActionsTest(unittest.TestCase):
         config=self.root/'config'
         result=subprocess.run([str(script.with_name('lumen-setup'))],env=dict(os.environ,OPENCODE_HOME=str(config)),capture_output=True,text=True)
         self.assertEqual(result.returncode,0,result.stderr)
-        self.assertIn('lumen_project_start',(config/'skill/lumen-projects/SKILL.md').read_text())
+        skill = next((config/name/'lumen-projects/SKILL.md' for name in ('skills','skill') if (config/name/'lumen-projects/SKILL.md').is_file()), None)
+        self.assertIsNotNone(skill); self.assertIn('lumen_project_start',skill.read_text())
 
 
 if __name__=='__main__':unittest.main()

@@ -188,7 +188,7 @@ class Drive(QDialog):
             if self.initial_offline:
                 self.initial_offline = False
                 QTimer.singleShot(100, self.configure)
-            self.status.setText(tr("Aktueller Drive-Bestand · Dateien bis 64 MB"))
+            self.status.setText(tr("Aktueller Drive-Bestand"))
 
         self.work(lambda _: sync.inventory(self.config, workspace), done)
 

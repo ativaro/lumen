@@ -28,13 +28,13 @@ class AppCenterTest(unittest.TestCase):
         with self.assertRaises(ValueError): launch('files', area='lumen')
         with self.assertRaises(ValueError): launch('not-an-app')
 
-    def test_companion_is_findable_and_launchable_by_its_app_name(self):
+    def test_companion_keeps_legacy_route_without_redundant_tile(self):
         center = AppCenter(); self.addCleanup(center.close)
         center.search.setText('Companion')
         cards = [card for card, _ in center.cards if not card.isHidden()]
-        self.assertEqual(len(cards), 1)
+        self.assertEqual(len(cards), 0)
         with patch('lumen_apps.QProcess.startDetached', return_value=(True, 42)) as start:
-            cards[0].findChildren(QPushButton)[0].click()
+            launch('companion')
             self.assertTrue(start.call_args.args[0].endswith('/lumen-companion'))
             self.assertEqual(start.call_args.args[1], [])
 
@@ -47,7 +47,8 @@ class AppCenterTest(unittest.TestCase):
             prefs = QSettings(tmp+'/assistant.ini', QSettings.IniFormat)
             files = QSettings(tmp+'/files.ini', QSettings.IniFormat)
             dialog = SettingsDialog(assistant_settings=prefs, files_settings=files, application='inbox', load_system=False)
-            self.assertEqual(set(dialog.app_pages), {item[0] for item in catalogue()})
+            self.assertEqual(set(dialog.app_pages), {item[0] for item in catalogue(include_utilities=True)})
+            self.assertEqual(dialog.app_pages['search'], dialog.app_pages['lumen'])
             self.assertEqual(dialog.stack.currentIndex(), dialog.app_pages['inbox'])
             self.assertEqual(dialog.nav.currentRow(), 3)
             self.assertTrue(startup_preference('inbox', 'restoreSelection', prefs))

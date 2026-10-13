@@ -8,6 +8,20 @@ from lumen_notifications import change, publish, snapshot
 
 
 class NotificationTest(unittest.TestCase):
+    def test_notes_name_preserves_existing_notification_identity_and_mute(self):
+        from lumen_notifications import database, set_preference
+
+        with tempfile.TemporaryDirectory() as directory, patch("lumen_notifications.toast"):
+            path = Path(directory) / "notifications.sqlite3"
+            first = publish("Lumen Wissen", "sync", "Synthetic notice", path=path)
+            self.assertEqual(snapshot(path=path, wake=False)["items"][0]["source"], "Lumen Notes")
+            second = publish("Lumen Wissen", "sync", "Synthetic notice", revision=2, path=path)
+            self.assertEqual(first, second)
+            set_preference("Lumen Wissen", "muted", path=path)
+            self.assertEqual(snapshot(path=path, wake=False)["items"], [])
+            with database(path) as db:
+                self.assertEqual(db.execute("SELECT source FROM notifications").fetchone()["source"], "Lumen Wissen")
+
     def test_game_context_and_restoration_receipt_precedes_tray_change(self):
         import json
         import subprocess

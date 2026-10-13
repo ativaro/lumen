@@ -50,10 +50,11 @@ class FrameGate:
 
 
 class Companion(QWidget):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, parent=None, leave=None):
+        super().__init__(parent)
+        self.leave = leave
         self.setWindowTitle('Lumen Companion'); self.setWindowIcon(QIcon.fromTheme('lumen'))
-        self.setWindowFlag(Qt.WindowStaysOnTopHint)
+        if parent is None: self.setWindowFlag(Qt.WindowStaysOnTopHint)
         self.resize(460, 820); self.setMinimumSize(420, 720)
         from ui_typography import font
         compact_font = font(); compact_font.setPixelSize(14); self.setFont(compact_font)
@@ -71,7 +72,10 @@ class Companion(QWidget):
         layout = QVBoxLayout(self); layout.setContentsMargins(22, 18, 22, 18); layout.setSpacing(12)
         header = QHBoxLayout(); layout.addLayout(header)
         title = QLabel(tr('An deiner Seite')); title.setObjectName('guideTitle'); header.addWidget(title); header.addStretch()
-        self.end = QPushButton(tr('Beenden')); self.end.clicked.connect(self.close); header.addWidget(self.end)
+        self.end = QPushButton(tr('Zurück zu Lumen') if leave else tr('Beenden'))
+        self.end.clicked.connect(self.leave_help); header.addWidget(self.end)
+        self.history = QCheckBox(tr('Gespräch anzeigen')); self.history.toggled.connect(self.render_answer)
+        layout.addWidget(self.history)
         caption = QLabel(tr('Ein Fenster. Dein Ziel. Schritt für Schritt.')); caption.setWordWrap(True); layout.addWidget(caption)
         self.choose = QPushButton(QIcon.fromTheme('window'), tr('Fenster auswählen'))
         self.choose.clicked.connect(self.select); layout.addWidget(self.choose)
@@ -126,6 +130,18 @@ class Companion(QWidget):
         self.pause_button.setEnabled(bool(self.target) or busy)
         self.pause_button.setText(tr('Pause') if self.active or busy else tr('Fortsetzen'))
         self.approve.setEnabled(bool(self.png) and not busy)
+
+    def leave_help(self):
+        if self.leave:
+            self.pause(); self.leave()
+        else: self.close()
+
+    def render_answer(self):
+        from search_document import message_rows, render
+        rows, last = message_rows(self.backend.messages)
+        if self.history.isChecked():
+            self.answer.setHtml(''.join(render(('### '+(tr('Du') if row['role']=='user' else 'Lumen')+'\n\n'+row['text'])) for row in rows))
+        elif last: self.answer.setHtml(render(last))
 
     def run_worker(self, mode, callback):
         generation = self.generation
@@ -218,6 +234,7 @@ class Companion(QWidget):
         if success:
             from search_document import render
             self.answer.setHtml(render(answer))
+            if self.history.isChecked(): self.render_answer()
             self.status.setText(tr('Dein nächster Schritt · du bedienst das Fenster'))
             if self.auto.isChecked(): self.timer.start()
         else:

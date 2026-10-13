@@ -49,26 +49,7 @@ def parse(path):
     return space, folder
 
 
-def resolve(config, addresses):
-    """Resolve clipboard URLs through the authenticated server, not clipboard metadata."""
-    inventories = {}
-    result = []
-    for address in addresses:
-        url = urlsplit(address)
-        space = str(UUID(url.netloc))
-        if not is_drive(address) or url.query or url.fragment:
-            raise ValueError(tr("Ungültige Drive-Adresse."))
-        if space not in inventories:
-            inventories[space] = sync.inventory(config, space)
-        cache = inventories[space]
-        parts = url.path.strip("/").split("/")
-        kind = "file" if len(parts) == 3 and parts[0] == "file" else "folder"
-        key = str(UUID(parts[1] if kind == "file" else parts[0]))
-        row = cache["files" if kind == "file" else "folders"].get(key)
-        if not row or row["trashed"]:
-            raise ValueError(tr("Drive-Eintrag nicht mehr verfügbar."))
-        result.append((space, kind, row))
-    return result
+from drive_transfers import resolve
 
 
 class Browser(QObject):
@@ -195,7 +176,7 @@ class Browser(QObject):
                 w.activity.setText(tr("Drive-Ordner nicht mehr verfügbar."))
                 return
             self.render()
-            w.activity.setText(tr("Auf dem Server · Dateien bis 64 MB"))
+            w.activity.setText(tr("Auf dem Server"))
             w.disk_label.setText(QUrl(self.config["server"]).host() + "\nLumen Drive")
 
         self.work(load, done)
@@ -440,7 +421,7 @@ class Browser(QObject):
             for path, item in files:
                 local.relative(path)
                 if item["size"] > local.LIMIT:
-                    raise ValueError(tr("Maximal 64 MB pro Datei."))
+                    raise ValueError(tr("Ungültige Dateigröße."))
             for path in sorted(folders, key=lambda p: len(Path(p).parts)):
                 job.check()
                 local.mkdir(root, path)
@@ -451,13 +432,14 @@ class Browser(QObject):
             outputs.append(str(Path(target) / name))
         return outputs
 
+    def queue(self, action, paths, target, config, space=None, folder=None, previous=None):
+        from transfer_panel import panel
+        if not paths: return
+        panel(self.window).enqueue(action, paths, target, drive=dict(scope=sync.scope(config), space=space,
+                                                                  folder=folder, previous=previous or {}))
+
     def download(self, paths, target):
-        config = lumen_connect.read_config()
-        self.work(
-            lambda job: self.download_into(config, paths, target, job),
-            lambda _: self.window.activity.setText(tr("Drive-Dateien heruntergeladen")),
-            current=False,
-        )
+        self.queue('drive-download', paths, target, lumen_connect.read_config())
 
     def paste(self, mime=None, target=None):
         mime = mime if mime is not None else QApplication.clipboard().mimeData()
@@ -479,14 +461,11 @@ class Browser(QObject):
                         self.window.error(tr("Zuerst einen Drive-Bereich öffnen."))
                         return True
 
+                if not cut:
+                    self.queue('drive-copy', remote, location(space, folder), config, space, folder)
+                    return True
+
                 def run(job):
-                    if not cut:
-                        with tempfile.TemporaryDirectory(
-                            prefix="lumen-drive-copy-"
-                        ) as tmp:
-                            paths = self.download_into(config, remote, tmp, job)
-                            self.upload_entries(config, paths, space, folder, {}, job)
-                        return
                     for source_space, kind, row in resolve(config, remote):
                         job.check()
                         if source_space != space:
@@ -560,58 +539,6 @@ class Browser(QObject):
             ),
         )
 
-    def upload_entries(self, config, paths, space, folder, previous, job):
-        for value in paths:
-            job.check()
-            path = Path(value)
-            if path.is_symlink():
-                raise ValueError(tr("Symbolische Ordner nicht verwenden."))
-            if path.is_dir():
-                root = self.root(path)
-                files, folders, errors = local.scan(root)
-                if errors:
-                    raise ValueError("\n".join(errors))
-                mapping = {}
-
-                def create(name, parent):
-                    return sync.request(
-                        config,
-                        "/folders?" + urlencode(dict(workspace=space)),
-                        dict(id=str(uuid4()), name=name, parent_id=parent),
-                    )["id"]
-
-                mapping["."] = create(valid_name(path.name), folder)
-                for name in sorted(folders, key=lambda p: len(Path(p).parts)):
-                    mapping[name] = create(
-                        Path(name).name, mapping[str(Path(name).parent)]
-                    )
-                for name, item in files.items():
-                    job.check()
-                    transport.upload(
-                        config,
-                        root,
-                        name,
-                        space,
-                        mapping[str(Path(name).parent)],
-                        str(uuid4()),
-                        item["hash"],
-                        None,
-                        self.progress(job),
-                    )
-            else:
-                root = self.root(path.parent)
-                transport.upload(
-                    config,
-                    root,
-                    path.name,
-                    space,
-                    folder,
-                    str(uuid4()),
-                    local.checksum(root, path.name),
-                    previous.get(value),
-                    self.progress(job),
-                )
-
     def upload(self, paths, folder=None):
         if not paths or not self.writable():
             return
@@ -644,11 +571,7 @@ class Browser(QObject):
                 continue
             uploads.append(path)
             previous[path] = old
-        self.mutation(
-            lambda job: self.upload_entries(
-                config, uploads, space, target, previous, job
-            )
-        )
+        self.queue('drive-upload', uploads, location(space, target), config, space, target, previous)
 
     def mkdir(self):
         if not self.writable():

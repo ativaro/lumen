@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (QWidget,QFrame,QVBoxLayout,QHBoxLayout,QGridLayou
     QDialog,QDialogButtonBox,QListWidget,QListWidgetItem,QMessageBox,QFormLayout)
 from lumen_i18n import tr
 from lumen_workplace import text,button,row,table,fill,date
-from file_spaces import Catalog
+from file_spaces import Catalog, LIBRARY
 from network import is_network_address
 from interop_data import Registry
 import lumen_projects as projects
@@ -45,9 +45,10 @@ class Rooms(QWidget):
         self.stack=QStackedWidget();root.addWidget(self.stack)
         home,home_box=scroll();self.home_box=home_box;self.stack.addWidget(home)
         self.detail=QWidget();detail=QVBoxLayout(self.detail);detail.setContentsMargins(0,0,0,0);detail.setSpacing(17)
-        top=QHBoxLayout();top.addWidget(button(tr('‹ Alle Arbeitsräume'),self.home));top.addStretch()
-        self.resume_button=button(tr('Weiterarbeiten'),page.resume,True);top.addWidget(self.resume_button)
-        edit=button(tr('Raum bearbeiten'),page.edit_project);top.addWidget(edit);detail.addLayout(top)
+        top=QHBoxLayout();top.addWidget(button(tr('‹ Alle Projekte'),self.home));top.addStretch()
+        self.resume_button=button(tr('Arbeitsstand laden'),page.resume);top.addWidget(self.resume_button)
+        self.resume_button.setToolTip(tr('Gespeicherte Tabs und Gespräch wiederherstellen sowie eingerichtete Programme und Webseiten öffnen.'))
+        edit=button(tr('Projektumgebung bearbeiten'),page.edit_project);top.addWidget(edit);detail.addLayout(top)
         self.title=text('','roomHeading');detail.addWidget(self.title)
         self.tabs=QTabWidget();detail.addWidget(self.tabs,1)
         board,board_box=scroll();self.board_box=board_box;self.tabs.addTab(board,tr('Werkbank'))
@@ -63,10 +64,16 @@ class Rooms(QWidget):
         self.history=table([tr('Änderung'),tr('Wann')]);self.tabs.addTab(self.history,tr('Verlauf'))
         from server_workspace import ServerWorkspace
         self.server_workspace=ServerWorkspace(self);self.tabs.addTab(self.server_workspace,tr('Server'))
+        self.household_page=QWidget();self.household=None
+        self.tabs.addTab(self.household_page,tr('Geräte & Verträge').replace('&','&&'))
+        self.tabs.currentChanged.connect(self.household_selected)
         self.tabs.currentChanged.connect(lambda i:page.scan() if i==1 else None)
-        composer=QHBoxLayout();self.prompt=QLineEdit();self.prompt.setObjectName('roomComposer');self.prompt.setPlaceholderText(tr('Lumen zu diesem Arbeitsraum fragen …'));self.prompt.setAccessibleName(tr('Frage zum Arbeitsraum'));composer.addWidget(self.prompt,1)
-        send=button(tr('Besprechen →'),lambda:self.page.guard(self.discuss));send.setToolTip(tr('Als Entwurf in Lumen öffnen'));self.prompt.returnPressed.connect(send.click);composer.addWidget(send);detail.addLayout(composer)
-        row(detail,[(tr('Aktuellen Stand merken'),self.page.capture),(tr('Arbeitsmodi in Lumen System'),self.page.open_modes)])
+        self.room_footer=QWidget();detail.addWidget(self.room_footer)
+        footer=QVBoxLayout(self.room_footer);footer.setContentsMargins(0,0,0,0)
+        footer.addWidget(text(tr('Besprechen öffnet einen Gesprächsentwurf mit den Quellen dieses Projekts.'),'muted'))
+        composer=QHBoxLayout();self.prompt=QLineEdit();self.prompt.setObjectName('roomComposer');self.prompt.setPlaceholderText(tr('Lumen zu diesem Projekt fragen …'));self.prompt.setAccessibleName(tr('Frage zum Projekt'));composer.addWidget(self.prompt,1)
+        send=button(tr('Besprechen →'),lambda:self.page.guard(self.discuss));send.setToolTip(tr('Als Entwurf in Lumen öffnen'));self.prompt.returnPressed.connect(send.click);composer.addWidget(send);footer.addLayout(composer)
+        row(footer,[(tr('Aktuellen Stand merken'),self.page.capture),(tr('Arbeitsmodi in Lumen System'),self.page.open_modes)])
         self.stack.addWidget(self.detail)
         self.setStyleSheet('''QWidget#rooms { background: transparent; }
             QWidget#rooms QLabel { font-size: 13px; }
@@ -88,8 +95,33 @@ class Rooms(QWidget):
     def home(self):
         self.stack.setCurrentIndex(0);self.render_home()
 
+    def household_selected(self, index):
+        self.room_footer.setVisible(self.tabs.widget(index) != self.household_page)
+        if self.tabs.widget(index) != self.household_page: return
+        self.page.guard(lambda:self.open_household())
+
+    def open_household(self, all_rooms=False):
+        if self.household is None:
+            from household_workspace import HouseholdRoom
+            self.household=HouseholdRoom()
+            self.household.revealRequested.connect(self.reveal_household)
+            layout=QVBoxLayout(self.household_page);layout.setContentsMargins(0,0,0,0)
+            layout.addWidget(self.household)
+        self.household.set_room('' if all_rooms else (self.page.project or {}).get('id',''),self.values)
+        if all_rooms: self.title.setText(tr('Geräte & Verträge · alle Projekte'))
+        self.reveal_household()
+
+    def reveal_household(self):
+        self.stack.setCurrentIndex(1);self.room_footer.hide()
+        self.tabs.blockSignals(True);self.tabs.setCurrentWidget(self.household_page);self.tabs.blockSignals(False)
+
+    def can_close(self):
+        return self.household is None or self.household.can_close()
+
     def open(self,identity):
-        if (self.page.project or {}).get('id')!=identity:self.prompt.clear()
+        if not self.can_close(): return
+        if (self.page.project or {}).get('id')!=identity and self.prompt.text().strip():
+            self.page.status.setText(tr('Bitte das Projekt-Entwurf zuerst abschließen.'));return
         self.page.select_project(identity);self.stack.setCurrentIndex(1);self.tabs.setCurrentIndex(0)
         self.server_workspace.set_room(identity)
         self.page.store.set_setting('workplace/last',identity)
@@ -104,12 +136,13 @@ class Rooms(QWidget):
 
     def render_home(self):
         box=self.home_box;clear(box)
-        top=QHBoxLayout();top.addLayout(heading(tr('Wo möchtest du weitermachen?'),tr('Ein Raum hält zusammen, was zu einer Sache gehört.')),1)
-        top.addWidget(button(tr('+ Neuer Raum'),lambda:self.page.edit_project(new=True)));box.addLayout(top)
+        top=QHBoxLayout();top.addLayout(heading(tr('Wo möchtest du weitermachen?'),tr('Ein Projekt hält zusammen, was zu einer Sache gehört.')),1)
+        top.addWidget(button(tr('+ Neues Projekt'),lambda:self.page.edit_project(new=True)));box.addLayout(top)
+        box.addWidget(button(tr('Geräte & Verträge').replace('&','&&'),lambda:self.page.guard(lambda:self.open_household(all_rooms=True))),0,Qt.AlignLeft)
         if not self.values:
-            item,content=card(hero=True);content.addWidget(text(tr('Dein erster Arbeitsraum'),'roomTitle'))
+            item,content=card(hero=True);content.addWidget(text(tr('Dein erstes Projekt'),'roomTitle'))
             content.addWidget(text(tr('Gib ihm einen Namen und wähle einen Ordner. Dateien, Notizen und Gespräche kannst du danach anheften.'),'muted'))
-            content.addWidget(button(tr('Arbeitsraum anlegen'),lambda:self.page.edit_project(new=True),True),0,Qt.AlignLeft)
+            content.addWidget(button(tr('Projekt anlegen'),lambda:self.page.edit_project(new=True),True),0,Qt.AlignLeft)
             box.addWidget(item);box.addStretch();return
         last=self.page.store.setting('workplace/last','')
         featured=next((p for p in self.values if p['id']==last),max(self.values,key=lambda p:p.get('updated',0)))
@@ -117,7 +150,7 @@ class Rooms(QWidget):
         horizontal=QHBoxLayout();left=QVBoxLayout();left.setSpacing(14)
         left.addWidget(text(featured['name'],'roomTitle'));left.addWidget(text(featured.get('note') or tr('Deine Unterlagen und dein letzter Arbeitsstand warten hier.'),'muted'))
         left.addWidget(text(self.source_summary(featured),'muted'))
-        actions=QHBoxLayout();actions.addWidget(button(tr('Weiterarbeiten →'),lambda:self.resume(featured),True));actions.addWidget(button(tr('Raum ansehen'),lambda:self.open(featured['id'])));actions.addStretch();left.addLayout(actions)
+        actions=QHBoxLayout();actions.addWidget(button(tr('Weiterarbeiten →'),lambda:self.open(featured['id']),True));actions.addWidget(button(tr('Ordner öffnen'),lambda:self.open_folder(featured)));actions.addStretch();left.addLayout(actions)
         horizontal.addLayout(left,3);right=QVBoxLayout();right.setSpacing(9);right.addWidget(text(tr('DEIN ARBEITSSTAND'),'eyebrow'))
         pins=featured.get('pins',[])[:3]
         for pin in pins:self.pin_row(right,pin)
@@ -125,32 +158,35 @@ class Rooms(QWidget):
             for source in featured.get('sources',[])[:3]:
                 b=button(source['label'],lambda _=False,s=source:self.page.guard(lambda:self.page.files(True).navigate(s['location'])))
                 b.setIcon(QIcon.fromTheme('folder'));b.setToolTip(source['location']);right.addWidget(b)
-        if featured.get('state',{}).get('chat',{}).get('session'):right.addWidget(text(tr('Letztes Gespräch beim Weiterarbeiten verfügbar.'),'muted'))
+        if featured.get('state',{}).get('chat',{}).get('session'):right.addWidget(text(tr('Gespeichertes Gespräch im Projekt verfügbar.'),'muted'))
         right.addStretch();horizontal.addLayout(right,2);hero.addLayout(horizontal);box.addWidget(item)
-        header=QHBoxLayout();header.addWidget(text(tr('Weitere Arbeitsräume'),'roomSection'));header.addStretch()
+        header=QHBoxLayout();header.addWidget(text(tr('Weitere Projekte'),'roomSection'));header.addStretch()
         others=[p for p in self.values if p['id']!=featured['id']]
-        if len(others)>6:header.addWidget(button(tr('Weniger anzeigen') if self.expanded else tr('Alle Räume'),self.more))
+        if len(others)>6:header.addWidget(button(tr('Weniger anzeigen') if self.expanded else tr('Alle Projekte'),self.more))
         box.addLayout(header);grid=QGridLayout();grid.setSpacing(15);cols=3 if self.width()>=1000 else 2 if self.width()>=650 else 1
         for i,project in enumerate(others if self.expanded else others[:6]):
             item,content=card();content.addWidget(text(project['name'],'roomSection'));content.addWidget(text((project.get('note') or tr('Noch keinen nächsten Schritt festgehalten.'))[:180],'muted'))
             content.addWidget(text(self.source_summary(project),'muted'));content.addStretch()
-            content.addWidget(button(tr('Raum öffnen →'),lambda _=False,p=project:self.open(p['id'])));grid.addWidget(item,i//cols,i%cols)
+            content.addWidget(button(tr('Weiterarbeiten →'),lambda _=False,p=project:self.open(p['id'])))
+            content.addWidget(button(tr('Ordner öffnen'),lambda _=False,p=project:self.open_folder(p)));grid.addWidget(item,i//cols,i%cols)
         box.addLayout(grid)
         foot=QHBoxLayout();foot.addWidget(text(tr('Transfers und Änderungen bleiben unter „Aktivität“ erreichbar.'),'muted'));foot.addStretch();foot.addWidget(button(tr('Aktivität ansehen →'),lambda:self.page.tabs.setCurrentIndex(1)));box.addLayout(foot);box.addStretch()
 
     def more(self):self.expanded=not self.expanded;self.render_home()
 
-    def resume(self,project):
-        self.page.select_project(project['id']);self.page.resume()
+    def open_folder(self,project):
+        sources=project.get('sources',[])
+        location=sources[0]['location'] if len(sources)==1 else LIBRARY+'project-'+project['id']
+        self.page.guard(lambda:self.page.files(True).navigate(location))
 
     def render_board(self):
         box=self.board_box;clear(box);project=self.page.project
         self.task_labels={};self.preview_labels={}
         if not project:self.title.setText('');self.stack.setCurrentIndex(0);return
         self.title.setText(project['name']);self.task_labels={};self.preview_labels={}
-        top=QHBoxLayout();top.addWidget(text(tr('Dateien, Wissen und Gespräche im selben Zusammenhang.'),'muted'),1)
+        top=QHBoxLayout();top.addWidget(text(tr('Dateien, Notes und Gespräche im selben Zusammenhang.'),'muted'),1)
         add=button(tr('+ Hinzufügen'),lambda:None,True);menu=QMenu(add)
-        for title,fn in [(tr('Dateien …'),self.add_files),(tr('Wissen-Notiz …'),self.add_note),(tr('Weblink …'),self.add_url),(tr('Aktuelles Gespräch'),self.add_conversation),(tr('Auftrag …'),self.add_task)]:menu.addAction(title,lambda _=False,f=fn:self.page.guard(f))
+        for title,fn in [(tr('Dateien …'),self.add_files),(tr('Notes-Notiz …'),self.add_note),(tr('Weblink …'),self.add_url),(tr('Aktuelles Gespräch'),self.add_conversation),(tr('Auftrag …'),self.add_task)]:menu.addAction(title,lambda _=False,f=fn:self.page.guard(f))
         add.setMenu(menu);top.addWidget(add);box.addLayout(top)
         lanes=QGridLayout();lanes.setSpacing(18);columns=[]
         for i,title in enumerate([tr('WISSEN & NÄCHSTE SCHRITTE'),tr('DATEIEN & QUELLEN'),tr('LUMEN & AUFTRÄGE')]):
@@ -158,9 +194,6 @@ class Rooms(QWidget):
             lanes.addWidget(lane,0,i) if self.width()>=850 else lanes.addWidget(lane,i,0)
         note,note_box=card();note_box.addWidget(text(tr('Dein nächster Schritt'),'roomSection'));note_box.addWidget(text(project.get('note') or tr('Wo möchtest du beim nächsten Mal weitermachen?'),'muted'))
         note_box.addWidget(button(tr('Notiz bearbeiten'),self.edit_note));columns[0].addWidget(note)
-        for pin in project.get('pins',[]):
-            lane=0 if pin['kind']=='object' and pin.get('app')=='wissen' else 2 if pin['kind'] in ('chat','task') else 1
-            self.pin_card(columns[lane],pin)
         if project.get('sources'):
             item,content=card();content.addWidget(text(tr('Dateiquellen'),'roomSection'))
             for source in project['sources']:
@@ -168,7 +201,23 @@ class Rooms(QWidget):
                 control.setObjectName('roomLink');control.setIcon(QIcon.fromTheme('network-server' if is_network_address(source['location']) else 'folder'));control.setToolTip(source['location']);content.addWidget(control)
                 content.addWidget(text(tr('Netzwerk · beim Öffnen verbinden') if is_network_address(source['location']) else tr('Dieser Rechner'),'muted'))
             columns[1].addWidget(item)
-        for url in project.get('urls',[]):self.pin_card(columns[1],dict(kind='url',title=url,url=url,legacy=True))
+        knowledge=QWidget();knowledge.setObjectName('roomKnowledge');knowledge_box=QVBoxLayout(knowledge);knowledge_box.setContentsMargins(0,0,0,0);knowledge_box.setSpacing(13)
+        knowledge_box.addWidget(text(tr('Lumen Notes'),'roomSection'))
+        knowledge_box.addWidget(button(tr('Notes-Notiz hinzufügen'),lambda:self.page.guard(self.add_note)))
+        columns[0].addWidget(knowledge)
+        links=QWidget();links.setObjectName('roomWeblinks');links_box=QVBoxLayout(links);links_box.setContentsMargins(0,0,0,0);links_box.setSpacing(13)
+        links_box.addWidget(text(tr('Weblinks'),'roomSection'))
+        links_box.addWidget(button(tr('Weblink hinzufügen'),lambda:self.page.guard(self.add_url)))
+        columns[1].addWidget(links)
+        pins=project.get('pins',[])
+        if not any(p.get('app')=='wissen' for p in pins):
+            knowledge_box.addWidget(text(tr('Noch keine Notizen verknüpft. Wähle passende Inhalte aus Lumen Notes.'),'muted'))
+        if not any(p['kind']=='url' for p in pins) and not project.get('urls'):
+            links_box.addWidget(text(tr('Noch keine Weblinks. Hefte Websites und Recherchequellen für dieses Projekt an.'),'muted'))
+        for pin in pins:
+            target=knowledge_box if pin.get('app')=='wissen' else links_box if pin['kind']=='url' else columns[2] if pin['kind'] in ('chat','task') else columns[1]
+            self.pin_card(target,pin)
+        for url in project.get('urls',[]):self.pin_card(links_box,dict(kind='url',title=url,url=url,legacy=True))
         chat=project.get('state',{}).get('chat',{})
         if chat.get('session') and not any(p['kind']=='chat' for p in project.get('pins',[])):
             self.pin_card(columns[2],dict(kind='chat',title=tr('Letztes gespeichertes Gespräch'),chat=chat,legacy=True))
@@ -186,7 +235,7 @@ class Rooms(QWidget):
         # Compare with the rendered snapshot; never overwrite another window's edits.
         value=dict(previous,**changes,updated=time.time())
         Catalog(self.page.store).put('room',value,previous)
-        history.record(self.page.store,tr('Arbeitsraum aktualisiert: {0}',value['name']),'store-setting',previous,value,'files/spaces/room/'+value['id'])
+        history.record(self.page.store,tr('Projekt aktualisiert: {0}',value['name']),'store-setting',previous,value,'files/spaces/room/'+value['id'])
         try:
             window=self.page.files()
             if window.spaces.active_room and window.spaces.active_room['id']==value['id']:window.spaces.active_room=value
@@ -197,7 +246,7 @@ class Rooms(QWidget):
         pin=projects.validate_pin(pin)
         pins=list(self.page.project.get('pins',[]))
         if pin in pins:return
-        if len(pins)>=60:raise ValueError(tr('Höchstens 60 Inhalte pro Arbeitsraum anheften.'))
+        if len(pins)>=60:raise ValueError(tr('Höchstens 60 Inhalte pro Projekt anheften.'))
         self.save(pins=pins+[pin])
         if pin.get('app')=='wissen':self.load_previews()
 
@@ -238,10 +287,11 @@ class Rooms(QWidget):
             self.page.status.setText(error or '')
             if error:return
             def chosen(ref):self.page.guard(lambda:self.add_pin(dict(kind='object',app='wissen',title=ref['title'],url=Registry().register(ref))))
-            self.pick(tr('Wissen-Notiz anheften'),[(r['title']+' · '+r['id'],r) for r in value],chosen)
+            self.pick(tr('Notes-Notiz anheften'),[(r['title']+' · '+r['id'],r) for r in value],chosen)
         self.page.job('notes',{},ready,timeout=12000)
 
     def add_conversation(self):
+        if getattr(self.page, 'remote_conversations', False): return self.page.remote_action('pin')
         chat=self.page.files().spaces.chat()
         if not chat or not chat.backend.session:raise ValueError(tr('Zuerst ein Gespräch mit Lumen öffnen.'))
         self.add_pin(dict(kind='chat',title=chat.sessions.currentText() or tr('Gespräch'),chat=dict(directory=chat.backend.directory,session=chat.backend.session)))
@@ -261,13 +311,13 @@ class Rooms(QWidget):
             for title,offset in [(tr('Nach oben'),-1),(tr('Nach unten'),1)]:
                 action=menu.addAction(title,lambda _=False,o=offset,p=pin:self.page.guard(lambda:self.move_pin(p,o)));action.setEnabled(0<=index+offset<len(pins))
             if pin['kind'] in ('object','url'):
-                auto=menu.addAction(tr('Beim Weiterarbeiten öffnen'));auto.setCheckable(True);auto.setChecked(pin.get('resume',False))
+                auto=menu.addAction(tr('Beim Laden des Arbeitsstands öffnen'));auto.setCheckable(True);auto.setChecked(pin.get('resume',False))
                 auto.triggered.connect(lambda checked,p=pin:self.page.guard(lambda:self.save(pins=[dict(v,resume=checked) if v==p else v for v in self.page.project.get('pins',[])])))
-            menu.addAction(tr('Aus Arbeitsraum entfernen'),lambda:self.page.guard(lambda:self.save(pins=[p for p in self.page.project.get('pins',[]) if p!=pin])));more.setMenu(menu);header.addWidget(more)
+            menu.addAction(tr('Aus Projekt entfernen'),lambda:self.page.guard(lambda:self.save(pins=[p for p in self.page.project.get('pins',[]) if p!=pin])));more.setMenu(menu);header.addWidget(more)
         content.addLayout(header)
         if pin.get('app')=='wissen':
             preview=text(self.preview_cache.get(pin['url'],''),'muted');preview.setMaximumHeight(105);content.addWidget(preview);self.preview_labels[pin['url']]=preview
-        hint={'object':tr('Wissen · verknüpfte Notiz') if pin.get('app')=='wissen' else tr('Originaldatei · verknüpft'),'url':tr('Website · verknüpft'),'chat':tr('Lumen · Gespräch'),'task':tr('Lumen · Auftrag')}[pin['kind']]
+        hint={'object':tr('Notes · verknüpfte Notiz') if pin.get('app')=='wissen' else tr('Originaldatei · verknüpft'),'url':tr('Website · verknüpft'),'chat':tr('Lumen · Gespräch'),'task':tr('Lumen · Auftrag')}[pin['kind']]
         hint_label=text(hint,'muted');content.addWidget(hint_label)
         if pin.get('app')=='files':
             try:
@@ -305,7 +355,9 @@ class Rooms(QWidget):
     def open_selected_task(self):
         from lumen_workplace import chosen
         identity=chosen(self.tasks)
-        if identity:self.page.guard(lambda:self.page.files().spaces.open_task(self.page.store.task(identity)))
+        if identity:
+            from lumen_detail_routes import open_tasks
+            self.page.guard(lambda:open_tasks(identity))
 
 
     def move_pin(self,pin,offset):
@@ -337,18 +389,38 @@ class Rooms(QWidget):
         elif pin['kind']=='task':
             task=self.page.store.task(pin['id'])
             if not task:raise ValueError(tr('Auftrag nicht mehr vorhanden.'))
-            self.page.files().spaces.open_task(task)
+            from lumen_detail_routes import open_tasks
+            open_tasks(task['id'])
         else:
+            if getattr(self.page, 'remote_conversations', False): return self.page.remote_action('chat',pin['chat']['session'])
             chat=self.chat_ready()
             if chat:
                 saved=pin['chat'];chat.backend.new_conversation(saved['directory']);chat.backend.select_session(saved['session'])
 
-    def discuss(self):
+    def discuss(self,project_context=None):
         prompt=self.prompt.text().strip()
         if not prompt:return
+        if getattr(self.page, 'remote_conversations', False):
+            self.page.remote_action('discuss',prompt); self.prompt.clear(); return
+        extra_paths=[];extra_notes=[];extra_urls=[]
+        if project_context:
+            from projects_rooms import source_chain
+            from projects_data import Projects
+            from tools_data import Library
+            library=Library('workbench')
+            for record in source_chain(Projects(library),*project_context,store=self.page.store):
+                extra_notes.append(record['title']+'\n'+record.get('notes',''))
+                for source in record.get('resources',[]):
+                    target=source['target']
+                    if target.startswith('lumen:'):
+                        ref=Registry(library.root.parent).resolve(target)
+                        if ref.get('path'):extra_paths.append(ref['path'])
+                        else:extra_urls.append(source['title']+': '+target)
+                    elif source['kind']=='url':extra_urls.append(target)
+                    else:extra_paths.append(target)
         chat=self.chat_ready()
         if not chat:return
-        project=self.page.project;paths=[];references=[]
+        project=self.page.project;paths=[];references=list(project.get('urls',[]))
         window=self.page.files()
         for source in project.get('sources',[]):
             path=window.spaces.local_reference(source['location'])
@@ -359,9 +431,9 @@ class Rooms(QWidget):
                 ref=Registry().resolve(pin['url'])
                 if ref.get('path'):paths.append(ref['path'])
             elif pin['kind']=='url':references.append(pin['url'])
-        chat.paths=list(dict.fromkeys(paths));chat.update_context()
-        context=tr('Arbeitsraum: {0}\nNächster Schritt: {1}',project['name'],project.get('note',''))
-        chat.composer.setPlainText(context+'\n'+'\n'.join(references)+'\n\n'+prompt)
+        chat.paths=list(dict.fromkeys(paths+extra_paths));chat.update_context()
+        context=tr('Projekt: {0}\nNächster Schritt: {1}',project['name'],project.get('note',''))
+        chat.composer.setPlainText(context+'\n'+'\n'.join(dict.fromkeys(references+extra_urls))+'\n'+'\n\n'.join(extra_notes)+'\n\n'+prompt)
         # Explicit question opens an editable draft in Lumen; no background submission.
         self.prompt.clear()
 
@@ -375,33 +447,3 @@ class Rooms(QWidget):
 
     def reflow(self):
         if self.values:self.render_home();self.render_board()
-
-
-class CreateRoom(QDialog):
-    def __init__(self,store,parent):
-        super().__init__(parent);self.store=store;self.saved=None
-        self.setWindowTitle(tr('Lumen · Neuer Arbeitsraum'));self.resize(510,310)
-        box=QVBoxLayout(self);box.setContentsMargins(24,24,24,24);box.setSpacing(16)
-        box.addWidget(text(tr('Woran möchtest du arbeiten?'),'heading'))
-        box.addWidget(text(tr('Ein Name und ein Ordner reichen. Alles Weitere kannst du später hinzufügen.'),'muted'))
-        form=QFormLayout();self.name=QLineEdit();self.name.setPlaceholderText(tr('Zum Beispiel: Reiseplanung'));form.addRow(tr('Name'),self.name)
-        self.folder=QLineEdit();self.folder.setPlaceholderText(tr('Ordner oder Netzwerkadresse'));form.addRow(tr('Ordner'),self.folder);box.addLayout(form)
-        row(box,[(tr('Ordner wählen …'),self.local),(tr('Netzwerk …'),self.remote)])
-        self.error=text('','muted');box.addWidget(self.error)
-        controls=QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel);controls.accepted.connect(self.save);controls.rejected.connect(self.reject);box.addWidget(controls)
-    def local(self):
-        value=QFileDialog.getExistingDirectory(self,tr('Projektordner wählen'))
-        if value:self.folder.setText(value)
-    def remote(self):
-        from network import ConnectDialog
-        dialog=ConnectDialog(self)
-        if dialog.exec()==QDialog.Accepted:self.folder.setText(dialog.url)
-        dialog.deleteLater()
-    def save(self):
-        try:
-            location=self.folder.text().strip()
-            from network import server_label
-            label=server_label(location) if is_network_address(location) else Path(location).name or tr('Ordner')
-            self.saved=projects.save_project(self.store,None,self.name.text(),[dict(label=label,location=location)],[],[],'')
-            self.accept()
-        except (ValueError,OSError) as error:self.error.setText(str(error))

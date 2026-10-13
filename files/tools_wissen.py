@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt,QTimer,QUrl,QEvent
 from PySide6.QtGui import QDesktopServices,QKeySequence
 from PySide6.QtGui import QShortcut
 from PySide6.QtWidgets import (QListWidgetItem, QFileDialog, QInputDialog, QMessageBox)
-from tools_ui import ToolWindow,Job
+from tools_ui import ToolWindow,Job,button
 from tools_data import parse_answer
 from lumen_store import Store
 import wissen_data as data
@@ -18,13 +18,26 @@ import lumen_memory as memory
 
 class Wissen(ToolWindow):
     def __init__(self,root=None):
-        super().__init__('wissen',tr('Lumen Wissen'),tr('Gedanken festhalten. Quellen verbinden. Zusammenhänge entdecken.'),'lumen-wissen',root)
-        self.store=Store();records=self.library.all();self.current=records[0]['id'] if records else self.library.create('Wissen')
+        super().__init__('wissen',tr('Lumen Notes'),tr('Gedanken festhalten. Quellen verbinden. Zusammenhänge entdecken.'),'lumen-wissen',root)
+        self.store=Store();records=self.library.all();self.current=records[0]['id'] if records else self.library.create('Notes')
         self.book=None;self.notes={};self.doc=None;self.dirty=False;self.conflict=False;self.poller=None;self.after_job=None;self.closing=False;self.answer='';self.answer_sources=[];self.answer_question='';self.pending_file=''
         self.area='user';self.pending_area=None;self.writing=False
         self.collection='';self.folders=[];self.heading_prefix='';self.heading_separator='\n\n';self.has_heading=True
         from wissen_ui import build
         build(self)
+        from lumen_workspace import Workspace
+        self.document_sources = Workspace(self, store=self.store, sections=('knowledge',))
+        self.sources_tab = self.tabs.addTab(self.document_sources.knowledge_page, tr('Dokumentquellen'))
+        self.result_actions = Workspace(self, store=self.store, sections=('tasks',))
+        self.result_actions.tasks_page.hide()
+        from studio_saved_results import StudioSavedResults
+        self.saved_results = StudioSavedResults(self.result_actions)
+        self.results_tab = self.tabs.addTab(self.saved_results, tr('Ergebnisse'))
+        nav = self.navigation.layout()
+        self.sources_button = button(tr('Dokumentquellen'), lambda: self.open_section('sources'), 'folder-open')
+        self.results_button = button(tr('Ergebnisse'), lambda: self.open_section('results'), 'document-save')
+        nav.insertWidget(nav.indexOf(self.map_button)+1, self.sources_button)
+        nav.insertWidget(nav.indexOf(self.sources_button)+1, self.results_button)
         self.draft_timer=QTimer(self);self.draft_timer.setSingleShot(True);self.draft_timer.setInterval(450);self.draft_timer.timeout.connect(lambda:self.safe(self.save))
         self.autosave_timer=QTimer(self);self.autosave_timer.setSingleShot(True);self.autosave_timer.setInterval(1100);self.autosave_timer.timeout.connect(lambda:self.safe(self.save_note))
         self.poll_timer=QTimer(self);self.poll_timer.setInterval(5000);self.poll_timer.timeout.connect(self.poll);self.poll_timer.start()
@@ -32,12 +45,32 @@ class Wissen(ToolWindow):
         QShortcut(QKeySequence.Save,self,activated=lambda:self.safe(self.save_note));QShortcut(QKeySequence.New,self,activated=lambda:self.safe(self.create));QShortcut(QKeySequence('Ctrl+F'),self,activated=self.search.setFocus)
         from wissen_sync_ui import install
         install(self)
-        self.editor.setEnabled(False);QTimer.singleShot(0,self.initialize)
+        self.present_area();self.editor.setEnabled(False);QTimer.singleShot(0,self.initialize)
+
+    def present_area(self):
+        remembering = self.area == 'lumen'
+        title = tr('Lumen Gedächtnis') if remembering else tr('Lumen Notes')
+        self.setWindowTitle(title); self.brand.setText(title)
+        for area, control in self.area_buttons.items(): control.setVisible(area == self.area)
+        self.server_memory_button.setVisible(remembering)
+        for control in (self.questions_button, self.map_button, self.sources_button, self.results_button):
+            control.setVisible(not remembering)
+        self.search.setPlaceholderText(tr('Erinnerungen finden …') if remembering else tr('Notizen finden …'))
+        self.search.setAccessibleName(self.search.placeholderText())
+
+    def open_section(self, section):
+        if section not in ('sources','results'): raise ValueError(tr('Unbekannter Bereich.'))
+        self.tabs.setCurrentIndex(self.sources_tab if section == 'sources' else self.results_tab)
+        if section == 'results': self.saved_results.refresh()
+
+    def show_page(self, index):
+        from lumen_detail_routes import open_page
+        open_page(index)
 
     def focus_record(self,key):self.current=key
     def load(self,record):pass
     def switch_area(self,area):
-        if area not in ('user', 'lumen'): raise ValueError(tr('Unbekannter Wissensbereich.'))
+        if area not in ('user', 'lumen'): raise ValueError(tr('Unbekannter Bereich.'))
         self.pending_area = None
         for key,b in self.area_buttons.items():b.setChecked(key==self.area)
         if area==self.area:self.tabs.setCurrentIndex(0);return
@@ -54,7 +87,7 @@ class Wissen(ToolWindow):
         self.timestamp.clear();self.timestamp.hide()
         self.collection_button.setVisible(area=='user');self.rename_collection_button.setVisible(area=='user')
         self.add_button.setAccessibleName(tr('Neue Erinnerung') if area=='lumen' else tr('Neue Notiz'));self.remove_action.setText(tr('Vergessen …') if area=='lumen' else tr('Notiz entfernen …'));self.remove_action.setEnabled(False)
-        self.location.setText(tr('Lumen-Gedächtnis') if area=='lumen' else tr('Meine Notizen'));self.update_collections()
+        self.present_area();self.location.setText(tr('Lumen-Gedächtnis') if area=='lumen' else tr('Meine Notizen'));self.update_collections()
         config=memory.options(self.store)
         for control,key in ((self.use_memory,'enabled'),(self.learn_memory,'learn'),(self.reuse_solutions,'solutions'),(self.auto_memory,'automatic')):control.blockSignals(True);control.setChecked(config[key]);control.blockSignals(False)
         self.learn_memory.setEnabled(config['enabled']);self.update_memory_status();self.initialize()
@@ -118,7 +151,7 @@ class Wissen(ToolWindow):
         if pending and pending[1]==self.area and self.area=='user':root=pending[0]
         if self.area=='lumen':
             self.work(tr('Lumen-Gedächtnis öffnen …'),lambda job:memory.worker(job,self.store,'scan'),lambda result:(self.activated(result['root']),self.scanned(result)))
-        else:self.work(tr('Wissensordner öffnen und vorhandene Einträge übernehmen …'),lambda job:data.worker(job,self.store,'activate',root),self.activated)
+        else:self.work(tr('Notizordner öffnen und vorhandene Einträge übernehmen …'),lambda job:data.worker(job,self.store,'activate',root),self.activated)
     def activated(self,root):
         self.book=data.Notebook(self.store,root);self.location.setToolTip(root)
         if self.pending_file:
@@ -148,10 +181,10 @@ class Wissen(ToolWindow):
     def action(self,action,done,**values):
         if self.job and self.writing:
             self.after_job=lambda:self.action(action,done,**values);return
-        if not self.book:raise ValueError(tr('Zuerst einen erreichbaren Wissensordner wählen.'))
+        if not self.book:raise ValueError(tr('Zuerst einen erreichbaren Notizordner wählen.'))
         special={'create':'remember','write':'write','remove':'forget','restore':'restore'}
         work=lambda job:memory.worker(job,self.store,special[action],**values) if self.area=='lumen' and action in special else data.worker(job,self.store,action,str(self.book.root),identity=self.book.identity,**values)
-        self.work(tr('Wissen · ')+{'write':tr('Notiz speichern'),'read':tr('Notiz laden'),'create':tr('Notiz anlegen'),'create_collection':tr('Sammlung anlegen'),'remove':tr('Eintrag entfernen'),'add_image':tr('Bild kopieren'),'versions':tr('Verlauf laden'),'restore':tr('Version wiederherstellen'),'sync':tr('Notizen abgleichen'),'sync_info':tr('Serververbindung prüfen'),'sync_config':tr('Serverabgleich einrichten')}.get(action,action)+' …',work,done)
+        self.work(tr('Notes · ')+{'write':tr('Notiz speichern'),'read':tr('Notiz laden'),'create':tr('Notiz anlegen'),'create_collection':tr('Sammlung anlegen'),'remove':tr('Eintrag entfernen'),'add_image':tr('Bild kopieren'),'versions':tr('Verlauf laden'),'restore':tr('Version wiederherstellen'),'sync':tr('Notizen abgleichen'),'sync_info':tr('Serververbindung prüfen'),'sync_config':tr('Serverabgleich einrichten')}.get(action,action)+' …',work,done)
     def job_finished(self):
         self.writing=False;super().job_finished();callback,self.after_job=self.after_job,None
         if self.closing:QTimer.singleShot(0,self.close)
@@ -320,7 +353,7 @@ class Wissen(ToolWindow):
         if not self.book or self.job:self.pending_file=path;return
         candidate=Path(path).resolve(strict=True)
         try:relative=str(candidate.relative_to(self.book.root))
-        except ValueError:raise ValueError(tr('Diese Datei liegt außerhalb des Wissensordners. Den passenden Ordner über „Ordner wählen“ öffnen.'))
+        except ValueError:raise ValueError(tr('Diese Datei liegt außerhalb des Notizordners. Den passenden Ordner über „Ordner wählen“ öffnen.'))
         if self.dirty:self.save_note(lambda:self.open_file(path));return
         self.action('read',self.show_note,path=relative)
     def refresh(self,*_):
@@ -433,6 +466,10 @@ class Wissen(ToolWindow):
         def done(images):self.preview.display(self.book,note,self.notes,images);self.views.setCurrentIndex(1);self.preview.note_hash=self.doc['hash'];self.view_button.show();self.title.hide();self.status.setText(tr('Leseansicht · Verknüpfungen öffnen ihre Notiz'))
         self.action('preview',done,path=note['path'],text=note['text'])
     def tab_changed(self,index):
+        if hasattr(self, 'sources_button'):
+            self.sidebar.setVisible(index not in (self.sources_tab, self.results_tab))
+            for control, target in ((self.sources_button,self.sources_tab),(self.results_button,self.results_tab)):
+                control.setCheckable(True); control.setChecked(index==target)
         self.questions_button.setCheckable(True);self.questions_button.setChecked(index==1);self.map_button.setCheckable(True);self.map_button.setChecked(index==2)
         if index==2:self.map.display(self.notes,self.doc['path'] if self.doc else '',self.external_connections())
     def focus_mode(self):
@@ -445,7 +482,7 @@ class Wissen(ToolWindow):
         if event.type()==QEvent.PaletteChange and hasattr(self,'map'):self.tab_changed(self.tabs.currentIndex())
     def choose_folder(self):
         if self.dirty:self.save_note(self.choose_folder);return
-        root=QFileDialog.getExistingDirectory(self,tr('Wissensordner wählen'),str(self.book.root) if self.book else str(Path.home()))
+        root=QFileDialog.getExistingDirectory(self,tr('Notizordner wählen'),str(self.book.root) if self.book else str(Path.home()))
         if root:
             if self.poller:raise ValueError(tr('Aktualisierung kurz abwarten und erneut wählen.'))
             self.notes={};self.folders=[];self.collection='';self.clear_note(tr('Deine erste Notiz'));self.initialize(root)
@@ -542,6 +579,7 @@ class Wissen(ToolWindow):
         text=self.answer+tr('\n\n## Quellen\n')+'\n'.join('- [['+n['path']+']]' for n in self.answer_sources)
         self.action('create',self.show_note,title=self.answer_question[:150],text=text,source=tr('Lumen-Antwort aus ausgewählten Notizen'))
     def closeEvent(self,event):
+        if not self.document_sources.can_close() or not self.result_actions.can_close(): event.ignore(); return
         try:self.save()
         except (OSError,ValueError) as error:
             self.status.setText(tr('Entwurf konnte nicht gesichert werden: ')+str(error));event.ignore();self.closing=False;return
@@ -552,3 +590,4 @@ class Wissen(ToolWindow):
             event.ignore();return
         if self.dirty and not self.conflict:self.save_note();event.ignore();return
         super().closeEvent(event)
+        if event.isAccepted(): self.document_sources.shutdown(); self.result_actions.shutdown()

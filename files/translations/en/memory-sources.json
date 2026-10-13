@@ -2,9 +2,9 @@
   "Kontextquellen": "Context sources",
   "Kontextquellen nicht verfügbar": "Context sources unavailable",
   "Inzwischen geändert": "Changed since this answer",
-  "Freigegebene Notiz": "Approved note",
+  "Freigegebene Notiz": "Shared note",
   "Öffnen / korrigieren": "Open / correct",
-  "Vergessen ist in Lumen Wissen möglich.": "You can forget this memory in Lumen Wissen.",
+  "Vergessen ist in Lumen Wissen möglich.": "You can forget this memory in Lumen Notes.",
   "{0} Quellen nicht mehr freigegeben oder verfügbar.": "{0} sources are no longer approved or available.",
   "Eine Kontextquelle wurde geändert. Bitte eine neue Anfrage stellen.": "A context source changed. Please start a new request.",
   "Diese Quelle gehört zum Lumen Server.": "This source belongs to Lumen Server.",
@@ -12,9 +12,11 @@
   "{0} Kontextquellen": "{0} context sources",
   "Lumen · Kontextquelle": "Lumen · Context source",
   "Die Serverquelle wurde geändert. Bitte erneut fragen.": "The server source changed. Please ask again.",
-  "Diese Erinnerung wurde inzwischen geändert. Bitte die aktuelle Fassung in Lumen Wissen prüfen.": "This memory changed. Please review the current version in Lumen Wissen.",
+  "Diese Erinnerung wurde inzwischen geändert. Bitte die aktuelle Fassung in Lumen Wissen prüfen.": "This memory changed. Please review the current version in Lumen Notes.",
   "Lumen · Erinnerung vergessen": "Lumen · Forget memory",
   "„{0}“ dauerhaft vergessen? Bei aktiviertem Abgleich gilt dies auch auf verbundenen Geräten.": "Permanently forget “{0}”? If synchronization is enabled, this also applies on connected devices.",
   "Erinnerung vergessen. Die bestehende Antwort bleibt unverändert.": "Memory forgotten. The existing answer remains unchanged.",
-  "Für diese Anfrage bereitgestellte Quellen. Dies belegt nicht, welche davon die Antwort tatsächlich verwendet.": "Sources prepared for this request. This does not establish which sources the answer actually used."
+  "Für diese Anfrage bereitgestellte Quellen. Dies belegt nicht, welche davon die Antwort tatsächlich verwendet.": "Sources prepared for this request. This does not establish which sources the answer actually used.",
+  "Vergessen ist in Lumen Notes möglich.": "You can forget this memory in Lumen Notes.",
+  "Diese Erinnerung wurde inzwischen geändert. Bitte die aktuelle Fassung in den Gedächtniseinstellungen prüfen.": "This memory changed. Please review the current version in Lumen Notes."
 }

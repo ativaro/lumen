@@ -65,7 +65,8 @@ class FocusTest(unittest.TestCase):
         qa=dict(text='First question',done=False);qb=dict(text='Chosen question',done=False)
         key=window.library.create('Project',notes='',resources=[a,b],questions=[qa,qb]);window.focus_record(key)
         window.tabs.setCurrentIndex(1);window.resources.setCurrentRow(1);resource=capture(window)['source']
-        window.tabs.setCurrentIndex(0);window.questions.setCurrentRow(1);question=capture(window)['source']
+        # A saved question link still opens its migrated task after removing the old question editor.
+        question=self.ref(window,key,'question:1')
         window.library.update(key,resources=[b,a],questions=[dict(qb,done=True),qa])
         focus(window,resource);self.assertEqual(window.resources.currentRow(),0)
         focus(window,question);self.assertEqual(window.projects.get(window.scope)['title'],'Chosen question')

@@ -80,8 +80,10 @@ class ProjectsTest(TestCase):
         w.notes.setPlainText('Unsent local edit')
         self.library.update(self.project,notes='Another external edit')
         w.poll_runs(); self.assertEqual(w.notes.toPlainText(),'Unsent local edit')
-        w.save()
-        self.assertEqual(self.library.get(self.project)['notes'],'Unsent local edit')
+        with self.assertRaises(ValueError):w.save()
+        self.assertEqual(self.library.get(self.project)['notes'],'Another external edit')
+        self.assertEqual(w.notes.toPlainText(),'Unsent local edit')
+        w.editor.discard()
         self.library.create('Added by tool')
         w.poll_runs(); self.assertEqual(w.entries.topLevelItemCount(),2)
         w.close()
@@ -186,7 +188,7 @@ class ProjectsTest(TestCase):
         from lumen_store import Store
         store=Store(Path(self.temp.name)/'state')
         calls=[]
-        engine=OpenCodeBackend(self.temp.name); engine.read_only=True; engine.ensure_server=lambda callback:callback(); engine.refresh_sessions=lambda:None; engine.poll=lambda:None
+        engine=OpenCodeBackend(self.temp.name); engine.selected_model='test/model'; engine.read_only=True; engine.ensure_server=lambda callback:callback(); engine.refresh_sessions=lambda:None; engine.poll=lambda:None
         def request(method,path,body=None,callback=None,**kwargs):
             calls.append((method,path,body))
             if path=='/session' and method=='POST':callback(dict(id='test-session'))
@@ -209,7 +211,7 @@ class ProjectsTest(TestCase):
         from projects_mcp import INSTRUCTION
         store=Store(Path(self.temp.name)/'chat-state'); store.set_setting('memory/options',dict(enabled=False,learn=False))
         calls=[]
-        engine=OpenCodeBackend(self.temp.name); engine.ensure_server=lambda callback:callback()
+        engine=OpenCodeBackend(self.temp.name); engine.selected_model='test/model'; engine.ensure_server=lambda callback:callback()
         engine.refresh_sessions=lambda:None; engine.poll=lambda:None
         def request(method,path,body=None,callback=None,**kwargs):
             if path.endswith('prompt_async'):calls.append(body)

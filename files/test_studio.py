@@ -27,6 +27,7 @@ class StudioTest(unittest.TestCase):
     def setUp(self):
         self.tmp = self.enterContext(tempfile.TemporaryDirectory())
         self.enterContext(patch.dict(os.environ, {'LUMEN_DATA': self.tmp + '/state'}))
+        self.launch = self.enterContext(patch('lumen_detail_routes.launch'))
         self.settings = QSettings(self.tmp + '/prefs.ini', QSettings.IniFormat)
         with patch.object(self.desktop, 'QSettings', return_value=self.settings):
             self.window = self.desktop.LumenWindow(self.tmp)
@@ -36,6 +37,8 @@ class StudioTest(unittest.TestCase):
     def tearDown(self):
         self.window.chat.backend.busy = False
         self.window.close(); self.window.deleteLater()
+        for widget in self.app.topLevelWidgets():
+            widget.close(); widget.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
         self.app.processEvents()
 
@@ -150,19 +153,29 @@ class StudioTest(unittest.TestCase):
             self.assertEqual(chat.composer.toPlainText(), 'Keep while busy')
 
     def test_session_history_title_and_busy_navigation_use_backend(self):
-        chat = self.window.chat
+        self.window.open_search(); controller = self.window.search_controller; chat = self.window.chat
         sessions = [{'id':'one','title':'Research','time':{'updated':1}}, {'id':'two','title':'Photos','time':{'updated':2}}]
         chat.backend.sessionsChanged.emit(sessions)
-        recent = self.window.navigation.recent
-        self.assertEqual(recent.item(0).text(), 'Photos')
+        self.assertEqual(controller.sessions[1]['title'], 'Photos')
         with patch.object(chat.backend, 'select_session') as select:
-            self.window.navigation.open_session(recent.item(0)); select.assert_called_once_with('two')
-            chat.backend.busy = True; chat.backend.busyChanged.emit(True)
-            self.assertFalse(recent.isEnabled())
-            self.window.navigation.open_session(recent.item(1)); select.assert_called_once()
+            controller.select_session('two'); select.assert_called_once_with('two')
+            chat.backend.busy = True; controller.select_session('one'); select.assert_called_once()
         chat.backend.busy = False; chat.backend.session = 'two'; chat.backend.sessionChanged.emit('two')
         self.assertEqual(chat.heading.text(), 'Photos')
-        self.assertEqual(set(self.window.nav_buttons), {0,4,8})
+        self.assertFalse(hasattr(self.window, 'navigation'))
+
+    def test_context_bar_routes_without_changing_conversation(self):
+        bar, chat = self.window.workspace_bar, self.window.chat
+        chat.composer.setPlainText('Keep draft'); chat.paths = [self.tmp + '/attached.txt']
+        with patch.object(chat.backend, 'new_conversation') as new:
+            bar.project.click()
+            self.assertEqual(self.launch.call_args.args, ('lumen-workbench', ['--section','rooms']))
+            new.assert_not_called()
+        self.assertEqual(chat.composer.toPlainText(), 'Keep draft'); self.assertEqual(len(chat.paths), 1)
+        self.assertEqual(self.window.pages.count(), 1)
+        self.window.resize(760, 600); self.app.processEvents()
+        self.assertTrue(bar.project.isVisible()); self.assertTrue(bar.directory.isVisible())
+        chat.composer.clear(); chat.paths = []
 
     def test_real_image_preview_strip_close_and_compact_view(self):
         paths = []
@@ -178,7 +191,7 @@ class StudioTest(unittest.TestCase):
         surface.close_preview.click(); self.assertFalse(surface.pane.isVisible())
         self.assertIsNone(surface.preview.proc); self.assertIsNone(surface.preview.filmstrip.loader.proc)
         chat.preview_button.click(); self.assertTrue(surface.pane.isVisible())
-        self.window.resize(900, 680); surface.narrow_preview = False; self.app.processEvents(); surface.update_visibility()
+        self.window.resize(760, 680); surface.narrow_preview = False; self.app.processEvents(); surface.update_visibility()
         self.assertFalse(surface.pane.isVisible()); self.assertTrue(chat.isVisible())
         chat.preview_button.click(); self.assertTrue(surface.pane.isVisible()); self.assertFalse(chat.isVisible())
         surface.close_preview.click(); self.assertTrue(chat.isVisible())
@@ -274,73 +287,133 @@ class StudioTest(unittest.TestCase):
         chat.mode.setCurrentIndex(chat.mode.findData('plan')); self.assertEqual(chat.mode_hint.text(), 'Nur lesen')
         for theme in ('graphite', 'atelier', 'midnight', 'glass'):
             apply_design(self.app, theme); QTest.qWait(30)
-            for widget in (chat, surface, self.window.navigation, space.tasks_page):
+            for widget in (chat, surface, self.window.workspace_bar, space.tasks_page):
                 self.assertEqual(widget.palette().color(QPalette.Window), self.app.palette().color(QPalette.Window))
         surface.result_tabs.setCurrentIndex(1); self.assertTrue(surface.execution_detail.isVisible())
         surface.result_tabs.setCurrentIndex(0); self.assertTrue(surface.answer.isVisible())
+    def test_open_result_pane_follows_work_until_a_result_is_ready(self):
+        backend, surface = self.window.chat.backend, self.window.studio
+        self.assertTrue(surface.pane.isVisible())
+        backend.session = 'auto-tabs'; backend.message_id = 'old-turn'
+        old_file = Path(self.tmp) / 'old.md'; old_file.write_text('Old file')
+        old_presentation = self.present([str(old_file)])
+        old_presentation[0]['info']['parentID'] = 'old-turn'
+        backend.messages = old_presentation + [{'info': {'role': 'assistant', 'parentID': 'old-turn'},
+            'parts': [{'type': 'text', 'text': 'Old result'}]}]
+        backend.messagesChanged.emit(backend.messages)
+        backend.set_busy(True)
+        self.assertEqual(surface.result_tabs.currentIndex(), 1)
+        backend.message_id = 'new-turn'
+        backend.messages.append({'info': {'role': 'assistant', 'parentID': 'new-turn'},
+            'parts': [{'type': 'text', 'text': 'Partial answer'}]})
+        backend.messagesChanged.emit(backend.messages); backend.set_busy(True)
+        self.assertEqual(surface.result_tabs.currentIndex(), 1)
+        surface.result_tabs.setCurrentIndex(0); backend.set_busy(True)
+        self.assertEqual(surface.result_tabs.currentIndex(), 0)
+        surface.result_tabs.setCurrentIndex(1)
+        backend.messages[-1]['parts'][0]['text'] = 'Final answer'; backend.messagesChanged.emit(backend.messages)
+        backend.set_busy(False); backend.completed.emit(True, 'Final answer')
+        self.assertEqual(surface.result_tabs.currentIndex(), 0)
+        self.assertTrue(surface.answer.isVisible()); self.assertFalse(surface.preview.isVisible())
+        self.assertIn('Final answer', surface.answer.toPlainText()); self.assertIsNone(surface.choice.currentData())
+        surface.result_tabs.setCurrentIndex(1); backend.messagesChanged.emit(backend.messages)
+        self.assertEqual(surface.result_tabs.currentIndex(), 1)
+        surface.close_pane(); backend.set_busy(True)
+        self.assertFalse(surface.pane.isVisible())
+        surface.toggle_preview()
+        self.assertTrue(surface.pane.isVisible()); self.assertEqual(surface.result_tabs.currentIndex(), 1)
+        backend.set_busy(False); backend.completed.emit(False, 'Abgebrochen')
+        self.assertEqual(surface.result_tabs.currentIndex(), 1)
+        backend.set_busy(True)
+        file = Path(self.tmp) / 'ready.md'; file.write_text('Ready file')
+        self.present([str(file)])
+        backend.messages[0]['info']['parentID'] = backend.message_id
+        backend.messages[0]['parts'].append({'type': 'text', 'text': 'Here is the ready file'})
+        backend.messagesChanged.emit(backend.messages); backend.set_busy(True)
+        self.assertEqual(surface.result_tabs.currentIndex(), 0)
+        self.wait(lambda: 'Ready file' in surface.preview.text.toPlainText())
+        backend.set_busy(False); backend.completed.emit(True, 'Here is the ready file')
+        self.assertTrue(surface.preview.isVisible()); self.assertEqual(surface.choice.currentData(), str(file))
+        backend.set_busy(True); surface.close_pane()
+        backend.set_busy(False); backend.completed.emit(True, 'Ready while closed')
+        self.assertFalse(surface.pane.isVisible())
+        surface.toggle_preview(); self.assertEqual(surface.result_tabs.currentIndex(), 0)
+        backend.set_busy(True); backend.set_busy(False); backend.completed.emit(True, '')
+        self.assertEqual(surface.result_tabs.currentIndex(), 1)
+
+    def test_execution_tab_streams_model_parts_and_preserves_reading_position(self):
+        backend, surface = self.window.chat.backend, self.window.studio
+        backend.session = 'stream-session'; backend.message_id = 'turn-one'; backend.set_busy(True)
+        surface.result_tabs.setCurrentIndex(1)
+        reasoning = {'type': 'reasoning', 'text': '**Prüfe Dateien**\n\n' + 'Schritt\n\n' * 80}
+        tool = {'type': 'tool', 'tool': 'read', 'state': {'status': 'running', 'input': {'path': '/tmp/example'}}}
+        backend.messages = [{'info': {'role': 'assistant', 'parentID': 'older'}, 'parts': [{'type': 'text', 'text': 'OLD ANSWER'}]},
+            {'info': {'role': 'assistant', 'id': 'stream-answer', 'parentID': 'turn-one'}, 'parts': [reasoning, tool]}]
+        backend.messagesChanged.emit(backend.messages); QTest.qWait(30)
+        stream = surface.execution_detail
+        self.assertIn('Prüfe Dateien', stream.toPlainText()); self.assertNotIn('**Prüfe', stream.toPlainText())
+        self.assertNotIn('OLD ANSWER', stream.toPlainText()); self.assertIn('/tmp/example', stream.toPlainText())
+        scroll = stream.verticalScrollBar(); self.assertGreater(scroll.maximum(), 0)
+        self.assertEqual(scroll.value(), scroll.maximum())
+        reasoning['text'] += 'Fortsetzung\n\n' * 20
+        backend.messagesChanged.emit(backend.messages); QTest.qWait(30)
+        self.assertIn('Fortsetzung', stream.toPlainText()); self.assertEqual(scroll.value(), scroll.maximum())
+        scroll.setValue(60)
+        tool['state'].update(status='completed', output='<img src="file:///private-test">\nTOOL OUTPUT')
+        backend.messages[1]['parts'].append({'type': 'text', 'text': '**Final answer**'})
+        backend.messagesChanged.emit(backend.messages); QTest.qWait(30)
+        self.assertIn('TOOL OUTPUT', stream.toPlainText()); self.assertIn('<img src=', stream.toPlainText())
+        self.assertIn('Final answer', stream.toPlainText()); self.assertAlmostEqual(scroll.value(), 60, delta=2)
+        self.assertIn('Final answer', surface.answer.toPlainText())
+        backend.message_id = 'turn-two'; backend.statusChanged.emit('Working')
+        self.assertNotIn('Final answer', stream.toPlainText())
+        backend.messages.append({'info': {'role': 'assistant', 'parentID': 'turn-two'},
+            'parts': [{'type': 'tool', 'tool': 'read', 'state': {'status': 'error', 'error': 'PERMISSION DENIED'}}]})
+        backend.messagesChanged.emit(backend.messages)
+        self.assertIn('PERMISSION DENIED', stream.toPlainText())
+        backend.set_busy(False); backend.message_id = ''
+        backend.messagesChanged.emit(backend.messages)
+        self.assertIn('PERMISSION DENIED', stream.toPlainText())
+        backend.execution = 'server'; backend.statusChanged.emit('Server')
+        self.assertNotIn('PERMISSION DENIED', stream.toPlainText()); self.assertIn('Server', stream.toPlainText())
+        backend.execution = 'local'; backend.new_conversation()
+        self.assertNotIn('PERMISSION DENIED', stream.toPlainText())
+
     def test_results_have_their_own_preview_selection_and_actions(self):
+        from studio_saved_results import StudioSavedResults
         space = self.window.workspace
         pending = space.store.create_task('Pending', directory=self.tmp, status='paused')
         done = space.store.create_task('Done', directory=self.tmp, status='completed')
-        space.store.update_task(done, result='Saved output')
-        space.select_task(pending)
+        space.store.update_task(done, result='Saved output'); space.select_task(pending)
         self.window.show_page(10)
-        self.assertFalse(self.window.navigation.buttons[4].isChecked())
-        self.assertNotEqual(self.window.pages.currentWidget(), space.tasks_page)
-        results = self.window.results_page
+        self.assertEqual(self.launch.call_args.args, ('lumen-wissen', ['--section','results']))
+        results = StudioSavedResults(space); results.refresh()
+        results.setParent(self.window)
         self.assertEqual(results.preview.toPlainText(), 'Saved output')
         self.assertEqual(space.tasks.currentItem().data(Qt.UserRole), pending)
-        with patch('lumen_workspace.QFileDialog.getSaveFileName', return_value=(self.tmp+'/result.md', '')):
-            results.export.click()
+        with patch('lumen_workspace.QFileDialog.getSaveFileName', return_value=(self.tmp+'/result.md', '')): results.export.click()
         self.assertEqual(Path(self.tmp+'/result.md').read_text(), 'Saved output')
         results.search.setText('missing'); self.assertFalse(results.export.isEnabled()); self.assertEqual(results.preview.toPlainText(), '')
-        self.window.navigation.navigate(4); self.assertTrue(self.window.navigation.buttons[4].isChecked())
-        self.assertNotIn(10, self.window.navigation.buttons)
-        self.window.resize(760,600); QTest.qWait(50)
-        self.assertEqual(self.window.size().toTuple(), (760,600))
-        self.assertTrue(space.task_buttons['run'].isVisible())
-        self.assertLess(space.task_inspector.width(), 342)
 
-    def test_sidebar_drag_keeps_width_across_pages_and_reopening(self):
-        from PySide6.QtCore import QPoint
-        navigation, split = self.window.navigation, self.window.navigation_split
-        width = navigation.width(); handle = split.handle(1); start = handle.rect().center()
-        QTest.mousePress(handle, Qt.LeftButton, pos=start)
-        QTest.mouseMove(handle, start + QPoint(90, 0), delay=20)
-        QTest.mouseRelease(handle, Qt.LeftButton, pos=handle.rect().center())
-        self.app.processEvents()
-        self.assertGreater(navigation.width(), width + 50)
-        width = navigation.width()
-        self.window.show_page(4); self.window.show_page(0); self.app.processEvents()
-        self.assertEqual(navigation.width(), width)
-        self.assertNotIn(10, self.window.nav_buttons)
-        with patch.object(self.desktop, 'QSettings', return_value=self.settings):
-            reopened = self.desktop.LumenWindow(self.tmp)
-        try:
-            reopened.resize(1480, 900); reopened.show(); self.app.processEvents()
-            self.assertEqual(reopened.navigation.width(), width)
-            reopened.resize(760, 600); self.app.processEvents()
-            self.assertEqual(reopened.size().toTuple(), (760, 600))
-        finally:
-            reopened.close(); reopened.deleteLater()
+    def test_detail_has_no_management_sidebar_at_either_size(self):
+        for width in (760,1480):
+            self.window.resize(width, 860); self.app.processEvents()
+            self.assertIsNone(self.window.findChild(QPushButton, 'studioAccount'))
+            self.assertEqual(self.window.pages.count(), 1)
+            self.assertTrue(self.window.workspace_bar.isVisible())
+            self.assertGreater(self.window.studio.width(), width-20)
 
-    def test_conversation_sidebar_keeps_history_visible_and_drafts_safe(self):
-        chat, navigation = self.window.chat, self.window.navigation
-        chat.backend.sessionsChanged.emit([{'id':'one','title':'First'}, {'id':'two','title':'Second'}])
-        chat.backend.session = 'one'; chat.backend.sessionChanged.emit('one')
-        self.assertTrue(navigation.recent.isVisible()); self.assertTrue(navigation.create.isVisible())
-        width = navigation.width()
-        self.window.show_page(4); self.window.show_page(0)
-        self.assertEqual(navigation.width(), width); self.assertTrue(navigation.recent.isVisible())
-        chat.composer.setPlainText('Unsaved draft')
+    def test_compact_history_keeps_drafts_and_attachments_safe(self):
+        chat = self.window.chat
+        self.window.open_search(); controller = self.window.search_controller
+        chat.backend.session = 'one'; chat.composer.setPlainText('Unsaved draft')
         with patch.object(chat.backend, 'select_session') as select:
-            QTest.mouseClick(navigation.recent.viewport(), Qt.LeftButton, pos=navigation.recent.visualItemRect(navigation.recent.item(1)).center())
-            select.assert_not_called()
-            self.assertEqual(navigation.recent.currentItem().data(Qt.UserRole), 'one')
-        self.assertEqual(chat.composer.toPlainText(), 'Unsaved draft')
-        chat.composer.clear()
-        with patch.object(chat.backend, 'select_session') as select:
-            navigation.open_session(navigation.recent.item(1)); select.assert_called_once_with('two')
+            controller.select_session('two'); select.assert_not_called()
+            self.assertEqual(chat.composer.toPlainText(), 'Unsaved draft')
+            chat.composer.clear(); chat.paths = [self.tmp+'/attachment.txt']
+            controller.select_session('two'); select.assert_not_called()
+            self.assertEqual(chat.paths, [self.tmp+'/attachment.txt'])
+            chat.paths = []; controller.select_session('two'); select.assert_called_once_with('two')
 
     def test_task_overview_search_controls_export_and_conversation(self):
         from lumen_workspace import selected
@@ -348,7 +421,7 @@ class StudioTest(unittest.TestCase):
         task = space.store.create_task('Küche', directory=self.tmp, roots=[self.tmp], approved=True,
             steps=[{'action': 'write', 'path': self.tmp + '/notiz.md', 'text': 'Erhaltenes Ergebnis'}])
         waiting = space.store.create_task('Rückfrage', directory=self.tmp, status='needs_input')
-        space.refresh_tasks(); space.select_task(task); self.window.show_page(4)
+        space.refresh_tasks(); space.select_task(task); space.tasks_page.show()
         chat.backend.busy = True; chat.backend.busyChanged.emit(True)
         self.assertTrue(space.task_buttons['run'].isVisible())
         space.task_buttons['run'].click(); self.wait(lambda: not space.processes)
@@ -380,10 +453,10 @@ class StudioTest(unittest.TestCase):
         chat.backend.busy = True
         chat.tracker.started('Ein Auftrag', [], 'build')
         task = chat.tracker.task_id
-        space.select_task(task); self.window.show_page(4)
+        space.select_task(task); space.tasks_page.show()
         self.assertTrue(space.task_buttons['pause'].isVisible())
         self.window.show_page(0); self.assertTrue(chat.pause_task.isVisible())
-        chat.open_task.click(); self.assertEqual(self.window.pages.currentIndex(), 4)
+        chat.open_task.click(); self.assertEqual(self.launch.call_args.args, ('lumen-system', ['--task', task]))
         with patch.object(chat.backend, 'stop', side_effect=lambda: chat.backend.completed.emit(False, 'Abgebrochen')) as stop:
             space.task_buttons['pause'].click(); stop.assert_called_once()
         self.assertEqual(space.store.task(task)['status'], 'paused')
@@ -391,7 +464,7 @@ class StudioTest(unittest.TestCase):
         with patch.object(chat.tracker, 'resume') as resume:
             space.task_buttons['run'].click(); resume.assert_called_once_with(task, chat)
         space.store.update_task(task, status='running'); chat.backend.busy = True; chat.backend.execution = 'server'
-        space.refresh_tasks(); self.window.show_page(4)
+        space.refresh_tasks(); space.tasks_page.show()
         self.assertFalse(space.task_buttons['pause'].isVisible()); self.assertTrue(space.task_buttons['cancel'].isVisible())
         with patch.object(chat.backend, 'stop') as stop:
             with self.assertRaises(ValueError): space.stop_task('paused')
@@ -417,7 +490,7 @@ class StudioTest(unittest.TestCase):
         with patch('lumen_workspace.QFileDialog.getSaveFileName', return_value=(self.tmp + '/antwort.md', '')):
             surface.export_answer.trigger()
         self.assertEqual(Path(self.tmp + '/antwort.md').read_text(), 'Antwort eins')
-        surface.task_link.click(); self.assertEqual(space.tasks.currentItem().data(Qt.UserRole), first)
+        surface.task_link.click(); self.assertEqual(self.launch.call_args.args, ('lumen-system', ['--task',first]))
         answer('two', 'Noch nicht gespeichert', 'new-turn')
         self.assertIsNone(chat.answer_task()); self.assertFalse(surface.export_answer.isEnabled())
         with patch('file_actions.save_action') as save:

@@ -54,10 +54,18 @@ class SearchHome(QObject):
         self.timeout=QTimer(self);self.timeout.setSingleShot(True);self.timeout.timeout.connect(self.cancel)
         from lumen_apps import catalogue
         rows={key:dict(id=key,title=title.removeprefix('Lumen '),icon='lumen-'+key) for key,title,detail,icon in catalogue()}
-        self._apps=[rows[key] for key in ('files','wissen','translate','vault','inbox')]+[dict(id='apps',title=tr('Alle Apps'),icon='view-grid')]
+        self.all_apps = [value for key,value in rows.items() if key != 'lumen']; self.expanded_apps = False
+        self._apps=[rows[key] for key in ('files','wissen','workbench','vault','inbox')]+[dict(id='apps',title=tr('Alle Apps'),icon='view-grid')]
     tasks=Property('QVariantList',lambda s:s._tasks,notify=changed)
     recent=Property('QVariantList',lambda s:s._recent,notify=changed)
-    apps=Property('QVariantList',lambda s:s._apps,constant=True)
+    apps=Property('QVariantList',lambda s:s._apps,notify=changed)
+
+    @Slot()
+    def show_all_apps(self):
+        self.expanded_apps = True
+        self._apps = self.all_apps + [dict(id='apps',title=tr('Weniger Apps'),icon='go-up')]
+        self.changed.emit()
+
     status=Property(str,lambda s:tr('Übersicht nicht vollständig verfügbar') if s._error else tr('Bereit'),notify=changed)
     detail=Property(str,lambda s:s._error or tr('{0} aktive Aufträge',sum(t['status'] not in ('completed','cancelled','failed') for t in s._tasks)),notify=changed)
 
@@ -93,6 +101,13 @@ class SearchHome(QObject):
 
     @Slot(str)
     def launch_app(self,key):
+        if key == 'apps':
+            if not self.expanded_apps: self.show_all_apps()
+            else:
+                self.expanded_apps = False
+                self._apps = [row for row in self.all_apps if row['id'] in ('files','wissen','workbench','vault','inbox')] + [dict(id='apps',title=tr('Alle Apps'),icon='view-grid')]
+                self.changed.emit()
+            return
         try:
             from lumen_apps import launch
             launch(key)

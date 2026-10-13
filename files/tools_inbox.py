@@ -61,7 +61,7 @@ class Inbox(ToolWindow):
         rl.addWidget(row(button(tr('Antworten'),lambda:self.safe(self.reply),'mail-reply-sender'),
             button(tr('Aufgabe'),lambda:self.safe(self.add_task),'list-add'),button(tr('Termin'),lambda:self.safe(self.event_dialog),'view-calendar')))
         rl.addWidget(button(tr('Mit Lumen entwerfen …'),lambda:self.safe(self.propose),'lumen'))
-        rl.addWidget(button(tr('Ins Lumen-Wissen'),lambda:self.safe(self.capture_knowledge),'bookmarks'))
+        rl.addWidget(button(tr('In Lumen Notes speichern'),lambda:self.safe(self.capture_knowledge),'bookmarks'))
         split.addWidget(reading);split.setSizes([360,520]);self.tabs.addTab(mail,tr('Posteingang'))
         calendar=QWidget();cl=QVBoxLayout(calendar);cl.setContentsMargins(0,12,0,0)
         cl.addWidget(label(tr('Letzte 30 Tage und kommende 12 Monate · Serien und Einladungen bleiben lesend.'),'muted'))
@@ -271,7 +271,7 @@ class Inbox(ToolWindow):
         if len(text)>20000:raise ValueError(tr('Bitte einen Abschnitt bis 20.000 Zeichen auswählen.'))
         from wissen_data import worker
         store=Store();title=self.message['subject'] or tr('Mail-Fundstelle')
-        self.work(tr('Nachrichtenauszug im Wissen speichern …'),lambda job:worker(job,store,'save_memory',title=title,text=text,source=source),lambda _:self.status.setText(tr('Nachrichtenauszug mit Herkunft im lokalen Lumen-Wissen gespeichert.')))
+        self.work(tr('Nachrichtenauszug im Notes speichern …'),lambda job:worker(job,store,'save_memory',title=title,text=text,source=source),lambda _:self.status.setText(tr('Nachrichtenauszug mit Herkunft in Lumen Notes gespeichert.')))
 
     def pick_account(self,kinds):
         accounts=[r for r in self.library.all() if r['kind'] in kinds]

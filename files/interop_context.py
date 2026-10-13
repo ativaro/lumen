@@ -7,6 +7,10 @@ from lumen_i18n import tr
 
 def send(window, action):
     from interop_ui import with_saved, reviewed_send, capture
+    if action == 'translate.import' and window.name in ('reader', 'inbox'):
+        from context_translate import open_translation
+        payload = capture(window)
+        if payload.get('text', '').strip(): return open_translation(window, payload)
     with_saved(window, lambda: reviewed_send(window, capture(window), action))
 
 
@@ -20,6 +24,8 @@ def add_actions(window, menu, payload=None):
     primary = {'translate.import', 'wissen.import', 'workbench.add', 'vault.sources'}
     extra = None
     for action, title in options:
+        if action == 'translate.import' and window.name in ('reader', 'inbox'):
+            title = tr('Text übersetzen …')
         if action not in primary and extra is None: extra = menu.addMenu(tr('Weitere Aktionen'))
         target = menu if action in primary else extra
         target.addAction(title, lambda checked=False, a=action: safe_action(window, lambda: send(window, a)))
@@ -66,6 +72,7 @@ def install(window):
         menu.exec(widget.mapToGlobal(point));timer.stop();menu.deleteLater()
     widgets = [window.entries]
     if window.name == 'translate': widgets += [window.input, window.output]
+    if window.name == 'inbox': widgets += [window.reader]
     if window.name == 'reader': widgets += [getattr(window,name) for name in ('canvas','text','notes','note') if hasattr(window,name)]
     if window.name == 'wissen' and hasattr(window,'editor'): widgets += [window.editor]
     for widget in widgets:

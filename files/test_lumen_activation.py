@@ -59,15 +59,18 @@ def worker(name, secondary=False):
         import app as module
         attribute = 'Window'
     elif name == 'updater':
-        import updater_app as module
-        attribute = 'UpdaterWindow'
-        module.UpdaterWindow.check = lambda *_: None
+        import system_window as module
+        attribute = 'SystemWindow'
+        from tools_sound import Sound
+        from system_app import SystemController
+        Sound.poll = lambda *_: None
+        SystemController.start = lambda *_: None
     elif name == 'companion':
         import screen_companion as module
         attribute = 'Companion'
     elif name == 'household':
-        import tools_household as module
-        attribute = 'Household'
+        import tools_workbench as module
+        attribute = 'Workbench'
     else:
         import tools_meeting_radio as module
         attribute = 'MeetingRadio'
@@ -135,6 +138,9 @@ def worker(name, secondary=False):
         import tools_app
         sys.argv = [tools_app.__file__, name]
         return tools_app.main()
+    if name == 'updater':
+        from updater_app import main
+        return main()
     return module.main()
 
 

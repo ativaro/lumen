@@ -143,14 +143,20 @@ class SettingsDialog(QDialog):
         for action in self.stack.findChildren(QPushButton):
             action.setAutoDefault(False); action.setDefault(False)
         self.server_page = self.stack.count()
-        server = self.page('Lumen Server', tr('Verbindung, Aufträge, Sicherungen und geteiltes Gedächtnis'))
+        server = self.page(tr('Server & Synchronisation'), tr('Verbindung und automatischer Datenabgleich'))
         server.addWidget(text(tr('Verbinde diesen Desktop über die Geräteansicht deines Servers. Hier siehst du anschließend den aktuellen Abgleich und die freigegebenen Funktionen.')))
         def open_server():
             from lumen_connect_gui import ConnectionDialog
             self.connection_dialog = ConnectionDialog(self)
             self.connection_dialog.show()
         server.addWidget(button(tr('Serververbindung öffnen'), open_server))
+        from sync_overview import widget as sync_widget
+        server.addWidget(sync_widget(self, heading=False))
         server.addStretch()
+        from lumen_workspace import Workspace
+        self.resource_workspace = Workspace(self, sections=('models',))
+        self.models_page = self.stack.count()
+        self.page(tr('Modelle & Ressourcen'), tr('Modelle, Datenschutz und Grenzen für Hintergrundaufträge')).addWidget(self.resource_workspace.models_page)
         from settings_navigation import SettingsNavigation, categories
         self.navigation = SettingsNavigation(self.stack, self.page_info, categories(self), self)
         self.nav = self.navigation.nav; self.nav_search = self.navigation.search
@@ -177,7 +183,7 @@ class SettingsDialog(QDialog):
             'search': tr('Suche und Gespräch nutzen das gemeinsame Modell, die Sprache und das Erscheinungsbild von Lumen. Diktieren wird im Einrichtungsassistenten eingerichtet.'),
             'wissen': tr('Notizbuch, Sammlungen und Freigaben verwaltest du in „Meine Notizen“. Im Lumen-Gedächtnis steuerst du Erinnerungen und automatisches Lernen.'),
             'inbox': tr('Mail- und Kalenderkonten werden in der Inbox verwaltet. Die KI-Lesefreigabe für lokale Nachrichten findest du unter MCP.'),
-            'vault': tr('Quellen, Ziele, Zeitpläne und Verschlüsselung werden je Sicherungsplan in Vault eingestellt.'),
+            'vault': tr('Quellen, Ziele und Zeitpläne verwaltest du unter Lumen System → Sicherungen.'),
             'reader': tr('Stimme und Audioausgabe wählst du im Reader. Bibliothek und Markierungen bleiben lokal gespeichert.'),
             'sound': tr('Ausgabegeräte, Lautstärken und Regeln für Anwendungen verwaltest du in Sound.'),
             'meetings': tr('Meeting und Radio teilen sich ein Fenster. Oben wechselst du zwischen Aufnahmen, Transkripten und deinem Hörprogramm. Beide Bibliotheken bleiben erhalten.'),
@@ -187,12 +193,17 @@ class SettingsDialog(QDialog):
         }
         self.app_controls = {}
         def open_app(key, area=None):
-            try: launch(key, area=area)
+            try:
+                if key == 'vault': launch('system', page='backups')
+                else: launch(key, area=area)
             except (OSError, ValueError) as error: self.status.setText(str(error))
-        for key, title, description, icon in catalogue():
+        for key, title, description, icon in catalogue(include_utilities=True):
+            if key == 'search':
+                self.app_pages[key] = self.app_pages['lumen']
+                continue
             if key in self.app_pages: continue
             self.app_pages[key] = self.stack.count()
-            panel = self.page(title, description)
+            panel = self.page(tr('Sicherungen') if key == 'vault' else title, explanations['vault'] if key == 'vault' else description)
             panel.addWidget(text(explanations.get(key, description)))
             panel.addWidget(button(tr('App öffnen'), lambda _=False, app=key: open_app(app)))
             if key == 'notification':
@@ -216,7 +227,7 @@ class SettingsDialog(QDialog):
                 for source in ('Lumen','Lumen Projekte','Lumen Server','Lumen Drive','Lumen Wissen','Lumen Vault','Lumen Updater','Lumen Notification'):
                     selector=combo([(tr('Popup und Zentrale'),'popup'),(tr('Nur Zentrale'),'center'),(tr('Stumm'),'muted')],modes.get(source,'popup'))
                     selector.currentIndexChanged.connect(lambda _=0,s=source,c=selector:set_preference(s,c.currentData()))
-                    form.addRow(tr(source),selector)
+                    form.addRow(tr('Lumen Notes' if source == 'Lumen Wissen' else source),selector)
             if key == 'translate':
                 from translate_data import LANGUAGES, STYLES, MODES
                 form = QFormLayout(); panel.addLayout(form); defaults = {}
@@ -256,7 +267,7 @@ class SettingsDialog(QDialog):
 
     def build_mcp(self):
         page = self.page('MCP', tr('Lumen-Funktionen für die KI'))
-        page.addWidget(text(tr('Die KI kann Dateien suchen, freigegebene Notizen lesen und Aufträge sowie Sicherungsstände abfragen. Wissen verwendet dieselben Freigaben wie Gespräche.')))
+        page.addWidget(text(tr('Die KI kann Dateien suchen, freigegebene Notizen lesen und Aufträge sowie Sicherungsstände abfragen. Lumen Notes verwendet dieselben Freigaben wie Gespräche.')))
         self.mcp_inbox = QCheckBox(tr('Lokale Nachrichten und Termine über MCP lesen'))
         self.mcp_inbox.setChecked(self.field(self.assistant, 'mcpInboxRead', False, bool))
         page.addWidget(self.mcp_inbox)
@@ -400,6 +411,13 @@ class SettingsDialog(QDialog):
             {key: self.original.get((settings.fileName(), key)) for key in values})
         for key, value in values.items():
             self.original[(settings.fileName(), key)] = value
+        if settings.fileName() == self.assistant.fileName() and 'model' in values and hasattr(self, 'resource_workspace'):
+            selected = values['model']
+            if self.model.findData(selected) < 0: self.model.addItem(selected, selected)
+            self.model.setCurrentIndex(max(0, self.model.findData(selected)))
+            self.resource_workspace.model_controls['model'].setCurrentText(selected)
+            policy = self.resource_workspace.store.setting('modelPolicy', {})
+            self.resource_workspace.store.set_setting('modelPolicy', dict(policy, model=selected))
         self.preferencesChanged.emit(settings.fileName(), list(changes))
 
     def folder_field(self, form, title, settings, key, default):
@@ -638,7 +656,7 @@ class SettingsDialog(QDialog):
         reading = QFormLayout()
         self.text_size = QSpinBox(); self.text_size.setRange(14, 22); self.text_size.setSuffix(' px')
         self.text_size.setValue(self.field(self.assistant, 'textSize', 17))
-        reading.addRow(tr('Schriftgröße · Lumen und Suche'), self.text_size)
+        reading.addRow(tr('Schriftgröße · Lumen'), self.text_size)
         self.content_density = combo([(tr('Komfortabel'), 'comfortable'), (tr('Kompakt'), 'compact')],
             self.field(self.assistant, 'contentDensity', 'comfortable'))
         reading.addRow(tr('Darstellungsdichte'), self.content_density); page.addLayout(reading)
@@ -881,12 +899,14 @@ class SettingsDialog(QDialog):
         timer.start(100000 if action == 'service' and data.get('scope') == 'system' else 60000)
 
     def done(self, result):
+        if not self.resource_workspace.can_close(): return
         if self.job:
             self.status.setText(tr('Bitte die laufende Systemaktion abwarten.'))
             return
         if self.engine:
             self.engine.shutdown()
         if hasattr(self, 'troubleshooter'): self.troubleshooter.stop()
+        self.resource_workspace.shutdown()
         super().done(result)
 
 
@@ -901,8 +921,10 @@ if __name__ == '__main__':
     app.setApplicationName('lumen-settings'); app.setApplicationDisplayName(tr('Lumen Einstellungen'))
     dialog = SettingsDialog(page=3 if '--appearance' in sys.argv else None); dialog.setWindowIcon(QIcon.fromTheme('configure'))
     if '--system-settings' in sys.argv: dialog.open_page(dialog.hardware_page)
+    if '--models' in sys.argv: dialog.open_page(dialog.models_page)
     if '--personality' in sys.argv: dialog.open_page(dialog.persona_page)
     if '--speech' in sys.argv: dialog.open_page(dialog.speech_input_page)
+    if '--sync' in sys.argv: dialog.open_page(dialog.server_page)
     if '--notifications' in sys.argv: dialog.open_page(dialog.app_pages['notification'])
     if '--troubleshooter' in sys.argv: dialog.open_page(dialog.troubleshooter_page)
     dialog.show()

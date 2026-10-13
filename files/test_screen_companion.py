@@ -32,6 +32,24 @@ class CompanionTest(unittest.TestCase):
         guide.active=True; guide.show(); self.app.processEvents()
         return guide
 
+    def test_embedded_history_keeps_readonly_session_and_clears_window_on_leave(self):
+        from PySide6.QtWidgets import QWidget
+        from unittest.mock import Mock
+        parent = QWidget(); self.addCleanup(parent.close); leave = Mock()
+        guide = Companion(parent, leave=leave); self.addCleanup(guide.close)
+        guide.backend.session = 'private-window-help'
+        guide.backend.messages = [dict(info=dict(role=role, id=str(i)), parts=[dict(type='text', text=text)])
+                                  for i, (role, text) in enumerate([('user','First question'),('assistant','First answer'),('user','Next question'),('assistant','Next answer')])]
+        guide.history.setChecked(True)
+        self.assertIn('First answer', guide.answer.toPlainText())
+        self.assertIn('Next answer', guide.answer.toPlainText())
+        guide.active=True; guide.png=self.png; guide.image=self.image
+        guide.leave_help(); leave.assert_called_once()
+        self.assertFalse(guide.png); self.assertFalse(guide.active)
+        self.assertEqual(guide.backend.session, 'private-window-help')
+        self.assertTrue(guide.backend.read_only); self.assertTrue(guide.backend.screen_guidance)
+        self.assertFalse(guide.closing)
+
     def test_review_then_send_once_and_pause_clears_sensitive_state(self):
         guide=self.guide(); guide.pending='Help with setup'
         with patch.object(guide.backend,'send') as send:

@@ -43,6 +43,10 @@ class StudioChat(ChatPanel):
         caption = label(tr('Gespräch'), 'studioSection'); caption.setMinimumHeight(48); top.addWidget(caption, 1)
         self.execution.setMaximumWidth(160)
         self.preview_button = icon_button(tr('Ergebnis öffnen'), 'view-preview', self.previewRequested.emit)
+        from conversation_actions import continue_elsewhere, teach
+        self.continue_button = icon_button(tr('Auf anderen Geräten fortsetzen'), 'computer', lambda: continue_elsewhere(self))
+        top.addWidget(self.continue_button)
+        self.backend.busyChanged.connect(lambda busy: self.continue_button.setEnabled(not busy))
         top.addWidget(self.preview_button)
         root.addLayout(top)
         self.context_chip = label('', 'studioContext')
@@ -101,6 +105,11 @@ class StudioChat(ChatPanel):
                 (tr('Merk dir das'), self.remember_button), (tr('Als Dateiaktion speichern …'), self.save_file_action)]:
             action = self.output_menu.addAction(title, control.click)
             self.output_menu.aboutToShow.connect(lambda a=action, c=control: a.setEnabled(c.isEnabled() and bool(self.last_answer) and (c is not self.save_file_action or not c.isHidden())))
+        from note_reviews import show_reviews
+        reviews = QPushButton(tr('Vorschläge & Verlauf'))
+        reviews.clicked.connect(lambda: show_reviews(self)); footer.addWidget(reviews)
+        self.teach_action = self.output_menu.addAction(tr('Als Lösungsweg lernen …'), lambda: teach(self))
+        self.output_menu.aboutToShow.connect(lambda: self.teach_action.setEnabled(bool(self.last_answer) and not self.backend.busy and not self.memory_capture_job))
         output = icon_button(tr('Antwort verwenden'), 'view-more-symbolic', lambda: None)
         output.setMenu(self.output_menu); footer.addWidget(output); root.addLayout(footer)
         root.addWidget(self.memory_status)
@@ -136,8 +145,7 @@ class StudioChat(ChatPanel):
     def update_task_controls(self, *_):
         active = self.backend.busy and self.tracker.lease is not None
         self.pause_task.setVisible(active and getattr(self.backend, 'execution', 'local') == 'local')
-        task = self.tracker.store.task(self.tracker.task_id) if self.tracker.task_id else None
-        self.open_task.setVisible(active or bool(task and task['session'] and task['session'] == self.backend.session))
+        self.open_task.setVisible(active)
 
     def reload_settings(self, filename, keys):
         super().reload_settings(filename, keys)

@@ -22,9 +22,6 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDockWi
     QStyleOptionViewItem, QStyledItemDelegate, QTabBar, QTreeView, QVBoxLayout, QWidget)
 from core import FileWorker, SearchWorker, file_kind, size_text, valid_name
 from network import Network, ConnectDialog, display_url, is_network_address, normalize_url, server_label
-from file_rename import RenameDelegate
-from google_drive import GoogleDrive
-from online_accounts import CloudAccounts, open_accounts
 from preview import Preview, label
 from gallery import Gallery, ImageLoader
 from disk_analysis import DiskAnalysis
@@ -48,12 +45,6 @@ def button(text, callback, icon=None, tip=None):
 
 
 class FileFilter(QSortFilterProxyModel):
-    def flags(self, index):
-        flags = super().flags(index)
-        if index.isValid() and index.column() == 0 and self.path(index):
-            return flags | Qt.ItemIsEditable
-        return flags & ~Qt.ItemIsEditable
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.kind = 'all'
@@ -203,13 +194,7 @@ class FileView(FileDropMixin, QTreeView):
     pass
 
 
-class ThumbnailDelegate(RenameDelegate):
-    def caption_rect(self, rect):
-        return QRect(rect.x()+10, rect.bottom()-49, rect.width()-20, 20)
-
-    def updateEditorGeometry(self, editor, option, index):
-        editor.setGeometry(self.caption_rect(option.rect).adjusted(-2, -2, 2, 2))
-
+class ThumbnailDelegate(QStyledItemDelegate):
     def sizeHint(self, option, index):
         return self.parent().gridSize()
 
@@ -257,7 +242,7 @@ class ThumbnailDelegate(RenameDelegate):
                                      photo.bottom() - side + 4, side, side), Qt.AlignCenter)
         font = QFont(option.font); font.setBold(False); painter.setFont(font)
         painter.setPen(option.palette.color(QPalette.Text))
-        text_rect = self.caption_rect(option.rect)
+        text_rect = QRect(rect.x(), photo.bottom() + 7, rect.width(), 20)
         alignment = Qt.AlignLeft if cached else Qt.AlignHCenter
         painter.drawText(text_rect, alignment | Qt.AlignVCenter,
                          painter.fontMetrics().elidedText(name, Qt.ElideMiddle, text_rect.width()))
@@ -292,7 +277,7 @@ class FileGrid(FileDropMixin, QListView):
         self.setTextElideMode(Qt.ElideMiddle)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.setEditTriggers(QAbstractItemView.SelectedClicked)
+        self.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.setItemDelegate(ThumbnailDelegate(self))
         self.loader = ImageLoader(self, max_side=256, cache_limit=256)
@@ -358,8 +343,6 @@ class Window(QMainWindow):
         self.current_path = str(Path.home())
         self.current_location = self.current_path
         self.network = Network(self)
-        self.cloud = CloudAccounts(self, GoogleDrive(self))
-        self.cloud.refresh()
         self.spaces = FileSpaces(self, catalog)
         self.connection_request = None
         self.hidden = self.settings.value('hidden', False, type=bool)
@@ -387,6 +370,8 @@ class Window(QMainWindow):
         self.network.busy.connect(self.cancel_connect_button.setVisible)
         self.install_shortcuts()
         QShortcut(QKeySequence("Ctrl+J"), self, activated=lambda: self.ask_lumen("open", self.context_paths()))
+        from transfer_panel import toggle
+        QShortcut(QKeySequence('Ctrl+Shift+J'), self, activated=lambda: toggle(self))
         QShortcut(QKeySequence('Ctrl+Shift+F'), self, activated=self.search_contents)
         QShortcut(QKeySequence('Ctrl+,'), self, activated=self.show_settings)
         self.debounce = QTimer(self)
@@ -414,7 +399,7 @@ class Window(QMainWindow):
                         pass
                     elif is_network_address(path):
                         path = normalize_url(path)
-                    elif not self.cloud.contains(path) and not Path(path).is_dir():
+                    elif not Path(path).is_dir():
                         continue
                     if position == saved_active:
                         restored_active = len(paths)
@@ -444,6 +429,10 @@ class Window(QMainWindow):
                                Qt.DescendingOrder if self.settings.value('session/sortDescending', False, type=bool) else Qt.AscendingOrder)
         self.view.header().sortIndicatorChanged.connect(lambda *_: self.session_save.start())
         self.splitter.splitterMoved.connect(lambda *_: self.session_save.start())
+        from transfer_panel import panel
+        transfer_view = panel(self)
+        transfer_view.setVisible(self.settings.value('transfersVisible', False, type=bool))
+        transfer_view.visibilityChanged.connect(lambda visible: self.settings.setValue('transfersVisible', visible))
         self.set_view_mode(self.settings.value('viewMode', 'list'))
 
     def build_ui(self):
@@ -473,7 +462,7 @@ class Window(QMainWindow):
         new_tab.setObjectName('toolButton'); new_tab.setFixedSize(30, 30)
         tabrow.addWidget(new_tab)
         tabrow.addStretch()
-        self.room_button = button(tr('Arbeitsräume'), self.spaces.room_menu, 'folder-favorites')
+        self.room_button = button(tr('Dateiansichten'), self.spaces.room_menu, 'folder-favorites')
         self.room_button.setObjectName('toolButton')
         self.room_button.setMaximumWidth(200)
         tabrow.addWidget(self.room_button)
@@ -573,8 +562,7 @@ class Window(QMainWindow):
         self.places.setTextElideMode(Qt.ElideRight)
         self.places.setUniformItemSizes(True)
         self.places.setItemDelegate(PlacesDelegate(self.places))
-        self.places.itemClicked.connect(self.activate_place)
-        self.places.itemActivated.connect(self.activate_place)
+        self.places.itemClicked.connect(lambda item: self.navigate(item.data(Qt.UserRole)))
         self.places.setContextMenuPolicy(Qt.CustomContextMenu)
         self.places.customContextMenuRequested.connect(self.place_menu)
         self.populate_places()
@@ -591,6 +579,7 @@ class Window(QMainWindow):
         connections.addWidget(favorite)
         side.addLayout(connections)
         side.addWidget(analysis)
+        side.addWidget(button(tr('Lesebibliothek'), self.open_reading_library, 'application-pdf'))
         self.disk_label = label('', 'muted')
         side.addWidget(self.disk_label)
         self.location_badge = label(tr('LOKAL AUF DEINEM RECHNER'), 'tiny')
@@ -628,6 +617,8 @@ class Window(QMainWindow):
             self.filter_buttons[kind] = item
             filters.addWidget(item)
         filters.addStretch()
+        from transfer_panel import toggle
+        filters.addWidget(button(tr('Übertragungen'), lambda: toggle(self), 'folder-download', tr('Kopierfortschritt · Strg+Umschalt+J')))
         self.view_buttons = {}
         for mode, icon, tip in [('list', 'view-list-details', tr('Listenansicht · Strg+1')),
                                 ('grid', 'view-list-icons', tr('Bildraster · Strg+2'))]:
@@ -652,8 +643,7 @@ class Window(QMainWindow):
         self.view.setIconSize(QSize(20, 20))
         self.view.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.view.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.view.setEditTriggers(QAbstractItemView.SelectedClicked)
-        self.view.setItemDelegate(RenameDelegate(self.view))
+        self.view.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.view.setAlternatingRowColors(False)
         self.view.setSortingEnabled(True)
         self.view.setModel(self.proxy)
@@ -759,10 +749,6 @@ class Window(QMainWindow):
                 places.append((folder['name'] + tr(' · Offline'), folder['local'], 'folder-download'))
         places.append(('Lumen Drive', 'lumen-drive://', 'folder-cloud'))
         places.append((tr('Dateisystem'), '/', 'drive-harddisk'))
-        places.append((tr('Online-Konten'), None, 'network-server'))
-        self.cloud.refresh()
-        places.extend((drive.paths.label, str(drive.paths.mount), 'folder-cloud')
-                      for drive in self.cloud.drives.values() if drive.paths.configured())
         seen = {path for _, path, _ in places}
         for storage in QStorageInfo.mountedVolumes():
             path = storage.rootPath()
@@ -775,8 +761,7 @@ class Window(QMainWindow):
         for text, path, icon in places:
             item = QListWidgetItem(QIcon.fromTheme(icon), text)
             item.setData(Qt.UserRole, path)
-            if path is None: item.setData(Qt.UserRole + 1, 'accounts')
-            item.setToolTip(path or text)
+            item.setToolTip(path)
             self.places.addItem(item)
         servers = self.saved_servers()
         if servers:
@@ -856,28 +841,15 @@ class Window(QMainWindow):
             self.settings.setValue('favorites', paths)
             self.populate_places()
 
-    def activate_place(self, item):
-        if item.data(Qt.UserRole + 1) == 'accounts': self.show_accounts()
-        elif item.data(Qt.UserRole): self.navigate(item.data(Qt.UserRole))
-
     def place_menu(self, position):
         item = self.places.itemAt(position)
         if not item:
-            return
-        if item.data(Qt.UserRole + 1) == 'accounts':
-            menu = QMenu(self)
-            menu.addAction(tr('Online-Konten …'), self.show_accounts)
-            menu.exec(self.places.viewport().mapToGlobal(position))
             return
         path = item.data(Qt.UserRole)
         if not path:
             return
         menu = QMenu(self)
         menu.addAction(tr('In neuem Tab öffnen'), lambda: self.new_tab(path))
-        if not virtual(path):
-            menu.addAction(tr('Eigenschaften …'), lambda: self.show_properties(path))
-        if self.cloud.contains(path):
-            menu.addAction(tr('Online-Konten …'), self.show_accounts)
         if path.startswith(LIBRARY):
             self.spaces.library_menu(menu, path)
         if is_network_address(path):
@@ -962,7 +934,7 @@ class Window(QMainWindow):
                 remote = None
             path = str(Path.home())
         path = str(Path(path).expanduser())
-        if not self.cloud.contains(path) and not Path(path).is_dir():
+        if not Path(path).is_dir():
             path = str(Path.home())
         self.tabs_data.append({'history': [drive or collection or remote or path], 'position': 0})
         self.tabs.blockSignals(True)
@@ -1047,7 +1019,6 @@ class Window(QMainWindow):
             self.navigate(tab['history'][position], record=False, history_position=position)
 
     def navigate(self, path, record=True, history_position=None):
-        self.cloud.cancel_pending()
         if is_drive(path):
             self.drive.navigate(path, record, history_position); return
         if virtual(path):
@@ -1060,9 +1031,6 @@ class Window(QMainWindow):
         self.cancel_connection()
         if str(path).startswith('file:'):
             path = QUrl(str(path)).toLocalFile()
-        if self.cloud.contains(path):
-            self.cloud.open(path, record, history_position)
-            return
         self.show_folder(path, record, history_position=history_position)
 
     def show_folder(self, path, record=True, location=None, history_position=None):
@@ -1083,10 +1051,7 @@ class Window(QMainWindow):
         if record and tab['history'][tab['position']] != self.current_location:
             tab['history'] = tab['history'][:tab['position'] + 1] + [self.current_location]
             tab['position'] += 1
-        cloud = self.cloud.contains(path)
         title = server_label(location) if remote else Path(path).name or tr('Dateisystem')
-        drive = self.cloud.for_path(path) if cloud else None
-        if drive and path == str(drive.paths.mount): title = drive.paths.label
         self.tabs.setTabText(self.tabs.currentIndex(), title)
         self.tabs.setTabToolTip(self.tabs.currentIndex(), display_url(location) if remote else path)
         self.search.blockSignals(True)
@@ -1112,7 +1077,7 @@ class Window(QMainWindow):
         else:
             storage = QStorageInfo(path)
             self.disk_label.setText(tr('{0} frei\nauf {1}', size_text(storage.bytesAvailable()), storage.displayName() or tr('diesem Laufwerk')))
-        self.location_badge.setText(self.cloud.label(path) if cloud else tr('Netzwerk') if remote else tr('Lokales Laufwerk'))
+        self.location_badge.setText(tr('Netzwerk') if remote else tr('Lokales Laufwerk'))
         for i in range(self.places.count()):
             self.places.item(i).setSelected(self.places.item(i).data(Qt.UserRole) == self.current_location)
         self.update_count()
@@ -1369,12 +1334,28 @@ class Window(QMainWindow):
         if paths:
             self.open_path(paths[0])
 
+    def reading_view(self):
+        from reader_workspace import ReadingWorkspace
+        if not hasattr(self, 'reading_workspace'):
+            self.reading_workspace = ReadingWorkspace(self)
+        return self.reading_workspace
+
+    def open_reading_library(self):
+        try: self.reading_view().open_library()
+        except Exception as error: self.error(str(error))
+
+    def open_reader(self, path):
+        try: self.reading_view().open_file(path)
+        except Exception as error: self.error(str(error))
+
     def open_path(self, path):
         if is_drive(path): return self.drive.open(path)
         if Path(path).is_dir():
             self.navigate(path)
         elif file_kind(path) == 'image':
             self.open_gallery(path)
+        elif Path(path).suffix.lower() in ('.pdf', '.epub'):
+            self.open_reader(path)
         elif not QDesktopServices.openUrl(QUrl.fromLocalFile(path)):
             self.error(tr('Die Datei konnte nicht geöffnet werden.'), path)
 
@@ -1535,11 +1516,11 @@ class Window(QMainWindow):
         if self.file_job:
             self.error(tr('Bitte den laufenden Dateivorgang abwarten.'))
             return
-        if any(self.cloud.contains(p) and not self.cloud.mounted(p) for p in [*paths, *([target] if target else [])]):
-            self.error(tr('Bitte das Online-Konto zuerst über die Seitenleiste verbinden.'))
+        if action == 'copy':
+            from transfer_panel import panel
+            panel(self).enqueue(action, paths, target, portable=bool(target and self.network.remote(target)))
             return
-        job = FileWorker(action, paths, target, portable=bool(target and
-                         (self.network.remote(target) or self.cloud.contains(target))))
+        job = FileWorker(action, paths, target, portable=bool(target and self.network.remote(target)))
         self.file_job = job
         job.progress.connect(lambda name: self.activity.setText(tr('Dateivorgang: {0}', name)))
         def completed(done, errors):
@@ -1622,11 +1603,7 @@ class Window(QMainWindow):
 
     def show_properties(self, paths=None):
         from file_properties import show
-        paths = self.selected_paths() if paths is None else paths
-        if any(self.cloud.contains(p) and not self.cloud.mounted(p) for p in paths):
-            self.error(tr('Bitte das Online-Konto zuerst über die Seitenleiste verbinden.'))
-            return
-        show(self, paths)
+        show(self, self.selected_paths() if paths is None else paths)
 
     def build_context_menu(self, paths):
         from file_action_menu import ActionMenu
@@ -1713,17 +1690,12 @@ class Window(QMainWindow):
         try: launch('apps')
         except (OSError, ValueError) as error: QMessageBox.warning(self, 'Lumen Apps', str(error))
 
-    def show_accounts(self):
-        open_accounts(self)
-        self.populate_places()
-
     def show_settings(self):
         from settings_dialog import SettingsDialog
-        dialog = SettingsDialog(self, files_settings=self.settings, files_only=True)
+        dialog = SettingsDialog(self, files_settings=self.settings, page=1)
         dialog.preferencesChanged.connect(self.reload_settings)
         dialog.exec()
         dialog.deleteLater()
-        self.populate_places()
 
     def reload_settings(self, filename=None, keys=None):
         if hasattr(self, 'assistant') and filename:
@@ -1749,16 +1721,17 @@ class Window(QMainWindow):
 
     def show_menu(self):
         menu = QMenu(self)
-        menu.addAction(tr('Arbeitsräume · Weiterarbeiten'), self.show_workplace)
-        menu.addAction('Transfers', lambda: self.show_workplace(1))
+        menu.addAction(tr('Lumen Projekte'), self.show_workplace)
+        from transfer_panel import panel
+        menu.addAction(panel(self).toggleViewAction())
+        menu.addAction(tr('Verlauf & Rückgängig'), lambda: self.show_workplace(2))
         menu.addAction(tr('Offline verfügbare Ordner …'), self.offline.show)
         menu.addAction(tr('Dateiversionen …'), self.show_versions)
         self.add_workshop_action(menu)
         menu.addAction('Lumen Apps', self.show_apps)
         menu.addAction(tr('Einstellungen\tStrg+Komma'), self.show_settings)
-        menu.addAction(tr('Online-Konten …'), self.show_accounts)
         menu.addAction(tr('Bibliotheken verwalten …'), self.spaces.library_manager)
-        menu.addAction(tr('Arbeitsräume …'), self.spaces.room_menu)
+        menu.addAction(tr('Dateiansichten …'), self.spaces.room_menu)
         menu.addAction(tr('Mit Server verbinden\tStrg+K'), self.connect_dialog)
         menu.addAction(tr('Speicher analysieren'), self.open_analysis)
         menu.addAction(tr('Bilder nach Motiv suchen …'), lambda: self.photo_tools('search'))
@@ -1777,23 +1750,24 @@ class Window(QMainWindow):
         dialog = VersionsDialog(self, path if isinstance(path, str) else None); dialog.exec(); dialog.deleteLater()
 
     def show_workplace(self, tab=0):
-        if hasattr(self, 'lumen_host'):
-            self.lumen_host.show_page(8)
-            self.lumen_host.workplace.tabs.setCurrentIndex(int(tab)); return
+        if int(tab) == 0:
+            from lumen_detail_routes import open_page
+            open_page(8); return
         if not hasattr(self, 'workplace_dialog'):
             from lumen_workplace import Workplace
             class WorkplaceDialog(QDialog):
                 def reject(dialog):
+                    if not dialog.page.can_close(): return
                     if dialog.page.busy:
                         dialog.page.status.setText(tr('Bitte die laufende Systemaktion abschließen lassen.')); return
                     super().reject()
             self.workplace_dialog = WorkplaceDialog(self)
-            self.workplace_dialog.setWindowTitle(tr('Lumen Files · Arbeitsräume')); self.workplace_dialog.resize(1120, 800)
+            self.workplace_dialog.setWindowTitle(tr('Lumen Files · Übertragungen & Verlauf')); self.workplace_dialog.resize(1120, 800)
             layout = QVBoxLayout(self.workplace_dialog)
-            self.workplace_dialog.page = Workplace(self.workplace_dialog, files_provider=lambda: self)
+            self.workplace_dialog.page = Workplace(self.workplace_dialog, files_provider=lambda: self, activity_only=True)
             layout.addWidget(self.workplace_dialog.page)
         self.workplace_dialog.page.refresh_projects()
-        self.workplace_dialog.page.tabs.setCurrentIndex(int(tab))
+        self.workplace_dialog.page.tabs.setCurrentIndex(int(tab)-1)
         self.workplace_dialog.show(); self.workplace_dialog.raise_(); self.workplace_dialog.activateWindow()
 
     def error(self, message, detail=''):
@@ -1804,12 +1778,16 @@ class Window(QMainWindow):
         box.exec()
 
     def closeEvent(self, event):
+        if hasattr(self, 'reading_workspace') and not self.reading_workspace.can_close():
+            event.ignore(); return
         if self.drive.jobs:
             self.activity.setText(tr('Drive-Übertragung läuft noch. Bitte kurz warten.')); event.ignore(); return
         if getattr(getattr(self, 'drive_dialog', None), 'job', None):
             self.error(tr('Drive-Übertragung läuft noch. Bitte kurz warten.')); event.ignore(); return
         if hasattr(self, 'workplace_dialog') and self.workplace_dialog.page.busy:
             self.error(tr('Bitte die laufende Systemaktion zuerst abschließen lassen.')); event.ignore(); return
+        if hasattr(self, 'workplace_dialog') and not self.workplace_dialog.page.can_close():
+            event.ignore(); return
         if getattr(self, '_closed', False):
             event.accept(); return
         if self.file_job and self.file_job.isRunning():
@@ -1847,7 +1825,6 @@ class Window(QMainWindow):
             self.fs.setOption(QFileSystemModel.DontWatchForChanges, True)
             self.fs.deleteLater()
         self.offline.close()
-        self.cloud.close()
         self.network.close()
         self._closed = True
         event.accept()
@@ -2041,7 +2018,7 @@ def main(argv=None):
     activation.bind(lambda request: activate_files(window, request))
     from lumen_crash import attach
     attach(app, window, 'files', offer_recovery=not start and not args.settings)
-    if not args.settings and not QSettings('Lumen', 'Assistant').value('setupSeen', False, type=bool):
+    if not args.settings:
         from setup_dialog import offer_setup
         QTimer.singleShot(250, lambda: offer_setup(window))
     return app.exec()

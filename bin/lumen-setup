@@ -69,27 +69,28 @@ if os.path.exists(p):
         print("  MCP 'cachyos' entfernt")
 PY
     rm -f "$OPENCODE_HOME/command/sync.md" "$OPENCODE_HOME/command/sysreport.md" "$OPENCODE_HOME/command/fix.md"
-    rm -rf "$OPENCODE_HOME/skill/lumen-admin" "$OPENCODE_HOME/skill/lumen-projects"
+    rm -rf "$OPENCODE_HOME/skills/lumen-admin" "$OPENCODE_HOME/skills/lumen-projects" "$OPENCODE_HOME/skills/lumen-service-access"
+    rm -rf "$OPENCODE_HOME/skill/lumen-admin" "$OPENCODE_HOME/skill/lumen-projects" "$OPENCODE_HOME/skill/lumen-service-access"
     echo "  Commands/Skill entfernt"
     exit 0
 fi
 
-mkdir -p "$OPENCODE_HOME/command" "$OPENCODE_HOME/skill"
+mkdir -p "$OPENCODE_HOME/command" "$OPENCODE_HOME/skills"
 
 # ---- commands + skill ------------------------------------------------------
 if [ -n "$SHARE" ] && [ -d "$SHARE/opencode-command" ]; then
     say "Installiere Commands + Skill nach $OPENCODE_HOME"
     cp "$SHARE/opencode-command/"*.md "$OPENCODE_HOME/command/" 2>/dev/null || true
-    for skill in lumen-admin lumen-projects; do
+    for skill in lumen-admin lumen-projects lumen-service-access; do
         if [ -d "$SHARE/opencode-skill/$skill" ]; then
-            mkdir -p "$OPENCODE_HOME/skill/$skill"
-            cp -r "$SHARE/opencode-skill/$skill/." "$OPENCODE_HOME/skill/$skill/"
+            mkdir -p "$OPENCODE_HOME/skills/$skill"
+            cp -r "$SHARE/opencode-skill/$skill/." "$OPENCODE_HOME/skills/$skill/"
         fi
     done
     # backward-compat: also honor the old skill name if present
     if [ -d "$SHARE/opencode-skill/cachyos-admin" ] && [ ! -d "$SHARE/opencode-skill/lumen-admin" ]; then
-        mkdir -p "$OPENCODE_HOME/skill/lumen-admin"
-        cp -r "$SHARE/opencode-skill/cachyos-admin/." "$OPENCODE_HOME/skill/lumen-admin/" 2>/dev/null || true
+        mkdir -p "$OPENCODE_HOME/skills/lumen-admin"
+        cp -r "$SHARE/opencode-skill/cachyos-admin/." "$OPENCODE_HOME/skills/lumen-admin/" 2>/dev/null || true
     fi
 else
     say "Kein Command/Skill-Verzeichnis gefunden – übersprungen"

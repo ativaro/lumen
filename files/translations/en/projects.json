@@ -40,7 +40,7 @@
   "Eine Abhängigkeit ist nicht mehr verfügbar.": "A dependency is no longer available.",
   "Eine Aufgabe gehört zu einem aktiven Vorhaben.": "A task belongs to an active initiative.",
   "Eine Quelle wurde während des Einlesens geändert. Bitte erneut starten.": "A source changed while it was being read. Please start again.",
-  "Ergebnis in Lumen Wissen speichern": "Save result in Lumen Wissen",
+  "Ergebnis in Lumen Wissen speichern": "Save result in Lumen Notes",
   "Erstelle das gewünschte Endergebnis aus den bisherigen Belegen. Trenne gesicherte Aussagen, Unsicherheiten und Empfehlungen. Gib Quellenlinks an.": "Produce the requested final result from the evidence gathered. Distinguish established facts, uncertainty and recommendations. Include source links.",
   "Erstellt: {0} · Geändert: {1}": "Created: {0} · Updated: {1}",
   "Für diese Aufgabe bitte einen Auszug unter 32 MB anheften.": "Attach an excerpt smaller than 32 MB for this task.",
@@ -85,5 +85,6 @@
   "Ausgewählten Text als manuelle Aufgabe mit Herkunft speichern.": "Save the selected text as a manual task with its source.",
   "Das gewählte Ziel ist archiviert. Bitte zuerst wiederherstellen.": "The selected destination is archived. Restore it first.",
   "Die übernommene Aufgabe wurde inzwischen bearbeitet. Sie bleibt erhalten.": "The imported task has been edited since then. It will be kept.",
-  "Ungültiges Zeitintervall.": "Invalid schedule interval."
+  "Ungültiges Zeitintervall.": "Invalid schedule interval.",
+  "Ergebnis in Lumen Notes speichern": "Save result in Lumen Notes"
 }

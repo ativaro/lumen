@@ -8,24 +8,26 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
 from lumen_i18n import tr
 
 
-def catalogue():
-    return [
-        ('lumen', 'Lumen', tr('Gespräche, Aufträge und dein System'), 'lumen'),
+def catalogue(*, include_utilities=False):
+    apps = [
+        ('lumen', 'Lumen', tr('Suchen, sprechen und in der Detailansicht weiterarbeiten'), 'lumen'),
         ('files', 'Lumen Files', tr('Dateien, Netzwerkorte und Vorschauen'), 'system-file-manager'),
         ('search', tr('Lumen Suche'), tr('Apps und Dateien finden, mit Lumen sprechen'), 'system-search'),
         ('companion', 'Lumen Companion', tr('Hilfe im gewählten Fenster · Schritt für Schritt'), 'video-display'),
         ('translate', 'Lumen Translate', tr('Übersetzen, umformulieren und korrigieren'), 'preferences-desktop-locale'),
-        ('wissen', tr('Lumen Wissen'), tr('Deine Notizen und Lumens Gedächtnis'), 'accessories-text-editor'),
+        ('wissen', tr('Lumen Notes'), tr('Deine Notizen, Sammlungen und Quellen'), 'accessories-text-editor'),
         ('inbox', 'Lumen Inbox', tr('Nachrichten und Kalender an einem Ort'), 'mail-unread'),
         ('notification', 'Lumen Notification', tr('Meldungen, Ergebnisse und Erinnerungen'), 'notifications'),
-        ('vault', 'Lumen Vault', tr('Sicherungen planen und wiederherstellen'), 'document-save'),
+        ('vault', 'Lumen Vault', tr('Passwörter und geschützte Einträge'), 'document-encrypt'),
         ('reader', 'Lumen Reader', tr('Lesen, markieren und vorlesen lassen'), 'application-pdf'),
         ('updater', 'Lumen Updater', tr('Lumen, Apps und Erweiterungen aktualisieren'), 'system-software-update'),
-        ('system', 'Lumen System', tr('Leistung, Geräte, Sound und Arbeitsmodi'), 'utilities-system-monitor'),
+        ('system', 'Lumen System', tr('Geräte, Sound, Arbeitsmodi, Updates und Diagnose'), 'utilities-system-monitor'),
         ('meetings', tr('Lumen Meeting & Radio'), tr('Aufnahmen, Transkripte und dein persönliches Hörprogramm'), 'audio-input-microphone'),
         ('household', tr('Lumen Digitaler Haushalt'), tr('Dokumente und Fristen im Blick behalten'), 'view-calendar'),
         ('workbench', tr('Lumen Projekte'), tr('Projekte und ihre nächsten Schritte organisieren'), 'folder-development'),
     ]
+
+    return apps if include_utilities else [row for row in apps if row[0] not in ('search', 'updater', 'notification', 'companion', 'household', 'reader', 'translate')]
 
 
 COMPANIONS = ('translate', 'wissen', 'inbox', 'vault', 'reader', 'meetings', 'household', 'workbench', 'radio')
@@ -38,24 +40,25 @@ def startup_preference(app, key, settings=None):
 
 
 def launch(app, *, area=None, page=None):
-    known = {item[0] for item in catalogue()}
+    known = {item[0] for item in catalogue(include_utilities=True)}
     if app not in known | {'apps', 'radio', 'sound'}: raise ValueError(tr('Unbekannte Lumen-App.'))
     if area is not None and (app != 'wissen' or area not in ('user', 'lumen')):
-        raise ValueError(tr('Unbekannter Wissensbereich.'))
+        raise ValueError(tr('Unbekannter Bereich.'))
     if app == 'sound': app, page = 'system', 'sound'
-    if page is not None and (app != 'system' or page not in ('system', 'sound', 'modes')):
+    if app == 'updater': app, page = 'system', 'updates'
+    if page is not None and (app != 'system' or page not in ('system', 'sound', 'modes', 'server', 'updates', 'diagnostics', 'backups')):
         raise ValueError(tr('Unbekannter Systembereich.'))
     folder = Path(__file__).resolve().parent
     if app == 'notification':
         from lumen_notifications import open_center
         open_center()
         return
-    if app in COMPANIONS:
+    if app in COMPANIONS and app != 'vault':
         args = [str(folder / 'tools_app.py'), app]
         if area: args += ['--area', area]
         executable = sys.executable
     else:
-        name = {'lumen': 'lumen-agent-app', 'apps': 'lumen-agent-app', 'files': 'lumen-files', 'search': 'lumen-search', 'system': 'lumen-system', 'updater': 'lumen-updater', 'companion': 'lumen-companion'}[app]
+        name = {'lumen': 'lumen-agent-app', 'apps': 'lumen-agent-app', 'files': 'lumen-files', 'search': 'lumen-search', 'system': 'lumen-system', 'vault': 'lumen-vault', 'updater': 'lumen-updater', 'companion': 'lumen-companion'}[app]
         from lumen_launch import executable as resolve_executable
         executable = resolve_executable(name)
         args = ['--page', 'apps'] if app == 'apps' else ['--page', page] if page else []
@@ -67,7 +70,11 @@ class AppCenter(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         outer = QVBoxLayout(self); outer.setContentsMargins(24, 20, 24, 16); outer.setSpacing(16)
-        heading = QLabel('Lumen Apps'); heading.setObjectName('heading'); outer.addWidget(heading)
+        heading = QLabel('Lumen Apps'); heading.setObjectName('heading')
+        header = QHBoxLayout(); header.addWidget(heading, 1)
+        self.notifications = QPushButton(QIcon.fromTheme('notifications'), tr('Meldungen'))
+        self.notifications.clicked.connect(lambda: self.open('notification'))
+        header.addWidget(self.notifications); outer.addLayout(header)
         subtitle = QLabel(tr('Ein Zuhause für deine Lumen-Apps.')); subtitle.setObjectName('muted'); outer.addWidget(subtitle)
         self.search = QLineEdit(); self.search.setPlaceholderText(tr('App finden …')); self.search.setAccessibleName(tr('Lumen-Apps durchsuchen')); outer.addWidget(self.search)
         scroll = QScrollArea(); scroll.setWidgetResizable(True); scroll.setFrameShape(QFrame.NoFrame)
@@ -78,12 +85,13 @@ class AppCenter(QWidget):
             card = QFrame(); card.setObjectName('appCard')
             card.setStyleSheet('QFrame#appCard { background: palette(base); border: 1px solid palette(mid); border-radius: 16px; }')
             box = QVBoxLayout(card); box.setContentsMargins(20, 18, 20, 18); box.setSpacing(10)
-            top = QHBoxLayout(); mark = QLabel(); mark.setPixmap(QIcon.fromTheme('lumen' if app == 'lumen' else 'lumen-' + app, QIcon.fromTheme(icon)).pixmap(28, 28)); top.addWidget(mark)
+            top = QHBoxLayout(); mark = QLabel(); mark.setPixmap(QIcon.fromTheme('lumen' if app == 'lumen' else 'lumen-' + app, QIcon.fromTheme(icon)).pixmap(40, 40)); top.addWidget(mark)
             name = QLabel(title); name.setWordWrap(True); font = name.font(); font.setBold(True); name.setFont(font); top.addWidget(name, 1); box.addLayout(top)
             detail = QLabel(description); detail.setWordWrap(True); detail.setObjectName('muted'); box.addWidget(detail); box.addStretch()
             row = QHBoxLayout()
             for text, callback in ((tr('Öffnen'), lambda _=False, key=app: self.open(key)),
                                    (tr('Einstellungen'), lambda _=False, key=app: self.settings(key))):
+                if app == 'vault' and text == tr('Einstellungen'): continue
                 b = QPushButton(text); b.setAccessibleName(title + ' · ' + text); b.clicked.connect(callback); row.addWidget(b)
             box.addLayout(row); self.cards.append((card, (title + ' ' + description).casefold()))
         self.empty = QLabel(tr('Keine passende App gefunden.')); outer.addWidget(self.empty)

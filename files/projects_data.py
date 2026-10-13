@@ -158,7 +158,7 @@ class Projects:
             if item['kind'] not in ('research', 'analysis', 'automation') and expected_updated is not None:
                 raise ValueError('Only research, analysis and automation tasks can run.')
             if expected_updated is not None: self.check_edit(db, item, expected_updated)
-            if scheduled and (item['kind']!='automation' or not item.get('enabled') or item.get('next_run',0)>now):
+            if scheduled and (item['kind'] not in ('research','analysis','automation') or not item.get('enabled') or item.get('next_run',0)>now):
                 raise ValueError(tr('Dieser Zeitplan ist nicht mehr fällig.'))
             project = db.execute('SELECT archived,data FROM records WHERE id=?', (item['project'],)).fetchone()
             if project and json.loads(project['data']).get('server_bound'):
@@ -172,7 +172,7 @@ class Projects:
                 raise ValueError(tr('Diese Aufgabe läuft bereits.'))
             db.execute('INSERT INTO project_runs VALUES (?,?,?,NULL,?,?)', (key,task,now,'running',json.dumps(dict(snapshot=snapshot,result='',error=''))))
             data = json.loads(db.execute('SELECT data FROM project_items WHERE id=?',(task,)).fetchone()[0]); data['status']='running'
-            if item['kind']=='automation': data['next_run']=now+int(item.get('interval',86400))
+            if item.get('enabled') or item['kind']=='automation': data['next_run']=now+int(item.get('interval',86400))
             db.execute('UPDATE project_items SET data=?,updated=? WHERE id=?',(json.dumps(data),now,task))
         return key
 
@@ -192,5 +192,6 @@ class Projects:
             db.execute('UPDATE project_items SET data=?,updated=? WHERE id=?',(json.dumps(task),now,value['task']))
 
     def source_chain(self, key):
-        task = self.get(key); project = self.library.get(task['project'])
-        return [project, self.get(task['parent']), task]
+        from projects_rooms import source_chain
+        task = self.get(key)
+        return source_chain(self, task['project'], key)

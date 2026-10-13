@@ -57,7 +57,7 @@ class MemoryTest(unittest.TestCase):
         self.memory.configure(False,False);self.assertEqual(self.memory.prepare('Projekt',str(self.base))['context'],'')
 
     def test_learning_evidence_conflicts_deduplication_and_forget(self):
-        self.memory.configure(True,True);user='Ich möchte kurze Antworten.'
+        self.memory.configure(True,True,automatic=True);user='Ich möchte kurze Antworten.'
         item=dict(title='Antwortlänge',text='Der Nutzer möchte kurze Antworten.',kind='preference',scope='global',evidence=user)
         revision=self.store.setting('memory/revision',0)
         self.assertEqual(self.memory.apply([item,item],user,str(self.base),'Gespräch 1',[],revision),1)
@@ -111,12 +111,16 @@ class MemoryBackendTest(unittest.TestCase):
                     state['counter']+=1;result={'id':'session-'+str(state['counter'])};state['sessions'][result['id']]=[]
                 elif path.endswith('/prompt_async'):
                     session=path.split('/')[2]
-                    is_learning=body['parts'][0]['text'].startswith('You maintain the user-controlled memory')
+                    is_learning=body['parts'][0]['text'].startswith('Load the lumen-memory-learning skill')
                     if not is_learning:state['prompts'].append((session,body))
                     answer='Verstanden.'
                     if is_learning:
-                        payload=json.loads(body['parts'][0]['text'].split('\n',1)[1])
-                        answer=json.dumps({'memories':[dict(title='Antwortlänge',text='Der Nutzer möchte kurze Antworten.',kind='preference',scope='global',evidence=user)] if payload['user_message']==user else []})
+                        import subprocess,sys
+                        event=Path(state['learning_directory'])/'event.json';payload=json.loads(event.read_text())
+                        items=[dict(title='Antwortlänge',text='Der Nutzer möchte kurze Antworten.',kind='preference',scope='global',evidence=user,path='',source_answer='',confirmed=False,correction=False)] if payload['text']==user else []
+                        calls=[dict(jsonrpc='2.0',id=1,method='tools/call',params=dict(name='lumen_memory_learning_context',arguments={})),dict(jsonrpc='2.0',id=2,method='tools/call',params=dict(name='lumen_memory_learn',arguments=dict(memories=items)))]
+                        run=subprocess.run([sys.executable,str(Path(__file__).with_name('memory_agent_stdio.py')),str(event)],input='\n'.join(map(json.dumps,calls))+'\n',capture_output=True,text=True,check=True)
+                        assert not any(json.loads(line)['result'].get('isError') for line in run.stdout.splitlines())
                     state['sessions'][session]=[{'info':{'role':'assistant','parentID':body['messageID'],'time':{'completed':123}},'parts':[{'type':'text','text':answer}]}]
                 elif path.endswith('/message'):result=state['sessions'][path.split('/')[2]]
                 elif path in ('/session','/permission','/question'):result=[]
@@ -126,8 +130,12 @@ class MemoryBackendTest(unittest.TestCase):
             deadline=time.monotonic()+12
             while not predicate() and time.monotonic()<deadline:QTest.qWait(20)
             self.assertTrue(predicate())
-        with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,{'LUMEN_DATA':tmp+'/state'}):
-            store=Store();memory=Memory(store);memory.configure(True,True)
+        def ensure(engine, callback):
+            engine.url='http://127.0.0.1:'+str(server.server_port)
+            if getattr(engine,'learning_environment',None):state['learning_directory']=engine.directory
+            callback()
+        with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,{'LUMEN_DATA':tmp+'/state'}),patch.object(OpenCodeBackend,'ensure_server',ensure):
+            store=Store();memory=Memory(store);memory.configure(True,True,automatic=True)
             backend=OpenCodeBackend(tmp,server_url='http://127.0.0.1:'+str(server.server_port),password='test');backend.ensure_server=lambda callback:callback();backend.selected_model='test/model'
             seen=[];backend.memoryContextChanged.connect(seen.append)
             try:

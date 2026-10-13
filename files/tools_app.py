@@ -48,19 +48,24 @@ def main():
     parser.add_argument('tool',choices=['meetings','household','workbench','radio','vault','inbox','reader','sound','wissen','translate'])
     parser.add_argument('path',nargs='?')
     parser.add_argument('--clipboard', action='store_true')
+    parser.add_argument('--section')
     parser.add_argument('--area', choices=['user', 'lumen'])
     destination=parser.add_mutually_exclusive_group()
     destination.add_argument('--handoff')
     destination.add_argument('--ref')
     args=parser.parse_args()
-    if args.path and args.tool not in ('reader','wissen','translate'):parser.error(tr('Dateien können nur an Reader, Wissen oder Translate übergeben werden.'))
-    if args.area and args.tool != 'wissen': parser.error(tr('Der Bereich ist nur für Lumen Wissen verfügbar.'))
+    if args.path and args.tool not in ('reader','wissen','translate'):parser.error(tr('Dateien können nur an Reader, Notes oder Translate übergeben werden.'))
+    if args.area and args.tool != 'wissen': parser.error(tr('Der Bereich ist nur für Lumen Notes verfügbar.'))
     if args.clipboard and args.tool != 'translate': parser.error(tr('Die Zwischenablage ist hier nur für Translate verfügbar.'))
+    if args.section and args.tool not in ('workbench','wissen'): parser.error('Section requires Projects or Notes')
     requested=str(Path(args.path).expanduser().absolute()) if args.path else ''
-    activation={key:value for key,value in [('path',requested),('handoff',args.handoff),('ref',args.ref),('area',args.area)] if value}
-    if args.tool == 'sound':
+    if args.tool == 'wissen' and not args.area and not args.ref and not args.handoff: args.area = 'user'
+    activation={key:value for key,value in [('path',requested),('handoff',args.handoff),('ref',args.ref),('area',args.area),('section',args.section)] if value}
+    if args.tool == 'household':
+        args.tool = 'workbench'; activation['section'] = 'household'
+    if args.tool in ('sound', 'vault'):
         from system_app import main as system_main
-        forwarded = ['--page', 'sound']
+        forwarded = ['--page', 'sound' if args.tool == 'sound' else 'backups']
         for key in ('handoff', 'ref'):
             if activation.get(key): forwarded.extend(['--'+key, activation[key]])
         return system_main(forwarded)
@@ -121,9 +126,14 @@ def main():
     def dispatch(page, request):
         if not isinstance(request, dict): raise ValueError(tr('Ungültige App-Anfrage.'))
         request = dict(request)
+        section = request.pop('section', None)
+        if section is not None:
+            if page.name not in ('workbench','wissen'): raise ValueError(tr('Unbekannter Bereich.'))
+            if section == 'household': page.open_section(section, request); return
+            page.open_section(section)
         area = request.pop('area', None)
         if area is not None:
-            if page.name != 'wissen' or area not in ('user', 'lumen'): raise ValueError(tr('Unbekannter Wissensbereich.'))
+            if page.name != 'wissen' or area not in ('user', 'lumen'): raise ValueError(tr('Unbekannter Bereich.'))
             page.switch_area(area)
         if len(pages) > 1 and request: window.select(page.name)
         if request: controller(page).enqueue(request)

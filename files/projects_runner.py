@@ -47,6 +47,9 @@ def snapshot(projects, task, job):
         changes=moves(projects.library.root.parent,item.get('interop_path_revision',0))
         for resource in item.get('resources',[]):
             job.check(); target=resource['target']
+            if resource['kind']=='folder':
+                sources.append(dict(title=resource['title'],path=target,text='',revision=tr('Ordnerverweis · Dateien einzeln anheften')))
+                continue
             if resource['kind']=='file':target=mapped(target,changes)
             if target in seen:continue
             seen.add(target)
@@ -55,7 +58,7 @@ def snapshot(projects, task, job):
             if target.startswith('lumen:'):
                 from interop_data import Registry
                 ref=Registry(projects.library.root.parent).resolve(target)
-                if ref['app']=='wissen' and ref.get('path'):target=ref['path']
+                if ref['app'] in ('wissen','files') and ref.get('path'):target=ref['path']
                 elif ref['app']=='reader':
                     book=Library('reader',projects.library.root.parent); record=book.get(ref['id'])
                     target=str(book.asset(record['asset']))
@@ -224,7 +227,7 @@ def main():
     queue=[]
     for project in projects.library.all():
         for item in projects.items(project['id']):
-            if item['kind']=='automation' and item.get('enabled') and item.get('next_run',0)<=time.time():queue.append(item['id'])
+            if item['kind'] in ('research','analysis','automation') and item.get('enabled') and item.get('next_run',0)<=time.time():queue.append(item['id'])
     runner=Runner(projects,background=True)
     def advance(*_):
         if not queue:app.quit();return

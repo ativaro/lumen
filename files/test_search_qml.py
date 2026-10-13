@@ -44,6 +44,47 @@ with tempfile.TemporaryDirectory() as tmp:
  finally:c.shutdown();w.hide();engine.deleteLater();QTest.qWait(20)
 """)
 
+    def test_latest_message_button_mouse_keyboard_and_stream(self):
+        self.run_qt6("""
+import tempfile
+from PySide6.QtCore import Qt, QPointF
+from PySide6.QtGui import QGuiApplication
+from PySide6.QtTest import QTest
+from search_controller import SearchController
+from search_qml import create_window
+app=QGuiApplication([])
+with tempfile.TemporaryDirectory() as tmp:
+ c=SearchController(tmp,applications=[]);engine,w=create_window(app,c)
+ try:
+  w.show();c.show_conversation();QTest.qWait(60)
+  def walk(item):
+   yield item
+   for child in item.childItems():yield from walk(child)
+  items=list(walk(w.contentItem()))
+  view=next(i for i in items if i.objectName()=='conversation')
+  button=next(i for i in items if i.objectName()=='latestMessage')
+  flick=next(i for i in walk(view) if i.metaObject().indexOfProperty('contentY')>=0)
+  assert not button.isVisible()
+  def answer(text):return dict(info=dict(role='assistant',id='answer'),parts=[dict(type='text',text=text)])
+  text='A paragraph of the answer.\\n\\n'*80
+  c.update_messages([answer(text)]);QTest.qWait(100)
+  assert button.isVisible() and button.property('text')=='Jump to latest message'
+  point=button.mapToScene(QPointF(button.width()/2,button.height()/2)).toPoint()
+  QTest.mouseClick(w,Qt.LeftButton,Qt.NoModifier,point);QTest.qWait(50)
+  assert not button.isVisible()
+  assert abs(flick.property('contentY')-(view.property('contentHeight')-view.property('availableHeight')))<2
+  text+='A streamed paragraph.\\n\\n'*30
+  c.update_messages([answer(text)]);QTest.qWait(100)
+  assert button.isVisible(), 'More streamed content must remain reachable'
+  flick.setProperty('contentY',0);button.forceActiveFocus();QTest.keyClick(w,Qt.Key_Space);QTest.qWait(50)
+  assert not button.isVisible()
+  w.setWidth(620);w.setHeight(560);QTest.qWait(80);flick.setProperty('contentY',0);QTest.qWait(30)
+  assert button.isVisible() and button.width()<w.width()-48
+  c.update_messages([answer('Short answer')]);QTest.qWait(100)
+  assert not button.isVisible(), 'No jump button for non-scrollable content'
+ finally:c.shutdown();w.hide();engine.deleteLater();QTest.qWait(20)
+""")
+
     def test_voice_without_setup_stays_visible_and_offers_setup(self):
         self.run_qt6('''
 import tempfile

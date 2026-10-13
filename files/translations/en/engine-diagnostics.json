@@ -1,0 +1,11 @@
+{
+  "OpenCode kann seine Konfiguration nicht laden. Bitte die OpenCode-Konfiguration prüfen; eine Neuinstallation der Engine behebt das nicht.": "OpenCode cannot load its configuration. Please check the OpenCode configuration; reinstalling the engine will not fix this.",
+  "OpenCode fehlen Dateizugriffsrechte. Bitte die Rechte des OpenCode-Benutzerprofils prüfen.": "OpenCode does not have file access. Please check the permissions of the OpenCode user profile.",
+  "Prozess beendet: Code {0} ({1}).": "Process exited: code {0} ({1}).",
+  "OpenCode kann seine Datenbank nicht öffnen. Bitte Diagnose kopieren; die Datenbank nicht löschen.": "OpenCode cannot open its database. Please copy diagnostics; do not delete the database.",
+  "OpenCode konnte wegen fehlendem Speicherplatz nicht starten.": "OpenCode could not start because disk space is exhausted.",
+  "Lumen verwendet eine eigene Gesprächsdatenbank, weil die bisherige Datenbank inkompatibel ist. Die bisherigen Daten bleiben erhalten.": "Lumen uses a separate conversation database because the previous database is incompatible. Existing data is preserved.",
+  "Unvollständige Diagnose kopiert. Bitte Lumen neu starten und erneut prüfen.": "Incomplete diagnostics copied. Please restart Lumen and check again.",
+  "Diagnose konnte nicht kopiert werden. Bitte erneut versuchen.": "Diagnostics could not be copied. Please try again.",
+  "Anfrage zu groß.": "Request too large."
+}

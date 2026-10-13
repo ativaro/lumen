@@ -11,7 +11,7 @@
   "Bitte einen neuen PDF-Dateinamen wählen. Vorhandene Dateien werden nicht überschrieben.": "Choose a new PDF filename. Existing files will not be overwritten.",
   "Bitte gültige Sprachen und einen Übersetzungsstil wählen.": "Please select valid languages and a writing style.",
   "Bitte zuerst eine PDF öffnen.": "Please open a PDF first.",
-  "Dateien können nur an Reader, Wissen oder Translate übergeben werden.": "Files can only be passed to Reader, Wissen or Translate.",
+  "Dateien können nur an Reader, Wissen oder Translate übergeben werden.": "Files can only be passed to Reader, Notes or Translate.",
   "Dein Ergebnis erscheint hier.": "Your result appears here.",
   "Die PDF ist verschlüsselt. Bitte zuerst eine entsperrte Kopie erstellen.": "The PDF is encrypted. Please create an unlocked copy first.",
   "Die Quelldatei wurde verändert. Bitte erneut übersetzen.": "The source file changed. Please translate it again.",
@@ -97,5 +97,6 @@
   "Dänisch": "Danish",
   "Finnisch": "Finnish",
   "Tschechisch": "Czech",
-  "Griechisch": "Greek"
+  "Griechisch": "Greek",
+  "Dateien können nur an Reader, Notes oder Translate übergeben werden.": "Files can only be passed to Reader, Notes or Translate."
 }

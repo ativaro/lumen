@@ -76,7 +76,7 @@ class MemorySources(QPushButton):
         try:
             _, note = local_source(Store(), source)
             if note['hash'] != source['revision']:
-                raise ValueError(tr('Diese Erinnerung wurde inzwischen geändert. Bitte die aktuelle Fassung in Lumen Wissen prüfen.'))
+                raise ValueError(tr('Diese Erinnerung wurde inzwischen geändert. Bitte die aktuelle Fassung in den Gedächtniseinstellungen prüfen.'))
             if QMessageBox.question(self, tr('Lumen · Erinnerung vergessen'),
                     tr('„{0}“ dauerhaft vergessen? Bei aktiviertem Abgleich gilt dies auch auf verbundenen Geräten.', note['title']),
                     QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel) != QMessageBox.Yes:

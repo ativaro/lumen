@@ -1,11 +1,10 @@
-"""Projects, initiatives, tasks and their material in a native three-column view."""
+"""Project orchestration with one workspace and its dedicated sidebar editor."""
 from lumen_i18n import tr
 from pathlib import Path
 from PySide6.QtCore import Qt, QUrl, QTimer
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import (QLineEdit, QPlainTextEdit, QListWidget, QListWidgetItem,
-    QInputDialog, QFileDialog, QTabWidget, QWidget, QVBoxLayout, QTreeWidget,
-    QTreeWidgetItem, QComboBox, QCheckBox, QDialog, QDialogButtonBox, QFormLayout, QMenu)
+from PySide6.QtWidgets import (QPlainTextEdit, QListWidget, QListWidgetItem,
+    QTabWidget, QWidget, QVBoxLayout, QTreeWidgetItem, QDialog, QDialogButtonBox, QMenu)
 from tools_data import web_url
 from tools_ui import ToolWindow, button, label, row, open_path
 
@@ -17,48 +16,111 @@ class Workbench(ToolWindow):
         self.projects=Projects(self.library); self.scope=''; self.initiative=''; self.runner=None
         from projects_runner import recover
         recover(self.projects)
-        self.add_button.setText(tr('Projekt anlegen'))
-        self.title=QLineEdit(); self.title.setPlaceholderText(tr('Lege dein erstes Projekt an')); self.title.setAccessibleName(tr('Projektname')); self.title.textEdited.connect(self.edited)
-        self.content.addWidget(self.title)
-        self.tabs=QTabWidget(); self.content.addWidget(self.tabs,1)
-        self.tabs.setStyleSheet('QTabBar::tab { min-width: 0; padding: 8px 12px; }')
-        notes_page=QWidget(); notes_layout=QVBoxLayout(notes_page); notes_layout.setContentsMargins(0,12,0,0)
-        notes_layout.addWidget(label(tr('Gedanken & Notizen'),'heading'))
-        self.notes=QPlainTextEdit(); self.notes.setAccessibleName(tr('Projektnotizen')); self.notes.setPlaceholderText(tr('Worum geht es? Was ist der nächste Schritt?\n\nDeine Notizen werden automatisch gespeichert.')); self.notes.textChanged.connect(self.edited); notes_layout.addWidget(self.notes,2)
-        self.legacy_heading=label(tr('Offene Fragen'),'heading'); notes_layout.addWidget(self.legacy_heading)
-        self.questions=QListWidget(); self.questions.setObjectName('searchResults'); self.questions.setAccessibleName(tr('Offene Fragen')); self.questions.itemChanged.connect(self.edited); notes_layout.addWidget(self.questions,1)
-        self.question=QLineEdit(); self.question.setPlaceholderText(tr('Neue Frage …')); self.question.setAccessibleName(tr('Neue Frage')); self.question.textEdited.connect(self.edited); self.question.returnPressed.connect(lambda:self.safe(self.add_question))
-        self.legacy_controls=row(self.question,button(tr('Hinzufügen'),lambda:self.safe(self.add_question),'list-add'),button(tr('Entfernen'),lambda:self.safe(self.remove_question),'list-remove')); notes_layout.addWidget(self.legacy_controls)
-        self.tabs.addTab(notes_page,tr('Notizen'))
-        resources=QWidget(); resources_layout=QVBoxLayout(resources); resources_layout.setContentsMargins(0,12,0,0)
-        resources_layout.addWidget(label(tr('Dateien & Webseiten'),'heading'))
-        resources_layout.addWidget(label(tr('Dateien bleiben an ihrem Ort – auch auf eingebundenen Netzlaufwerken. Ein Doppelklick öffnet sie in ihrer Anwendung.'), 'muted'))
-        self.resources=QListWidget(); self.resources.setObjectName('searchResults'); self.resources.setAccessibleName(tr('Projektmaterial')); self.resources.itemDoubleClicked.connect(lambda _:self.safe(self.open_resource)); resources_layout.addWidget(self.resources,1)
-        resources_layout.addWidget(row(button(tr('Dateien'),lambda:self.safe(self.add_files),'document-open',True),button(tr('Ordner'),lambda:self.safe(self.add_folder),'folder'),
-            button(tr('Webseite'),lambda:self.safe(self.add_link),'internet-web-browser'),button(tr('Öffnen'),lambda:self.safe(self.open_resource),'document-open'),button(tr('Entfernen'),lambda:self.safe(self.remove_resource),'list-remove')))
-        self.tabs.addTab(resources,tr('Material'))
-        self.content.addWidget(button(tr('Projektübersicht exportieren'),lambda:self.safe(self.export),'document-export'))
+        self.loaded_fields={}; self.loaded_record={}; self.loaded_updated=None; self.interop_path_revision=0
+        from project_editor import ProjectEditor
+        self.editor=ProjectEditor(self)
         self.setup_projects()
-        self.body.setEnabled(False); self.refresh()
         from interop_workflow_ui import install_menu
         install_menu(self)
-        self.server_material=QListWidget();self.server_material.setAccessibleName(tr('Material auf Lumen Server'));self.server_material.setMaximumHeight(110);self.server_material.hide();self.content.addWidget(self.server_material)
-        self.server_material.itemDoubleClicked.connect(lambda _:self.safe(self.open_server_material))
+        self.editor.workflow_action=self.editor.more_menu.addMenu(self._workflow_menu)
         from projects_sync_ui import install
         install(self)
 
+        from lumen_workplace import Workplace
+        from lumen_workspace import Workspace
+        self.room_files = None
+        self.workplace = Workplace(self, files_provider=self.workspace_files)
+        self.workplace.remote_conversations = True
+        self.automations = Workspace(self, store=self.workplace.store, sections=('flows',))
+        self.recurring=QListWidget();self.recurring.setAccessibleName(tr('Wiederkehrende Projektaufgaben'));self.recurring.setMaximumHeight(160)
+        self.recurring.itemActivated.connect(lambda item:self.safe(self.navigate,*item.data(Qt.UserRole)))
+        self.recurring.itemClicked.connect(lambda item:self.safe(self.navigate,*item.data(Qt.UserRole)))
+        self.automations.flows_page.layout().insertWidget(1,label(tr('Wiederkehrende Projektaufgaben'),'heading'))
+        self.automations.flows_page.layout().insertWidget(2,self.recurring)
+        management = self.takeCentralWidget()
+        self.areas = QTabWidget(); self.areas.setAccessibleName(tr('Projektbereiche'))
+        self.areas.setStyleSheet('QTabWidget::pane { border: none; }')
+        self.areas.addTab(management, tr('Archiv und Serverabgleich'))
+        self.areas.addTab(self.workplace, tr('Projekte'))
+        self.areas.addTab(self.automations.flows_page, tr('Automationen'))
+        self.areas.tabBar().hide()
+        from projects_home import ProjectHome
+        self.home = ProjectHome(self)
+        self.areas.addTab(self.home,tr('Projekt'))
+        self.home.editor_layout.addWidget(self.editor)
+        shell=QWidget();layout=QVBoxLayout(shell);layout.setContentsMargins(0,0,0,0)
+        self.back_home=button(tr('‹ Projekte'),lambda:self.safe(self.show_home),'go-previous')
+        self.flow_entry=button(tr('Alle Automationen'),lambda:self.safe(self.open_section,'automations'))
+        self.flow_entry.setToolTip(tr('Bestehende Abläufe mit Schritten, Zeit- oder Ordnerauslösern.'))
+        navigation=row(self.back_home,self.flow_entry);navigation.layout().insertStretch(1,1);navigation.layout().setContentsMargins(16,4,16,4)
+        layout.addWidget(navigation);layout.addWidget(self.areas,1)
+        self.setCentralWidget(shell)
+        self.areas.currentChanged.connect(self.refresh_area)
+        self.show_home()
+
+    def show_home(self):
+        if not self.editor.allow_leave():return
+        self.editor.hide();self.home.refresh();self.areas.setCurrentIndex(3);self.back_home.hide()
+
+    def focus_record(self,key):
+        if not self.editor.allow_leave():return
+        self.editor.discard()
+        super().focus_record(key)
+        if hasattr(self,'home'):
+            self.home.project_id=key;self.home.room_id=(self.home.links.room(key) or {}).get('id','');self.home.scope='';self.home.refresh()
+            self.editor.present(self.library.get(key))
+            self.loaded_fields=self.editor_fields();self.areas.setCurrentIndex(3)
+
+    def edited(self,*_):
+        if not self.loading:
+            text=tr('Ungespeicherte Änderungen · Speichern übernimmt die Eingabe.');self.status.setText(text)
+            if hasattr(self,'editor'):self.editor.feedback.setText(text)
+
+    def workspace_files(self):
+        if self.room_files is None or getattr(self.room_files, '_closed', False):
+            from app import Window
+            self.room_files = Window(str(Path.home()))
+        return self.room_files
+
+    def refresh_area(self, index):
+        self.back_home.setVisible(index!=3)
+        if index == 1: self.workplace.refresh_projects()
+        elif index == 2:
+            self.automations.refresh_flows();self.recurring.clear()
+            for project in self.library.all():
+                for task in self.projects.items(project['id']):
+                    if task['kind']=='automation' or task.get('enabled') or task.get('next_run'):
+                        item=QListWidgetItem(project['title']+' · '+task['title']+' · '+tr('Aktiv' if task.get('enabled') else 'Pausiert'))
+                        item.setData(Qt.UserRole,(project['id'],task['id']));self.recurring.addItem(item)
+
+    def open_section(self, section, request=None):
+        if section not in ('projects','rooms','automations','household'): raise ValueError(tr('Unbekannter Projektbereich.'))
+        if section in ('projects','rooms'):self.show_home();return
+        if not self.editor.allow_leave():return
+        self.editor.hide()
+        self.areas.setCurrentIndex({'automations':2,'household':1}[section])
+        if section == 'household':
+            self.workplace.rooms.open_household(all_rooms=True)
+            if request: self.workplace.rooms.household.activate(request)
+
+
     def create(self):
-        title,ok=QInputDialog.getText(self,tr('Neues Projekt'),tr('Projektname'))
-        if ok and title.strip():
-            self.save()
-            from projects_sync import read_state,configure
-            location=tr('Lokal')
-            if read_state(self.library)['enabled']:
-                location,ok=QInputDialog.getItem(self,tr('Neues Projekt'),tr('Speicherort'),[tr('Lumen Server'),tr('Lokal')],0,False)
-                if not ok:return
-            key=self.library.create(title,notes='',questions=[],resources=[])
-            if location==tr('Lumen Server'):configure(self.library,True,key)
-            self.focus_record(key)
+        self.new_entry('project')
+
+    def new_entry(self,kind):
+        if kind=='project' and self.home.prompt.text().strip():raise ValueError(tr('Bitte den Gesprächsentwurf zuerst besprechen oder leeren.'))
+        if not self.editor.allow_leave():return
+        self.editor.discard()
+        if kind=='project':self.current='';self.scope='';self.initiative=''
+        else:
+            self.current=self.home.ensure_project();self.scope='';self.initiative=self.home.scope
+        value=dict(title='',notes='',resources=[],kind='research' if kind=='task' else kind)
+        self.editor.draft_kind=kind
+        self.loading=True
+        try:
+            self.load_fields(value);self.editor.present(value,kind);self.loaded_fields=self.editor_fields()
+        finally:self.loading=False
+        self.areas.setCurrentIndex(3)
 
     def load(self,r):
         self.scope=''; self.initiative=''
@@ -68,18 +130,13 @@ class Workbench(ToolWindow):
     def load_fields(self,r):
         from interop_paths import update_window
         self.interop_path_revision=r.get('interop_path_revision',0)
-        self.title.setText(r['title']); self.notes.setPlainText(r.get('notes','')); self.questions.clear(); self.resources.clear()
-        for q in r.get('questions',[]):
-            item=QListWidgetItem(q['text']); item.setFlags(item.flags()|Qt.ItemIsEditable|Qt.ItemIsUserCheckable)
-            item.setCheckState(Qt.Checked if q.get('done') else Qt.Unchecked); self.questions.addItem(item)
+        self.title.setText(r['title']); self.notes.setPlainText(r.get('notes','')); self.resources.clear()
         for resource in r.get('resources',[]):
             item=QListWidgetItem(resource['title']+'\n'+resource['target']); item.setData(Qt.UserRole,resource); self.resources.addItem(item)
-        self.question.setText(r.get('question_draft','')); self.status.setText(tr('Änderungen werden automatisch gespeichert · Dateien bleiben an ihrem Ort'))
-        self.legacy_controls.setVisible(not self.scope and bool(r.get('question_draft')))
         update_window(self)
         self.load_task_fields(r)
         self.loaded_fields=self.editor_fields()
-        owner=self.library.get(self.current)
+        owner=self.library.get(self.current) if self.current else {}
         readonly=owner.get('server_bound') and owner.get('server_role')=='reader'
         self.title.setReadOnly(bool(readonly));self.notes.setReadOnly(bool(readonly))
         self.new_task.setEnabled(not readonly)
@@ -97,55 +154,83 @@ class Workbench(ToolWindow):
 
     def editor_fields(self):
         value=dict(title=self.title.text(),notes=self.notes.toPlainText(),resources=[self.resources.item(i).data(Qt.UserRole) for i in range(self.resources.count())],interop_path_revision=self.interop_path_revision)
-        if self.scope:
-            if self.projects.get(self.scope)['kind']!='initiative':
-                value.update(goal=self.goal.toPlainText(),depends=[self.dependencies.item(i).data(Qt.UserRole) for i in range(self.dependencies.count()) if self.dependencies.item(i).checkState()==Qt.Checked],deep=self.deep.isChecked(),operation=self.operation.currentData(),interval=self.interval.currentData())
-        else:value.update(questions=[dict(text=self.questions.item(i).text(),done=self.questions.item(i).checkState()==Qt.Checked) for i in range(self.questions.count())],question_draft=self.question.text())
+        if self.editor.is_task():
+            value.update(goal=self.goal.toPlainText(),depends=[self.dependencies.item(i).data(Qt.UserRole) for i in range(self.dependencies.count()) if self.dependencies.item(i).checkState()==Qt.Checked],deep=self.deep.isChecked(),operation=self.operation.currentData(),interval=self.interval.currentData(),enabled=self.schedule.isChecked())
         return value
 
     def save(self):
-        super().save()
-        if not self.current or self.loading: return
+        self.save_timer.stop()
+        if self.loading or not (self.current or self.editor.draft_kind):return
+        if self.editor.environment is not None:
+            if not self.editor.apply.isEnabled():raise ValueError(tr('Dieses Projekt ist schreibgeschützt.'))
+            self.editor.environment.save();return
+        if self.editor.draft_kind=='room-note':self.editor.save_room_note();return
+        if self.editor.material.dirty():self.editor.material.stage_all()
         from interop_paths import update_window
         update_window(self)
-        fields=self.editor_fields(); changes={k:v for k,v in fields.items() if v!=self.loaded_fields.get(k)}
-        if not changes:return
-        if self.scope:self.projects.update(self.scope,expected_updated=self.loaded_updated if self.library.get(self.current).get('server_bound') else None,**changes)
-        else:self.library.update(self.current,expected_updated=self.loaded_updated if self.library.get(self.current).get('server_bound') else None,**changes)
+        fields=self.editor_fields();changes={k:v for k,v in fields.items() if v!=self.loaded_fields.get(k)}
+        draft=self.editor.draft_kind
+        if not changes and not draft:return
+        if not fields['title'].strip():raise ValueError(tr('Bitte einen Namen angeben.'))
+        scheduled=fields.get('enabled',False)
+        if self.editor.draft_kind=='task' and self.editor.kind.currentData()=='manual':
+            fields['enabled']=False;scheduled=False
+        if draft=='task' and not self.editor.owner.currentData():raise ValueError(tr('Bitte zuerst ein Vorhaben anlegen.'))
+        if self.current and self.library.get(self.current).get('server_bound') and ('enabled' in changes or 'interval' in changes):
+            raise ValueError(tr('Zeitpläne dieses Projekts werden auf Lumen Server verwaltet.'))
+        if scheduled and (draft or not self.loaded_fields.get('enabled')):
+            from projects_runner import install_timer
+            import time
+            install_timer(self.library.root.parent);fields['next_run']=time.time()+int(fields['interval']);changes['next_run']=fields['next_run']
+        if draft=='project':
+            title=fields.pop('title');self.current=self.library.create(title,**fields)
+            if self.editor.location.currentData()=='server':
+                from projects_sync import configure
+                configure(self.library,True,self.current)
+        elif draft:
+            title=fields.pop('title');kind='initiative' if draft=='initiative' else self.editor.kind.currentData()
+            parent='' if draft=='initiative' else self.editor.owner.currentData()
+            self.scope=self.projects.add(self.current,parent,title,kind,**fields)
+            self.initiative=self.scope if kind=='initiative' else parent
+        elif self.scope:self.projects.update(self.scope,expected_updated=self.edit_revision(),**changes)
+        else:self.library.update(self.current,expected_updated=self.edit_revision(),**changes)
+        self.editor.draft_kind='';self.editor.material.reset()
+        self.loading=True
+        try:self.load_fields(self.projects.get(self.scope) if self.scope else self.library.get(self.current))
+        finally:self.loading=False
+        self.home.project_id=self.current;self.home.room_id=(self.home.links.room(self.current) or {}).get('id','');self.home.scope=self.initiative
+        self.status.setText(tr('Gespeichert'));self.refresh();self.home.refresh()
+
+    def edit_revision(self):
+        """Accept recorded file relocations, but never overwrite another content edit."""
+        from interop_paths import moves,mapped
+        from copy import deepcopy
+        import json
+        changes=moves(self.library.root.parent,self.loaded_record.get('interop_path_revision',0))
+        if not changes:return self.loaded_updated
+        expected=deepcopy(self.loaded_record)
+        for resource in expected.get('resources',[]):
+            if resource.get('kind')=='file':resource['target']=mapped(resource['target'],changes)
+        for item in expected.get('reading_list',[]):item['path']=mapped(item['path'],changes)
         with self.library.connect() as db:
             table='project_items' if self.scope else 'records'
-            self.loaded_updated=str(db.execute('SELECT updated FROM '+table+' WHERE id=?',(self.scope or self.current,)).fetchone()['updated'])
-        self.loaded_fields=fields
-        self.status.setText(tr('Lokal gespeichert')); self.refresh(); self.refresh_run_status()
-
-    def add_question(self):
-        text=self.question.text().strip()
-        if not text: return
-        item=QListWidgetItem(text); item.setFlags(item.flags()|Qt.ItemIsEditable|Qt.ItemIsUserCheckable); item.setCheckState(Qt.Unchecked)
-        self.questions.addItem(item); self.question.clear(); self.save()
-
-    def remove_question(self):
-        i=self.questions.currentRow()
-        if i>=0: self.questions.takeItem(i); self.save()
+            row=db.execute('SELECT * FROM '+table+' WHERE id=?',(self.scope or self.current,)).fetchone()
+            if not row:return self.loaded_updated
+            actual=self.projects.unpack(row) if self.scope else dict(json.loads(row['data']),id=row['id'],title=row['title'],_archived=bool(row['archived']))
+            for record in (expected,actual):
+                record.pop('updated',None);record.pop('interop_path_revision',None)
+            return str(row['updated']) if expected==actual else self.loaded_updated
 
     def add_resource(self,kind,target,title):
-        from interop_paths import update_window
-        update_window(self)
-        if any(self.resources.item(i).data(Qt.UserRole)['target']==target for i in range(self.resources.count())): return
-        item=QListWidgetItem(title+'\n'+target); item.setData(Qt.UserRole,dict(kind=kind,target=target,title=title)); self.resources.addItem(item); self.save()
+        self.editor.material.append(kind,target,title)
 
-    def add_files(self):
-        paths,_=QFileDialog.getOpenFileNames(self,tr('Dateien verknüpfen'),str(Path.home()))
-        for path in paths: self.add_resource('file',path,Path(path).name)
+    def add_files(self):self.open_material_editor('file')
+    def add_folder(self):self.open_material_editor('folder')
+    def add_link(self):self.open_material_editor('url')
 
-    def add_folder(self):
-        path=QFileDialog.getExistingDirectory(self,tr('Ordner verknüpfen'),str(Path.home()))
-        if path: self.add_resource('file',path,Path(path).name)
-
-    def add_link(self):
-        value,ok=QInputDialog.getText(self,tr('Webseite verknüpfen'),tr('Webadresse'))
-        if ok and value.strip():
-            address=web_url(value); self.add_resource('url',address,QUrl(address).host())
+    def open_material_editor(self,kind=None):
+        self.editor.show_page(1)
+        if kind:self.editor.material.kind.setCurrentIndex(self.editor.material.kind.findData(kind))
 
     def open_server_material(self):
         from projects_sync_ui import open_server
@@ -173,7 +258,7 @@ class Workbench(ToolWindow):
 
     def remove_resource(self):
         i=self.resources.currentRow()
-        if i>=0: self.resources.takeItem(i); self.save(); self.status.setText(tr('Verknüpfung entfernt. Die Datei bleibt erhalten.'))
+        if i>=0: self.resources.takeItem(i); self.edited()
 
     def export(self):
         self.save(); r=self.library.get(self.current)
@@ -195,53 +280,20 @@ class Workbench(ToolWindow):
         return datetime.fromtimestamp(value).strftime('%d.%m.%Y %H:%M') if value else '—'
 
     def setup_projects(self):
-        old=self.entries; old.currentItemChanged.disconnect(self.select)
-        from interop_drag import EntryTree
-        self.entries=EntryTree(self); self.entries.setHeaderHidden(True); self.entries.setAccessibleName(tr('Projekte und Vorhaben'))
-        self.sidebar.layout().replaceWidget(old,self.entries); old.deleteLater()
-        self.entries.currentItemChanged.connect(self.select)
-        self.sidebar.layout().insertWidget(2,button(tr('Vorhaben anlegen'),lambda:self.safe(self.create_initiative),'list-add'))
+        old=self.entries;old.currentItemChanged.disconnect(self.select)
+        from interop_drag import EntryTree,EntryList
+        self.entries=EntryTree(self);self.entries.setHeaderHidden(True);self.entries.setAccessibleName(tr('Projekte und Vorhaben'))
+        self.sidebar.layout().replaceWidget(old,self.entries);old.deleteLater();self.entries.currentItemChanged.connect(self.select)
         self.search.setPlaceholderText(tr('Projekte und Aufgaben suchen …'))
-        middle=QWidget(); self.task_pane=middle; layout=QVBoxLayout(middle); layout.setContentsMargins(8,0,8,0)
-        self.task_heading=label(tr('Aufgaben'),'heading'); layout.addWidget(self.task_heading)
-        self.new_task=button(tr('Aufgabe anlegen'),lambda:self.safe(self.create_task),'list-add',True); layout.addWidget(self.new_task)
-        from interop_drag import EntryList
-        self.task_list=EntryList(self); self.task_list.setObjectName('searchResults'); self.task_list.setAccessibleName(tr('Aufgaben'))
-        self.task_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff); self.task_list.setTextElideMode(Qt.ElideRight)
-        self.task_list.currentItemChanged.connect(self.select_task); layout.addWidget(self.task_list,1)
-        self.task_archive=button(tr('Aufgabe archivieren'),lambda:self.safe(self.archive_task),'archive-insert'); layout.addWidget(self.task_archive)
-        self.split.insertWidget(1,middle); self.split.setSizes([240,300,590]); self.resize(1320,850)
-        self.questions.hide(); self.legacy_heading.hide(); self.legacy_controls.hide()
-        detail=QWidget(); form=QVBoxLayout(detail)
-        self.task_meta=label('','muted'); form.addWidget(self.task_meta)
-        self.goal=QPlainTextEdit(); self.goal.setPlaceholderText(tr('Was soll am Ende vorliegen?')); self.goal.setAccessibleName(tr('Gewünschtes Ergebnis')); self.goal.setMaximumHeight(100); self.goal.textChanged.connect(self.edited)
-        form.addWidget(label(tr('Gewünschtes Ergebnis'),'heading')); form.addWidget(self.goal)
-        form.addWidget(label(tr('Notizen und Material des Projekts und Vorhabens werden mitverwendet.'),'muted'))
-        self.deep=QCheckBox('Deep Research'); self.deep.setToolTip(tr('Deep Research: recherchieren, gegenprüfen, zusammenfassen')); self.deep.toggled.connect(self.edited); form.addWidget(self.deep)
-        self.operation=QComboBox(); self.operation.addItem(tr('Analyse'),'analysis'); self.operation.addItem(tr('Recherche'),'research'); self.operation.currentIndexChanged.connect(self.edited)
-        self.interval=QComboBox()
-        for text,seconds in [('Alle 60 Minuten',3600),('Alle 24 Stunden',86400),('Alle 7 Tage',604800)]: self.interval.addItem(tr(text),seconds)
-        self.interval.currentIndexChanged.connect(self.edited)
-        self.schedule=QCheckBox(tr('Automatisch ausführen')); self.schedule.clicked.connect(lambda enabled:self.safe(self.set_schedule,enabled))
-        self.schedule_row=QWidget(); schedule_layout=QVBoxLayout(self.schedule_row); schedule_layout.setContentsMargins(0,0,0,0)
-        schedule_layout.addWidget(row(self.operation,self.interval)); schedule_layout.addWidget(self.schedule); form.addWidget(self.schedule_row)
-        self.schedule_status=label('','muted'); form.addWidget(self.schedule_status)
-        self.dependencies=QListWidget(); self.dependencies.setMaximumHeight(95); self.dependencies.setAccessibleName(tr('Vorausgesetzte Aufgaben')); self.dependencies.itemChanged.connect(self.edited)
-        self.dependency_heading=label(tr('Nach diesen Aufgaben starten'),'heading'); form.addWidget(self.dependency_heading); form.addWidget(self.dependencies)
-        self.start_task=button(tr('Jetzt ausführen'),lambda:self.safe(self.run_task),'media-playback-start',True)
-        self.complete_task=button(tr('Als erledigt markieren'),lambda:self.safe(self.complete),'dialog-ok')
-        form.addWidget(row(self.start_task,self.complete_task))
-        self.tabs.addTab(detail,tr('Aufgabe'))
-        results=QWidget(); results_layout=QVBoxLayout(results)
-        self.history=QComboBox(); self.history.setAccessibleName(tr('Ausführungsverlauf')); self.history.currentIndexChanged.connect(self.show_run); results_layout.addWidget(self.history)
-        self.result=QPlainTextEdit(); self.result.setReadOnly(True); self.result.setAccessibleName(tr('Ergebnis')); self.result.setPlaceholderText(tr('Hier erscheint das Ergebnis mit Zeitpunkt und verwendeten Quellen.')); results_layout.addWidget(self.result,1)
-        results_layout.addWidget(button(tr('Auftrag, Quellen und Arbeitsschritte ansehen'),lambda:self.safe(self.show_sources),'document-open'))
-        results_layout.addWidget(button(tr('Ergebnis in Lumen Wissen speichern'),lambda:self.safe(self.save_result),'document-save'))
-        results_layout.addWidget(button(tr('Mit Lumen Vault sichern'),lambda:self.safe(self.backup),'document-save'))
-        self.tabs.addTab(results,tr('Ergebnisse'))
-        form.addStretch(1)
-        self.resources.setContextMenuPolicy(Qt.CustomContextMenu); self.resources.customContextMenuRequested.connect(self.material_menu)
-        self.poll_timer=QTimer(self); self.poll_timer.setInterval(5000); self.poll_timer.timeout.connect(self.poll_runs); self.poll_timer.start()
+        middle=QWidget();self.task_pane=middle;box=QVBoxLayout(middle)
+        self.task_heading=label(tr('Aufgaben'),'heading');box.addWidget(self.task_heading)
+        self.new_task=button(tr('Aufgabe anlegen'),lambda:self.safe(self.create_task));box.addWidget(self.new_task)
+        self.task_list=EntryList(self);self.task_list.setAccessibleName(tr('Aufgaben'));self.task_list.currentItemChanged.connect(self.select_task);box.addWidget(self.task_list,1)
+        self.task_archive=button(tr('Aufgabe archivieren'),lambda:self.safe(self.archive_task));box.addWidget(self.task_archive)
+        self.split.insertWidget(1,middle);self.resize(1380,900)
+        self.content.addWidget(button(tr('Projektübersicht exportieren'),lambda:self.safe(self.export)));self.content.addStretch(1)
+        self.add_button.hide();self.new_task.hide()
+        self.poll_timer=QTimer(self);self.poll_timer.setInterval(5000);self.poll_timer.timeout.connect(lambda:self.safe(self.poll_runs));self.poll_timer.start()
 
     def refresh(self,*_):
         if not hasattr(self,'projects'): return
@@ -275,22 +327,22 @@ class Workbench(ToolWindow):
         self.safe(self.navigate,project,scope)
 
     def navigate(self,project,scope=''):
-        self.save(); archive=self.archived.isChecked()
-        if project!=self.current: self.focus_record(project)
-        self.archived.setChecked(archive)
-        self.open_scope(scope)
+        if not self.editor.allow_leave():return False
+        self.editor.discard();self.current=project;self.projects.migrate(project);self.open_scope(scope);return True
 
     def open_scope(self,key=''):
         value=self.projects.get(key) if key else self.library.get(self.current)
-        if key and value['project']!=self.current: raise ValueError(tr('Dieser Eintrag gehört zu einem anderen Projekt.'))
-        self.scope=key
-        self.initiative=(key if value['kind']=='initiative' else value['parent']) if key else ''
-        if key and (value['archived'] or (value['kind']!='initiative' and self.projects.get(value['parent'])['archived'])):
-            self.archived.setChecked(True)
-        self.loading=True
-        try:self.load_fields(value)
+        if key and value['project']!=self.current:raise ValueError(tr('Dieser Eintrag gehört zu einem anderen Projekt.'))
+        self.scope=key;self.initiative=(key if value['kind']=='initiative' else value['parent']) if key else ''
+        self.editor.draft_kind='';self.loading=True
+        try:
+            self.load_fields(value)
+            if hasattr(self,'home'):
+                self.home.project_id=self.current;self.home.room_id=(self.home.links.room(self.current) or {}).get('id','');self.home.scope=self.initiative;self.home.refresh();self.editor.present(value)
+            self.loaded_fields=self.editor_fields()
         finally:self.loading=False
-        self.body.setEnabled(True); self.refresh()
+        self.body.setEnabled(True);self.refresh()
+        if hasattr(self,'areas'):self.areas.setCurrentIndex(3)
 
     def refresh_tasks(self):
         if not hasattr(self,'task_list'): return
@@ -318,41 +370,21 @@ class Workbench(ToolWindow):
     def select_task(self,item,old):
         if item:self.safe(self.navigate,self.current,item.data(Qt.UserRole))
 
-    def create_initiative(self):
-        if not self.current: self.create()
-        if not self.current:return
-        title,ok=QInputDialog.getText(self,tr('Neues Vorhaben'),tr('Was möchtest du erreichen?'))
-        if ok and title.strip():
-            self.save(); self.open_scope(self.projects.add(self.current,'',title,'initiative'))
-
-    def create_task(self):
-        if not self.current:return
-        self.save(); owners=self.projects.items(self.current,'')
-        if not owners:
-            self.create_initiative(); owners=self.projects.items(self.current,'')
-        if not owners:return
-        from projects_data import KINDS
-        dialog=QDialog(self); dialog.setWindowTitle(tr('Neue Aufgabe')); form=QFormLayout(dialog)
-        title=QLineEdit(); title.setAccessibleName(tr('Aufgabenname')); form.addRow(tr('Aufgabe'),title)
-        owner=QComboBox()
-        for item in owners:owner.addItem(item['title'],item['id'])
-        owner.setCurrentIndex(max(0,owner.findData(self.initiative))); form.addRow(tr('Vorhaben'),owner)
-        kind=QComboBox()
-        for key,text in KINDS.items():kind.addItem(tr(text),key)
-        form.addRow(tr('Art'),kind)
-        goal=QPlainTextEdit(); goal.setPlaceholderText(tr('Was soll am Ende vorliegen?')); form.addRow(tr('Gewünschtes Ergebnis'),goal)
-        buttons=QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel); buttons.accepted.connect(dialog.accept); buttons.rejected.connect(dialog.reject); form.addRow(buttons)
-        if dialog.exec()==QDialog.Accepted:
-            self.open_scope(self.projects.add(self.current,owner.currentData(),title.text(),kind.currentData(),goal=goal.toPlainText()))
+    def create_initiative(self):self.new_entry('initiative')
+    def create_task(self):self.new_entry('task')
 
     def load_task_fields(self,value):
         from projects_data import KINDS,STATES
-        task=bool(self.scope and value.get('kind')!='initiative'); self.tabs.setTabVisible(2,task); self.tabs.setTabVisible(3,task)
+        task=bool(self.editor.draft_kind=='task' or self.scope and value.get('kind')!='initiative')
         self.tabs.setCurrentIndex(2 if task else 0)
         self.goal.setPlainText(value.get('goal','')); self.deep.setChecked(value.get('deep',False)); self.deep.setVisible(value.get('kind') in ('research','automation'))
-        self.operation.setCurrentIndex(max(0,self.operation.findData(value.get('operation','analysis')))); self.interval.setCurrentIndex(max(0,self.interval.findData(value.get('interval',86400))))
-        self.schedule.setChecked(value.get('enabled',False)); self.schedule_row.setVisible(value.get('kind')=='automation')
-        self.schedule_status.setText(tr('Letzter Lauf: {0} · Nächster Lauf: {1}',self.stamp(value.get('last_run')),self.stamp(value.get('next_run')) if value.get('enabled') else tr('Pausiert')) if value.get('kind')=='automation' else '')
+        self.operation.setCurrentIndex(max(0,self.operation.findData(value.get('operation','analysis'))))
+        interval=value.get('interval',86400)
+        if self.interval.findData(interval)<0:self.interval.addItem(tr('Alle {0} Sekunden',interval),interval)
+        self.interval.setCurrentIndex(self.interval.findData(interval))
+        self.schedule.setChecked(value.get('enabled',False)); self.schedule_row.setVisible(value.get('kind') in ('research','analysis','automation'))
+        self.operation.setVisible(value.get('kind')=='automation')
+        self.schedule_status.setText(tr('Letzter Lauf: {0} · Nächster Lauf: {1}',self.stamp(value.get('last_run')),self.stamp(value.get('next_run')) if value.get('enabled') else tr('Pausiert')) if value.get('kind') in ('research','analysis','automation') else '')
         self.task_meta.setText((tr(KINDS.get(value.get('kind'),'Manuell'))+' · '+tr(STATES.get(value.get('status','open'),'Offen'))+'\n'+tr('Erstellt: {0} · Geändert: {1}',self.stamp(value.get('created')),self.stamp(value.get('updated')))) if task else '')
         self.dependencies.clear()
         if task:
@@ -360,7 +392,7 @@ class Workbench(ToolWindow):
                 if other['kind']=='initiative' or other['id']==self.scope:continue
                 item=QListWidgetItem(other['title']); item.setData(Qt.UserRole,other['id']); item.setFlags(item.flags()|Qt.ItemIsUserCheckable); item.setCheckState(Qt.Checked if other['id'] in value.get('depends',[]) else Qt.Unchecked); self.dependencies.addItem(item)
         self.dependencies.setVisible(bool(self.dependencies.count())); self.dependency_heading.setVisible(bool(self.dependencies.count()))
-        self.start_task.setVisible(task and value.get('kind')!='manual'); self.complete_task.setVisible(task and value.get('kind')=='manual')
+        self.start_task.setVisible(task and not self.editor.draft_kind and value.get('kind')!='manual'); self.complete_task.setVisible(task and not self.editor.draft_kind and value.get('kind')=='manual')
         self.complete_task.setText(tr('Wieder öffnen') if value.get('status')=='done' else tr('Als erledigt markieren'))
         self.load_runs()
 
@@ -411,9 +443,9 @@ class Workbench(ToolWindow):
             archived=not self.library.get(self.current)['_archived']
             if archived:
                 for task in self.projects.items(self.current):
-                    if task['kind']=='automation':self.projects.update(task['id'],enabled=False)
+                    if task.get('enabled'):self.projects.update(task['id'],enabled=False)
             self.library.archive(self.current,archived); self.current=''; self.scope=''
-            self.body.setEnabled(False); self.refresh()
+            self.body.setEnabled(False);self.editor.hide();self.home.project_id='';self.home.room_id='';self.home.scope='';self.home.refresh();self.refresh()
 
     def run_task(self):
         self.save()
@@ -421,16 +453,16 @@ class Workbench(ToolWindow):
         if self.runner:self.runner.deleteLater()
         from projects_runner import Runner
         self.runner=Runner(self.projects,self); self.runner.status.connect(self.status.setText); self.runner.finished.connect(self.run_finished)
-        self.runner.start(self.scope); self.cancel_button.show(); self.progress.show()
+        self.runner.start(self.scope); self.cancel_button.show(); self.progress.show();self.editor.stop.setVisible(True)
 
     def begin(self,text):
-        super().begin(text); self.task_pane.setEnabled(False)
+        super().begin(text);self.task_pane.setEnabled(False);self.home.setEnabled(False)
 
     def end(self):
-        super().end(); self.task_pane.setEnabled(True)
+        super().end();self.task_pane.setEnabled(True);self.home.setEnabled(True)
 
     def run_finished(self,success,message):
-        self.cancel_button.hide(); self.progress.hide(); self.refresh_tasks(); self.load_runs()
+        self.cancel_button.hide(); self.progress.hide(); self.editor.stop.hide();self.refresh_tasks(); self.load_runs()
         self.refresh_run_status()
         self.status.setText(tr('Ausführung beendet. Das Ergebnis bleibt an der Aufgabe.') if success else message)
         if self.scope==self.runner.task:
@@ -442,30 +474,18 @@ class Workbench(ToolWindow):
         if self.runner and self.runner.busy:self.runner.cancel()
         super().cancel()
 
-    def set_schedule(self,enabled):
-        self.save()
-        if self.library.get(self.current).get('server_bound'):
-            raise ValueError(tr('Zeitpläne dieses Projekts werden auf Lumen Server verwaltet.'))
-        from projects_runner import install_timer
-        try:
-            if enabled:install_timer(self.library.root.parent)
-            import time
-            self.projects.update(self.scope,enabled=enabled,next_run=time.time()+int(self.interval.currentData()))
-        finally:
-            self.schedule.setChecked(self.projects.get(self.scope).get('enabled',False))
-        self.open_scope(self.scope)
-
     def poll_runs(self):
         with self.library.connect() as db:
             revision=tuple(tuple(r) for r in db.execute('SELECT id,updated,archived FROM records UNION ALL SELECT id,updated,archived FROM project_items ORDER BY id'))
         if revision!=getattr(self,'tree_revision',None):
             self.refresh(); self.tree_revision=revision
-        if not self.current:return
-        if not self.save_timer.isActive() and self.editor_fields()==self.loaded_fields:
+        if not self.current or self.editor.draft_kind:return
+        if not self.editor.dirty() and self.editor_fields()==self.loaded_fields:
             record=self.projects.get(self.scope) if self.scope else self.library.get(self.current)
             if any(record.get(key)!=self.loaded_record.get(key) for key in self.loaded_fields):
                 self.loading=True
-                try:self.load_fields(record)
+                page=self.tabs.currentIndex()
+                try:self.load_fields(record);self.tabs.setCurrentIndex(page)
                 finally:self.loading=False
         self.refresh_tasks()
         self.refresh_run_status()
@@ -477,8 +497,8 @@ class Workbench(ToolWindow):
         value=self.projects.get(self.scope)
         if value['kind']=='initiative':return
         self.task_meta.setText(tr(KINDS[value['kind']])+' · '+tr(STATES.get(value.get('status','open'),'Offen'))+'\n'+tr('Erstellt: {0} · Geändert: {1}',self.stamp(value.get('created')),self.stamp(value.get('updated'))))
-        self.schedule.setChecked(value.get('enabled',False))
-        self.schedule_status.setText(tr('Letzter Lauf: {0} · Nächster Lauf: {1}',self.stamp(value.get('last_run')),self.stamp(value.get('next_run')) if value.get('enabled') else tr('Pausiert')) if value['kind']=='automation' else '')
+        if not self.editor.dirty():self.schedule.setChecked(value.get('enabled',False))
+        self.schedule_status.setText(tr('Letzter Lauf: {0} · Nächster Lauf: {1}',self.stamp(value.get('last_run')),self.stamp(value.get('next_run')) if value.get('enabled') else tr('Pausiert')) if value['kind'] in ('research','analysis','automation') else '')
 
     def save_result(self):
         run=self.history.currentData() or {}
@@ -503,6 +523,15 @@ class Workbench(ToolWindow):
             menu.addAction(tr('In Lumen Reader lesen'),lambda:self.safe(reviewed_send,self,from_paths([value['target']]),'reader.import'))
         menu.addAction(tr('Verknüpfung entfernen'),lambda:self.safe(self.remove_resource)); menu.exec(self.resources.mapToGlobal(position))
 
+    def open_legacy_question(self,value):
+        from interop_parts import match_part
+        questions=self.library.get(self.current).get('questions',[])
+        index=match_part('question',value,questions)
+        for item in self.projects.items(self.current)+self.projects.items(self.current,archived=True):
+            if item.get('legacy_question')==index and item.get('legacy_text')==questions[index]['text']:
+                self.open_scope(item['id']);return
+        raise ValueError(tr('Die verknüpfte Aufgabe ist nicht mehr vorhanden.'))
+
     def interop_payload(self):
         from interop_sources import _ref,_payload,_resource
         source=_ref('workbench',self.current,self.title.text())
@@ -511,19 +540,34 @@ class Workbench(ToolWindow):
             return _payload(source,self.result.textCursor().selectedText() or self.result.toPlainText())
         materials=[_resource(self.resources.item(i).data(Qt.UserRole)) for i in range(self.resources.count())]
         if self.tabs.currentIndex()==1 and self.resources.currentItem():
+            if not self.scope:
+                from interop_parts import capture_part
+                source['position']=dict(part=capture_part(self,'resource',self.resources.currentRow()))
             materials=[_resource(self.resources.currentItem().data(Qt.UserRole))]
             value=materials[0]
             return _payload(source,value['title'],paths=[value['path']],items=materials,url=value['url'])
         selected=self.notes.textCursor().selectedText()
         if selected:return _payload(source,selected)
         text=self.notes.toPlainText()
+        if not self.scope:
+            text+='\n\n'+'\n'.join(('- [x] ' if q.get('done') else '- [ ] ')+q['text'] for q in self.library.get(self.current).get('questions',[]))
         if self.scope and self.projects.get(self.scope)['kind']!='initiative':text=self.goal.toPlainText()+'\n\n'+text
         return _payload(source,text,paths=[v['path'] for v in materials],items=materials)
 
     def closeEvent(self,event):
+        if hasattr(self,'home') and self.home.prompt.text().strip():
+            from PySide6.QtWidgets import QMessageBox
+            if QMessageBox.question(self,tr('Gesprächsentwurf behalten?'),tr('Der Entwurf im Projekt ist noch nicht in Lumen geöffnet. Trotzdem schließen?'),QMessageBox.Yes|QMessageBox.No,QMessageBox.No)!=QMessageBox.Yes:
+                event.ignore();return
+        if not self.workplace.can_close() or self.workplace.busy or not self.automations.can_close():
+            self.status.setText(tr('Bitte den laufenden Vorgang abschließen.')); event.ignore(); return
+        if self.room_files is not None and not self.room_files.close(): event.ignore(); return
         if getattr(self,'project_sync_job',None):
             self.sync_close_requested=True;event.ignore();return
         if self.runner and self.runner.busy:
             self.runner.cancel(); self.status.setText(tr('Abbruch läuft. Danach kann das Fenster geschlossen werden.')); event.ignore();return
+        if not self.editor.allow_leave():event.ignore();return
         super().closeEvent(event)
-        if event.isAccepted():self.poll_timer.stop()
+        if event.isAccepted():
+            self.home.timer.stop()
+            self.poll_timer.stop(); self.workplace.shutdown(); self.automations.shutdown()
