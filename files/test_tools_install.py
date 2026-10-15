@@ -51,5 +51,23 @@ class ToolsInstallTest(unittest.TestCase):
             with self.assertRaises(ValueError): installer.install(REPO,data,binaries)
             self.assertEqual(existing.read_text(),'custom');self.assertFalse(data.exists())
 
+    def test_assets_are_complete_and_changes_create_a_new_runtime(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); repo = root/'source'; (repo/'files').mkdir(parents=True)
+            (repo/'files/tools_app.py').write_text('print("synthetic")')
+            for name in ('bin', 'data', 'icons'): (repo/name).symlink_to(REPO/name)
+            assets = []
+            for name in ('translations', 'qml', 'fonts', 'notes_icons', 'project_fonts', 'memory-runtime'):
+                asset = repo/'files'/name/'nested/asset.dat'
+                asset.parent.mkdir(parents=True); asset.write_bytes(name.encode()); assets.append(asset)
+            first = installer.install(repo, root/'data', root/'bin')
+            for asset in assets:
+                self.assertEqual((first/asset.relative_to(repo/'files')).read_bytes(), asset.read_bytes())
+            assets[-1].write_bytes(b'updated runtime notice')
+            second = installer.install(repo, root/'data', root/'bin')
+            self.assertNotEqual(first, second)
+            self.assertEqual((first/'memory-runtime/nested/asset.dat').read_bytes(), b'memory-runtime')
+            self.assertEqual((second/'memory-runtime/nested/asset.dat').read_bytes(), assets[-1].read_bytes())
+
 
 if __name__=='__main__': unittest.main()

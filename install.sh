@@ -50,7 +50,7 @@ missing=()
 for c in bash python3 git; do command -v "$c" >/dev/null 2>&1 || missing+=("$c"); done
 [ ${#missing[@]} -gt 0 ] && { message "Fehlende Pflicht-Abhängigkeiten: ${missing[*]}" "Missing required dependencies: ${missing[*]}" >&2; exit 1; }
 
-"$REPO/bin/lumen-python" -c "import PySide6.QtWidgets, PySide6.QtSvg, PySide6.QtQuick, PySide6.QtQuickWidgets, gi, PIL" || { message "Benötigt: PySide6 mit QtQuick/QtSvg, PyGObject und Pillow" "Required: PySide6 with QtQuick/QtSvg, PyGObject and Pillow" >&2; exit 1; }
+"$REPO/bin/lumen-python" -c "import PySide6.QtWidgets, PySide6.QtSvg, PySide6.QtQuick, PySide6.QtQuickWidgets, gi, PIL, yaml, markdown_it" || { message "Benötigt: PySide6 mit QtQuick/QtSvg, PyGObject, Pillow, PyYAML und markdown-it-py" "Required: PySide6 with QtQuick/QtSvg, PyGObject, Pillow, PyYAML and markdown-it-py" >&2; exit 1; }
 if ! command -v g++ >/dev/null || ! command -v pkg-config >/dev/null || ! pkg-config --exists Qt6Core Qt6DBus; then
     if command -v pacman >/dev/null && command -v pkexec >/dev/null; then
         say "Richte den nativen Aufnahmehelfer ein" "Preparing the native capture helper"
@@ -81,6 +81,7 @@ fi
 GOOGLE_CLIENT="${LUMEN_GOOGLE_OAUTH_CLIENT_FILE:-$REPO/files/google-drive-client.json}"
 GOOGLE_STAGE="$(mktemp -d)"
 trap 'rm -rf "$GOOGLE_STAGE"' EXIT
+/usr/bin/python3 "$REPO/packaging/source-identity.py" "$REPO" --kind user > "$GOOGLE_STAGE/install.json"
 if [[ -n "${LUMEN_GOOGLE_OAUTH_CLIENT_FILE:-}" || -f "$GOOGLE_CLIENT" ]]; then
     /usr/bin/python3 "$REPO/files/google_drive.py" --bundle-client "$GOOGLE_CLIENT" "$GOOGLE_STAGE/client.json"
 fi
@@ -96,18 +97,14 @@ mkdir -p "$PREFIX/agent-app"
 install -m 0644 "$REPO/agent-app/main.py" "$PREFIX/agent-app/"
 mkdir -p "$PREFIX/files"
 install -m 0644 "$REPO/files/"*.py "$REPO/files/"*.qss "$REPO/files/"*.svg "$PREFIX/files/"
-mkdir -p "$PREFIX/files/memory-runtime"
-cp -R "$REPO/files/memory-runtime/." "$PREFIX/files/memory-runtime/"
 
 if [[ -f "$GOOGLE_STAGE/client.json" ]]; then
     install -m 0644 "$GOOGLE_STAGE/client.json" "$PREFIX/files/google-drive-client.json"
 fi
-mkdir -p "$PREFIX/files/translations"
-cp -R "$REPO/files/translations/." "$PREFIX/files/translations/"
-mkdir -p "$PREFIX/files/fonts"
-cp -R "$REPO/files/fonts/." "$PREFIX/files/fonts/"
-mkdir -p "$PREFIX/files/qml"
-cp -R "$REPO/files/qml/." "$PREFIX/files/qml/"
+for asset in translations qml fonts notes_icons project_fonts memory-runtime; do
+    mkdir -p "$PREFIX/files/$asset"
+    cp -R "$REPO/files/$asset/." "$PREFIX/files/$asset/"
+done
 mkdir -p "$PREFIX/desktop"
 cp -R "$REPO/desktop/." "$PREFIX/desktop/"
 for plugin in agent islands system search control; do
@@ -274,15 +271,5 @@ EOF
 esac
 
 # Local installation identity for the native updater (never personal app data).
-/usr/bin/python3 - "$REPO" "$PREFIX" <<'PYCODE'
-import json, os, pathlib, subprocess
-import sys
-repo, prefix = map(pathlib.Path, sys.argv[1:])
-revision = os.environ.get('LUMEN_SOURCE_REVISION', '')
-if not revision:
-    result = subprocess.run(['git', '-C', str(repo), 'rev-parse', 'HEAD'], text=True, capture_output=True)
-    if result.returncode == 0: revision = result.stdout.strip()
-staged = prefix / 'install.json.next'
-staged.write_text(json.dumps({'revision': revision, 'kind': 'user'}))
-os.replace(staged, prefix / 'install.json')
-PYCODE
+install -m0644 "$GOOGLE_STAGE/install.json" "$PREFIX/install.json.next"
+mv -f "$PREFIX/install.json.next" "$PREFIX/install.json"

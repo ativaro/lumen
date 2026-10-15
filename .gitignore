@@ -28,6 +28,7 @@ packaging/arch/src/
 packaging/arch/*.pkg.tar.zst
 packaging/arch/*.pkg.tar.zst.sig
 packaging/arch/*.tar.gz
+packaging/arch/*.tar.gz.sha256
 packaging/arch/.SRCINFO
 
 # AUR generated tree
