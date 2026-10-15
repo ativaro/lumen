@@ -7,33 +7,27 @@ written permission. [Third-party rights and release constraints](THIRD_PARTY_NOT
 ## Install → setup wizard
 
 **Arch/CachyOS · KDE Plasma 6 · run as your normal user.**
-This repository is currently **private**. Your GitHub account must have access to
-`ativaro/lumen`. On a fresh computer or VM, first authenticate Git **inside that
-computer or VM**; logging in to Linux or to GitHub in a browser alone is not enough.
+This release is published **privately on Forgejo**. Your Forgejo account must have
+access to `ativaro/lumen` at `forge.example.invalid`; this address must be reachable from the
+computer being installed. The GitHub repository is not updated for this release.
+
+Install Git if needed, then clone and run the installer as your normal user:
 
 ```bash
-sudo pacman -S --needed git github-cli
-gh auth login --hostname github.com --git-protocol https --web
-gh auth setup-git --hostname github.com
+sudo pacman -S --needed git
+git clone --branch main --single-branch https://forge.example.invalid/ativaro/lumen.git && bash lumen/bootstrap.sh
 ```
 
-Complete the browser sign-in and enter the one-time code if prompted, using the
-GitHub account that can access Lumen. Only the package installation uses `sudo`;
-run `gh` and Git as your normal user. The `sudo` password is your VM/Linux password.
-GitHub does not accept your account password at Git's HTTPS password prompt;
-the browser flow above configures Git's authentication for you.
-
-Then run from a directory without a `lumen` checkout. **Keep `ativaro` in the URL**:
-it is the repository owner, not a placeholder for your Linux or GitHub username.
-
-```bash
-git clone --branch main --single-branch https://github.com/ativaro/lumen.git && bash lumen/bootstrap.sh
-```
+Git uses your configured credential helper or asks for your Forgejo credentials.
+Use a repository-read token if your Forgejo authentication requires one. Never
+embed a token in the URL, command, documentation or a support message. Keep
+`ativaro` in the URL: it is the repository owner. Only dependency installation
+uses `sudo`; its password belongs to the local Linux account.
 
 The installer prepares missing dependencies, installs Lumen locally and opens
 the graphical wizard for AI, speech and desktop setup. Git authentication is
 handled by your Git credential helper; never put a token in the command or README.
-If authentication fails, follow the [access check and troubleshooting steps](INSTALL.md#github-access-on-a-fresh-computer-or-vm).
+If authentication fails, confirm repository access in Forgejo and the local Git credential helper.
 Desktop panels, wallpapers and decorations are included; activate them in the
 wizard when ready. See [installation and recovery](INSTALL.md).
 
@@ -43,7 +37,7 @@ For an existing Lumen installation, run from **any directory as your normal user
 No installed Updater or original installation checkout is needed:
 
 ```bash
-(d="$(mktemp -d)" && trap 'rm -rf -- "$d"' EXIT && git clone --depth 1 --branch main --single-branch https://github.com/ativaro/lumen.git "$d/lumen" && bash "$d/lumen/bin/lumen-updater")
+(d="$(mktemp -d)" && trap 'rm -rf -- "$d"' EXIT && git clone --depth 1 --branch main --single-branch https://forge.example.invalid/ativaro/lumen.git "$d/lumen" && bash "$d/lumen/bin/lumen-updater")
 ```
 
 This downloads the latest **Lumen Updater** into a temporary directory and opens it.
@@ -51,12 +45,17 @@ The temporary download is removed when the Updater closes. Review the selection 
 click **Update all / Alles aktualisieren**. It updates installed Lumen apps,
 panels, themes, the compatible engine and installed local extensions without
 reopening the setup wizard. Your data, vault, settings and valid models are retained.
-Git, access to the private GitHub repository and the existing Lumen Qt/Python
+Git, access to the private Forgejo repository and the existing Lumen Qt/Python
 runtime are required. Run this inside your KDE desktop session, without `sudo`.
 
 Already have the Updater installed? Run `lumen-updater` from any directory, or open
 **Lumen → Updater** in the top panel, **Lumen Apps → Lumen Updater**, or
-**Settings → Maintenance**. This also checks GitHub for the latest Lumen version.
+**Settings → Maintenance**. The update source is recorded by the installer; a Forgejo installation follows Forgejo.
+Older installations without a recorded source continue to use GitHub. To move an
+installation to this Forgejo release, run the Forgejo installation command above;
+downloading only its Updater does not silently switch the installed source.
+If user and system installations have different sources, update them separately;
+Lumen reports the conflict instead of choosing a source for both.
 System packages and Flatpaks are optional selections; system changes may ask for
 your password. Reopen apps after updating and log in again to reload the panels.
 
@@ -64,16 +63,7 @@ your password. Reopen apps after updating and log in again to reload the panels.
 a language in the setup wizard. System language is the default. Reopen apps to
 apply a change; desktop panels pick it up when Plasma starts again.
 
-<details>
-<summary>Public download command — available only after the repository becomes public</summary>
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/ativaro/lumen/main/bootstrap.sh | bash
-```
-
-This unauthenticated command cannot download a private repository. It is shown
-here for a future public release; the repository remains private.
-</details>
 
 Lumen is an AI extension for CachyOS, combining conversations, file management,
 durable tasks, selected knowledge, reusable workflows and system diagnostics.
@@ -107,7 +97,7 @@ gracefully on other setups.
 | **Git** | `lumen-gitmsg` drafts a Conventional-Commit message from the diff |
 | **KRunner runner** | Type `lumen <question>`, `ai <question>` or `oc <question>` in KRunner |
 | **Plasma applet** | panel widget with agent status + quick actions (`org.lumen.agent`) |
-| **Lumen Files** (`lumen-files`) | file manager with combined local/NAS libraries and visible origins, per-room collection shelves and saved workspaces, fast search, previews, tabs, gallery, disk analysis, KIO network folders, native rename/sort with preview and undo, integrated Lumen panel |
+| **Lumen Files** (`lumen-files`) | file manager with combined local/NAS libraries and visible origins, personal collection shelves, fast search, previews, tabs, gallery, disk analysis, KIO network folders, native rename/sort with preview and undo, integrated Lumen panel |
 | **Lumen Vault** (`lumen-vault`) | encrypted restic backups, snapshot browsing, verified restore and opt-in schedules. The native credential vault and its guided NAS/Lumen Server backup UI require the [separate prerelease installation](native/vault-ui/README.md) |
 | **Lumen Meeting & Radio** (`lumen-meetings`, `lumen-radio`) | one window with Meeting/Radio tabs, local transcription, editable results and personal audio programmes; both starters keep the same window and retained state |
 | **Lumen Translate** (`lumen-translate`) | text translation, writing styles, spelling correction and PDF layout translation |
@@ -115,7 +105,7 @@ gracefully on other setups.
 | **Lumen Inbox** (`lumen-inbox`) | local IMAP inbox and SMTP drafts, Proton Bridge preset, CalDAV calendars, read-only ICS subscriptions and local tasks; [setup and limits](VAULT-INBOX.md) |
 | **Lumen Reader** (`lumen-reader`) | PDFs, EPUBs and saved articles; reading position, highlights, margin notes, local read-aloud and cited passages in Lumen knowledge |
 | **Sound in Lumen System** (`lumen-sound`) | opens the Sound tab in the existing System window: per-stream volume, mute, outputs, app rules and conversation ducking; [Reader/Sound guide](READER-SOUND.md) |
-| **Lumen Notes** (`lumen-wissen`) | direct notebook with autosave, editable titles, folder/tag collections and separate Lumen memory; explicit sharing, optional learning, corrections and forgetting; images, links, knowledge map and sourced questions; [Wissen guide](WISSEN.md) |
+| **Lumen Notes** (`lumen-wissen`) | personal notebook with autosave, editable titles, collections, tags and a formatted editor with tables; explicit sharing and account synchronization. Lumen memory belongs to system settings, independently of Notes; [Notes guide](WISSEN.md) |
 | **Project tools and skill** | `lumen-projects` guides native project planning; MCP tools read/create/edit projects, initiatives and tasks, and start research/analysis runs with real history. Project-only write permission is separate from system actions; [MCP setup](MCP.md#project-skill-and-writes). |
 | **Application designs** | Glas by default, plus Graphit, Atelier and Mitternacht; shared live themes for Lumen, search, Files, the image viewer, desktop panels and their popups, with native previews in settings |
 | **System watchdog** | systemd timer checks failed units, kernel errors, disk, GPU temp; automatic opencode analysis |
@@ -138,12 +128,11 @@ image-content search, independent file versions, reusable personal actions and a
 PDF page workshop with real redaction. The shared search/chat has continuous voice
 turns with local Whisper and Piper. See [feature details and limits](files/README.md).
 
-Open **Arbeitsplatz** in Lumen (`lumen --page workplace`) or the Files menu.
-Projects extend saved file rooms. Choose sources, programs and URLs explicitly;
-**Aktuellen Stand merken** saves the current Files tabs and assistant context.
-**Quellen prüfen** reads up to 5,000 entries per source in bounded subprocesses;
-unavailable sources retain their last successful recent-file listing with an offline label.
-**Alle Dateien gemeinsam** opens the existing origin-aware library view.
+Open **Lumen Projects** to group selected materials, conversations and tasks.
+Projects are optional collections, not a global account or storage selector.
+Drive, Photos and Notes belong to the signed-in user and remain accessible without
+a project. The project details separate title/goals from selected sources;
+source changes can be reviewed and cancelled before saving.
 
 Work modes use KDE window layout/notification settings and PipeWire's PulseAudio
 interface. They report individual failures and journal each changed component.
@@ -379,9 +368,9 @@ install-system.sh         optional root-only tweaks
 
 ## Notes
 
-- The private GitHub repository stores source and history only. GitHub Actions
-  are disabled. Tests and package builds run locally; future homelab automation
-  can use Forgejo. See [PUBLISHING.md](PUBLISHING.md) for local verification.
+- This private Forgejo release stores distributable source and history only.
+  GitHub remains at its previous release. Tests and package builds run locally;
+  see [PUBLISHING.md](PUBLISHING.md) for verification and release limits.
 - Each window owns a password-protected OpenCode server on a random loopback port.
   Lumen conversations are tagged and listed for the selected working directory;
   existing terminal conversations are never continued implicitly.
