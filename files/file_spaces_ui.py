@@ -9,7 +9,7 @@ from lumen_i18n import worker_process, tr
 from PySide6.QtCore import QObject, QProcess, QTimer, QUrl, Qt, QModelIndex, QDateTime, QItemSelectionModel
 from PySide6.QtGui import QIcon, QStandardItem
 from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QHBoxLayout,
-    QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMenu, QMessageBox,
+    QLabel, QLineEdit, QMenu, QMessageBox,
     QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QVBoxLayout, QWidget)
 
 from core import size_text
@@ -109,7 +109,6 @@ class FileSpaces(QObject):
         self.jobs, self.connections, self.errors, self.seen = [], [], {}, set()
         self.pending = 0
         self.source_queue, self.active_sources = [], 0
-        self.active_room = None
         self.restore_selection = []
 
     def reference(self, path):
@@ -130,7 +129,14 @@ class FileSpaces(QObject):
 
     def edit_library(self, identity=None):
         if identity and identity.startswith('project-'):
-            self.window.show_workplace(); return
+            from projects_legacy import resolve_project_id
+            from tools_data import Library
+            from interop_open import open_url
+            from interop_data import Registry
+            with Library('workbench').connect() as db:
+                project = resolve_project_id(db, identity[8:])
+            url=Registry().register(dict(app='workbench',kind='record',id=project,title=self.name(LIBRARY+identity)))
+            open_url(url); return
         dialog = LibraryDialog(self.catalog, self.catalog.library(identity) if identity else None, self.window)
         if dialog.exec() == QDialog.Accepted:
             self.window.populate_places()
@@ -207,160 +213,6 @@ class FileSpaces(QObject):
 
     def chat(self):
         return self.window.lumen_host.chat if hasattr(self.window, 'lumen_host') else getattr(self.window, 'assistant', None)
-
-    def capture(self):
-        window, chat = self.window, self.chat()
-        state = {'tabs': [tab['history'][tab['position']] for tab in window.tabs_data],
-            'active': window.tabs.currentIndex(), 'selection': [self.reference(p) for p in window.selected_paths()],
-            'shelf': self.catalog.shelf(), 'view': window.settings.value('viewMode', 'list'),
-            'sort': window.view.header().sortIndicatorSection(),
-            'descending': window.view.header().sortIndicatorOrder() == Qt.DescendingOrder,
-            'tasks': (self.active_room or {}).get('state', {}).get('tasks', [])}
-        if chat:
-            state['chat'] = {'directory': self.reference(chat.backend.directory), 'session': chat.backend.session,
-                'draft': chat.composer.toPlainText(), 'paths': [self.reference(p) for p in chat.paths]}
-        return state
-
-    def save_active_room(self):
-        if not self.active_room: return True
-        try:
-            self.active_room = self.catalog.save_room(self.active_room, self.active_room['name'], self.capture())
-            return True
-        except (ValueError, OSError) as error:
-            self.window.error(tr('Dateiansicht konnte nicht gespeichert werden.'), str(error) +
-                tr('\nDu kannst die aktuelle Ansicht als neue Dateiansicht speichern.')); return False
-
-    def room_menu(self):
-        menu = QMenu(self.window)
-        for room in self.catalog.rooms():
-            if room.get('project'):continue
-            action = menu.addAction(room['name'], lambda _=False, value=room: self.open_room(value))
-            action.setCheckable(True); action.setChecked(bool(self.active_room and self.active_room['id'] == room['id']))
-        menu.addSeparator()
-        menu.addAction(tr('Dateiansicht speichern …'), self.new_room)
-        if self.active_room and not self.active_room.get('project'):
-            menu.addAction(tr('Dateiansicht aktualisieren'), self.save_active_room)
-            menu.addAction(tr('Dateiansicht umbenennen …'), self.rename_room)
-            menu.addAction(tr('Aufträge zuordnen …'), self.room_tasks)
-            for task in self.catalog.store.tasks():
-                if task['id'] in self.active_room['state'].get('tasks', []):
-                    menu.addAction(tr('Auftrag: ') + task['title'], lambda _=False, t=task: self.open_task(t))
-            menu.addAction(tr('Dateiansicht entfernen (Dateien behalten)'), self.delete_room)
-        menu.addSeparator();menu.addAction(tr('Lumen Projekte öffnen'), self.window.show_workplace)
-        menu.exec(self.window.room_button.mapToGlobal(self.window.room_button.rect().bottomLeft()))
-
-    def new_room(self):
-        name, ok = QInputDialog.getText(self.window, tr('Dateiansicht speichern'), tr('Name:'))
-        if ok:
-            try:
-                self.active_room = self.catalog.save_room(None, name, self.capture())
-                self.catalog.use_room_shelf(self.active_room['id'], self.active_room['state']['shelf'])
-                self.update_shelf()
-                if self.window.current_location == SHELF: self.reload()
-                self.window.room_button.setText(self.active_room['name'])
-            except ValueError as error: self.window.error(str(error))
-
-    def rename_room(self):
-        name, ok = QInputDialog.getText(self.window, tr('Dateiansicht umbenennen'), tr('Name:'), text=self.active_room['name'])
-        if ok:
-            try:
-                self.active_room = self.catalog.save_room(self.active_room, name, self.capture())
-                self.window.room_button.setText(name)
-            except ValueError as error: self.window.error(str(error))
-
-    def delete_room(self):
-        try: self.catalog.remove('room', self.active_room['id'], self.active_room)
-        except ValueError as error:
-            self.window.error(str(error)); return
-        self.active_room = None
-        self.catalog.use_room_shelf(); self.update_shelf()
-        if self.window.current_location == SHELF: self.reload()
-        self.window.room_button.setText(tr('Dateiansichten'))
-
-    def room_tasks(self):
-        dialog = QDialog(self.window); dialog.setWindowTitle(tr('Aufträge dieser Dateiansicht zuordnen'))
-        layout = QVBoxLayout(dialog); tasks = QListWidget(); layout.addWidget(tasks)
-        chosen = self.active_room['state'].get('tasks', [])
-        for task in self.catalog.store.tasks():
-            item = QListWidgetItem(task['title']); item.setData(Qt.UserRole, task['id'])
-            item.setCheckState(Qt.Checked if task['id'] in chosen else Qt.Unchecked); tasks.addItem(item)
-        box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
-        box.accepted.connect(dialog.accept); box.rejected.connect(dialog.reject); layout.addWidget(box)
-        if dialog.exec() == QDialog.Accepted:
-            state = self.capture()
-            state['tasks'] = [tasks.item(i).data(Qt.UserRole) for i in range(tasks.count()) if tasks.item(i).checkState() == Qt.Checked]
-            try: self.active_room = self.catalog.save_room(self.active_room, self.active_room['name'], state)
-            except ValueError as error: self.window.error(str(error))
-        dialog.deleteLater()
-
-    def open_task(self, task):
-        if hasattr(self.window, 'lumen_host'):
-            host = self.window.lumen_host
-            host.show_page(4); host.workspace.refresh_tasks()
-            for i in range(host.workspace.tasks.count()):
-                item = host.workspace.tasks.item(i)
-                if item.data(Qt.UserRole) == task['id']: host.workspace.tasks.setCurrentItem(item); break
-        else:
-            QMessageBox.information(self.window, task['title'], task['result'] or task['prompt'] or task['status'])
-
-    def open_room(self, room, chat_directory=None, on_open=None):
-        window, chat = self.window, self.chat()
-        if self.active_room and room['id'] == self.active_room['id']:
-            if on_open: on_open()
-            return
-        if window.file_job or (chat and (chat.backend.busy or chat.context_tools.process)):
-            window.error(tr('Bitte den laufenden Datei-, Aufnahme- oder Lumen-Vorgang zuerst beenden.')); return
-        directory = room['state'].get('chat', {}).get('directory', '')
-        if is_network_address(directory) and chat_directory is None:
-            self.cancel()
-            generation = self.generation
-            connection = Network(self); self.connections.append(connection)
-            def mounted(address, path):
-                if generation != self.generation: return
-                window.network.mounts[path] = address
-                self.open_room(room, path, on_open)
-            connection.connected.connect(mounted)
-            connection.failed.connect(lambda message: window.error(message) if generation == self.generation else None)
-            try: connection.mount(directory)
-            except ValueError as error: window.error(str(error))
-            return
-        if not self.save_active_room(): return
-        if not self.active_room:
-            previous = next((r for r in self.catalog.rooms() if r['id'] == 'previous'), None)
-            try: self.catalog.put('room', {'id': 'previous', 'name': tr('Vorheriger Arbeitsstand'), 'state': self.capture()}, previous)
-            except ValueError as error:
-                window.error(str(error)); return
-        state = room['state']
-        self.active_room = None
-        self.cancel(); window.cancel_connection(); window.cancel_search()
-        window.tabs.blockSignals(True)
-        while window.tabs.count(): window.tabs.removeTab(0)
-        window.tabs_data.clear(); window.tabs.blockSignals(False)
-        for path in state.get('tabs', []) or [str(Path.home())]:
-            window.new_tab(path, activate=False)
-        index = max(0, min(state.get('active', 0), window.tabs.count() - 1))
-        window.tabs.blockSignals(True); window.tabs.setCurrentIndex(index); window.tabs.blockSignals(False)
-        # Room shelves are independent, shared only with windows in that room.
-        self.catalog.use_room_shelf(room['id'], state.get('shelf', [])); self.update_shelf()
-        self.restore_selection = state.get('selection', [])
-        window.switch_tab(index)
-        window.set_view_mode(state.get('view', 'list'))
-        window.view.sortByColumn(state.get('sort', 0), Qt.DescendingOrder if state.get('descending') else Qt.AscendingOrder)
-        self.select_paths(self.restore_selection)
-        if state.get('chat'):
-            context = state['chat']
-            if chat is None:
-                window.ask_lumen('open', []); chat = self.chat()
-            chat.backend.new_conversation(chat_directory or context['directory'])
-            chat.set_action('open')
-            if context.get('session'): chat.backend.select_session(context['session'])
-            chat.paths = [self.local_reference(p) for p in context.get('paths', [])]
-            chat.composer.setPlainText(context.get('draft', '')); chat.update_context()
-        elif chat:
-            chat.backend.new_conversation(); chat.composer.clear(); chat.paths = []; chat.update_context()
-        self.active_room = room
-        window.room_button.setText(room['name'])
-        if on_open: on_open()
 
     def remove_shelf(self, paths):
         self.catalog.remove_shelf([self.reference(path) for path in paths])

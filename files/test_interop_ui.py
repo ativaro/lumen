@@ -71,6 +71,13 @@ class InteropUITest(unittest.TestCase):
         values=interop_ui.note_files('[Invoice](invoice%20one.pdf)\n![Tracking](https://example.invalid/image.png)',note)
         self.assertEqual(values,[str(note),str(asset)])
 
+    def test_note_attachment_picker_does_not_truncate_at_100(self):
+        note = self.root / 'note.md'; note.touch()
+        assets = [self.root / f'photo-{n:03}.jpg' for n in range(121)]
+        for path in assets: path.touch()
+        text = '\n'.join(f'![Photo]({path.name})' for path in assets)
+        self.assertEqual(interop_ui.note_files(text, note), [str(note), *map(str, assets)])
+
     def test_formatted_draft_escapes_markup_and_preserves_heading_list(self):
         from inbox_data import draft_html
         value=draft_html('# Heading\n\n- First\n- <img src="https://example.invalid">\n\nParagraph')
@@ -84,13 +91,13 @@ class InteropUITest(unittest.TestCase):
         interop_ui.files_menu(window,menu,[str(file)])
         from lumen_i18n import language
         label='Open with Lumen Reader' if language()=='en' else 'Mit Lumen Reader öffnen'
-        self.assertIn(label,[a.text() for a in menu.actions()])
+        self.assertIn(label,[a.text() for a in menu.actions()[0].menu().actions()])
         with patch.object(interop_ui,'launch') as launched:
-            menu.actions()[0].trigger()
+            menu.actions()[0].menu().actions()[0].trigger()
             launched.assert_called_once_with('reader',[str(file)],None)
-        names=[a.text() for a in menu.actions()[1].menu().actions()]
+        names=[a.text() for a in menu.actions()[0].menu().actions()]
         self.assertIn(interop_ui.tr('Sicherung einrichten …'),names)
-        self.assertNotIn(interop_ui.tr('Mit Lumen Reader öffnen'),names)
+        self.assertEqual(names.count(interop_ui.tr('Mit Lumen Reader öffnen')),1)
 
     def test_busy_target_queues_reference_until_edits_can_be_flushed(self):
         w=self.window();first=w.library.create('First',notes='',questions=[],resources=[]);second=w.library.create('Second',notes='',questions=[],resources=[])

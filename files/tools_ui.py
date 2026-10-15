@@ -178,8 +178,8 @@ class ToolWindow(QMainWindow):
         self.interop_install_timer.timeout.connect(lambda: install(self))
         self.interop_install_timer.start(0)
 
-    def safe(self, callback, *args):
-        try: return callback(*args)
+    def safe(self, callback, *args, **kwargs):
+        try: return callback(*args, **kwargs)
         except Exception as error: self.error(str(error))
 
     def error(self, text):

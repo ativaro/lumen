@@ -2,7 +2,7 @@
 from urllib.parse import quote
 import lumen_connect
 from wissen_data import Notebook
-from wissen_sync import settings, scope, workspace
+from wissen_sync import settings, scope
 
 
 def active(store):
@@ -23,7 +23,7 @@ def fetch(memory, query):
     user = lumen_connect.request(config, '/bridge/me', timeout=3)
     if not {'notes', 'memory'} <= set(user['capabilities']) or 'knowledge_context_v1' not in user.get('sync_features', []):
         return [], None
-    suffix = '?workspace=' + quote(workspace(book)) if workspace(book) else ''
+    suffix = ''
     rows = lumen_connect.request(config, '/bridge/knowledge-context' + suffix + ('&' if suffix else '?') + 'q=' + quote(query[:200]), timeout=3)
     if not isinstance(rows, list) or len(rows) > 4: raise ValueError('Invalid knowledge context')
     notes = []

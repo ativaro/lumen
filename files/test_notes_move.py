@@ -1,0 +1,176 @@
+import tempfile
+from pathlib import Path
+import unittest
+from lumen_store import Store
+from wissen_data import Notebook,parse
+from notes_move import rewrite,plan
+
+
+class MoveTest(unittest.TestCase):
+    def test_links_anchors_aliases_images_and_code(self):
+        texts={'A/One.md':'# One\n[[../Two#Part|label]]\n![](image.png)\n[[#Here]]','Two.md':'# Two\n[[A/One#^block|alias]]\n[go](A/One.md#Part)\n`[[A/One]]`\n```\n[[A/One]]\n```'}
+        notes={p:parse(p,t.encode()) for p,t in texts.items()}
+        out=rewrite(texts['Two.md'],'Two.md','A','B',notes)
+        self.assertIn('[[B/One.md#^block|alias]]',out);self.assertIn('[go](B/One.md#Part)',out)
+        self.assertIn('`[[A/One]]`',out);self.assertIn('```\n[[A/One]]',out)
+        out=rewrite(texts['A/One.md'],'A/One.md','A/One.md','Two/New.md',notes)
+        self.assertIn('![](../A/image.png)',out);self.assertIn('[[#Here]]',out)
+    def test_plan_is_readonly_preserves_raw_metadata_rejects_collision(self):
+        with tempfile.TemporaryDirectory() as root:
+            book=Notebook(Store(Path(root)/'state'),Path(root)/'notes',create=True)
+            book.create_collection('A');raw='\ufeff<!-- lumen: {"source":"x","custom":"keep"} -->\n# One\n'
+            (book.root/'A/One.md').write_bytes(raw.encode());book.write('Two.md','# Two\n[[A/One]]','')
+            value=plan(book,'A/One.md','New.md')
+            self.assertEqual((book.root/'A/One.md').read_bytes(),raw.encode());self.assertFalse((book.root/'New.md').exists())
+            self.assertTrue(any(c['after'].startswith('\ufeff<!-- lumen:') for c in value['changes']))
+            with self.assertRaises(ValueError):plan(book,'A/One.md','Two.md')
+            with self.assertRaises(ValueError):plan(book,'A/One.md','../bad.md')
+
+    def make_book(self,root):
+        book=Notebook(Store(Path(root)/'state'),Path(root)/'notes',create=True)
+        book.create_collection('A');book.create_collection('B')
+        book.write('A/One.md','# One\n\n[image](pic.png)\n![](pic.png)','',note_id='11111111-1111-4111-8111-111111111111')
+        book.write('Two.md','# Two\n\n[[A/One#^anchor|alias]]','')
+        return book
+
+    def test_apply_restart_undo_and_private_move_into_shared_folder(self):
+        from notes_move import execute,undo
+        from lumen_memory import Memory
+        with tempfile.TemporaryDirectory() as root:
+            book=self.make_book(root);before={n['path']:book.raw(n['path']) for n in book.scan()['notes']}
+            shares=[dict(root=str(book.root),identity=book.identity,path='B',directory=True,allow=True)]
+            book.store.set_setting('memory/shares',shares)
+            value=plan(book,'A/One.md','B/Renamed.md');execute(book,value)
+            self.assertFalse((book.root/'A/One.md').exists());self.assertIn('[[B/Renamed.md#^anchor|alias]]',book.read('Two.md')['text'])
+            self.assertIn('![](../A/pic.png)',book.read('B/Renamed.md')['text'])
+            self.assertEqual(book.read('B/Renamed.md')['note_id'],'11111111-1111-4111-8111-111111111111')
+            memory=Memory.__new__(Memory);memory.store=book.store
+            self.assertFalse(memory.shared(book,'B/Renamed.md'))
+            book=Notebook(book.store,book.root);undo(book)
+            self.assertEqual({n['path']:book.raw(n['path']) for n in book.scan()['notes']},before)
+            self.assertEqual(book.store.setting('memory/shares'),shares)
+
+    def test_interruption_resume_and_conflict_never_overwrites_edit(self):
+        from unittest.mock import patch
+        import notes_move
+        with tempfile.TemporaryDirectory() as root:
+            book=self.make_book(root);value=plan(book,'A','C');write=notes_move.raw_write;calls=[]
+            def fail(*args):
+                calls.append(1)
+                if len(calls)==2:raise OSError('interrupted')
+                return write(*args)
+            with patch.object(notes_move,'raw_write',side_effect=fail),self.assertRaises(OSError):notes_move.execute(book,value)
+            self.assertTrue(notes_move.pending(book));notes_move.execute(Notebook(book.store,book.root))
+            self.assertFalse((book.root/'A').exists());self.assertIn('[[C/One.md#^anchor|alias]]',book.read('Two.md')['text'])
+            current=book.read('Two.md');book.write('Two.md',current['text']+'\nNew edit',current['hash'])
+            with self.assertRaises(ValueError):notes_move.undo(book)
+            self.assertIn('New edit',book.read('Two.md')['text']);self.assertIsNone(notes_move.pending(book))
+
+    def test_stale_preview_and_symlink_target_do_not_move_anything(self):
+        from notes_move import execute
+        with tempfile.TemporaryDirectory() as root:
+            book=self.make_book(root);value=plan(book,'A/One.md','B/Renamed.md')
+            book.write('New.md','# New\n[[A/One]]','')
+            with self.assertRaises(ValueError):execute(book,value)
+            self.assertTrue((book.root/'A/One.md').exists())
+            (book.root/'escape').symlink_to(Path(root),target_is_directory=True)
+            with self.assertRaises(OSError):plan(book,'A/One.md','escape/Outside.md')
+
+    def test_pending_move_blocks_sync_before_network_request(self):
+        from unittest.mock import patch
+        import wissen_sync
+        from notes_move import key
+        with tempfile.TemporaryDirectory() as root:
+            book=self.make_book(root);book.store.set_setting(key(book),{'source':'A'})
+            with patch.object(wissen_sync.lumen_connect,'read_config',return_value={}),patch.object(wissen_sync.lumen_connect,'request') as request:
+                with self.assertRaises(ValueError):wissen_sync.sync(book)
+                request.assert_not_called()
+
+    def test_rollback_partial_and_resume_after_rename_before_commit(self):
+        from unittest.mock import patch
+        import notes_move
+        with tempfile.TemporaryDirectory() as root:
+            book=self.make_book(root);before={n['path']:book.raw(n['path']) for n in book.scan()['notes']}
+            value=plan(book,'A','C');shares=notes_move.set_shares;calls=[]
+            def fail(book,rules):
+                calls.append(1)
+                if len(calls)==2:raise OSError('crash after rename')
+                shares(book,rules)
+            with patch.object(notes_move,'set_shares',side_effect=fail),self.assertRaises(OSError):notes_move.execute(book,value)
+            self.assertTrue((book.root/'C').is_dir());notes_move.execute(Notebook(book.store,book.root))
+            self.assertIsNone(notes_move.pending(book));notes_move.undo(book)
+            self.assertEqual(before,{n['path']:book.raw(n['path']) for n in book.scan()['notes']})
+            value=plan(book,'A','C')
+            with patch.object(notes_move,'raw_write',side_effect=OSError('before any writes')),self.assertRaises(OSError):notes_move.execute(book,value)
+            notes_move.undo(book);self.assertIsNone(notes_move.pending(book))
+            self.assertEqual(before,{n['path']:book.raw(n['path']) for n in book.scan()['notes']})
+
+    def test_markdown_titles_parentheses_metadata_and_unsupported_forms(self):
+        notes={'A(one).md':parse('A(one).md',b'# One')}
+        text='[go](A(one).md "caption")\n[space](<A(one).md> \'caption\')'
+        out=rewrite(text,'Other.md','A(one).md','B.md',notes)
+        self.assertEqual(out,'[go](B.md "caption")\n[space](<B.md> \'caption\')')
+        text='---\nrelated: "[[A(one)]]"\n---\n[[A(one)]]'
+        self.assertIn('related: "[[A(one)]]"',rewrite(text,'Other.md','A(one).md','B.md',notes))
+        for text in ('[id]: A(one).md','<a href="A(one).md">One</a>'):
+            with self.assertRaises(ValueError):rewrite(text,'Other.md','A(one).md','B.md',notes)
+
+
+class NativeMoveTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from PySide6.QtWidgets import QApplication
+        cls.app=QApplication.instance() or QApplication([])
+    def wait(self,check):
+        from PySide6.QtTest import QTest
+        for _ in range(600):
+            QTest.qWait(20)
+            if check():return
+        self.fail('Native move timed out')
+    def test_preview_cancel_apply_and_undo_with_worker(self):
+        import os
+        from unittest.mock import patch
+        from PySide6.QtWidgets import QInputDialog,QMessageBox
+        from PySide6.QtCore import QEvent
+        from tools_wissen import Wissen
+        from notes_move import review,recover
+        with tempfile.TemporaryDirectory() as root,patch.dict(os.environ,{'LUMEN_DATA':root+'/state','XDG_CONFIG_HOME':root+'/config'}):
+            w=Wissen(Path(root)/'tools');w.resize(1180,850);w.show()
+            try:
+                self.wait(lambda:w.book and not w.job and not w.poller);w.poll_timer.stop()
+                first=w.book.create('One','Body');second=w.book.create('Two','[['+first['path']+']]')
+                w.scanned(w.book.scan());w.show_note(first)
+                with patch.object(QInputDialog,'getText',return_value=('Renamed.md',True)),patch.object(QMessageBox,'exec',return_value=QMessageBox.Cancel):
+                    review(w);self.wait(lambda:not w.job)
+                self.assertTrue((w.book.root/first['path']).exists());self.assertFalse((w.book.root/'Renamed.md').exists())
+                with patch.object(QInputDialog,'getText',return_value=('Renamed.md',True)),patch.object(QMessageBox,'exec',return_value=QMessageBox.Apply):
+                    review(w);self.wait(lambda:not w.job and w.doc and w.doc['path']=='Renamed.md')
+                self.assertIn('[[Renamed.md]]',w.book.read(second['path'])['text'])
+                recover(w,True);self.wait(lambda:not w.job and w.doc and w.doc['path']==first['path'])
+                self.assertEqual(w.book.read(second['path'])['text'],second['text'])
+            finally:
+                self.wait(lambda:not w.job and not w.poller and not w.live_preview.job)
+                w.close();self.wait(lambda:not w.job);w.deleteLater();self.app.sendPostedEvents(None,QEvent.DeferredDelete)
+
+class MoveSyncTest(unittest.TestCase):
+    def test_two_clients_move_keeps_id_links_and_replay(self):
+        from unittest.mock import patch
+        import wissen_sync as sync
+        from notes_move import execute
+        with tempfile.TemporaryDirectory() as root:
+            books=[Notebook(Store(Path(root)/('state'+str(i))),Path(root)/('notes'+str(i)),create=True) for i in range(2)]
+            a,b=books;remote={};cfg=dict(server='https://synthetic.invalid',token='synthetic')
+            def request(config,path,body=None):
+                if path=='/bridge/me':return dict(name='Synthetic',capabilities=['notes'])
+                if path=='/bridge/notes':return dict(items=list(remote.values()),next=None)
+                identity=path.rsplit('/',1)[-1];row=remote.get(identity)
+                if body is None:return dict(row)
+                if row and row['revision']!=body['revision']:return dict(applied=False,note=dict(row))
+                row=dict(id=identity,title=body['title'],body=body['body'],deleted=body['deleted'],note_path=body.get('path',''),revision=(row['revision']+1 if row else 1));remote[identity]=row
+                return dict(applied=True,note=dict(row))
+            with patch('lumen_connect.read_config',return_value=cfg),patch('lumen_connect.request',side_effect=request):
+                for book in books:sync.sync_config(book,sync.scope(book,cfg),True)
+                a.write('One.md','# One\nBody','');a.write('Two.md','# Two\n[[One#Body]]','');sync.sync(a);sync.sync(b)
+                identity=a.read('One.md')['note_id'];execute(a,plan(a,'One.md','Renamed.md'));sync.sync(a);sync.sync(b);sync.sync(a)
+                self.assertEqual(len(remote),2);self.assertEqual(b.read('Renamed.md')['note_id'],identity)
+                self.assertFalse((b.root/'One.md').exists());self.assertIn('[[Renamed.md#Body]]',b.read('Two.md')['text'])

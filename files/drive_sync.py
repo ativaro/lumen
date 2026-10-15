@@ -20,6 +20,42 @@ HOME = (
 )
 
 
+def location(folder=None):
+    return 'lumen-drive:///' + ('folder/' + str(UUID(folder)) if folder else '')
+
+
+def parse_address(address):
+    from urllib.parse import urlsplit
+    url = urlsplit(address)
+    if url.scheme != 'lumen-drive' or url.query or url.fragment:
+        raise ValueError(tr('Ungültige Drive-Adresse.'))
+    if url.netloc:
+        from sync_migration import drive_legacy_address
+        return drive_legacy_address(url)
+    parts = url.path.strip('/').split('/') if url.path.strip('/') else []
+    if not parts:
+        return 'root', None
+    if len(parts) == 2 and parts[0] == 'folder':
+        return 'folder', str(UUID(parts[1]))
+    if len(parts) == 3 and parts[0] == 'file' and parts[2]:
+        return 'file', str(UUID(parts[1]))
+    raise ValueError(tr('Ungültige Drive-Adresse.'))
+
+
+def resolve(config, addresses):
+    cache = inventory(config)
+    result = []
+    for address in addresses:
+        kind, key = parse_address(address)
+        if kind not in ('file', 'folder'):
+            raise ValueError(tr('Bitte eine Datei oder einen Ordner wählen.'))
+        row = cache['files' if kind == 'file' else 'folders'].get(key)
+        if not row or row['trashed']:
+            raise ValueError(tr('Drive-Eintrag nicht mehr verfügbar.'))
+        result.append((kind, row))
+    return result
+
+
 def read():
     try:
         return json.loads((HOME / "sync.json").read_text())
@@ -34,9 +70,9 @@ def save(state):
 
 
 def scope(config):
-    from sync_identity import scope as stable_scope
-    legacy = hashlib.sha256((config["server"] + "\0" + config["token"]).encode()).hexdigest()
-    return stable_scope(config, ["drive"], legacy)
+    return hashlib.sha256(
+        (config["server"] + "\0" + config["token"]).encode()
+    ).hexdigest()
 
 
 @contextmanager
@@ -51,44 +87,42 @@ def request(config, path, body=None):
     return lumen_connect.request(config, "/bridge/drive" + path, body)
 
 
-def inventory(config, workspace):
-    files = {}
-    folders = {}
-    after = None
-    cursor = None
+def inventory(config, binding=None):
+    from sync_migration import drive_path
+    files, folders, seen = {}, {}, set()
+    after = cursor = None
     while True:
-        page = request(
-            config,
-            "/inventory?"
-            + urlencode(
-                dict(workspace=workspace, **({"after": after} if after else {}))
-            ),
-        )
+        route = '/inventory' + ('?' + urlencode({'after': after}) if after else '')
+        page = request(config, drive_path(route, binding))
         if cursor is None:
-            cursor = page["cursor"]
-        files.update((r["family"], r) for r in page["items"])
-        folders.update((r["id"], r) for r in page["folders"])
-        after = page["next"]
+            cursor = page['cursor']
+        files.update((r['family'], r) for r in page['items'])
+        folders.update((r['id'], r) for r in page['folders'])
+        after = page['next']
+        if len(files) + len(folders) > 100000:
+            raise ValueError(tr('Drive-Bestand zu groß für diesen Abgleich.'))
         if not after:
             break
-        if len(files) > 100000:
-            raise ValueError(tr("Drive-Bestand zu groß."))
+        if after in seen:
+            raise ValueError(tr('Drive-Bestand unvollständig. Erneut laden.'))
+        seen.add(after)
     result = dict(files=files, folders=folders, cursor=cursor)
-    refresh(config, workspace, result)
+    refresh(config, result, binding)
     return result
 
 
-def refresh(config, workspace, cache):
+def refresh(config, cache, binding=None):
+    from sync_migration import drive_path
     while True:
-        page = request(
-            config,
-            "/changes?" + urlencode(dict(workspace=workspace, cursor=cache["cursor"])),
-        )
-        cache["files"].update((r["family"], r) for r in page["items"])
-        cache["folders"].update((r["id"], r) for r in page["folders"])
-        cache["cursor"] = page["cursor"]
-        if not page["more"]:
+        previous = cache['cursor']
+        page = request(config, drive_path('/changes?' + urlencode(dict(cursor=previous)), binding))
+        cache['files'].update((r['family'], r) for r in page['items'])
+        cache['folders'].update((r['id'], r) for r in page['folders'])
+        cache['cursor'] = page['cursor']
+        if not page['more']:
             break
+        if page['cursor'] == previous:
+            raise ValueError(tr('Drive-Abgleich macht keinen Fortschritt. Erneut laden.'))
 
 
 def paths(cache, selected):
@@ -125,7 +159,7 @@ def paths(cache, selected):
     return result
 
 
-def configure(path, workspace, folder=None):
+def configure(path, folder):
     """The UI confirms this preview before persisting an enabled scope."""
     with locked():
         config = lumen_connect.read_config()
@@ -165,15 +199,31 @@ def configure(path, workspace, folder=None):
                         "Dieser Ordner überschneidet sich mit einem vorhandenen Abgleich oder Lumen-App-Daten."
                     )
                 )
-        cache = inventory(config, workspace)
-        if folder and (
+        cache = inventory(config)
+        if not folder or (
             folder not in cache["folders"] or cache["folders"][folder]["trashed"]
         ):
             raise ValueError(tr("Drive-Ordner nicht verfügbar."))
+        if not cache["folders"][folder].get("can_write", False):
+            raise ValueError(tr("Dieser Ordner ist nur zum Lesen freigegeben."))
         # Two local writers for overlapping remote trees would turn removals into recreations.
         newpaths = paths(cache, folder)
         for root in state["roots"]:
-            if root["workspace"] == workspace and (
+            if not root.get("folder"):
+                # Independent new roots are allowed; original subtrees and a pending target stay reserved.
+                reserved={k for k,r in root.get('cache',{}).get('folders',{}).items() if not r['trashed']}
+                pending_target=root.get('migration',{}).get('plan',{}).get('folder')
+                if pending_target:reserved.add(pending_target)
+                ancestor=folder
+                overlaps=any(newpaths.get(key) is not None for key in reserved)
+                for _ in range(32):
+                    if ancestor is None:break
+                    if ancestor in reserved:overlaps=True;break
+                    ancestor=cache['folders'].get(ancestor,{}).get('parent_id')
+                if overlaps:
+                    raise ValueError(tr("Dieser Ordner gehört zu einer alten oder laufenden Drive-Umstellung. Zuerst diese Zuordnung abschließen."))
+                continue
+            if (
                 root["folder"] == folder
                 or root["folder"] is None
                 or folder is None
@@ -190,7 +240,6 @@ def configure(path, workspace, folder=None):
             id=uuid4().hex,
             path=str(chosen),
             identity=[info.st_dev, info.st_ino],
-            workspace=workspace,
             folder=folder,
             enabled=True,
             entries={},
@@ -211,6 +260,8 @@ def toggle(identity, enabled=None, remove=False):
     with locked():
         state = read()
         root = next(r for r in state["roots"] if r["id"] == identity)
+        if not root.get("folder"):
+            raise ValueError(tr("Alte Drive-Bindung zuerst über „Ordner zuordnen“ umstellen. Warteschlange bleibt erhalten."))
         if remove:
             state["roots"].remove(root)
         else:
@@ -224,6 +275,8 @@ def choose(rootid, key, side):
     with locked():
         state = read()
         root = next(r for r in state["roots"] if r["id"] == rootid)
+        if not root.get("folder"):
+            raise ValueError(tr("Alte Drive-Bindung zuerst über „Ordner zuordnen“ umstellen. Warteschlange bleibt erhalten."))
         root["conflicts"][key]["choice"] = side
         save(state)
 
@@ -237,6 +290,13 @@ def actual(path, signature, scan):
 
 
 def reconcile(config, root, persist, progress):
+    from sync_migration import drive_path, drive_upload_target, drive_receipt, migrate_drive_binding
+    migrate_drive_binding(root)
+    if not root.get("folder"):
+        root["enabled"] = False
+        persist()
+        drive_path("", root)
+    persist()
     with local.directory(root):
         pass
     try:
@@ -258,11 +318,11 @@ def reconcile(config, root, persist, progress):
         pass
     cache = root["cache"]
     try:
-        refresh(config, root["workspace"], cache)
+        refresh(config, cache, root)
     except urllib.error.HTTPError as error:
         if error.code != 409:
             raise
-        restored = inventory(config, root["workspace"])
+        restored = inventory(config, root)
         cache.clear()
         cache.update(restored)
     persist()
@@ -324,7 +384,7 @@ def reconcile(config, root, persist, progress):
             )
             row = request(
                 config,
-                "/folders?" + urlencode(dict(workspace=root["workspace"])),
+                drive_path("/folders", root),
                 dict(id=key, name=Path(entry["path"]).name, parent_id=target),
             )
             cache["folders"][key] = row
@@ -437,7 +497,7 @@ def reconcile(config, root, persist, progress):
         persist()
         row = request(
             config,
-            "/folders?" + urlencode(dict(workspace=root["workspace"])),
+            drive_path("/folders", root),
             dict(id=key, name=Path(path).name, parent_id=target),
         )
         root["dirs"][key].pop("pending", None)
@@ -497,6 +557,7 @@ def reconcile(config, root, persist, progress):
                 path=path,
                 folder=folder,
                 previous=row,
+                **({'legacy_upload_target': entry['legacy_upload_target']} if entry.get('legacy_upload_target') else {}),
             )
             local.capacity(root, scan[path]["signature"][2])
             local.mkdir(root, ".lumen-drive")
@@ -535,17 +596,26 @@ def reconcile(config, root, persist, progress):
                     "Ausstehende Übertragung lokal geändert. Erneut abgleichen oder Konflikt prüfen."
                 )
             )
+        def remember(transfer_id):
+            intent['transfer_id'] = transfer_id
+            if intent['previous'] is None and transfer_id != key:
+                occupied = root['entries'].get(transfer_id)
+                if occupied is not None and occupied is not entry:
+                    raise ValueError(tr('Übertragungskennung bereits lokal belegt. Beide Fassungen bleiben erhalten.'))
+                root['entries'][transfer_id] = entry
+                root['entries'].pop(key, None)
+            persist()
         result = transport.upload(
             config,
             root,
             intent["staged"],
-            root["workspace"],
             intent["folder"],
             intent["request_id"],
             intent["hash"],
             intent["previous"],
             progress,
             filename=Path(intent["path"]).name,
+            legacy_target=drive_upload_target(root, intent), remember=remember,
         )
         entry["base"] = dict(
             path=intent["path"],
@@ -593,12 +663,7 @@ def reconcile(config, root, persist, progress):
             entry.get("pending")
             and row
             and row["id"]
-            == str(
-                uuid5(
-                    UUID(root["device"]),
-                    root["workspace"] + ":" + entry["pending"]["request_id"],
-                )
-            )
+            == drive_receipt(root, entry['pending'])
         ):
             intent = entry.pop("pending")
             entry["base"] = base = dict(
@@ -750,7 +815,7 @@ def reconcile(config, root, persist, progress):
         if any(e["path"] == path for e in root["entries"].values()):
             continue
         request_id = str(uuid4())
-        key = str(uuid5(UUID(root["device"]), root["workspace"] + ":" + request_id))
+        key = request_id
         entry = dict(
             path=path, signature=item["signature"], base=None, request_id=request_id
         )

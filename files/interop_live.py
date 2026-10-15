@@ -20,7 +20,9 @@ def live_notes(library,key,job,store=None):
         if source['kind']=='note':notes=[book.read(source['id'])]
         else:
             notes=book.scan()['notes'];collection=source['id'].removeprefix('collection:');kind,_,value=collection.partition(':')
-            if kind=='tag':notes=[note for note in notes if value in note['tags']]
+            if kind=='tag':
+                from note_tags import matches_tags
+                notes=[note for note in notes if matches_tags(note['tags'],[value])]
             elif kind=='folder':notes=[note for note in notes if Path(note['path']).is_relative_to(value)]
             elif kind=='kind':notes=[note for note in notes if note.get('memory',{}).get('kind')==value]
         for note in notes:

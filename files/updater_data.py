@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from urllib.parse import urlsplit
 from lumen_i18n import tr, worker_environment
 
 REMOTE = 'https://github.com/ativaro/lumen.git'
@@ -67,16 +68,40 @@ def installations():
     return [p for p in roots if (p/'files/app.py').is_file()]
 
 
+def source_url():
+    sources = set()
+    for root in installations():
+        value = read_json(root/'install.json').get('source_url')
+        if value is None:
+            sources.add(REMOTE)  # Legacy installs predate recorded source identity.
+            continue
+        if not isinstance(value, str): raise ValueError(tr('Ungültige Lumen-Update-Quelle.'))
+        try:
+            url = urlsplit(value)
+            valid = (url.scheme == 'https' and url.hostname and not url.username and
+                     not url.password and not url.query and not url.fragment and
+                     url.path.endswith('.git') and not any(c.isspace() for c in value))
+            url.port
+        except ValueError:
+            valid = False
+        if not valid: raise ValueError(tr('Ungültige Lumen-Update-Quelle.'))
+        sources.add(value)
+    if len(sources) > 1:
+        raise ValueError(tr('Die installierten Lumen-Versionen stammen aus verschiedenen Quellen. Bitte getrennt aktualisieren.'))
+    return next(iter(sources), REMOTE)
+
+
 def prepare_source():
+    remote = source_url()
     source = source_root(); source.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     try:
         if not source.exists():
             with tempfile.TemporaryDirectory(dir=source.parent) as tmp:
                 staged = Path(tmp)/'source'
-                run(['git', 'clone', '--depth=50', '--single-branch', '--branch', 'main', REMOTE, str(staged)], timeout=180)
+                run(['git', 'clone', '--depth=50', '--single-branch', '--branch', 'main', remote, str(staged)], timeout=180)
                 staged.rename(source)
-        if run(['git','remote','get-url','origin'], cwd=source) != REMOTE:
-            raise ValueError(tr('Der Update-Ordner gehört nicht zur Lumen-Quelle.'))
+        if run(['git','remote','get-url','origin'], cwd=source) != remote:
+            raise ValueError(tr('Der Update-Ordner gehört zu einer anderen Quelle. Bitte den vorhandenen Update-Ordner sichern und entfernen.'))
         if run(['git','status','--porcelain'], cwd=source):
             raise ValueError(tr('Der Update-Ordner enthält eigene Änderungen. Diese zuerst sichern.'))
         run(['git','fetch','--no-tags','origin','main'], cwd=source, timeout=180)
@@ -85,7 +110,7 @@ def prepare_source():
         run(['git','checkout','--detach', revision], cwd=source)
         return revision
     except (OSError, subprocess.SubprocessError, RuntimeError) as error:
-        raise RuntimeError(tr('Die Update-Quelle ist nicht erreichbar. Internet und GitHub-Zugriff auf das private Lumen-Repository prüfen.')) from error
+        raise RuntimeError(tr('Die Update-Quelle ist nicht erreichbar. Internet und Zugriff auf das private Lumen-Repository prüfen.')) from error
 
 
 def component_definitions():
@@ -135,7 +160,7 @@ def check():
     if shutil.which('flatpak'):
         rows.append(dict(id='flatpak', title=tr('Flatpak-Apps'), detail=tr('Installierte Apps und Laufzeiten'), pending=True, optional=True))
     notes = run(['git','log','-6','--format=%s',revision], cwd=source)
-    plan = dict(revision=revision, rows=rows, notes=notes)
+    plan = dict(revision=revision, source_url=source_url(), rows=rows, notes=notes)
     save_json(state_root()/'plan.json', plan); report(plan=plan)
     return plan
 
@@ -155,12 +180,14 @@ def install_bundle(source, revision):
     for root in roots:
         if root == Path('/usr/share/lumen'): continue
         run(['bash',str(source/'install.sh'),'--no-mcp'], cwd=source,
-            env={'PREFIX':str(root), 'LUMEN_SOURCE_REVISION':revision})
+            env={'PREFIX':str(root), 'LUMEN_SOURCE_REVISION':revision, 'LUMEN_SOURCE_URL':source_url()})
 
 
 def apply(revision, selected):
     plan = read_json(state_root()/'plan.json'); source = source_root()
     if (not re.fullmatch(r'[a-f0-9]{40}', revision) or plan.get('revision')!=revision or
+            plan.get('source_url') != source_url() or
+            run(['git','remote','get-url','origin'], cwd=source) != plan.get('source_url') or
             run(['git','rev-parse','HEAD'], cwd=source)!=revision or
             run(['git','status','--porcelain'], cwd=source)):
         raise ValueError(tr('Die Update-Auswahl ist veraltet. Bitte erneut prüfen.'))

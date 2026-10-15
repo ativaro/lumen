@@ -110,7 +110,7 @@ class Reader(ToolWindow):
         actions.addAction(tr('Kapitelmarkierungen als Notiz speichern …'),lambda:self.safe(self.send_marks,True))
         actions.addAction(tr('Alle Markierungen als Notiz speichern …'),lambda:self.safe(self.send_marks,False))
         from interop_reader import send_book_marks
-        actions.addAction(tr('Markierungen mehrerer Dokumente an Lumen Persönliches Radio'),lambda:self.safe(send_book_marks,self))
+        actions.addAction(tr('Markierungen mehrerer Dokumente an Lumen Audio Studio · Radio'),lambda:self.safe(send_book_marks,self))
 
     def create(self):
         path,_=QFileDialog.getOpenFileName(self,tr('Buch oder Dokument öffnen'),str(Path.home()),tr('Lesbare Dokumente (*.pdf *.epub *.txt *.md *.html *.htm)'))

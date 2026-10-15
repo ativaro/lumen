@@ -1,4 +1,4 @@
-"""The single project editor, embedded beside the active workspace."""
+"""The project planning editor embedded beside the journal."""
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QShortcut, QKeySequence
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QScrollArea, QStackedWidget,
@@ -9,7 +9,7 @@ from tools_ui import button, label, row
 
 class ProjectEditor(QWidget):
     def __init__(self, window):
-        super().__init__(); self.window=window; self.draft_kind=''; self.return_focus=None;self.room_snapshot=None;self.environment=None
+        super().__init__(); self.window=window; self.draft_kind=''; self.return_focus=None
         self.setObjectName('projectEditor'); self.setMinimumWidth(350)
         self.setStyleSheet('QWidget#projectEditor { background: palette(alternate-base); border-left: 1px solid palette(mid); }')
         layout=QVBoxLayout(self);layout.setContentsMargins(18,16,18,16)
@@ -80,7 +80,6 @@ class ProjectEditor(QWidget):
 
     def dirty(self):
         w=self.window
-        if self.environment is not None:return self.environment.dirty()
         return bool(w.current or self.draft_kind) and (w.editor_fields()!=getattr(w,'loaded_fields',{}) or self.material.dirty())
 
     def allow_leave(self):
@@ -94,9 +93,7 @@ class ProjectEditor(QWidget):
         return True
 
     def discard(self):
-        w=self.window;self.material.reset();self.room_snapshot=None
-        if self.environment is not None:
-            w.tabs.removeWidget(self.environment);self.environment.deleteLater();self.environment=None
+        w=self.window;self.material.reset()
         if self.draft_kind:self.draft_kind='';w.scope='';w.initiative='';w.current='';w.loaded_fields={}
         elif w.current:
             w.loading=True
@@ -105,7 +102,6 @@ class ProjectEditor(QWidget):
 
     def close_editor(self):
         if not self.allow_leave():return
-        if self.environment is not None:self.discard()
         self.draft_kind='';self.hide();self.window.home.reflow()
         if self.return_focus:
             try:self.return_focus.setFocus()
@@ -150,38 +146,6 @@ class ProjectEditor(QWidget):
     def kind_changed(self,*_):
         w=self.window;kind=self.kind.currentData();w.deep.setVisible(kind in ('research','automation'));w.schedule_row.setVisible(kind in ('research','analysis','automation'));w.operation.setVisible(kind=='automation')
         if self.draft_kind:w.edited()
-
-    def edit_environment(self,room):
-        from project_environment import ProjectEnvironment
-        w=self.window
-        self.environment=ProjectEnvironment(w.workplace.store,room,self)
-        self.environment.setEnabled(self.apply.isEnabled())
-        w.tabs.addWidget(self.environment);w.tabs.setCurrentWidget(self.environment)
-        self.navigation.hide();self.more.hide();self.archive.setVisible(False)
-        self.show();w.home.reflow()
-
-    def edit_room_note(self,room_id):
-        from lumen_projects import projects
-        w=self.window;room=next(r for r in projects(w.workplace.store) if r['id']==room_id)
-        self.room_snapshot=room;self.draft_kind='room-note';w.loading=True
-        try:
-            w.title.setText(room['name']);w.title.setReadOnly(True);w.notes.setPlainText(room.get('note',''))
-            self.record_layout.insertWidget(0,w.notes);w.tabs.setCurrentIndex(0);w.loaded_fields=w.editor_fields()
-        finally:w.loading=False
-        self.heading.setText(tr('Projektnotiz bearbeiten'));self.navigation.hide();self.archive.setVisible(False);self.more.hide();self.show()
-
-    def save_room_note(self):
-        from lumen_projects import projects
-        from file_spaces import Catalog
-        w=self.window;before=self.room_snapshot
-        current=next(r for r in projects(w.workplace.store) if r['id']==before['id'])
-        if current!=before:raise ValueError(tr('Das Projekt wurde inzwischen geändert. Bitte erneut öffnen.'))
-        note=w.notes.toPlainText()
-        if len(note)>10000:raise ValueError(tr('Die Notiz darf höchstens 10.000 Zeichen enthalten.'))
-        Catalog(w.workplace.store).put('room',dict(current,note=note),current)
-        self.room_snapshot=None;self.draft_kind='';w.loading=True
-        try:w.load_fields(w.projects.get(w.scope) if w.scope else w.library.get(w.current))
-        finally:w.loading=False
 
     def commit(self):
         self.window.save();self.window.home.refresh();self.close_editor()

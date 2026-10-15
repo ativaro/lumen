@@ -220,45 +220,77 @@ ApplicationWindow {
                         anchors.fill: parent
                         id: conversation; objectName: "conversation"
                         readonly property Flickable scroller: contentItem as Flickable
-                        property string answerKey: ""
-                        readonly property bool newerBelow: scroller !== null && contentHeight - availableHeight - scroller.contentY > 48
-                        function goToLatest() {
-                            scrollPosition.stop()
-                            if (!scroller) return
-                            scroller.cancelFlick()
-                            scroller.contentY = Math.max(0, contentHeight - availableHeight)
-                            composer.forceActiveFocus()
+                    property bool following: true
+                    property string lastUserKey: ""
+                    property string firstKey: ""
+                    readonly property real scrollEnd: Math.max(0, contentHeight - availableHeight)
+                    readonly property bool newerBelow: !following && scroller !== null && scrollEnd - scroller.contentY > 48
+                    function goToLatest() {
+                        if (!scroller) return
+                        scroller.cancelFlick()
+                        following = true
+                        composer.forceActiveFocus()
+                    }
+                    function updatePosition() {
+                        const rows = window.controller.messages
+                        let userKey = ""
+                        for (let i = rows.length - 1; i >= 0; --i) {
+                            if (rows[i].role === "user") { userKey = String(rows[i].key); break }
                         }
-                        function updatePosition() {
-                            const position = scroller ? scroller.contentY : 0
-                            const rows = window.controller.messages
-                            let answer = -1
-                            for (let i = rows.length - 1; i >= 0; --i) {
-                                if (rows[i].role === "assistant" && rows[i].text) { answer = i; break }
-                            }
-                            const key = answer >= 0 ? String(rows[answer].key) : ""
-                            const target = key !== answerKey ? answer : -1
-                            answerKey = key
-                            const followUser = rows.length && rows[rows.length - 1].role === "user" && scroller && position >= contentHeight - availableHeight - 50
-                            if (!scrollPosition.running || target >= 0) {
-                                scrollPosition.position = position
-                                scrollPosition.targetIndex = target >= 0 ? target : (followUser ? -2 : -1)
-                            }
-                            scrollPosition.restart()
+                        const first = rows.length ? String(rows[0].key) : ""
+                        // A submitted follow-up resumes following, even after reading older text.
+                        if (first !== firstKey || userKey !== lastUserKey || !rows.length) following = true
+                        firstKey = first
+                        lastUserKey = userKey
+                        while (messageSlots.count < rows.length) messageSlots.append({slot: messageSlots.count})
+                        if (messageSlots.count > rows.length) messageSlots.remove(rows.length, messageSlots.count - rows.length)
+                    }
+                    Component.onCompleted: updatePosition()
+                    ListModel { id: messageSlots }
+                    Timer {
+                        id: followPosition
+                        interval: 16; repeat: true
+                        running: conversation.visible && conversation.following && conversation.scroller !== null
+                                 && !conversation.scroller.moving && !conversationBar.pressed
+                                 && Math.abs(conversation.scrollEnd - conversation.scroller.contentY) > 0.5
+                        onTriggered: {
+                            const y = conversation.scroller.contentY
+                            const remaining = conversation.scrollEnd - y
+                            // Chase the current end; streaming never restarts an animation.
+                            conversation.scroller.contentY = Math.abs(remaining) < 1 ? conversation.scrollEnd : y + remaining * 0.45
                         }
-                        Timer {
-                            id: scrollPosition
-                            // Wait one frame for the recreated message delegates to be laid out.
-                            interval: 16
-                            property real position: 0
-                            property int targetIndex: -1
-                            onTriggered: {
-                                if (!conversation.scroller) return
-                                const row = targetIndex >= 0 ? messageRepeater.itemAt(targetIndex) : null
-                                const y = row ? row.y : (targetIndex === -2 ? conversation.contentHeight : position)
-                                conversation.scroller.contentY = Math.max(0, Math.min(y, conversation.contentHeight - conversation.availableHeight))
-                            }
+                    }
+                    WheelHandler {
+                        target: null
+                        onWheel: function(event) {
+                            const delta = event.pixelDelta.y || event.angleDelta.y
+                            if (delta > 0) conversation.following = false
+                            else if (delta < 0) wheelFinished.restart()
+                            event.accepted = false
                         }
+                    }
+                    Timer {
+                        id: wheelFinished; interval: 160
+                        onTriggered: if (conversation.scroller && conversation.scrollEnd - conversation.scroller.contentY < 24) conversation.following = true
+                    }
+                    Connections {
+                        target: conversation.scroller
+                        function onMovementStarted() { conversation.following = false }
+                        function onMovementEnded() {
+                            conversation.following = conversation.scrollEnd - conversation.scroller.contentY < 24
+                        }
+                    }
+                    ScrollBar.vertical: ScrollBar {
+                        id: conversationBar; policy: ScrollBar.AsNeeded
+                        onPressedChanged: {
+                            if (pressed) conversation.following = false
+                            else if (conversation.scroller) conversation.following = conversation.scrollEnd - conversation.scroller.contentY < 24
+                        }
+                    }
+                    Keys.onPressed: function(event) {
+                        if (event.key === Qt.Key_Up || event.key === Qt.Key_PageUp || event.key === Qt.Key_Home) conversation.following = false
+                        else if (event.key === Qt.Key_End) conversation.following = true
+                    }
                         clip: true; contentWidth: availableWidth
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                         ColumnLayout {
@@ -266,11 +298,12 @@ ApplicationWindow {
                             Label { Layout.fillWidth: true; visible: window.controller.messages.length === 0 && !window.controller.busy; text: window.controller.text("Wobei kann ich dir helfen?"); color: window.theme.text; font.pixelSize: 24; font.weight: Font.Medium; wrapMode: Text.Wrap }
                             Repeater {
                                 id: messageRepeater
-                                model: window.controller.messages
+                                model: messageSlots
                                 Frame {
                                     id: messageRow
                                     objectName: "messageBubble"
-                                    required property var modelData
+                                    required property int slot
+                                    readonly property var modelData: window.controller.messages[slot] || ({role: "", body: "", blocks: [], key: "", activity: ""})
                                     readonly property bool userMessage: modelData.role === "user"
                                     Layout.fillWidth: true
                                     Layout.maximumWidth: userMessage ? Math.min(960, conversation.availableWidth) * 8 / 9 : 960

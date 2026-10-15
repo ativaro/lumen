@@ -1,4 +1,4 @@
-"""Project orchestration with one workspace and its dedicated sidebar editor."""
+"""Project journal with independent collections and the existing planning editor."""
 from lumen_i18n import tr
 from pathlib import Path
 from PySide6.QtCore import Qt, QUrl, QTimer
@@ -16,7 +16,7 @@ class Workbench(ToolWindow):
         self.projects=Projects(self.library); self.scope=''; self.initiative=''; self.runner=None
         from projects_runner import recover
         recover(self.projects)
-        self.loaded_fields={}; self.loaded_record={}; self.loaded_updated=None; self.interop_path_revision=0
+        self.project_source_jobs=set();self.loaded_fields={}; self.loaded_record={}; self.loaded_updated=None; self.interop_path_revision=0
         from project_editor import ProjectEditor
         self.editor=ProjectEditor(self)
         self.setup_projects()
@@ -26,12 +26,12 @@ class Workbench(ToolWindow):
         from projects_sync_ui import install
         install(self)
 
-        from lumen_workplace import Workplace
         from lumen_workspace import Workspace
-        self.room_files = None
-        self.workplace = Workplace(self, files_provider=self.workspace_files)
-        self.workplace.remote_conversations = True
-        self.automations = Workspace(self, store=self.workplace.store, sections=('flows',))
+        from lumen_store import Store
+        self.project_store = Store()
+        from projects_legacy import migrate
+        migrate(self.library, self.project_store)
+        self.automations = Workspace(self, store=self.project_store, sections=('flows',))
         self.recurring=QListWidget();self.recurring.setAccessibleName(tr('Wiederkehrende Projektaufgaben'));self.recurring.setMaximumHeight(160)
         self.recurring.itemActivated.connect(lambda item:self.safe(self.navigate,*item.data(Qt.UserRole)))
         self.recurring.itemClicked.connect(lambda item:self.safe(self.navigate,*item.data(Qt.UserRole)))
@@ -41,7 +41,7 @@ class Workbench(ToolWindow):
         self.areas = QTabWidget(); self.areas.setAccessibleName(tr('Projektbereiche'))
         self.areas.setStyleSheet('QTabWidget::pane { border: none; }')
         self.areas.addTab(management, tr('Archiv und Serverabgleich'))
-        self.areas.addTab(self.workplace, tr('Projekte'))
+        self.areas.addTab(QWidget(), tr('Projekte'))
         self.areas.addTab(self.automations.flows_page, tr('Automationen'))
         self.areas.tabBar().hide()
         from projects_home import ProjectHome
@@ -60,14 +60,14 @@ class Workbench(ToolWindow):
 
     def show_home(self):
         if not self.editor.allow_leave():return
-        self.editor.hide();self.home.refresh();self.areas.setCurrentIndex(3);self.back_home.hide()
+        self.editor.hide();self.home.refresh();self.home.show_overview();self.areas.setCurrentIndex(3);self.back_home.hide()
 
     def focus_record(self,key):
         if not self.editor.allow_leave():return
         self.editor.discard()
         super().focus_record(key)
         if hasattr(self,'home'):
-            self.home.project_id=key;self.home.room_id=(self.home.links.room(key) or {}).get('id','');self.home.scope='';self.home.refresh()
+            self.home.project_id=key;self.home.scope='';self.home.show_detail();self.home.refresh()
             self.editor.present(self.library.get(key))
             self.loaded_fields=self.editor_fields();self.areas.setCurrentIndex(3)
 
@@ -76,16 +76,9 @@ class Workbench(ToolWindow):
             text=tr('Ungespeicherte Änderungen · Speichern übernimmt die Eingabe.');self.status.setText(text)
             if hasattr(self,'editor'):self.editor.feedback.setText(text)
 
-    def workspace_files(self):
-        if self.room_files is None or getattr(self.room_files, '_closed', False):
-            from app import Window
-            self.room_files = Window(str(Path.home()))
-        return self.room_files
-
     def refresh_area(self, index):
         self.back_home.setVisible(index!=3)
-        if index == 1: self.workplace.refresh_projects()
-        elif index == 2:
+        if index == 2:
             self.automations.refresh_flows();self.recurring.clear()
             for project in self.library.all():
                 for task in self.projects.items(project['id']):
@@ -100,15 +93,16 @@ class Workbench(ToolWindow):
         self.editor.hide()
         self.areas.setCurrentIndex({'automations':2,'household':1}[section])
         if section == 'household':
-            self.workplace.rooms.open_household(all_rooms=True)
-            if request: self.workplace.rooms.household.activate(request)
+            from lumen_detail_routes import launch
+            arguments = ['--page', 'household']
+            launch('lumen', arguments)
 
 
     def create(self):
         self.new_entry('project')
 
     def new_entry(self,kind):
-        if kind=='project' and self.home.prompt.text().strip():raise ValueError(tr('Bitte den Gesprächsentwurf zuerst besprechen oder leeren.'))
+        if kind=='project' and self.home.prompt.toPlainText().strip():raise ValueError(tr('Bitte den Gesprächsentwurf zuerst besprechen oder leeren.'))
         if not self.editor.allow_leave():return
         self.editor.discard()
         if kind=='project':self.current='';self.scope='';self.initiative=''
@@ -116,6 +110,7 @@ class Workbench(ToolWindow):
             self.current=self.home.ensure_project();self.scope='';self.initiative=self.home.scope
         value=dict(title='',notes='',resources=[],kind='research' if kind=='task' else kind)
         self.editor.draft_kind=kind
+        self.home.show_detail()
         self.loading=True
         try:
             self.load_fields(value);self.editor.present(value,kind);self.loaded_fields=self.editor_fields()
@@ -140,6 +135,7 @@ class Workbench(ToolWindow):
         readonly=owner.get('server_bound') and owner.get('server_role')=='reader'
         self.title.setReadOnly(bool(readonly));self.notes.setReadOnly(bool(readonly))
         self.new_task.setEnabled(not readonly)
+        if hasattr(self,'reference_pane'):self.reference_pane.load(owner, bool(readonly or owner.get('_archived')))
         if owner.get('server_bound'):
             self.status.setText(tr('Lumen Server · Änderungen werden synchronisiert') if owner.get('server_role')!='reader' else tr('Lumen Server · Nur lesen'))
         self.server_material.clear()
@@ -161,10 +157,6 @@ class Workbench(ToolWindow):
     def save(self):
         self.save_timer.stop()
         if self.loading or not (self.current or self.editor.draft_kind):return
-        if self.editor.environment is not None:
-            if not self.editor.apply.isEnabled():raise ValueError(tr('Dieses Projekt ist schreibgeschützt.'))
-            self.editor.environment.save();return
-        if self.editor.draft_kind=='room-note':self.editor.save_room_note();return
         if self.editor.material.dirty():self.editor.material.stage_all()
         from interop_paths import update_window
         update_window(self)
@@ -198,7 +190,7 @@ class Workbench(ToolWindow):
         self.loading=True
         try:self.load_fields(self.projects.get(self.scope) if self.scope else self.library.get(self.current))
         finally:self.loading=False
-        self.home.project_id=self.current;self.home.room_id=(self.home.links.room(self.current) or {}).get('id','');self.home.scope=self.initiative
+        self.home.project_id=self.current;self.home.scope=self.initiative
         self.status.setText(tr('Gespeichert'));self.refresh();self.home.refresh()
 
     def edit_revision(self):
@@ -210,7 +202,7 @@ class Workbench(ToolWindow):
         if not changes:return self.loaded_updated
         expected=deepcopy(self.loaded_record)
         for resource in expected.get('resources',[]):
-            if resource.get('kind')=='file':resource['target']=mapped(resource['target'],changes)
+            if resource.get('kind') in ('file','folder'):resource['target']=mapped(resource['target'],changes)
         for item in expected.get('reading_list',[]):item['path']=mapped(item['path'],changes)
         with self.library.connect() as db:
             table='project_items' if self.scope else 'records'
@@ -248,12 +240,14 @@ class Workbench(ToolWindow):
         update_window(self)
         item=self.resources.currentItem()
         if not item: return
-        value=item.data(Qt.UserRole)
+        self.open_resource_value(item.data(Qt.UserRole))
+
+    def open_resource_value(self,value):
         if value['target'].startswith('lumen:'):
             from interop_open import open_url
             open_url(value['target'],self.library.root.parent)
             return
-        if value['kind']=='file': open_path(value['target'])
+        if value['kind'] in ('file','folder'): open_path(value['target'])
         elif not QDesktopServices.openUrl(QUrl(web_url(value['target']))): raise ValueError(tr('Browser konnte nicht geöffnet werden.'))
 
     def remove_resource(self):
@@ -338,7 +332,7 @@ class Workbench(ToolWindow):
         try:
             self.load_fields(value)
             if hasattr(self,'home'):
-                self.home.project_id=self.current;self.home.room_id=(self.home.links.room(self.current) or {}).get('id','');self.home.scope=self.initiative;self.home.refresh();self.editor.present(value)
+                self.home.project_id=self.current;self.home.scope=self.initiative;self.home.refresh();self.editor.present(value)
             self.loaded_fields=self.editor_fields()
         finally:self.loading=False
         self.body.setEnabled(True);self.refresh()
@@ -371,7 +365,9 @@ class Workbench(ToolWindow):
         if item:self.safe(self.navigate,self.current,item.data(Qt.UserRole))
 
     def create_initiative(self):self.new_entry('initiative')
-    def create_task(self):self.new_entry('task')
+    def create_task(self,kind=None):
+        self.new_entry('task')
+        if kind:self.editor.kind.setCurrentIndex(self.editor.kind.findData(kind))
 
     def load_task_fields(self,value):
         from projects_data import KINDS,STATES
@@ -445,7 +441,7 @@ class Workbench(ToolWindow):
                 for task in self.projects.items(self.current):
                     if task.get('enabled'):self.projects.update(task['id'],enabled=False)
             self.library.archive(self.current,archived); self.current=''; self.scope=''
-            self.body.setEnabled(False);self.editor.hide();self.home.project_id='';self.home.room_id='';self.home.scope='';self.home.refresh();self.refresh()
+            self.body.setEnabled(False);self.editor.hide();self.home.project_id='';self.home.scope='';self.home.refresh();self.refresh()
 
     def run_task(self):
         self.save()
@@ -555,13 +551,12 @@ class Workbench(ToolWindow):
         return _payload(source,text,paths=[v['path'] for v in materials],items=materials)
 
     def closeEvent(self,event):
-        if hasattr(self,'home') and self.home.prompt.text().strip():
+        if hasattr(self,'home') and self.home.prompt.toPlainText().strip():
             from PySide6.QtWidgets import QMessageBox
             if QMessageBox.question(self,tr('Gesprächsentwurf behalten?'),tr('Der Entwurf im Projekt ist noch nicht in Lumen geöffnet. Trotzdem schließen?'),QMessageBox.Yes|QMessageBox.No,QMessageBox.No)!=QMessageBox.Yes:
                 event.ignore();return
-        if not self.workplace.can_close() or self.workplace.busy or not self.automations.can_close():
+        if self.editor.material.notes_job or self.project_source_jobs or not self.automations.can_close():
             self.status.setText(tr('Bitte den laufenden Vorgang abschließen.')); event.ignore(); return
-        if self.room_files is not None and not self.room_files.close(): event.ignore(); return
         if getattr(self,'project_sync_job',None):
             self.sync_close_requested=True;event.ignore();return
         if self.runner and self.runner.busy:
@@ -570,4 +565,4 @@ class Workbench(ToolWindow):
         super().closeEvent(event)
         if event.isAccepted():
             self.home.timer.stop()
-            self.poll_timer.stop(); self.workplace.shutdown(); self.automations.shutdown()
+            self.poll_timer.stop(); self.automations.shutdown()

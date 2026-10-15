@@ -1,7 +1,6 @@
 """Lumen Drive browsing and selective offline folders inside Lumen Files."""
 
 from pathlib import Path
-from urllib.parse import urlencode
 from uuid import uuid4
 from PySide6.QtCore import Qt, QTimer, QUrl
 from PySide6.QtGui import QIcon, QDesktopServices
@@ -28,7 +27,7 @@ import drive_transport as transport
 
 class Drive(QDialog):
     def __init__(
-        self, parent=None, local_path=None, workspace=None, folder=None, offline=False
+        self, parent=None, local_path=None, folder=None, offline=False
     ):
         super().__init__(parent)
         self.setWindowTitle("Lumen Drive")
@@ -36,10 +35,9 @@ class Drive(QDialog):
         self.job = None
         self.cache = dict(files={}, folders={})
         self.folder = folder
-        self.requested_space = workspace
         self.initial_offline = offline
         self.local_path = local_path
-        self.space = None
+        self.profile = {}
         self.closing = False
         outer = QVBoxLayout(self)
         outer.setContentsMargins(24, 20, 24, 20)
@@ -48,9 +46,7 @@ class Drive(QDialog):
         heading.setObjectName("heading")
         outer.addWidget(heading)
         top = QHBoxLayout()
-        self.spaces = QComboBox()
-        self.spaces.setAccessibleName(tr("Serverbereich"))
-        top.addWidget(self.spaces, 1)
+        top.addStretch()
         top.addWidget(button(tr("Serververbindung"), self.connection, "network-server"))
         top.addWidget(button(tr("Aktualisieren"), self.reload, "view-refresh"))
         outer.addLayout(top)
@@ -82,6 +78,13 @@ class Drive(QDialog):
         self.roots = QComboBox()
         self.roots.setAccessibleName(tr("Synchronisierte Ordner"))
         outer.addWidget(self.roots)
+        self.migration_status=QLabel()
+        self.migration_status.setTextFormat(Qt.PlainText)
+        self.migration_status.setWordWrap(True)
+        outer.addWidget(self.migration_status)
+        self.migration_button=button(tr('Ordner zuordnen …'),self.migrate_binding,'folder-sync')
+        outer.addWidget(self.migration_button)
+        self.roots.currentIndexChanged.connect(self.refresh_migration)
         commands = QHBoxLayout()
         for title, fn, icon in [
             (tr("Jetzt abgleichen"), self.sync_now, "view-refresh"),
@@ -96,12 +99,11 @@ class Drive(QDialog):
         self.status.setTextFormat(Qt.PlainText)
         self.status.setWordWrap(True)
         outer.addWidget(self.status)
-        self.spaces.currentIndexChanged.connect(self.select_space)
         self.timer = QTimer(self)
         self.timer.setInterval(5000)
         self.timer.timeout.connect(self.refresh_roots)
         self.timer.start()
-        QTimer.singleShot(0, self.load_spaces)
+        QTimer.singleShot(0, self.reload)
 
     def work(self, fn, done=None):
         if self.job:
@@ -109,7 +111,6 @@ class Drive(QDialog):
         job = Job(fn, self)
         self.job = job
         self.list.setEnabled(False)
-        self.spaces.setEnabled(False)
         job.progress.connect(self.status.setText)
 
         def result(value):
@@ -125,7 +126,6 @@ class Drive(QDialog):
         def finished():
             self.job = None
             self.list.setEnabled(True)
-            self.spaces.setEnabled(True)
             self.refresh_roots()
             job.deleteLater()
             if self.closing:
@@ -134,63 +134,37 @@ class Drive(QDialog):
         job.finished.connect(finished)
         job.start()
 
-    def load_spaces(self):
-        def done(value):
-            config, spaces = value
-            self.config = config
-            self.spaces.blockSignals(True)
-            self.spaces.clear()
-            for space in spaces:
-                self.spaces.addItem(
-                    space["title"]
-                    + (" · " + tr("Nur lesen") if space["role"] == "reader" else ""),
-                    space,
-                )
-            if self.requested_space:
-                for index, space in enumerate(spaces):
-                    if space["id"] == self.requested_space:
-                        self.spaces.setCurrentIndex(index)
-                        break
-            self.spaces.blockSignals(False)
-            self.space = self.spaces.currentData()
-            self.status.setText(config["server"])
-            QTimer.singleShot(50, self.reload)
-
-        self.work(
-            lambda _: (
-                lumen_connect.read_config(),
-                sync.request(lumen_connect.read_config(), "/spaces"),
-            ),
-            done,
-        )
-
     def connection(self):
         from lumen_connect_gui import ConnectionDialog
 
         self.connection_dialog = ConnectionDialog(self)
         self.connection_dialog.show()
 
-    def select_space(self):
-        if self.job:
-            return
-        self.space = self.spaces.currentData()
-        self.folder = None
-        self.reload()
-
     def reload(self):
-        if not self.space:
-            return self.load_spaces()
-        workspace = self.space["id"]
+        if self.job: return
+        self.cache = dict(files={}, folders={}); self.profile = {}
+        self.render()
 
-        def done(cache):
-            self.cache = cache
+        def run(job):
+            config = lumen_connect.read_config()
+            profile = lumen_connect.request(config, '/bridge/me')
+            job.check()
+            return config, profile, sync.inventory(config)
+
+        def done(value):
+            self.config, self.profile, self.cache = value
+            if self.folder and self.folder not in self.cache["folders"]:
+                self.folder = None
+                self.initial_offline = False
+                self.status.setText(tr("Der verknüpfte Ordner ist nicht mehr verfügbar."))
+            else:
+                self.status.setText(tr("Aktueller Drive-Bestand · Dateien bis 64 MB"))
             self.render()
             if self.initial_offline:
                 self.initial_offline = False
                 QTimer.singleShot(100, self.configure)
-            self.status.setText(tr("Aktueller Drive-Bestand"))
 
-        self.work(lambda _: sync.inventory(self.config, workspace), done)
+        self.work(run, done)
 
     def render(self):
         self.list.clear()
@@ -277,8 +251,7 @@ class Drive(QDialog):
         return dict(path=str(p), identity=[st.st_dev, st.st_ino])
 
     def upload(self):
-        if self.job or not self.space:
-            return
+        if not self.can_write(): return
         filename, _ = QFileDialog.getOpenFileName(
             self, tr("Datei in Lumen Drive ablegen")
         )
@@ -286,14 +259,12 @@ class Drive(QDialog):
             return
         path = Path(filename)
         root = self.local_root(path.parent)
-        workspace = self.space["id"]
         folder = self.folder
         self.work(
             lambda job: transport.upload(
                 self.config,
                 root,
                 path.name,
-                workspace,
                 folder,
                 str(uuid4()),
                 local.checksum(root, path.name),
@@ -304,22 +275,29 @@ class Drive(QDialog):
         )
 
     def new_folder(self):
-        if self.job or not self.space:
-            return
+        if not self.can_write(): return
         name, ok = QInputDialog.getText(self, tr("Lumen Drive"), tr("Neuer Ordner"))
         if ok and name:
             self.work(
                 lambda _: sync.request(
                     self.config,
-                    "/folders?" + urlencode(dict(workspace=self.space["id"])),
+                    "/folders",
                     dict(id=str(uuid4()), name=name, parent_id=self.folder),
                 ),
                 lambda _: QTimer.singleShot(50, self.reload),
             )
 
+    def can_write(self):
+        if self.job: return False
+        current = self.cache["folders"].get(self.folder)
+        if not (current.get("can_write", False) if current else self.profile.get("can_create", False)):
+            self.status.setText(tr("Dieser Ordner ist nur zum Lesen freigegeben.")); return False
+        return True
+
     def configure(self):
-        if self.job or not self.space:
-            return
+        if not self.can_write(): return
+        if not self.folder:
+            self.status.setText(tr("Zum Synchronisieren zuerst einen Drive-Ordner öffnen.")); return
         folder = self.local_path
         if not folder:
             choice = QMessageBox(self)
@@ -341,15 +319,12 @@ class Drive(QDialog):
                 )
         if not folder:
             return
-        workspace = self.space["id"]
         remote = self.folder
         message = (
             tr("Automatisch in beide Richtungen synchronisieren?")
             + "\n\n"
             + self.config["server"]
             + "\n"
-            + self.space["title"]
-            + " / "
             + self.path.text()
             + "\n↔ "
             + folder
@@ -370,16 +345,16 @@ class Drive(QDialog):
         ):
             return
         self.work(
-            lambda _: self.create_binding(folder, workspace, remote),
+            lambda _: self.create_binding(folder, remote),
             lambda _: self.status.setText(
                 tr("Ordner verbunden. Der Hintergrundabgleich startet automatisch.")
             ),
         )
 
     @staticmethod
-    def create_binding(folder, workspace, remote):
+    def create_binding(folder, remote):
         Path(folder).mkdir(mode=0o700, exist_ok=True)
-        return sync.configure(folder, workspace, remote)
+        return sync.configure(folder, remote)
 
     def refresh_roots(self):
         previous = self.roots.currentData()
@@ -389,12 +364,33 @@ class Drive(QDialog):
             title = (
                 Path(root["path"]).name
                 + " · "
-                + (root.get("status", "") if root["enabled"] else tr("Pausiert"))
+                + (tr("Umstellung erforderlich") if not root.get("folder") else root.get("status", "") if root["enabled"] else tr("Pausiert"))
             )
             self.roots.addItem(title, root["id"])
         if previous:
             self.roots.setCurrentIndex(max(0, self.roots.findData(previous)))
         self.roots.blockSignals(False)
+        self.refresh_migration()
+
+    def refresh_migration(self,*_):
+        root=self.current_root()
+        needed=bool(root and not root.get('folder'))
+        self.migration_button.setVisible(needed)
+        self.migration_status.setVisible(needed)
+        if needed:
+            count=sum(bool(e.get('pending') or e.get('request_id')) for e in root['entries'].values())
+            self.migration_status.setText(tr('Umstellung erforderlich')+' · '+root['path']+'\n'+
+                tr('Ausstehende Übertragungen:')+' '+str(count)+' · '+tr('Lokale Dateien und Warteschlange bleiben erhalten.'))
+            self.migration_button.setText(tr('Umstellung fortsetzen …') if root.get('migration') else tr('Ordner zuordnen …'))
+
+    def migrate_binding(self):
+        root=self.current_root()
+        if self.job or not root or root.get('folder'):return
+        from drive_migration_ui import Migration
+        if Migration(self,root).exec()==QDialog.Accepted:
+            self.folder=(self.current_root() or {}).get('folder') or self.folder
+            self.reload()
+        self.refresh_roots()
 
     def current_root(self):
         return next(
@@ -494,15 +490,15 @@ class Drive(QDialog):
             event.accept()
 
 
-def show(window, path=None, workspace=None, folder=None, offline=False):
+def show(window, path=None, folder=None, offline=False):
     current = getattr(window, "drive_dialog", None)
     if current and current.isVisible():
-        if workspace and not current.job:
-            current.requested_space, current.folder = workspace, folder
+        if not current.job:
+            current.folder = folder
             current.initial_offline = offline
-            current.load_spaces()
+            current.reload()
         current.raise_()
         current.activateWindow()
         return
-    window.drive_dialog = Drive(window, path, workspace, folder, offline)
+    window.drive_dialog = Drive(window, path, folder, offline)
     window.drive_dialog.show()

@@ -38,7 +38,6 @@ class Properties(QDialog):
         self.remote = not self.drive and any(window.network.remote(p) or window.cloud.contains(p) for p in paths)
         self.drive_rows = [(kind, dict(row)) for kind,row in (window.drive.entries[p] for p in paths)] if self.drive else []
         self.drive_config = dict(window.drive.config or {}) if self.drive else None
-        self.drive_role = next((s['role'] for s in window.drive.spaces if s['id'] == window.drive.space), 'reader') if self.drive else None
         outer = QVBoxLayout(self); outer.setContentsMargins(22, 22, 22, 16); outer.setSpacing(16)
         heading = QHBoxLayout(); heading.setSpacing(16)
         symbol = label(); self.symbol=symbol
@@ -142,7 +141,7 @@ class Properties(QDialog):
         for widget in (self.name,self.calculate,self.hash_button,self.expand,self.access_link,self.vault_button,self.more_vault,self.local_versions,self.related_button):widget.setEnabled(not busy and self.fact is not None)
         if not busy and self.fact:
             one=len(self.fact['rows'])==1; row=self.fact['rows'][0]
-            self.name.setReadOnly(not one or (not self.drive and Path(row['path']).parent==Path(row['path'])) or (self.drive and (self.drive_role=='reader' or row['kind']=='space')))
+            self.name.setReadOnly(not one or (not self.drive and Path(row['path']).parent==Path(row['path'])) or (self.drive and row.get('can_write') is not True))
             self.calculate.setEnabled(not self.drive)
             self.hash_button.setEnabled(one and not self.drive and row['kind']=='file')
             for button in (self.vault_button,self.more_vault,self.local_versions):button.setEnabled(one and not self.drive)
@@ -184,12 +183,12 @@ class Properties(QDialog):
 
     def populate(self):
         rows=self.fact['rows'];row=rows[0];one=len(rows)==1
-        self.symbol.setPixmap(QIcon.fromTheme('folder' if not one or row['kind'] in ('folder','space') else 'text-x-generic').pixmap(48,48))
+        self.symbol.setPixmap(QIcon.fromTheme('folder' if not one or row['kind']=='folder' else 'text-x-generic').pixmap(48,48))
         title=row['name'] if one else tr('{0} Einträge ausgewählt',len(rows))
         self.title.setText(self.title.fontMetrics().elidedText(title,Qt.ElideMiddle,420));self.title.setToolTip(title)
         self.location.setText('Lumen Drive' if self.drive else tr('Netzwerk') if self.remote else tr('Auf diesem Gerät'))
         self.name.setText(title)
-        kinds={'folder':tr('Ordner'),'file':tr('Datei'),'link':tr('Verknüpfung'),'special':tr('Spezialdatei'),'space':tr('Serverbereich')}
+        kinds={'folder':tr('Ordner'),'file':tr('Datei'),'link':tr('Verknüpfung'),'special':tr('Spezialdatei')}
         self.summary['type'].setText(kinds.get(row['kind'],tr('Datei')) if one else tr('Mehrfachauswahl'))
         place=self.paths[0] if self.drive else self.window.network.remote(self.paths[0]) or str(Path(self.paths[0]).parent)
         self.summary['place'].setText(place if one else tr('Mehrere Speicherorte'))
@@ -219,7 +218,7 @@ class Properties(QDialog):
                 if key in row and row[key]!='':details.append(title+': '+(size_text(row[key]) if key=='allocated' else str(row[key])))
             if 'identity' in row:details.append(tr('Gerät / Inode')+': '+str(row['identity']))
             if 'mode' in row:details.append(tr('POSIX-Rechte')+': '+format(row['mode'],'04o'))
-            if self.drive:details.extend([tr('Serverrolle')+': '+str(self.drive_role),tr('Revision')+': '+str(row.get('revision','—'))])
+            if self.drive:details.extend([tr('Zugriff')+': '+(tr('Bearbeiten') if row.get('can_write') is True else tr('Nur lesen')),tr('Revision')+': '+str(row.get('revision','—'))])
             details.extend(str(k)+': '+str(v) for k,v in self.fact.get('metadata',{}).items())
         else:details=[str(r.get('path',r['name'])) for r in rows]
         self.details.setPlainText('\n\n'.join(details));self.hash_value.setText(row.get('sha256','') if one else '')
@@ -249,12 +248,12 @@ class Properties(QDialog):
         except ValueError as error:self.status.setText(str(error));return
         self.warning=''
         if self.drive:
+            if len(self.drive_rows)!=1 or self.drive_rows[0][1].get('can_write') is not True:return
             import lumen_connect
             import drive_sync as sync
             if sync.scope(lumen_connect.read_config())!=sync.scope(self.drive_config):self.status.setText(tr('Serververbindung geändert. Drive neu öffnen.'));return
             if not self.window.drive.writable():return
             kind,row=self.drive_rows[0];config=dict(self.drive_config)
-            if kind=='space':return
             payload=dict(name=name,revision=row['revision'],trashed=False);key='parent_id' if kind=='folder' else 'folder_id';payload[key]=row[key]
             endpoint=('/folders/' if kind=='folder' else '/files/')+row['id']
             def update(job):

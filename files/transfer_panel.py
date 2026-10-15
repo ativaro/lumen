@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QTreeWidget,
     QTreeWidgetItem,
-    QLabel,
+    QPlainTextEdit,
     QProgressBar,
     QPushButton,
     QMessageBox,
@@ -56,10 +56,10 @@ class Transfers(QDockWidget):
         self.list.setColumnWidth(0, 270)
         self.list.setColumnWidth(1, 190)
         layout.addWidget(self.list)
-        self.detail = QLabel()
-        self.detail.setTextFormat(Qt.PlainText)
-        self.detail.setWordWrap(True)
-        self.detail.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.detail = QPlainTextEdit()
+        self.detail.setReadOnly(True)
+        self.detail.setMinimumHeight(60)
+        self.detail.setAccessibleName(tr("Übertragungsdetails"))
         layout.addWidget(self.detail)
         self.progress = QProgressBar()
         layout.addWidget(self.progress)
@@ -87,6 +87,17 @@ class Transfers(QDockWidget):
         self.timer.start(750)
         self.refresh()
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not getattr(self, "initial_size_set", False):
+            self.window.resizeDocks([self], [300], Qt.Vertical)
+            self.initial_size_set = True
+
+    def set_detail(self, text):
+        # Polling must not reset the selection or scroll position in unchanged details.
+        if self.detail.toPlainText() != text:
+            self.detail.setPlainText(text)
+
     def selected(self):
         item = self.list.currentItem()
         return self.values.get(item.data(0, Qt.UserRole)) if item else None
@@ -97,7 +108,7 @@ class Transfers(QDockWidget):
         try:
             values = transfers.tickets(self.store)
         except Exception as error:
-            self.detail.setText(str(error))
+            self.set_detail(str(error))
             return
         self.values = {v["id"]: v for v in values}
         scroll = self.list.verticalScrollBar().value()
@@ -158,13 +169,14 @@ class Transfers(QDockWidget):
         )
         self.open.setEnabled(bool(value and value["target"]))
         if not value:
-            self.detail.setText(
+            self.set_detail(
                 tr(
                     "Keine Übertragungen. Kopiere Dateien wie gewohnt mit Strg+C und Strg+V."
                 )
             )
             self.progress.setRange(0, 100)
             self.progress.setValue(0)
+            self.progress.setFormat("%p%")
             return
         key, now = value["id"], time.monotonic()
         previous = self.samples.get(key)
@@ -186,13 +198,14 @@ class Transfers(QDockWidget):
                 speed += tr(" · noch etwa {0} s", round(remaining))
         if not previous or now - previous[0] >= 0.5:
             self.samples[key] = (now, value["bytes"])
-        self.detail.setText(
-            "\n".join(value["sources"])
+        self.set_detail(
+            ("\n".join(value["errors"]) + "\n\n" if value["errors"] else "")
+            + tr("{0} Quellen", len(value["sources"]))
             + "\n→ "
             + str(value["target"] or "")
-            + speed
-            + ("\n" + "\n".join(value["errors"]) if value["errors"] else "")
+            + "\n\n" + "\n".join(value["sources"])
         )
+        self.progress.setFormat("%p%" + speed)
         self.progress.setRange(0, 0 if active and not value["total"] else 100)
         self.progress.setValue(
             100

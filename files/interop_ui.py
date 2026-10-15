@@ -118,9 +118,13 @@ def review(window,request):
         form.addRow(field,destination)
     mode=QComboBox()
     for key in spec.get('modes',['copy']):
+        if payload.get('references') and key!=('link' if action in ('wissen.import','workbench.add') else 'copy'):continue
         if key=='live' and not (payload.get('source',{}).get('app')=='wissen' and payload['source'].get('kind') in ('note','collection')):continue
         mode.addItem({'copy':tr('Eigenständige Kopie speichern'),'link':tr('Link zum Original speichern'),'live':tr('Mit der Originalnotiz aktuell halten')}[key],key)
     if any(Path(p).is_dir() for p in payload.get('paths',[])) and mode.findData('link')>=0:mode.setCurrentIndex(mode.findData('link'))
+    if payload.get('references'):
+        hint=tr('Verknüpfungen zum Drive-Original · keine Dateien werden heruntergeladen.') if action in ('wissen.import','workbench.add') else tr('Lokale Kopie mit Herkunft. Das Drive-Original bleibt unverändert. Änderungen über „Original öffnen“ in Lumen Files mit „Dateien hochladen …“ zurückübertragen.')
+        label=QLabel(hint);label.setWordWrap(True);form.addRow(label)
     if mode.count()>1 and (payload.get('paths') or action in ('workbench.add','household.add')):
         form.addRow(tr('Inhalt'),mode)
     task=next((item for item in payload.get('items',[]) if item.get('kind')=='task'),{})
@@ -355,30 +359,38 @@ def install(window):
 
 
 def files_menu(window,menu,paths,*,safety=None):
-    if safety is None: safety=menu
-    from interop_sources import from_paths
-    payload=from_paths(paths)
-    if all(Path(p).is_file() and Path(p).suffix.lower() in ('.pdf','.epub','.txt','.md','.html','.htm') for p in paths):
+    if safety is None:safety=menu
+    from interop_sources import from_paths,from_drive
+    from drive_browser import is_drive
+    drive=bool(paths) and all(is_drive(path) for path in paths)
+    capture=lambda:from_drive(window.drive,paths) if drive else from_paths(paths)
+    # Names and cached metadata decide availability; capture the whole selection only on invocation.
+    payload=dict(source={'app':'files'},paths=[] if drive else paths)
+    if drive:payload['references']=[dict(kind='drive_'+window.drive.entries[p][0],title=window.drive.entries[p][1]['name']) for p in paths]
+    targets=menu.addMenu(tr('Verwenden in …'))
+    if not drive and all(Path(p).suffix.lower() in ('.pdf','.epub','.txt','.md','.html','.htm') for p in paths):
         def reader():
-            if len(paths) == 1 and hasattr(window, 'open_reader'):
-                window.open_reader(paths[0]); return
+            from_paths(paths)
+            if len(paths)==1 and hasattr(window,'open_reader'):
+                window.open_reader(paths[0]);return
             for path in paths:launch('reader',[path],root_for(window))
-        menu.addAction(tr('Mit Lumen Reader öffnen'),lambda:safe_action(window,reader))
-    targets=menu.addMenu(tr('Weitere Aktionen'))
+        targets.addAction(tr('Mit Lumen Reader öffnen'),lambda:safe_action(window,reader))
     for action,label in actions(payload):
-        if action=='reader.import':continue
-        targets.addAction(label,lambda checked=False,a=action:reviewed_send(window,payload,a))
-    menu.addAction(tr('Verwendet in …'),lambda:safe_action(window,lambda:browse(window,'related',payload)))
-    safety.addAction(tr('Lesefortschritt und Sicherungen …'),lambda:file_status(window,paths))
-    if len(paths)==1:
-        from interop_vault import show_file_versions
-        safety.addAction(tr('Versionen in Lumen Vault …'),lambda:safe_action(window,lambda:show_file_versions(window,paths[0],root_for(window))))
+        if action=='reader.import' and not drive:continue
+        targets.addAction(label,lambda checked=False,a=action:safe_action(window,lambda:reviewed_send(window,capture(),a)))
+    targets.addSeparator()
+    targets.addAction(tr('Verwendet in …'),lambda:safe_action(window,lambda:browse(window,'related',capture())))
+    if not drive:
+        safety.addAction(tr('Lesefortschritt und Sicherungen …'),lambda:file_status(window,paths))
+        if len(paths)==1:
+            from interop_vault import show_file_versions
+            safety.addAction(tr('Versionen in Lumen Vault …'),lambda:safe_action(window,lambda:show_file_versions(window,paths[0],root_for(window))))
 
 
 def app_name(app):
     return {'files':'Lumen Files','wissen':'Lumen Notes','reader':'Lumen Reader','inbox':'Lumen Inbox',
-            'meetings':tr('Lumen Meeting-Werkstatt'),'household':tr('Lumen Digitaler Haushalt'),
-            'workbench':tr('Lumen Projekte'),'radio':tr('Lumen Persönliches Radio'),
+            'meetings':tr('Lumen Audio Studio · Meeting'),'household':tr('Lumen Digitaler Haushalt'),
+            'workbench':tr('Lumen Projekte'),'radio':tr('Lumen Audio Studio · Radio'),
             'vault':'Lumen Vault','sound':'Lumen Sound','translate':'Lumen Translate'}.get(app,'Lumen')
 
 
@@ -424,7 +436,6 @@ def note_files(text,path):
         if not value.is_absolute():value=path.parent/value
         value=value.absolute()
         if value.exists() and str(value) not in paths:paths.append(str(value))
-        if len(paths)>=100:break
     return paths
 
 def attachment_send(window):

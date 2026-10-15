@@ -115,13 +115,13 @@ class RemotePage(QWidget):
 
 
 class ServerWorkspace(RemotePage):
-    def __init__(self, parent=None, workspace=None):
-        super().__init__(parent); self.fixed = workspace; self.room = ''; self.data = {}; self.requests = {}
+    def __init__(self, parent=None, project_id=None):
+        super().__init__(parent); self.fixed = project_id; self.room = ''; self.data = {}; self.requests = {}
         self.preferences = QSettings('Lumen','ServerWorkspaces')
         self.project = QComboBox(); self.project.setAccessibleName(tr('Serverprojekt'))
         self.bind = button(tr('Mit Projekt verbinden'), self.bind_room, 'insert-link')
         self.body.addWidget(row(self.project, self.bind, button(tr('Aktualisieren'),self.reload,'view-refresh'),
-                                button(tr('Auf Server öffnen'),lambda:self.web('projects',workspace=self.project.currentData() or ''))))
+                                button(tr('Auf Server öffnen'),lambda:self.web('projects',project=self.project.currentData() or ''))))
         self.hint = label(tr('Diese Verbindung zeigt Serverinhalte. Lokale Dateien werden nicht hochgeladen.'),'muted');self.body.addWidget(self.hint)
         self.tabs = QTabWidget(); self.body.addWidget(self.tabs,1)
         work = QWidget(); box = QVBoxLayout(work); split = QSplitter(); box.addWidget(split,1)
@@ -141,12 +141,12 @@ class ServerWorkspace(RemotePage):
         self.tabs.addTab(schedule,tr('Zeitpläne'))
         people=QWidget();box=QVBoxLayout(people);self.members=QListWidget();self.members.setAccessibleName(tr('Mitglieder und Rollen'));box.addWidget(label(tr('Mitglieder und Rollen')));box.addWidget(self.members)
         self.material=QListWidget();self.material.setAccessibleName(tr('Gemeinsame Materialien'));box.addWidget(label(tr('Gemeinsame Materialien')));box.addWidget(self.material)
-        box.addWidget(button(tr('Freigaben auf Server verwalten'),lambda:self.web('projects',workspace=self.project.currentData() or '')))
+        box.addWidget(button(tr('Freigaben auf Server verwalten'),lambda:self.web('projects',project=self.project.currentData() or '')))
         self.tabs.addTab(people,tr('Zusammenarbeit'))
         self.project.currentIndexChanged.connect(self.project_changed)
         self.items.currentRowChanged.connect(self.show_runs);self.runs.currentRowChanged.connect(self.show_result)
         self.schedules.currentRowChanged.connect(self.controls)
-        self.bind.setVisible(not workspace);self.controls()
+        self.bind.setVisible(not project_id);self.controls()
 
     def set_room(self, identity):
         if identity == self.room: return
@@ -172,14 +172,16 @@ class ServerWorkspace(RemotePage):
             me=r('/bridge/me')
             if not {'projects','tasks'} <= set(me['capabilities']):
                 raise ValueError(tr('Auf dem Server unter Geräte „Projekte synchronisieren“ und „Serveraufträge“ für diesen Desktop freigeben.'))
-            return me,r('/bridge/projects')
+            from projects_sync import available
+            import lumen_connect
+            return me,available(lumen_connect.read_config())
         self.call(load,self.connected,connect=True)
 
     def connected(self, value):
-        me, spaces=value;self.caps=me['capabilities']
+        me, projects=value;self.caps=me['capabilities']
         desired=self.fixed or self.preferences.value(self.key(),'')
         self.project.blockSignals(True);self.project.clear();self.project.addItem(tr('Serverprojekt auswählen …'),None)
-        for space in spaces: self.project.addItem(space['title'],space['id'])
+        for project in projects: self.project.addItem(project['title'],project['id'])
         index=self.project.findData(desired);self.project.setCurrentIndex(max(0,index));self.project.blockSignals(False)
         self.project.setEnabled(not self.fixed);self.clear()
         QTimer.singleShot(0,self.project_changed)
@@ -194,9 +196,9 @@ class ServerWorkspace(RemotePage):
         if self.project.currentData(): self.load()
 
     def load(self):
-        workspace=self.project.currentData()
-        if workspace and not self.job:
-            self.call(lambda r:r('/bridge/projects/'+workspace+'/activity'),self.loaded,quiet=True)
+        project_id=self.project.currentData()
+        if project_id and not self.job:
+            self.call(lambda r:r('/bridge/projects/'+project_id+'/activity'),self.loaded,quiet=True)
 
     def loaded(self, data):
         self.data=data

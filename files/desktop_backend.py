@@ -140,6 +140,11 @@ class DesktopBackend(OpenCodeBackend):
             return
         if operation == 'submit':
             self.submitting = False
+            if not error and data.get('local_context_error'):
+                self.remember(self.remote_key,remove=True);self.remote_key='';self.remote_active=False
+                self.polling=False;self.timer.stop();self.set_busy(False)
+                self.failed.emit(data['local_context_error']);self.statusChanged.emit(tr('Auswahl verkleinern und erneut senden.'))
+                return
         if error:
             if operation in ('models','approvals','approval_reply'):
                 if operation=='models':self.serverModelsChanged.emit([])
@@ -331,12 +336,22 @@ class DesktopBackend(OpenCodeBackend):
         body = dict(prompt=text, parent_id=parent, idempotency_key=self.remote_key)
         if self.server_model: body['model']=self.server_model
         context = list(self.prepared_context)
+        drive_refs=(kwargs.get('context_data') or {}).get('drive_references',[])
+        if drive_refs:
+            from drive_references import validate
+            try:drive_refs=[validate(ref) for ref in drive_refs]
+            except (ValueError,TypeError,KeyError):
+                self.remember(self.remote_key,remove=True);self.remote_key=''
+                self.failed.emit(tr('Die Drive-Auswahl ist ungültig. Bitte erneut auswählen.'));return False
         if kwargs.get('context_data'):
             encoded=json.dumps(kwargs['context_data'],ensure_ascii=False)
             if len(encoded.encode())+sum(len(item['text'].encode()) for item in context)>60000:
                 self.remember(self.remote_key,remove=True);self.remote_key=''
                 self.failed.emit(tr('Der ausgewählte Kontext ist zu groß.'));return False
             context.append(dict(name='Ausgewählte Eingaben.json',text=encoded))
+        if len(context)+sum(ref['kind']=='drive_file' for ref in drive_refs)>20:
+            self.remember(self.remote_key,remove=True);self.remote_key=''
+            self.failed.emit(tr('Ein Servergespräch unterstützt höchstens 20 Anhänge einschließlich Auswahlbeschreibung. Bitte weniger Dateien auswählen.'));return False
         receipt = UUID(self.remote_key)
         self.remote_active = True
         self.set_busy(True)
@@ -346,10 +361,17 @@ class DesktopBackend(OpenCodeBackend):
         def submit(request):
             user = request('/bridge/me')
             refs=[]
+            if drive_refs:
+                from drive_references import task_attachments,ContextLimit
+                try:config,refs=task_attachments(drive_refs,(kwargs.get('context_data') or {}).get('intent','open'),sum(len(item['text'].encode()) for item in context))
+                except ContextLimit as exc:return dict(local_context_error=str(exc))
+                if config['server']!=self.server_origin or any(ref['locator']['account']!=user['id'] for ref in drive_refs) or connection()[1]!=self.binding:
+                    raise ValueError('Connection changed')
             for index,item in enumerate(context):
                 file=request('/bridge/context-files/'+str(uuid5(receipt,str(index))),item)
                 refs.append(dict(id=file['id'],kind='file',revision=file['version']))
-            return request('/bridge/tasks', dict(body, workspace_id=user['workspace_id'],attachments=refs))
+            if drive_refs and connection()[1]!=self.binding:raise ValueError('Connection changed')
+            return request('/bridge/tasks', dict(body, attachments=refs))
         self.submitting = True
         self._run('submit', submit)
         return True

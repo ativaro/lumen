@@ -3,6 +3,7 @@ from lumen_i18n import tr
 from contextlib import contextmanager
 import base64
 import fcntl
+import gzip
 import hashlib
 import json
 import io
@@ -16,8 +17,13 @@ import uuid
 from urllib.parse import unquote,urlsplit
 from content_search import folder_fd,STOP_WORDS
 from tools_data import Library
+from note_tags import tags as note_tags, matches_tags
 
 MAX_NOTE=1024*1024
+MAX_SCAN_BYTES=128*1024**2
+MAX_SCAN_NOTES=10000
+MAX_SCAN_ENTRIES=30000
+MAX_RESULT=256*1024**2
 META=re.compile(r'^<!-- lumen: (\{[^\n]*\}) -->\n?')
 
 
@@ -48,12 +54,16 @@ def parse(path,raw):
         except ValueError:pass
     try: note_id=str(uuid.UUID(str(meta.get('note_id',''))))
     except ValueError: note_id=''
-    heading=re.search(r'^# (.+)$',text,re.M)
-    title=heading[1].strip() if heading else Path(path).stem
+    from notes_structure import targets
+    headings=[value for value in targets(text) if value['level']==1]
+    title=headings[0]['title'] if headings else Path(path).stem
     plain=re.sub(r'```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`]*`','',text)
-    tags=sorted(set(re.findall(r'(?<![\w/#])#([^\W\d][\w/-]*)',plain)))[:100]
+    tags=note_tags(text)
     links=re.findall(r'\[\[([^\]\n]+)\]\]',plain)+re.findall(r'(?<!!)\[[^\]\n]*\]\(([^)\n]+)\)',plain)
-    return dict(id=path,path=path,note_id=note_id,title=title[:300],text=text,source=str(meta.get('source',''))[:2000],legacy=str(meta.get('legacy',''))[:200],created=timestamp(meta.get('created')),tags=tags,links=links,hash=digest(raw),raw_size=len(raw))
+    note=dict(id=path,path=path,note_id=note_id,title=title[:300],text=text,source=str(meta.get('source',''))[:2000],legacy=str(meta.get('legacy',''))[:200],created=timestamp(meta.get('created')),tags=tags,links=links,hash=digest(raw),raw_size=len(raw))
+    from notes_properties import for_note
+    for_note(note)
+    return note
 
 
 def encode(text,source='',legacy='',created=0,note_id=''):
@@ -66,11 +76,20 @@ def encode(text,source='',legacy='',created=0,note_id=''):
     return raw
 
 
-def resolve_link(origin,target,notes):
+def link_lookup(notes):
+    lookup={}
+    for path,note in notes.items():
+        for key in {('id',note.get('note_id','')),('stem',Path(path).stem.casefold()),('title',note['title'].casefold())}:
+            lookup[key]=path if key not in lookup else None
+    return lookup
+
+
+def resolve_link(origin,target,notes,lookup=None):
     target=unquote(target.split('|',1)[0].split('#',1)[0].strip())
     if not target:return origin
     if target.startswith('/?document='):
         identity=target.removeprefix('/?document=')
+        if lookup is not None:return lookup.get(('id',identity))
         matches=[p for p,n in notes.items() if n.get('note_id')==identity]
         return matches[0] if len(matches)==1 else None
     if urlsplit(target).scheme or target.startswith(('/', '\\')):return None
@@ -79,15 +98,37 @@ def resolve_link(origin,target,notes):
     if local=='..' or local.startswith('../'):return None
     for candidate in (local,os.path.normpath(target)):
         if candidate in notes:return candidate
+    if lookup is not None:
+        keys={('stem',Path(target).stem.casefold()),('title',target[:-3].casefold())}
+        matches={lookup[k] for k in keys if k in lookup}
+        return next(iter(matches)) if len(matches)==1 and None not in matches else None
     matches=[p for p,n in notes.items() if Path(p).stem.casefold()==Path(target).stem.casefold() or n['title'].casefold()==target[:-3].casefold()]
     return matches[0] if len(matches)==1 else None
 
 
+def connections(notes):
+    lookup=link_lookup(notes);outgoing={};incoming={}
+    for path,note in notes.items():
+        outgoing[path]={target for link in note['links'] if (target:=resolve_link(path,link,notes,lookup)) in notes}
+        for target in outgoing[path]:incoming.setdefault(target,set()).add(path)
+    return outgoing,incoming
+
+
 def search(notes,query,limit=60):
-    terms=[w for w in re.findall(r'\w+',query.casefold()) if w not in STOP_WORDS and len(w)>1][:12]
+    from notes_properties import filters,for_note
+    query,properties=filters(query)
+    selected=re.findall(r'(?:^|\s)#([\w/-]+)',query)
+    words=re.sub(r'(?:^|\s)#[\w/-]+',' ',query)
+    terms=[w for w in re.findall(r'\w+',words.casefold()) if w not in STOP_WORDS and len(w)>1][:12]
     ranked=[]
     for note in notes:
-        hay=(note['title']+' '+note['text']+' '+note['source']).casefold()
+        if properties:
+            props=for_note(note)
+            if not all(name in props and props[name]['value'].casefold()==value for name,value in properties):continue
+        try:
+            if selected and not matches_tags(note['tags'],selected):continue
+        except ValueError:continue
+        hay=(note['title']+' '+note['text']+' '+note['source']).casefold() if terms else ''
         score=sum((4 if t in note['title'].casefold() else 1) for t in terms if t in hay)
         if not terms or score:ranked.append((score,note))
     return [n for _,n in sorted(ranked,key=lambda p:(-p[0],p[1]['title'].casefold()))[:limit]]
@@ -216,13 +257,20 @@ class Notebook:
         return images
 
     def scan(self):
-        notes=[];folders=[];queue=[Path('.')];count=size=errors=0
-        while queue and count<10000 and size<32*1024**2 and len(notes)<5000:
+        from notes_index import Index
+        with Index(self) as index:
+            result=self._scan(index)
+            if not result['limited']:index.prune()
+            return result
+
+    def _scan(self,index):
+        notes=[];folders=[];queue=[Path('.')];count=size=errors=0;limited=False
+        while queue and not limited:
             relative=queue.pop()
-            with self.directory(relative) as parent:
-                for entry in os.scandir(parent):
+            with self.directory(relative) as parent, os.scandir(parent) as entries:
+                for entry in entries:
                     count+=1
-                    if count>10000 or size>=32*1024**2 or len(notes)>=5000:break
+                    if count>MAX_SCAN_ENTRIES:limited=True;break
                     if entry.name.startswith('.') or entry.is_symlink():continue
                     path=relative/entry.name
                     if entry.is_dir(follow_symlinks=False):
@@ -230,9 +278,15 @@ class Notebook:
                         if path.parts[0]!='attachments':folders.append(str(path))
                     elif entry.name.lower().endswith('.md') and entry.is_file(follow_symlinks=False):
                         try:
-                            note=self.read(path);notes.append(note);size+=note['raw_size']
+                            length=entry.stat(follow_symlinks=False).st_size
+                            if length>MAX_NOTE:errors+=1;continue
+                            if len(notes)>=MAX_SCAN_NOTES or size+length>MAX_SCAN_BYTES:
+                                limited=True;break
+                            note=index.read(self,path,parse)
+                            if size+note['raw_size']>MAX_SCAN_BYTES:limited=True;break
+                            notes.append(note);size+=note['raw_size']
                         except (OSError,ValueError,UnicodeError):errors+=1
-        return dict(notes=notes,folders=sorted(folders),errors=errors,limited=bool(queue) or count>=10000 or size>=32*1024**2 or len(notes)>=5000,root=str(self.root),identity=self.identity)
+        return dict(notes=notes,folders=sorted(folders),errors=errors,limited=limited,root=str(self.root),identity=self.identity)
 
     def backup(self,path,raw):
         asset=uuid.uuid4().hex+'.md';target=self.history.asset(asset)
@@ -267,17 +321,8 @@ class Notebook:
             return dict(parse(str(path),raw),modified=modified)
 
     def rename_collection(self,source,target):
-        source,target=Path(source),Path(target)
-        for value in (source,target):
-            if value.is_absolute() or not value.parts or '..' in value.parts or any(p.startswith('.') for p in value.parts):raise ValueError(tr('Ungültiger Sammlungsname.'))
-        if target.is_relative_to(source):raise ValueError(tr('Eine Sammlung kann nicht in sich selbst verschoben werden.'))
-        from drive_local import move
-        with self.lock():
-            with self.directory(source):pass
-            with self.directory() as fd:
-                st=os.fstat(fd)
-                move(dict(path=str(self.root),identity=[st.st_dev,st.st_ino]),str(source),str(target))
-        return str(target)
+        from notes_move import plan,execute
+        return execute(self,plan(self,source,target))['path']
 
     def create_collection(self,name):
         name=name.strip()
@@ -364,25 +409,45 @@ def clear_draft(store,root,path):
 
 
 def worker(job,store,action,root=None,**values):
-    request=dict(store=str(store.directory),root=root,action=action,**values)
-    return json.loads(job.command([sys.executable,str(Path(__file__))],data=json.dumps(request).encode(),timeout=60,max_output=40*1024**2))
+    request=dict(store=str(store.directory),root=root,action=action,_compressed=True,**values)
+    output=job.command([sys.executable,str(Path(__file__))],data=json.dumps(request).encode(),timeout=60,max_output=40*1024**2)
+    with gzip.GzipFile(fileobj=io.BytesIO(output)) as stream:result=stream.read(MAX_RESULT+1)
+    if len(result)>MAX_RESULT:raise ValueError(tr('Verarbeitungsergebnis zu groß.'))
+    return json.loads(result)
 
 
 def main():
     from lumen_store import Store
-    request=json.load(sys.stdin);store=Store(request.pop('store'));action=request.pop('action');root=request.pop('root')
+    request=json.load(sys.stdin);compressed=request.pop('_compressed',False);store=Store(request.pop('store'));action=request.pop('action');root=request.pop('root')
     if action=='activate':result=activate(store,root)
     elif action in ('save_memory','memories','delete_memory'):result=getattr(store,action)(**request)
     else:
         book=Notebook(store,root,identity=request.pop('identity',None))
-        if action=='scan':book.migrate();result=book.scan()
+        if action=='scan':
+            book.migrate();result=book.scan();known=request.get('known')
+            if known is not None:
+                unchanged=[n['path'] for n in result['notes'] if known.get(n['path'])==[n['hash'],n['modified']]]
+                same=set(unchanged);result['notes']=[n for n in result['notes'] if n['path'] not in same];result['unchanged']=unchanged
+        elif action.startswith('move_'):
+            import notes_move
+            result={'move_plan':notes_move.plan,'move_apply':notes_move.execute,'move_resume':notes_move.execute,'move_undo':notes_move.undo}[action](book,**request)
+        elif action in ('daily','from_template'):
+            import notes_capture
+            result=getattr(notes_capture,action)(book,**request)
+        elif action in ('plan_tags','apply_tags'):
+            import note_tag_actions
+            result=getattr(note_tag_actions,'plan' if action=='plan_tags' else 'apply')(book,**request)
         elif action in ('sync_info','sync_config','sync'):
             import wissen_sync
             result=getattr(wissen_sync,action)(book,**request)
             if action=='sync':result['scan']=book.scan()
         elif action in ('read','write','create','create_collection','rename_collection','remove','versions','restore','capture','add_image','preview','context'):result=getattr(book,action)(**request)
         else:raise ValueError(tr('Unbekannte Notizaktion.'))
-    print(json.dumps(result,ensure_ascii=False))
+    if compressed:
+        with gzip.GzipFile(fileobj=sys.stdout.buffer,mode='wb',compresslevel=1) as stream:
+            # ASCII escapes keep the entire transport buffer from widening for one emoji.
+            for chunk in json.JSONEncoder(ensure_ascii=True).iterencode(result):stream.write(chunk.encode())
+    else:print(json.dumps(result,ensure_ascii=False))
 
 
 if __name__=='__main__':

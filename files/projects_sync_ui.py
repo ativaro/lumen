@@ -40,9 +40,9 @@ def configure(window):
         shared = QComboBox()
         shared.setAccessibleName(tr("Geteiltes Serverprojekt"))
         shared.addItem(tr("Kein zusätzliches Projekt"), None)
-        for space in info.get("spaces", []):
-            if not space["owned"] or space["private"]:
-                shared.addItem(space["title"], space["id"])
+        for project in info.get("server_projects", []):
+            if not project["owned"]:
+                shared.addItem(project["title"], project["id"])
         layout.addWidget(shared)
         if not info["allowed"]:
             layout.addWidget(QLabel(tr("Auf dem Server zuerst „Projekte synchronisieren“ freigeben.")))
@@ -179,7 +179,7 @@ def open_server(window):
         return
     config = sync.lumen_connect.read_config()
     QDesktopServices.openUrl(
-        QUrl(config["server"] + "/?" + urlencode(dict(app="projects", workspace=binding["remote"])))
+        QUrl(config["server"] + "/?" + urlencode(dict(app="projects", project=binding["remote"])))
     )
 
 

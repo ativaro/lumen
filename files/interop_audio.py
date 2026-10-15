@@ -15,7 +15,7 @@ from lumen_i18n import tr, worker_process
 from tools_data import Library
 
 
-NAMES = {'reader': 'Lumen Reader', 'radio': 'Lumen Persönliches Radio', 'meetings': 'Lumen Meeting-Werkstatt'}
+NAMES = {'reader': 'Lumen Reader', 'radio': 'Lumen Audio Studio · Radio', 'meetings': 'Lumen Audio Studio · Meeting'}
 DEFAULTS = dict(sink='', pause_radio=False, pause_disconnect=False, strict_routing=False)
 
 
@@ -397,7 +397,7 @@ def options(player):
             sink.addItem(tr('Nicht verbunden · ') + prefs['sink'], prefs['sink'])
         sink.setCurrentIndex(max(0, sink.findData(prefs['sink'])))
         form.addRow(tr('Ausgabe für diese Lumen-Anwendung'), sink)
-        interrupt = QCheckBox(tr('Lumen Persönliches Radio und Lumen Reader während dieser Wiedergabe pausieren') if control.app == 'meetings' else tr('Lumen Persönliches Radio während dieser Wiedergabe pausieren'))
+        interrupt = QCheckBox(tr('Lumen Audio Studio · Radio und Lumen Reader während dieser Wiedergabe pausieren') if control.app == 'meetings' else tr('Lumen Audio Studio · Radio während dieser Wiedergabe pausieren'))
         interrupt.setChecked(prefs['pause_radio'])
         if control.app != 'radio':
             form.addRow(interrupt)

@@ -10,7 +10,7 @@ from lumen_i18n import tr
 from tools_data import Library
 
 APPS = frozenset(('files','wissen','reader','inbox','meetings','household','workbench','radio','vault','sound','translate'))
-KINDS = frozenset(('record','note','message','task','event','file','draft','collection'))
+KINDS = frozenset(('record','note','message','task','event','file','draft','collection','drive_file','drive_folder'))
 TOKEN = re.compile(r'[a-f0-9]{32}\Z')
 
 
@@ -24,6 +24,9 @@ def validate_ref(ref):
     if not isinstance(ref,dict) or set(ref)-{'app','kind','id','title','path','position','locator'}:
         raise ValueError(tr('Ungültiger Lumen-Verweis.'))
     value=dict(ref)
+    if value.get('kind') in ('drive_file','drive_folder'):
+        from drive_references import validate
+        return validate(value)
     if value.get('app') not in APPS or value.get('kind','record') not in KINDS:
         raise ValueError(tr('Unbekannte Lumen-Anwendung.'))
     value.setdefault('kind','record')
@@ -47,21 +50,26 @@ def validate_ref(ref):
 
 
 def validate_payload(payload):
-    if not isinstance(payload,dict) or set(payload)-{'title','text','paths','source','source_url','url','items'}:
+    if not isinstance(payload,dict) or set(payload)-{'title','text','paths','source','source_url','url','items','references'}:
         raise ValueError(tr('Ungültige Übergabe.'))
     _text(payload.get('title',''),1000);_text(payload.get('text',''),120000)
     paths=payload.get('paths',[])
-    if not isinstance(paths,list) or len(paths)>100:raise ValueError(tr('Höchstens 100 Dateien gleichzeitig übergeben.'))
+    if not isinstance(paths,list):raise ValueError(tr('Ungültige Übergabeauswahl.'))
     for path in paths:
         _text(path)
         if not Path(path).is_absolute():raise ValueError(tr('Ein absoluter Dateipfad ist erforderlich.'))
     if payload.get('source'):validate_ref(payload['source'])
+    if 'references' in payload:
+        from drive_references import validate
+        if not isinstance(payload['references'],list) or not payload['references'] or paths:
+            raise ValueError(tr('Ungültige Drive-Auswahl.'))
+        for ref in payload['references']:validate(ref)
     if payload.get('source_url'):_text(payload['source_url'])
     if payload.get('url'):
         from tools_data import web_url
         web_url(payload['url'])
     items=payload.get('items',[])
-    if not isinstance(items,list) or len(items)>1000 or any(not isinstance(x,dict) for x in items):raise ValueError(tr('Ungültige Übergabeauswahl.'))
+    if not isinstance(items,list) or any(not isinstance(x,dict) for x in items):raise ValueError(tr('Ungültige Übergabeauswahl.'))
     encoded=json.dumps(payload,ensure_ascii=False,allow_nan=False)
     if len(encoded.encode())>512*1024:raise ValueError(tr('Übergabe zu groß. Bitte eine kleinere Auswahl treffen.'))
     return json.loads(encoded)

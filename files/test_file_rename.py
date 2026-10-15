@@ -76,11 +76,11 @@ class RenameTest(unittest.TestCase):
                         timer.stop()
                         self.assertNotIn('Einstellungen …', [a.text() for a in actions])
                         next(a for a in actions if a.text().startswith('Eigenschaften …')).trigger()
-                        properties.assert_called_once_with(expected)
+                        properties.assert_called_once_with([expected])
             finally:
                 window.close(); window.deleteLater(); QTest.qWait(50)
 
-    def test_files_settings_dialog_saves_and_updates_only_file_preferences(self):
+    def test_shared_settings_saves_files_without_changing_assistant_preferences(self):
         from settings_dialog import SettingsDialog
         with tempfile.TemporaryDirectory() as tmp:
             window = Window(tmp, QSettings(tmp+'/prefs.ini', QSettings.IniFormat)); window.show()
@@ -105,54 +105,42 @@ class RenameTest(unittest.TestCase):
                 QTimer.singleShot(30, inspect)
                 with patch.object(SettingsDialog, 'reload') as reload:
                     window.show_settings()
-                    QTest.qWait(40); reload.assert_not_called()
+                    QTest.qWait(40); reload.assert_called_once()
                 self.assertNotIn('error', observed)
                 self.assertTrue(observed['type'])
-                self.assertEqual(observed['title'], 'Lumen Files · Einstellungen')
-                self.assertEqual(observed['pages'], ['Lumen Files'])
-                self.assertFalse(observed['navigation'])
-                self.assertNotIn('Systemzustand neu laden', observed['buttons'])
-                self.assertIn('Google-Drive-Einstellungen …', observed['buttons'])
+                self.assertEqual(observed['title'], 'Einstellungen — Lumen')
+                self.assertIn('Lumen Files', observed['pages'])
+                self.assertTrue(observed['navigation'])
                 self.assertTrue(window.settings.value('hidden', False, type=bool))
                 self.assertTrue(window.hidden)
                 self.assertEqual({key: assistant.value(key) for key in assistant.allKeys()}, before)
             finally:
                 window.close(); window.deleteLater(); QTest.qWait(50)
 
-    def test_properties_launch_native_dialog_with_safe_urls_and_report_missing_support(self):
+    def test_properties_loads_file_and_blocks_unmounted_cloud(self):
+        from file_properties import Properties
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp)/'notes #1 $(keep).txt'; path.write_text('keep content')
-            window = Window(tmp, QSettings(tmp+'/prefs.ini', QSettings.IniFormat)); window.show()
-            process = Mock(); process.startDetached.return_value = (True, 123)
+            window = Window(tmp, QSettings(tmp+'/prefs.ini', QSettings.IniFormat))
+            observed = {}
+            timer = QTimer(); timer.setInterval(20)
+            def inspect():
+                dialog = QApplication.activeModalWidget()
+                if isinstance(dialog, Properties) and dialog.fact:
+                    observed['paths'] = dialog.paths
+                    observed['name'] = dialog.name.text()
+                    dialog.reject()
+            timer.timeout.connect(inspect); timer.start()
             try:
-                with patch('shutil.which', return_value='/usr/bin/kioclient'), patch('lumen_i18n.worker_process', return_value=process):
+                QTimer.singleShot(5000, lambda: QApplication.activeModalWidget().reject() if QApplication.activeModalWidget() else None)
+                window.show_properties(path)
+                self.assertEqual(observed, dict(paths=[str(path)], name=path.name))
+                with patch.object(window.cloud, 'contains', return_value=True), patch.object(window.cloud, 'mounted', return_value=False), patch.object(window, 'error') as error, patch('file_properties.show') as show:
                     window.show_properties(path)
-                    process.setProgram.assert_called_once_with('/usr/bin/kioclient')
-                    args = process.setArguments.call_args.args[0]
-                    self.assertEqual(args[-2], 'openProperties')
-                    self.assertEqual(QUrl(args[-1]).toLocalFile(), str(path))
-                    self.assertIn('Lumen Files · Eigenschaften', args)
-                    process.startDetached.assert_called_once_with()
-                    with patch.object(window.network, 'remote', return_value='sftp://server/folder/notes%20%231.txt'):
-                        window.show_properties(path)
-                    self.assertEqual(process.setArguments.call_args.args[0][-1], 'sftp://server/folder/notes%20%231.txt')
-                    process.startDetached.return_value = (False, 0)
-                    with patch.object(window, 'error') as error:
-                        window.show_properties(path)
-                        error.assert_called_once_with('Die Dateieigenschaften konnten nicht geöffnet werden.')
-                with patch('shutil.which', return_value=None), patch.object(window, 'error') as error:
-                    window.show_properties(path)
-                    self.assertIn('kde-cli-tools', error.call_args.args[0])
-                self.wait(lambda: window.fs.index(str(path)).isValid()); QTest.qWait(100)
-                window.view.setCurrentIndex(window.proxy.mapFromSource(window.fs.index(str(path))))
-                window.view.setFocus()
-                with patch('shutil.which', return_value='/usr/bin/kioclient'), patch('lumen_i18n.worker_process', return_value=process):
-                    process.reset_mock(); process.startDetached.return_value = (True, 123)
-                    QTest.keyClick(window.view, Qt.Key_Return, Qt.AltModifier)
-                    process.startDetached.assert_called_once_with()
+                    error.assert_called_once(); show.assert_not_called()
                 self.assertEqual(path.read_text(), 'keep content')
             finally:
-                window.close(); window.deleteLater(); QTest.qWait(50)
+                timer.stop(); window.close(); window.deleteLater(); QTest.qWait(50)
 
 
 if __name__ == '__main__': unittest.main()

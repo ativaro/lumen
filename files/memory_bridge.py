@@ -81,6 +81,15 @@ class MemoryBridge(QObject):
             if stamp(self.store)!=request['prepared']['stamp']:engine.fail('Learning consent changed');return
             try:
                 model=self.backend.selected_model or self.backend.settings.value('model','') or config.get('model','')
+                policy=self.store.setting('modelPolicy',{})
+                if policy.get('privacy')=='local':
+                    from lumen_models import loopback
+                    model=policy.get('local_model','')
+                    if not isinstance(model,str) or '/' not in model:
+                        raise ValueError('Learning requires a configured local model')
+                    provider=config.get('provider',{}).get(model.split('/',1)[0],{})
+                    if not loopback(provider.get('options',{}).get('baseURL','')):
+                        raise ValueError('Learning requires the configured loopback provider')
                 engine.learning_environment=prepare_engine(temporary.name,config,model,
                     dict(text=request['text'],candidates=candidates,context=request['context'],solutions=settings['solutions'],store=str(self.store.directory),stamp=request['prepared']['stamp']))
                 engine.selected_model=model

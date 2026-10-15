@@ -192,6 +192,5 @@ class Projects:
             db.execute('UPDATE project_items SET data=?,updated=? WHERE id=?',(json.dumps(task),now,value['task']))
 
     def source_chain(self, key):
-        from projects_rooms import source_chain
         task = self.get(key)
-        return source_chain(self, task['project'], key)
+        return [self.library.get(task['project']), self.get(task['parent']), task]

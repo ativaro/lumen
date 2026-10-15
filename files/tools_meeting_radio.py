@@ -10,7 +10,7 @@ from tools_radio import Radio
 class MeetingRadio(QMainWindow):
     def __init__(self, initial='meetings', root=None):
         super().__init__()
-        self.setWindowTitle(tr('Lumen Meeting & Radio'))
+        self.setWindowTitle(tr('Lumen Audio Studio'))
         self.setWindowIcon(QIcon.fromTheme('lumen-meetings'))
         self.resize(1180, 860)
         self.pages = {'meetings': Meetings(root), 'radio': Radio(root)}

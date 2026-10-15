@@ -34,7 +34,8 @@ class Job(QThread):
                 while proc.poll() is None:
                     self.check()
                     if time.monotonic()-started > timeout: raise ValueError(tr('Die Verarbeitung hat zu lange gedauert.'))
-                    self.cancelled.wait(.1)
+                    try: proc.wait(timeout=.1)
+                    except subprocess.TimeoutExpired: pass
                 self.check()
                 if proc.returncode:
                     stderr.seek(max(0, stderr.tell()-3000))

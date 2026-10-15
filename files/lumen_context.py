@@ -67,7 +67,7 @@ class ContextTools(QObject):
         self.start('spectacle', ['-b', '-r', '-n', '-o', path], captured)
 
     def clear(self):
-        if not self.panel.backend.busy: self.panel.paths = []; self.panel.update_context()
+        if not self.panel.backend.busy: self.panel.paths = []; self.panel.drive_context = {}; self.panel.update_context()
 
     def clipboard(self):
         if protected_clipboard(QApplication.clipboard()):

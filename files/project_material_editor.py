@@ -9,7 +9,7 @@ from tools_data import web_url
 
 class MaterialEditor(QWidget):
     def __init__(self,window):
-        super().__init__();self.window=window;self.serial=0
+        super().__init__();self.window=window;self.serial=0;self.notes_job=None
         box=QVBoxLayout(self);box.setContentsMargins(0,0,0,0)
         self.kind=QComboBox();self.kind.setAccessibleName(tr('Materialart'))
         for title,value in [('Dateien','file'),('Ordner','folder'),('Weblink','url'),('Lumen Notes','wissen'),('Notiz','note')]:self.kind.addItem(tr(title),value)
@@ -52,7 +52,7 @@ class MaterialEditor(QWidget):
         self.pick.setVisible(kind in ('file','folder','wissen'));self.stage_button.setVisible(kind in ('url','note'))
         self.knowledge.setVisible(kind=='wissen');self.search.setVisible(kind=='wissen')
         self.pick.setText(tr('Notes laden') if kind=='wissen' else tr('Dateien auswählen …') if kind=='file' else tr('Ordner auswählen …'))
-        self.hint.setText(tr('Ordner sind Ablageorte. Dateien für die Analyse einzeln auswählen.') if kind=='folder' else tr('Dateien und Notes bleiben mit ihrem Original verknüpft.'))
+        self.hint.setText(tr('Dauerhafte Verknüpfung: neue und geänderte Textdateien und PDFs werden bei der nächsten Ordnersuche berücksichtigt. Kein automatischer Upload.') if kind=='folder' else tr('Dateien und Notes bleiben mit ihrem Original verknüpft.'))
 
     def choose(self):
         w=self.window;kind=self.kind.currentData()
@@ -67,15 +67,28 @@ class MaterialEditor(QWidget):
                 self.knowledge.clear();self.hint.setText(error or tr('Eintrag auswählen und doppelklicken.'))
                 for ref in values or []:
                     item=QListWidgetItem(ref['title']);item.setData(Qt.UserRole,ref);self.knowledge.addItem(item)
-            w.workplace.job('notes',{},ready,timeout=12000);return
+            self.load_notes(ready);return
         if kind=='file':paths,_=QFileDialog.getOpenFileNames(self,tr('Dateien verknüpfen'),str(Path.home()))
         else:
             path=QFileDialog.getExistingDirectory(self,tr('Ordner verknüpfen'),str(Path.home()));paths=[path] if path else []
-        for path in paths:self.append('file',path,Path(path).name)
+        for path in paths:self.append('folder' if kind=='folder' else 'file',str(Path(path).resolve()) if kind=='folder' else path,Path(path).name)
+
+    def load_notes(self, ready):
+        if self.notes_job:return
+        from tools_ui import Job
+        job=Job(lambda _:note_sources(self.window.project_store),self);self.notes_job=job
+        job.result.connect(lambda rows:ready(rows,''));job.failed.connect(lambda error:ready([],error))
+        def finished():self.notes_job=None;job.deleteLater()
+        job.finished.connect(finished);job.start()
 
     def append(self,kind,target,title):
         w=self.window
-        if any(w.resources.item(i).data(Qt.UserRole)['target']==target for i in range(w.resources.count())):return
+        for i in range(w.resources.count()):
+            existing=w.resources.item(i);value=existing.data(Qt.UserRole)
+            if value['target']==target:
+                if kind=='folder' and value['kind']=='file':
+                    existing.setData(Qt.UserRole,dict(value,kind='folder'));w.edited()
+                return
         item=QListWidgetItem(title+'\n'+target);item.setData(Qt.UserRole,dict(kind=kind,target=target,title=title));w.resources.addItem(item);w.edited()
         self.hint.setText(tr('Ausgewählt · mit Speichern übernehmen.'))
 
@@ -92,3 +105,9 @@ class MaterialEditor(QWidget):
             text=self.note.toPlainText().strip()
             if not text:raise ValueError(tr('Bitte eine Notiz eingeben.'))
             w=self.window;w.notes.setPlainText((w.notes.toPlainText()+'\n\n'+text).strip());self.note.clear();w.edited();self.hint.setText(tr('Notiz vorgemerkt · mit Speichern übernehmen.'))
+
+
+def note_sources(store):
+    from wissen_data import Notebook
+    book=Notebook(store)
+    return [dict(app='wissen',kind='note',id=n['path'],title=n['title'],path=str(book.root/n['path']),locator=dict(root=str(book.root),area='user')) for n in book.scan()['notes']]

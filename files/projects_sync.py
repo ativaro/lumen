@@ -21,6 +21,19 @@ def scope(config):
     return stable_scope(config, ["projects"], legacy)
 
 
+def available(config):
+    rows, offset = [], 0
+    while True:
+        page = lumen_connect.request(config, '/bridge/projects?offset=' + str(offset))
+        rows.extend(page['items'])
+        following = page['next_offset']
+        if following is None:
+            return rows
+        if not isinstance(following, int) or following <= offset or following > 5000:
+            raise ValueError(tr('Ungültige Projektliste. Erneut abgleichen.'))
+        offset = following
+
+
 def state_path(library):
     return library.root / "server-sync.json"
 
@@ -55,7 +68,7 @@ def info(library):
         last_sync=state.get("last_sync", 0),
         conflicts=list(state.get("conflicts", {})),
         changed_account=False,
-        spaces=lumen_connect.request(config, "/bridge/projects")
+        server_projects=available(config)
         if "projects" in user["capabilities"]
         else [],
     )
@@ -84,8 +97,8 @@ def configure(library, enabled, project=None, remote_project=None, all_projects=
         state.update(enabled=True, scope=scope(config))
         if all_projects is not None: state["all_projects"] = bool(all_projects)
         if remote_project:
-            available = lumen_connect.request(config, "/bridge/projects")
-            if not any(p["id"] == remote_project for p in available):
+            remote_projects = available(config)
+            if not any(p["id"] == remote_project for p in remote_projects):
                 raise ValueError(tr("Projekt nicht mehr freigegeben."))
             local = UUID(remote_project).hex
             if local not in state["projects"]:
@@ -216,6 +229,57 @@ def apply_remote(library, project, remote, before):
     return key
 
 
+def normalized_links(value):
+    kinds = {'file', 'note', 'conversation', 'task', 'project_task'}
+    if not isinstance(value, list) or len(value) > 5000:
+        raise ValueError(tr('Ungültige Projektverweise.'))
+    links = set()
+    for row in value:
+        if set(row) != {'kind', 'resource_id'} or row['kind'] not in kinds:
+            raise ValueError(tr('Ungültiger Projektverweis.'))
+        links.add((row['kind'], identity(row['resource_id'])))
+    return [dict(kind=k, resource_id=i) for k, i in sorted(links)]
+
+
+def apply_links(library, project, links, before):
+    with library.connect() as db:
+        db.execute('BEGIN IMMEDIATE')
+        row = db.execute('SELECT data FROM records WHERE id=?', (project,)).fetchone()
+        if row is None:
+            raise ValueError(tr('Projekt nicht mehr vorhanden.'))
+        data = json.loads(row['data'])
+        if normalized_links(data.get('server_links', [])) != before:
+            raise ValueError(tr('Projektverweise während des Abgleichs geändert. Erneut versuchen.'))
+        data['server_links'] = links
+        db.execute('UPDATE records SET data=?,updated=? WHERE id=?', (json.dumps(data), time.time(), project))
+
+
+def sync_links(library, project, binding, state, snapshot, request):
+    root = library.get(project)
+    local = normalized_links(root.get('server_links', []))
+    remote = normalized_links(snapshot['links'])
+    base = binding.get('links', [] if 'server_links' in root else remote)
+    conflict_key = 'links:' + binding['remote']
+    if local != base and remote != base and local != remote:
+        state.setdefault('conflicts', {})[conflict_key] = dict(
+            project=project, kind='links', title=root['title'] + ' · ' + tr('Verweise'),
+            local=local, server=remote, server_revision=snapshot['collection_revision'])
+        save_state(library, state)
+        return 0
+    if local != base and local != remote and 'server_links' in root:
+        if snapshot['role'] == 'reader':
+            raise ValueError(tr('Dieses Serverprojekt ist nur lesbar.'))
+        answer = request('/' + binding['remote'] + '/links',
+                         dict(revision=snapshot['collection_revision'], links=local))
+        remote = normalized_links(answer['links'])
+    if local != remote or 'server_links' not in root:
+        apply_links(library, project, remote, local)
+    binding['links'] = remote
+    state.setdefault('conflicts', {}).pop(conflict_key, None)
+    save_state(library, state)
+    return int(local != remote)
+
+
 def synchronize(library):
     Projects(library)
     with (library.root / "server-sync.lock").open("a") as lock:
@@ -230,18 +294,18 @@ def synchronize(library):
         def request(path, body=None):
             return lumen_connect.request(config, "/bridge/projects" + path, body)
 
-        spaces = request("")
-        known = {p["id"]: p for p in spaces}
+        remote_projects = available(config)
+        known = {p["id"]: p for p in remote_projects}
         changed = 0
-        for space in spaces:
-            if space["owned"] and not space["private"]:
-                key = UUID(space["id"]).hex
+        for remote_project in remote_projects:
+            if remote_project["owned"]:
+                key = UUID(remote_project["id"]).hex
                 if key not in state["projects"]:
                     # Never adopt an unrelated local record just because its ID matches.
                     with library.connect() as db:
                         if db.execute("SELECT 1 FROM records WHERE id=?", (key,)).fetchone():
                             raise ValueError(tr("Lokale Projektkennung ist bereits belegt."))
-                    state["projects"][key] = dict(remote=space["id"], nodes={})
+                    state["projects"][key] = dict(remote=remote_project["id"], nodes={})
         if state.get("all_projects"):
             for project in library.all():
                 if project["id"] not in state["projects"]:
@@ -345,6 +409,7 @@ def synchronize(library):
                 binding["nodes"][rid] = receipt
                 state.setdefault("conflicts", {}).pop(rid, None)
                 save_state(library, state)
+            changed += sync_links(library, project, binding, state, request(path), request)
         state["last_sync"] = time.time()
         save_state(library, state)
         return dict(changed=changed, conflicts=list(state.get("conflicts", {})))
@@ -359,6 +424,19 @@ def resolve(library, identity_value, keep_local):
         conflict = state["conflicts"][identity_value]
         binding = state["projects"][conflict["project"]]
         snapshot = lumen_connect.request(config, "/bridge/projects/" + binding["remote"])
+        if conflict.get('kind') == 'links':
+            if snapshot['collection_revision'] != conflict['server_revision']:
+                raise ValueError(tr('Serverfassung inzwischen geändert. Erneut abgleichen.'))
+            remote = normalized_links(snapshot['links'])
+            if not keep_local:
+                current = normalized_links(library.get(conflict['project']).get('server_links', []))
+                if current != conflict['local']:
+                    raise ValueError(tr('Lokale Projektverweise inzwischen geändert. Erneut abgleichen.'))
+                apply_links(library, conflict['project'], remote, current)
+            binding['links'] = remote
+            del state['conflicts'][identity_value]
+            save_state(library, state)
+            return
         row = next(r for r in [snapshot["project"], *snapshot["items"]] if r["id"] == identity_value)
         if row["revision"] != conflict["server_revision"]:
             raise ValueError(tr("Serverfassung inzwischen geändert. Erneut abgleichen."))

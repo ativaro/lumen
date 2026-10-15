@@ -9,7 +9,7 @@ _VERIFIED = object()
 
 def identity(config, user):
     return dict(server=config['server'], user_id=str(UUID(user['id'])),
-                workspace_id=str(UUID(user['workspace_id'])), device_id=str(UUID(user['device_id'])))
+                device_id=str(UUID(user['device_id'])))
 
 
 def key(parts):
@@ -20,12 +20,14 @@ def scope(config, parts, legacy):
     bound = config.get('sync_binding')
     if bound is None:
         return legacy
-    if not isinstance(bound, dict) or bound.get('version') != 1:
+    if not isinstance(bound, dict) or bound.get('version') not in (1, 2):
         raise ValueError('Invalid synchronization identity; reconnect in settings.')
     stamp = key([config['server'], config.get('device_id'), config.get('token'), bound])
     if config.get(_VERIFIED) != stamp:
         current = identity(config, connector.request(config, '/bridge/me'))
-        if current != bound.get('identity') or current['device_id'] != config.get('device_id'):
+        from sync_migration import account_identity
+        expected = account_identity(bound.get('identity', {})) if bound['version'] == 1 else bound.get('identity')
+        if current != expected or current['device_id'] != config.get('device_id'):
             raise ValueError('Synchronization account changed; review the connection in settings.')
         config[_VERIFIED] = stamp
     alias = bound.get('aliases', {}).get(key(parts))
@@ -44,5 +46,5 @@ def prepare(config, aliases):
     if config.get('sync_binding'):
         scope(config, ['verify'], '0' * 64)
         return {k:v for k,v in config.items() if isinstance(k,str)}
-    return dict(config, sync_binding=dict(version=1, identity=current,
+    return dict(config, sync_binding=dict(version=2, identity=current,
                 aliases={key(parts):value for parts,value in aliases}))

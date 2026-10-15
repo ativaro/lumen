@@ -35,7 +35,7 @@ def prepare_connection():
             roots.append(Notebook(store, choice['root'], identity=choice['identity']))
         for book in roots:
             with book.directory(): pass
-            aliases.append((['notes', str(book.root), list(book.identity), wissen_sync.workspace(book)],
+            aliases.append((wissen_sync.scope_parts(book),
                             wissen_sync.scope(book, config)))
         root = vault_root()
         if root.is_dir() and not root.is_symlink():

@@ -22,7 +22,7 @@ def catalogue(*, include_utilities=False):
         ('reader', 'Lumen Reader', tr('Lesen, markieren und vorlesen lassen'), 'application-pdf'),
         ('updater', 'Lumen Updater', tr('Lumen, Apps und Erweiterungen aktualisieren'), 'system-software-update'),
         ('system', 'Lumen System', tr('Geräte, Sound, Arbeitsmodi, Updates und Diagnose'), 'utilities-system-monitor'),
-        ('meetings', tr('Lumen Meeting & Radio'), tr('Aufnahmen, Transkripte und dein persönliches Hörprogramm'), 'audio-input-microphone'),
+        ('meetings', tr('Lumen Audio Studio'), tr('Aufnahmen, Transkripte und dein persönliches Hörprogramm'), 'audio-input-microphone'),
         ('household', tr('Lumen Digitaler Haushalt'), tr('Dokumente und Fristen im Blick behalten'), 'view-calendar'),
         ('workbench', tr('Lumen Projekte'), tr('Projekte und ihre nächsten Schritte organisieren'), 'folder-development'),
     ]

@@ -3,7 +3,6 @@
 import hashlib
 import os
 from pathlib import Path
-from urllib.parse import urlencode, urlsplit
 from uuid import UUID, uuid5
 
 import drive_local as local
@@ -14,23 +13,7 @@ from lumen_i18n import tr
 from transfer_copy import root
 
 
-def resolve(config, addresses):
-    inventories, result = {}, []
-    for address in addresses:
-        url = urlsplit(address)
-        if url.scheme != "lumen-drive" or url.query or url.fragment:
-            raise ValueError(tr("Ungültige Drive-Adresse."))
-        space = str(UUID(url.netloc))
-        if space not in inventories:
-            inventories[space] = sync.inventory(config, space)
-        parts = url.path.strip("/").split("/")
-        kind = "file" if len(parts) == 3 and parts[0] == "file" else "folder"
-        key = str(UUID(parts[1] if kind == "file" else parts[0]))
-        row = inventories[space]["files" if kind == "file" else "folders"].get(key)
-        if not row or row["trashed"]:
-            raise ValueError(tr("Drive-Eintrag nicht mehr verfügbar."))
-        result.append((space, kind, row))
-    return result
+resolve = sync.resolve
 
 
 def identifier(value, name):
@@ -44,7 +27,7 @@ def checksum(origin, path, progress):
         while chunk := stream.read(1024**2):
             digest.update(chunk)
             progress(0, 0)
-        if local.signature(os.fstat(stream.fileno())) != before:
+        if not local.transfer_unchanged(before, os.fstat(stream.fileno())):
             raise ValueError(tr("Quelldatei während des Lesens verändert."))
         return digest.hexdigest(), before
 
@@ -106,9 +89,12 @@ def upload(store, value, config, sources, progress):
                 if len(plan["folders"]) + len(plan["files"]) > 10000:
                     raise ValueError(tr("Maximal 10.000 Einträge pro Drive-Ordner."))
         update(store, value["id"], upload_plan=plan)
-    space = value["drive"]["space"]
+    from sync_migration import transfer_legacy_target
+    legacy = transfer_legacy_target(value)
     for folder in plan["folders"]:
-        sync.request(config, "/folders?" + urlencode(dict(workspace=space)), folder)
+        if legacy and not folder.get('parent_id'):
+            raise ValueError(tr('Alte Übertragung pausiert: Bitte einen konkreten Zielordner wählen.'))
+        sync.request(config, '/folders', folder)
         progress(0, 0)
     total, count = sum(item["size"] for item in plan["files"]), 0
     done = list(store.setting(PREFIX + value["id"]).get("upload_done", []))
@@ -118,7 +104,7 @@ def upload(store, value, config, sources, progress):
         )
         if item["request"] not in done:
             with local.source(item["root"], item["path"]) as stream:
-                if local.signature(os.fstat(stream.fileno())) != item["stamp"]:
+                if not local.transfer_unchanged(item["stamp"], os.fstat(stream.fileno())):
                     raise ValueError(
                         tr(
                             "Quelldatei wurde verändert. Bitte einen neuen Upload starten."
@@ -128,12 +114,12 @@ def upload(store, value, config, sources, progress):
                 config,
                 item["root"],
                 item["path"],
-                space,
                 item["folder"],
                 item["request"],
                 item["sha256"],
                 item["previous"],
                 lambda n, _: progress(count + n, total),
+                legacy_target=legacy,
             )
             done.append(item["request"])
             update(store, value["id"], upload_done=done)
@@ -165,7 +151,7 @@ def download(store, value, config, target, progress):
         destination = root(target)
         entries = []
         names = set()
-        for source, (space, kind, row) in zip(
+        for source, (kind, row) in zip(
             value["sources"], resolve(config, value["sources"])
         ):
             name = str(local.relative(row["name"]))
@@ -175,7 +161,7 @@ def download(store, value, config, target, progress):
             files = [(name, row)] if kind == "file" else []
             folders = []
             if kind == "folder":
-                cache = sync.inventory(config, space)
+                cache = sync.inventory(config)
                 paths = sync.paths(cache, row["id"])
                 paths[row["id"]] = ""
                 folders = [name] + [
@@ -253,13 +239,14 @@ def execute(store, value, progress):
                 "Serververbindung geändert. Übertragung mit der ursprünglichen Verbindung fortsetzen."
             )
         )
-    if value["action"] == "drive-upload":
-        upload(store, value, config, value["sources"], progress)
-    elif value["action"] == "drive-download":
-        download(store, value, config, value["target"], progress)
-    else:
-        target = store.directory / ("drive-copy-" + value["id"])
-        target.mkdir(mode=0o700, exist_ok=True)
-        sources = download(store, value, config, str(target), progress)
-        upload(store, store.setting(PREFIX + value["id"]), config, sources, progress)
+    with transport.session(config):
+        if value["action"] == "drive-upload":
+            upload(store, value, config, value["sources"], progress)
+        elif value["action"] == "drive-download":
+            download(store, value, config, value["target"], progress)
+        else:
+            target = store.directory / ("drive-copy-" + value["id"])
+            target.mkdir(mode=0o700, exist_ok=True)
+            sources = download(store, value, config, str(target), progress)
+            upload(store, store.setting(PREFIX + value["id"]), config, sources, progress)
     update(store, value["id"], done=value["sources"])

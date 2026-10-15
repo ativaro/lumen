@@ -19,6 +19,7 @@ class NoteDocument(QTextDocument):
 class NotePreview(QTextBrowser):
     note_hash=''
     noteRequested=Signal(str)
+    targetRequested=Signal(str,str)
     def __init__(self,parent=None):
         super().__init__(parent);self.book=None;self.notes={};self.origin='';self.images={};self.setDocument(NoteDocument(self))
         self.setOpenLinks(False);self.setOpenExternalLinks(False);self.anchorClicked.connect(self.follow)
@@ -29,13 +30,8 @@ class NotePreview(QTextBrowser):
         self.book=book;self.origin=note['path'];self.notes=notes
         self.images=images or {}
         self.document().setBaseUrl(QUrl.fromLocalFile(str(book.root/Path(note['path']).parent)+'/'))
-        pieces=re.split(r'(```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`]*`)',note['text'])
-        def link(match):
-            raw=match[1];path=resolve_link(note['path'],raw,notes);title=raw.split('|',1)[1] if '|' in raw else notes[path]['title'] if path in notes else raw
-            title=title.replace('\\','\\\\').replace('[','\\[').replace(']','\\]')
-            return '['+title+'](lumen-note:/'+quote(path or raw,safe='')+')'
-        for i in range(0,len(pieces),2):pieces[i]=re.sub(r'\[\[([^\]\n]+)\]\]',link,pieces[i])
-        self.setMarkdown(''.join(pieces))
+        from notes_render import prepare
+        self.setMarkdown(prepare(note['text'],note['path'],notes))
         self.fit_timer.start()
 
     def fit_images(self):
@@ -77,7 +73,11 @@ class NotePreview(QTextBrowser):
             path=resolve_link(self.origin,'/?'+url.query(),self.notes)
             if path:self.noteRequested.emit(path)
             return
-        if url.scheme()=='lumen-note':self.noteRequested.emit(unquote(url.path().lstrip('/')));return
+        if url.scheme()=='lumen-note':
+            path=unquote(url.path().lstrip('/'))
+            if url.fragment():self.targetRequested.emit(path,url.fragment())
+            else:self.noteRequested.emit(path)
+            return
         if url.scheme() in ('https','http'):
             from PySide6.QtGui import QDesktopServices
             QDesktopServices.openUrl(url);return
@@ -90,7 +90,9 @@ class NotePreview(QTextBrowser):
             except ValueError:return
         elif not url.scheme():path=resolve_link(self.origin,url.toString(),self.notes)
         else:return
-        if path in self.notes:self.noteRequested.emit(path)
+        if path in self.notes:
+            if url.fragment():self.targetRequested.emit(path,url.fragment())
+            else:self.noteRequested.emit(path)
 
 
 class GraphNode(QGraphicsEllipseItem):

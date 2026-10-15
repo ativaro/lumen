@@ -4,6 +4,7 @@ import os
 import posixpath
 import stat
 import urllib.request
+from urllib.error import HTTPError
 from pathlib import Path
 from urllib.parse import unquote,urlsplit,quote
 import lumen_connect
@@ -13,8 +14,9 @@ from lumen_i18n import tr
 LIMIT=16*1024**2
 
 
-def transfer(config,checksum,workspace='',content=None):
-    path='/bridge/notes/assets/'+checksum+('?workspace='+quote(workspace) if workspace else '')
+def transfer(config,checksum,target=None,content=None):
+    from sync_migration import asset_path
+    path=asset_path('/bridge/notes/assets/'+checksum,{} if content is None and (target or {}).get('legacy') else target or {})
     req=urllib.request.Request(config['server']+path,data=content,headers={'Authorization':'Bearer '+config['token'],'Content-Type':'application/octet-stream'})
     opener=urllib.request.build_opener(urllib.request.HTTPSHandler(context=lumen_connect.tls_context(config)),lumen_connect.NoRedirect())
     with opener.open(req,timeout=20) as response:
@@ -57,13 +59,13 @@ def install(book,path,raw):
         finally:os.unlink(name,dir_fd=parent)
 
 
-def prepare(book,note,config,workspace,uploaded,remember):
+def prepare(book,note,config,target,uploaded,remember):
     import re
     text=note['text'];items=[];total=0
     for match in list(re.finditer(r'!?\[[^\]\n]*\]\(([^)\n]+)\)',text)):
-        target=unquote(match[1])
-        if urlsplit(target).scheme or target.startswith('/'):continue
-        path=posixpath.normpath(str(Path(note['path']).parent/target))
+        link=unquote(match[1])
+        if urlsplit(link).scheme or link.startswith('/'):continue
+        path=posixpath.normpath(str(Path(note['path']).parent/link))
         if not path.startswith('attachments/'):continue
         try:
             raw=read(book,path)
@@ -72,15 +74,24 @@ def prepare(book,note,config,workspace,uploaded,remember):
             # are enabled later. Retrieve those exact bytes before publishing.
             checksum=Path(path).stem
             if not re.fullmatch('[0-9a-f]{64}',checksum) or len(Path(path).parts)!=2:raise
-            raw=transfer(config,checksum,workspace);install(book,path,raw)
+            raw=transfer(config,checksum,target);install(book,path,raw)
         total+=len(raw)
         if len(items)>=16 or total>64*1024**2:raise ValueError(tr('Zu viele Anhänge für eine Notiz.'))
         checksum=digest(raw);suffix=Path(path).suffix.lower()
         if len(suffix)>12 or not suffix.isascii():suffix='.bin'
         canonical='attachments/'+checksum+suffix
         install(book,canonical,raw)
-        if checksum not in uploaded:
-            transfer(config,checksum,workspace,raw);uploaded.add(checksum);remember(uploaded)
+        receipt=json.dumps([target,checksum],sort_keys=True)
+        if receipt not in uploaded:
+            present=False
+            if target.get('note'):
+                try:
+                    transfer(config,checksum,target)
+                    present=True
+                except HTTPError as error:
+                    if error.code != 404:raise
+            if not present:transfer(config,checksum,target,raw)
+            uploaded.add(receipt);remember(uploaded)
         replacement=quote(posixpath.relpath(canonical,str(Path(note['path']).parent)))
         text=text.replace('('+match[1]+')','('+replacement+')')
         item=dict(path=canonical,sha256=checksum)
@@ -89,7 +100,7 @@ def prepare(book,note,config,workspace,uploaded,remember):
     return note,items
 
 
-def receive(book,items,config,workspace):
+def receive(book,items,config,target):
     import re
     total=0
     for item in items:
@@ -99,6 +110,6 @@ def receive(book,items,config,workspace):
             raw=read(book,path)
             if digest(raw)!=checksum:raise ValueError(tr('Ein lokaler Anhang wurde verändert. Er bleibt erhalten.'))
         except FileNotFoundError:
-            raw=transfer(config,checksum,workspace);install(book,path,raw)
+            raw=transfer(config,checksum,target);install(book,path,raw)
         total+=len(raw)
         if total>64*1024**2:raise ValueError(tr('Zu viele Anhänge für eine Notiz.'))

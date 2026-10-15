@@ -84,6 +84,27 @@ class UpdaterTest(unittest.TestCase):
         self.assertFalse(any('--desktop' in args or '--replace-panels' in args for args in calls))
         self.assertEqual(run.call_args.kwargs['env']['PREFIX'],str(self.install))
 
+    def test_install_source_identity_and_credential_rejection(self):
+        self.assertEqual(updater.source_url(), str(self.repo))
+        url = 'https://forge.example.test/team/lumen.git'
+        updater.save_json(self.install/'install.json', dict(source_url=url))
+        self.assertEqual(updater.source_url(), url)
+        for bad in ('https://user:secret@forge.example.test/lumen.git',
+                    'http://forge.example.test/lumen.git',
+                    'https://forge.example.test/lumen.git?token=test', 42):
+            updater.save_json(self.install/'install.json', dict(source_url=bad))
+            with self.assertRaises(ValueError): updater.source_url()
+        updater.save_json(self.install/'install.json', dict(source_url=url))
+        with patch.object(updater, 'installations', return_value=[self.install, self.root/'legacy']):
+            with self.assertRaises(ValueError): updater.source_url()
+
+    def test_origin_change_after_check_cannot_install(self):
+        plan = updater.check()
+        updater.save_json(self.install/'install.json', dict(source_url='https://forge.example.test/team/lumen.git'))
+        with patch.object(updater, 'install_bundle') as install:
+            with self.assertRaises(ValueError): updater.apply(plan['revision'], ['lumen'])
+            install.assert_not_called()
+
     def test_optional_components_follow_installed_files(self):
         with tempfile.TemporaryDirectory() as tmp,patch.object(updater,'data_root',return_value=Path(tmp)),patch.object(updater.shutil,'which',return_value=None):
             root=Path(tmp)

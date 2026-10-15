@@ -20,8 +20,8 @@ from lumen_i18n import tr
 APP_NAMES = {
     'translate': 'Lumen Translate',
     'wissen': 'Lumen Notes', 'reader': 'Lumen Reader', 'inbox': 'Lumen Inbox',
-    'meetings': 'Lumen Meeting-Werkstatt', 'household': 'Lumen Digitaler Haushalt',
-    'workbench': 'Lumen Projekte', 'radio': 'Lumen Persönliches Radio',
+    'meetings': 'Lumen Audio Studio · Meeting', 'household': 'Lumen Digitaler Haushalt',
+    'workbench': 'Lumen Projekte', 'radio': 'Lumen Audio Studio · Radio',
     'sound': 'Lumen Sound', 'vault': 'Lumen Vault', 'interop': tr('Lumen Verknüpfungen'),
 }
 MANIFEST = 'lumen-app-backup.json'
@@ -130,7 +130,7 @@ def merge_sources(library, identity, sources, source_ref=None, token=None, signa
     """Merge explicitly reviewed source rows idempotently under the plan lease."""
     import vault_data
     rows = [dict(path=str(row)) if not isinstance(row, dict) else dict(row) for row in sources]
-    if not rows or len(rows) > 100: raise ValueError(tr('Eine bis hundert Sicherungsquellen auswählen.'))
+    if not rows: raise ValueError(tr('Mindestens eine Quelle auswählen.'))
     with vault_data.lease(library, identity):
         plan = library.get(identity)
         _, paths = vault_data.paths(plan['repository'], plan.get('sources', [])+[row['path'] for row in rows])
@@ -303,14 +303,14 @@ def restored_bundles(directory):
             value = json.loads(path.read_text(encoding='utf-8'))
             if value.get('version') != 1 or not isinstance(value.get('sources'), list): continue
             rows = []
-            for row in value['sources'][:100]:
+            for row in value['sources']:
                 if row.get('app') not in APP_NAMES: continue
                 relative = _slot(row['slot']); restored = Path(base)/relative
                 if not restored.exists() or not restored.resolve().is_relative_to(Path(base).resolve()): continue
                 if any(parent.is_symlink() for parent in [restored, *list(restored.parents)[:-1]]): continue
                 rows.append(dict(row, restored=str(restored)))
             external = []
-            for original in value.get('files', [])[:100]:
+            for original in value.get('files', []):
                 original = Path(original)
                 if not original.is_absolute() or '..' in original.parts: continue
                 restored = root/str(original).lstrip('/')
@@ -608,7 +608,7 @@ def file_versions(library, identity, path, job, offset=0, limit=20):
             try: manifest = vault_data.run(library, identity, 'manifest', job, snapshot=snapshot['id'], selected=name)
             except json.JSONDecodeError: continue
             if not isinstance(manifest, dict) or manifest.get('version') != 1 or not isinstance(manifest.get('sources'), list): continue
-            for source in manifest.get('sources', [])[:100]:
+            for source in manifest.get('sources', []):
                 try:
                     original = Path(source['path']); slot = _slot(source['slot'])
                     if original.is_absolute() and path.is_relative_to(original):

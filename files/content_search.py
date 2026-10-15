@@ -11,7 +11,6 @@ import time
 from collections import deque
 from pathlib import Path
 
-from core import file_kind
 
 MAX_TEXT = 1024 * 1024
 STOP_WORDS = set(('der die das den dem des ein eine einen einem einer eines für fuer von vom zum zur zu '
@@ -154,7 +153,8 @@ def scan(root, groups, hidden=False, max_hits=500, max_entries=100000, ocr=False
         os.close(root_fd)
 
 
-def scan_tree(root, root_fd, groups, hidden, max_hits, max_entries, ocr=False, thumbnail_dir=None):
+def scan_tree(root, root_fd, groups, hidden, max_hits, max_entries, ocr=False, thumbnail_dir=None, visual=True):
+    from core import file_kind
     root = Path(root).resolve()
     queue = deque([Path('.')])
     visited = scanned = hits = errors = partial = empty = 0
@@ -184,7 +184,7 @@ def scan_tree(root, root_fd, groups, hidden, max_hits, max_entries, ocr=False, t
                             scanned += 1
                             kind = file_kind(path)
                             text, incomplete = read_content(path, descriptor) if kind != 'image' else ('', False)
-                            if kind in {'image', 'pdf'}:
+                            if visual and kind in {'image', 'pdf'}:
                                 from lumen_ocr import visual_content
                                 text, cut, image = visual_content(path, descriptor, text, ocr, thumbnail_dir if images < 100 else None)
                                 incomplete = incomplete or cut

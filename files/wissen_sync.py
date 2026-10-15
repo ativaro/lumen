@@ -10,18 +10,16 @@ from wissen_data import digest
 import lumen_connect
 
 
-def workspace_key(book):
-    return 'knowledge/sync-workspace/'+digest((str(book.root)+'\0'+str(book.identity)).encode())
-
-
-def workspace(book):
-    return book.store.setting(workspace_key(book),'')
+def scope_parts(book):
+    from sync_migration import note_scope_parts
+    return note_scope_parts(book)
 
 
 def scope(book, config):
-    extra=('\0'+workspace(book)) if workspace(book) else ''
+    parts = scope_parts(book)
+    extra = ('\0' + parts[-1]) if parts[-1] else ''
     from sync_identity import scope as stable_scope
-    return stable_scope(config, ['notes',str(book.root),list(book.identity),workspace(book)],
+    return stable_scope(config, parts,
         digest((config['server']+'\0'+config['token']+'\0'+str(book.root)+'\0'+str(book.identity)+extra).encode()))
 
 
@@ -39,31 +37,17 @@ def sync_info(book):
         user=lumen_connect.request(config,'/bridge/me');reachable=True
     except Exception:
         user=dict(name=state.get('user',''),capabilities=[]);reachable=False
-    spaces=[]
-    if reachable and 'notes' in user['capabilities']:
-        try:
-            value=lumen_connect.request(config,'/bridge/note-workspaces')
-            if isinstance(value,list):spaces=value
-        except Exception:pass
-    return dict(server_context=state.get("server_context",False),context_available="knowledge_context_v1" in user.get("sync_features",[]) and "memory" in user["capabilities"],attachments=state.get('attachments',False),workspace=workspace(book),workspaces=spaces,scope=scope(book,config),server=config['server'],user=user['name'],enabled=state['enabled'],allowed='notes' in user['capabilities'],reachable=reachable,last_sync=state.get('last_sync',0))
+    return dict(attachments=state.get('attachments',False),scope=scope(book,config),server=config['server'],user=user['name'],enabled=state['enabled'],allowed='notes' in user['capabilities'],reachable=reachable,last_sync=state.get('last_sync',0))
 
 
-def sync_config(book, expected, enabled, target_workspace=None, attachments=None, server_context=None):
+def sync_config(book, expected, enabled, attachments=None):
     config=lumen_connect.read_config()
     if scope(book,config)!=expected:raise ValueError(tr('Die Serververbindung hat sich geändert. Bitte erneut öffnen.'))
     info=sync_info(book) if enabled else {}
     if enabled and not info['allowed']:raise ValueError(tr('Auf dem Server zuerst die Gerätefähigkeit „Notizen synchronisieren“ freigeben.'))
     with book.lock('wissen-sync.lock'):
-        if target_workspace is not None and target_workspace!=workspace(book):
-            if book.scan()['notes']:raise ValueError(tr('Für einen anderen Serverbereich zuerst einen leeren lokalen Notizordner wählen.'))
-            if target_workspace and not any(str(w['id'])==target_workspace and not w['private'] for w in info.get('workspaces',[])):
-                raise ValueError(tr('Dieser gemeinsame Bereich ist nicht zum Schreiben freigegeben.'))
-            book.store.set_setting(workspace_key(book),target_workspace)
         key,state=settings(book,config);state['enabled']=bool(enabled)
         if attachments is not None:state['attachments']=bool(attachments)
-        if server_context is not None:
-            if server_context and not info.get('context_available'):raise ValueError(tr('Server-Kontext ist für diese Verbindung nicht freigegeben.'))
-            state['server_context']=bool(server_context)
         if info:state['user']=info['user']
         book.store.set_setting(key,state)
     # Explicit activation binds background work to this notebook inode and account.
@@ -141,11 +125,13 @@ def finish_move(book,key,state):
 
 def sync(book):
     config=lumen_connect.read_config()
-    area=workspace(book)
+    state = {}
     def request(path,body=None):
-        if area and (path.startswith('/bridge/notes') or path.startswith('/bridge/note-collections')):path+=('&' if '?' in path else '?')+'workspace='+quote(area)
-        return lumen_connect.request(config,path,body)
+        from sync_migration import note_request
+        return lumen_connect.request(config,note_request(path,state) if body is not None else path,body)
     with book.lock('wissen-sync.lock'):
+        from notes_move import pending
+        if pending(book):raise ValueError(tr('Zuerst den offenen Verschiebevorgang fortsetzen oder zurücknehmen.'))
         key,state=settings(book,config)
         if not state['enabled']:return dict(enabled=False,changed=0,conflicts=[])
         user=request('/bridge/me')
@@ -155,13 +141,16 @@ def sync(book):
         if scanned['limited'] or scanned['errors']:raise ValueError(tr('Der Notizordner ist nicht vollständig lesbar. Es wurde kein Abgleich gestartet.'))
         if any(len(n['text'])>200000 or len(n['title'])>200 for n in scanned['notes']):
             raise ValueError(tr('Servernotizen sind auf 200.000 Zeichen und 200 Zeichen im Titel begrenzt.'))
+        from sync_migration import pending_notes, asset_target
+        scanned=pending_notes(book,state,scanned)
+        book.store.set_setting(key,state)
         if state.get('attachments'):
             from wissen_sync_assets import prepare
             uploaded=set(state.get('asset_receipts',[]))
             def remember_assets(values):
                 state['asset_receipts']=sorted(values);book.store.set_setting(key,state)
             for index,note in enumerate(scanned['notes']):
-                value,assets=prepare(book,note,config,area,uploaded,remember_assets);value['sync_assets']=assets;scanned['notes'][index]=value
+                value,assets=prepare(book,note,config,asset_target(note['note_id'],state),uploaded,remember_assets);value['sync_assets']=assets;scanned['notes'][index]=value
         local={};remote={};cursor=None
         # ponytail: scan metadata for at most 5000 notes; use a change feed for larger libraries.
         # Fetch bounded metadata, including tombstones. Never infer remote deletion
@@ -214,7 +203,7 @@ def sync(book):
             else:row=request('/bridge/notes/'+identity)
             if state.get('attachments') and not row['deleted']:
                 from wissen_sync_assets import receive
-                receive(book,row.get('note_assets',[]),config,area)
+                receive(book,row.get('note_assets',[]),config,{'note':identity})
             # A lost response may have committed our exact content already.
             same=bool(note) and (not row.get('note_path') or row['note_path']==path) and not row['deleted'] and note['title']==row['title'] and note['text'] in (row['body'],remote_text(row))
             if same:
@@ -273,7 +262,7 @@ if __name__=='__main__':
     store=Store()
     try:
         result=background(store)
-        store.set_setting('knowledge/background-status',dict(time=time.time(),ok=True,enabled=result.get('enabled',False),
+        store.set_setting('knowledge/background-status',dict(time=time.time(),ok=True,
             changed=result.get('changed',0),conflicts=len(result.get('conflicts',[]))))
         if result.get('enabled'):
             from lumen_notifications import report

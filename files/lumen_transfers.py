@@ -104,10 +104,13 @@ def cleanup(store, value):
         if sync.scope(config) != value['drive']['scope']: raise ValueError(tr('Zum Aufräumen die ursprüngliche Serververbindung wiederherstellen.'))
         from urllib.error import HTTPError
         from urllib.parse import urlencode
+        from sync_migration import transfer_legacy_target
+        legacy = transfer_legacy_target(value)
+        query = '?' + urlencode({'workspace': legacy}) if legacy else ''
         for item in value['upload_plan']['files']:
             if item['request'] in value.get('upload_done', []): continue
             try:
-                transport.request(config, '/uploads/' + item['request'] + '?' + urlencode({'workspace': value['drive']['space']}), method='DELETE')
+                transport.request(config, '/uploads/' + item['request'] + query, method='DELETE')
             except HTTPError as error:
                 if error.code != 404: raise
     for plan_name in ('copy_plan', 'download_plan'):

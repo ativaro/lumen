@@ -7,6 +7,8 @@ import json
 import mimetypes
 import os
 import urllib.request
+import threading
+from contextlib import contextmanager
 from urllib.error import HTTPError
 from uuid import uuid4, UUID
 import lumen_connect
@@ -14,7 +16,26 @@ import drive_local as local
 from lumen_i18n import tr
 
 
+_active = threading.local()
+
+
+@contextmanager
+def session(config):
+    from drive_http import Session
+    previous = getattr(_active, 'session', None)
+    current = Session(config)
+    _active.session = current
+    try:
+        yield current
+    finally:
+        _active.session = previous
+        current.close()
+
+
 def opener(config):
+    current = getattr(_active, 'session', None)
+    if current is not None and current.config == config:
+        return current
     return urllib.request.build_opener(
         urllib.request.ProxyHandler({}),
         urllib.request.HTTPSHandler(context=lumen_connect.tls_context(config)),
@@ -26,16 +47,17 @@ def legacy_upload(
     config,
     root,
     path,
-    workspace,
     folder,
     request_id,
     expected_hash,
     previous=None,
     progress=lambda *_: None,
     filename=None,
+    legacy_target=None,
 ):
     boundary = "lumen-" + uuid4().hex
-    fields = dict(workspace=workspace, request_id=request_id, sha256=expected_hash)
+    from sync_migration import drive_upload_fields
+    fields = drive_upload_fields(dict(request_id=request_id, sha256=expected_hash), legacy_target)
     if folder:
         fields["folder"] = str(UUID(folder))
     if previous:
@@ -92,24 +114,27 @@ def request(config, path, body=None, method="POST", content_type="application/js
     return json.loads(raw)
 
 
-def upload(config, root, path, workspace, folder, request_id, expected_hash,
-           previous=None, progress=lambda *_: None, filename=None):
+def upload(config, root, path, folder, request_id, expected_hash,
+           previous=None, progress=lambda *_: None, filename=None, *, legacy_target=None, remember=lambda _: None):
     name = local.relative(filename or path).name
     with local.source(root, path) as stream:
         before = local.signature(os.fstat(stream.fileno()))
         size = before[2]
-        body = dict(workspace=str(UUID(workspace)), name=name, size=size, sha256=expected_hash,
+        body = dict(name=name, size=size, sha256=expected_hash,
                     folder=folder, replaces=previous["id"] if previous else None,
                     revision=previous["revision"] if previous else None,
                     mime=mimetypes.guess_type(name)[0] or "application/octet-stream")
+        from sync_migration import drive_upload_fields
+        body = drive_upload_fields(body, legacy_target)
         progress(0, size)
         try:
             state = request(config, "/uploads/" + str(UUID(request_id)), body)
         except HTTPError as error:
-            if error.code not in (404, 405): raise
-            return legacy_upload(config, root, path, workspace, folder, request_id, expected_hash,
-                                 previous, progress, filename)
+            if error.code not in (404, 405) or not legacy_target: raise
+            return legacy_upload(config, root, path, folder, request_id, expected_hash,
+                                 previous, progress, filename, legacy_target)
         key = str(UUID(state["id"]))
+        remember(key)
         offset = state["offset"]
         if not 0 <= offset <= size or state["size"] != size:
             raise ValueError(tr("Ungültiger Übertragungsstand."))
@@ -117,7 +142,7 @@ def upload(config, root, path, workspace, folder, request_id, expected_hash,
         progress(offset, size)
         while offset < size:
             chunk = stream.read(min(4 * 1024**2, size - offset))
-            if not chunk or local.signature(os.fstat(stream.fileno())) != before:
+            if not chunk or not local.transfer_unchanged(before, os.fstat(stream.fileno())):
                 raise ValueError(tr("Datei während Übertragung verändert."))
             state = request(config, f"/uploads/{key}?offset={offset}", chunk, "PUT", "application/octet-stream")
             if state["offset"] != offset + len(chunk):

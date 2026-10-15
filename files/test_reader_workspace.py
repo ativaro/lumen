@@ -63,7 +63,8 @@ class ReadingWorkspaceTest(unittest.TestCase):
         window=Mock(); menu=QMenu()
         with patch('interop_ui.root_for', return_value=self.root/'tools'), patch('interop_ui.launch') as launch:
             files_menu(window,menu,[str(path)])
-            action=next(a for a in menu.actions() if 'Reader' in a.text()); action.trigger()
+            targets=next(a.menu() for a in menu.actions() if a.menu())
+            action=next(a for a in targets.actions() if 'Reader' in a.text()); action.trigger()
             window.open_reader.assert_called_once_with(str(path)); launch.assert_not_called()
 
     def test_library_and_full_translation_return_keep_draft_and_features(self):

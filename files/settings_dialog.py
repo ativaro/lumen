@@ -189,7 +189,7 @@ class SettingsDialog(QDialog):
             'meetings': tr('Meeting und Radio teilen sich ein Fenster. Oben wechselst du zwischen Aufnahmen, Transkripten und deinem Hörprogramm. Beide Bibliotheken bleiben erhalten.'),
             'household': tr('Dokumente, Kategorien und Erinnerungsfristen stellst du je Eintrag im Digitalen Haushalt ein.'),
             'workbench': tr('Projekte, Vorhaben, Aufgaben und Material verwaltest du in Lumen Projekte.'),
-            'radio': tr('Quellen, Programme, Stimmen und Audioausgabe verwaltest du im Persönlichen Radio.'),
+            'radio': tr('Quellen, Programme, Stimmen und Audioausgabe verwaltest du im Bereich Radio von Lumen Audio Studio.'),
         }
         self.app_controls = {}
         def open_app(key, area=None):

@@ -115,7 +115,9 @@ class ContentSearchUITest(unittest.TestCase):
                 body = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or 'null')
                 state['requests'].append((path, body))
                 data = {}
-                if path == '/session':
+                if path == '/config':
+                    data = {'model': 'synthetic/search'}
+                elif path == '/session':
                     data = {'id': 'ses_search'} if method == 'POST' else []
                 elif path.endswith('/prompt_async'):
                     text = 'invalid' if state['invalid'] else '{"groups":[["rechnung","beleg"],["monitor","bildschirm"]]}'

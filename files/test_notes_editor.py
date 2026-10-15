@@ -39,6 +39,15 @@ class NotesEditorTest(unittest.TestCase):
                 QTest.keyClick(self.editor, Qt.Key_Return)
                 self.assertEqual(self.editor.toPlainText(), after)
 
+    def test_bold_and_italic_can_be_combined_and_toggled(self):
+        self.text('Grüße 🌍'); self.editor.selectAll()
+        self.editor.wrap('**'); self.editor.wrap('*')
+        self.assertEqual(self.editor.toPlainText(), '***Grüße 🌍***')
+        self.editor.wrap('*')
+        self.assertEqual(self.editor.toPlainText(), '**Grüße 🌍**')
+        self.editor.wrap('**')
+        self.assertEqual(self.editor.toPlainText(), 'Grüße 🌍')
+
     def test_no_list_continuation_in_fenced_code_or_middle(self):
         for before in ['```md\n- example', '~~~\n1. example']:
             self.text(before)
@@ -75,3 +84,50 @@ class NotesEditorTest(unittest.TestCase):
         self.assertEqual(self.editor.toPlainText(), '# Title\n**Text**!')
         self.editor.undo()
         self.assertEqual(self.editor.toPlainText(), '# Title\n**Text**')
+
+    def test_source_mode_still_avoids_list_continuation_in_code(self):
+        self.editor.set_source_mode(True)
+        self.text('```\n- code')
+        QTest.keyClick(self.editor, Qt.Key_Return)
+        self.assertEqual(self.editor.toPlainText(), '```\n- code\n')
+
+    def test_switcher_disambiguates_duplicate_titles_by_path(self):
+        from notes_switcher import NoteSwitcher
+        dialog = NoteSwitcher([dict(title='Plan', path='Haus/Plan.md'), dict(title='Plan', path='Work/Plan.md')])
+        self.addCleanup(dialog.deleteLater)
+        dialog.search.setText('haus plan')
+        self.assertEqual(dialog.rows.count(), 1)
+        dialog.choose()
+        self.assertEqual(dialog.path, 'Haus/Plan.md')
+
+    def test_link_completion_preserves_unicode_prefix_and_existing_closer(self):
+        self.editor.completion.notes=lambda:[dict(title='Plan', path='Haus/Plan.md', tags=['projekt/haus'])]
+        self.editor.completion.origin=lambda:'Haus/Ideen.md'
+        self.text('🌍 [[Pl]]')
+        cursor=self.editor.textCursor();cursor.movePosition(QTextCursor.PreviousCharacter, QTextCursor.MoveAnchor, 2)
+        self.editor.setTextCursor(cursor)
+        self.editor.completion.refresh()
+        self.editor.completion.choose('Plan · Haus/Plan.md')
+        self.assertEqual(self.editor.toPlainText(), '🌍 [[Plan.md]]')
+        self.editor.undo()
+        self.assertEqual(self.editor.toPlainText(), '🌍 [[Pl]]')
+
+    def test_nested_tag_completion_and_stale_choice(self):
+        self.editor.completion.notes=lambda:[dict(title='Plan', path='Plan.md', tags=['projekt/haus'])]
+        self.text('🌍 #pro')
+        self.editor.completion.refresh()
+        self.editor.completion.choose('#projekt/haus')
+        self.assertEqual(self.editor.toPlainText(), '🌍 #projekt/haus')
+        self.text('#pro');self.editor.completion.refresh();self.text('Different note')
+        self.editor.completion.choose('#projekt/haus')
+        self.assertEqual(self.editor.toPlainText(), 'Different note')
+
+    def test_completion_can_be_selected_with_keyboard(self):
+        self.editor.completion.notes=lambda:[dict(title='Plan', path='Plan.md', tags=['projekt/haus'])]
+        self.editor.show();self.editor.setFocus()
+        QTest.keyClicks(self.editor, '#pro')
+        self.assertTrue(self.editor.completion.popup.popup().isVisible())
+        QTest.keyClick(self.editor.completion.popup.popup(), Qt.Key_Down)
+        QTest.keyClick(self.editor.completion.popup.popup(), Qt.Key_Return)
+        self.assertEqual(self.editor.toPlainText(), '#projekt/haus')
+        self.editor.hide()

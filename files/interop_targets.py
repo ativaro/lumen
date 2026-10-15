@@ -1,5 +1,5 @@
 """Local, reviewed Lumen transfers. A transfer never sends mail or calls a model."""
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 from datetime import date, datetime, timedelta
 import fcntl
 import hashlib
@@ -24,7 +24,7 @@ ACTIONS = {
     'household.add': dict(target='household', label=tr('Zu einem Gerät oder Vertrag hinzufügen …'), modes=['copy','link','live'], description=tr('Belege, Handbücher und Notizen einem Gerät oder Vertrag zuordnen.')),
     'radio.add': dict(target='radio', label=tr('Für eine Radioausgabe sammeln …'), modes=['copy'], description=tr('Lokalen Text für eine neue oder vorhandene Radioausgabe sammeln.')),
     'reader.import': dict(target='reader', label=tr('In Lumen Reader öffnen'), modes=['copy'], description=tr('Eine private Lesekopie mit Herkunft anlegen.')),
-    'meetings.import': dict(target='meetings', label=tr('Aufnahme in Lumen Meeting-Werkstatt öffnen'), modes=['copy'], description=tr('Audio lokal importieren; Transkription separat starten.')),
+    'meetings.import': dict(target='meetings', label=tr('Aufnahme in Lumen Audio Studio · Meeting öffnen'), modes=['copy'], description=tr('Audio lokal importieren; Transkription separat starten.')),
     'meetings.agenda': dict(target='meetings', label=tr('Als Meeting-Agenda übernehmen'), modes=['copy'], description=tr('Text als Agenda einer neuen oder vorhandenen Besprechung hinzufügen.')),
     'inbox.draft': dict(target='inbox', label=tr('Mailentwurf in Lumen Inbox vorbereiten'), modes=['copy'], description=tr('Text und Dateikopien als lokalen, ungesendeten Entwurf speichern.')),
     'inbox.task': dict(target='inbox', label=tr('Aufgabe in Lumen Inbox anlegen'), modes=['copy'], description=tr('Eine lokale Aufgabe mit Fälligkeit und Herkunft erstellen.')),
@@ -37,6 +37,13 @@ AUDIO_SUFFIXES = {'.wav', '.mp3', '.m4a', '.ogg', '.flac', '.opus', '.mp4', '.mk
 
 
 def available(payload):
+    if payload.get('references'):
+        refs=payload['references'];result=['wissen.import','workbench.add']
+        if len(refs)==1 and refs[0]['kind']=='drive_file':
+            suffix=Path(refs[0]['title']).suffix.lower()
+            if suffix in READER_SUFFIXES:result.append('reader.import')
+            if suffix in ('.pdf','.txt','.md'):result.append('translate.import')
+        return result
     paths = payload.get('paths', []); text = bool(payload.get('text', '').strip())
     result = ['wissen.import', 'workbench.add', 'household.add', 'inbox.draft', 'inbox.task', 'inbox.event']
     if (text and len(payload.get('text','')) <= 12000) or (not text and len(paths)==1 and Path(paths[0]).suffix.lower()=='.pdf'): result.append('translate.import')
@@ -72,6 +79,12 @@ def choices(action, root=None, store=None):
 
 
 def _validate(action, payload, choice):
+    if payload.get('references'):
+        from interop_data import validate_payload
+        validate_payload(payload)
+        expected='link' if action in ('wissen.import','workbench.add') else 'copy'
+        if action not in available(payload) or choice.get('mode')!=expected:
+            raise ValueError(tr('Drive-Originale als Verknüpfung übernehmen.'))
     if action not in ACTIONS or choice.get('mode', 'copy') not in ACTIONS[action]['modes']:
         raise ValueError(tr('Diese Übergabeart wird nicht unterstützt.'))
     if choice.get('mode')=='live' and not (payload.get('source',{}).get('app')=='wissen' and payload['source'].get('kind') in ('note','collection')):
@@ -81,8 +94,8 @@ def _validate(action, payload, choice):
     text = payload.get('text', '')
     if not isinstance(text, str) or len(text) > 120000: raise ValueError(tr('Übergabetext größer als 120.000 Zeichen.'))
     paths = payload.get('paths', [])
-    if not isinstance(paths, list) or len(paths) > 100 or any(not isinstance(p, str) or not Path(p).is_absolute() or '\0' in p for p in paths):
-        raise ValueError(tr('Nur bis zu 100 absolute lokale Dateipfade übergeben.'))
+    if not isinstance(paths, list) or any(not isinstance(p, str) or not Path(p).is_absolute() or '\0' in p for p in paths):
+        raise ValueError(tr('Ein absoluter Dateipfad ist erforderlich.'))
     if not re.fullmatch(r'lumen://object/[0-9a-f]{32}(?:\?[^\s]*)?', payload.get('source_url', '')):
         raise ValueError(tr('Die Herkunft der Übergabe fehlt oder ist ungültig.'))
     token = choice.get('token', '')
@@ -190,6 +203,11 @@ def _wissen(library, payload, choice, job, store, created):
         # The notebook stores the source in portable metadata and displays it
         # as a named link outside the editable text.
         text = payload.get('text','').strip() if choice.get('mode','copy')=='copy' else ''; links = []
+        if payload.get('references'):
+            from drive_references import links as drive_links
+            for ref in drive_links(payload['references'],library.root.parent):
+                title=ref['title'].replace('\\','\\\\').replace('[','\\[').replace(']','\\]')
+                links.append('['+title+']('+ref['target']+')')
         if choice.get('mode', 'copy') == 'copy' and not payload.get('text', '').strip():
             imported = [document_text(p, job) for p in payload.get('paths', []) if Path(p).suffix.lower() in ('.md', '.txt')]
             if sum(map(len, imported)) > 120000: raise ValueError(tr('Übergabetext größer als 120.000 Zeichen.'))
@@ -223,6 +241,9 @@ def _wissen(library, payload, choice, job, store, created):
 def apply(action, payload, choice, job, root=None, store=None):
     from interop_undo import snapshot,remember
     _validate(action, payload, choice)
+    if payload.get('references') and action in ('wissen.import','workbench.add'):
+        from drive_references import resolve
+        resolve(payload['references'],job)
     if ACTIONS[action]['target'] == 'inbox':
         from inbox_data import store as inbox_store
         library = inbox_store(root)
@@ -233,7 +254,17 @@ def apply(action, payload, choice, job, root=None, store=None):
         with library.connect() as db:
             result = _receipt(db, choice['token'], signature)
         if result: return result
+        temporary=ExitStack()
         try:
+            if payload.get('references') and action in ('reader.import','translate.import'):
+                from drive_references import materialized
+                refs=payload['references'];paths=temporary.enter_context(materialized(refs,job))
+                payload=dict(payload,paths=paths,items=[dict(kind='file',path=path,title=ref['title']) for ref,path in zip(refs,paths)])
+                payload.pop('references')
+                if action=='translate.import' and Path(paths[0]).suffix.lower()!='.pdf':
+                    text=Path(paths[0]).read_text(encoding='utf-8-sig')
+                    if len(text)>12000:raise ValueError(tr('Für Lumen Translate höchstens 12.000 Zeichen auswählen.'))
+                    payload.update(text=text,paths=[])
             if action == 'wissen.import':
                 result = _wissen(library, payload, choice, job, store, created)
                 created.clear()  # The notebook is durable; replay recovers it even if receipt persistence fails.
@@ -260,6 +291,7 @@ def apply(action, payload, choice, job, root=None, store=None):
         except BaseException:
             for path in created: path.unlink(missing_ok=True)
             raise
+        finally:temporary.close()
 
 
 def _prepare(library, action, payload, choice, job, created):
@@ -274,6 +306,9 @@ def _prepare(library, action, payload, choice, job, created):
             values.update(document_name=imported['name'], document_asset=imported['asset'], manifest=worker(job, 'inspect', path=str(library.asset(imported['asset']))))
         return values, ()
     if action.startswith('workbench.'):
+        if payload.get('references'):
+            from drive_references import links
+            return dict(notes=_body(payload,'link'),resources=links(payload['references'],library.root.parent),questions=[]),('notes','resources')
         if action == 'workbench.question':
             return dict(questions=[dict(text=_body(payload), done=False)], notes='', resources=[]), ('questions', 'notes', 'resources')
         if mode=='live':return dict(notes='',resources=[dict(kind='lumen',target=payload['source_url'],title=payload['title'],live=True)],questions=[]),('resources',)
@@ -374,7 +409,7 @@ def _reader(library, payload, choice, job, created):
         with path.open('x') as stream: path.chmod(0o600); stream.write(body)
     path = library.asset(asset); metadata = worker(job, 'metadata', path); metadata.pop('title', None)
     values = dict(asset=asset, source=payload['source_url'], page=0, scroll=0, notes=[], stamp=[path.stat().st_size, path.stat().st_mtime_ns], **metadata)
-    if not payload.get('text') and len(paths) == 1: values['original_path'] = paths[0]
+    if not payload.get('text') and len(paths) == 1 and payload.get('source',{}).get('kind') not in ('drive_file','drive_folder'): values['original_path'] = paths[0]
     return values
 
 

@@ -3,7 +3,7 @@
 import os
 import tempfile
 from pathlib import Path
-from urllib.parse import quote, urlencode, urlsplit
+from urllib.parse import quote
 from uuid import UUID, uuid4
 
 import drive_local as local
@@ -30,26 +30,15 @@ def is_drive(path):
     return str(path).startswith(ROOT)
 
 
-def location(space=None, folder=None):
-    return (
-        ROOT
-        + (str(UUID(space)) + "/" if space else "")
-        + (str(UUID(folder)) if folder else "")
-    )
+location = sync.location
+resolve = sync.resolve
 
 
 def parse(path):
-    url = urlsplit(path)
-    if url.scheme != "lumen-drive" or url.query or url.fragment:
-        raise ValueError(tr("Ungültige Drive-Adresse."))
-    space = str(UUID(url.netloc)) if url.netloc else None
-    folder = str(UUID(url.path.strip("/"))) if url.path.strip("/") else None
-    if folder and not space:
-        raise ValueError(tr("Ungültige Drive-Adresse."))
-    return space, folder
-
-
-from drive_transfers import resolve
+    kind, key = sync.parse_address(path)
+    if kind == 'file':
+        raise ValueError(tr('Bitte einen Drive-Ordner öffnen.'))
+    return key
 
 
 class Browser(QObject):
@@ -61,11 +50,11 @@ class Browser(QObject):
             [tr("Name"), tr("Größe"), tr("Typ"), tr("Geändert"), tr("Ort")]
         )
         self.cache = dict(files={}, folders={})
-        self.spaces = []
+        self.profile = {}
         self.entries = {}
         self.jobs = []
         self.generation = 0
-        self.space = self.folder = None
+        self.folder = None
         self.config = None
         # Opened files are explicitly local copies; no hidden upload from an editor.
 
@@ -107,20 +96,20 @@ class Browser(QObject):
         job.finished.connect(finished)
         job.start()
 
-    def navigate(self, path, record=True, history_position=None):
+    def navigate(self, path, record=True, history_position=None, selected=None, identity=None):
         try:
-            space, folder = parse(path)
+            folder = parse(path)
         except ValueError as error:
             self.window.error(str(error))
             return
         w = self.window
         self.generation += 1
-        self.space, self.folder = space, folder
+        self.folder = folder
         w.cancel_connection()
         w.cancel_search()
         w.spaces.cancel()
         w.debounce.stop()
-        w.current_location = location(space, folder)
+        w.current_location = location(folder)
         # A virtual location must never fall through to a local filesystem operation.
         w.current_path = w.current_location
         tab = w.tabs_data[w.tabs.currentIndex()]
@@ -160,15 +149,16 @@ class Browser(QObject):
 
         def load(job):
             config = lumen_connect.read_config()
-            spaces = sync.request(config, "/spaces")
+            profile = lumen_connect.request(config, '/bridge/me')
+            if identity and (config['server'] != identity['server'] or profile['id'] != identity['account']):
+                raise ValueError(tr('Dieser Drive-Verweis gehört zu einer anderen Serververbindung oder einem anderen Konto.'))
             job.check()
-            cache = (
-                sync.inventory(config, space) if space else dict(files={}, folders={})
-            )
-            return config, spaces, cache
+            return config, profile, sync.inventory(config)
 
         def done(value):
-            self.config, self.spaces, self.cache = value
+            if sync.scope(lumen_connect.read_config()) != sync.scope(value[0]):
+                raise ValueError(tr('Serververbindung geändert. Drive neu öffnen.'))
+            self.config, self.profile, self.cache = value
             if folder and (
                 folder not in self.cache["folders"]
                 or self.cache["folders"][folder]["trashed"]
@@ -176,33 +166,46 @@ class Browser(QObject):
                 w.activity.setText(tr("Drive-Ordner nicht mehr verfügbar."))
                 return
             self.render()
+            if selected:
+                from PySide6.QtCore import QItemSelectionModel
+                address=next((p for p,(kind,row) in self.entries.items() if kind=='file' and row['family']==selected),None)
+                if not address:raise ValueError(tr('Drive-Datei wurde verschoben. Verweis erneut öffnen.'))
+                for i in range(self.model.rowCount()):
+                    if self.model.item(i).data(Qt.UserRole)==address:
+                        index=w.proxy.mapFromSource(self.model.index(i,0))
+                        w.view.selectionModel().select(index,QItemSelectionModel.ClearAndSelect|QItemSelectionModel.Rows)
+                        w.file_stack.currentWidget().scrollTo(index)
+                        break
             w.activity.setText(tr("Auf dem Server"))
             w.disk_label.setText(QUrl(self.config["server"]).host() + "\nLumen Drive")
 
         self.work(load, done)
+
+    def follow_reference(self, ref):
+        from drive_references import resolve
+        self.generation += 1
+        generation = self.generation
+        def done(value):
+            if generation != self.generation:return
+            config, rows=value;row=rows[0]
+            if sync.scope(lumen_connect.read_config())!=sync.scope(config):
+                raise ValueError(tr('Serververbindung geändert. Drive neu öffnen.'))
+            self.navigate(location(row['folder_id'] if ref['kind']=='drive_file' else row['id']),
+                          selected=ref['id'] if ref['kind']=='drive_file' else None,identity=ref['locator'])
+        self.work(lambda job:resolve([ref],job),done,current=False)
 
     def crumbs(self):
         w = self.window
         from app import button
 
         parts = [("Lumen Drive", ROOT)]
-        if self.space:
-            parts.append(
-                (
-                    next(
-                        (s["title"] for s in self.spaces if s["id"] == self.space),
-                        tr("Serverbereich"),
-                    ),
-                    location(self.space),
-                )
-            )
         ancestors, seen, key = [], set(), self.folder
         while key:
             if key in seen or key not in self.cache["folders"]:
                 break
             seen.add(key)
             row = self.cache["folders"][key]
-            ancestors.append((row["name"], location(self.space, key)))
+            ancestors.append((row["name"], location(key)))
             key = row["parent_id"]
         parts += list(reversed(ancestors))
         while w.crumb_layout.count():
@@ -228,31 +231,12 @@ class Browser(QObject):
         self.entries.clear()
         self.crumbs()
         query = w.search.text().casefold()
-        rows = []
-        if not self.space:
-            rows = [
-                (location(s["id"]), dict(s, name=s["title"]), "space")
-                for s in self.spaces
-            ]
-        else:
-            rows += [
-                (location(self.space, r["id"]), r, "folder")
-                for r in self.cache["folders"].values()
-                if not r["trashed"] and r["parent_id"] == self.folder
-            ]
-            rows += [
-                (
-                    location(self.space)
-                    + "file/"
-                    + str(UUID(r["family"]))
-                    + "/"
-                    + quote(r["name"], safe=""),
-                    r,
-                    "file",
-                )
-                for r in self.cache["files"].values()
-                if not r["trashed"] and r["folder_id"] == self.folder
-            ]
+        rows = [(location(r['id']), r, 'folder')
+                for r in self.cache['folders'].values()
+                if not r['trashed'] and r['parent_id'] == self.folder]
+        rows += [('lumen-drive:///file/' + str(UUID(r['family'])) + '/' + quote(r['name'], safe=''), r, 'file')
+                 for r in self.cache['files'].values()
+                 if not r['trashed'] and r['folder_id'] == self.folder]
         for address, row, kind in rows:
             self.entries[address] = (kind, row)
             if query and query not in row["name"].casefold():
@@ -282,7 +266,7 @@ class Browser(QObject):
 
     def up(self):
         parent = self.cache["folders"].get(self.folder, {}).get("parent_id")
-        self.window.navigate(location(self.space, parent) if self.folder else ROOT)
+        self.window.navigate(location(parent) if self.folder else ROOT)
 
     def progress(self, job):
         def report(count, total):
@@ -390,7 +374,7 @@ class Browser(QObject):
         root = self.root(target)
         entries = resolve(config, paths)
         outputs = []
-        for space, kind, row in entries:
+        for kind, row in entries:
             name = str(local.relative(row["name"]))
             # Never merge into an unrelated existing destination, including symlinks.
             with local.directory(root) as fd:
@@ -403,7 +387,7 @@ class Browser(QObject):
             files = [(name, row)] if kind == "file" else []
             folders = []
             if kind == "folder":
-                cache = sync.inventory(config, space)
+                cache = sync.inventory(config)
                 paths_by_id = sync.paths(cache, row["id"])
                 paths_by_id[row["id"]] = ""
                 folders = [name] + [
@@ -432,10 +416,10 @@ class Browser(QObject):
             outputs.append(str(Path(target) / name))
         return outputs
 
-    def queue(self, action, paths, target, config, space=None, folder=None, previous=None):
+    def queue(self, action, paths, target, config, folder=None, previous=None):
         from transfer_panel import panel
         if not paths: return
-        panel(self.window).enqueue(action, paths, target, drive=dict(scope=sync.scope(config), space=space,
+        panel(self.window).enqueue(action, paths, target, drive=dict(scope=sync.scope(config),
                                                                   folder=folder, previous=previous or {}))
 
     def download(self, paths, target):
@@ -454,26 +438,19 @@ class Browser(QObject):
                 if not self.writable():
                     return True
                 cut = bytes(mime.data("application/x-kde-cutselection")) == b"1"
-                config, space, folder = dict(self.config), self.space, self.folder
+                config, folder = dict(self.config), self.folder
                 if target and is_drive(target):
-                    target_space, folder = parse(target)
-                    if target_space != space:
-                        self.window.error(tr("Zuerst einen Drive-Bereich öffnen."))
-                        return True
+                    folder = parse(target)
 
                 if not cut:
-                    self.queue('drive-copy', remote, location(space, folder), config, space, folder)
+                    self.queue('drive-copy', remote, location(folder), config, folder)
                     return True
 
                 def run(job):
-                    for source_space, kind, row in resolve(config, remote):
+                    for kind, row in resolve(config, remote):
                         job.check()
-                        if source_space != space:
-                            raise ValueError(
-                                tr(
-                                    "Zwischen Bereichen zuerst herunterladen und anschließend hochladen."
-                                )
-                            )
+                        if not row.get('can_write', False):
+                            raise ValueError(tr('Dieser Eintrag ist nur zum Lesen freigegeben.'))
                         key = "parent_id" if kind == "folder" else "folder_id"
                         data = dict(
                             name=row["name"], revision=row["revision"], trashed=False
@@ -514,14 +491,9 @@ class Browser(QObject):
         ):
             self.window.error(tr("Serververbindung geändert. Drive neu öffnen."))
             return False
-        if not self.space:
-            self.window.error(tr("Zuerst einen Drive-Bereich öffnen."))
-            return False
-        if (
-            next((s["role"] for s in self.spaces if s["id"] == self.space), "reader")
-            == "reader"
-        ):
-            self.window.error(tr("Dieser Bereich ist nur lesbar."))
+        current = self.cache['folders'].get(self.folder)
+        if not (current.get('can_write', False) if current else self.profile.get('can_create', False)):
+            self.window.error(tr('Dieser Ordner ist nur zum Lesen freigegeben.'))
             return False
         if self.jobs or self.window.file_job:
             self.window.activity.setText(
@@ -542,7 +514,7 @@ class Browser(QObject):
     def upload(self, paths, folder=None):
         if not paths or not self.writable():
             return
-        config, space = dict(self.config), self.space
+        config = dict(self.config)
         target = self.folder if folder is None else folder
         uploads, previous = [], {}
         for path in paths:
@@ -571,7 +543,7 @@ class Browser(QObject):
                 continue
             uploads.append(path)
             previous[path] = old
-        self.queue('drive-upload', uploads, location(space, target), config, space, target, previous)
+        self.queue('drive-upload', uploads, location(target), config, target, previous)
 
     def mkdir(self):
         if not self.writable():
@@ -581,11 +553,11 @@ class Browser(QObject):
         )
         if not ok or not name:
             return
-        config, space, folder = dict(self.config), self.space, self.folder
+        config, folder = dict(self.config), self.folder
         self.mutation(
             lambda _: sync.request(
                 config,
-                "/folders?" + urlencode(dict(workspace=space)),
+                "/folders",
                 dict(id=str(uuid4()), name=valid_name(name), parent_id=folder),
             )
         )
@@ -599,8 +571,8 @@ class Browser(QObject):
         def run(job):
             for kind, row in entries:
                 job.check()
-                if kind == "space":
-                    raise ValueError(tr("Serverbereiche hier nicht verändern."))
+                if not row.get("can_write", False):
+                    raise ValueError(tr("Dieser Eintrag ist nur zum Lesen freigegeben."))
                 data = dict(
                     name=name or row["name"], revision=row["revision"], trashed=trash
                 )
@@ -648,11 +620,11 @@ class Browser(QObject):
     def settings(self, offline=False):
         from drive_ui import show
 
-        space, folder = self.space, self.folder
+        folder = self.folder
         paths = self.window.selected_paths()
         if len(paths) == 1 and self.entries.get(paths[0], ("file",))[0] != "file":
-            space, folder = parse(paths[0])
-        show(self.window, workspace=space, folder=folder, offline=offline)
+            folder = parse(paths[0])
+        show(self.window, folder=folder, offline=offline)
 
     def context_menu(self, position):
         from PySide6.QtCore import QItemSelectionModel
@@ -672,36 +644,4 @@ class Browser(QObject):
             menu.deleteLater()
 
     def build_context_menu(self, paths):
-        from file_action_menu import ActionMenu
-        w = self.window
-        if paths:
-            title = self.entries[paths[0]][1]['name'] if len(paths) == 1 else tr('{0} Einträge ausgewählt', len(paths))
-            menu = ActionMenu(w, title, 'Lumen Drive',
-                              'text-x-generic' if len(paths) == 1 and self.entries[paths[0]][0] == 'file' else 'folder')
-            menu.quick(tr('Kopieren'), 'edit-copy', lambda: self.copy(False), tr('Strg+C'))
-            menu.quick(tr('Ausschneiden'), 'edit-cut', lambda: self.copy(True), tr('Strg+X'))
-            menu.quick(tr('Umbenennen'), 'edit-rename', self.rename, 'F2', enabled=len(paths) == 1)
-            menu.quick(tr('Papierkorb'), 'user-trash', self.trash, tr('Entf'))
-            menu.addAction(QIcon.fromTheme('document-open'), tr('Öffnen'), w.open_selected)
-            menu.addSeparator()
-            organize = menu.addMenu(QIcon.fromTheme('folder'), tr('Organisieren'))
-            safety = menu.addMenu(QIcon.fromTheme('document-save'), tr('Sichern & synchronisieren').replace('&', '&&'))
-            if len(paths) == 1 and self.entries[paths[0]][0] != "file":
-                organize.addAction(tr("In neuem Tab öffnen"), lambda: w.new_tab(paths[0]))
-            if all(self.entries[p][0] != "space" for p in paths):
-                def save():
-                    target = QFileDialog.getExistingDirectory(w, tr("Downloadordner"))
-                    if target:
-                        self.download(paths, target)
-                organize.addAction(tr("Herunterladen …"), save)
-        else:
-            menu = organize = safety = QMenu(w)
-        organize.addAction(tr("Hier einfügen"), w.paste)
-        organize.addAction(tr("Neuer Ordner"), self.mkdir)
-        safety.addAction(tr("Offline verfügbar …"), lambda: self.settings(True))
-        safety.addAction(tr("Synchronisation und Offline-Verfügbarkeit …"), lambda: self.settings(False))
-        organize.addAction(tr("Aktualisieren"), w.refresh)
-        if paths:
-            menu.finish()
-            menu.addAction(QIcon.fromTheme('document-properties'), tr('Eigenschaften …'), lambda: w.show_properties(paths))
-        return menu
+        return self.window.build_context_menu(paths)

@@ -1068,14 +1068,12 @@ def main():
                 print("Verbindung unterbrochen; neuer Versuch in 30 Sekunden.", file=sys.stderr)
             time.sleep(30)
     elif args.command == "task":
-        me = request(cfg, "/bridge/me")
         print(
             json.dumps(
                 request(
                     cfg,
                     "/bridge/tasks",
                     {
-                        "workspace_id": me["workspace_id"],
                         "prompt": args.prompt,
                         "kind": args.kind,
                         "idempotency_key": args.idempotency_key,

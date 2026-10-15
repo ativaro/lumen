@@ -18,9 +18,14 @@ def connection_scope(config):
 
 def binding(store, config, user):
     connection=connection_scope(config)
-    account=str(UUID(user['id']));workspace=str(UUID(user['workspace_id']))
-    scope=hashlib.sha256(json.dumps([connection,account,workspace,str(Memory(store).namespace)]).encode()).hexdigest()
-    return dict(connection=connection,scope=scope,user_id=account,workspace_id=workspace)
+    account=str(UUID(user['id']));namespace=str(Memory(store).namespace)
+    choice=store.setting('memory/sync-choice',{})
+    from sync_migration import memory_scope
+    previous=memory_scope(choice,connection,account,namespace)
+    if previous is None and choice.get('protocol')==2 and (choice.get('connection'),choice.get('user_id'),choice.get('namespace'))==(connection,account,namespace):
+        previous=choice['scope']
+    scope=previous or hashlib.sha256(json.dumps([connection,account,namespace]).encode()).hexdigest()
+    return dict(connection=connection,scope=scope,user_id=account,namespace=namespace,protocol=2)
 
 
 def key(choice):return 'memory/server-sync/'+choice['scope']
@@ -62,7 +67,7 @@ def configure(store, enabled, expected):
         with memory.book.lock('memory-state.lock'):
             records=store.setting('memory/records',{})
             for meta in records.values():
-                if (meta.get('sync_user'),meta.get('sync_workspace'),meta.get('sync_server'))==(choice['user_id'],choice['workspace_id'],config['server']):
+                if (meta.get('sync_user'),meta.get('sync_server'))==(choice['user_id'],config['server']):
                     meta['sync_connection']=choice['connection']
                     meta['sync_blocked']=False
             store.set_setting('memory/records',records);memory.changed(True)
@@ -133,8 +138,11 @@ def synchronize(store):
                 raise ValueError(tr('Die Serververbindung wurde geändert.'))
             return result
         user=request('/bridge/me')
-        if binding(store,config,user)!= {k:choice[k] for k in ('connection','scope','user_id','workspace_id')}:
+        current=binding(store,config,user)
+        if any(current[k]!=choice.get(k) for k in ('connection','scope','user_id')):
             raise ValueError(tr('Die Serververbindung wurde geändert.'))
+        choice={**current,'enabled':True}
+        store.set_setting('memory/sync-choice',choice)
         if 'memory_sync' not in user.get('capabilities',[]) or 'memory_sync_v1' not in user.get('sync_features',[]):
             block_remote()
             raise ValueError(tr('Der Gedächtnisabgleich ist auf dem Server nicht freigegeben.'))
@@ -199,7 +207,7 @@ def synchronize(store):
                 records=store.setting('memory/records',{})
                 meta=dict(remote.get('memory_meta',{}),id=identity,scope='',allowed=False,automatic=False,
                           verification='',sync_connection=choice['connection'],sync_remote=True,sync_conflict=False,
-                          sync_user=choice['user_id'],sync_workspace=choice['workspace_id'],sync_server=config['server'],
+                          sync_user=choice['user_id'],sync_server=config['server'],
                           updated=time.time())
                 # Authorization is durable before the new file can be observed after a crash.
                 records[path]=meta;store.set_setting('memory/records',records)
@@ -222,7 +230,7 @@ def synchronize(store):
                 state['refs'][identity]=dict(revision=answer['revision'],hash=pending['hash'],path=pending['path'])
                 with memory.book.lock('memory-state.lock'):
                     mark(memory,identity,sync_connection=choice['connection'],sync_conflict=False,
-                         sync_user=choice['user_id'],sync_workspace=choice['workspace_id'],sync_server=config['server'])
+                         sync_user=choice['user_id'],sync_server=config['server'])
                 state['conflicts'].pop(identity,None);changed+=1
             else:conflict(identity,remote)
             state['pending'].pop(identity,None);save()
@@ -232,8 +240,8 @@ def synchronize(store):
         cursor=state['cursor'];seen=0
         while True:
             page=request('/bridge/memories?after='+str(cursor))
-            if (page.get('protocol')!=1 or page.get('user_id')!=choice['user_id'] or
-                page.get('workspace_id')!=choice['workspace_id'] or not isinstance(page.get('items'),list) or len(page['items'])>100 or
+            if (page.get('protocol')!=2 or page.get('user_id')!=choice['user_id'] or
+                not isinstance(page.get('items'),list) or len(page['items'])>100 or
                 type(page.get('cursor')) is not int or page['cursor']<cursor or type(page.get('more')) is not bool):
                 raise ValueError('Invalid memory sync page')
             seen+=len(page['items'])
