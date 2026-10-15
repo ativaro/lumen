@@ -98,7 +98,9 @@ package() {
 
     # ---- program binaries -------------------------------------------------
     install -d "$pkgdir/usr/bin"
-    install -m0755 "$srcroot/bin/"* "$pkgdir/usr/bin/"
+    for binary in "$srcroot/bin/"*; do
+        if [[ -f "$binary" ]]; then install -m0755 "$binary" "$pkgdir/usr/bin/"; fi
+    done
 
     bash "$srcroot/native/build-capture.sh" "$pkgdir/usr/bin/lumen-window-capture"
 
