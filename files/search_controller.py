@@ -377,7 +377,7 @@ class SearchController(QObject):
         self._conversation = True; self.stateChanged.emit()
 
     def update_messages(self, messages):
-        rows, answer = message_rows(messages)
+        rows, answer = message_rows(messages, self.rich.file_results)
         for row in rows:
             for block in row['blocks']:
                 for item in block.get('items', []):

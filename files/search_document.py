@@ -42,19 +42,25 @@ def render(text):
     return ''.join(safe.output)
 
 
-def message_rows(messages):
+def message_rows(messages, include_files=False):
     from answer_blocks import blocks
     rows = []; answer = ''
-    for index, message in enumerate(messages):
+    from rich_result import display_messages
+    for index, message in enumerate(display_messages(messages, include_files)):
         role = message.get('info', {}).get('role')
         if role not in ('assistant', 'user'): continue
         parts = message.get('parts', [])
         text = '\n\n'.join(p.get('text', '') for p in parts if p.get('type') == 'text' and not p.get('synthetic'))
         activity = [p.get('state', {}).get('title') or p.get('tool', tr('Werkzeug')) for p in parts if p.get('type') == 'tool' and p.get('state', {}).get('status') in ('running', 'pending')]
         if role == 'assistant' and text: answer = text
-        if text or activity: rows.append(dict(key=message.get('info', {}).get('id', str(index)), role=role, text=text, body=render(text) if role == 'user' else '', blocks=blocks(text) if role == 'assistant' else [], activity=' · '.join(activity), actions=False))
+        if text or activity or message.get('presentation'): rows.append(dict(presentation=bool(message.get('presentation')), key=message.get('info', {}).get('id', str(index)), role=role, text=text, body=render(text) if role == 'user' else '', blocks=blocks(text) if role == 'assistant' else [], activity=' · '.join(activity), actions=False))
     for row in reversed(rows):
         if row['role'] == 'assistant' and row['text']:
             row['actions'] = True
             break
+    for message in reversed(messages):
+        if message.get('info', {}).get('role') != 'assistant': continue
+        text = '\n\n'.join(p.get('text', '') for p in message.get('parts', []) if p.get('type') == 'text' and not p.get('synthetic'))
+        if text:
+            answer = text; break
     return rows, answer

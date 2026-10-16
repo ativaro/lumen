@@ -528,7 +528,9 @@ class ChatPanel(QWidget):
         answer_index = None
         self.last_answer = ''
         self.answer_turn = ''
-        for index, message in enumerate(messages):
+        from rich_result import display_messages
+        self.rich_message_index = None
+        for index, message in enumerate(display_messages(messages)):
             info = message.get('info', {})
             role = info.get('role')
             if self.action and (role != 'assistant' or info.get('parentID') != self.backend.message_id):
@@ -544,8 +546,15 @@ class ChatPanel(QWidget):
                 self.answer_turn = info.get('parentID', '')
                 answer_key = (self.backend.session, info.get('id', index))
                 answer_index = len(entries)
-            if text or (activity and not self.action):
+            if message.get('presentation'): self.rich_message_index = len(entries)
+            if text or message.get('presentation') or (activity and not self.action):
                 entries.append((role, text, [] if self.action else activity))
+        for message in reversed(messages):
+            info = message.get('info', {})
+            if info.get('role') != 'assistant' or (self.action and info.get('parentID') != self.backend.message_id): continue
+            text = '\n\n'.join(p.get('text', '') for p in message.get('parts', []) if p.get('type') == 'text' and not p.get('synthetic'))
+            if text:
+                self.last_answer = text; break
         self.copy.setEnabled(bool(self.last_answer))
         self.save_note_button.setEnabled(bool(self.last_answer));self.remember_button.setEnabled(bool(self.last_answer))
         self.action_more.setEnabled(bool(self.last_answer) and not self.backend.busy)

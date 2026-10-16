@@ -169,7 +169,7 @@ class StudioTest(unittest.TestCase):
         chat.composer.setPlainText('Keep draft'); chat.paths = [self.tmp + '/attached.txt']
         with patch.object(chat.backend, 'new_conversation') as new:
             bar.project.click()
-            self.assertEqual(self.launch.call_args.args, ('lumen-workbench', ['--section','rooms']))
+            self.assertEqual(self.launch.call_args.args, ('lumen-workbench', ['--section','projects']))
             new.assert_not_called()
         self.assertEqual(chat.composer.toPlainText(), 'Keep draft'); self.assertEqual(len(chat.paths), 1)
         self.assertEqual(self.window.pages.count(), 1)

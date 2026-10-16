@@ -63,11 +63,14 @@ class StudioTranscript(QScrollArea):
         return next((row[2].textCursor() for row in self.rows if row[2].textCursor().hasSelection()), self.backing.textCursor())
 
     def entries(self, entries, action=False):
+        rich = getattr(self.parent(), 'rich_widget', None)
         self.answer_actions.setParent(self.content)
         empty = tr('Das Ergebnis erscheint hier.') if action else tr('## Was möchtest du erledigen?\n\nSchreib einen Gedanken oder füge eine Datei hinzu. Lumen hilft dir beim nächsten Schritt.')
         values = entries or [('assistant', empty, [])]
         while len(self.rows) > len(values):
-            container, _, _, _ = self.rows.pop(); self.box.removeWidget(container); container.deleteLater()
+            container, _, _, _ = self.rows.pop()
+            if rich is not None and container.isAncestorOf(rich): rich.setParent(self.content)
+            self.box.removeWidget(container); container.deleteLater()
         for index, entry in enumerate(values):
             role, value, activity = entry
             if index >= len(self.rows):
@@ -108,9 +111,18 @@ class StudioTranscript(QScrollArea):
         if last is not None: self.rows[last][2].parentWidget().layout().addWidget(self.answer_actions)
         self.answer_actions.setVisible(bool(entries) and last is not None)
         self.answer_actions.setEnabled(not self.parent().backend.busy)
+        index = getattr(self.parent(), 'rich_message_index', None)
+        if rich is not None:
+            if index is not None and index < len(self.rows):
+                self.rows[index][2].parentWidget().layout().insertWidget(2, rich)
+                rich.setVisible(rich.controller.active)
+            else:
+                rich.setParent(self.content); rich.hide()
         self.box.activate()
 
     def clear(self):
+        rich = getattr(self.parent(), 'rich_widget', None)
+        if rich is not None: rich.setParent(self.content); rich.hide()
         self.answer_actions.setParent(self.content); self.answer_actions.hide()
         for container, _, _, _ in self.rows:
             self.box.removeWidget(container); container.deleteLater()

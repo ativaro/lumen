@@ -11,6 +11,7 @@ ApplicationWindow {
     width: 1240; height: 700
     minimumWidth: 620; minimumHeight: 560
     property int section: 0
+    property bool resultDialogVisible: false
     // A remapped Wayland surface can receive the previous surface's focus-out first.
     property bool focusReceived: false
     readonly property bool homeVisible: !controller.conversation && !controller.query.trim() && section === 0
@@ -27,7 +28,7 @@ ApplicationWindow {
     onActiveChanged: {
         if (active) focusReceived = true
         else if (visible && focusReceived) Qt.callLater(function() {
-            if (window.visible && window.focusReceived && !window.active && !attachments.visible && !resultView.dialogVisible) window.hide()
+            if (window.visible && window.focusReceived && !window.active && !attachments.visible && !window.resultDialogVisible) window.hide()
         })
     }
     onVisibleChanged: { if (!visible) { focusReceived = false; window.controller.hidden() } else { composer.forceActiveFocus(); window.controller.homeView.start() } }
@@ -303,7 +304,7 @@ ApplicationWindow {
                                     id: messageRow
                                     objectName: "messageBubble"
                                     required property int slot
-                                    readonly property var modelData: window.controller.messages[slot] || ({role: "", body: "", blocks: [], key: "", activity: ""})
+                                    readonly property var modelData: window.controller.messages[slot] || ({role: "", body: "", blocks: [], key: "", activity: "", actions: false, presentation: false})
                                     readonly property bool userMessage: modelData.role === "user"
                                     Layout.fillWidth: true
                                     Layout.maximumWidth: userMessage ? Math.min(960, conversation.availableWidth) * 8 / 9 : 960
@@ -340,6 +341,16 @@ ApplicationWindow {
                                             theme: window.theme; controller: window.controller
                                             messageKey: messageRow.modelData.key
                                         }
+                                        Loader {
+                                            Layout.fillWidth: true
+                                            active: messageRow.modelData.presentation === true
+                                            visible: active
+                                            sourceComponent: ResultView {
+                                                view: window.controller.richView; theme: window.theme
+                                                onDialogVisibleChanged: window.resultDialogVisible = dialogVisible
+                                                Component.onDestruction: window.resultDialogVisible = false
+                                            }
+                                        }
                                         Label { Layout.fillWidth: true; visible: messageRow.modelData.activity.length > 0; text: messageRow.modelData.activity + " …"; color: window.theme.muted; font.pixelSize: 12; wrapMode: Text.Wrap; textFormat: Text.PlainText }
                                         ColumnLayout {
                                             objectName: "answerActions"
@@ -364,7 +375,6 @@ ApplicationWindow {
                                     }
                                 }
                             }
-                            ResultView { id: resultView; Layout.fillWidth: true; view: window.controller.richView; theme: window.theme }
                             Repeater {
                                 model: window.controller.permissions
                                 Rectangle {
