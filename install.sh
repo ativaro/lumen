@@ -151,6 +151,7 @@ subst "$REPO/data/applications/lumen.desktop" > "$DATA_HOME/applications/lumen.d
 if [ -f "$DATA_HOME/plasma_icons/lumen.desktop" ]; then
     install -m 0755 "$DATA_HOME/applications/lumen.desktop" "$DATA_HOME/plasma_icons/lumen.desktop"
 fi
+subst "$REPO/data/applications/lumen-toggle.desktop" > "$DATA_HOME/applications/lumen-toggle.desktop"
 subst "$REPO/data/applications/lumen-ask.desktop" > "$DATA_HOME/applications/lumen-ask.desktop"
 subst "$REPO/data/applications/lumen-ask-sel.desktop" > "$DATA_HOME/applications/lumen-ask-sel.desktop"
 subst "$REPO/data/applications/lumen-companion.desktop" > "$DATA_HOME/applications/lumen-companion.desktop"

@@ -35,6 +35,8 @@ class DesktopActivation(QObject):
         super().__init__()
         self.window = None
         self.pending = False
+        self.pending_toggle = False
+        self.starting = False
         self.page = None
         self.task = ''
         self.discussions = []
@@ -142,6 +144,26 @@ class DesktopActivation(QObject):
             else: QTimer.singleShot(0, perform)
             return ''
         except (ValueError, OSError) as error: return str(error)
+
+    @Slot()
+    def Toggle(self):
+        from lumen_hardware import gaming
+        if gaming(): return
+        if self.window is None or self.starting:
+            self.pending_toggle = not self.pending_toggle
+            return
+        from PySide6.QtGui import QGuiApplication
+        if QApplication.activeModalWidget() or QGuiApplication.modalWindow():
+            from lumen_activation import present
+            present(self.window)
+            return
+        search = getattr(self.window, 'search_window', None)
+        if search is not None and search.isVisible():
+            search.hide()
+        elif self.window.isVisible() and not self.window.isMinimized():
+            self.window.hide()
+        else:
+            self.window.open_search()
 
     @Slot()
     def Activate(self):
@@ -361,6 +383,7 @@ def main():
     parser = argparse.ArgumentParser(description=tr('Lumen – dein Desktop-Assistent'))
     parser.add_argument('--directory')
     parser.add_argument('--search', action='store_true')
+    parser.add_argument('--toggle', action='store_true', help=tr('Lumen ein- oder ausblenden, außer beim Spielen'))
     parser.add_argument('--details', action='store_true', help=tr('Lumen-Detailansicht öffnen'))
     parser.add_argument('--restore-state', type=Path)
     parser.add_argument('--voice', action='store_true')
@@ -382,6 +405,12 @@ def main():
     parser.add_argument('--clipboard-image', action='store_true')
     parser.add_argument('--page', choices=['chat', 'system', 'actions', 'files', 'tasks', 'knowledge', 'workflows', 'models', 'workplace', 'settings', 'apps', 'results', 'companion', 'household'])
     args = parser.parse_args()
+    if args.toggle:
+        if any(value != parser.get_default(key) for key,value in vars(args).items() if key != 'toggle'):
+            parser.error('--toggle cannot be combined with another action')
+        from lumen_hardware import gaming
+        if gaming(): return 0
+
     if args.draft and (args.prompt or args.session or args.task or args.selection or args.context or args.file or args.clipboard_image or args.action != 'open' or args.page not in (None, 'chat')):
         parser.error(tr('Ein Gesprächsentwurf kann nicht mit einer auszuführenden Aktion kombiniert werden.'))
     if args.session and (args.prompt or args.task or args.selection or args.context or args.file or args.clipboard_image or args.action != 'open' or args.page not in (None, 'chat')):
@@ -399,7 +428,8 @@ def main():
     app.setApplicationDisplayName('Lumen')
     app.setDesktopFileName('lumen')
     activation = DesktopActivation()
-    plain_launch = (args.action == 'open' and args.page != 'settings' and not any(
+    activation.starting = True
+    plain_launch = args.toggle or (args.action == 'open' and args.page != 'settings' and not any(
         (args.directory, args.location, args.prompt, args.draft, args.session, args.context, args.file, args.selection,
          args.clipboard_image, os.environ.get('LUMEN_ASK_PROMPT'))))
     args.search = args.search or (plain_launch and not (args.page or args.task or args.restore_state))
@@ -418,8 +448,8 @@ def main():
     if plain_launch and bus.isConnected() and bus.registerObject('/Lumen', activation, QDBusConnection.ExportAllSlots):
         if not bus.registerService('org.lumen.Desktop'):
             request = QDBusMessage.createMethodCall('org.lumen.Desktop', '/Lumen', 'org.lumen.Desktop',
-                                                   'TaskAction' if args.task_action else 'ActivateHousehold' if args.page=='household' else 'ActivateSearch' if args.search else 'ActivateTask' if args.task else 'ActivatePage' if args.page else 'Activate')
-            request.setArguments([args.task, args.task_action] if args.task_action else [json.dumps(household_request)] if args.page=='household' else [args.voice] if args.search else [args.task] if args.task else [page_index[args.page]] if args.page else [])
+                                                   'Toggle' if args.toggle else 'TaskAction' if args.task_action else 'ActivateHousehold' if args.page=='household' else 'ActivateSearch' if args.search else 'ActivateTask' if args.task else 'ActivatePage' if args.page else 'Activate')
+            request.setArguments([] if args.toggle else [args.task, args.task_action] if args.task_action else [json.dumps(household_request)] if args.page=='household' else [args.voice] if args.search else [args.task] if args.task else [page_index[args.page]] if args.page else [])
             reply = bus.call(request, QDBus.Block, 3000)
             if args.task_action and reply.type() != QDBusMessage.ErrorMessage and reply.arguments() != ['']:
                 print(str(reply.arguments()[0]), file=sys.stderr); return 1
@@ -482,7 +512,13 @@ def main():
         if args.location:
             window.open_files()
             window.file_window.navigate(args.location)
-    QTimer.singleShot(0, start)
+    def started():
+        start()
+        activation.starting = False
+        if activation.pending_toggle:
+            activation.pending_toggle = False
+            activation.Toggle()
+    QTimer.singleShot(0, started)
     from lumen_crash import attach
     attach(app, window, 'lumen', offer_recovery=plain_launch and args.restore_state is None)
     if plain_launch:

@@ -122,6 +122,7 @@ package() {
 
     install -d "$pkgdir/usr/share/applications"
     sub "$srcroot/data/applications/lumen.desktop" "$pkgdir/usr/share/applications/lumen.desktop"
+    sub "$srcroot/data/applications/lumen-toggle.desktop" "$pkgdir/usr/share/applications/lumen-toggle.desktop"
     sub "$srcroot/data/applications/lumen-ask.desktop" "$pkgdir/usr/share/applications/lumen-ask.desktop"
     sub "$srcroot/data/applications/lumen-ask-sel.desktop" "$pkgdir/usr/share/applications/lumen-ask-sel.desktop"
     sub "$srcroot/data/applications/lumen-companion.desktop" "$pkgdir/usr/share/applications/lumen-companion.desktop"

@@ -485,13 +485,11 @@ def notification_options(changes=None):
 
 
 def popup_context():
-    from lumen_hardware import activity
+    from lumen_hardware import gaming as game_active
     from PySide6.QtCore import QSettings
 
     settings = QSettings("Lumen", "Assistant")
-    gaming = settings.value("notifications/quietGames", True, type=bool) and bool(
-        {"Steam-Spiel", "GameMode-Spiel", "Gamescope-Sitzung"}.intersection(activity())
-    )
+    gaming = settings.value("notifications/quietGames", True, type=bool) and game_active()
     return {
         "gaming": gaming,
         "native": settings.value("notifications/nativePopups", True, type=bool),
