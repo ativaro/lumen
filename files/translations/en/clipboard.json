@@ -1,0 +1,14 @@
+{
+  "Geschützte Zwischenablage kann nicht an Lumen angehängt werden.": "Protected clipboard content cannot be attached to Lumen.",
+  "Der Bildanhang darf höchstens 32 MiB groß sein.": "The image attachment must not exceed 32 MiB.",
+  "Das Bild ist ungültig oder zu groß. Bitte einen kleineren Ausschnitt kopieren.": "The image is invalid or too large. Please copy a smaller area.",
+  "Das Bild in der Zwischenablage konnte nicht gelesen werden.": "The clipboard image could not be read.",
+  "Das Bild ist zu groß. Bitte einen kleineren Ausschnitt kopieren.": "The image is too large. Please copy a smaller area.",
+  "Das Bild konnte nicht als Anhang gespeichert werden.": "The image could not be saved as an attachment.",
+  "Ungültiger Zwischenablage-Speicher.": "Invalid clipboard storage.",
+  "Ungültiger Bildanhang.": "Invalid image attachment.",
+  "Der Zwischenablage-Speicher ist voll. Bitte das Bild als Datei anhängen.": "Clipboard storage is full. Please attach the image as a file.",
+  "Der Bildanhang konnte nicht gespeichert werden.": "The image attachment could not be saved.",
+  "Der Bildanhang konnte nicht geschützt gespeichert werden.": "The image attachment could not be saved privately.",
+  "Bitte höchstens 24 Anhänge hinzufügen.": "Please add no more than 24 attachments."
+}

@@ -155,6 +155,23 @@ class SearchController(QObject):
         from vault_privacy import protected_clipboard
         return protected_clipboard(QGuiApplication.clipboard())
 
+    @Slot(result=bool)
+    def paste_image(self):
+        """True consumes paste; False leaves normal text insertion to QML."""
+        if self.clipboard_protected(): return True
+        mime=QGuiApplication.clipboard().mimeData()
+        from clipboard_image import has_image
+        if not has_image(mime): return False
+        if self.backend.busy: return True
+        if len(self._attachments)>=24:
+            self.show_error(tr('Bitte höchstens 24 Anhänge hinzufügen.')); return True
+        from clipboard_image import save
+        try:
+            path=save(mime)
+            if path: self.add_attachments([QUrl.fromLocalFile(path).toString()])
+        except (OSError,ValueError,TypeError) as error: self.show_error(str(error))
+        return True
+
     @Slot(str, result=str)
     def text(self, source):
         return tr(source)
