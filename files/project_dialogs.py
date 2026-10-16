@@ -8,18 +8,18 @@ from lumen_i18n import tr
 from tools_ui import button,label,row,Job
 
 STYLE='''
-QDialog#projectDialog { background:#242929;color:#e9eeeb; }
-QDialog#projectDialog QLabel { color:#e9eeeb;background:transparent; }
-QDialog#projectDialog QLabel#dialogEyebrow { color:#afd3c5;font-size:10px;letter-spacing:1px; }
+QDialog#projectDialog { background:palette(window);color:palette(window-text); }
+QDialog#projectDialog QLabel { color:palette(window-text);background:transparent; }
+QDialog#projectDialog QLabel#dialogEyebrow { color:palette(highlight);font-size:10px;letter-spacing:1px; }
 QDialog#projectDialog QLabel#dialogTitle { font-size:25px;font-weight:500; }
-QDialog#projectDialog QLabel#muted { color:#a3b0aa;font-size:12px; }
-QDialog#projectDialog QLineEdit,QDialog#projectDialog QPlainTextEdit,QDialog#projectDialog QComboBox,QDialog#projectDialog QListWidget { background:#1d2221;color:#e9eeeb;border:1px solid #46514a;border-radius:8px;padding:10px;font-size:13px; }
-QDialog#projectDialog QLineEdit:focus,QDialog#projectDialog QPlainTextEdit:focus,QDialog#projectDialog QComboBox:focus { border-color:#afd3c5; }
-QDialog#projectDialog QPushButton { background:transparent;color:#e9eeeb;border:1px solid #46514a;border-radius:8px;padding:10px 16px; }
-QDialog#projectDialog QPushButton:hover,QDialog#projectDialog QPushButton:focus { border-color:#afd3c5;background:#303b35; }
-QDialog#projectDialog QPushButton#primary { background:#afd3c5;color:#1b3027;border-color:#afd3c5;font-weight:600; }
-QDialog#projectDialog QPushButton:disabled,QDialog#projectDialog QPushButton#primary:disabled { color:#88938d;background:#303632;border-color:#46514a; }
-QDialog#projectDialog QWidget#dialogFooter { border-top:1px solid #3a4340;background:#222726; }
+QDialog#projectDialog QLabel#muted { color:palette(placeholder-text);font-size:12px; }
+QDialog#projectDialog QLineEdit,QDialog#projectDialog QPlainTextEdit,QDialog#projectDialog QComboBox,QDialog#projectDialog QListWidget { background:palette(base);color:palette(window-text);border:1px solid palette(mid);border-radius:8px;padding:10px;font-size:13px; }
+QDialog#projectDialog QLineEdit:focus,QDialog#projectDialog QPlainTextEdit:focus,QDialog#projectDialog QComboBox:focus { border-color:palette(highlight); }
+QDialog#projectDialog QPushButton { background:transparent;color:palette(window-text);border:1px solid palette(mid);border-radius:8px;padding:10px 16px; }
+QDialog#projectDialog QPushButton:hover,QDialog#projectDialog QPushButton:focus { border-color:palette(highlight);background:palette(alternate-base); }
+QDialog#projectDialog QPushButton#primary { background:palette(highlight);color:palette(highlighted-text);border-color:palette(highlight);font-weight:600; }
+QDialog#projectDialog QPushButton:disabled,QDialog#projectDialog QPushButton#primary:disabled { color:palette(placeholder-text);background:palette(alternate-base);border-color:palette(mid); }
+QDialog#projectDialog QWidget#dialogFooter { border-top:1px solid palette(mid);background:palette(window); }
 '''
 
 

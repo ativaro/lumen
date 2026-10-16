@@ -12,27 +12,27 @@ from projects_data import KINDS, STATES
 
 STYLE = """
 QWidget#projectJournal QLabel#journalTitle { font-size:30px;font-weight:500;padding:7px 0 18px; }
-QWidget#projectJournal QLabel#journalEyebrow { color:#aed5c8;font-size:10px;letter-spacing:1px; }
+QWidget#projectJournal QLabel#journalEyebrow { color:palette(highlight);font-size:10px;letter-spacing:1px; }
 QWidget#projectJournal QLabel#journalSection { font-size:13px;font-weight:600; }
-QWidget#projectJournal QLabel#journalMuted { color:#a3afac;font-size:12px; }
-QWidget#projectJournal QLabel#journalDescription { color:#a3afac;font-size:13px; }
-QWidget#projectJournal QLabel#journalSmall { color:#a3afac;font-size:11px; }
+QWidget#projectJournal QLabel#journalMuted { color:palette(placeholder-text);font-size:12px; }
+QWidget#projectJournal QLabel#journalDescription { color:palette(placeholder-text);font-size:13px; }
+QWidget#projectJournal QLabel#journalSmall { color:palette(placeholder-text);font-size:11px; }
 QWidget#projectJournal QLabel#journalSummary { font-family:'Noto Serif';font-size:31px;font-weight:400; }
-QWidget#projectJournal QTabBar { border-bottom:1px solid #353d3e; }
-QWidget#projectJournal QTabBar::tab { color:#a3afac;background:transparent;border:0;border-radius:0;border-bottom:2px solid transparent;padding:12px 0;margin-right:22px;font-size:12px; }
-QWidget#projectJournal QTabBar::tab:selected { color:#ecf0ee;border-bottom-color:#aed5c8; }
-QWidget#projectJournal QTabBar::tab:focus { color:#aed5c8; }
-QWidget#projectJournal QWidget#journalComposer { background:#303d37;border:1px solid #aed5c8;border-radius:10px; }
-QWidget#projectJournal QPlainTextEdit { background:transparent;color:#ecf0ee;border:0;padding:0;font-size:13px; }
-QWidget#projectJournal QWidget#journalSectionBlock { border-top:1px solid #353d3e; }
-QWidget#projectJournal QWidget#journalOverview { border-bottom:1px solid #353d3e; }
-QWidget#projectJournal QWidget#journalTimeline { border-left:1px solid #353d3e; }
-QWidget#projectJournal QPushButton#journalAction { background:transparent;border:1px solid #353d3e;border-radius:7px;padding:8px 10px;font-size:11px; }
+QWidget#projectJournal QTabBar { border-bottom:1px solid palette(mid); }
+QWidget#projectJournal QTabBar::tab { color:palette(placeholder-text);background:transparent;border:0;border-radius:0;border-bottom:2px solid transparent;padding:12px 0;margin-right:22px;font-size:12px; }
+QWidget#projectJournal QTabBar::tab:selected { color:palette(window-text);border-bottom-color:palette(highlight); }
+QWidget#projectJournal QTabBar::tab:focus { color:palette(highlight); }
+QWidget#projectJournal QWidget#journalComposer { background:palette(alternate-base);border:1px solid palette(highlight);border-radius:10px; }
+QWidget#projectJournal QPlainTextEdit { background:transparent;color:palette(window-text);border:0;padding:0;font-size:13px; }
+QWidget#projectJournal QWidget#journalSectionBlock { border-top:1px solid palette(mid); }
+QWidget#projectJournal QWidget#journalOverview { border-bottom:1px solid palette(mid); }
+QWidget#projectJournal QWidget#journalTimeline { border-left:1px solid palette(mid); }
+QWidget#projectJournal QPushButton#journalAction { background:transparent;border:1px solid palette(mid);border-radius:7px;padding:8px 10px;font-size:11px; }
 QWidget#projectJournal QPushButton#journalIntegration { background:transparent;border:0;border-radius:7px;text-align:left;padding:8px 0;font-size:12px; }
 QWidget#projectJournal QPushButton#journalEntry { background:transparent;border:0;padding:0;text-align:left;min-height:46px; }
 QWidget#projectJournal QLabel#journalEntryTitle { font-size:16px;font-weight:500; }
-QWidget#projectJournal QPushButton:hover,QWidget#projectJournal QPushButton:focus { color:#aed5c8;border-color:#aed5c8; }
-QWidget#projectJournal QScrollArea,QWidget#projectJournal QWidget#journalPage { background:#1e2122;border:0; }
+QWidget#projectJournal QPushButton:hover,QWidget#projectJournal QPushButton:focus { color:palette(highlight);border-color:palette(highlight); }
+QWidget#projectJournal QScrollArea,QWidget#projectJournal QWidget#journalPage { background:palette(window);border:0; }
 """
 
 
@@ -149,7 +149,7 @@ class ProjectJournal(QWidget):
         self.side.setMaximumWidth(16777215 if narrow else 280)
         self.side.setMinimumWidth(0 if narrow else 230)
         self.side_box.setContentsMargins(0 if narrow else 24,22 if narrow else 0,0,0)
-        self.side.setStyleSheet('QWidget#journalAside { border-'+('top' if narrow else 'left')+':1px solid #353d3e; }')
+        self.side.setStyleSheet('QWidget#journalAside { border-'+('top' if narrow else 'left')+':1px solid palette(mid); }')
 
     def resizeEvent(self,event):
         super().resizeEvent(event);self.reflow()

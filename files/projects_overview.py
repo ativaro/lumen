@@ -2,7 +2,7 @@
 from datetime import datetime
 from pathlib import Path
 from PySide6.QtCore import Qt, QRectF, Signal
-from PySide6.QtGui import QColor, QPainter, QPen, QFontDatabase, QIcon
+from PySide6.QtGui import QPalette, QPainter, QPen, QFontDatabase, QIcon
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLineEdit, QPushButton, QScrollArea
 from lumen_i18n import tr, language
 from tools_ui import label, button, row
@@ -10,25 +10,25 @@ from tools_ui import label, button, row
 
 STYLE = '''
 QWidget#projectHome,QWidget#projectHome QWidget { font-family:'DM Sans 9pt'; }
-QWidget#projectHome { background:#1e2122;color:#ecf0ee; }
-QWidget#projectHome QLabel { color:#ecf0ee;background:transparent; }
-QWidget#projectHome QLabel#overviewEyebrow { color:#8dac9f;font-size:10px;font-weight:600;letter-spacing:2px; }
+QWidget#projectHome { background:palette(window);color:palette(window-text); }
+QWidget#projectHome QLabel { color:palette(window-text);background:transparent; }
+QWidget#projectHome QLabel#overviewEyebrow { color:palette(link);font-size:10px;font-weight:600;letter-spacing:2px; }
 QWidget#projectHome QLabel#overviewTitle { font-size:34px;font-weight:500; }
-QWidget#projectHome QLabel#overviewMuted { color:#a3afac;font-size:13px; }
-QWidget#projectHome QLabel#overviewSmall { color:#a3afac;font-size:11px; }
-QWidget#projectHome QPushButton#overviewNew { background:#aed5c8;color:#172c24;border:0;border-radius:8px;padding:12px 18px;font-size:13px; }
-QWidget#projectHome QPushButton#overviewFilter { border:0;border-radius:18px;padding:9px 13px;font-size:12px;color:#a3afac;background:transparent; }
-QWidget#projectHome QPushButton#overviewFilter:checked { background:#303d37;color:#aed5c8;border:0;border-radius:18px;min-height:18px; }
-QWidget#projectHome QLineEdit#overviewSearch { border:0;border-bottom:1px solid #353d3e;border-radius:0;background:transparent;color:#ecf0ee;padding:11px 0;font-size:13px; }
-QWidget#projectHome QPushButton#projectCard { background:#25292a;border:1px solid #353d3e;border-radius:12px;padding:0;text-align:left;min-height:256px; }
-QWidget#projectHome QPushButton#projectCard:hover,QWidget#projectHome QPushButton#projectCard:focus { border:1px solid #aed5c8; }
+QWidget#projectHome QLabel#overviewMuted { color:palette(placeholder-text);font-size:13px; }
+QWidget#projectHome QLabel#overviewSmall { color:palette(placeholder-text);font-size:11px; }
+QWidget#projectHome QPushButton#overviewNew { background:palette(highlight);color:palette(highlighted-text);border:0;border-radius:8px;padding:12px 18px;font-size:13px; }
+QWidget#projectHome QPushButton#overviewFilter { border:0;border-radius:18px;padding:9px 13px;font-size:12px;color:palette(placeholder-text);background:transparent; }
+QWidget#projectHome QPushButton#overviewFilter:checked { background:palette(alternate-base);color:palette(highlight);border:0;border-radius:18px;min-height:18px; }
+QWidget#projectHome QLineEdit#overviewSearch { border:0;border-bottom:1px solid palette(mid);border-radius:0;background:transparent;color:palette(window-text);padding:11px 0;font-size:13px; }
+QWidget#projectHome QPushButton#projectCard { background:palette(base);border:1px solid palette(mid);border-radius:12px;padding:0;text-align:left;min-height:256px; }
+QWidget#projectHome QPushButton#projectCard:hover,QWidget#projectHome QPushButton#projectCard:focus { border:1px solid palette(highlight); }
 QWidget#projectHome QLabel#projectCardTitle { font-size:20px;font-weight:500; }
-QWidget#projectHome QPushButton#recentProject { background:transparent;border:0;border-bottom:1px solid #353d3e;border-radius:0;padding:0;text-align:left;min-height:74px; }
-QWidget#projectHome QPushButton#recentProject:focus { border:1px solid #aed5c8; }
+QWidget#projectHome QPushButton#recentProject { background:transparent;border:0;border-bottom:1px solid palette(mid);border-radius:0;padding:0;text-align:left;min-height:74px; }
+QWidget#projectHome QPushButton#recentProject:focus { border:1px solid palette(highlight); }
 QWidget#projectHome QLabel#recentTitle { font-size:13px;font-weight:500; }
-QWidget#projectHome QWidget#overviewRecent { border-top:1px solid #353d3e; }
+QWidget#projectHome QWidget#overviewRecent { border-top:1px solid palette(mid); }
 QWidget#projectHome QLabel#recentHeading { font-size:18px;font-weight:500; }
-QWidget#projectHome QScrollArea,QWidget#overviewPage { border:0;background:#1e2122; }
+QWidget#projectHome QScrollArea,QWidget#overviewPage { border:0;background:palette(window); }
 '''
 
 
@@ -52,8 +52,8 @@ class ProjectGlyph(QWidget):
         painter=QPainter(self);painter.setRenderHint(QPainter.Antialiasing)
         if self.compact:painter.translate(-8,-8);painter.scale(.9,.9)
         else:
-            painter.setPen(Qt.NoPen);painter.setBrush(QColor('#303d37'));painter.drawRoundedRect(QRectF(0,0,40,40),12,12)
-        painter.setBrush(Qt.NoBrush);painter.setPen(QPen(QColor('#aed5c8'),1.5))
+            painter.setPen(Qt.NoPen);painter.setBrush(self.palette().color(QPalette.AlternateBase));painter.drawRoundedRect(QRectF(0,0,40,40),12,12)
+        painter.setBrush(Qt.NoBrush);painter.setPen(QPen(self.palette().color(QPalette.Link),1.5))
         painter.drawLine(10,16,10,11);painter.drawLine(10,11,17,11);painter.drawLine(17,11,20,15);painter.drawLine(20,15,30,15)
         painter.drawLine(10,16,30,16);painter.drawLine(30,16,27,29);painter.drawLine(27,29,10,29);painter.drawLine(10,29,10,16)
 
