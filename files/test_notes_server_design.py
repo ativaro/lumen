@@ -33,7 +33,7 @@ class ServerDesignTest(unittest.TestCase):
                     self.assertFalse(w.notes)
                     note=w.book.create('Schreibprobe '+profile,'## Willkommen\n\nDirekt **formatiert** schreiben.\n\n- [ ] Prüfen\n\n| Aufgabe | Status |\n| --- | --- |\n| Entwurf | In Arbeit |')
                     w.book.create('Zweite Notiz','Anderer Inhalt');w.scanned(w.book.scan());w.show_note(note)
-                    self.assertEqual(w.palette().color(QPalette.Window).name(),'#191b1e')
+                    self.assertEqual(w.palette().color(QPalette.Window),self.app.palette().color(QPalette.Window))
                     self.assertNotIn('**',summary(note['text']));self.assertNotIn('**',w.rich_editor.toPlainText())
                     w.note_tags.input.setText('entwurf');QTest.keyClick(w.note_tags.input,Qt.Key_Return)
                     self.assertIn('entwurf',tags(w.document_text()));self.assertEqual(w.note_tags.input.text(),'')

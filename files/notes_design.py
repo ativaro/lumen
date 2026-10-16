@@ -1,31 +1,41 @@
-"""Native Notes counterpart of knowledge.css and the server's Graphit palette."""
+"""Native Notes layout using the shared application palette."""
 from functools import lru_cache
 from pathlib import Path
 import re
 from PySide6.QtCore import Qt, QSize, QRectF
-from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QPalette, QPen, QPainter
-from PySide6.QtWidgets import QStyledItemDelegate, QStyle, QListView
+from PySide6.QtGui import QFont, QFontDatabase, QIcon, QIconEngine, QPixmap, QPalette, QPen, QPainter
+from PySide6.QtWidgets import QApplication, QStyledItemDelegate, QStyle, QListView
+from PySide6.QtSvg import QSvgRenderer
 from lumen_i18n import tr
 
 
-def icon(name):
-    return QIcon(str(Path(__file__).with_name('notes_icons') / (name+'.svg')))
+class NoteIcon(QIconEngine):
+    def __init__(self,name):
+        super().__init__();self.name=name
+        self.svg=(Path(__file__).with_name('notes_icons')/(name+'.svg')).read_bytes()
+
+    def clone(self):return NoteIcon(self.name)
+
+    def paint(self,painter,rect,mode,state):
+        palette=QApplication.palette()
+        role=QPalette.HighlightedText if self.name=='save' else QPalette.Text
+        color=palette.color(QPalette.Disabled if mode==QIcon.Disabled else QPalette.Active,role).name().encode()
+        svg=self.svg.replace(b'#edece8',color).replace(b'#172c24',color)
+        QSvgRenderer(svg).render(painter,QRectF(rect))
+
+    def pixmap(self,size,mode,state):
+        result=QPixmap(size);result.fill(Qt.transparent)
+        painter=QPainter(result);self.paint(painter,result.rect(),mode,state);painter.end()
+        return result
+
+
+def icon(name):return QIcon(NoteIcon(name))
 
 
 def apply(window, shell):
     for path in Path(__file__).with_name('project_fonts').glob('*.woff2'):
         QFontDatabase.addApplicationFont(str(path))
     font = QFont('DM Sans 9pt'); font.setPixelSize(14); window.setFont(font)
-    palette = window.palette()
-    for role, color in [(QPalette.Window, '#191b1e'), (QPalette.Base, '#202326'),
-                         (QPalette.AlternateBase, '#282c30'), (QPalette.Text, '#edece8'),
-                         (QPalette.WindowText, '#edece8'), (QPalette.ButtonText, '#edece8'),
-                         (QPalette.Button, '#202326'), (QPalette.Mid, '#363a3e'),
-                         (QPalette.Midlight, '#282c30'), (QPalette.Dark, '#a4abae'),
-                         (QPalette.Link, '#bbd2c5'), (QPalette.Highlight, '#3b5048'),
-                         (QPalette.HighlightedText, '#edece8'), (QPalette.PlaceholderText, '#a4abae')]:
-        palette.setColor(role, QColor(color))
-    window.setPalette(palette); shell.setPalette(palette)
     window.resize(1440, 960)
 
 
@@ -69,13 +79,13 @@ class NoteListDelegate(QStyledItemDelegate):
         rect = option.rect.adjusted(0, 2, 0, -2)
         active = bool(option.state & QStyle.State_Selected)
         if active or option.state & QStyle.State_MouseOver:
-            painter.setPen(Qt.NoPen); painter.setBrush(QColor('#282c30')); painter.drawRoundedRect(rect, 8, 8)
+            painter.setPen(Qt.NoPen); painter.setBrush(option.palette.color(QPalette.AlternateBase)); painter.drawRoundedRect(rect, 8, 8)
         if option.state & QStyle.State_HasFocus:
-            painter.setBrush(Qt.NoBrush); painter.setPen(QPen(QColor('#bbd2c5'), 1)); painter.drawRoundedRect(rect.adjusted(1,1,-1,-1),8,8)
+            painter.setBrush(Qt.NoBrush); painter.setPen(QPen(option.palette.color(QPalette.Link), 1)); painter.drawRoundedRect(rect.adjusted(1,1,-1,-1),8,8)
         title, _, detail = (index.data() or '').partition('\n')
         body = index.data(Qt.UserRole+1) or ''
-        for y, text, size, color in [(12,title,13,'#edece8'),(37,summary(body),11,'#a4abae'),(58,detail,11,'#a4abae')]:
-            font = QFont(option.font); font.setPixelSize(size); painter.setFont(font); painter.setPen(QColor(color))
+        for y, text, size, color in [(12,title,13,QPalette.Text),(37,summary(body),11,QPalette.PlaceholderText),(58,detail,11,QPalette.PlaceholderText)]:
+            font = QFont(option.font); font.setPixelSize(size); painter.setFont(font); painter.setPen(option.palette.color(color))
             text = painter.fontMetrics().elidedText(text, Qt.ElideRight, max(0,rect.width()-24))
             painter.drawText(QRectF(rect.x()+12,rect.y()+y,rect.width()-24,20), Qt.AlignLeft|Qt.AlignVCenter, text)
         painter.restore()

@@ -35,6 +35,12 @@ class RichEditor(QTextEdit):
             if hasattr(self.window,'save_note_button'): self.window.save_note_button.setEnabled(self.source.isEnabled())
         return super().eventFilter(obj,event)
 
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type()==QEvent.PaletteChange and hasattr(self,'codec'):
+            for key,raw in self.codec.opaque.items(): self.card(key,raw)
+            self.viewport().update()
+
     def load_source(self):
         if self.syncing: return
         self.syncing = True
@@ -163,7 +169,8 @@ class RichEditor(QTextEdit):
 
     def style_table(self, table):
         fmt=table.format();fmt.setCellPadding(8);fmt.setCellSpacing(0)
-        border=QBrush(QColor('#363a3e'))
+        # A translucent neutral rule blends with every theme without editing undo history.
+        border=QBrush(QColor(128,128,128,100))
         fmt.setBorder(1);fmt.setBorderBrush(border);fmt.setBorderStyle(QTextFrameFormat.BorderStyle_Solid);fmt.setBorderCollapse(True)
         fmt.setWidth(QTextLength(QTextLength.PercentageLength,100));table.setFormat(fmt)
         for row in range(table.rows()):
