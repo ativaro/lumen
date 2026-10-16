@@ -11,9 +11,55 @@ class JournalTest(unittest.TestCase):
         self.app=QApplication.instance() or QApplication([]);self.window=Workbench(self.root)
         self.window.error=lambda text:self.fail(text)
         self.key=self.window.library.create('Journal',notes='Keep me',resources=[],references=[])
-        self.window.focus_record(self.key);self.window.editor.hide()
+        self.window.focus_record(self.key)
     def tearDown(self):
         self.window.journal.question.clear();self.window.close();self.window.deleteLater();self.app.processEvents()
+    def test_restored_project_opens_journal_without_editor(self):
+        w=self.window;w.show();self.app.processEvents()
+        self.assertIs(w.home.pages.currentWidget(),w.home.detail)
+        self.assertEqual(w.journal.project,self.key)
+        self.assertFalse(w.editor.isVisible())
+        self.assertFalse(w.editor.dirty())
+        self.assertEqual(w.library.get(self.key)['notes'],'Keep me')
+        w.journal.edit.click();self.app.processEvents()
+        self.assertTrue(w.project_dialog.isVisible())
+        self.assertFalse(w.editor.isVisible())
+        w.project_dialog.reject()
+
+    def test_project_navigation_leaves_task_editor_but_preserves_task_editing(self):
+        w=self.window;w.show();self.app.processEvents()
+        parent=w.projects.add(self.key,'','Milestone','initiative')
+        task=w.projects.add(self.key,parent,'Compare','analysis',goal='Original goal')
+        w.navigate(self.key,task);self.assertTrue(w.editor.isVisible())
+        w.goal.setPlainText('Updated goal')
+        from PySide6.QtWidgets import QMessageBox
+        with patch.object(QMessageBox,'question',return_value=QMessageBox.Cancel):
+            self.assertFalse(w.navigate(self.key))
+        self.assertTrue(w.editor.isVisible());self.assertEqual(w.goal.toPlainText(),'Updated goal')
+        w.editor.commit();self.assertEqual(w.projects.get(task)['goal'],'Updated goal')
+        self.assertTrue(w.navigate(self.key))
+        self.assertFalse(w.editor.isVisible())
+        self.assertIs(w.home.pages.currentWidget(),w.home.detail)
+
+    def test_resource_reference_opens_current_sources_without_legacy_editor(self):
+        from interop_open import focus
+        from interop_parts import make_part
+        w=self.window;w.show()
+        resource=dict(kind='url',title='Source',target='https://example.org')
+        w.library.update(self.key,resources=[resource])
+        focus(w,dict(app='workbench',kind='record',id=self.key,title='Journal',position=dict(part=make_part('resource',0,resource))))
+        self.app.processEvents()
+        self.assertEqual(w.journal.view,'material')
+        self.assertFalse(w.editor.isVisible())
+        self.assertTrue(w.journal.material_controls[resource['target']].isVisible())
+        self.assertEqual(w.library.get(self.key)['resources'],[resource])
+        resources=[dict(kind='url',title=str(i),target='https://example.org/'+str(i)) for i in range(40)]
+        w.library.update(self.key,resources=resources)
+        focus(w,dict(app='workbench',kind='record',id=self.key,title='Journal',position=dict(part=make_part('resource',39,resources[39]))))
+        from PySide6.QtTest import QTest
+        QTest.qWait(30)
+        self.assertGreater(w.journal.scroll.verticalScrollBar().value(),0)
+
     def test_card_overview_search_archive_and_draft_return(self):
         w=self.window;other=w.library.create('Other',notes='Find this source',resources=[])
         archived=w.library.create('Archived',resources=[]);w.library.archive(archived,True)

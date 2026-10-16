@@ -68,7 +68,7 @@ class Workbench(ToolWindow):
         super().focus_record(key)
         if hasattr(self,'home'):
             self.home.project_id=key;self.home.scope='';self.home.show_detail();self.home.refresh()
-            self.editor.present(self.library.get(key))
+            self.editor.hide()
             self.loaded_fields=self.editor_fields();self.areas.setCurrentIndex(3)
 
     def edited(self,*_):
@@ -332,7 +332,9 @@ class Workbench(ToolWindow):
         try:
             self.load_fields(value)
             if hasattr(self,'home'):
-                self.home.project_id=self.current;self.home.scope=self.initiative;self.home.refresh();self.editor.present(value)
+                self.home.project_id=self.current;self.home.scope=self.initiative;self.home.show_detail();self.home.refresh()
+                if key:self.editor.present(value)
+                else:self.editor.hide()
             self.loaded_fields=self.editor_fields()
         finally:self.loading=False
         self.body.setEnabled(True);self.refresh()

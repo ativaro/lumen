@@ -39,7 +39,8 @@ class FocusTest(unittest.TestCase):
     def test_project_resource_and_question_and_household_attachment_selection(self):
         project = self.window(Workbench); key = project.library.create('Test', notes='', resources=[dict(kind='file', target='/tmp/one', title='One'), dict(kind='file', target='/tmp/two', title='Two')], questions=[dict(text='Question', done=False)])
         focus(project, self.ref(project, key, 'resource:1'))
-        self.assertEqual(project.tabs.currentIndex(), 1); self.assertEqual(project.resources.currentRow(), 1)
+        self.assertEqual(project.journal.view, 'material'); self.assertTrue(project.editor.isHidden())
+        self.assertEqual(project.resources.currentRow(), 1)
         focus(project, self.ref(project, key, 'question:0'))
         self.assertEqual(project.projects.get(project.scope)['title'],'Question'); self.assertEqual(project.tabs.currentIndex(),2)
         house = self.window(Household); key = house.library.create('Device', kind='Gerät', notes='', attachments=[dict(asset='one.pdf', name='One'), dict(asset='two.pdf', name='Two')])

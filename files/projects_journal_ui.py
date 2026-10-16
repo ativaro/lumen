@@ -141,7 +141,7 @@ class ProjectJournal(QWidget):
         self.view=self.VIEWS[index][0]
         if self.record:
             self.load(self.record,self.readonly)
-            QTimer.singleShot(0,lambda:self.scroll.verticalScrollBar().setValue(0))
+            QTimer.singleShot(0,self.scroll,lambda:self.scroll.verticalScrollBar().setValue(0))
 
     def reflow(self):
         narrow=self.width()<760
@@ -233,7 +233,7 @@ class ProjectJournal(QWidget):
         heading=row(label(tr('Zugeordnete Inhalte') if self.view=='journal' else tr(dict(self.VIEWS)[self.view]),'journalSection'),self.add_source);heading.layout().setStretch(0,1);self.add_source.setVisible(not readonly);self.main_box.addWidget(heading);self.main_box.addSpacing(20)
         shown=[e for e in entries if self.view=='journal' or e['category']==self.view or self.view=='tasks' and e['category']=='results']
         if self.view=='results':self.main_box.addWidget(label(tr('Vorhandene Analysen und Recherchen bleiben mit ihren Aufgaben und Ergebnissen verbunden.'),'journalMuted'));self.main_box.addSpacing(16)
-        self.visible_titles=[]
+        self.visible_titles=[];self.material_controls={}
         for entry in sorted(shown,key=lambda e:e['updated'] or 0,reverse=True):self.add_entry(entry)
         if not shown:self.main_box.addWidget(label(tr('Noch nichts zugeordnet.'),'journalMuted'))
         for task in sorted(tasks,key=lambda item:item['updated'],reverse=True):
@@ -255,6 +255,7 @@ class ProjectJournal(QWidget):
         content.addWidget(label(entry['title'],'journalEntryTitle'));content.addWidget(label(' · '.join(filter(None,(tr(entry['kind']),entry['detail']))),'journalMuted'))
         for child in control.findChildren(QWidget):child.setAttribute(Qt.WA_TransparentForMouseEvents)
         if 'resource' in entry:
+            self.material_controls[entry['resource']['target']]=control
             control.setContextMenuPolicy(Qt.CustomContextMenu)
             def context(position):
                 menu=QMenu(control);menu.addAction(tr('Öffnen'),entry['open'])
@@ -295,6 +296,13 @@ class ProjectJournal(QWidget):
     def pick_reference(self,kind):
         self.require_assignment(kind)
         if self.window.home.plan(scope=''):self.window.reference_pane.pick(kind)
+
+    def focus_material(self,index):
+        resource=self.window.library.get(self.project)['resources'][index]
+        self.tabs.setCurrentIndex(1)
+        control=self.material_controls[resource['target']]
+        control.setFocus()
+        QTimer.singleShot(0,control,lambda:self.scroll.ensureWidgetVisible(control))
 
     def open_material(self, index):
         resource=self.window.library.get(self.project)['resources'][index]

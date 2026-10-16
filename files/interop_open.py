@@ -144,6 +144,9 @@ def focus_part(window,position):
             for item in window.projects.items(window.current)+window.projects.items(window.current,archived=True):
                 if item.get('legacy_question')==index and item.get('legacy_text')==listing.item(index).text():
                     listing.setCurrentRow(index);window.open_scope(item['id']);return
+        if kind=='resource' and hasattr(window,'journal'):
+            window.tabs.setCurrentIndex(1);listing.setCurrentRow(index)
+            window.journal.focus_material(index);return
         window.tabs.setCurrentIndex(1 if kind=='resource' else 0);listing.setCurrentRow(index);listing.scrollToItem(listing.currentItem());return
     if app=='household' and kind=='attachment':
         for index in range(window.attachments.count()):

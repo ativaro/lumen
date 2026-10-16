@@ -14,3 +14,17 @@ Die ältere Testgruppe `test_project_editor.py` übernimmt noch
 `test_projects_rooms.py` mit überholten Projektkennungen. Ihre 21 Fehler bestehen
 auch auf der unveränderten Basis; sie sind keine bestandene Regressionprüfung.
 Diese Korrektur prüft nicht alle Lumen-Apps oder die KWin-Fensterdekoration.
+
+## Wiederherstellen der Projektauswahl
+
+Beim Start und beim Öffnen eines Projektverweises wird das Journal gezeigt.
+Die Projektauswahl öffnet keinen eingebetteten Editor mehr. Aufgaben und Vorhaben
+öffnen weiterhin ihren eigenen Editor; neue Einträge behalten ihren Anlegeweg.
+Quellenverweise wählen die aktuelle Quellenansicht mit dem geprüften Inhalt,
+setzen die bestehende Auswahl für Übergaben und scrollen zum passenden Eintrag.
+Verzögerte Scroll-Aufrufe sind an die Lebensdauer ihres Widgets gebunden.
+
+Regressionen decken Projektauswahl, Aufgabenentwürfe (Abbrechen/Speichern),
+Quellenverweise und Scrollen ab. Der tatsächliche `tools_app.main`-Start mit
+`window.ini`-Auswahl wurde zweimal je DE/EN-Profil vor und nach Installation
+geprüft, ohne persönliche Profile zu verwenden.
