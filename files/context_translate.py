@@ -11,7 +11,7 @@ class TranslationDialog(QDialog):
     def __init__(self, source, record, root=None):
         super().__init__(source)
         from tools_translate import Translate
-        self.setWindowTitle(tr('Lumen · Text übersetzen')); self.resize(1050, 780)
+        self.setWindowTitle('Lumen Compose'); self.resize(1050, 780)
         layout = QVBoxLayout(self)
         layout.addWidget(label(tr('Übersetzung als eigener Text. Das Original bleibt unverändert.')))
         self.view = Translate(root); self.view.setWindowFlags(Qt.Widget)

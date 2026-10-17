@@ -15,7 +15,7 @@ import tempfile
 import urllib.request
 
 FEATURES = {
-    'translate_pdf': (tr('Translate: PDF-Layoutübersetzung'), (), ()),
+    'translate_pdf': (tr('Compose: PDF-Layoutübersetzung'), (), ()),
     'sound': (tr('Sound: Lautstärke und App-Ausgänge'), ('pactl',), ('libpulse',)),
     'reader': (tr('Reader: PDF- und EPUB-Lesen'), (), ()),
     'keyring': (tr('System-Schlüsselbund für Vault und Inbox'), ('secret-tool',), ('libsecret',)),

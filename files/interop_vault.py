@@ -18,7 +18,7 @@ from lumen_i18n import tr
 
 
 APP_NAMES = {
-    'translate': 'Lumen Translate',
+    'translate': 'Lumen Compose',
     'wissen': 'Lumen Notes', 'reader': 'Lumen Reader', 'inbox': 'Lumen Inbox',
     'meetings': 'Lumen Audio Studio · Meeting', 'household': 'Lumen Digitaler Haushalt',
     'workbench': 'Lumen Projekte', 'radio': 'Lumen Audio Studio · Radio',

@@ -186,7 +186,7 @@ TRANSLATE_OPTIONS = dict(
     mode={'type':'string','enum':list(MODES)})
 DEFINITIONS.update({
     'lumen_translate_options': definition('List supported text modes, languages, styles and limits. No model call.'),
-    'lumen_translate_text': definition('Translate, rewrite or correct explicitly supplied text using the configured Lumen model. Correction preserves the author tone; rewrite stays in the source language. Sends text to the configured provider, with tools and memory disabled. No local draft or file is written.',
+    'lumen_translate_text': definition('Use Lumen Compose to translate, rewrite or correct explicitly supplied text using the configured Lumen model. Correction preserves the author tone; rewrite stays in the source language. Sends text to the configured provider, with tools and memory disabled. No local draft or file is written.',
         dict(text={'type':'string','minLength':1,'maxLength':MAX_TEXT}, **TRANSLATE_OPTIONS), ('text',), external=True),
     'lumen_translate_pdf': definition('Process the text layer of an explicitly selected PDF and save a NEW PDF. Never overwrites files. Sends extracted text to the configured model. Preserves page geometry, images and vector lines; font substitution/shrinking may occur. No OCR, forms, annotations or rotated text. Requires MCP actions enabled. Review the exported layout.',
         dict(path=TEXT, output=TEXT, **TRANSLATE_OPTIONS), ('path','output'), action=True, external=True),

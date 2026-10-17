@@ -1,4 +1,4 @@
-# Lumen Translate
+# Lumen Compose
 
 ## Objective and capability map
 

@@ -391,7 +391,7 @@ def app_name(app):
     return {'files':'Lumen Files','wissen':'Lumen Notes','reader':'Lumen Reader','inbox':'Lumen Inbox',
             'meetings':tr('Lumen Audio Studio · Meeting'),'household':tr('Lumen Digitaler Haushalt'),
             'workbench':tr('Lumen Projekte'),'radio':tr('Lumen Audio Studio · Radio'),
-            'vault':'Lumen Vault','sound':'Lumen Sound','translate':'Lumen Translate'}.get(app,'Lumen')
+            'vault':'Lumen Vault','sound':'Lumen Sound','translate':'Lumen Compose'}.get(app,'Lumen')
 
 
 def file_status(window,paths):

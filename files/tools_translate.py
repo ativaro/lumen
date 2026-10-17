@@ -15,7 +15,7 @@ import translate_pdf as pdf
 
 class Translate(ToolWindow):
     def __init__(self, root=None):
-        super().__init__('translate', 'Lumen Translate', tr('Übersetzen. Besser formulieren. Fehler korrigieren.'), 'lumen-translate', root)
+        super().__init__('translate', 'Lumen Compose', tr('Übersetzen. Besser formulieren. Fehler korrigieren.'), 'lumen-translate', root)
         self.queue = []; self.translations = {}; self.batch_index = 0; self.request_options = {}
         self.add_button.setText(tr('Neuer Text')); self.search.setPlaceholderText(tr('Texte und Übersetzungen finden …'))
         self.mode = QComboBox(); self.mode.setAccessibleName(tr('Text bearbeiten'))
@@ -184,7 +184,7 @@ class Translate(ToolWindow):
 
     def next_batch(self):
         self.status.setText(tr('Abschnitt {0} von {1} wird bearbeitet …',self.batch_index+1,len(self.queue)))
-        self.engine.send(data.prompt(self.queue[self.batch_index],self.request_options),proposal=True,title='Lumen Translate')
+        self.engine.send(data.prompt(self.queue[self.batch_index],self.request_options),proposal=True,title='Lumen Compose')
 
     def batch_done(self, success, answer):
         if not success:self.end();self.status.setText(answer or tr('Übersetzung abgebrochen.'));return

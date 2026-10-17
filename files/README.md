@@ -609,7 +609,7 @@ Their model cards/licenses are downloaded alongside the safe-tensor weights.
 No PostgreSQL, server, Node/Electron runtime or private Pictus/Numen data is needed.
 
 
-## Lumen Translate
+## Lumen Compose
 
 `lumen-translate` opens the native text workbench. **Translate**, **Rewrite** and
 **Correct spelling** share a two-pane original/result view. Rewrite stays in the
@@ -617,11 +617,11 @@ source language; correction preserves the author's tone and wording. Choose neut
 professional, casual, friendly or concise style when translating/rewriting. Paste
 explicitly, or use `lumen-translate --clipboard`; opening content never starts AI.
 Drafts/results are kept in the local app library and can be archived. Defaults live
-under Settings → Lumen Translate; both German and English UI use the shared themes.
+under Settings → Lumen Compose; both German and English UI use the shared themes.
 
 The shared “Send to Lumen” menu accepts selected text from Wissen, Reader, Inbox and
 other apps. Files can send a PDF. Results can return to notes, mail drafts and projects.
-Translate records participate in local object search and Vault app backups.
+Compose records participate in local object search and Vault app backups.
 
 PDF is an additional tab, for documents with a text layer, using the built-in Lumen
 PDF engine. Original/result page previews and new-file export preserve the
@@ -633,7 +633,7 @@ Limits: 12,000 characters per text, 50 MiB / 100 pages / 100,000 characters per 
 MCP exposes `lumen_translate_options`, `lumen_translate_text` (modes: translate,
 rewrite, correct), and `lumen_translate_pdf`. The PDF tool requires the existing
 `LUMEN_MCP_ACTIONS=1` gate and a new absolute output path. Model calls use the current
-Lumen provider with tools and memory disabled; no new Translate library entry is
+Lumen provider with tools and memory disabled; no new Compose library entry is
 created by MCP. Calls can take up to 150 seconds for text or 240 seconds for PDF;
 clients should allow a 300,000 ms MCP timeout. Existing client timeouts are preserved.
 
@@ -664,7 +664,7 @@ the global profile. Recovery preserves a choice made before the first message.
 
 Personality does not modify tool permissions, memory consent or model selection.
 Initiative is bounded by the user's existing task authorization. Explicit task
-formats take precedence; structured file proposals and Translate bypass persona
+formats take precedence; structured file proposals and Compose bypass persona
 instructions. Names are length-limited, quoted labels, never instructions.
 Individual settings take precedence over the preset's default description.
 

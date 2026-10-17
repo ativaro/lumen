@@ -17,7 +17,7 @@ from tools_data import Library, document_text, media_duration, web_url
 
 
 ACTIONS = {
-    'translate.import': dict(target='translate', label=tr('In Lumen Translate bearbeiten …'), modes=['copy'], description=tr('Text oder PDF lokal vorbereiten. Übersetzen, Umformulieren oder Korrigieren erst in Translate starten.')),
+    'translate.import': dict(target='translate', label=tr('In Lumen Compose bearbeiten …'), modes=['copy'], description=tr('Text oder PDF lokal vorbereiten. Übersetzen, Umformulieren oder Korrigieren erst in Compose starten.')),
     'wissen.import': dict(target='wissen', label=tr('Als Notiz speichern …'), modes=['copy', 'link'], description=tr('In Lumen Notes speichern. Die Originaldatei bleibt unverändert.')),
     'workbench.add': dict(target='workbench', label=tr('Zu einem Projekt hinzufügen …'), modes=['copy', 'link','live'], description=tr('Material und Notizen einem neuen oder vorhandenen Projekt zuordnen.')),
     'workbench.question': dict(target='workbench', label=tr('Als Aufgabe in Lumen Projekte übernehmen'), modes=['copy'], description=tr('Ausgewählten Text als manuelle Aufgabe mit Herkunft speichern.')),
@@ -263,7 +263,7 @@ def apply(action, payload, choice, job, root=None, store=None):
                 payload.pop('references')
                 if action=='translate.import' and Path(paths[0]).suffix.lower()!='.pdf':
                     text=Path(paths[0]).read_text(encoding='utf-8-sig')
-                    if len(text)>12000:raise ValueError(tr('Für Lumen Translate höchstens 12.000 Zeichen auswählen.'))
+                    if len(text)>12000:raise ValueError(tr('Für Lumen Compose höchstens 12.000 Zeichen auswählen.'))
                     payload.update(text=text,paths=[])
             if action == 'wissen.import':
                 result = _wissen(library, payload, choice, job, store, created)

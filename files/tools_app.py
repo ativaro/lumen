@@ -54,9 +54,9 @@ def main():
     destination.add_argument('--handoff')
     destination.add_argument('--ref')
     args=parser.parse_args()
-    if args.path and args.tool not in ('reader','wissen','translate'):parser.error(tr('Dateien können nur an Reader, Notes oder Translate übergeben werden.'))
+    if args.path and args.tool not in ('reader','wissen','translate'):parser.error(tr('Dateien können nur an Reader, Notes oder Compose übergeben werden.'))
     if args.area and args.tool != 'wissen': parser.error(tr('Der Bereich ist nur für Lumen Notes verfügbar.'))
-    if args.clipboard and args.tool != 'translate': parser.error(tr('Die Zwischenablage ist hier nur für Translate verfügbar.'))
+    if args.clipboard and args.tool != 'translate': parser.error(tr('Die Zwischenablage ist hier nur für Compose verfügbar.'))
     if args.section and args.tool not in ('workbench','wissen'): parser.error('Section requires Projects or Notes')
     requested=str(Path(args.path).expanduser().absolute()) if args.path else ''
     if args.tool == 'wissen' and not args.area and not args.ref and not args.handoff: args.area = 'user'

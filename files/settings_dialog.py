@@ -237,9 +237,9 @@ class SettingsDialog(QDialog):
                 def save_translate():
                     try:
                         self.save(self.assistant, {pref: control.currentData() for pref, control in defaults.items()})
-                        self.status.setText(tr('Translate-Vorgaben gespeichert. Gilt für neue Texte nach dem nächsten Start.'))
+                        self.status.setText(tr('Compose-Vorgaben gespeichert. Gilt für neue Texte nach dem nächsten Start.'))
                     except (OSError, ValueError) as error: self.status.setText(str(error))
-                panel.addWidget(button(tr('Translate-Vorgaben übernehmen'), save_translate))
+                panel.addWidget(button(tr('Compose-Vorgaben übernehmen'), save_translate))
             if key == 'wissen':
                 panel.addWidget(button(tr('Lumen-Gedächtnis öffnen'), lambda: open_app('wissen', 'lumen')))
             if key in COMPANIONS:

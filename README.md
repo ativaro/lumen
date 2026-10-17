@@ -100,7 +100,7 @@ gracefully on other setups.
 | **Lumen Files** (`lumen-files`) | file manager with combined local/NAS libraries and visible origins, personal collection shelves, fast search, previews, tabs, gallery, disk analysis, KIO network folders, native rename/sort with preview and undo, integrated Lumen panel |
 | **Lumen Vault** (`lumen-vault`) | encrypted restic backups, snapshot browsing, verified restore and opt-in schedules. The native credential vault and its guided NAS/Lumen Server backup UI require the [separate prerelease installation](native/vault-ui/README.md) |
 | **Lumen Meeting & Radio** (`lumen-meetings`, `lumen-radio`) | one window with Meeting/Radio tabs, local transcription, editable results and personal audio programmes; both starters keep the same window and retained state |
-| **Lumen Translate** (`lumen-translate`) | text translation, writing styles, spelling correction and PDF layout translation |
+| **Lumen Compose** (`lumen-translate`) | text translation, writing styles, spelling correction and PDF layout translation |
 | **Lumen System** (`lumen-system`) | retained System, Sound and Work modes tabs: live resource usage, hardware, audio and desktop presets with guarded undo |
 | **Lumen Inbox** (`lumen-inbox`) | local IMAP inbox and SMTP drafts, Proton Bridge preset, CalDAV calendars, read-only ICS subscriptions and local tasks; [setup and limits](VAULT-INBOX.md) |
 | **Lumen Reader** (`lumen-reader`) | PDFs, EPUBs and saved articles; reading position, highlights, margin notes, local read-aloud and cited passages in Lumen knowledge |

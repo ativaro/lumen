@@ -14,7 +14,7 @@ def catalogue(*, include_utilities=False):
         ('files', 'Lumen Files', tr('Dateien, Netzwerkorte und Vorschauen'), 'system-file-manager'),
         ('search', tr('Lumen Suche'), tr('Apps und Dateien finden, mit Lumen sprechen'), 'system-search'),
         ('companion', 'Lumen Companion', tr('Hilfe im gewählten Fenster · Schritt für Schritt'), 'video-display'),
-        ('translate', 'Lumen Translate', tr('Übersetzen, umformulieren und korrigieren'), 'preferences-desktop-locale'),
+        ('translate', 'Lumen Compose', tr('Übersetzen, umformulieren und korrigieren'), 'preferences-desktop-locale'),
         ('wissen', tr('Lumen Notes'), tr('Deine Notizen, Sammlungen und Quellen'), 'accessories-text-editor'),
         ('inbox', 'Lumen Inbox', tr('Nachrichten und Kalender an einem Ort'), 'mail-unread'),
         ('notification', 'Lumen Notification', tr('Meldungen, Ergebnisse und Erinnerungen'), 'notifications'),
