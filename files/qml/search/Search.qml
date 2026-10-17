@@ -221,76 +221,60 @@ ApplicationWindow {
                         anchors.fill: parent
                         id: conversation; objectName: "conversation"
                         readonly property Flickable scroller: contentItem as Flickable
-                    property bool following: true
+                    property bool anchoringTurn: true
+                    property int turnIndex: -1
                     property string lastUserKey: ""
                     property string firstKey: ""
+                    property real turnY: 0
+                    readonly property real messageEnd: conversationEnd.y
                     readonly property real scrollEnd: Math.max(0, contentHeight - availableHeight)
-                    readonly property bool newerBelow: !following && scroller !== null && scrollEnd - scroller.contentY > 48
+                    readonly property bool newerBelow: scroller !== null && messageEnd - scroller.contentY > availableHeight + 24
                     function goToLatest() {
                         if (!scroller) return
-                        scroller.cancelFlick()
-                        following = true
+                        scroller.cancelFlick(); anchoringTurn = false
+                        scroller.contentY = Math.min(scrollEnd, Math.max(0, messageEnd - availableHeight + 12))
                         composer.forceActiveFocus()
                     }
                     function updatePosition() {
                         const rows = window.controller.messages
-                        let userKey = ""
+                        let userKey = "", userIndex = rows.length ? 0 : -1
                         for (let i = rows.length - 1; i >= 0; --i) {
-                            if (rows[i].role === "user") { userKey = String(rows[i].key); break }
+                            if (rows[i].role === "user") { userKey = String(rows[i].key); userIndex = i; break }
                         }
                         const first = rows.length ? String(rows[0].key) : ""
-                        // A submitted follow-up resumes following, even after reading older text.
-                        if (first !== firstKey || userKey !== lastUserKey || !rows.length) following = true
-                        firstKey = first
-                        lastUserKey = userKey
+                        if (first !== firstKey || userKey !== lastUserKey || !rows.length) anchoringTurn = true
+                        firstKey = first; lastUserKey = userKey; turnIndex = userIndex
                         while (messageSlots.count < rows.length) messageSlots.append({slot: messageSlots.count})
                         if (messageSlots.count > rows.length) messageSlots.remove(rows.length, messageSlots.count - rows.length)
+                        positionTurn.restart()
                     }
+                    onMessageEndChanged: positionTurn.restart()
+                    onContentHeightChanged: positionTurn.restart()
+                    onAvailableHeightChanged: positionTurn.restart()
                     Component.onCompleted: updatePosition()
                     ListModel { id: messageSlots }
                     Timer {
-                        id: followPosition
-                        interval: 16; repeat: true
-                        running: conversation.visible && conversation.following && conversation.scroller !== null
-                                 && !conversation.scroller.moving && !conversationBar.pressed
-                                 && Math.abs(conversation.scrollEnd - conversation.scroller.contentY) > 0.5
+                        id: positionTurn; interval: 0
                         onTriggered: {
-                            const y = conversation.scroller.contentY
-                            const remaining = conversation.scrollEnd - y
-                            // Chase the current end; streaming never restarts an animation.
-                            conversation.scroller.contentY = Math.abs(remaining) < 1 ? conversation.scrollEnd : y + remaining * 0.45
+                            const row = messageRepeater.itemAt(conversation.turnIndex)
+                            conversation.turnY = row ? row.y : 0
+                            if (conversation.anchoringTurn && conversation.scroller && !conversation.scroller.moving && !conversationBar.pressed) conversation.scroller.contentY = Math.min(conversation.scrollEnd, conversation.turnY)
                         }
                     }
                     WheelHandler {
                         target: null
-                        onWheel: function(event) {
-                            const delta = event.pixelDelta.y || event.angleDelta.y
-                            if (delta > 0) conversation.following = false
-                            else if (delta < 0) wheelFinished.restart()
-                            event.accepted = false
-                        }
-                    }
-                    Timer {
-                        id: wheelFinished; interval: 160
-                        onTriggered: if (conversation.scroller && conversation.scrollEnd - conversation.scroller.contentY < 24) conversation.following = true
+                        onWheel: function(event) { conversation.anchoringTurn = false; event.accepted = false }
                     }
                     Connections {
                         target: conversation.scroller
-                        function onMovementStarted() { conversation.following = false }
-                        function onMovementEnded() {
-                            conversation.following = conversation.scrollEnd - conversation.scroller.contentY < 24
-                        }
+                        function onMovementStarted() { conversation.anchoringTurn = false }
                     }
                     ScrollBar.vertical: ScrollBar {
                         id: conversationBar; policy: ScrollBar.AsNeeded
-                        onPressedChanged: {
-                            if (pressed) conversation.following = false
-                            else if (conversation.scroller) conversation.following = conversation.scrollEnd - conversation.scroller.contentY < 24
-                        }
+                        onPressedChanged: if (pressed) conversation.anchoringTurn = false
                     }
                     Keys.onPressed: function(event) {
-                        if (event.key === Qt.Key_Up || event.key === Qt.Key_PageUp || event.key === Qt.Key_Home) conversation.following = false
-                        else if (event.key === Qt.Key_End) conversation.following = true
+                        if ([Qt.Key_Up, Qt.Key_Down, Qt.Key_PageUp, Qt.Key_PageDown, Qt.Key_Home, Qt.Key_End, Qt.Key_Space].includes(event.key)) conversation.anchoringTurn = false
                     }
                         clip: true; contentWidth: availableWidth
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
@@ -402,7 +386,8 @@ ApplicationWindow {
                                 BusyIndicator { running: window.controller.busy; implicitWidth: 24; implicitHeight: 24 }
                                 Label { text: window.controller.status; color: window.theme.muted; font.pixelSize: 12; wrapMode: Text.Wrap; Layout.fillWidth: true }
                             }
-                            Item { Layout.preferredHeight: 10; Layout.fillWidth: true }
+                            Item { id: conversationEnd; Layout.preferredHeight: 1; Layout.fillWidth: true }
+                            Item { Layout.preferredHeight: Math.max(10, conversation.availableHeight - (conversation.messageEnd - conversation.turnY) - parent.spacing); Layout.fillWidth: true }
                         }
                     }
                     LumenButton {

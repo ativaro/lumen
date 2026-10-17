@@ -105,6 +105,9 @@ class StudioChat(ChatPanel):
                 (tr('Merk dir das'), self.remember_button), (tr('Als Dateiaktion speichern …'), self.save_file_action)]:
             action = self.output_menu.addAction(title, control.click)
             self.output_menu.aboutToShow.connect(lambda a=action, c=control: a.setEnabled(c.isEnabled() and bool(self.last_answer) and (c is not self.save_file_action or not c.isHidden())))
+        from lumen_detail_routes import launch
+        self.save_tool_action = self.output_menu.addAction(tr('Als Werkzeug speichern'), lambda: launch('lumen-code', ['--save-task', self.tracker.task_id]))
+        self.output_menu.aboutToShow.connect(lambda: self.save_tool_action.setEnabled(bool(self.tracker.task_id) and not self.backend.busy))
         from note_reviews import show_reviews
         reviews = QPushButton(tr('Vorschläge & Verlauf'))
         reviews.clicked.connect(lambda: show_reviews(self)); footer.addWidget(reviews)
@@ -217,8 +220,4 @@ class StudioChat(ChatPanel):
         if not getattr(self, 'studio_ready', False):
             return super().position_messages(position, answer_index)
         self.transcript.entries(self.rendered, self.action)
-        from PySide6.QtCore import QTimer
-        def position_view():
-            target = self.transcript.rows[answer_index][0].y() if answer_index is not None and answer_index < len(self.transcript.rows) else position
-            self.transcript.verticalScrollBar().setValue(target)
-        QTimer.singleShot(0, self.transcript, position_view)
+        self.transcript.position_turn(position, answer_index)

@@ -8,7 +8,7 @@ import unittest
 
 
 class Qt6SearchTest(unittest.TestCase):
-    def test_new_answer_starts_visible_without_following_stream(self):
+    def test_user_turn_starts_visible_without_following_stream(self):
         self.run_qt6("""
 import tempfile
 from PySide6.QtGui import QGuiApplication
@@ -27,15 +27,16 @@ with tempfile.TemporaryDirectory() as tmp:
   flick=next(i for i in walk(view) if i.metaObject().indexOfProperty('contentY') >= 0)
   def msg(role,text,key):return dict(info=dict(role=role,id=key),parts=[dict(type='text',text=text)])
   history=[msg('user','Question','u1'),msg('assistant','Old answer\\n\\n'*80,'a1'),msg('user','Next','u2')]
-  c.update_messages(history);QTest.qWait(100);flick.setProperty('contentY',0)
+  c.update_messages(history);QTest.qWait(150)
+  assert abs(flick.property('contentY')-view.property('turnY'))<2
   answer=msg('assistant','New answer\\n\\n'*80,'a2')
   c.update_messages(history+[answer]);QTest.qWait(100)
   start=flick.property('contentY');maximum=view.property('contentHeight')-view.property('availableHeight')
-  assert start>500 and start<maximum-200,(start,maximum)
+  assert start>500 and abs(start-view.property('turnY'))<2,(start,view.property('turnY'))
   answer['parts'][0]['text']+='More text\\n\\n'*30
   c.update_messages(history+[answer]);QTest.qWait(100)
   assert abs(flick.property('contentY')-start)<2,(flick.property('contentY'),start)
-  flick.setProperty('contentY',120)
+  view.setProperty('anchoringTurn',False);flick.setProperty('contentY',120)
   answer['parts'][0]['text']+='Another chunk'
   c.update_messages(history+[answer]);QTest.qWait(100)
   assert abs(flick.property('contentY')-120)<2,flick.property('contentY')
@@ -72,7 +73,7 @@ with tempfile.TemporaryDirectory() as tmp:
   point=button.mapToScene(QPointF(button.width()/2,button.height()/2)).toPoint()
   QTest.mouseClick(w,Qt.LeftButton,Qt.NoModifier,point);QTest.qWait(50)
   assert not button.isVisible()
-  assert abs(flick.property('contentY')-(view.property('contentHeight')-view.property('availableHeight')))<2
+  assert abs(flick.property('contentY')-max(0,view.property('messageEnd')-view.property('availableHeight')+12))<2
   text+='A streamed paragraph.\\n\\n'*30
   c.update_messages([answer(text)]);QTest.qWait(100)
   assert button.isVisible(), 'More streamed content must remain reachable'

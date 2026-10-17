@@ -526,6 +526,8 @@ class ChatPanel(QWidget):
         entries = []
         answer_key = None
         answer_index = None
+        user_key = None
+        user_index = None
         self.last_answer = ''
         self.answer_turn = ''
         from rich_result import display_messages
@@ -537,6 +539,9 @@ class ChatPanel(QWidget):
                 continue
             if role not in ('assistant', 'user'):
                 continue
+            if role == 'user':
+                user_key = (self.backend.session, info.get('id', index))
+                user_index = len(entries)
             parts = message.get('parts', [])
             text = '\n\n'.join(p.get('text', '') for p in parts if p.get('type') == 'text' and not p.get('synthetic'))
             activity = [p.get('state', {}).get('title') or p.get('tool', tr('Werkzeug')) for p in parts
@@ -560,11 +565,12 @@ class ChatPanel(QWidget):
         self.action_more.setEnabled(bool(self.last_answer) and not self.backend.busy)
         if entries == self.rendered:
             return
-        new_answer = answer_index if answer_key != getattr(self, '_answer_key', None) else None
+        new_turn = user_index if user_key != getattr(self, '_user_key', None) else None
+        if user_key is None and answer_key != getattr(self, '_answer_key', None): new_turn = answer_index
+        self._user_key = user_key
         self._answer_key = answer_key
         self.rendered = entries
         scroll = self.transcript.verticalScrollBar()
-        bottom = scroll.value() >= scroll.maximum() - 30
         position = scroll.value()
         document = []
         for index, (role, text, activity) in enumerate(entries):
@@ -584,13 +590,26 @@ class ChatPanel(QWidget):
                 document.append('<hr>')
         empty = tr('<p>Das Ergebnis erscheint hier.</p>') if self.action else tr('<h2>Wobei kann ich dir helfen?</h2><p>Dateien verstehen, etwas prüfen oder eine Aufgabe erledigen.</p>')
         self.transcript.setHtml(''.join(document) or empty)
-        self.position_messages(scroll.maximum() if bottom and entries and entries[-1][0] == 'user' else position, new_answer)
+        self.position_messages(position, new_turn)
 
     def position_messages(self, position, answer_index):
-        if answer_index is not None:
-            self.transcript.scrollToAnchor(f'message-{answer_index}')
-        else:
-            self.transcript.verticalScrollBar().setValue(position)
+        if answer_index is not None: self._plain_turn = answer_index
+        document = self.transcript.document()
+        frame = document.rootFrame(); style = frame.frameFormat()
+        previous_margin = style.bottomMargin()
+        start = 0
+        block = document.begin()
+        while block.isValid():
+            fragment = block.begin()
+            while not fragment.atEnd():
+                if f'message-{getattr(self, "_plain_turn", -1)}' in fragment.fragment().charFormat().anchorNames():
+                    start = document.documentLayout().blockBoundingRect(block).top()
+                fragment += 1
+            block = block.next()
+        style.setBottomMargin(max(4, self.transcript.viewport().height() - (document.size().height() - previous_margin - start)))
+        frame.setFrameFormat(style)
+        if answer_index is not None: self.transcript.scrollToAnchor(f'message-{answer_index}')
+        else: self.transcript.verticalScrollBar().setValue(position)
 
     def show_requests(self, permissions, questions):
         ids = tuple(p['id'] for p in permissions) + tuple(q['id'] for q in questions)
