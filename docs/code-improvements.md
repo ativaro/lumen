@@ -41,7 +41,7 @@ Berechtigungen und Automationen bleiben erhalten. Kein Arbeitsraum-Modell.
 - [x] 3 Ausgewählte Lumen-Daten und geprüfte Ausgabe
 - [x] 4 Begrenzter Versionsverlauf und Wiederherstellung als Entwurf
 - [x] 5 Durchläufe und Reparaturvorschläge
-- [ ] Regression, Staging, Veröffentlichung auf privatem Forgejo, Promotion
+- [x] Regression, Staging, Veröffentlichung auf privatem Forgejo, Promotion
 
 Mobile behält die sichere App-Nutzung. Neue native Bearbeitungsfunktionen werden
 nur nach eigenem Simulatornachweis als vorhanden ausgewiesen.
@@ -73,3 +73,23 @@ nur nach eigenem Simulatornachweis als vorhanden ausgewiesen.
 
 Eingebettete Desktop-App-Vorschauen benötigen das bereits optionale Qt WebEngine
 (`qt6-webengine` im Arch-Paket). Es wurden keine neuen Bibliotheken eingebunden.
+
+## Abnahme 18.10.2026
+
+41 Backend-Prüfungen in einer frischen Wegwerf-Datenbank, 76 Prüfungen gegen
+das installierte Desktop-Paket, drei native Themes in DE/EN und acht allgemeine
+Desktop-A/B-Szenarien bestanden. Reale konfigurierte KI-Empfehlung und echter
+Browserpfad mit gespeicherten Formularbeispielen, Entwurfs-Wiederherstellung,
+ausgewählter Quelle und neuer Notes-Notiz geprüft. Browser: DE/EN, 360/768/1440 px.
+Persönliche Geräte waren keine Testgeräte. Keine vollständige VoiceOver-Abnahme
+oder automatisierte Klickfolgen-Abdeckung.
+
+Staging und Produktion verwenden denselben Kandidaten: vier Container bereit,
+249 API-/Worker-Quelldateien und 16 HTTPS-Webassets verifiziert, keine Tracebacks.
+Geschützte Produktionsdaten unverändert; verschlüsselte Datenbanksicherungen
+zurückgelesen. Desktop gezielt aktualisiert: 15 Laufzeitdateien, 577 andere
+Dateien unverändert. Installationsbeleg und Rückweg bleiben erhalten.
+
+Keine neuen Abhängigkeiten; vorhandene npm-/Python-Pins ohne bekannte
+Schwachstellen laut geprüftem Auditstand. Bestehende Warnungen zur Web-Bündelgröße
+und externem Browser-crypto-Import bleiben bestehen.
