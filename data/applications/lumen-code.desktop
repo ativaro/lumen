@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen Code & Automation
+Comment=Your own apps, reusable tools and automations
+Comment[de]=Eigene Apps, wiederverwendbare Werkzeuge und Automationen
+Exec=%INSTALL_BIN%/lumen-code
+Icon=lumen-code
+Terminal=false
+Categories=Development;
+StartupWMClass=lumen-code
+Keywords=Lumen;Code;Automation;Tools;

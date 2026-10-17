@@ -15,7 +15,7 @@ makedepends=('gcc' 'pkgconf' 'qt6-base')
 # OpenCode may be installed through its own installer. Native files/tasks remain
 # useful without inference; the app explains a missing engine when AI is requested.
 optdepends=(
-    'qt6-webengine: Browser access through the optional native Vault'
+    'qt6-webengine: Embedded Lumen Code previews and optional native Vault browser'
     'libssh: SSH access through the optional native Vault'
     'kidletime: Desktop inactivity locking in the optional native Vault'
     'rclone: Cloud account login and file access in Lumen Files'

@@ -54,6 +54,8 @@ def tick(store):
         except BlockingIOError: return
         store.recover()
         store.enqueue_due()
+        from code_flow_native import deliver
+        deliver(store)
         reason = defer_background(store)
         for item in store.rows("SELECT id FROM tasks WHERE status='queued' ORDER BY created LIMIT 20"):
             task = store.task(item['id'])

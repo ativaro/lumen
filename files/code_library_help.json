@@ -1,0 +1,51 @@
+[
+  {
+    "key": "tool",
+    "title": "Mein Werkzeug",
+    "subtitle": "Einen erledigten Auftrag für später speichern.",
+    "body": "Du lässt Lumen eine Aufgabe lösen und behältst den Ablauf als Werkzeug. Beim nächsten Mal wählst du neue Eingabedaten aus und führst es erneut aus.",
+    "example": "Lumen erstellt aus einer CSV einen Monatsbericht. Du speicherst das Werkzeug und verwendest es nächsten Monat mit der neuen Datei."
+  },
+  {
+    "key": "app",
+    "title": "Meine kleine App",
+    "subtitle": "Eine eigene Anwendung für deinen Alltag erstellen.",
+    "body": "Du beschreibst, was du brauchst. Daraus entsteht eine kleine Anwendung mit passenden Eingabefeldern, Bedienelementen und Ergebnissen, die du immer wieder öffnen kannst.",
+    "example": "Ein Angebotsvergleich, in dem du Preise und Lieferzeiten einträgst und selbst festlegst, welche Kriterien stärker zählen."
+  },
+  {
+    "key": "code",
+    "title": "Code im Projekt",
+    "subtitle": "Software entwickeln, Fehler beheben und Änderungen prüfen.",
+    "body": "Du arbeitest mit Lumen an einem bestehenden oder neuen Softwareprojekt. Lumen kann Dateien ändern, Änderungen erklären und Tests ausführen. Du siehst, welche Stellen betroffen sind und welches Ergebnis die Prüfung liefert.",
+    "example": "Ein Datenimport liest eine Datei falsch ein. Lumen untersucht die Beispieldatei, schlägt eine Korrektur vor und prüft sie mit Tests."
+  },
+  {
+    "key": "automation",
+    "title": "Apps verbinden",
+    "subtitle": "Mehrere Arbeitsschritte zu einem automatischen Ablauf verbinden.",
+    "body": "Du legst fest, wodurch ein Ablauf startet und was anschließend passieren soll. Dabei können mehrere Lumen-Anwendungen und deine eigenen Werkzeuge zusammenarbeiten.",
+    "example": "Ein neuer Beleg kommt in einen Ordner. Lumen liest ihn aus, ergänzt die Belegübersicht und legt bei fehlenden Angaben eine Prüfaufgabe an."
+  },
+  {
+    "key": "watch",
+    "title": "Projekt im Blick",
+    "subtitle": "Erkennen, welche Folgen neue Informationen für dein Projekt haben.",
+    "body": "Lumen beobachtet ausgewählte Projektquellen, erkennt relevante Änderungen und zeigt, welche Aufgaben oder Entscheidungen davon betroffen sind. Daraus entstehen begründete Vorschläge.",
+    "example": "Ein Liefertermin verschiebt sich. Lumen erkennt, dass Montage und Abnahme davon abhängen, und schlägt passende neue Termine vor."
+  },
+  {
+    "key": "service",
+    "title": "Eigene Dienste",
+    "subtitle": "Deine vorhandenen Systeme über Lumen nutzen.",
+    "body": "Du verbindest einen Dienst mit Lumen und bestimmst, welche Informationen oder Aktionen verfügbar sein sollen. Diese Verbindung kannst du im Gespräch, in Werkzeugen und in Automationen verwenden.",
+    "example": "Lumen prüft täglich den Backup-Status deines NAS und meldet sich, wenn das letzte erfolgreiche Backup zu lange zurückliegt."
+  },
+  {
+    "key": "share",
+    "title": "Werkzeug teilen",
+    "subtitle": "Eine selbst gebaute Lösung als Vorlage weitergeben.",
+    "body": "Du gibst die Funktionsweise eines Werkzeugs weiter. Der Empfänger übernimmt eine eigene Fassung und verbindet seine eigenen Dateien oder Dienste damit.",
+    "example": "Du teilst deine Dokumentenprüfung. Eine andere Person verwendet dieselben Prüfregeln für ihre eigenen Unterlagen."
+  }
+]

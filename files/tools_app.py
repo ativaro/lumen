@@ -44,6 +44,9 @@ def listen_window(page, activate):
 
 
 def main():
+    if len(sys.argv)>1 and sys.argv[1]=='code':
+        from code_app import main as collection_main
+        return collection_main(sys.argv[2:])
     parser=argparse.ArgumentParser(description=tr('Eigenständige Desktop-Werkzeuge'))
     parser.add_argument('tool',choices=['meetings','household','workbench','radio','vault','inbox','reader','sound','wissen','translate'])
     parser.add_argument('path',nargs='?')

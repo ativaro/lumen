@@ -26,6 +26,8 @@ def open_url(url,root=None):
     if parts.scheme=='lumen' and parts.netloc=='handoff' and TOKEN.fullmatch(parts.path[1:]) and not parts.query and not parts.fragment:
         request=registry.request(parts.path[1:]);launch(request['target'],['--handoff',request['id']],root);return
     ref=registry.resolve(url)
+    if ref['app']=='code':
+        launch('code',['--entry',ref['id']],root);return
     if ref.get('kind') in ('drive_file','drive_folder'):
         launch('files',['--ref',url],root);return
     launch(ref['app'],['--ref',url] if ref['app']!='files' else [ref.get('path',ref['id']),'--select'],root)

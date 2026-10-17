@@ -440,6 +440,11 @@ class Workspace(QObject):
         save_action(self.window, self.store, self.store.task(task_id or selected(self.tasks)))
         self.refresh_flows()
 
+    def task_to_tool(self, task_id=None):
+        from lumen_detail_routes import launch
+        task = self.store.task(task_id or selected(self.tasks))
+        launch('lumen-code', ['--save-task', task['id']])
+
     def task_to_flow(self, task_id=None):
         task = self.store.task(task_id or selected(self.tasks)); self.flow_dialog(task)
 
