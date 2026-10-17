@@ -24,7 +24,7 @@ against the actual installed modules; DE/EN label smoke checks pass. Two stale
 installed app-center fixture failures reproduce with pre-rename modules, and a
 context test module is absent from that older installed test set. These legacy
 fixture issues are retained separately; current test fixtures were used for the
-runtime check. Fourteen selected installed files including the renamed test title
-and the user launcher were updated, with 571 other runtime files unchanged and
+runtime check. Fourteen selected files under `files/` (including the renamed test title), plus
+the user launcher, were updated, with 571 other runtime files unchanged and
 source-only backups retained. No personal window was closed or used for UI tests.
 No real model request or renewed dependency audit was performed for this rename.
