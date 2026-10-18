@@ -103,3 +103,18 @@ den Unterschied zum Projects-Asset. Zwei Regressionstests sichern Prozess- und
 Fensterzuordnung. Bestehende persönliche Fenster werden nicht beendet; für die
 neue Zuordnung Lumen Code schließen und neu öffnen. KWin/Plasma selbst wurde
 nicht in einer persönlichen Sitzung automatisiert geprüft.
+
+## KDE-Cache nach Icon-Installation
+
+Die Prüfung des gemeldeten Leistenbilds bestätigte ein Projects-Motiv. Am vom
+Nutzer geöffneten Code-Fenster lieferte KDEs Wayland-TasksModel bereits
+`lumen-code`, `applications:lumen-code.desktop` und exakt die Code-Icon-Pixel.
+Der vorhandene `hicolor/icon-theme.cache` war älter als das neue Code-Asset und
+enthielt nur `lumen-workbench`, noch kein `lumen-code`. Der Cache wurde mit
+Sicherung neu aufgebaut, die KDE-Anwendungsdatenbank aktualisiert und der
+Panel-Iconloader über seine vorhandene Änderungsmitteilung neu geladen.
+Der Benutzerinstaller aktualisiert künftig nach dem Kopieren der Icons auch
+den Hicolor-Cache, falls das vorhandene Systemwerkzeug verfügbar ist.
+Es wurde keine persönliche Anwendung geschlossen oder neu gestartet.
+Eine sichtbare Bestätigung der laufenden Plasma-Leiste durch den Nutzer
+steht noch aus; die Cachekorrektur ist technisch nachgewiesen.
