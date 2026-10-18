@@ -36,5 +36,18 @@
   "Dateiprüfung fehlgeschlagen. Bitte erneut versuchen.": "File verification failed. Please try again.",
   "Server bestätigt die Fortsetzung nicht.": "The server did not confirm resuming.",
   " · Ungültige Dateigröße.": " · Invalid file size.",
-  "Aktueller Drive-Bestand": "Current Drive contents"
+  "Aktueller Drive-Bestand": "Current Drive contents",
+  "Quelle wurde verändert. Beide Fassungen bleiben erhalten.": "The source changed. Both versions will be kept.",
+  "Ordner wurde ersetzt.": "A folder was replaced.",
+  "Quelle enthält inzwischen andere Einträge.": "The source now contains different entries.",
+  "Ziel enthält inzwischen andere Einträge.": "The destination now contains different entries.",
+  "Verknüpfung wurde ersetzt.": "A symbolic link was replaced.",
+  "Verknüpfung wurde verändert.": "A symbolic link changed.",
+  "Quell- und Zieldatei stimmen nicht überein.": "The source and destination files do not match.",
+  "Datei wurde während der Prüfung verändert.": "A file changed during verification.",
+  "Quelle zur Wiederherstellung prüfen: {0}": "Check the source before restoring it: {0}",
+  "Quellordner wurde inzwischen neu belegt.": "The original source path has been used again.",
+  "Quelle ist nicht mehr erreichbar.": "The source is no longer available.",
+  "Quelle konnte nicht in den Papierkorb verschoben werden.": "The source could not be moved to the trash.",
+  "Verschieben angehalten. Quelle unter {0}, Kopie unter {1}. Nach Prüfung fortsetzen.": "Move paused. Source at {0}, copy at {1}. Check both, then resume."
 }

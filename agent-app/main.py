@@ -495,7 +495,16 @@ def main():
             if protected_clipboard(app.clipboard()):
                 window.chat.show_error('Protected Vault clipboard content cannot be sent to Lumen.'); return
             clip = app.clipboard().mimeData()
-            paths = [u.toLocalFile() for u in clip.urls() if u.isLocalFile()] if clip.hasUrls() else [app.clipboard().text().strip()]
+            from clipboard_image import has_image, save
+            if has_image(clip):
+                try:
+                    paths = [save(clip)]
+                except (OSError, ValueError, TypeError) as error:
+                    window.chat.show_error(str(error)); return
+            else:
+                paths = [u.toLocalFile() for u in clip.urls() if u.isLocalFile()] if clip and clip.hasUrls() else [app.clipboard().text().strip()]
+            if not paths or any(not p for p in paths):
+                window.chat.show_error(tr('Kein Bild oder Dateipfad in der Zwischenablage.')); return
         invalid = [p for p in paths if not Path(p).exists()]
         if invalid:
             window.chat.show_error(tr('Pfad nicht erreichbar: ') + ', '.join(invalid))

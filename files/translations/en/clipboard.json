@@ -10,5 +10,6 @@
   "Der Zwischenablage-Speicher ist voll. Bitte das Bild als Datei anhängen.": "Clipboard storage is full. Please attach the image as a file.",
   "Der Bildanhang konnte nicht gespeichert werden.": "The image attachment could not be saved.",
   "Der Bildanhang konnte nicht geschützt gespeichert werden.": "The image attachment could not be saved privately.",
-  "Bitte höchstens 24 Anhänge hinzufügen.": "Please add no more than 24 attachments."
+  "Bitte höchstens 24 Anhänge hinzufügen.": "Please add no more than 24 attachments.",
+  "Kein Bild oder Dateipfad in der Zwischenablage.": "No image or file path in the clipboard."
 }
