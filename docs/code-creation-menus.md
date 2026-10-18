@@ -91,3 +91,15 @@ unter `~/.local/state/lumen/code-create-20261018/`. Rückweg verändert keine
 Sammlungsdaten oder Lauf-Checkpoints: Neue v3-Abläufe benötigen zum erneuten Öffnen
 weiterhin eine v3-fähige Laufzeit. Persönliche Sitzungen werden nicht als
 Testumgebung benutzt und nicht automatisch beendet.
+
+## Fenster-Icon, 18.10.2026
+
+Der Starter war bereits `lumen-code` zugeordnet. Anwendung und Sammlung setzen
+nun zusätzlich ausdrücklich das vorhandene `lumen-code`-Fenster-Icon, damit
+weder der Desktop-Fallback noch ein geerbtes Projects-Icon angezeigt werden.
+Kinddialoge erben das Code-Icon. Native A/B-Prüfungen über den echten Einstieg
+vergleichen die gerenderten Pixel mit dem freigegebenen Code-Asset und prüfen
+den Unterschied zum Projects-Asset. Zwei Regressionstests sichern Prozess- und
+Fensterzuordnung. Bestehende persönliche Fenster werden nicht beendet; für die
+neue Zuordnung Lumen Code schließen und neu öffnen. KWin/Plasma selbst wurde
+nicht in einer persönlichen Sitzung automatisiert geprüft.
