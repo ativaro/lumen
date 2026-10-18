@@ -96,9 +96,11 @@ class Reader(ToolWindow):
         rl.addWidget(button(tr('Markierung entfernen'),lambda:self.safe(self.remove_note),'edit-delete'))
         rl.addWidget(button(tr('Als Notiz speichern …'),lambda:self.safe(self.remember),'document-save'))
         self.read_split.addWidget(self.rail);self.read_split.setSizes([720,280]);self.read_split.setStretchFactor(0,1)
+        self.focus_button=button(tr('Lesemodus'),self.focus_mode,'view-fullscreen');self.focus_button.setCheckable(True)
+        self._compact=False;self._compact_restore=None
         self.content.addWidget(row(button(tr('Vorlesen'),lambda:self.safe(self.speak),'audio-volume-high'),
             button(tr('Notizen exportieren'),lambda:self.safe(self.export_notes),'document-export'),
-            button(tr('Lesemodus'),self.focus_mode,'view-fullscreen')))
+            self.focus_button))
         self.player=AudioPlayer();self.content.addWidget(self.player);self.player.hide()
         self.scroll.verticalScrollBar().valueChanged.connect(self.edited);self.text.verticalScrollBar().valueChanged.connect(self.edited)
         self.body.setEnabled(False);self.refresh()
@@ -111,6 +113,7 @@ class Reader(ToolWindow):
         actions.addAction(tr('Alle Markierungen als Notiz speichern …'),lambda:self.safe(self.send_marks,False))
         from interop_reader import send_book_marks
         actions.addAction(tr('Markierungen mehrerer Dokumente an Lumen Audio Studio · Radio'),lambda:self.safe(send_book_marks,self))
+        self.body.installEventFilter(self)
 
     def create(self):
         path,_=QFileDialog.getOpenFileName(self,tr('Buch oder Dokument öffnen'),str(Path.home()),tr('Lesbare Dokumente (*.pdf *.epub *.txt *.md *.html *.htm)'))
@@ -223,11 +226,34 @@ class Reader(ToolWindow):
 
     def eventFilter(self,obj,event):
         if event.type()==QEvent.Resize and hasattr(self,'canvas') and self.zoom.currentData()==0:self.canvas.resize_page(self.effective_zoom())
+        if obj is self.body and event.type()==QEvent.EnabledChange:self.update_reading_layout()
         return super().eventFilter(obj,event)
 
     def change_mode(self,index):self.views.setCurrentIndex(index);self.edited()
     def focus_mode(self):
-        focused=self.sidebar.isVisible();self.sidebar.setVisible(not focused);self.rail.setVisible(not focused)
+        self._compact_restore=None
+        focused=not self.rail.isHidden();self.sidebar.setVisible(not focused);self.rail.setVisible(not focused);self.reading_mode_status()
+
+    def reading_mode_status(self):
+        focused=self.sidebar.isHidden() and self.rail.isHidden()
+        text=tr('Bibliothek und Gedanken anzeigen' if focused else 'Lesemodus')
+        self.focus_button.setText(text);self.focus_button.setAccessibleName(text);self.focus_button.setChecked(focused)
+
+    def resizeEvent(self,event):
+        super().resizeEvent(event)
+        self.update_reading_layout()
+
+    def update_reading_layout(self):
+        if not hasattr(self,'focus_button') or not self.isWindow():return
+        compact=self.width()<1000 and self.body.isEnabled()
+        if compact==self._compact:return
+        self._compact=compact
+        if compact:
+            self._compact_restore=(not self.sidebar.isHidden(),not self.rail.isHidden())
+            self.sidebar.hide();self.rail.hide();self.reading_mode_status()
+        elif self._compact_restore is not None:
+            sidebar,rail=self._compact_restore;self._compact_restore=None
+            self.sidebar.setVisible(sidebar);self.rail.setVisible(rail);self.reading_mode_status()
 
     def save(self):
         super().save()

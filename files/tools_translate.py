@@ -7,6 +7,7 @@ from PySide6.QtGui import QPixmap, QKeySequence, QShortcut
 from PySide6.QtWidgets import (QApplication, QComboBox, QPlainTextEdit, QSplitter, QWidget,
     QVBoxLayout, QHBoxLayout, QTabWidget, QFileDialog, QScrollArea, QLabel, QSpinBox)
 from tools_ui import ToolWindow, button, label, row
+from desktop_design import PAGE_SPACING
 from lumen_i18n import tr
 from private_input import AssistantInput
 import translate_data as data
@@ -35,7 +36,8 @@ class Translate(ToolWindow):
         text_page = QWidget(); text_box = QVBoxLayout(text_page); text_box.setContentsMargins(0, 14, 0, 0)
         self.input = AssistantInput(); self.input.setPlaceholderText(tr('Text eingeben oder einfügen …')); self.input.setAccessibleName(tr('Originaltext'))
         self.output = QPlainTextEdit(); self.output.setReadOnly(True); self.output.setPlaceholderText(tr('Dein Ergebnis erscheint hier.')); self.output.setAccessibleName(tr('Bearbeiteter Text'))
-        split = QSplitter()
+        split = QSplitter();split.setObjectName('composeTextSplit');split.setHandleWidth(PAGE_SPACING)
+        split.setStyleSheet('QSplitter#composeTextSplit::handle { background: transparent; }')
         for caption, editor in [(tr('Original'),self.input),(tr('Ergebnis'),self.output)]:
             pane=QWidget();box=QVBoxLayout(pane);box.setContentsMargins(0,0,0,0);box.addWidget(label(caption,'heading'));box.addWidget(editor);split.addWidget(pane)
         split.setSizes([420,420]);text_box.addWidget(split,1)
