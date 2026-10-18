@@ -196,7 +196,7 @@ class CollectionWindow(QMainWindow):
     def kind_title(self,item):
         if item['kind']=='automation' and item['definition'].get('flow'):
             from code_flow import parse
-            if parse(item['definition']['flow']).get('version')!=2:return tr('Routine')
+            if parse(item['definition']['flow']).get('version') not in (2,3):return tr('Routine')
         return tr({'app':'Kleine App','tool':'Werkzeug','automation':'Automation','code':'Code im Projekt'}[item['kind']])
 
     def entry_status(self,item):
@@ -209,7 +209,7 @@ class CollectionWindow(QMainWindow):
             except ValueError:return tr('Auftrag nicht mehr verfügbar')
         if item['kind']=='automation':
             from code_flow import parse
-            if item['definition'].get('flow') and parse(item['definition']['flow']).get('version')==2:
+            if item['definition'].get('flow') and parse(item['definition']['flow']).get('version') in (2,3):
                 exists=self.store.rows("SELECT 1 FROM sqlite_master WHERE name='code_block_runs'")
                 rows=self.store.rows('SELECT status FROM code_block_runs WHERE entry=? ORDER BY updated DESC LIMIT 1',(item['id'],)) if exists else []
                 state=rows[0]['status'] if rows else 'draft'
@@ -272,7 +272,7 @@ class CollectionWindow(QMainWindow):
             self.open_coding(identity);return
         if item['kind']=='automation' and item['definition'].get('flow'):
             from code_flow import parse
-            if blocks and not item['archived'] and parse(item['definition']['flow']).get('version')==2:
+            if blocks and not item['archived'] and parse(item['definition']['flow']).get('version') in (2,3):
                 from code_blocks_window import BlockWindow
                 BlockWindow(self.collection,identity,self).exec();self.refresh();return
         self.current=item;self.loading=True;self.footer.setText(tr('Meine Sammlung')+' / '+item['title'])
@@ -284,7 +284,7 @@ class CollectionWindow(QMainWindow):
             self.favorite.setText(tr('★ Favorit' if item['favorite'] else '☆ Als Favorit'));self.archive.setText(tr('Wiederherstellen' if item['archived'] else 'Archivieren'))
             self.preview.setVisible(item['kind']=='app');self.adopt.setVisible(item['kind']=='app');self.schedule.setVisible(item['kind']=='automation');self.toggle.setVisible(item['kind']=='automation');self.run.setEnabled(not item['archived']);self.preview.setEnabled(not item['archived']);self.toggle.setEnabled(not item['archived'])
             from code_flow import parse
-            block_flow=item['kind']=='automation' and item['definition'].get('flow') and parse(item['definition']['flow']).get('version')==2
+            block_flow=item['kind']=='automation' and item['definition'].get('flow') and parse(item['definition']['flow']).get('version') in (2,3)
             self.schedule.setText(tr('Bausteine öffnen' if block_flow else 'Automation einrichten'));self.toggle.setVisible(item['kind']=='automation' and not block_flow)
             self.prompt.setReadOnly(bool(block_flow));self.input.setEnabled(not block_flow)
             self.schedule.setEnabled(not item['archived'])
@@ -372,7 +372,7 @@ class CollectionWindow(QMainWindow):
 
     def open_blocks(self):
         from code_flow import parse
-        if self.current['kind']!='automation' or not self.current['definition'].get('flow') or parse(self.current['definition']['flow']).get('version')!=2:return False
+        if self.current['kind']!='automation' or not self.current['definition'].get('flow') or parse(self.current['definition']['flow']).get('version') not in (2,3):return False
         if self.dirty:self.save()
         from code_blocks_window import BlockWindow
         BlockWindow(self.collection,self.current['id'],self).exec();self.current=self.collection.get(self.current['id']);return True

@@ -44,7 +44,7 @@ def read_file(path,job):
                         if total>20*1024**2:raise ValueError('Datei ist größer als 20 MiB.')
                         output.write(chunk)
                 text=document_text(snapshot,job)
-    return dict(text=text,source=str(path),filename=path.name)
+    return dict(text=text,source=str(path),filename=path.name,extension=path.suffix.lower().lstrip('.'),size=info.st_size)
 
 
 def write_file(folder,name,text):
@@ -138,7 +138,9 @@ class Runs:
                 if run['status']!='waiting':raise ValueError('Keine Bestätigung offen.')
                 step=run['data']['steps'][run['data']['cursor']]
                 step.update(status='completed',output={**step['input'],'approval':'Bestätigt'})
-                run['data']['cursor']+=1;run['status']='completed' if run['data']['cursor']==len(run['plan']['nodes']) else 'paused'
+                run['data']['cursor']+=1
+                while run['data']['cursor']<len(run['data']['steps']) and run['data']['steps'][run['data']['cursor']]['status']=='skipped':run['data']['cursor']+=1
+                run['status']='completed' if run['data']['cursor']==len(run['plan']['nodes']) else 'paused'
             elif action in ('cancel','pause'):
                 run['status']='cancelled' if action=='cancel' else 'paused'
                 step=run['data']['steps'][run['data']['cursor']]
@@ -159,7 +161,9 @@ class Runs:
             step.update(status='running',attempts=step['attempts']+1,input=previous,output={},error='',ticket=uuid4().hex)
             token=step['ticket'];self.save(db,run)
         kind=n['kind']
-        if kind=='ai':return dict(prompt=json.dumps(dict(instruction=n['config'],input=previous,format={'text':'Ergebnistext'}),ensure_ascii=False),attempt=token)
+        if kind in ('ai','ai_check'):
+            output_format={'text':'Ergebnistext',**({'matched':True} if kind=='ai_check' else {})}
+            return dict(prompt=json.dumps(dict(instruction=n['config'],input=previous,format=output_format),ensure_ascii=False),attempt=token)
         if kind=='approval':
             with self.store.connect() as db:
                 db.execute('BEGIN IMMEDIATE');run=self.get(identity,db);self.fence(run,db)
@@ -167,7 +171,11 @@ class Runs:
                     run['status']='waiting';run['data']['steps'][cursor]['status']='waiting';self.save(db,run)
             return None
         try:
-            if kind=='read_file':output=read_file(n['config'],job)
+            if kind=='manual' and run['plan'].get('version')==3:
+                from code_block_input import read
+                from code_block_paths import config
+                output=read(config(n),self.store,job)
+            elif kind=='read_file':output=read_file(n['config'],job)
             else:
                 # Fence, direct effect and checkpoint share the entry's write lock.
                 with self.store.connect() as db:
@@ -196,10 +204,13 @@ class Runs:
         from tools_data import parse_answer
         try:
             value=parse_answer(answer)
-            if set(value)!={'text'} or not isinstance(value['text'],str) or not value['text'].strip() or len(value['text'])>120000:
+            run=self.get(identity)
+            kind=run['plan']['nodes'][run['data']['cursor']]['kind']
+            expected={'text','matched'} if kind=='ai_check' else {'text'}
+            if set(value)!=expected or (kind=='ai_check' and type(value.get('matched')) is not bool) or not isinstance(value['text'],str) or not value['text'].strip() or len(value['text'])>120000:
                 raise ValueError('Die KI-Antwort muss einen Ergebnistext bis 120.000 Zeichen enthalten.')
             run=self.get(identity);previous=run['data']['steps'][run['data']['cursor']]['input']
-            self.finish_external(identity,{**previous,'text':value['text']},attempt)
+            self.finish_external(identity,{**previous,**value,'result':value['text']},attempt)
         except Exception as error:self.fail(identity,str(error),attempt)
 
     def fail(self,identity,error,attempt=None):
@@ -213,6 +224,9 @@ class Runs:
     def effect(self,run,n,previous,job):
         kind=n['kind'];token=run['id']+n['id'];text=previous.get('text','');output=dict(previous)
         if kind=='manual':return dict(text='',start='Manuell')
+        if kind in ('condition','choose'):
+            from code_block_paths import route
+            return route(run,n,previous)
         if kind=='if_pdf':
             pdf=previous.get('filename','').lower().endswith('.pdf');output['branch']='Dann' if pdf else 'Sonst'
             if not pdf:

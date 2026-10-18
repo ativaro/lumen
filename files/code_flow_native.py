@@ -9,7 +9,7 @@ from code_flow import parse,prompt,encode
 def configure(collection,item,approved=False):
     from code_library_execution import directory
     plan=parse(item['definition']['flow'])
-    if plan.get('version')==2:raise ValueError('Bausteinabläufe werden im eigenen Ablaufeditor ausgeführt.')
+    if plan.get('version') in (2,3):raise ValueError('Bausteinabläufe werden im eigenen Ablaufeditor ausgeführt.')
     if (plan['trigger']=='schedule' and 'clock' not in plan) or plan['source_ids'] or plan['service_ids']:
         raise ValueError('Dieser Ablauf benötigt Lumen Server. Lokal sind Intervalle, Ordner, Meldungen und Aufgabenentwürfe verfügbar.')
     if 'note' in plan['outputs']:

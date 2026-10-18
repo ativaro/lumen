@@ -42,7 +42,7 @@ class EditDialog(QDialog):
         if self.is_tool:self.original_spec=editing(item)
         elif item:
             self.plan=parse(item['definition']['flow'])
-            if self.plan.get('version')==2:raise ValueError(tr('Bausteinabläufe im Ablaufeditor bearbeiten.'))
+            if self.plan.get('version') in (2,3):raise ValueError(tr('Bausteinabläufe im Ablaufeditor bearbeiten.'))
             if self.plan['trigger']=='schedule' and 'clock' not in self.plan:raise ValueError(tr('Serverzeitpläne im zuständigen Server bearbeiten.'))
         else:
             self.plan=dict(trigger='schedule',minutes=60,watch='',cron='0 9 * * *',timezone='Europe/Zurich',clock=default(),

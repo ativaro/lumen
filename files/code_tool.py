@@ -36,7 +36,7 @@ def usages(collection, identity):
         text = item['definition'].get('flow')
         if not text: continue
         plan = parse(text)
-        if plan.get('version') == 2: continue
+        if plan.get('version') in (2,3): continue
         steps = [s for s in plan['steps'] if s.get('tool_id') == identity]
         if steps: result.append((item, steps))
     return result
