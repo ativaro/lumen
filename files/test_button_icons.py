@@ -1,5 +1,6 @@
 """Primary action glyphs retain the text's live palette contrast."""
 import unittest
+from unittest.mock import patch
 from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtGui import QIcon, QPalette
 from PySide6.QtWidgets import QApplication
@@ -20,6 +21,13 @@ class ButtonIconTest(unittest.TestCase):
                   if image.pixelColor(x, y).alpha() > (64 if mode == QIcon.Disabled else 128)]
         self.assertTrue(colors, {'mode':str(mode),'maximum_alpha':max((image.pixelColor(x,y).alpha() for x in range(image.width()) for y in range(image.height())),default=0),'size':(image.width(),image.height())})
         return colors
+
+    def test_loaded_previous_typography_module_keeps_buttons_working(self):
+        import studio_design
+        with patch.object(studio_design, 'button_icon', None):
+            action = button('Speichern', lambda: None, 'document-save', True)
+        self.assertFalse(action.icon().isNull())
+        action.deleteLater(); QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
 
     def test_primary_icon_follows_text_across_themes_and_disabled_state(self):
         apply_design(self.app, 'graphite')

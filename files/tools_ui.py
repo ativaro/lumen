@@ -18,8 +18,10 @@ from lumen_jobs import Job
 def button(text, callback, icon='', primary=False):
     b = QPushButton(text); b.setCursor(Qt.PointingHandCursor)
     if icon:
-        from studio_design import button_icon
-        b.setIcon(button_icon(icon, b))
+        import studio_design
+        # Existing processes may still hold the previous module until normal restart.
+        factory = getattr(studio_design, 'button_icon', None)
+        b.setIcon(factory(icon, b) if factory else QIcon.fromTheme(icon))
     b.setObjectName('primary' if primary else 'toolButton')
     b.setAccessibleName(text); b.clicked.connect(callback)
     return b
