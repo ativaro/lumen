@@ -3,7 +3,7 @@ from pathlib import Path
 import sys
 from PySide6.QtCore import Qt, QProcess, QTimer
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QScrollArea, QPlainTextEdit, QMenu, QTabBar, QPushButton, QDialog, QComboBox, QDialogButtonBox
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QScrollArea, QPlainTextEdit, QMenu, QTabBar, QPushButton, QDialog, QComboBox, QDialogButtonBox, QSizePolicy
 from lumen_i18n import tr
 from tools_ui import label, button, row
 from projects_data import KINDS, STATES
@@ -29,6 +29,8 @@ QWidget#projectJournal QWidget#journalOverview { border-bottom:1px solid palette
 QWidget#projectJournal QWidget#journalTimeline { border-left:1px solid palette(mid); }
 QWidget#projectJournal QPushButton#journalAction { background:transparent;border:1px solid palette(mid);border-radius:7px;padding:8px 10px;font-size:11px; }
 QWidget#projectJournal QPushButton#journalIntegration { background:transparent;border:0;border-radius:7px;text-align:left;padding:8px 0;font-size:12px; }
+QWidget#projectJournal QPushButton#journalTask { background:transparent;border:0;border-radius:7px;text-align:left;padding:0; }
+QWidget#projectJournal QLabel#journalTaskTitle { font-size:12px; }
 QWidget#projectJournal QPushButton#journalEntry { background:transparent;border:0;padding:0;text-align:left;min-height:46px; }
 QWidget#projectJournal QLabel#journalEntryTitle { font-size:16px;font-weight:500; }
 QWidget#projectJournal QPushButton:hover,QWidget#projectJournal QPushButton:focus { color:palette(highlight);border-color:palette(highlight); }
@@ -62,7 +64,7 @@ class ProjectJournal(QWidget):
         self.tabs.currentChanged.connect(self.change_view);layout.addWidget(self.tabs);layout.addSpacing(26)
         scroll=QScrollArea();self.scroll=scroll;scroll.setWidgetResizable(True);scroll.setFrameShape(QScrollArea.NoFrame);scroll.setAccessibleName(tr('Projektjournal'));layout.addWidget(scroll,1)
         self.page=QWidget();self.page.setObjectName('journalPage');self.page.setAttribute(Qt.WA_StyledBackground);scroll.setWidget(self.page)
-        self.grid=QGridLayout(self.page);self.grid.setContentsMargins(0,0,0,0);self.grid.setSpacing(28)
+        self.grid=QGridLayout(self.page);self.grid.setContentsMargins(0,0,8,0);self.grid.setSpacing(28)
         self.main=QWidget();self.main_box=QVBoxLayout(self.main);self.main_box.setContentsMargins(0,0,0,0);self.main_box.setSpacing(0)
         self.side=QWidget();self.side.setObjectName('journalAside');self.side.setAttribute(Qt.WA_StyledBackground)
         side=QVBoxLayout(self.side);side.setContentsMargins(24,0,0,0);side.setSpacing(12);self.side_box=side
@@ -238,7 +240,8 @@ class ProjectJournal(QWidget):
         if not shown:self.main_box.addWidget(label(tr('Noch nichts zugeordnet.'),'journalMuted'))
         for task in sorted(tasks,key=lambda item:item['updated'],reverse=True):
             if task.get('status','open') not in ('done','cancelled','failed') and self.next_box.count()<5:
-                control=button(task['title'],lambda _checked=False,key=task['id']:window.safe(window.navigate,record['id'],key));control.setObjectName('journalIntegration');self.next_box.addWidget(control)
+                control=button('',lambda _checked=False,key=task['id']:window.safe(window.navigate,record['id'],key));control.setObjectName('journalTask');control.setAccessibleName(task['title']);control.setToolTip(task['title']);control.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Preferred)
+                content=QVBoxLayout(control);content.setContentsMargins(0,8,0,8);caption=label(task['title'],'journalTaskTitle');caption.setAttribute(Qt.WA_TransparentForMouseEvents);content.addWidget(caption);self.next_box.addWidget(control)
         if not self.next_box.count():self.next_box.addWidget(label(tr('Keine offenen Aufgaben.'),'journalMuted'))
         self.main_box.addStretch(1)
 
@@ -250,7 +253,7 @@ class ProjectJournal(QWidget):
         body=QWidget();body.setObjectName('journalTimeline' if self.view=='journal' else 'journalResource');body.setAttribute(Qt.WA_StyledBackground)
         box=QVBoxLayout(body);box.setContentsMargins(20 if self.view=='journal' else 0,0,0,25);box.setSpacing(10)
         if self.view=='journal':box.addWidget(label(tr(entry['kind'])+' · '+tr('Zugeordnet'),'journalEyebrow'))
-        control=QPushButton();control.setObjectName('journalEntry');control.setAccessibleName(entry['title']);control.setCursor(Qt.PointingHandCursor)
+        control=QPushButton();control.setObjectName('journalEntry');control.setAccessibleName(entry['title']);control.setCursor(Qt.PointingHandCursor);control.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Preferred)
         content=QVBoxLayout(control);content.setContentsMargins(0,0,0,0);content.setSpacing(5)
         content.addWidget(label(entry['title'],'journalEntryTitle'));content.addWidget(label(' · '.join(filter(None,(tr(entry['kind']),entry['detail']))),'journalMuted'))
         for child in control.findChildren(QWidget):child.setAttribute(Qt.WA_TransparentForMouseEvents)

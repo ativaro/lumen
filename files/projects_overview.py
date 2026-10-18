@@ -2,7 +2,7 @@
 from datetime import datetime
 from PySide6.QtCore import Qt, QRectF, Signal
 from PySide6.QtGui import QPalette, QPainter, QPen, QIcon
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLineEdit, QPushButton, QScrollArea
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLineEdit, QPushButton, QScrollArea, QSizePolicy
 from lumen_i18n import tr, language
 from tools_ui import label, button, row
 
@@ -88,7 +88,7 @@ class ProjectOverview(QWidget):
             hint=label(tr('Deine Projekte im Blick'),'overviewSmall');hint.setAlignment(Qt.AlignRight|Qt.AlignVCenter)
             heading=row(label(tr('Zuletzt bearbeitet'),'recentHeading'),hint);self.recent_box.addWidget(heading)
         for record in records:
-            card=QPushButton();card.setObjectName('projectCard');card.setAccessibleName(record['title']);card.setCursor(Qt.PointingHandCursor);card.setMinimumHeight(256);card.setMinimumWidth(0)
+            card=QPushButton();card.setObjectName('projectCard');card.setAccessibleName(record['title']);card.setCursor(Qt.PointingHandCursor);card.setMinimumHeight(256);card.setMinimumWidth(0);card.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Preferred)
             box=QVBoxLayout(card);box.setContentsMargins(24,24,24,24);box.setSpacing(0)
             date=label(stamp(record['updated']),'overviewSmall');date.setAlignment(Qt.AlignRight|Qt.AlignVCenter)
             top=row(ProjectGlyph(),date);box.addWidget(top);box.addSpacing(26)
@@ -99,7 +99,7 @@ class ProjectOverview(QWidget):
             for child in card.findChildren(QWidget):child.setAttribute(Qt.WA_TransparentForMouseEvents)
             card.clicked.connect(lambda checked=False,key=record['id']:self.selected.emit(key));self.cards.append(card)
         for record in records[:3]:
-            recent=QPushButton();recent.setObjectName('recentProject');recent.setAccessibleName(record['title']);recent.setCursor(Qt.PointingHandCursor)
+            recent=QPushButton();recent.setObjectName('recentProject');recent.setAccessibleName(record['title']);recent.setCursor(Qt.PointingHandCursor);recent.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Preferred)
             line=QHBoxLayout(recent);line.setContentsMargins(0,17,0,17);line.setSpacing(15);line.addWidget(ProjectGlyph(compact=True))
             text=QWidget();box=QVBoxLayout(text);box.setContentsMargins(0,0,0,0);box.setSpacing(7);box.addWidget(label(record['title'],'recentTitle'));box.addWidget(label(tr('Projektjournal öffnen'),'overviewSmall'))
             line.addWidget(text,1);line.addWidget(label(stamp(record['updated']),'overviewSmall'));line.addWidget(label('→','overviewSmall'))

@@ -94,4 +94,20 @@ class ProjectEditorPanoramaTest(unittest.TestCase):
         w.editor.commit();saved=w.projects.get(w.scope)
         self.assertEqual((saved['parent'],saved['kind'],saved['goal']),(self.owner,'research','Another result'))
 
+    def test_long_journal_titles_wrap_and_editor_keeps_both_inner_margins(self):
+        from PySide6.QtWidgets import QPushButton,QLabel
+        w=self.w;w.editor.close_editor()
+        title='Vergleich der Luft-Wasser-Wärmepumpen und der langfristigen Wartungskosten'
+        w.projects.update(self.task,title=title)
+        w.home.refresh();w.resize(960,640);QTest.qWait(30)
+        buttons=[b for b in w.journal.findChildren(QPushButton) if b.objectName() in ('journalEntry','journalTask')]
+        self.assertTrue(any(b.accessibleName()==title for b in buttons))
+        for b in buttons:
+            for caption in b.findChildren(QLabel):
+                self.assertGreaterEqual(caption.height()+1,caption.heightForWidth(caption.width()),caption.text())
+        w.navigate(self.project,self.task);QTest.qWait(20)
+        left,top,right,bottom=w.editor.layout().getContentsMargins()
+        self.assertEqual((left,right),(24,24))
+        self.assertTrue(w.editor.rect().contains(w.editor.apply.mapTo(w.editor,w.editor.apply.rect().bottomRight())))
+
 if __name__=='__main__':unittest.main()

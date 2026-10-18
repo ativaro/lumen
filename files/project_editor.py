@@ -24,7 +24,7 @@ QWidget#projectEditor QWidget#editorFooter { border-top:1px solid palette(mid); 
 QWidget#projectEditor QToolButton { background:transparent;color:palette(text);border:1px solid transparent;border-radius:6px;padding:8px 4px; }
 QWidget#projectEditor QToolButton:hover,QWidget#projectEditor QToolButton:focus { background:palette(midlight);border-color:palette(highlight); }
 ''')
-        layout=QVBoxLayout(self);layout.setContentsMargins(24,16,0,0);layout.setSpacing(12)
+        layout=QVBoxLayout(self);layout.setContentsMargins(24,16,24,0);layout.setSpacing(12)
         self.heading=label('', 'editorTitle')
         close=button('',lambda:window.safe(self.close_editor),'window-close');close.setAccessibleName(tr('Seitenleiste schließen'));close.setToolTip(tr('Schließen'))
         self.more=button('',lambda:None,'view-more-symbolic');self.more.setAccessibleName(tr('Weitere Aktionen'));self.more.setToolTip(tr('Weitere Aktionen'));self.more_menu=QMenu(self.more);self.more.setMenu(self.more_menu)
