@@ -32,6 +32,7 @@ QPushButton:hover { background: palette(midlight); border-color: palette(mid); }
 QPushButton:pressed, QPushButton:checked { background: palette(highlight); color: palette(highlighted-text); }
 QPushButton:focus { border: 1px solid palette(highlight); }
 QPushButton:disabled { color: palette(dark); background: transparent; }
+QPushButton#primary:disabled { color: palette(placeholder-text); background: transparent; border-color: palette(mid); }
 QPushButton#toolButton, QPushButton#iconButton { background: transparent; border: 1px solid transparent; border-radius: 7px; padding: 5px 8px; min-height: 20px; font-size: 14px; }
 QPushButton#iconButton { font-size: 20px; min-width: 24px; }
 QPushButton#toolButton:hover, QPushButton#iconButton:hover { background: palette(midlight); }
