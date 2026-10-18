@@ -20,21 +20,23 @@ class CreationDialog(QDialog):
     def __init__(self,parent=None,projects=None,tools=None,kind=None):
         super().__init__(parent);self.setWindowTitle(tr('Lumen · Neu erstellen'));self.resize(1120,850)
         self.kind='tool';self.value=None;self.drafts={};self.goal_engine=None;self.goal_directory=None;self.recommendation=None;self.goal_submitted='';self.closed=False;self.job=None;self.closing=False;self.test_engine=None;self.test_directory=None;self.goal_seeded=set()
-        from code_design import shell,navigation,card
-        main,nav,self.footer=shell(self);self.nav=navigation(nav,self.reject,self.select_kind)
-        box=QVBoxLayout(main);box.setContentsMargins(32,24,32,24);box.setSpacing(16)
-        top=QHBoxLayout();back=button(tr('‹ Zur Sammlung'),self.reject);back.setObjectName('codeLink');top.addWidget(back);top.addStretch();goal_link=button(tr('Ziel beschreiben'),lambda:self.pages.setCurrentIndex(3));goal_link.setObjectName('codeLink');top.addWidget(goal_link);box.addLayout(top)
+        from code_design import editor_shell,card
+        main,self.header,self.footer=editor_shell(self,tr('Lumen · Neu erstellen'),tr('Wähle den passenden Weg für deine Aufgabe.'))
+        box=QVBoxLayout(main);box.setContentsMargins(0,0,0,0);box.setSpacing(16)
+        goal_link=button(tr('Ziel beschreiben'),self.show_goal);goal_link.setObjectName('codeLink');self.header.actions.addWidget(goal_link)
+        self.header.actions.addWidget(button(tr('Schließen'),self.reject))
         self.pages=QStackedWidget();box.addWidget(self.pages,1)
-        choose=QWidget();layout=QVBoxLayout(choose);layout.setContentsMargins(0,0,0,0);layout.addWidget(label(tr('Was möchtest du erstellen?'),'codeTitle'))
-        layout.addWidget(label(tr('Jede Art hat ihren eigenen Einstieg.'),'codeSubtitle'));grid=QGridLayout();grid.setSpacing(16);layout.addLayout(grid)
+        choose=QWidget();layout=QVBoxLayout(choose);layout.setContentsMargins(0,0,0,0)
+        grid=QGridLayout();grid.setSpacing(16);layout.addLayout(grid)
         examples={'tool':'Eingabe → Regeln → Ergebnis','routine':'Schritte → Zeitplan → prüfen','automation':'Wenn → Und wenn → Dann','code':'Projekt → erster Auftrag → Gespräch'}
         for index,(key,(title,description)) in enumerate(KINDS.items()):grid.addWidget(card(tr(title),tr(description),tr(examples[key]),lambda _=False,k=key:self.select_kind(k),key),index//2,index%2)
         self.creation_grid=grid;self.creation_cards=[grid.itemAt(i).widget() for i in range(grid.count())];layout.addStretch();choose_scroll=QScrollArea();choose_scroll.setWidgetResizable(True);choose_scroll.setWidget(choose);self.pages.addWidget(choose_scroll)
-        edit=QWidget();layout=QVBoxLayout(edit);layout.setContentsMargins(0,0,0,0);layout.setSpacing(12);self.heading=label('','codeTitle');layout.addWidget(self.heading);self.subtitle=label('','codeSubtitle');layout.addWidget(self.subtitle)
-        layout.addWidget(label(tr('Name')));self.name=QLineEdit();self.name.setAccessibleName(tr('Name'));self.name.setMaxLength(160);layout.addWidget(self.name)
+        edit=QWidget();layout=QVBoxLayout(edit);layout.setContentsMargins(0,0,0,0);layout.setSpacing(16);self.heading=self.header.title;self.subtitle=self.header.subtitle
+        self.name_caption=label(tr('Name'));layout.addWidget(self.name_caption);self.name=QLineEdit();self.name.setAccessibleName(tr('Name'));self.name.setMaxLength(160);layout.addWidget(self.name)
         project_row=QHBoxLayout();self.project=QComboBox();self.project.setAccessibleName(tr('Lumen-Projekt'));self.project.addItem(tr('Ohne Projekt'),'')
         for key,title in (projects or {}).items():self.project.addItem(title,key)
         project_row.addWidget(self.project,1);project_box=QWidget();project_box.setLayout(project_row);project_row.setContentsMargins(0,0,0,0);project_box.hide();project_toggle=button(tr('Zu einem Lumen-Projekt hinzufügen · optional'),lambda:project_box.setVisible(not project_box.isVisible()));project_toggle.setObjectName('codeLink');layout.addWidget(project_toggle);layout.addWidget(project_box)
+        self.code_name_toggle=button(tr('Bezeichnung anpassen · optional'),lambda checked:(self.name.setVisible(checked),self.name_caption.setVisible(checked)));self.code_name_toggle.setCheckable(True);self.code_name_toggle.setObjectName('codeLink');layout.addWidget(self.code_name_toggle)
         store=getattr(parent,'store',None)
         from code_sections_editor import SectionsEditor
         self.forms={'tool':ToolForm(self),'routine':RoutineForm(self,tools,store),'automation':SectionsEditor(self,projects=projects,tools=tools),'code':CodeForm(self)}
@@ -44,8 +46,12 @@ class CreationDialog(QDialog):
             else:
                 scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setWidget(form);self.form_stack.addWidget(scroll)
         layout.addWidget(self.form_stack,1);self.flow_editor=self.forms['automation'];self.directory=self.forms['code'].directory
-        self.error=label('','codeError');self.error.hide();self.error.setMaximumHeight(36);layout.addWidget(self.error);self.test_status=label('','codeMuted');self.test_status.hide();self.test_status.setMaximumHeight(36);layout.addWidget(self.test_status);self.test_result=QPlainTextEdit();self.test_result.setReadOnly(True);self.test_result.setMaximumHeight(140);self.test_result.setAccessibleName(tr('Tatsächliches Testergebnis'));self.test_result.hide();layout.addWidget(self.test_result)
-        self.test_button=button(tr('Beispiel mit KI prüfen'),self.test_tool);actions=QHBoxLayout();actions.addWidget(button(tr('Zur Auswahl'),self.back));actions.addWidget(self.test_button);actions.addStretch();self.review_button=button(tr('Weiter zur Prüfung'),self.review,primary=True);actions.addWidget(self.review_button);layout.addLayout(actions);self.pages.addWidget(edit)
+        self.error=label('','codeError');self.error.hide();layout.addWidget(self.error)
+        test_box=self.forms['tool'].test_box
+        self.test_button=button(tr('Beispiel mit KI prüfen'),self.test_tool,primary=True);test_box.addWidget(self.test_button)
+        self.test_status=label('','codeMuted');self.test_status.hide();test_box.addWidget(self.test_status)
+        self.test_result=QPlainTextEdit();self.test_result.setReadOnly(True);self.test_result.setMinimumHeight(160);self.test_result.setAccessibleName(tr('Tatsächliches Testergebnis'));self.test_result.setPlaceholderText(tr('Hier erscheint das tatsächliche Ergebnis deines Tests.'));test_box.addWidget(self.test_result,1)
+        actions=QHBoxLayout();actions.addWidget(button(tr('Andere Art wählen'),self.back));actions.addStretch();self.review_button=button(tr('Weiter zur Prüfung'),self.review,primary=True);actions.addWidget(self.review_button);layout.addLayout(actions);self.pages.addWidget(edit)
         review=QWidget();layout=QVBoxLayout(review);layout.setContentsMargins(0,0,0,0);layout.addWidget(label(tr('Entwurf prüfen'),'codeTitle'));self.summary=QTextBrowser();self.summary.setObjectName('codeReview');self.summary.setOpenExternalLinks(False);layout.addWidget(self.summary,1)
         self.create_button=button(tr('Entwurf anlegen'),self.create,primary=True);layout.addWidget(row(button(tr('Bearbeiten'),lambda:self.pages.setCurrentIndex(1)),self.create_button));self.pages.addWidget(review)
         goal=QWidget();layout=QVBoxLayout(goal);layout.addWidget(label(tr('Was möchtest du erreichen?'),'codeTitle'));self.goal=QPlainTextEdit();self.goal.setAccessibleName(tr('Dein Ziel'));layout.addWidget(self.goal);self.goal_error=label('','codeError');layout.addWidget(self.goal_error);self.goal_status=label('','codeMuted');layout.addWidget(self.goal_status)
@@ -66,7 +72,7 @@ class CreationDialog(QDialog):
     def select_kind(self,kind):
         if kind not in KINDS:return
         if self.pages.currentIndex()==1:self.capture()
-        self.kind=kind;draft=self.drafts.get(kind,{});self.name.setText(draft.get('title',''));self.project.setCurrentIndex(max(0,self.project.findData(draft.get('project_id',''))));self.heading.setText(tr(KINDS[kind][0]));self.subtitle.setText(tr(KINDS[kind][1]));self.form_stack.setCurrentIndex(self.form_keys.index(kind));self.test_button.setVisible(kind=='tool');self.error.clear();self.error.hide();self.test_result.hide();self.test_status.hide();self.pages.setCurrentIndex(1);self.update_navigation()
+        self.kind=kind;draft=self.drafts.get(kind,{});self.name.setText(draft.get('title',''));self.project.setCurrentIndex(max(0,self.project.findData(draft.get('project_id',''))));self.form_stack.setCurrentIndex(self.form_keys.index(kind));self.error.clear();self.error.hide();self.pages.setCurrentIndex(1);self.update_navigation()
         if self.goal.toPlainText().strip() and kind not in self.goal_seeded:
             if kind=='automation':
                 target=next((n for n in self.flow_editor.items if n['kind']=='ai'),None)
@@ -76,17 +82,25 @@ class CreationDialog(QDialog):
 
     def resizeEvent(self,event):
         super().resizeEvent(event)
-        rail=self.findChild(QWidget,'codeRail')
-        if rail:rail.setVisible(self.width()>=1000)
         if hasattr(self,'creation_cards'):
             columns=1 if self.width()<800 else 2
             for i,card in enumerate(self.creation_cards):self.creation_grid.addWidget(card,i//columns,i%columns)
 
     def update_navigation(self,*_):
-        for key,control in self.nav.items():control.setChecked(self.pages.currentIndex() in (1,2) and key==self.kind)
+        editing=self.pages.currentIndex() in (1,2)
+        titles={'tool':'Lumen · Werkzeug erstellen','routine':'Lumen · Routine zusammenstellen','automation':'Lumen · Automation erstellen','code':'Lumen · Code-Projekt öffnen'}
+        self.header.title.setText(tr(titles[self.kind]) if editing else tr('Lumen · Dein Ziel') if self.pages.currentIndex()==3 else tr('Lumen · Neu erstellen'))
+        self.header.subtitle.setText(tr(KINDS[self.kind][1]) if editing else tr('Beschreibe deine Aufgabe oder wähle selbst den passenden Weg.'))
+        self.setWindowTitle(self.header.title.text())
+        self.code_name_toggle.setVisible(self.kind=='code')
+        self.name.setVisible(self.kind!='code' or self.code_name_toggle.isChecked());self.name_caption.setVisible(not self.name.isHidden())
         self.footer.setText(tr('Meine Sammlung')+' / '+tr(KINDS[self.kind][0] if self.pages.currentIndex() in (1,2) else 'Neu erstellen'))
 
     def back(self):self.capture();self.pages.setCurrentIndex(0)
+
+    def show_goal(self):
+        if self.pages.currentIndex()==1:self.capture()
+        self.pages.setCurrentIndex(3)
 
     def review(self):
         try:
@@ -95,7 +109,8 @@ class CreationDialog(QDialog):
                 plan=self.flow_editor.plan();value={'flow':encode(plan),'prompt':prompt(plan)}
             else:value=self.forms[self.kind].value()
             storage_kind='automation' if self.kind=='routine' else self.kind
-            self.value={**definition(storage_kind,self.name.text().strip() or tr(KINDS[self.kind][0]),value=value),'project_id':self.project.currentData()}
+            title=self.name.text().strip() or (Path(value['directory']).name if self.kind=='code' else tr(KINDS[self.kind][0]))
+            self.value={**definition(storage_kind,title,value=value),'project_id':self.project.currentData()}
             text='<h2>'+escape(self.value['title'])+'</h2><p>'+escape(tr(KINDS[self.kind][0]))+'</p>'
             if self.kind=='automation':
                 from code_conditions import describe

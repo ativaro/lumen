@@ -19,9 +19,10 @@ class SectionsEditor(QWidget):
         super().__init__(parent);self.run=None;self.engine=None;self.locked=False;self.open_ids=set();self.getters=[];self.projects=projects or {};self.tools=tools or []
         self.temporary=None;self.proposal_condition=None;self.closed=False;self.full_engine=None;self.full_directory=None;self.full_candidate=None
         root=QVBoxLayout(self);root.setContentsMargins(0,0,0,0);root.setSpacing(12)
-        self.tabs=QTabWidget();root.addWidget(self.tabs)
+        self.tabs=QTabWidget();self.tabs.tabBar().hide();self.tabs.setAccessibleName(tr('Ablauf und Formulierungshilfe'));root.addWidget(self.tabs)
         self.scroll=QScrollArea();self.scroll.setWidgetResizable(True);self.tabs.addTab(self.scroll,tr('Bausteine'))
         describe=QWidget();box=QVBoxLayout(describe);box.setSpacing(12)
+        box.addWidget(button(tr('‹ Zurück zum Ablauf'),lambda:self.tabs.setCurrentIndex(0)),0,Qt.AlignLeft)
         box.addWidget(label(tr('Bedingung beschreiben'),'codeCardTitle'));box.addWidget(label(tr('Lumen übersetzt deinen Text in sichtbare Bedingungen. Erst nach Prüfung übernehmen.'),'codeMuted'))
         self.description=QPlainTextEdit();self.description.setAccessibleName(tr('Bedingung als Text'));box.addWidget(self.description)
         self.describe_button=button(tr('Bedingung vorschlagen'),self.describe,primary=True);box.addWidget(self.describe_button)
@@ -29,7 +30,9 @@ class SectionsEditor(QWidget):
         self.proposal_box=QWidget();self.proposal_layout=QVBoxLayout(self.proposal_box);box.addWidget(self.proposal_box)
         self.accept_proposal=button(tr('Als Startbedingung übernehmen'),self.accept_condition);self.accept_proposal.hide();box.addWidget(self.accept_proposal);box.addStretch()
         self.tabs.addTab(describe,tr('Bedingung beschreiben'))
-        whole=QWidget();full=QVBoxLayout(whole);full.setSpacing(12);full.addWidget(label(tr('Den ganzen Ablauf beschreiben'),'codeCardTitle'))
+        whole=QWidget();full=QVBoxLayout(whole);full.setSpacing(12)
+        full.addWidget(button(tr('‹ Zurück zum Ablauf'),lambda:self.tabs.setCurrentIndex(0)),0,Qt.AlignLeft)
+        full.addWidget(label(tr('Den ganzen Ablauf beschreiben'),'codeCardTitle'))
         self.full_description=QPlainTextEdit();self.full_description.setAccessibleName(tr('Ablaufbeschreibung'));full.addWidget(self.full_description)
         self.full_button=button(tr('Bausteine vorschlagen'),self.describe_flow,primary=True);full.addWidget(self.full_button)
         self.full_status=label('','codeMuted');full.addWidget(self.full_status);self.full_preview=QPlainTextEdit();self.full_preview.setReadOnly(True);self.full_preview.setMaximumHeight(220);self.full_preview.setAccessibleName(tr('Vorgeschlagene Bausteine'));full.addWidget(self.full_preview);self.full_accept=button(tr('Bausteinentwurf übernehmen'),self.accept_flow);self.full_accept.hide();full.addWidget(self.full_accept);full.addStretch();self.tabs.addTab(whole,tr('Ablauf beschreiben'));self.set_plan(plan)
@@ -104,7 +107,9 @@ class SectionsEditor(QWidget):
                     edit.textChanged.connect(lambda text,k=key:self.update_source(start,source,k,text))
                 if source['kind']=='message':
                     attach=QCheckBox(tr('Anhang vorhanden'));attach.setChecked(source.get('has_attachment',False));source_box.addWidget(attach);attach.toggled.connect(lambda checked:self.update_source(start,source,'has_attachment',checked))
-        box.addWidget(label(tr('Und wenn'),'codeCardTitle'));enable=QCheckBox(tr('Nur starten, wenn diese Bedingungen stimmen'));enable.setChecked(self.gate_enabled);box.addWidget(enable)
+        condition_heading=QHBoxLayout();condition_heading.addWidget(label(tr('Und wenn'),'codeCardTitle'));condition_heading.addStretch()
+        condition_help=button(tr('Bedingung in Worten beschreiben'),lambda:self.tabs.setCurrentIndex(1));condition_help.setObjectName('codeLink');condition_heading.addWidget(condition_help);box.addLayout(condition_heading)
+        enable=QCheckBox(tr('Nur starten, wenn diese Bedingungen stimmen'));enable.setChecked(self.gate_enabled);box.addWidget(enable)
         if self.gate_enabled:
             from code_conditions import describe
             description=describe(config(self.gate));condition_box=self.fold(box,description[:100]+('…' if len(description)>100 else ''),'gate',description);editor=ConditionEditor(BASE_FIELDS|SOURCE_FIELDS[source['kind']],config(self.gate),self);editor.changed.connect(self.emit_change);condition_box.addWidget(editor)
@@ -116,7 +121,9 @@ class SectionsEditor(QWidget):
                 if self.gate is None:self.gate=node('condition',json.dumps({'field':'text','op':'exists','value':True}))
             self.mutate(change)
         enable.toggled.connect(toggle_gate)
-        box.addWidget(label(tr('Dann'),'codeCardTitle'));box.addWidget(label(tr('Von oben nach unten · nur geöffnete Bausteine zeigen ihre Einstellungen.'),'codeMuted'))
+        actions_heading=QHBoxLayout();actions_heading.addWidget(label(tr('Dann'),'codeCardTitle'));actions_heading.addStretch()
+        flow_help=button(tr('Ablauf in Worten beschreiben'),lambda:self.tabs.setCurrentIndex(2));flow_help.setObjectName('codeLink');actions_heading.addWidget(flow_help);box.addLayout(actions_heading)
+        box.addWidget(label(tr('Von oben nach unten · nur geöffnete Bausteine zeigen ihre Einstellungen.'),'codeMuted'))
         self.render_steps(self.items,box,0,start=1)
         self.state=label('','codeMuted');box.addWidget(self.state);box.addStretch();self.scroll.setWidget(body);self.apply_lock()
 

@@ -23,6 +23,56 @@ class CreationMenus(unittest.TestCase):
         elif hasattr(w,'shutdown'):w.shutdown()
         w.deleteLater();QTest.qWait(5)
 
+    def test_dedicated_editors_keep_context_and_formulation_links_return_to_flow(self):
+        from code_creation import CreationDialog
+        from PySide6.QtWidgets import QPushButton,QWidget
+        from desktop_design import AppHeader
+        for kind in ('tool','routine','automation','code'):
+            with self.subTest(kind=kind):
+                d=CreationDialog(kind=kind);self.addCleanup(self.dispose,d);d.show();QTest.qWait(10)
+                self.assertIsNone(d.findChild(QWidget,'codeRail'))
+                self.assertEqual(len([w for w in d.findChildren(AppHeader) if w.isVisible()]),1)
+                self.assertTrue(d.header.title.text().startswith('Lumen'))
+                self.assertTrue(d.forms[kind].isVisible());self.assertTrue(d.review_button.isVisible())
+                if kind=='code':self.assertFalse(d.name.isVisible())
+                if kind=='tool':self.assertTrue(d.forms[kind].example.isVisible());self.assertTrue(d.test_result.isVisible())
+                if kind=='automation':
+                    editor=d.flow_editor;plan=editor.plan()
+                    link=next(w for w in editor.findChildren(QPushButton) if w.text()=='Bedingung in Worten beschreiben')
+                    link.click();self.assertEqual(editor.tabs.currentIndex(),1)
+                    back=next(w for w in editor.tabs.currentWidget().findChildren(QPushButton) if w.text()=='‹ Zurück zum Ablauf')
+                    back.click();self.assertEqual(editor.tabs.currentIndex(),0);self.assertEqual(editor.plan(),plan)
+                d.hide()
+
+    def test_code_folder_supplies_title_without_creating_or_cloning(self):
+        from code_creation import CreationDialog
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp)/'Mein Projekt';folder.mkdir()
+            d=CreationDialog(kind='code');self.addCleanup(self.dispose,d);d.forms['code'].directory.setText(str(folder));d.review()
+            self.assertEqual(d.value['title'],'Mein Projekt')
+            self.assertEqual(list(folder.iterdir()),[]);self.assertIsNone(d.job)
+            d.pages.setCurrentIndex(1);d.code_name_toggle.click();self.assertFalse(d.name.isHidden())
+            d.name.setText('Eigener Name');d.show_goal();d.select_kind('tool');d.select_kind('code')
+            self.assertEqual(d.name.text(),'Eigener Name');d.review();self.assertEqual(d.value['title'],'Eigener Name')
+
+    def test_routine_creation_opens_saved_entry_without_second_creation_editor(self):
+        from code_creation_forms import RoutineForm
+        from code_library_window import CollectionWindow
+        with tempfile.TemporaryDirectory() as tmp:
+            w=CollectionWindow(Store(tmp));self.addCleanup(w.close)
+            form=RoutineForm();self.addCleanup(self.dispose,form);form.prompt.setPlainText('Offene Punkte zusammenfassen')
+            value=dict(kind='automation',title='Morgenroutine',description='',definition=form.value(),project_id='')
+            w.categories.setCurrentRow(w.category_keys.index('routine'))
+            self.assertEqual(w.create_button.text(),'Routine zusammenstellen')
+            with patch('code_creation.CreationDialog') as dialog,patch.object(w,'open_entry') as opened,patch('code_edit_window.EditDialog') as editor:
+                dialog.return_value.exec.return_value=1;dialog.return_value.kind='routine';dialog.return_value.value=value
+                w.create();editor.assert_not_called();opened.assert_called_once()
+            item=w.collection.get(opened.call_args.args[0]);self.assertEqual(item['title'],'Morgenroutine')
+            w.open_entry(item['id'],blocks=False)
+            self.assertTrue(w.input.isHidden());self.assertTrue(w.prompt.isHidden())
+            self.assertIn('Neuer Schritt',w.routine_overview.text());self.assertTrue(w.directory.isReadOnly());self.assertFalse(w.choose_directory_button.isEnabled())
+            self.assertFalse(w.store.workflows())
+
     def test_project_is_created_only_after_review_and_confirmation(self):
         from code_creation import CreationDialog
         with tempfile.TemporaryDirectory() as tmp:

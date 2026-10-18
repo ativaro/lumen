@@ -15,15 +15,13 @@ class BlockWindow(QDialog):
         super().__init__(parent);self.collection=collection;self.identity=identity;self.item=collection.get(identity)
         self.runs=Runs(collection);self.run=self.runs.latest(identity);self.job=None;self.engine=None;self.ai_wait=False;self.lease_fd=None;self.dirty=False;self.closing=False;self.last_state=None;self.closed=False
         self.setWindowTitle('Lumen · '+self.item['title']);self.resize(1240,860)
-        from code_design import shell,navigation
-        main,nav,self.footer=shell(self);self.nav=navigation(nav,self.reject,lambda _:self.reject());self.nav['automation'].setChecked(True)
-        root=QVBoxLayout(main);root.setContentsMargins(28,20,28,24);root.setSpacing(12)
+        from code_design import editor_shell
+        main,self.header,self.footer=editor_shell(self,'Lumen · '+self.item['title'],tr('Automation bearbeiten und mit deinen ausgewählten Daten prüfen.'))
+        root=QVBoxLayout(main);root.setContentsMargins(0,0,0,0);root.setSpacing(16)
         row=QHBoxLayout();row.addWidget(button(tr('‹ Zur Sammlung'),self.reject));
         self.manage_button=button(tr('Eintrag verwalten'),self.manage) if parent is not None else None
         if self.manage_button:row.addWidget(self.manage_button)
         row.addStretch();self.save_button=button(tr('Entwurf speichern'),lambda:self.safe(self.save));row.addWidget(self.save_button);root.addLayout(row)
-        root.addWidget(label(self.item['title'],'codeTitle'))
-        root.addWidget(label(tr('Dateien und Apps Schritt für Schritt verbinden. Jeder Baustein zeigt seine tatsächlichen Daten.'),'codeSubtitle'))
         from code_flow import parse
         plan=parse(self.item['definition']['flow'])
         if plan.get('version')==3:

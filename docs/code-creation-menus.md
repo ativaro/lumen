@@ -118,3 +118,12 @@ den Hicolor-Cache, falls das vorhandene Systemwerkzeug verfügbar ist.
 Es wurde keine persönliche Anwendung geschlossen oder neu gestartet.
 Eine sichtbare Bestätigung der laufenden Plasma-Leiste durch den Nutzer
 steht noch aus; die Cachekorrektur ist technisch nachgewiesen.
+
+## Korrektur der tatsächlichen Bedienung
+
+Die vier gewählten Wege sind jetzt direkt in ihren vorhandenen Ansichten und
+Übergängen nach Panorama angeglichen. Sammlungsnavigation gehört in die Sammlung;
+Erstellen, Bearbeiten und Ausführen erhalten passende eigene Ansichten. Der
+wirksame Werkzeugauftrag ist im Bearbeiten-Feld korrekt zugeordnet. Befund,
+Änderungspunkte, Abnahme und fortbestehende Funktionsgrenzen stehen in
+[lumen-panorama/code-ablaeufe-2026-10-18.md](lumen-panorama/code-ablaeufe-2026-10-18.md).

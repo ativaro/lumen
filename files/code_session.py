@@ -18,25 +18,33 @@ class CodingWindow(QMainWindow):
         self.item=collection.get(identity);self.root=directory(collection,self.item)
         if self.item['archived']:raise ValueError(tr('Archivierte Einträge können nicht ausgeführt werden.'))
         self.setAttribute(Qt.WA_DeleteOnClose);self.setWindowTitle('Lumen Code · '+self.item['title']);self.setWindowIcon(QIcon.fromTheme('lumen-code'));self.resize(1380,850)
-        from code_design import shell,navigation
-        from tools_ui import label
-        container=QWidget();main,nav,self.footer=shell(container);self.setCentralWidget(container)
-        self.navigation=navigation(nav,self.close,self.open_category);self.navigation['code'].setChecked(True)
+        from code_design import editor_shell
+        container=QWidget();main,self.header,self.footer=editor_shell(container,self.windowTitle(),str(self.root));self.setCentralWidget(container)
+        container.setStyleSheet(Path(__file__).with_name('studio.qss').read_text()+'\n'+container.styleSheet())
+        self.back_to_collection=button(tr('‹ Zur Sammlung'),lambda:self.open_category('code'));self.header.actions.addWidget(self.back_to_collection)
         self.footer.setText(tr('Meine Sammlung')+' / '+self.item['title'])
         body=QVBoxLayout(main);body.setContentsMargins(0,0,0,0);body.setSpacing(0)
         self.chat=StudioChat(str(self.root));self.chat.tracker.store=collection.store
-        self.studio=StudioSurface(self.chat);body.addWidget(self.studio);self.studio.pane.show()
+        self.studio=StudioSurface(self.chat,conversation_focus=True);body.addWidget(self.studio)
+        self.studio.preview_wanted=True;self.studio.pane.show();self.studio.pane.setMaximumWidth(720)
+        self.studio.result_tabs.blockSignals(True)
+        while self.studio.result_tabs.count():self.studio.result_tabs.removeTab(0)
+        self.studio.result_tabs.addTab(tr('Arbeitsschritte'));self.studio.result_tabs.blockSignals(False);self.studio.result_tabs.show()
+        self.studio.result_tabs.setDrawBase(False)
+        self.studio.result_tabs.setStyleSheet('QTabBar#studioResultTabs::tab { min-width:0;padding:8px 9px;margin-right:0;font-size:12px; }')
         self.studio.heading.hide();self.studio.close_preview.hide()
         self.chat.heading.hide();self.studio.directory.hide()
-        heading=QWidget();head=QVBoxLayout(heading);head.setContentsMargins(0,8,0,8);head.setSpacing(3)
-        self.code_context=label(str(self.root),'codeMuted');head.addWidget(self.code_context);head.addWidget(label(self.item['title'],'codeTitle'))
-        header=self.studio.layout().itemAt(0).widget();header.setFixedHeight(96);header.layout().insertWidget(0,heading,1)
+        self.studio.layout().itemAt(0).widget().setFixedHeight(44)
+        self.code_context=self.header.subtitle
         self.project_status=QLabel(tr('Projekt wird gelesen …'))
-        file_page=QWidget();layout=QVBoxLayout(file_page);layout.addWidget(self.project_status)
-        layout.addWidget(button(tr('Projektdateien und Git-Änderungen aktualisieren'),self.inspect))
+        self.project_status.setWordWrap(True)
+        file_page=QWidget();layout=QVBoxLayout(file_page);file_heading=QHBoxLayout();file_heading.addWidget(self.project_status,1)
+        refresh=button(tr('Aktualisieren'),self.inspect);refresh.setToolTip(tr('Projektdateien und Git-Änderungen neu einlesen'));file_heading.addWidget(refresh);layout.addLayout(file_heading)
         split=QSplitter();self.files=QListWidget();self.files.setObjectName('codeSteps');self.files.setAccessibleName(tr('Projektdateien'));self.source=QPlainTextEdit();self.source.setObjectName('codeSource');self.source.setReadOnly(True);self.source.setAccessibleName(tr('Dateiinhalt'))
-        split.addWidget(self.files);split.addWidget(self.source);split.setStretchFactor(1,1);layout.addWidget(split,1)
+        self.files.setMinimumWidth(100);self.files.setMaximumWidth(220);self.source.setLineWrapMode(QPlainTextEdit.NoWrap)
+        split.addWidget(self.files);split.addWidget(self.source);split.setStretchFactor(1,1);split.setSizes([120,360]);layout.addWidget(split,1)
         self.diff=QPlainTextEdit();self.diff.setObjectName('codeSource');self.diff.setReadOnly(True);self.diff.setAccessibleName(tr('Git-Änderungen gegenüber HEAD'))
+        self.diff.setLineWrapMode(QPlainTextEdit.NoWrap)
         self.checks=QPlainTextEdit();self.checks.setObjectName('codeSource');self.checks.setReadOnly(True);self.checks.setAccessibleName(tr('Tatsächlicher Auftragsstatus und Rückmeldung'))
         for title,page in [('Dateien',file_page),('Änderungen',self.diff),('Prüfung',self.checks)]:
             self.studio.result_tabs.addTab(tr(title));self.studio.result_pages.addWidget(page)
@@ -50,8 +58,8 @@ class CodingWindow(QMainWindow):
             except (ValueError,OSError) as error:self.project_status.setText(str(error))
         self.chat.composer.setPlainText(self.item['definition'].get('draft_prompt',self.item['definition'].get('prompt','')))
         self.studio.result_tabs.currentChanged.connect(self.update_inspector)
-        self.studio.result_tabs.setCurrentIndex(3);self.update_inspector(3)
-        self.studio.split.setSizes([620,500])
+        self.studio.result_tabs.setCurrentIndex(2);self.update_inspector(2)
+        self.studio.conversation_sized=True;self.studio.split.setSizes([800,400])
         QTimer.singleShot(0,self.inspect)
 
     def open_category(self,kind):
@@ -64,8 +72,7 @@ class CodingWindow(QMainWindow):
 
     def update_inspector(self,index):
         self.studio.heading.setText(self.studio.result_tabs.tabText(index))
-        self.studio.actions.parentWidget().setVisible(index==0)
-        self.studio.choice.setVisible(index==0 and bool(self.studio.paths))
+        self.studio.pane.setAccessibleName(self.studio.result_tabs.tabText(index))
 
     def inspect(self):
         if self.job or self.closing:return
@@ -79,8 +86,9 @@ class CodingWindow(QMainWindow):
         job.finished.connect(finished);job.start()
 
     def project_loaded(self,value):
-        self.project_status.setText(str(self.root)+(' · '+value['branch'] if value['branch'] else ''))
-        self.code_context.setText(self.root.name+(' · '+value['branch'] if value['branch'] else '')+' · '+tr('{0} Dateien',len(value['files'])));self.code_context.setToolTip(str(self.root))
+        count=tr('1 Datei') if len(value['files'])==1 else tr('{0} Dateien',len(value['files']))
+        self.project_status.setText(count+(' · '+value['branch'] if value['branch'] else ''));self.project_status.setToolTip(str(self.root))
+        self.code_context.setText(self.root.name+(' · '+value['branch'] if value['branch'] else '')+' · '+count);self.code_context.setToolTip(str(self.root))
         self.files.clear();self.files.addItems(value['files'])
         self.diff.setPlainText(value['diff'] or tr('Keine Git-Änderungen gegenüber HEAD. Nicht eingecheckte neue Dateien stehen unter Dateien.'))
         self.update_checks()

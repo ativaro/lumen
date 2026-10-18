@@ -25,6 +25,10 @@ QPushButton#codeCard:hover, QPushButton#codeCard:checked { border-color: palette
 QLabel#codeCardTitle { font-size: 18px; font-weight: 500; }
 QPushButton#codeCard QLabel { background: transparent; border: none; }
 QWidget#codeShell QLineEdit, QWidget#codeShell QPlainTextEdit, QWidget#codeShell QComboBox, QWidget#codeShell QSpinBox { background: palette(base); color: palette(text); border: 1px solid palette(mid); border-radius: 7px; padding: 10px 12px; }
+QWidget#codeShell QTimeEdit, QWidget#codeShell QDateEdit { background: palette(base); color: palette(text); border: 1px solid palette(mid); border-radius: 7px; padding: 8px 10px; min-height: 22px; }
+QWidget#codeShell QTabWidget::pane { border: none; }
+QWidget#codeShell QTabBar::tab { min-width:0; background:transparent; padding:10px 14px; border:0; border-bottom:2px solid transparent; border-radius:0; }
+QWidget#codeShell QTabBar::tab:selected { color:palette(text);border-bottom-color:palette(highlight); }
 QWidget#codeShell QPlainTextEdit#codeSource { font-family: monospace; border: none; border-radius: 0; padding: 20px; }
 QWidget#codeShell QScrollArea { background: transparent; border: none; }
 QWidget#codeShell QScrollArea > QWidget > QWidget { background: palette(window); }
@@ -60,7 +64,7 @@ def shell(owner):
     root=QVBoxLayout(owner);root.setContentsMargins(0,0,0,0);root.setSpacing(0)
     from desktop_design import AppHeader, PAGE_MARGIN, NAV_WIDTH
     chrome=QWidget();top=QVBoxLayout(chrome);top.setContentsMargins(PAGE_MARGIN,20,PAGE_MARGIN,0)
-    header=AppHeader(tr('Lumen Code & Automation'),tr('Werkzeuge, Routinen und kleine Apps.'))
+    header=AppHeader(tr('Lumen Code & Automation'),tr('Werkzeuge, Routinen, Automationen und Code-Projekte.'))
     top.addWidget(header);root.addWidget(chrome)
     body=QHBoxLayout();body.setContentsMargins(0,0,0,0);body.setSpacing(0);root.addLayout(body,1)
     rail=QFrame();rail.setObjectName('codeRail');rail.setFixedWidth(NAV_WIDTH)
@@ -69,6 +73,17 @@ def shell(owner):
     main=QWidget();body.addWidget(main,1)
     footer=label(tr('Meine Sammlung'),'codeFooter');root.addWidget(footer)
     return main,nav,footer
+
+
+def editor_shell(owner,title,subtitle):
+    """A dedicated task view; collection navigation belongs to the collection."""
+    from desktop_design import AppHeader, PAGE_MARGIN, PAGE_SPACING
+    owner.setObjectName('codeShell');surface(owner);owner.setStyleSheet(STYLE)
+    root=QVBoxLayout(owner);root.setContentsMargins(PAGE_MARGIN,20,PAGE_MARGIN,20);root.setSpacing(PAGE_SPACING)
+    header=AppHeader(title,subtitle);root.addWidget(header)
+    main=QWidget();root.addWidget(main,1)
+    footer=label('','codeMuted');root.addWidget(footer)
+    return main,header,footer
 
 
 def navigation(layout,collection,select,existing_apps=False):

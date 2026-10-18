@@ -32,7 +32,7 @@ class CollectionWindow(QMainWindow):
         self.status=label('','codeMuted');outer.addWidget(self.status)
         self.categories=QListWidget();self.categories.setObjectName('codeCategories');self.categories.setIconSize(QSize(16,16));self.categories.setAccessibleName(tr('Sammlungsbereiche'))
         self.category_keys=['all','favorites','tool','routine','automation','code','app','attention','archive']
-        self.categories.addItems([tr(text) for text in ['Alle Einträge','Favoriten','Werkzeuge','Zeitpläne & Routinen','Automationen','Code-Projekte','Vorhandene kleine Apps','Braucht dich','Archiv']])
+        self.categories.addItems([tr(text) for text in ['Alle Einträge','Favoriten','Werkzeuge','Zeitpläne & Routinen','Automationen','Code-Projekte','Bestehende Apps','Braucht dich','Archiv']])
         from studio_design import icon
         for index,name in enumerate(['view-list-details','rating','tools-wizard','view-calendar','view-process-tree','code-context','view-grid','dialog-information','archive-extract']):self.categories.item(index).setIcon(icon(name));self.categories.item(index).setSizeHint(QSize(150,44))
         nav.addWidget(self.categories,1);nav.addWidget(label(tr('Deine Idee.\nDein nächster Helfer.'),'codeMuted'))
@@ -53,7 +53,7 @@ class CollectionWindow(QMainWindow):
         head=QHBoxLayout();titles=QVBoxLayout();titles.setSpacing(8)
         self.collection_heading=label(tr('Meine Sammlung'),'codeTitle');titles.addWidget(self.collection_heading)
         self.collection_intro=label(tr('Deine Apps, Werkzeuge und Abläufe – bereit für den nächsten Einsatz.'),'codeSubtitle');titles.addWidget(self.collection_intro)
-        head.addLayout(titles,1);head.addWidget(button(tr('Neu erstellen'),lambda:self.safe(self.create),'list-add',primary=True),0,Qt.AlignTop);box.addLayout(head)
+        head.addLayout(titles,1);self.create_button=button(tr('Neu erstellen'),lambda:self.safe(self.create),'list-add',primary=True);head.addWidget(self.create_button,0,Qt.AlignTop);box.addLayout(head)
         self.search=QLineEdit();self.search.setPlaceholderText(tr('Name oder Aufgabe suchen …'));self.search.setAccessibleName(tr('Sammlung durchsuchen'));self.search.setClearButtonEnabled(True);self.search.addAction(icon('edit-find'),QLineEdit.LeadingPosition)
         self.project_filter=QComboBox();self.project_filter.setAccessibleName(tr('Nach Projekt filtern'));self.project_filter.addItem(tr('Alle Projekte'),None);self.project_filter.addItem(tr('Ohne Projekt'),'')
         from tools_data import Library
@@ -146,9 +146,11 @@ class CollectionWindow(QMainWindow):
         self.title=QLineEdit();self.title.setAccessibleName(tr('Name'));self.title.setMaxLength(160);self.title.setStyleSheet('font-size:25px;font-weight:500;');box.addWidget(self.title)
         content=QHBoxLayout();content.setSpacing(26);box.addLayout(content,1)
         editor=QWidget();fields=QVBoxLayout(editor);fields.setContentsMargins(0,0,4,0);fields.setSpacing(10)
-        fields.addWidget(label(tr('Dein Auftrag')))
+        self.prompt_label=label(tr('Dein Auftrag'));fields.addWidget(self.prompt_label)
         self.prompt=QPlainTextEdit();self.prompt.setAccessibleName(tr('Auftrag'));self.prompt.setPlaceholderText(tr('Was soll Lumen für dich erledigen?'));self.prompt.setFixedHeight(110);fields.addWidget(self.prompt)
-        fields.addWidget(label(tr('Eingabe für diesen Durchlauf')))
+        self.tool_contract=label('','codeSubtitle');fields.addWidget(self.tool_contract);self.tool_contract.hide()
+        self.routine_overview=label('');fields.addWidget(self.routine_overview);self.routine_overview.hide()
+        self.input_label=label(tr('Eingabe für diesen Durchlauf'));fields.addWidget(self.input_label)
         self.input=QPlainTextEdit();self.input.setAccessibleName(tr('Eingabe für diesen Durchlauf'));self.input.setPlaceholderText(tr('Neue Eingabe für diesen Durchlauf'));self.input.setMinimumHeight(100);fields.addWidget(self.input)
         self.select_input=button(tr('Datei oder Projektnotiz übernehmen'),lambda:self.safe(self.choose_tool_input));fields.addWidget(self.select_input)
         self.settings_toggle=button(tr('Beschreibung, Projekt und Dateien'),lambda:self.entry_settings.setVisible(self.settings_toggle.isChecked()));self.settings_toggle.setCheckable(True);self.settings_toggle.setObjectName('codeLink');fields.addWidget(self.settings_toggle)
@@ -157,18 +159,19 @@ class CollectionWindow(QMainWindow):
         settings.addWidget(label(tr('Lumen-Projekt')));self.project=QComboBox();self.project.addItem(tr('Ohne Projekt'),'')
         for key,title in self.project_records.items():self.project.addItem(title,key)
         settings.addWidget(self.project)
-        self.directory=QLineEdit();self.directory.setAccessibleName(tr('Ausgewählter Ordner'));self.directory.setPlaceholderText(tr('Optional: ausdrücklich ausgewählter Projekt- oder Eingabeordner'));settings.addWidget(row(self.directory,button(tr('Ordner wählen'),self.choose_directory)))
+        self.directory=QLineEdit();self.directory.setAccessibleName(tr('Ausgewählter Ordner'));self.directory.setPlaceholderText(tr('Optional: ausdrücklich ausgewählter Projekt- oder Eingabeordner'))
+        self.choose_directory_button=button(tr('Ordner wählen'),self.choose_directory);settings.addWidget(row(self.directory,self.choose_directory_button))
         self.html=QPlainTextEdit();self.html.setAccessibleName(tr('App-Inhalt (HTML)'));self.html.setPlaceholderText(tr('HTML einer eigenen App oder Inhalt aus einem abgeschlossenen App-Auftrag'));self.html.setMinimumHeight(180);settings.addWidget(self.html);fields.addWidget(self.entry_settings);self.entry_settings.hide();fields.addStretch()
         scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setWidget(editor);content.addWidget(scroll,1)
-        aside=QWidget();aside.setFixedWidth(280);run_box=QVBoxLayout(aside);run_box.setContentsMargins(0,0,0,0);run_box.setSpacing(12)
-        run_box.addWidget(label(tr('Mit Lumen verwenden'),'codeCardTitle'))
+        aside=QWidget();aside.setMinimumWidth(260);run_box=QVBoxLayout(aside);run_box.setContentsMargins(0,0,0,0);run_box.setSpacing(12)
+        run_box.addWidget(label(tr('Ergebnis'),'codeCardTitle'))
         self.run=button(tr('Mit Lumen ausführen'),lambda:self.safe(self.execute),primary=True);run_box.addWidget(self.run)
         self.preview=button(tr('App öffnen'),lambda:self.safe(self.open_app),'media-playback-start');self.adopt=button(tr('App aus Auftrag übernehmen'),lambda:self.safe(self.adopt_app));run_box.addWidget(self.preview);run_box.addWidget(self.adopt)
         self.schedule=button(tr('Automation einrichten'),lambda:self.safe(self.configure_flow));self.toggle=button(tr('Aktivieren'),lambda:self.safe(self.toggle_flow));run_box.addWidget(self.schedule);run_box.addWidget(self.toggle)
         self.routine_from_tool=button(tr('Als Routine einrichten'),lambda:self.safe(self.new_routine),'view-calendar');run_box.addWidget(self.routine_from_tool)
         run_box.addWidget(label(tr('Tatsächlicher Auftragsstatus und Ergebnis'),'codeMuted'))
-        self.result=QPlainTextEdit();self.result.setReadOnly(True);self.result.setAccessibleName(tr('Tatsächlicher Auftragsstatus und Ergebnis'));self.result.setMaximumHeight(220);run_box.addWidget(self.result)
-        run_box.addWidget(button(tr('Letzten Auftrag öffnen'),lambda:self.safe(self.open_task)));run_box.addStretch();content.addWidget(aside)
+        self.result=QPlainTextEdit();self.result.setReadOnly(True);self.result.setAccessibleName(tr('Tatsächlicher Auftragsstatus und Ergebnis'));self.result.setMinimumHeight(160);run_box.addWidget(self.result,1)
+        run_box.addWidget(button(tr('Letzten Auftrag öffnen'),lambda:self.safe(self.open_task)));content.addWidget(aside,1)
         actions=QHBoxLayout();actions.addWidget(button(tr('Als Vorlage weitergeben'),lambda:self.safe(self.export_file)));actions.addStretch();actions.addWidget(button(tr('Speichern'),lambda:self.safe(self.save)));box.addLayout(actions)
         for control in (self.preview,self.adopt,self.schedule,self.toggle):control.hide()
         self.pages.addWidget(page)
@@ -229,6 +232,8 @@ class CollectionWindow(QMainWindow):
         descriptions={'routine':'Wiederkehrende Schritte und ihre manuellen oder geplanten Starts.','all':'Deine Apps, Werkzeuge und Abläufe – bereit für den nächsten Einsatz.','app':'Kleine Oberflächen für Dinge, die du im Alltag erledigst.','tool':'Deine bewährten Aufträge – bei jedem Mal mit neuen Eingaben.','automation':'Abläufe, die für dich prüfen, vorbereiten und Bescheid geben.','code':'Deine Softwareprojekte mit Gespräch, Dateien und Änderungen.','favorites':'Die Helfer, die du besonders häufig brauchst.','attention':'Offene Rückfragen und Aufträge, die deine Aufmerksamkeit brauchen.','archive':'Aufbewahrt, bis du sie wieder brauchst.'}
         self.collection_intro.setText(tr(descriptions[category]))
         self.collection_heading.setText(tr(heading[category]));self.collection_count.setText(tr('1 Eintrag') if len(records)==1 else tr('{0} Einträge',len(records)))
+        create_title=tr({'tool':'Werkzeug erstellen','routine':'Routine zusammenstellen','automation':'Automation erstellen','code':'Code-Projekt öffnen'}.get(category,'Neu erstellen'))
+        self.create_button.setText(create_title);self.create_button.setAccessibleName(create_title)
         selected=self.entries.currentItem();identity=selected.data(0,Qt.UserRole) if selected else None
         self.entries.blockSignals(True);self.entries.clear();chosen=None
         kinds={'app':'Kleine App','tool':'Werkzeug','automation':'Automation','code':'Code im Projekt'}
@@ -246,7 +251,7 @@ class CollectionWindow(QMainWindow):
         special=category in ('favorites','attention','archive')
         self.empty.setText(tr('Keine passenden Einträge') if filtered else tr({'favorites':'Deine Favoriten fehlen noch','attention':'Alles im Blick','archive':'Das Archiv ist leer'}.get(category,'Deine Sammlung beginnt mit einer Idee.')))
         self.empty_description.setText(tr('Versuche einen anderen Suchbegriff oder passe die Auswahl an.') if filtered else tr('Markiere häufig verwendete Helfer mit einem Stern.') if category=='favorites' else tr('Hier erscheinen Einträge, die deine Aufmerksamkeit brauchen.') if category=='attention' else tr('Archivierte Helfer bleiben hier erhalten.') if category=='archive' else tr('Ein Werkzeug, eine Routine, ein Ablauf oder dein Code-Projekt.'))
-        self.empty_action.setText(tr('Filter zurücksetzen') if filtered else tr('Alle Einträge anzeigen') if special else tr('Neu erstellen'))
+        self.empty_action.setText(tr('Filter zurücksetzen') if filtered else tr('Alle Einträge anzeigen') if special else create_title)
         self.update_collection_preview()
 
     def create(self):
@@ -260,8 +265,7 @@ class CollectionWindow(QMainWindow):
         if dialog.kind=='routine':
             from code_library_execution import directory
             directory(self.collection,item)
-            from code_edit_window import EditDialog
-            EditDialog(self.collection,item,self).exec();self.refresh()
+            self.open_entry(item['id'],blocks=False);self.refresh()
         else:self.open_entry(item['id'])
 
     def open_selected(self):
@@ -284,14 +288,29 @@ class CollectionWindow(QMainWindow):
             if blocks and not item['archived'] and parse(item['definition']['flow']).get('version') in (2,3):
                 from code_blocks_window import BlockWindow
                 BlockWindow(self.collection,identity,self).exec();self.refresh();return
+        is_routine=self.kind_title(item)==tr('Routine')
         self.current=item;self.loading=True;self.select_input.setVisible(item['kind']=='tool');self.footer.setText(tr('Meine Sammlung')+' / '+item['title'])
+        self.prompt.setVisible(item['kind']!='tool' and not is_routine);self.prompt_label.setVisible(not self.prompt.isHidden());self.tool_contract.setVisible(item['kind']=='tool')
+        self.input_label.setVisible(not is_routine);self.input.setVisible(not is_routine);self.routine_overview.setVisible(is_routine)
+        self.directory.setReadOnly(is_routine);self.choose_directory_button.setEnabled(not is_routine)
+        self.edit_mode.setText(tr('Routine bearbeiten') if is_routine else tr('Werkzeug bearbeiten') if item['kind']=='tool' else tr('Bearbeiten'))
+        if is_routine:
+            from code_flow import parse
+            from code_clock import describe
+            plan=parse(item['definition']['flow'])
+            start=describe(plan['clock']) if plan.get('clock') else tr('Bei Ordneränderung') if plan['trigger']=='directory' else tr('Alle {0} Minuten',plan['minutes']) if plan['trigger']=='interval' else tr('Manueller Start') if plan['trigger']=='manual' else plan.get('cron','')
+            self.routine_overview.setText(tr('Schritte der Routine')+'\n\n'+'\n'.join(str(i+1)+'. '+step['title'] for i,step in enumerate(plan['steps']))+'\n\n'+tr('Start')+': '+start+'\n'+tr('Quellen, Schritte und Freigaben über „Routine bearbeiten“ ändern.'))
+        if item['kind']=='tool':
+            from code_tool import editing
+            contract=editing(item);self.tool_contract.setText(contract['input']+' → '+contract['output']+' · '+tr('{0} Regeln',len(contract['rules']))+'\n\n'+contract['rules'][0])
         try:
             self.title.setText(item['title']);self.description.setPlainText(item['description']);self.prompt.setPlainText(item['definition'].get('prompt',''));self.html.setPlainText(item['definition'].get('html',''));self.directory.setText(item['definition'].get('directory',''))
             if item['project_id'] and self.project.findData(item['project_id'])<0:self.project.addItem(tr('Projekt nicht mehr verfügbar'),item['project_id'])
             self.project.setCurrentIndex(max(0,self.project.findData(item['project_id'])));self.input.clear();self.html.setVisible(item['kind']=='app')
-            guide=next(row for row in HELP if row['key']==item['kind']);self.context.setText(tr(guide['title'])+' · '+tr(guide['body']))
+            guide=next(row for row in HELP if row['key']==item['kind']);self.context.setText(tr('Routine · Feste Schritte mit manuellem Start oder Zeitplan.') if is_routine else tr(guide['title'])+' · '+tr(guide['body']))
             self.favorite.setText(tr('★ Favorit' if item['favorite'] else '☆ Als Favorit'));self.archive.setText(tr('Wiederherstellen' if item['archived'] else 'Archivieren'))
             self.preview.setVisible(item['kind']=='app');self.adopt.setVisible(item['kind']=='app');self.schedule.setVisible(item['kind']=='automation');self.toggle.setVisible(item['kind']=='automation');self.run.setEnabled(not item['archived']);self.preview.setEnabled(not item['archived']);self.toggle.setEnabled(not item['archived'])
+            self.run.setText(tr('Werkzeug ausführen') if item['kind']=='tool' else tr('Einmal ausführen') if item['kind']=='automation' else tr('Mit Lumen ausführen'))
             from code_flow import parse
             block_flow=item['kind']=='automation' and item['definition'].get('flow') and parse(item['definition']['flow']).get('version') in (2,3)
             self.schedule.setText(tr('Bausteine öffnen' if block_flow else 'Automation einrichten'));self.toggle.setVisible(item['kind']=='automation' and not block_flow)

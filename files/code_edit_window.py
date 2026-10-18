@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QDialog, QWidget, QVBoxLayout, QHBoxLayout, QBoxL
     QTimeEdit, QDateEdit, QTabWidget, QScrollArea, QListWidget, QMessageBox)
 from lumen_i18n import tr
 from tools_ui import button, label, row
-from code_design import shell, navigation
+from code_design import editor_shell
 from code_tool import INPUTS, OUTPUTS, editing, instructions, usages
 from code_clock import default, starts, describe, ZONE
 from code_flow import parse, encode
@@ -48,18 +48,18 @@ class EditDialog(QDialog):
             self.plan=dict(trigger='schedule',minutes=60,watch='',cron='0 9 * * *',timezone='Europe/Zurich',clock=default(),
                            steps=[dict(title=tool['title'],prompt=tool['definition']['prompt'],tool_id=tool['id'],tool_revision=tool['revision'])],
                            condition='always',outputs=['notify'],source_ids=[],service_ids=[])
-        main,nav,self.footer=shell(self)
-        controls=navigation(nav,self.reject,lambda _:self.reject());controls['tool' if self.is_tool else 'routine'].setChecked(True)
-        box=QVBoxLayout(main);box.setContentsMargins(28,20,28,22);box.setSpacing(12)
+        main,self.header,self.footer=editor_shell(self,self.windowTitle(),tr('Angaben ändern, prüfen und ausdrücklich speichern.'))
+        box=QVBoxLayout(main);box.setContentsMargins(0,0,0,0);box.setSpacing(16)
         self.context=label('','codeMuted');box.addWidget(self.context)
         self.heading_row=QBoxLayout(QBoxLayout.LeftToRight);self.heading_row.setSpacing(12);box.addLayout(self.heading_row)
-        self.heading=label(tr('Werkzeug bearbeiten' if self.is_tool else 'Routine bearbeiten'),'codeTitle');self.heading_row.addWidget(self.heading,1)
+        self.heading=self.header.title
         self.actions=QWidget();actions=QHBoxLayout(self.actions);actions.setContentsMargins(0,0,0,0)
         self.discard_button=button(tr('Verwerfen'),self.discard);self.review_button=button(tr('Änderungen prüfen'),self.review,primary=True)
-        actions.addWidget(self.discard_button);actions.addWidget(self.review_button);self.heading_row.addWidget(self.actions)
+        actions.addWidget(self.discard_button);actions.addWidget(self.review_button);self.header.actions.addWidget(self.actions)
+        self.header.actions.addWidget(button(tr('Schließen'),self.reject))
         self.status=label('','codeMuted');self.status.setAccessibleName(tr('Speicherstatus'));box.addWidget(self.status)
         self.banner=label('','codeEditBanner');box.addWidget(self.banner)
-        self.tabs=QTabWidget();self.tabs.setObjectName('codeEditTabs');box.addWidget(self.tabs,1)
+        self.tabs=QTabWidget();self.tabs.setObjectName('codeEditTabs');self.tabs.tabBar().setDrawBase(False);box.addWidget(self.tabs,1)
         if self.is_tool:self.build_tool();self.tabs.tabBar().hide()
         else:self.build_routine();self.build_clock()
         self.tabs.currentChanged.connect(self.tab_changed)
@@ -89,11 +89,15 @@ QWidget#codeShell QTimeEdit, QWidget#codeShell QDateEdit { background: palette(b
     def build_tool(self):
         left,right=self.page('Werkzeug')
         self.name=field(left,'Name',QLineEdit());self.name.setMaxLength(160)
-        self.purpose=field(left,'Was soll das Werkzeug machen?',QPlainTextEdit());self.purpose.setFixedHeight(90)
         section(left,'Ein- und Ausgabe')
-        self.input_kind=field(left,'Eingabe',combo([(v,v) for v in INPUTS]));self.output_kind=field(left,'Ergebnis',combo([(v,v) for v in OUTPUTS]))
+        formats=QHBoxLayout();left.addLayout(formats);inputs=QVBoxLayout();outputs=QVBoxLayout();formats.addLayout(inputs,1);formats.addLayout(outputs,1)
+        self.input_kind=field(inputs,'Eingabe',combo([(v,v) for v in INPUTS]));self.output_kind=field(outputs,'Ergebnis',combo([(v,v) for v in OUTPUTS]))
+        self.request=field(left,'Was soll das Werkzeug tun?',QPlainTextEdit());self.request.setFixedHeight(100)
         section(left,'Prüfregeln');self.rules_widget=QWidget();self.rules_box=QVBoxLayout(self.rules_widget);self.rules_box.setContentsMargins(0,0,0,0);left.addWidget(self.rules_widget)
-        self.add_rule_button=button(tr('Regel ergänzen'),lambda:self.add_rule(''),'list-add');left.addWidget(self.add_rule_button,0,Qt.AlignLeft);left.addStretch()
+        self.add_rule_button=button(tr('Regel ergänzen'),lambda:self.add_rule(''),'list-add');left.addWidget(self.add_rule_button,0,Qt.AlignLeft)
+        self.description_box=QWidget();description=QVBoxLayout(self.description_box);description.setContentsMargins(0,0,0,0)
+        self.purpose=field(description,'Zusätzliche Beschreibung · optional',QPlainTextEdit());self.purpose.setFixedHeight(65)
+        description_toggle=button(tr('Beschreibung ergänzen'),lambda:self.description_box.setVisible(not self.description_box.isVisible()));description_toggle.setObjectName('codeLink');left.addWidget(description_toggle);left.addWidget(self.description_box);left.addStretch()
         right.addWidget(label(tr('Beispiel prüfen'),'codeCardTitle'))
         self.example=label(tr('Prüft den aktuellen Entwurf mit der eingerichteten KI. Keine Werkzeuge oder Ergebnisaktionen.'),'codeMuted');right.addWidget(self.example)
         self.test_input=field(right,'Beispieleingabe',QPlainTextEdit());self.test_input.setPlaceholderText(tr('Text für einen echten Test einfügen …'));self.test_input.setFixedHeight(90)
@@ -104,7 +108,7 @@ QWidget#codeShell QTimeEdit, QWidget#codeShell QDateEdit { background: palette(b
         self.previous=QPlainTextEdit();self.previous.setReadOnly(True);self.previous.setMaximumHeight(180);self.previous.setAccessibleName(tr('Letztes tatsächliches Ergebnis'));right.addWidget(self.previous)
         section(right,'In Routinen verwendet');self.usage_label=label('');right.addWidget(self.usage_label)
         right.addWidget(label(tr('Ohne ausdrückliche Übernahme behalten Routinen ihre bisherige Werkzeugfassung.'),'codeMuted'))
-        for c in (self.name,self.purpose):c.textChanged.connect(self.changed)
+        for c in (self.name,self.purpose,self.request):c.textChanged.connect(self.changed)
         self.input_kind.currentIndexChanged.connect(self.changed);self.output_kind.currentIndexChanged.connect(self.changed)
 
     def add_rule(self,text):
@@ -113,13 +117,13 @@ QWidget#codeShell QTimeEdit, QWidget#codeShell QDateEdit { background: palette(b
         remove=button('×',lambda:self.remove_rule(frame,editor));remove.setAccessibleName(tr('Regel entfernen'));line.addWidget(remove,0,Qt.AlignTop)
         self.rules_box.addWidget(frame);self.rule_controls.append((frame,editor));editor.textChanged.connect(self.changed)
         editor.setAccessibleName(tr('Regel {0}',len(self.rule_controls)))
-        if hasattr(self,'add_rule_button'):self.add_rule_button.setEnabled(len(self.rule_controls)<8)
+        if hasattr(self,'add_rule_button'):self.add_rule_button.setEnabled(len(self.rule_controls)<7)
         self.changed()
 
     def remove_rule(self,frame,editor):
         self.rule_controls.remove((frame,editor));self.rules_box.removeWidget(frame);frame.deleteLater()
         for i,(_,edit) in enumerate(self.rule_controls):edit.setAccessibleName(tr('Regel {0}',i+1))
-        self.add_rule_button.setEnabled(len(self.rule_controls)<8);self.changed()
+        self.add_rule_button.setEnabled(len(self.rule_controls)<7);self.changed()
 
     def build_routine(self):
         left,right=self.page('Routine')
@@ -175,11 +179,13 @@ QWidget#codeShell QTimeEdit, QWidget#codeShell QDateEdit { background: palette(b
         self.loading=True
         self.name.setText(self.item['title'] if self.item else tr('Routine mit Werkzeug'))
         if self.is_tool:
-            self.purpose.setPlainText(self.item['description']);value=editing(self.item)
+            self.purpose.setPlainText(self.item['description']);self.description_box.setVisible(bool(self.item['description']));value=editing(self.item)
+            self.request.setPlainText(value['rules'][0])
             self.input_kind.setCurrentIndex(max(0,self.input_kind.findData(value['input'])));self.output_kind.setCurrentIndex(max(0,self.output_kind.findData(value['output'])))
             for frame,_ in self.rule_controls:self.rules_box.removeWidget(frame);frame.deleteLater()
             self.rule_controls=[]
-            for rule in value['rules']:self.add_rule(rule)
+            for rule in value['rules'][1:]:self.add_rule(rule)
+            self.add_rule_button.setEnabled(len(self.rule_controls)<7)
             previous=tr('Noch kein Auftrag ausgeführt.')
             if self.item['last_task']:
                 try:
@@ -273,7 +279,7 @@ QWidget#codeShell QTimeEdit, QWidget#codeShell QDateEdit { background: palette(b
 
     def draft(self):
         if self.is_tool:
-            return dict(name=self.name.text(),purpose=self.purpose.toPlainText(),input=self.input_kind.currentData(),output=self.output_kind.currentData(),rules=[editor.toPlainText() for _,editor in self.rule_controls])
+            return dict(name=self.name.text(),purpose=self.purpose.toPlainText(),input=self.input_kind.currentData(),output=self.output_kind.currentData(),rules=[self.request.toPlainText()]+[editor.toPlainText() for _,editor in self.rule_controls])
         return dict(name=self.name.text(),source=self.source.text().strip(),steps=copy.deepcopy(self.steps),clock=self.clock(),outputs=[key for key,c in [('note',self.note),('notify',self.notify),('task_draft',self.task_draft)] if c.isChecked()],condition=self.condition.currentData())
 
     def active(self):
@@ -290,7 +296,7 @@ QWidget#codeShell QTimeEdit, QWidget#codeShell QDateEdit { background: palette(b
         if self.is_tool:
             if self.test_snapshot and self.draft()!=self.test_snapshot and not (self.engine and self.engine.busy):self.test_state.setText(tr('Ergebnis gehört zu einer früheren Fassung.'))
             self.banner.setText(tr('Routinen verwenden eine feste Werkzeugfassung. Du entscheidest beim Speichern, welche die Änderung übernehmen.'))
-            self.tool_summary.setText((tr('1 Regel') if len(self.rule_controls)==1 else tr('{0} Regeln',len(self.rule_controls)))+' · '+tr(self.output_kind.currentData()))
+            self.tool_summary.setText((tr('1 Regel') if not self.rule_controls else tr('{0} Regeln',len(self.rule_controls)+1))+' · '+tr(self.output_kind.currentData()))
         else:
             self.banner.setText(tr('Die gespeicherte Fassung läuft weiter. Beim Speichern wird diese Routine pausiert und muss erneut freigegeben werden.') if self.active() else tr('Die Routine ist pausiert. Änderungen werden erst nach Speichern und erneuter Freigabe aktiv.'))
             self.flow_preview.setText(self.source.text()+'\n↓\n'+'\n↓\n'.join(s['title']+((' · '+tr('Version {0}',s['tool_revision'])) if s.get('tool_id') else '') for s in self.steps)+'\n↓\n'+' · '.join(tr({'note':'Notiz speichern','notify':'Benachrichtigen','task_draft':'Aufgabenentwurf vorbereiten'}[v]) for v in self.draft()['outputs']))
@@ -304,7 +310,8 @@ QWidget#codeShell QTimeEdit, QWidget#codeShell QDateEdit { background: palette(b
             saved=self.plan.get('clock');self.saved_clock.setText((describe(saved) if saved else tr('Bei Ordneränderung') if self.plan['trigger']=='directory' else tr('Alle {0} Minuten ab Aktivierung',self.plan['minutes']))+'\n'+tr('Aktiv' if self.active() else 'Pausiert'))
 
     def tab_changed(self,index):
-        if not self.is_tool:self.heading.setText(tr('Zeitplan bearbeiten' if index else 'Routine bearbeiten'))
+        if not self.is_tool:
+            self.heading.setText(tr('Lumen · Zeitplan bearbeiten' if index else 'Lumen · Routine bearbeiten'));self.setWindowTitle(self.heading.text())
 
     def validated(self):
         from code_library_contract import definition

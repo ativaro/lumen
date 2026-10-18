@@ -17,6 +17,21 @@ class EditUiTest(unittest.TestCase):
         from PySide6.QtWidgets import QApplication
         cls.app=QApplication.instance() or create_app()
 
+    def test_visible_request_changes_execution_instructions_without_losing_description(self):
+        from code_edit_window import EditDialog
+        from code_tool import spec
+        with tempfile.TemporaryDirectory() as tmp:
+            c=Collection(Store(tmp));item=c.create('tool','Prüfen','Beschreibung behalten',value={'prompt':'Ursprünglicher Auftrag'})
+            w=EditDialog(c,item);self.addCleanup(lambda:w.done(0))
+            self.assertEqual(w.request.toPlainText(),'Ursprünglicher Auftrag')
+            self.assertEqual(w.purpose.toPlainText(),'Beschreibung behalten')
+            w.request.setPlainText('Nenne jetzt auch die Fundstellen')
+            change=w.validated()
+            self.assertIn('Nenne jetzt auch die Fundstellen',change['definition']['prompt'])
+            self.assertEqual(spec(change['definition']['tool_spec'])['rules'],['Nenne jetzt auch die Fundstellen'])
+            self.assertEqual(change['description'],'Beschreibung behalten')
+            self.assertEqual(c.get(item['id'])['definition']['prompt'],'Ursprünglicher Auftrag')
+
     def test_tool_review_save_discard_and_conflict(self):
         from code_edit_window import EditDialog
         from unittest.mock import patch
@@ -76,7 +91,7 @@ class EditUiTest(unittest.TestCase):
             def shutdown(self):self.busy=False;self.closed=True
         with tempfile.TemporaryDirectory() as tmp:
             c=Collection(Store(tmp));item=c.create('tool','Prüfen',value={'prompt':'Frist prüfen'})
-            w=EditDialog(c,item);self.addCleanup(lambda:w.done(0));w.rule_controls[0][1].setPlainText('Neue Regel');w.test_input.setPlainText('Rechnung CHF 42')
+            w=EditDialog(c,item);self.addCleanup(lambda:w.done(0));w.request.setPlainText('Neue Regel');w.test_input.setPlainText('Rechnung CHF 42')
             with patch('assistant_backend.OpenCodeBackend',Backend),patch('code_edit_window.QMessageBox.question',return_value=QMessageBox.Yes):w.test_tool()
             self.assertTrue(w.engine.sent[1]['proposal']);self.assertIn('Neue Regel',w.engine.sent[0][0]);self.assertEqual(c.get(item['id'])['revision'],1)
             w.name.setText('Anderer Entwurf');w.engine.busy=False;w.engine.completed.emit(True,'Frist fehlt')

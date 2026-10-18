@@ -44,6 +44,9 @@ class ClockEditor(QWidget):
 class ToolForm(QWidget):
     def __init__(self,parent=None):
         super().__init__(parent);box=QVBoxLayout(self);box.setContentsMargins(0,0,0,0);box.setSpacing(12)
+        self.columns=QHBoxLayout();self.columns.setSpacing(24);box.addLayout(self.columns)
+        form=QWidget();box=QVBoxLayout(form);box.setContentsMargins(0,0,0,0);box.setSpacing(12);self.columns.addWidget(form,3)
+        test=QFrame();test.setObjectName('codeLogic');self.test_box=QVBoxLayout(test);self.test_box.setContentsMargins(20,20,20,20);self.test_box.setSpacing(12);self.columns.addWidget(test,2)
         pair=QHBoxLayout();box.addLayout(pair)
         left=QVBoxLayout();right=QVBoxLayout();pair.addLayout(left,1);pair.addLayout(right,1)
         self.pair=pair
@@ -54,11 +57,13 @@ class ToolForm(QWidget):
         box.addWidget(label(tr('Regeln für jedes Ergebnis'),'codeCardTitle'));self.rules=[]
         for text in ('Fehlende Angaben kenntlich machen','Keine Fakten oder Zuständigkeiten erfinden','Möglichst knapp formulieren'):
             c=QCheckBox(tr(text));c.setChecked(len(self.rules)<2);box.addWidget(c);self.rules.append((c,text))
-        self.example=field(box,'Beispieleingabe für den Test',QPlainTextEdit());self.example.setFixedHeight(80)
-        box.addWidget(label(tr('Ein-/Ausgabe und Regeln werden gemeinsam gespeichert. Das Werkzeug startet manuell mit neuen Eingaben.'),'codeMuted'));box.addStretch()
+        self.test_box.addWidget(label(tr('Mit einem Beispiel prüfen'),'codeCardTitle'))
+        self.test_box.addWidget(label(tr('Deine Beispieleingabe geht nach Bestätigung an die eingerichtete KI. Es werden keine Ergebnisaktionen ausgeführt.'),'codeMuted'))
+        self.example=field(self.test_box,'Beispieleingabe für den Test',QPlainTextEdit());self.example.setFixedHeight(120)
+        box.addWidget(label(tr('Du verwendest dieses Werkzeug später mit neuen Eingaben. Ergebnisse werden nicht ungefragt in anderen Apps abgelegt.'),'codeMuted'));box.addStretch()
 
     def resizeEvent(self,event):
-        super().resizeEvent(event);self.pair.setDirection(QHBoxLayout.TopToBottom if self.width()<620 else QHBoxLayout.LeftToRight)
+        super().resizeEvent(event);self.columns.setDirection(QHBoxLayout.TopToBottom if self.width()<760 else QHBoxLayout.LeftToRight)
 
     def value(self):
         request=self.request.toPlainText().strip()
@@ -73,7 +78,9 @@ class RoutineForm(QWidget):
         box=QVBoxLayout(self);box.setContentsMargins(0,0,0,0);box.setSpacing(12)
         self.pair=QHBoxLayout();self.pair.setSpacing(24);box.addLayout(self.pair);left=QWidget();right=QWidget();steps_box=QVBoxLayout(left);steps_box.setContentsMargins(0,0,0,0);steps_box.setSpacing(12);schedule_box=QVBoxLayout(right);schedule_box.setContentsMargins(0,0,0,0);schedule_box.setSpacing(12);self.pair.addWidget(left,3);self.pair.addWidget(right,2);box=steps_box
         box.addWidget(label(tr('Schritte der Routine'),'codeCardTitle'));self.list=QListWidget();self.list.setObjectName('codeSteps');self.list.setFixedHeight(64);self.list.setAccessibleName(tr('Schritte der Routine'));box.addWidget(self.list)
-        box.addWidget(row(button(tr('Schritt ergänzen'),self.add),button(tr('Entfernen'),self.remove),button('↑',lambda:self.move(-1)),button('↓',lambda:self.move(1))))
+        order_widget=row(button(tr('Schritt ergänzen'),self.add),button(tr('Entfernen'),self.remove),button('↑',lambda:self.move(-1)),button('↓',lambda:self.move(1)))
+        for i in (2,3):order_widget.layout().itemAt(i).widget().setFixedWidth(42)
+        box.addWidget(order_widget)
         order=box.itemAt(box.count()-1).widget().layout();order.itemAt(2).widget().setAccessibleName(tr('Schritt nach oben'));order.itemAt(3).widget().setAccessibleName(tr('Schritt nach unten'))
         self.tools=field(box,'Gespeichertes Werkzeug',combo([('', 'Werkzeug wählen')]+[(t['id'],t['title']) for t in tools or []],''));self.tool_records={t['id']:t for t in tools or []};self.tools.activated.connect(self.use_tool)
         self.title=field(box,'Schritttitel',QLineEdit());self.prompt=field(box,'Auftrag des Schritts',QPlainTextEdit());self.prompt.setMaximumHeight(100)
