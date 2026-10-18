@@ -67,7 +67,7 @@ function App() {
     <div className="inline-actions"><button disabled={disabled} onClick={()=>command('daily')}>{tr('Tagesnotiz')}</button><button disabled={disabled} onClick={()=>command('template')}>{tr('Aus Vorlage')}</button></div>
     <div className="knowledge-note-list" aria-busy={!state.ready}>
      {state.notes.map(n=><button className={'doc-row'+(doc?.id===n.id?' active':'')} key={n.id} disabled={disabled} aria-pressed={doc?.id===n.id} onClick={()=>command('open',{id:n.id})}>
-      <span><strong>{n.title}</strong><small>{summary(n).slice(0,75)||tr('Noch ohne Inhalt')}</small>{!!n.tags.length&&<small className="note-tags">{n.tags.map(t=>'#'+t).join(' · ')}</small>}<small>{n.id.includes('/')?n.id.slice(0,n.id.lastIndexOf('/')):tr('Eigene Notiz')}</small></span>
+      <span><strong>{n.title}</strong><small>{summary(n).slice(0,75)||tr('Noch ohne Inhalt')}</small><small className="note-tags">{n.tags.length?n.tags.map(t=>'#'+t).join(' · '):n.id.includes('/')?n.id.slice(0,n.id.lastIndexOf('/')):tr('Eigene Notiz')}</small></span>
      </button>)}
      {state.more&&<button disabled={disabled} onClick={()=>command('more_notes')}>{tr('Weitere Notizen laden')}</button>}
      {!state.notes.length&&<p className="muted">{tr('Keine Notizen in dieser Auswahl.')}</p>}

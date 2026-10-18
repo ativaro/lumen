@@ -80,7 +80,7 @@ def build(w):
     settings.setMenu(settings_menu)
     for control in (w.rename_collection_button,w.questions_button,w.map_button): control.hide()
     w.collections.setMinimumHeight(80)
-    w.sidebar.setObjectName('wissenList');w.sidebar.setMinimumWidth(210);w.sidebar.setMaximumWidth(240)
+    w.sidebar.setObjectName('wissenList');w.sidebar.setMinimumWidth(260);w.sidebar.setMaximumWidth(320)
     side=w.sidebar.layout()
     while side.count():side.takeAt(0)
     side.setContentsMargins(12,20,12,12);side.setSpacing(10)

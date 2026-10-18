@@ -57,7 +57,7 @@ def reflow(window):
     window.collections.setMinimumHeight(40 if compact else 80)
     grid.addWidget(window.navigation, 0, 0)
     grid.addWidget(window.split, 1 if compact else 0, 0 if compact else 1)
-    window.split.setSizes([240, max(360, window.width()-460)])
+    window.split.setSizes([280 if compact else 320, max(360, window.width()-(328 if compact else 592))])
 
 
 @lru_cache(maxsize=512)
@@ -71,11 +71,11 @@ def summary(text):
 
 
 class NoteListDelegate(QStyledItemDelegate):
-    def sizeHint(self, option, index): return QSize(180, 88)
+    def sizeHint(self, option, index): return QSize(240, 112)
 
     def paint(self, painter, option, index):
         painter.save(); painter.setRenderHint(QPainter.Antialiasing)
-        rect = option.rect.adjusted(0, 2, 0, -2)
+        rect = option.rect.adjusted(0, 4, 0, -4)
         active = bool(option.state & QStyle.State_Selected)
         if active or option.state & QStyle.State_MouseOver:
             painter.setPen(Qt.NoPen); painter.setBrush(option.palette.color(QPalette.AlternateBase)); painter.drawRoundedRect(rect, 8, 8)
@@ -83,8 +83,8 @@ class NoteListDelegate(QStyledItemDelegate):
             painter.setBrush(Qt.NoBrush); painter.setPen(QPen(option.palette.color(QPalette.Link), 1)); painter.drawRoundedRect(rect.adjusted(1,1,-1,-1),8,8)
         title, _, detail = (index.data() or '').partition('\n')
         body = index.data(Qt.UserRole+1) or ''
-        for y, text, size, color in [(12,title,13,QPalette.Text),(37,summary(body),11,QPalette.PlaceholderText),(58,detail,11,QPalette.PlaceholderText)]:
-            font = QFont(option.font); font.setPixelSize(size); painter.setFont(font); painter.setPen(option.palette.color(color))
-            text = painter.fontMetrics().elidedText(text, Qt.ElideRight, max(0,rect.width()-24))
-            painter.drawText(QRectF(rect.x()+12,rect.y()+y,rect.width()-24,20), Qt.AlignLeft|Qt.AlignVCenter, text)
+        for y, text, size, color in [(12,title,14,QPalette.Text),(42,summary(body),12,QPalette.PlaceholderText),(72,detail,12,QPalette.PlaceholderText)]:
+            font = QFont(option.font);font.setPixelSize(size);font.setWeight(QFont.Medium if y==12 else QFont.Normal);painter.setFont(font);painter.setPen(option.palette.color(color))
+            text = painter.fontMetrics().elidedText(text, Qt.ElideRight, max(0,rect.width()-32))
+            painter.drawText(QRectF(rect.x()+16,rect.y()+y,rect.width()-32,22), Qt.AlignLeft|Qt.AlignVCenter, text)
         painter.restore()

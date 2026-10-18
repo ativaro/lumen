@@ -57,6 +57,18 @@ class NotesWebTest(unittest.TestCase):
         self.js("(()=>{let el=document.querySelector('[contenteditable=true]');el.focus();let range=document.createRange();range.selectNodeContents(Array.from(el.querySelectorAll('p')).at(-1)||el);range.collapse(false);let selection=getSelection();selection.removeAllRanges();selection.addRange(range);document.execCommand('insertText',false,"+json.dumps(text)+");})()")
         self.wait(lambda:text in self.w.editor.toPlainText())
 
+    def test_list_spacing_and_preview_does_not_repeat_note_title(self):
+        self.w.resize(1440,960);QTest.qWait(100)
+        row="Array.from(document.querySelectorAll('.doc-row')).find(e=>e.querySelector('strong')?.textContent==='Schreibprobe')"
+        preview=self.js(f"({row}).querySelector('small').textContent")
+        self.assertNotIn('Schreibprobe',preview)
+        self.assertIn('Willkommen',preview)
+        self.assertGreaterEqual(self.js("document.querySelector('.knowledge-notes').getBoundingClientRect().width"),300)
+        self.assertGreaterEqual(self.js("parseFloat(getComputedStyle(document.querySelector('.knowledge-note-list')).gap)"),8)
+        self.js(f"({row}).click()")
+        self.wait(lambda:self.w.doc['path']==self.first['path'])
+        self.assertIn('# Schreibprobe',self.w.book.read(self.first['path'])['text'])
+
     def test_web_editor_tables_tags_save_and_responsive_layout(self):
         w=self.w
         self.assertNotIn('**',self.js("document.querySelector('[contenteditable]').innerText"))

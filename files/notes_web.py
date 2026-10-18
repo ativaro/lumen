@@ -44,9 +44,10 @@ class Bridge(QObject):
         self.stamp = None
 
     def document(self, note, selected=False):
+        from notes_structure import document_parts
         w = self.window
         return dict(id=note['path'], title=w.title.text() if selected else note['title'],
-                    body=w.editor.toPlainText() if selected else note['text'][:2000],
+                    body=w.editor.toPlainText() if selected else document_parts(note['text'][:2000],note['title'])[3],
                     tags=tags(w.document_text()) if selected else note['tags'],
                     updated=note.get('modified', 0), shared=w.share_note.isChecked() if selected else False)
 
