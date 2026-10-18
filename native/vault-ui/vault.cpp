@@ -313,7 +313,8 @@ VaultWindow::VaultWindow(const QString &root)
     auto *layout = new QVBoxLayout(dialog);
     auto *notice = new QLabel(tx("Lumen benötigt deinen Tresor. Entsperre ihn lokal; die konkrete Aktion bestätigst du danach separat.",
       "Lumen needs your vault. Unlock it locally; confirm the exact action separately afterwards."));
-    notice->setWordWrap(true); layout->addWidget(notice);
+    notice->setWordWrap(true);
+  notice->setMinimumHeight(48); layout->addWidget(notice);
     auto *message = new QLabel; message->setObjectName("requestUnlockError");
     message->setWordWrap(true); layout->addWidget(message);
     auto *password = vaultInput("requestMaster", true);
@@ -522,6 +523,7 @@ QWidget *VaultWindow::lockedPage() {
   outer->addStretch();
   auto *card = new QFrame;
   card->setObjectName("card");
+  card->setMinimumWidth(480);
   card->setMaximumWidth(510);
   auto *layout = new QVBoxLayout(card);
   layout->setContentsMargins(36, 30, 36, 30);
@@ -568,6 +570,7 @@ QWidget *VaultWindow::lockedPage() {
            "At least 14 characters. The master password cannot be reset. Back "
            "up the encrypted file separately."));
     help->setWordWrap(true);
+    help->setMinimumHeight(64);
     help->setObjectName("muted");
     layout->addWidget(help);
     layout->addWidget(button(tx("Verschlüsselte Sicherung wiederherstellen…",
