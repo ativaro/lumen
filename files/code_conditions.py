@@ -75,11 +75,12 @@ def evaluate(value, data):
 
 
 def describe(value):
+    from lumen_i18n import tr
     validate(value)
-    if 'all' in value: return ' UND '.join('('+describe(row)+')' for row in value['all'])
-    if 'any' in value: return ' ODER '.join('('+describe(row)+')' for row in value['any'])
-    if 'not' in value: return 'NICHT ('+describe(value['not'])+')'
-    return FIELDS[value['field']][0]+' '+OP_LABELS[value['op']]+' '+str(value['value'])
+    if 'all' in value: return (' '+tr('UND')+' ').join('('+describe(row)+')' for row in value['all'])
+    if 'any' in value: return (' '+tr('ODER')+' ').join('('+describe(row)+')' for row in value['any'])
+    if 'not' in value: return tr('NICHT')+' ('+describe(value['not'])+')'
+    return tr(FIELDS[value['field']][0])+' '+tr(OP_LABELS[value['op']])+' '+(tr('Ja' if value['value'] else 'Nein') if type(value['value']) is bool else str(value['value']))
 
 
 def proposal(text, available):

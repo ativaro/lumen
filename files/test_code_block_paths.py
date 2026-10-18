@@ -47,7 +47,7 @@ class BranchRuns(unittest.TestCase):
         p=self.plan();config=json.loads(p['nodes'][1]['config']);config['otherwise']=config['cases'][0]['nodes'];p['nodes'][1]['config']=json.dumps(config)
         with self.assertRaises(ValueError):parse(p)
 
-if __name__=='__main__':unittest.main()
+
 
 class LoopRuns(unittest.TestCase):
     def test_each_line_uses_distinct_replay_safe_effects_and_reopens(self):
@@ -92,3 +92,5 @@ class AdditionalActions(unittest.TestCase):
             r.resume(run['id'])
             with patch('code_blocks_run.time.time',return_value=deadline+1):r.advance(run['id'],Job())
             r.advance(run['id'],Job());self.assertEqual(r.get(run['id'])['status'],'completed');self.assertEqual(r.get(run['id'])['data']['steps'][1]['until'],deadline)
+
+if __name__=='__main__':unittest.main()

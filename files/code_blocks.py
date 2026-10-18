@@ -80,12 +80,14 @@ def permissions(plan):
     for n in parse(plan)['nodes']:
         kind=n['kind'];config=n['config'].strip()
         if kind=='manual' and plan.get('version')==3:
-            from code_block_paths import config,source
-            inp=source(config(n))
+            from code_block_paths import config as block_config,source
+            inp=source(block_config(n))
             if inp['kind']=='file':
                 if not inp.get('path') or not Path(inp['path']).is_absolute():raise ValueError('Bitte eine Quelldatei auswählen.')
                 result.append('Datei lesen: '+inp['path'])
-            elif inp['kind']=='project':result.append('Ausgewähltes Lumen-Projekt lesen: '+inp.get('project_id',''))
+            elif inp['kind']=='project':
+                if not inp.get('project_id'):raise ValueError('Bitte ein Lumen-Projekt auswählen.')
+                result.append('Ausgewähltes Lumen-Projekt lesen: '+inp['project_id'])
             else:result.append('Die ausdrücklich eingegebenen Inhalte verwenden.')
         elif kind in ('read_file','save_file'):
             if not config or not Path(config).is_absolute():raise ValueError('Bitte Datei und Zielordner ausdrücklich auswählen.')

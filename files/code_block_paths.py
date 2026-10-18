@@ -165,8 +165,9 @@ def route(run,n,previous):
 
 def starter():
     from code_blocks import node
+    from lumen_i18n import tr
     start=node('manual',json.dumps({'kind':'text','text':''}))
-    return {'version':3,'nodes':[start,node('ai','Fasse den eingegebenen Text zusammen.'),node('approval'),node('notify')]}
+    return {'version':3,'nodes':[start,node('ai',tr('Fasse den eingegebenen Text zusammen.')),node('approval'),node('notify')]}
 
 
 def proposal(text):
@@ -216,3 +217,19 @@ def generated(answer, input_node=None):
             result.append(n)
         return result
     return validate(flatten([copy.deepcopy(input_node) if input_node else node('manual',json.dumps({'kind':'text','text':''})),*build(value['steps'])]))
+
+
+def preview(plan):
+    from lumen_i18n import tr
+    rows=[]
+    def visit(items,depth=0):
+        for n in items:
+            rows.append('  '*depth+n['title'])
+            if n['kind']=='choose':
+                for case in n['cases']:
+                    rows.append('  '*(depth+1)+describe(case['when']));visit(case['steps'],depth+2)
+                rows.append('  '*(depth+1)+tr('Sonst'));visit(n['otherwise'],depth+2)
+            elif n['kind']=='for_each':visit(n['steps'],depth+1)
+            elif n['kind']=='condition':rows.append('  '*(depth+1)+describe(config(n)))
+            elif n['kind'] in ('ai','ai_check','filter_text','delay'):rows.append('  '*(depth+1)+n['config'])
+    visit(tree(plan));return '\n'.join(rows)
