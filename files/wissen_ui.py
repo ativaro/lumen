@@ -22,16 +22,14 @@ def build(w):
     from notes_design import apply, icon as glyph, NoteListDelegate, reflow
     apply(w,shell)
     shell.setStyleSheet(Path(__file__).with_name('wissen.qss').read_text())
-    outer=QVBoxLayout(shell);outer.setContentsMargins(28,22,28,24);outer.setSpacing(20)
-    chrome=QWidget();chrome.setObjectName('wissenChrome');head=QHBoxLayout(chrome);head.setContentsMargins(0,0,0,0)
-    heading=QWidget();heading_layout=QVBoxLayout(heading);heading_layout.setContentsMargins(0,0,0,0);heading_layout.setSpacing(8)
-    heading_layout.addWidget(label(tr('GEDANKEN, DIE BLEIBEN'),'wissenEyebrow'))
-    w.brand=label(tr('Lumen Notes'),'wissenBrand');heading_layout.addWidget(w.brand);head.addWidget(heading);head.addStretch();w.status.setMaximumWidth(600)
-    w.status.setWordWrap(False)
-    # Loading must not resize the chrome and move the entire notebook.
-    for control in (w.progress, w.cancel_button):
-        policy = control.sizePolicy(); policy.setRetainSizeWhenHidden(True); control.setSizePolicy(policy)
-    head.addWidget(w.progress);head.addWidget(w.cancel_button);outer.addWidget(chrome)
+    from desktop_design import AppHeader, PAGE_MARGIN, PAGE_SPACING
+    outer=QVBoxLayout(shell);outer.setContentsMargins(PAGE_MARGIN,20,PAGE_MARGIN,20);outer.setSpacing(PAGE_SPACING)
+    w.app_header=AppHeader(tr('Lumen Notes'),tr('Gedanken festhalten. Quellen verbinden. Zusammenhänge entdecken.'))
+    w.brand=w.app_header.title;w.status.setMaximumWidth(600);w.status.setWordWrap(False)
+    for control in (w.progress,w.cancel_button):
+        policy=control.sizePolicy();policy.setRetainSizeWhenHidden(True);control.setSizePolicy(policy)
+        w.app_header.actions.addWidget(control)
+    outer.addWidget(w.app_header)
     w.notes_layout=QGridLayout();w.notes_layout.setContentsMargins(0,0,0,0);w.notes_layout.setSpacing(0);outer.addLayout(w.notes_layout,1)
     w.split.setHandleWidth(1);w.split.setChildrenCollapsible(False)
     w.navigation=QWidget();w.navigation.setObjectName('wissenNavigation');w.navigation.setMinimumWidth(0)

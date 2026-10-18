@@ -189,8 +189,6 @@ class LumenWindow(QMainWindow):
     def __init__(self, directory, file_settings=None):
         super().__init__()
         self.setWindowTitle(tr('Lumen · Detailansicht'))
-        from panorama import install
-        install(self, 'lumen')
         self.setStyleSheet((ROOT / 'files/studio.qss').read_text())
         icon = ROOT / 'icons/hicolor/scalable/apps/lumen.svg'
         self.setWindowIcon(QIcon(str(icon)) if icon.exists() else QIcon.fromTheme('lumen'))

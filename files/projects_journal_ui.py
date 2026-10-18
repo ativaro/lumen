@@ -11,13 +11,13 @@ from projects_data import KINDS, STATES
 
 
 STYLE = """
-QWidget#projectJournal QLabel#journalTitle { font-size:30px;font-weight:500;padding:7px 0 18px; }
+QWidget#projectJournal QLabel#journalTitle { font-size:24px;font-weight:500;padding:7px 0 18px; }
 QWidget#projectJournal QLabel#journalEyebrow { color:palette(highlight);font-size:10px;letter-spacing:1px; }
 QWidget#projectJournal QLabel#journalSection { font-size:13px;font-weight:600; }
 QWidget#projectJournal QLabel#journalMuted { color:palette(placeholder-text);font-size:12px; }
 QWidget#projectJournal QLabel#journalDescription { color:palette(placeholder-text);font-size:13px; }
 QWidget#projectJournal QLabel#journalSmall { color:palette(placeholder-text);font-size:11px; }
-QWidget#projectJournal QLabel#journalSummary { font-family:'Noto Serif';font-size:31px;font-weight:400; }
+QWidget#projectJournal QLabel#journalSummary { font-size:24px;font-weight:400; }
 QWidget#projectJournal QTabBar { border-bottom:1px solid palette(mid); }
 QWidget#projectJournal QTabBar::tab { color:palette(placeholder-text);background:transparent;border:0;border-radius:0;border-bottom:2px solid transparent;padding:12px 0;margin-right:22px;font-size:12px; }
 QWidget#projectJournal QTabBar::tab:selected { color:palette(window-text);border-bottom-color:palette(highlight); }

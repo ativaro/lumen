@@ -102,7 +102,7 @@ install -m 0644 "$REPO/files/"*.py "$REPO/files/"*.qss "$REPO/files/"*.svg "$PRE
 if [[ -f "$GOOGLE_STAGE/client.json" ]]; then
     install -m 0644 "$GOOGLE_STAGE/client.json" "$PREFIX/files/google-drive-client.json"
 fi
-for asset in translations qml fonts notes_icons project_fonts notes_web memory-runtime; do
+for asset in translations qml fonts notes_icons notes_web memory-runtime; do
     mkdir -p "$PREFIX/files/$asset"
     cp -R "$REPO/files/$asset/." "$PREFIX/files/$asset/"
 done

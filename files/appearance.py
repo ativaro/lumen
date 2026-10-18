@@ -4,6 +4,8 @@ from pathlib import Path
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPalette, QPixmap
 
+from desktop_design import MENU_STYLE
+
 from appearance_tokens import DEFAULT_DESIGN, DESIGNS, DESCRIPTIONS, COLORS, RADII, normalize_design
 
 
@@ -21,10 +23,7 @@ QFrame#searchInput {{ border-radius: {radius + 14}px; }}
 QPushButton#searchSend {{ border-radius: {radius + 4}px; }}
 QPushButton#themeChoice {{ border-radius: {radius}px; }}
 QPushButton#danger, QPushButton#galleryTrash {{ color: {danger}; }}
-QToolBar#panoramaApps {{ background: palette(window); color: palette(text); border: none; border-bottom: 1px solid palette(mid); spacing: 4px; padding: 8px 16px; }}
-QToolBar#panoramaApps QToolButton {{ background: transparent; color: palette(placeholder-text); border: 1px solid transparent; border-radius: {min(radius, 10)}px; padding: 8px 12px; min-height: 28px; font-size: 13px; }}
-QToolBar#panoramaApps QToolButton:hover, QToolBar#panoramaApps QToolButton:checked {{ background: palette(midlight); color: palette(text); }}
-QToolBar#panoramaApps QToolButton:focus {{ border-color: palette(highlight); }}
+
 """
     if name == 'glass':
         style += """
@@ -34,12 +33,6 @@ QFrame#searchSurface {
     border: 1px solid rgba(173, 208, 224, 125);
 }
 QFrame#searchInput { background: rgba(190, 225, 239, 12); border-color: rgba(190, 225, 239, 125); }
-QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #344f5d, stop:1 #2b4350); }
-QPushButton#primary, QPushButton#searchSend {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #b5eee2, stop:1 #8bdece);
-}
-QPushButton#primary:hover, QPushButton#searchSend:hover { background: #b5eee2; }
-QPushButton#primary:pressed, QPushButton#searchSend:pressed { background: #7dcebe; }
 QPushButton#toolButton, QPushButton#iconButton, QPushButton#quiet,
 QPushButton#sideAction, QPushButton#crumb, QPushButton#chip, QPushButton#shelfButton,
 QPushButton#assistantButton { background: transparent; }
@@ -47,7 +40,7 @@ QPushButton#toolButton:hover, QPushButton#iconButton:hover, QPushButton#quiet:ho
 QPushButton#sideAction:hover, QPushButton#crumb:hover, QPushButton#chip:checked,
 QPushButton#shelfButton:hover, QPushButton#assistantButton:hover { background: palette(midlight); }
 """
-    return style
+    return style + MENU_STYLE
 
 
 def apply_design(app, name):
@@ -59,6 +52,8 @@ def apply_design(app, name):
         app.setPalette(app.style().standardPalette())
         apply_system_appearance(app, Path.home() / '.config/kdeglobals')
         return
+    from studio_design import font
+    app.setFont(font(14))
     window, base, alternate, text, button, border, muted, accent, on_accent = COLORS[name]
     palette = QPalette()
     for role, value in [(QPalette.Window, window), (QPalette.Base, base), (QPalette.AlternateBase, alternate),

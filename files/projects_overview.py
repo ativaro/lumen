@@ -1,46 +1,29 @@
 """Native counterpart of the server's full-width project card overview."""
 from datetime import datetime
-from pathlib import Path
 from PySide6.QtCore import Qt, QRectF, Signal
-from PySide6.QtGui import QPalette, QPainter, QPen, QFontDatabase, QIcon
+from PySide6.QtGui import QPalette, QPainter, QPen, QIcon
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLineEdit, QPushButton, QScrollArea
 from lumen_i18n import tr, language
 from tools_ui import label, button, row
 
 
 STYLE = '''
-QWidget#projectHome,QWidget#projectHome QWidget { font-family:'DM Sans 9pt'; }
 QWidget#projectHome { background:palette(window);color:palette(window-text); }
 QWidget#projectHome QLabel { color:palette(window-text);background:transparent; }
-QWidget#projectHome QLabel#overviewEyebrow { color:palette(link);font-size:10px;font-weight:600;letter-spacing:2px; }
-QWidget#projectHome QLabel#overviewTitle { font-size:34px;font-weight:500; }
-QWidget#projectHome QLabel#overviewMuted { color:palette(placeholder-text);font-size:13px; }
-QWidget#projectHome QLabel#overviewSmall { color:palette(placeholder-text);font-size:11px; }
-QWidget#projectHome QPushButton#overviewNew { background:palette(highlight);color:palette(highlighted-text);border:0;border-radius:8px;padding:12px 18px;font-size:13px; }
+QWidget#projectHome QLabel#overviewMuted { color:palette(placeholder-text);font-size:12px; }
+QWidget#projectHome QLabel#overviewSmall { color:palette(placeholder-text);font-size:12px; }
 QWidget#projectHome QPushButton#overviewFilter { border:0;border-radius:18px;padding:9px 13px;font-size:12px;color:palette(placeholder-text);background:transparent; }
 QWidget#projectHome QPushButton#overviewFilter:checked { background:palette(alternate-base);color:palette(highlight);border:0;border-radius:18px;min-height:18px; }
-QWidget#projectHome QLineEdit#overviewSearch { border:0;border-bottom:1px solid palette(mid);border-radius:0;background:transparent;color:palette(window-text);padding:11px 0;font-size:13px; }
 QWidget#projectHome QPushButton#projectCard { background:palette(base);border:1px solid palette(mid);border-radius:12px;padding:0;text-align:left;min-height:256px; }
 QWidget#projectHome QPushButton#projectCard:hover,QWidget#projectHome QPushButton#projectCard:focus { border:1px solid palette(highlight); }
-QWidget#projectHome QLabel#projectCardTitle { font-size:20px;font-weight:500; }
+QWidget#projectHome QLabel#projectCardTitle { font-size:18px;font-weight:500; }
 QWidget#projectHome QPushButton#recentProject { background:transparent;border:0;border-bottom:1px solid palette(mid);border-radius:0;padding:0;text-align:left;min-height:74px; }
 QWidget#projectHome QPushButton#recentProject:focus { border:1px solid palette(highlight); }
-QWidget#projectHome QLabel#recentTitle { font-size:13px;font-weight:500; }
+QWidget#projectHome QLabel#recentTitle { font-size:14px;font-weight:500; }
 QWidget#projectHome QWidget#overviewRecent { border-top:1px solid palette(mid); }
 QWidget#projectHome QLabel#recentHeading { font-size:18px;font-weight:500; }
 QWidget#projectHome QScrollArea,QWidget#overviewPage { border:0;background:palette(window); }
 '''
-
-
-_fonts_loaded = False
-
-
-def load_fonts():
-    global _fonts_loaded
-    if not _fonts_loaded:
-        for path in (Path(__file__).parent/'project_fonts').glob('*.woff2'):
-            QFontDatabase.addApplicationFont(str(path))
-        _fonts_loaded = True
 
 
 class ProjectGlyph(QWidget):
@@ -69,7 +52,7 @@ class ProjectOverview(QWidget):
     def __init__(self, window):
         super().__init__();self.window=window;self.signature=None;self.cards=[];self.columns=0
         outer=QVBoxLayout(self);outer.setContentsMargins(0,0,0,0);outer.setSpacing(0)
-        toolbar=QHBoxLayout();toolbar.setContentsMargins(0,35,0,22);toolbar.setSpacing(24)
+        toolbar=QHBoxLayout();toolbar.setContentsMargins(0,0,0,16);toolbar.setSpacing(16)
         self.search=QLineEdit();self.search.setObjectName('overviewSearch');self.search.setPlaceholderText(tr('Projekte suchen …'));self.search.setAccessibleName(tr('Projekte suchen'));self.search.setMaximumWidth(360);self.search.addAction(QIcon.fromTheme('edit-find'),QLineEdit.LeadingPosition)
         toolbar.addWidget(self.search,1);toolbar.addStretch(1)
         self.active=button(tr('Aktiv'),lambda:self.filter(False));self.archive=button(tr('Archiv'),lambda:self.filter(True))
@@ -80,7 +63,7 @@ class ProjectOverview(QWidget):
         self.body=QVBoxLayout(self.page);self.body.setContentsMargins(0,0,0,0);self.body.setSpacing(0)
         self.grid=QGridLayout();self.grid.setContentsMargins(0,0,0,0);self.grid.setSpacing(20);self.body.addLayout(self.grid)
         self.empty=label('','overviewMuted');self.body.addWidget(self.empty)
-        self.body.addSpacing(38);self.recent=QWidget();self.recent.setObjectName('overviewRecent');self.recent.setAttribute(Qt.WA_StyledBackground);self.recent_box=QVBoxLayout(self.recent);self.recent_box.setContentsMargins(0,26,0,0);self.recent_box.setSpacing(0);self.body.addWidget(self.recent);self.body.addStretch(1)
+        self.body.addSpacing(24);self.recent=QWidget();self.recent.setObjectName('overviewRecent');self.recent.setAttribute(Qt.WA_StyledBackground);self.recent_box=QVBoxLayout(self.recent);self.recent_box.setContentsMargins(0,24,0,0);self.recent_box.setSpacing(0);self.body.addWidget(self.recent);self.body.addStretch(1)
         self.refresh()
 
     def filter(self, archived):

@@ -11,21 +11,18 @@ NAV={'routine':'Zeitpläne & Routinen','tool':'Werkzeuge','automation':'Automati
 
 STYLE='''
 QWidget#codeShell { background: palette(window); color: palette(text); }
-QFrame#codeChrome { background: palette(base); border-bottom: 1px solid palette(mid); }
-QLabel#codeBrand { font-size: 13px; font-weight: 500; }
-QLabel#codeHalo { color: palette(link); border: 5px solid palette(link); border-radius: 12px; }
-QFrame#codeRail { background: palette(alternate-base); border-right: 1px solid palette(mid); }
+QFrame#codeRail { background: palette(window); border-right: 1px solid palette(mid); }
 QLabel#codeEyebrow { font-size: 10px; color: palette(placeholder-text); padding: 0 10px 12px; }
-QLabel#codeTitle { font-size: 25px; font-weight: 500; padding: 2px 0; }
+QLabel#codeTitle { font-size: 24px; font-weight: 500; padding: 2px 0; }
 QLabel#codeSubtitle, QLabel#codeMuted { color: palette(placeholder-text); font-size: 12px; }
 QLabel#codeError { color: palette(text); }
 QLabel#codeFooter { color: palette(placeholder-text); border-top: 1px solid palette(mid); padding: 12px 20px; font-size: 10px; }
-QPushButton#codeNav { text-align: left; background: transparent; border: 1px solid transparent; border-radius: 7px; padding: 10px 8px; min-height: 18px; font-size: 12px; }
-QPushButton#codeNav:hover, QPushButton#codeNav:checked { background: palette(base); border-color: palette(mid); color: palette(link); }
+QPushButton#codeNav { text-align: left; background: transparent; border: 1px solid transparent; border-radius: 7px; padding: 8px 12px; min-height: 20px; font-size: 14px; }
+QPushButton#codeNav:hover, QPushButton#codeNav:checked { background: palette(midlight); border-color: transparent; color: palette(text); }
 QPushButton#codeLink { border: 1px solid transparent; background: transparent; color: palette(link); text-align: left; padding: 7px 0; }
 QPushButton#codeCard { background: palette(base); border: 1px solid palette(mid); border-radius: 10px; text-align: left; min-height: 156px; padding: 0; }
 QPushButton#codeCard:hover, QPushButton#codeCard:checked { border-color: palette(highlight); background: palette(alternate-base); }
-QLabel#codeCardTitle { font-size: 15px; font-weight: 500; }
+QLabel#codeCardTitle { font-size: 18px; font-weight: 500; }
 QPushButton#codeCard QLabel { background: transparent; border: none; }
 QWidget#codeShell QLineEdit, QWidget#codeShell QPlainTextEdit, QWidget#codeShell QComboBox, QWidget#codeShell QSpinBox { background: palette(base); color: palette(text); border: 1px solid palette(mid); border-radius: 7px; padding: 10px 12px; }
 QWidget#codeShell QPlainTextEdit#codeSource { font-family: monospace; border: none; border-radius: 0; padding: 20px; }
@@ -49,7 +46,7 @@ QListWidget#codeSteps::item:selected { background: palette(alternate-base); colo
 QTextBrowser#codeReview { background: palette(base); border: 1px solid palette(mid); border-radius: 10px; padding: 21px; }
 QListWidget#codeCategories { background: transparent; border: none; outline: none; }
 QListWidget#codeCategories::item { padding: 11px 9px; border: 1px solid transparent; border-radius: 7px; margin-bottom: 3px; }
-QListWidget#codeCategories::item:selected { background: palette(base); color: palette(link); border-color: palette(mid); }
+QListWidget#codeCategories::item:selected { background: palette(midlight); color: palette(text); border-color: transparent; }
 QTreeWidget#codeEntries { background: palette(base); alternate-background-color: palette(base); border: 1px solid palette(mid); border-radius: 10px; padding: 8px; outline: none; }
 QTreeWidget#codeEntries::item { padding: 12px 10px; border-bottom: 1px solid palette(mid); }
 QTreeWidget#codeEntries::item:selected { background: palette(alternate-base); color: palette(text); }
@@ -61,13 +58,13 @@ def shell(owner):
     owner.setObjectName('codeShell');surface(owner)
     owner.setStyleSheet(Path(__file__).with_name('studio.qss').read_text()+'\n'+STYLE)
     root=QVBoxLayout(owner);root.setContentsMargins(0,0,0,0);root.setSpacing(0)
-    chrome=QFrame();chrome.setObjectName('codeChrome');chrome.setFixedHeight(60)
-    top=QHBoxLayout(chrome);top.setContentsMargins(22,0,22,0);top.setSpacing(12)
-    halo=label('','codeHalo');halo.setFixedSize(24,24);top.addWidget(halo)
-    brand=label('Lumen   /   Code & Automation','codeBrand');brand.setWordWrap(False);top.addWidget(brand);top.addStretch();root.addWidget(chrome)
+    from desktop_design import AppHeader, PAGE_MARGIN, NAV_WIDTH
+    chrome=QWidget();top=QVBoxLayout(chrome);top.setContentsMargins(PAGE_MARGIN,20,PAGE_MARGIN,0)
+    header=AppHeader(tr('Lumen Code & Automation'),tr('Werkzeuge, Routinen und kleine Apps.'))
+    top.addWidget(header);root.addWidget(chrome)
     body=QHBoxLayout();body.setContentsMargins(0,0,0,0);body.setSpacing(0);root.addLayout(body,1)
-    rail=QFrame();rail.setObjectName('codeRail');rail.setFixedWidth(176)
-    nav=QVBoxLayout(rail);nav.setContentsMargins(10,24,10,18);nav.setSpacing(5)
+    rail=QFrame();rail.setObjectName('codeRail');rail.setFixedWidth(NAV_WIDTH)
+    nav=QVBoxLayout(rail);nav.setContentsMargins(16,24,16,20);nav.setSpacing(8)
     nav.addWidget(label(tr('MEINE SAMMLUNG'),'codeEyebrow'));body.addWidget(rail)
     main=QWidget();body.addWidget(main,1)
     footer=label(tr('Meine Sammlung'),'codeFooter');root.addWidget(footer)

@@ -52,7 +52,8 @@ class Workbench(ToolWindow):
         self.back_home=button(tr('‹ Projekte'),lambda:self.safe(self.show_home),'go-previous')
         self.flow_entry=button(tr('Alle Automationen'),lambda:self.safe(self.open_section,'automations'))
         self.flow_entry.setToolTip(tr('Bestehende Abläufe mit Schritten, Zeit- oder Ordnerauslösern.'))
-        navigation=row(self.back_home,self.flow_entry);navigation.layout().insertStretch(1,1);navigation.layout().setContentsMargins(16,4,16,4)
+        navigation=row(self.back_home);navigation.layout().addStretch(1);navigation.layout().setContentsMargins(24,4,24,4)
+        self.section_navigation=navigation;self.home.app_header.actions.insertWidget(0,self.flow_entry)
         layout.addWidget(navigation);layout.addWidget(self.areas,1)
         self.setCentralWidget(shell)
         self.areas.currentChanged.connect(self.refresh_area)
@@ -60,7 +61,7 @@ class Workbench(ToolWindow):
 
     def show_home(self):
         if not self.editor.allow_leave():return
-        self.editor.hide();self.home.refresh();self.home.show_overview();self.areas.setCurrentIndex(3);self.back_home.hide()
+        self.editor.hide();self.home.refresh();self.home.show_overview();self.areas.setCurrentIndex(3);self.back_home.hide();self.section_navigation.hide()
 
     def focus_record(self,key):
         if not self.editor.allow_leave():return
@@ -77,7 +78,7 @@ class Workbench(ToolWindow):
             if hasattr(self,'editor'):self.editor.feedback.setText(text)
 
     def refresh_area(self, index):
-        self.back_home.setVisible(index!=3)
+        self.back_home.setVisible(index!=3);self.section_navigation.setVisible(index!=3)
         if index == 2:
             self.automations.refresh_flows();self.recurring.clear()
             for project in self.library.all():

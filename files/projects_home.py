@@ -8,14 +8,13 @@ from tools_ui import button,label,row
 class ProjectHome(QWidget):
     def __init__(self,window):
         super().__init__();self.window=window;self.project_id='';self.scope=''
-        from projects_overview import ProjectOverview, STYLE, load_fonts
-        load_fonts()
+        from projects_overview import ProjectOverview, STYLE
         self.setObjectName('projectHome');self.setAttribute(Qt.WA_StyledBackground);self.setStyleSheet(STYLE)
-        outer=QVBoxLayout(self);outer.setContentsMargins(28,28,28,26);outer.setSpacing(0)
-        outer.addWidget(label(tr('ALLES, WAS ZUSAMMENGEHÖRT'),'overviewEyebrow'));outer.addSpacing(12)
-        self.new_project=button(tr('Neues Projekt'),lambda:window.safe(window.create),'list-add');self.new_project.setObjectName('overviewNew')
-        title=row(label(tr('Lumen Projekte'),'overviewTitle'),self.new_project);title.layout().setStretch(0,1);outer.addWidget(title);outer.addSpacing(17)
-        outer.addWidget(label(tr('Ein Ort für deine Quellen, Gespräche und nächsten Schritte.'),'overviewMuted'))
+        from desktop_design import AppHeader, PAGE_MARGIN, PAGE_SPACING
+        outer=QVBoxLayout(self);outer.setContentsMargins(PAGE_MARGIN,20,PAGE_MARGIN,20);outer.setSpacing(PAGE_SPACING)
+        self.app_header=AppHeader(tr('Lumen Projekte'),tr('Ein Ort für deine Quellen, Gespräche und nächsten Schritte.'))
+        self.new_project=button(tr('Neues Projekt'),lambda:window.safe(window.create),'list-add',True)
+        self.new_project.setObjectName('primary');self.app_header.actions.addWidget(self.new_project);outer.addWidget(self.app_header)
         self.pages=QStackedWidget();outer.addWidget(self.pages,1)
         self.overview=ProjectOverview(window);self.overview.selected.connect(lambda key:window.safe(self.choose,key));self.pages.addWidget(self.overview)
         self.detail=QWidget();detail=QVBoxLayout(self.detail);detail.setContentsMargins(0,28,0,0);detail.setSpacing(18);self.pages.addWidget(self.detail)

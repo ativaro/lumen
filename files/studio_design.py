@@ -14,7 +14,7 @@ def family():
     return names[0] if names else 'Noto Sans'
 
 
-def font(size=13, weight=QFont.Normal):
+def font(size=14, weight=QFont.Normal):
     value = QFont(family()); value.setPixelSize(size); value.setWeight(weight)
     return value
 

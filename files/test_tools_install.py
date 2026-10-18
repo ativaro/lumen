@@ -57,7 +57,7 @@ class ToolsInstallTest(unittest.TestCase):
             (repo/'files/tools_app.py').write_text('print("synthetic")')
             for name in ('bin', 'data', 'icons'): (repo/name).symlink_to(REPO/name)
             assets = []
-            for name in ('translations', 'qml', 'fonts', 'notes_icons', 'project_fonts', 'memory-runtime'):
+            for name in ('translations', 'qml', 'fonts', 'notes_icons', 'memory-runtime'):
                 asset = repo/'files'/name/'nested/asset.dat'
                 asset.parent.mkdir(parents=True); asset.write_bytes(name.encode()); assets.append(asset)
             first = installer.install(repo, root/'data', root/'bin')

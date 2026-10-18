@@ -3,16 +3,10 @@ import {createRoot} from 'react-dom/client';
 import {BookOpen, Folder, Plus, Save, Ellipsis, Settings, LockKeyhole, Unlock} from 'lucide-react';
 import {NoteEditor} from './note-editor';
 import {noteSummary} from './note-rich-document';
-import {PageTitle, Empty} from './ui';
+import {Empty} from './ui';
 import {tr, choose, locale, useLanguage} from './i18n';
-import '@fontsource/dm-sans/400.css';
-import '@fontsource/dm-sans/500.css';
-import '@fontsource/dm-sans/600.css';
-import '@fontsource/dm-sans/700.css';
 import './style.css';
-import './panorama.css';
 import './knowledge.css';
-import './desktop.css';
 import './appearance.css';
 
 declare global {interface Window {qt:any; QWebChannel:any; lumenNotes:any;}}
@@ -52,10 +46,10 @@ function App() {
  }
  if(!state)return <p role="status">{tr('Notiz wird geladen …')}</p>;
  const disabled=state.busy||!state.ready;
- return <main className="panorama content">
-  <PageTitle eyebrow={tr('GEDANKEN, DIE BLEIBEN')} title={tr('Lumen Notes')}>
+ return <main className="desktop-notes">
+  <header className="desktop-app-header"><div><h1>{tr('Lumen Notes')}</h1><p>{tr('Gedanken festhalten. Quellen verbinden. Zusammenhänge entdecken.')}</p></div>
    <button aria-label={tr('Einstellungen')} title={tr('Einstellungen')} onClick={()=>command('settings')}><Settings size={18}/></button>
-  </PageTitle>
+  </header>
   <div className="knowledge-workspace">
    <nav className="knowledge-navigation" aria-label={tr('Bereiche und Sammlungen')}>
     <div className="knowledge-areas"><span className="knowledge-caption"><BookOpen size={17}/> {tr('Meine Notizen')}</span></div>

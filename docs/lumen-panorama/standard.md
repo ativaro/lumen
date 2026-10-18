@@ -14,7 +14,7 @@ Diese Vorgabe gilt für neue und überarbeitete Oberflächen. Bestehende Ansicht
 
 ## Aufbau und Bedienung
 
-- Auf breiten Ansichten: gut sichtbare App-Navigation oben, links die zum Inhalt passende Navigation, Hauptinhalt mit deutlichem visuellen Vorrang. Auf kleinen Ansichten wird die Navigation platzsparend und nativ zugänglich; keine verkleinerte Desktop-Dreispaltenansicht erzwingen.
+- Desktop: keine zusätzliche globale App-Leiste. Vorhandene Kopfzeilen, Inhaltsnavigation, Aktionen und Menüs gemeinsam gestalten. Auf Server-Breitansichten bleibt die App-Navigation oben; Mobile behält native Navigation. Auf kleinen Ansichten keine verkleinerte Desktop-Dreispaltenansicht erzwingen. Der Hauptinhalt hat visuellen Vorrang.
 - Gespräche sind der leicht erreichbare Hauptweg. Links zunächst die fünf neuesten Gespräche und „Mehr laden“. Eine finale Antwort erscheint einmal im Gespräch. Die schmale, schließbare Nebenansicht zeigt ausschließlich **Arbeitsschritte**. Werkzeugaufrufe werden kompakt zusammengefasst und bei Bedarf aufgeklappt.
 - Technische Aufträge treten in den Hintergrund: „Alle Aufgaben“ beziehungsweise die vorhandene Diagnoseansicht dient Fortschrittskontrolle und Troubleshooting. Keine dominante zweite Aufgabenübersicht über dem eigentlichen Inhalt.
 - Projekte fassen Vorhaben, Aufgaben, Materialien und Gespräche zusammen. Aufgaben können Recherche, Analyse oder Automation sein. Datei, Notes-Notiz und Weblink sind gleichwertig auffindbare Materialarten. Neue Elemente erhalten einen passenden dedizierten Seiteneditor; alte generische Untermenüs nicht darüberlegen.
@@ -24,6 +24,8 @@ Diese Vorgabe gilt für neue und überarbeitete Oberflächen. Bestehende Ansicht
 - Funktionen dort anbieten, wo Inhalt und nächste Handlung zusammenpassen. Keine zusätzlichen allgegenwärtigen „Verbinden“- oder Verweisleisten. Klare Handlungsnamen erklären, was der Klick bewirkt.
 
 ## Gestaltung
+
+Desktop-Präzisierung vom 18.10.2026: Panorama wird in den ursprünglichen Ansichten umgesetzt. Parallele App-Stile ersetzen und ungenutzten Gestaltungs-/Navigationscode entfernen; kein zusätzlicher Überzug. Native Kopfzeilen nutzen `files/desktop_design.py`, der offline Notes-Editor erhält dieselben Geometrie- und Schriftwerte über seine bestehende Brücke. Gemeinsame Maße: Titel26px/500, Untertitel12px, Bedienung14px, Rand24px, Abschnitt16px, Navigation224px. Systemschrift/Zoom und Leseschrift-Einstellungen bleiben erhalten. Unterschiedliche Inhaltsaufteilungen folgen der jeweiligen Aufgabe; Menüverhalten, Titelhierarchie und Aktionsgestaltung bleiben konsistent.
 
 - Ruhige zusammenhängende Flächen, klare Hierarchie, sparsame Umrandungen; keine Mischung aus alten Karten-, Menü- und Icon-Stilen. Bestehende freigegebene Lumen-Halo-Assets konsistent verwenden. Referenz-Platzhaltersymbole ersetzen diese Assets nicht.
 - Gemeinsame Abstände: 4, 8, 12, 16, 24 und 32 logische Einheiten. Web-Basistext 14 px mit etwa 22 px Zeilenhöhe, Metadaten 12 px, Haupttitel etwa 26 px. Native Schriftgrößen, Zoom und Dynamic Type haben Vorrang vor starren Pixeln.

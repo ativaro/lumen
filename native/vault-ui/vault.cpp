@@ -2,6 +2,7 @@
 #include "vault.h"
 #include "passkey.h"
 #include <KIdleTime>
+#include <QFontDatabase>
 #include "bookstack.h"
 #include "connection.h"
 #include <QtEndian>
@@ -349,6 +350,17 @@ VaultWindow::VaultWindow(const QString &root)
                                 "Save this credential in Vault?"));
     return editor;
   });
+  // Use the same bundled UI font as the other installed Desktop apps.
+  const QDir fontDirectory(QCoreApplication::applicationDirPath() + "/../../files/fonts");
+  QString uiFamily;
+  for (const auto &name : {"regular.woff2", "medium.woff2", "bold.woff2"}) {
+    const int id = QFontDatabase::addApplicationFont(fontDirectory.filePath(name));
+    const auto families = QFontDatabase::applicationFontFamilies(id);
+    if (uiFamily.isEmpty() && !families.isEmpty()) uiFamily = families.first();
+  }
+  if (!uiFamily.isEmpty()) {
+    QFont uiFont(uiFamily); uiFont.setPixelSize(14); qApp->setFont(uiFont);
+  }
   setWindowTitle("Lumen Vault");
   resize(1510, 926);
   setMinimumSize(1080, 720);
@@ -734,13 +746,12 @@ QWidget *VaultWindow::header() {
   row->setContentsMargins(0, 0, 20, 0);
   row->setSpacing(16);
   auto *brand = new QWidget;
-  brand->setFixedWidth(296);
+  brand->setMinimumWidth(224);
   auto *brandRow = new QHBoxLayout(brand);
-  brandRow->setContentsMargins(28, 20, 12, 20);
+  brandRow->setContentsMargins(24, 20, 24, 16);
   brandRow->setSpacing(18);
-  brandRow->addWidget(symbol("lumen-mark", 54));
   auto *copy = new QVBoxLayout;
-  copy->setSpacing(2);
+  copy->setSpacing(4);
   auto *title = new QLabel("Lumen Vault");
   title->setObjectName("brand");
   copy->addWidget(title);
@@ -796,7 +807,7 @@ QWidget *VaultWindow::openPage() {
   content->setSpacing(0);
   auto *sidebar = new QFrame;
   sidebar->setObjectName("sidebar");
-  sidebar->setFixedWidth(296);
+  sidebar->setFixedWidth(224);
   auto *sl = new QVBoxLayout(sidebar);
   sl->setContentsMargins(16, 28, 12, 22);
   sl->setSpacing(12);
@@ -2129,13 +2140,13 @@ void VaultWindow::theme() {
           "QPushButton#settings{background:transparent;border:0;text-align:"
           "left;"
           "padding:10px 16px;} "
-          "QMenu{background:%2;border:1px solid %5;padding:6px;} "
-          "QMenu::item{padding:10px 18px;} "
-          "QMenu::item:selected{background:%3;} "
+          "QMenu{background:%2;color:%4;border:1px solid %5;border-radius:8px;padding:6px;font-size:14px;} "
+          "QMenu::item{padding:8px 24px 8px 12px;min-height:20px;border:1px solid transparent;border-radius:6px;} "
+          "QMenu::item:selected{background:%3;border-color:%7;} QMenu::item:disabled{color:%6;} QMenu::separator{height:1px;background:%5;margin:6px 12px;} "
           "QFrame#card{background:%2;border:1px solid "
           "%5;border-radius:%9px;} QLabel{background:transparent;} "
-          "QLabel#brand{font-size:18px;font-weight:500;} "
-          "QLabel#title{font-size:26px;font-weight:600;} "
+          "QLabel#brand{font-size:26px;font-weight:500;} "
+          "QLabel#title{font-size:24px;font-weight:500;} "
           "QLabel#muted{color:%6;} QLabel#status{color:%7;} "
           "QLabel#caption{color:%6;font-size:12px;} "
           "QLabel#tagline{color:%6;font-size:12px;} "

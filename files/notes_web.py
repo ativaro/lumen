@@ -61,7 +61,10 @@ class Bridge(QObject):
             'muted': QPalette.PlaceholderText, 'accent': QPalette.Highlight,
             'on-accent': QPalette.HighlightedText,
         }.items()}
+        from desktop_design import WEB_TOKENS
+        appearance.update(WEB_TOKENS)
         from appearance_tokens import RADII
+        appearance['font-family'] = json.dumps(w.font().family())
         appearance['radius'] = str(RADII.get(QApplication.instance().property('lumenDesign'), 8)) + 'px'
         appearance['color-scheme'] = 'light' if palette.color(QPalette.Window).lightness() > 128 else 'dark'
         identity = (str(w.book.root) if w.book else '', w.area, w.doc['path'] if w.doc else '')

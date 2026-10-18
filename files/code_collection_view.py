@@ -11,11 +11,11 @@ QFrame#codeCollectionList, QFrame#codeCollectionPreview, QFrame#codeCollectionEm
 }
 QFrame#codeCollectionPreview QLabel, QFrame#codeCollectionEmpty QLabel { background: transparent; border: none; }
 QTreeWidget#codeEntries { background: transparent; border: none; padding: 0; outline: none; }
-QLabel#codePreviewTitle { font-size: 21px; font-weight: 500; }
-QLabel#codeCollectionCount { font-size: 11px; color: palette(placeholder-text); }
-QLabel#codePreviewKind { font-size: 11px; color: palette(link); }
-QLabel#codePreviewState { color: palette(link); font-size: 11px; }
-QPushButton#codeCollectionQuiet { background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 7px 8px; color: palette(placeholder-text); font-size: 11px; }
+QLabel#codePreviewTitle { font-size: 24px; font-weight: 500; }
+QLabel#codeCollectionCount { font-size: 12px; color: palette(placeholder-text); }
+QLabel#codePreviewKind { font-size: 12px; color: palette(link); }
+QLabel#codePreviewState { color: palette(link); font-size: 12px; }
+QPushButton#codeCollectionQuiet { background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 7px 8px; color: palette(placeholder-text); font-size: 12px; }
 QPushButton#codeCollectionQuiet:hover { background: palette(alternate-base); color: palette(text); }
 QPushButton#codeCollectionQuiet:focus { border-color: palette(highlight); }
 '''

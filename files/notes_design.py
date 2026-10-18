@@ -3,7 +3,7 @@ from functools import lru_cache
 from pathlib import Path
 import re
 from PySide6.QtCore import Qt, QSize, QRectF
-from PySide6.QtGui import QFont, QFontDatabase, QIcon, QIconEngine, QPixmap, QPalette, QPen, QPainter
+from PySide6.QtGui import QFont, QIcon, QIconEngine, QPixmap, QPalette, QPen, QPainter
 from PySide6.QtWidgets import QApplication, QStyledItemDelegate, QStyle, QListView
 from PySide6.QtSvg import QSvgRenderer
 from lumen_i18n import tr
@@ -33,9 +33,8 @@ def icon(name):return QIcon(NoteIcon(name))
 
 
 def apply(window, shell):
-    for path in Path(__file__).with_name('project_fonts').glob('*.woff2'):
-        QFontDatabase.addApplicationFont(str(path))
-    font = QFont('DM Sans 9pt'); font.setPixelSize(14); window.setFont(font)
+    from studio_design import font
+    window.setFont(font(14))
     window.resize(1440, 960)
 
 
@@ -48,7 +47,7 @@ def reflow(window):
     grid.removeWidget(window.navigation); grid.removeWidget(window.split)
     grid.setColumnStretch(0, 0 if not compact else 1); grid.setColumnStretch(1, 0 if compact else 1)
     grid.setRowStretch(0, 0 if compact else 1); grid.setRowStretch(1, 1 if compact else 0)
-    window.navigation.setFixedWidth(180) if not compact else window.navigation.setMaximumWidth(16777215)
+    window.navigation.setFixedWidth(224) if not compact else window.navigation.setMaximumWidth(16777215)
     if compact: window.navigation.setMinimumWidth(0)
     window.navigation.setMaximumHeight(150 if compact else 16777215)
     window.area_caption.setVisible(not compact);window.collection_label.setVisible(not compact)

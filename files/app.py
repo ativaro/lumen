@@ -346,8 +346,8 @@ class Window(QMainWindow):
         self.settings = settings or QSettings('Lumen', 'Files')
         self.setWindowTitle('Lumen Files')
         self.setObjectName('filesWindow')
-        from panorama import install
-        install(self, 'files')
+        from studio_design import font
+        self.setFont(font(14))
         self.setWindowIcon(QIcon(str(ROOT / 'lumen-files.svg')))
         self.resize(1380, 860)
         self.setMinimumSize(1000, 640)
@@ -465,7 +465,7 @@ class Window(QMainWindow):
         tabstrip = QFrame(); tabstrip.setObjectName('tabStrip')
         tabrow = QHBoxLayout(tabstrip)
         tabrow.setContentsMargins(20, 9, 16, 9)
-        brand = label(tr('Dateien'), 'brand')
+        brand = label(tr('Lumen Files'), 'desktopAppTitle')
         brand.setFixedWidth(202)
         tabrow.addWidget(brand)
         self.tabs = QTabBar()
