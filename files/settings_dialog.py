@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFil
     QPushButton, QScrollArea, QSpinBox, QStackedWidget, QTimeEdit, QVBoxLayout, QWidget)
 from assistant_backend import OpenCodeBackend
 from desktop_settings import SHORTCUTS
+from desktop_design import PAGE_MARGIN, PAGE_SPACING
 
 
 def text(value):
@@ -55,7 +56,7 @@ class SettingsDialog(QDialog):
         self.desktop = {}
         self.original = {}
         root = QVBoxLayout(self)
-        root.setContentsMargins(24, 24, 24, 18)
+        root.setContentsMargins(PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN)
         self.stack = QStackedWidget()
         self.page_info = []
         self.status = text(tr('Änderungen mit „Übernehmen“ speichern. Systemdialoge übernehmen ihre eigenen Einstellungen.'))
@@ -390,8 +391,8 @@ class SettingsDialog(QDialog):
         scroll.setFrameShape(QScrollArea.NoFrame)
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(24, 14, 24, 14)
-        layout.setSpacing(14)
+        layout.setContentsMargins(0, PAGE_SPACING, 0, PAGE_SPACING)
+        layout.setSpacing(PAGE_SPACING)
         heading = text(title)
         heading.setObjectName('heading')
         layout.addWidget(heading)

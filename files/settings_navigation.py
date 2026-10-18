@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineE
     QAbstractButton)
 from lumen_i18n import tr
 from lumen_qt import is_deleted
+from desktop_design import NAV_WIDTH, PAGE_SPACING
 
 
 def label(value, style=''):
@@ -33,28 +34,28 @@ class SettingsNavigation(QWidget):
         super().__init__(parent)
         self.stack = stack; self.pages = pages; self.categories = categories
         self.view = ('category', 0); self.previous = self.view; self.hits = []
-        root = QVBoxLayout(self); root.setContentsMargins(0, 0, 0, 0); root.setSpacing(20)
-        header = QHBoxLayout()
-        title = label(tr('Einstellungen'), 'heading'); title.setMinimumWidth(240)
+        root = QVBoxLayout(self); root.setContentsMargins(0, 0, 0, 0); root.setSpacing(PAGE_SPACING)
+        header = QHBoxLayout(); header.setSpacing(PAGE_SPACING)
+        title = label(tr('Einstellungen'), 'desktopAppTitle'); title.setMinimumWidth(NAV_WIDTH)
         header.addWidget(title)
         self.search = QLineEdit(); self.search.setPlaceholderText(tr('Eine Einstellung suchen …'))
         self.search.setAccessibleName(tr('Alle Einstellungen durchsuchen')); self.search.setClearButtonEnabled(True)
         header.addWidget(self.search, 1); root.addLayout(header)
-        body = QHBoxLayout(); body.setSpacing(20); root.addLayout(body, 1)
+        body = QHBoxLayout(); body.setSpacing(PAGE_SPACING); root.addLayout(body, 1)
         self.nav = QListWidget(); self.nav.setObjectName('settingsNavigation')
-        self.nav.setAccessibleName(tr('Einstellungsbereiche')); self.nav.setFixedWidth(240); self.nav.setSpacing(6)
+        self.nav.setAccessibleName(tr('Einstellungsbereiche')); self.nav.setFixedWidth(NAV_WIDTH); self.nav.setSpacing(6)
         for category in categories: self.nav.addItem(category['title'])
         body.addWidget(self.nav)
         self.content = QStackedWidget(); body.addWidget(self.content, 1)
         overview = QScrollArea(); overview.setWidgetResizable(True); overview.setFrameShape(QScrollArea.NoFrame)
         self.overview = QWidget(); self.overview_layout = QVBoxLayout(self.overview)
-        self.overview_layout.setContentsMargins(8, 4, 8, 4); self.overview_layout.setSpacing(10)
+        self.overview_layout.setContentsMargins(0, 4, 0, 4); self.overview_layout.setSpacing(10)
         overview.setWidget(self.overview); self.content.addWidget(overview)
         detail = QWidget(); detail_layout = QVBoxLayout(detail); detail_layout.setContentsMargins(0, 0, 0, 0)
         self.back = QPushButton(); self.back.setAutoDefault(False); self.back.setObjectName('quiet'); self.back.clicked.connect(self.go_back)
         detail_layout.addWidget(self.back, 0, Qt.AlignLeft); detail_layout.addWidget(stack, 1)
         self.content.addWidget(detail)
-        results = QWidget(); results_layout = QVBoxLayout(results); results_layout.setContentsMargins(8, 4, 8, 4)
+        results = QWidget(); results_layout = QVBoxLayout(results); results_layout.setContentsMargins(0, 4, 0, 4)
         self.result_title = label(tr('Suchergebnisse'), 'heading'); results_layout.addWidget(self.result_title)
         self.results = QListWidget(); self.results.setObjectName('settingsResults')
         self.results.setAccessibleName(tr('Gefundene Einstellungen')); results_layout.addWidget(self.results)

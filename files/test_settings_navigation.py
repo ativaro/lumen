@@ -65,6 +65,26 @@ class SettingsNavigationTest(unittest.TestCase):
                 for caption in entry.findChildren(QLabel):
                     self.assertGreater(caption.height(), 0)
 
+    def test_overview_and_details_share_the_panorama_content_edge(self):
+        from PySide6.QtCore import QPoint
+        from PySide6.QtWidgets import QLabel
+        from desktop_design import NAV_WIDTH
+        d = self.dialog; d.resize(960, 640); d.show(); QTest.qWait(30)
+        d.navigation.show_category(0); self.app.processEvents()
+        overview_title = next(label for label in d.navigation.overview.findChildren(QLabel)
+                              if label.text() == d.navigation.categories[0]['title'])
+        overview_x = overview_title.mapTo(d, QPoint()).x()
+        page = next(index for index in range(d.stack.count())
+                    if d.apply_appearance in d.stack.widget(index).findChildren(QPushButton))
+        d.open_page(page); self.app.processEvents()
+        detail_title = next(label for label in d.stack.widget(page).findChildren(QLabel)
+                            if label.text() == d.page_info[page]['title'])
+        self.assertEqual(detail_title.mapTo(d, QPoint()).x(), overview_x)
+        self.assertEqual(d.navigation.nav.width(), NAV_WIDTH)
+        title = next(label for label in d.navigation.findChildren(QLabel)
+                     if label.objectName() == 'desktopAppTitle')
+        self.assertEqual(title.font().pixelSize(), 26)
+
     def test_wizard_changes_refresh_shared_voice_fields_without_reverting_them(self):
         from PySide6.QtWidgets import QFormLayout
         d = self.dialog
