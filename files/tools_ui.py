@@ -187,7 +187,21 @@ class ToolWindow(QMainWindow):
 
     def error(self, text):
         self.status.setText(text)
-        QMessageBox.warning(self, self.windowTitle(), text[:3000])
+        dialog = getattr(self, '_error_dialog', None)
+        if dialog is not None:
+            dialog.setText(text[:3000])
+            if not dialog.isVisible(): dialog.open()
+            return
+        # Background signals must not stack nested modal event loops.
+        dialog = QMessageBox(QMessageBox.Warning, self.windowTitle(), text[:3000], QMessageBox.Ok, self)
+        dialog.setTextFormat(Qt.PlainText)
+        dialog.setAttribute(Qt.WA_DeleteOnClose)
+        self._error_dialog = dialog
+        def cleared(*_):
+            if getattr(self, '_error_dialog', None) is dialog: self._error_dialog = None
+        dialog.finished.connect(cleared)
+        dialog.destroyed.connect(cleared)
+        dialog.open()
 
     def open_apps(self):
         from lumen_apps import launch
