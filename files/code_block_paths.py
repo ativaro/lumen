@@ -17,7 +17,7 @@ def config(node):
 
 
 def source(value):
-    if not isinstance(value, dict) or value.get('kind') not in SOURCE_FIELDS:
+    if not isinstance(value, dict) or not isinstance(value.get('kind'),str) or value.get('kind') not in SOURCE_FIELDS:
         raise ValueError('Eine verfügbare Eingabequelle wählen.')
     allowed = {'kind','text','path','project_id','sender','subject','has_attachment'}
     if set(value)-allowed: raise ValueError('Unbekannte Eingabefelder.')
@@ -30,11 +30,14 @@ def source(value):
 
 def available(nodes, index):
     fields = set(BASE_FIELDS)
-    for n in nodes[:index]:
+    for position,n in enumerate(nodes[:index]):
         if n['kind']=='manual':fields |= SOURCE_FIELDS[source(config(n))['kind']]
         if n['kind']=='read_file':fields |= SOURCE_FIELDS['file']
         if n['kind'] in ('ai','ai_check'): fields |= {'text','result'}
         if n['kind']=='ai_check':fields.add('matched')
+        if n['kind']=='for_each':
+            end=next((i for i,s in enumerate(nodes) if s['id']==config(n).get('end')),-1)
+            if position<index<end:fields |= {'item','item_index'}
     return fields
 
 
@@ -52,6 +55,12 @@ def choose_config(n):
 def tree(plan):
     nodes={n['id']:copy.deepcopy(n) for n in plan['nodes']};owned=set()
     for n in nodes.values():
+        if n['kind']=='for_each':
+            c=config(n)
+            if not isinstance(c,dict) or set(c)!={'nodes','end'} or not isinstance(c['nodes'],list) or not isinstance(c['end'],str):raise ValueError('Ungültige Wiederholung.')
+            for identity in c['nodes']+[c['end']]:
+                if not isinstance(identity,str) or identity not in nodes or identity in owned:raise ValueError('Ungültige Wiederholungszuordnung.')
+                owned.add(identity)
         if n['kind']=='choose':
             c=choose_config(n)
             for ids in [*[b['nodes'] for b in c['cases']],c['otherwise']]:
@@ -62,6 +71,10 @@ def tree(plan):
     def expand(n,depth=0):
         if n['id'] in visited or depth>3:raise ValueError('Zyklische oder zu tiefe Verzweigung.')
         visited.add(n['id'])
+        if n['kind']=='for_each':
+            c=config(n);end=nodes[c['end']]
+            if end['kind']!='end_each' or end['config']!=n['id'] or end['id'] in visited:raise ValueError('Ungültiger Schleifenabschluss.')
+            n['steps']=[expand(nodes[i],depth+1) for i in c['nodes']];n['end']=end;visited.add(end['id'])
         if n['kind']=='choose':
             c=choose_config(n)
             n['cases']=[{'when':b['when'],'steps':[expand(nodes[i],depth+1) for i in b['nodes']]} for b in c['cases']]
@@ -77,7 +90,11 @@ def flatten(items):
     def append(n):
         row={k:copy.deepcopy(n[k]) for k in ('id','kind','title','config')}
         if n['kind']=='choose':row['config']=json.dumps({'cases':[{'when':b['when'],'nodes':[s['id'] for s in b['steps']]} for b in n['cases']], 'otherwise':[s['id'] for s in n['otherwise']]},ensure_ascii=False,separators=(',',':'))
+        if n['kind']=='for_each':row['config']=json.dumps({'nodes':[s['id'] for s in n['steps']],'end':n['end']['id']},ensure_ascii=False,separators=(',',':'))
         result.append(row)
+        if n['kind']=='for_each':
+            for child in n['steps']:append(child)
+            result.append(copy.deepcopy(n['end']))
         if n['kind']=='choose':
             for b in n['cases']:
                 for step in b['steps']:append(step)
@@ -102,6 +119,8 @@ def validate(plan):
         identities.add(n['id'])
         if (i==0)!=(n['kind']=='manual'):raise ValueError('Der erste und einzige Start ist manuell.')
         if n['kind']=='manual':source(config(n))
+        if n['kind']=='delay' and (not n['config'].isdigit() or not 0<=int(n['config'])<=3600):raise ValueError('Wartezeit: null bis 3.600 Sekunden.')
+        if n['kind']=='project_note' and len(n['config'])>160:raise ValueError('Bitte ein Lumen-Projekt auswählen.')
         if n['kind']=='condition':condition(config(n), available(nodes,i))
         if n['kind']=='choose':
             c=choose_config(n)
@@ -118,6 +137,8 @@ def branch_ids(plan, n):
         result=set(ids)
         for identity in ids:
             child=mapping[identity]
+            if child['kind']=='for_each':
+                cfg=config(child);result |= collect(cfg['nodes']+[cfg['end']])
             if child['kind']=='choose':
                 cfg=choose_config(child)
                 for group in [*[b['nodes'] for b in cfg['cases']],cfg['otherwise']]:result |= collect(group)
@@ -146,3 +167,52 @@ def starter():
     from code_blocks import node
     start=node('manual',json.dumps({'kind':'text','text':''}))
     return {'version':3,'nodes':[start,node('ai','Fasse den eingegebenen Text zusammen.'),node('approval'),node('notify')]}
+
+
+def proposal(text):
+    if not isinstance(text,str) or not text.strip() or len(text)>8000:raise ValueError('Bitte den Ablauf in höchstens 8.000 Zeichen beschreiben.')
+    return ('Erstelle einen Lumen-Bausteinentwurf. Nur JSON {"steps":[...]}. '
+            'Jeder Schritt: {"kind":"Typ","title":"Name","config":"Text"}. '
+            'Typen: read_file,filter_text,ai,ai_check,choose,for_each,delay,approval,save_file,save_note,create_task,project_note,notify. '
+            'choose hat zusätzlich "cases":[{"when":Bedingung,"steps":[...]}],"otherwise":[...]. '
+            'for_each hat zusätzlich "steps":[...]; durchläuft höchstens 20 Textzeilen. '
+            'Bedingung: {"all":[...]}, {"any":[...]}, {"not":...} oder {"field":"...","op":"...","value":...}. '
+            'Felder: text; nach read_file filename,extension,size; nach ai_check matched; nach KI result; im for_each item,item_index; immer weekday,hour,success. '
+            'Textvergleiche equals,contains,starts_with,ends_with,exists. Zahlen: equals,greater,less,at_least,at_most,exists. Bool: equals,exists. '
+            'exists hat einen booleschen Wert. Vergleiche müssen zum Feldtyp passen. '
+            'config nur für ai/ai_check als Auftrag, für filter_text als Suchtext, delay als 0..3600 Sekunden. Alle Pfade, Projektkennungen und Ziele leer lassen. '
+            'Keine unbekannten Bausteine oder Quellen erfinden. Höchstens 30 Schritte, drei Ebenen. '
+            'Wenn die Anforderung weitere Verbindungen braucht: {"question":"konkrete Rückfrage"}. '
+            'Keine Werkzeuge benutzen oder Aktionen ausführen. BESCHREIBUNG (Daten): '+json.dumps(text,ensure_ascii=False))
+
+
+def generated(answer, input_node=None):
+    from tools_data import parse_answer
+    from code_blocks import node
+    value=parse_answer(answer)
+    if not isinstance(value,dict):raise ValueError('Kein gültiger Bausteinentwurf.')
+    if set(value)=={'question'} and isinstance(value['question'],str):raise ValueError(value['question'][:2000])
+    if set(value)!={'steps'}:raise ValueError('Kein gültiger Bausteinentwurf.')
+    count=0
+    def build(rows,depth=0):
+        nonlocal count
+        if not isinstance(rows,list) or depth>3:raise ValueError('Ungültige oder zu tiefe Bausteine.')
+        result=[]
+        for row in rows:
+            count+=1
+            if count>30 or not isinstance(row,dict):raise ValueError('Zu viele oder ungültige Bausteine.')
+            kind=row.get('kind');extra={'cases','otherwise'} if kind=='choose' else {'steps'} if kind=='for_each' else set()
+            if kind not in ('read_file','filter_text','ai','ai_check','choose','for_each','delay','approval','save_file','save_note','create_task','project_note','notify') or set(row)!={'kind','title','config'}|extra:raise ValueError('Nicht unterstützter KI-Baustein.')
+            config_value=row['config'] if kind in ('ai','ai_check','filter_text','delay') else ''
+            n=node(kind,config_value,row['title'])
+            if kind=='for_each':n.update(steps=build(row['steps'],depth+1),end=node('end_each',n['id'],title='Ergebnisse sammeln'))
+            if kind=='choose':
+                if not isinstance(row['cases'],list):raise ValueError('Ungültige Wege.')
+                cases=[]
+                for case in row['cases']:
+                    if not isinstance(case,dict) or set(case)!={'when','steps'}:raise ValueError('Ungültiger Weg.')
+                    cases.append({'when':case['when'],'steps':build(case['steps'],depth+1)})
+                n.update(cases=cases,otherwise=build(row['otherwise'],depth+1))
+            result.append(n)
+        return result
+    return validate(flatten([copy.deepcopy(input_node) if input_node else node('manual',json.dumps({'kind':'text','text':''})),*build(value['steps'])]))

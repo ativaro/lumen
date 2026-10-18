@@ -156,6 +156,9 @@ class Runs:
             data=run['data'];cursor=data['cursor']
             if cursor==len(data['steps']):run['status']='completed';self.save(db,run);return None
             n=run['plan']['nodes'][cursor];step=data['steps'][cursor]
+            if data.get('executions',0)>=1000:
+                run['status']='error';step.update(status='error',error='Höchstens 1.000 Bausteinschritte pro Durchlauf.');self.save(db,run);return None
+            data['executions']=data.get('executions',0)+1
             if step['status']=='running':raise ValueError('Dieser Baustein läuft bereits.')
             previous=next((s['output'] for s in reversed(data['steps'][:cursor]) if s['status']=='completed'),{})
             step.update(status='running',attempts=step['attempts']+1,input=previous,output={},error='',ticket=uuid4().hex)
@@ -164,6 +167,16 @@ class Runs:
         if kind in ('ai','ai_check'):
             output_format={'text':'Ergebnistext',**({'matched':True} if kind=='ai_check' else {})}
             return dict(prompt=json.dumps(dict(instruction=n['config'],input=previous,format=output_format),ensure_ascii=False),attempt=token)
+        if kind=='delay':
+            with self.store.connect() as db:
+                db.execute('BEGIN IMMEDIATE');waiting=self.get(identity,db);self.fence(waiting,db)
+                until=waiting['data']['steps'][cursor].setdefault('until',time.time()+int(n['config']));self.save(db,waiting)
+            try:
+                while time.time()<until:
+                    job.check();time.sleep(min(.1,max(0,until-time.time())))
+                self.finish_external(identity,previous,token)
+            except Exception as error:self.fail(identity,str(error),token)
+            return None
         if kind=='approval':
             with self.store.connect() as db:
                 db.execute('BEGIN IMMEDIATE');run=self.get(identity,db);self.fence(run,db)
@@ -181,7 +194,7 @@ class Runs:
                 with self.store.connect() as db:
                     db.execute('BEGIN IMMEDIATE');run=self.get(identity,db);self.fence(run,db)
                     if run['status']!='running':return None
-                    job.check();output=self.effect(run,n,previous,job)
+                    job.check();output=self.effect(run,n,previous,job,db)
                     self.finish(db,run,output,token);return None
             self.finish_external(identity,output,token)
         except Exception as error:self.fail(identity,str(error),token)
@@ -190,7 +203,8 @@ class Runs:
     def finish(self,db,run,output,attempt):
         step=run['data']['steps'][run['data']['cursor']]
         if run['status']!='running' or step['status']!='running' or step.get('ticket')!=attempt:return
-        step.update(status='completed',output=output,error='');run['data']['cursor']+=1
+        next_cursor=output.pop('_next_cursor',None)
+        step.update(status='pending' if next_cursor is not None else 'completed',output=output,error='');run['data']['cursor']=next_cursor if next_cursor is not None else run['data']['cursor']+1
         while run['data']['cursor']<len(run['data']['steps']) and run['data']['steps'][run['data']['cursor']]['status']=='skipped':run['data']['cursor']+=1
         if run['data']['cursor']==len(run['plan']['nodes']):run['status']='completed'
         self.save(db,run)
@@ -221,8 +235,17 @@ class Runs:
             if attempt is not None and step.get('ticket')!=attempt:return
             step.update(status='error',error=error[:2000]);run['status']='error';self.save(db,run)
 
-    def effect(self,run,n,previous,job):
-        kind=n['kind'];token=run['id']+n['id'];text=previous.get('text','');output=dict(previous)
+    def effect(self,run,n,previous,job,db=None):
+        kind=n['kind']
+        from code_block_loop import effect_key
+        identity=effect_key(run,n,previous);token=run['id']+identity;text=previous.get('text','');output=dict(previous)
+        if kind=='for_each':
+            from code_block_loop import enter
+            return enter(run,n,previous)
+        if kind=='end_each':
+            from code_block_loop import leave
+            return leave(run,n,previous)
+        if kind=='filter_text':return {**previous,'text':'\n'.join(line for line in text.splitlines() if n['config'].casefold() in line.casefold())}
         if kind=='manual':return dict(text='',start='Manuell')
         if kind in ('condition','choose'):
             from code_block_paths import route
@@ -234,12 +257,12 @@ class Runs:
                 while cursor<len(run['plan']['nodes']) and run['plan']['nodes'][cursor]['kind']!='notify':
                     run['data']['steps'][cursor].update(status='skipped',error='Sonst-Pfad');cursor+=1
             return output
-        if kind in ('save_file','save_note','create_task') and not text.strip():raise ValueError('Kein Ergebnis zum Speichern vorhanden.')
+        if kind in ('save_file','save_note','create_task','project_note') and not text.strip():raise ValueError('Kein Ergebnis zum Speichern vorhanden.')
         title=n['config'].strip() or n['title']
-        if run['testing'] and kind in ('save_file','save_note','create_task','notify'):
+        if run['testing'] and kind in ('save_file','save_note','create_task','notify','project_note'):
             folder=self.store.directory/'block-tests'/run['id'];folder.mkdir(parents=True,exist_ok=True,mode=0o700)
-            output['effect']=dict(test=True,path=write_file(folder,n['id']+'.json',json.dumps(dict(kind=kind,title=title,text=text),ensure_ascii=False)))
-        elif kind=='save_file':output['effect']=dict(path=write_file(n['config'],'Lumen-'+run['id']+'-'+n['id'][:8]+'.md',text))
+            output['effect']=dict(test=True,path=write_file(folder,identity+'.json',json.dumps(dict(kind=kind,title=title,text=text),ensure_ascii=False)))
+        elif kind=='save_file':output['effect']=dict(path=write_file(n['config'],'Lumen-'+run['id']+'-'+identity+'.md',text))
         elif kind in ('save_note','create_task'):
             if kind=='save_note' and self.store.setting('knowledge/notebook','')!=run['data']['notes_root']:
                 raise ValueError('Der Notizordner wurde geändert. Neues Ziel in einem neuen Durchlauf freigeben.')
@@ -248,6 +271,18 @@ class Runs:
             url=Registry().register(dict(app='files',kind='record',id=token,title='Automation: '+n['title']))
             payload=dict(title=title[:300],text=text,paths=[],source_url=url)
             output['effect']=apply('wissen.import' if kind=='save_note' else 'inbox.task',payload,dict(token=token,mode='copy',title=title[:300]),job,store=self.store)
+        elif kind=='project_note':
+            from file_spaces import PREFIX
+            if db is None:raise ValueError('Projektänderungen brauchen den gesperrten Durchlauf.')
+            key=PREFIX+'room/'+n['config'];stored=db.execute('SELECT value FROM settings WHERE key=?',(key,)).fetchone()
+            current=json.loads(stored['value']) if stored else None
+            if not current or not current.get('project'):raise ValueError('Das gewählte Lumen-Projekt ist nicht mehr verfügbar.')
+            marker='[Lumen Automation '+token+']'
+            if marker not in current.get('note',''):
+                note=current.get('note','')+'\n\n'+marker+'\n'+text
+                if len(note)>10000:raise ValueError('Die Projektnotiz wäre größer als 10.000 Zeichen.')
+                db.execute('UPDATE settings SET value=? WHERE key=?',(json.dumps({**current,'note':note,'updated':time.time()}),key))
+            output['effect']={'project_id':current['id']}
         elif kind=='notify':
             from lumen_notifications import publish
             output['effect']=dict(notification=publish('Lumen Code & Automation',token,n['title'],text[:2000]))

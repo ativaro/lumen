@@ -12,12 +12,18 @@ CATALOG = {
     'condition': ('Steuern', 'Bedingung prüfen', 'Nur bei erfüllter Bedingung fortfahren.'),
     'choose': ('Steuern', 'Passenden Weg wählen', 'Den ersten passenden Weg ausführen; sonst den Sonst-Weg.'),
     'ai_check': ('Verarbeiten', 'Inhalt mit KI prüfen', 'Inhaltsfrage prüfen und ein Ja/Nein-Ergebnis liefern.'),
+    'for_each': ('Steuern', 'Für jede Textzeile', 'Bis zu zwanzig Textzeilen nacheinander durchlaufen und Ergebnisse sammeln.'),
+    'end_each': ('Steuern', 'Ergebnisse sammeln', 'Interner Abschluss einer Wiederholung.'),
+    'delay': ('Steuern', 'Warten', 'Eine gewählte Anzahl Sekunden warten; nach Unterbrechung fortsetzen.'),
+    'filter_text': ('Verarbeiten', 'Textzeilen filtern', 'Nur Textzeilen behalten, die den gewählten Text enthalten.'),
+    'project_note': ('Handeln', 'Projekt ergänzen', 'Das Ergebnis an die Notiz eines ausdrücklich gewählten Lumen-Projekts anhängen.'),
     'approval': ('Steuern', 'Auf Bestätigung warten', 'Ergebnis prüfen, bevor die nächsten Aktionen laufen.'),
     'save_file': ('Handeln', 'Datei speichern', 'Ergebnis als neue Textdatei im gewählten Ordner ablegen.'),
     'save_note': ('Handeln', 'Notiz speichern', 'Eine neue Notiz in Lumen Notes anlegen.'),
     'create_task': ('Handeln', 'Aufgabe erstellen', 'Eine offene Aufgabe in Lumen Inbox anlegen.'),
     'notify': ('Handeln', 'Mich informieren', 'Ergebnis in den Lumen-Benachrichtigungen zeigen.'),
 }
+LEGACY_KINDS = frozenset(('manual','read_file','if_pdf','ai','approval','save_file','save_note','create_task','notify'))
 LATER = {'Start': ['Zeitpunkt', 'Neue Datei in Drive', 'Nachricht', 'Termin', 'Projektänderung'],
          'Verarbeiten': ['Quellen durchsuchen'], 'Handeln': ['Projekt ergänzen'],
          'Steuern': ['Mehrere Elemente durchlaufen']}
@@ -46,7 +52,7 @@ def parse(value):
     ids=set();read=False
     for index,n in enumerate(nodes):
         if not isinstance(n,dict) or set(n)!={'id','kind','title','config'}:raise ValueError('Ungültiger Baustein.')
-        if not isinstance(n['kind'],str) or n['kind'] not in CATALOG or n['kind'] in ('choose','condition','ai_check'):raise ValueError('Dieser Baustein wird noch nicht unterstützt.')
+        if not isinstance(n['kind'],str) or n['kind'] not in LEGACY_KINDS:raise ValueError('Dieser Baustein wird noch nicht unterstützt.')
         for key,limit in [('id',32),('title',160),('config',4096)]:
             if not isinstance(n[key],str) or len(n[key])>limit or '\0' in n[key]:raise ValueError('Ungültiges Bausteinfeld: '+key)
         if len(n['id'])!=32 or any(c not in '0123456789abcdef' for c in n['id']) or n['id'] in ids:raise ValueError('Ungültige Bausteinkennung.')
@@ -87,6 +93,9 @@ def permissions(plan):
         elif kind in ('ai','ai_check'):
             if not config:raise ValueError('Bitte den KI-Auftrag beschreiben.')
             result.append('KI: Die bis hier gelesenen Inhalte an den eingerichteten Modellanbieter senden; keine Werkzeuge.')
+        elif kind=='project_note':
+            if not config:raise ValueError('Bitte ein Lumen-Projekt auswählen.')
+            result.append('Projektnotiz ergänzen: '+config)
         elif kind=='save_note':result.append('Neue Notiz in Lumen Notes: '+(config or n['title']))
         elif kind=='create_task':result.append('Neue offene Aufgabe in Lumen Inbox: '+(config or n['title']))
         elif kind=='notify':result.append('Lumen-Benachrichtigung anzeigen.')

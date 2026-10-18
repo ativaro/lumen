@@ -3,6 +3,7 @@ import json
 import math
 
 FIELDS = {
+    'item': ('Aktuelle Textzeile', 'text'), 'item_index': ('Elementnummer', 'number'),
     'text': ('Text', 'text'), 'filename': ('Dateiname', 'text'),
     'extension': ('Dateityp', 'text'), 'size': ('Dateigröße in Bytes', 'number'),
     'sender': ('Absender', 'text'), 'subject': ('Betreff', 'text'),
@@ -99,6 +100,7 @@ def proposal(text, available):
 def generated(text, available):
     from tools_data import parse_answer
     value = parse_answer(text)
+    if not isinstance(value,dict):raise ValueError('Kein gültiger Bedingungsvorschlag.')
     if set(value) == {'question'} and isinstance(value['question'], str):
         raise ValueError(value['question'][:2000])
     if set(value) != {'condition', 'explanation'} or not isinstance(value['explanation'], str) or len(value['explanation']) > 2000:

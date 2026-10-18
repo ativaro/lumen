@@ -1,5 +1,6 @@
 import copy
 import json
+from pathlib import Path
 import tempfile
 import unittest
 from code_blocks import node,parse,encode
@@ -47,3 +48,47 @@ class BranchRuns(unittest.TestCase):
         with self.assertRaises(ValueError):parse(p)
 
 if __name__=='__main__':unittest.main()
+
+class LoopRuns(unittest.TestCase):
+    def test_each_line_uses_distinct_replay_safe_effects_and_reopens(self):
+        from code_block_paths import flatten
+        start=node('manual',json.dumps({'kind':'text','text':'erste Zeile\nzweite Zeile'}))
+        repeat=node('for_each');repeat.update(steps=[node('approval'),node('notify')],end=node('end_each','',title='Ende'))
+        repeat['end']['config']=repeat['id']
+        with tempfile.TemporaryDirectory() as tmp:
+            c=Collection(Store(tmp));runs=Runs(c);entry=c.create('automation','Zeilen',value={'flow':encode(flatten([start,repeat,node('notify')]))})
+            run=runs.create(entry['id']);runs.resume(run['id'])
+            for _ in range(3):runs.advance(run['id'],Job())
+            self.assertEqual(runs.get(run['id'])['status'],'waiting')
+            runs.control(run['id'],'approve');runs.resume(run['id'])
+            for _ in range(3):runs.advance(run['id'],Job())
+            self.assertEqual(runs.get(run['id'])['status'],'waiting')
+            self.assertEqual(len(list((Path(tmp)/'block-tests'/run['id']).glob('*.json'))),1)
+            runs=Runs(c);runs.control(run['id'],'approve');runs.resume(run['id'])
+            for _ in range(4):runs.advance(run['id'],Job())
+            final=runs.get(run['id']);self.assertEqual(final['status'],'completed')
+            self.assertEqual(final['data']['steps'][-1]['output']['text'],'erste Zeile\nzweite Zeile')
+            files=list((Path(tmp)/'block-tests'/run['id']).glob('*.json'));self.assertEqual(len(files),3)
+            self.assertEqual(len(final['data']['loops'][repeat['id']]['history']),2)
+
+class AdditionalActions(unittest.TestCase):
+    def test_project_append_is_atomic_and_test_run_does_not_write(self):
+        from file_spaces import Catalog
+        with tempfile.TemporaryDirectory() as tmp:
+            c=Collection(Store(tmp));Catalog(c.store).put('room',{'id':'project-a','project':True,'name':'A','note':'Vorhanden','sources':[],'applications':[],'urls':[]})
+            start=node('manual',json.dumps({'kind':'text','text':'Neues Ergebnis'}));plan={'version':3,'nodes':[start,node('project_note','project-a')]};entry=c.create('automation','Projekt',value={'flow':encode(plan)});runs=Runs(c)
+            run=runs.create(entry['id'],True);runs.resume(run['id']);runs.advance(run['id'],Job());runs.advance(run['id'],Job())
+            self.assertEqual(Catalog(c.store).rooms()[0]['note'],'Vorhanden')
+            run=runs.create(entry['id'],False);runs.resume(run['id']);runs.advance(run['id'],Job());runs.advance(run['id'],Job())
+            self.assertEqual(runs.get(run['id'])['status'],'completed');self.assertIn('Neues Ergebnis',Catalog(c.store).rooms()[0]['note'])
+
+    def test_wait_keeps_original_deadline_after_retry(self):
+        from unittest.mock import patch
+        class CancelledJob:
+            def check(self):raise ValueError('Unterbrochen')
+        with tempfile.TemporaryDirectory() as tmp:
+            c=Collection(Store(tmp));p={'version':3,'nodes':[node('manual',json.dumps({'kind':'text','text':'abc'})),node('delay','5'),node('filter_text','a')]};entry=c.create('automation','Warten',value={'flow':encode(p)});r=Runs(c);run=r.create(entry['id']);r.resume(run['id']);r.advance(run['id'],Job());r.advance(run['id'],CancelledJob())
+            failed=r.get(run['id']);self.assertEqual(failed['status'],'error');deadline=failed['data']['steps'][1]['until']
+            r.resume(run['id'])
+            with patch('code_blocks_run.time.time',return_value=deadline+1):r.advance(run['id'],Job())
+            r.advance(run['id'],Job());self.assertEqual(r.get(run['id'])['status'],'completed');self.assertEqual(r.get(run['id'])['data']['steps'][1]['until'],deadline)
