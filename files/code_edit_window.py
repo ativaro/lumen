@@ -49,7 +49,7 @@ class EditDialog(QDialog):
                            steps=[dict(title=tool['title'],prompt=tool['definition']['prompt'],tool_id=tool['id'],tool_revision=tool['revision'])],
                            condition='always',outputs=['notify'],source_ids=[],service_ids=[])
         main,nav,self.footer=shell(self)
-        controls=navigation(nav,self.reject,lambda _:self.reject());controls['tool' if self.is_tool else 'automation'].setChecked(True)
+        controls=navigation(nav,self.reject,lambda _:self.reject());controls['tool' if self.is_tool else 'routine'].setChecked(True)
         box=QVBoxLayout(main);box.setContentsMargins(28,20,28,22);box.setSpacing(12)
         self.context=label('','codeMuted');box.addWidget(self.context)
         self.heading_row=QBoxLayout(QBoxLayout.LeftToRight);self.heading_row.setSpacing(12);box.addLayout(self.heading_row)

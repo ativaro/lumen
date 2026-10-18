@@ -41,7 +41,7 @@ class BlocksUITest(unittest.TestCase):
         editor.set_locked(True);self.assertFalse(editor.add_button.isEnabled());self.assertFalse(editor.up.isEnabled())
         from code_creation import CreationDialog
         dialog=CreationDialog();self.addCleanup(self.dispose,dialog);dialog.select_kind('automation');dialog.review()
-        self.assertEqual(dialog.value['kind'],'automation');self.assertEqual(__import__('json').loads(dialog.value['definition']['flow'])['version'],2)
+        self.assertEqual(dialog.value['kind'],'automation');self.assertEqual(__import__('json').loads(dialog.value['definition']['flow'])['version'],3)
 
     def test_real_test_pause_approval_from_other_selection_and_reopen(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -64,6 +64,27 @@ class BlocksUITest(unittest.TestCase):
             window.reject();reopened=BlockWindow(collection,entry['id']);self.addCleanup(self.dispose,reopened)
             self.assertEqual(reopened.run['status'],'completed')
             reopened.editor.list.setCurrentRow(1);self.assertIn('42 CHF',reopened.editor.output.toPlainText())
+
+    def test_v3_branch_signature_approval_inspection_and_resume(self):
+        import json
+        from code_block_paths import flatten
+        from PySide6.QtWidgets import QPushButton
+        with tempfile.TemporaryDirectory() as tmp:
+            c=Collection(Store(tmp));branch=node('choose');branch.update(cases=[{'when':{'field':'text','op':'contains','value':'abc'},'steps':[node('approval'),node('notify')]}],otherwise=[node('notify')])
+            plan=flatten([node('manual',json.dumps({'kind':'text','text':'abc'})),branch]);entry=c.create('automation','Wege',value={'flow':encode(plan)})
+            w=BlockWindow(c,entry['id']);self.addCleanup(self.dispose,w);w.show()
+            with patch('code_blocks_window.QMessageBox.question',return_value=QMessageBox.Yes):w.start(True)
+            for _ in range(300):
+                QTest.qWait(10);time.sleep(.005)
+                if w.run['status']=='waiting' and w.job is None:break
+            self.assertEqual(w.run['status'],'waiting');self.assertTrue(w.editor.locked);self.assertTrue(w.approve_button.isVisible())
+            self.assertTrue(all(b.isEnabled() for b in w.editor.findChildren(QPushButton) if b.objectName()=='codeFold'))
+            w.approve()
+            for _ in range(300):
+                QTest.qWait(10);time.sleep(.005)
+                if w.run['status']=='completed' and w.job is None:break
+            self.assertEqual(w.run['status'],'completed');self.assertEqual(w.run['data']['steps'][-1]['status'],'skipped')
+            w.reject();reopened=BlockWindow(c,entry['id']);self.addCleanup(self.dispose,reopened);self.assertEqual(reopened.run['status'],'completed')
 
     def test_failed_target_resume_and_save_invalidation(self):
         with tempfile.TemporaryDirectory() as tmp:

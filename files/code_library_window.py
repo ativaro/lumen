@@ -17,7 +17,7 @@ from tools_ui import button, label, row
 
 HELP = json.loads(Path(__file__).with_name('code_library_help.json').read_text(encoding='utf-8'))
 
-TITLES = {'app':'Kleine Apps', 'tool':'Werkzeuge', 'automation':'Automationen', 'code':'Code-Projekte'}
+TITLES = {'app':'Kleine Apps', 'tool':'Werkzeuge', 'automation':'Automationen', 'code':'Code-Projekte','routine':'Zeitpläne & Routinen'}
 
 
 class CollectionWindow(QMainWindow):
@@ -31,10 +31,10 @@ class CollectionWindow(QMainWindow):
         outer=QVBoxLayout(main);outer.setContentsMargins(30,26,30,24);outer.setSpacing(14)
         self.status=label('','codeMuted');outer.addWidget(self.status)
         self.categories=QListWidget();self.categories.setObjectName('codeCategories');self.categories.setIconSize(QSize(16,16));self.categories.setAccessibleName(tr('Sammlungsbereiche'))
-        self.category_keys=['all','favorites','app','tool','automation','code','attention','archive']
-        self.categories.addItems([tr(text) for text in ['Alle Einträge','Favoriten','Kleine Apps','Werkzeuge','Automationen','Code-Projekte','Braucht dich','Archiv']])
+        self.category_keys=['all','favorites','tool','routine','automation','code','app','attention','archive']
+        self.categories.addItems([tr(text) for text in ['Alle Einträge','Favoriten','Werkzeuge','Zeitpläne & Routinen','Automationen','Code-Projekte','Vorhandene kleine Apps','Braucht dich','Archiv']])
         from studio_design import icon
-        for index,name in enumerate(['view-list-details','rating','view-grid','tools-wizard','view-process-tree','code-context','dialog-information','archive-extract']):self.categories.item(index).setIcon(icon(name));self.categories.item(index).setSizeHint(QSize(150,44))
+        for index,name in enumerate(['view-list-details','rating','tools-wizard','view-calendar','view-process-tree','code-context','view-grid','dialog-information','archive-extract']):self.categories.item(index).setIcon(icon(name));self.categories.item(index).setSizeHint(QSize(150,44))
         nav.addWidget(self.categories,1);nav.addWidget(label(tr('Deine Idee.\nDein nächster Helfer.'),'codeMuted'))
         self.pages=QStackedWidget();outer.addWidget(self.pages,1)
         self.build_collection();self.build_detail()
@@ -150,6 +150,7 @@ class CollectionWindow(QMainWindow):
         self.prompt=QPlainTextEdit();self.prompt.setAccessibleName(tr('Auftrag'));self.prompt.setPlaceholderText(tr('Was soll Lumen für dich erledigen?'));self.prompt.setFixedHeight(110);fields.addWidget(self.prompt)
         fields.addWidget(label(tr('Eingabe für diesen Durchlauf')))
         self.input=QPlainTextEdit();self.input.setAccessibleName(tr('Eingabe für diesen Durchlauf'));self.input.setPlaceholderText(tr('Neue Eingabe für diesen Durchlauf'));self.input.setMinimumHeight(100);fields.addWidget(self.input)
+        self.select_input=button(tr('Datei oder Projektnotiz übernehmen'),lambda:self.safe(self.choose_tool_input));fields.addWidget(self.select_input)
         self.settings_toggle=button(tr('Beschreibung, Projekt und Dateien'),lambda:self.entry_settings.setVisible(self.settings_toggle.isChecked()));self.settings_toggle.setCheckable(True);self.settings_toggle.setObjectName('codeLink');fields.addWidget(self.settings_toggle)
         self.entry_settings=QWidget();settings=QVBoxLayout(self.entry_settings);settings.setContentsMargins(0,0,0,0);settings.setSpacing(8)
         settings.addWidget(label(tr('Beschreibung')));self.description=QPlainTextEdit();self.description.setAccessibleName(tr('Beschreibung'));self.description.setPlaceholderText(tr('Was erledigt dieser Eintrag?'));self.description.setFixedHeight(65);settings.addWidget(self.description)
@@ -221,9 +222,11 @@ class CollectionWindow(QMainWindow):
     def refresh(self,*_):
         category=self.category_keys[max(0,self.categories.currentRow())]
         records=self.collection.items(query=self.search.text(),kind=category if category in KINDS else '',project_id=self.project_filter.currentData(),favorite=category=='favorites',archived=category=='archive',sort=self.sort.currentData())
+        if category in ('automation','routine'):
+            records=[item for item in records if item['kind']=='automation' and (self.kind_title(item)==tr('Routine'))==(category=='routine')]
         if category=='attention':records=[item for item in records if self.entry_status(item) in [STATES[key] for key in ('failed','needs_input','interrupted')]]
         heading={'all':'Meine Sammlung','favorites':'Deine Favoriten','attention':'Braucht dich','archive':'Archiv',**TITLES}
-        descriptions={'all':'Deine Apps, Werkzeuge und Abläufe – bereit für den nächsten Einsatz.','app':'Kleine Oberflächen für Dinge, die du im Alltag erledigst.','tool':'Deine bewährten Aufträge – bei jedem Mal mit neuen Eingaben.','automation':'Abläufe, die für dich prüfen, vorbereiten und Bescheid geben.','code':'Deine Softwareprojekte mit Gespräch, Dateien und Änderungen.','favorites':'Die Helfer, die du besonders häufig brauchst.','attention':'Offene Rückfragen und Aufträge, die deine Aufmerksamkeit brauchen.','archive':'Aufbewahrt, bis du sie wieder brauchst.'}
+        descriptions={'routine':'Wiederkehrende Schritte und ihre manuellen oder geplanten Starts.','all':'Deine Apps, Werkzeuge und Abläufe – bereit für den nächsten Einsatz.','app':'Kleine Oberflächen für Dinge, die du im Alltag erledigst.','tool':'Deine bewährten Aufträge – bei jedem Mal mit neuen Eingaben.','automation':'Abläufe, die für dich prüfen, vorbereiten und Bescheid geben.','code':'Deine Softwareprojekte mit Gespräch, Dateien und Änderungen.','favorites':'Die Helfer, die du besonders häufig brauchst.','attention':'Offene Rückfragen und Aufträge, die deine Aufmerksamkeit brauchen.','archive':'Aufbewahrt, bis du sie wieder brauchst.'}
         self.collection_intro.setText(tr(descriptions[category]))
         self.collection_heading.setText(tr(heading[category]));self.collection_count.setText(tr('1 Eintrag') if len(records)==1 else tr('{0} Einträge',len(records)))
         selected=self.entries.currentItem();identity=selected.data(0,Qt.UserRole) if selected else None
@@ -242,18 +245,24 @@ class CollectionWindow(QMainWindow):
         filtered=bool(self.search.text().strip() or self.project_filter.currentData() is not None)
         special=category in ('favorites','attention','archive')
         self.empty.setText(tr('Keine passenden Einträge') if filtered else tr({'favorites':'Deine Favoriten fehlen noch','attention':'Alles im Blick','archive':'Das Archiv ist leer'}.get(category,'Deine Sammlung beginnt mit einer Idee.')))
-        self.empty_description.setText(tr('Versuche einen anderen Suchbegriff oder passe die Auswahl an.') if filtered else tr('Markiere häufig verwendete Helfer mit einem Stern.') if category=='favorites' else tr('Hier erscheinen Einträge, die deine Aufmerksamkeit brauchen.') if category=='attention' else tr('Archivierte Helfer bleiben hier erhalten.') if category=='archive' else tr('Eine kleine App, ein wiederverwendbares Werkzeug oder dein erster Ablauf.'))
+        self.empty_description.setText(tr('Versuche einen anderen Suchbegriff oder passe die Auswahl an.') if filtered else tr('Markiere häufig verwendete Helfer mit einem Stern.') if category=='favorites' else tr('Hier erscheinen Einträge, die deine Aufmerksamkeit brauchen.') if category=='attention' else tr('Archivierte Helfer bleiben hier erhalten.') if category=='archive' else tr('Ein Werkzeug, eine Routine, ein Ablauf oder dein Code-Projekt.'))
         self.empty_action.setText(tr('Filter zurücksetzen') if filtered else tr('Alle Einträge anzeigen') if special else tr('Neu erstellen'))
         self.update_collection_preview()
 
     def create(self):
         if not self.allow_leave():return
         from code_creation import CreationDialog
-        dialog=CreationDialog(self,self.project_records,self.collection.items(kind='tool'))
+        category=self.category_keys[max(0,self.categories.currentRow())]
+        dialog=CreationDialog(self,self.project_records,self.collection.items(kind='tool'),kind=category)
         if not dialog.exec():return
         value=dialog.value
-        self.open_entry(self.collection.create(value['kind'],value['title'],value['description'],
-                                               value['definition'],value['project_id'])['id'])
+        item=self.collection.create(value['kind'],value['title'],value['description'],value['definition'],value['project_id'])
+        if dialog.kind=='routine':
+            from code_library_execution import directory
+            directory(self.collection,item)
+            from code_edit_window import EditDialog
+            EditDialog(self.collection,item,self).exec();self.refresh()
+        else:self.open_entry(item['id'])
 
     def open_selected(self):
         item=self.entries.currentItem()
@@ -275,7 +284,7 @@ class CollectionWindow(QMainWindow):
             if blocks and not item['archived'] and parse(item['definition']['flow']).get('version') in (2,3):
                 from code_blocks_window import BlockWindow
                 BlockWindow(self.collection,identity,self).exec();self.refresh();return
-        self.current=item;self.loading=True;self.footer.setText(tr('Meine Sammlung')+' / '+item['title'])
+        self.current=item;self.loading=True;self.select_input.setVisible(item['kind']=='tool');self.footer.setText(tr('Meine Sammlung')+' / '+item['title'])
         try:
             self.title.setText(item['title']);self.description.setPlainText(item['description']);self.prompt.setPlainText(item['definition'].get('prompt',''));self.html.setPlainText(item['definition'].get('html',''));self.directory.setText(item['definition'].get('directory',''))
             if item['project_id'] and self.project.findData(item['project_id'])<0:self.project.addItem(tr('Projekt nicht mehr verfügbar'),item['project_id'])
@@ -335,6 +344,11 @@ class CollectionWindow(QMainWindow):
     def toggle_archive(self):
         if self.dirty:self.save()
         self.collection.update(self.current['id'],self.current['revision'],archived=not self.current['archived']);self.dirty=False;self.back()
+
+    def choose_tool_input(self):
+        from code_tool_input import ToolInputDialog
+        dialog=ToolInputDialog(self.store,self)
+        if dialog.exec():self.input.setPlainText(dialog.value)
 
     def choose_directory(self):
         path=QFileDialog.getExistingDirectory(self,tr('Lumen · Ordner auswählen'))

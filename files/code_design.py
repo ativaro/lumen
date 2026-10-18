@@ -6,8 +6,8 @@ from lumen_i18n import tr
 from tools_ui import button,label
 from studio_design import surface,icon
 
-ICONS={'app':'view-grid','tool':'tools-wizard','automation':'view-process-tree','code':'code-context'}
-NAV={'app':'Kleine Apps','tool':'Werkzeuge','automation':'Automationen','code':'Code-Projekte'}
+ICONS={'app':'view-grid','routine':'view-calendar','tool':'tools-wizard','automation':'view-process-tree','code':'code-context'}
+NAV={'routine':'Zeitpläne & Routinen','tool':'Werkzeuge','automation':'Automationen','code':'Code-Projekte'}
 
 STYLE='''
 QWidget#codeShell { background: palette(window); color: palette(text); }
@@ -31,6 +31,7 @@ QWidget#codeShell QLineEdit, QWidget#codeShell QPlainTextEdit, QWidget#codeShell
 QWidget#codeShell QPlainTextEdit#codeSource { font-family: monospace; border: none; border-radius: 0; padding: 20px; }
 QWidget#codeShell QScrollArea { background: transparent; border: none; }
 QWidget#codeShell QScrollArea > QWidget > QWidget { background: palette(window); }
+QWidget#codeShell QPushButton#toolButton:checked { background: palette(alternate-base); border: 1px solid palette(highlight); }
 QWidget#codeShell QPushButton#toolButton { background: palette(base); border: 1px solid palette(mid); border-radius: 7px; padding: 9px 12px; }
 QWidget#codeShell QPushButton#primary { background: palette(highlight); color: palette(highlighted-text); border: 1px solid palette(highlight); border-radius: 7px; padding: 9px 13px; }
 QWidget#codeShell QPushButton:focus { border: 2px solid palette(highlight); }
@@ -40,6 +41,7 @@ QWidget#codeShell QTabBar#studioResultTabs::tab { margin-right: 15px; font-size:
 QFrame#codeLogic { background: palette(base); border: 1px solid palette(mid); border-radius: 10px; }
 QFrame#codeLogic QLabel { background: transparent; border: none; }
 QLabel#codeLogicWord { color: palette(link); font-size: 24px; font-weight: 500; }
+QPushButton#codeFold { text-align: left; background: palette(base); border: 1px solid palette(mid); border-radius: 8px; padding: 12px 16px; min-height: 24px; }
 QLabel#codeJoin { color: palette(link); padding: 3px 20px; font-size: 19px; }
 QListWidget#codeSteps { background: palette(base); border: 1px solid palette(mid); border-radius: 7px; }
 QListWidget#codeSteps::item { padding: 9px 12px; }
@@ -72,11 +74,11 @@ def shell(owner):
     return main,nav,footer
 
 
-def navigation(layout,collection,select):
+def navigation(layout,collection,select,existing_apps=False):
     all_entries=button(tr('Alle Einträge'),collection,'view-list-details');all_entries.setObjectName('codeNav');layout.addWidget(all_entries)
     layout.addSpacing(18);controls={}
-    for key,title in NAV.items():
-        control=button(tr(title),lambda _=False,k=key:select(k),ICONS[key]);control.setCheckable(True);control.setObjectName('codeNav');layout.addWidget(control);controls[key]=control
+    for key,title in {**NAV,**({'app':'Vorhandene kleine Apps'} if existing_apps else {})}.items():
+        control=button(tr(title).replace('&','&&'),lambda _=False,k=key:select(k),ICONS[key]);control.setCheckable(True);control.setObjectName('codeNav');layout.addWidget(control);controls[key]=control
     layout.addStretch();layout.addWidget(label(tr('Deine Idee.\nDein nächster Helfer.'),'codeMuted'))
     return controls
 

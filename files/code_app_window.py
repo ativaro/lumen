@@ -21,7 +21,7 @@ class AppWindow(QDialog):
         self.drafts=Drafts(collection);self.draft=self.drafts.open(identity);self.persisted=copy.deepcopy(self.draft)
         self.engine=None;self.loading=True;self.closed=False;self.inputs=[];self.switch=0;self.restore_pending=False
         self.setWindowTitle(tr('Lumen · Kleine App'));self.resize(1240,850)
-        main,nav,self.footer=shell(self);navigation(nav,self.reject,lambda _:self.reject())['app'].setChecked(True)
+        main,nav,self.footer=shell(self);navigation(nav,self.reject,lambda _:self.reject(),existing_apps=True)['app'].setChecked(True)
         box=QVBoxLayout(main);box.setContentsMargins(28,20,28,20);box.setSpacing(12)
         self.context=label('','codeMuted');box.addWidget(self.context)
         self.heading=QBoxLayout(QBoxLayout.LeftToRight);box.addLayout(self.heading)

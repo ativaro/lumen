@@ -31,7 +31,7 @@ class CollectionUiTest(unittest.TestCase):
                 path=Path(opened.call_args.args[0].toLocalFile());self.assertIn('sandbox=',path.read_text())
             window.back();self.assertEqual(window.search.text(),'Vergleich');self.assertEqual(window.entries.topLevelItemCount(),1)
             window.open_entry(entry['id'],apps=False);window.toggle_archive();self.assertEqual(window.entries.topLevelItemCount(),0)
-            window.categories.setCurrentRow(7);self.assertEqual(window.entries.topLevelItemCount(),1)
+            window.categories.setCurrentRow(window.category_keys.index('archive'));self.assertEqual(window.entries.topLevelItemCount(),1)
 
     def test_collection_selection_favorites_filters_and_keyboard(self):
         from code_library_window import CollectionWindow
@@ -60,7 +60,7 @@ class CollectionUiTest(unittest.TestCase):
             window.resize(960,720);QTest.qWait(30);self.assertFalse(window.preview_shell.isVisible())
             window.resize(1240,820);QTest.qWait(30);self.assertTrue(window.preview_shell.isVisible())
             self.assertTrue(window.preview_open.isVisible());self.assertFalse(window.store.tasks())
-            window.project_filter.setCurrentIndex(0);window.categories.setCurrentRow(7);self.assertEqual(window.empty.text(),'Das Archiv ist leer')
+            window.project_filter.setCurrentIndex(0);window.categories.setCurrentRow(window.category_keys.index('archive'));self.assertEqual(window.empty.text(),'Das Archiv ist leer')
 
     def test_empty_collection_starts_creation_and_long_preview_keeps_actions(self):
         from code_library_window import CollectionWindow
@@ -77,27 +77,27 @@ class CollectionUiTest(unittest.TestCase):
             self.assertLessEqual(window.height(),820);self.assertFalse(window.store.tasks())
 
     def test_creation_preserves_per_kind_drafts_and_requires_review(self):
-        from code_creation import CreationDialog,IDEAS
+        from PySide6.QtWidgets import QMessageBox
+        from code_creation import CreationDialog,KINDS
         from code_library import Collection
         from lumen_store import Store
-        from PySide6.QtWidgets import QMessageBox
+        from code_tool import spec
+        from code_flow import parse
+        import tempfile
         with tempfile.TemporaryDirectory() as root:
-            store=Store(root);collection=Collection(store);dialog=CreationDialog(projects={'project-a':'Projekt A'})
+            collection=Collection(Store(root));dialog=CreationDialog(projects={'project-a':'Projekt A'})
             self.addCleanup(lambda:dialog.done(0))
-            dialog.select_kind('tool');dialog.use_idea(next(i for i in IDEAS if i['id']=='check'))
-            dialog.project.setCurrentIndex(1);dialog.prompt.setPlainText('Eigene Regeln');dialog.back()
-            dialog.select_kind('app');self.assertEqual(dialog.prompt.toPlainText(),'')
-            dialog.select_kind('tool');self.assertEqual(dialog.prompt.toPlainText(),'Eigene Regeln')
-            self.assertEqual(collection.items(),[])
-            dialog.review();self.assertEqual(dialog.pages.currentIndex(),2)
-            value=dialog.value
-            entry=collection.create(value['kind'],value['title'],value['description'],value['definition'],value['project_id'])
-            self.assertEqual(entry['project_id'],'project-a');self.assertEqual(entry['definition'],{'prompt':'Eigene Regeln'})
+            self.assertNotIn('app',KINDS)
+            dialog.select_kind('tool');dialog.prompt.setPlainText('Eigene Regeln');dialog.name.setText('Prüfer');dialog.project.setCurrentIndex(1);dialog.back()
+            dialog.select_kind('routine');dialog.prompt.setPlainText('Wöchentlicher Überblick');dialog.back()
+            dialog.select_kind('tool');self.assertEqual(dialog.prompt.toPlainText(),'Eigene Regeln');self.assertEqual(dialog.name.text(),'Prüfer')
+            self.assertEqual(collection.items(),[]);dialog.review();self.assertEqual(dialog.pages.currentIndex(),2)
+            value=dialog.value;self.assertEqual(value['project_id'],'project-a');self.assertIn('Eigene Regeln',spec(value['definition']['tool_spec'])['rules'])
             dialog.pages.setCurrentIndex(1)
             with patch('code_creation.QMessageBox.question',return_value=QMessageBox.No):dialog.reject()
             self.assertEqual(dialog.result(),0);self.assertEqual(dialog.prompt.toPlainText(),'Eigene Regeln')
-            dialog.select_kind('code');dialog.prompt.setPlainText('Import reparieren');dialog.review()
-            self.assertEqual(dialog.pages.currentIndex(),1);self.assertIn('Projektordner',dialog.error.text())
+            dialog.select_kind('code');dialog.review();self.assertIsNone(dialog.value);self.assertIn('Projektordner',dialog.error.text())
+            dialog.select_kind('routine');dialog.review();self.assertEqual(dialog.value['kind'],'automation');self.assertIn('clock',parse(dialog.value['definition']['flow']))
 
     def test_creation_cards_navigation_and_reachable_flow_actions(self):
         from code_creation import CreationDialog
@@ -105,39 +105,28 @@ class CollectionUiTest(unittest.TestCase):
         from PySide6.QtTest import QTest
         from PySide6.QtCore import Qt
         dialog=CreationDialog();self.addCleanup(lambda:dialog.done(0));dialog.show();QTest.qWait(40)
-        self.assertEqual(dialog.pages.currentIndex(),3)
-        next(b for b in dialog.findChildren(QPushButton) if b.text()=='Selbst auswählen').click();QTest.qWait(20)
-        cards=[b for b in dialog.findChildren(QPushButton,'codeCard') if b.isVisible()]
-        self.assertEqual(len(cards),4)
+        self.assertEqual(dialog.pages.currentIndex(),0)
+        cards=[b for b in dialog.findChildren(QPushButton,'codeCard') if b.isVisible()];self.assertEqual(len(cards),4)
         for card in cards:
             self.assertGreaterEqual(card.height(),156)
-            for text in card.findChildren(QLabel):
-                self.assertTrue(text.isVisible());self.assertTrue(card.rect().contains(text.mapTo(card,text.rect().center())))
-        QTest.mouseClick(cards[2],Qt.LeftButton);QTest.qWait(20)
-        self.assertEqual(dialog.kind,'automation');self.assertTrue(dialog.nav['automation'].isChecked())
-
-        flow=dialog.flow_editor
-        self.assertEqual(flow.nodes[0]['kind'],'manual');self.assertEqual(flow.list.count(),6)
-        flow.list.setCurrentRow(2);flow.config.setPlainText('Prüfe neue Belege')
-        review=next(b for b in dialog.findChildren(QPushButton) if b.text()=='Weiter zur Prüfung')
-        self.assertTrue(review.isVisible());self.assertTrue(dialog.rect().contains(review.mapTo(dialog,review.rect().center())))
+            for text in card.findChildren(QLabel):self.assertTrue(card.rect().contains(text.mapTo(card,text.rect().center())))
+        QTest.mouseClick(cards[2],Qt.LeftButton);QTest.qWait(20);self.assertEqual(dialog.kind,'automation');self.assertTrue(dialog.nav['automation'].isChecked())
+        self.assertEqual(dialog.flow_editor.plan()['version'],3)
+        review=next(b for b in dialog.findChildren(QPushButton) if b.text()=='Weiter zur Prüfung');self.assertTrue(review.isVisible());self.assertTrue(dialog.rect().contains(review.mapTo(dialog,review.rect().center())))
         QTest.mouseClick(review,Qt.LeftButton);self.assertEqual(dialog.pages.currentIndex(),2)
-        dialog.nav['tool'].click();self.assertEqual(dialog.kind,'tool')
-        dialog.nav['automation'].click();self.assertEqual(flow.nodes[2]['config'],'Prüfe neue Belege')
+        dialog.nav['tool'].click();self.assertEqual(dialog.kind,'tool');self.assertTrue(dialog.forms['tool'].input.isVisible())
+        dialog.nav['code'].click();self.assertEqual(dialog.kind,'code');self.assertTrue(all(b.isVisible() for b in dialog.forms['code'].source_buttons));dialog.forms['code'].source_buttons[1].click();self.assertTrue(dialog.forms['code'].url.isVisible())
 
     def test_goal_recommendation_is_reviewed_and_keeps_manual_override(self):
         import json
         from code_creation import CreationDialog
-        dialog=CreationDialog();self.addCleanup(lambda:dialog.done(0))
+        dialog=CreationDialog();self.addCleanup(lambda:dialog.done(0));dialog.pages.setCurrentIndex(3)
         dialog.goal.setPlainText('請檢查我的文件');dialog.goal_submitted=dialog.goal.toPlainText()
         plan=dict(kind='tool',title='Dokumentenprüfung',prompt='Nenne fehlende Felder',reason='Mit neuen Dokumenten wiederverwenden',checks=['Fundstelle pro Lücke nennen'])
-        dialog.goal_generated(True,json.dumps(plan));self.assertEqual(dialog.pages.currentIndex(),3)
-        self.assertIsNone(dialog.value)
+        dialog.goal_generated(True,json.dumps(plan));self.assertEqual(dialog.pages.currentIndex(),3);self.assertIsNone(dialog.value)
         dialog.accept_goal();self.assertEqual(dialog.kind,'tool');self.assertIn('Fundstelle',dialog.prompt.toPlainText())
-        dialog.back();dialog.select_kind('app');self.assertEqual(dialog.prompt.toPlainText(),'請檢查我的文件')
+        dialog.back();dialog.select_kind('routine');self.assertEqual(dialog.prompt.toPlainText(),'請檢查我的文件')
         dialog.back();dialog.select_kind('tool');self.assertIn('Fundstelle',dialog.prompt.toPlainText())
-        dialog.back();dialog.select_kind('automation')
-        self.assertEqual(next(n['config'] for n in dialog.flow_editor.nodes if n['kind']=='ai'),'請檢查我的文件')
 
     def test_real_coding_surface_and_unsent_draft(self):
         from code_session import CodingWindow
