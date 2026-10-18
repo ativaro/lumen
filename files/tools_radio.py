@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QLineEdit, QPlainTextEdit, QListWidget, QListWidg
     QInputDialog, QFileDialog, QTabWidget, QWidget, QVBoxLayout, QSplitter, QSpinBox, QHBoxLayout, QStackedWidget)
 from tools_data import document_text, fetch_article, selected_sources, parse_answer, web_url
 from tools_ui import AudioPlayer, button, label
-from audio_design import AudioWindow, AudioEmpty, content_tabs
+from audio_design import AudioWindow, AudioEmpty, content_tabs, wrap_list
 
 
 def radio_result(answer, sources):
@@ -59,7 +59,7 @@ class Radio(AudioWindow):
         self.source_surface=QStackedWidget(); sl.addWidget(self.source_surface,1)
         split=QSplitter(); self.source_surface.addWidget(split)
         self.sources=QListWidget(); self.sources.setObjectName('searchResults'); self.sources.setAccessibleName(tr('Quellen auswählen'))
-        self.sources.setWordWrap(True)
+        wrap_list(self.sources)
         self.sources.currentRowChanged.connect(self.select_source); self.sources.itemChanged.connect(self.edited); split.addWidget(self.sources)
         self.source_preview=QWidget(); pl=QVBoxLayout(self.source_preview); pl.setContentsMargins(16,0,0,0); pl.setSpacing(12)
         self.source_title=QLineEdit(); self.source_title.setPlaceholderText(tr('Quellentitel')); self.source_title.setAccessibleName(tr('Quellentitel')); self.source_title.textEdited.connect(self.edited); pl.addWidget(self.source_title)
@@ -74,7 +74,7 @@ class Radio(AudioWindow):
         script_page=QWidget(); script_layout=QVBoxLayout(script_page); script_layout.setContentsMargins(0,12,0,0)
         self.script=QPlainTextEdit(); self.script.setObjectName('audioEditor'); self.script.setPlaceholderText(tr('Dein Hörskript.\n\nSchreibe deinen eigenen Text oder erzeuge einen Entwurf aus den gewählten Quellen. Du kannst jeden Absatz überarbeiten, bevor du ihn vertonst.')); self.script.setAccessibleName(tr('Bearbeitbares Hörskript')); self.script.textChanged.connect(self.edited); script_layout.addWidget(self.script,1)
         self.citations=QListWidget(); self.citations.setObjectName('searchResults'); self.citations.setMaximumHeight(120); self.citations.setAccessibleName(tr('Quellen dieser Ausgabe'))
-        self.citations.setWordWrap(True)
+        wrap_list(self.citations)
         self.citations.itemActivated.connect(lambda item:self.safe(self.open_citation,item)); self.citations_heading=label(tr('Quellen dieser Ausgabe'),'heading'); script_layout.addWidget(self.citations_heading); script_layout.addWidget(self.citations)
         self.tabs.addTab(script_page,tr('Hörskript'))
         self.content.addWidget(label(tr('Hörskript: gewählte Texte an deinen KI-Provider · Vertonung: lokal'), 'muted'))
@@ -90,7 +90,7 @@ class Radio(AudioWindow):
         for source in r.get('sources',[]): self.source_item(source)
         self.script.setPlainText(r.get('script','')); self.minutes.setValue(r.get('minutes',5)); self.citations.clear()
         for source in r.get('edition_sources',[]):
-            item=QListWidgetItem(source['title']+'\n'+source.get('url','')); item.setData(Qt.UserRole,source.get('url','')); self.citations.addItem(item)
+            item=QListWidgetItem(source['title']+'\n'+source.get('url','')); item.setToolTip('<qt>'+escape(item.text()).replace('\n','<br>')+'</qt>'); item.setData(Qt.UserRole,source.get('url','')); self.citations.addItem(item)
         self.player.load(self.library.asset(r['audio']) if r.get('audio') else None,r.get('duration',0)); self.audio_state(r)
         self.player.setVisible(bool(r.get('audio')))
         for item in (self.citations,self.citations_heading): item.setVisible(bool(self.citations.count()))
@@ -99,14 +99,14 @@ class Radio(AudioWindow):
         self.status.setText(tr('Quellen bleiben lokal, bis du ausdrücklich ein Hörskript erzeugst'))
 
     def source_item(self,source):
-        item=QListWidgetItem(source['title']); item.setData(Qt.UserRole,source); item.setFlags(item.flags()|Qt.ItemIsUserCheckable)
+        item=QListWidgetItem(source['title']); item.setToolTip('<qt>'+escape(source['title'])+'</qt>'); item.setData(Qt.UserRole,source); item.setFlags(item.flags()|Qt.ItemIsUserCheckable)
         item.setCheckState(Qt.Checked if source.get('selected',True) else Qt.Unchecked); self.sources.addItem(item)
 
     def capture_source(self):
         if 0<=self.source_index<self.sources.count():
             item=self.sources.item(self.source_index); value=item.data(Qt.UserRole)
             value.update(title=self.source_title.text().strip() or tr('Ohne Titel'),text=self.source_text.toPlainText())
-            self.sources.blockSignals(True); item.setText(value['title']); item.setData(Qt.UserRole,value); self.sources.blockSignals(False)
+            self.sources.blockSignals(True); item.setText(value['title']); item.setToolTip('<qt>'+escape(value['title'])+'</qt>'); item.setData(Qt.UserRole,value); self.sources.blockSignals(False)
 
     def select_source(self,index):
         if not self.loading: self.capture_source()

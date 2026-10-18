@@ -1,7 +1,8 @@
 """Audio Studio's library and reading surface, using the shared native palette."""
 from html import escape
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFrame, QVBoxLayout, QStackedWidget, QHeaderView, QListWidgetItem, QTableWidget
+from PySide6.QtWidgets import (QFrame, QVBoxLayout, QStackedWidget, QHeaderView, QListView,
+    QListWidgetItem, QTableWidget, QStyledItemDelegate, QStyleOptionViewItem, QStyle)
 from lumen_i18n import tr
 from tools_data import clock_text
 from tools_ui import ToolWindow, button, label
@@ -28,6 +29,21 @@ QPlainTextEdit#audioEditor:focus { border-color:palette(highlight); }
 '''
 
 
+class AudioTextSize(QStyledItemDelegate):
+    def sizeHint(self, option, index):
+        option = QStyleOptionViewItem(option); self.initStyleOption(option,index)
+        view = self.parent(); option.rect = view.viewport().rect()
+        # Wrap inside the native text area, including stylesheet padding/checkmarks.
+        option.rect.setWidth(max(1,view.style().subElementRect(QStyle.SE_ItemViewItemText,option,view).width()))
+        size = super().sizeHint(option,index); size.setWidth(view.viewport().width())
+        return size
+
+
+def wrap_list(view):
+    view.setWordWrap(True); view.setTextElideMode(Qt.ElideNone)
+    view.setResizeMode(QListView.Adjust); view.setItemDelegate(AudioTextSize(view))
+
+
 class AudioEmpty(QFrame):
     def __init__(self, category, title, description, action, callback):
         super().__init__()
@@ -45,7 +61,7 @@ class AudioWindow(ToolWindow):
         self.centralWidget().setStyleSheet(self.centralWidget().styleSheet()+STYLE)
         self.sidebar.layout().insertWidget(0,label(tr('BIBLIOTHEK'),'eyebrow'))
         self.search.setPlaceholderText(tr('Aufnahmen suchen …') if name=='meetings' else tr('Hörskripte suchen …'))
-        self.entries.setWordWrap(True)
+        wrap_list(self.entries)
         self.content.setSpacing(16)
         self.surface = QStackedWidget()
         self.split.replaceWidget(1,self.surface); self.surface.addWidget(self.body)
@@ -70,7 +86,7 @@ class AudioWindow(ToolWindow):
         self.entries.blockSignals(True); self.entries.clear(); selected = None
         for record in self.library.all(self.archived.isChecked(),self.search.text()):
             detail = (clock_text(record.get('duration',0))+' · '+tr('{0} Textstellen',len(record.get('segments',[])))) if self.name=='meetings' else tr('{0} Quellen · {1} min',len(record.get('sources',[])),record.get('minutes',5))
-            item = QListWidgetItem(record['title']+'\n'+detail); item.setToolTip(record['title']+'\n'+detail)
+            item = QListWidgetItem(record['title']+'\n'+detail); item.setToolTip('<qt>'+escape(item.text()).replace('\n','<br>')+'</qt>')
             item.setData(Qt.UserRole,record['id']); self.entries.addItem(item)
             if record['id']==self.current: selected=item
         self.entries.setCurrentItem(selected); self.entries.blockSignals(False)

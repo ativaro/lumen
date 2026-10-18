@@ -200,6 +200,40 @@ class MeetingRadioTest(unittest.TestCase):
         self.assertEqual(tip.toPlainText(),title)
         radio.remove_source(); self.assertEqual(radio.source_title.toolTip(),'')
 
+    def test_wrapped_audio_lists_fit_viewport_and_reflow(self):
+        from PySide6.QtCore import QRect
+        from PySide6.QtGui import QTextDocument
+        from PySide6.QtWidgets import QStyle, QStyleOptionViewItem
+        from appearance import apply_design
+        apply_design(self.app,'atelier')
+        title='Wartungsverträge, Garantiebedingungen und noch offene Fragen an die Anbieter'
+        radio=self.window.pages['radio']
+        key=radio.library.create(title,sources=[dict(title=title,text='Quelle',selected=True)],
+            edition_sources=[dict(title=title,url='https://example.org/unterlagen')],script='Sprechtext',minutes=5)
+        radio.focus_record(key); self.window.select('radio')
+        for width,height in ((1280,800),(960,640)):
+            self.window.resize(width,height); QTest.qWait(40)
+            for view in (radio.entries,radio.sources,radio.citations):
+                with self.subTest(width=width,view=view.accessibleName()):
+                    radio.tabs.setCurrentIndex(1 if view is radio.citations else 0); QTest.qWait(20)
+                    index=view.model().index(0,0); rect=view.visualRect(index)
+                    self.assertLessEqual(rect.width(),view.viewport().width())
+                    self.assertEqual(view.horizontalScrollBar().maximum(),0)
+                    option=QStyleOptionViewItem(); view.initViewItemOption(option)
+                    view.itemDelegate().initStyleOption(option,index); option.rect=rect
+                    text_rect=view.style().subElementRect(QStyle.SE_ItemViewItemText,option,view)
+                    required=option.fontMetrics.boundingRect(QRect(0,0,text_rect.width(),10000),Qt.TextWordWrap,option.text).height()
+                    self.assertGreaterEqual(text_rect.height(),required)
+                    tip=QTextDocument(); tip.setHtml(view.item(0).toolTip())
+                    self.assertIn(title,tip.toPlainText())
+        radio.tabs.setCurrentIndex(0); QTest.qWait(20)
+        before=radio.sources.visualRect(radio.sources.model().index(0,0)).height()
+        splitter=radio.sources.parentWidget(); splitter.setSizes([140,800]); QTest.qWait(40)
+        index=radio.sources.model().index(0,0)
+        self.assertLessEqual(radio.sources.visualRect(index).width(),radio.sources.viewport().width())
+        self.assertEqual(radio.sources.horizontalScrollBar().maximum(),0)
+        self.assertGreater(radio.sources.visualRect(index).height(),before)
+
     def test_both_launchers_share_process_and_backup_endpoints(self):
         root = self.root/'process'
         command = [sys.executable, str(Path(__file__).with_name('tools_app.py'))]
