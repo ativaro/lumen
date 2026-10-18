@@ -1,18 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="320" height="32" viewBox="0 0 320 32">
-  <!-- Echo: 70% of the 32x28 preview viewport; independent 32x32 hit target. -->
+  <!-- Fine: approved 24px glyph at 20px; native 32px hit area retained. -->
   <g id="active-center" transform="translate(0 0)">
     <rect width="32" height="32" fill="#000000" opacity="0"/>
     <g id="active-glyph" opacity="1">
-      <g transform="translate(16 16) scale(0.6125) translate(-18 -16)" fill="none" stroke="#72c9b1" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 15q14 10 28 0M7 20q11 8 22 0M11 25q7 4 14 0"/>
+      <g transform="translate(6 6) scale(0.8333333333)" fill="none" stroke="#72c9b1" stroke-width="1.2">
+        <path stroke-linecap="butt" d="M20.0902 7.5155A9.25 9.25 0 1 1 16.4845 3.9098"/>
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8 10.5 12 14.5 16 10.5"/>
       </g>
     </g>
   </g>
   <g id="inactive-center" transform="translate(40 0)">
     <rect width="32" height="32" fill="#000000" opacity="0"/>
     <g id="inactive-glyph" opacity="0.7">
-      <g transform="translate(16 16) scale(0.6125) translate(-18 -16)" fill="none" stroke="#aebcb8" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 15q14 10 28 0M7 20q11 8 22 0M11 25q7 4 14 0"/>
+      <g transform="translate(6 6) scale(0.8333333333)" fill="none" stroke="#aebcb8" stroke-width="1.2">
+        <path stroke-linecap="butt" d="M20.0902 7.5155A9.25 9.25 0 1 1 16.4845 3.9098"/>
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8 10.5 12 14.5 16 10.5"/>
       </g>
     </g>
   </g>
@@ -20,8 +22,9 @@
     <rect width="32" height="32" fill="#000000" opacity="0"/>
     <rect x="1" y="1" width="30" height="30" rx="8" fill="#72c9b1" opacity="0.07"/>
     <g id="hover-glyph" opacity="1">
-      <g transform="translate(16 16) scale(0.6125) translate(-18 -16)" fill="none" stroke="#72c9b1" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 15q14 10 28 0M7 20q11 8 22 0M11 25q7 4 14 0"/>
+      <g transform="translate(6 6) scale(0.8333333333)" fill="none" stroke="#72c9b1" stroke-width="1.2">
+        <path stroke-linecap="butt" d="M20.0902 7.5155A9.25 9.25 0 1 1 16.4845 3.9098"/>
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8 10.5 12 14.5 16 10.5"/>
       </g>
     </g>
   </g>
@@ -29,8 +32,9 @@
     <rect width="32" height="32" fill="#000000" opacity="0"/>
     <rect x="1" y="1" width="30" height="30" rx="8" fill="#72c9b1" opacity="0.14"/>
     <g id="pressed-glyph" opacity="1">
-      <g transform="translate(16 16) scale(0.6125) translate(-18 -16)" fill="none" stroke="#72c9b1" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 15q14 10 28 0M7 20q11 8 22 0M11 25q7 4 14 0"/>
+      <g transform="translate(6 6) scale(0.8333333333)" fill="none" stroke="#72c9b1" stroke-width="1.2">
+        <path stroke-linecap="butt" d="M20.0902 7.5155A9.25 9.25 0 1 1 16.4845 3.9098"/>
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8 10.5 12 14.5 16 10.5"/>
       </g>
     </g>
   </g>
@@ -38,8 +42,9 @@
     <rect width="32" height="32" fill="#000000" opacity="0"/>
     <rect x="1" y="1" width="30" height="30" rx="8" fill="#72c9b1" opacity="0.07"/>
     <g id="hover-inactive-glyph" opacity="1">
-      <g transform="translate(16 16) scale(0.6125) translate(-18 -16)" fill="none" stroke="#72c9b1" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 15q14 10 28 0M7 20q11 8 22 0M11 25q7 4 14 0"/>
+      <g transform="translate(6 6) scale(0.8333333333)" fill="none" stroke="#72c9b1" stroke-width="1.2">
+        <path stroke-linecap="butt" d="M20.0902 7.5155A9.25 9.25 0 1 1 16.4845 3.9098"/>
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8 10.5 12 14.5 16 10.5"/>
       </g>
     </g>
   </g>
@@ -47,24 +52,27 @@
     <rect width="32" height="32" fill="#000000" opacity="0"/>
     <rect x="1" y="1" width="30" height="30" rx="8" fill="#72c9b1" opacity="0.14"/>
     <g id="pressed-inactive-glyph" opacity="1">
-      <g transform="translate(16 16) scale(0.6125) translate(-18 -16)" fill="none" stroke="#72c9b1" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 15q14 10 28 0M7 20q11 8 22 0M11 25q7 4 14 0"/>
+      <g transform="translate(6 6) scale(0.8333333333)" fill="none" stroke="#72c9b1" stroke-width="1.2">
+        <path stroke-linecap="butt" d="M20.0902 7.5155A9.25 9.25 0 1 1 16.4845 3.9098"/>
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8 10.5 12 14.5 16 10.5"/>
       </g>
     </g>
   </g>
   <g id="deactivated-center" transform="translate(240 0)">
     <rect width="32" height="32" fill="#000000" opacity="0"/>
     <g id="deactivated-glyph" opacity="0.4">
-      <g transform="translate(16 16) scale(0.6125) translate(-18 -16)" fill="none" stroke="#aebcb8" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 15q14 10 28 0M7 20q11 8 22 0M11 25q7 4 14 0"/>
+      <g transform="translate(6 6) scale(0.8333333333)" fill="none" stroke="#aebcb8" stroke-width="1.2">
+        <path stroke-linecap="butt" d="M20.0902 7.5155A9.25 9.25 0 1 1 16.4845 3.9098"/>
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8 10.5 12 14.5 16 10.5"/>
       </g>
     </g>
   </g>
   <g id="deactivated-inactive-center" transform="translate(280 0)">
     <rect width="32" height="32" fill="#000000" opacity="0"/>
     <g id="deactivated-inactive-glyph" opacity="0.4">
-      <g transform="translate(16 16) scale(0.6125) translate(-18 -16)" fill="none" stroke="#aebcb8" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 15q14 10 28 0M7 20q11 8 22 0M11 25q7 4 14 0"/>
+      <g transform="translate(6 6) scale(0.8333333333)" fill="none" stroke="#aebcb8" stroke-width="1.2">
+        <path stroke-linecap="butt" d="M20.0902 7.5155A9.25 9.25 0 1 1 16.4845 3.9098"/>
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8 10.5 12 14.5 16 10.5"/>
       </g>
     </g>
   </g>

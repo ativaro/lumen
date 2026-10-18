@@ -88,7 +88,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--apply', action='store_true', help=tr('Lumen-Theme, Hintergrund und Panels aktivieren'))
     parser.add_argument('--replace-panels', action='store_true', help=tr('Vorhandene Panels nach Sicherung ersetzen'))
-    parser.add_argument('--refresh-decoration', action='store_true', help=tr('Aktive ältere Lumen-Fensterdekoration auf Echo aktualisieren'))
+    parser.add_argument('--refresh-decoration', action='store_true', help=tr('Aktive ältere Lumen-Fensterdekoration auf Fein aktualisieren'))
     parser.add_argument('--theme', choices=[name for _, name in DESIGNS], default='glass')
     parser.add_argument('--restore', metavar='BACKUP', help=tr('Gesicherte Konfiguration nach Abmeldung wiederherstellen'))
     args = parser.parse_args()
@@ -106,7 +106,7 @@ def main():
             refreshed = (args.refresh_decoration and os.environ.get('DBUS_SESSION_BUS_ADDRESS')
                          and all(shutil.which(command) for command in ('kreadconfig6', 'kwriteconfig6', 'qdbus6'))
                          and refresh_decoration())
-            print(tr('Lumen Echo aktiviert; Fensteraktionen rechts.') if refreshed else
+            print(tr('Lumen Fein aktiviert; Fensteraktionen rechts.') if refreshed else
                   tr('Vier Themes und elf Hintergrundbilder installiert; Desktop unverändert.'))
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
         parser.exit(1, str(error) + '\n')

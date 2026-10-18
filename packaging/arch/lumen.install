@@ -17,7 +17,7 @@ post_upgrade() {
     # Do NOT re-enable here: a user who opted out must stay opted out.
     cat <<'EOF'
 Lumen aktualisiert (bestehender Dienst-Zustand bleibt erhalten).
-Aktives älteres Lumen-Fenstertheme auf Echo aktualisieren (als Benutzer in Plasma):
+Aktives älteres Lumen-Fenstertheme auf Fein aktualisieren (als Benutzer in Plasma):
   lumen-desktop-setup --refresh-decoration
 
 Falls der D-Bus-Dienst aktiv ist, neue Dateien übernehmen:

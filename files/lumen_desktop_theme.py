@@ -48,6 +48,7 @@ def refresh_decoration():
     from desktop_settings import backup
     previous = current_decoration()
     legacy = {'org.lumen.' + name: name for _, name in DESIGNS}
+    legacy.update({'org.lumen.echo.' + name: name for _, name in DESIGNS})
     legacy.update(LumenGraphite='graphite', LumenDark='midnight')
     name = legacy.get((previous['theme'] or '').removeprefix('__aurorae__svg__'))
     if previous['library'] != 'org.kde.kwin.aurorae.v2' or name is None:
@@ -130,7 +131,7 @@ def apply(data):
     if data.get('expected') and previous != data['expected']:
         raise ValueError(tr('Der Plasma-Stil wurde inzwischen geändert. Rückgängig wurde nicht ausgeführt.'))
     if data.get('expected') and previous_decoration != decoration_settings(
-            data['expected'].replace('org.lumen.', 'org.lumen.echo.', 1)):
+            data['expected'].replace('org.lumen.', 'org.lumen.fine.', 1)):
         raise ValueError(tr('Die Fensterdekoration wurde inzwischen geändert. Rückgängig wurde nicht ausgeführt.'))
     if previous != target.name or previous_decoration != selected_decoration:
         backup('appearance', {'before': previous, 'after': target.name,
@@ -145,13 +146,13 @@ def apply(data):
 
 
 def prepare_decoration(name, destination=None, source=None):
-    """Native Echo controls, shared by every decorated Lumen window and dialog."""
+    """Native Fine controls, shared by every decorated Lumen window and dialog."""
     titles = {value: title for title, value in DESIGNS}
     if name not in titles:
         raise ValueError(tr('Unbekanntes Lumen-Theme.'))
     destination = Path(destination or Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local/share')) / 'aurorae/themes')
     # A new identity avoids stale KWin SVG caches and preserves old user artwork.
-    identity = 'org.lumen.echo.' + name
+    identity = 'org.lumen.fine.' + name
     target = destination / identity
     if target.exists():
         if json.loads((target / 'metadata.json').read_text()).get('X-Lumen-Generated') != 1:
@@ -166,14 +167,14 @@ def prepare_decoration(name, destination=None, source=None):
         stage = Path(temporary) / identity
         shutil.copytree(source, stage)
         metadata = json.loads((stage / 'metadata.json').read_text())
-        metadata['KPlugin'].update(Id=identity, Name='Lumen Echo · ' + titles[name],
+        metadata['KPlugin'].update(Id=identity, Name='Lumen Fein · ' + titles[name],
                                   Description=tr('Fensterdekoration passend zum Lumen-Theme'))
         metadata['X-Lumen-Generated'] = 1
         (stage / 'metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
         desktop = stage / 'metadata.desktop'
         if desktop.exists():
             config = configparser.ConfigParser(); config.optionxform = str; config.read(desktop)
-            config['Desktop Entry']['Name'] = 'Lumen Echo · ' + titles[name]
+            config['Desktop Entry']['Name'] = 'Lumen Fein · ' + titles[name]
             config['Desktop Entry']['X-KDE-PluginInfo-Name'] = identity
             with desktop.open('w') as stream: config.write(stream, space_around_delimiters=False)
         artwork = (stage / 'decoration.svg').read_text()
@@ -183,7 +184,7 @@ def prepare_decoration(name, destination=None, source=None):
         (stage / 'decoration.svg').write_text(artwork)
         for button in ('minimize', 'maximize', 'restore', 'close'):
             path = stage / (button + '.svg')
-            artwork = path.read_text().replace('#72c9b1', accent).replace('#aebcb8', muted)
+            artwork = path.read_text().replace('#72c9b1', text).replace('#aebcb8', muted)
             if name == 'atelier': artwork = artwork.replace('#ffb9b4', '#ab3539')
             path.write_text(artwork)
         config = configparser.ConfigParser(); config.optionxform = str

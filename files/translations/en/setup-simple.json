@@ -36,7 +36,7 @@
   "Kein verfügbares Gratis-Modell gefunden. Bitte ein Modell wählen oder einen Anbieter verbinden.": "No available free model found. Please select a model or connect a provider.",
   "Die Engine liefert keine gültige Modellliste.": "The engine did not return a valid model list.",
   "Modell auswählen": "Select a model",
-  "Aktive ältere Lumen-Fensterdekoration auf Echo aktualisieren": "Update the active legacy Lumen window decoration to Echo",
-  "Lumen Echo aktiviert; Fensteraktionen rechts.": "Lumen Echo activated; window controls on the right.",
+  "Aktive ältere Lumen-Fensterdekoration auf Fein aktualisieren": "Update the active legacy Lumen window decoration to Fine",
+  "Lumen Fein aktiviert; Fensteraktionen rechts.": "Lumen Fein activated; window controls on the right.",
   "Erinnerungen liegen lokal im Lumen-Gedächtnis. Bei aktivem Gedächtnis gehen passende Erinnerungen an deinen KI-Anbieter. Beim Lernen wertet dieser auch deine Nachricht und die vorherige Antwort aus. Du kannst Erinnerungen jederzeit ansehen, ändern und löschen.": "Memories are stored locally in Lumen Notes. When memory is enabled, relevant memories are sent to your AI provider. When learning, it also reviews your message and the previous answer. You can view, edit and delete memories anytime."
 }
