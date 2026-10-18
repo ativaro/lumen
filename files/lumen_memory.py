@@ -166,13 +166,27 @@ class Memory:
         return configure(self,**values)
 
     def _remember(self,title,text,source,kind,scope,automatic,evidence,path,expected,correction=False,verification=''):
-        records=self.store.setting('memory/records',{});old=self.record(self.book.read(path),records) if path else {}
+        records=self.store.setting('memory/records',{});previous=self.book.read(path) if path else None
+        old=self.record(previous,records) if previous else {}
         if path:
             if automatic and (not old.get('automatic') or old.get('hash')!=expected):raise ValueError(tr('Manuell bearbeitete Erinnerung bleibt erhalten.'))
             if old['id'] in self.store.setting('memory/tombstones',{}):raise ValueError(tr('Diese Erinnerung wurde vergessen. Bei Bedarf ausdrücklich einen neuen Eintrag anlegen.'))
-            note=self.book.write(path,'# '+title.strip()+'\n\n'+text,expected,source)
-        else:note=self.book.create(title,text,source,note_id=str(uuid4()))
-        meta=dict(old,kind=kind,scope=scope,automatic=automatic,evidence=evidence[:500],created=old.get('created',time.time()),updated=time.time(),hash=note['hash'],correction=bool(correction or old.get('correction')),verification=verification)
+            if previous['hash']!=expected:raise ValueError(tr('CONFLICT: Die Erinnerung wurde inzwischen geändert.'))
+        meta=dict(old,kind=kind,scope=scope,automatic=automatic,evidence=evidence[:500],created=old.get('created',time.time()),updated=time.time(),correction=bool(correction or old.get('correction')),verification=verification)
+        identity=str(uuid4()) if previous is None else old['id']
+        # Bind the portable ID before create() chooses the final filename.
+        pending=previous or dict(path='pending-'+identity+'.md',note_id=identity,hash='')
+        self.changed(True)
+        self.save_record(pending,dict(meta,allowed=False),records)
+        try:
+            note=self.book.write(path,'# '+title.strip()+'\n\n'+text,expected,source) if previous else self.book.create(title,text,source,note_id=identity)
+        except Exception:
+            if previous:
+                try:unchanged=self.book.read(path)['hash']==previous['hash']
+                except (OSError,ValueError):unchanged=False
+                if unchanged:self.store.set_setting('memory/records',records)
+            raise
+        meta['hash']=note['hash']
         if not automatic:
             blocked=set(self.store.setting('memory/forgotten',[]));blocked.difference_update(fingerprint(t) for t in (title,note['text'],evidence) if t);self.store.set_setting('memory/forgotten',sorted(blocked))
         saved=self.save_record(note,meta,records);self.changed();return saved
@@ -269,9 +283,10 @@ class Memory:
             saved=self.save_record(note,dict(meta,allowed=bool(allowed)),records);self.changed(True);return saved
 
     def prepare(self,query,directory):
-        state=stamp(self.store);result=dict(stamp=state,revision=self.store.setting('memory/revision',0),notes=[],candidates=[],context='',warning='')
-        if not state[0]:return result
-        notes=self.eligible(directory)
+        with self.book.lock('memory-state.lock'):
+            state=stamp(self.store);result=dict(stamp=state,revision=self.store.setting('memory/revision',0),notes=[],candidates=[],context='',warning='')
+            if not state[0]:return result
+            notes=self.eligible(directory)
         shared=[]
         if self.store.setting('knowledge/notebook','') and self.store.setting('memory/shares',[]):
             try:

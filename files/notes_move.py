@@ -138,7 +138,7 @@ def set_shares(book,rules):
 
 def execute(book,value=None,rollback=False):
     from drive_local import move
-    with book.lock('wissen-sync.lock'),book.lock(),book.lock('memory-state.lock'):
+    with book.lock('wissen-sync.lock'),book.lock('memory-state.lock'),book.lock():
         saved=pending(book)
         if value is not None:
             if saved:raise ValueError(tr('Zuerst den offenen Verschiebevorgang fortsetzen oder zurücknehmen.'))
