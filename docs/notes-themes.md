@@ -19,17 +19,18 @@ laufende alte Notes-Version muss regulär geschlossen und erneut geöffnet werde
 
 ## Panorama-Abstände und kompakte Schreibfläche
 
-Der Notes-Webeditor verwendet für Dokumentinnenränder und Rundungen die bereits
-übergebenen Desktop-/Theme-Tokens. Die Navigation bleibt 224 logische Pixel breit,
-die Notizliste folgt mit 210 Pixeln der freigegebenen Referenz. Icon-Schaltflächen
-der vorhandenen Formatleiste sind quadratisch; die Reihenfolge und Funktionen
-bleiben erhalten. Bei 1280 Pixeln passt die Leiste in eine Zeile, bei kleineren
-Fenstern darf sie umbrechen. Lange Notiztitel haben zusätzlich einen Tooltip.
+Auf ausdrücklichen Nutzerwunsch verwendet Notes seit 19.10.2026 die vollständige
+Servergestaltung statt der früheren Desktop-Nachbildung: Navigation bis 190,
+Notizliste bis 250 Pixel, Originalschrift, Abstände und Rundungen aus dem
+Server-Snapshot. Farben und ein ausdrücklich gewählter anderer Desktop-Font
+folgen weiterhin der nativen Auswahl. Die Formatleiste darf wie auf dem Server
+umbrechen; Reihenfolge, Funktionen und erreichbare Ziele bleiben erhalten.
+Lange Notiztitel haben zusätzlich einen Tooltip.
 
 Linkfelder verwenden Abstand zwischen Label und Eingabe; Eingaben und Aktionen
 fluchten unten. Lange gültige Tags umbrechen innerhalb der Schreibfläche, der
-Entfernenknopf bleibt sichtbar und bedienbar. Aktionsbeschriftungen verwenden die
-14-Pixel-Bediengröße, Metadaten bleiben bei 12 Pixeln. Fehlende englische Notes-
+Entfernenknopf bleibt sichtbar und bedienbar. Schriftgrößen folgen nun den
+originalen Serverregeln. Fehlende englische Notes-
 Beschriftungen sind aus den bestehenden Desktop-Übersetzungen übernommen.
 
 `test_notes_web.py` prüft diese konkreten Fälle einschließlich eines erhaltenen

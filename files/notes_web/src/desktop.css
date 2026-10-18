@@ -1,0 +1,20 @@
+/* Server styles stay unchanged; only local fonts, tools and overflow need a host adapter. */
+:root { font-family:var(--font-family,"DM Sans"),sans-serif; }
+.desktop-notes { min-height:100dvh; }
+.desktop-notes .page-actions button { min-width:36px;min-height:36px; }
+.desktop-notes .knowledge-collection-list button span { flex:1; }
+.desktop-notes .knowledge-actions button { display:flex;width:100%;justify-content:flex-start;text-align:left; }
+.desktop-notes .note-tag { display:inline-flex;align-items:center;max-width:100%;gap:4px;overflow-wrap:anywhere; }
+.desktop-notes .note-tag button { flex-shrink:0;min-width:36px;min-height:36px; }
+.desktop-notes .note-link-form { flex-direction:row;align-items:flex-end; }
+.desktop-notes .note-rich-text { color:var(--text); }
+/* The upstream late three-column rule otherwise leaves an empty column below 1200px. */
+@media(max-width:1200px) {
+ .desktop-notes .knowledge-workspace { grid-template-columns:minmax(180px,240px) minmax(0,1fr); }
+ .desktop-notes .knowledge-navigation { grid-row:auto; }
+ .desktop-notes .knowledge-editor,.desktop-notes .knowledge-workspace > .empty { grid-column:2; }
+}
+@media(max-width:760px) {
+ .desktop-notes .knowledge-workspace { grid-template-columns:minmax(0,1fr); }
+ .desktop-notes .knowledge-editor,.desktop-notes .knowledge-workspace > .empty { grid-column:1; }
+}

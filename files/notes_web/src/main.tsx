@@ -3,11 +3,17 @@ import {createRoot} from 'react-dom/client';
 import {BookOpen, Folder, Plus, Save, Ellipsis, Settings, LockKeyhole, Unlock} from 'lucide-react';
 import {NoteEditor} from './note-editor';
 import {noteSummary} from './note-rich-document';
-import {Empty} from './ui';
+import {Empty, PageTitle} from './ui';
 import {tr, choose, locale, useLanguage} from './i18n';
-import './style.css';
+import '@fontsource/dm-sans/400.css';
+import '@fontsource/dm-sans/500.css';
+import '@fontsource/dm-sans/600.css';
+import '@fontsource/dm-sans/700.css';
 import './knowledge.css';
+import './style.css';
+import './panorama.css';
 import './appearance.css';
+import './desktop.css';
 
 declare global {interface Window {qt:any; QWebChannel:any; lumenNotes:any;}}
 type Doc={id:string;title:string;body:string;tags:string[];updated:number;shared:boolean};
@@ -46,10 +52,10 @@ function App() {
  }
  if(!state)return <p role="status">{tr('Notiz wird geladen …')}</p>;
  const disabled=state.busy||!state.ready;
- return <main className="desktop-notes">
-  <header className="desktop-app-header"><div><h1>{tr('Lumen Notes')}</h1><p>{tr('Gedanken festhalten. Quellen verbinden. Zusammenhänge entdecken.')}</p></div>
+ return <main className="panorama desktop-notes"><div className="content">
+  <PageTitle eyebrow={tr('GEDANKEN, DIE BLEIBEN')} title={tr('Lumen Notes')}>
    <button aria-label={tr('Einstellungen')} title={tr('Einstellungen')} onClick={()=>command('settings')}><Settings size={18}/></button>
-  </header>
+  </PageTitle>
   <div className="knowledge-workspace">
    <nav className="knowledge-navigation" aria-label={tr('Bereiche und Sammlungen')}>
     <div className="knowledge-areas"><span className="knowledge-caption"><BookOpen size={17}/> {tr('Meine Notizen')}</span></div>
@@ -67,7 +73,7 @@ function App() {
     <div className="inline-actions"><button disabled={disabled} onClick={()=>command('daily')}>{tr('Tagesnotiz')}</button><button disabled={disabled} onClick={()=>command('template')}>{tr('Aus Vorlage')}</button></div>
     <div className="knowledge-note-list" aria-busy={!state.ready}>
      {state.notes.map(n=><button className={'doc-row'+(doc?.id===n.id?' active':'')} key={n.id} title={n.title} disabled={disabled} aria-pressed={doc?.id===n.id} onClick={()=>command('open',{id:n.id})}>
-      <span><strong>{n.title}</strong><small>{summary(n).slice(0,75)||tr('Noch ohne Inhalt')}</small><small className="note-tags">{n.tags.length?n.tags.map(t=>'#'+t).join(' · '):n.id.includes('/')?n.id.slice(0,n.id.lastIndexOf('/')):tr('Eigene Notiz')}</small></span>
+      <span><strong>{n.title}</strong><small>{summary(n).slice(0,75)||tr('Noch ohne Inhalt')}</small>{!!n.tags.length&&<small className="note-tags" aria-label={tr('Tags')}>{n.tags.map(t=>'#'+t).join(' · ')}</small>}<small>{n.id.includes('/')?n.id.slice(0,n.id.lastIndexOf('/')):tr('Eigene Notiz')}</small></span>
      </button>)}
      {state.more&&<button disabled={disabled} onClick={()=>command('more_notes')}>{tr('Weitere Notizen laden')}</button>}
      {!state.notes.length&&<p className="muted">{tr('Keine Notizen in dieser Auswahl.')}</p>}
@@ -87,6 +93,6 @@ function App() {
     <div className="inline-actions knowledge-save"><span className="muted" role="status">{state.status}</span><button className="primary" disabled={disabled||!state.dirty} onClick={()=>command('save')}><Save size={16}/>{tr('Speichern')}</button></div>
    </section>:<Empty icon={BookOpen} title={tr('Ein guter Platz für deine Gedanken')} text={tr('Wähle eine Notiz oder halte einen neuen Gedanken fest.')}/>}
   </div>
- </main>;
+ </div></main>;
 }
 createRoot(document.getElementById('root')!).render(<App/>);

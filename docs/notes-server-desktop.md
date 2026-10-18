@@ -2,11 +2,25 @@
 
 Die normale Schreibansicht verwendet den unveränderten Server-Editor
 (`note-editor.tsx`, `note-rich-document.ts`), DM Sans, Lucide und die originalen
-Stylesheets `style.css`, `panorama.css` und `knowledge.css`. Die Desktop-Hülle
-ordnet Sammlungen, Notizliste, Titel, Tags und Speicherzeile nach diesem Layout an.
-Notes verwendet dabei die Server-Graphitfarben. Native Werkzeugdialoge und das
+Stylesheets `style.css`, `panorama.css`, `knowledge.css` und `appearance.css`.
+Seitentitel, Navigation, Notizliste und Schreibfläche verwenden deren originale
+Panorama-Regeln. Die vier gemeinsamen Themes folgen weiterhin der Desktop-Auswahl.
+Native Werkzeugdialoge und das
 Fensterdekor bleiben Desktop-Elemente. Die bisherigen lokalen KI-Freigaben werden
 beibehalten; es wird keine Server-Freigaberegel simuliert.
+
+Seit dem 19.10.2026 ersetzt der vollständige Server-Snapshot die zuvor separat
+nachgebildeten Desktop-Styles. Quelle ist der bereitgestellte Serverstand
+`bb8a87a844ac257969d141e5aeac113d5bac6381`; die sieben übernommenen Komponenten/
+Styles stimmen mit dessen Release-Manifest überein. Die DM-Sans-Schriften werden
+aus demselben vorhandenen Fontsource-Paket lokal gebündelt. Eine ausdrücklich
+gewählte andere Desktop-Schrift bleibt erhalten.
+
+`src/desktop.css` enthält nur die lokale Anbindung und Bedienkorrekturen: native
+Werkzeugmenüs, erreichbare lange Tags/Linkaktionen und den schmalen Fensteraufbau.
+Unter 1200 Pixeln verhindert sie eine leere dritte Spalte aus einer späten
+Server-CSS-Regel. Es gibt keine zusätzliche globale App-Leiste. Lokale KI-Freigaben,
+Einstellungen und Dialoge bleiben bewusst Desktop-Bedienwege.
 
 Alle Ressourcen werden lokal geladen. Es gibt keinen lokalen HTTP-Server,
 keine Browseranmeldung und keinen neuen Serverzugriff. CSP und Request-Interceptor
