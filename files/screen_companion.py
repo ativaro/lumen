@@ -57,8 +57,6 @@ class Companion(QWidget):
         self.setWindowTitle('Lumen Companion'); self.setWindowIcon(QIcon.fromTheme('lumen'))
         if parent is None: self.setWindowFlag(Qt.WindowStaysOnTopHint)
         self.resize(460, 820); self.setMinimumSize(420, 720)
-        from ui_typography import font
-        compact_font = font(); compact_font.setPixelSize(14); self.setFont(compact_font)
         # Empty private working directory prevents project instructions from becoming screen context.
         self.workspace = tempfile.TemporaryDirectory(prefix='lumen-guide-', dir=os.environ.get('XDG_RUNTIME_DIR'))
         self.backend = OpenCodeBackend(self.workspace.name, self, project_config=False)
@@ -75,7 +73,7 @@ class Companion(QWidget):
         content = QWidget(); body = QVBoxLayout(content); body.setContentsMargins(0,0,0,0); body.setSpacing(12)
         scroll.setWidget(content); layout.addWidget(scroll,1)
         header = QHBoxLayout(); body.addLayout(header)
-        title = QLabel(tr('An deiner Seite')); title.setObjectName('guideTitle'); header.addWidget(title); header.addStretch()
+        title = QLabel(tr('An deiner Seite')); title.setObjectName('desktopAppTitle'); header.addWidget(title); header.addStretch()
         self.end = QPushButton(tr('Zurück zu Lumen') if leave else tr('Beenden'))
         self.end.clicked.connect(self.leave_help); header.addWidget(self.end)
         self.history = QCheckBox(tr('Gespräch anzeigen')); self.history.toggled.connect(self.render_answer)
@@ -94,7 +92,7 @@ class Companion(QWidget):
         self.auto = QCheckBox(tr('Änderungen automatisch begleiten'))
         self.auto.setToolTip(tr('Nach der ersten Bildfreigabe: höchstens alle 5 Sekunden prüfen. Bei unklarem Schutzstatus wird pausiert.'))
         self.auto.toggled.connect(self.automatic_changed); body.addWidget(self.auto)
-        self.approve = QPushButton(tr('Dieses Bild freigeben und starten')); self.approve.setObjectName('guidePrimary')
+        self.approve = QPushButton(tr('Dieses Bild freigeben und starten')); self.approve.setObjectName('primary')
         self.approve.clicked.connect(self.send_image); self.approve.hide(); body.addWidget(self.approve)
         self.answer = AnswerView(); self.answer.setOpenLinks(False)
         # No external resources or automatic remote image downloads from model output.
@@ -111,17 +109,14 @@ class Companion(QWidget):
         self.mic = QPushButton(QIcon.fromTheme('audio-input-microphone'), tr('Sprechen'))
         self.mic.clicked.connect(self.toggle_voice); controls.addWidget(self.mic)
         self.pause_button = QPushButton(tr('Pause')); self.pause_button.clicked.connect(self.toggle_pause); controls.addWidget(self.pause_button)
-        self.next = QPushButton(tr('Nächster Schritt')); self.next.setObjectName('guidePrimary')
+        self.next = QPushButton(tr('Nächster Schritt')); self.next.setObjectName('primary')
         self.next.clicked.connect(self.submit); controls.addWidget(self.next)
         self.voice.transcribedText.connect(self.submit)
         self.voice.changed.connect(self.voice_changed); self.voice.levelChanged.connect(self.indicator.set_level)
         self.voice.failed.connect(self.show_error); self.voice.setupRequested.connect(self.speech_setup)
         self.backend.completed.connect(self.completed)
         self.backend.busyChanged.connect(lambda _: self.update_controls())
-        self.setStyleSheet('''QLabel#guideTitle {font-size:26px; font-weight:500;}
-            QLabel#guideNotice {font-size:12px;}
-            QPushButton {padding:8px 10px; border-radius:10px;}
-            QPushButton#guidePrimary {background:palette(highlight);color:palette(highlighted-text);}
+        self.setStyleSheet('''QLabel#guideNotice {font-size:12px;}
             QPushButton#guidePreview {min-height:120px; max-height:140px; padding:4px;}
             QTextBrowser {background:transparent;}''')
         self.update_controls()
