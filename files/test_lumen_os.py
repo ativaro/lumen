@@ -266,7 +266,7 @@ class LumenIntegrationTest(unittest.TestCase):
         from lumen_knowledge import index_root
         spec = importlib.util.spec_from_file_location('lumen_desktop_test', Path(__file__).resolve().parents[1] / 'agent-app/main.py')
         desktop = importlib.util.module_from_spec(spec); spec.loader.exec_module(desktop)
-        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp + '/state'}):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp + '/state'}), patch('lumen_detail_routes.launch'):
             settings = QSettings(tmp + '/desktop.ini', QSettings.IniFormat)
             with patch.object(desktop, 'QSettings', return_value=settings): window = desktop.LumenWindow(tmp, file_settings=QSettings(tmp+'/files.ini', QSettings.IniFormat))
             window.chat.backend.refresh_sessions = lambda: None
@@ -313,6 +313,14 @@ class LumenIntegrationTest(unittest.TestCase):
                 self.assertFalse(window.chat.backend.busy)
             finally:
                 window.close(); window.deleteLater(); QTest.qWait(30)
+
+    def test_failed_page_assertion_does_not_start_detached_apps(self):
+        from unittest.mock import patch
+        # Native page checks must not leave standalone apps behind when an assertion aborts.
+        with patch('lumen_detail_routes.QProcess.startDetached',side_effect=AssertionError('Unexpected detached app')), \
+             patch.object(self,'assertEqual',side_effect=AssertionError('Synthetic page assertion')):
+            with self.assertRaisesRegex(AssertionError,'Synthetic page assertion'):
+                self.test_native_pages_workflow_result_and_source_context()
 
     def test_local_policy_blocks_prompt_before_remote_submission(self):
         import os

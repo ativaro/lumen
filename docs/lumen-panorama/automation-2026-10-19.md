@@ -38,4 +38,10 @@ Ein zusätzlich versuchter alter gesamter `test_lumen_os.py` ist nicht grün: Vi
 
 Echte native Qt-Aufnahmen prüfen alle drei Wege bei 1280×900 und 960×800 sowie die gespeicherte Routine in Graphit/Glas/Atelier/Mitternacht. Befunde: Routine zeigt alle Schritte vorrangig links; Quelle und nächster Start rechts. Automation behält die gewählten Abschnittsüberschriften. Schmale Ansichten scrollen vertikal; wesentliche Aktionen bleiben im festen Fußbereich. Keine zusätzliche globale App-Leiste.
 
-Installierter Nachweis und Codepin werden nach der kontrollierten Übernahme ergänzt. Belege/Rückweg: `~/.local/state/lumen/schedule-automation-20261019/`.
+## Installierter Nachweis
+
+Codepin `cb0358480d9ed2ecba6b560277096c1a9eeb545b`: genau 17 Runtime-Dateien nach Hashvergleich mit der vorherigen Fassung übernommen. 622 andere Codeassets und der Vault-Broker bleiben beim Installieren bytegleich. 109 gezielte Prüfungen bestehen auch gegen die installierten Produktionsmodule. 28 native Qt-Aufnahmen Quelle/installiert stimmen bytegleich überein; keine persönlichen Fenster neu gestartet. Belege: `~/.local/state/lumen/schedule-automation-20261019/verification.json`.
+
+Der geprüfte Rückweg `install-desktop.py rollback` prüft, `rollback --apply` nimmt ausschließlich diese Dateien zurück. Private Vorher-Dateien und Rechte liegen im dortigen `installed/`-Verzeichnis. Diesen Stand vor älteren Code-/Audio-/Desktop-Rückwegen zurücknehmen; Nutzerdaten und neue Triggerdefinitionen werden nicht gelöscht. Ein geöffnetes Code-Fenster lädt die neue Version erst nach normalem Schließen und Öffnen.
+
+Der separate native Alt-Integrationstest stubbt nun ausdrücklich seine externen App-Routen, statt beim Prüfen eingebetteter Seiten echte abgekoppelte Programme zu öffnen. Eine gezielte absichtlich ausgelöste Assertionsstörung prüft das bei gesperrtem `QProcess.startDetached`; sie besteht und verändert keine Laufzeitdatei. Die beiden alten fachlichen Fehlschläge bleiben bestehen und werden dadurch nicht zu bestanden umgedeutet. Keine neue vollständige OS-/Launcher- oder Notes-Abnahme daraus ableiten.
