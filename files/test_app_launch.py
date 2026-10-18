@@ -14,9 +14,8 @@ from PySide6.QtWidgets import QApplication
 original = QApplication.exec
 
 def observed_exec(self):
-    def close():
-        for window in self.topLevelWidgets():
-            window.close()
+    def close(window):
+        window.close()
         QTimer.singleShot(200, self.quit)
     def ready():
         windows = [w for w in self.topLevelWidgets() if w.isVisible() and w.windowTitle().startswith('Lumen')]
@@ -28,7 +27,8 @@ def observed_exec(self):
             def rendered(value):
                 if value:
                     print('LUMEN_START_READY', flush=True)
-                    close()
+                    # Leave the WebEngine callback before closing its owning window.
+                    QTimer.singleShot(0, lambda: close(window))
                 else:
                     self.exit(8)
             window.notes_web.page().runJavaScript("!!document.querySelector('.desktop-app-header')", rendered)
@@ -36,7 +36,7 @@ def observed_exec(self):
             window.select('backups')
             assert window.tabs.currentWidget() is window.backups
             print('LUMEN_START_READY', flush=True)
-            close()
+            QTimer.singleShot(0, lambda: close(window))
     QTimer.singleShot(1500, ready)
     return original()
 
@@ -63,7 +63,7 @@ class AppLaunchTest(unittest.TestCase):
                 os.killpg(proc.pid, signal.SIGTERM)
                 out, error = proc.communicate(timeout=5)
                 self.fail('Launcher did not finish: '+error.decode(errors='replace')[-1500:])
-            self.assertEqual(proc.returncode, 0, error.decode(errors='replace')[-3000:])
+            self.assertEqual(proc.returncode, 0, (out+error).decode(errors='replace')[-4000:])
             self.assertIn(b'LUMEN_START_READY', out)
 
     def test_notes_launcher_renders_web_editor_and_closes(self):

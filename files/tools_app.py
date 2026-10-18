@@ -44,8 +44,8 @@ def listen_window(page, activate):
 
 
 def main():
-    if os.environ.get('QT_QPA_PLATFORM','').split(':')[0] in ('offscreen','minimal') and not all(os.environ.get(key,'').strip() for key in ('LUMEN_DATA','LUMEN_TOOLS_DATA')):
-        raise ValueError('Headless test starts require explicit LUMEN_DATA and LUMEN_TOOLS_DATA paths.')
+    from lumen_paths import require_test_profile
+    require_test_profile()
     if len(sys.argv)>1 and sys.argv[1]=='code':
         from code_app import main as collection_main
         return collection_main(sys.argv[2:])

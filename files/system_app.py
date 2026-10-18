@@ -243,6 +243,8 @@ def create_window(controller):
 
 
 def main(argv=None):
+    from lumen_paths import require_test_profile
+    require_test_profile()
     parser = argparse.ArgumentParser(description='Lumen System')
     parser.add_argument('--page', choices=('system', 'sound', 'modes', 'server', 'updates', 'diagnostics', 'backups', 'tasks'))
     from lumen_panel import valid_task

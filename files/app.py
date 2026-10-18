@@ -1949,6 +1949,8 @@ def apply_system_appearance(app, path):
 
 
 def create_app(appearance=None):
+    from lumen_paths import require_test_profile
+    require_test_profile()
     app = QApplication(sys.argv)
     def dispose_windows():
         # Qt processes deferred deletion after all aboutToQuit shutdown slots.
