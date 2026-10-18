@@ -83,7 +83,15 @@ class NotesWebTest(unittest.TestCase):
         self.assertGreaterEqual(gap,8)
         self.assertTrue(self.js("(()=>{let form=document.querySelector('.note-link-form'),bottom=form.querySelector('input').getBoundingClientRect().bottom;return [...form.querySelectorAll('button')].every(b=>Math.abs(b.getBoundingClientRect().bottom-bottom)<=1);})()"))
         self.assertTrue(self.js("(()=>{const form=document.querySelector('.note-link-form'),r=form.getBoundingClientRect();return [...form.querySelectorAll('button')].every(b=>b.scrollWidth<=b.clientWidth+1&&b.getBoundingClientRect().right<=r.right+1);})()"))
-        self.js("document.querySelector('.note-link-form button[type=button]').click()")
+        url='https://example.invalid/notes'
+        self.js("const field=document.querySelector('.note-link-form input');field.focus();field.select();document.execCommand('insertText',false,'https://example.invalid/notes');")
+        # Separate the link insertion from typing's normal 500 ms undo group.
+        QTest.qWait(550)
+        self.js("document.querySelector('.note-link-form button[type=submit]').click()")
+        self.wait(lambda:url in w.editor.toPlainText())
+        self.assertFalse(self.js("!!document.querySelector('.note-link-form')"))
+        self.js("document.querySelector('button[aria-label=Rückgängig]').click()")
+        self.wait(lambda:w.editor.toPlainText()==draft)
         tag='projekt/'+('datenschutzfolgenabschaetzungundverarbeitungsverzeichnis'*3)
         w.note_tags.change(tag,True);w.autosave_timer.stop()
         self.wait(lambda:self.js("!!document.querySelector('.note-tag')"))
