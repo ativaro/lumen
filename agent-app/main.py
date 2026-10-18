@@ -210,7 +210,7 @@ class LumenWindow(QMainWindow):
         row.setContentsMargins(0, 0, 0, 0); row.setSpacing(0)
         self.pages = QStackedWidget()
         self.chat = StudioChat(directory, settings=self.settings)
-        self.studio = StudioSurface(self.chat)
+        self.studio = StudioSurface(self.chat, conversation_focus=True)
         self.pages.addWidget(self.studio)
         self.chat.backend.busyChanged.connect(self.copy_answer_if_ready)
         self.chat.backend.failed.connect(lambda _: setattr(self, "copy_after_answer", False))
@@ -365,7 +365,7 @@ class LumenWindow(QMainWindow):
             event.ignore(); return
         if hasattr(self, 'search_window'):
             self.search_window.hide(); self.search_controller.shutdown()
-        self.studio.preview.shutdown()
+        self.studio.shutdown()
         if self.companion is not None: self.companion.close()
         self.chat.tracker.interrupt()
         self.workspace.shutdown()

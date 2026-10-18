@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QPushButton
 
 
 class StudioTest(unittest.TestCase):
+    conversation_focus = False
     @classmethod
     def setUpClass(cls):
         from app import create_app
@@ -29,6 +30,9 @@ class StudioTest(unittest.TestCase):
         self.enterContext(patch.dict(os.environ, {'LUMEN_DATA': self.tmp + '/state'}))
         self.launch = self.enterContext(patch('lumen_detail_routes.launch'))
         self.settings = QSettings(self.tmp + '/prefs.ini', QSettings.IniFormat)
+        if not self.conversation_focus:
+            from studio_preview import StudioSurface
+            self.enterContext(patch.object(self.desktop, 'StudioSurface', side_effect=lambda chat, **_: StudioSurface(chat)))
         with patch.object(self.desktop, 'QSettings', return_value=self.settings):
             self.window = self.desktop.LumenWindow(self.tmp)
         self.window.chat.backend.refresh_sessions = lambda: None
