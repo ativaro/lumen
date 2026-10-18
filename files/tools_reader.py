@@ -236,6 +236,7 @@ class Reader(ToolWindow):
 
     def reading_mode_status(self):
         focused=self.sidebar.isHidden() and self.rail.isHidden()
+        self.content.setContentsMargins(0 if focused else 16,0,0,0)
         text=tr('Bibliothek und Gedanken anzeigen' if focused else 'Lesemodus')
         self.focus_button.setText(text);self.focus_button.setAccessibleName(text);self.focus_button.setChecked(focused)
 

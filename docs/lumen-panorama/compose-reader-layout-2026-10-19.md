@@ -31,7 +31,10 @@ unveränderten Basis fehl. Kein neues Testframework und keine erneuten
 Echte unveränderte Qt-Bilder mit identischen synthetischen Texten vor/nach:
 960×640 und 1280×800, Glas/DE und Graphit/EN; zusätzlich Livewechsel auf Atelier
 sowie die längste bestehende Compose-Aktion. Reader-Lesefläche im kompakten
-deutschen Vergleich: 363 auf 896 logische Einheiten. Der Seitenbereich-Rückweg
+deutschen Vergleich: 363 auf 912 logische Einheiten. Im fokussierten Zustand
+entfällt der linke Bibliotheks-Innenabstand; außen bleiben beidseits 24 Einheiten.
+Beim Zurückschalten wird der bisherige innere Abstand von 16 wiederhergestellt.
+Der Seitenbereich-Rückweg
 wurde zusätzlich sichtbar aufgenommen. Keine kritische Aktionskürzung in diesen
 Szenen. Die gemeinsame Shell/Bibliotheksbreite ist weiterhin Generals Bereich.
 
