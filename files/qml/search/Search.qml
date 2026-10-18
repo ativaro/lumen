@@ -91,15 +91,31 @@ ApplicationWindow {
                     anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; spacing: 3
                     LumenButton { objectName: "openDetails"; theme: window.theme; quiet: true; visible: window.controller.sharedConversation; icon.name: "window-new"; icon.width: 16; icon.height: 16; implicitWidth: 32; implicitHeight: 32; leftPadding: 8; rightPadding: 8; hint: window.controller.text("Detailansicht"); onClicked: window.controller.expand() }
                     LumenButton { theme: window.theme; quiet: true; icon.name: "configure"; icon.width: 16; icon.height: 16; implicitWidth: 32; implicitHeight: 32; leftPadding: 8; rightPadding: 8; hint: window.controller.text("Einstellungen"); onClicked: window.controller.open_setup() }
-                    LumenButton { theme: window.theme; quiet: true; visible: window.width>=800; text: "−"; implicitWidth: 32; implicitHeight: 32; leftPadding: 8; rightPadding: 8; hint: window.controller.text("Minimieren"); onClicked: window.showMinimized() }
-                    LumenButton { theme: window.theme; quiet: true; visible: window.width>=800; text: "□"; implicitWidth: 32; implicitHeight: 32; leftPadding: 8; rightPadding: 8; hint: window.controller.text("Maximieren oder wiederherstellen"); onClicked: window.visibility === Window.Maximized ? window.showNormal() : window.showMaximized() }
+                    LumenButton {
+                        objectName: "windowMinimize"; theme: window.theme; quiet: true; visible: window.width>=800
+                        icon.source: "../../window-controls/minimize.svg"; icon.width: 20; icon.height: 20
+                        implicitWidth: 32; implicitHeight: 32; leftPadding: 6; rightPadding: 6; topPadding: 6; bottomPadding: 6
+                        hint: window.controller.text("Minimieren"); onClicked: window.showMinimized()
+                    }
+                    LumenButton {
+                        objectName: "windowMaximize"; theme: window.theme; quiet: true; visible: window.width>=800
+                        icon.source: window.visibility === Window.Maximized ? "../../window-controls/restore.svg" : "../../window-controls/maximize.svg"
+                        icon.width: 20; icon.height: 20; implicitWidth: 32; implicitHeight: 32; leftPadding: 6; rightPadding: 6; topPadding: 6; bottomPadding: 6
+                        hint: window.controller.text("Maximieren oder wiederherstellen")
+                        onClicked: window.visibility === Window.Maximized ? window.showNormal() : window.showMaximized()
+                    }
                     LumenButton {
                         id: optionsButton; theme: window.theme; quiet: true; text: "···"; font.pixelSize: 23
                         implicitWidth: 32; implicitHeight: 32; leftPadding: 8; rightPadding: 8
                         hint: window.controller.text("Gesprächsoptionen und Verlauf")
                         visible: window.controller.conversation; onClicked: { options.open(); window.controller.load_sessions() }
                     }
-                    LumenButton { theme: window.theme; quiet: true; text: "×"; font.pixelSize: 20; implicitWidth: 32; implicitHeight: 32; leftPadding: 8; rightPadding: 8; hint: window.controller.text("Lumen ausblenden · Esc"); onClicked: window.hide() }
+                    LumenButton {
+                        objectName: "windowHide"; theme: window.theme; quiet: true
+                        icon.source: "../../window-controls/close.svg"; icon.width: 20; icon.height: 20
+                        implicitWidth: 32; implicitHeight: 32; leftPadding: 6; rightPadding: 6; topPadding: 6; bottomPadding: 6
+                        hint: window.controller.text("Lumen ausblenden · Esc"); onClicked: window.hide()
+                    }
                 }
             }
             Rectangle {

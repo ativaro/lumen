@@ -8,6 +8,37 @@ import unittest
 
 
 class Qt6SearchTest(unittest.TestCase):
+    def test_fine_window_controls_keep_native_actions_and_accessible_names(self):
+        self.run_qt6('''
+from PySide6.QtCore import Qt,QPointF,QEvent,QCoreApplication
+from PySide6.QtGui import QGuiApplication,QWindow
+from PySide6.QtTest import QTest
+from search_controller import SearchController
+from search_qml import create_window
+app=QGuiApplication([]);app.setQuitOnLastWindowClosed(False)
+c=SearchController('/profile/search-controls',applications=[]);engine,w=create_window(app,c)
+def walk(item):
+ yield item
+ for child in item.childItems():yield from walk(child)
+def click(name):
+ item=next(item for item in walk(w.contentItem()) if item.objectName()==name)
+ assert item.isVisible() and item.width()>=32 and item.height()>=32,name
+ image=next(child for child in walk(item) if child.metaObject().className()=='QQuickIconImage')
+ assert image.width()>=20 and image.height()>=20,(name,image.width(),image.height())
+ point=item.mapToScene(QPointF(item.width()/2,item.height()/2)).toPoint()
+ QTest.mouseClick(w,Qt.LeftButton,Qt.NoModifier,point);QTest.qWait(60)
+try:
+ w.resize(960,640);w.show();QTest.qWait(80);c.set_query('Keep this unsent draft')
+ click('windowMaximize');assert w.visibility()==QWindow.Visibility.Maximized
+ click('windowMaximize');assert w.visibility()==QWindow.Visibility.Windowed
+ click('windowMinimize');assert w.visibility()==QWindow.Visibility.Minimized
+ w.showNormal();QTest.qWait(60)
+ click('windowHide');assert not w.isVisible()
+ assert c.query=='Keep this unsent draft'
+finally:
+ c.shutdown();w.hide();engine.deleteLater();QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
+''')
+
     def test_user_turn_starts_visible_without_following_stream(self):
         self.run_qt6("""
 import tempfile
