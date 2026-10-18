@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QApplication,QDialog,QComboBox,QLineEdit,QPlainTextEdit
+from PySide6.QtWidgets import QApplication,QDialog,QComboBox,QLineEdit,QPlainTextEdit,QMessageBox
 from tools_inbox import Inbox
 from tools_vault import Vault
 
@@ -37,7 +37,12 @@ class NativeToolsTest(unittest.TestCase):
                 vault.focus_record(plan)
                 self.assertEqual(vault.backup_stack.currentIndex(), 1)
                 self.assertTrue(vault.body.isEnabled())
-                vault.archive()
+                with patch('tools_vault.QMessageBox.question',return_value=QMessageBox.Yes), patch('vault_data.schedule'):
+                    vault.archive()
+                    for _ in range(250):
+                        if not vault.job: break
+                        QTest.qWait(10)
+                    self.assertIsNone(vault.job)
                 self.assertEqual(vault.backup_stack.currentIndex(), 0)
                 vault.close()
 

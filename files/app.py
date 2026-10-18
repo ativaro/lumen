@@ -12,7 +12,7 @@ from lumen_i18n import tr
 
 from PySide6.QtCore import (QDir, QEvent, QFileInfo, QItemSelectionModel, QMimeData, QModelIndex, QRect, QRectF,
                           QSettings, QSize, QSortFilterProxyModel, QStandardPaths, QFileSystemWatcher,
-                          QStorageInfo, Qt, QTimer, QUrl)
+                          QStorageInfo, Qt, QTimer, QUrl, QObject)
 from PySide6.QtGui import (QDesktopServices, QIcon, QKeySequence, QPalette, QColor, QFont, QPainterPath,
     QStandardItem, QStandardItemModel)
 from PySide6.QtGui import QShortcut
@@ -380,6 +380,7 @@ class Window(QMainWindow):
         self.proxy = FileFilter(self)
         self.proxy.setSourceModel(self.fs)
         self.build_ui()
+        NavigationFilter.install(self)
         self.drive = DriveBrowser(self)
         from offline_ui import Offline
         self.offline = Offline(self)
@@ -1856,7 +1857,16 @@ class Window(QMainWindow):
             self.disk_label.setVisible(self.height() >= 700)
 
 
-class Application(QApplication):
+class NavigationFilter(QObject):
+    @staticmethod
+    def install(window):
+        app = QApplication.instance()
+        if not hasattr(app, 'navigation_filter'):
+            app.navigation_filter = NavigationFilter(app)
+        # Only Files/Gallery widgets need navigation; never wrap internal Quick windows.
+        for widget in [window, *window.findChildren(QWidget)]:
+            widget.installEventFilter(app.navigation_filter)
+
     def eventFilter(self, receiver, event):
         kind = event.type()
         mouse = (kind in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease, QEvent.MouseButtonDblClick)
@@ -1870,8 +1880,8 @@ class Application(QApplication):
             while window is not None and not isinstance(window, (Window, Gallery)):
                 if window is top: break
                 window = window.parentWidget()
-            modal = self.activeModalWidget()
-            if (not self.activePopupWidget() and (modal is None or modal is top)
+            modal = QApplication.activeModalWidget()
+            if (not QApplication.activePopupWidget() and (modal is None or modal is top)
                     and isinstance(window, (Window, Gallery))):
                 if (mouse and kind == QEvent.MouseButtonRelease) or (key and kind == QEvent.KeyPress and not event.isAutoRepeat()):
                     back = event.button() == Qt.BackButton if mouse else event.key() == Qt.Key_Back
@@ -1939,14 +1949,10 @@ def apply_system_appearance(app, path):
 
 
 def create_app(appearance=None):
-    app = Application(sys.argv)
-    # An application event filter sees GUI-thread events only. Overriding notify
-    # also wraps objects from Qt's network threads in Python and races their deletion.
-    app.installEventFilter(app)
+    app = QApplication(sys.argv)
     def dispose_windows():
         # Qt processes deferred deletion after all aboutToQuit shutdown slots.
         # Keep QObject owners out of interpreter-exit garbage collection.
-        app.removeEventFilter(app)
         for window in app.topLevelWidgets():
             window.deleteLater()
     app.aboutToQuit.connect(dispose_windows)

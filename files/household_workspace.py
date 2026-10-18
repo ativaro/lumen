@@ -19,9 +19,7 @@ class HouseholdRoom(Household):
         self.setWindowFlags(Qt.Widget); self.setMinimumSize(0, 0)
         shell = self.centralWidget().layout()
         shell.setContentsMargins(0, 12, 0, 0)
-        header = shell.itemAt(0).layout()
-        for i in range(header.count()):
-            if header.itemAt(i).widget(): header.itemAt(i).widget().hide()
+        self.app_header.hide()
         self.scope = QComboBox()
         for title, value in [('Dieses Projekt','room'), ('Ohne Projektzuordnung','unassigned'), ('Alle Einträge','all')]:
             self.scope.addItem(tr(title), value)
