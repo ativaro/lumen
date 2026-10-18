@@ -66,7 +66,7 @@ function App() {
     <div className="knowledge-list-heading"><h2>{state.collection?state.collections.find(c=>c.id===state.collection)?.name:tr('Zuletzt bearbeitet')}</h2><button disabled={disabled} aria-label={tr('Neue Notiz')} onClick={()=>command('create')}><Plus size={16}/>{tr('Neu')}</button></div>
     <div className="inline-actions"><button disabled={disabled} onClick={()=>command('daily')}>{tr('Tagesnotiz')}</button><button disabled={disabled} onClick={()=>command('template')}>{tr('Aus Vorlage')}</button></div>
     <div className="knowledge-note-list" aria-busy={!state.ready}>
-     {state.notes.map(n=><button className={'doc-row'+(doc?.id===n.id?' active':'')} key={n.id} disabled={disabled} aria-pressed={doc?.id===n.id} onClick={()=>command('open',{id:n.id})}>
+     {state.notes.map(n=><button className={'doc-row'+(doc?.id===n.id?' active':'')} key={n.id} title={n.title} disabled={disabled} aria-pressed={doc?.id===n.id} onClick={()=>command('open',{id:n.id})}>
       <span><strong>{n.title}</strong><small>{summary(n).slice(0,75)||tr('Noch ohne Inhalt')}</small><small className="note-tags">{n.tags.length?n.tags.map(t=>'#'+t).join(' · '):n.id.includes('/')?n.id.slice(0,n.id.lastIndexOf('/')):tr('Eigene Notiz')}</small></span>
      </button>)}
      {state.more&&<button disabled={disabled} onClick={()=>command('more_notes')}>{tr('Weitere Notizen laden')}</button>}

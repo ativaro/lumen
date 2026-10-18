@@ -15,3 +15,23 @@ den tatsächlichen Einstellungs-Dateiwächter in isolierten Profilen.
 
 Diese Korrektur ändert keine Notizdateien oder KWin-Dekorationen. Eine bereits
 laufende alte Notes-Version muss regulär geschlossen und erneut geöffnet werden.
+
+
+## Panorama-Abstände und kompakte Schreibfläche
+
+Der Notes-Webeditor verwendet für Dokumentinnenränder und Rundungen die bereits
+übergebenen Desktop-/Theme-Tokens. Die Navigation bleibt 224 logische Pixel breit,
+die Notizliste folgt mit 210 Pixeln der freigegebenen Referenz. Icon-Schaltflächen
+der vorhandenen Formatleiste sind quadratisch; die Reihenfolge und Funktionen
+bleiben erhalten. Bei 1280 Pixeln passt die Leiste in eine Zeile, bei kleineren
+Fenstern darf sie umbrechen. Lange Notiztitel haben zusätzlich einen Tooltip.
+
+Linkfelder verwenden Abstand zwischen Label und Eingabe; Eingaben und Aktionen
+fluchten unten. Lange gültige Tags umbrechen innerhalb der Schreibfläche, der
+Entfernenknopf bleibt sichtbar und bedienbar. Aktionsbeschriftungen verwenden die
+14-Pixel-Bediengröße, Metadaten bleiben bei 12 Pixeln. Fehlende englische Notes-
+Beschriftungen sind aus den bestehenden Desktop-Übersetzungen übernommen.
+
+`test_notes_web.py` prüft diese konkreten Fälle einschließlich eines erhaltenen
+ungespeicherten Entwurfs beim Themewechsel. Die Sichtprüfung muss zusätzlich am
+echten Editor erfolgen; grüne Logiktests ersetzen keinen Referenzvergleich.

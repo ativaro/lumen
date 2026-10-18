@@ -63,11 +63,41 @@ class NotesWebTest(unittest.TestCase):
         preview=self.js(f"({row}).querySelector('small').textContent")
         self.assertNotIn('Schreibprobe',preview)
         self.assertIn('Willkommen',preview)
-        self.assertGreaterEqual(self.js("document.querySelector('.knowledge-notes').getBoundingClientRect().width"),300)
+        self.assertEqual(self.js("document.querySelector('.knowledge-notes').getBoundingClientRect().width"),210)
         self.assertGreaterEqual(self.js("parseFloat(getComputedStyle(document.querySelector('.knowledge-note-list')).gap)"),8)
         self.js(f"({row}).click()")
         self.wait(lambda:self.w.doc['path']==self.first['path'])
         self.assertIn('# Schreibprobe',self.w.book.read(self.first['path'])['text'])
+
+    def test_panorama_link_tag_and_document_layout(self):
+        from appearance_tokens import RADII
+        w=self.w;w.resize(960,640)
+        w.resize(1280,800);QTest.qWait(80)
+        self.assertEqual(self.js("document.querySelector('.knowledge-notes').getBoundingClientRect().width"),210)
+        self.assertTrue(self.js("(()=>{let tops=[...document.querySelectorAll('.note-format-bar button')].map(b=>b.getBoundingClientRect().top);return Math.max(...tops)-Math.min(...tops)<=2;})()"))
+        w.resize(960,640)
+        self.type_end(' ungespeicherter Panorama-Entwurf')
+        draft=w.editor.toPlainText()
+        self.js("document.querySelector('button[aria-label=\"Link bearbeiten\"]').click()")
+        gap=self.js("(()=>{const label=document.querySelector('.note-link-form label'),range=document.createRange();range.selectNode(label.firstChild);return label.querySelector('input').getBoundingClientRect().top-range.getBoundingClientRect().bottom;})()")
+        self.assertGreaterEqual(gap,8)
+        self.assertTrue(self.js("(()=>{let form=document.querySelector('.note-link-form'),bottom=form.querySelector('input').getBoundingClientRect().bottom;return [...form.querySelectorAll('button')].every(b=>Math.abs(b.getBoundingClientRect().bottom-bottom)<=1);})()"))
+        self.assertTrue(self.js("(()=>{const form=document.querySelector('.note-link-form'),r=form.getBoundingClientRect();return [...form.querySelectorAll('button')].every(b=>b.scrollWidth<=b.clientWidth+1&&b.getBoundingClientRect().right<=r.right+1);})()"))
+        self.js("document.querySelector('.note-link-form button[type=button]').click()")
+        tag='projekt/'+('datenschutzfolgenabschaetzungundverarbeitungsverzeichnis'*3)
+        w.note_tags.change(tag,True);w.autosave_timer.stop()
+        self.wait(lambda:self.js("!!document.querySelector('.note-tag')"))
+        self.assertTrue(self.js("(()=>{let pane=document.querySelector('.knowledge-editor');return pane.scrollWidth<=pane.clientWidth+1;})()"))
+        self.assertTrue(self.js("(()=>{let tag=document.querySelector('.note-tag'),button=tag.querySelector('button');return button.getBoundingClientRect().right<=tag.getBoundingClientRect().right&&button.getBoundingClientRect().width>=24;})()"))
+        self.js("document.querySelector('.note-tag button').click()")
+        self.wait(lambda:not self.js("!!document.querySelector('.note-tag')"))
+        for theme in ('glass','atelier','midnight','graphite'):
+            apply_design(self.app,theme)
+            self.wait(lambda:self.js("getComputedStyle(document.documentElement).getPropertyValue('--text').trim()")==self.app.palette().text().color().name())
+            self.assertEqual(self.js("parseFloat(getComputedStyle(document.querySelector('.knowledge-editor')).paddingLeft)"),24)
+            self.assertEqual(self.js("parseFloat(getComputedStyle(document.querySelector('.note-rich-text')).paddingLeft)"),24)
+            self.assertEqual(self.js("parseFloat(getComputedStyle(document.querySelector('.note-format-bar')).borderTopLeftRadius)"),RADII[theme])
+            self.assertEqual(w.editor.toPlainText(),draft)
 
     def test_web_editor_tables_tags_save_and_responsive_layout(self):
         w=self.w
