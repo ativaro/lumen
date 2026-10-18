@@ -64,7 +64,7 @@ class TriggerTest(unittest.TestCase):
         from tools_data import Library
         from projects_data import Projects
         with tempfile.TemporaryDirectory() as tmp,patch.dict('os.environ',{'LUMEN_TOOLS_DATA':tmp+'/tools'}):
-            lib=Library('workbench');a=lib.create('A',notes='alpha');b=lib.create('B',notes='beta')
+            lib=Library('workbench');a=lib.create('A',kind='project',notes='alpha');b=lib.create('B',kind='project',notes='beta')
             c,e,t=self.make(tmp,{'kind':'project','project_id':'workbench:'+a,'trigger':{'kind':'project'}})
             t.activate(e['id']);lib.update(b,notes='other');self.assertEqual(t.poll(),[])
             p=Projects(lib);p.add(a,'','Vorhaben','initiative',notes='Neuer Plan')
@@ -84,6 +84,25 @@ class TriggerTest(unittest.TestCase):
         for value,kind in [({'kind':'mail'},'text'),({'kind':'project'},'file'),({'kind':'directory','path':'relative'},'file')]:
             with self.assertRaises(ValueError):validate(value,kind)
 
+    def test_once_does_not_repeat_and_templates_do_not_export_sources(self):
+        from code_clock import default,wall
+        from datetime import date
+        from code_library_contract import export_template
+        with tempfile.TemporaryDirectory() as tmp:
+            clock={**default(),'kind':'once','date':'2026-11-01','time':'09:00'};at=wall(date(2026,11,1),'09:00')
+            c,e,t=self.make(tmp,{'kind':'text','text':'alpha','trigger':{'kind':'clock','clock':clock}})
+            t.activate(e['id'],at-100);ids=t.poll(at);self.assertEqual(len(ids),1);self.finish(c,ids[0]);self.assertEqual(t.poll(at+86400),[])
+            self.assertNotIn('trigger',json.dumps(export_template(e)))
+
+    def test_notes_target_change_and_direct_self_trigger_are_rejected(self):
+        from code_clock import default
+        with tempfile.TemporaryDirectory() as tmp:
+            c,e,t=self.make(tmp,{'kind':'text','text':'alpha','trigger':{'kind':'clock','clock':{**default(),'kind':'interval','minutes':15}}},[node('save_note','Ergebnis')])
+            c.store.set_setting('knowledge/notebook',tmp+'/notes-a');t.activate(e['id'],0)
+            c.store.set_setting('knowledge/notebook',tmp+'/notes-b');self.assertEqual(t.poll(1000),[]);self.assertFalse(t.get(e['id'])['enabled']);self.assertIn('Notizordner',t.get(e['id'])['error'])
+            c,e,t=self.make(tmp,{'kind':'file','trigger':{'kind':'directory','path':tmp}},[node('save_file',tmp)])
+            with self.assertRaisesRegex(ValueError,'anderen Ordner'):t.activate(e['id'])
+
     def test_background_timer_executes_real_file_actions_without_window(self):
         from code_clock import default
         from lumen_tasks import tick
@@ -100,18 +119,20 @@ class TriggerTest(unittest.TestCase):
         from code_clock import default
         from code_blocks_worker import run_pending
         from PySide6.QtCore import QObject,Signal,QTimer
+        sent=[]
         class Backend(QObject):
             completed=Signal(bool,str)
             def __init__(self,*a,**kw):super().__init__();self.sent=None
             def send(self,prompt,**kw):
-                self.sent=(prompt,kw);self.assert_proposal=kw['proposal'];QTimer.singleShot(0,lambda:self.completed.emit(True,json.dumps({'text':'alpha Ergebnis'})))
+                sent.append((json.loads(prompt),kw));QTimer.singleShot(0,lambda:self.completed.emit(True,json.dumps({'text':'alpha Ergebnis'})))
             def stop(self):pass
             def shutdown(self):pass
         with tempfile.TemporaryDirectory() as tmp:
-            c,e,t=self.make(tmp,{'kind':'text','text':'alpha','trigger':{'kind':'clock','clock':{**default(),'kind':'interval','minutes':15}}},[node('ai','Fasse zusammen'),node('save_file',tmp)])
+            c,e,t=self.make(tmp,{'kind':'text','text':'alpha','trigger':{'kind':'clock','clock':{**default(),'kind':'interval','minutes':15}}},[node('ai','Prüfe die Angaben'),node('ai','Fasse zusammen'),node('save_file',tmp)])
             t.activate(e['id'],0)
             with patch('assistant_backend.OpenCodeBackend',Backend),patch('code_triggers.time.time',return_value=1000):run_pending(c)
             done=Runs(c).latest(e['id']);self.assertEqual(done['status'],'completed');self.assertEqual(next(Path(tmp).glob('Lumen-*.md')).read_text(),'alpha Ergebnis')
+            self.assertEqual(len(sent),2);self.assertTrue(all(kw['proposal'] for _,kw in sent));self.assertEqual(sent[1][0]['input']['text'],'alpha Ergebnis')
 
     def test_background_waits_for_confirmation_and_pause_is_not_auto_resumed(self):
         from code_clock import default

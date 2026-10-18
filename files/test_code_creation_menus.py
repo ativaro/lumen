@@ -60,8 +60,10 @@ class CreationMenus(unittest.TestCase):
         from code_library_window import CollectionWindow
         with tempfile.TemporaryDirectory() as tmp:
             w=CollectionWindow(Store(tmp));self.addCleanup(w.close)
-            form=RoutineForm();self.addCleanup(self.dispose,form);form.prompt.setPlainText('Offene Punkte zusammenfassen')
-            value=dict(kind='automation',title='Morgenroutine',description='',definition=form.value(),project_id='')
+            from code_flow import encode
+            from code_clock import default
+            legacy=dict(trigger='schedule',minutes=60,watch='',cron='',timezone='Europe/Zurich',clock=default(),steps=[dict(title='Neuer Schritt',prompt='Offene Punkte zusammenfassen')],condition='always',outputs=['notify'],source_ids=[],service_ids=[])
+            value=dict(kind='automation',title='Morgenroutine',description='',definition={'flow':encode(legacy)},project_id='')
             w.categories.setCurrentRow(w.category_keys.index('routine'))
             self.assertEqual(w.create_button.text(),'Routine zusammenstellen')
             with patch('code_creation.CreationDialog') as dialog,patch.object(w,'open_entry') as opened,patch('code_edit_window.EditDialog') as editor:
@@ -103,8 +105,13 @@ class CreationMenus(unittest.TestCase):
         from code_library_window import CollectionWindow
         with tempfile.TemporaryDirectory() as tmp:
             c=Collection(Store(tmp));tool=c.create('tool','Text prüfen',value={'prompt':'Fehlende Angaben nennen'})
-            d=CreationDialog(tools=[tool],kind='routine');self.addCleanup(self.dispose,d);form=d.forms['routine'];form.tools.setCurrentIndex(1);form.use_tool();self.assertEqual(len(form.steps),1)
-            d.review();value=json.loads(d.value['definition']['flow']);self.assertEqual(value['steps'][0]['tool_revision'],tool['revision']);self.assertEqual(value['clock']['kind'],'weekly')
+            d=CreationDialog(tools=[tool],kind='routine');self.addCleanup(self.dispose,d);form=d.forms['routine']
+            from code_block_paths import config
+            form.items[0]['config']=json.dumps({**config(form.items[0]),'text':'Beispieltext'});form.refresh()
+            add=next(w for w in form.findChildren(QComboBox) if w.accessibleName()=='Aktion oder Baustein ergänzen')
+            index=next(i for i in range(add.count()) if isinstance(add.itemData(i),dict));add.setCurrentIndex(index);add.activated.emit(index)
+            d.review();value=json.loads(d.value['definition']['flow']);copied=next(n for n in value['nodes'] if n['title'].startswith('Text prüfen'))
+            self.assertEqual(copied['config'],tool['definition']['prompt']);self.assertIn('Version 1',copied['title']);self.assertEqual(json.loads(value['nodes'][0]['config'])['trigger']['clock']['kind'],'weekly');self.assertEqual(d.value['definition']['editor'],'routine')
             c.create('app','Vorhanden',value={'html':'<p>Bestehend</p>'})
             w=CollectionWindow(c.store);self.addCleanup(w.close);w.categories.setCurrentRow(w.category_keys.index('app'));self.assertEqual(w.entries.topLevelItemCount(),1)
 

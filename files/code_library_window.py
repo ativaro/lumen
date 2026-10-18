@@ -200,7 +200,7 @@ class CollectionWindow(QMainWindow):
     def kind_title(self,item):
         if item['kind']=='automation' and item['definition'].get('flow'):
             from code_flow import parse
-            if parse(item['definition']['flow']).get('version') not in (2,3):return tr('Routine')
+            if item['definition'].get('editor')=='routine' or parse(item['definition']['flow']).get('version') not in (2,3):return tr('Routine')
         return tr({'app':'Kleine App','tool':'Werkzeug','automation':'Automation','code':'Code im Projekt'}[item['kind']])
 
     def entry_status(self,item):
@@ -217,6 +217,9 @@ class CollectionWindow(QMainWindow):
                 exists=self.store.rows("SELECT 1 FROM sqlite_master WHERE name='code_block_runs'")
                 rows=self.store.rows('SELECT status FROM code_block_runs WHERE entry=? ORDER BY updated DESC LIMIT 1',(item['id'],)) if exists else []
                 state=rows[0]['status'] if rows else 'draft'
+                triggers=self.store.rows("SELECT 1 FROM sqlite_master WHERE name='code_block_triggers'")
+                enabled=self.store.rows('SELECT enabled FROM code_block_triggers WHERE entry=?',(item['id'],)) if triggers else []
+                if enabled and enabled[0]['enabled'] and state in ('draft','completed','cancelled'):return tr('Aktiv')
                 return tr({'draft':'Entwurf','running':'Läuft','waiting':'Braucht dich','error':'Fehlgeschlagen','completed':'Erledigt','paused':'Pausiert','cancelled':'Abgebrochen'}.get(state,state))
             flow=next((flow for flow in self.store.workflows() if flow['id']==item['definition'].get('workflow_id')),None)
             return tr('Aktiv' if flow and flow['enabled'] else 'Pausiert')
@@ -262,7 +265,7 @@ class CollectionWindow(QMainWindow):
         if not dialog.exec():return
         value=dialog.value
         item=self.collection.create(value['kind'],value['title'],value['description'],value['definition'],value['project_id'])
-        if dialog.kind=='routine':
+        if dialog.kind=='routine' and item['definition'].get('editor')!='routine':
             from code_library_execution import directory
             directory(self.collection,item)
             self.open_entry(item['id'],blocks=False);self.refresh()
@@ -288,7 +291,7 @@ class CollectionWindow(QMainWindow):
             if blocks and not item['archived'] and parse(item['definition']['flow']).get('version') in (2,3):
                 from code_blocks_window import BlockWindow
                 BlockWindow(self.collection,identity,self).exec();self.refresh();return
-        is_routine=self.kind_title(item)==tr('Routine')
+        is_routine=self.kind_title(item)==tr('Routine') and item['definition'].get('editor')!='routine'
         self.current=item;self.loading=True;self.select_input.setVisible(item['kind']=='tool');self.footer.setText(tr('Meine Sammlung')+' / '+item['title'])
         self.prompt.setVisible(item['kind']!='tool' and not is_routine);self.prompt_label.setVisible(not self.prompt.isHidden());self.tool_contract.setVisible(item['kind']=='tool')
         self.input_label.setVisible(not is_routine);self.input.setVisible(not is_routine);self.routine_overview.setVisible(is_routine)

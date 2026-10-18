@@ -1,4 +1,5 @@
 import os
+import json
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -97,7 +98,9 @@ class CollectionUiTest(unittest.TestCase):
             with patch('code_creation.QMessageBox.question',return_value=QMessageBox.No):dialog.reject()
             self.assertEqual(dialog.result(),0);self.assertEqual(dialog.prompt.toPlainText(),'Eigene Regeln')
             dialog.select_kind('code');dialog.review();self.assertIsNone(dialog.value);self.assertIn('Projektordner',dialog.error.text())
-            dialog.select_kind('routine');dialog.review();self.assertEqual(dialog.value['kind'],'automation');self.assertIn('clock',parse(dialog.value['definition']['flow']))
+            dialog.select_kind('routine');dialog.review();self.assertIsNone(dialog.value);self.assertIn('Quelle',dialog.error.text())
+            source=dialog.forms['routine'].items[0];config=json.loads(source['config']);config['text']='Ausdrücklich ausgewählte Beispieleingabe';source['config']=json.dumps(config);dialog.forms['routine'].refresh();dialog.review()
+            self.assertEqual(dialog.value['kind'],'automation');self.assertEqual(dialog.value['definition']['editor'],'routine');self.assertIn('clock',json.loads(parse(dialog.value['definition']['flow'])['nodes'][0]['config'])['trigger'])
 
     def test_creation_cards_navigation_and_reachable_flow_actions(self):
         from code_creation import CreationDialog

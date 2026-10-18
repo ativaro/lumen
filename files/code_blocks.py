@@ -16,11 +16,11 @@ CATALOG = {
     'end_each': ('Steuern', 'Ergebnisse sammeln', 'Interner Abschluss einer Wiederholung.'),
     'delay': ('Steuern', 'Warten', 'Eine gewählte Anzahl Sekunden warten; nach Unterbrechung fortsetzen.'),
     'filter_text': ('Verarbeiten', 'Textzeilen filtern', 'Nur Textzeilen behalten, die den gewählten Text enthalten.'),
-    'project_note': ('Handeln', 'Projekt ergänzen', 'Das Ergebnis an die Notiz eines ausdrücklich gewählten Lumen-Projekts anhängen.'),
+    'project_note': ('Handeln', 'Projektnotiz ergänzen', 'Das Ergebnis an die Notiz eines ausdrücklich gewählten Lumen-Projekts anhängen.'),
     'approval': ('Steuern', 'Auf Bestätigung warten', 'Ergebnis prüfen, bevor die nächsten Aktionen laufen.'),
     'save_file': ('Handeln', 'Datei speichern', 'Ergebnis als neue Textdatei im gewählten Ordner ablegen.'),
-    'save_note': ('Handeln', 'Notiz speichern', 'Eine neue Notiz in Lumen Notes anlegen.'),
-    'create_task': ('Handeln', 'Aufgabe erstellen', 'Eine offene Aufgabe in Lumen Inbox anlegen.'),
+    'save_note': ('Handeln', 'Notiz in Lumen Notes speichern', 'Eine neue Notiz in Lumen Notes anlegen.'),
+    'create_task': ('Handeln', 'Aufgabe in Lumen Inbox erstellen', 'Eine offene Aufgabe in Lumen Inbox anlegen.'),
     'notify': ('Handeln', 'Mich informieren', 'Ergebnis in den Lumen-Benachrichtigungen zeigen.'),
 }
 LEGACY_KINDS = frozenset(('manual','read_file','if_pdf','ai','approval','save_file','save_note','create_task','notify'))

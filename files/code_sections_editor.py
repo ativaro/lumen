@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from PySide6.QtCore import Signal,Qt
 from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QScrollArea,QTabWidget,
-    QLineEdit,QPlainTextEdit,QComboBox,QCheckBox,QFileDialog,QMessageBox,QPushButton,QDoubleSpinBox)
+    QLineEdit,QPlainTextEdit,QComboBox,QCheckBox,QFileDialog,QMessageBox,QPushButton,QDoubleSpinBox,QSpinBox,QTimeEdit,QDateEdit)
 from tools_ui import button,label,row
 from lumen_i18n import tr
 from code_blocks import node,CATALOG,parse
@@ -15,8 +15,8 @@ from code_blocks_editor import STATES
 
 class SectionsEditor(QWidget):
     changed=Signal()
-    def __init__(self,parent=None,plan=None,projects=None,tools=None):
-        super().__init__(parent);self.run=None;self.engine=None;self.locked=False;self.open_ids=set();self.getters=[];self.projects=projects or {};self.tools=tools or []
+    def __init__(self,parent=None,plan=None,projects=None,tools=None,routine=False):
+        super().__init__(parent);self.routine=routine;self.run=None;self.engine=None;self.locked=False;self.open_ids=set();self.getters=[];self.projects=projects or {};self.tools=tools or []
         self.temporary=None;self.proposal_condition=None;self.closed=False;self.full_engine=None;self.full_directory=None;self.full_candidate=None
         root=QVBoxLayout(self);root.setContentsMargins(0,0,0,0);root.setSpacing(12)
         self.tabs=QTabWidget();self.tabs.tabBar().hide();self.tabs.setAccessibleName(tr('Ablauf und Formulierungshilfe'));root.addWidget(self.tabs)
@@ -38,6 +38,9 @@ class SectionsEditor(QWidget):
         self.full_status=label('','codeMuted');full.addWidget(self.full_status);self.full_preview=QPlainTextEdit();self.full_preview.setReadOnly(True);self.full_preview.setMaximumHeight(220);self.full_preview.setAccessibleName(tr('Vorgeschlagene Bausteine'));full.addWidget(self.full_preview);self.full_accept=button(tr('Bausteinentwurf übernehmen'),self.accept_flow);self.full_accept.hide();full.addWidget(self.full_accept);full.addStretch();self.tabs.addTab(whole,tr('Ablauf beschreiben'));self.set_plan(plan)
 
     def set_plan(self,plan=None):
+        if plan is None and self.routine:
+            from code_clock import default
+            plan=starter();plan['nodes']=[n for n in plan['nodes'] if n['kind']!='approval'];plan['nodes'][0]['config']=json.dumps({'kind':'text','text':'','trigger':{'kind':'clock','clock':default()}})
         value=parse(plan or starter());self.items=tree(value);self.gate=None
         if len(self.items)>1 and self.items[1]['kind']=='condition':self.gate=self.items.pop(1)
         self.gate_enabled=self.gate is not None;self.refresh()
@@ -65,11 +68,13 @@ class SectionsEditor(QWidget):
         wrapper=QWidget();layout=QVBoxLayout(wrapper);layout.setContentsMargins(0,0,0,0);layout.setSpacing(8)
         toggle=button(('▾ ' if key in self.open_ids else '▸ ')+title,lambda:None);toggle.setCheckable(True);toggle.setChecked(key in self.open_ids);toggle.setObjectName('codeFold');toggle.setAccessibleName(title)
         if subtitle:toggle.setToolTip(subtitle)
-        layout.addWidget(toggle);body=QWidget();body_box=QVBoxLayout(body);body_box.setContentsMargins(16,0,0,8);body_box.setSpacing(12);layout.addWidget(body);body.setVisible(toggle.isChecked())
+        layout.addWidget(toggle);preview=label(subtitle,'codeMuted');preview.setVisible(bool(subtitle) and not toggle.isChecked());layout.addWidget(preview)
+        body=QWidget();body_box=QVBoxLayout(body);body_box.setContentsMargins(16,0,0,8);body_box.setSpacing(12);layout.addWidget(body);body.setVisible(toggle.isChecked())
         def opened(checked):
             if checked:self.open_ids.add(key)
             else:self.open_ids.discard(key)
             toggle.setText(('▾ ' if checked else '▸ ')+title);body.setVisible(checked)
+            preview.setVisible(bool(subtitle) and not checked)
         toggle.toggled.connect(opened);box.addWidget(wrapper)
         return body_box
 
@@ -79,15 +84,45 @@ class SectionsEditor(QWidget):
 
     def refresh(self,*_):
         self.getters=[];body=QWidget();box=QVBoxLayout(body);box.setContentsMargins(0,8,0,8);box.setSpacing(16)
-        box.addWidget(label(tr('Wenn'),'codeCardTitle'))
+        if self.routine:
+            columns=QHBoxLayout();columns.setSpacing(24);box.addLayout(columns)
+            steps_widget=QWidget();steps_box=QVBoxLayout(steps_widget);steps_box.setContentsMargins(0,0,0,0);steps_box.setSpacing(16);columns.addWidget(steps_widget,3)
+            settings_widget=QWidget();settings_box=QVBoxLayout(settings_widget);settings_box.setContentsMargins(0,0,0,0);settings_box.setSpacing(16);columns.addWidget(settings_widget,2)
+            columns.setDirection(QHBoxLayout.TopToBottom if self.width()<800 else QHBoxLayout.LeftToRight);self.routine_columns=columns;box=settings_box
+        box.addWidget(label(tr('Start' if self.routine else 'Wenn'),'codeCardTitle'))
         start=self.items[0];source=config(start)
-        source_title=tr({'text':'Text eingeben','file':'Datei auswählen','project':'Lumen-Projekt auswählen','message':'Nachricht einfügen','calendar':'Termindaten einfügen'}[source['kind']]);source_box=self.fold(box,tr('Ich den Ablauf manuell starte')+' · '+source_title,'input',tr('Mit ausdrücklich ausgewählten Eingaben'))
-        source_box.addWidget(label(tr('Eingabequelle')))
-        source_choice=combo([('text','Text eingeben'),('file','Datei auswählen'),('project','Lumen-Projekt auswählen'),('message','Nachricht einfügen'),('calendar','Termindaten einfügen')],source['kind']);source_choice.setAccessibleName(tr('Eingabequelle'));source_box.addWidget(source_choice)
+        trigger=source.get('trigger',{});kind=trigger.get('kind','manual')
+        trigger_choice=combo([('manual','Ich den Ablauf starte'),('clock','Ein Zeitpunkt erreicht ist'),('directory','Eine Datei im Ordner neu ist oder sich ändert'),('project','Sich mein Lumen-Projekt ändert')],kind);trigger_choice.setAccessibleName(tr('Auslöser'));box.addWidget(trigger_choice)
+        def trigger_changed():
+            def update():
+                chosen=trigger_choice.currentData();value=config(start)
+                if chosen=='manual':value.pop('trigger',None)
+                elif chosen=='clock':
+                    from code_clock import default
+                    value['trigger']={'kind':'clock','clock':default()}
+                else:
+                    value['kind']='file' if chosen=='directory' else 'project';value['trigger']={'kind':chosen,**({'path':''} if chosen=='directory' else {})}
+                start['config']=json.dumps(value);self.open_ids.add('input')
+            self.mutate(update)
+        trigger_choice.activated.connect(trigger_changed)
+        if kind=='clock':
+            from code_clock_editor import ClockEditor
+            clock=ClockEditor(self);clock.kind.removeItem(clock.kind.findData('manual'));clock.set_value(trigger['clock']);box.addWidget(clock)
+            clock.changed.connect(lambda:self.update_source(start,source,'trigger',{'kind':'clock','clock':clock.value(checked=False)}))
+        source_title=tr({'text':'Text eingeben','file':'Ordner auswählen' if kind=='directory' else 'Datei auswählen','project':'Lumen-Projekt auswählen','message':'Nachricht einfügen','calendar':'Termindaten einfügen'}[source['kind']]);source_box=self.fold(box,tr('Mit diesen Daten')+' · '+source_title,'input',trigger.get('path') or source.get('path') or self.projects.get(source.get('project_id')) or source.get('text','')[:180] or tr('Quelle auswählen und ihren Inhalt prüfen.'))
+        source_choice=combo([('text','Text eingeben'),('file','Datei auswählen'),('project','Lumen-Projekt auswählen'),('message','Nachricht einfügen'),('calendar','Termindaten einfügen')],source['kind']);source_choice.setAccessibleName(tr('Eingabequelle'))
+        source_box.addWidget(source_choice);source_choice.setVisible(kind not in ('directory','project'))
         def source_changed():
-            selected=source_choice.currentData();self.mutate(lambda:start.update(config=json.dumps({'kind':selected,'text':''})))
+            selected=source_choice.currentData();self.mutate(lambda:start.update(config=json.dumps({'kind':selected,'text':'',**({'trigger':config(start)['trigger']} if kind=='clock' else {})})))
         source_choice.activated.connect(source_changed)
-        if source['kind']=='file':
+        if kind=='directory':
+            path=QLineEdit(trigger.get('path',''));path.setReadOnly(True);path.setAccessibleName(tr('Beobachteter Ordner'))
+            def choose_folder():
+                chosen=QFileDialog.getExistingDirectory(self,tr('Lumen · Beobachteten Ordner auswählen'))
+                if chosen:path.setText(chosen);self.update_source(start,source,'trigger',{'kind':'directory','path':chosen})
+            source_box.addWidget(row(path,button(tr('Ordner wählen'),choose_folder)))
+            source_box.addWidget(label(tr('Neue und geänderte Dateien direkt in diesem Ordner, bis 20 MiB. Vorhandene Dateien bleiben beim Aktivieren unberührt. Start nach zwei unveränderten Hintergrundprüfungen; keine Unterordner oder Verknüpfungen.'),'codeMuted'))
+        elif source['kind']=='file':
             path=QLineEdit(source.get('path',''));path.setReadOnly(True);path.setAccessibleName(tr('Quelldatei'))
             def choose_file():
                 chosen=QFileDialog.getOpenFileName(self,tr('Lumen · Quelldatei auswählen'))[0]
@@ -96,7 +131,7 @@ class SectionsEditor(QWidget):
         elif source['kind']=='project':
             choices=combo([('', 'Projekt wählen')]+list(self.projects.items()),source.get('project_id',''));choices.setAccessibleName(tr('Lumen-Projekt'));source_box.addWidget(choices)
             choices.currentIndexChanged.connect(lambda:self.update_source(start,source,'project_id',choices.currentData()))
-            source_box.addWidget(label(tr('Liest Projektname und Projektnotiz. Weitere Materialien werden nicht automatisch geöffnet.'),'codeMuted'))
+            source_box.addWidget(label(tr('Liest Projektübersicht, Vorhaben und Aufgaben. Angeheftete Dokumente und Weblinks werden nicht automatisch geöffnet.'),'codeMuted'))
         else:
             text=QPlainTextEdit(source.get('text',''));text.setMaximumHeight(120);text.setAccessibleName(tr('Eingabetext'));source_box.addWidget(text)
             text.textChanged.connect(lambda:self.update_source(start,source,'text',text.toPlainText()))
@@ -107,25 +142,31 @@ class SectionsEditor(QWidget):
                     edit.textChanged.connect(lambda text,k=key:self.update_source(start,source,k,text))
                 if source['kind']=='message':
                     attach=QCheckBox(tr('Anhang vorhanden'));attach.setChecked(source.get('has_attachment',False));source_box.addWidget(attach);attach.toggled.connect(lambda checked:self.update_source(start,source,'has_attachment',checked))
-        condition_heading=QHBoxLayout();condition_heading.addWidget(label(tr('Und wenn'),'codeCardTitle'));condition_heading.addStretch()
-        condition_help=button(tr('Bedingung in Worten beschreiben'),lambda:self.tabs.setCurrentIndex(1));condition_help.setObjectName('codeLink');condition_heading.addWidget(condition_help);box.addLayout(condition_heading)
-        enable=QCheckBox(tr('Nur starten, wenn diese Bedingungen stimmen'));enable.setChecked(self.gate_enabled);box.addWidget(enable)
-        if self.gate_enabled:
-            from code_conditions import describe
-            description=describe(config(self.gate));condition_box=self.fold(box,description[:100]+('…' if len(description)>100 else ''),'gate',description);editor=ConditionEditor(BASE_FIELDS|SOURCE_FIELDS[source['kind']],config(self.gate),self);editor.changed.connect(self.emit_change);condition_box.addWidget(editor)
-            self.getters.append(lambda:self.gate.update(config=json.dumps(editor.value(),ensure_ascii=False)))
-        def toggle_gate(checked):
-            def change():
-                self.gate_enabled=checked
-                if checked:self.open_ids.add('gate')
-                if self.gate is None:self.gate=node('condition',json.dumps({'field':'text','op':'exists','value':True}))
-            self.mutate(change)
-        enable.toggled.connect(toggle_gate)
-        actions_heading=QHBoxLayout();actions_heading.addWidget(label(tr('Dann'),'codeCardTitle'));actions_heading.addStretch()
+        if not self.routine:
+            condition_heading=QHBoxLayout();condition_heading.addWidget(label(tr('Und wenn'),'codeCardTitle'));condition_heading.addStretch()
+            condition_help=button(tr('Bedingung in Worten beschreiben'),lambda:self.tabs.setCurrentIndex(1));condition_help.setObjectName('codeLink');condition_heading.addWidget(condition_help);box.addLayout(condition_heading)
+            enable=QCheckBox(tr('Nur starten, wenn diese Bedingungen stimmen'));enable.setChecked(self.gate_enabled);box.addWidget(enable)
+            if self.gate_enabled:
+                from code_conditions import describe
+                description=describe(config(self.gate));condition_box=self.fold(box,description[:100]+('…' if len(description)>100 else ''),'gate',description);editor=ConditionEditor(BASE_FIELDS|SOURCE_FIELDS[source['kind']],config(self.gate),self);editor.changed.connect(self.emit_change);condition_box.addWidget(editor)
+                self.getters.append(lambda:self.gate.update(config=json.dumps(editor.value(),ensure_ascii=False)))
+            def toggle_gate(checked):
+                def change():
+                    self.gate_enabled=checked
+                    if checked:self.open_ids.add('gate')
+                    if self.gate is None:self.gate=node('condition',json.dumps({'field':'text','op':'exists','value':True}))
+                self.mutate(change)
+            enable.toggled.connect(toggle_gate)
+        if self.routine:box.addStretch();box=steps_box
+        actions_heading=QHBoxLayout();actions_heading.addWidget(label(tr('Schritte' if self.routine else 'Dann'),'codeCardTitle'));actions_heading.addStretch()
         flow_help=button(tr('Ablauf in Worten beschreiben'),lambda:self.tabs.setCurrentIndex(2));flow_help.setObjectName('codeLink');actions_heading.addWidget(flow_help);box.addLayout(actions_heading)
         box.addWidget(label(tr('Von oben nach unten · nur geöffnete Bausteine zeigen ihre Einstellungen.'),'codeMuted'))
         self.render_steps(self.items,box,0,start=1)
         self.state=label('','codeMuted');box.addWidget(self.state);box.addStretch();self.scroll.setWidget(body);self.apply_lock()
+
+    def resizeEvent(self,event):
+        super().resizeEvent(event)
+        if self.routine and hasattr(self,'routine_columns'):self.routine_columns.setDirection(QHBoxLayout.TopToBottom if self.width()<800 else QHBoxLayout.LeftToRight)
 
     def update_source(self,n,source,key,value):
         source[key]=value;n['config']=json.dumps(source,ensure_ascii=False);self.changed.emit()
@@ -134,7 +175,9 @@ class SectionsEditor(QWidget):
         statuses={n['id']:s for n,s in zip(self.run['plan']['nodes'],self.run['data']['steps'])} if self.run else {}
         for index in range(start,len(steps)):
             n=steps[index];status=statuses.get(n['id'],{});state=tr(STATES.get(status.get('status','pending'),'Bereit'))
-            inner=self.fold(box,n['title']+' · '+state,n['id'])
+            summary=n['config'][:180] if n['kind'] in ('ai','ai_check','filter_text','save_file','read_file','save_note','create_task') else self.projects.get(n['config'],'') if n['kind']=='project_note' else tr(CATALOG[n['kind']][2])
+            if status.get('error'):summary=status['error']
+            inner=self.fold(box,n['title']+' · '+state,n['id'],summary)
             inner.addWidget(label(tr(CATALOG[n['kind']][2]),'codeMuted'))
             title=QLineEdit(n['title']);title.setAccessibleName(tr('Bausteinname'));title.setMaxLength(160);inner.addWidget(title);title.textEdited.connect(lambda text,item=n:self.update_node(item,'title',text))
             if n['kind']=='for_each':
@@ -172,6 +215,7 @@ class SectionsEditor(QWidget):
             actions.addWidget(button(tr('Entfernen'),lambda _=False,item=n,s=steps:self.mutate(lambda:s.remove(item))));actions.addStretch()
         add=QComboBox();add.setAccessibleName(tr('Aktion oder Baustein ergänzen'));add.addItem(tr('+ Aktion oder Baustein ergänzen'),'')
         for kind in ('read_file','filter_text','ai','ai_check','choose','for_each','delay','approval','save_file','save_note','create_task','project_note','notify'):
+            if self.routine and kind in ('choose','for_each','ai_check'):continue
             if kind not in ('choose','for_each') or depth<3:add.addItem(tr(CATALOG[kind][1]),kind)
         for tool in self.tools:add.addItem(tr('Werkzeug: {0}',tool['title']),tool)
         box.addWidget(add)
@@ -208,7 +252,7 @@ class SectionsEditor(QWidget):
         body=self.scroll.widget()
         if not body:return
         for control in body.findChildren(QWidget):
-            if isinstance(control,(QLineEdit,QPlainTextEdit,QDoubleSpinBox)):
+            if isinstance(control,(QLineEdit,QPlainTextEdit,QDoubleSpinBox,QSpinBox,QTimeEdit,QDateEdit)):
                 if self.locked and control.property('codeReadOnly') is None:control.setProperty('codeReadOnly',control.isReadOnly())
                 if self.locked:control.setReadOnly(True)
                 elif control.property('codeReadOnly') is not None:control.setReadOnly(bool(control.property('codeReadOnly')))
@@ -288,6 +332,7 @@ class SectionsEditor(QWidget):
         try:
             if not self.full_candidate:return
             if digest(self.plan())!=self.full_signature or self.full_description.toPlainText()!=self.full_text:raise ValueError(tr('Ablauf oder Beschreibung inzwischen geändert. Bitte erneut vorschlagen lassen.'))
+            if self.routine and any(n['kind'] in ('choose','condition','for_each') for n in self.full_candidate['nodes']):raise ValueError(tr('Für Verzweigungen Automation wählen; eine Routine verwendet feste Schritte.'))
             self.set_plan(self.full_candidate);self.changed.emit();self.tabs.setCurrentIndex(0);self.full_candidate=None;self.full_accept.hide()
         except ValueError as error:self.full_status.setText(tr(str(error)))
 

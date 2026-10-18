@@ -8,8 +8,8 @@ from pathlib import Path
 from subprocess import SubprocessError
 from PySide6.QtCore import Qt, QDate, QTime
 from PySide6.QtWidgets import (QDialog, QWidget, QVBoxLayout, QHBoxLayout, QBoxLayout,
-    QFrame, QLabel, QLineEdit, QPlainTextEdit, QComboBox, QCheckBox, QSpinBox,
-    QTimeEdit, QDateEdit, QTabWidget, QScrollArea, QListWidget, QMessageBox)
+    QFrame, QLineEdit, QPlainTextEdit, QComboBox, QCheckBox,
+    QTabWidget, QScrollArea, QListWidget, QMessageBox)
 from lumen_i18n import tr
 from tools_ui import button, label, row
 from code_design import editor_shell
@@ -51,7 +51,6 @@ class EditDialog(QDialog):
         main,self.header,self.footer=editor_shell(self,self.windowTitle(),tr('Angaben ändern, prüfen und ausdrücklich speichern.'))
         box=QVBoxLayout(main);box.setContentsMargins(0,0,0,0);box.setSpacing(16)
         self.context=label('','codeMuted');box.addWidget(self.context)
-        self.heading_row=QBoxLayout(QBoxLayout.LeftToRight);self.heading_row.setSpacing(12);box.addLayout(self.heading_row)
         self.heading=self.header.title
         self.actions=QWidget();actions=QHBoxLayout(self.actions);actions.setContentsMargins(0,0,0,0)
         self.discard_button=button(tr('Verwerfen'),self.discard);self.review_button=button(tr('Änderungen prüfen'),self.review,primary=True)
@@ -157,23 +156,17 @@ QWidget#codeShell QTimeEdit, QWidget#codeShell QDateEdit { background: palette(b
 
     def build_clock(self):
         left,right=self.page('Zeitplan')
-        self.clock_kind=field(left,'Wiederholung',combo([(k,t) for k,t in [('manual','Manuell'),('once','Einmalig'),('daily','Täglich'),('weekly','Wöchentlich'),('monthly','Monatlich'),('interval','In Abständen'),('directory','Bei Ordneränderung')]]))
-        self.clock_time=field(left,'Uhrzeit',QTimeEdit());self.clock_time.setDisplayFormat('HH:mm')
-        self.clock_date=field(left,'Datum',QDateEdit());self.clock_date.setCalendarPopup(True);self.clock_date.setDisplayFormat('dd.MM.yyyy')
-        self.days_widget=QWidget();days=QHBoxLayout(self.days_widget);days.setContentsMargins(0,0,0,0);self.days=[]
-        for day in ('Mo','Di','Mi','Do','Fr','Sa','So'):
-            check=QCheckBox(tr(day));days.addWidget(check);self.days.append(check);check.toggled.connect(self.changed)
-        left.addWidget(self.days_widget)
-        self.month_day=field(left,'Tag im Monat',QSpinBox());self.month_day.setRange(1,31)
-        self.interval=field(left,'Abstand in Minuten',QSpinBox());self.interval.setRange(15,525600)
-        section(left,'Zeitzone');left.addWidget(label('Europe/Zurich'));left.addWidget(label(tr('Folgt der Sommer- und Winterzeit. Nicht vorhandene Uhrzeiten werden übersprungen; doppelte Uhrzeiten nur einmal ausgeführt. Monate ohne den gewählten Tag werden übersprungen.'),'codeMuted'))
-        section(left,'Gehört zu dieser Routine');self.clock_routine=label('');left.addWidget(self.clock_routine);left.addWidget(button(tr('Routine bearbeiten'),lambda:self.tabs.setCurrentIndex(0)));left.addStretch()
-        right.addWidget(label(tr('Nächste Starts · Vorschau'),'codeCardTitle'));self.next_starts=label('');right.addWidget(self.next_starts)
+        from code_clock_editor import ClockEditor
+        self.clock_editor=ClockEditor(self,directory=True);left.addWidget(self.clock_editor);left.addStretch()
+        self.clock_kind=self.clock_editor.kind;self.clock_time=self.clock_editor.time;self.clock_date=self.clock_editor.date
+        self.days=self.clock_editor.days;self.days_widget=self.clock_editor.days_widget;self.month_day=self.clock_editor.month;self.interval=self.clock_editor.minutes
+        self.next_starts=self.clock_editor.preview
+        section(right,'Gehört zu dieser Routine');self.clock_routine=label('');right.addWidget(self.clock_routine);right.addWidget(button(tr('Routine bearbeiten'),lambda:self.tabs.setCurrentIndex(0)))
         right.addWidget(label(tr('Vorschau für deine Änderungen. Gilt nach Speichern und Freigabe.'),'codeMuted'))
         section(right,'Gespeicherter Zeitplan');self.saved_clock=label('');right.addWidget(self.saved_clock)
-        self.clock_kind.currentIndexChanged.connect(self.clock_visibility)
-        for c in (self.clock_time,self.clock_date):c.dateTimeChanged.connect(self.changed)
-        self.month_day.valueChanged.connect(self.changed);self.interval.valueChanged.connect(self.changed)
+        self.clock_folder=label('','codeMuted');right.addWidget(self.clock_folder);right.addWidget(button(tr('Quellordner wählen'),self.choose_source))
+        self.source.textChanged.connect(lambda text:self.clock_folder.setText(text))
+        self.clock_editor.changed.connect(self.changed)
 
     def reset_fields(self):
         self.loading=True
@@ -264,18 +257,9 @@ QWidget#codeShell QTimeEdit, QWidget#codeShell QDateEdit { background: palette(b
             self.refresh_steps(self.selected)
         except (ValueError,KeyError,IndexError) as error:self.status.setText(tr(str(error)))
 
-    def clock(self):
-        return dict(kind=self.clock_kind.currentData(),time=self.clock_time.time().toString('HH:mm'),date=self.clock_date.date().toString('yyyy-MM-dd'),days=[i for i,c in enumerate(self.days) if c.isChecked()],month_day=self.month_day.value(),minutes=self.interval.value())
+    def clock(self):return self.clock_editor.value(checked=False)
 
-    def clock_visibility(self,*_):
-        kind=self.clock_kind.currentData()
-        for c,show in [(self.clock_time,kind in ('once','daily','weekly','monthly')),(self.clock_date,kind=='once'),(self.days_widget,kind=='weekly'),(self.month_day,kind=='monthly'),(self.interval,kind=='interval')]:
-            c.setVisible(show)
-            # Labels sit immediately before their controls in this vertical layout.
-            if c is not self.days_widget:
-                layout=c.parentWidget().layout();index=layout.indexOf(c)
-                if index>0 and isinstance(layout.itemAt(index-1).widget(),QLabel):layout.itemAt(index-1).widget().setVisible(show)
-        self.changed()
+    def clock_visibility(self,*_):self.clock_editor.refresh()
 
     def draft(self):
         if self.is_tool:
@@ -300,7 +284,7 @@ QWidget#codeShell QTimeEdit, QWidget#codeShell QDateEdit { background: palette(b
         else:
             self.banner.setText(tr('Die gespeicherte Fassung läuft weiter. Beim Speichern wird diese Routine pausiert und muss erneut freigegeben werden.') if self.active() else tr('Die Routine ist pausiert. Änderungen werden erst nach Speichern und erneuter Freigabe aktiv.'))
             self.flow_preview.setText(self.source.text()+'\n↓\n'+'\n↓\n'.join(s['title']+((' · '+tr('Version {0}',s['tool_revision'])) if s.get('tool_id') else '') for s in self.steps)+'\n↓\n'+' · '.join(tr({'note':'Notiz speichern','notify':'Benachrichtigen','task_draft':'Aufgabenentwurf vorbereiten'}[v]) for v in self.draft()['outputs']))
-            self.activation.setText(tr('Routine pausieren' if self.active() else 'Prüfen & aktivieren'));self.activation.setEnabled(bool(self.item) and (self.active() or not dirty))
+            self.activation.setText(tr('Routine pausieren' if self.active() else 'Prüfen und aktivieren'));self.activation.setEnabled(bool(self.item) and (self.active() or not dirty))
             try:
                 clock=self.clock();summary=tr('Bei Ordneränderung') if clock['kind']=='directory' else describe(clock)
                 upcoming=[] if clock['kind']=='directory' else starts(clock)
@@ -438,7 +422,6 @@ QWidget#codeShell QTimeEdit, QWidget#codeShell QDateEdit { background: palette(b
         if hasattr(self,'columns'):
             direction=QBoxLayout.TopToBottom if self.width()<1000 else QBoxLayout.LeftToRight
             for layout in self.columns:layout.setDirection(direction)
-            self.heading_row.setDirection(QBoxLayout.TopToBottom if self.width()<1000 else QBoxLayout.LeftToRight)
 
     def done(self,result):
         if self.engine:self.engine.shutdown()

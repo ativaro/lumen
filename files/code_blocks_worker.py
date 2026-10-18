@@ -1,5 +1,4 @@
 """Headless execution of approved triggers using the same durable runs and AI contract."""
-import json
 import os
 import time
 
@@ -32,7 +31,7 @@ def execute(runs,identity):
         while runs.get(identity)['status']=='running':
             Check().check();request=runs.advance(identity,Check())
             if request:answer(runs,identity,request,Check())
-    except (ValueError,OSError,RuntimeError) as error:runs.fail(identity,str(error))
+    except Exception as error:runs.fail(identity,str(error))
 
 
 def answer(runs,identity,request,job):

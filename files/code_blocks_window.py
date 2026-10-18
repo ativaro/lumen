@@ -16,7 +16,7 @@ class BlockWindow(QDialog):
         self.runs=Runs(collection);self.run=self.runs.latest(identity);self.job=None;self.engine=None;self.ai_wait=False;self.lease_fd=None;self.dirty=False;self.closing=False;self.last_state=None;self.closed=False
         self.setWindowTitle('Lumen · '+self.item['title']);self.resize(1240,860)
         from code_design import editor_shell
-        main,self.header,self.footer=editor_shell(self,'Lumen · '+self.item['title'],tr('Automation bearbeiten und mit deinen ausgewählten Daten prüfen.'))
+        main,self.header,self.footer=editor_shell(self,'Lumen · '+self.item['title'],tr('Feste Schritte, Quellen und Zeitplan zusammenstellen.') if self.item['definition'].get('editor')=='routine' else tr('Automation bearbeiten und mit deinen ausgewählten Daten prüfen.'))
         root=QVBoxLayout(main);root.setContentsMargins(0,0,0,0);root.setSpacing(16)
         row=QHBoxLayout();row.addWidget(button(tr('‹ Zur Sammlung'),self.reject));
         self.manage_button=button(tr('Eintrag verwalten'),self.manage) if parent is not None else None
@@ -26,10 +26,15 @@ class BlockWindow(QDialog):
         plan=parse(self.item['definition']['flow'])
         if plan.get('version')==3:
             from code_sections_editor import SectionsEditor
-            from lumen_projects import projects
-            self.editor=SectionsEditor(self,plan,projects={p['id']:p['name'] for p in projects(self.collection.store)},tools=self.collection.items(kind='tool'))
+            from code_triggers import project_choices
+            self.editor=SectionsEditor(self,plan,projects=project_choices(self.collection.store),tools=self.collection.items(kind='tool'),routine=self.item['definition'].get('editor')=='routine')
         else:self.editor=BlockEditor(self,plan)
         self.editor.changed.connect(self.changed);root.addWidget(self.editor,1)
+        from code_triggers import Triggers
+        self.triggers=Triggers(collection)
+        self.activation_button=button(tr('Prüfen und aktivieren'),lambda:self.safe(self.toggle_trigger),primary=True)
+        if plan.get('version')==3:self.header.actions.addWidget(self.activation_button)
+        else:self.activation_button.hide()
         self.status=label('','codeMuted');root.addWidget(self.status)
         row=QHBoxLayout();self.test_button=button(tr('Testlauf'),lambda:self.safe(self.start,True),'media-playback-start',True);row.addWidget(self.test_button)
         self.live_button=button(tr('Jetzt ausführen'),lambda:self.safe(self.start,False));row.addWidget(self.live_button);row.addStretch()
@@ -38,7 +43,7 @@ class BlockWindow(QDialog):
         self.approve_button=button(tr('Bestätigen und fortsetzen'),lambda:self.safe(self.approve),primary=True);row.addWidget(self.approve_button)
         self.cancel_button=button(tr('Abbrechen'),lambda:self.safe(self.cancel));row.addWidget(self.cancel_button);root.addLayout(row)
         self.repair_button=button(tr('Reparatur vorbereiten'),lambda:self.safe(self.prepare_repair));row.addWidget(self.repair_button)
-        self.footer.setText(tr('Lumen Desktop · Manuelle Abläufe · Lumen bleibt während der Ausführung geöffnet.'))
+        self.footer.setText(tr('Lumen Desktop · Auslöser laufen über die Hintergrundprüfung. Testlauf führt keine App-Aktionen aus.'))
         if self.run and self.run['status']=='running':
             try:orphan=self.collection.store.acquire('block-'+self.run['id'])
             except BlockingIOError:pass
@@ -46,6 +51,13 @@ class BlockWindow(QDialog):
                 try:self.run=self.runs.control(self.run['id'],'pause')
                 finally:os.close(orphan)
         self.render()
+        self.refresh_timer=QTimer(self);self.refresh_timer.setInterval(1500);self.refresh_timer.timeout.connect(self.refresh_run);self.refresh_timer.start()
+
+    def refresh_run(self):
+        if self.closed or self.dirty or self.job or self.ai_wait:return
+        latest=self.runs.latest(self.identity)
+        if latest and (not self.run or latest['updated']!=self.run['updated'] or latest['id']!=self.run['id']):
+            self.run=latest;self.render()
 
     def manage(self):
         parent=self.parent();self.reject()
@@ -57,11 +69,32 @@ class BlockWindow(QDialog):
 
     def changed(self):
         self.dirty=True;self.save_button.setText(tr('Entwurf speichern · geändert'));self.resume_button.setEnabled(False);self.status.setText(tr('Ungespeicherte Änderungen · Vor einem Durchlauf speichern.'))
+        row=self.triggers.get(self.identity);self.activation_button.setEnabled(bool(row and row['enabled']))
 
     def save(self):
         value={**self.item['definition'],'flow':encode(self.editor.plan())};value.pop('workflow_id',None)
         self.item=self.collection.update(self.identity,self.item['revision'],definition=value)
         self.dirty=False;self.save_button.setText(tr('Entwurf speichern'));self.render();return self.item
+
+    def toggle_trigger(self):
+        from code_block_paths import config
+        row=self.triggers.get(self.identity)
+        if row and row['enabled']:
+            self.triggers.pause(self.identity);self.render();return
+        if self.dirty:raise ValueError(tr('Änderungen zuerst als Entwurf speichern.'))
+        source=config(self.editor.plan()['nodes'][0]);trigger=source.get('trigger')
+        if not trigger:raise ValueError(tr('Unter Wenn zuerst einen automatischen Auslöser wählen.'))
+        from code_triggers import describe
+        grants=[describe(source),*permissions(self.editor.plan())]
+        if any(n['kind']=='save_note' for n in self.editor.plan()['nodes']):grants.append(tr('Notizordner: ')+self.collection.store.setting('knowledge/notebook',''))
+        if QMessageBox.question(self,tr('Lumen · Hintergrundablauf freigeben'),tr('Diesen Auslöser mit den folgenden Quellen und Aktionen aktivieren? KI-Schritte senden Inhalte an deinen eingerichteten Anbieter. Bestätigungsbausteine warten weiterhin auf dich.')+'\n\n'+'\n\n'.join(grants))!=QMessageBox.Yes:return
+        self.triggers.activate(self.identity)
+        try:
+            from lumen_actions import command
+            command(['systemctl','--user','enable','--now','lumen-jobs.timer'])
+        except Exception:
+            self.triggers.pause(self.identity);raise ValueError(tr('Hintergrundprüfung nicht verfügbar. Der Auslöser bleibt pausiert.')) from None
+        self.render()
 
     def start(self,testing):
         if self.job or self.ai_wait or (self.editor.engine and self.editor.engine.busy) or (getattr(self.editor,'full_engine',None) and self.editor.full_engine.busy):return
@@ -72,7 +105,17 @@ class BlockWindow(QDialog):
             if any(n['kind']=='save_note' for n in plan['nodes']):grants.append(tr('Notizordner: ')+(notes or tr('Noch nicht eingerichtet')))
         text=(tr('Echter Test: Datei lesen und KI aufrufen. Schreibaktionen landen ausschließlich im privaten Testordner; keine App-Einträge oder Benachrichtigungen.') if testing else tr('Diesen Durchlauf mit diesen Quellen und Aktionen ausführen?'))+'\n\n'+'\n\n'.join(grants)
         if QMessageBox.question(self,tr('Lumen · Testlauf prüfen' if testing else 'Lumen · Aktionen freigeben'),text)!=QMessageBox.Yes:return
-        self.run=self.runs.create(self.identity,testing);self.collection.used(self.identity);self.resume()
+        event=None
+        if plan.get('version')==3:
+            from code_block_paths import config
+            source=config(plan['nodes'][0])
+            if source.get('trigger',{}).get('kind')=='directory':
+                from PySide6.QtWidgets import QFileDialog
+                from code_triggers import file_event
+                chosen=QFileDialog.getOpenFileName(self,tr('Lumen · Beispieldatei aus dem beobachteten Ordner wählen'),source['trigger']['path'])[0]
+                if not chosen:return
+                event=file_event(source,chosen)
+        self.run=self.runs.create(self.identity,testing,event=event);self.collection.used(self.identity);self.resume()
 
     def acquire(self):
         if self.lease_fd is None:
@@ -153,6 +196,14 @@ class BlockWindow(QDialog):
         if self.closed:return
         if self.run:self.run=self.runs.get(self.run['id'])
         same=bool(self.run and self.run['signature']==digest(self.editor.plan(False)))
+        from code_block_paths import config
+        trigger=config(self.editor.plan(False)['nodes'][0]).get('trigger') if self.editor.plan(False).get('version')==3 else None
+        row=self.triggers.get(self.identity);enabled=bool(row and row['enabled'])
+        self.activation_button.setText(tr('Auslöser pausieren' if enabled else 'Prüfen und aktivieren'))
+        self.activation_button.setVisible(bool(trigger));self.activation_button.setEnabled(enabled or not self.dirty)
+        from code_triggers import describe
+        self.footer.setText((tr('Aktiv')+' · '+describe(config(self.editor.plan(False)['nodes'][0]))) if enabled else tr('Auslöser pausiert · Speichern startet keine Ausführung.') if trigger else tr('Manueller Ablauf · Lumen bleibt während der Ausführung geöffnet.'))
+        if row and row['error']:self.footer.setText(tr('Auslöser angehalten: ')+row['error'])
         state=self.run['status'] if same else 'draft'
         active=state in ('running','waiting') or self.job is not None or self.ai_wait
         self.editor.set_locked(active);self.editor.run=self.run if same else None;self.editor.refresh()
@@ -199,6 +250,6 @@ class BlockWindow(QDialog):
         if self.dirty and QMessageBox.question(self,tr('Lumen · Entwurf speichern'),tr('Änderungen vor dem Schließen speichern?'))==QMessageBox.Yes:
             try:self.save()
             except Exception as error:self.status.setText(str(error));return
-        self.closed=True;self.release();self.editor.shutdown()
+        self.closed=True;self.refresh_timer.stop();self.release();self.editor.shutdown()
         if self.engine:self.engine.shutdown()
         super().reject()

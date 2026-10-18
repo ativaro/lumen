@@ -8,6 +8,16 @@ import time
 from code_clock import validate as clock_validate, starts
 
 
+def describe(source):
+    from code_clock import describe as clock_describe
+    from lumen_i18n import tr
+    trigger=source.get('trigger',{})
+    if trigger.get('kind')=='clock':return clock_describe(trigger['clock'])+' · Europe/Zurich'
+    if trigger.get('kind')=='directory':return tr('Neue/geänderte Datei in: ')+trigger['path']
+    if trigger.get('kind')=='project':return tr('Wenn sich das ausgewählte Lumen-Projekt ändert')
+    return tr('Manueller Start')
+
+
 def validate(value, source):
     if not isinstance(value,dict) or value.get('kind') not in ('clock','directory','project'):
         raise ValueError('Einen verfügbaren Auslöser wählen.')
@@ -18,7 +28,7 @@ def validate(value, source):
         if value['clock']['kind']=='manual':raise ValueError('Für einen Zeitplan eine Wiederholung wählen.')
     if kind=='directory':
         path=value['path']
-        if source!='file' or not isinstance(path,str) or not Path(path).is_absolute() or '..' in Path(path).parts or '\0' in path or len(path)>3000:
+        if source!='file' or not isinstance(path,str) or (path and not Path(path).is_absolute()) or '..' in Path(path).parts or '\0' in path or len(path)>3000:
             raise ValueError('Einen absoluten beobachteten Ordner wählen.')
     if kind=='project' and source!='project':raise ValueError('Für Projektänderungen ein Lumen-Projekt auswählen.')
     return value
@@ -28,7 +38,7 @@ def project_choices(store):
     from tools_data import Library
     from lumen_projects import projects
     return {**{p['id']:p['name'] for p in projects(store)},
-            **{'workbench:'+p['id']:p['title'] for p in Library('workbench').all()}}
+            **{'workbench:'+p['id']:p['title'] for p in Library('workbench').all() if p.get('kind')=='project'}}
 
 
 def project_snapshot(identity,store):
@@ -36,7 +46,7 @@ def project_snapshot(identity,store):
         from tools_data import Library
         from projects_data import Projects
         library=Library('workbench');record=library.get(identity[10:])
-        if record['_archived']:raise ValueError('Das ausgewählte Lumen-Projekt wurde archiviert.')
+        if record['_archived'] or record.get('kind')!='project':raise ValueError('Das ausgewählte Lumen-Projekt ist nicht verfügbar.')
         items=Projects(library).items(record['id'])
         if len(items)>1000:raise ValueError('Für diesen Ablauf ein Projekt mit höchstens 1.000 Einträgen wählen.')
         # Linked document contents are not implicitly opened or sent to a model.

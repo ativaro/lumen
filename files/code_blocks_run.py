@@ -293,6 +293,19 @@ class Runs:
             payload=dict(title=title[:300],text=text,paths=[],source_url=url)
             output['effect']=apply('wissen.import' if kind=='save_note' else 'inbox.task',payload,dict(token=token,mode='copy',title=title[:300]),job,store=self.store)
         elif kind=='project_note':
+            if n['config'].startswith('workbench:'):
+                from tools_data import Library
+                library=Library('workbench');key=n['config'][10:];marker='[Lumen Automation '+token+']'
+                with library.connect() as project_db:
+                    project_db.execute('BEGIN IMMEDIATE');row=project_db.execute('SELECT * FROM records WHERE id=?',(key,)).fetchone()
+                    current=json.loads(row['data']) if row else {}
+                    if not row or row['archived'] or current.get('kind')!='project':raise ValueError('Das Zielprojekt ist nicht mehr verfügbar.')
+                    if current.get('server_bound') and current.get('server_role')=='reader':raise ValueError('Dieses Serverprojekt ist nur lesbar.')
+                    if marker not in current.get('notes',''):
+                        note=current.get('notes','')+'\n\n'+marker+'\n'+text
+                        if len(note)>10000:raise ValueError('Die Projektnotiz wäre größer als 10.000 Zeichen.')
+                        project_db.execute('UPDATE records SET data=?,updated=? WHERE id=?',(json.dumps({**current,'notes':note}),time.time(),key))
+                output['effect']={'project_id':n['config']};return output
             from file_spaces import PREFIX
             if db is None:raise ValueError('Projektänderungen brauchen den gesperrten Durchlauf.')
             key=PREFIX+'room/'+n['config'];stored=db.execute('SELECT value FROM settings WHERE key=?',(key,)).fetchone()

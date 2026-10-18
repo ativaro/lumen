@@ -38,8 +38,10 @@ class CreationDialog(QDialog):
         project_row.addWidget(self.project,1);project_box=QWidget();project_box.setLayout(project_row);project_row.setContentsMargins(0,0,0,0);project_box.hide();project_toggle=button(tr('Zu einem Lumen-Projekt hinzufügen · optional'),lambda:project_box.setVisible(not project_box.isVisible()));project_toggle.setObjectName('codeLink');layout.addWidget(project_toggle);layout.addWidget(project_box)
         self.code_name_toggle=button(tr('Bezeichnung anpassen · optional'),lambda checked:(self.name.setVisible(checked),self.name_caption.setVisible(checked)));self.code_name_toggle.setCheckable(True);self.code_name_toggle.setObjectName('codeLink');layout.addWidget(self.code_name_toggle)
         store=getattr(parent,'store',None)
+        from code_triggers import project_choices
+        automation_projects=project_choices(store) if store is not None else projects
         from code_sections_editor import SectionsEditor
-        self.forms={'tool':ToolForm(self),'routine':RoutineForm(self,tools,store),'automation':SectionsEditor(self,projects=projects,tools=tools),'code':CodeForm(self)}
+        self.forms={'tool':ToolForm(self),'routine':RoutineForm(self,tools,store),'automation':SectionsEditor(self,projects=automation_projects,tools=tools),'code':CodeForm(self)}
         self.form_stack=QStackedWidget();self.form_keys=list(self.forms)
         for form in self.forms.values():
             if isinstance(form,SectionsEditor):self.form_stack.addWidget(form)
@@ -65,7 +67,7 @@ class CreationDialog(QDialog):
         return [(type(w).__name__,w.toPlainText() if isinstance(w,QPlainTextEdit) else w.text() if isinstance(w,QLineEdit) else w.currentIndex() if isinstance(w,QComboBox) else w.isChecked()) for w in self.findChildren(QWidget) if isinstance(w,(QLineEdit,QPlainTextEdit,QComboBox,QCheckBox))]
 
     @property
-    def prompt(self):return self.forms['tool'].request if self.kind=='tool' else self.forms['code'].task if self.kind=='code' else self.forms['routine'].prompt if self.kind=='routine' else self.flow_editor.description
+    def prompt(self):return self.forms['tool'].request if self.kind=='tool' else self.forms['code'].task if self.kind=='code' else self.forms['routine'].full_description if self.kind=='routine' else self.flow_editor.description
 
     def capture(self):self.drafts[self.kind]={'title':self.name.text(),'project_id':self.project.currentData()}
 
@@ -74,9 +76,10 @@ class CreationDialog(QDialog):
         if self.pages.currentIndex()==1:self.capture()
         self.kind=kind;draft=self.drafts.get(kind,{});self.name.setText(draft.get('title',''));self.project.setCurrentIndex(max(0,self.project.findData(draft.get('project_id',''))));self.form_stack.setCurrentIndex(self.form_keys.index(kind));self.error.clear();self.error.hide();self.pages.setCurrentIndex(1);self.update_navigation()
         if self.goal.toPlainText().strip() and kind not in self.goal_seeded:
-            if kind=='automation':
-                target=next((n for n in self.flow_editor.items if n['kind']=='ai'),None)
-                if target:target['config']=self.goal.toPlainText();self.flow_editor.refresh()
+            if kind in ('automation','routine'):
+                target=next((n for n in self.forms[kind].items if n['kind']=='ai'),None)
+                if target:target['config']=self.goal.toPlainText();self.forms[kind].refresh()
+                self.forms[kind].full_description.setPlainText(self.goal.toPlainText())
             elif not self.prompt.toPlainText().strip():self.prompt.setPlainText(self.goal.toPlainText())
             self.goal_seeded.add(kind)
 
@@ -118,7 +121,9 @@ class CreationDialog(QDialog):
                 def summary(items):
                     result='<ul>'
                     for n in items:
-                        if n['kind']=='manual':description=tr('Manueller Start mit ausdrücklich ausgewählter Eingabe')
+                        if n['kind']=='manual':
+                            from code_triggers import describe as trigger_description
+                            description=trigger_description(config(n))
                         elif n['kind']=='condition':description=describe(config(n))
                         else:description=n['title']
                         result+='<li>'+escape(description)
@@ -131,7 +136,10 @@ class CreationDialog(QDialog):
                     return result+'</ul>'
                 text+=summary(tree(plan))
             else:text+='<p>'+escape(value.get('prompt','')).replace('\n','<br>')+'</p>'
-            if self.kind=='routine':text+='<p>'+escape(self.forms['routine'].clock.summary.text())+'</p>'
+            if self.kind=='routine':
+                from code_triggers import describe as trigger_description
+                from code_block_paths import config
+                text+='<p>'+escape(trigger_description(config(self.forms['routine'].plan()['nodes'][0])))+'</p>'
             if self.kind=='code':
                 self.project_setup=self.forms['code'].setup();text+='<p>'+escape(value['directory'])+'</p><p>'+escape(self.project_setup['url'])+'</p>'
                 self.create_button.setText(tr({'folder':'Projektgespräch öffnen','repo':'Klonen und Projekt öffnen','new':'Projekt anlegen und öffnen'}[self.project_setup['source']]))
@@ -186,7 +194,7 @@ class CreationDialog(QDialog):
         if self.goal.toPlainText()!=self.goal_submitted:self.goal_error.setText(tr('Dein Ziel wurde geändert. Bitte einen neuen Vorschlag erstellen.'));return
         self.select_kind(p['kind']);self.name.setText(p['title']);text=p['prompt']+'\n\n'+tr('Daran prüfen wir das Ergebnis')+':\n'+'\n'.join(p['checks'])
         if self.kind=='automation':
-            target=next((n for n in self.flow_editor.items if n['kind']=='ai'),None)
+            target=next((n for n in self.forms[kind].items if n['kind']=='ai'),None)
             if target:target['config']=text;self.flow_editor.refresh()
         else:self.prompt.setPlainText(text)
 

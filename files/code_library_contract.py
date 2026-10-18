@@ -4,7 +4,7 @@ import json
 
 KINDS = ('app', 'tool', 'automation', 'code')
 LIMITS = {'prompt': 20000, 'html': 262144, 'directory': 4096, 'workflow_id': 80,
-          'routine_id': 80, 'source_task': 80, 'session_id':512, 'draft_prompt':20000, 'flow':30000, 'tool_spec':24000}
+          'routine_id': 80, 'source_task': 80, 'session_id':512, 'draft_prompt':20000, 'flow':30000, 'tool_spec':24000, 'editor':20}
 TEMPLATE_FORMAT = 'lumen-tool/1'
 APP_CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'"
 
@@ -32,7 +32,11 @@ def definition(kind, title, description='', value=None):
         else:
             from code_flow import parse
         if kind!='automation':raise ValueError('Abläufe gehören zu einer Automation.')
-        parse(value['flow'])
+        plan=parse(value['flow'])
+        if value.get('editor')=='routine' and (plan.get('version')!=3 or any(n['kind'] in ('choose','condition','for_each') for n in plan['nodes'])):
+            raise ValueError('Eine Routine verwendet feste Schritte. Für Bedingungen und Verzweigungen Automation wählen.')
+    if 'editor' in value and (value['editor']!='routine' or kind!='automation' or not value.get('flow')):
+        raise ValueError('Ungültiger Ablaufeditor.')
     if kind != 'app' and value.get('html'):
         raise ValueError('HTML gehört zu einer kleinen App.')
     if kind != 'automation' and (value.get('workflow_id') or value.get('routine_id')):

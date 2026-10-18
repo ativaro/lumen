@@ -20,4 +20,22 @@ Hintergrundläufe verwenden denselben Schritt-Runner. KI-Schritte senden ausschl
 - Isolierte Profile mit beiden Lumen-Datenpfaden und privatem D-Bus, reale Qt-Ansichten in vier Themes und schmaler Ansicht, bestehende Code-/Timer-Regressionen.
 - Installation erst nach Prüfung, ausschließlich betroffene Runtime-Dateien mit Hashprüfung/Rückweg. Keine persönlichen Apps als Testziel; keine Produktionsroutine durch den Agenten aktivieren.
 
-Implementierungs- und Installationsnachweise werden nach Abschluss ergänzt. Diese Beschreibung allein ist kein Abnahmenachweis.
+## Umsetzung und Grenzen
+
+Neue Routinen verwenden ebenfalls v3, mit eigener linearer Ansicht: Schritte links, Start/Zeitplan/Quelle rechts. Jeder KI-Schritt hat seinen eigenen Aufruf und eigenen Checkpoint; Aktionen sind echte Bausteine. Der Definitionswert `editor=routine` hält sie in der Sammlung unter Routinen und verhindert Verzweigungen in diesem einfacheren Weg. Automation behält Wenn/Und wenn/Dann und Verzweigungen. Die alte doppelte Routine-Erstellungsmaske wurde entfernt. Bestehende v1-Routinen behalten unverändert ihren kompatiblen Editor und ihre bisherigen Ausführungsgrenzen; keine stille Migration.
+
+Ein gemeinsamer Zeitplanbaustein ersetzt die frühere Kopie im alten Bearbeitungsdialog. Der nächste Start ist sichtbar, weitere Starts über den Hinweistext zugänglich. Aktionstitel nennen Notes, Inbox beziehungsweise Projektnotiz ausdrücklich. Neue Abläufe sind nach dem Speichern pausiert. Nur der ausdrückliche Aktivierungsdialog startet den vorhandenen Benutzertimer; dessen Fehler pausiert den Auslöser wieder. Der Agent aktiviert keine persönliche Routine und startet keine persönliche App neu.
+
+Hintergrund-KI ist an den eingerichteten Anbieter gebunden. Die Abnahme nutzt eine synthetische asynchrone Modellantwort; keine echten Modell-/Cloudaufrufe. Projektänderungen umfassen die ausgewählte Projektübersicht/Vorhaben/Aufgaben, keine allgemeinen Mail-/Kalenderereignisse. Ordner werden ungefähr minütlich geprüft; stabiler Eingang benötigt zwei Prüfungen. Ohne laufenden Rechner/Benutzertimer erfolgt keine Ausführung. Das ist keine Ausführung auf Lumen Server/Mobile.
+
+Neue Triggerpläne und die Routine-Editorzuordnung bleiben bei einem Code-Rollback als Daten erhalten, benötigen zum Öffnen aber den neuen Code. Keine Tabellen oder Nutzerdaten werden für einen Rollback gelöscht.
+
+## Abnahme
+
+103 Code-Prüfungen, der gemeinsame reale App-Kopfzeilentest, zwei Gesprächsfokus-Prüfungen und der gezielte bestehende Timer-/Wiederanlauftest: 107 eindeutige Prüfungen. Darunter echte Datei-Ausgabe ohne Fenster, Projektänderung aus der aktuellen Projektbibliothek, Stabilität/Deduplizierung/Einmalstart, getrennte KI-Schritte mit synthetischer Antwort, Quellen-/Notes-Zielwechsel, Timerfehler, explizite Aktivierung, Bestätigungswartepunkt, Read-only-Projekt und bestehende v1-Datenwege.
+
+Ein zusätzlich versuchter alter gesamter `test_lumen_os.py` ist nicht grün: Vision-Launcher-Ausgabevertrag und die inzwischen überholte Annahme eines eingebetteten Files-Fensters scheitern. Die von diesem Fall gestarteten zwei isolierten System-/Settings-Unterprozesse wurden nach Profilprüfung exakt per PIDFD beendet; kein persönliches Datenprofil. Fehlprotokoll und Prozessnachweis bleiben erhalten. Den breiten alten Integrationsfall nicht als Abnahme zählen und nicht unkontrolliert wiederholen. Der gezielte Timer-Fall besteht separat.
+
+Echte native Qt-Aufnahmen prüfen alle drei Wege bei 1280×900 und 960×800 sowie die gespeicherte Routine in Graphit/Glas/Atelier/Mitternacht. Befunde: Routine zeigt alle Schritte vorrangig links; Quelle und nächster Start rechts. Automation behält die gewählten Abschnittsüberschriften. Schmale Ansichten scrollen vertikal; wesentliche Aktionen bleiben im festen Fußbereich. Keine zusätzliche globale App-Leiste.
+
+Installierter Nachweis und Codepin werden nach der kontrollierten Übernahme ergänzt. Belege/Rückweg: `~/.local/state/lumen/schedule-automation-20261019/`.
