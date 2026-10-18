@@ -92,7 +92,12 @@ class AppUiTest(preview_tests.PreviewTest):
 
     def test_preview_controls_fit_desktop_and_compact_editor_scrolls(self):
         from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QFrame,QPushButton
         w=self.window();w.mode.setCurrentIndex(1);w.resize(1240,850);QTest.qWait(40)
+        self.assertIsNone(w.findChild(QFrame,'codeRail'))
+        for control in w.findChildren(QPushButton):
+            if control.text() in ('Eingaben prüfen','Ergebnis klarer','Schmale Fenster'):
+                self.assertGreaterEqual(control.font().pixelSize(),14)
         self.assertEqual(w.body_area.verticalScrollBar().maximum(),0)
         self.assertTrue(w.rect().contains(w.preview_panel.mapTo(w,w.preview_panel.rect().bottomRight())))
         w.resize(820,850);QTest.qWait(40)

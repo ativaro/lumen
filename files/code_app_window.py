@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (QDialog, QWidget, QVBoxLayout, QHBoxLayout, QBoxL
     QMessageBox)
 from lumen_i18n import tr
 from tools_ui import button, label, row
-from code_design import shell, navigation
+from code_design import editor_shell
 from code_edit_window import field
 from code_app_edit import Drafts, check, proposal, parse_result
 
@@ -21,8 +21,9 @@ class AppWindow(QDialog):
         self.drafts=Drafts(collection);self.draft=self.drafts.open(identity);self.persisted=copy.deepcopy(self.draft)
         self.engine=None;self.loading=True;self.closed=False;self.inputs=[];self.switch=0;self.restore_pending=False
         self.setWindowTitle(tr('Lumen · Kleine App'));self.resize(1240,850)
-        main,nav,self.footer=shell(self);navigation(nav,self.reject,lambda _:self.reject(),existing_apps=True)['app'].setChecked(True)
-        box=QVBoxLayout(main);box.setContentsMargins(28,20,28,20);box.setSpacing(12)
+        main,self.header,self.footer=editor_shell(self,tr('Lumen · Kleine App'),tr('Gespeicherte App benutzen oder Änderungen als Entwurf prüfen.'))
+        self.header.actions.addWidget(button(tr('Zur Sammlung'),self.reject,'go-previous'))
+        box=QVBoxLayout(main);box.setContentsMargins(0,0,0,0);box.setSpacing(12)
         self.context=label('','codeMuted');box.addWidget(self.context)
         self.heading=QBoxLayout(QBoxLayout.LeftToRight);box.addLayout(self.heading)
         self.title=label('','codeTitle');self.heading.addWidget(self.title,1)
@@ -47,20 +48,20 @@ class AppWindow(QDialog):
         self.request.setPlaceholderText(tr('Zum Beispiel: Zeige fehlende Eingaben direkt am Feld.'));left.addWidget(self.request)
         ideas=QGridLayout();ideas.setSpacing(6);left.addLayout(ideas)
         for i,(caption,text) in enumerate([('Eingaben prüfen','Eingaben verständlich prüfen'),('Ergebnis klarer','Ergebnis übersichtlicher zeigen'),('Schmale Fenster','Für schmale Fenster anpassen')]):
-            control=button(tr(caption),lambda _=False,t=text:self.request.setPlainText(tr(t)));control.setObjectName('appIdea');ideas.addWidget(control,i//2,i%2)
+            control=button(tr(caption),lambda _=False,t=text:self.request.setPlainText(tr(t)));ideas.addWidget(control,i//2,i%2)
         self.generate_button=button(tr('Änderung ausprobieren'),self.generate,primary=True)
         self.stop_button=button(tr('Stoppen'),self.stop);self.stop_button.hide();left.addWidget(row(self.generate_button,self.stop_button))
         left.addWidget(label(tr('App-Code und Auftrag gehen an deine eingerichtete KI. Deine Beispieleingaben bleiben in diesem Fenster.'),'codeMuted'))
         left.addSpacing(8);self.change_title=label(tr('In deinem Entwurf'),'codeCardTitle');left.addWidget(self.change_title)
         self.changes=label('','codeMuted');left.addWidget(self.changes);left.addWidget(self.actions)
-        settings=QToolButton();settings.setText(tr('Name & Beschreibung').replace('&','&&'));settings.setCheckable(True);settings.setToolButtonStyle(Qt.ToolButtonTextBesideIcon);settings.setArrowType(Qt.RightArrow);left.addWidget(settings)
+        settings=QToolButton();settings.setObjectName('toolButton');settings.setText(tr('Name & Beschreibung').replace('&','&&'));settings.setCheckable(True);settings.setToolButtonStyle(Qt.ToolButtonTextBesideIcon);settings.setArrowType(Qt.RightArrow);left.addWidget(settings)
         self.settings=QWidget();fields=QVBoxLayout(self.settings);fields.setContentsMargins(0,0,0,0)
         self.name=field(fields,'Name',QLineEdit());self.name.setMaxLength(160)
         self.purpose=field(fields,'Beschreibung',QPlainTextEdit());self.purpose.setFixedHeight(90)
         left.addWidget(self.settings);self.settings.hide()
         settings.toggled.connect(lambda value:(self.settings.setVisible(value),settings.setArrowType(Qt.DownArrow if value else Qt.RightArrow)))
         settings.toggled.connect(self.layout_columns)
-        advanced=QToolButton();advanced.setText(tr('App-Code bearbeiten'));advanced.setCheckable(True);left.addWidget(advanced)
+        advanced=QToolButton();advanced.setObjectName('toolButton');advanced.setText(tr('App-Code bearbeiten'));advanced.setCheckable(True);left.addWidget(advanced)
         self.source=QPlainTextEdit();self.source.setAccessibleName(tr('App-Inhalt (HTML)'));self.source.setMinimumHeight(220);left.addWidget(self.source);self.source.hide()
         advanced.toggled.connect(self.source.setVisible)
         self.apply_source=button(tr('Code ausprobieren'),self.apply_code);left.addWidget(self.apply_source);self.apply_source.hide();advanced.toggled.connect(self.apply_source.setVisible)
@@ -84,18 +85,17 @@ class AppWindow(QDialog):
             host.addWidget(label(tr('Die eingebettete Vorschau benötigt Qt WebEngine. Die gespeicherte App bleibt über die bisherige Detailansicht verfügbar.')))
             host.addWidget(button(tr('Sammlungsdetails'),lambda:self.done(2)))
         right.addWidget(self.preview_host,1);right.addWidget(self.preview_state)
-        right.addWidget(button(tr('Beispieleingaben zurücksetzen'),self.reset_inputs))
-        right.addWidget(button(tr('Prüfbeispiele'),self.open_checks))
-        right.addWidget(button(tr('Mit Lumen-Daten arbeiten'),self.open_data))
+        self.preview_actions=QBoxLayout(QBoxLayout.LeftToRight);right.addLayout(self.preview_actions)
+        for text,callback in (('Beispieleingaben zurücksetzen',self.reset_inputs),('Prüfbeispiele',self.open_checks),('Mit Lumen-Daten arbeiten',self.open_data)):
+            self.preview_actions.addWidget(button(tr(text),callback))
         right.addWidget(label(tr('Eingaben bleiben nur während dieser geöffneten App erhalten. Gespeichert wird der App-Code.'),'codeMuted'))
         self.autosave=QTimer(self);self.autosave.setSingleShot(True);self.autosave.setInterval(350);self.autosave.timeout.connect(self.persist)
         self.mode.currentChanged.connect(self.mode_changed);self.version.currentChanged.connect(self.refresh_preview)
         self.width_choice.currentChanged.connect(self.preview_width)
         self.setStyleSheet(self.styleSheet()+'''
 QTabBar#appSegments { background: palette(alternate-base); border: 1px solid palette(mid); border-radius: 7px; padding: 3px; }
-QTabBar#appSegments::tab { min-width: 0; padding: 7px 9px; margin: 0; background: transparent; color: palette(placeholder-text); border: none; border-radius: 5px; font-size: 12px; }
+QTabBar#appSegments::tab { min-width: 0; padding: 9px 12px; margin: 0; background: transparent; color: palette(placeholder-text); border: none; border-radius: 5px; }
 QTabBar#appSegments::tab:selected { background: palette(base); color: palette(text); }
-QPushButton#appIdea { background: transparent; border: 1px solid palette(mid); border-radius: 5px; padding: 6px 8px; font-size: 11px; }
 ''')
         for control in (self.request,self.purpose,self.source):control.textChanged.connect(self.changed)
         self.name.textChanged.connect(self.changed)
@@ -294,18 +294,20 @@ QPushButton#appIdea { background: transparent; border: 1px solid palette(mid); b
     def layout_columns(self,*_):
         if self.closed:return
         if hasattr(self,'columns'):
-            compact=self.width()<1000 or self.body_area.viewport().height()<self.preview_panel.minimumSizeHint().height()
+            compact=self.width()<1000
             self.columns.setDirection(QBoxLayout.TopToBottom if compact else QBoxLayout.LeftToRight)
+            controls=[self.preview_actions.itemAt(i).widget() for i in range(self.preview_actions.count())]
+            self.preview_actions.setDirection(QBoxLayout.TopToBottom if sum(b.sizeHint().width() for b in controls)+self.preview_actions.spacing()*2>self.preview_panel.width()-32 else QBoxLayout.LeftToRight)
             body=self.body_area.widget()
-            body.setMinimumHeight(0 if compact else self.body_area.viewport().height())
-            body.setMaximumHeight(16777215 if compact else self.body_area.viewport().height())
+            height=max(self.body_area.viewport().height(),self.preview_panel.minimumSizeHint().height())
+            body.setMinimumHeight(0 if compact else height)
+            body.setMaximumHeight(16777215 if compact else height)
             content=self.editor.widget();content.layout().activate()
             height=max(content.sizeHint().height(),content.layout().totalHeightForWidth(self.editor.viewport().width()))+12
             self.editor.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff if compact else Qt.ScrollBarAsNeeded)
             self.editor.setMinimumHeight(height if compact else 0)
             self.editor.setMaximumHeight(height if compact else 16777215)
             self.heading.setDirection(QBoxLayout.TopToBottom if self.width()<1000 else QBoxLayout.LeftToRight)
-            self.findChild(QFrame,'codeRail').setVisible(self.width()>=800)
 
     def done(self,result):
         if self.closed:return

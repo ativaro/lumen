@@ -65,9 +65,9 @@ class CodeForm(QWidget):
         super().__init__(parent);box=QVBoxLayout(self);box.setContentsMargins(0,0,0,0);box.setSpacing(12)
         box.addWidget(label(tr('Projektquelle'),'codeCardTitle'))
         self.source=combo([('folder','Ordner öffnen'),('repo','Repository klonen'),('new','Neu beginnen')],'folder');self.source.setParent(self);self.source.hide()
-        sources=QHBoxLayout();box.addLayout(sources);self.source_buttons=[];self.source_group=QButtonGroup(self)
+        self.sources=QHBoxLayout();box.addLayout(self.sources);self.source_buttons=[];self.source_group=QButtonGroup(self)
         for index,title in enumerate(('Ordner öffnen','Repository klonen','Neu beginnen')):
-            control=button(tr(title),lambda _=False,i=index:self.source.setCurrentIndex(i));control.setCheckable(True);self.source_group.addButton(control);sources.addWidget(control,1);self.source_buttons.append(control)
+            control=button(tr(title),lambda _=False,i=index:self.source.setCurrentIndex(i));control.setCheckable(True);self.source_group.addButton(control);self.sources.addWidget(control,1);self.source_buttons.append(control)
         self.pair=QHBoxLayout();self.pair.setSpacing(24);box.addLayout(self.pair)
         left=QWidget();fields=QVBoxLayout(left);fields.setContentsMargins(0,0,0,0);fields.setSpacing(12);self.pair.addWidget(left,3)
         self.url=field(fields,'Repository-Adresse',QLineEdit());self.url.setPlaceholderText('https://… oder git@host:projekt.git')
@@ -81,6 +81,7 @@ class CodeForm(QWidget):
 
     def resizeEvent(self,event):
         super().resizeEvent(event);self.pair.setDirection(QHBoxLayout.TopToBottom if self.width()<620 else QHBoxLayout.LeftToRight)
+        self.sources.setDirection(QHBoxLayout.TopToBottom if sum(b.sizeHint().width() for b in self.source_buttons)+self.sources.spacing()*2>self.width() else QHBoxLayout.LeftToRight)
 
     def choose_directory(self):
         path=QFileDialog.getExistingDirectory(self,tr('Lumen · Projektordner auswählen'))

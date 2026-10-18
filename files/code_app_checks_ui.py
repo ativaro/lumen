@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPlainTextEdit,
     QListWidget,
+    QWidget, QScrollArea,
 )
 from tools_ui import label, button, row
 from lumen_i18n import tr
@@ -24,8 +25,13 @@ class ChecksDialog(QDialog):
         self.examples = self.records.tests(window.item["id"])
         self.setWindowTitle(tr("Lumen · Prüfbeispiele"))
         self.resize(660, 680)
-        box = QVBoxLayout(self)
-        box.addWidget(label(tr("Prüfbeispiele"), "codeTitle"))
+        from code_design import editor_shell
+        main, header, footer = editor_shell(self, self.windowTitle(), '')
+        header.actions.addWidget(button(tr("Schließen"), self.accept))
+        outer = QVBoxLayout(main); outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea(); scroll.setWidgetResizable(True); outer.addWidget(scroll)
+        content = QWidget(); scroll.setWidget(content)
+        box = QVBoxLayout(content); box.setContentsMargins(0, 0, 4, 0); box.setSpacing(12)
         box.addWidget(
             label(
                 tr(
@@ -63,7 +69,6 @@ class ChecksDialog(QDialog):
         self.repair = button(tr("Reparatur vorbereiten"), self.prepare_repair)
         self.repair.hide()
         box.addWidget(self.repair)
-        box.addWidget(button(tr("Schließen"), self.accept))
         self.refresh()
 
     def refresh(self):

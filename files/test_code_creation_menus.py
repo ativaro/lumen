@@ -11,6 +11,18 @@ from code_library import Collection
 from lumen_store import Store
 
 class CreationMenus(unittest.TestCase):
+    def test_small_creation_keeps_review_reachable_and_validation_visible(self):
+        from code_creation import CreationDialog
+        from PySide6.QtCore import QPoint
+        d=CreationDialog(kind='tool');self.addCleanup(lambda:d.done(0));d.show();d.resize(960,640);QTest.qWait(60)
+        self.assertEqual((d.width(),d.height()),(960,640))
+        d.review();QTest.qWait(30)
+        self.assertTrue(d.error.isVisible());self.assertIn('Auftrag',d.error.text())
+        self.assertTrue(d.rect().contains(d.review_button.mapTo(d,QPoint(0,d.review_button.height()-1))))
+        d.show_goal();QTest.qWait(30)
+        self.assertEqual((d.width(),d.height()),(960,640))
+        self.assertTrue(d.goal.isVisible())
+
     @classmethod
     def setUpClass(cls):
         cls.root=tempfile.TemporaryDirectory();cls.addClassCleanup(cls.root.cleanup)

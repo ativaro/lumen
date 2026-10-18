@@ -7,6 +7,15 @@ from pathlib import Path
 
 
 class CollectionUiTest(unittest.TestCase):
+    def test_hidden_detail_does_not_force_collection_above_small_screen(self):
+        from code_library_window import CollectionWindow
+        from lumen_store import Store
+        from PySide6.QtTest import QTest
+        with tempfile.TemporaryDirectory() as root:
+            w=CollectionWindow(Store(root));self.addCleanup(w.close);w.show();w.resize(960,640);QTest.qWait(60)
+            self.assertEqual((w.width(),w.height()),(960,640))
+            self.assertTrue(w.create_button.isVisible())
+
     @classmethod
     def setUpClass(cls):
         cls.root=tempfile.TemporaryDirectory();cls.addClassCleanup(cls.root.cleanup)

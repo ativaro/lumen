@@ -19,7 +19,8 @@ QLabel#codeError { color: palette(text); }
 QLabel#codeFooter { color: palette(placeholder-text); border-top: 1px solid palette(mid); padding: 12px 20px; font-size: 10px; }
 QPushButton#codeNav { text-align: left; background: transparent; border: 1px solid transparent; border-radius: 7px; padding: 8px 12px; min-height: 20px; font-size: 14px; }
 QPushButton#codeNav:hover, QPushButton#codeNav:checked { background: palette(midlight); border-color: transparent; color: palette(text); }
-QPushButton#codeLink { border: 1px solid transparent; background: transparent; color: palette(link); text-align: left; padding: 7px 0; }
+QPushButton#codeLink { border: 1px solid transparent; background: transparent; color: palette(link); text-align: left; padding: 7px 8px; }
+QWidget#codeShell QPushButton#codeLink:focus { border: 1px solid palette(highlight); }
 QPushButton#codeCard { background: palette(base); border: 1px solid palette(mid); border-radius: 10px; text-align: left; min-height: 156px; padding: 0; }
 QPushButton#codeCard:hover, QPushButton#codeCard:checked { border-color: palette(highlight); background: palette(alternate-base); }
 QLabel#codeCardTitle { font-size: 18px; font-weight: 500; }
@@ -34,8 +35,9 @@ QWidget#codeShell QTabBar::tab:selected { color:palette(text);border-bottom-colo
 QWidget#codeShell QPlainTextEdit#codeSource { font-family: monospace; border: none; border-radius: 0; padding: 20px; }
 QWidget#codeShell QScrollArea { background: transparent; border: none; }
 QWidget#codeShell QScrollArea > QWidget > QWidget { background: palette(window); }
-QWidget#codeShell QPushButton#toolButton:checked { background: palette(alternate-base); border: 1px solid palette(highlight); }
-QWidget#codeShell QPushButton#toolButton { background: palette(base); border: 1px solid palette(mid); border-radius: 7px; padding: 9px 12px; }
+QWidget#codeShell QPushButton#toolButton:checked, QWidget#codeShell QToolButton#toolButton:checked { background: palette(alternate-base); border: 1px solid palette(highlight); }
+QWidget#codeShell QPushButton#toolButton, QWidget#codeShell QToolButton#toolButton { background: palette(base); color: palette(button-text); border: 1px solid palette(mid); border-radius: 7px; padding: 9px 12px; }
+QWidget#codeShell QToolButton#toolButton:focus { border-color: palette(highlight); }
 QWidget#codeShell QPushButton#primary { background: palette(highlight); color: palette(highlighted-text); border: 1px solid palette(highlight); border-radius: 7px; padding: 9px 13px; }
 QWidget#codeShell QPushButton#primary:disabled { background:palette(mid); color:palette(placeholder-text); border-color:palette(mid); }
 QWidget#codeShell QPushButton:focus { border: 2px solid palette(highlight); }

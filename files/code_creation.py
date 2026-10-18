@@ -3,7 +3,7 @@ import json
 import tempfile
 from pathlib import Path
 from html import escape
-from PySide6.QtWidgets import QDialog,QWidget,QVBoxLayout,QHBoxLayout,QGridLayout,QStackedWidget,QScrollArea,QLineEdit,QComboBox,QPlainTextEdit,QTextBrowser,QMessageBox
+from PySide6.QtWidgets import QDialog,QWidget,QVBoxLayout,QHBoxLayout,QGridLayout,QStackedWidget,QScrollArea,QLineEdit,QComboBox,QPlainTextEdit,QTextBrowser,QMessageBox,QSizePolicy
 from tools_ui import button,label,row
 from lumen_i18n import tr
 from code_library_contract import definition
@@ -42,7 +42,7 @@ class CreationDialog(QDialog):
         automation_projects=project_choices(store) if store is not None else projects
         from code_sections_editor import SectionsEditor
         self.forms={'tool':ToolForm(self),'routine':RoutineForm(self,tools,store),'automation':SectionsEditor(self,projects=automation_projects,tools=tools),'code':CodeForm(self)}
-        self.form_stack=QStackedWidget();self.form_keys=list(self.forms)
+        self.form_stack=QStackedWidget();self.form_stack.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Ignored);self.form_stack.setMinimumHeight(140);self.form_keys=list(self.forms)
         for form in self.forms.values():
             if isinstance(form,SectionsEditor):self.form_stack.addWidget(form)
             else:
@@ -57,7 +57,8 @@ class CreationDialog(QDialog):
         review=QWidget();layout=QVBoxLayout(review);layout.setContentsMargins(0,0,0,0);layout.addWidget(label(tr('Entwurf prüfen'),'codeTitle'));self.summary=QTextBrowser();self.summary.setObjectName('codeReview');self.summary.setOpenExternalLinks(False);layout.addWidget(self.summary,1)
         self.create_button=button(tr('Entwurf anlegen'),self.create,primary=True);layout.addWidget(row(button(tr('Bearbeiten'),lambda:self.pages.setCurrentIndex(1)),self.create_button));self.pages.addWidget(review)
         goal=QWidget();layout=QVBoxLayout(goal);layout.addWidget(label(tr('Was möchtest du erreichen?'),'codeTitle'));self.goal=QPlainTextEdit();self.goal.setAccessibleName(tr('Dein Ziel'));layout.addWidget(self.goal);self.goal_error=label('','codeError');layout.addWidget(self.goal_error);self.goal_status=label('','codeMuted');layout.addWidget(self.goal_status)
-        self.goal_button=button(tr('Vorschlag erstellen'),self.suggest_goal,primary=True);layout.addWidget(row(self.goal_button,button(tr('Selbst auswählen'),lambda:self.pages.setCurrentIndex(0))));self.goal_result=QTextBrowser();layout.addWidget(self.goal_result);self.goal_accept=button(tr('Vorschlag bearbeiten'),self.accept_goal);self.goal_accept.hide();layout.addWidget(self.goal_accept);self.pages.addWidget(goal)
+        self.goal_button=button(tr('Vorschlag erstellen'),self.suggest_goal,primary=True);layout.addWidget(row(self.goal_button,button(tr('Selbst auswählen'),lambda:self.pages.setCurrentIndex(0))));self.goal_result=QTextBrowser();layout.addWidget(self.goal_result);self.goal_accept=button(tr('Vorschlag bearbeiten'),self.accept_goal);self.goal_accept.hide();layout.addWidget(self.goal_accept)
+        goal_scroll=QScrollArea();goal_scroll.setWidgetResizable(True);goal_scroll.setWidget(goal);self.pages.addWidget(goal_scroll)
         self.pages.currentChanged.connect(self.update_navigation);self.update_navigation()
         self.baseline=self.fingerprint()
         if kind in KINDS:self.select_kind(kind)

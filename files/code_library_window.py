@@ -87,11 +87,12 @@ class CollectionWindow(QMainWindow):
         preview_box=QVBoxLayout(self.preview_shell);preview_box.setContentsMargins(0,0,0,0);preview_box.setSpacing(0)
         self.preview_scroll=QScrollArea();self.preview_scroll.setWidgetResizable(True);self.preview_scroll.setWidget(self.collection_preview);preview_box.addWidget(self.preview_scroll,1)
         controls=QVBoxLayout();controls.setContentsMargins(16,12,16,12);controls.setSpacing(4);controls.addWidget(self.preview_open);controls.addWidget(self.preview_favorite);preview_box.addLayout(controls);content.addWidget(self.preview_shell)
-        self.empty_frame=QFrame();self.empty_frame.setObjectName('codeCollectionEmpty');empty_box=QVBoxLayout(self.empty_frame);empty_box.setContentsMargins(28,30,28,30);empty_box.setSpacing(14);empty_box.addStretch()
-        mark=label('');mark.setPixmap(icon('view-grid').pixmap(36,36));mark.setAlignment(Qt.AlignCenter);empty_box.addWidget(mark)
+        self.empty_frame=QFrame();self.empty_frame.setObjectName('codeCollectionEmpty');empty_box=QVBoxLayout(self.empty_frame);empty_box.setContentsMargins(24,24,24,24);empty_box.setSpacing(12);empty_box.addStretch()
+        mark=label('');mark.setPixmap(icon('view-grid').pixmap(24,24));mark.setAlignment(Qt.AlignCenter);empty_box.addWidget(mark)
         self.empty=label('','codePreviewTitle');self.empty.setAlignment(Qt.AlignCenter);empty_box.addWidget(self.empty)
         self.empty_description=label('','codeSubtitle');self.empty_description.setAlignment(Qt.AlignCenter);empty_box.addWidget(self.empty_description)
-        self.empty_action=button(tr('Neu erstellen'),lambda:self.safe(self.empty_choice),primary=True);empty_box.addWidget(self.empty_action,0,Qt.AlignCenter);empty_box.addStretch();content.addWidget(self.empty_frame,1)
+        self.empty_action=button(tr('Neu erstellen'),lambda:self.safe(self.empty_choice),primary=True);empty_box.addWidget(self.empty_action,0,Qt.AlignCenter);empty_box.addStretch()
+        self.empty_scroll=QScrollArea();self.empty_scroll.setWidgetResizable(True);self.empty_scroll.setWidget(self.empty_frame);content.addWidget(self.empty_scroll,1)
         self.explanation=QGroupBox();self.explanation.setFlat(True)
         from html import escape
         help_box=QVBoxLayout(self.explanation);self.help_content=QTextBrowser();self.help_content.setMaximumHeight(250)
@@ -174,7 +175,7 @@ class CollectionWindow(QMainWindow):
         run_box.addWidget(button(tr('Letzten Auftrag öffnen'),lambda:self.safe(self.open_task)));content.addWidget(aside,1)
         actions=QHBoxLayout();actions.addWidget(button(tr('Als Vorlage weitergeben'),lambda:self.safe(self.export_file)));actions.addStretch();actions.addWidget(button(tr('Speichern'),lambda:self.safe(self.save)));box.addLayout(actions)
         for control in (self.preview,self.adopt,self.schedule,self.toggle):control.hide()
-        self.pages.addWidget(page)
+        detail_scroll=QScrollArea();detail_scroll.setWidgetResizable(True);detail_scroll.setWidget(page);self.pages.addWidget(detail_scroll)
         for control in (self.title,self.description,self.prompt,self.html,self.directory):control.textChanged.connect(self.edited)
         self.project.currentIndexChanged.connect(self.edited)
 
@@ -249,7 +250,7 @@ class CollectionWindow(QMainWindow):
             self.entries.addTopLevelItem(item)
             if record['id']==identity:chosen=item
         self.entries.setCurrentItem(chosen or self.entries.topLevelItem(0));self.entries.blockSignals(False)
-        self.list_frame.setVisible(bool(records));self.empty_frame.setVisible(not records)
+        self.list_frame.setVisible(bool(records));self.empty_scroll.setVisible(not records);self.empty_frame.setVisible(not records)
         filtered=bool(self.search.text().strip() or self.project_filter.currentData() is not None)
         special=category in ('favorites','attention','archive')
         self.empty.setText(tr('Keine passenden Einträge') if filtered else tr({'favorites':'Deine Favoriten fehlen noch','attention':'Alles im Blick','archive':'Das Archiv ist leer'}.get(category,'Deine Sammlung beginnt mit einer Idee.')))

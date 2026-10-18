@@ -28,8 +28,14 @@ class DataDialog(QDialog):
         self.saved = False
         self.setWindowTitle(tr("Lumen · App-Daten"))
         self.resize(660, 650)
-        box = QVBoxLayout(self)
-        box.addWidget(label(tr("Mit Lumen-Daten arbeiten"), "codeTitle"))
+        from code_design import editor_shell
+        from PySide6.QtWidgets import QWidget, QScrollArea
+        main, header, footer = editor_shell(self, tr("Lumen · App-Daten"), '')
+        header.actions.addWidget(button(tr("Schließen"), self.accept))
+        outer = QVBoxLayout(main); outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea(); scroll.setWidgetResizable(True); outer.addWidget(scroll)
+        content = QWidget(); scroll.setWidget(content)
+        box = QVBoxLayout(content); box.setContentsMargins(0, 0, 4, 0); box.setSpacing(12)
         box.addWidget(
             label(
                 tr(
@@ -70,7 +76,6 @@ class DataDialog(QDialog):
         )
         self.save_button.setEnabled(False)
         box.addWidget(self.save_button)
-        box.addWidget(button(tr("Schließen"), self.accept))
         if window.preview:
             window.preview.inspect(self.inspected)
 
