@@ -2,8 +2,8 @@
 import json
 from code_flow import parse
 
-INPUTS = ('PDF oder Text', 'Text', 'PDF')
-OUTPUTS = ('Prüfbericht mit Fundstellen', 'Kurze Zusammenfassung', 'Liste offener Fragen')
+INPUTS = ('PDF oder Text', 'Text', 'PDF', 'Datei beim Start auswählen', 'Projektinhalte auswählen')
+OUTPUTS = ('Prüfbericht mit Fundstellen', 'Kurze Zusammenfassung', 'Liste offener Fragen', 'Checkliste', 'Tabelle', 'Kurzer Text')
 
 
 def spec(text):
