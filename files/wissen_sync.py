@@ -63,9 +63,9 @@ def enabled(book):
 
 def remote_text(row):
     title=' '.join(row['title'].split())
-    match=re.search(r'^# [^\n]*(\n*)',row['body'],re.M)
-    if match:return row['body'][:match.start()]+'# '+title+match[1]+row['body'][match.end():]
-    return '# '+title+'\n\n'+row['body']
+    from notes_structure import document_parts
+    prefix, _old_title, gap, suffix, _found = document_parts(row['body'], title)
+    return prefix+'# '+title+gap+suffix
 
 
 def payload(note, revision):

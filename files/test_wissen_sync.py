@@ -166,20 +166,19 @@ class BackgroundSyncTest(unittest.TestCase):
                 self.assertEqual(run.call_count,1)
 
 class SharedFoldersAndAssetsTest(unittest.TestCase):
-    def test_shared_scope_move_recovery_and_immutable_attachments(self):
+    def test_account_scope_move_recovery_and_immutable_attachments(self):
         import hashlib
         from wissen_sync_assets import prepare,receive
         with tempfile.TemporaryDirectory() as tmp:
             book=Notebook(Store(Path(tmp)/'state'),Path(tmp)/'notes',create=True)
-            cfg=dict(server='https://test.invalid',token='synthetic');area='00000000-0000-4000-8000-000000000001'
+            cfg=dict(server='https://test.invalid',token='synthetic');target={}
             def request(config,path,body=None):
                 if path=='/bridge/me':return dict(name='Test',capabilities=['notes'])
-                if path=='/bridge/note-workspaces':return [dict(id=area,title='Team',private=False,role='editor')]
                 raise AssertionError(path)
             with patch('lumen_connect.read_config',return_value=cfg),patch('lumen_connect.request',side_effect=request):
                 original=sync.scope(book,cfg)
-                sync.sync_config(book,original,True,target_workspace=area)
-                self.assertNotEqual(original,sync.scope(book,cfg))
+                sync.sync_config(book,original,True)
+                self.assertEqual(original,sync.scope(book,cfg))
                 note=book.create('Title','Body');identity=note['note_id'] or '00000000-0000-4000-8000-000000000002'
                 key,state=sync.settings(book,cfg)
                 state['pending_move']=dict(id=identity,source=note['path'],target='Team/Nested/Moved.md',hash=note['hash'],text='# Moved\n\nBody',revision=2)
@@ -190,20 +189,19 @@ class SharedFoldersAndAssetsTest(unittest.TestCase):
                 sync.finish_move(book,key,state)
                 self.assertFalse((book.root/note['path']).exists())
                 self.assertEqual(book.read('Team/Nested/Moved.md')['note_id'],identity)
-                with self.assertRaises(ValueError):sync.sync_config(book,sync.scope(book,cfg),True,target_workspace='')
                 (book.root/'attachments').mkdir();raw=b'synthetic attachment';(book.root/'attachments/a.bin').write_bytes(raw)
                 note=book.create('Attached','[file](attachments/a.bin)')
                 uploads=[];known=set()
                 with patch('wissen_sync_assets.transfer',side_effect=lambda cfg,sha,area,content=None:uploads.append(sha)):
-                    note,assets=prepare(book,note,cfg,area,known,lambda x:None)
-                    prepare(book,note,cfg,area,known,lambda x:None)
+                    note,assets=prepare(book,note,cfg,target,known,lambda x:None)
+                    prepare(book,note,cfg,target,known,lambda x:None)
                 self.assertEqual(len(uploads),1)
                 self.assertEqual(assets[0]['sha256'],hashlib.sha256(raw).hexdigest())
-                receive(book,assets,cfg,area)
+                receive(book,assets,cfg,target)
                 # Enabling attachments after text-only sync retrieves canonical links.
                 (book.root/assets[0]['path']).unlink()
                 with patch('wissen_sync_assets.transfer',return_value=raw):
-                    prepare(book,note,cfg,area,known,lambda x:None)
+                    prepare(book,note,cfg,target,known,lambda x:None)
                 self.assertEqual((book.root/assets[0]['path']).read_bytes(),raw)
                 (book.root/assets[0]['path']).write_bytes(b'Keep local change')
-                with self.assertRaises(ValueError):receive(book,assets,cfg,area)
+                with self.assertRaises(ValueError):receive(book,assets,cfg,target)
