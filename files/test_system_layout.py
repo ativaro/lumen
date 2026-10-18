@@ -3,6 +3,7 @@ import copy
 import tempfile
 from pathlib import Path
 import unittest
+from PySide6.QtGui import QTextDocument
 from PySide6.QtCore import QSize, QCoreApplication, QEvent, Qt, QPoint
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QScrollArea, QDialogButtonBox, QPushButton
@@ -41,7 +42,7 @@ class SystemLayoutTest(unittest.TestCase):
 
     def test_long_audio_labels_preserve_compact_geometry_selection_and_full_text(self):
         description = 'Kopfhörer am Schreibtisch – digitale Audioausgabe für konzentriertes Arbeiten'
-        mode = {'id': 'synthetic', 'name': 'Konzentriert arbeiten', 'audio': 'output-b',
+        mode = {'id': 'synthetic', 'name': 'Konzentriert arbeiten – <b>Audio & Ruhe</b>', 'audio': 'output-b',
                 'volume': -1, 'quiet': 60, 'layout': 'tile', 'connections': []}
         original = copy.deepcopy(mode)
         with tempfile.TemporaryDirectory() as root:
@@ -54,6 +55,15 @@ class SystemLayoutTest(unittest.TestCase):
             self.assertEqual(w.size(), QSize(580, 530))
             self.assertEqual(w.layout().contentsMargins().left(), PAGE_MARGIN)
             self.assertEqual(w.findChild(AppHeader).title.font().pixelSize(), 26)
+            self.assertEqual(w.name.cursorPosition(), 0)
+            tooltip = QTextDocument(); tooltip.setHtml(w.name.toolTip())
+            self.assertEqual(tooltip.toPlainText(), mode['name'])
+            self.assertNotIn('<b>', w.name.toolTip())
+            w.name.setCursorPosition(5)
+            QTest.keyClicks(w.name, ' neu')
+            self.assertEqual(w.name.cursorPosition(), 9)
+            tooltip.setHtml(w.name.toolTip())
+            self.assertEqual(tooltip.toPlainText(), w.name.text())
             self.assertEqual(w.audio.count(), 3)
             self.assertEqual(w.audio.currentData(), 'output-b')
             self.assertEqual(w.audio.toolTip(), description + ' · USB-Audiointerface')

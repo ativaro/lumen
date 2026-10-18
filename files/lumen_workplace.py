@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+from html import escape
 
 from PySide6.QtCore import QProcess, QTimer, Qt, QUrl
 from PySide6.QtGui import QDesktopServices, QIcon
@@ -88,7 +89,10 @@ class ModeDialog(QDialog):
         content = QWidget(); body = QVBoxLayout(content); body.setContentsMargins(0, 0, 0, 0); body.setSpacing(PAGE_SPACING)
         scroll.setWidget(content); layout.addWidget(scroll, 1)
         form = QFormLayout(); form.setVerticalSpacing(8); body.addLayout(form)
-        self.name = QLineEdit(mode['name']); form.addRow(tr('Name'), self.name)
+        self.name = QLineEdit(mode['name']); self.name.setCursorPosition(0)
+        self.name.setToolTip('<span>' + escape(mode['name']) + '</span>')
+        self.name.textChanged.connect(lambda value: self.name.setToolTip('<span>' + escape(value) + '</span>'))
+        form.addRow(tr('Name'), self.name)
         self.audio = QComboBox(); self.audio.addItem(tr('Aktuelles Ausgabegerät behalten'), '')
         for d in devices: self.audio.addItem(d['description'], d['name'])
         if mode['audio'] and self.audio.findData(mode['audio']) < 0: self.audio.addItem(mode['audio'] + tr(' (nicht verfügbar)'), mode['audio'])
