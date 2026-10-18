@@ -2046,18 +2046,18 @@ void VaultWindow::theme() {
   if (name == currentTheme)
     return;
   currentTheme = name;
-  QString bg = "#172d37", base = "#142832", hover = "#294853", fg = "#edf5f7",
-          border = "#35505b", muted = "#a5bdc8", accent = "#95ded4",
+  QString bg = "#20343f", base = "#182b35", hover = "#344f5d", fg = "#f0f6f8",
+          border = "#526d79", muted = "#b1c5cf", accent = "#9be5d8",
           on = "#123a38";
   if (name == "graphite") {
-    bg = "#252b2e";
-    base = "#1e2427";
-    hover = "#35403f";
-    fg = "#edf1ef";
-    border = "#485453";
-    muted = "#aebcb8";
-    accent = "#72c9b1";
-    on = "#16372e";
+    bg = "#222529";
+    base = "#1a1c1f";
+    hover = "#2a2e33";
+    fg = "#eff1f3";
+    border = "#393e45";
+    muted = "#aab1ba";
+    accent = "#d7dce2";
+    on = "#1a1c1f";
   }
   if (name == "atelier") {
     bg = "#f2efe8";
@@ -2079,6 +2079,7 @@ void VaultWindow::theme() {
     accent = "#a7b6ff";
     on = "#18203d";
   }
+  const auto radius = QString::number(name == "graphite" ? 10 : name == "atelier" ? 8 : name == "midnight" ? 6 : 16);
   auto palette = qApp->palette();
   palette.setColor(QPalette::Window, QColor(bg));
   palette.setColor(QPalette::Button, QColor(base));
@@ -2104,22 +2105,20 @@ void VaultWindow::theme() {
     }
   qApp->setStyleSheet(
       QString(
-          "QWidget{background:transparent;color:%4;font-size:17px;} "
-          "QMainWindow{background:qlineargradient(x1:0,y1:0,x2:1,y2:1,"
-          "stop:0 %1,stop:0.55 %2,stop:1 %1);} QDialog{background:%1;} "
+          "QWidget{background:transparent;color:%4;font-size:14px;} "
+          "QMainWindow,QDialog{background:%1;} "
           "QFrame#sidebar,QFrame#middle{border:0;border-right:1px solid %5;} "
-          "QFrame#sidebar{background:qlineargradient(x1:0,y1:0,x2:1,y2:1,"
-          "stop:0 %1,stop:1 %2);} QFrame#rule{background:%5;} "
+          "QFrame#sidebar{background:%1;} QFrame#rule{background:%5;} "
           "QLabel#avatar{background:%3;border:1px solid "
           "%5;border-radius:51px;} "
           "QTabBar#vaultSections{background:transparent;} "
           "QTabBar#vaultSections::tab{background:%2;color:%6;border:1px solid "
           "%5;"
           "padding:10px 18px;} "
-          "QTabBar#vaultSections::tab:first{border-top-left-radius:9px;"
-          "border-bottom-left-radius:9px;} "
-          "QTabBar#vaultSections::tab:last{border-top-right-radius:9px;"
-          "border-bottom-right-radius:9px;border-left:0;} "
+          "QTabBar#vaultSections::tab:first{border-top-left-radius:%9px;"
+          "border-bottom-left-radius:%9px;} "
+          "QTabBar#vaultSections::tab:last{border-top-right-radius:%9px;"
+          "border-bottom-right-radius:%9px;border-left:0;} "
           "QTabBar#vaultSections::tab:selected{background:%7;color:%8;"
           "font-weight:600;} "
           "QTabBar#vaultSections::tab:hover{color:%4;} "
@@ -2131,27 +2130,26 @@ void VaultWindow::theme() {
           "QMenu::item{padding:10px 18px;} "
           "QMenu::item:selected{background:%3;} "
           "QFrame#card{background:%2;border:1px solid "
-          "%5;border-radius:16px;} QLabel{background:transparent;} "
-          "QLabel#brand{font-size:26px;font-weight:500;} "
-          "QLabel#title{font-size:28px;font-weight:600;} "
+          "%5;border-radius:%9px;} QLabel{background:transparent;} "
+          "QLabel#brand{font-size:18px;font-weight:500;} "
+          "QLabel#title{font-size:26px;font-weight:600;} "
           "QLabel#muted{color:%6;} QLabel#status{color:%7;} "
-          "QLabel#caption{color:%6;font-size:14px;} "
+          "QLabel#caption{color:%6;font-size:12px;} "
           "QLabel#tagline{color:%6;font-size:12px;} "
           "QLineEdit#website{color:%7;} "
           "QLineEdit{lineedit-password-character:8226;} "
-          "QPushButton{background:qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 "
-          "%3,stop:1 %1);border:1px solid "
-          "%5;border-radius:9px;padding:7px 14px;} "
+          "QPushButton{background:%2;border:1px solid "
+          "%5;border-radius:%9px;padding:7px 14px;} "
           "QPushButton:hover{background:%3;border-color:%7;} "
           "QPushButton:focus{border:2px solid %7;} "
           "QPushButton#primary,QPushButton#save{background:"
           "%7;color:%8;border:0;font-weight:600;} "
           "QLineEdit,QPlainTextEdit,QComboBox{background:%2;border:1px "
-          "solid %5;border-radius:8px;padding:6px "
+          "solid %5;border-radius:%9px;padding:6px "
           "10px;selection-background-color:%7;selection-color:%8;} "
           "QLineEdit:focus,QPlainTextEdit:focus{border:1px solid %7;} "
           "QFrame#fieldRow{background:%2;border:1px solid "
-          "%5;border-radius:8px;} "
+          "%5;border-radius:%9px;} "
           "QFrame#fieldRow QLineEdit{background:transparent;border:0;} "
           "QPushButton[fieldAction=true]{background:transparent;border:0;"
           "border-left:1px solid %5;border-radius:6px;padding:8px;} "
@@ -2159,13 +2157,13 @@ void VaultWindow::theme() {
           "QPushButton[fieldAction=true]:focus{border:1px solid %7;} "
           "QScrollArea#detailScroll{background:transparent;border:0;} "
           "QTreeWidget{background:%2;border:1px solid "
-          "%5;border-radius:8px;outline:0;} "
+          "%5;border-radius:%9px;outline:0;} "
           "QTreeWidget::item{padding:10px;} "
           "QTreeWidget::item:selected{background:%3;color:%4;} "
           "QHeaderView::section{background:%2;color:%6;padding:10px;border:0;"
           "border-bottom:1px solid %5;} "
           "QListWidget{background:transparent;border:0;outline:0;} "
-          "QListWidget::item{padding:8px 18px;border-radius:8px;} "
+          "QListWidget::item{padding:8px 18px;border-radius:%9px;} "
           "QListWidget::item:selected{background:%3;color:%4;border-left:3px "
           "solid %7;} "
           "QListWidget::item:hover{background:%2;} "
@@ -2174,7 +2172,7 @@ void VaultWindow::theme() {
           "height:24px;} "
           "QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{"
           "height:0;}")
-          .arg(bg, base, hover, fg, border, muted, accent, on));
+          .arg(bg, base, hover, fg, border, muted, accent, on, radius));
 }
 
 void VaultWindow::setIdleMinutes(int minutes) {
