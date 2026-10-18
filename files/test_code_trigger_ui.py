@@ -58,6 +58,9 @@ class TriggerUiTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             c=Collection(Store(tmp));plan={'version':3,'nodes':[node('manual',json.dumps({'kind':'text','text':'alpha','trigger':{'kind':'clock','clock':{**default(),'kind':'daily'}}})),node('filter_text','alpha')]}
             e=c.create('automation','Prüfen',value={'flow':encode(plan)});w=BlockWindow(c,e['id']);self.addCleanup(self.dispose,w)
+            from code_blocks_run import Runs
+            from test_code_triggers import Job
+            runs=Runs(c);test=runs.create(e['id'],True);runs.resume(test['id']);runs.advance(test['id'],Job());runs.advance(test['id'],Job())
             with patch('code_blocks_window.QMessageBox.question',return_value=QMessageBox.Yes),patch('lumen_actions.command',side_effect=RuntimeError('not running')):
                 with self.assertRaisesRegex(ValueError,'pausiert'):w.toggle_trigger()
             self.assertFalse(Triggers(c).get(e['id'])['enabled'])
@@ -75,12 +78,13 @@ class TriggerUiTest(unittest.TestCase):
             r.advance(run['id'],Job());r.advance(run['id'],Job());self.assertEqual(r.get(run['id'])['status'],'completed');self.assertIn('Neuer Punkt',lib.get(key)['notes']);self.assertEqual(lib.get(key)['goal'],'Erhalten')
             lib.update(key,server_bound=True,server_role='reader');run=r.create(e['id'],False);r.resume(run['id']);r.advance(run['id'],Job());r.advance(run['id'],Job());self.assertEqual(r.get(run['id'])['status'],'error')
 
-    def test_folded_steps_show_current_edited_instruction_and_title(self):
+    def test_selected_step_updates_summary_without_losing_inspector(self):
         from code_sections_editor import SectionsEditor
         w=SectionsEditor();self.addCleanup(lambda:(w.shutdown(),w.close()))
-        step=next(n for n in w.items if n['kind']=='ai');toggle,preview=w.fold_views[step['id']]
-        toggle.setChecked(True);w.update_node(step,'config','Prüfe auch den Betrag');w.update_node(step,'title','Beleg prüfen');toggle.setChecked(False)
-        self.assertEqual(preview.text(),'Prüfe auch den Betrag');self.assertIn('Beleg prüfen',toggle.text())
+        step=next(n for n in w.items if n['kind']=='ai');w.select_entry(step['id'])
+        w.update_node(step,'config','Prüfe auch den Betrag');w.update_node(step,'title','Beleg prüfen')
+        control,caption,preview=w.summaries[step['id']]
+        self.assertEqual(preview.text(),'Prüfe auch den Betrag');self.assertEqual(caption.text(),'Beleg prüfen');self.assertTrue(control.isChecked())
 
     def test_tool_shortcut_uses_same_new_routine_and_preserves_frozen_instruction(self):
         from code_library_window import CollectionWindow

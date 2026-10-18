@@ -26,6 +26,8 @@ QLabel#codeCardTitle { font-size: 18px; font-weight: 500; }
 QPushButton#codeCard QLabel { background: transparent; border: none; }
 QWidget#codeShell QLineEdit, QWidget#codeShell QPlainTextEdit, QWidget#codeShell QComboBox, QWidget#codeShell QSpinBox { background: palette(base); color: palette(text); border: 1px solid palette(mid); border-radius: 7px; padding: 10px 12px; }
 QWidget#codeShell QTimeEdit, QWidget#codeShell QDateEdit { background: palette(base); color: palette(text); border: 1px solid palette(mid); border-radius: 7px; padding: 8px 10px; min-height: 22px; }
+QWidget#codeShell QLineEdit#codeFlowTitle { font-size:22px; font-weight:500; background:transparent; border:1px solid transparent; padding:4px 0; }
+QWidget#codeShell QLineEdit#codeFlowTitle:focus { border-color:palette(highlight); }
 QWidget#codeShell QTabWidget::pane { border: none; }
 QWidget#codeShell QTabBar::tab { min-width:0; background:transparent; padding:10px 14px; border:0; border-bottom:2px solid transparent; border-radius:0; }
 QWidget#codeShell QTabBar::tab:selected { color:palette(text);border-bottom-color:palette(highlight); }
@@ -35,6 +37,7 @@ QWidget#codeShell QScrollArea > QWidget > QWidget { background: palette(window);
 QWidget#codeShell QPushButton#toolButton:checked { background: palette(alternate-base); border: 1px solid palette(highlight); }
 QWidget#codeShell QPushButton#toolButton { background: palette(base); border: 1px solid palette(mid); border-radius: 7px; padding: 9px 12px; }
 QWidget#codeShell QPushButton#primary { background: palette(highlight); color: palette(highlighted-text); border: 1px solid palette(highlight); border-radius: 7px; padding: 9px 13px; }
+QWidget#codeShell QPushButton#primary:disabled { background:palette(mid); color:palette(placeholder-text); border-color:palette(mid); }
 QWidget#codeShell QPushButton:focus { border: 2px solid palette(highlight); }
 QWidget#codeShell QPlainTextEdit#studioInput { background: transparent; border: none; padding: 0; }
 QWidget#codeShell QWidget#studioChat QPushButton#primary { padding: 0; min-height: 0; font-size: 23px; }
@@ -42,7 +45,12 @@ QWidget#codeShell QTabBar#studioResultTabs::tab { margin-right: 15px; font-size:
 QFrame#codeLogic { background: palette(base); border: 1px solid palette(mid); border-radius: 10px; }
 QFrame#codeLogic QLabel { background: transparent; border: none; }
 QLabel#codeLogicWord { color: palette(link); font-size: 24px; font-weight: 500; }
-QPushButton#codeFold { text-align: left; background: palette(base); border: 1px solid palette(mid); border-radius: 8px; padding: 12px 16px; min-height: 24px; }
+QPushButton#codeFlowRow { text-align:left; background:palette(base); border:1px solid palette(mid); border-radius:8px; padding:0; }
+QPushButton#codeFlowRow:hover, QPushButton#codeFlowRow:checked { background:palette(alternate-base); border-color:palette(highlight); }
+QPushButton#codeFlowRow QLabel { background:transparent; border:0; padding:0; }
+QWidget#codeFlowInspector { border-left:1px solid palette(mid); }
+QWidget#codeFlowInspector[narrow="true"] { border-left:0; border-top:1px solid palette(mid); }
+QWidget#codeFlowInspector QLabel { border:0; }
 QLabel#codeJoin { color: palette(link); padding: 3px 20px; font-size: 19px; }
 QListWidget#codeSteps { background: palette(base); border: 1px solid palette(mid); border-radius: 7px; }
 QListWidget#codeSteps::item { padding: 9px 12px; }

@@ -9,7 +9,8 @@ from PySide6.QtWidgets import QApplication,QMessageBox
 from PySide6.QtTest import QTest
 from PySide6.QtCore import Qt,QCoreApplication,QEvent
 from code_blocks import node,encode
-from code_blocks_editor import BlockEditor
+from code_sections_editor import SectionsEditor
+from PySide6.QtWidgets import QLineEdit
 from code_blocks_window import BlockWindow
 from code_library import Collection
 from lumen_store import Store
@@ -33,12 +34,11 @@ class BlocksUITest(unittest.TestCase):
         widget.deleteLater();QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
 
     def test_editor_keyboard_structure_and_creation(self):
-        editor=BlockEditor();self.addCleanup(self.dispose,editor);editor.resize(950,580);editor.show();QTest.qWait(20)
-        editor.list.setCurrentRow(2);editor.title.setFocus();editor.title.selectAll();QTest.keyClicks(editor.title,'Dokument verstehen')
-        self.assertEqual(editor.nodes[2]['title'],'Dokument verstehen');self.assertTrue(editor.title.hasFocus())
-        editor.add('save_file');self.assertEqual(editor.nodes[3]['kind'],'save_file');editor.move(1);self.assertEqual(editor.nodes[4]['kind'],'save_file')
-        editor.remove();self.assertEqual(len(editor.nodes),6)
-        editor.set_locked(True);self.assertFalse(editor.add_button.isEnabled());self.assertFalse(editor.up.isEnabled())
+        editor=SectionsEditor(plan=dict(version=2,nodes=[node('manual'),node('ai','Prüfen')]))
+        self.addCleanup(self.dispose,editor);editor.resize(950,580);editor.show();QTest.qWait(20)
+        editor.select_entry(editor.items[1]['id']);title=next(w for w in editor.findChildren(QLineEdit) if w.accessibleName()=='Bezeichnung');title.setFocus();title.selectAll();QTest.keyClicks(title,'Dokument verstehen')
+        self.assertEqual(editor.plan()['nodes'][1]['title'],'Dokument verstehen');self.assertTrue(title.hasFocus());self.assertEqual(editor.plan()['version'],2)
+        editor.set_locked(True);self.assertTrue(title.isReadOnly())
         from code_creation import CreationDialog
         dialog=CreationDialog();self.addCleanup(self.dispose,dialog);dialog.select_kind('automation');dialog.review()
         self.assertEqual(dialog.value['kind'],'automation');self.assertEqual(__import__('json').loads(dialog.value['definition']['flow'])['version'],3)
@@ -55,7 +55,7 @@ class BlocksUITest(unittest.TestCase):
                 QTest.qWait(10);time.sleep(.005)
                 if window.run['status']=='waiting':break
             self.assertEqual(window.run['status'],'waiting');self.assertTrue(window.approve_button.isVisible())
-            window.editor.list.setCurrentRow(0);window.approve()
+            window.editor.select_entry('input');window.approve()
             for _ in range(100):
                 QTest.qWait(10);time.sleep(.005)
                 if window.run['status']=='completed' and not window.job:break
@@ -63,7 +63,7 @@ class BlocksUITest(unittest.TestCase):
             self.assertFalse(list(Path(tmp).glob('Lumen-*.md')))
             window.reject();reopened=BlockWindow(collection,entry['id']);self.addCleanup(self.dispose,reopened)
             self.assertEqual(reopened.run['status'],'completed')
-            reopened.editor.list.setCurrentRow(1);self.assertIn('42 CHF',reopened.editor.output.toPlainText())
+            self.assertIn('42 CHF',reopened.result_view.toPlainText())
 
     def test_v3_branch_signature_approval_inspection_and_resume(self):
         import json
@@ -78,7 +78,7 @@ class BlocksUITest(unittest.TestCase):
                 QTest.qWait(10);time.sleep(.005)
                 if w.run['status']=='waiting' and w.job is None:break
             self.assertEqual(w.run['status'],'waiting');self.assertTrue(w.editor.locked);self.assertTrue(w.approve_button.isVisible())
-            self.assertTrue(all(b.isEnabled() for b in w.editor.findChildren(QPushButton) if b.objectName()=='codeFold'))
+            self.assertTrue(all(b.isEnabled() for b in w.editor.findChildren(QPushButton) if b.objectName()=='codeFlowRow'))
             w.approve()
             for _ in range(300):
                 QTest.qWait(10);time.sleep(.005)
@@ -92,8 +92,8 @@ class BlocksUITest(unittest.TestCase):
             collection=Collection(Store(Path(tmp)/'state'))
             entry=collection.create('automation','Prüfen',value={'flow':encode(dict(version=2,nodes=[node('manual'),node('read_file',str(source)),node('notify')]))})
             window=BlockWindow(collection,entry['id']);self.addCleanup(self.dispose,window);window.show()
-            window.editor.list.setCurrentRow(1);window.editor.title.setFocus();window.editor.title.selectAll();QTest.keyClicks(window.editor.title,'Lesen')
-            self.assertEqual(window.editor.title.text(),'Lesen');self.assertTrue(window.dirty);window.save()
+            window.editor.select_entry(window.editor.items[1]['id']);title=next(w for w in window.editor.findChildren(QLineEdit) if w.accessibleName()=='Bezeichnung');title.setFocus();title.selectAll();QTest.keyClicks(title,'Lesen')
+            self.assertEqual(title.text(),'Lesen');self.assertTrue(window.dirty);window.save()
             with patch('code_blocks_window.QMessageBox.question',return_value=QMessageBox.Yes):window.start(True)
             window.pause()
             for _ in range(100):

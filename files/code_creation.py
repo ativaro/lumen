@@ -12,7 +12,7 @@ from code_creation_forms import ToolForm,RoutineForm,CodeForm
 IDEAS=json.loads(Path(__file__).with_name('code_creation_ideas.json').read_text())
 KINDS={'tool':('Werkzeug','Eingabe, Ergebnis und feste Regeln für einen wiederverwendbaren Helfer.'),
        'routine':('Zeitpläne & Routinen','Mehrere feste Schritte, die manuell oder nach Zeitplan starten.'),
-       'automation':('Automation','Bedingungen und mehrere Wege in übersichtlichen, aufklappbaren Bausteinen.'),
+       'automation':('Automation','Auslöser, optionale Bedingungen und Aktionen in einem gemeinsamen Editor.'),
        'code':('Code im Projekt','Einen Projektordner öffnen, ein Repository klonen oder neu beginnen.')}
 
 

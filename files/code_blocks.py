@@ -4,6 +4,8 @@ from pathlib import Path
 from uuid import uuid4
 from lumen_i18n import tr
 
+STATES={'pending':'Bereit','running':'Läuft','completed':'Erledigt','waiting':'Braucht dich','error':'Fehler','skipped':'Übersprungen','paused':'Pausiert','cancelled':'Abgebrochen'}
+
 CATALOG = {
     'manual': ('Start', 'Manuell starten', 'Mit einem Knopf einen Durchlauf beginnen.'),
     'read_file': ('Verarbeiten', 'Datei lesen', 'Text aus einer ausgewählten Datei oder einem PDF lesen.'),
@@ -24,9 +26,7 @@ CATALOG = {
     'notify': ('Handeln', 'Mich informieren', 'Ergebnis in den Lumen-Benachrichtigungen zeigen.'),
 }
 LEGACY_KINDS = frozenset(('manual','read_file','if_pdf','ai','approval','save_file','save_note','create_task','notify'))
-LATER = {'Start': ['Zeitpunkt', 'Neue Datei in Drive', 'Nachricht', 'Termin', 'Projektänderung'],
-         'Verarbeiten': ['Quellen durchsuchen'], 'Handeln': ['Projekt ergänzen'],
-         'Steuern': ['Mehrere Elemente durchlaufen']}
+
 
 
 def node(kind, config='', title=None):

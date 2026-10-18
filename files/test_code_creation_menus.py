@@ -38,7 +38,7 @@ class CreationMenus(unittest.TestCase):
                 if kind=='tool':self.assertTrue(d.forms[kind].example.isVisible());self.assertTrue(d.test_result.isVisible())
                 if kind=='automation':
                     editor=d.flow_editor;plan=editor.plan()
-                    link=next(w for w in editor.findChildren(QPushButton) if w.text()=='Bedingung in Worten beschreiben')
+                    editor.add_gate();plan=editor.plan();link=next(w for w in editor.findChildren(QPushButton) if w.text()=='Bedingung in Worten beschreiben')
                     link.click();self.assertEqual(editor.tabs.currentIndex(),1)
                     back=next(w for w in editor.tabs.currentWidget().findChildren(QPushButton) if w.text()=='‹ Zurück zum Ablauf')
                     back.click();self.assertEqual(editor.tabs.currentIndex(),0);self.assertEqual(editor.plan(),plan)
@@ -93,7 +93,7 @@ class CreationMenus(unittest.TestCase):
         editor=SectionsEditor();self.addCleanup(self.dispose,editor)
         editor.gate_enabled=True;editor.gate=node('condition',json.dumps({'field':'sender','op':'contains','value':'team'}));editor.refresh()
         with self.assertRaises(ValueError):editor.plan()
-        editor.items[0]['config']=json.dumps({'kind':'message','text':'Hello','sender':'team@example.test'});editor.refresh();self.assertEqual(editor.plan()['version'],3)
+        editor.items[0]['config']=json.dumps({'kind':'message','text':'Hello','sender':'team@example.test'});editor.select_entry('gate');self.assertEqual(editor.plan()['version'],3)
         from code_condition_ui import ConditionEditor
         controls=editor.findChildren(ConditionEditor)
         fields=next(c for c in controls if c.available and 'sender' in c.available)
@@ -108,7 +108,7 @@ class CreationMenus(unittest.TestCase):
             d=CreationDialog(tools=[tool],kind='routine');self.addCleanup(self.dispose,d);form=d.forms['routine']
             from code_block_paths import config
             form.items[0]['config']=json.dumps({**config(form.items[0]),'text':'Beispieltext'});form.refresh()
-            add=next(w for w in form.findChildren(QComboBox) if w.accessibleName()=='Aktion oder Baustein ergänzen')
+            add=next(w for w in form.findChildren(QComboBox) if w.accessibleName()=='Aktion hinzufügen')
             index=next(i for i in range(add.count()) if isinstance(add.itemData(i),dict));add.setCurrentIndex(index);add.activated.emit(index)
             d.review();value=json.loads(d.value['definition']['flow']);copied=next(n for n in value['nodes'] if n['title'].startswith('Text prüfen'))
             self.assertEqual(copied['config'],tool['definition']['prompt']);self.assertIn('Version 1',copied['title']);self.assertEqual(json.loads(value['nodes'][0]['config'])['trigger']['clock']['kind'],'weekly');self.assertEqual(d.value['definition']['editor'],'routine')
@@ -138,10 +138,10 @@ class CreationMenus(unittest.TestCase):
         from code_sections_editor import SectionsEditor
         from PySide6.QtWidgets import QPushButton,QPlainTextEdit
         editor=SectionsEditor();self.addCleanup(self.dispose,editor)
-        editor.items[0]['config']=json.dumps({'kind':'file','path':'/synthetic/input.txt'});editor.open_ids.add('input');editor.refresh()
+        editor.items[0]['config']=json.dumps({'kind':'file','path':'/synthetic/input.txt'});editor.refresh()
         path=next(w for w in editor.findChildren(QLineEdit) if w.accessibleName()=='Quelldatei')
         self.assertTrue(path.isReadOnly());editor.set_locked(True);editor.refresh()
-        folds=[w for w in editor.findChildren(QPushButton) if w.objectName()=='codeFold']
+        folds=[w for w in editor.findChildren(QPushButton) if w.objectName()=='codeFlowRow']
         self.assertTrue(all(w.isEnabled() for w in folds))
         self.assertTrue(all(not w.isEnabled() for w in editor.scroll.widget().findChildren(QComboBox)))
         editor.set_locked(False);editor.refresh()
