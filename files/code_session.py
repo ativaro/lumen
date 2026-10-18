@@ -18,6 +18,8 @@ class CodingWindow(QMainWindow):
         self.item=collection.get(identity);self.root=directory(collection,self.item)
         if self.item['archived']:raise ValueError(tr('Archivierte Einträge können nicht ausgeführt werden.'))
         self.setAttribute(Qt.WA_DeleteOnClose);self.setWindowTitle('Lumen Code · '+self.item['title']);self.setWindowIcon(QIcon.fromTheme('lumen-code'));self.resize(1380,850)
+        from panorama import install
+        install(self, 'code')
         from code_design import shell,navigation
         from tools_ui import label
         container=QWidget();main,nav,self.footer=shell(container);self.setCentralWidget(container)

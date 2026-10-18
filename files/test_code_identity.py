@@ -23,6 +23,7 @@ class CodeIdentity(unittest.TestCase):
         icon=QPixmap(16,16);icon.fill(QColor('red'));foreign=QIcon(icon);previous=self.app.windowIcon();self.app.setWindowIcon(foreign);self.addCleanup(self.app.setWindowIcon,previous)
         with tempfile.TemporaryDirectory() as tmp:
             w=CollectionWindow(Store(tmp));self.addCleanup(w.close)
+            self.assertTrue(hasattr(w, 'panorama_bar'))
             self.assertEqual(w.windowIcon().name(),'lumen-code')
             d=QDialog(w);self.addCleanup(d.close);self.assertEqual(d.windowIcon().name(),'lumen-code')
 

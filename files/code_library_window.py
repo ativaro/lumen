@@ -26,6 +26,8 @@ class CollectionWindow(QMainWindow):
         self.library=SimpleNamespace(root=self.store.directory/'code-window'); self.library.root.mkdir(mode=0o700,exist_ok=True)
         self.current=None;self.loading=False;self.dirty=False;self.category_index=0;self.coding_windows={}
         self.setWindowTitle(tr('Lumen Code & Automation'));self.setWindowIcon(QIcon.fromTheme('lumen-code'));self.resize(1240,820)
+        from panorama import install
+        install(self, 'code')
         from code_design import shell
         container=QWidget();main,nav,self.footer=shell(container);self.setCentralWidget(container)
         outer=QVBoxLayout(main);outer.setContentsMargins(30,26,30,24);outer.setSpacing(14)
