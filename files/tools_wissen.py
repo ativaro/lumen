@@ -49,6 +49,12 @@ class Wissen(ToolWindow):
         from wissen_sync_ui import install
         install(self)
         self.present_area();self.editor.setEnabled(False);QTimer.singleShot(0,self.initialize)
+        if not os.environ.get('LUMEN_NOTES_NATIVE'):
+            try:
+                from notes_web import install as install_web
+            except ImportError:
+                pass  # Native Notes remains available without the optional Qt WebEngine.
+            else: install_web(self)
 
     def quick_open(self):
         from notes_switcher import NoteSwitcher
@@ -644,6 +650,9 @@ class Wissen(ToolWindow):
         text=self.answer+tr('\n\n## Quellen\n')+'\n'.join('- [['+n['path']+']]' for n in self.answer_sources)
         self.action('create',self.show_note,title=self.answer_question[:150],text=text,source=tr('Lumen-Antwort aus ausgewählten Notizen'))
     def closeEvent(self,event):
+        if hasattr(self,'notes_web_objects'):
+            from notes_web import flush_close
+            if flush_close(self,event): return
         if not self.document_sources.can_close() or not self.result_actions.can_close(): event.ignore(); return
         if not self.live_preview.shutdown():event.ignore();return
         try:self.save()

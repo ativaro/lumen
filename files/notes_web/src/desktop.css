@@ -1,0 +1,9 @@
+/* Desktop has its own native window and app navigation. Notes uses Server CSS. */
+body { background: var(--desktop-background, #191b1e); }
+.panorama.content { padding: 26px 28px; margin: 0 auto; max-width: 1700px; }
+.note-tags-editor .inline-actions { margin-top: 0; }
+.note-tags-editor form { flex-direction: row; gap: 8px; }
+.note-tags-editor input { width: 180px; padding: 8px 10px; font-size: 12px; }
+.note-tag { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; background: var(--soft); color: var(--accent); font-size: 12px; }
+.note-tag button { padding: 0; }
+.note-rich-text { color: var(--text); }
