@@ -656,7 +656,7 @@ class SettingsDialog(QDialog):
         page.addWidget(self.apply_appearance, 0, Qt.AlignLeft)
         reading = QFormLayout()
         self.text_size = QSpinBox(); self.text_size.setRange(14, 22); self.text_size.setSuffix(' px')
-        self.text_size.setValue(self.field(self.assistant, 'textSize', 17))
+        self.text_size.setValue(self.field(self.assistant, 'textSize', 17, int))
         reading.addRow(tr('Schriftgröße · Lumen'), self.text_size)
         self.content_density = combo([(tr('Komfortabel'), 'comfortable'), (tr('Kompakt'), 'compact')],
             self.field(self.assistant, 'contentDensity', 'comfortable'))
