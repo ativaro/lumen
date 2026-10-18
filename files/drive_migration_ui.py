@@ -4,13 +4,14 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
     QVBoxLayout,
-    QHBoxLayout,
     QLabel,
     QComboBox,
     QLineEdit,
     QPlainTextEdit,
     QCheckBox,
+    QGridLayout,
 )
+from desktop_design import AppHeader, PAGE_MARGIN, PAGE_SPACING
 from tools_ui import button, Job
 from lumen_i18n import tr
 import drive_binding_migration as migration
@@ -27,6 +28,9 @@ class Migration(QDialog):
         self.proposal = None
         self.completed = False
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN)
+        layout.setSpacing(PAGE_SPACING)
+        layout.addWidget(AppHeader("Lumen Drive", tr("Ordner zuordnen …")))
         info = QLabel(tr("Lokaler Ordner bleibt erhalten:") + "\n" + root["path"])
         info.setTextFormat(Qt.PlainText)
         info.setWordWrap(True)
@@ -67,15 +71,16 @@ class Migration(QDialog):
         self.status.setWordWrap(True)
         self.status.setTextFormat(Qt.PlainText)
         layout.addWidget(self.status)
-        actions = QHBoxLayout()
+        actions = QGridLayout()
+        actions.setSpacing(8)
         layout.addLayout(actions)
         self.inspect = button(tr("Vorschau prüfen"), self.preview)
-        actions.addWidget(self.inspect)
+        actions.addWidget(self.inspect, 0, 0)
         self.finish = button(tr("Original-Uploads abschließen"), self.finish_uploads)
-        actions.addWidget(self.finish)
+        actions.addWidget(self.finish, 0, 1)
         self.finish.setVisible(False)
-        self.commit = button(tr("Gezeigte Zuordnung bestätigen"), self.apply)
-        actions.addWidget(self.commit)
+        self.commit = button(tr("Gezeigte Zuordnung bestätigen"), self.apply, primary=True)
+        actions.addWidget(self.commit, 1, 0, 1, 2)
         self.commit.setEnabled(False)
         self.abort = button(tr("Begonnene Umstellung sicher abbrechen"), self.cancel)
         layout.addWidget(self.abort)

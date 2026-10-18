@@ -16,7 +16,10 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QMessageBox,
     QInputDialog,
+    QMenu,
+    QHeaderView,
 )
+from desktop_design import AppHeader, PAGE_MARGIN, PAGE_SPACING
 from tools_ui import button, Job
 from lumen_i18n import tr
 import lumen_connect
@@ -40,18 +43,16 @@ class Drive(QDialog):
         self.profile = {}
         self.closing = False
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(24, 20, 24, 20)
-        outer.setSpacing(14)
-        heading = QLabel("Lumen Drive")
-        heading.setObjectName("heading")
-        outer.addWidget(heading)
-        top = QHBoxLayout()
-        top.addStretch()
-        top.addWidget(button(tr("Serververbindung"), self.connection, "network-server"))
-        top.addWidget(button(tr("Aktualisieren"), self.reload, "view-refresh"))
-        outer.addLayout(top)
+        outer.setContentsMargins(PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN)
+        outer.setSpacing(PAGE_SPACING)
+        header = AppHeader("Lumen Drive")
+        header.actions.addWidget(button(tr("Serververbindung"), self.connection, "network-server"))
+        header.actions.addWidget(button(tr("Aktualisieren"), self.reload, "view-refresh"))
+        outer.addWidget(header)
         self.path = QLabel("/")
         self.path.setTextFormat(Qt.PlainText)
+        self.path.setWordWrap(True)
+        self.path.setTextInteractionFlags(Qt.TextSelectableByMouse)
         outer.addWidget(self.path)
         self.search = QLineEdit()
         self.search.setPlaceholderText(tr("Dateien und Ordner suchen …"))
@@ -68,15 +69,19 @@ class Drive(QDialog):
             actions.addWidget(button(title, fn, icon))
         outer.addLayout(actions)
         self.list = QTreeWidget()
+        self.list.setObjectName('files')
         self.list.setHeaderLabels([tr("Name"), tr("Art"), tr("Größe")])
         self.list.setRootIsDecorated(False)
         self.list.setAlternatingRowColors(False)
-        self.list.setColumnWidth(0, 510)
+        self.list.header().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.list.setColumnWidth(1, 160)
+        self.list.setColumnWidth(2, 90)
         self.list.itemDoubleClicked.connect(self.open)
         outer.addWidget(self.list, 1)
         outer.addWidget(QLabel(tr("Synchronisierte Ordner")))
         self.roots = QComboBox()
         self.roots.setAccessibleName(tr("Synchronisierte Ordner"))
+        self.roots.currentTextChanged.connect(self.roots.setToolTip)
         outer.addWidget(self.roots)
         self.migration_status=QLabel()
         self.migration_status.setTextFormat(Qt.PlainText)
@@ -90,10 +95,14 @@ class Drive(QDialog):
             (tr("Jetzt abgleichen"), self.sync_now, "view-refresh"),
             (tr("Pausieren / Fortsetzen"), self.pause, "media-playback-pause"),
             (tr("Lokalen Ordner öffnen"), self.open_local, "folder"),
-            (tr("Konflikte lösen"), self.conflicts, "dialog-warning"),
-            (tr("Verbindung entfernen"), self.remove, "edit-delete"),
         ]:
             commands.addWidget(button(title, fn, icon))
+        more = button(tr("Mehr"), lambda: None)
+        menu = QMenu(more)
+        menu.addAction(tr("Konflikte lösen"), self.conflicts)
+        menu.addAction(tr("Verbindung entfernen"), self.remove)
+        more.setMenu(menu)
+        commands.addWidget(more)
         outer.addLayout(commands)
         self.status = QLabel(tr("Serververbindung wird geprüft …"))
         self.status.setTextFormat(Qt.PlainText)
@@ -180,6 +189,7 @@ class Drive(QDialog):
             ):
                 continue
             item = QTreeWidgetItem([row["name"], tr("Ordner"), ""])
+            item.setToolTip(0, row["name"])
             item.setIcon(0, QIcon.fromTheme("folder"))
             item.setData(0, Qt.UserRole, ("folder", key))
             self.list.addTopLevelItem(item)
@@ -194,6 +204,8 @@ class Drive(QDialog):
             from core import size_text
 
             item = QTreeWidgetItem([row["name"], row["mime"], size_text(row["size"])])
+            item.setToolTip(0, row["name"])
+            item.setToolTip(1, row["mime"])
             item.setData(0, Qt.UserRole, ("file", key))
             item.setIcon(0, QIcon.fromTheme("text-x-generic"))
             self.list.addTopLevelItem(item)

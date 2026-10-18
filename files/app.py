@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDockWi
     QMenu, QMessageBox, QPushButton, QScrollArea, QSizePolicy, QSlider, QSplitter, QStackedWidget, QStyle,
     QStyleOptionViewItem, QStyledItemDelegate, QTabBar, QTreeView, QVBoxLayout, QWidget)
 from core import FileWorker, SearchWorker, file_kind, size_text, valid_name
+from desktop_design import PAGE_MARGIN, PAGE_SPACING, NAV_WIDTH
 from network import Network, ConnectDialog, display_url, is_network_address, normalize_url, server_label
 from file_rename import RenameDelegate
 from google_drive import GoogleDrive
@@ -465,7 +466,7 @@ class Window(QMainWindow):
         layout.setSpacing(0)
         tabstrip = QFrame(); tabstrip.setObjectName('tabStrip')
         tabrow = QHBoxLayout(tabstrip)
-        tabrow.setContentsMargins(20, 9, 16, 9)
+        tabrow.setContentsMargins(PAGE_MARGIN, 8, PAGE_MARGIN, 8)
         brand = label(tr('Lumen Files'), 'desktopAppTitle')
         brand.setFixedWidth(202)
         tabrow.addWidget(brand)
@@ -489,7 +490,7 @@ class Window(QMainWindow):
         header = QFrame()
         header.setObjectName('appHeader')
         row = QHBoxLayout(header)
-        row.setContentsMargins(16, 10, 16, 10)
+        row.setContentsMargins(PAGE_MARGIN, 8, PAGE_MARGIN, 8)
         row.setSpacing(8)
         navigation = QWidget()
         navigation.setFixedWidth(112)
@@ -566,7 +567,7 @@ class Window(QMainWindow):
         body.setSpacing(0)
         sidebar = QFrame()
         sidebar.setObjectName('sidebar')
-        sidebar.setFixedWidth(232)
+        sidebar.setFixedWidth(NAV_WIDTH)
         side = QVBoxLayout(sidebar)
         side.setContentsMargins(14, 14, 14, 10)
         side.setSpacing(4)
@@ -620,7 +621,7 @@ class Window(QMainWindow):
         file_area = QWidget()
         file_area.setObjectName('fileArea')
         files = QVBoxLayout(file_area)
-        files.setContentsMargins(20, 12, 20, 12)
+        files.setContentsMargins(PAGE_MARGIN, PAGE_SPACING, PAGE_MARGIN, PAGE_SPACING)
         files.setSpacing(8)
         self.subtitle = label('', 'muted')
         filters = QHBoxLayout()
@@ -634,8 +635,12 @@ class Window(QMainWindow):
             self.filter_buttons[kind] = item
             filters.addWidget(item)
         filters.addStretch()
+        files.addLayout(filters)
+        view_actions = QHBoxLayout()
+        view_actions.setSpacing(8)
         from transfer_panel import toggle
-        filters.addWidget(button(tr('Übertragungen'), lambda: toggle(self), 'folder-download', tr('Kopierfortschritt · Strg+Umschalt+J')))
+        view_actions.addWidget(button(tr('Übertragungen'), lambda: toggle(self), 'folder-download', tr('Kopierfortschritt · Strg+Umschalt+J')))
+        view_actions.addStretch()
         self.view_buttons = {}
         for mode, icon, tip in [('list', 'view-list-details', tr('Listenansicht · Strg+1')),
                                 ('grid', 'view-list-icons', tr('Bildraster · Strg+2'))]:
@@ -644,13 +649,13 @@ class Window(QMainWindow):
             item.setCheckable(True)
             item.setFixedWidth(32)
             self.view_buttons[mode] = item
-            filters.addWidget(item)
+            view_actions.addWidget(item)
         self.hidden_button = button('', self.toggle_hidden, 'view-hidden', tr('Versteckte Dateien · Strg+H'))
         self.hidden_button.setObjectName('toolButton')
         self.hidden_button.setCheckable(True)
         self.hidden_button.setChecked(self.hidden)
-        filters.addWidget(self.hidden_button)
-        files.addLayout(filters)
+        view_actions.addWidget(self.hidden_button)
+        files.addLayout(view_actions)
         self.view = FileView(self)
         self.view.setObjectName('files')
         self.view.setAccessibleName(tr('Dateiliste'))
@@ -716,7 +721,7 @@ class Window(QMainWindow):
         footer = QFrame()
         footer.setObjectName('footer')
         status = QHBoxLayout(footer)
-        status.setContentsMargins(16, 8, 16, 8)
+        status.setContentsMargins(PAGE_MARGIN, 8, PAGE_MARGIN, 8)
         self.status = label(tr('Bereit'), 'muted')
         self.status.setWordWrap(False)
         status.addWidget(self.status)
@@ -737,8 +742,9 @@ class Window(QMainWindow):
         photo_row.addWidget(self.thumbnail_size)
         status.addWidget(self.photo_bar)
         self.activity = label(tr('Leertaste · Vorschau'), 'muted')
-        self.activity.setWordWrap(False)
-        status.addWidget(self.activity)
+        self.activity.setWordWrap(True)
+        self.activity.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        status.addWidget(self.activity, 1)
         self.cancel_connect_button = button(tr('Abbrechen'), self.cancel_connection)
         self.cancel_connect_button.hide()
         status.addWidget(self.cancel_connect_button)

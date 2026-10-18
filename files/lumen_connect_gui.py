@@ -807,10 +807,12 @@ class ConnectionDialog(QDialog):
         self.worker = None
         self.setWindowTitle(t("Lumen · Serververbindung", "Lumen · Server connection"))
         self.resize(650, 560)
+        from desktop_design import AppHeader, PAGE_MARGIN, PAGE_SPACING
+
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 24, 28, 24)
-        layout.setSpacing(16)
-        layout.addWidget(label("Lumen Server", 22))
+        layout.setContentsMargins(PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN)
+        layout.setSpacing(PAGE_SPACING)
+        layout.addWidget(AppHeader("Lumen Server"))
         self.identity = label("")
         layout.addWidget(self.identity)
         self.status = label("")
@@ -826,6 +828,7 @@ class ConnectionDialog(QDialog):
             area.setWidgetResizable(True)
             page = QWidget()
             rows = QVBoxLayout(page)
+            rows.setContentsMargins(PAGE_MARGIN, PAGE_SPACING, PAGE_MARGIN, PAGE_SPACING)
             content = label("")
             content.setTextInteractionFlags(Qt.TextSelectableByMouse)
             rows.addWidget(content)
@@ -838,7 +841,9 @@ class ConnectionDialog(QDialog):
 
             sync_area = QScrollArea()
             sync_area.setWidgetResizable(True)
-            sync_area.setWidget(widget(self))
+            sync_page = widget(self)
+            sync_page.layout().setContentsMargins(PAGE_MARGIN, PAGE_SPACING, PAGE_MARGIN, PAGE_SPACING)
+            sync_area.setWidget(sync_page)
             tabs.addTab(sync_area, t("Synchronisation", "Synchronization"))
         except ImportError:
             pass  # Standalone connector without the native apps.
