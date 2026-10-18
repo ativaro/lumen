@@ -17,12 +17,12 @@ class ProjectHome(QWidget):
         self.new_project.setObjectName('primary');self.app_header.actions.addWidget(self.new_project);outer.addWidget(self.app_header)
         self.pages=QStackedWidget();outer.addWidget(self.pages,1)
         self.overview=ProjectOverview(window);self.overview.selected.connect(lambda key:window.safe(self.choose,key));self.pages.addWidget(self.overview)
-        self.detail=QWidget();detail=QVBoxLayout(self.detail);detail.setContentsMargins(0,28,0,0);detail.setSpacing(18);self.pages.addWidget(self.detail)
+        self.detail=QWidget();detail=QVBoxLayout(self.detail);detail.setContentsMargins(0,12,0,0);detail.setSpacing(16);self.pages.addWidget(self.detail)
         controls=row(button(tr('Alle Projekte'),lambda:window.safe(window.show_home),'go-previous'),button(tr('Serverabgleich'),lambda:window.safe(self.management)))
         controls.layout().addStretch(1)
         detail.addWidget(controls)
         self.editor_layout=QHBoxLayout();detail.addLayout(self.editor_layout,1)
-        pane=QWidget();box=QVBoxLayout(pane);box.setContentsMargins(0,0,0,0);self.editor_layout.addWidget(pane,1)
+        pane=QWidget();self.pane=pane;box=QVBoxLayout(pane);box.setContentsMargins(0,0,0,0);self.editor_layout.addWidget(pane,1)
         from projects_references_ui import ReferencesPane
         self.references=ReferencesPane(window);window.reference_pane=self.references
         from projects_journal_ui import ProjectJournal
@@ -105,7 +105,12 @@ class ProjectHome(QWidget):
         if not self.window.job:self.refresh()
 
     def reflow(self):
-        self.editor_layout.setDirection(QHBoxLayout.TopToBottom if self.width()<1000 else QHBoxLayout.LeftToRight)
+        editing=not self.window.editor.isHidden();split=self.width()>=1160
+        self.pane.setVisible(not editing or split)
+        self.journal.side.setVisible(not editing)
+        self.window.editor.setMinimumWidth(520 if split else 440)
+        self.window.editor.setMaximumWidth(560 if split else 16777215)
+
 
     def resizeEvent(self,event):
         super().resizeEvent(event);self.reflow()

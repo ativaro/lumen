@@ -10,10 +10,13 @@ Glas. Escape verwirft den Dialog ohne Änderungen. Zusätzliche native DE/EN-Pr�
 verifiziert den Einstellungs-Dateiwächter, Mausklicks und gerenderte Oberflächen
 in isolierten Profilen, auch gegen die installierten Module.
 
-Die ältere Testgruppe `test_project_editor.py` übernimmt noch
-`test_projects_rooms.py` mit überholten Projektkennungen. Ihre 21 Fehler bestehen
-auch auf der unveränderten Basis; sie sind keine bestandene Regressionprüfung.
-Diese Korrektur prüft nicht alle Lumen-Apps oder die KWin-Fensterdekoration.
+Die unbenutzten Arbeitsraum-Oberflächen `workplace_rooms.py` und
+`projects_rooms.py` sowie ihre überholten Testgruppen wurden am 19.10.2026
+entfernt. Die aktuellen Projektwege werden durch `test_projects_journal_current`,
+`test_project_dialogs` und `test_project_panorama` geprüft. `test_projects_legacy`
+sichert weiterhin die Übernahme alter Zuordnungen, Materialien und Entwürfe.
+Alte gespeicherte Daten werden nicht gelöscht. Diese Korrektur prüft nicht alle
+Lumen-Apps oder die KWin-Fensterdekoration.
 
 ## Wiederherstellen der Projektauswahl
 
