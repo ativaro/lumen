@@ -96,6 +96,7 @@ bash "$REPO/native/build-capture.sh" "$BIN/lumen-window-capture"
 mkdir -p "$PREFIX/agent-app"
 install -m 0644 "$REPO/agent-app/main.py" "$PREFIX/agent-app/"
 mkdir -p "$PREFIX/files"
+rm -f "$PREFIX/files/project_environment.py"
 install -m 0644 "$REPO/files/"*.py "$REPO/files/"*.qss "$REPO/files/"*.svg "$PREFIX/files/"
 
 if [[ -f "$GOOGLE_STAGE/client.json" ]]; then

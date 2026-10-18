@@ -220,7 +220,7 @@ Im schmalen Lumen-Panel bleiben **Dateien** und **Bildschirm** direkt sichtbar.
 Das Menü **···** darunter enthält Zwischenablage, Diktieren und Kontext leeren.
 **···** im Kopf öffnet Gesprächsverlauf, Arbeitsweise und „Schritte erklären“.
 
-## Bibliotheken, Sammelfläche und Arbeitsräume
+## Bibliotheken und Sammelfläche
 
 **Dokumente, Bilder, Musik und Videos** können mehrere lokale und Netzwerkordner
 zusammen anzeigen. **Quellen …** öffnet deren Verwaltung; eigene Bibliotheken
@@ -243,13 +243,9 @@ Umbenennen oder Papierkorb wirken auf die Originale. Einfügen, neue Ordner und
 Kopien aus einer Bibliothek fragen nach einem Ziel. Intelligentes Umbenennen und
 Sortieren bleiben im jeweiligen Herkunftsordner.
 
-**Arbeitsräume** oben speichern Tabs, Ansicht, Auswahl, Sammelfläche sowie das
-Lumen-Gespräch mit Entwurf und Dateikontext. Jeder Arbeitsraum hat eine eigene
-Sammlung; offene Fenster desselben Raums teilen deren Verweise. Wechseln und
-Schließen speichern den aktiven Raum. Bestehende Aufträge lassen sich zuordnen;
-ein Raumwechsel sendet keine Anfrage und wartet auf laufende Datei-/Lumen-Vorgänge.
-Bei gleichzeitig geänderten Raumdaten erscheint ein Konflikthinweis. Bibliotheken,
-Referenzen und Räume liegen in der vorhandenen Lumen-Datenbank, ohne Dateikopien.
+**Lumen Projekte** bündelt Materialien, Gespräche und Aufgaben. Dateien bleiben
+an ihrem ursprünglichen Ort; das Projekt speichert ihre Verknüpfungen und
+berücksichtigt die bestehenden Zugriffsrechte.
 
 **Lumen** in der Werkzeugleiste oder **Strg+J** öffnet das native Seitenpanel.
 Rechtsklick → **Lumen** übernimmt alle ausgewählten Dateien:
@@ -726,7 +722,7 @@ und über `lumen-setup-wizard` erreichbar.
 ### Lumen Studio
 
 Die Desktop-App verwendet eine ruhige Navigation mit Gesprächen, Aufträgen und
-Arbeitsräumen. Die fünf letzten tatsächlichen Gespräche stehen direkt darunter; „Mehr laden“
+Lumen Projekten. Die fünf letzten tatsächlichen Gespräche stehen direkt darunter; „Mehr laden“
 blendet jeweils fünf weitere ein. Apps,
 Einstellungen und alle weiteren bisherigen Bereiche bleiben erreichbar. Die
 Seitenindizes für CLI/D-Bus bleiben unverändert. Der Chat verwendet native,
@@ -914,25 +910,13 @@ Gezielte Prüfung: `QT_QPA_PLATFORM=offscreen LUMEN_LANGUAGE=de python -m unitte
 test_file_properties` aus dem Verzeichnis `files`. Die Tests verwenden temporäre
 Dateien, keine Benutzerdateien oder echten Serverzugänge.
 
-### Arbeitsräume: Weiterarbeiten und Werkbank
+### Lumen Projekte
 
-Unter **Arbeitsräume** in Lumen bzw. **Arbeitsräume · Weiterarbeiten** in Files
-zeigt die Startseite den zuletzt gewählten Raum und weitere Räume. **Raum ansehen**
-öffnet die Werkbank; **Weiterarbeiten** stellt den gespeicherten Arbeitsstand
-wieder her. Ein neuer Raum benötigt zunächst nur einen Namen und einen Ordner.
-
-Über **Hinzufügen** lassen sich Originaldateien, Wissen-Notizen, Weblinks, das
-aktuelle Gespräch und bestehende Aufträge verknüpfen. Das Menü **···** entfernt
-oder verschiebt Verknüpfungen und erlaubt für Dateien/Weblinks das Öffnen beim
-Weiterarbeiten. Entfernen löscht keine Originale. Wissen-Vorschauen werden live
-gelesen; Änderungen erfolgen weiterhin in Wissen. Dateien, Aufträge und Verlauf
-besitzen eigene Tabs. Globale Transfers und Änderungen bleiben unter **Aktivität**;
-Arbeitsmodi öffnen Lumen System.
-
-**Besprechen** öffnet die Frage mit dem Raumkontext als bearbeitbaren Lumen-Entwurf.
-Ein bereits vorhandener Gesprächsentwurf wird nicht ohne Rückfrage ersetzt.
-Die bestehende Raum-/Projektablage bleibt erhalten; keine neue Kopie der Dateien,
-keine automatisch erzeugten Aufgaben und keine zusätzliche Cloudübertragung.
+Ein Projekt fasst Materialien, Gespräche, Aufgaben, Analysen und Recherchen
+zusammen. **Bearbeiten** verändert Titel, initiale Notizen und Ziele.
+**Quellen** verwaltet verknüpfte Dateien, Ordner, Notizen und Weblinks getrennt.
+Das Entfernen einer Verknüpfung löscht kein Original. **Mit Lumen besprechen**
+öffnet eine Frage mit dem Projektkontext als bearbeitbaren Entwurf.
 
 ### Antwortgestaltung in Lumen und Search
 

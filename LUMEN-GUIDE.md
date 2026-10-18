@@ -140,9 +140,9 @@ erfolgreiche Verbindung.
 
 Unter **Dateien → Quellen …** lassen sich lokale und Netzwerkordner zu einer
 Bibliothek verbinden. Die Herkunft steht bei jeder Datei. Die Sammelfläche hält
-Verweise, **Arbeitsräume** halten Tabs, Auswahl, eigene Sammlung, Gespräch und
-Entwurf zusammen. Raumwechsel senden nichts an die Engine. Details und Grenzen
-stehen im [Files-Handbuch](files/README.md#bibliotheken-sammelfläche-und-arbeitsräume).
+Verweise auf Dateien. **Lumen Projekte** bündelt zugehörige Materialien, Gespräche
+und Aufgaben; Quellen werden dort getrennt von Titel, Zielen und initialen
+Notizen verwaltet. Projekte sind keine globale Umgebungsauswahl.
 
 Unter **Einstellungen → Darstellung** stehen **Klar & hell**, **Warmes Studio**,
 **Graphit** und der KDE-Systemstil für beide Apps bereit. Die Auswahl aktualisiert

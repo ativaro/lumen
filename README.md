@@ -82,7 +82,7 @@ gracefully on other setups.
 | Component | What it does |
 |---|---|
 | **Desktop app** (`lumen`) | One PySide6 window for conversations, files, system status, tasks, knowledge, workflows and models |
-| **Workplace** | Projects resume selected folders/NAS, apps, webpages and a continuation note; source availability/recent files, editable desktop modes, shared transfers and guarded history in Lumen and Files |
+| **Lumen Projects** | Group materials, conversations, tasks, analyses and research; link local or server sources and ask questions about their contents |
 | **Durable tasks** | SQLite task history, process leases, interruption recovery, pause/resume/cancel, results and native file undo with conflict checks |
 | **Knowledge** | Explicit folder selection, bounded local text/PDF index, source/page citations and editable memories |
 | **Workflows** | Approved native steps or AI tasks; manual, interval and direct-directory-change triggers; opt-in user timer |
@@ -479,7 +479,7 @@ AI analysis only starts when requested. See [measurement details](files/README.m
 
 `lumen-system` opens one window with **System**, **Sound** and **Work modes** tabs.
 The existing `lumen-sound` command opens its Sound tab. `lumen-system --page modes`
-opens desktop modes; the Workplace entry and shared settings use the same route.
+opens desktop modes; shared settings use the same route.
 Switching tabs retains monitoring, mixer controls and mode selection. Apply/save
 buttons retain their existing behavior; switching a tab changes no system setting.
 Mode history includes guarded undo; existing audio rules and mode profiles keep
@@ -543,10 +543,10 @@ bleiben unverändert. `native_popups=false` wechselt zu KDE-Popups, statt Meldun
 stummzuschalten. Die bestehenden Werkzeuge lesen eigene Lumen-Meldungen, ändern
 Lesen/Archivieren/Später/Jetzt und legen Erinnerungen an.
 
-Verbundene Arbeitsräume: Im Arbeitsraum unter **Server** ein bestehendes
-Serverprojekt wählen und ausdrücklich verbinden. Die Bindung ist kontogebunden;
-Dateien bleiben an ihrem Ort. **Lumen Projekte → Serveraufträge** zeigt dieselbe
-native Ansicht mit Ergebnissen, bestehenden Zeitplänen und Mitgliedern.
+**Lumen Projekte** fasst Materialien, Gespräche und Aufgaben zusammen. Quellen
+werden ausdrücklich verknüpft; Dateien bleiben an ihrem Ort und vorhandene
+Zugriffsrechte gelten weiter. **Lumen Projekte → Serveraufträge** zeigt Ergebnisse,
+bestehende Zeitpläne und Mitglieder freigegebener Serverprojekte.
 Projektzugriff benötigt die Gerätefreigaben `projects` und `tasks`; Materialtitel
 zusätzlich `notes` bzw. `drive`. Bearbeitete Zeitpläne werden pausiert und müssen
 wieder aktiviert werden. Es werden die bis zu 100 jüngsten Projektaufträge gezeigt.
