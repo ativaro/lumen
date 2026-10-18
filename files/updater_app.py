@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QCheckBox, QScrollArea, QFrame, QProgressBar, QPlainTextEdit)
 from lumen_i18n import tr, worker_process
 from settings_navigation import Details
+from desktop_design import AppHeader, PAGE_MARGIN, PAGE_SPACING
 
 
 def label(text, style=''):
@@ -22,12 +23,10 @@ class UpdaterPage(QWidget):
         self.setWindowTitle('Lumen Updater'); self.setWindowIcon(QIcon.fromTheme('lumen-updater', QIcon.fromTheme('system-software-update')))
         self.resize(880,740); self.setMinimumSize(620,540)
         self.plan=None; self.rows={}; self.buffer=b''; self.running=False; self.received_result=False
-        layout=QVBoxLayout(self); layout.setContentsMargins(32,28,32,24); layout.setSpacing(18)
-        top=QHBoxLayout(); mark=QLabel(); mark.setPixmap(QIcon.fromTheme('lumen-updater', QIcon.fromTheme('system-software-update')).pixmap(42,42)); top.addWidget(mark)
-        heading=QVBoxLayout(); heading.addWidget(label('Lumen Updater','heading'))
-        heading.addWidget(label(tr('Updates an einem Ort.'),'muted')); top.addLayout(heading,1)
-        self.check_button=QPushButton(tr('Nach Updates suchen')); self.check_button.clicked.connect(self.check); top.addWidget(self.check_button)
-        layout.addLayout(top)
+        layout=QVBoxLayout(self); layout.setContentsMargins(PAGE_MARGIN,PAGE_MARGIN,PAGE_MARGIN,PAGE_MARGIN); layout.setSpacing(PAGE_SPACING)
+        header=AppHeader('Lumen Updater',tr('Updates an einem Ort.'))
+        self.check_button=QPushButton(tr('Nach Updates suchen')); self.check_button.clicked.connect(self.check); header.actions.addWidget(self.check_button)
+        layout.addWidget(header)
         self.status=label(tr('Ein Ort für Lumen, deine Apps und ihre Erweiterungen.'))
         layout.addWidget(self.status)
         self.version=label(tr('Noch nicht geprüft.'),'muted'); layout.addWidget(self.version)

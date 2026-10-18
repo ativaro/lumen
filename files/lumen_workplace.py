@@ -12,9 +12,10 @@ from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
     QFileDialog, QFormLayout, QFrame, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
     QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPlainTextEdit, QProgressBar,
-    QPushButton, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
+    QPushButton, QScrollArea, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
 from core import size_text
+from desktop_design import AppHeader, PAGE_MARGIN, PAGE_SPACING
 from lumen_store import Store
 from network import ConnectDialog, Network, is_network_address, server_label
 import lumen_history as history
@@ -77,12 +78,27 @@ class ModeDialog(QDialog):
     def __init__(self, store, mode, devices, parent):
         super().__init__(parent); self.store, self.mode = store, mode
         self.setWindowTitle(tr('Arbeitsmodus anpassen')); self.resize(580, 530)
-        layout = QVBoxLayout(self); form = QFormLayout(); layout.addLayout(form)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN)
+        layout.setSpacing(PAGE_SPACING)
+        layout.addWidget(AppHeader(tr('Arbeitsmodus anpassen')))
+        # Keep confirmation buttons reachable when the existing compact dialog needs to scroll.
+        scroll = QScrollArea(); scroll.setWidgetResizable(True); scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        content = QWidget(); body = QVBoxLayout(content); body.setContentsMargins(0, 0, 0, 0); body.setSpacing(PAGE_SPACING)
+        scroll.setWidget(content); layout.addWidget(scroll, 1)
+        form = QFormLayout(); form.setVerticalSpacing(8); body.addLayout(form)
         self.name = QLineEdit(mode['name']); form.addRow(tr('Name'), self.name)
         self.audio = QComboBox(); self.audio.addItem(tr('Aktuelles Ausgabegerät behalten'), '')
         for d in devices: self.audio.addItem(d['description'], d['name'])
         if mode['audio'] and self.audio.findData(mode['audio']) < 0: self.audio.addItem(mode['audio'] + tr(' (nicht verfügbar)'), mode['audio'])
+        self.audio.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.audio.setMinimumContentsLength(20)
+        self.audio.currentTextChanged.connect(self.audio.setToolTip)
         self.audio.setCurrentIndex(max(0, self.audio.findData(mode['audio']))); form.addRow(tr('Audioausgabe'), self.audio)
+        self.audio.setToolTip(self.audio.currentText())
+        for index in range(self.audio.count()):
+            self.audio.setItemData(index, self.audio.itemText(index), Qt.ToolTipRole)
         self.volume = QSpinBox(); self.volume.setRange(-1, 100); self.volume.setSpecialValueText(tr('Beibehalten'))
         self.volume.setSuffix(' %'); self.volume.setValue(mode['volume']); form.addRow(tr('Lautstärke'), self.volume)
         self.quiet = QComboBox()
@@ -91,15 +107,15 @@ class ModeDialog(QDialog):
         self.arrange = QComboBox()
         for name, value in [(tr('Anordnung beibehalten'), 'keep'), (tr('Nebeneinander je Bildschirm'), 'tile'), (tr('Sichtbare Fenster maximieren'), 'maximize')]: self.arrange.addItem(name, value)
         self.arrange.setCurrentIndex(self.arrange.findData(mode['layout'])); form.addRow(tr('Fenster'), self.arrange)
-        layout.addWidget(text(tr('Netzwerkordner verbinden · eine Adresse pro Zeile. Bestehende Verbindungen bleiben erhalten.'), 'muted'))
+        body.addWidget(text(tr('Netzwerkordner verbinden · eine Adresse pro Zeile. Bestehende Verbindungen bleiben erhalten.'), 'muted'))
         self.connections = QPlainTextEdit('\n'.join(mode['connections'])); self.connections.setAccessibleName(tr('Netzwerkordner des Modus'))
-        layout.addWidget(self.connections)
+        body.addWidget(self.connections)
         def add():
             dialog = ConnectDialog(self)
             if dialog.exec() == QDialog.Accepted: self.connections.appendPlainText(dialog.url)
             dialog.deleteLater()
-        layout.addWidget(button(tr('Netzwerk hinzufügen …'), add))
-        self.error = text(''); layout.addWidget(self.error)
+        body.addWidget(button(tr('Netzwerk hinzufügen …'), add))
+        self.error = text(''); body.addWidget(self.error)
         box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         box.accepted.connect(self.save); box.rejected.connect(self.reject); layout.addWidget(box)
 
