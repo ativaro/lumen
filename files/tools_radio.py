@@ -8,9 +8,10 @@ import tempfile
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QLineEdit, QPlainTextEdit, QListWidget, QListWidgetItem,
-    QInputDialog, QFileDialog, QTabWidget, QWidget, QVBoxLayout, QSplitter, QSpinBox)
+    QInputDialog, QFileDialog, QTabWidget, QWidget, QVBoxLayout, QSplitter, QSpinBox, QHBoxLayout, QStackedWidget)
 from tools_data import document_text, fetch_article, selected_sources, parse_answer, web_url
-from tools_ui import ToolWindow, AudioPlayer, button, label, row
+from tools_ui import AudioPlayer, button, label
+from audio_design import AudioWindow, AudioEmpty, content_tabs
 
 
 def radio_result(answer, sources):
@@ -33,36 +34,49 @@ def radio_result(answer, sources):
     return result
 
 
-class Radio(ToolWindow):
+class Radio(AudioWindow):
     def __init__(self,root=None):
         super().__init__('radio',tr('Lumen Audio Studio · Radio'),tr('Deine Quellen. Deine Ausgabe. Lokal vorgelesen.'),'audio-radio',root)
-        self.add_button.setText(tr('Ausgabe anlegen')); self.source_index=-1
+        self.add_button.setText(tr('Hörskript anlegen')); self.source_index=-1
         self.title=QLineEdit(); self.title.setPlaceholderText(tr('Eine Ausgabe anlegen, um zu beginnen')); self.title.setAccessibleName(tr('Titel der Ausgabe')); self.title.textEdited.connect(self.edited); self.content.addWidget(self.title)
-        self.tabs=QTabWidget(); self.content.addWidget(self.tabs,1)
+        self.title.setObjectName('audioTitle')
+        self.audio_note=label(tr('Noch keine Audio-Ausgabe.'),'muted'); self.content.addWidget(self.audio_note)
+        self.player=AudioPlayer(); self.content.addWidget(self.player)
+        self.minutes=QSpinBox(); self.minutes.setRange(1,20); self.minutes.setValue(5); self.minutes.setSuffix(tr(' min')); self.minutes.setAccessibleName(tr('Ungefähre Länge der Ausgabe')); self.minutes.valueChanged.connect(self.edited)
+        actions=QHBoxLayout(); actions.setSpacing(8)
+        self.generate_button=button(tr('Hörskript erzeugen'),lambda:self.safe(self.generate),'document-edit',True)
+        self.render_button=button(tr('Vertonen'),lambda:self.safe(self.render),'audio-volume-high')
+        for item in (self.minutes,self.generate_button,self.render_button): actions.addWidget(item)
+        actions.addStretch(); actions.addWidget(button(tr('Exportieren'),lambda:self.safe(self.export),'document-export')); self.content.addLayout(actions)
+        self.tabs=QTabWidget(); content_tabs(self.tabs); self.content.addWidget(self.tabs,1)
         sources_page=QWidget(); sl=QVBoxLayout(sources_page); sl.setContentsMargins(0,12,0,0)
         sl.addWidget(label(tr('Quellen auswählen, Text prüfen und bei Bedarf kürzen.'), 'muted'))
-        sl.addWidget(row(button(tr('Artikel-Link'),lambda:self.safe(self.add_url),'internet-web-browser',True),button(tr('Dokument'),lambda:self.safe(self.add_file),'document-open'),
-            button(tr('Text einfügen'),lambda:self.safe(self.add_text),'edit-paste'),button(tr('Entfernen'),lambda:self.safe(self.remove_source),'list-remove')))
-        split=QSplitter(); sl.addWidget(split,1)
+        self.remove_button=button(tr('Entfernen'),lambda:self.safe(self.remove_source),'list-remove')
+        source_actions=QHBoxLayout(); source_actions.setSpacing(8)
+        for item in (button(tr('Artikel-Link'),lambda:self.safe(self.add_url),'internet-web-browser'),button(tr('Dokument'),lambda:self.safe(self.add_file),'document-open'),button(tr('Text'),lambda:self.safe(self.add_text),'edit-paste'),self.remove_button): source_actions.addWidget(item)
+        source_actions.addStretch(); sl.addLayout(source_actions)
+        self.source_surface=QStackedWidget(); sl.addWidget(self.source_surface,1)
+        split=QSplitter(); self.source_surface.addWidget(split)
         self.sources=QListWidget(); self.sources.setObjectName('searchResults'); self.sources.setAccessibleName(tr('Quellen auswählen'))
+        self.sources.setWordWrap(True)
         self.sources.currentRowChanged.connect(self.select_source); self.sources.itemChanged.connect(self.edited); split.addWidget(self.sources)
-        preview=QWidget(); pl=QVBoxLayout(preview); pl.setContentsMargins(12,0,0,0)
+        self.source_preview=QWidget(); pl=QVBoxLayout(self.source_preview); pl.setContentsMargins(16,0,0,0); pl.setSpacing(12)
         self.source_title=QLineEdit(); self.source_title.setPlaceholderText(tr('Quellentitel')); self.source_title.setAccessibleName(tr('Quellentitel')); self.source_title.textEdited.connect(self.edited); pl.addWidget(self.source_title)
-        self.source_text=QPlainTextEdit(); self.source_text.setMinimumHeight(100); self.source_text.setPlaceholderText(tr('Quellentext auswählen oder hinzufügen.')); self.source_text.setAccessibleName(tr('Quellentext')); self.source_text.textChanged.connect(self.edited); pl.addWidget(self.source_text,1)
+        self.source_text=QPlainTextEdit(); self.source_text.setObjectName('audioEditor'); self.source_text.setMinimumHeight(100); self.source_text.setPlaceholderText(tr('Quellentext auswählen oder hinzufügen.')); self.source_text.setAccessibleName(tr('Quellentext')); self.source_text.textChanged.connect(self.edited); pl.addWidget(self.source_text,1)
         self.source_url=label('', 'muted'); self.source_url.setTextInteractionFlags(Qt.TextSelectableByMouse); pl.addWidget(self.source_url)
-        pl.addWidget(button(tr('Original öffnen'),lambda:self.safe(self.open_source),'document-open')); split.addWidget(preview); split.setSizes([280,600])
+        pl.addWidget(button(tr('Original öffnen'),lambda:self.safe(self.open_source),'document-open'),0,Qt.AlignLeft); split.addWidget(self.source_preview); split.setSizes([200,600]); split.setStretchFactor(1,1)
+        self.sources_empty=AudioEmpty(tr('QUELLEN'),tr('Womit möchtest du beginnen?'),
+            tr('Füge einen Artikel, ein Dokument oder eigenen Text hinzu. Nur angehakte Quellen fließen in dein Hörskript ein.'),
+            tr('Text hinzufügen'),lambda:self.safe(self.add_text))
+        self.source_surface.addWidget(self.sources_empty)
         self.tabs.addTab(sources_page,tr('Quellen'))
         script_page=QWidget(); script_layout=QVBoxLayout(script_page); script_layout.setContentsMargins(0,12,0,0)
-        self.script=QPlainTextEdit(); self.script.setPlaceholderText(tr('Hörskript aus gewählten Quellen erzeugen oder selbst schreiben.')); self.script.setAccessibleName(tr('Bearbeitbares Hörskript')); self.script.textChanged.connect(self.edited); script_layout.addWidget(self.script,1)
+        self.script=QPlainTextEdit(); self.script.setObjectName('audioEditor'); self.script.setPlaceholderText(tr('Dein Hörskript.\n\nSchreibe deinen eigenen Text oder erzeuge einen Entwurf aus den gewählten Quellen. Du kannst jeden Absatz überarbeiten, bevor du ihn vertonst.')); self.script.setAccessibleName(tr('Bearbeitbares Hörskript')); self.script.textChanged.connect(self.edited); script_layout.addWidget(self.script,1)
         self.citations=QListWidget(); self.citations.setObjectName('searchResults'); self.citations.setMaximumHeight(120); self.citations.setAccessibleName(tr('Quellen dieser Ausgabe'))
-        self.citations.itemActivated.connect(lambda item:self.safe(self.open_citation,item)); script_layout.addWidget(label(tr('Quellen dieser Ausgabe'),'heading')); script_layout.addWidget(self.citations)
+        self.citations.setWordWrap(True)
+        self.citations.itemActivated.connect(lambda item:self.safe(self.open_citation,item)); self.citations_heading=label(tr('Quellen dieser Ausgabe'),'heading'); script_layout.addWidget(self.citations_heading); script_layout.addWidget(self.citations)
         self.tabs.addTab(script_page,tr('Hörskript'))
-        self.minutes=QSpinBox(); self.minutes.setRange(1,20); self.minutes.setValue(5); self.minutes.setSuffix(tr(' min')); self.minutes.setAccessibleName(tr('Ungefähre Länge der Ausgabe')); self.minutes.valueChanged.connect(self.edited)
-        self.content.addWidget(row(self.minutes,button(tr('Hörskript erzeugen'),lambda:self.safe(self.generate),'document-edit',True),
-            button(tr('Lokal vertonen'),lambda:self.safe(self.render),'audio-volume-high'),button(tr('Exportieren'),lambda:self.safe(self.export),'document-export')))
         self.content.addWidget(label(tr('Hörskript: gewählte Texte an deinen KI-Provider · Vertonung: lokal'), 'muted'))
-        self.player=AudioPlayer(); self.content.addWidget(self.player)
-        self.audio_note=label(tr('Noch keine Audio-Ausgabe.'), 'muted'); self.content.addWidget(self.audio_note)
         self.body.setEnabled(False); self.refresh()
 
     def create(self):
@@ -77,6 +91,9 @@ class Radio(ToolWindow):
         for source in r.get('edition_sources',[]):
             item=QListWidgetItem(source['title']+'\n'+source.get('url','')); item.setData(Qt.UserRole,source.get('url','')); self.citations.addItem(item)
         self.player.load(self.library.asset(r['audio']) if r.get('audio') else None,r.get('duration',0)); self.audio_state(r)
+        self.player.setVisible(bool(r.get('audio')))
+        for item in (self.citations,self.citations_heading): item.setVisible(bool(self.citations.count()))
+        self.select_source(-1)
         if self.sources.count(): self.sources.setCurrentRow(0)
         self.status.setText(tr('Quellen bleiben lokal, bis du ausdrücklich ein Hörskript erzeugst'))
 
@@ -98,6 +115,8 @@ class Radio(ToolWindow):
             self.source_title.setText(value['title']); self.source_text.setPlainText(value['text']); self.source_url.setText(value.get('url',tr('Eingefügter Text')))
         else: self.source_title.clear(); self.source_text.clear(); self.source_url.clear()
         self.loading=was_loading
+        self.source_preview.setEnabled(index>=0); self.remove_button.setEnabled(index>=0)
+        self.source_surface.setCurrentIndex(0 if self.sources.count() else 1)
 
     def audio_state(self,r):
         if not r.get('audio'): self.audio_note.setText(tr('Noch keine Audio-Ausgabe.')); return

@@ -3,41 +3,53 @@ from lumen_i18n import tr
 import json
 from pathlib import Path
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QFileDialog, QLineEdit, QPlainTextEdit, QSplitter, QTableWidget,
-    QTableWidgetItem, QHeaderView, QTabWidget, QWidget, QVBoxLayout)
+from PySide6.QtWidgets import (QFileDialog, QLineEdit, QPlainTextEdit, QTableWidget,
+    QTableWidgetItem, QHeaderView, QTabWidget, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget)
 from tools_data import media_duration, transcribe, meeting_result, clock_text
-from tools_ui import ToolWindow, AudioPlayer, button, label, row
+from tools_ui import AudioPlayer, button, label
+from audio_design import AudioWindow, AudioEmpty, content_tabs, TranscriptTable
 
 
-class Meetings(ToolWindow):
+class Meetings(AudioWindow):
     def __init__(self, root=None):
         super().__init__('meetings', tr('Lumen Audio Studio · Meeting'), tr('Zuhören. Wiederfinden. Festhalten.'), 'audio-input-microphone', root)
         self.add_button.setText(tr('Aufnahme importieren'))
         self.title = QLineEdit(); self.title.setPlaceholderText(tr('Aufnahme importieren, um zu beginnen')); self.title.setAccessibleName(tr('Titel der Aufnahme'))
-        self.title.textEdited.connect(self.edited); self.content.addWidget(self.title)
+        self.title.setObjectName('audioTitle'); self.title.textEdited.connect(self.edited); self.content.addWidget(self.title)
         self.meta = label(tr('Audio und Transkription bleiben lokal.'), 'muted'); self.content.addWidget(self.meta)
         self.player = AudioPlayer(); self.content.addWidget(self.player)
-        self.content.addWidget(row(button(tr('Lokal transkribieren'), lambda: self.safe(self.recognize), 'audio-input-microphone', True),
-            button(tr('Ergebnisse vorschlagen'), lambda: self.safe(self.summarize), 'document-edit'),
-            button(tr('Exportieren'), lambda: self.safe(self.export), 'document-export')))
-        self.content.addWidget(label(tr('Ergebnisvorschläge senden das Transkript an deinen eingerichteten KI-Provider. Zeitstellen bleiben nachprüfbar.'), 'muted'))
-        self.tabs = QTabWidget(); self.content.addWidget(self.tabs,1)
-        self.transcript = QTableWidget(0,2); self.transcript.setHorizontalHeaderLabels([tr('Zeitstelle'), tr('Transkript · Text korrigierbar')])
-        self.transcript.setColumnWidth(0,100); self.transcript.horizontalHeader().setSectionResizeMode(1,QHeaderView.Stretch)
+        actions = QHBoxLayout(); actions.setSpacing(8)
+        self.recognize_button = button(tr('Transkribieren'),lambda:self.safe(self.recognize),'audio-input-microphone',True)
+        self.summarize_button = button(tr('Ergebnisse vorschlagen'),lambda:self.safe(self.summarize),'document-edit')
+        actions.addWidget(self.recognize_button); actions.addWidget(self.summarize_button); actions.addStretch()
+        actions.addWidget(button(tr('Exportieren'),lambda:self.safe(self.export),'document-export')); self.content.addLayout(actions)
+        self.content.addWidget(label(tr('Transkription lokal · Ergebnisvorschläge über deinen KI-Provider'),'muted'))
+        self.tabs = QTabWidget(); content_tabs(self.tabs); self.content.addWidget(self.tabs,1)
+        self.transcript = TranscriptTable(); self.transcript.setHorizontalHeaderLabels([tr('Zeitstelle'), tr('Transkript · Text korrigierbar')])
         self.transcript.verticalHeader().hide(); self.transcript.setWordWrap(True)
         self.transcript.cellClicked.connect(self.seek_segment); self.transcript.itemChanged.connect(self.edited)
-        self.tabs.addTab(self.transcript, tr('Transkript'))
+        self.transcript_surface = QStackedWidget(); self.transcript_surface.addWidget(self.transcript)
+        self.transcript_empty = AudioEmpty(tr('TRANSKRIPT'),tr('Jede Aussage wiederfinden.'),
+            tr('Die lokale Transkription macht deine Aufnahme lesbar. Über die Zeitstellen springst du später direkt zur passenden Stelle.'),
+            tr('Lokal transkribieren'),lambda:self.safe(self.recognize if self.library.get(self.current).get('recording') else self.create))
+        self.transcript_surface.addWidget(self.transcript_empty)
+        transcript_page = QWidget(); tl = QVBoxLayout(transcript_page); tl.setContentsMargins(0,16,0,0); tl.setSpacing(12)
+        tl.addWidget(label(tr('Zeitstelle anklicken zum Anhören · Text doppelt anklicken zum Korrigieren'),'muted'))
+        tl.addWidget(self.transcript_surface,1); self.tabs.addTab(transcript_page,tr('Transkript'))
         result = QWidget(); rl = QVBoxLayout(result); rl.setContentsMargins(0,12,0,0)
         rl.addWidget(label(tr('Zusammenfassung'), 'heading'))
         self.summary = QPlainTextEdit(); self.summary.setPlaceholderText(tr('Nach der Transkription Ergebnisse vorschlagen lassen. Du kannst alles korrigieren.')); self.summary.setAccessibleName(tr('Zusammenfassung'))
-        self.summary.textChanged.connect(self.edited); rl.addWidget(self.summary,1)
+        self.summary.setObjectName('audioEditor'); self.summary.textChanged.connect(self.edited); rl.addWidget(self.summary,1)
         rl.addWidget(label(tr('Entscheidungen & Aufgaben'), 'heading'))
         self.results = QTableWidget(0,3); self.results.setHorizontalHeaderLabels([tr('Art'), tr('Ergebnis · editierbar'), tr('Quelle')])
+        self.results.setObjectName('audioResults'); self.results.setShowGrid(False)
+        self.results.horizontalHeader().setSectionResizeMode(0,QHeaderView.ResizeToContents)
+        self.results.horizontalHeader().setSectionResizeMode(2,QHeaderView.ResizeToContents)
         self.results.horizontalHeader().setSectionResizeMode(1,QHeaderView.Stretch); self.results.verticalHeader().hide()
         self.results.itemChanged.connect(self.edited); self.results.cellClicked.connect(self.seek_result); rl.addWidget(self.results,2)
         self.tabs.addTab(result,tr('Ergebnisse'))
         self.agenda = QPlainTextEdit(); self.agenda.setAccessibleName(tr('Meeting-Agenda')); self.agenda.setPlaceholderText(tr('Themen und offene Fragen für diese Besprechung.'))
-        self.agenda.textChanged.connect(self.edited); self.tabs.addTab(self.agenda,tr('Agenda'))
+        self.agenda.setObjectName('audioEditor'); self.agenda.textChanged.connect(self.edited); self.tabs.addTab(self.agenda,tr('Agenda'))
         self.body.setEnabled(False); self.refresh()
 
     def create(self):
@@ -58,13 +70,20 @@ class Meetings(ToolWindow):
         self.title.setText(record['title']); recording=record.get('recording')
         self.meta.setText(recording['name']+'  ·  '+clock_text(record['duration'])+tr('  ·  Lokale Kopie') if recording else tr('Agenda vorbereitet · Eine Aufnahme kann später hinzugefügt werden.'))
         self.player.load(self.library.asset(recording['asset']) if recording else None, record.get('duration',0))
+        self.player.setVisible(bool(recording))
+        self.recognize_button.setText(tr('Erneut transkribieren') if record.get('segments') else tr('Transkribieren'))
+        self.recognize_button.setEnabled(bool(recording)); self.summarize_button.setEnabled(bool(record.get('segments')))
+        self.transcript_empty.action.setText(tr('Lokal transkribieren') if recording else tr('Aufnahme hinzufügen'))
         self.agenda.setPlainText(record.get('agenda',''))
         self.transcript.setRowCount(0)
         for i, part in enumerate(record.get('segments', [])):
             self.transcript.insertRow(i); stamp = QTableWidgetItem(clock_text(part['start'])); stamp.setData(Qt.UserRole,part)
             stamp.setFlags(stamp.flags() & ~Qt.ItemIsEditable); stamp.setToolTip(tr('An dieser Stelle abspielen'))
+            stamp.setTextAlignment(Qt.AlignLeft|Qt.AlignTop)
+            stamp_font = self.font(); stamp_font.setPixelSize(12); stamp.setFont(stamp_font)
             self.transcript.setItem(i,0,stamp); self.transcript.setItem(i,1,QTableWidgetItem(part['text']))
-        self.transcript.resizeRowsToContents(); self.summary.setPlainText(record.get('summary',''))
+        self.transcript.resizeRowsToContents(); self.transcript_surface.setCurrentWidget(self.transcript if record.get('segments') else self.transcript_empty)
+        self.summary.setPlainText(record.get('summary',''))
         self.results.setRowCount(0)
         for i, part in enumerate(record.get('results',[])):
             self.results.insertRow(i); kind = QTableWidgetItem(tr('Aufgabe') if part['kind']=='actions' else tr('Entscheidung'))
