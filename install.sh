@@ -179,6 +179,7 @@ subst "$REPO/data/autostart/lumen-krunner-runner.desktop" > "$CONFIG_HOME/autost
 subst "$REPO/data/autostart/lumen-versions.desktop" > "$CONFIG_HOME/autostart/lumen-versions.desktop"
 
 # refresh caches
+command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache --force --ignore-theme-index "$DATA_HOME/icons/hicolor" >/dev/null 2>&1 || true
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DATA_HOME/applications" >/dev/null 2>&1 || true
 if command -v kbuildsycoca6 >/dev/null 2>&1; then
     if [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] && /usr/bin/python3 -c 'import dbus' 2>/dev/null; then
