@@ -37,5 +37,5 @@ def show_server_memory(parent):
         item=QListWidgetItem(note['title']);item.setToolTip(note['title']);item.setData(Qt.UserRole,note);listing.addItem(item)
     if notes:listing.setCurrentRow(0)
     else:text.setPlainText(tr('Noch keine bestätigten Server-Erinnerungen vorhanden. Verbinde diesen Desktop und gib im Server einzelne Erinnerungen frei.'))
-    layout.addWidget(row(button(tr('Fertig'),dialog.accept,'dialog-ok')),0,Qt.AlignRight)
+    layout.addWidget(row(button(tr('Fertig'),dialog.accept,'dialog-ok',primary=True)),0,Qt.AlignRight)
     dialog.exec()
