@@ -27,13 +27,15 @@ def directory_fd(path):
     finally:os.close(fd)
 
 
-def read_file(path,job):
+def read_file(path,job,expected=None):
     from tools_data import document_text
     path=Path(path)
     with directory_fd(path.parent) as folder:
         fd=os.open(path.name,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=folder)
         with os.fdopen(fd,'rb') as source:
             info=os.fstat(source.fileno())
+            if expected is not None and [info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns]!=expected:
+                raise ValueError('Die Datei wurde nach dem Auslösen geändert.')
             if not stat.S_ISREG(info.st_mode) or info.st_size>20*1024**2:raise ValueError('Nur reguläre Dateien bis 20 MiB lesen.')
             # Decode a bounded private snapshot; later source changes cannot redirect the decoder.
             with tempfile.TemporaryDirectory(prefix='lumen-block-read-') as temporary:
@@ -43,6 +45,10 @@ def read_file(path,job):
                         job.check();total+=len(chunk)
                         if total>20*1024**2:raise ValueError('Datei ist größer als 20 MiB.')
                         output.write(chunk)
+                if expected is not None:
+                    after=os.fstat(source.fileno())
+                    if [after.st_dev,after.st_ino,after.st_size,after.st_mtime_ns]!=expected:
+                        raise ValueError('Die Datei wurde während des Lesens geändert.')
                 text=document_text(snapshot,job)
     return dict(text=text,source=str(path),filename=path.name,extension=path.suffix.lower().lstrip('.'),size=info.st_size)
 
@@ -93,24 +99,37 @@ class Runs:
         row=db.execute('SELECT archived,definition FROM code_library WHERE id=?',(run['entry'],)).fetchone()
         if row is None or row['archived'] or digest(parse(json.loads(row['definition']).get('flow',''))) != run['signature']:
             raise ValueError('Ablauf geändert oder archiviert. Diesen Durchlauf nicht weiter ausführen; neuen Durchlauf starten.')
+        if run['data'].get('event',{}).get('background'):
+            trigger=db.execute('SELECT enabled,signature FROM code_block_triggers WHERE entry=?',(run['entry'],)).fetchone()
+            if not trigger or not trigger['enabled'] or trigger['signature']!=run['signature']:
+                raise ValueError('Auslöser pausiert oder geändert. Keine weiteren Aktionen ausführen.')
 
     def save(self,db,run):
         db.execute('UPDATE code_block_runs SET status=?,data=?,updated=? WHERE id=?',
                    (run['status'],json.dumps(run['data'],ensure_ascii=False),time.time(),run['id']))
 
-    def create(self,entry,testing=True):
-        with self.store.connect() as db:
-            db.execute('BEGIN IMMEDIATE')
-            item=db.execute('SELECT * FROM code_library WHERE id=?',(entry,)).fetchone()
-            if item is None or item['archived']:raise ValueError('Automation nicht verfügbar.')
-            plan=parse(json.loads(item['definition'])['flow']);permissions(plan)
-            identity=uuid4().hex
-            notes_root=self.store.setting('knowledge/notebook','') if any(n['kind']=='save_note' for n in plan['nodes']) else ''
-            if not testing and any(n['kind']=='save_note' for n in plan['nodes']) and not notes_root:raise ValueError('Lumen Notes zuerst öffnen und einen Notizordner wählen.')
-            data=dict(notes_root=notes_root,cursor=0,steps=[dict(status='pending',attempts=0,input={},output={},error='') for _ in plan['nodes']])
-            db.execute('INSERT INTO code_block_runs VALUES(?,?,?,?,?,?,?,?)',
-                       (identity,entry,encode(plan),digest(plan),int(testing),'paused',json.dumps(data),time.time()))
-        return self.get(identity)
+    def create(self,entry,testing=True,event=None,db=None):
+        if db is None:
+            with self.store.connect() as connection:
+                connection.execute('BEGIN IMMEDIATE')
+                return self.create(entry,testing,event,connection)
+        return self._create(db,entry,testing,event)
+
+    def _create(self,db,entry,testing,event):
+        item=db.execute('SELECT * FROM code_library WHERE id=?',(entry,)).fetchone()
+        if item is None or item['archived']:raise ValueError('Automation nicht verfügbar.')
+        plan=parse(json.loads(item['definition'])['flow']);permissions(plan)
+        identity=uuid4().hex
+        notes_root=self.store.setting('knowledge/notebook','') if any(n['kind']=='save_note' for n in plan['nodes']) else ''
+        if not testing and any(n['kind']=='save_note' for n in plan['nodes']) and not notes_root:raise ValueError('Lumen Notes zuerst öffnen und einen Notizordner wählen.')
+        data=dict(notes_root=notes_root,cursor=0,steps=[dict(status='pending',attempts=0,input={},output={},error='') for _ in plan['nodes']])
+        if event is not None:
+            data['event']=event;data['queued']=bool(event.get('background'))
+            if event.get('background') and notes_root!=event.get('notes_root',''):
+                raise ValueError('Notizordner geändert. Erneut prüfen und aktivieren.')
+        db.execute('INSERT INTO code_block_runs VALUES(?,?,?,?,?,?,?,?)',
+                   (identity,entry,encode(plan),digest(plan),int(testing),'paused',json.dumps(data),time.time()))
+        return self.get(identity,db)
 
     @contextmanager
     def lease(self,identity):
@@ -125,6 +144,7 @@ class Runs:
             if run['status'] in ('completed','cancelled'):raise ValueError('Dieser Durchlauf ist bereits beendet.')
             if run['status']=='waiting':raise ValueError('Bitte zuerst das Ergebnis bestätigen oder ablehnen.')
             cursor=run['data']['cursor'];step=run['data']['steps'][cursor]
+            run['data'].pop('queued',None)
             if step['status']=='running':step.update(status='pending',error='Nach Unterbrechung erneut begonnen.')
             run['status']='running';self.save(db,run)
         return self.get(identity)
@@ -142,6 +162,7 @@ class Runs:
                 while run['data']['cursor']<len(run['data']['steps']) and run['data']['steps'][run['data']['cursor']]['status']=='skipped':run['data']['cursor']+=1
                 run['status']='completed' if run['data']['cursor']==len(run['plan']['nodes']) else 'paused'
             elif action in ('cancel','pause'):
+                run['data'].pop('queued',None)
                 run['status']='cancelled' if action=='cancel' else 'paused'
                 step=run['data']['steps'][run['data']['cursor']]
                 if step['status'] in ('running','waiting'):step['status']=run['status']
@@ -187,7 +208,7 @@ class Runs:
             if kind=='manual' and run['plan'].get('version')==3:
                 from code_block_input import read
                 from code_block_paths import config
-                output=read(config(n),self.store,job)
+                output=read(config(n),self.store,job,run['data'].get('event'))
             elif kind=='read_file':output=read_file(n['config'],job)
             else:
                 # Fence, direct effect and checkpoint share the entry's write lock.

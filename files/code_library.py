@@ -79,6 +79,8 @@ class Collection:
             if not isinstance(merged['project_id'], str) or len(merged['project_id']) > 160:
                 raise ValueError('Ungültige Projektzuordnung.')
             flow_changed=(current['definition'].get('flow')!=merged['definition'].get('flow') or current['definition'].get('directory')!=merged['definition'].get('directory') or current['title']!=merged['title'])
+            if (flow_changed or merged['archived']) and db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='code_block_triggers'").fetchone():
+                db.execute('UPDATE code_block_triggers SET enabled=0 WHERE entry=?',(identity,))
             if flow_changed and current['definition'].get('workflow_id'):
                 db.execute('UPDATE workflows SET enabled=0,approved=0,updated=? WHERE id=?',(time.time(),current['definition']['workflow_id']))
             if merged['archived']:

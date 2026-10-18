@@ -4,18 +4,23 @@ from zoneinfo import ZoneInfo
 from code_block_paths import source
 
 
-def read(value, store, job):
+def read(value, store, job, event=None):
     value=source(value);kind=value['kind'];now=datetime.now(ZoneInfo('Europe/Zurich'))
     result={'weekday':now.weekday(),'hour':now.hour,'success':True}
     if kind=='file':
         from code_blocks_run import read_file
-        result.update(read_file(value.get('path',''),job))
+        if value.get('trigger',{}).get('kind')=='directory':
+            from code_triggers import file_event
+            if not event or file_event(value,event.get('path',''))!={k:event.get(k) for k in ('path','stamp','root')}:
+                raise ValueError('Die Beispieldatei fehlt oder wurde nach dem Auslösen geändert.')
+            result.update(read_file(event['path'],job,event['stamp']))
+        else:result.update(read_file(value.get('path',''),job))
     elif kind=='project':
-        from lumen_projects import projects
-        project=next((p for p in projects(store) if p['id']==value.get('project_id')),None)
-        if project is None:raise ValueError('Das ausgewählte Lumen-Projekt ist nicht mehr verfügbar.')
-        result.update(project_id=project['id'],text=project['name']+'\n'+project.get('note',''))
-        if isinstance(project.get('status'),str):result['project_status']=project['status']
+        from code_triggers import project_snapshot
+        current=project_snapshot(value.get('project_id',''),store)
+        snapshot=event.get('project') if event else None
+        if snapshot and snapshot.get('project_id')!=current['project_id']:raise ValueError('Das Ereignis gehört zu einem anderen Projekt.')
+        result.update(snapshot or current)
     else:
         result['text']=value.get('text','')
         for key in ('sender','subject','has_attachment'):

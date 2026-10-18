@@ -57,6 +57,10 @@ def tick(store):
         from code_flow_native import deliver
         deliver(store)
         reason = defer_background(store)
+        if not reason:
+            from code_library import Collection
+            from code_blocks_worker import run_pending
+            run_pending(Collection(store))
         for item in store.rows("SELECT id FROM tasks WHERE status='queued' ORDER BY created LIMIT 20"):
             task = store.task(item['id'])
             if reason:

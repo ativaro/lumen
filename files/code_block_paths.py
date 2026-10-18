@@ -19,10 +19,13 @@ def config(node):
 def source(value):
     if not isinstance(value, dict) or not isinstance(value.get('kind'),str) or value.get('kind') not in SOURCE_FIELDS:
         raise ValueError('Eine verfügbare Eingabequelle wählen.')
-    allowed = {'kind','text','path','project_id','sender','subject','has_attachment'}
+    allowed = {'kind','text','path','project_id','sender','subject','has_attachment','trigger'}
     if set(value)-allowed: raise ValueError('Unbekannte Eingabefelder.')
     for key, v in value.items():
-        if key == 'has_attachment':
+        if key == 'trigger':
+            from code_triggers import validate
+            validate(v,value['kind'])
+        elif key == 'has_attachment':
             if type(v) is not bool: raise ValueError('Anhang als Ja/Nein wählen.')
         elif not isinstance(v, str) or len(v)>8000 or '\0' in v: raise ValueError('Ungültige Eingabe.')
     return value

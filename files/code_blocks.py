@@ -82,7 +82,10 @@ def permissions(plan):
         if kind=='manual' and plan.get('version')==3:
             from code_block_paths import config as block_config,source
             inp=source(block_config(n))
-            if inp['kind']=='file':
+            trigger=inp.get('trigger',{})
+            if trigger.get('kind')=='directory':
+                result.append('Neue oder geänderte Dateien lesen: '+trigger['path'])
+            elif inp['kind']=='file':
                 if not inp.get('path') or not Path(inp['path']).is_absolute():raise ValueError('Bitte eine Quelldatei auswählen.')
                 result.append('Datei lesen: '+inp['path'])
             elif inp['kind']=='project':
