@@ -158,6 +158,48 @@ class MeetingRadioTest(unittest.TestCase):
         self.assertLessEqual(meetings.transcript.columnWidth(0)+meetings.transcript.columnWidth(1),meetings.transcript.viewport().width())
         self.assertEqual(meetings.transcript.horizontalScrollBar().maximum(),0)
 
+    def test_embedded_audio_fits_compact_window_without_changing_standalone_minimum(self):
+        from tools_meetings import Meetings
+        from tools_radio import Radio
+        for kind in (Meetings, Radio):
+            standalone = kind(self.root/'standalone')
+            try:
+                self.assertEqual((standalone.minimumWidth(),standalone.minimumHeight()),(840,600))
+            finally:
+                standalone.close(); standalone.deleteLater()
+        self.window.resize(960,640)
+        for name,page in self.window.pages.items():
+            with self.subTest(page=name):
+                key=page.library.create('Kompakte Ansicht',segments=[],results=[],agenda='',sources=[],script='',minutes=5)
+                page.focus_record(key)
+                self.window.select(name); QTest.qWait(30)
+                self.assertEqual((self.window.width(),self.window.height()),(960,640))
+                for control in (self.window.modes,page.tabs.tabBar(),page.status):
+                    self.assertTrue(control.isVisibleTo(self.window))
+                    top=control.mapTo(self.window,control.rect().topLeft())
+                    self.assertGreaterEqual(top.y(),0)
+                    self.assertLessEqual(top.y()+control.height(),self.window.height())
+
+    def test_loaded_audio_titles_show_start_and_literal_full_tooltip(self):
+        from PySide6.QtGui import QTextDocument
+        title=('Sanierung <b>Haus</b> & Wartung – Angebote und offene Entscheidungen '*3).strip()
+        for name,page in self.window.pages.items():
+            with self.subTest(page=name):
+                key=page.library.create(title,segments=[],results=[],agenda='',sources=[],script='',minutes=5)
+                page.focus_record(key)
+                self.assertEqual(page.title.cursorPosition(),0)
+                tip=QTextDocument(); tip.setHtml(page.title.toolTip())
+                self.assertEqual(tip.toPlainText(),title)
+                page.title.setCursorPosition(len(title))
+                QTest.keyClicks(page.title,' X'); page.save()
+                self.assertEqual(page.title.cursorPosition(),len(title)+2)
+                self.assertEqual(page.library.get(key)['title'],title+' X')
+        radio=self.window.pages['radio']; radio.append_source(dict(title=title,text='Quelle',selected=True))
+        self.assertEqual(radio.source_title.cursorPosition(),0)
+        tip=QTextDocument(); tip.setHtml(radio.source_title.toolTip())
+        self.assertEqual(tip.toPlainText(),title)
+        radio.remove_source(); self.assertEqual(radio.source_title.toolTip(),'')
+
     def test_both_launchers_share_process_and_backup_endpoints(self):
         root = self.root/'process'
         command = [sys.executable, str(Path(__file__).with_name('tools_app.py'))]

@@ -1,5 +1,6 @@
 """Source-selected editions with editable scripts and local speech synthesis."""
 from lumen_i18n import tr
+from html import escape
 import hashlib
 import json
 import os
@@ -113,7 +114,8 @@ class Radio(AudioWindow):
         if index>=0:
             value=self.sources.item(index).data(Qt.UserRole)
             self.source_title.setText(value['title']); self.source_text.setPlainText(value['text']); self.source_url.setText(value.get('url',tr('Eingefügter Text')))
-        else: self.source_title.clear(); self.source_text.clear(); self.source_url.clear()
+            self.source_title.setCursorPosition(0); self.source_title.setToolTip('<qt>'+escape(value['title'])+'</qt>')
+        else: self.source_title.clear(); self.source_title.setToolTip(''); self.source_text.clear(); self.source_url.clear()
         self.loading=was_loading
         self.source_preview.setEnabled(index>=0); self.remove_button.setEnabled(index>=0)
         self.source_surface.setCurrentIndex(0 if self.sources.count() else 1)

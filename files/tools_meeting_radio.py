@@ -2,7 +2,7 @@
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from studio_design import font
-from PySide6.QtWidgets import QMainWindow, QStackedWidget, QTabBar, QWidget, QVBoxLayout
+from PySide6.QtWidgets import QMainWindow, QScrollArea, QStackedWidget, QTabBar, QWidget, QVBoxLayout
 from lumen_i18n import tr
 from tools_meetings import Meetings
 from tools_radio import Radio
@@ -34,8 +34,15 @@ class MeetingRadio(QMainWindow):
         for key in ('meetings','radio'):
             page = self.pages[key]
             page.setWindowFlags(Qt.Widget)
+            page.setMinimumSize(0,0)
             page.app_header.hide()
             page.centralWidget().layout().setContentsMargins(0,0,0,0)
+            selected=page.tabs.currentIndex(); page.content_scrolls=[]
+            for index in range(page.tabs.count()):
+                content=page.tabs.widget(index); title=page.tabs.tabText(index); page.tabs.removeTab(index)
+                scroll=QScrollArea(); scroll.setWidgetResizable(True); scroll.setFrameShape(QScrollArea.NoFrame)
+                scroll.setWidget(content); page.tabs.insertTab(index,scroll,title); page.content_scrolls.append(scroll)
+            page.tabs.setCurrentIndex(selected)
             self.tabs.addWidget(page)
         self.select(initial)
 

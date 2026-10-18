@@ -1,4 +1,5 @@
 """Audio Studio's library and reading surface, using the shared native palette."""
+from html import escape
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFrame, QVBoxLayout, QStackedWidget, QHeaderView, QListWidgetItem, QTableWidget
 from lumen_i18n import tr
@@ -59,6 +60,11 @@ class AudioWindow(ToolWindow):
                 tr('Sammle Artikel, Dokumente und eigene Texte. Forme daraus ein Hörskript und lass es mit einer lokalen Stimme vorlesen.'),
                 tr('Hörskript anlegen'),lambda:self.safe(self.create))
         self.surface.addWidget(self.empty)
+
+    def focus_record(self, key):
+        super().focus_record(key)
+        self.title.setCursorPosition(0)
+        self.title.setToolTip('<qt>'+escape(self.title.text())+'</qt>')
 
     def refresh(self, *_):
         self.entries.blockSignals(True); self.entries.clear(); selected = None
