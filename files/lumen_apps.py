@@ -6,6 +6,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QLineEdit, QPushButton, QFrame, QScrollArea, QMessageBox)
 from lumen_i18n import tr
+from desktop_design import AppHeader, PAGE_MARGIN, PAGE_SPACING
 
 
 def catalogue(*, include_utilities=False):
@@ -70,21 +71,18 @@ def launch(app, *, area=None, page=None):
 class AppCenter(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        outer = QVBoxLayout(self); outer.setContentsMargins(24, 20, 24, 16); outer.setSpacing(16)
-        heading = QLabel('Lumen Apps'); heading.setObjectName('heading')
-        header = QHBoxLayout(); header.addWidget(heading, 1)
+        outer = QVBoxLayout(self); outer.setContentsMargins(PAGE_MARGIN, 20, PAGE_MARGIN, PAGE_SPACING); outer.setSpacing(PAGE_SPACING)
+        header = AppHeader('Lumen Apps', tr('Ein Zuhause für deine Lumen-Apps.'))
         self.notifications = QPushButton(QIcon.fromTheme('notifications'), tr('Meldungen'))
         self.notifications.clicked.connect(lambda: self.open('notification'))
-        header.addWidget(self.notifications); outer.addLayout(header)
-        subtitle = QLabel(tr('Ein Zuhause für deine Lumen-Apps.')); subtitle.setObjectName('muted'); outer.addWidget(subtitle)
+        header.actions.addWidget(self.notifications); outer.addWidget(header)
         self.search = QLineEdit(); self.search.setPlaceholderText(tr('App finden …')); self.search.setAccessibleName(tr('Lumen-Apps durchsuchen')); outer.addWidget(self.search)
         scroll = QScrollArea(); scroll.setWidgetResizable(True); scroll.setFrameShape(QFrame.NoFrame)
         content = QWidget(); self.grid = QGridLayout(content); self.grid.setContentsMargins(0, 0, 0, 0); self.grid.setSpacing(14)
         scroll.setWidget(content); outer.addWidget(scroll, 1)
         self.cards = []
         for app, title, description, icon in catalogue():
-            card = QFrame(); card.setObjectName('appCard')
-            card.setStyleSheet('QFrame#appCard { background: palette(base); border: 1px solid palette(mid); border-radius: 16px; }')
+            card = QFrame(); card.setObjectName('appCard'); card.setFrameShape(QFrame.StyledPanel)
             box = QVBoxLayout(card); box.setContentsMargins(20, 18, 20, 18); box.setSpacing(10)
             top = QHBoxLayout(); mark = QLabel(); mark.setPixmap(QIcon.fromTheme('lumen' if app == 'lumen' else 'lumen-' + app, QIcon.fromTheme(icon)).pixmap(40, 40)); top.addWidget(mark)
             name = QLabel(title); name.setWordWrap(True); font = name.font(); font.setBold(True); name.setFont(font); top.addWidget(name, 1); box.addLayout(top)

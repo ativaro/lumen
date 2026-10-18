@@ -16,6 +16,7 @@ from assistant_backend import OpenCodeBackend
 from lumen_setup import FEATURES, executable
 from settings_dialog import button, text
 from settings_navigation import Details
+from desktop_design import PAGE_MARGIN, PAGE_SPACING
 
 RECOMMENDED = ('engine', 'documents', 'media', 'network')
 
@@ -58,15 +59,14 @@ class SetupDialog(QDialog):
         self.result_model = ''; self.cancellable = False; self.providers = []; self.advance_after_job = False
         self.setWindowTitle(tr('Lumen einrichten')); self.setWindowIcon(QIcon.fromTheme('lumen'))
         self.resize(780, 690); self.setMinimumSize(600, 540)
-        root = QVBoxLayout(self); root.setContentsMargins(28, 24, 28, 22); root.setSpacing(16)
+        root = QVBoxLayout(self); root.setContentsMargins(PAGE_MARGIN, 24, PAGE_MARGIN, 22); root.setSpacing(PAGE_SPACING)
         header = QHBoxLayout(); header.setSpacing(20)
         self.mark = text(''); self.mark.setFixedSize(64, 64); header.addWidget(self.mark)
         copy = QVBoxLayout(); copy.setSpacing(6)
         self.step = text(''); self.step.setObjectName('eyebrow'); copy.addWidget(self.step)
-        self.heading = text(''); self.heading.setObjectName('heading'); copy.addWidget(self.heading)
+        self.heading = text(''); self.heading.setObjectName('desktopAppTitle'); copy.addWidget(self.heading)
         header.addLayout(copy, 1); root.addLayout(header)
         self.setObjectName('setupWizard')
-        self.setStyleSheet('QDialog#setupWizard QLabel#heading { font-size: 24px; font-weight: 600; }')
         self.stack = QStackedWidget(); root.addWidget(self.stack, 1)
         self.titles = (tr('Willkommen bei Lumen'), tr('Deine KI-Anbindung'), tr('Mit deiner Stimme'), tr('Dein Desktop'), tr('Deine Einrichtung im Überblick'))
         self.build_dependencies(); self.build_engine(); self.build_speech(); self.build_desktop(); self.build_summary()

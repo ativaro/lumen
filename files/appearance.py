@@ -22,6 +22,7 @@ QFrame#searchSurface {{ border-radius: {radius + 10}px; }}
 QFrame#searchInput {{ border-radius: {radius + 14}px; }}
 QPushButton#searchSend {{ border-radius: {radius + 4}px; }}
 QPushButton#themeChoice {{ border-radius: {radius}px; }}
+QFrame#appCard {{ background: palette(base); border: 1px solid palette(mid); border-radius: {radius}px; }}
 QPushButton#danger, QPushButton#galleryTrash {{ color: {danger}; }}
 
 """
