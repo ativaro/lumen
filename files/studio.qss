@@ -104,11 +104,5 @@ QPushButton#studioNav:focus, QPushButton#studioIcon:focus, QPushButton#studioNew
 QWidget#studioSavedResults { background: palette(window); color: palette(text); }
 QTextBrowser#savedResultPreview { color: palette(text); background: palette(base); border: 1px solid palette(mid); border-radius: 8px; padding: 22px; }
 
-/* Panorama: visible workspaces and flat, equal work surfaces. */
-QFrame#studioWorkspaceBar { background: palette(base); border: none; border-bottom: 1px solid palette(mid); }
-QScrollArea#studioWorkspaceScroll, QWidget#studioWorkspaceList { background: transparent; border: none; }
-QPushButton#studioWorkspace { background: transparent; color: palette(text); border: 1px solid transparent; border-radius: 7px; padding: 10px 16px; text-align: left; font-size: 13px; }
-QPushButton#studioWorkspace:hover, QPushButton#studioWorkspace:checked { background: palette(midlight); border-color: palette(mid); }
-QPushButton#studioWorkspace:focus { border-color: palette(highlight); }
-QPushButton#studioNav:disabled, QPushButton#studioWorkspace:disabled { color: palette(placeholder-text); }
+QPushButton#studioNav:disabled { color: palette(placeholder-text); }
 QListWidget#studioRecent::item:focus { border: 1px solid palette(highlight); }
