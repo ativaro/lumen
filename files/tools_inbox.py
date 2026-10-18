@@ -56,6 +56,7 @@ class Inbox(ToolWindow):
         self.subject=label(tr('Dein Posteingang'),'heading');message_layout.addWidget(self.subject)
         self.sender=label(tr('Konto hinzufügen und aktualisieren, um Nachrichten zu laden.'),'muted');message_layout.addWidget(self.sender)
         self.reader=QPlainTextEdit();self.reader.setReadOnly(True);self.reader.setAccessibleName(tr('Nachrichtentext'));message_layout.addWidget(self.reader,1)
+        self.reader.setMinimumHeight(max(self.reader.sizeHint().height(), self.reader.fontMetrics().lineSpacing()*6 + 2*self.reader.frameWidth() + int(2*self.reader.document().documentMargin())))
         reading_scroll=QScrollArea();reading_scroll.setWidgetResizable(True);reading_scroll.setFrameShape(QFrame.NoFrame)
         reading_scroll.setWidget(message);rl.addWidget(reading_scroll,1)
         self.attachments=QComboBox();self.attachments.setAccessibleName(tr('Anhänge'))
