@@ -13,6 +13,7 @@ from lumen_i18n import tr
 from preview import Preview, label
 from studio_chat import icon_button
 from studio_design import surface, icon, font
+from desktop_design import PAGE_MARGIN, PAGE_SPACING
 
 
 def model_stream(messages, turn, *, include_text=True):
@@ -91,7 +92,7 @@ class StudioSurface(QWidget):
         self.setObjectName('studioWorkbench'); surface(self)
         root = QVBoxLayout(self); root.setContentsMargins(0, 0, 0, 0); root.setSpacing(0)
         header = QFrame(); header.setObjectName('studioWorkHead'); header.setFixedHeight(68)
-        head = QHBoxLayout(header); head.setContentsMargins(26, 0, 24, 0); head.setSpacing(14)
+        head = QHBoxLayout(header); head.setContentsMargins(PAGE_MARGIN, 0, PAGE_MARGIN, 0); head.setSpacing(PAGE_SPACING)
         chat.heading.setObjectName('studioWorkTitle'); chat.heading.setWordWrap(False)
         chat.heading.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred); chat.heading.setMaximumWidth(380); head.addWidget(chat.heading)
         self.directory = label(Path(chat.backend.directory).name, 'studioWorkContext'); head.addWidget(self.directory, 1)
@@ -107,7 +108,7 @@ class StudioSurface(QWidget):
         self.pane = QWidget(); self.pane.setObjectName('studioPreviewPane'); self.pane.setMinimumWidth(0)
         layout = QVBoxLayout(self.pane); layout.setContentsMargins(0, 0, 0, 0); layout.setSpacing(0)
         toolbar = QFrame(); toolbar.setObjectName('studioResultToolbar'); toolbar.setFixedHeight(49)
-        top = QHBoxLayout(toolbar); top.setContentsMargins(22, 0, 18, 0)
+        top = QHBoxLayout(toolbar); top.setContentsMargins(PAGE_MARGIN, 0, PAGE_MARGIN, 0)
         self.result_tabs = QTabBar(); self.result_tabs.setObjectName('studioResultTabs'); self.result_tabs.setDrawBase(False)
         self.result_tabs.addTab(tr('Ergebnis')); self.result_tabs.addTab(tr('Arbeitsschritte')); top.addWidget(self.result_tabs)
         top.addStretch(); self.heading = label(tr('Vorschau'), 'studioResultCaption'); top.addWidget(self.heading)
@@ -136,10 +137,13 @@ class StudioSurface(QWidget):
         self.execution_detail.setAccessibleName(tr('Arbeitsschritte des Gesprächs')); self.result_pages.addWidget(self.execution_detail)
         self.result_tabs.currentChanged.connect(self.result_pages.setCurrentIndex)
         dock = QFrame(); dock.setObjectName('studioResultDock')
-        self.actions = QHBoxLayout(dock); self.actions.setContentsMargins(22, 14, 22, 14); self.actions.setSpacing(9)
+        self.actions = QHBoxLayout(dock); self.actions.setContentsMargins(PAGE_MARGIN, PAGE_SPACING, PAGE_MARGIN, PAGE_SPACING); self.actions.setSpacing(8)
         self.actions.addWidget(label(tr('Ergebnis verwenden'), 'studioDockCaption')); self.actions.addStretch()
         self.copy_answer = icon_button(tr('Kopieren'), 'edit-copy', chat.copy.click)
-        self.save_answer = QPushButton(tr('Speichern')); self.save_answer.setIcon(icon('document-save')); self.save_answer.setObjectName('studioSave')
+        self.save_answer = QPushButton(tr('Speichern')); self.save_answer.setObjectName('studioSave')
+        import studio_design
+        factory = getattr(studio_design, 'button_icon', None)
+        self.save_answer.setIcon(factory('document-save', self.save_answer) if factory else icon('document-save'))
         self.result_menu = QMenu(self.save_answer)
         self.result_menu.addAction(tr('Für mich speichern'), lambda: chat.capture_knowledge(False, text=self.result_text()))
         self.result_menu.addAction(tr('Merk dir das'), lambda: chat.capture_knowledge(True, text=self.result_text()))

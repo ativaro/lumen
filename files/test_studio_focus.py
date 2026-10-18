@@ -74,5 +74,21 @@ class ConversationFocusTest(unittest.TestCase):
         self.assertFalse(surface.file_dialog.isVisible())
         self.present([]); self.assertFalse(surface.files_button.isVisible())
 
+    def test_save_icon_uses_actual_text_color_after_theme_changes(self):
+        from PySide6.QtGui import QIcon, QPalette
+        from appearance import apply_design
+        from test_button_icons import ButtonIconTest
+        action = self.window.studio.save_answer
+        self.window.chat.composer.setPlainText('Keep draft through theme changes')
+        for theme in ('graphite', 'glass', 'atelier', 'midnight'):
+            apply_design(self.app, theme)
+            for enabled in (True, False):
+                action.setEnabled(enabled); action.ensurePolished(); self.app.processEvents()
+                group = QPalette.Active if enabled else QPalette.Disabled
+                expected = action.palette().color(group, QPalette.ButtonText).getRgb()[:3]
+                colors = ButtonIconTest.colors(self, action.icon(), QIcon.Normal if enabled else QIcon.Disabled)
+                self.assertTrue(all(max(abs(a-b) for a,b in zip(color, expected)) <= 1 for color in colors), (theme, enabled))
+            self.assertEqual(self.window.chat.composer.toPlainText(), 'Keep draft through theme changes')
+
 
 if __name__ == '__main__': unittest.main()

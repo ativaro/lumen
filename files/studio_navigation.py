@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QListWidget,
 from lumen_i18n import tr
 from preview import label
 from studio_design import icon, surface
+from desktop_design import NAV_WIDTH
 
 
 class StudioNavigation(QWidget):
@@ -12,7 +13,7 @@ class StudioNavigation(QWidget):
         super().__init__(window)
         self.session_limit = 5; self.sessions = []; self.session_directory = window.chat.backend.directory
         self.window = window; self.setObjectName('studioNavigation'); surface(self)
-        self.setMinimumWidth(200); self.setMaximumWidth(420)
+        self.setMinimumWidth(NAV_WIDTH); self.setMaximumWidth(420)
         self.root = QVBoxLayout(self); self.root.setContentsMargins(16, 20, 16, 12); self.root.setSpacing(6)
         self.create = self.entry(tr('Neues Gespräch'), 'list-add', self.new_chat)
         self.create.setObjectName('studioNewChat'); self.root.addWidget(self.create); self.root.addSpacing(12)

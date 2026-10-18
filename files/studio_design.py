@@ -41,7 +41,7 @@ class ButtonIcon(QIconEngine):
 
     def paint(self, painter, rect, mode, state):
         owner = self.owner()
-        if owner is None or is_deleted(owner) or owner.objectName() != 'primary':
+        if owner is None or is_deleted(owner) or owner.objectName() not in ('primary', 'studioSave'):
             self.source.paint(painter, rect, Qt.AlignCenter, mode, state)
             return
         ratio = painter.device().devicePixelRatioF()

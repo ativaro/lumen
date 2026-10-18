@@ -6,6 +6,7 @@ from assistant import ChatPanel
 from lumen_i18n import tr
 from preview import label
 from studio_design import surface, icon
+from desktop_design import PAGE_MARGIN, PAGE_SPACING
 
 
 def clear_layout(layout, parking):
@@ -37,9 +38,9 @@ class StudioChat(ChatPanel):
         self.backend.messagesChanged.connect(self.update_results)
         self.parking = QWidget(self); self.parking.hide()
         root = self.layout(); clear_layout(root, self.parking)
-        root.setContentsMargins(18, 0, 18, 14); root.setSpacing(10)
+        root.setContentsMargins(PAGE_MARGIN, 0, PAGE_MARGIN, PAGE_SPACING); root.setSpacing(PAGE_SPACING)
         self.setObjectName('studioChat'); surface(self)
-        top = QHBoxLayout(); top.setContentsMargins(4, 0, 0, 0)
+        top = QHBoxLayout(); top.setContentsMargins(0, 0, 0, 0)
         caption = label(tr('Gespräch'), 'studioSection'); caption.setMinimumHeight(48); top.addWidget(caption, 1)
         self.execution.setMaximumWidth(160)
         self.preview_button = icon_button(tr('Ergebnis öffnen'), 'view-preview', self.previewRequested.emit)

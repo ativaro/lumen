@@ -165,7 +165,8 @@ class StudioTest(unittest.TestCase):
             chat.backend.busy = True; controller.select_session('one'); select.assert_called_once()
         chat.backend.busy = False; chat.backend.session = 'two'; chat.backend.sessionChanged.emit('two')
         self.assertEqual(chat.heading.text(), 'Photos')
-        self.assertFalse(hasattr(self.window, 'navigation'))
+        self.assertEqual(self.window.navigation.recent.count(), 2)
+        self.assertEqual(self.window.navigation.recent.currentItem().data(Qt.UserRole), 'two')
 
     def test_context_bar_routes_without_changing_conversation(self):
         bar, chat = self.window.workspace_bar, self.window.chat

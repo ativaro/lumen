@@ -26,6 +26,7 @@ from studio_chat import StudioChat
 from studio_preview import StudioSurface
 from studio_workspaces import StudioWorkspaces
 from preview import label
+from desktop_design import NAV_WIDTH
 
 
 @ClassInfo(**{'D-Bus Interface': 'org.lumen.Desktop'})
@@ -235,7 +236,7 @@ class LumenWindow(QMainWindow):
         self.history_split.setObjectName('studioNavigationSplit')
         self.history_split.setChildrenCollapsible(False)
         self.history_split.addWidget(self.navigation); self.history_split.addWidget(self.pages)
-        self.history_split.setStretchFactor(1, 1); self.history_split.setSizes([220, 1160])
+        self.history_split.setStretchFactor(1, 1); self.history_split.setSizes([NAV_WIDTH, self.width() - NAV_WIDTH])
         row.addWidget(self.history_split, 1)
         self._history_compact = None
         self.update_history_layout()
