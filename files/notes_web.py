@@ -2,10 +2,11 @@
 import json
 from pathlib import Path
 from PySide6.QtCore import QObject, Signal, Slot, QTimer, QUrl, Qt
-from PySide6.QtWidgets import QStackedWidget, QWidget, QVBoxLayout, QPushButton
+from PySide6.QtWidgets import QApplication, QStackedWidget, QWidget, QVBoxLayout, QPushButton
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineSettings, QWebEngineUrlRequestInterceptor, QWebEngineUrlRequestInfo
+from PySide6.QtGui import QPalette
 from lumen_i18n import tr, language
 from note_tags import tags
 
@@ -52,6 +53,17 @@ class Bridge(QObject):
     @Slot(result=str)
     def snapshot(self):
         w = self.window
+        # A styled widget's Base role may be its painted window background.
+        palette = QApplication.palette()
+        appearance = {key: palette.color(role).name() for key, role in {
+            'window': QPalette.Window, 'surface': QPalette.Base, 'soft': QPalette.AlternateBase,
+            'text': QPalette.Text, 'button': QPalette.Button, 'line': QPalette.Mid,
+            'muted': QPalette.PlaceholderText, 'accent': QPalette.Highlight,
+            'on-accent': QPalette.HighlightedText,
+        }.items()}
+        from appearance_tokens import RADII
+        appearance['radius'] = str(RADII.get(QApplication.instance().property('lumenDesign'), 8)) + 'px'
+        appearance['color-scheme'] = 'light' if palette.color(QPalette.Window).lightness() > 128 else 'dark'
         identity = (str(w.book.root) if w.book else '', w.area, w.doc['path'] if w.doc else '')
         if identity != self.identity:
             self.identity = identity; self.epoch += 1; self.ack = 0; self.limit = 100
@@ -61,7 +73,7 @@ class Bridge(QObject):
             notes=[self.document(w.notes[p]) for p in rows[:self.limit] if p in w.notes], more=len(rows)>self.limit,
             collections=collections, collection=w.collection, q=w.search.text(), status=w.status.text(),
             banner=w.banner.text() if not w.banner.isHidden() else '', conflict=w.conflict, dirty=w.dirty,
-            busy=bool((w.job and not w.writing) or (w.engine and w.engine.busy)), ready=bool(w.book), language=language()), ensure_ascii=False)
+            busy=bool((w.job and not w.writing) or (w.engine and w.engine.busy)), ready=bool(w.book), language=language(), appearance=appearance), ensure_ascii=False)
 
     def publish(self):
         w = self.window

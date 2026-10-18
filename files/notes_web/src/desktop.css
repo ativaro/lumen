@@ -1,5 +1,5 @@
 /* Desktop has its own native window and app navigation. Notes uses Server CSS. */
-body { background: var(--desktop-background, #191b1e); }
+body { background: var(--window); color: var(--text); }
 .panorama.content { padding: 26px 28px; margin: 0 auto; max-width: 1700px; }
 .note-tags-editor .inline-actions { margin-top: 0; }
 .note-tags-editor form { flex-direction: row; gap: 8px; }

@@ -17,7 +17,7 @@ try {
  const names=new Set();for(const id of Object.keys((Array.isArray(result)?result[0]:result).output.find(x=>x.type==='chunk').modules)){const match=id.match(/node_modules\/((?:@[^/]+\/)?[^/]+)/);if(match)names.add(match[1]);}
  let notices='Lumen Notes Desktop bundled third-party notices\n\n';const packages=[];
  for(const name of [...names].sort()) {const dir=join(web,'node_modules',name),pkg=JSON.parse(await readFile(join(dir,'package.json'),'utf8'));const files=(await readdir(dir)).filter(x=>/^(license|licence|copying)(\.|$)/i.test(x));if(!files.length)throw Error('Missing license '+name);notices+=`\n=== ${name} ${pkg.version} (${pkg.license}) ===\n`;for(const f of files)notices+=await readFile(join(dir,f),'utf8')+'\n';packages.push({name,version:pkg.version,license:pkg.license});}
- const upstream={};for(const name of ['note-editor.tsx','note-rich-document.ts','i18n.tsx','en.json','ui.tsx','knowledge.css','style.css','panorama.css']){const data=await readFile(join(source,'src',name));upstream[name]=createHash('sha256').update(data).digest('hex');}
+ const upstream={};for(const name of ['note-editor.tsx','note-rich-document.ts','i18n.tsx','en.json','ui.tsx','knowledge.css','style.css','panorama.css','appearance.css']){const data=await readFile(join(source,'src',name));upstream[name]=createHash('sha256').update(data).digest('hex');}
  await writeFile(join(source,'server-sources.json'),JSON.stringify(upstream,null,2)+'\n');
  await writeFile(join(source,'NOTICES.txt'),notices);await writeFile(join(source,'dependencies.json'),JSON.stringify(packages,null,2)+'\n');
  console.log(JSON.stringify({bytes:Buffer.byteLength(js)+Buffer.byteLength(css),packages:packages.length,sha256:createHash('sha256').update(js).digest('hex')}));

@@ -13,10 +13,11 @@ import './style.css';
 import './panorama.css';
 import './knowledge.css';
 import './desktop.css';
+import './appearance.css';
 
 declare global {interface Window {qt:any; QWebChannel:any; lumenNotes:any;}}
 type Doc={id:string;title:string;body:string;tags:string[];updated:number;shared:boolean};
-type State={epoch:number;ack:number;doc:Doc|null;notes:Doc[];more:boolean;collections:{id:string;title:string;name:string}[];collection:string;q:string;status:string;banner:string;conflict:boolean;busy:boolean;ready:boolean;dirty:boolean;language:'de'|'en'};
+type State={epoch:number;ack:number;doc:Doc|null;notes:Doc[];more:boolean;collections:{id:string;title:string;name:string}[];collection:string;q:string;status:string;banner:string;conflict:boolean;busy:boolean;ready:boolean;dirty:boolean;language:'de'|'en';appearance:Record<string,string>};
 let bridge:any;
 const summaries=new Map<string,string>();
 function summary(note:Doc) {const key=note.id+'\0'+note.body;if(!summaries.has(key)){if(summaries.size>=500)summaries.clear();summaries.set(key,noteSummary(note.body));}return summaries.get(key)!;}
@@ -32,6 +33,9 @@ function App() {
    bridge=channel.objects.notes;
    function receive(raw:string) {
     const next:State=JSON.parse(raw);
+    for(const [key,value] of Object.entries(next.appearance||{})) {
+      document.documentElement.style.setProperty(key==='color-scheme'?key:'--'+key,value);
+    }
     choose(next.language,false);
     if(next.epoch!==epoch.current){epoch.current=next.epoch;sequence.current=0;setDoc(next.doc);setTag('');}
     else if(next.ack>=sequence.current)setDoc(next.doc);

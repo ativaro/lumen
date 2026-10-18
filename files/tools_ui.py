@@ -146,6 +146,8 @@ class ToolWindow(QMainWindow):
         self.job = None; self.engine = None; self.ai_callback = None
         self.settings = QSettings('Lumen', 'Assistant')
         self.setWindowTitle(title); self.setWindowIcon(QIcon.fromTheme(icon)); self.resize(1180,800); self.setMinimumSize(840,600)
+        from panorama import install
+        install(self, name)
         shell = QWidget(); shell.setObjectName('workplace'); self.setCentralWidget(shell)
         shell.setStyleSheet('QDateEdit, QSpinBox { background: palette(base); color: palette(text); border: 1px solid palette(mid); border-radius: 8px; padding: 8px; } QCheckBox::indicator { width: 16px; height: 16px; }')
         outer = QVBoxLayout(shell); outer.setContentsMargins(24,20,24,16); outer.setSpacing(16)

@@ -13,6 +13,8 @@ class MeetingRadio(QMainWindow):
         self.setWindowTitle(tr('Lumen Audio Studio'))
         self.setWindowIcon(QIcon.fromTheme('lumen-meetings'))
         self.resize(1180, 860)
+        from panorama import install
+        install(self, 'meetings')
         self.pages = {'meetings': Meetings(root), 'radio': Radio(root)}
         self.tabs = QTabWidget()
         self.tabs.setObjectName('meetingRadioTabs')
@@ -31,6 +33,7 @@ class MeetingRadio(QMainWindow):
         for key, title in (('meetings', tr('Meeting')), ('radio', tr('Radio'))):
             page = self.pages[key]
             page.setWindowFlags(Qt.Widget)
+            page.panorama_bar.hide()
             self.tabs.addTab(page, title)
         self.select(initial)
 

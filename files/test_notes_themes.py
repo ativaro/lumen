@@ -63,4 +63,4 @@ class NotesThemeTest(unittest.TestCase):
                 w.save_note();self.wait(lambda:not w.job and not w.dirty)
             finally:
                 self.wait(lambda:not w.job and not w.poller and not w.live_preview.job)
-                w.close();w.deleteLater();self.app.sendPostedEvents(None,QEvent.DeferredDelete)
+                w.close();self.wait(lambda:not w.isVisible());w.deleteLater();self.app.sendPostedEvents(None,QEvent.DeferredDelete)

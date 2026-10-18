@@ -60,7 +60,12 @@ class NotesWebTest(unittest.TestCase):
     def test_web_editor_tables_tags_save_and_responsive_layout(self):
         w=self.w
         self.assertNotIn('**',self.js("document.querySelector('[contenteditable]').innerText"))
-        self.assertEqual(self.js("getComputedStyle(document.documentElement).getPropertyValue('--text').trim()"),'#edece8')
+        from appearance_tokens import COLORS
+        for theme in ('graphite', 'atelier', 'glass', 'midnight', 'graphite'):
+            apply_design(self.app, theme)
+            self.wait(lambda:self.js("getComputedStyle(document.documentElement).getPropertyValue('--text').trim()")==COLORS[theme][3])
+            self.assertEqual(self.js("getComputedStyle(document.documentElement).getPropertyValue('--surface').trim()"),COLORS[theme][1])
+            self.assertIn('Direkt formatiert schreiben.',self.js("document.querySelector('[contenteditable]').innerText"))
         for width in (1440,1180,840):
             w.resize(width,960);QTest.qWait(80)
             self.assertEqual(w.width(),width)

@@ -189,6 +189,8 @@ class LumenWindow(QMainWindow):
     def __init__(self, directory, file_settings=None):
         super().__init__()
         self.setWindowTitle(tr('Lumen · Detailansicht'))
+        from panorama import install
+        install(self, 'lumen')
         self.setStyleSheet((ROOT / 'files/studio.qss').read_text())
         icon = ROOT / 'icons/hicolor/scalable/apps/lumen.svg'
         self.setWindowIcon(QIcon(str(icon)) if icon.exists() else QIcon.fromTheme('lumen'))
@@ -225,7 +227,20 @@ class LumenWindow(QMainWindow):
         QShortcut(QKeySequence('Ctrl+,'), self, activated=self.show_settings)
         self.workspace_bar = StudioWorkspaces(self)
         row.addWidget(self.workspace_bar)
-        row.addWidget(self.pages, 1)
+        from studio_navigation import StudioNavigation
+        self.navigation = StudioNavigation(self)
+        self.history_toggle = QPushButton(tr('Gesprächsverlauf'))
+        self.history_toggle.setCheckable(True)
+        self.history_toggle.toggled.connect(self.navigation.setVisible)
+        self.workspace_bar.layout().insertWidget(1, self.history_toggle)
+        self.history_split = QSplitter(Qt.Horizontal)
+        self.history_split.setObjectName('studioNavigationSplit')
+        self.history_split.setChildrenCollapsible(False)
+        self.history_split.addWidget(self.navigation); self.history_split.addWidget(self.pages)
+        self.history_split.setStretchFactor(1, 1); self.history_split.setSizes([220, 1160])
+        row.addWidget(self.history_split, 1)
+        self._history_compact = None
+        self.update_history_layout()
         self.show_page(0)
         self.chat.actionChanged.connect(self.present_action)
         self.chat.closeRequested.connect(self.close)
@@ -260,8 +275,20 @@ class LumenWindow(QMainWindow):
 
     def present_action(self, action):
         self.workspace_bar.setVisible(not action)
+        self.navigation.setVisible(not action and self.history_toggle.isChecked())
         self.setWindowTitle('Lumen — ' + self.chat.heading.text() if action else tr('Lumen · Detailansicht'))
         self.setMinimumSize(560, 520) if action else self.setMinimumSize(760, 600)
+
+    def update_history_layout(self):
+        compact = self.width() < 1000
+        if compact != self._history_compact:
+            self._history_compact = compact
+            self.history_toggle.setChecked(not compact)
+            self.navigation.setVisible(not compact and not self.workspace_bar.isHidden())
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, 'history_toggle'): self.update_history_layout()
 
     def show_page(self, index):
         if index == 3:

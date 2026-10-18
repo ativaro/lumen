@@ -1,6 +1,6 @@
 /* Studio layout inherits the active Lumen / KDE palette. */
 QWidget#studioWorkbench, QWidget#studioNavigation, QWidget#taskOverview, QWidget#studioSavedResults { font-family: "DM Sans 9pt"; font-size: 13px; }
-QWidget#studioNavigation { background: palette(window); color: palette(placeholder-text); border: none; }
+QWidget#studioNavigation { background: palette(window); color: palette(placeholder-text); border: none; border-right: 1px solid palette(mid); }
 QLabel#studioMark { background: palette(highlight); color: palette(highlighted-text); border-radius: 8px; font-size: 24px; font-weight: 600; }
 QLabel#studioBrand { font-size: 23px; font-weight: 500; color: palette(text); background: transparent; }
 QPushButton#studioNav, QPushButton#studioAccount { text-align: left; background: transparent; color: palette(placeholder-text); border: 1px solid transparent; border-radius: 8px; padding: 0 9px; min-height: 36px; font-size: 13px; }

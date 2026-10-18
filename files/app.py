@@ -346,6 +346,8 @@ class Window(QMainWindow):
         self.settings = settings or QSettings('Lumen', 'Files')
         self.setWindowTitle('Lumen Files')
         self.setObjectName('filesWindow')
+        from panorama import install
+        install(self, 'files')
         self.setWindowIcon(QIcon(str(ROOT / 'lumen-files.svg')))
         self.resize(1380, 860)
         self.setMinimumSize(1000, 640)

@@ -21,6 +21,10 @@ QFrame#searchInput {{ border-radius: {radius + 14}px; }}
 QPushButton#searchSend {{ border-radius: {radius + 4}px; }}
 QPushButton#themeChoice {{ border-radius: {radius}px; }}
 QPushButton#danger, QPushButton#galleryTrash {{ color: {danger}; }}
+QToolBar#panoramaApps {{ background: palette(window); color: palette(text); border: none; border-bottom: 1px solid palette(mid); spacing: 4px; padding: 8px 16px; }}
+QToolBar#panoramaApps QToolButton {{ background: transparent; color: palette(placeholder-text); border: 1px solid transparent; border-radius: {min(radius, 10)}px; padding: 8px 12px; min-height: 28px; font-size: 13px; }}
+QToolBar#panoramaApps QToolButton:hover, QToolBar#panoramaApps QToolButton:checked {{ background: palette(midlight); color: palette(text); }}
+QToolBar#panoramaApps QToolButton:focus {{ border-color: palette(highlight); }}
 """
     if name == 'glass':
         style += """

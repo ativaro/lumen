@@ -33,7 +33,7 @@ export function PageTitle({
         <span className="eyebrow">{eyebrow}</span>
         <h1>{title}</h1>
       </div>
-      {children}
+      {children && <div className="page-actions">{children}</div>}
     </div>
   );
 }

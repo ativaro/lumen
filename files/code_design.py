@@ -56,6 +56,8 @@ QTreeWidget#codeEntries QHeaderView::section { background: palette(base); color:
 
 
 def shell(owner):
+    from panorama import install
+    install(owner, 'code')
     owner.setObjectName('codeShell');surface(owner)
     owner.setStyleSheet(Path(__file__).with_name('studio.qss').read_text()+'\n'+STYLE)
     root=QVBoxLayout(owner);root.setContentsMargins(0,0,0,0);root.setSpacing(0)

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" width="32" height="32" viewBox="0 0 24 24">
+  <title>Lumen Code &amp; Automation</title>
+  <style>svg{color:#405855}.accent{color:#477e71}@media(prefers-color-scheme:dark){svg{color:#bdcfcb}.accent{color:#92bdb0}}</style>
+  <g class="accent" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"><path d="M17.3 3.52a10 10 0 1 0 3.18 3.18"/></g>
+  <g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 9-3 3 3 3m6-6 3 3-3 3m-2-7-2 8"/></g>
+</svg>

@@ -1,14 +1,9 @@
 :root {
   font-family: "DM Sans", sans-serif;
-  color: #edf6f8;
-  background: #081f27;
+  color: var(--text);
+  background: var(--window);
   font-synthesis: none;
   font-weight: 400;
-  --accent: #8ce8df;
-  --line: #284750;
-  --muted: #acbfcb;
-  --soft: #16343e;
-  --surface: #102b34;
   color-scheme: dark;
 }
 * {
@@ -54,7 +49,7 @@ a {
 }
 button:focus-visible,
 a:focus-visible {
-  outline: 3px solid #64ad9a;
+  outline: 3px solid var(--accent);
   outline-offset: 4px;
 }
 input,
@@ -139,7 +134,7 @@ code {
   display: flex;
   align-items: center;
   gap: 12px;
-  color: #24413d;
+  color: var(--text);
   font-size: 25px;
   font-weight: 600;
   padding: 0 12px;
@@ -998,7 +993,7 @@ code {
   padding: 0;
 }
 .upload-button:focus-within {
-  outline: 3px solid #64ad9a;
+  outline: 3px solid var(--accent);
   outline-offset: 4px;
 }
 .search-results {
@@ -1046,7 +1041,7 @@ code {
 
 /* Lumen Server: shared petrol palette and the panoramic, three-column overview. */
 body {
-  background: radial-gradient(ellipse at 55% 5%, #153741 0, #081f27 66%);
+  background: radial-gradient(ellipse at 55% 5%, #153741 0, var(--window) 66%);
 }
 button,
 a {
@@ -1073,13 +1068,13 @@ select:focus-visible {
   outline-offset: 2px;
 }
 option {
-  background: #102b34;
-  color: #edf6f8;
+  background: var(--surface);
+  color: var(--text);
 }
 .primary,
 .send {
-  background: #8ce8df;
-  border-color: #8ce8df;
+  background: var(--accent);
+  border-color: var(--accent);
   color: #07272e;
 }
 .primary:hover,
@@ -1089,7 +1084,7 @@ option {
 .secondary {
   border-color: #5b929d;
   color: #def9fa;
-  background: #16343e;
+  background: var(--soft);
 }
 .secondary:hover {
   background: #244a55;
@@ -1120,15 +1115,15 @@ option {
 }
 .task-state.completed,
 .task-state.running {
-  color: #8ce8df;
+  color: var(--accent);
   background: #1c454b;
 }
 .tabs button.active {
   color: #eafffc;
-  background: #2b535b;
+  background: var(--soft);
 }
 .answer blockquote {
-  color: #b4cccd;
+  color: var(--muted);
 }
 .auth-story {
   background:
@@ -1175,7 +1170,7 @@ option {
   align-items: center;
   gap: 28px;
   padding: 0 33px;
-  border-bottom: 1px solid #2b4a54;
+  border-bottom: 1px solid var(--line);
   background: #102c36c9;
   position: relative;
   z-index: 5;
@@ -1183,7 +1178,7 @@ option {
 .server-nav .brand {
   padding: 0;
   gap: 22px;
-  color: #e0f9fd;
+  color: var(--text);
 }
 .server-nav .brand > span:last-child {
   font-size: 12px;
@@ -1203,12 +1198,12 @@ option {
   white-space: nowrap;
 }
 .server-nav nav button.active {
-  color: #acf5ec;
+  color: var(--accent);
   border-color: #507d89;
-  background: #244853;
+  background: var(--soft);
 }
 .server-nav nav button:hover {
-  background: #244853;
+  background: var(--soft);
 }
 .nav-tools {
   justify-self: end;
@@ -1255,7 +1250,7 @@ option {
   gap: 12px;
   border: 1px solid #42636b;
   border-radius: 12px;
-  background: #102b34;
+  background: var(--surface);
   padding: 22px;
   box-shadow: 0 12px 40px #0007;
 }
@@ -1274,7 +1269,7 @@ option {
   left: 20px;
   z-index: 30;
   padding: 12px;
-  background: #102b34;
+  background: var(--surface);
 }
 .skip-link:focus {
   top: 12px;
@@ -1294,8 +1289,8 @@ option {
   z-index: -1;
   inset: 0;
   background:
-    linear-gradient(90deg, #081f27 15%, #081f2730 58%, #081f27 99%),
-    linear-gradient(0deg, #081f27, transparent 45%, #081f2750),
+    linear-gradient(90deg, var(--window) 15%, #081f2730 58%, var(--window) 99%),
+    linear-gradient(0deg, var(--window), transparent 45%, #081f2750),
     url("/alpenlicht.png") 65% 54% / cover;
   opacity: 0.72;
 }
@@ -1648,7 +1643,7 @@ option {
   stroke-width: 11;
 }
 .backup-ring circle.ring-accent {
-  stroke: #8ce8df;
+  stroke: var(--accent);
 }
 .backup-ring > div {
   position: absolute;
@@ -1709,7 +1704,7 @@ option {
 }
 .cpu-chart polyline {
   fill: none;
-  stroke: #8ce8df;
+  stroke: var(--accent);
   stroke-width: 1.5;
   stroke-linejoin: round;
 }
@@ -1780,7 +1775,7 @@ option {
   padding: 0 12px 0 4px;
 }
 .composer {
-  background: linear-gradient(115deg, #1b3b46, #102b34);
+  background: linear-gradient(115deg, #1b3b46, var(--surface));
   border: 1px solid #466d79;
   border-radius: 36px;
   box-shadow: 0 3px 16px #0003;
@@ -1789,7 +1784,7 @@ option {
   gap: 18px;
 }
 .composer:focus-within {
-  border-color: #8ce8df;
+  border-color: var(--accent);
 }
 .composer > svg {
   color: #9aefe9;
@@ -2908,7 +2903,7 @@ input[type="range"] { accent-color:var(--accent); }
 .dictation-panel .panel-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .dictation-panel > p { margin: 12px 0; }
 .dictation-panel > button { display:inline-flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:9px; padding:9px 12px; margin-right:8px; background:var(--soft); color:inherit; }
-.dictation-panel > button.primary { background:var(--accent); color:#102b34; }
+.dictation-panel > button.primary { background:var(--accent); color:var(--surface); }
 .dictation-panel .panel-heading button { background:transparent; color:var(--muted); padding:6px; }
 .dictation-panel { max-height: min(720px, calc(100dvh - 130px)); overflow-y:auto; }
 .dictation-panel .segmented { display:flex; margin-top:14px; }
@@ -2950,7 +2945,7 @@ input[type="range"] { accent-color:var(--accent); }
 .notification-toolbar,.notification-filters,.notification-actions,.notification-meta {display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .notification-toolbar input {flex:1;min-width:180px}
 .notification-filters {margin:18px 0}
-.notification-filters .active {background:var(--accent);color:#081f27}
+.notification-filters .active {background:var(--accent);color:var(--window)}
 .notification-filters button {border-radius:18px;padding:8px 16px}
 .notification-cards {display:grid;gap:12px;margin:18px 0}
 .notification-card {padding:20px;border:1px solid var(--line);border-radius:16px;background:var(--surface)}
