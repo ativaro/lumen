@@ -344,10 +344,12 @@ class CollectionWindow(QMainWindow):
 
     def new_routine(self):
         if not self.allow_leave():return
-        from code_edit_window import EditDialog
-        dialog=EditDialog(self.collection,parent=self,tool=self.collection.get(self.current['id']))
-        dialog.exec()
-        if dialog.item:self.open_entry(dialog.item['id'],blocks=False)
+        from code_creation import CreationDialog
+        tool=self.collection.get(self.current['id']);dialog=CreationDialog(self,self.project_records,self.collection.items(kind='tool'),kind='routine')
+        dialog.name.setText(tool['title']);dialog.project.setCurrentIndex(max(0,dialog.project.findData(tool['project_id'])))
+        step=next(n for n in dialog.forms['routine'].items if n['kind']=='ai');step.update(title=tool['title']+' · '+tr('Version {0}',tool['revision']),config=tool['definition']['prompt']);dialog.forms['routine'].refresh()
+        if dialog.exec():
+            value=dialog.value;item=self.collection.create(value['kind'],value['title'],value['description'],value['definition'],value['project_id']);self.open_entry(item['id'])
         self.refresh()
 
     def save(self):

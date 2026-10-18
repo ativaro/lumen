@@ -67,23 +67,26 @@ class SectionsEditor(QWidget):
     def fold(self,box,title,key,subtitle=''):
         wrapper=QWidget();layout=QVBoxLayout(wrapper);layout.setContentsMargins(0,0,0,0);layout.setSpacing(8)
         toggle=button(('▾ ' if key in self.open_ids else '▸ ')+title,lambda:None);toggle.setCheckable(True);toggle.setChecked(key in self.open_ids);toggle.setObjectName('codeFold');toggle.setAccessibleName(title)
+        toggle.setProperty('codeTitle',title)
         if subtitle:toggle.setToolTip(subtitle)
         layout.addWidget(toggle);preview=label(subtitle,'codeMuted');preview.setVisible(bool(subtitle) and not toggle.isChecked());layout.addWidget(preview)
         body=QWidget();body_box=QVBoxLayout(body);body_box.setContentsMargins(16,0,0,8);body_box.setSpacing(12);layout.addWidget(body);body.setVisible(toggle.isChecked())
+        self.fold_views[key]=(toggle,preview)
         def opened(checked):
             if checked:self.open_ids.add(key)
             else:self.open_ids.discard(key)
-            toggle.setText(('▾ ' if checked else '▸ ')+title);body.setVisible(checked)
-            preview.setVisible(bool(subtitle) and not checked)
+            toggle.setText(('▾ ' if checked else '▸ ')+toggle.property('codeTitle'));body.setVisible(checked)
+            preview.setVisible(bool(preview.text()) and not checked)
         toggle.toggled.connect(opened);box.addWidget(wrapper)
         return body_box
 
     def fields_at(self,n):
         value=flatten(self.items);index=next(i for i,x in enumerate(value['nodes']) if x['id']==n['id'])
+        source=config(value['nodes'][0]);source.pop('trigger',None);value['nodes'][0]['config']=json.dumps(source)
         return available(value['nodes'],index)
 
     def refresh(self,*_):
-        self.getters=[];body=QWidget();box=QVBoxLayout(body);box.setContentsMargins(0,8,0,8);box.setSpacing(16)
+        self.getters=[];self.fold_views={};body=QWidget();box=QVBoxLayout(body);box.setContentsMargins(0,8,0,8);box.setSpacing(16)
         if self.routine:
             columns=QHBoxLayout();columns.setSpacing(24);box.addLayout(columns)
             steps_widget=QWidget();steps_box=QVBoxLayout(steps_widget);steps_box.setContentsMargins(0,0,0,0);steps_box.setSpacing(16);columns.addWidget(steps_widget,3)
@@ -170,6 +173,8 @@ class SectionsEditor(QWidget):
 
     def update_source(self,n,source,key,value):
         source[key]=value;n['config']=json.dumps(source,ensure_ascii=False);self.changed.emit()
+        if 'input' in self.fold_views:
+            self.fold_views['input'][1].setText(source.get('trigger',{}).get('path') or source.get('path') or self.projects.get(source.get('project_id')) or source.get('text','')[:180] or tr('Quelle auswählen und ihren Inhalt prüfen.'))
 
     def render_steps(self,steps,box,depth,start=0):
         statuses={n['id']:s for n,s in zip(self.run['plan']['nodes'],self.run['data']['steps'])} if self.run else {}
@@ -233,7 +238,15 @@ class SectionsEditor(QWidget):
             self.mutate(append)
         add.activated.connect(selected)
 
-    def update_node(self,n,key,value):n[key]=value;self.changed.emit()
+    def update_node(self,n,key,value):
+        n[key]=value
+        if n['id'] in self.fold_views:
+            toggle,preview=self.fold_views[n['id']]
+            if key=='title':
+                caption=value+' · '+toggle.property('codeTitle').rsplit(' · ',1)[-1];toggle.setProperty('codeTitle',caption);toggle.setAccessibleName(caption);toggle.setText(('▾ ' if toggle.isChecked() else '▸ ')+caption)
+            elif n['kind'] in ('ai','ai_check','filter_text','save_file','read_file','save_note','create_task','project_note'):
+                preview.setText(self.projects.get(value,value)[:180])
+        self.changed.emit()
 
     def add_case(self,n):
         def append():

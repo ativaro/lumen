@@ -75,4 +75,23 @@ class TriggerUiTest(unittest.TestCase):
             r.advance(run['id'],Job());r.advance(run['id'],Job());self.assertEqual(r.get(run['id'])['status'],'completed');self.assertIn('Neuer Punkt',lib.get(key)['notes']);self.assertEqual(lib.get(key)['goal'],'Erhalten')
             lib.update(key,server_bound=True,server_role='reader');run=r.create(e['id'],False);r.resume(run['id']);r.advance(run['id'],Job());r.advance(run['id'],Job());self.assertEqual(r.get(run['id'])['status'],'error')
 
+    def test_folded_steps_show_current_edited_instruction_and_title(self):
+        from code_sections_editor import SectionsEditor
+        w=SectionsEditor();self.addCleanup(lambda:(w.shutdown(),w.close()))
+        step=next(n for n in w.items if n['kind']=='ai');toggle,preview=w.fold_views[step['id']]
+        toggle.setChecked(True);w.update_node(step,'config','Prüfe auch den Betrag');w.update_node(step,'title','Beleg prüfen');toggle.setChecked(False)
+        self.assertEqual(preview.text(),'Prüfe auch den Betrag');self.assertIn('Beleg prüfen',toggle.text())
+
+    def test_tool_shortcut_uses_same_new_routine_and_preserves_frozen_instruction(self):
+        from code_library_window import CollectionWindow
+        from code_creation import CreationDialog
+        from code_block_paths import config
+        with tempfile.TemporaryDirectory() as tmp:
+            w=CollectionWindow(Store(tmp));self.addCleanup(w.close);tool=w.collection.create('tool','Prüfen',value={'prompt':'Nenne fehlende Angaben'});w.current=tool
+            def accept(dialog):
+                form=dialog.forms['routine'];form.items[0]['config']=json.dumps({**config(form.items[0]),'text':'Beispiel'});form.refresh();dialog.review();return QDialog.Accepted
+            with patch.object(CreationDialog,'exec',accept),patch.object(w,'open_entry') as opened:w.new_routine()
+            saved=w.collection.get(opened.call_args.args[0]);self.assertEqual(saved['definition']['editor'],'routine')
+            plan=json.loads(saved['definition']['flow']);self.assertIn('Nenne fehlende Angaben',[n['config'] for n in plan['nodes']])
+
 if __name__=='__main__':unittest.main()
