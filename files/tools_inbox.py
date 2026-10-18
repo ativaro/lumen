@@ -15,7 +15,7 @@ from PySide6.QtCore import Qt, QDateTime, QTimer,QTimeZone
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QDialog, QFormLayout, QLineEdit,
     QComboBox, QSpinBox, QDialogButtonBox, QFileDialog, QInputDialog, QMessageBox,
     QListWidgetItem, QTreeWidget, QTreeWidgetItem, QPlainTextEdit, QTabWidget, QSplitter,
-    QDateTimeEdit, QCheckBox,QTextBrowser)
+    QDateTimeEdit, QCheckBox,QTextBrowser,QScrollArea,QFrame)
 from tools_ui import ToolWindow, button, label, row
 from tools_secrets import secret
 import inbox_data as inbox
@@ -52,9 +52,12 @@ class Inbox(ToolWindow):
         self.messages=tree([tr('Nachrichten'),tr('Von / Konto')]);self.messages.setRootIsDecorated(True)
         self.messages.currentItemChanged.connect(lambda item,_:self.safe(self.read_message,item));split.addWidget(self.messages)
         reading=QWidget();rl=QVBoxLayout(reading);rl.setContentsMargins(12,0,0,0)
-        self.subject=label(tr('Dein Posteingang'),'heading');rl.addWidget(self.subject)
-        self.sender=label(tr('Konto hinzufügen und aktualisieren, um Nachrichten zu laden.'),'muted');rl.addWidget(self.sender)
-        self.reader=QPlainTextEdit();self.reader.setReadOnly(True);self.reader.setAccessibleName(tr('Nachrichtentext'));rl.addWidget(self.reader,1)
+        message=QWidget();message_layout=QVBoxLayout(message);message_layout.setContentsMargins(0,0,0,0)
+        self.subject=label(tr('Dein Posteingang'),'heading');message_layout.addWidget(self.subject)
+        self.sender=label(tr('Konto hinzufügen und aktualisieren, um Nachrichten zu laden.'),'muted');message_layout.addWidget(self.sender)
+        self.reader=QPlainTextEdit();self.reader.setReadOnly(True);self.reader.setAccessibleName(tr('Nachrichtentext'));message_layout.addWidget(self.reader,1)
+        reading_scroll=QScrollArea();reading_scroll.setWidgetResizable(True);reading_scroll.setFrameShape(QFrame.NoFrame)
+        reading_scroll.setWidget(message);rl.addWidget(reading_scroll,1)
         self.attachments=QComboBox();self.attachments.setAccessibleName(tr('Anhänge'))
         from interop_ui import attachment_send
         rl.addWidget(row(self.attachments,button(tr('Speichern'),lambda:self.safe(self.attachment),'document-save'),button(tr('An Lumen …'),lambda:self.safe(attachment_send,self),'insert-link')))
