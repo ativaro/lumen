@@ -1,10 +1,11 @@
 """Panorama automation editor: When, optional conditions, one selected action inspector."""
 import json
 import tempfile
+from html import escape
 from pathlib import Path
 from PySide6.QtCore import Signal,Qt,QSize,QTimer
 from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QScrollArea,QTabWidget,
-    QLineEdit,QPlainTextEdit,QComboBox,QCheckBox,QFileDialog,QMessageBox,QPushButton,QDoubleSpinBox,QSpinBox,QTimeEdit,QDateEdit)
+    QLineEdit,QPlainTextEdit,QComboBox,QCheckBox,QFileDialog,QMessageBox,QPushButton,QDoubleSpinBox,QSpinBox,QTimeEdit,QDateEdit,QSizePolicy)
 from tools_ui import button,label,row
 from lumen_i18n import tr
 from code_blocks import node,CATALOG,parse,LEGACY_KINDS,STATES
@@ -14,6 +15,8 @@ from code_condition_ui import ConditionEditor,combo
 
 class ActionRow(QPushButton):
     """Native button geometry includes its wrapped summary labels."""
+    def __init__(self):
+        super().__init__();policy=self.sizePolicy();policy.setHeightForWidth(True);policy.setVerticalPolicy(QSizePolicy.Preferred);self.setSizePolicy(policy)
     def hasHeightForWidth(self):return True
     def heightForWidth(self,width):
         layout=self.layout()
@@ -38,13 +41,15 @@ class SectionsEditor(QWidget):
         self.description_status=label('','codeMuted');box.addWidget(self.description_status)
         self.proposal_box=QWidget();self.proposal_layout=QVBoxLayout(self.proposal_box);box.addWidget(self.proposal_box)
         self.accept_proposal=button(tr('Als Startbedingung übernehmen'),self.accept_condition);self.accept_proposal.hide();box.addWidget(self.accept_proposal);box.addStretch()
-        self.tabs.addTab(describe,tr('Bedingung beschreiben'))
+        # Hidden formulation pages must not set the flow's minimum window height.
+        describe_scroll=QScrollArea();describe_scroll.setWidgetResizable(True);describe_scroll.setWidget(describe);self.tabs.addTab(describe_scroll,tr('Bedingung beschreiben'))
         whole=QWidget();full=QVBoxLayout(whole);full.setSpacing(12)
         full.addWidget(button(tr('‹ Zurück zum Ablauf'),lambda:self.tabs.setCurrentIndex(0)),0,Qt.AlignLeft)
         full.addWidget(label(tr('Den ganzen Ablauf beschreiben'),'codeCardTitle'))
         self.full_description=QPlainTextEdit();self.full_description.setAccessibleName(tr('Ablaufbeschreibung'));full.addWidget(self.full_description)
         self.full_button=button(tr('Ablauf vorschlagen'),self.describe_flow,primary=True);full.addWidget(self.full_button)
-        self.full_status=label('','codeMuted');full.addWidget(self.full_status);self.full_preview=QPlainTextEdit();self.full_preview.setReadOnly(True);self.full_preview.setMaximumHeight(220);self.full_preview.setAccessibleName(tr('Vorgeschlagener Ablauf'));full.addWidget(self.full_preview);self.full_accept=button(tr('Vorschlag übernehmen'),self.accept_flow);self.full_accept.hide();full.addWidget(self.full_accept);full.addStretch();self.tabs.addTab(whole,tr('Ablauf beschreiben'));self.set_plan(plan)
+        self.full_status=label('','codeMuted');full.addWidget(self.full_status);self.full_preview=QPlainTextEdit();self.full_preview.setReadOnly(True);self.full_preview.setMaximumHeight(220);self.full_preview.setAccessibleName(tr('Vorgeschlagener Ablauf'));full.addWidget(self.full_preview);self.full_accept=button(tr('Vorschlag übernehmen'),self.accept_flow);self.full_accept.hide();full.addWidget(self.full_accept);full.addStretch()
+        whole_scroll=QScrollArea();whole_scroll.setWidgetResizable(True);whole_scroll.setWidget(whole);self.tabs.addTab(whole_scroll,tr('Ablauf beschreiben'));self.set_plan(plan)
 
     def set_plan(self,plan=None):
         if plan is None and self.routine:
@@ -116,7 +121,7 @@ class SectionsEditor(QWidget):
 
     def refresh(self,*_):
         if self.selected not in ('input','gate') and not self.find_step(self.selected):self.selected='input'
-        self.getters=[];self.summaries={};body=QWidget();self.columns=QHBoxLayout(body);self.columns.setContentsMargins(0,8,0,8);self.columns.setSpacing(32)
+        self.getters=[];self.summaries={};body=QWidget();self.columns=QHBoxLayout(body);self.columns.setContentsMargins(0,16,8,16);self.columns.setSpacing(32)
         left=QWidget();box=QVBoxLayout(left);box.setContentsMargins(0,0,0,0);box.setSpacing(12);self.columns.addWidget(left,3)
         self.inspector=QWidget();self.inspector.setObjectName('codeFlowInspector');right=QVBoxLayout(self.inspector);right.setContentsMargins(24,0,0,0);right.setSpacing(12);self.columns.addWidget(self.inspector,2)
         box.addWidget(label(tr('Start' if self.routine else 'Wenn'),'codeCardTitle'))
@@ -258,11 +263,15 @@ class SectionsEditor(QWidget):
 
     def add_actions(self,steps,box,depth):
         add=QComboBox();add.setAccessibleName(tr('Aktion hinzufügen'));add.addItem(tr('+ Aktion hinzufügen'),'')
+        # A saved tool's long name must not widen the entire flow.
+        add.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon);add.setMinimumContentsLength(20)
+        add.view().setTextElideMode(Qt.ElideRight)
         kinds=('read_file','filter_text','ai','ai_check','choose','for_each','delay','approval','save_file','save_note','create_task','project_note','notify') if self.version==3 else tuple(k for k in CATALOG if k in LEGACY_KINDS and k!='manual')
         for kind in kinds:
             if self.routine and kind in ('choose','for_each','ai_check'):continue
             if kind not in ('choose','for_each') or depth<3:add.addItem(tr(CATALOG[kind][1]),kind)
-        for tool in self.tools:add.addItem(tr('Werkzeug: {0}',tool['title']),tool)
+        for tool in self.tools:
+            text=tr('Werkzeug: {0}',tool['title']);add.addItem(text,tool);add.setItemData(add.count()-1,'<qt>'+escape(text)+'</qt>',Qt.ToolTipRole)
         box.addWidget(add)
         def selected():
             value=add.currentData()
