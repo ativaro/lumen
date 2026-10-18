@@ -17,6 +17,7 @@ from lumen_i18n import tr, worker_process
 from voice_session import VoiceSession
 from lumen_voice_ui import VoiceActivity
 from vault_privacy import capture_guard
+from desktop_design import PAGE_MARGIN
 
 
 class Composer(AssistantInput):
@@ -69,7 +70,7 @@ class Companion(QWidget):
         self.timer = QTimer(self); self.timer.setInterval(5000); self.timer.timeout.connect(self.observe)
         self.worker_limit = QTimer(self); self.worker_limit.setSingleShot(True)
         self.worker_limit.timeout.connect(lambda: self.pause(tr('Fensterzugriff hat zu lange gedauert. Erneut auswählen oder fortsetzen.')))
-        layout = QVBoxLayout(self); layout.setContentsMargins(22, 18, 22, 18); layout.setSpacing(12)
+        layout = QVBoxLayout(self); layout.setContentsMargins(PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN); layout.setSpacing(12)
         scroll = QScrollArea(); scroll.setWidgetResizable(True); scroll.setFrameShape(QFrame.NoFrame)
         content = QWidget(); body = QVBoxLayout(content); body.setContentsMargins(0,0,0,0); body.setSpacing(12)
         scroll.setWidget(content); layout.addWidget(scroll,1)
@@ -117,7 +118,7 @@ class Companion(QWidget):
         self.voice.failed.connect(self.show_error); self.voice.setupRequested.connect(self.speech_setup)
         self.backend.completed.connect(self.completed)
         self.backend.busyChanged.connect(lambda _: self.update_controls())
-        self.setStyleSheet('''QLabel#guideTitle {font-size:24px; font-weight:600;}
+        self.setStyleSheet('''QLabel#guideTitle {font-size:26px; font-weight:500;}
             QLabel#guideNotice {font-size:12px;}
             QPushButton {padding:8px 10px; border-radius:10px;}
             QPushButton#guidePrimary {background:palette(highlight);color:palette(highlighted-text);}
