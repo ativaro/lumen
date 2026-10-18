@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QLabel,QListWidge
     QLineEdit,QPlainTextEdit,QTabWidget,QSplitter,QMenu,QFileDialog,QMessageBox,QStyledItemDelegate,QScrollArea)
 from tools_ui import button,label
 from lumen_i18n import tr
-from code_blocks import CATALOG,LATER,starter,node,parse,generated
+from code_blocks import LEGACY_KINDS,CATALOG,LATER,starter,node,parse,generated
 
 STATES={'pending':'Bereit','running':'Läuft','completed':'Erledigt','waiting':'Braucht dich','error':'Fehler','skipped':'Übersprungen','paused':'Pausiert','cancelled':'Abgebrochen'}
 STYLE='''
@@ -119,7 +119,7 @@ class BlockEditor(QWidget):
         for group in ('Start','Verarbeiten','Handeln','Steuern'):
             submenu=menu.addMenu(tr(group))
             for kind,(category,title,help) in CATALOG.items():
-                if category!=group:continue
+                if category!=group or kind not in LEGACY_KINDS:continue
                 action=submenu.addAction(tr(title));action.setToolTip(tr(help));action.setEnabled(kind!='manual' and len(self.nodes)<14)
                 action.triggered.connect(lambda _=False,k=kind:self.add(k))
             for title in LATER.get(group,[]):
@@ -158,7 +158,7 @@ class BlockEditor(QWidget):
             self.temporary=tempfile.TemporaryDirectory(prefix='lumen-block-design-')
             self.engine=OpenCodeBackend(self.temporary.name,self,project_config=False);self.engine.completed.connect(self.described)
         self.set_locked(True);self.description_status.setText(tr('Bausteine werden entworfen …'))
-        prompt='Erstelle ausschließlich JSON {"nodes":[{"kind":"manual","title":"Start","config":""}, ...]}. Erster und einziger Start manual, 2 bis 14 Bausteine. Verfügbare Typen: '+json.dumps(CATALOG,ensure_ascii=False)+'. config nur für ai als Auftrag füllen; alle Pfade und Ziele leer lassen. Kein Baustein außerhalb dieses Katalogs. Wenn die Anforderung nicht unterstützt ist: {"error":"Grund"}. Beschreibung:\n'+text
+        prompt='Erstelle ausschließlich JSON {"nodes":[{"kind":"manual","title":"Start","config":""}, ...]}. Erster und einziger Start manual, 2 bis 14 Bausteine. Verfügbare Typen: '+json.dumps({k:v for k,v in CATALOG.items() if k in LEGACY_KINDS},ensure_ascii=False)+'. config nur für ai als Auftrag füllen; alle Pfade und Ziele leer lassen. Kein Baustein außerhalb dieses Katalogs. Wenn die Anforderung nicht unterstützt ist: {"error":"Grund"}. Beschreibung:\n'+text
         self.engine.send(prompt,proposal=True,title='Lumen Automation')
 
     def described(self,success,result):

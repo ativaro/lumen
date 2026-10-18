@@ -42,14 +42,14 @@ class EditDialog(QDialog):
         if self.is_tool:self.original_spec=editing(item)
         elif item:
             self.plan=parse(item['definition']['flow'])
-            if self.plan.get('version')==2:raise ValueError(tr('Bausteinabläufe im Ablaufeditor bearbeiten.'))
+            if self.plan.get('version') in (2,3):raise ValueError(tr('Bausteinabläufe im Ablaufeditor bearbeiten.'))
             if self.plan['trigger']=='schedule' and 'clock' not in self.plan:raise ValueError(tr('Serverzeitpläne im zuständigen Server bearbeiten.'))
         else:
             self.plan=dict(trigger='schedule',minutes=60,watch='',cron='0 9 * * *',timezone='Europe/Zurich',clock=default(),
                            steps=[dict(title=tool['title'],prompt=tool['definition']['prompt'],tool_id=tool['id'],tool_revision=tool['revision'])],
                            condition='always',outputs=['notify'],source_ids=[],service_ids=[])
         main,nav,self.footer=shell(self)
-        controls=navigation(nav,self.reject,lambda _:self.reject());controls['tool' if self.is_tool else 'automation'].setChecked(True)
+        controls=navigation(nav,self.reject,lambda _:self.reject());controls['tool' if self.is_tool else 'routine'].setChecked(True)
         box=QVBoxLayout(main);box.setContentsMargins(28,20,28,22);box.setSpacing(12)
         self.context=label('','codeMuted');box.addWidget(self.context)
         self.heading_row=QBoxLayout(QBoxLayout.LeftToRight);self.heading_row.setSpacing(12);box.addLayout(self.heading_row)

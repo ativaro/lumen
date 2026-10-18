@@ -4,6 +4,7 @@ import json
 import sys
 from PySide6.QtCore import QCoreApplication, Qt, QLockFile, QTimer
 from PySide6.QtNetwork import QLocalSocket
+from PySide6.QtGui import QIcon
 from app import create_app
 from code_library_window import CollectionWindow
 from lumen_activation import present
@@ -19,7 +20,7 @@ def main(arguments=None):
     # Files' global history filter wraps WebEngine's transient Quick objects in
     # PySide. Code has no Files history; keep that filter out of this process.
     app.removeEventFilter(app)
-    app.setApplicationName('lumen-code');app.setApplicationDisplayName('Lumen Code & Automation');app.setDesktopFileName('lumen-code')
+    app.setApplicationName('lumen-code');app.setApplicationDisplayName('Lumen Code & Automation');app.setDesktopFileName('lumen-code');app.setWindowIcon(QIcon.fromTheme('lumen-code'))
     window=CollectionWindow()
     from interop_flush import server_name
     socket=QLocalSocket();socket.connectToServer(server_name(window.library.root))

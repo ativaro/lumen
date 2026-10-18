@@ -13,9 +13,9 @@ def proposal(goal):
         raise ValueError("Beschreibe dein Ziel mit höchstens 8.000 Zeichen.")
     return (
         "Empfiehl die passende Art eines Lumen-Helfers für das Ziel. Antworte nur als JSON "
-        '{"kind":"app|tool|automation|code","title":"Name","prompt":"Auftrag",'
+        '{"kind":"tool|routine|automation|code","title":"Name","prompt":"Auftrag",'
         '"reason":"kurze Begründung","checks":["konkret prüfbares Ergebnis"]}. '
-        "app: eigenständige offline HTML-Oberfläche; tool: wiederverwendbare KI-Anweisung; "
+        "routine: wiederkehrende Schritte mit optionalem Zeitplan; tool: wiederverwendbare KI-Anweisung; "
         "automation: ausdrücklich gewählte Quellen und geprüfte Aktionen; "
         "code: bestehende Software entwickeln oder reparieren. Keine Werkzeuge benutzen, "
         "nichts ausführen, keine Zugriffe oder Zeitpläne freigeben. Keine erfundenen Quellen, "
@@ -47,7 +47,7 @@ def parse(text):
             "Kein gültiger Vorschlag. Erneut versuchen oder selbst auswählen."
         )
     if not isinstance(value["kind"], str) or value["kind"] not in (
-        "app",
+        "routine",
         "tool",
         "automation",
         "code",

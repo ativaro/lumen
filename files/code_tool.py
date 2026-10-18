@@ -2,8 +2,8 @@
 import json
 from code_flow import parse
 
-INPUTS = ('PDF oder Text', 'Text', 'PDF')
-OUTPUTS = ('Prüfbericht mit Fundstellen', 'Kurze Zusammenfassung', 'Liste offener Fragen')
+INPUTS = ('PDF oder Text', 'Text', 'PDF', 'Datei beim Start auswählen', 'Projektinhalte auswählen')
+OUTPUTS = ('Prüfbericht mit Fundstellen', 'Kurze Zusammenfassung', 'Liste offener Fragen', 'Checkliste', 'Tabelle', 'Kurzer Text')
 
 
 def spec(text):
@@ -36,7 +36,7 @@ def usages(collection, identity):
         text = item['definition'].get('flow')
         if not text: continue
         plan = parse(text)
-        if plan.get('version') == 2: continue
+        if plan.get('version') in (2,3): continue
         steps = [s for s in plan['steps'] if s.get('tool_id') == identity]
         if steps: result.append((item, steps))
     return result

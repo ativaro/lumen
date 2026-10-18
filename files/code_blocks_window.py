@@ -25,7 +25,13 @@ class BlockWindow(QDialog):
         root.addWidget(label(self.item['title'],'codeTitle'))
         root.addWidget(label(tr('Dateien und Apps Schritt für Schritt verbinden. Jeder Baustein zeigt seine tatsächlichen Daten.'),'codeSubtitle'))
         from code_flow import parse
-        self.editor=BlockEditor(self,parse(self.item['definition']['flow']));self.editor.changed.connect(self.changed);root.addWidget(self.editor,1)
+        plan=parse(self.item['definition']['flow'])
+        if plan.get('version')==3:
+            from code_sections_editor import SectionsEditor
+            from lumen_projects import projects
+            self.editor=SectionsEditor(self,plan,projects={p['id']:p['name'] for p in projects(self.collection.store)},tools=self.collection.items(kind='tool'))
+        else:self.editor=BlockEditor(self,plan)
+        self.editor.changed.connect(self.changed);root.addWidget(self.editor,1)
         self.status=label('','codeMuted');root.addWidget(self.status)
         row=QHBoxLayout();self.test_button=button(tr('Testlauf'),lambda:self.safe(self.start,True),'media-playback-start',True);row.addWidget(self.test_button)
         self.live_button=button(tr('Jetzt ausführen'),lambda:self.safe(self.start,False));row.addWidget(self.live_button);row.addStretch()
@@ -60,7 +66,7 @@ class BlockWindow(QDialog):
         self.dirty=False;self.save_button.setText(tr('Entwurf speichern'));self.render();return self.item
 
     def start(self,testing):
-        if self.job or self.ai_wait or (self.editor.engine and self.editor.engine.busy):return
+        if self.job or self.ai_wait or (self.editor.engine and self.editor.engine.busy) or (getattr(self.editor,'full_engine',None) and self.editor.full_engine.busy):return
         if self.dirty:self.save()
         plan=self.editor.plan();grants=permissions(plan)
         if not testing:
@@ -153,7 +159,8 @@ class BlockWindow(QDialog):
         active=state in ('running','waiting') or self.job is not None or self.ai_wait
         self.editor.set_locked(active);self.editor.run=self.run if same else None;self.editor.refresh()
         if state in ('waiting','error') and state!=self.last_state:
-            self.editor.list.setCurrentRow(self.run['data']['cursor']);self.editor.io.setCurrentIndex(1)
+            self.editor.focus_step(self.run['data']['cursor']) if hasattr(self.editor,'focus_step') else self.editor.list.setCurrentRow(self.run['data']['cursor'])
+            if hasattr(self.editor,'io'):self.editor.io.setCurrentIndex(1)
         self.last_state=state
         self.repair_button.setVisible(state=='error')
         if self.manage_button:self.manage_button.setEnabled(not active)
@@ -174,12 +181,15 @@ class BlockWindow(QDialog):
         if QMessageBox.question(self,tr('Lumen · Reparatur vorbereiten'),tr('Den angehaltenen Durchlauf beenden und einen bearbeitbaren Reparaturauftrag vorbereiten? Die bisherigen Ergebnisse bleiben erhalten.'))!=QMessageBox.Yes:return
         from code_repair import request
         text=request(self.run['plan'],self.run['data']['cursor'])
-        self.cancel();self.editor.description.setPlainText(text);self.editor.tabs.setCurrentIndex(1)
+        self.cancel()
+        if hasattr(self.editor,'full_description'):
+            self.editor.full_description.setPlainText(text);self.editor.tabs.setCurrentIndex(2);self.editor.full_status.setText(tr('Fehlerbeschreibung prüfen. Erst dein nächster Klick sendet sie an die KI.'));return
+        self.editor.description.setPlainText(text);self.editor.tabs.setCurrentIndex(1)
         self.editor.description_status.setText(tr('Fehlerbeschreibung prüfen und ergänzen. Erst der nächste Klick sendet den Auftrag an die KI.'))
 
     def resizeEvent(self,event):
         super().resizeEvent(event)
-        if hasattr(self,'editor'):
+        if hasattr(self,'editor') and hasattr(self.editor,'splitter'):
             from PySide6.QtCore import Qt
             self.editor.splitter.setOrientation(Qt.Vertical if self.width()<900 else Qt.Horizontal)
 
