@@ -85,6 +85,26 @@ class SettingsNavigationTest(unittest.TestCase):
                      if label.objectName() == 'desktopAppTitle')
         self.assertEqual(title.font().pixelSize(), 26)
 
+    def test_compact_design_action_scrolls_into_view_and_works_from_keyboard(self):
+        from PySide6.QtCore import QPoint, QPointF
+        from PySide6.QtGui import QWheelEvent
+        d = self.dialog; d.resize(960, 640); d.show(); QTest.qWait(30)
+        page = next(index for index in range(d.stack.count())
+                    if d.apply_appearance in d.stack.widget(index).findChildren(QPushButton))
+        d.open_page(page); self.app.processEvents()
+        scroll = d.stack.widget(page); viewport = scroll.viewport()
+        point = viewport.rect().center()
+        wheel = QWheelEvent(QPointF(point), QPointF(viewport.mapToGlobal(point)),
+                            QPoint(), QPoint(0, -360), Qt.NoButton, Qt.NoModifier,
+                            Qt.NoScrollPhase, False)
+        QApplication.sendEvent(viewport, wheel); self.app.processEvents()
+        bounds = d.apply_appearance.rect().translated(d.apply_appearance.mapTo(viewport, QPoint()))
+        self.assertTrue(viewport.rect().contains(bounds), bounds)
+        d.apply_appearance.setFocus(Qt.TabFocusReason)
+        with patch.object(d, 'perform') as perform:
+            QTest.keyClick(d.apply_appearance, Qt.Key_Space)
+            self.assertEqual(perform.call_args.args[0], 'appearance')
+
     def test_wizard_changes_refresh_shared_voice_fields_without_reverting_them(self):
         from PySide6.QtWidgets import QFormLayout
         d = self.dialog
