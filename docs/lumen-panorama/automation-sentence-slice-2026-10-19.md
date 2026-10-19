@@ -1,5 +1,8 @@
 # Lumen Automation: erste native Satz-Vertikale
 
+Historischer Zwischenstand. Der freigegebene und installierte Gesamtstand ist in
+[Automation: Lebendiger Satz](automation-lebendiger-satz-2026-10-19.md) dokumentiert.
+
 Zwischenstand auf `c0f233aadf28297a21ed94ecf3671e602b3cf8e1`, keine
 Installation/Veröffentlichung und noch keine vollständige Vertragsabnahme.
 Die gewählte Referenz ist „Lebendiger Satz“, SHA256
