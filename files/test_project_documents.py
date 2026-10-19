@@ -95,6 +95,16 @@ class ProjectDocumentsTest(unittest.TestCase):
         text, partial = read_content(path)
         self.assertTrue(partial); self.assertLessEqual(len(text.encode()), 1024*1024)
 
+    def test_presentation_sections_are_not_extra_slides(self):
+        from content_search import read_content
+        path = self.archive('sections.pptx', {
+            'ppt/presentation.xml': '<presentation xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sldIdLst><sldId id="256" r:id="slide"/></sldIdLst><extLst><ext><sectionLst><section><sldIdLst><sldId id="256"/></sldIdLst></section></sectionLst></ext></extLst></presentation>',
+            'ppt/_rels/presentation.xml.rels': '<Relationships><Relationship Id="slide" Target="slides/slide1.xml"/></Relationships>',
+            'ppt/slides/slide1.xml': '<sld><p><t>VCF section evidence</t></p></sld>'})
+        text, partial = read_content(path)
+        self.assertEqual(text, 'Slide 1\nVCF section evidence')
+        self.assertFalse(partial)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -57,7 +57,9 @@ def extract(stream, suffix, limit):
                            key=lambda name: int(re.search(r'(\d+)\.xml$', name)[1]))
             if 'ppt/presentation.xml' in archive.namelist():
                 links = relationships('ppt/_rels/presentation.xml.rels', 'ppt')
-                names = [links[rid(row)] for row in xml('ppt/presentation.xml').iter() if tag(row) == 'sldId']
+                # Section lists repeat numeric slide IDs without relationship IDs.
+                names = [links[rid(row)] for group in xml('ppt/presentation.xml') if tag(group) == 'sldIdLst'
+                         for row in group if tag(row) == 'sldId']
             for index, name in enumerate(names, 1):
                 rows = [' '.join(node.text or '' for node in paragraph.iter() if tag(node) == 't')
                         for paragraph in xml(name).iter() if tag(paragraph) == 'p']
