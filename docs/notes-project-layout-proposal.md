@@ -10,6 +10,8 @@ Bei einer Übernahme werden dieselben Komponenten und gebauten Ressourcen genutz
   Außenmaßen und 26-Pixel-Titel. Keine zusätzliche globale App-Leiste.
 - 24 Pixel seitlicher Außenrand, 224 Pixel Navigation, vorhandene Notizliste und
   die gesamte verfügbare Fensterhöhe. Keine 1700-Pixel-Inhaltsbegrenzung.
+- Notizliste auf Nutzerwunsch 10 Pixel breiter: 260 Pixel in der Dreispaltenansicht,
+  250 beziehungsweise 210 Pixel in den beiden schmalen Ansichten.
 - Notiztext und Notizliste scrollen innerhalb ihres verfügbaren Bereichs.
   Die tatsächliche Formatleiste und Speichern bleiben erreichbar.
 - Vorhandener Tag-Befehl über ein aufklappbares Eingabefeld im Notizkopf;

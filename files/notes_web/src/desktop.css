@@ -3,7 +3,7 @@
 html,body,#root { height:100%; }
 .desktop-notes { height:100dvh;min-height:0;overflow:hidden; }
 .panorama.desktop-notes > .content { display:flex;flex-direction:column;height:100%;min-height:0;max-width:none;padding:0;margin:0; }
-.panorama.desktop-notes .knowledge-workspace { flex:1;min-height:0;overflow:hidden;grid-template-columns:var(--desktop-nav-width) 250px minmax(0,1fr);border-radius:0; }
+.panorama.desktop-notes .knowledge-workspace { flex:1;min-height:0;overflow:hidden;grid-template-columns:var(--desktop-nav-width) 260px minmax(0,1fr);border-radius:0; }
 .desktop-notes .knowledge-navigation { min-height:0;overflow:auto;padding:0 16px 0 0; }
 .desktop-notes .knowledge-caption { margin-top:16px;font-size:12px; }
 .desktop-notes .knowledge-navigation button,.desktop-notes .knowledge-list-heading button,.desktop-notes .knowledge-share,.desktop-notes .knowledge-more summary,.desktop-notes .knowledge-actions button { font-size:14px; }
@@ -47,7 +47,7 @@ html,body,#root { height:100%; }
 .desktop-note-status .knowledge-timestamp { margin:0; }
 .desktop-notes .knowledge-editor > [role=alert] { flex-shrink:0;padding:8px 16px; }
 @media(max-width:1100px) {
- .panorama.desktop-notes .knowledge-workspace { grid-template-columns:240px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr); }
+ .panorama.desktop-notes .knowledge-workspace { grid-template-columns:250px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr); }
  .desktop-notes .knowledge-navigation { display:block;grid-column:1/-1;grid-row:auto;padding:0 0 8px;margin:0 0 8px;max-height:140px;border-bottom:1px solid var(--line); }
  .desktop-notes .desktop-collections-toggle { display:inline-flex;width:auto; }
  .desktop-collections { display:none; }
@@ -60,7 +60,7 @@ html,body,#root { height:100%; }
  .desktop-note-heading { padding:12px 16px 8px;gap:4px; }
 }
 @media(max-width:760px) {
- .panorama.desktop-notes .knowledge-workspace { grid-template-columns:200px minmax(0,1fr); }
+ .panorama.desktop-notes .knowledge-workspace { grid-template-columns:210px minmax(0,1fr); }
  .desktop-notes .knowledge-editor { border-left:1px solid var(--line);border-top:0; }
  .desktop-note-heading { padding:12px 16px; }
  .desktop-notes .knowledge-location { flex-basis:auto; }

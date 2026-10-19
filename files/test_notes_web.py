@@ -63,7 +63,7 @@ class NotesWebTest(unittest.TestCase):
         preview=self.js(f"({row}).querySelector('small').textContent")
         self.assertNotIn('Schreibprobe',preview)
         self.assertIn('Willkommen',preview)
-        self.assertEqual(self.js("document.querySelector('.knowledge-notes').getBoundingClientRect().width"),250)
+        self.assertEqual(self.js("document.querySelector('.knowledge-notes').getBoundingClientRect().width"),260)
         self.assertEqual(self.js("getComputedStyle(document.querySelector('.doc-row')).paddingBlock"),"14px")
         self.js(f"({row}).click()")
         self.wait(lambda:self.w.doc['path']==self.first['path'])
@@ -74,7 +74,7 @@ class NotesWebTest(unittest.TestCase):
         from desktop_design import AppHeader, PAGE_MARGIN
         w=self.w;w.resize(960,640)
         w.resize(1280,800);QTest.qWait(80)
-        self.assertEqual(self.js("document.querySelector('.knowledge-notes').getBoundingClientRect().width"),250)
+        self.assertEqual(self.js("document.querySelector('.knowledge-notes').getBoundingClientRect().width"),260)
         self.assertIsInstance(w.notes_header,AppHeader)
         self.assertEqual(w.notes_header.title.text(),'Lumen Notes')
         self.assertEqual(w.notes_web.width(),w.width()-2*PAGE_MARGIN)
