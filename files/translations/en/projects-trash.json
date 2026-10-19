@@ -21,5 +21,7 @@
   "Lumen Projekte · Zuordnung entfernen": "Lumen Projects · Remove association",
   "Nur die Zuordnung aus diesem Projekt entfernen? Der ursprüngliche Inhalt bleibt erhalten.": "Remove only the association from this project? The original content is preserved.",
   "Die Zuordnung wurde inzwischen geändert.": "This association has changed.",
-  "Speichere oder verwerfe zuerst deine Änderungen. Die Papierkorb-Aktion speichert keinen Entwurf.": "Save or discard your changes first. The trash action does not save a draft."
+  "Speichere oder verwerfe zuerst deine Änderungen. Die Papierkorb-Aktion speichert keinen Entwurf.": "Save or discard your changes first. The trash action does not save a draft.",
+  "Der zugeordnete Ablauf „{0}“ ist aktiviert. Pausiere ihn zuerst in Lumen Automation.": "The linked workflow “{0}” is enabled. Pause it in Lumen Automation first.",
+  "Der zugeordnete Ablauf „{0}“ hat einen aktiven Auftrag („{1}“). Pausiere oder beende diesen Auftrag zuerst in Lumen Automation.": "The linked workflow “{0}” has an active task (“{1}”). Pause or finish that task in Lumen Automation first."
 }

@@ -84,6 +84,20 @@ class ProjectTrash:
             if root['archived'] or parent and parent['archived']:raise ValueError(tr('Zuerst den übergeordneten Eintrag wiederherstellen.'))
         return root,row
 
+    def check_native(self,db,expected):
+        if not db.execute("SELECT 1 FROM sqlite_master WHERE name='project_flows'").fetchone():return
+        query='SELECT flow FROM project_flows WHERE project=?';args=[expected['project']]
+        if expected['scope']:query+=' AND scope=?';args.append(expected['scope'])
+        linked=[row['flow'] for row in db.execute(query,args)]
+        if not linked:return
+        placeholders=','.join('?' for _ in linked)
+        with self.window.project_store.connect() as native:
+            native.execute('PRAGMA query_only=ON');native.execute('BEGIN')
+            enabled=native.execute('SELECT name FROM workflows WHERE enabled!=0 AND id IN ('+placeholders+') LIMIT 1',linked).fetchone()
+            if enabled:raise ValueError(tr('Der zugeordnete Ablauf „{0}“ ist aktiviert. Pausiere ihn zuerst in Lumen Automation.',enabled['name']))
+            active=native.execute("SELECT coalesce(w.name,t.title) AS flow_title,t.title FROM tasks t JOIN events e ON e.task=t.id AND e.kind='workflow' LEFT JOIN workflows w ON w.id=e.detail WHERE e.detail IN ("+placeholders+") AND t.status IN ('queued','running','needs_input') LIMIT 1",linked).fetchone()
+            if active:raise ValueError(tr('Der zugeordnete Ablauf „{0}“ hat einen aktiven Auftrag („{1}“). Pausiere oder beende diesen Auftrag zuerst in Lumen Automation.',active['flow_title'],active['title']))
+
     def perform(self,expected):
         w=self.window
         if not expected or not self.ready():return
@@ -93,6 +107,7 @@ class ProjectTrash:
             if not self.confirm(text,tr('In den Papierkorb')):return
         with w.library.connect() as db:
             db.execute('BEGIN IMMEDIATE');root,target=self.locked(db,expected)
+            if not target['archived']:self.check_native(db,expected)
             condition='project=?';args=[expected['project']]
             if expected['scope']:
                 condition+=' AND (id=? OR parent=?)' if target['kind']=='initiative' else ' AND id=?'

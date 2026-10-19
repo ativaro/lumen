@@ -126,6 +126,48 @@ class ProjectTrashTest(unittest.TestCase):
   self.assertEqual(w.library.get(self.key)['server_attachments'],[attachment])
   with self.confirm():w.project_trash.unlink(self.state(),'server_attachments',attachment)
   saved=w.library.get(self.key);self.assertEqual(saved['references'],[]);self.assertEqual(saved['server_attachments'],[]);self.assertEqual(saved['resources'],[self.resource]);self.assertEqual(self.original.read_text(),'Keep original')
+ def test_native_flow_guard_is_scoped_readonly_and_allows_trash_after_pause(self):
+  w=self.w;native=w.project_store
+  flow=native.save_workflow('Native Automation',[dict(action='open',path=str(self.original))],[str(self.root)],trigger='interval',enabled=True,approved=True)
+  with w.library.connect() as db:
+   db.execute('CREATE TABLE IF NOT EXISTS project_flows(flow TEXT PRIMARY KEY,project TEXT NOT NULL,scope TEXT NOT NULL DEFAULT "")')
+   db.execute('INSERT INTO project_flows VALUES(?,?,?)',(flow,self.key,self.parent))
+  w.home.refresh()
+  def snapshot():
+   with w.library.connect() as db:project=list(db.iterdump())
+   with native.connect() as db:engine=list(db.iterdump())
+   return project,engine,self.original.read_text()
+  for scope in (None,self.parent):
+   before=snapshot()
+   with self.confirm(),self.assertRaisesRegex(ValueError,'Native Automation'):w.project_trash.perform(self.state(scope))
+   self.assertEqual(snapshot(),before)
+  native.set_workflow_enabled(flow,False)
+  task=native.create_task('Nativer Auftrag',directory=str(self.root),roots=[str(self.root)],steps=[dict(action='open',path=str(self.original))],status='queued',approved=True)
+  native.event(task,'workflow',flow)
+  for status in ('queued','running','needs_input'):
+   native.update_task(task,status=status)
+   for scope in (None,self.parent):
+    with self.subTest(status=status,scope=scope):
+     before=snapshot()
+     with self.confirm(),self.assertRaisesRegex(ValueError,'Native Automation.*Nativer Auftrag'):w.project_trash.perform(self.state(scope))
+     self.assertEqual(snapshot(),before)
+  native.update_task(task,status='paused');paused=snapshot()[1]
+  with self.confirm():w.project_trash.perform(self.state(self.parent))
+  self.assertTrue(w.projects.get(self.parent)['archived']);self.assertEqual(snapshot()[1],paused)
+  w.project_trash.perform(self.state(self.parent));self.assertFalse(w.projects.get(self.parent)['archived'])
+  with self.confirm():w.project_trash.perform(self.state())
+  w.project_trash.perform(self.state());self.assertFalse(w.library.get(self.key)['_archived']);self.assertEqual(snapshot()[1],paused)
+  self.assertFalse(w.projects.get(self.task)['enabled']);self.assertFalse(native.workflows()[0]['enabled'])
+  other=w.projects.add(self.key,'','Anderes Vorhaben','initiative')
+  with w.library.connect() as db:db.execute('UPDATE project_flows SET scope=? WHERE flow=?',(other,flow))
+  native.set_workflow_enabled(flow,True);w.home.refresh();unrelated=snapshot()[1]
+  with self.confirm():w.project_trash.perform(self.state(self.parent))
+  w.project_trash.perform(self.state(self.parent));self.assertEqual(snapshot()[1],unrelated)
+  before=snapshot()
+  with self.confirm(),self.assertRaisesRegex(ValueError,'Native Automation'):w.project_trash.perform(self.state())
+  self.assertEqual(snapshot(),before)
+  with self.confirm():w.project_trash.unlink(self.state(),'flow',flow)
+  self.assertEqual(snapshot()[1],unrelated);self.assertTrue(native.workflows()[0]['enabled'])
  def test_no_delete_shortcut_in_question_editor(self):
   w=self.w;w.journal.question.setFocus();w.journal.question.setPlainText('Unsent question');w.journal.question.moveCursor(QTextCursor.Start)
   with patch.object(w.project_trash,'confirm') as question:QTest.keyClick(w.journal.question,Qt.Key_Delete);question.assert_not_called()
