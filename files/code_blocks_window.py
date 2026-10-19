@@ -356,7 +356,11 @@ class BlockWindow(QDialog):
             completed=sum(s['status'] in ('completed','skipped') for s in self.run['data']['steps'])
             text=tr('Testlauf' if self.run['testing'] else 'Durchlauf')+' · '+tr(STATES.get(state,state))+' · '+f"{completed}/{len(self.run['plan']['nodes'])}"
             if self.run['testing'] and self.technical_details.isChecked():text+=' · '+str(self.collection.store.directory/'block-tests'/self.run['id'])
-            if state=='error':text+='\n'+tr('Fehler bei „{0}“.',self.run['plan']['nodes'][self.run['data']['cursor']]['title'])
+            if state=='error':
+                cursor=self.run['data']['cursor'];reason=' '.join(tr(self.run['data']['steps'][cursor].get('error','')).split())
+                text+='\n'+tr('Fehler bei „{0}“.',self.run['plan']['nodes'][cursor]['title'])
+                # The scrollable result below retains the complete saved error.
+                if reason:text+='\n'+reason[:240]+('…' if len(reason)>240 else '')
             if state=='waiting':text+='\n'+tr('Ergebnis prüfen: Bestätigen setzt den wartenden Schritt fort, auch wenn du einen anderen betrachtest.')
             self.status.setText(text)
 

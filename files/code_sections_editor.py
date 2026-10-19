@@ -448,8 +448,13 @@ class SentenceEditor(QWidget):
             condition=ConditionEditor(self.fields_at(n),config(n),self);box.addWidget(condition);condition.changed.connect(self.emit_change)
             self.getters.append(lambda:n.update(config=json.dumps(condition.value(),ensure_ascii=False)))
         elif n['kind'] in ('ai','ai_check','filter_text','save_note','create_task','delay'):
+            if n['kind']=='save_note':
+                box.addWidget(label(tr('Der Inhalt kommt aus der Eingabe beim Start oder aus dem Ergebnis des vorherigen Schritts. Hier legst du nur den Titel fest.'),'codeMuted'))
+                if self.version==3 and not config(self.items[0]).get('trigger'):
+                    box.addWidget(label(tr('Für festen Text: „Auf Knopfdruck“ öffnen, „Text eingeben“ wählen und den Inhalt eintragen.'),'codeMuted'))
             caption=tr({'ai':'Was soll Lumen tun?','ai_check':'Prüffrage','filter_text':'Text in den gesuchten Zeilen','save_note':'Titel der neuen Notiz','create_task':'Titel der Aufgabe','delay':'Wartezeit in Sekunden · 0 bis 3.600'}[n['kind']]);box.addWidget(label(caption))
-            edit=QPlainTextEdit(n['config']);edit.setMaximumHeight(160);edit.setAccessibleName(caption);box.addWidget(edit);edit.textChanged.connect(lambda:self.update_node(n,'config',edit.toPlainText()))
+            edit=QPlainTextEdit(n['config']);edit.setMaximumHeight(72 if n['kind']=='save_note' else 160);edit.setAccessibleName(caption);box.addWidget(edit);edit.textChanged.connect(lambda:self.update_node(n,'config',edit.toPlainText()))
+            if n['kind']=='save_note':box.addWidget(label(tr('Ein Testlauf legt keine Notiz an. „Jetzt ausführen“ speichert sie in Lumen Notes.'),'codeMuted'))
         status=next((s for item,s in zip(self.run['plan']['nodes'],self.run['data']['steps']) if item['id']==n['id']),None) if self.run else None
         if status:
             for key,caption in [('input','Tatsächliche Eingabe'),('output','Tatsächliches Ergebnis')]:

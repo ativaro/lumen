@@ -396,5 +396,9 @@
   "Projektnotiz ergänzt.": "Project note updated.",
   "Benachrichtigung erstellt.": "Notification created.",
   "Quelldatei: {0}": "Source file: {0}",
-  "Fehler bei „{0}“.": "Error in “{0}”."
+  "Fehler bei „{0}“.": "Error in “{0}”.",
+  "Der Inhalt kommt aus der Eingabe beim Start oder aus dem Ergebnis des vorherigen Schritts. Hier legst du nur den Titel fest.": "The content comes from the start input or the previous step’s result. Only set the title here.",
+  "Für festen Text: „Auf Knopfdruck“ öffnen, „Text eingeben“ wählen und den Inhalt eintragen.": "For fixed text, open “On command”, select “Enter text” and enter the content.",
+  "Ein Testlauf legt keine Notiz an. „Jetzt ausführen“ speichert sie in Lumen Notes.": "A test run does not create a note. “Run now” saves it in Lumen Notes.",
+  "Kein Ergebnis zum Speichern vorhanden.": "There is no result to save."
 }
