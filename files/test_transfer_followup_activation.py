@@ -8,22 +8,31 @@ import unittest
 
 
 class FollowupActivationTest(unittest.TestCase):
+    def run_receiver(self, mode):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'runtime').mkdir(mode=0o700)
+            environment = dict(os.environ, HOME=temporary, XDG_RUNTIME_DIR=str(root / 'runtime'),
+                               XDG_CONFIG_HOME=str(root / 'config'), XDG_DATA_HOME=str(root / 'data'),
+                               XDG_STATE_HOME=str(root / 'xdg-state'), XDG_CACHE_HOME=str(root / 'cache'),
+                               LUMEN_DATA=str(root / 'state'), LUMEN_TOOLS_DATA=str(root / 'tools'),
+                               QT_QPA_PLATFORM='offscreen', LUMEN_LANGUAGE='de')
+            result = subprocess.run(['dbus-run-session', '--', sys.executable, __file__, '--receiver', mode],
+                                    env=environment, capture_output=True, text=True, timeout=12)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_new_old_and_starting_files_receivers(self):
         for mode in ('new', 'old', 'starting'):
-            with self.subTest(receiver=mode), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
-                (root / 'runtime').mkdir(mode=0o700)
-                environment = dict(os.environ, HOME=temporary, XDG_RUNTIME_DIR=str(root / 'runtime'),
-                                   XDG_CONFIG_HOME=str(root / 'config'), XDG_DATA_HOME=str(root / 'data'),
-                                   XDG_STATE_HOME=str(root / 'xdg-state'), XDG_CACHE_HOME=str(root / 'cache'),
-                                   LUMEN_DATA=str(root / 'state'), LUMEN_TOOLS_DATA=str(root / 'tools'),
-                                   QT_QPA_PLATFORM='offscreen', LUMEN_LANGUAGE='de')
-                result = subprocess.run(['dbus-run-session', '--', sys.executable, __file__, '--receiver', mode],
-                                        env=environment, capture_output=True, text=True, timeout=12)
-                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            with self.subTest(receiver=mode):
+                self.run_receiver(mode)
+
+    def test_cold_unknown_transfer_reports_visible_window_error(self):
+        self.run_receiver('cold-unknown')
 
 
 def receiver(mode):
+    if mode == 'cold-unknown':
+        return cold_unknown()
     from PySide6.QtCore import QProcess, QSettings, QTimer
     from app import Window, activate_files, create_app
     from files_activation import FilesActivation
@@ -60,7 +69,7 @@ def receiver(mode):
         def verify():
             try:
                 assert code == 0, bytes(child.readAllStandardError()).decode()
-                assert not generic, generic
+                assert generic == ([{'location': 'synthetic-only'}] if mode == 'new' else []), generic
                 assert notifications.snapshot()['unread'] == (0 if mode == 'new' else 1)
                 if mode == 'new':
                     assert window.transfer_panel.isVisible()
@@ -87,6 +96,29 @@ def receiver(mode):
     return result
 
 
+def cold_unknown():
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QApplication
+    import app
+    from unittest.mock import patch
+    original = app.Window
+    errors = []
+
+    class Probe(original):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.error = errors.append
+            QTimer.singleShot(100, self.verify)
+
+        def verify(self):
+            okay = errors == ['Transfer nicht gefunden.'] and self.isVisible()
+            print('cold-unknown-visible-error', okay, errors, flush=True)
+            QApplication.exit(0 if okay else 1)
+
+    with patch.object(app, 'Window', Probe):
+        return app.main(['--transfer', 'f' * 32])
+
+
 if __name__ == '__main__':
     if sys.argv[1:2] == ['--receiver']:
         raise SystemExit(receiver(sys.argv[2]))
@@ -98,5 +130,8 @@ if __name__ == '__main__':
             assert sys.argv[3] != 'new' and 'schließen' in str(error)
         else:
             assert sys.argv[3] == 'new'
+            from lumen_activation import SingleWindow
+            endpoint = SingleWindow('org.lumen.Files')
+            assert endpoint.running and endpoint.forward({'location': 'synthetic-only'}) == 0
     else:
         unittest.main()

@@ -1,5 +1,6 @@
 """Opt-in, read-only follow-up for an existing interrupted native copy."""
 import json
+import hashlib
 import os
 from pathlib import Path
 import re
@@ -54,7 +55,8 @@ def configure(store, identity, enabled, now=None):
             raise ValueError(tr('Dranbleiben benötigt eine unterbrochene Kopie mit gespeichertem Kopierstand.'))
         old = value.get('followup', {})
         value['followup'] = dict(old, enabled=enabled, state='waiting' if enabled else 'off',
-                                 revision=old.get('revision', 0) + 1, attempts=0, next_check=now)
+                                 revision=old.get('revision', 0) + 1, attempts=0, next_check=now,
+                                 pending_notice=False)
         value['followup']['archive_pending'] = not clear_notice(value)
         db.execute('UPDATE settings SET value=? WHERE key=?', (json.dumps(value), transfers.PREFIX + identity))
     return value
@@ -147,19 +149,42 @@ def finish(store, value, result, now):
         before = follow['state']
         follow['state'] = result
         if result == 'waiting':
+            follow['pending_notice'] = False
             follow['attempts'] = min(6, follow.get('attempts', 0) + 1)
             follow['next_check'] = now + min(1800, 60 * 2 ** (follow['attempts'] - 1))
             follow['archive_pending'] = not clear_notice(current)
         else:
             follow.update(attempts=0, next_check=now + 300, enabled=result == 'ready')
             if before != result:
-                from lumen_notifications import publish
                 follow['notice'] = follow.get('notice', 0) + 1
-                title = tr('Dein Kopierziel ist wieder erreichbar.') if result == 'ready' else tr('Deine Kopie benötigt eine erneute Prüfung.')
-                body = tr('Die Kopie von „{0}“ ist noch unterbrochen. Öffne den gespeicherten Vorgang und wähle Fortsetzen. Vorhandene Teile werden dabei erneut geprüft.', Path(current['sources'][0]).name) if result == 'ready' else tr('Ziel, Quelle oder Kopierzwischenablage wurden verändert. Öffne den Vorgang und prüfe ihn vor einem neuen Start.')
-                follow['notification_id'] = publish('Lumen Files', 'transfer-followup:' + identity, title, body,
-                                                    target='transfer:' + identity, revision=follow['notice'], attention=True)
+                # Reserve the exact existing notification key/revision before crossing databases.
+                follow['notification_id'] = hashlib.sha256(json.dumps(
+                    ['local', 'Lumen Files', 'transfer-followup:' + identity]).encode()).hexdigest()
+                follow['pending_notice'] = True
                 follow['archive_pending'] = False
+        db.execute('UPDATE settings SET value=? WHERE key=?', (json.dumps(current), transfers.PREFIX + identity))
+    deliver(store, identity)
+
+
+def deliver(store, identity):
+    """Replay a committed intent; the Store lock fences opt-out/rearm through publication."""
+    from lumen_notifications import publish
+    with store.connect() as db:
+        db.execute('BEGIN IMMEDIATE')
+        row = db.execute('SELECT value FROM settings WHERE key=?', (transfers.PREFIX + identity,)).fetchone()
+        if not row:
+            return
+        current = json.loads(row[0])
+        follow = current.get('followup', {})
+        if not follow.get('pending_notice'):
+            return
+        if current['status'] in ('paused', 'failed') and not current.get('discard') and follow['state'] in ('ready', 'review'):
+            ready = follow['state'] == 'ready'
+            title = tr('Dein Kopierziel ist wieder erreichbar.') if ready else tr('Deine Kopie benötigt eine erneute Prüfung.')
+            body = tr('Die Kopie von „{0}“ ist noch unterbrochen. Öffne den gespeicherten Vorgang und wähle Fortsetzen. Vorhandene Teile werden dabei erneut geprüft.', Path(current['sources'][0]).name) if ready else tr('Ziel, Quelle oder Kopierzwischenablage wurden verändert. Öffne den Vorgang und prüfe ihn vor einem neuen Start.')
+            publish('Lumen Files', 'transfer-followup:' + identity, title, body, target='transfer:' + identity,
+                    revision=follow['notice'], attention=True)
+        follow['pending_notice'] = False
         db.execute('UPDATE settings SET value=? WHERE key=?', (json.dumps(current), transfers.PREFIX + identity))
 
 
@@ -178,8 +203,15 @@ def tick(store, now=None):
                 if clear_notice(value):
                     value['followup']['archive_pending'] = False
                     db.execute('UPDATE settings SET value=? WHERE key=?', (json.dumps(value), row['key']))
-        rows = store.rows("SELECT value FROM settings WHERE key LIKE ? AND json_valid(value) AND json_extract(value,'$.followup.enabled')=1 ORDER BY json_extract(value,'$.followup.next_check') LIMIT 20", (transfers.PREFIX + '%',))
         checked = 0
+        pending = store.rows("SELECT value FROM settings WHERE key LIKE ? AND json_valid(value) AND json_extract(value,'$.followup.pending_notice')=1 ORDER BY json_extract(value,'$.followup.next_check') LIMIT 3", (transfers.PREFIX + '%',))
+        for row in pending:
+            checked += 1
+            try:
+                deliver(store, identifier(json.loads(row['value'])['id']))
+            except (OSError, sqlite3.Error, ValueError):
+                continue
+        rows = store.rows("SELECT value FROM settings WHERE key LIKE ? AND json_valid(value) AND json_extract(value,'$.followup.enabled')=1 ORDER BY json_extract(value,'$.followup.next_check') LIMIT 20", (transfers.PREFIX + '%',))
         for row in rows:
             value = json.loads(row['value'])
             if value['status'] not in ('paused', 'failed') or not supported(value):

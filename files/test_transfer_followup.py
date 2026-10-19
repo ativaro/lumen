@@ -223,6 +223,115 @@ class FollowupTest(unittest.TestCase):
             follow.tick(self.store, now=10)
         self.assertEqual(probe.call_count, 3)
 
+    def fail_receipt_after_publish(self, write_failure=False):
+        from contextlib import contextmanager
+        import sqlite3
+        follow.configure(self.store, self.identity, True, now=10)
+        connect, publish = self.store.connect, notifications.publish
+        published = False
+
+        def card(*args, **kwargs):
+            nonlocal published
+            result = publish(*args, **kwargs)
+            published = True
+            return result
+
+        @contextmanager
+        def failed_commit():
+            with connect() as db:
+                class Connection:
+                    def execute(self, sql, *args):
+                        if published and sql.startswith('UPDATE settings'):
+                            raise sqlite3.OperationalError('synthetic receipt write failure')
+                        return db.execute(sql, *args)
+                yield Connection() if write_failure else db
+                if published and not write_failure:
+                    raise sqlite3.OperationalError('synthetic receipt commit failure')
+
+        with patch.object(self.store, 'connect', failed_commit), patch.object(notifications, 'publish', side_effect=card):
+            with self.assertRaises(sqlite3.OperationalError):
+                follow.finish(self.store, self.value(), 'ready', 10)
+        value = self.value()
+        self.assertTrue(value['followup']['pending_notice'])
+        self.assertEqual(value['followup']['notice'], 1)
+        self.assertEqual(value['followup']['notification_id'], notifications.snapshot()['items'][0]['id'])
+
+    def test_publish_then_receipt_write_failure_can_be_opted_out_and_rearmed(self):
+        self.fail_receipt_after_publish(write_failure=True)
+        follow.configure(self.store, self.identity, False)
+        self.assertEqual(notifications.snapshot()['unread'], 0)
+        follow.configure(self.store, self.identity, True, now=20)
+        with patch.object(follow, 'probe', return_value='ready'):
+            follow.tick(self.store, now=20)
+        self.assertEqual(notifications.snapshot()['unread'], 1)
+        self.assertEqual(notifications.snapshot()['items'][0]['revision'], 2)
+        self.assertEqual(self.toast.call_count, 2)
+        notifications.change(notifications.snapshot()['items'][0]['id'], 'archive')
+        follow.configure(self.store, self.identity, True, now=30)
+        with patch.object(follow, 'probe', return_value='ready'):
+            follow.tick(self.store, now=30)
+        self.assertEqual(notifications.snapshot()['unread'], 1)
+        self.assertEqual(notifications.snapshot()['items'][0]['revision'], 3)
+        self.assertEqual(self.toast.call_count, 3)
+
+    def test_publish_then_receipt_commit_failure_replays_without_duplicate_popup(self):
+        self.fail_receipt_after_publish()
+        with patch.object(follow, 'probe') as probe:
+            follow.tick(Store(self.store.directory), now=11)
+            probe.assert_not_called()
+        self.assertFalse(self.value()['followup']['pending_notice'])
+        self.assertEqual(self.toast.call_count, 1)
+        self.assertEqual(notifications.snapshot()['unread'], 1)
+
+    def test_failed_reservation_commit_never_publishes_or_consumes_notice_revision(self):
+        from contextlib import contextmanager
+        import sqlite3
+        follow.configure(self.store, self.identity, True, now=10)
+        connect = self.store.connect
+        snapshot = self.value()
+
+        @contextmanager
+        def failed_commit():
+            with connect() as db:
+                yield db
+                raise sqlite3.OperationalError('synthetic reservation commit failure')
+
+        with patch.object(self.store, 'connect', failed_commit), patch.object(notifications, 'publish') as publish:
+            with self.assertRaises(sqlite3.OperationalError):
+                follow.finish(self.store, snapshot, 'ready', 10)
+            publish.assert_not_called()
+        self.assertEqual(self.value(), snapshot)
+
+    def test_pending_publication_replay_shares_the_three_attempt_tick_budget(self):
+        import sqlite3
+        self.fail_receipt_after_publish()
+        import copy
+        import uuid
+        for _ in range(8):
+            value = copy.deepcopy(self.value())
+            value['id'] = uuid.uuid4().hex
+            self.store.set_setting(transfers.PREFIX + value['id'], value)
+        with patch.object(follow, 'probe') as probe, \
+                patch.object(notifications, 'publish', side_effect=sqlite3.OperationalError('locked')) as publish:
+            follow.tick(self.store, now=400)
+        self.assertEqual(publish.call_count, 3)
+        probe.assert_not_called()
+
+    def test_review_notice_is_retired_on_resume_and_cancel_without_repeated_revision_bumps(self):
+        for operation in (transfers.retry, transfers.cancel):
+            follow.configure(self.store, self.identity, True, now=10)
+            with patch.object(follow, 'probe', return_value='review'):
+                follow.tick(self.store, now=10)
+            self.assertFalse(self.value()['followup']['enabled'])
+            self.assertEqual(notifications.snapshot()['unread'], 1)
+            with patch.object(transfers, 'start'):
+                operation(self.store, self.identity)
+            self.assertEqual(notifications.snapshot()['unread'], 0)
+            self.assertEqual(self.value()['followup']['state'], 'off')
+            revision = self.value()['followup']['revision']
+            transfers.update(self.store, self.identity, status='failed', cancel=False, discard=False, bytes=1)
+            self.assertEqual(self.value()['followup']['revision'], revision)
+
     def test_failed_archive_is_reconciled_without_rearming_or_copying(self):
         import sqlite3
         follow.configure(self.store, self.identity, True, now=10)

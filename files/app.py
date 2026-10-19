@@ -2068,7 +2068,6 @@ def main(argv=None):
     from interop_ui import install
     install(window)
     window.show()
-    QTimer.singleShot(0, lambda: activate_files(window, request, initial=True))
     activation.bind(lambda request: activate_files(window, request))
     def show_transfer(identity):
         try:
@@ -2076,6 +2075,10 @@ def main(argv=None):
         except ValueError as error:
             window.error(str(error))
     activation.bind_transfer(show_transfer)
+    if args.transfer is not None:
+        QTimer.singleShot(0, lambda: show_transfer(args.transfer))
+    else:
+        QTimer.singleShot(0, lambda: activate_files(window, request, initial=True))
     from lumen_crash import attach
     attach(app, window, 'files', offer_recovery=not start and not args.settings and not args.transfer)
     if not (args.settings or args.transfer):

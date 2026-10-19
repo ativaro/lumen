@@ -41,10 +41,10 @@ def update(store, identity, **fields):
         if not row: raise ValueError(tr('Transfer nicht gefunden.'))
         value = json.loads(row[0]); value.update(fields, updated=time.time())
         follow = value.get('followup', {})
-        retired = follow.get('enabled') and (value['status'] not in ('paused', 'failed') or value.get('discard'))
+        retired = (follow.get('enabled') or follow.get('pending_notice') or follow.get('state') == 'review') and (value['status'] not in ('paused', 'failed') or value.get('discard'))
         if retired:
             value['followup'] = dict(follow, enabled=False, state='off', revision=follow['revision'] + 1,
-                                     archive_pending=bool(follow.get('notification_id')))
+                                     archive_pending=bool(follow.get('notification_id')), pending_notice=False)
         db.execute('UPDATE settings SET value=? WHERE key=?', (json.dumps(value), PREFIX + identity))
     if retired:
         from transfer_followup import clear_notice

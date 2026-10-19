@@ -38,12 +38,26 @@ Dateien, Transferkennungen und der technische historische Speicherschlüssel
 
 ## Stand
 
-Privater Desktop-Kandidat implementiert. 59 gezielte Prüfungen auf dem privaten
-Abbild der tatsächlichen Installation bestanden; 21 davon prüfen Dranbleiben,
+Privater Desktop-Kandidat implementiert. 65 gezielte Prüfungen auf dem privaten
+Abbild der tatsächlichen Installation bestanden; 27 davon prüfen Dranbleiben,
 einschließlich echter Kopierworker und privater D-Bus-Verbindung. Ein alter oder
 noch nicht gebundener Files-Empfänger nimmt den Transferaufruf nicht stillschweigend
 an. Die Meldung bleibt in diesem Fall ungelesen. Ein ausgewählter Vorgang bleibt
-auch bei mehr als 200 Tickets erreichbar.
+auch bei mehr als 200 Tickets erreichbar. Ein unbekannter Transfer beim Kaltstart
+erzeugt einen sichtbaren Fensterfehler über denselben Handler wie eine erneute
+Aktivierung. Die normale geerbte Files-Aktivierung bleibt verfügbar.
+
+Eine relevante Meldung reserviert ihre monotone Revision, Kennung und
+`pending_notice` zuerst dauerhaft im bestehenden Followup-Datensatz. Erst danach
+publiziert eine zweite kurze Store-Transaktion die Meldung und quittiert sie.
+Der Store-Schreiblock schützt dabei gegen paralleles Ausschalten oder erneutes
+Aktivieren. Schreib- oder Commitfehler nach der Publikation lassen die gespeicherte
+Absicht für einen begrenzten Wiederholungsversuch erhalten; die gleiche Revision
+erzeugt keinen zweiten Popup. Ausschalten kennt auch dann die bereits reservierte
+Meldungskennung. Erneutes Aktivieren verwendet die nächste Revision, sodass eine
+vom Nutzer archivierte Karte die neue Meldung nicht unterdrückt. Reservierungs-,
+Schreib- und Commitfehler, Ausschalten, Archivieren und erneutes Aktivieren sind
+gezielt geprüft. Es gibt keine zusätzliche Datenbank oder Ausführungseinheit.
 
 Der aktivierte vorhandene Timer prüft fällige Vorgänge bei seinen Läufen. Nach
 Fehlern steigt die Wartezeit von einer Minute bis auf 30 Minuten. Höchstens drei
