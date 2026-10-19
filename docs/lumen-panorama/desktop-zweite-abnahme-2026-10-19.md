@@ -47,5 +47,6 @@ Panorama-/Notes-/Main-Rückwegen zu berücksichtigen und verweigert fremde Drift
 Bereits geöffnete Apps übernehmen die Dateien beim normalen Neuöffnen.
 
 Grenzen: System-QML-Token-/EN-Nachtrag ist ein separater, hier nicht installierter
-Rest. Keine vollständige KWin-, Hardware- oder Screenreader-Abnahme. Die ergänzende
-unabhängige Notes-Installed-Abnahme des Owners wird im Zustandsbericht nachgetragen.
+Rest. Keine vollständige KWin-, Hardware- oder Screenreader-Abnahme. Zusätzlich bestanden5 unabhängige Notes-Installed-Prüfungen des Owners;
+288/288 installierte Stylewerte stimmen mit der Serverreferenz überein. Belege
+unter `~/.local/state/lumen/notes-server-exact-20261019/verification.json`.
