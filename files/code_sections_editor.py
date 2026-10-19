@@ -1,11 +1,12 @@
-"""Panorama automation editor: When, optional conditions, one selected action inspector."""
+"""Native living sentence over the existing versioned automation plan."""
 import json
+import copy
 import tempfile
 from html import escape
 from pathlib import Path
 from PySide6.QtCore import Signal,Qt,QSize,QTimer
 from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QScrollArea,QTabWidget,
-    QLineEdit,QPlainTextEdit,QComboBox,QCheckBox,QFileDialog,QMessageBox,QPushButton,QDoubleSpinBox,QSpinBox,QTimeEdit,QDateEdit,QSizePolicy)
+    QLineEdit,QPlainTextEdit,QComboBox,QCheckBox,QFileDialog,QMessageBox,QPushButton,QDoubleSpinBox,QSpinBox,QTimeEdit,QDateEdit,QSizePolicy,QDialog,QFrame,QMenu)
 from tools_ui import button,label,row
 from lumen_i18n import tr
 from code_blocks import node,CATALOG,parse,LEGACY_KINDS,STATES
@@ -25,11 +26,13 @@ class ActionRow(QPushButton):
     def minimumSizeHint(self):return QSize(0,72)
 
 
-class SectionsEditor(QWidget):
+class SentenceEditor(QWidget):
     changed=Signal()
     def __init__(self,parent=None,plan=None,projects=None,tools=None,routine=False):
         super().__init__(parent);self.routine=routine;self.run=None;self.engine=None;self.locked=False;self.selected="input";self.summaries={};self.getters=[];self.projects=projects or {};self.tools=tools or []
-        self.temporary=None;self.proposal_condition=None;self.closed=False;self.full_engine=None;self.full_directory=None;self.full_candidate=None
+        self.temporary=None;self.proposal_condition=None;self.closed=False;self.full_engine=None;self.full_directory=None;self.full_candidate=None;self.dialog=None;self.picker=None
+        from code_sentence_ui import STYLE
+        self.setStyleSheet(STYLE)
         root=QVBoxLayout(self);root.setContentsMargins(0,0,0,0);root.setSpacing(12)
         self.tabs=QTabWidget();self.tabs.tabBar().hide();self.tabs.setAccessibleName(tr('Ablauf und Formulierungshilfe'));root.addWidget(self.tabs)
         self.scroll=QScrollArea();self.scroll.setWidgetResizable(True);self.tabs.addTab(self.scroll,tr('Ablauf'))
@@ -55,7 +58,7 @@ class SectionsEditor(QWidget):
         if plan is None and self.routine:
             from code_clock import default
             plan=starter();plan['nodes']=[n for n in plan['nodes'] if n['kind']!='approval'];plan['nodes'][0]['config']=json.dumps({'kind':'text','text':'','trigger':{'kind':'clock','clock':default()}})
-        value=parse(plan or starter());self.version=value['version'];self.items=tree(value) if self.version==3 else value['nodes'];self.gate=None
+        value=({'version':3,'nodes':[node('manual',json.dumps({'kind':'text','text':''}))]} if plan is None else parse(plan));self.version=value['version'];self.items=tree(value) if self.version==3 else value['nodes'];self.gate=None
         if self.version==3 and len(self.items)>1 and self.items[1]['kind']=='condition':self.gate=self.items.pop(1)
         self.gate_enabled=self.gate is not None;self.refresh()
 
@@ -69,16 +72,19 @@ class SectionsEditor(QWidget):
         self.sync();items=list(self.items)
         if self.gate_enabled and self.gate:items.insert(1,self.gate)
         result=flatten(items) if self.version==3 else json.loads(json.dumps(dict(version=2,nodes=items)))
+        if validate and len(result['nodes'])<2:raise ValueError(tr('Füge mindestens eine Aktion hinzu.'))
         return parse(result) if validate else result
 
-    def emit_change(self,*_):self.changed.emit()
+    def emit_change(self,*_):
+        if self.dialog is None:self.changed.emit()
 
     def mutate(self,fn):
         if self.locked:return
-        try:self.sync();fn();self.refresh();self.changed.emit()
+        try:self.sync();fn();self.refresh();self.emit_change()
         except ValueError as error:self.state.setText(tr(str(error)))
 
     def select_entry(self,key):
+        if not self.routine:return self.open_detail(key)
         self.sync();self.selected=key;self.refresh()
         if self.width()<740:QTimer.singleShot(0,self,lambda:self.scroll.ensureWidgetVisible(self.inspector))
 
@@ -120,6 +126,177 @@ class SectionsEditor(QWidget):
         return available(value['nodes'],index)
 
     def refresh(self,*_):
+        if self.routine:return self.refresh_routine()
+        self.getters=[];self.summaries={}
+        body=QWidget();box=QVBoxLayout(body);box.setContentsMargins(0,16,0,16);box.setSpacing(16)
+        if len(self.items)==1:
+            box.addWidget(label(tr('Deine erste Automation'),'codeMuted'))
+            box.addWidget(label(tr('Baue einen verständlichen Satz.'),'codeTitle'))
+            box.addWidget(label(tr('Beginne mit dem, was Lumen tun soll. Zeitpunkt und Bedingungen kommen nur dazu, wenn du sie brauchst.'),'codeMuted'))
+        sentence=QFrame();sentence.setObjectName('sentence');paragraph=QVBoxLayout(sentence);paragraph.setContentsMargins(24,24,24,24);paragraph.setSpacing(12);box.addWidget(sentence)
+        from code_sentence_ui import SentenceFlow,SentencePart
+        def line(prefix,parts,suffix=''):
+            frame=QWidget();flow=SentenceFlow(frame)
+            if prefix:flow.addWidget(label(prefix,'sentenceText'))
+            for title,key,kind in parts:
+                if key is None:flow.addWidget(label(title,'sentenceText'));continue
+                token=SentencePart(title,lambda _=False,k=key:self.open_detail(k),kind);token.setCheckable(True);token.setChecked(self.selected==key)
+                flow.addWidget(token);detail=label('');detail.hide();self.summaries[key]=(token,token.caption,detail)
+            if suffix:flow.addWidget(label(suffix,'sentenceText'))
+            paragraph.addWidget(frame)
+        if len(self.items)>1:
+            from code_triggers import describe
+            start=(describe(config(self.items[0])) if config(self.items[0]).get('trigger') else tr('Auf Knopfdruck')) if self.version==3 else tr('Auf Knopfdruck')
+            line('',[(start,'input','manual')],tr('soll Lumen'))
+        else:
+            frame=QWidget();flow=SentenceFlow(frame)
+            flow.addWidget(SentencePart(tr('Auf Knopfdruck'),lambda:self.open_detail('input'),'manual'));flow.addWidget(label(tr('soll Lumen'),'sentenceText'))
+            flow.addWidget(SentencePart(tr('Aktion auswählen'),lambda:self.pick_action(),'ai'));flow.addWidget(label('.','sentenceText'));paragraph.addWidget(frame)
+        def actions(steps,depth=0,start=1):
+            for i,n in enumerate(steps[start:]):
+                from code_sentence_ui import ACTIONS
+                parts=[(tr(ACTIONS.get(n['kind'],n['title'])),n['id'],n['kind'])]
+                detail=self.projects.get(n['config'],n['config']) if n['kind'] in ('read_file','save_file','project_note') else n['title'] if n['kind']=='notify' and n['title']!=tr(CATALOG['notify'][1]) else n['config'] if n['kind'] in ('ai','ai_check','save_note','create_task','filter_text','delay') else ''
+                if detail:
+                    preposition=tr({'read_file':'aus','save_file':'in','project_note':'im Projekt','notify':'mit Titel','save_note':'mit Titel','create_task':'mit Titel'}.get(n['kind'],'mit'))
+                    parts.extend([(preposition,None,None),(detail,n['id'],n['kind'])])
+                line(tr('und danach') if i or depth else '',parts,'.' if n is steps[-1] else '')
+                if n['kind']=='for_each':actions(n['steps'],depth+1,0)
+                elif n['kind']=='choose':
+                    from code_conditions import describe
+                    for case in n['cases']:
+                        paragraph.addWidget(label(tr('Wenn')+' '+describe(case['when']),'codeMuted'));actions(case['steps'],depth+1,0)
+                    paragraph.addWidget(label(tr('Sonst'),'codeMuted'));actions(n['otherwise'],depth+1,0)
+        actions(self.items)
+        if self.gate_enabled:
+            from code_conditions import describe
+            line(tr('Nur wenn'),[(describe(config(self.gate)),'gate','condition')],'.')
+        controls=QHBoxLayout();controls.setSpacing(8);box.addLayout(controls)
+        self.add_action_button=button(tr('Erste Aktion auswählen' if len(self.items)==1 else 'Aktion ergänzen'),self.pick_action,'list-add',len(self.items)==1);controls.addWidget(self.add_action_button)
+        self.condition_button=button(tr('Bedingungen ändern' if self.gate_enabled else 'Nur wenn …'),self.edit_gate,'view-filter');self.condition_button.setVisible(self.version==3);controls.addWidget(self.condition_button);controls.addStretch()
+        helpers=QHBoxLayout();box.addLayout(helpers)
+        helpers.addWidget(button(tr('Ablauf in Worten beschreiben'),lambda:self.tabs.setCurrentIndex(2),'tools-wizard'))
+        helpers.addStretch()
+        box.addWidget(label(tr('Jeder hervorgehobene Satzteil ist bearbeitbar. Eine einzelne Aktion reicht; ein Zeitplan und Bedingungen sind optional.'),'codeMuted'))
+        self.state=label('','codeMuted');box.addWidget(self.state);box.addStretch();self.scroll.setWidget(body)
+        if self.dialog is not None:self.render_dialog()
+        self.apply_lock()
+
+    def edit_gate(self):
+        if self.version!=3:return
+        self.open_detail('gate')
+        if not self.gate_enabled:
+            self.gate=node('condition',json.dumps({'field':'text','op':'exists','value':True}));self.gate_enabled=True;self.render_dialog()
+
+    def open_detail(self,key):
+        self.sync();self.selected=key
+        if self.dialog is not None:self.render_dialog();return
+        self.edit_snapshot=copy.deepcopy((self.items,self.gate,self.gate_enabled))
+        self.dialog=QDialog(self);self.dialog.resize(720,600)
+        from code_design import editor_shell
+        main,self.dialog_header,_=editor_shell(self.dialog,tr('Lumen · Satzteil bearbeiten'),tr('Angaben bewusst übernehmen oder unverändert zurückkehren.'))
+        box=QVBoxLayout(main);box.setContentsMargins(0,0,0,0);self.dialog_scroll=QScrollArea();self.dialog_scroll.setWidgetResizable(True);box.addWidget(self.dialog_scroll)
+        self.dialog_error=label('','codeError');box.addWidget(self.dialog_error)
+        actions=QHBoxLayout();box.addLayout(actions);actions.addWidget(button(tr('Abbrechen'),self.dialog.reject));actions.addStretch()
+        self.dialog_apply=button(tr('Übernehmen'),self.accept_detail,primary=True);self.dialog_apply.setEnabled(not self.locked);actions.addWidget(self.dialog_apply)
+        self.dialog.finished.connect(self.detail_finished);self.render_dialog();self.dialog.open()
+
+    def render_dialog(self):
+        self.getters=[];self.inspector=QWidget();box=QVBoxLayout(self.inspector);box.setContentsMargins(0,0,8,8);box.setSpacing(12)
+        if self.selected=='input':
+            self.dialog_header.title.setText(tr('Lumen · Wann soll es losgehen?'))
+            if self.version==3:self.render_source(box)
+            else:box.addWidget(label(tr('Dieser vorhandene Ablauf startet manuell. Seine Quellen und Aktionen werden unverändert ausgeführt.')))
+        elif self.selected=='gate':
+            self.dialog_header.title.setText(tr('Lumen · Nur ausführen, wenn …'))
+            if self.gate_enabled:
+                editor=ConditionEditor(BASE_FIELDS|SOURCE_FIELDS[config(self.items[0])['kind']],config(self.gate),self);box.addWidget(editor)
+                self.getters.append(lambda:self.gate.update(config=json.dumps(editor.value(),ensure_ascii=False)))
+                box.addWidget(button(tr('Bedingung in Worten beschreiben'),self.open_condition_help))
+                box.addWidget(button(tr('Ohne Bedingungen'),lambda:self.mutate(lambda:setattr(self,'gate_enabled',False))))
+            else:box.addWidget(label(tr('Keine zusätzliche Bedingung.')))
+        else:
+            found=self.find_step(self.selected)
+            if found:self.dialog_header.title.setText(tr('Lumen · Aktion bearbeiten'));self.render_action(*found,box)
+            else:self.selected='input';self.render_dialog();return
+        box.addStretch();self.dialog_scroll.setWidget(self.inspector);self.apply_lock()
+
+    def open_condition_help(self):
+        self.accept_detail()
+        if self.dialog is None:self.tabs.setCurrentIndex(1)
+
+    def accept_detail(self):
+        try:
+            self.sync()
+            if len(self.plan(False)['nodes'])>1:self.plan()
+            self.dialog.accept()
+        except ValueError as error:self.dialog_error.setText(tr(str(error)))
+
+    def detail_finished(self,result):
+        dialog,self.dialog=self.dialog,None;self.getters=[]
+        current=(self.items,self.gate,self.gate_enabled)
+        changed=current!=self.edit_snapshot
+        if result!=QDialog.Accepted:self.items,self.gate,self.gate_enabled=copy.deepcopy(self.edit_snapshot)
+        self.refresh();dialog.deleteLater()
+        if result==QDialog.Accepted and changed:self.changed.emit()
+
+    def pick_action(self,steps=None,depth=0):
+        if self.locked:return
+        steps=self.items if steps is None or isinstance(steps,bool) else steps
+        self.picker=QDialog(self.dialog or self);self.picker.setWindowTitle(tr('Lumen · Was soll Lumen tun?'));self.picker.resize(650,600)
+        box=QVBoxLayout(self.picker);box.setContentsMargins(24,24,24,24);box.setSpacing(12)
+        box.addWidget(label(tr('Was soll Lumen tun?'),'codeTitle'));box.addWidget(label(tr('Wähle eine vorhandene Aktion. Eigene Beschreibungen werden als prüfbarer KI-Auftrag bearbeitet.'),'codeMuted'))
+        scroll=QScrollArea();scroll.setWidgetResizable(True);content=QWidget();choices=QVBoxLayout(content);choices.setSpacing(8);scroll.setWidget(content);box.addWidget(scroll,1)
+        from code_sentence_ui import ICONS
+        from studio_design import icon
+        from PySide6.QtWidgets import QLabel
+        search=QLineEdit();search.setPlaceholderText(tr('Aktion suchen …'));search.setAccessibleName(tr('Verfügbare Aktionen durchsuchen'));search.setClearButtonEnabled(True);box.insertWidget(2,search)
+        kinds=('read_file','filter_text','ai','ai_check','choose','for_each','delay','approval','save_file','save_note','create_task','project_note','notify') if self.version==3 else tuple(k for k in CATALOG if k in LEGACY_KINDS and k!='manual')
+        groups=[]
+        def choice(title,description,kind,value):
+            control=ActionRow();control.setObjectName('codeFlowRow');control.setCursor(Qt.PointingHandCursor);control.setAccessibleName(title);control.setAccessibleDescription(description);control.setProperty('actionKind',kind)
+            inside=QHBoxLayout(control);inside.setContentsMargins(16,12,16,12);inside.setSpacing(12)
+            mark=QLabel();mark.setPixmap(icon(ICONS.get(kind,'tools-wizard')).pixmap(20,20));inside.addWidget(mark)
+            words=QVBoxLayout();words.setSpacing(4);caption=label(title);detail=label(description,'codeMuted');words.addWidget(caption);words.addWidget(detail);inside.addLayout(words,1)
+            for child in (mark,caption,detail):child.setAttribute(Qt.WA_TransparentForMouseEvents)
+            control.clicked.connect(lambda:self.choose_action(value,steps,depth));choices.addWidget(control)
+            return control,(title+' '+description).casefold()
+        categories=[('Dateien',('read_file','save_file')),('Text und KI',('filter_text','ai','ai_check')),('Ergebnisse',('save_note','create_task','project_note','notify')),('Ablaufsteuerung',('choose','for_each','delay','approval','if_pdf'))]
+        for name,available_kinds in categories:
+            heading=label(tr(name),'codeCardTitle');choices.addWidget(heading);entries=[]
+            for kind in available_kinds:
+                if kind not in kinds or (kind in ('choose','for_each') and depth>=3):continue
+                title=tr('Eigene Aktion beschreiben' if kind=='ai' else CATALOG[kind][1]);entries.append(choice(title,tr(CATALOG[kind][2]),kind,kind))
+            groups.append((heading,entries,tr(name).casefold()))
+        if self.tools:
+            heading=label(tr('KI-Aufträge aus Werkzeugen'),'codeCardTitle');choices.addWidget(heading)
+            entries=[choice(tr('KI-Auftrag aus Werkzeug: {0}',tool['title']),tr('Übernimmt den gespeicherten KI-Auftrag; kein Aufruf des Werkzeugs.'),'ai',tool) for tool in self.tools];groups.append((heading,entries,''))
+        missing=label(tr('Keine Aktion gefunden. Suche anpassen.'),'codeMuted');choices.addWidget(missing)
+        def filter_actions(text):
+            query=text.strip().casefold();total=0
+            for heading,entries,group_name in groups:
+                count=0
+                for control,words in entries:
+                    show=not query or query in words or query in group_name;control.setVisible(show);count+=bool(show)
+                heading.setVisible(count>0);total+=count
+            missing.setVisible(total==0)
+        search.textChanged.connect(filter_actions);filter_actions('')
+        choices.addStretch();box.addWidget(button(tr('Abbrechen'),self.picker.reject));self.picker.open();search.setFocus()
+
+    def choose_action(self,value,steps,depth):
+        self.picker.accept();self.picker.deleteLater();self.picker=None
+        if self.dialog is None:self.open_detail('input')
+        def append():
+            if len(self.plan(False)['nodes'])>=(52 if self.version==3 else 14):raise ValueError(tr('Der Ablauf hat zu viele Aktionen.'))
+            n=node('ai' if isinstance(value,dict) else value,value['definition'].get('prompt','') if isinstance(value,dict) else '')
+            if isinstance(value,dict):n['title']=value['title']+' · '+tr('KI-Auftrag aus Version {0}',value['revision'])
+            if n['kind']=='delay':n['config']='5'
+            if n['kind']=='for_each':n.update(steps=[],end=node('end_each',n['id'],title=tr('Ergebnisse sammeln')))
+            if n['kind']=='choose':n.update(cases=[{'when':{'field':'text','op':'exists','value':True},'steps':[]}],otherwise=[])
+            steps.append(n);self.selected=n['id']
+        self.mutate(append)
+
+    def refresh_routine(self,*_):
         if self.selected not in ('input','gate') and not self.find_step(self.selected):self.selected='input'
         self.getters=[];self.summaries={};body=QWidget();self.columns=QHBoxLayout(body);self.columns.setContentsMargins(0,16,8,16);self.columns.setSpacing(32)
         left=QWidget();box=QVBoxLayout(left);box.setContentsMargins(0,0,0,0);box.setSpacing(12);self.columns.addWidget(left,3)
@@ -150,6 +327,7 @@ class SectionsEditor(QWidget):
         right.addStretch();self.state=label('','codeMuted');right.addWidget(self.state);self.scroll.setWidget(body);self.reflow();self.apply_lock()
 
     def add_gate(self):
+        if self.version!=3:return
         def add():
             if self.gate is None:self.gate=node('condition',json.dumps({'field':'text','op':'exists','value':True}))
             self.gate_enabled=True;self.selected='gate'
@@ -160,6 +338,7 @@ class SectionsEditor(QWidget):
         self.mutate(remove)
 
     def reflow(self):
+        if not self.routine:return
         narrow=self.width()<740;self.columns.setDirection(QHBoxLayout.TopToBottom if narrow else QHBoxLayout.LeftToRight)
         self.inspector.layout().setContentsMargins(0 if narrow else 24,16 if narrow else 0,0,0);self.inspector.setProperty('narrow',narrow);self.inspector.style().unpolish(self.inspector);self.inspector.style().polish(self.inspector)
 
@@ -204,7 +383,7 @@ class SectionsEditor(QWidget):
             path=QLineEdit(source.get('path',''));path.setReadOnly(True);path.setAccessibleName(tr('Quelldatei'))
             def choose_file():
                 chosen=QFileDialog.getOpenFileName(self,tr('Lumen · Quelldatei auswählen'))[0]
-                if chosen:path.setText(chosen);source['path']=chosen;start['config']=json.dumps(source);self.changed.emit()
+                if chosen:path.setText(chosen);source['path']=chosen;start['config']=json.dumps(source);self.emit_change()
             source_box.addWidget(row(path,button(tr('Datei wählen'),choose_file)))
         elif source['kind']=='project':
             choices=combo([('', 'Projekt wählen')]+list(self.projects.items()),source.get('project_id',''));choices.setAccessibleName(tr('Lumen-Projekt'));source_box.addWidget(choices)
@@ -223,7 +402,7 @@ class SectionsEditor(QWidget):
 
     def update_source(self,n,source,key,value):
         if self.locked:return
-        source[key]=value;n['config']=json.dumps(source,ensure_ascii=False);self.changed.emit()
+        source[key]=value;n['config']=json.dumps(source,ensure_ascii=False);self.emit_change()
         if 'input' in self.summaries:
             from code_triggers import describe
             self.summaries['input'][2].setText(describe(source))
@@ -256,10 +435,16 @@ class SectionsEditor(QWidget):
             for key,caption in [('input','Tatsächliche Eingabe'),('output','Tatsächliches Ergebnis')]:
                 box.addWidget(label(tr(caption)));view=QPlainTextEdit(json.dumps(status.get(key,{}),ensure_ascii=False,indent=2));view.setReadOnly(True);view.setMaximumHeight(140);view.setAccessibleName(tr(caption));box.addWidget(view)
             if status.get('error'):box.addWidget(label(status['error'],'codeError'))
+        if not self.routine:
+            more=button(tr('Mehr'),lambda:None,'view-more-symbolic');menu=QMenu(more);more.setMenu(menu)
+            up=menu.addAction(tr('Nach oben'),lambda:self.mutate(lambda:steps.insert(index-1,steps.pop(index))));up.setEnabled(index>start)
+            down=menu.addAction(tr('Nach unten'),lambda:self.mutate(lambda:steps.insert(index+1,steps.pop(index))));down.setEnabled(index<len(steps)-1)
+            menu.addSeparator();menu.addAction(tr('Aktion entfernen'),lambda:self.mutate(lambda:steps.remove(n)))
+            box.addWidget(more,0,Qt.AlignLeft);return
         actions=QHBoxLayout();box.addLayout(actions)
         up=button(tr('Nach oben'),lambda:self.mutate(lambda:steps.insert(index-1,steps.pop(index))));up.setEnabled(index>start);actions.addWidget(up)
         down=button(tr('Nach unten'),lambda:self.mutate(lambda:steps.insert(index+1,steps.pop(index))));down.setEnabled(index<len(steps)-1);actions.addWidget(down)
-        remove=button(tr('Entfernen'),lambda:self.mutate(lambda:steps.remove(n)));remove.setEnabled(len(self.plan(False)['nodes'])>2);box.addWidget(remove)
+        remove=button(tr('Entfernen'),lambda:self.mutate(lambda:steps.remove(n)));remove.setEnabled(not self.locked);box.addWidget(remove)
 
     def add_actions(self,steps,box,depth):
         add=QComboBox();add.setAccessibleName(tr('Aktion hinzufügen'));add.addItem(tr('+ Aktion hinzufügen'),'')
@@ -271,7 +456,7 @@ class SectionsEditor(QWidget):
             if self.routine and kind in ('choose','for_each','ai_check'):continue
             if kind not in ('choose','for_each') or depth<3:add.addItem(tr(CATALOG[kind][1]),kind)
         for tool in self.tools:
-            text=tr('Werkzeug: {0}',tool['title']);add.addItem(text,tool);add.setItemData(add.count()-1,'<qt>'+escape(text)+'</qt>',Qt.ToolTipRole)
+            text=tr('KI-Auftrag aus Werkzeug: {0}',tool['title']);add.addItem(text,tool);add.setItemData(add.count()-1,'<qt>'+escape(text)+'</qt>',Qt.ToolTipRole)
         box.addWidget(add)
         def selected():
             value=add.currentData()
@@ -282,7 +467,7 @@ class SectionsEditor(QWidget):
                 if isinstance(value,dict):n['title']=value['title']+' · '+tr('Version {0}',value['revision'])
                 if n['kind']=='delay':n['config']='5'
                 if n['kind']=='for_each':n.update(steps=[],end=node('end_each',n['id'],title=tr('Ergebnisse sammeln')))
-                if n['kind']=='choose':n.update(cases=[{'when':{'field':'text','op':'contains','value':'Rechnung'},'steps':[]}],otherwise=[])
+                if n['kind']=='choose':n.update(cases=[{'when':{'field':'text','op':'exists','value':True},'steps':[]}],otherwise=[])
                 steps.append(n);self.selected=n['id']
             self.mutate(append)
         add.activated.connect(selected)
@@ -294,7 +479,7 @@ class SectionsEditor(QWidget):
             control,caption,preview=self.summaries[n['id']]
             if key=='title':caption.setText(value);control.setAccessibleName(value)
             else:preview.setText(self.projects.get(value,value)[:240])
-        self.changed.emit()
+        self.emit_change()
 
     def add_case(self,n):
         def append():
@@ -312,12 +497,13 @@ class SectionsEditor(QWidget):
     def apply_lock(self):
         body=self.scroll.widget()
         if not body:return
-        for control in body.findChildren(QWidget):
+        controls=body.findChildren(QWidget)+(self.inspector.findChildren(QWidget) if self.dialog is not None else [])
+        for control in controls:
             if isinstance(control,(QLineEdit,QPlainTextEdit,QDoubleSpinBox,QSpinBox,QTimeEdit,QDateEdit)):
                 if self.locked and control.property('codeReadOnly') is None:control.setProperty('codeReadOnly',control.isReadOnly())
                 if self.locked:control.setReadOnly(True)
                 elif control.property('codeReadOnly') is not None:control.setReadOnly(bool(control.property('codeReadOnly')))
-            elif isinstance(control,(QComboBox,QCheckBox,QPushButton)) and control.objectName()!='codeFlowRow':
+            elif isinstance(control,(QComboBox,QCheckBox,QPushButton)) and control.objectName() not in ('codeFlowRow','sentencePart'):
                 if self.locked and control.property('codeEnabled') is None:control.setProperty('codeEnabled',control.isEnabled())
                 if self.locked:control.setEnabled(False)
                 elif control.property('codeEnabled') is not None:control.setEnabled(bool(control.property('codeEnabled')))
@@ -363,7 +549,7 @@ class SectionsEditor(QWidget):
         try:
             if not self.full_description.toPlainText().strip() or len(self.full_description.toPlainText())>8000:raise ValueError(tr('Bitte den Ablauf in höchstens 8.000 Zeichen beschreiben.'))
             prompt=proposal(self.full_description.toPlainText()) if self.version==3 else 'Antworte nur mit JSON {"nodes":[{"kind":"manual","title":"Start","config":""}, ...]}. Zwei bis vierzehn Schritte. Typen: '+', '.join(sorted(LEGACY_KINDS))+'. config nur für ai als Auftrag, alle Pfade leer. Keine Aktionen ausführen. Beschreibung: '+self.full_description.toPlainText()
-            self.full_signature=digest(self.plan());self.full_text=self.full_description.toPlainText()
+            self.full_signature=json.dumps(self.plan(False),sort_keys=True);self.full_text=self.full_description.toPlainText()
             if QMessageBox.question(self,tr('Lumen · Ablauf vorschlagen'),tr('Beschreibung an die eingerichtete KI senden? Quellen und Ziele werden nicht übertragen. Übernahme erst nach deiner Prüfung.'))!=QMessageBox.Yes:return
             if self.full_engine is None:
                 from assistant_backend import OpenCodeBackend
@@ -390,14 +576,20 @@ class SectionsEditor(QWidget):
         from code_blocks_run import digest
         try:
             if not self.full_candidate:return
-            if digest(self.plan())!=self.full_signature or self.full_description.toPlainText()!=self.full_text:raise ValueError(tr('Ablauf oder Beschreibung inzwischen geändert. Bitte erneut vorschlagen lassen.'))
+            if json.dumps(self.plan(False),sort_keys=True)!=self.full_signature or self.full_description.toPlainText()!=self.full_text:raise ValueError(tr('Ablauf oder Beschreibung inzwischen geändert. Bitte erneut vorschlagen lassen.'))
             if self.routine and any(n['kind'] in ('choose','condition','for_each') for n in self.full_candidate['nodes']):raise ValueError(tr('Für Verzweigungen Automation wählen; eine Routine verwendet feste Schritte.'))
             self.set_plan(self.full_candidate);self.changed.emit();self.tabs.setCurrentIndex(0);self.full_candidate=None;self.full_accept.hide()
         except ValueError as error:self.full_status.setText(tr(str(error)))
 
     def shutdown(self):
         self.closed=True
+        if self.picker:self.picker.reject()
+        if self.dialog:self.dialog.reject()
         if self.engine:self.engine.shutdown()
         if self.full_engine:self.full_engine.shutdown()
         if self.full_directory:self.full_directory.cleanup()
         if self.temporary:self.temporary.cleanup()
+
+
+# Existing callers and routine forms retain the same editor/model contract.
+SectionsEditor=SentenceEditor

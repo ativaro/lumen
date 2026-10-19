@@ -41,7 +41,7 @@ class BlockWindow(QDialog):
         self.status=label('','codeMuted');results.addWidget(self.status)
         self.result_view=QTextBrowser();self.result_view.setOpenExternalLinks(False);self.result_view.setAccessibleName(tr('Ergebnis des letzten Durchlaufs'));results.addWidget(self.result_view,1)
         row=QHBoxLayout();self.test_button=button(tr('Testlauf'),lambda:self.safe(self.start,True),'media-playback-start');actions.addWidget(self.test_button);actions.addWidget(self.activation_button);root.addLayout(actions)
-        self.live_button=button(tr('Jetzt ausführen'),lambda:self.safe(self.start,False));row.addWidget(self.live_button);row.addStretch()
+        self.live_button=button(tr('Jetzt ausführen'),lambda:self.safe(self.start,False),primary=True);actions.addWidget(self.live_button);row.addStretch()
         self.pause_button=button(tr('Pausieren'),lambda:self.safe(self.pause));row.addWidget(self.pause_button)
         self.resume_button=button(tr('Fortsetzen'),lambda:self.safe(self.resume));row.addWidget(self.resume_button)
         self.approve_button=button(tr('Bestätigen und fortsetzen'),lambda:self.safe(self.approve),primary=True);row.addWidget(self.approve_button)
@@ -58,7 +58,7 @@ class BlockWindow(QDialog):
         self.refresh_timer=QTimer(self);self.refresh_timer.setInterval(1500);self.refresh_timer.timeout.connect(self.refresh_run);self.refresh_timer.start()
 
     def refresh_run(self):
-        if self.closed or self.dirty or self.job or self.ai_wait:return
+        if self.closed or self.dirty or self.job or self.ai_wait or getattr(self.editor,'dialog',None) is not None:return
         latest=self.runs.latest(self.identity)
         if latest and (not self.run or latest['updated']!=self.run['updated'] or latest['id']!=self.run['id']):
             self.run=latest;self.render()

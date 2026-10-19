@@ -3,7 +3,7 @@ import json
 import tempfile
 from pathlib import Path
 from html import escape
-from PySide6.QtWidgets import QDialog,QWidget,QVBoxLayout,QHBoxLayout,QGridLayout,QStackedWidget,QScrollArea,QLineEdit,QComboBox,QPlainTextEdit,QTextBrowser,QMessageBox,QSizePolicy
+from PySide6.QtWidgets import QDialog,QWidget,QVBoxLayout,QHBoxLayout,QGridLayout,QStackedWidget,QScrollArea,QLineEdit,QComboBox,QPlainTextEdit,QTextBrowser,QMessageBox,QSizePolicy,QInputDialog
 from tools_ui import button,label,row
 from lumen_i18n import tr
 from code_library_contract import definition
@@ -28,14 +28,16 @@ class CreationDialog(QDialog):
         self.pages=QStackedWidget();box.addWidget(self.pages,1)
         choose=QWidget();layout=QVBoxLayout(choose);layout.setContentsMargins(0,0,0,0)
         grid=QGridLayout();grid.setSpacing(16);layout.addLayout(grid)
-        examples={'tool':'Eingabe → Regeln → Ergebnis','routine':'Schritte → Zeitplan → prüfen','automation':'Wenn → Und wenn → Dann','code':'Projekt → erster Auftrag → Gespräch'}
+        examples={'tool':'Eingabe → Regeln → Ergebnis','routine':'Schritte → Zeitplan → prüfen','automation':'Lumen soll … · Aktion wählen','code':'Projekt → erster Auftrag → Gespräch'}
         for index,(key,(title,description)) in enumerate(KINDS.items()):grid.addWidget(card(tr(title),tr(description),tr(examples[key]),lambda _=False,k=key:self.select_kind(k),key),index//2,index%2)
         self.creation_grid=grid;self.creation_cards=[grid.itemAt(i).widget() for i in range(grid.count())];layout.addStretch();choose_scroll=QScrollArea();choose_scroll.setWidgetResizable(True);choose_scroll.setWidget(choose);self.pages.addWidget(choose_scroll)
         edit=QWidget();layout=QVBoxLayout(edit);layout.setContentsMargins(0,0,0,0);layout.setSpacing(16);self.heading=self.header.title;self.subtitle=self.header.subtitle
+        self.automation_title=label(tr('Unbenannte Automation'),'codeTitle');layout.addWidget(self.automation_title)
+        self.rename_automation=button(tr('Umbenennen'),self.rename_sentence);self.header.actions.addWidget(self.rename_automation)
         self.name_caption=label(tr('Name'));layout.addWidget(self.name_caption);self.name=QLineEdit();self.name.setAccessibleName(tr('Name'));self.name.setMaxLength(160);layout.addWidget(self.name)
         project_row=QHBoxLayout();self.project=QComboBox();self.project.setAccessibleName(tr('Lumen-Projekt'));self.project.addItem(tr('Ohne Projekt'),'')
         for key,title in (projects or {}).items():self.project.addItem(title,key)
-        project_row.addWidget(self.project,1);project_box=QWidget();project_box.setLayout(project_row);project_row.setContentsMargins(0,0,0,0);project_box.hide();project_toggle=button(tr('Zu einem Lumen-Projekt hinzufügen · optional'),lambda:project_box.setVisible(not project_box.isVisible()));project_toggle.setObjectName('codeLink');layout.addWidget(project_toggle);layout.addWidget(project_box)
+        project_row.addWidget(self.project,1);project_box=QWidget();project_box.setLayout(project_row);project_row.setContentsMargins(0,0,0,0);project_box.hide();project_toggle=button(tr('Zu einem Lumen-Projekt hinzufügen · optional'),lambda:project_box.setVisible(not project_box.isVisible()));project_toggle.setObjectName('codeLink');self.project_toggle=project_toggle;layout.addWidget(project_toggle);layout.addWidget(project_box)
         self.code_name_toggle=button(tr('Bezeichnung anpassen · optional'),lambda checked:(self.name.setVisible(checked),self.name_caption.setVisible(checked)));self.code_name_toggle.setCheckable(True);self.code_name_toggle.setObjectName('codeLink');layout.addWidget(self.code_name_toggle)
         store=getattr(parent,'store',None)
         from code_triggers import project_choices
@@ -60,12 +62,13 @@ class CreationDialog(QDialog):
         self.goal_button=button(tr('Vorschlag erstellen'),self.suggest_goal,primary=True);layout.addWidget(row(self.goal_button,button(tr('Selbst auswählen'),lambda:self.pages.setCurrentIndex(0))));self.goal_result=QTextBrowser();layout.addWidget(self.goal_result);self.goal_accept=button(tr('Vorschlag bearbeiten'),self.accept_goal);self.goal_accept.hide();layout.addWidget(self.goal_accept)
         goal_scroll=QScrollArea();goal_scroll.setWidgetResizable(True);goal_scroll.setWidget(goal);self.pages.addWidget(goal_scroll)
         self.pages.currentChanged.connect(self.update_navigation);self.update_navigation()
-        self.baseline=self.fingerprint()
         if kind in KINDS:self.select_kind(kind)
+        self.baseline=self.fingerprint()
 
     def fingerprint(self):
         from PySide6.QtWidgets import QCheckBox
-        return [(type(w).__name__,w.toPlainText() if isinstance(w,QPlainTextEdit) else w.text() if isinstance(w,QLineEdit) else w.currentIndex() if isinstance(w,QComboBox) else w.isChecked()) for w in self.findChildren(QWidget) if isinstance(w,(QLineEdit,QPlainTextEdit,QComboBox,QCheckBox))]
+        widgets=[(type(w).__name__,w.toPlainText() if isinstance(w,QPlainTextEdit) else w.text() if isinstance(w,QLineEdit) else w.currentIndex() if isinstance(w,QComboBox) else w.isChecked()) for w in self.findChildren(QWidget) if isinstance(w,(QLineEdit,QPlainTextEdit,QComboBox,QCheckBox)) and not any(self.forms[k].isAncestorOf(w) for k in ('automation','routine'))]
+        return widgets+[(json.dumps(self.forms[k].plan(False),sort_keys=True),self.forms[k].full_description.toPlainText(),self.forms[k].description.toPlainText()) for k in ('automation','routine')]
 
     @property
     def prompt(self):return self.forms['tool'].request if self.kind=='tool' else self.forms['code'].task if self.kind=='code' else self.forms['routine'].full_description if self.kind=='routine' else self.flow_editor.description
@@ -75,10 +78,10 @@ class CreationDialog(QDialog):
     def select_kind(self,kind):
         if kind not in KINDS:return
         if self.pages.currentIndex()==1:self.capture()
-        self.kind=kind;draft=self.drafts.get(kind,{});self.name.setText(draft.get('title',''));self.project.setCurrentIndex(max(0,self.project.findData(draft.get('project_id',''))));self.form_stack.setCurrentIndex(self.form_keys.index(kind));self.error.clear();self.error.hide();self.pages.setCurrentIndex(1);self.update_navigation()
+        self.kind=kind;draft=self.drafts.get(kind,{});self.name.setText(draft.get('title',tr('Unbenannte Automation') if kind=='automation' else ''));self.project.setCurrentIndex(max(0,self.project.findData(draft.get('project_id',''))));self.form_stack.setCurrentIndex(self.form_keys.index(kind));self.error.clear();self.error.hide();self.pages.setCurrentIndex(1);self.update_navigation()
         if self.goal.toPlainText().strip() and kind not in self.goal_seeded:
             if kind in ('automation','routine'):
-                target=next((n for n in self.forms[kind].items if n['kind']=='ai'),None)
+                target=next((n for n in self.forms[self.kind].items if n['kind']=='ai'),None)
                 if target:target['config']=self.goal.toPlainText();self.forms[kind].refresh()
                 self.forms[kind].full_description.setPlainText(self.goal.toPlainText())
             elif not self.prompt.toPlainText().strip():self.prompt.setPlainText(self.goal.toPlainText())
@@ -95,10 +98,17 @@ class CreationDialog(QDialog):
         titles={'tool':'Lumen · Werkzeug erstellen','routine':'Lumen · Routine zusammenstellen','automation':'Lumen · Automation erstellen','code':'Lumen · Code-Projekt öffnen'}
         self.header.title.setText(tr(titles[self.kind]) if editing else tr('Lumen · Dein Ziel') if self.pages.currentIndex()==3 else tr('Lumen · Neu erstellen'))
         self.header.subtitle.setText(tr(KINDS[self.kind][1]) if editing else tr('Beschreibe deine Aufgabe oder wähle selbst den passenden Weg.'))
+        if self.kind=='automation' and editing:self.header.title.setText(tr('Lumen Automation'));self.header.subtitle.setText(tr('Ein Ablauf, den du lesen kannst.'))
         self.setWindowTitle(self.header.title.text())
         self.code_name_toggle.setVisible(self.kind=='code')
-        self.name.setVisible(self.kind!='code' or self.code_name_toggle.isChecked());self.name_caption.setVisible(not self.name.isHidden())
+        self.name.setVisible(self.kind not in ('code','automation') or (self.kind=='code' and self.code_name_toggle.isChecked()));self.name_caption.setVisible(not self.name.isHidden())
+        sentence=self.kind=='automation' and editing;self.automation_title.setVisible(sentence);self.automation_title.setText(self.name.text());self.rename_automation.setVisible(sentence);self.project_toggle.setVisible(self.kind!='automation')
+        self.review_button.setText(tr('Speichern' if self.kind=='automation' else 'Weiter zur Prüfung'))
         self.footer.setText(tr('Meine Sammlung')+' / '+tr(KINDS[self.kind][0] if self.pages.currentIndex() in (1,2) else 'Neu erstellen'))
+
+    def rename_sentence(self):
+        title,ok=QInputDialog.getText(self,tr('Lumen · Automation umbenennen'),tr('Name'),text=self.name.text())
+        if ok and title.strip():self.name.setText(title.strip()[:160]);self.automation_title.setText(self.name.text())
 
     def back(self):self.capture();self.pages.setCurrentIndex(0)
 
@@ -115,6 +125,7 @@ class CreationDialog(QDialog):
             storage_kind='automation' if self.kind=='routine' else self.kind
             title=self.name.text().strip() or (Path(value['directory']).name if self.kind=='code' else tr(KINDS[self.kind][0]))
             self.value={**definition(storage_kind,title,value=value),'project_id':self.project.currentData()}
+            if self.kind=='automation':self.create();return
             text='<h2>'+escape(self.value['title'])+'</h2><p>'+escape(tr(KINDS[self.kind][0]))+'</p>'
             if self.kind=='automation':
                 from code_conditions import describe
@@ -195,8 +206,12 @@ class CreationDialog(QDialog):
         if self.goal.toPlainText()!=self.goal_submitted:self.goal_error.setText(tr('Dein Ziel wurde geändert. Bitte einen neuen Vorschlag erstellen.'));return
         self.select_kind(p['kind']);self.name.setText(p['title']);text=p['prompt']+'\n\n'+tr('Daran prüfen wir das Ergebnis')+':\n'+'\n'.join(p['checks'])
         if self.kind=='automation':
-            target=next((n for n in self.forms[kind].items if n['kind']=='ai'),None)
-            if target:target['config']=text;self.flow_editor.refresh()
+            target=next((n for n in self.forms[self.kind].items if n['kind']=='ai'),None)
+            if target:target['config']=text
+            else:
+                from code_blocks import node
+                self.flow_editor.items.append(node('ai',text))
+            self.flow_editor.refresh()
         else:self.prompt.setPlainText(text)
 
     def test_tool(self):
