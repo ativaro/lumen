@@ -89,3 +89,11 @@ unverändert. Belege und begrenzter Installer/Rückweg:
 Die Runtime-Fassung von app.py enthält ausschließlich den Bereinigungsfix auf der
 aktuellen installierten Basis; noch nicht installierte Files-Quelländerungen werden
 nicht mit übernommen. Persönliche Fenster und Notizbücher sind keine Testprofile.
+
+Installationsabnahme: Code `f4c7df3` (Original `57779a0`). Fünf Runtime-Dateien
+mit Sicherung ersetzt, 649 andere Codeassets und Vault-Broker unverändert.
+Sieben installierte Notes-Fälle, sieben echte installierte Aufnahmen und echter
+Anwendungsschluss mit Freigabe aller drei Besitzerobjekte bestanden. Rücknahme
+auf Wegwerfkopie und installierter Rückweg als Trockenlauf geprüft. Normal neu
+öffnen; persönliche Fenster wurden nicht beendet. Abnahme:
+`~/.local/state/lumen/notes-header-controls-20261019/verification.json`.
