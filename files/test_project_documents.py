@@ -105,6 +105,15 @@ class ProjectDocumentsTest(unittest.TestCase):
         self.assertEqual(text, 'Slide 1\nVCF section evidence')
         self.assertFalse(partial)
 
+    def test_pdf_search_preserves_the_actual_reader_failure(self):
+        import content_search
+        pdf = self.folder/'unsupported.pdf'; pdf.write_bytes(b'%PDF fixture')
+        worker = self.root/'lumen_pdf_worker.py'
+        worker.write_text('import sys\nprint("PDF fixture graphics are unsupported", file=sys.stderr)\nraise SystemExit(1)\n')
+        with patch.object(content_search, '__file__', str(self.root/'content_search.py')):
+            with self.assertRaisesRegex(ValueError, 'fixture graphics are unsupported'):
+                content_search.read_content(pdf)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -103,11 +103,11 @@ def read_content(path, directory_fd=None):
         elif path.suffix.lower() == '.pdf':
             if info.st_size > 128 * 1024 * 1024:
                 return '', True
-            with tempfile.TemporaryFile() as output:
+            with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as errors:
                 # An inherited descriptor pins the checked file, even if its path changes.
                 proc = subprocess.Popen([sys.executable,str(Path(__file__).with_name('lumen_pdf_worker.py')),'text',
                                          f'/proc/self/fd/{stream.fileno()}', '--limit',str(MAX_TEXT+1)],
-                                        stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.DEVNULL,
+                                        stdin=subprocess.DEVNULL, stdout=output, stderr=errors,
                                         pass_fds=(stream.fileno(),))
                 deadline = time.monotonic() + 12
                 try:
@@ -119,7 +119,8 @@ def read_content(path, directory_fd=None):
                         time.sleep(.02)
                     proc.wait()
                     if proc.returncode and not partial and os.fstat(output.fileno()).st_size <= MAX_TEXT:
-                        raise ValueError(tr('PDF nicht lesbar.'))
+                        errors.seek(0)
+                        raise ValueError(tr('PDF nicht lesbar.') + ' ' + errors.read(600).decode('utf-8', errors='replace').strip())
                     output.seek(0)
                     data = output.read(MAX_TEXT + 1)
                 finally:
