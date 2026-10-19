@@ -79,7 +79,13 @@ class BlocksTest(unittest.TestCase):
 
     def test_fence_archive_and_plan_changes(self):
         run=self.create();self.runs.resume(run['id']);self.runs.advance(run['id'],self.job)
-        self.collection.update(self.entry['id'],self.entry['revision'],archived=True)
+        active=self.runs.get(run['id'])
+        with self.assertRaisesRegex(ValueError,'zuerst beenden'):
+            self.collection.update(self.entry['id'],self.entry['revision'],archived=True)
+        self.assertFalse(self.collection.get(self.entry['id'])['archived'])
+        self.assertEqual(self.runs.get(run['id']),active)
+        # Legacy archived data must still hit the runner fence behind the API guard.
+        with self.store.connect() as db:db.execute('UPDATE code_library SET archived=1 WHERE id=?',(self.entry['id'],))
         with self.assertRaisesRegex(ValueError,'archiviert'):self.runs.advance(run['id'],self.job)
         self.assertFalse(list(self.root.glob('Lumen-*')))
 
