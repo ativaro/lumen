@@ -40,8 +40,8 @@ QWidget#projectJournal QScrollArea,QWidget#projectJournal QWidget#journalPage { 
 
 
 def question_prompt(project, question):
-    return (tr('Frage zum Lumen-Projekt') + ' ' + project + ':\n\n' + question.strip() + '\n\n' +
-            tr('Durchsuche verknüpfte lokale Ordner mit lumen_project_search und nenne Suchgrenzen. ') + tr('Lies das Projekt über die Projektwerkzeuge. Nutze zugeordnete Quellen nur soweit sie zugänglich sind, nenne verwendete Belege und kennzeichne nicht gelesene oder fehlende Inhalte. Starte oder ändere keine Aufgaben allein durch diese Frage.'))
+    return (question.strip() + '\n\n' + tr('Frage zum Lumen-Projekt') + ' ' + project + '.\n' +
+            tr('Durchsuche verknüpfte Dateien, Ordner und Gespräche mit lumen_project_search und nenne Suchgrenzen. ') + tr('Lies das Projekt über die Projektwerkzeuge. Nutze zugeordnete Quellen nur soweit sie zugänglich sind, nenne verwendete Belege und kennzeichne nicht gelesene oder fehlende Inhalte. Frühere KI-Antworten sind bisherige Analysen und keine unabhängigen Originalbelege. Starte oder ändere keine Aufgaben allein durch diese Frage.'))
 
 
 class ProjectJournal(QWidget):
@@ -182,7 +182,7 @@ class ProjectJournal(QWidget):
             self.server_question = ProjectQuestion(self, question)
             self.server_question.show()
             return
-        command = [str(Path(__file__).resolve().parents[1] / 'agent-app/main.py'), '--page', 'chat', '--action', 'open', '--draft', question_prompt(self.project, question)]
+        command = [str(Path(__file__).resolve().parents[1] / 'agent-app/main.py'), '--page', 'chat', '--action', 'open', '--draft-project', self.project, '--draft', question_prompt(self.project, question)]
         started, _ = QProcess.startDetached(sys.executable, command)
         if not started: raise OSError(tr('Lumen konnte nicht geöffnet werden.'))
         self.question.clear()

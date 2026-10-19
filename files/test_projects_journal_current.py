@@ -83,6 +83,7 @@ class JournalTest(unittest.TestCase):
         w.journal.question.setPlainText('Which evidence?')
         with patch('projects_journal_ui.QProcess.startDetached',return_value=(True,1)) as launch:w.journal.ask()
         args=launch.call_args.args[1];self.assertIn('--draft',args);self.assertNotIn('--prompt',args)
+        self.assertEqual(args[args.index('--draft-project')+1],self.key)
         self.assertEqual(w.library.get(self.key)['notes'],'Keep me');self.assertEqual(w.projects.items(self.key),[])
     def test_edit_button_opens_project_and_saves(self):
         w=self.window;w.show();self.app.processEvents()
@@ -175,10 +176,11 @@ class JournalTest(unittest.TestCase):
         function.body=function.body[:end]+[ast.Return(value=ast.Name(id='args',ctx=ast.Load()))]
         module=ast.fix_missing_locations(ast.Module(body=[function],type_ignores=[]));namespace=dict(argparse=argparse,Path=Path,tr=lambda x:x)
         exec(compile(module,'main.py','exec'),namespace)
-        for args in (['--draft','Do not send'],['--directory',str(self.root),'--session','ses_existing']):
+        for args in (['--draft','Do not send'],['--draft','Question','--draft-project',self.key],['--directory',str(self.root),'--session','ses_existing']):
             with patch.object(sys,'argv',['lumen',*args]):parsed=namespace['main']()
             self.assertTrue(parsed.draft or parsed.session)
         with patch.object(sys,'argv',['lumen','--draft','Question','--session','ses_existing']),self.assertRaises(SystemExit):namespace['main']()
+        with patch.object(sys,'argv',['lumen','--draft-project',self.key]),self.assertRaises(SystemExit):namespace['main']()
     def test_native_journal_preserves_editor_and_archived_permissions(self):
         w=self.window;parent=w.projects.add(self.key,'','Milestone','initiative');task=w.projects.add(self.key,parent,'Compare','analysis',goal='Compare evidence')
         w.navigate(self.key,task);self.assertTrue(w.editor.is_task())

@@ -422,6 +422,7 @@ def main():
     parser.add_argument('--location', help=tr('Datei- oder Netzwerkordner im Dateibereich'))
     parser.add_argument('--prompt', default='')
     parser.add_argument('--draft', default='')
+    parser.add_argument('--draft-project', type=valid_task)
     from projects_references import session as valid_session
     parser.add_argument('--session', type=valid_session)
     parser.add_argument('--action', choices=['open', 'ask', 'explain', 'fix', 'review', 'diagnose'], default='open')
@@ -439,6 +440,8 @@ def main():
 
     if args.draft and (args.prompt or args.session or args.task or args.selection or args.context or args.file or args.clipboard_image or args.action != 'open' or args.page not in (None, 'chat')):
         parser.error(tr('Ein Gesprächsentwurf kann nicht mit einer auszuführenden Aktion kombiniert werden.'))
+    if args.draft_project and (not args.draft or args.restore_state):
+        parser.error('--draft-project requires a new conversation draft')
     if args.session and (args.prompt or args.task or args.selection or args.context or args.file or args.clipboard_image or args.action != 'open' or args.page not in (None, 'chat')):
         parser.error(tr('Ein gespeichertes Gespräch kann nicht mit einer auszuführenden Aktion kombiniert werden.'))
     if args.details and not args.page: args.page = 'chat'
@@ -536,7 +539,7 @@ def main():
             window.chat.show_error(tr('Pfad nicht erreichbar: ') + ', '.join(invalid))
             return
         if args.draft:
-            window.chat.prepare_draft(args.draft)
+            window.chat.prepare_draft(args.draft, project=args.draft_project or '')
         elif args.session:
             window.chat.backend.select_session(args.session)
         elif args.selection:

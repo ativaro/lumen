@@ -8,6 +8,9 @@ import subprocess
 import sys
 import tempfile
 import time
+import zipfile
+import zlib
+from xml.etree import ElementTree as ET
 from collections import deque
 from pathlib import Path
 
@@ -88,7 +91,16 @@ def read_content(path, directory_fd=None):
         if not stat.S_ISREG(info.st_mode):
             return '', False
         partial = False
-        if path.suffix.lower() == '.pdf':
+        from document_text import EXTENSIONS, extract
+        if path.suffix.lower() in EXTENSIONS:
+            if info.st_size > 64 * 1024 * 1024:
+                raise ValueError(tr('Office-Datei zu groß.'))
+            try:
+                text, partial = extract(stream, path.suffix.lower(), MAX_TEXT)
+                data = text.encode('utf-8')
+            except (KeyError, IndexError, zipfile.BadZipFile, ET.ParseError, RuntimeError, zlib.error) as error:
+                raise ValueError(tr('Office-Datei nicht lesbar.')) from error
+        elif path.suffix.lower() == '.pdf':
             if info.st_size > 128 * 1024 * 1024:
                 return '', True
             with tempfile.TemporaryFile() as output:
@@ -155,9 +167,11 @@ def scan(root, groups, hidden=False, max_hits=500, max_entries=100000, ocr=False
 
 def scan_tree(root, root_fd, groups, hidden, max_hits, max_entries, ocr=False, thumbnail_dir=None, visual=True):
     from core import file_kind
+    from document_text import EXTENSIONS
     root = Path(root).resolve()
     queue = deque([Path('.')])
     visited = scanned = hits = errors = partial = empty = 0
+    error_details = []
     limit = ''; images = 0
     started = last_report = time.monotonic()
     while queue and not limit:
@@ -180,7 +194,7 @@ def scan_tree(root, root_fd, groups, hidden, max_hits, max_entries, ocr=False, t
                             continue
                         if entry.is_dir(follow_symlinks=False):
                             queue.append(relative / entry.name)
-                        elif entry.is_file(follow_symlinks=False) and file_kind(path) in {'text', 'pdf', 'image'}:
+                        elif entry.is_file(follow_symlinks=False) and (file_kind(path) in {'text', 'pdf', 'image'} or path.suffix.lower() in EXTENSIONS):
                             scanned += 1
                             kind = file_kind(path)
                             text, incomplete = read_content(path, descriptor) if kind != 'image' else ('', False)
@@ -201,18 +215,22 @@ def scan_tree(root, root_fd, groups, hidden, max_hits, max_entries, ocr=False, t
                                 if hits >= max_hits:
                                     limit = tr('Trefferlimit')
                                     break
-                    except (OSError, ValueError, subprocess.SubprocessError):
+                    except (OSError, ValueError, subprocess.SubprocessError) as error:
                         errors += 1
+                        if len(error_details) < 12:
+                            error_details.append(dict(path=str(path), error=str(error)[:200]))
                     if time.monotonic() - last_report > .15:
                         yield {'type': 'progress', 'scanned': scanned, 'visited': visited, 'hits': hits}
                         last_report = time.monotonic()
-        except OSError:
+        except OSError as error:
             errors += 1
+            if len(error_details) < 12:
+                error_details.append(dict(path=str(folder), error=str(error)[:200]))
         finally:
             if descriptor is not None:
                 os.close(descriptor)
     yield {'type': 'done', 'scanned': scanned, 'visited': visited, 'hits': hits, 'errors': errors,
-           'partial': partial, 'empty': empty, 'limit': limit, 'elapsed': time.monotonic() - started}
+           'partial': partial, 'empty': empty, 'limit': limit, 'error_details': error_details, 'elapsed': time.monotonic() - started}
 
 
 if __name__ == '__main__' and sys.argv[1:] == ['--scan']:

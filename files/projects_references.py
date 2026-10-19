@@ -68,6 +68,32 @@ def change(library, project, expected_updated, reference, remove=False):
     library.update(project, expected_updated=expected_updated, **{field: updated})
 
 
+def conversation_project(project, library=None):
+    from tools_data import Library
+    record = (library or Library('workbench')).get(project)
+    if record.get('_archived') or record.get('server_role') == 'reader':
+        raise ValueError(tr('Dieses Projekt ist nicht mehr beschreibbar.'))
+    return record
+
+
+def link_conversation(project, directory, session, title):
+    import json
+    import time
+    from tools_data import Library
+    library = Library('workbench')
+    value = validate(dict(kind='chat', title=title[:200], chat=dict(directory=directory, session=session)))
+    with library.connect() as db:
+        db.execute('BEGIN IMMEDIATE')
+        conversation_project(project, library)
+        row = db.execute('SELECT data FROM records WHERE id=?', (project,)).fetchone()
+        data = json.loads(row['data'])
+        refs = data.get('references', [])
+        if any(identity(ref) == identity(value) for ref in refs):
+            return
+        data['references'] = refs + [value]
+        db.execute('UPDATE records SET data=?,updated=? WHERE id=?', (json.dumps(data), time.time(), project))
+
+
 def open_reference(value, store):
     from PySide6.QtCore import QProcess
     value = validate(value)
