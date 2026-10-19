@@ -90,7 +90,7 @@ class SentenceTest(unittest.TestCase):
             self.assertIn('Synthetischer Beleg',rendered[0]);self.assertIn('Nur Test',rendered[0])
             copied=w.duplicate();self.assertNotEqual(copied['id'],entry['id']);self.assertFalse(w.passed_test());self.assertIsNone(Triggers(c).get(copied['id']))
             self.assertEqual(json.loads(copied['definition']['flow']),plan)
-            with patch('code_blocks_window.QMessageBox.question',return_value=QMessageBox.Yes):w.archive()
+            with patch('code_trash.confirm',return_value=True):w.archive()
             self.assertTrue(c.get(copied['id'])['archived']);self.assertFalse(c.get(entry['id'])['archived']);self.assertEqual(runs.get(run['id'])['status'],'completed')
 
     def test_latest_and_history_hide_machine_fields_until_details_are_requested(self):

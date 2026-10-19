@@ -40,7 +40,10 @@ class CollectionUiTest(unittest.TestCase):
                 window.open_app();self.assertTrue(opened.called)
                 path=Path(opened.call_args.args[0].toLocalFile());self.assertIn('sandbox=',path.read_text())
             window.back();self.assertEqual(window.search.text(),'Vergleich');self.assertEqual(window.entries.topLevelItemCount(),1)
-            window.open_entry(entry['id'],apps=False);window.toggle_archive();self.assertEqual(window.entries.topLevelItemCount(),0)
+            window.open_entry(entry['id'],apps=False)
+            from PySide6.QtWidgets import QMessageBox
+            with patch('code_trash.confirm',return_value=True):window.toggle_archive()
+            self.assertEqual(window.entries.topLevelItemCount(),0)
             window.categories.setCurrentRow(window.category_keys.index('archive'));self.assertEqual(window.entries.topLevelItemCount(),1)
 
     def test_collection_selection_favorites_filters_and_keyboard(self):
@@ -70,7 +73,7 @@ class CollectionUiTest(unittest.TestCase):
             window.resize(960,720);QTest.qWait(30);self.assertFalse(window.preview_shell.isVisible())
             window.resize(1240,820);QTest.qWait(30);self.assertTrue(window.preview_shell.isVisible())
             self.assertTrue(window.preview_open.isVisible());self.assertFalse(window.store.tasks())
-            window.project_filter.setCurrentIndex(0);window.categories.setCurrentRow(window.category_keys.index('archive'));self.assertEqual(window.empty.text(),'Das Archiv ist leer')
+            window.project_filter.setCurrentIndex(0);window.categories.setCurrentRow(window.category_keys.index('archive'));self.assertEqual(window.empty.text(),'Der Papierkorb ist leer')
 
     def test_empty_collection_starts_creation_and_long_preview_keeps_actions(self):
         from code_library_window import CollectionWindow
@@ -116,7 +119,7 @@ class CollectionUiTest(unittest.TestCase):
         from PySide6.QtWidgets import QPushButton,QLabel
         from PySide6.QtTest import QTest
         from PySide6.QtCore import Qt
-        dialog=CreationDialog();self.addCleanup(lambda:dialog.done(0));dialog.show();QTest.qWait(40)
+        dialog=CreationDialog();self.addCleanup(lambda d=dialog:d.done(0));dialog.show();QTest.qWait(40)
         self.assertEqual(dialog.pages.currentIndex(),0)
         cards=[b for b in dialog.findChildren(QPushButton,'codeCard') if b.isVisible()];self.assertEqual(len(cards),4)
         for card in cards:
@@ -124,9 +127,11 @@ class CollectionUiTest(unittest.TestCase):
             for text in card.findChildren(QLabel):self.assertTrue(card.rect().contains(text.mapTo(card,text.rect().center())))
         QTest.mouseClick(cards[2],Qt.LeftButton);QTest.qWait(20);self.assertEqual(dialog.kind,'automation')
         self.assertIn('Automation',dialog.windowTitle())
+        dialog.flow_editor.choose_action('notify',dialog.flow_editor.items,0);dialog.flow_editor.dialog_apply.click()
         self.assertEqual(dialog.flow_editor.plan()['version'],3)
-        review=next(b for b in dialog.findChildren(QPushButton) if b.text()=='Weiter zur Prüfung');self.assertTrue(review.isVisible());self.assertTrue(dialog.rect().contains(review.mapTo(dialog,review.rect().center())))
-        QTest.mouseClick(review,Qt.LeftButton);self.assertEqual(dialog.pages.currentIndex(),2)
+        review=dialog.review_button;self.assertEqual(review.text(),'Speichern');self.assertTrue(review.isVisible());self.assertTrue(dialog.rect().contains(review.mapTo(dialog,review.rect().center())))
+        QTest.mouseClick(review,Qt.LeftButton);self.assertEqual(dialog.result(),1);self.assertEqual(dialog.value['kind'],'automation');self.assertEqual(json.loads(dialog.value['definition']['flow'])['version'],3)
+        dialog=CreationDialog();self.addCleanup(lambda d=dialog:d.done(0));dialog.show();cards=[b for b in dialog.findChildren(QPushButton,'codeCard') if b.isVisible()]
         dialog.back();QTest.mouseClick(cards[0],Qt.LeftButton);self.assertEqual(dialog.kind,'tool');self.assertTrue(dialog.forms['tool'].input.isVisible())
         dialog.back();QTest.mouseClick(cards[3],Qt.LeftButton);self.assertEqual(dialog.kind,'code');self.assertTrue(all(b.isVisible() for b in dialog.forms['code'].source_buttons));dialog.forms['code'].source_buttons[1].click();self.assertTrue(dialog.forms['code'].url.isVisible())
 
@@ -172,7 +177,8 @@ class CollectionUiTest(unittest.TestCase):
     def test_task_routing_dirty_cancel_and_failed_activation(self):
         from code_library_window import CollectionWindow
         from lumen_store import Store
-        from PySide6.QtWidgets import QMessageBox
+        from lumen_workspace import PlanDialog
+        from PySide6.QtWidgets import QMessageBox,QPushButton
         with tempfile.TemporaryDirectory() as root:
             window=CollectionWindow(Store(root));self.addCleanup(window.close)
             entry=window.collection.create('tool','Bericht',value={'prompt':'Prüfe die Eingabe'})
@@ -185,11 +191,13 @@ class CollectionUiTest(unittest.TestCase):
             with patch('code_library_window.QMessageBox.question',return_value=QMessageBox.Cancel):
                 window.categories.setCurrentRow(1)
             self.assertEqual(window.categories.currentRow(),0);self.assertEqual(window.title.text(),'Nicht verlieren')
-            window.save();automation=window.collection.create('automation','Daily',value={'prompt':'Bericht','directory':root});window.open_entry(automation['id'])
-            with patch('lumen_workspace.PlanDialog') as plan,patch('lumen_actions.command',side_effect=RuntimeError('Timer nicht verfügbar')):
-                plan.return_value.exec.return_value=1
-                plan.return_value.value=dict(name='Daily',steps=[],roots=[root],prompt='Bericht',approved=True,enabled=True)
-                window.safe(window.configure_flow)
+            window.save();flow=window.store.save_workflow('Daily',[],[root],prompt='Bericht',approved=True,trigger='interval')
+            automation=window.collection.create('automation','Daily',value={'workflow_id':flow})
+            def activate(dialog):
+                dialog.show();self.app.processEvents()
+                next(b for b in dialog.findChildren(QPushButton) if b.text()=='Aktivieren').click();return dialog.result()
+            with patch.object(PlanDialog,'exec',activate),patch('lumen_actions.command',side_effect=RuntimeError('Timer nicht verfügbar')):
+                window.safe(window.open_entry,automation['id'])
             self.assertIn('Timer nicht verfügbar',window.status.text());self.assertFalse(window.store.workflows()[0]['enabled'])
 
 

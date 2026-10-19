@@ -72,6 +72,13 @@ class Collection:
             if current['revision'] != revision:
                 raise ValueError('Eintrag inzwischen geändert. Bitte neu laden.')
             merged = {**current, **changes}
+            if merged['archived'] and not current['archived']:
+                active=db.execute("""SELECT 1 FROM tasks WHERE status IN ('queued','running','needs_input') AND
+                    (id=? OR id IN (SELECT task FROM events WHERE (kind='code-library' AND detail=?) OR (kind='workflow' AND detail=?))) LIMIT 1""",
+                    (current['last_task'],identity,current['definition'].get('workflow_id',''))).fetchone()
+                if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='code_block_runs'").fetchone():
+                    active=active or db.execute("SELECT 1 FROM code_block_runs WHERE entry=? AND (status IN ('running','waiting') OR (status NOT IN ('completed','cancelled') AND json_extract(data,'$.queued')=1)) LIMIT 1",(identity,)).fetchone()
+                if active:raise ValueError('Bitte den laufenden Vorgang zuerst beenden. Der Eintrag bleibt in der Sammlung.')
             checked = definition(merged['kind'], merged['title'], merged['description'], merged['definition'])
             for key in ('favorite', 'archived'):
                 if type(merged[key]) is not bool:

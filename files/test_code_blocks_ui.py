@@ -143,7 +143,7 @@ class BlocksUITest(unittest.TestCase):
             for child in window.findChildren(BlockWindow):
                 if child is not editor:child.reject()
             editor.item=window.collection.get(entry['id'])
-            with patch('code_blocks_window.QMessageBox.question',return_value=QMessageBox.Yes):editor.archive()
+            with patch('code_trash.confirm',return_value=True):editor.archive()
             self.assertTrue(window.collection.get(entry['id'])['archived'])
             legacy=FlowEditor();self.addCleanup(self.dispose,legacy);legacy.show();legacy.trigger.setCurrentIndex(1)
             self.assertTrue(legacy.watch_row.isVisible());self.assertFalse(legacy.minutes.isVisible())

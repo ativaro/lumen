@@ -44,7 +44,7 @@ class BlockWindow(QDialog):
         root=QVBoxLayout(main);root.setContentsMargins(0,0,0,0);root.setSpacing(16)
         row=QHBoxLayout();row.addWidget(button(tr('‹ Zur Sammlung'),self.reject));
         self.manage_button=button(tr('Mehr'),lambda:None,'view-more-symbolic');self.entry_menu=QMenu(self.manage_button);self.manage_button.setMenu(self.entry_menu);row.addWidget(self.manage_button)
-        for text,callback in [('Umbenennen',self.rename),('Beschreibung und Projekt',self.manage),('Duplizieren · inaktiv',self.duplicate),('Als portable Beschreibung speichern …',self.export_description),('Verlauf anzeigen',self.history),('Ins Archiv verschieben …',self.archive)]:self.entry_menu.addAction(tr(text),lambda _=False,f=callback:self.safe(f))
+        for text,callback in [('Umbenennen',self.rename),('Beschreibung und Projekt',self.manage),('Duplizieren · inaktiv',self.duplicate),('Als portable Beschreibung speichern …',self.export_description),('Verlauf anzeigen',self.history),('In den Papierkorb',self.archive)]:self.entry_menu.addAction(tr(text),lambda _=False,f=callback:self.safe(f))
         self.result_link=button(tr('Ergebnis ansehen'),lambda:self.views.setCurrentIndex(1));row.addWidget(self.result_link)
         row.addStretch();root.addLayout(row)
         self.title_edit=QLineEdit(self.item['title']);self.title_edit.setObjectName('codeFlowTitle');self.title_edit.setMaxLength(160);self.title_edit.setAccessibleName(tr('Name der Automation'));root.addWidget(self.title_edit)
@@ -134,9 +134,12 @@ class BlockWindow(QDialog):
         if target:Path(target).write_text(text,encoding='utf-8')
 
     def archive(self):
-        self.ensure_saved()
-        if QMessageBox.question(self,tr('Lumen · Automation archivieren'),tr('Künftige Starts stoppen und die Automation ins Archiv verschieben? Sie kann in der Sammlung wiederhergestellt werden. Frühere externe Wirkungen werden nicht rückgängig gemacht.'))!=QMessageBox.Yes:return
-        self.item=self.collection.update(self.identity,self.item['revision'],archived=True);self.reject()
+        from code_trash import confirm
+        if not confirm(self,self.item):return
+        if self.editor.dialog is not None:raise ValueError(tr('Den geöffneten Satzteil zuerst übernehmen oder abbrechen.'))
+        if self.dirty:self.save(archived=True)
+        else:self.item=self.collection.update(self.identity,self.item['revision'],archived=True)
+        self.reject()
 
     def history(self):
         self.ensure_saved()
@@ -177,9 +180,11 @@ class BlockWindow(QDialog):
         self.footer.setText(tr('Ungespeicherte Änderungen · Auslöser pausiert. Vor der Aktivierung speichern und testen.'))
         self.activation_button.setText(tr('Prüfen und aktivieren'));self.activation_button.setEnabled(False)
 
-    def save(self):
+    def save(self,*,archived=None):
         value={**self.item['definition'],'flow':encode(self.editor.plan())};value.pop('workflow_id',None)
-        self.item=self.collection.update(self.identity,self.item['revision'],title=self.title_edit.text().strip(),definition=value)
+        changes=dict(title=self.title_edit.text().strip(),definition=value)
+        if archived is not None:changes['archived']=archived
+        self.item=self.collection.update(self.identity,self.item['revision'],**changes)
         self.setWindowTitle('Lumen · '+self.item['title'])
         self.dirty=False;self.save_button.setText(tr('Entwurf speichern'));self.render();return self.item
 

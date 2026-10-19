@@ -37,7 +37,10 @@ class FlowTest(unittest.TestCase):
             store=Store(tmp);collection=Collection(store);entry=configure(collection,collection.create('automation','Check',value={'flow':encode(plan())}),True)
             flow=store.workflows()[0];store.set_workflow_enabled(flow['id'],True)
             task=store.enqueue_due(now=store.workflows()[0]['next_run']+1)[0];store.update_task(task,status='running')
-            entry=collection.get(entry['id']);collection.update(entry['id'],entry['revision'],archived=True)
+            entry=collection.get(entry['id'])
+            with self.assertRaisesRegex(ValueError,'laufenden'):collection.update(entry['id'],entry['revision'],archived=True)
+            self.assertEqual(store.task(task)['status'],'running');self.assertFalse(collection.get(entry['id'])['archived'])
+            store.update_task(task,status='cancelled');collection.update(entry['id'],entry['revision'],archived=True)
             with self.assertRaises(ValueError):store.update_task(task,status='completed',result='Must not publish')
             self.assertFalse(store.rows("SELECT id FROM tasks WHERE status='draft'"))
 

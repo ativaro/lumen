@@ -32,9 +32,9 @@ class CollectionWindow(QMainWindow):
         self.status=label('','codeMuted');outer.addWidget(self.status)
         self.categories=QListWidget();self.categories.setObjectName('codeCategories');self.categories.setIconSize(QSize(16,16));self.categories.setAccessibleName(tr('Sammlungsbereiche'))
         self.category_keys=['all','favorites','tool','routine','automation','code','app','attention','archive']
-        self.categories.addItems([tr(text) for text in ['Alle Einträge','Favoriten','Werkzeuge','Zeitpläne & Routinen','Automationen','Code-Projekte','Bestehende Apps','Braucht dich','Archiv']])
+        self.categories.addItems([tr(text) for text in ['Alle Einträge','Favoriten','Werkzeuge','Zeitpläne & Routinen','Automationen','Code-Projekte','Bestehende Apps','Braucht dich','Papierkorb']])
         from studio_design import icon
-        for index,name in enumerate(['view-list-details','rating','tools-wizard','view-calendar','view-process-tree','code-context','view-grid','dialog-information','archive-extract']):self.categories.item(index).setIcon(icon(name));self.categories.item(index).setSizeHint(QSize(150,44))
+        for index,name in enumerate(['view-list-details','rating','tools-wizard','view-calendar','view-process-tree','code-context','view-grid','dialog-information','user-trash']):self.categories.item(index).setIcon(icon(name));self.categories.item(index).setSizeHint(QSize(150,44))
         nav.addWidget(self.categories,1);nav.addWidget(label(tr('Deine Idee.\nDein nächster Helfer.'),'codeMuted'))
         self.pages=QStackedWidget();outer.addWidget(self.pages,1)
         self.build_collection();self.build_detail()
@@ -63,6 +63,7 @@ class CollectionWindow(QMainWindow):
         for text,key in [('Zuletzt verwendet','recent'),('Name A–Z','name'),('Nach Art','kind')]:self.sort.addItem(tr(text),key)
         box.addWidget(row(self.search,self.project_filter,self.sort))
         caption=QHBoxLayout();self.collection_count=label('','codeCollectionCount');caption.addWidget(self.collection_count);caption.addStretch()
+        self.trash_selection=button(tr('In den Papierkorb'),lambda:self.safe(self.trash_selected),'user-trash');caption.addWidget(self.trash_selection)
         refresh=button(tr('Aktualisieren'),self.refresh,'view-refresh');refresh.setObjectName('codeCollectionQuiet');caption.addWidget(refresh);box.addLayout(caption)
         content=QHBoxLayout();content.setSpacing(20);box.addLayout(content,1)
         self.list_frame=QFrame();self.list_frame.setObjectName('codeCollectionList');list_box=QVBoxLayout(self.list_frame);list_box.setContentsMargins(8,2,8,2)
@@ -100,7 +101,9 @@ class CollectionWindow(QMainWindow):
         self.help_content.hide();self.explanation.hide();box.addWidget(self.explanation)
         utilities=QHBoxLayout();self.help_toggle=button(tr('Was kann ich mit Lumen machen?'),lambda:self.help_content.setVisible(self.help_toggle.isChecked()));self.help_toggle.setCheckable(True);self.help_toggle.setObjectName('codeCollectionQuiet');self.help_toggle.toggled.connect(self.explanation.setVisible);utilities.addWidget(self.help_toggle);utilities.addStretch()
         import_button=button(tr('Vorlage importieren'),lambda:self.safe(self.import_file),'document-import');import_button.setObjectName('codeCollectionQuiet');utilities.addWidget(import_button);box.addLayout(utilities)
-        self.entries.setAccessibleDescription(tr('Pfeiltasten wählen einen Eintrag, Eingabe öffnet ihn. Strg+D ändert den Favoriten.'))
+        self.entries.setAccessibleDescription(tr('Pfeiltasten wählen einen Eintrag, Eingabe öffnet ihn. Strg+D ändert den Favoriten. Entf verschiebt ihn in den Papierkorb.'))
+        trash_shortcut=QShortcut(QKeySequence.Delete,self.entries);trash_shortcut.setContext(Qt.WidgetWithChildrenShortcut);trash_shortcut.activated.connect(lambda:self.safe(self.trash_selected,False))
+        self.entries.setContextMenuPolicy(Qt.CustomContextMenu);self.entries.customContextMenuRequested.connect(self.entry_menu)
         favorite_shortcut=QShortcut(QKeySequence('Ctrl+D'),self.entries);favorite_shortcut.setContext(Qt.WidgetWithChildrenShortcut);favorite_shortcut.activated.connect(lambda:self.safe(self.toggle_selected_favorite))
         self.entries.itemActivated.connect(lambda _,column:self.safe(self.open_selected) if column!=3 else None)
         self.entries.currentItemChanged.connect(lambda *_:self.safe(self.update_collection_preview))
@@ -113,7 +116,12 @@ class CollectionWindow(QMainWindow):
 
     def update_collection_preview(self):
         from time import strftime,localtime
+        from studio_design import button_icon
         selected=self.entries.currentItem()
+        self.trash_selection.setEnabled(selected is not None)
+        self.trash_selection.setText(tr('Wiederherstellen' if selected and selected.data(0,Qt.UserRole+2)['archived'] else 'In den Papierkorb'))
+        self.trash_selection.setAccessibleName(self.trash_selection.text())
+        self.trash_selection.setIcon(button_icon('edit-undo' if selected and selected.data(0,Qt.UserRole+2)['archived'] else 'user-trash',self.trash_selection))
         self.preview_shell.setVisible(bool(selected) and self.width()>=1080)
         if selected is None:return
         item=self.collection.get(selected.data(0,Qt.UserRole))
@@ -129,6 +137,27 @@ class CollectionWindow(QMainWindow):
         if selected is None:return
         item=self.collection.get(selected.data(0,Qt.UserRole));self.collection.update(item['id'],item['revision'],favorite=not item['favorite']);self.refresh()
 
+    def entry_menu(self,position):
+        row=self.entries.itemAt(position)
+        if row is None:return
+        self.entries.setCurrentItem(row);item=row.data(0,Qt.UserRole+2)
+        menu=QMenu(self.entries);menu.addAction(tr('Wiederherstellen' if item['archived'] else 'In den Papierkorb'),lambda:self.safe(self.trash_entry,item))
+        menu.exec(self.entries.viewport().mapToGlobal(position));menu.deleteLater()
+
+    def trash_selected(self,archived=None):
+        row=self.entries.currentItem()
+        if row is None:return
+        item=row.data(0,Qt.UserRole+2)
+        if archived is None or item['archived']==archived:self.trash_entry(item)
+
+    def trash_entry(self,item):
+        from code_trash import confirm
+        if item['id'] in self.coding_windows:
+            raise ValueError(tr('Das Code-Projekt ist noch geöffnet. Nutze dort „Sammlungsdetails“ oder speichere und schließe das Fenster zuerst.'))
+        if not confirm(self,item):return
+        self.collection.update(item['id'],item['revision'],archived=not item['archived']);self.refresh()
+        self.status.setText(tr('Wiederhergestellt. Automatische Starts bleiben pausiert.') if item['archived'] else tr('Im Papierkorb. Originaldateien und bisherige Ergebnisse bleiben erhalten.'))
+
     def empty_choice(self):
         if self.search.text().strip() or self.project_filter.currentData() is not None:
             self.search.clear();self.project_filter.setCurrentIndex(0)
@@ -141,7 +170,7 @@ class CollectionWindow(QMainWindow):
 
     def build_detail(self):
         page=QWidget();box=QVBoxLayout(page);box.setContentsMargins(0,0,0,0);box.setSpacing(16)
-        self.favorite=button(tr('Als Favorit'),lambda:self.safe(self.toggle_favorite));self.archive=button(tr('Archivieren'),lambda:self.safe(self.toggle_archive))
+        self.favorite=button(tr('Als Favorit'),lambda:self.safe(self.toggle_favorite));self.archive=button(tr('In den Papierkorb'),lambda:self.safe(self.toggle_archive))
         actions=QHBoxLayout();back=button(tr('‹ Zur Sammlung'),self.back);back.setObjectName('codeLink');actions.addWidget(back);actions.addStretch();actions.addWidget(self.favorite);actions.addWidget(self.archive);self.edit_mode=button(tr('Bearbeiten'),lambda:self.safe(self.edit_entry),'document-edit');actions.addWidget(self.edit_mode);box.addLayout(actions)
         self.context=label('','codeSubtitle');box.addWidget(self.context)
         self.title=QLineEdit();self.title.setAccessibleName(tr('Name'));self.title.setMaxLength(160);self.title.setStyleSheet('font-size:25px;font-weight:500;');box.addWidget(self.title)
@@ -205,7 +234,7 @@ class CollectionWindow(QMainWindow):
         return tr({'app':'Kleine App','tool':'Werkzeug','automation':'Automation','code':'Code im Projekt'}[item['kind']])
 
     def entry_status(self,item):
-        if item['archived']:return tr('Archiviert')
+        if item['archived']:return tr('Im Papierkorb')
         if item['last_task']:
             try:
                 status=self.store.task(item['last_task'])['status']
@@ -232,8 +261,8 @@ class CollectionWindow(QMainWindow):
         if category in ('automation','routine'):
             records=[item for item in records if item['kind']=='automation' and (self.kind_title(item)==tr('Routine'))==(category=='routine')]
         if category=='attention':records=[item for item in records if self.entry_status(item) in [STATES[key] for key in ('failed','needs_input','interrupted')]]
-        heading={'all':'Meine Sammlung','favorites':'Deine Favoriten','attention':'Braucht dich','archive':'Archiv',**TITLES}
-        descriptions={'routine':'Wiederkehrende Schritte und ihre manuellen oder geplanten Starts.','all':'Deine Apps, Werkzeuge und Abläufe – bereit für den nächsten Einsatz.','app':'Kleine Oberflächen für Dinge, die du im Alltag erledigst.','tool':'Deine bewährten Aufträge – bei jedem Mal mit neuen Eingaben.','automation':'Abläufe, die für dich prüfen, vorbereiten und Bescheid geben.','code':'Deine Softwareprojekte mit Gespräch, Dateien und Änderungen.','favorites':'Die Helfer, die du besonders häufig brauchst.','attention':'Offene Rückfragen und Aufträge, die deine Aufmerksamkeit brauchen.','archive':'Aufbewahrt, bis du sie wieder brauchst.'}
+        heading={'all':'Meine Sammlung','favorites':'Deine Favoriten','attention':'Braucht dich','archive':'Papierkorb',**TITLES}
+        descriptions={'routine':'Wiederkehrende Schritte und ihre manuellen oder geplanten Starts.','all':'Deine Apps, Werkzeuge und Abläufe – bereit für den nächsten Einsatz.','app':'Kleine Oberflächen für Dinge, die du im Alltag erledigst.','tool':'Deine bewährten Aufträge – bei jedem Mal mit neuen Eingaben.','automation':'Abläufe, die für dich prüfen, vorbereiten und Bescheid geben.','code':'Deine Softwareprojekte mit Gespräch, Dateien und Änderungen.','favorites':'Die Helfer, die du besonders häufig brauchst.','attention':'Offene Rückfragen und Aufträge, die deine Aufmerksamkeit brauchen.','archive':'Hier kannst du entfernte Einträge wiederherstellen. Automatische Starts bleiben pausiert.'}
         self.collection_intro.setText(tr(descriptions[category]))
         self.collection_heading.setText(tr(heading[category]));self.collection_count.setText(tr('1 Eintrag') if len(records)==1 else tr('{0} Einträge',len(records)))
         create_title=tr({'tool':'Werkzeug erstellen','routine':'Routine zusammenstellen','automation':'Automation erstellen','code':'Code-Projekt öffnen'}.get(category,'Neu erstellen'))
@@ -246,6 +275,7 @@ class CollectionWindow(QMainWindow):
             context=self.kind_title(record)+' · '+self.project_title(record)
             item=QTreeWidgetItem([record['title']+'\n'+description+'\n'+context,self.project_title(record),self.entry_status(record),'★' if record['favorite'] else '☆'])
             item.setData(0,Qt.UserRole,record['id']);item.setData(0,Qt.UserRole+1,dict(title=record['title'],description=description,context=context,kind=record['kind'],favorite=record['favorite']))
+            item.setData(0,Qt.UserRole+2,record)
             for column in (0,2,3):item.setToolTip(column,item.text(column))
             self.entries.addTopLevelItem(item)
             if record['id']==identity:chosen=item
@@ -253,8 +283,8 @@ class CollectionWindow(QMainWindow):
         self.list_frame.setVisible(bool(records));self.empty_scroll.setVisible(not records);self.empty_frame.setVisible(not records)
         filtered=bool(self.search.text().strip() or self.project_filter.currentData() is not None)
         special=category in ('favorites','attention','archive')
-        self.empty.setText(tr('Keine passenden Einträge') if filtered else tr({'favorites':'Deine Favoriten fehlen noch','attention':'Alles im Blick','archive':'Das Archiv ist leer'}.get(category,'Deine Sammlung beginnt mit einer Idee.')))
-        self.empty_description.setText(tr('Versuche einen anderen Suchbegriff oder passe die Auswahl an.') if filtered else tr('Markiere häufig verwendete Helfer mit einem Stern.') if category=='favorites' else tr('Hier erscheinen Einträge, die deine Aufmerksamkeit brauchen.') if category=='attention' else tr('Archivierte Helfer bleiben hier erhalten.') if category=='archive' else tr('Ein Werkzeug, eine Routine, ein Ablauf oder dein Code-Projekt.'))
+        self.empty.setText(tr('Keine passenden Einträge') if filtered else tr({'favorites':'Deine Favoriten fehlen noch','attention':'Alles im Blick','archive':'Der Papierkorb ist leer'}.get(category,'Deine Sammlung beginnt mit einer Idee.')))
+        self.empty_description.setText(tr('Versuche einen anderen Suchbegriff oder passe die Auswahl an.') if filtered else tr('Markiere häufig verwendete Helfer mit einem Stern.') if category=='favorites' else tr('Hier erscheinen Einträge, die deine Aufmerksamkeit brauchen.') if category=='attention' else tr('Entfernte Einträge bleiben bis zur Wiederherstellung hier erhalten.') if category=='archive' else tr('Ein Werkzeug, eine Routine, ein Ablauf oder dein Code-Projekt.'))
         self.empty_action.setText(tr('Filter zurücksetzen') if filtered else tr('Alle Einträge anzeigen') if special else create_title)
         self.update_collection_preview()
 
@@ -277,7 +307,7 @@ class CollectionWindow(QMainWindow):
         if item is None:raise ValueError(tr('Bitte zuerst einen Eintrag auswählen.'))
         self.open_entry(item.data(0,Qt.UserRole))
 
-    def open_entry(self,identity,blocks=True,apps=True):
+    def open_entry(self,identity,blocks=True,apps=True,coding=True):
         if not self.allow_leave():return
         item=self.collection.get(identity)
         if apps and item['kind']=='app' and not item['archived']:
@@ -285,7 +315,7 @@ class CollectionWindow(QMainWindow):
             result=AppWindow(self.collection,identity,self).exec()
             if result==2:self.open_entry(identity,apps=False)
             self.refresh();return
-        if item['kind']=='code' and not item['archived']:
+        if coding and item['kind']=='code' and not item['archived']:
             self.open_coding(identity);return
         if item['kind']=='automation' and item['definition'].get('flow'):
             from code_flow import parse
@@ -320,10 +350,11 @@ class CollectionWindow(QMainWindow):
             contract=editing(item);self.tool_contract.setText(contract['input']+' → '+contract['output']+' · '+tr('{0} Regeln',len(contract['rules']))+'\n\n'+contract['rules'][0])
         try:
             self.title.setText(item['title']);self.description.setPlainText(item['description']);self.prompt.setPlainText(item['definition'].get('prompt',''));self.html.setPlainText(item['definition'].get('html',''));self.directory.setText(item['definition'].get('directory',''))
+            self.title.setCursorPosition(0);self.title.setToolTip(item['title'])
             if item['project_id'] and self.project.findData(item['project_id'])<0:self.project.addItem(tr('Projekt nicht mehr verfügbar'),item['project_id'])
             self.project.setCurrentIndex(max(0,self.project.findData(item['project_id'])));self.input.clear();self.html.setVisible(item['kind']=='app')
             guide=next(row for row in HELP if row['key']==item['kind']);self.context.setText(tr('Routine · Feste Schritte mit manuellem Start oder Zeitplan.') if is_routine else tr(guide['title'])+' · '+tr(guide['body']))
-            self.favorite.setText(tr('★ Favorit' if item['favorite'] else '☆ Als Favorit'));self.archive.setText(tr('Wiederherstellen' if item['archived'] else 'Archivieren'))
+            self.favorite.setText(tr('★ Favorit' if item['favorite'] else '☆ Als Favorit'));self.archive.setText(tr('Wiederherstellen' if item['archived'] else 'In den Papierkorb'));self.archive.setAccessibleName(self.archive.text())
             self.preview.setVisible(item['kind']=='app');self.adopt.setVisible(item['kind']=='app');self.schedule.setVisible(item['kind']=='automation');self.toggle.setVisible(item['kind']=='automation');self.run.setEnabled(not item['archived']);self.preview.setEnabled(not item['archived']);self.toggle.setEnabled(not item['archived'])
             self.run.setText(tr('Werkzeug ausführen') if item['kind']=='tool' else tr('Einmal ausführen') if item['kind']=='automation' else tr('Mit Lumen ausführen'))
             from code_flow import parse
@@ -352,11 +383,14 @@ class CollectionWindow(QMainWindow):
                     if dialog.value is not None:after_save=result
                     return
                 dialog.error.setText(tr('Änderungen zuerst speichern. Danach die Automation erneut öffnen.'));return
+            if result==7:
+                from code_trash import confirm
+                if not confirm(dialog,item):return
             dialog.done(result)
         run=button(tr('Jetzt ausführen'),lambda:request(2),primary=True);run.setEnabled(bool(flow['approved']));header.actions.addWidget(run)
         toggle=button(tr('Pausieren' if flow['enabled'] else 'Aktivieren'),lambda:request(3));toggle.setEnabled(bool(flow['approved']) and flow['trigger']!='manual');header.actions.addWidget(toggle)
         more=button(tr('Mehr'),lambda:None,'view-more-symbolic');menu=QMenu(more);more.setMenu(menu);header.actions.addWidget(more)
-        for text,result in [('Beschreibung und Projekt',4),('Als Favorit' if not item['favorite'] else 'Favorit entfernen',5),('Als portable Beschreibung speichern …',6),('Ins Archiv verschieben …',7),('Letzten Auftrag öffnen',8)]:menu.addAction(tr(text),lambda _=False,r=result:request(r))
+        for text,result in [('Beschreibung und Projekt',4),('Als Favorit' if not item['favorite'] else 'Favorit entfernen',5),('Als portable Beschreibung speichern …',6),('In den Papierkorb',7),('Letzten Auftrag öffnen',8)]:menu.addAction(tr(text),lambda _=False,r=result:request(r))
         result=dialog.exec()
         if result==QDialog.Accepted:
             self.store.save_workflow(**dialog.value,workflow=flow['id'],collection_entry=(identity,item['revision']))
@@ -373,7 +407,7 @@ class CollectionWindow(QMainWindow):
         elif result==5:self.collection.update(identity,item['revision'],favorite=not item['favorite'])
         elif result==6:self.current=item;self.export_file()
         elif result==7:
-            if QMessageBox.question(self,tr('Lumen · Automation archivieren'),tr('Künftige Starts stoppen und die Automation ins Archiv verschieben? Sie kann in der Sammlung wiederhergestellt werden. Frühere externe Wirkungen werden nicht rückgängig gemacht.'))==QMessageBox.Yes:self.collection.update(identity,item['revision'],archived=True)
+            self.collection.update(identity,item['revision'],archived=True)
         elif result==8:
             self.current=item;self.open_task()
         dialog.deleteLater()
@@ -398,7 +432,7 @@ class CollectionWindow(QMainWindow):
         window=self.coding_windows.get(identity)
         if window is None:
             window=CodingWindow(self.collection,identity,self);self.coding_windows[identity]=window
-            window.destroyed.connect(lambda *_:self.coding_windows.pop(identity,None))
+            window.destroyed.connect(lambda *_:self.coding_windows.pop(identity,None) if self.coding_windows.get(identity) is window else None)
         self.pages.setCurrentIndex(0);self.refresh();present(window)
 
     def edit_entry(self,schedule=False):
@@ -419,10 +453,12 @@ class CollectionWindow(QMainWindow):
             value=dialog.value;item=self.collection.create(value['kind'],value['title'],value['description'],value['definition'],value['project_id']);self.open_entry(item['id'])
         self.refresh()
 
-    def save(self):
+    def save(self,*,archived=None):
         value=dict(self.current['definition']);value.update(prompt=self.prompt.toPlainText(),directory=self.directory.text().strip())
         if self.current['kind']=='app':value['html']=self.html.toPlainText()
-        item=self.collection.update(self.current['id'],self.current['revision'],title=self.title.text(),description=self.description.toPlainText(),definition=value,project_id=self.project.currentData())
+        changes=dict(title=self.title.text(),description=self.description.toPlainText(),definition=value,project_id=self.project.currentData())
+        if archived is not None:changes['archived']=archived
+        item=self.collection.update(self.current['id'],self.current['revision'],**changes)
         self.current=item;self.dirty=False;self.status.setText(tr('Gespeichert.'));return item
 
     def back(self):
@@ -430,11 +466,14 @@ class CollectionWindow(QMainWindow):
 
     def toggle_favorite(self):
         if self.dirty:self.save()
-        item=self.collection.update(self.current['id'],self.current['revision'],favorite=not self.current['favorite']);self.current=item;self.open_entry(item['id'],blocks=False,apps=False)
+        item=self.collection.update(self.current['id'],self.current['revision'],favorite=not self.current['favorite']);self.current=item;self.open_entry(item['id'],blocks=False,apps=False,coding=False)
 
     def toggle_archive(self):
-        if self.dirty:self.save()
-        self.collection.update(self.current['id'],self.current['revision'],archived=not self.current['archived']);self.dirty=False;self.back()
+        from code_trash import confirm
+        if not confirm(self,self.current):return
+        if self.dirty:self.save(archived=not self.current['archived'])
+        else:self.collection.update(self.current['id'],self.current['revision'],archived=not self.current['archived'])
+        self.dirty=False;self.back()
 
     def choose_tool_input(self):
         from code_tool_input import ToolInputDialog

@@ -22,6 +22,7 @@ class CodingWindow(QMainWindow):
         container=QWidget();main,self.header,self.footer=editor_shell(container,self.windowTitle(),str(self.root));self.setCentralWidget(container)
         container.setStyleSheet(Path(__file__).with_name('studio.qss').read_text()+'\n'+container.styleSheet())
         self.back_to_collection=button(tr('‹ Zur Sammlung'),lambda:self.open_category('code'));self.header.actions.addWidget(self.back_to_collection)
+        self.collection_details=button(tr('Sammlungsdetails'),self.open_details);self.header.actions.addWidget(self.collection_details)
         self.footer.setText(tr('Meine Sammlung')+' / '+self.item['title'])
         body=QVBoxLayout(main);body.setContentsMargins(0,0,0,0);body.setSpacing(0)
         self.chat=StudioChat(str(self.root));self.chat.tracker.store=collection.store
@@ -69,6 +70,17 @@ class CodingWindow(QMainWindow):
             parent.categories.setCurrentRow(parent.category_keys.index(kind))
             from lumen_activation import present
             present(parent)
+
+    def open_details(self):
+        parent=self.parent()
+        if parent is None or not hasattr(parent,'open_entry'):return
+        if self.chat.backend.busy:
+            text=tr('Bitte den laufenden Vorgang zuerst beenden. Der Eintrag bleibt in der Sammlung.');self.project_status.setText(text);self.footer.setText(text);return
+        if not self.close():return
+        parent.coding_windows.pop(self.identity,None)
+        parent.safe(lambda:parent.open_entry(self.identity,coding=False))
+        from lumen_activation import present
+        present(parent)
 
     def update_inspector(self,index):
         self.studio.heading.setText(self.studio.result_tabs.tabText(index))
