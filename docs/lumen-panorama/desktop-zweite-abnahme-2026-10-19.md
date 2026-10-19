@@ -50,3 +50,27 @@ Grenzen: System-QML-Token-/EN-Nachtrag ist ein separater, hier nicht installiert
 Rest. Keine vollständige KWin-, Hardware- oder Screenreader-Abnahme. Zusätzlich bestanden5 unabhängige Notes-Installed-Prüfungen des Owners;
 288/288 installierte Stylewerte stimmen mit der Serverreferenz überein. Belege
 unter `~/.local/state/lumen/notes-server-exact-20261019/verification.json`.
+
+
+## Abgeschlossener System-Nachtrag
+
+Der oben separat gehaltene System-QML-Rest ist anschließend ebenfalls gezielt
+installiert: Ownerpin6115a6d, integriert als88aa7f1. Genau `files/system_app.py`,
+`files/qml/system/System.qml` und `files/translations/en/core.json`, zusammen
+86.595Bytes. Vier gezielte Prüfungen gegen das Runtime-Overlay und dieselben vier
+gegen die installierten Module bestanden; keine externe Aktion ausgelöst.
+Navigation224px, Rand24px und Titel26px/500 nutzen die vorhandenen Theme-Werte.
+Die englische Arbeitsmodus-Beschriftung beschreibt die Einrichtung statt Projekte.
+
+Drei installierte Hashes/Modes und639 unveränderte andere Codeassets sowie
+Vault-Broker geprüft. Fünf echte Installed-DE-/EN-Bilder mit synthetischen Werten
+aufgenommen und repräsentative System-/Arbeitsmodusansichten visuell geprüft.
+Komplette Drei-Dateien-Installation/Rücknahme auf einer privaten kleinen Codekopie
+sowie anschließender Live-Rückwegcheck bestanden. Keine weiteren Flächen,
+Featurecommits, App-/KWin-Neustarts oder Produktionsgerätetests.
+
+Separater letzter Rückweg und Belege:
+`~/.local/state/lumen/system-panorama-tokens-install-20261019/verification.json`,
+`installed/receipt.json`, `image-manifest.json`, `rollback-selfcheck.json` und
+`install-desktop.py rollback [--apply]`. Diesen Folgeschritt vor der24-Dateien-Runde
+zurücknehmen. Die getrennte Drive-404-Arbeit ist nicht Bestandteil dieses Nachtrags.
