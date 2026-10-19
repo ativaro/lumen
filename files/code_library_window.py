@@ -47,7 +47,7 @@ class CollectionWindow(QMainWindow):
             self.status.setText(tr(str(error)));self.footer.setText(tr(str(error)))
 
     def build_collection(self):
-        from code_collection_view import STYLE,EntryDelegate
+        from code_collection_view import STYLE,EntryDelegate,CollectionComboBox
         from studio_design import icon
         page=QWidget();page.setStyleSheet(STYLE);box=QVBoxLayout(page);box.setContentsMargins(0,0,0,0);box.setSpacing(18)
         head=QHBoxLayout();titles=QVBoxLayout();titles.setSpacing(8)
@@ -55,15 +55,15 @@ class CollectionWindow(QMainWindow):
         self.collection_intro=label(tr('Deine Apps, Werkzeuge und Abläufe – bereit für den nächsten Einsatz.'),'codeSubtitle');titles.addWidget(self.collection_intro)
         head.addLayout(titles,1);self.create_button=button(tr('Neu erstellen'),lambda:self.safe(self.create),'list-add',primary=True);head.addWidget(self.create_button,0,Qt.AlignTop);box.addLayout(head)
         self.search=QLineEdit();self.search.setPlaceholderText(tr('Name oder Aufgabe suchen …'));self.search.setAccessibleName(tr('Sammlung durchsuchen'));self.search.setClearButtonEnabled(True);self.search.addAction(icon('edit-find'),QLineEdit.LeadingPosition)
-        self.project_filter=QComboBox();self.project_filter.setAccessibleName(tr('Nach Projekt filtern'));self.project_filter.addItem(tr('Alle Projekte'),None);self.project_filter.addItem(tr('Ohne Projekt'),'')
+        self.project_filter=CollectionComboBox();self.project_filter.setAccessibleName(tr('Nach Projekt filtern'));self.project_filter.addItem(tr('Alle Projekte'),None);self.project_filter.addItem(tr('Ohne Projekt'),'')
         from tools_data import Library
         self.project_records={item['id']:item['title'] for item in Library('workbench').all() if item.get('kind')=='project'}
         for key,title in self.project_records.items():self.project_filter.addItem(title,key)
-        self.sort=QComboBox();self.sort.setAccessibleName(tr('Sortieren'))
+        self.sort=CollectionComboBox();self.sort.setAccessibleName(tr('Sortieren'))
         for text,key in [('Zuletzt verwendet','recent'),('Name A–Z','name'),('Nach Art','kind')]:self.sort.addItem(tr(text),key)
         box.addWidget(row(self.search,self.project_filter,self.sort))
         caption=QHBoxLayout();self.collection_count=label('','codeCollectionCount');caption.addWidget(self.collection_count);caption.addStretch()
-        self.trash_selection=button(tr('In den Papierkorb'),lambda:self.safe(self.trash_selected),'user-trash');caption.addWidget(self.trash_selection)
+        self.trash_selection=button(tr('In den Papierkorb'),lambda:self.safe(self.trash_selected),'user-trash');self.trash_selection.setObjectName('codeCollectionQuiet');caption.addWidget(self.trash_selection)
         refresh=button(tr('Aktualisieren'),self.refresh,'view-refresh');refresh.setObjectName('codeCollectionQuiet');caption.addWidget(refresh);box.addLayout(caption)
         content=QHBoxLayout();content.setSpacing(20);box.addLayout(content,1)
         self.list_frame=QFrame();self.list_frame.setObjectName('codeCollectionList');list_box=QVBoxLayout(self.list_frame);list_box.setContentsMargins(8,2,8,2)

@@ -1,7 +1,7 @@
 """Collection rows keep the native tree's selection, keyboard and accessibility."""
 from PySide6.QtCore import Qt,QRect,QSize
-from PySide6.QtGui import QFontMetrics,QPalette,QPainter
-from PySide6.QtWidgets import QStyledItemDelegate,QStyle,QApplication
+from PySide6.QtGui import QFontMetrics,QPalette,QPainter,QIcon
+from PySide6.QtWidgets import QStyledItemDelegate,QStyle,QApplication,QComboBox,QStyleOptionComboBox
 from studio_design import font,icon
 from code_design import ICONS
 
@@ -15,10 +15,28 @@ QLabel#codePreviewTitle { font-size: 24px; font-weight: 500; }
 QLabel#codeCollectionCount { font-size: 12px; color: palette(placeholder-text); }
 QLabel#codePreviewKind { font-size: 12px; color: palette(link); }
 QLabel#codePreviewState { color: palette(link); font-size: 12px; }
+QComboBox { padding-right: 28px; }
+QComboBox::drop-down {
+ subcontrol-origin: padding; subcontrol-position: top right; width: 28px;
+ border: none; background: transparent;
+}
+QComboBox::down-arrow { image: none; }
 QPushButton#codeCollectionQuiet { background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 7px 8px; color: palette(placeholder-text); font-size: 12px; }
 QPushButton#codeCollectionQuiet:hover { background: palette(alternate-base); color: palette(text); }
 QPushButton#codeCollectionQuiet:focus { border-color: palette(highlight); }
 '''
+
+
+class CollectionComboBox(QComboBox):
+    """Keep the theme arrow inside the field without a separate native button."""
+    def paintEvent(self,event):
+        super().paintEvent(event)
+        option=QStyleOptionComboBox();self.initStyleOption(option)
+        area=self.style().subControlRect(QStyle.CC_ComboBox,option,QStyle.SC_ComboBoxArrow,self)
+        painter=QPainter(self)
+        rect=QRect(area.center().x()-6,area.center().y()-6,12,12)
+        icon('go-down').paint(painter,rect,Qt.AlignCenter,QIcon.Normal if self.isEnabled() else QIcon.Disabled)
+        painter.end()
 
 
 class EntryDelegate(QStyledItemDelegate):
