@@ -84,6 +84,14 @@ class SentenceEditor(QWidget):
         try:self.sync();fn();self.refresh();self.emit_change()
         except ValueError as error:self.state.setText(tr(str(error)))
 
+    @staticmethod
+    def replace_content(scroll,body):
+        old=scroll.takeWidget()
+        if old is not None:
+            # A popup may still be emitting its mouse-selection signal.
+            old.hide();old.deleteLater()
+        scroll.setWidget(body)
+
     def select_entry(self,key):
         if not self.routine:return self.open_detail(key)
         self.sync();self.selected=key;self.refresh()
@@ -179,7 +187,7 @@ class SentenceEditor(QWidget):
         self.condition_button=button(tr('Bedingungen ändern' if self.gate_enabled else 'Nur wenn …'),self.edit_gate,'view-filter');self.condition_button.setVisible(self.version==3);controls.addWidget(self.condition_button);controls.addStretch()
         controls.insertWidget(2,button(tr('Ablauf in Worten beschreiben'),lambda:self.tabs.setCurrentIndex(2),'tools-wizard'))
         box.addWidget(label(tr('Jeder hervorgehobene Satzteil ist bearbeitbar. Eine einzelne Aktion reicht; ein Zeitplan und Bedingungen sind optional.'),'codeMuted'))
-        self.state=label('','codeMuted');box.addWidget(self.state);box.addStretch();self.scroll.setWidget(body)
+        self.state=label('','codeMuted');box.addWidget(self.state);box.addStretch();self.replace_content(self.scroll,body)
         if self.dialog is not None:self.render_dialog()
         self.apply_lock()
 
@@ -220,7 +228,7 @@ class SentenceEditor(QWidget):
             found=self.find_step(self.selected)
             if found:self.dialog_header.title.setText(tr('Lumen · Aktion bearbeiten'));self.render_action(*found,box)
             else:self.selected='input';self.render_dialog();return
-        box.addStretch();self.dialog_scroll.setWidget(self.inspector);self.apply_lock()
+        box.addStretch();self.replace_content(self.dialog_scroll,self.inspector);self.apply_lock()
 
     def open_condition_help(self):
         self.accept_detail()
@@ -336,7 +344,7 @@ class SentenceEditor(QWidget):
             else:right.addWidget(label(tr('Dieser vorhandene Ablauf startet manuell. Seine Quellen und Aktionen werden unverändert ausgeführt.'),'codeMuted'))
             if self.version==3:right.addWidget(button(tr('Ablauf in Worten beschreiben'),lambda:self.tabs.setCurrentIndex(2)))
         else:self.render_action(*self.find_step(self.selected),right)
-        right.addStretch();self.state=label('','codeMuted');right.addWidget(self.state);self.scroll.setWidget(body);self.reflow();self.apply_lock()
+        right.addStretch();self.state=label('','codeMuted');right.addWidget(self.state);self.replace_content(self.scroll,body);self.reflow();self.apply_lock()
 
     def add_gate(self):
         if self.version!=3:return
