@@ -35,9 +35,10 @@ class CreationDialog(QDialog):
         self.automation_title=label(tr('Unbenannte Automation'),'codeTitle');layout.addWidget(self.automation_title)
         self.rename_automation=button(tr('Umbenennen'),self.rename_sentence);self.header.actions.addWidget(self.rename_automation)
         self.template_button=button(tr('Beschreibungs-Vorlage öffnen …'),self.import_description,'document-import');self.header.actions.addWidget(self.template_button)
-        from code_collection_view import QUIET_STYLE
+        # The existing export also works with collection modules in open windows.
+        from code_collection_view import STYLE as collection_style
         for control in (goal_link,close_button,self.rename_automation,self.template_button):
-            control.setObjectName('codeCollectionQuiet');control.setStyleSheet(QUIET_STYLE)
+            control.setObjectName('codeCollectionQuiet');control.setStyleSheet(collection_style)
         self.name_caption=label(tr('Name'));layout.addWidget(self.name_caption);self.name=QLineEdit();self.name.setAccessibleName(tr('Name'));self.name.setMaxLength(160);layout.addWidget(self.name)
         self.name.textChanged.connect(self.automation_title.setText)
         project_row=QHBoxLayout();self.project=QComboBox();self.project.setAccessibleName(tr('Lumen-Projekt'));self.project.addItem(tr('Ohne Projekt'),'')
