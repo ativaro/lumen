@@ -5,6 +5,12 @@ from PySide6.QtWidgets import QStyledItemDelegate,QStyle,QApplication,QComboBox,
 from studio_design import font,icon
 from code_design import ICONS
 
+QUIET_STYLE='''
+QPushButton#codeCollectionQuiet { background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 7px 8px; color: palette(placeholder-text); font-size: 12px; }
+QPushButton#codeCollectionQuiet:hover { background: palette(alternate-base); color: palette(text); }
+QPushButton#codeCollectionQuiet:focus { border-color: palette(highlight); }
+'''
+
 STYLE='''
 QFrame#codeCollectionList, QFrame#codeCollectionPreview, QFrame#codeCollectionEmpty {
  background: palette(base); border: 1px solid palette(mid); border-radius: 10px;
@@ -21,10 +27,7 @@ QComboBox::drop-down {
  border: none; background: transparent;
 }
 QComboBox::down-arrow { image: none; }
-QPushButton#codeCollectionQuiet { background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 7px 8px; color: palette(placeholder-text); font-size: 12px; }
-QPushButton#codeCollectionQuiet:hover { background: palette(alternate-base); color: palette(text); }
-QPushButton#codeCollectionQuiet:focus { border-color: palette(highlight); }
-'''
+'''+QUIET_STYLE
 
 
 class CollectionComboBox(QComboBox):

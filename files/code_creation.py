@@ -23,8 +23,8 @@ class CreationDialog(QDialog):
         from code_design import editor_shell,card
         main,self.header,self.footer=editor_shell(self,tr('Lumen · Neu erstellen'),tr('Wähle den passenden Weg für deine Aufgabe.'))
         box=QVBoxLayout(main);box.setContentsMargins(0,0,0,0);box.setSpacing(16)
-        goal_link=button(tr('Ziel beschreiben'),self.show_goal);goal_link.setObjectName('codeLink');self.header.actions.addWidget(goal_link)
-        self.header.actions.addWidget(button(tr('Schließen'),self.reject))
+        goal_link=button(tr('Ziel beschreiben'),self.show_goal);self.header.actions.addWidget(goal_link)
+        close_button=button(tr('Schließen'),self.reject);self.header.actions.addWidget(close_button)
         self.pages=QStackedWidget();box.addWidget(self.pages,1)
         choose=QWidget();layout=QVBoxLayout(choose);layout.setContentsMargins(0,0,0,0)
         grid=QGridLayout();grid.setSpacing(16);layout.addLayout(grid)
@@ -35,6 +35,9 @@ class CreationDialog(QDialog):
         self.automation_title=label(tr('Unbenannte Automation'),'codeTitle');layout.addWidget(self.automation_title)
         self.rename_automation=button(tr('Umbenennen'),self.rename_sentence);self.header.actions.addWidget(self.rename_automation)
         self.template_button=button(tr('Beschreibungs-Vorlage öffnen …'),self.import_description,'document-import');self.header.actions.addWidget(self.template_button)
+        from code_collection_view import QUIET_STYLE
+        for control in (goal_link,close_button,self.rename_automation,self.template_button):
+            control.setObjectName('codeCollectionQuiet');control.setStyleSheet(QUIET_STYLE)
         self.name_caption=label(tr('Name'));layout.addWidget(self.name_caption);self.name=QLineEdit();self.name.setAccessibleName(tr('Name'));self.name.setMaxLength(160);layout.addWidget(self.name)
         self.name.textChanged.connect(self.automation_title.setText)
         project_row=QHBoxLayout();self.project=QComboBox();self.project.setAccessibleName(tr('Lumen-Projekt'));self.project.addItem(tr('Ohne Projekt'),'')
