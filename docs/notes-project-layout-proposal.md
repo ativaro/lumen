@@ -1,10 +1,10 @@
 # Lumen Notes: Platznutzung wie Lumen Projekte
 
-Vorbereiteter Vorschlag vom 19.10.2026, noch nicht installiert.
+Vom Nutzer am 19.10.2026 freigegeben und gezielt installiert.
 
 Die Vorschau wird aus dem tatsächlichen Notes-Code in einem privaten, vollständig
 isolierten Testprofil erzeugt. Es gibt keine separat nachgezeichnete Oberfläche.
-Bei einer Übernahme werden dieselben Komponenten und gebauten Ressourcen genutzt.
+Die Installation verwendet dieselben Komponenten und gebauten Ressourcen.
 
 - Tatsächlicher `desktop_design.AppHeader` wie bei `ProjectHome`, mit dessen
   Außenmaßen und 26-Pixel-Titel. Keine zusätzliche globale App-Leiste.
@@ -27,3 +27,24 @@ und sein Codec bleiben unverändert. Keine Serverbereitstellung oder Abhängigke
 Native-Header, Fensteraufteilung, Tagformular, Tabellen, Undo/Redo, Speichern,
 Konflikten, letzter Eingabe vor Schließen und nativer Zusatzansicht. Fenstergrößen
 für die Sichtprüfung: 1920×1400, 1280×800, 960×640 und 840×640 bei Skalierung 1.
+
+Die übernommenen Codecommits sind `f5d5320` und `a511660` (Originale `793fa27`
+und `dc65e71`). Sechs Prüfungen gegen Quelle, aktuellen installierten Modulmischstand
+und tatsächlich installierte Module bestanden. Neun echte installierte Aufnahmen
+über vier Fenstergrößen und vier Themes stimmen in ihren Geometriemessungen mit
+der freigegebenen Vorschau überein. Root-Quell-/Sichtprüfung und Nutzerfreigabe
+liegen vor; keine separate unabhängige Gegenprüfung behauptet.
+
+Nur `files/notes_web.py`, `files/notes_web/notes.css`, `files/notes_web/notes.js`
+und `files/notes_web/server-sources.json` ersetzt. 645 weitere Codeassets und der
+Vault-Broker blieben unverändert; die gleichzeitig installierte Code-Popup-Korrektur
+bleibt erhalten. Persönliche Notizbücher wurden nicht getestet, persönliche Fenster
+nicht beendet. Lumen Notes vollständig regulär schließen und neu öffnen.
+
+Belege und Sicherung: `~/.local/state/lumen/notes-project-layout-20261019/` mit
+`verification.json`, `image-manifest.json` und `installed/receipt.json`.
+`install-desktop.py rollback` prüft den Rückweg, `rollback --apply` nimmt nur diese
+vier unveränderten Notes-Dateien zurück. Vollständige Installation und Rücknahme
+auf kleiner Wegwerfkopie bestanden. Vor älteren Notes-/Panorama-Rückwegen nutzen.
+Andere Skalierungen, persönliche Geräte und eine vollständige Screenreader-/KWin-
+Abnahme sind nicht geprüft. Server und Mobile wurden nicht verändert, kein Push.
