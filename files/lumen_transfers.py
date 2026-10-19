@@ -40,7 +40,14 @@ def update(store, identity, **fields):
         row = db.execute('SELECT value FROM settings WHERE key=?', (PREFIX + identity,)).fetchone()
         if not row: raise ValueError(tr('Transfer nicht gefunden.'))
         value = json.loads(row[0]); value.update(fields, updated=time.time())
+        follow = value.get('followup', {})
+        retired = follow.get('enabled') and (value['status'] not in ('paused', 'failed') or value.get('discard'))
+        if retired:
+            value['followup'] = dict(follow, enabled=False, state='off', revision=follow['revision'] + 1)
         db.execute('UPDATE settings SET value=? WHERE key=?', (json.dumps(value), PREFIX + identity))
+    if retired:
+        from transfer_followup import clear_notice
+        clear_notice(value)
     return value
 
 
