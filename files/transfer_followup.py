@@ -27,11 +27,16 @@ def supported(value):
 def clear_notice(value):
     identity = value.get('followup', {}).get('notification_id')
     if identity:
-        from lumen_notifications import change
+        from lumen_notifications import database
         try:
-            change(identity, 'archive')
-        except (OSError, sqlite3.Error, ValueError):
-            pass  # An unavailable notification database must not stop a transfer.
+            with database() as db:
+                db.execute("UPDATE notifications SET archived=1,updated=? WHERE id=? AND scope='local' AND revision<=?",
+                           (time.time(), identity, value['followup'].get('notice', 0)))
+        except ValueError:
+            pass  # The user may already have removed the card.
+        except (OSError, sqlite3.Error):
+            return False
+    return True
 
 
 def configure(store, identity, enabled, now=None):
@@ -50,8 +55,8 @@ def configure(store, identity, enabled, now=None):
         old = value.get('followup', {})
         value['followup'] = dict(old, enabled=enabled, state='waiting' if enabled else 'off',
                                  revision=old.get('revision', 0) + 1, attempts=0, next_check=now)
+        value['followup']['archive_pending'] = not clear_notice(value)
         db.execute('UPDATE settings SET value=? WHERE key=?', (json.dumps(value), transfers.PREFIX + identity))
-        clear_notice(value)
     return value
 
 
@@ -100,7 +105,7 @@ def probe(store, identity):
     try:
         lease = store.acquire('transfer-followup-probe')
     except BlockingIOError:
-        return 'waiting'
+        return None  # Busy is not evidence about this copy's destination.
     child = None
     try:
         child = subprocess.Popen(
@@ -144,16 +149,17 @@ def finish(store, value, result, now):
         if result == 'waiting':
             follow['attempts'] = min(6, follow.get('attempts', 0) + 1)
             follow['next_check'] = now + min(1800, 60 * 2 ** (follow['attempts'] - 1))
-            clear_notice(current)
+            follow['archive_pending'] = not clear_notice(current)
         else:
             follow.update(attempts=0, next_check=now + 300, enabled=result == 'ready')
             if before != result:
                 from lumen_notifications import publish
                 follow['notice'] = follow.get('notice', 0) + 1
-                title = tr('Dein Kopierziel ist wieder verfügbar.') if result == 'ready' else tr('Deine Kopie benötigt eine erneute Prüfung.')
+                title = tr('Dein Kopierziel ist wieder erreichbar.') if result == 'ready' else tr('Deine Kopie benötigt eine erneute Prüfung.')
                 body = tr('Die Kopie von „{0}“ ist noch unterbrochen. Öffne den gespeicherten Vorgang und wähle Fortsetzen. Vorhandene Teile werden dabei erneut geprüft.', Path(current['sources'][0]).name) if result == 'ready' else tr('Ziel, Quelle oder Kopierzwischenablage wurden verändert. Öffne den Vorgang und prüfe ihn vor einem neuen Start.')
                 follow['notification_id'] = publish('Lumen Files', 'transfer-followup:' + identity, title, body,
                                                     target='transfer:' + identity, revision=follow['notice'], attention=True)
+                follow['archive_pending'] = False
         db.execute('UPDATE settings SET value=? WHERE key=?', (json.dumps(current), transfers.PREFIX + identity))
 
 
@@ -164,7 +170,15 @@ def tick(store, now=None):
     except BlockingIOError:
         return
     try:
-        rows = store.rows("SELECT value FROM settings WHERE key LIKE ? AND json_extract(value,'$.followup.enabled')=1 ORDER BY json_extract(value,'$.followup.next_check') LIMIT 20", (transfers.PREFIX + '%',))
+        with store.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            rows = db.execute("SELECT key,value FROM settings WHERE key LIKE ? AND json_valid(value) AND json_extract(value,'$.followup.enabled')=0 AND json_extract(value,'$.followup.archive_pending')=1 LIMIT 3", (transfers.PREFIX + '%',)).fetchall()
+            for row in rows:
+                value = json.loads(row['value'])
+                if clear_notice(value):
+                    value['followup']['archive_pending'] = False
+                    db.execute('UPDATE settings SET value=? WHERE key=?', (json.dumps(value), row['key']))
+        rows = store.rows("SELECT value FROM settings WHERE key LIKE ? AND json_valid(value) AND json_extract(value,'$.followup.enabled')=1 ORDER BY json_extract(value,'$.followup.next_check') LIMIT 20", (transfers.PREFIX + '%',))
         checked = 0
         for row in rows:
             value = json.loads(row['value'])
@@ -173,13 +187,16 @@ def tick(store, now=None):
                 continue
             if value['followup']['next_check'] > now:
                 continue
-            try:
-                finish(store, value, probe(store, value['id']), now)
-            except (OSError, sqlite3.Error, ValueError):
-                continue  # No committed result; the persisted due check retries next tick.
-            checked += 1
             if checked == 3:
                 break
+            checked += 1
+            try:
+                result = probe(store, value['id'])
+                if result is None:
+                    continue
+                finish(store, value, result, now)
+            except (OSError, sqlite3.Error, ValueError):
+                continue  # No committed result; the persisted due check retries next tick.
     finally:
         os.close(lease)
 

@@ -1,0 +1,20 @@
+{
+  "Ungültige Übertragungskennung.": "Invalid transfer ID.",
+  "Dranbleiben benötigt eine unterbrochene Kopie mit gespeichertem Kopierstand.": "Follow-up needs an interrupted copy with saved progress.",
+  "Dein Kopierziel ist wieder erreichbar.": "Your copy destination is reachable again.",
+  "Deine Kopie benötigt eine erneute Prüfung.": "Your copy needs another check.",
+  "Die Kopie von „{0}“ ist noch unterbrochen. Öffne den gespeicherten Vorgang und wähle Fortsetzen. Vorhandene Teile werden dabei erneut geprüft.": "The copy of “{0}” is still interrupted. Open the saved transfer and choose Resume. Existing parts will be checked again.",
+  "Ziel, Quelle oder Kopierzwischenablage wurden verändert. Öffne den Vorgang und prüfe ihn vor einem neuen Start.": "The destination, source or copy staging area changed. Open and check the transfer before starting again.",
+  "Melden, wenn es weitergeht": "Notify when I can continue",
+  "Nur diese Kopie im Hintergrund prüfen. Keine automatische Übertragung.": "Check only this copy in the background. No automatic transfer.",
+  "In einer Stunde": "In one hour",
+  "Nur diese Kopie prüfen. Kein automatischer Neustart.": "Check only this copy. No automatic restart.",
+  "Hintergrundprüfung wird aktiviert …": "Enabling background checks …",
+  "Ziel, Quelle oder Kopierzwischenablage geändert. Vorgang erneut prüfen.": "Destination, source or staging area changed. Check the transfer again.",
+  "Das ursprüngliche Ziel ist erreichbar. Fortsetzen prüft die vorhandenen Teile erneut.": "The original destination is reachable. Resume will check the existing parts again.",
+  "Lumen prüft dieses Kopierziel im Hintergrund. Nächste Prüfung: {0}": "Lumen checks this copy destination in the background. Next check: {0}",
+  "Hintergrundprüfung nicht verfügbar. Dranbleiben bleibt ausgeschaltet.": "Background checks are unavailable. Follow-up remains off.",
+  "Das laufende Lumen Files kann diesen Transfer nicht anzeigen. Bitte Lumen Files schließen und neu öffnen; die Meldung bleibt erhalten.": "The running Lumen Files cannot show this transfer. Please close and reopen Lumen Files; the notification is kept.",
+  "Gespeicherte Übertragung anzeigen": "Show saved transfer",
+  "Lumen Dranbleiben konnte nicht prüfen. Die freigegebenen Aufträge werden weiter bearbeitet.": "Lumen could not run its follow-up check. Approved tasks will continue to be processed."
+}

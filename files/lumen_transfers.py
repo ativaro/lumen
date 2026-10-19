@@ -43,7 +43,8 @@ def update(store, identity, **fields):
         follow = value.get('followup', {})
         retired = follow.get('enabled') and (value['status'] not in ('paused', 'failed') or value.get('discard'))
         if retired:
-            value['followup'] = dict(follow, enabled=False, state='off', revision=follow['revision'] + 1)
+            value['followup'] = dict(follow, enabled=False, state='off', revision=follow['revision'] + 1,
+                                     archive_pending=bool(follow.get('notification_id')))
         db.execute('UPDATE settings SET value=? WHERE key=?', (json.dumps(value), PREFIX + identity))
     if retired:
         from transfer_followup import clear_notice

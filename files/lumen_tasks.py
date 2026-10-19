@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sqlite3
 
 from lumen_store import Store
 from lumen_actions import execute
@@ -48,6 +49,11 @@ def defer_background(store):
 
 
 def tick(store):
+    try:
+        from transfer_followup import tick as followup_tick
+        followup_tick(store)
+    except (ImportError, OSError, sqlite3.Error, ValueError, KeyError, TypeError):
+        print(tr('Lumen Dranbleiben konnte nicht prüfen. Die freigegebenen Aufträge werden weiter bearbeitet.'))
     lock = os.open(store.directory / 'worker.lock', os.O_CREAT | os.O_RDWR, 0o600)
     try:
         try: fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)

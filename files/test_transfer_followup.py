@@ -147,6 +147,45 @@ class FollowupTest(unittest.TestCase):
         self.assertEqual(self.value(), value)
         self.assertFalse((self.target / self.source.name).exists())
 
+    def test_real_offline_return_notice_and_manual_resume_same_copy(self):
+        import signal
+        follow.configure(self.store, self.identity, True, now=10)
+        offline = self.root / 'disconnected-target'
+        self.target.rename(offline)
+        follow.tick(Store(self.store.directory), now=10)
+        self.assertEqual(self.value()['followup']['state'], 'waiting')
+        self.assertEqual(notifications.snapshot()['unread'], 0)
+        offline.rename(self.target)
+        follow.tick(Store(self.store.directory), now=self.value()['followup']['next_check'])
+        self.assertEqual(self.value()['followup']['state'], 'ready')
+        self.assertEqual(notifications.snapshot()['unread'], 1)
+        follow.tick(Store(self.store.directory), now=self.value()['followup']['next_check'])
+        self.assertEqual(self.toast.call_count, 1)
+        self.assertFalse((self.target / self.source.name).exists())
+        original = transfers.start
+        children = []
+
+        def start(store, value):
+            process = original(store, value)
+            children.append(process)
+            return process
+
+        with patch.object(transfers, 'start', side_effect=start):
+            transfers.retry(self.store, self.identity)
+        process = children[0]
+        try:
+            self.assertEqual(process.wait(timeout=10), 0)
+        finally:
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait(timeout=2)
+        value = self.value()
+        self.assertEqual(value['id'], self.identity)
+        self.assertEqual(value['status'], 'completed', value['errors'])
+        self.assertEqual((self.target / self.source.name).read_bytes(), self.source.read_bytes())
+        self.assertFalse(value['followup']['enabled'])
+        self.assertEqual(notifications.snapshot()['unread'], 0)
+
     def test_probe_timeout_returns_without_waiting_indefinitely(self):
         import subprocess
         child = unittest.mock.Mock()
@@ -156,6 +195,69 @@ class FollowupTest(unittest.TestCase):
             self.assertEqual(follow.probe(self.store, self.identity), 'waiting')
         child.kill.assert_called_once()
         child.wait.assert_called_once()
+
+    def test_busy_probe_does_not_invalidate_readiness_or_advance_backoff(self):
+        follow.configure(self.store, self.identity, True, now=10)
+        with patch.object(follow, 'probe', return_value='ready'):
+            follow.tick(self.store, now=10)
+        before = self.value()['followup']
+        lease = self.store.acquire('transfer-followup-probe')
+        try:
+            follow.tick(self.store, now=before['next_check'])
+        finally:
+            os.close(lease)
+        self.assertEqual(self.value()['followup'], before)
+        self.assertEqual(notifications.snapshot()['unread'], 1)
+
+    def test_failed_notification_publication_still_limits_probe_attempts_to_three(self):
+        import copy
+        import sqlite3
+        import uuid
+        follow.configure(self.store, self.identity, True, now=10)
+        for _ in range(8):
+            value = copy.deepcopy(self.value())
+            value['id'] = uuid.uuid4().hex
+            self.store.set_setting(transfers.PREFIX + value['id'], value)
+        with patch.object(follow, 'probe', return_value='ready') as probe, \
+                patch.object(notifications, 'publish', side_effect=sqlite3.OperationalError('locked')):
+            follow.tick(self.store, now=10)
+        self.assertEqual(probe.call_count, 3)
+
+    def test_failed_archive_is_reconciled_without_rearming_or_copying(self):
+        import sqlite3
+        follow.configure(self.store, self.identity, True, now=10)
+        with patch.object(follow, 'probe', return_value='ready'):
+            follow.tick(self.store, now=10)
+        with patch.object(notifications, 'database', side_effect=sqlite3.OperationalError('locked')):
+            follow.configure(self.store, self.identity, False)
+        self.assertTrue(self.value()['followup']['archive_pending'])
+        with patch.object(follow, 'probe') as probe:
+            follow.tick(self.store)
+            probe.assert_not_called()
+        self.assertFalse(self.value()['followup']['archive_pending'])
+        self.assertEqual(notifications.snapshot()['unread'], 0)
+
+    def test_old_cleanup_cannot_archive_a_newer_readiness_notice(self):
+        import copy
+        follow.configure(self.store, self.identity, True, now=10)
+        with patch.object(follow, 'probe', return_value='ready'):
+            follow.tick(self.store, now=10)
+            old = copy.deepcopy(self.value())
+            follow.configure(self.store, self.identity, False)
+            follow.configure(self.store, self.identity, True, now=20)
+            follow.tick(self.store, now=20)
+        follow.clear_notice(old)
+        self.assertEqual(notifications.snapshot()['unread'], 1)
+        self.assertEqual(notifications.snapshot()['items'][0]['revision'], 2)
+
+    def test_followup_errors_do_not_block_ordinary_approved_jobs(self):
+        from lumen_tasks import tick
+        with patch.object(follow, 'tick', side_effect=KeyError('broken followup')), \
+                patch.object(self.store, 'enqueue_due') as enqueue, \
+                patch('code_flow_native.deliver'), \
+                patch('lumen_tasks.defer_background', return_value='synthetic deferred'):
+            tick(self.store)
+        enqueue.assert_called_once()
 
 
 if __name__ == '__main__':

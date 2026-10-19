@@ -2003,10 +2003,15 @@ def create_app(appearance=None):
 def activate_files(window, request, initial=False):
     from lumen_activation import present
     location = request.get('location')
-    if (set(request) - {'location', 'select', 'settings', 'ref'} or
+    if (set(request) - {'location', 'select', 'settings', 'ref', 'transfer'} or
             (location is not None and (not isinstance(location, str) or '\0' in location)) or
             any(type(request.get(key, False)) is not bool for key in ('select', 'settings'))):
         raise ValueError('Invalid Files activation')
+    if request.get('transfer') is not None:
+        from transfer_panel import panel
+        panel(window).show_transfer(request['transfer'])
+        present(window)
+        return
     if request.get('ref'):
         from interop_data import Registry
         ref=Registry().resolve(request['ref'])
@@ -2034,9 +2039,13 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=tr('Lumen Files – Dateimanager mit Lumen-Integration'))
     parser.add_argument('location', nargs='?', help=tr('Datei, Ordner oder Netzwerkadresse'))
     parser.add_argument('--select', action='store_true')
+    from transfer_followup import identifier
+    parser.add_argument('--transfer', type=identifier, help=tr('Gespeicherte Übertragung anzeigen'))
     parser.add_argument('--ref', help=tr('Lumen-Verweis zum Drive-Original'))
     parser.add_argument('--settings', action='store_true', help=tr('Gemeinsame Lumen-Einstellungen öffnen'))
     args = parser.parse_args(argv)
+    if args.transfer is not None and (args.location is not None or args.select or args.ref or args.settings):
+        parser.error('--transfer cannot be combined with a location, --select, --ref or --settings')
     from lumen_migrate import migrate_user
     migrate_user()
     app = create_app()
@@ -2045,9 +2054,15 @@ def main(argv=None):
     if location and not (is_network_address(location) or is_drive(location) or virtual(location)):
         location = str(Path(location).expanduser().absolute())
     request = {'location': location, 'select': args.select, 'settings': args.settings, 'ref':args.ref}
-    from lumen_activation import SingleWindow
-    activation = SingleWindow('org.lumen.Files')
-    if activation.running: return activation.forward(request)
+    if args.transfer is not None:
+        request['transfer'] = args.transfer
+    from files_activation import FilesActivation, open_transfer
+    activation = FilesActivation('org.lumen.Files')
+    if activation.running:
+        if args.transfer is not None:
+            open_transfer(args.transfer)
+            return 0
+        return activation.forward(request)
     start = str(Path(location).parent) if location and Path(location).is_file() else location
     window = Window(start)
     from interop_ui import install
@@ -2055,9 +2070,15 @@ def main(argv=None):
     window.show()
     QTimer.singleShot(0, lambda: activate_files(window, request, initial=True))
     activation.bind(lambda request: activate_files(window, request))
+    def show_transfer(identity):
+        try:
+            activate_files(window, {'transfer': identity})
+        except ValueError as error:
+            window.error(str(error))
+    activation.bind_transfer(show_transfer)
     from lumen_crash import attach
-    attach(app, window, 'files', offer_recovery=not start and not args.settings)
-    if not args.settings:
+    attach(app, window, 'files', offer_recovery=not start and not args.settings and not args.transfer)
+    if not (args.settings or args.transfer):
         from setup_dialog import offer_setup
         QTimer.singleShot(250, lambda: offer_setup(window))
     return app.exec()

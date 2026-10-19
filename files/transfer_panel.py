@@ -3,7 +3,7 @@
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, QUrl
+from PySide6.QtCore import Qt, QTimer, QUrl, QProcess
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QDockWidget,
@@ -16,12 +16,15 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QMessageBox,
+    QCheckBox,
+    QLabel,
 )
 
 from core import size_text
-from lumen_i18n import tr
+from lumen_i18n import tr, worker_process
 from lumen_store import Store
 import lumen_transfers as transfers
+import transfer_followup as followup
 
 NAMES = {
     "copy": tr("Kopieren"),
@@ -61,6 +64,29 @@ class Transfers(QDockWidget):
         self.detail.setMinimumHeight(60)
         self.detail.setAccessibleName(tr("Übertragungsdetails"))
         layout.addWidget(self.detail)
+        self.followup_row = QWidget()
+        followup_layout = QHBoxLayout(self.followup_row)
+        followup_layout.setContentsMargins(0, 0, 0, 0)
+        self.followup = QCheckBox(tr('Melden, wenn es weitergeht'))
+        self.followup.setToolTip(tr('Nur diese Kopie im Hintergrund prüfen. Keine automatische Übertragung.'))
+        self.snooze = QPushButton(tr('In einer Stunde'))
+        followup_layout.addWidget(self.followup)
+        followup_layout.addWidget(self.snooze)
+        followup_layout.addStretch()
+        layout.addWidget(self.followup_row)
+        self.followup_status = QLabel()
+        self.followup_status.setWordWrap(True)
+        self.followup_status.setTextFormat(Qt.PlainText)
+        layout.addWidget(self.followup_status)
+        self.watch_pending = ''
+        self.watch_process = worker_process(self)
+        self.watch_process.finished.connect(self.watch_done)
+        self.watch_process.errorOccurred.connect(lambda _: self.watch_done(-1, QProcess.CrashExit))
+        self.watch_limit = QTimer(self)
+        self.watch_limit.setSingleShot(True)
+        self.watch_limit.timeout.connect(self.watch_timed_out)
+        self.followup.toggled.connect(self.watch)
+        self.snooze.clicked.connect(lambda: self.control(followup.snooze))
         self.progress = QProgressBar()
         layout.addWidget(self.progress)
         actions = QHBoxLayout()
@@ -102,9 +128,9 @@ class Transfers(QDockWidget):
         item = self.list.currentItem()
         return self.values.get(item.data(0, Qt.UserRole)) if item else None
 
-    def refresh(self):
+    def refresh(self, preferred=None):
         chosen = self.selected()
-        identity = chosen["id"] if chosen else None
+        identity = preferred or (chosen["id"] if chosen else None)
         try:
             values = transfers.tickets(self.store)
         except Exception as error:
@@ -115,7 +141,11 @@ class Transfers(QDockWidget):
         self.list.blockSignals(True)
         self.list.clear()
         completed = False
-        for value in values[:200]:
+        shown = values[:200]
+        requested = next((v for v in values if v['id'] == identity), None)
+        if requested is not None and requested not in shown:
+            shown = [requested, *shown[:199]]
+        for value in shown:
             key, state = value["id"], value["status"]
             if state == "completed" and self.previous.get(key) in transfers.ACTIVE:
                 completed = True
@@ -158,6 +188,25 @@ class Transfers(QDockWidget):
 
     def details(self):
         value = self.selected()
+        watch = value.get('followup', {}) if value else {}
+        visible = bool(value and value['action'] == 'copy' and value['status'] in ('paused', 'failed'))
+        self.followup_row.setVisible(visible)
+        self.followup_status.setVisible(visible)
+        self.followup.blockSignals(True)
+        self.followup.setChecked(bool(watch.get('enabled') or value and value['id'] == self.watch_pending))
+        self.followup.blockSignals(False)
+        self.followup.setEnabled(bool(visible and followup.supported(value) and not self.watch_pending))
+        self.snooze.setEnabled(bool(visible and watch.get('enabled') and not self.watch_pending))
+        message = tr('Nur diese Kopie prüfen. Kein automatischer Neustart.')
+        if visible and not followup.supported(value):
+            message = tr('Dranbleiben benötigt eine unterbrochene Kopie mit gespeichertem Kopierstand.')
+        elif self.watch_pending:
+            message = tr('Hintergrundprüfung wird aktiviert …')
+        elif watch.get('state') == 'review':
+            message = tr('Ziel, Quelle oder Kopierzwischenablage geändert. Vorgang erneut prüfen.')
+        elif watch.get('enabled'):
+            message = tr('Das ursprüngliche Ziel ist erreichbar. Fortsetzen prüft die vorhandenen Teile erneut.') if watch.get('state') == 'ready' else tr('Lumen prüft dieses Kopierziel im Hintergrund. Nächste Prüfung: {0}', time.strftime('%H:%M', time.localtime(watch['next_check'])))
+        self.followup_status.setText(message)
         active = bool(value and value["status"] in transfers.ACTIVE)
         allowed = bool(value and value["action"] in CONTROLLABLE)
         self.pause.setEnabled(allowed and active and not value.get("cancel"))
@@ -214,6 +263,45 @@ class Transfers(QDockWidget):
             if value["total"]
             else 0
         )
+
+    def show_transfer(self, identity):
+        followup.identifier(identity)
+        if not self.store.setting(transfers.PREFIX + identity):
+            raise ValueError(tr('Transfer nicht gefunden.'))
+        self.refresh(preferred=identity)
+        if not self.selected() or self.selected()['id'] != identity:
+            raise ValueError(tr('Transfer nicht gefunden.'))
+        self.show()
+        self.raise_()
+
+    def watch(self, enabled):
+        value = self.selected()
+        if not value or self.watch_pending:
+            return
+        if not enabled:
+            self.control(lambda store, identity: followup.configure(store, identity, False))
+            return
+        self.watch_pending = value['id']
+        self.details()
+        self.watch_limit.start(5000)
+        self.watch_process.start('systemctl', ['--user', 'enable', '--now', 'lumen-jobs.timer'])
+
+    def watch_timed_out(self):
+        self.watch_process.kill()
+        self.watch_done(-1, QProcess.CrashExit)
+
+    def watch_done(self, code, status):
+        identity, self.watch_pending = self.watch_pending, ''
+        self.watch_limit.stop()
+        if not identity:
+            return
+        try:
+            if code or status != QProcess.NormalExit:
+                raise ValueError(tr('Hintergrundprüfung nicht verfügbar. Dranbleiben bleibt ausgeschaltet.'))
+            followup.configure(self.store, identity, True)
+        except Exception as error:
+            self.window.error(str(error))
+        self.refresh()
 
     def control(self, action):
         value = self.selected()

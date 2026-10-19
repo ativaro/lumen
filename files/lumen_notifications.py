@@ -246,6 +246,9 @@ def change(identity, action, path=None):
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )
+            elif target.startswith('transfer:'):
+                from files_activation import open_transfer
+                open_transfer(target.removeprefix('transfer:'))
             elif target in (
                 "app:files",
                 "app:drive",
