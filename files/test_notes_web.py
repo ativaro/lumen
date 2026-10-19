@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-from PySide6.QtCore import QEvent, Qt
+from PySide6.QtCore import QEvent, Qt, QPoint
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 from appearance import apply_design
@@ -70,10 +70,14 @@ class NotesWebTest(unittest.TestCase):
         self.assertIn('# Schreibprobe',self.w.book.read(self.first['path'])['text'])
 
     def test_panorama_link_tag_and_document_layout(self):
+        from appearance_tokens import RADII
+        from desktop_design import AppHeader, PAGE_MARGIN
         w=self.w;w.resize(960,640)
         w.resize(1280,800);QTest.qWait(80)
         self.assertEqual(self.js("document.querySelector('.knowledge-notes').getBoundingClientRect().width"),250)
-        self.assertEqual(self.js("document.querySelector('.page-title .eyebrow').textContent"),'GEDANKEN, DIE BLEIBEN')
+        self.assertIsInstance(w.notes_header,AppHeader)
+        self.assertEqual(w.notes_header.title.text(),'Lumen Notes')
+        self.assertEqual(w.notes_web.width(),w.width()-2*PAGE_MARGIN)
         self.assertTrue(self.js("(()=>{let bar=document.querySelector('.note-format-bar').getBoundingClientRect();return [...document.querySelectorAll('.note-format-bar button')].every(b=>{let r=b.getBoundingClientRect();return r.left>=bar.left&&r.right<=bar.right&&r.width>=24&&r.height>=24;});})()"))
         w.resize(960,640)
         QTest.qWait(80)
@@ -104,10 +108,35 @@ class NotesWebTest(unittest.TestCase):
         for theme in ('glass','atelier','midnight','graphite'):
             apply_design(self.app,theme)
             self.wait(lambda:self.js("getComputedStyle(document.documentElement).getPropertyValue('--text').trim()")==self.app.palette().text().color().name())
-            self.assertEqual(self.js("parseFloat(getComputedStyle(document.querySelector('.knowledge-editor')).paddingLeft)"),28)
-            self.assertAlmostEqual(self.js("parseFloat(getComputedStyle(document.querySelector('.note-rich-text')).paddingLeft)"),28.8,places=1)
-            self.assertEqual(self.js("parseFloat(getComputedStyle(document.querySelector('.note-format-bar')).borderTopLeftRadius)"),12)
+            self.assertEqual(self.js("parseFloat(getComputedStyle(document.querySelector('.desktop-note-heading')).paddingLeft)"),16)
+            self.assertEqual(self.js("parseFloat(getComputedStyle(document.querySelector('.note-rich-text')).paddingLeft)"),24)
+            self.assertEqual(self.js("parseFloat(getComputedStyle(document.querySelector('.knowledge-editor')).borderTopLeftRadius)"),RADII[theme])
             self.assertEqual(w.editor.toPlainText(),draft)
+
+    def test_project_shell_fills_window_and_tag_form_is_functional(self):
+        from desktop_design import PAGE_MARGIN, NAV_WIDTH
+        w=self.w
+        for width,height in ((1920,1400),(1280,800),(960,640),(840,640)):
+            w.resize(width,height);QTest.qWait(100)
+            self.assertEqual(w.notes_web.width(),width-2*PAGE_MARGIN)
+            self.assertEqual(w.notes_header.x(),PAGE_MARGIN)
+            self.assertFalse(self.js('document.documentElement.scrollWidth>innerWidth+1'))
+            self.assertTrue(self.js("(()=>{let r=document.querySelector('.knowledge-save').getBoundingClientRect();return r.bottom<=innerHeight+1;})()"))
+            self.assertGreaterEqual(self.js("document.querySelector('.note-rich-text').parentElement.getBoundingClientRect().height"),150)
+            if width>1100:
+                self.assertEqual(self.js("document.querySelector('.knowledge-navigation').getBoundingClientRect().width"),NAV_WIDTH)
+            else:
+                self.assertFalse(self.js("document.querySelector('.desktop-collections-toggle').getAttribute('aria-expanded')==='true'"))
+                self.js("document.querySelector('.desktop-collections-toggle').click()")
+                self.assertTrue(self.js("document.querySelector('.knowledge-collection-list').getBoundingClientRect().height>0"))
+                self.js("document.querySelector('.desktop-collections-toggle').click()")
+        self.js("document.querySelector('.desktop-tag-entry summary').click()")
+        self.js("let field=document.querySelector('.desktop-tag-entry input');field.focus();document.execCommand('insertText',false,'projekt/planung');")
+        self.js("document.querySelector('.desktop-tag-entry button[type=submit]').click()")
+        self.wait(lambda:'projekt/planung' in w.document_text())
+        self.assertFalse(self.js("document.querySelector('.desktop-tag-entry').open"))
+        QTest.mouseClick(w.notes_settings,Qt.LeftButton);QTest.qWait(50)
+        self.assertTrue(w.notebook_menu.isVisible());w.notebook_menu.close()
 
     def test_web_editor_tables_tags_save_and_responsive_layout(self):
         w=self.w
@@ -123,7 +152,12 @@ class NotesWebTest(unittest.TestCase):
             self.assertEqual(w.width(),width)
             self.assertFalse(self.js('document.documentElement.scrollWidth>innerWidth+1'))
         w.resize(1440,960)
-        self.js("document.querySelector('.note-rich-text td p').focus(); let r=document.createRange();r.selectNodeContents(document.querySelector('.note-rich-text td p'));r.collapse(true);getSelection().removeAllRanges();getSelection().addRange(r);document.dispatchEvent(new Event('selectionchange'))")
+        # A real table click also focuses the WebEngine widget beside the native header.
+        w.activateWindow();w.notes_web.setFocus();QTest.qWait(100)
+        self.js("document.querySelector('.note-rich-text').focus()")
+        x=self.js("Math.round(document.querySelector('.note-rich-text td p').getBoundingClientRect().left+5)")
+        y=self.js("Math.round(document.querySelector('.note-rich-text td p').getBoundingClientRect().top+5)")
+        QTest.mouseClick(w.notes_web.focusProxy() or w.notes_web,Qt.LeftButton,pos=QPoint(x,y))
         self.wait(lambda:self.js("!!document.querySelector('[aria-label=\"Tabelle bearbeiten\"]')"))
         self.js("Array.from(document.querySelectorAll('button')).find(x=>x.textContent==='Spalte hinzufügen').click()")
         self.wait(lambda:self.js("document.querySelector('.note-rich-text tr').children.length")==3)

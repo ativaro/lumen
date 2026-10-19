@@ -167,15 +167,23 @@ def install(window):
     page.permissionRequested.connect(lambda permission:permission.deny())
     page.fileSystemAccessRequested.connect(lambda request:request.reject())
     bridge = Bridge(w); channel = QWebChannel(page); channel.registerObject('notes', bridge); page.setWebChannel(channel)
-    stack.addWidget(view); stack.addWidget(native)
+    from desktop_design import AppHeader, PAGE_MARGIN, PAGE_SPACING
+    from tools_ui import button
+    web = QWidget(); web_layout = QVBoxLayout(web)
+    web_layout.setContentsMargins(PAGE_MARGIN,20,PAGE_MARGIN,20); web_layout.setSpacing(PAGE_SPACING)
+    w.notes_header = AppHeader(tr('Lumen Notes'))
+    w.notes_settings = button(tr('Einstellungen'),lambda:bridge.command('{"action":"settings"}'),'settings-configure')
+    w.notes_header.actions.addWidget(w.notes_settings)
+    web_layout.addWidget(w.notes_header); web_layout.addWidget(view,1)
+    stack.addWidget(web); stack.addWidget(native)
     def unavailable(*_):
         w.rich_editor.load_source(); stack.setCurrentWidget(native)
         w.status.setText(tr('Die Schreibansicht wurde beendet. Deine gesicherten Eingaben sind in der nativen Ansicht verfügbar.'))
     page.renderProcessTerminated.connect(unavailable)
     page.loadFinished.connect(lambda ok: unavailable() if not ok else None)
-    back.clicked.connect(lambda:(w.tabs.setCurrentIndex(0),w.switch_area('user'),stack.setCurrentWidget(view)))
+    back.clicked.connect(lambda:(w.tabs.setCurrentIndex(0),w.switch_area('user'),stack.setCurrentWidget(web)))
     def section(index):
-        stack.setCurrentWidget(view if index==0 and w.area=='user' else native)
+        stack.setCurrentWidget(web if index==0 and w.area=='user' else native)
     w.tabs.currentChanged.connect(section)
     for menu in (w.notebook_menu,w.more_button.menu()):
         menu.triggered.connect(lambda *_: (w.rich_editor.load_source(),stack.setCurrentWidget(native)))
