@@ -1962,7 +1962,9 @@ def create_app(appearance=None):
         # Qt processes deferred deletion after all aboutToQuit shutdown slots.
         # Keep QObject owners out of interpreter-exit garbage collection.
         for window in app.topLevelWidgets():
-            window.deleteLater()
+            # QCompleter and Qt own their popup widgets, including parentless ones.
+            if window.windowType() not in (Qt.Popup, Qt.ToolTip):
+                window.deleteLater()
     app.aboutToQuit.connect(dispose_windows)
     app.setApplicationName('lumen-files')
     app.setApplicationDisplayName('Lumen Files')

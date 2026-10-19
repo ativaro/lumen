@@ -62,3 +62,30 @@ Codeassets und Vault-Broker unverändert. Belege/Sicherung: ~/.local/state/lumen
 notes-scrollbar-gutter-20261019/verification.json. install-desktop.py rollback
 [--apply] geprüft; vor dem vorherigen Notes-Layout-Rückweg verwenden. Persönliche
 Fenster und Notizbücher nicht getestet/verändert; kein Push.
+
+
+## Korrektur: einmalige Kopfaktionen und sicheres Beenden (19.10.2026)
+
+Zwei benachbarte Kopfaktionen verwendeten denselben React-Schlüssel. Nach vier
+Notizwechseln blieben fünf Tag-Schaltflächen stehen. Die statischen Kopfaktionen
+benötigen keine Schlüssel; der neue echte WebEngine-Test prüft acht Wechsel mit
+geöffnetem Tagformular und Mehr-Menü. Mehr verwendet ein fenstereigenes natives
+Menü mit den bisherigen drei Aktionen; frühere Fassungen bleiben in der
+Schreibansicht. Native Zusatzmenüs gehören dem Fenster, damit Hintergrundaufträge
+sie beim Deaktivieren der versteckten alten Ansicht nicht ungültig schalten.
+
+Die vorhandene globale Fensterbereinigung löschte außerdem das parentlose
+QCompleter-Popup vor dessen Besitzer. Die Bereinigung überlässt Qt-Popups und
+Tooltips ihrem Besitzer. Eine unabhängige Gegenprüfung bestätigt Ursache und
+private A/B-Reproduktion; Starttests prüfen die tatsächliche Freigabe von Notes,
+Editor und QCompleter nach dem Ereigniszyklus. Keine ToolbarStyle-Änderung nötig.
+
+Sieben Notes-Prüfungen und beide echten Starttests bestanden im privaten Profil;
+zusätzlicher vollständiger Anwendungsschluss mit dem aktuellen Runtime-Mischstand
+endet mit Status0. Sieben echte Aufnahmen über vier Größen und vier Themes zeigen
+je eine Kopfaktion, ohne zusätzlichen Scrollbar-Abstand. Server und Mobile bleiben
+unverändert. Belege und begrenzter Installer/Rückweg:
+`~/.local/state/lumen/notes-header-controls-20261019/`.
+Die Runtime-Fassung von app.py enthält ausschließlich den Bereinigungsfix auf der
+aktuellen installierten Basis; noch nicht installierte Files-Quelländerungen werden
+nicht mit übernommen. Persönliche Fenster und Notizbücher sind keine Testprofile.

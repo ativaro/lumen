@@ -139,6 +139,30 @@ class NotesWebTest(unittest.TestCase):
         QTest.mouseClick(w.notes_settings,Qt.LeftButton);QTest.qWait(50)
         self.assertTrue(w.notebook_menu.isVisible());w.notebook_menu.close()
 
+    def test_note_switch_keeps_single_header_controls(self):
+        w=self.w;w.resize(1280,800);w.activateWindow();w.notes_web.setFocus();QTest.qWait(100)
+        for note in (self.second,self.first)*4:
+            self.js("(()=>{document.querySelector('.desktop-tag-entry summary').click();return true;})()")
+            self.assertTrue(self.js("document.querySelector('.desktop-tag-entry').open"))
+            self.wait(lambda:not self.js("document.querySelector('button.knowledge-more').disabled"))
+            self.js("(()=>{document.querySelector('button.knowledge-more').click();return true;})()")
+            self.assertFalse(self.js("document.querySelector('.desktop-tag-entry').open"))
+            self.wait(lambda:w.notes_more_menu.isVisible())
+            self.assertIn('Frühere Fassungen …',[action.text() for action in w.notes_more_menu.actions()])
+            QTest.keyClick(w.notes_more_menu,Qt.Key_Escape)
+            self.wait(lambda:not w.notes_more_menu.isVisible())
+            point=json.loads(self.js("JSON.stringify((()=>{const row=[...document.querySelectorAll('.doc-row')].find(row=>row.querySelector('strong')?.textContent==="+json.dumps(note['title'])+");const r=row.getBoundingClientRect();return [Math.round(r.left+8),Math.round(r.top+8)];})())"))
+            QTest.mouseClick(w.notes_web.focusProxy() or w.notes_web,Qt.LeftButton,pos=QPoint(*point))
+            self.wait(lambda:self.js("document.querySelector('.title-input').value")==note['title'])
+            self.assertEqual(self.js("document.querySelectorAll('.desktop-tag-entry').length"),1)
+            self.assertEqual(self.js("document.querySelectorAll('.knowledge-more').length"),1)
+            self.assertFalse(self.js("document.querySelector('.desktop-tag-entry').open"))
+            self.assertFalse(w.notes_more_menu.isVisible())
+        with patch.object(w, 'history') as history:
+            w.notes_more_menu.actions()[1].trigger()
+            self.wait(lambda: history.called)
+        self.assertTrue(w.notes_web.isVisible())
+
     def test_web_editor_tables_tags_save_and_responsive_layout(self):
         w=self.w
         self.assertNotIn('**',self.js("document.querySelector('[contenteditable]').innerText"))

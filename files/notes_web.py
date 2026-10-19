@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 from PySide6.QtCore import QObject, Signal, Slot, QTimer, QUrl, Qt
-from PySide6.QtWidgets import QApplication, QStackedWidget, QWidget, QVBoxLayout, QPushButton
+from PySide6.QtWidgets import QApplication, QStackedWidget, QWidget, QVBoxLayout, QPushButton, QMenu
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineSettings, QWebEngineUrlRequestInterceptor, QWebEngineUrlRequestInfo
@@ -132,8 +132,8 @@ class Bridge(QObject):
             elif action == 'open':
                 if value.get('id') in w.notes: w.open_note(value['id'])
             elif action == 'more_notes': self.limit += 100
-            elif action in ('settings', 'more'):
-                menu=w.notebook_menu if action=='settings' else w.more_button.menu()
+            elif action in ('settings', 'more', 'header_more'):
+                menu = w.notebook_menu if action == 'settings' else w.notes_more_menu if action == 'header_more' else w.more_button.menu()
                 w.rich_editor.load_source()
                 menu.popup(w.notes_web.mapToGlobal(w.notes_web.rect().center()))
             elif action == 'daily':
@@ -185,8 +185,14 @@ def install(window):
     def section(index):
         stack.setCurrentWidget(web if index==0 and w.area=='user' else native)
     w.tabs.currentChanged.connect(section)
+    # Notebook jobs disable the hidden panels; their popup menus must stay independent.
     for menu in (w.notebook_menu,w.more_button.menu()):
+        menu.setParent(w,menu.windowFlags())
         menu.triggered.connect(lambda *_: (w.rich_editor.load_source(),stack.setCurrentWidget(native)))
+    w.notes_more_menu = QMenu(w)
+    for title, action in (('Weitere Werkzeuge', 'more'), ('Frühere Fassungen …', 'history'), ('Notiz entfernen …', 'archive')):
+        w.notes_more_menu.addAction(tr(title)).triggered.connect(
+            lambda checked=False, action=action: QTimer.singleShot(0, w, lambda: bridge.command(json.dumps({'action': action}))))
     timer = QTimer(w); timer.setInterval(150); timer.timeout.connect(bridge.publish); timer.start()
     # Keep every QObject alive for the page's lifetime; profile must outlive the page.
     w.notes_web_objects = (bridge, channel, profile, interceptor, page, stack, timer)

@@ -23,6 +23,7 @@ def observed_exec(self):
             self.exit(7)
             return
         window = windows[0]
+        self._start_test_window = window
         if os.environ['LUMEN_START_TEST'] == 'notes':
             def rendered(value):
                 if value:
@@ -31,14 +32,20 @@ def observed_exec(self):
                     QTimer.singleShot(0, lambda: close(window))
                 else:
                     self.exit(8)
-            window.notes_web.page().runJavaScript("!!document.querySelector('.desktop-app-header')", rendered)
+            window.notes_web.page().runJavaScript("!!document.querySelector('.desktop-notes')", rendered)
         else:
             window.select('backups')
             assert window.tabs.currentWidget() is window.backups
             print('LUMEN_START_READY', flush=True)
             QTimer.singleShot(0, lambda: close(window))
     QTimer.singleShot(1500, ready)
-    return original()
+    code = original()
+    if os.environ['LUMEN_START_TEST'] == 'notes':
+        from shiboken6 import isValid
+        window = self._start_test_window
+        assert not any(isValid(obj) for obj in (window, window.editor, window.editor.completion.popup))
+        print('LUMEN_START_DESTROYED', flush=True)
+    return code
 
 QApplication.exec = observed_exec
 '''
@@ -65,6 +72,7 @@ class AppLaunchTest(unittest.TestCase):
                 self.fail('Launcher did not finish: '+error.decode(errors='replace')[-1500:])
             self.assertEqual(proc.returncode, 0, (out+error).decode(errors='replace')[-4000:])
             self.assertIn(b'LUMEN_START_READY', out)
+            if kind == 'notes': self.assertIn(b'LUMEN_START_DESTROYED', out)
 
     def test_notes_launcher_renders_web_editor_and_closes(self):
         self.launch('lumen-wissen','notes')
