@@ -34,7 +34,9 @@ class CreationDialog(QDialog):
         edit=QWidget();layout=QVBoxLayout(edit);layout.setContentsMargins(0,0,0,0);layout.setSpacing(16);self.heading=self.header.title;self.subtitle=self.header.subtitle
         self.automation_title=label(tr('Unbenannte Automation'),'codeTitle');layout.addWidget(self.automation_title)
         self.rename_automation=button(tr('Umbenennen'),self.rename_sentence);self.header.actions.addWidget(self.rename_automation)
+        self.template_button=button(tr('Beschreibungs-Vorlage öffnen …'),self.import_description,'document-import');self.header.actions.addWidget(self.template_button)
         self.name_caption=label(tr('Name'));layout.addWidget(self.name_caption);self.name=QLineEdit();self.name.setAccessibleName(tr('Name'));self.name.setMaxLength(160);layout.addWidget(self.name)
+        self.name.textChanged.connect(self.automation_title.setText)
         project_row=QHBoxLayout();self.project=QComboBox();self.project.setAccessibleName(tr('Lumen-Projekt'));self.project.addItem(tr('Ohne Projekt'),'')
         for key,title in (projects or {}).items():self.project.addItem(title,key)
         project_row.addWidget(self.project,1);project_box=QWidget();project_box.setLayout(project_row);project_row.setContentsMargins(0,0,0,0);project_box.hide();project_toggle=button(tr('Zu einem Lumen-Projekt hinzufügen · optional'),lambda:project_box.setVisible(not project_box.isVisible()));project_toggle.setObjectName('codeLink');self.project_toggle=project_toggle;layout.addWidget(project_toggle);layout.addWidget(project_box)
@@ -51,6 +53,7 @@ class CreationDialog(QDialog):
                 scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setWidget(form);self.form_stack.addWidget(scroll)
         layout.addWidget(self.form_stack,1);self.flow_editor=self.forms['automation'];self.directory=self.forms['code'].directory
         self.error=label('','codeError');self.error.hide();layout.addWidget(self.error)
+        self.flow_editor.changed.connect(self.automation_changed)
         test_box=self.forms['tool'].test_box
         self.test_button=button(tr('Beispiel mit KI prüfen'),self.test_tool,primary=True);test_box.addWidget(self.test_button)
         self.test_status=label('','codeMuted');self.test_status.hide();test_box.addWidget(self.test_status)
@@ -103,12 +106,44 @@ class CreationDialog(QDialog):
         self.code_name_toggle.setVisible(self.kind=='code')
         self.name.setVisible(self.kind not in ('code','automation') or (self.kind=='code' and self.code_name_toggle.isChecked()));self.name_caption.setVisible(not self.name.isHidden())
         sentence=self.kind=='automation' and editing;self.automation_title.setVisible(sentence);self.automation_title.setText(self.name.text());self.rename_automation.setVisible(sentence);self.project_toggle.setVisible(self.kind!='automation')
+        self.template_button.setVisible(sentence)
         self.review_button.setText(tr('Speichern' if self.kind=='automation' else 'Weiter zur Prüfung'))
         self.footer.setText(tr('Meine Sammlung')+' / '+tr(KINDS[self.kind][0] if self.pages.currentIndex() in (1,2) else 'Neu erstellen'))
 
     def rename_sentence(self):
         title,ok=QInputDialog.getText(self,tr('Lumen · Automation umbenennen'),tr('Name'),text=self.name.text())
         if ok and title.strip():self.name.setText(title.strip()[:160]);self.automation_title.setText(self.name.text())
+
+    def automation_changed(self):
+        if self.kind!='automation' or self.error.isHidden():return
+        try:self.flow_editor.plan()
+        except ValueError as error:self.error.setText(tr(str(error)));return
+        self.error.clear();self.error.hide()
+
+    def load_description(self,value):
+        editor=self.flow_editor
+        if editor.locked or (editor.engine and editor.engine.busy):raise ValueError(tr('Den laufenden KI-Vorschlag zuerst abwarten.'))
+        source=json.loads(editor.items[0]['config']) if editor.version==3 else None
+        if len(editor.items)>1 or editor.gate_enabled or source!={'kind':'text','text':''} or editor.full_description.toPlainText() or editor.description.toPlainText() or self.name.text() not in ('',tr('Unbenannte Automation')):
+            if QMessageBox.question(self,tr('Lumen · Entwurf ersetzen'),tr('Den aktuellen Entwurf durch diese Beschreibung ersetzen? Aktionen, Quellen und bisherige Vorschläge werden verworfen.'),QMessageBox.Yes|QMessageBox.Cancel)!=QMessageBox.Yes:return False
+        self.select_kind('automation');self.name.setText(value['title']);self.automation_title.setText(value['title'])
+        self.project.setCurrentIndex(0);editor.set_plan();editor.description.clear();editor.proposal_condition=None;editor.accept_proposal.hide();editor.description_status.clear()
+        while editor.proposal_layout.count():editor.proposal_layout.takeAt(0).widget().deleteLater()
+        editor.full_candidate=None;editor.full_preview.clear();editor.full_accept.hide();editor.full_signature='';editor.full_text=''
+        editor.full_description.setPlainText(value['definition'].get('prompt',''));editor.full_status.setText(tr('Importierte Beschreibung · keine Strukturkopie, Quellenbindung oder Freigabe. Bearbeite sie oder lege die gewünschten Aktionen selbst an.'));editor.tabs.setCurrentIndex(2);return True
+
+    def import_description(self):
+        from PySide6.QtWidgets import QFileDialog
+        from code_library_contract import import_template
+        path,_=QFileDialog.getOpenFileName(self,tr('Lumen · Beschreibungs-Vorlage öffnen'),'','Lumen (*.json)')
+        if not path:return
+        try:
+            source=Path(path)
+            if source.stat().st_size>2000000:raise ValueError(tr('Vorlage ist zu groß.'))
+            value=import_template(source.read_text(encoding='utf-8'))
+            if value['kind']!='automation':raise ValueError(tr('Eine Vorlage für Automation wählen.'))
+            self.load_description(value)
+        except (ValueError,OSError) as error:self.error.setText(tr(str(error)));self.error.show()
 
     def back(self):self.capture();self.pages.setCurrentIndex(0)
 

@@ -36,11 +36,12 @@ class BlocksUITest(unittest.TestCase):
     def test_editor_keyboard_structure_and_creation(self):
         editor=SectionsEditor(plan=dict(version=2,nodes=[node('manual'),node('ai','Prüfen')]))
         self.addCleanup(self.dispose,editor);editor.resize(950,580);editor.show();QTest.qWait(20)
-        editor.select_entry(editor.items[1]['id']);title=next(w for w in editor.findChildren(QLineEdit) if w.accessibleName()=='Bezeichnung');title.setFocus();title.selectAll();QTest.keyClicks(title,'Dokument verstehen')
+        editor.select_entry(editor.items[1]['id']);QTest.qWait(20);title=next(w for w in editor.findChildren(QLineEdit) if w.accessibleName()=='Bezeichnung');title.setFocus();title.selectAll();QTest.keyClicks(title,'Dokument verstehen')
         self.assertEqual(editor.plan()['nodes'][1]['title'],'Dokument verstehen');self.assertTrue(title.hasFocus());self.assertEqual(editor.plan()['version'],2)
         editor.set_locked(True);self.assertTrue(title.isReadOnly())
         from code_creation import CreationDialog
-        dialog=CreationDialog();self.addCleanup(self.dispose,dialog);dialog.select_kind('automation');dialog.review()
+        dialog=CreationDialog();self.addCleanup(self.dispose,dialog);dialog.select_kind('automation');dialog.review();self.assertIsNone(dialog.value)
+        dialog.flow_editor.choose_action('notify',dialog.flow_editor.items,0);dialog.flow_editor.dialog_apply.click();dialog.review()
         self.assertEqual(dialog.value['kind'],'automation');self.assertEqual(__import__('json').loads(dialog.value['definition']['flow'])['version'],3)
 
     def test_real_test_pause_approval_from_other_selection_and_reopen(self):
@@ -55,7 +56,7 @@ class BlocksUITest(unittest.TestCase):
                 QTest.qWait(10);time.sleep(.005)
                 if window.run['status']=='waiting':break
             self.assertEqual(window.run['status'],'waiting');self.assertTrue(window.approve_button.isVisible())
-            window.editor.select_entry('input');window.approve()
+            window.editor.select_entry('input');window.editor.dialog.reject();window.approve()
             for _ in range(100):
                 QTest.qWait(10);time.sleep(.005)
                 if window.run['status']=='completed' and not window.job:break
@@ -92,8 +93,8 @@ class BlocksUITest(unittest.TestCase):
             collection=Collection(Store(Path(tmp)/'state'))
             entry=collection.create('automation','Prüfen',value={'flow':encode(dict(version=2,nodes=[node('manual'),node('read_file',str(source)),node('notify')]))})
             window=BlockWindow(collection,entry['id']);self.addCleanup(self.dispose,window);window.show()
-            window.editor.select_entry(window.editor.items[1]['id']);title=next(w for w in window.editor.findChildren(QLineEdit) if w.accessibleName()=='Bezeichnung');title.setFocus();title.selectAll();QTest.keyClicks(title,'Lesen')
-            self.assertEqual(title.text(),'Lesen');self.assertTrue(window.dirty);window.save()
+            window.editor.select_entry(window.editor.items[1]['id']);QTest.qWait(20);title=next(w for w in window.editor.findChildren(QLineEdit) if w.accessibleName()=='Bezeichnung');title.setFocus();title.selectAll();QTest.keyClicks(title,'Lesen')
+            self.assertEqual(title.text(),'Lesen');self.assertFalse(window.dirty);window.editor.dialog_apply.click();self.assertTrue(window.dirty);window.save()
             with patch('code_blocks_window.QMessageBox.question',return_value=QMessageBox.Yes):window.start(True)
             window.pause()
             for _ in range(100):
@@ -130,11 +131,20 @@ class BlocksUITest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             window=CollectionWindow(Store(tmp));self.addCleanup(self.dispose,window)
             entry=window.collection.create('automation','Metadaten',value={'flow':encode(dict(version=2,nodes=[node('manual'),node('approval')]))})
-            window.open_entry(entry['id'],blocks=False);self.assertTrue(window.prompt.isReadOnly())
-            window.title.setText('Eigener Name');window.save();self.assertEqual(window.collection.get(entry['id'])['title'],'Eigener Name')
+            with patch('code_blocks_window.BlockWindow.exec',return_value=0) as opened:
+                window.open_entry(entry['id'],blocks=False);self.assertTrue(opened.called)
+            for child in window.findChildren(BlockWindow):child.reject()
+            editor=BlockWindow(window.collection,entry['id']);self.addCleanup(self.dispose,editor)
+            editor.title_edit.setText('Eigener Name');editor.save();self.assertEqual(window.collection.get(entry['id'])['title'],'Eigener Name')
+            window.current=window.collection.get(entry['id'])
             with patch('code_blocks_window.BlockWindow.exec',return_value=0) as opened:
                 window.execute();self.assertTrue(opened.called);self.assertFalse(window.store.tasks())
-            window.toggle_favorite();self.assertTrue(window.current['favorite']);window.toggle_archive();self.assertTrue(window.collection.get(entry['id'])['archived'])
+                window.toggle_favorite();self.assertTrue(window.current['favorite'])
+            for child in window.findChildren(BlockWindow):
+                if child is not editor:child.reject()
+            editor.item=window.collection.get(entry['id'])
+            with patch('code_blocks_window.QMessageBox.question',return_value=QMessageBox.Yes):editor.archive()
+            self.assertTrue(window.collection.get(entry['id'])['archived'])
             legacy=FlowEditor();self.addCleanup(self.dispose,legacy);legacy.show();legacy.trigger.setCurrentIndex(1)
             self.assertTrue(legacy.watch_row.isVisible());self.assertFalse(legacy.minutes.isVisible())
 

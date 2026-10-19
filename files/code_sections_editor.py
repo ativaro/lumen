@@ -51,6 +51,7 @@ class SentenceEditor(QWidget):
         full.addWidget(label(tr('Den ganzen Ablauf beschreiben'),'codeCardTitle'))
         self.full_description=QPlainTextEdit();self.full_description.setAccessibleName(tr('Ablaufbeschreibung'));full.addWidget(self.full_description)
         self.full_button=button(tr('Ablauf vorschlagen'),self.describe_flow,primary=True);full.addWidget(self.full_button)
+        full.addWidget(button(tr('Als eigene KI-Aktion bearbeiten'),self.description_as_action,'tools-wizard'))
         self.full_status=label('','codeMuted');full.addWidget(self.full_status);self.full_preview=QPlainTextEdit();self.full_preview.setReadOnly(True);self.full_preview.setMaximumHeight(220);self.full_preview.setAccessibleName(tr('Vorgeschlagener Ablauf'));full.addWidget(self.full_preview);self.full_accept=button(tr('Vorschlag übernehmen'),self.accept_flow);self.full_accept.hide();full.addWidget(self.full_accept);full.addStretch()
         whole_scroll=QScrollArea();whole_scroll.setWidgetResizable(True);whole_scroll.setWidget(whole);self.tabs.addTab(whole_scroll,tr('Ablauf beschreiben'));self.set_plan(plan)
 
@@ -72,7 +73,7 @@ class SentenceEditor(QWidget):
         self.sync();items=list(self.items)
         if self.gate_enabled and self.gate:items.insert(1,self.gate)
         result=flatten(items) if self.version==3 else json.loads(json.dumps(dict(version=2,nodes=items)))
-        if validate and len(result['nodes'])<2:raise ValueError(tr('Füge mindestens eine Aktion hinzu.'))
+        if validate and len(self.items)<2:raise ValueError(tr('Füge mindestens eine Aktion hinzu.'))
         return parse(result) if validate else result
 
     def emit_change(self,*_):
@@ -127,6 +128,7 @@ class SentenceEditor(QWidget):
 
     def refresh(self,*_):
         if self.routine:return self.refresh_routine()
+        if self.selected not in ('input','gate') and not self.find_step(self.selected):self.selected='input'
         self.getters=[];self.summaries={}
         body=QWidget();box=QVBoxLayout(body);box.setContentsMargins(0,16,0,16);box.setSpacing(16)
         if len(self.items)==1:
@@ -157,8 +159,9 @@ class SentenceEditor(QWidget):
                 from code_sentence_ui import ACTIONS
                 parts=[(tr(ACTIONS.get(n['kind'],n['title'])),n['id'],n['kind'])]
                 detail=self.projects.get(n['config'],n['config']) if n['kind'] in ('read_file','save_file','project_note') else n['title'] if n['kind']=='notify' and n['title']!=tr(CATALOG['notify'][1]) else n['config'] if n['kind'] in ('ai','ai_check','save_note','create_task','filter_text','delay') else ''
+                if n['kind']=='delay':detail=tr('{0} Sekunden',detail)
                 if detail:
-                    preposition=tr({'read_file':'aus','save_file':'in','project_note':'im Projekt','notify':'mit Titel','save_note':'mit Titel','create_task':'mit Titel'}.get(n['kind'],'mit'))
+                    preposition=tr({'read_file':'aus','save_file':'in','project_note':'im Projekt','notify':'mit Titel','save_note':'mit Titel','create_task':'mit Titel','delay':'für'}.get(n['kind'],'mit'))
                     parts.extend([(preposition,None,None),(detail,n['id'],n['kind'])])
                 line(tr('und danach') if i or depth else '',parts,'.' if n is steps[-1] else '')
                 if n['kind']=='for_each':actions(n['steps'],depth+1,0)
@@ -174,9 +177,7 @@ class SentenceEditor(QWidget):
         controls=QHBoxLayout();controls.setSpacing(8);box.addLayout(controls)
         self.add_action_button=button(tr('Erste Aktion auswählen' if len(self.items)==1 else 'Aktion ergänzen'),self.pick_action,'list-add',len(self.items)==1);controls.addWidget(self.add_action_button)
         self.condition_button=button(tr('Bedingungen ändern' if self.gate_enabled else 'Nur wenn …'),self.edit_gate,'view-filter');self.condition_button.setVisible(self.version==3);controls.addWidget(self.condition_button);controls.addStretch()
-        helpers=QHBoxLayout();box.addLayout(helpers)
-        helpers.addWidget(button(tr('Ablauf in Worten beschreiben'),lambda:self.tabs.setCurrentIndex(2),'tools-wizard'))
-        helpers.addStretch()
+        controls.insertWidget(2,button(tr('Ablauf in Worten beschreiben'),lambda:self.tabs.setCurrentIndex(2),'tools-wizard'))
         box.addWidget(label(tr('Jeder hervorgehobene Satzteil ist bearbeitbar. Eine einzelne Aktion reicht; ein Zeitplan und Bedingungen sind optional.'),'codeMuted'))
         self.state=label('','codeMuted');box.addWidget(self.state);box.addStretch();self.scroll.setWidget(body)
         if self.dialog is not None:self.render_dialog()
@@ -228,7 +229,10 @@ class SentenceEditor(QWidget):
     def accept_detail(self):
         try:
             self.sync()
-            if len(self.plan(False)['nodes'])>1:self.plan()
+            if len(self.items)>1:self.plan()
+            elif self.version==3:
+                from code_block_paths import source
+                source(config(self.items[0]))
             self.dialog.accept()
         except ValueError as error:self.dialog_error.setText(tr(str(error)))
 
@@ -284,7 +288,7 @@ class SentenceEditor(QWidget):
         choices.addStretch();box.addWidget(button(tr('Abbrechen'),self.picker.reject));self.picker.open();search.setFocus()
 
     def choose_action(self,value,steps,depth):
-        self.picker.accept();self.picker.deleteLater();self.picker=None
+        if self.picker:self.picker.accept();self.picker.deleteLater();self.picker=None
         if self.dialog is None:self.open_detail('input')
         def append():
             if len(self.plan(False)['nodes'])>=(52 if self.version==3 else 14):raise ValueError(tr('Der Ablauf hat zu viele Aktionen.'))
@@ -295,6 +299,14 @@ class SentenceEditor(QWidget):
             if n['kind']=='choose':n.update(cases=[{'when':{'field':'text','op':'exists','value':True},'steps':[]}],otherwise=[])
             steps.append(n);self.selected=n['id']
         self.mutate(append)
+
+    def description_as_action(self):
+        text=self.full_description.toPlainText().strip()
+        if not text or len(text)>8000:self.full_status.setText(tr('Bitte den Ablauf in höchstens 8.000 Zeichen beschreiben.'));return
+        if self.locked:return
+        self.choose_action('ai',self.items,0)
+        found=self.find_step(self.selected)
+        if found:found[0]['config']=text;self.render_dialog();self.tabs.setCurrentIndex(0)
 
     def refresh_routine(self,*_):
         if self.selected not in ('input','gate') and not self.find_step(self.selected):self.selected='input'
@@ -439,12 +451,18 @@ class SentenceEditor(QWidget):
             more=button(tr('Mehr'),lambda:None,'view-more-symbolic');menu=QMenu(more);more.setMenu(menu)
             up=menu.addAction(tr('Nach oben'),lambda:self.mutate(lambda:steps.insert(index-1,steps.pop(index))));up.setEnabled(index>start)
             down=menu.addAction(tr('Nach unten'),lambda:self.mutate(lambda:steps.insert(index+1,steps.pop(index))));down.setEnabled(index<len(steps)-1)
-            menu.addSeparator();menu.addAction(tr('Aktion entfernen'),lambda:self.mutate(lambda:steps.remove(n)))
+            menu.addSeparator();menu.addAction(tr('Aktion entfernen'),lambda:self.remove_action(n,steps))
             box.addWidget(more,0,Qt.AlignLeft);return
         actions=QHBoxLayout();box.addLayout(actions)
         up=button(tr('Nach oben'),lambda:self.mutate(lambda:steps.insert(index-1,steps.pop(index))));up.setEnabled(index>start);actions.addWidget(up)
         down=button(tr('Nach unten'),lambda:self.mutate(lambda:steps.insert(index+1,steps.pop(index))));down.setEnabled(index<len(steps)-1);actions.addWidget(down)
-        remove=button(tr('Entfernen'),lambda:self.mutate(lambda:steps.remove(n)));remove.setEnabled(not self.locked);box.addWidget(remove)
+        remove=button(tr('Entfernen'),lambda:self.mutate(lambda:steps.remove(n)));remove.setEnabled(len(self.plan(False)['nodes'])>2);box.addWidget(remove)
+
+    def remove_action(self,n,steps):
+        if self.locked:return
+        self.sync();steps.remove(n);self.selected='input'
+        if self.dialog is not None:self.accept_detail()
+        else:self.refresh();self.changed.emit()
 
     def add_actions(self,steps,box,depth):
         add=QComboBox();add.setAccessibleName(tr('Aktion hinzufügen'));add.addItem(tr('+ Aktion hinzufügen'),'')
@@ -493,6 +511,7 @@ class SentenceEditor(QWidget):
 
     def set_locked(self,locked):
         self.locked=locked;self.apply_lock();self.description.setEnabled(not locked);self.describe_button.setEnabled(not locked);self.full_button.setEnabled(not locked);self.full_description.setEnabled(not locked)
+        if self.dialog is not None:self.dialog_apply.setEnabled(not locked)
 
     def apply_lock(self):
         body=self.scroll.widget()
@@ -549,8 +568,8 @@ class SentenceEditor(QWidget):
         try:
             if not self.full_description.toPlainText().strip() or len(self.full_description.toPlainText())>8000:raise ValueError(tr('Bitte den Ablauf in höchstens 8.000 Zeichen beschreiben.'))
             prompt=proposal(self.full_description.toPlainText()) if self.version==3 else 'Antworte nur mit JSON {"nodes":[{"kind":"manual","title":"Start","config":""}, ...]}. Zwei bis vierzehn Schritte. Typen: '+', '.join(sorted(LEGACY_KINDS))+'. config nur für ai als Auftrag, alle Pfade leer. Keine Aktionen ausführen. Beschreibung: '+self.full_description.toPlainText()
-            self.full_signature=json.dumps(self.plan(False),sort_keys=True);self.full_text=self.full_description.toPlainText()
             if QMessageBox.question(self,tr('Lumen · Ablauf vorschlagen'),tr('Beschreibung an die eingerichtete KI senden? Quellen und Ziele werden nicht übertragen. Übernahme erst nach deiner Prüfung.'))!=QMessageBox.Yes:return
+            self.full_signature=json.dumps(self.plan(False),sort_keys=True);self.full_text=self.full_description.toPlainText()
             if self.full_engine is None:
                 from assistant_backend import OpenCodeBackend
                 self.full_directory=tempfile.TemporaryDirectory(prefix='lumen-flow-design-');self.full_engine=OpenCodeBackend(Path(self.full_directory.name),self,project_config=False);self.full_engine.completed.connect(self.flow_described)

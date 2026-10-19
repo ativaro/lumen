@@ -62,9 +62,11 @@ class UnifiedEditorTest(unittest.TestCase):
         w.select_entry(one['id']);edit=next(x for x in w.findChildren(QLineEdit) if x.accessibleName()=='Bezeichnung');edit.textEdited.emit('Changed')
         self.assertEqual(w.plan()['nodes'][2]['title'],'Changed')
         from PySide6.QtWidgets import QPushButton
-        next(b for b in w.inspector.findChildren(QPushButton) if b.text()=='Nach unten').click()
+        menu=next(b.menu() for b in w.inspector.findChildren(QPushButton) if b.text()=='Mehr')
+        next(a for a in menu.actions() if a.text()=='Nach unten').trigger()
         self.assertEqual(w.items[1]['cases'][0]['steps'][1]['id'],one['id'])
-        next(b for b in w.inspector.findChildren(QPushButton) if b.text()=='Entfernen').click()
+        menu=next(b.menu() for b in w.inspector.findChildren(QPushButton) if b.text()=='Mehr')
+        next(a for a in menu.actions() if a.text()=='Aktion entfernen').trigger()
         self.assertEqual(len(w.items[1]['cases'][0]['steps']),1)
         self.assertEqual(w.selected,'input');self.assertTrue(w.summaries['input'][0].isChecked())
         w.select_entry(branch['id']);add=next(x for x in w.inspector.findChildren(QComboBox) if x.accessibleName()=='Aktion hinzufügen');i=add.findData('notify');add.setCurrentIndex(i);add.activated.emit(i)

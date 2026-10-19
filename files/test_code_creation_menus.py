@@ -49,8 +49,8 @@ class CreationMenus(unittest.TestCase):
                 if kind=='code':self.assertFalse(d.name.isVisible())
                 if kind=='tool':self.assertTrue(d.forms[kind].example.isVisible());self.assertTrue(d.test_result.isVisible())
                 if kind=='automation':
-                    editor=d.flow_editor;plan=editor.plan()
-                    editor.add_gate();plan=editor.plan();link=next(w for w in editor.findChildren(QPushButton) if w.text()=='Bedingung in Worten beschreiben')
+                    from code_block_paths import starter
+                    editor=d.flow_editor;editor.set_plan(starter());editor.edit_gate();editor.dialog_apply.click();plan=editor.plan();editor.open_detail('gate');link=next(w for w in editor.findChildren(QPushButton) if w.text()=='Bedingung in Worten beschreiben')
                     link.click();self.assertEqual(editor.tabs.currentIndex(),1)
                     back=next(w for w in editor.tabs.currentWidget().findChildren(QPushButton) if w.text()=='‹ Zurück zum Ablauf')
                     back.click();self.assertEqual(editor.tabs.currentIndex(),0);self.assertEqual(editor.plan(),plan)
@@ -102,7 +102,7 @@ class CreationMenus(unittest.TestCase):
     def test_source_fields_are_dynamic_and_old_conditions_fail_closed(self):
         from code_sections_editor import SectionsEditor
         from code_blocks import node
-        editor=SectionsEditor();self.addCleanup(self.dispose,editor)
+        editor=SectionsEditor();self.addCleanup(self.dispose,editor);editor.items.append(node('notify'))
         editor.gate_enabled=True;editor.gate=node('condition',json.dumps({'field':'sender','op':'contains','value':'team'}));editor.refresh()
         with self.assertRaises(ValueError):editor.plan()
         editor.items[0]['config']=json.dumps({'kind':'message','text':'Hello','sender':'team@example.test'});editor.select_entry('gate');self.assertEqual(editor.plan()['version'],3)
@@ -132,7 +132,10 @@ class CreationMenus(unittest.TestCase):
         editor=SectionsEditor();self.addCleanup(self.dispose,editor);editor.proposal_fields={'text'};editor.proposal_source='text';editor.proposal_text='Nur Rechnungen';editor.description.setPlainText(editor.proposal_text)
         editor.described(True,json.dumps({'condition':{'field':'text','op':'contains','value':'Rechnung'},'explanation':'Nur Rechnungstext'}))
         self.assertFalse(editor.gate_enabled);editor.description.setPlainText('Geändert');editor.accept_condition();self.assertFalse(editor.gate_enabled)
-        editor.description.setPlainText(editor.proposal_text);editor.accept_condition();self.assertTrue(editor.gate_enabled);editor.plan()
+        editor.description.setPlainText(editor.proposal_text);editor.accept_condition();self.assertTrue(editor.gate_enabled)
+        with self.assertRaises(ValueError):editor.plan()
+        from code_blocks import node
+        editor.items.append(node('notify'));editor.plan()
 
     def test_editors_preserve_condition_signature_before_user_changes(self):
         from code_conditions import describe
@@ -151,11 +154,13 @@ class CreationMenus(unittest.TestCase):
         from PySide6.QtWidgets import QPushButton,QPlainTextEdit
         editor=SectionsEditor();self.addCleanup(self.dispose,editor)
         editor.items[0]['config']=json.dumps({'kind':'file','path':'/synthetic/input.txt'});editor.refresh()
+        editor.open_detail('input')
         path=next(w for w in editor.findChildren(QLineEdit) if w.accessibleName()=='Quelldatei')
         self.assertTrue(path.isReadOnly());editor.set_locked(True);editor.refresh()
-        folds=[w for w in editor.findChildren(QPushButton) if w.objectName()=='codeFlowRow']
+        folds=[w for w in editor.findChildren(QPushButton) if w.objectName()=='sentencePart']
         self.assertTrue(all(w.isEnabled() for w in folds))
-        self.assertTrue(all(not w.isEnabled() for w in editor.scroll.widget().findChildren(QComboBox)))
+        self.assertTrue(all(not w.isEnabled() for w in editor.inspector.findChildren(QComboBox)))
+        self.assertFalse(editor.dialog_apply.isEnabled())
         editor.set_locked(False);editor.refresh()
         path=next(w for w in editor.findChildren(QLineEdit) if w.accessibleName()=='Quelldatei');self.assertTrue(path.isReadOnly())
 

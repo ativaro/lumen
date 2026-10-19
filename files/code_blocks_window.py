@@ -3,13 +3,35 @@ import os
 import json
 from html import escape
 from pathlib import Path
-from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QMessageBox,QTabWidget,QWidget,QTextBrowser,QLineEdit
+from PySide6.QtCore import QTimer,Qt
+from PySide6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QMessageBox,QTabWidget,QWidget,QTextBrowser,QLineEdit,QMenu,QInputDialog,QFileDialog,QPlainTextEdit,QComboBox,QListWidget,QListWidgetItem,QCheckBox
 from tools_ui import button,label
 from lumen_i18n import tr
 from code_blocks import encode,permissions
 from code_blocks_run import Runs,digest
 from code_blocks import STATES
+
+
+def step_result(n,step,technical=False):
+    parts=['<h3>'+escape(n['title'])+' · '+escape(tr(STATES.get(step['status'],step['status'])))+'</h3>']
+    def line(text):
+        if text:parts.append('<p>'+escape(str(text)).replace('\n','<br>')+'</p>')
+    if n['kind']=='read_file':line(tr('Quelldatei: {0}',n['config']))
+    if step.get('error'):line(tr(step['error']))
+    output=step.get('output') or {}
+    if isinstance(output,dict):
+        line(output.get('text',''))
+        if n['kind']=='ai_check' and type(output.get('matched')) is bool:line(tr('Prüfung erfüllt.' if output['matched'] else 'Prüfung nicht erfüllt.'))
+        if n['kind']=='condition' and type(output.get('condition')) is bool:line(tr('Bedingung erfüllt.' if output['condition'] else 'Bedingung nicht erfüllt.'))
+        if n['kind'] in ('choose','if_pdf'):line(output.get('branch',''))
+        if n['kind']=='approval' and output.get('approval'):line(tr('Freigabe bestätigt.'))
+        effect=output.get('effect') or {}
+        if isinstance(effect,dict):
+            if effect.get('test'):line(tr('Testausgabe im privaten Ordner gespeichert.'))
+            elif n['kind'] in ('save_note','create_task','project_note','notify') and effect:line(tr({'save_note':'Notiz in Lumen Notes gespeichert.','create_task':'Aufgabe in Lumen Inbox erstellt.','project_note':'Projektnotiz ergänzt.','notify':'Benachrichtigung erstellt.'}[n['kind']]))
+            if effect.get('path') and not effect.get('test'):line(tr('Datei: {0}',effect['path']))
+    if technical:parts.append('<pre>'+escape(json.dumps({k:step.get(k) for k in ('input','output','error')},ensure_ascii=False,indent=2))+'</pre>')
+    return ''.join(parts)
 
 
 class BlockWindow(QDialog):
@@ -21,8 +43,9 @@ class BlockWindow(QDialog):
         main,self.header,self.footer=editor_shell(self,tr('Lumen Routine' if self.item['definition'].get('editor')=='routine' else 'Lumen Automation'),tr('Feste Schritte, Quellen und Zeitplan zusammenstellen.') if self.item['definition'].get('editor')=='routine' else tr('Auslöser, optionale Bedingungen und Aktionen.'))
         root=QVBoxLayout(main);root.setContentsMargins(0,0,0,0);root.setSpacing(16)
         row=QHBoxLayout();row.addWidget(button(tr('‹ Zur Sammlung'),self.reject));
-        self.manage_button=button(tr('Eintrag verwalten'),self.manage) if parent is not None else None
-        if self.manage_button:row.addWidget(self.manage_button)
+        self.manage_button=button(tr('Mehr'),lambda:None,'view-more-symbolic');self.entry_menu=QMenu(self.manage_button);self.manage_button.setMenu(self.entry_menu);row.addWidget(self.manage_button)
+        for text,callback in [('Umbenennen',self.rename),('Beschreibung und Projekt',self.manage),('Duplizieren · inaktiv',self.duplicate),('Als portable Beschreibung speichern …',self.export_description),('Verlauf anzeigen',self.history),('Ins Archiv verschieben …',self.archive)]:self.entry_menu.addAction(tr(text),lambda _=False,f=callback:self.safe(f))
+        self.result_link=button(tr('Ergebnis ansehen'),lambda:self.views.setCurrentIndex(1));row.addWidget(self.result_link)
         row.addStretch();root.addLayout(row)
         self.title_edit=QLineEdit(self.item['title']);self.title_edit.setObjectName('codeFlowTitle');self.title_edit.setMaxLength(160);self.title_edit.setAccessibleName(tr('Name der Automation'));root.addWidget(self.title_edit)
         self.views=QTabWidget();self.views.setAccessibleName(tr('Automation'));root.addWidget(self.views,1)
@@ -39,6 +62,7 @@ class BlockWindow(QDialog):
         actions.addStretch()
         self.result_page=QWidget();results=QVBoxLayout(self.result_page);results.setContentsMargins(0,16,0,0);results.setSpacing(12);self.views.addTab(self.result_page,tr('Test && Ergebnis'))
         self.status=label('','codeMuted');results.addWidget(self.status)
+        self.technical_details=QCheckBox(tr('Technische Details'));self.technical_details.toggled.connect(self.render);results.addWidget(self.technical_details)
         self.result_view=QTextBrowser();self.result_view.setOpenExternalLinks(False);self.result_view.setAccessibleName(tr('Ergebnis des letzten Durchlaufs'));results.addWidget(self.result_view,1)
         row=QHBoxLayout();self.test_button=button(tr('Testlauf'),lambda:self.safe(self.start,True),'media-playback-start');actions.addWidget(self.test_button);actions.addWidget(self.activation_button);root.addLayout(actions)
         self.live_button=button(tr('Jetzt ausführen'),lambda:self.safe(self.start,False),primary=True);actions.addWidget(self.live_button);row.addStretch()
@@ -63,9 +87,83 @@ class BlockWindow(QDialog):
         if latest and (not self.run or latest['updated']!=self.run['updated'] or latest['id']!=self.run['id']):
             self.run=latest;self.render()
 
+    def ensure_saved(self):
+        if self.editor.dialog is not None:raise ValueError(tr('Den geöffneten Satzteil zuerst übernehmen oder abbrechen.'))
+        if self.dirty:self.save()
+
+    def rename(self):
+        self.ensure_saved()
+        title,ok=QInputDialog.getText(self,tr('Lumen · Automation umbenennen'),tr('Name'),text=self.item['title'])
+        if ok and title.strip():
+            self.title_edit.setText(title.strip());self.save()
+
     def manage(self):
-        parent=self.parent();self.reject()
-        if self.closed:parent.open_entry(self.identity,blocks=False)
+        self.ensure_saved()
+        dialog=QDialog(self);dialog.resize(650,520)
+        from code_design import editor_shell
+        main,header,_=editor_shell(dialog,tr('Lumen · Beschreibung und Projekt'),tr('Die Ablaufaktionen bleiben unverändert.'))
+        box=QVBoxLayout(main);box.setContentsMargins(0,0,0,0)
+        description=QPlainTextEdit(self.item['description']);description.setAccessibleName(tr('Beschreibung'));box.addWidget(label(tr('Beschreibung')));box.addWidget(description,1)
+        project=QComboBox();project.setAccessibleName(tr('Lumen-Projekt'));project.addItem(tr('Ohne Projekt'),'')
+        from tools_data import Library
+        for item in Library('workbench').all():
+            if item.get('kind')=='project':project.addItem(item['title'],item['id'])
+        if self.item['project_id'] and project.findData(self.item['project_id'])<0:project.addItem(tr('Bisherige Projektzuordnung'),self.item['project_id'])
+        project.setCurrentIndex(max(0,project.findData(self.item['project_id'])));box.addWidget(label(tr('Lumen-Projekt')));box.addWidget(project)
+        actions=QHBoxLayout();box.addLayout(actions);actions.addWidget(button(tr('Abbrechen'),dialog.reject));actions.addStretch();actions.addWidget(button(tr('Speichern'),dialog.accept,primary=True))
+        if dialog.exec()==QDialog.Accepted:self.item=self.collection.update(self.identity,self.item['revision'],description=description.toPlainText(),project_id=project.currentData());self.render()
+        dialog.deleteLater()
+
+    def duplicate(self):
+        self.ensure_saved()
+        value=dict(self.item['definition'])
+        for key in ('workflow_id','routine_id'):value.pop(key,None)
+        copied=self.collection.create('automation',(self.item['title'][:150]+' · '+tr('Kopie'))[:160],self.item['description'],value,self.item['project_id'])
+        self.item=copied;self.identity=copied['id'];self.run=None;self.dirty=False;self.last_state=None
+        self.title_edit.blockSignals(True);self.title_edit.setText(copied['title']);self.title_edit.blockSignals(False)
+        from code_flow import parse
+        self.editor.set_plan(parse(copied['definition']['flow']));self.setWindowTitle('Lumen · '+copied['title']);self.render();return copied
+
+    def export_description(self):
+        self.ensure_saved()
+        from code_library_contract import export_template
+        value=export_template(self.item);text=json.dumps(value,ensure_ascii=False,indent=2)
+        review=QMessageBox(self);review.setWindowTitle(tr('Lumen · Portable Beschreibung prüfen'));review.setText(tr('Diese Vorlage enthält die Beschreibung des Ablaufs, keine identische Strukturkopie, Quellenbindung, Freigaben oder Aktivierung. Inhalt vor dem Weitergeben prüfen.'));review.setDetailedText(text);review.setStandardButtons(QMessageBox.Save|QMessageBox.Cancel)
+        if review.exec()!=QMessageBox.Save:return
+        target,_=QFileDialog.getSaveFileName(self,tr('Lumen · Beschreibung speichern'),'automation.lumen.json','Lumen (*.lumen.json)')
+        if target:Path(target).write_text(text,encoding='utf-8')
+
+    def archive(self):
+        self.ensure_saved()
+        if QMessageBox.question(self,tr('Lumen · Automation archivieren'),tr('Künftige Starts stoppen und die Automation ins Archiv verschieben? Sie kann in der Sammlung wiederhergestellt werden. Frühere externe Wirkungen werden nicht rückgängig gemacht.'))!=QMessageBox.Yes:return
+        self.item=self.collection.update(self.identity,self.item['revision'],archived=True);self.reject()
+
+    def history(self):
+        self.ensure_saved()
+        dialog=QDialog(self);dialog.resize(850,640)
+        from code_design import editor_shell
+        main,header,_=editor_shell(dialog,tr('Lumen · Verlauf'),tr('Tatsächlich gespeicherte Testläufe und Ausführungen.'))
+        header.actions.addWidget(button(tr('Schließen'),dialog.accept));box=QVBoxLayout(main);box.setContentsMargins(0,0,0,0)
+        listing=QListWidget();listing.setAccessibleName(tr('Gespeicherte Durchläufe'));listing.setMaximumHeight(180);box.addWidget(listing)
+        technical=QCheckBox(tr('Technische Details'));header.actions.addWidget(technical)
+        details=QTextBrowser();details.setOpenExternalLinks(False);details.setAccessibleName(tr('Durchlaufdetails'));box.addWidget(details,1)
+        import time
+        with self.collection.store.connect() as db:rows=db.execute('SELECT id,testing,status,updated FROM code_block_runs WHERE entry=? ORDER BY updated DESC LIMIT 100',(self.identity,)).fetchall()
+        for run in rows:
+            entry=QListWidgetItem(time.strftime('%d.%m.%Y %H:%M',time.localtime(run['updated']))+' · '+tr('Testlauf' if run['testing'] else 'Ausführung')+' · '+tr(STATES.get(run['status'],run['status'])));entry.setData(Qt.UserRole,run['id']);listing.addItem(entry)
+        def selected(item,previous):
+            if item is None:return
+            run=self.runs.get(item.data(Qt.UserRole));parts=[]
+            if technical.isChecked():parts.append('<p>'+escape(tr('Gespeicherte Fassung · Kennung {0}',run['signature'][:12]))+'</p>')
+            if run['signature']!=digest(self.editor.plan()):parts.append('<p>'+escape(tr('Dieser Durchlauf gehört zu einer früheren Fassung.'))+'</p>')
+            for n,step in zip(run['plan']['nodes'],run['data']['steps']):parts.append(step_result(n,step,technical.isChecked()))
+            details.setHtml(''.join(parts))
+        listing.currentItemChanged.connect(selected)
+        technical.toggled.connect(lambda:selected(listing.currentItem(),None))
+        if rows:listing.setCurrentRow(0)
+        else:details.setPlainText(tr('Noch nichts ausgeführt. Tests und Durchläufe erscheinen hier nach dem Start.'))
+        dialog.exec();dialog.deleteLater()
+
 
     def safe(self,function,*args):
         try:return function(*args)
@@ -93,7 +191,7 @@ class BlockWindow(QDialog):
         if self.dirty:raise ValueError(tr('Änderungen zuerst als Entwurf speichern.'))
         if not self.passed_test():raise ValueError(tr('Den gespeicherten Ablauf zuerst erfolgreich testen.'))
         source=config(self.editor.plan()['nodes'][0]);trigger=source.get('trigger')
-        if not trigger:raise ValueError(tr('Unter Wenn zuerst einen automatischen Auslöser wählen.'))
+        if not trigger:raise ValueError(tr('Zuerst einen automatischen Auslöser wählen.'))
         from code_triggers import describe
         grants=[describe(source),*permissions(self.editor.plan())]
         if any(n['kind']=='save_note' for n in self.editor.plan()['nodes']):grants.append(tr('Notizordner: ')+self.collection.store.setting('knowledge/notebook',''))
@@ -215,11 +313,10 @@ class BlockWindow(QDialog):
         parts=['<h3>'+escape(tr('Letzter Testlauf' if self.run['testing'] else 'Letzter Durchlauf'))+'</h3>']
         if not same:parts.append('<p>'+escape(tr('Dieser Durchlauf gehört zu einem früheren Entwurf. Die aktuellen Änderungen wurden noch nicht getestet.'))+'</p>')
         elif self.run['testing'] and self.run['status']=='completed' and not self.passed_test():parts.append('<p>'+escape(tr('Keine Aktion ausgeführt. Vor der Aktivierung mit einer passenden Eingabe testen.'))+'</p>')
-        for n,step in zip(self.run['plan']['nodes'],self.run['data']['steps']):
-            parts.append('<p><b>'+escape(n['title'])+'</b> · '+escape(tr(STATES.get(step['status'],step['status'])))+'</p>')
-            result=step.get('error') or step.get('output') or {}
-            if isinstance(result,dict):result='\n'.join(str(v) for v in result.values() if v is not None)
-            if result:parts.append('<p>'+escape(str(result)).replace('\n','<br>')+'</p>')
+        steps=list(zip(self.run['plan']['nodes'],self.run['data']['steps']))
+        if self.run['status'] in ('error','waiting'):
+            cursor=self.run['data']['cursor'];steps.insert(0,steps.pop(cursor))
+        for n,step in steps:parts.append(step_result(n,step,self.technical_details.isChecked()))
         self.result_view.setHtml(''.join(parts))
 
     def render(self):
@@ -241,6 +338,7 @@ class BlockWindow(QDialog):
         if state in ('waiting','error') and state!=self.last_state:
             self.editor.focus_step(self.run['data']['cursor']) if hasattr(self.editor,'focus_step') else self.editor.list.setCurrentRow(self.run['data']['cursor'])
             if hasattr(self.editor,'io'):self.editor.io.setCurrentIndex(1)
+        self.result_link.setVisible(self.run is not None)
         self.render_result(same);self.last_state=state
         self.repair_button.setVisible(state=='error')
         if self.manage_button:self.manage_button.setEnabled(not active)
@@ -252,8 +350,8 @@ class BlockWindow(QDialog):
         else:
             completed=sum(s['status'] in ('completed','skipped') for s in self.run['data']['steps'])
             text=tr('Testlauf' if self.run['testing'] else 'Durchlauf')+' · '+tr(STATES.get(state,state))+' · '+f"{completed}/{len(self.run['plan']['nodes'])}"
-            if self.run['testing']:text+=' · '+str(self.collection.store.directory/'block-tests'/self.run['id'])
-            if state=='error':text+='\n'+self.run['data']['steps'][self.run['data']['cursor']]['error']
+            if self.run['testing'] and self.technical_details.isChecked():text+=' · '+str(self.collection.store.directory/'block-tests'/self.run['id'])
+            if state=='error':text+='\n'+tr('Fehler bei „{0}“.',self.run['plan']['nodes'][self.run['data']['cursor']]['title'])
             if state=='waiting':text+='\n'+tr('Ergebnis prüfen: Bestätigen setzt den wartenden Schritt fort, auch wenn du einen anderen betrachtest.')
             self.status.setText(text)
 
@@ -273,9 +371,13 @@ class BlockWindow(QDialog):
         if self.job or self.ai_wait:
             self.closing=True;self.pause();return
         if self.run and self.run['status']=='running':self.pause()
-        if self.dirty and QMessageBox.question(self,tr('Lumen · Entwurf speichern'),tr('Änderungen vor dem Schließen speichern?'))==QMessageBox.Yes:
-            try:self.save()
-            except Exception as error:self.status.setText(str(error));return
+        if self.editor.dialog is not None:self.editor.dialog.reject();return
+        if self.dirty:
+            choice=QMessageBox.question(self,tr('Lumen · Entwurf speichern'),tr('Änderungen vor dem Schließen speichern?'),QMessageBox.Save|QMessageBox.Discard|QMessageBox.Cancel)
+            if choice==QMessageBox.Cancel:return
+            if choice==QMessageBox.Save:
+                try:self.save()
+                except Exception as error:self.status.setText(str(error));return
         self.closed=True;self.refresh_timer.stop();self.release();self.editor.shutdown()
         if self.engine:self.engine.shutdown()
         super().reject()

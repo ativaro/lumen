@@ -48,14 +48,18 @@ class AutomationGeometry(unittest.TestCase):
 
     def test_long_actions_wrap_and_keep_room_before_the_scrollbar(self):
         w=self.show(BlockWindow(self.collection,self.entry['id']),1280,800)
-        self.assertGreaterEqual(w.editor.columns.contentsMargins().right(),8)
+        from code_sentence_ui import SentencePart
+        self.assertEqual(w.editor.scroll.horizontalScrollBar().maximum(),0)
         for control,caption,detail in w.editor.summaries.values():
-            self.assertGreaterEqual(control.height(),control.layout().totalHeightForWidth(control.width()))
+            self.assertGreaterEqual(control.height(),control.heightForWidth(control.width()))
             self.assertTrue(control.rect().contains(caption.geometry()))
             if detail.text():self.assertTrue(control.rect().contains(detail.geometry()))
-        picker=next(x for x in w.editor.findChildren(QComboBox) if x.accessibleName()=='Aktion hinzufügen')
-        tooltip=QTextDocument();tooltip.setHtml(picker.itemData(picker.count()-1,Qt.ToolTipRole))
-        self.assertEqual(tooltip.toPlainText(),'Werkzeug: '+self.tool['title'])
+        literal='Datei <Test & Prüfung>'
+        part=SentencePart(literal,lambda:None);tooltip=QTextDocument();tooltip.setHtml(part.toolTip())
+        self.assertEqual(tooltip.toPlainText(),literal);self.assertEqual(part.accessibleName(),literal)
+        w.editor.pick_action();self.addCleanup(w.editor.picker.reject)
+        picker=next(x for x in w.editor.picker.findChildren(QPushButton) if x.accessibleName()=='KI-Auftrag aus Werkzeug: '+self.tool['title'])
+        self.assertIn('kein Aufruf des Werkzeugs',picker.accessibleDescription())
 
     def test_dirty_and_result_footer_actions_keep_complete_labels(self):
         w=self.show(BlockWindow(self.collection,self.entry['id']))

@@ -1,4 +1,5 @@
 """Native wrapping sentence parts; no browser or second automation model."""
+from html import escape
 from PySide6.QtCore import Qt,QRect,QSize
 from PySide6.QtWidgets import QLayout,QPushButton,QLabel,QHBoxLayout,QSizePolicy
 from studio_design import icon,font
@@ -10,13 +11,13 @@ ICONS={'manual':'input-mouse','read_file':'document-open','filter_text':'view-fi
        'create_task':'view-task','project_note':'folder','notify':'notifications',
        'if_pdf':'view-process-tree','end_each':'view-list-details'}
 
-ACTIONS={'read_file':'eine Datei lesen','filter_text':'Textzeilen filtern',
+ACTIONS={'read_file':'eine Datei lesen','filter_text':'die Textzeilen filtern',
          'ai':'meinen Auftrag bearbeiten','ai_check':'einen Inhalt mit KI prüfen',
          'notify':'mich informieren','save_note':'eine Notiz in Lumen Notes speichern',
          'save_file':'eine Datei speichern','create_task':'eine Aufgabe in Lumen Inbox erstellen',
          'project_note':'eine Projektnotiz ergänzen','approval':'auf meine Bestätigung warten',
          'choose':'einen passenden Weg wählen','for_each':'jede Textzeile durchlaufen',
-         'delay':'warten','if_pdf':'PDF-Dateien gesondert behandeln'}
+         'delay':'warten','if_pdf':'PDF-Dateien gesondert behandeln','condition':'eine Bedingung prüfen'}
 
 
 class SentenceFlow(QLayout):
@@ -46,7 +47,7 @@ class SentenceFlow(QLayout):
 class SentencePart(QPushButton):
     def __init__(self,text,callback,kind='manual'):
         super().__init__();self.setObjectName('sentencePart');self.setCursor(Qt.PointingHandCursor)
-        self.setAccessibleName(text);self.setToolTip(text);self.clicked.connect(callback)
+        self.setAccessibleName(text);self.setToolTip('<qt>'+escape(text)+'</qt>');self.clicked.connect(callback)
         policy=self.sizePolicy();policy.setHeightForWidth(True);policy.setVerticalPolicy(QSizePolicy.Preferred);self.setSizePolicy(policy)
         layout=QHBoxLayout(self);layout.setSizeConstraint(QLayout.SetNoConstraint);layout.setContentsMargins(10,4,10,4);layout.setSpacing(8)
         mark=QLabel();mark.setPixmap(icon(ICONS.get(kind,'tools-wizard')).pixmap(20,20));layout.addWidget(mark)
@@ -62,6 +63,6 @@ class SentencePart(QPushButton):
 STYLE='''
 QFrame#sentence { background:palette(base);border:0;border-top:1px solid palette(mid);border-bottom:1px solid palette(mid); }
 QLabel#sentenceText, QPushButton#sentencePart QLabel { font-size:23px;background:transparent;color:palette(text);border:0; }
-QPushButton#sentencePart { padding:0;background:palette(midlight);color:palette(text);border:1px solid palette(mid);border-radius:8px; }
+QPushButton#sentencePart { padding:0;background:palette(midlight);color:palette(text);border:1px solid palette(mid); }
 QPushButton#sentencePart:hover, QPushButton#sentencePart:focus { border-color:palette(highlight); }
 '''

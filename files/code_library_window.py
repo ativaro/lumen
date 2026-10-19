@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt, QTimer, QUrl, QSize
 from PySide6.QtGui import QDesktopServices,QShortcut,QKeySequence,QIcon
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
     QStackedWidget, QTreeWidget, QTreeWidgetItem, QListWidget, QLineEdit, QComboBox,
-    QPlainTextEdit, QFileDialog, QInputDialog, QMessageBox, QGroupBox, QTextBrowser, QScrollArea, QFrame, QHeaderView)
+    QPlainTextEdit, QFileDialog, QInputDialog, QMessageBox, QGroupBox, QTextBrowser, QScrollArea, QFrame, QHeaderView,QDialog,QMenu)
 from lumen_i18n import tr
 from lumen_store import Store, STATES
 from code_library import Collection
@@ -44,7 +44,7 @@ class CollectionWindow(QMainWindow):
     def safe(self, function, *args):
         try:return function(*args)
         except (ValueError,OSError,RuntimeError,sqlite3.Error,SubprocessError) as error:
-            self.status.setText(tr(str(error)))
+            self.status.setText(tr(str(error)));self.footer.setText(tr(str(error)))
 
     def build_collection(self):
         from code_collection_view import STYLE,EntryDelegate
@@ -289,9 +289,20 @@ class CollectionWindow(QMainWindow):
             self.open_coding(identity);return
         if item['kind']=='automation' and item['definition'].get('flow'):
             from code_flow import parse
-            if blocks and not item['archived'] and parse(item['definition']['flow']).get('version') in (2,3):
+            if not item['archived'] and parse(item['definition']['flow']).get('version') in (2,3):
                 from code_blocks_window import BlockWindow
                 BlockWindow(self.collection,identity,self).exec();self.refresh();return
+        if item['kind']=='automation' and not item['archived'] and item['definition'].get('workflow_id') and not item['definition'].get('flow'):
+            self.open_native_flow(identity);self.refresh();return
+        if item['kind']=='automation' and not item['archived'] and not item['definition'].get('flow') and not item['definition'].get('workflow_id'):
+            from code_creation import CreationDialog
+            dialog=CreationDialog(self,self.project_records,self.collection.items(kind='tool'),kind='automation');dialog.load_description(item)
+            dialog.project.setCurrentIndex(max(0,dialog.project.findData(item['project_id'])));dialog.baseline=dialog.fingerprint()
+            if dialog.exec():
+                value={**item['definition'],**dialog.value['definition']};value.pop('workflow_id',None)
+                updated=self.collection.update(identity,item['revision'],title=dialog.value['title'],definition=value)
+                self.open_entry(updated['id'])
+            self.refresh();return
         is_routine=self.kind_title(item)==tr('Routine') and item['definition'].get('editor')!='routine'
         self.current=item;self.loading=True;self.select_input.setVisible(item['kind']=='tool');self.footer.setText(tr('Meine Sammlung')+' / '+item['title'])
         self.prompt.setVisible(item['kind']!='tool' and not is_routine);self.prompt_label.setVisible(not self.prompt.isHidden());self.tool_contract.setVisible(item['kind']=='tool')
@@ -327,6 +338,60 @@ class CollectionWindow(QMainWindow):
             self.pages.setCurrentIndex(1);self.dirty=False;self.status.clear();self.refresh_result()
         finally:self.loading=False
 
+    def open_native_flow(self,identity):
+        from lumen_workspace import PlanDialog
+        from desktop_design import AppHeader
+        item=self.collection.get(identity);flow=next((f for f in self.store.workflows() if f['id']==item['definition']['workflow_id']),None)
+        if flow is None:raise ValueError(tr('Der gespeicherte native Ablauf ist nicht mehr verfügbar.'))
+        dialog=PlanDialog(self,flow,workflow=True);header=dialog.findChild(AppHeader);after_save=None
+        def request(result):
+            nonlocal after_save
+            if dialog.native_sentence.snapshot()!=dialog.native_sentence.baseline:
+                if result in (2,3):
+                    dialog.save()
+                    if dialog.value is not None:after_save=result
+                    return
+                dialog.error.setText(tr('Änderungen zuerst speichern. Danach die Automation erneut öffnen.'));return
+            dialog.done(result)
+        run=button(tr('Jetzt ausführen'),lambda:request(2),primary=True);run.setEnabled(bool(flow['approved']));header.actions.addWidget(run)
+        toggle=button(tr('Pausieren' if flow['enabled'] else 'Aktivieren'),lambda:request(3));toggle.setEnabled(bool(flow['approved']) and flow['trigger']!='manual');header.actions.addWidget(toggle)
+        more=button(tr('Mehr'),lambda:None,'view-more-symbolic');menu=QMenu(more);more.setMenu(menu);header.actions.addWidget(more)
+        for text,result in [('Beschreibung und Projekt',4),('Als Favorit' if not item['favorite'] else 'Favorit entfernen',5),('Als portable Beschreibung speichern …',6),('Ins Archiv verschieben …',7),('Letzten Auftrag öffnen',8)]:menu.addAction(tr(text),lambda _=False,r=result:request(r))
+        result=dialog.exec()
+        if result==QDialog.Accepted:
+            self.store.save_workflow(**dialog.value,workflow=flow['id'],collection_entry=(identity,item['revision']))
+            if dialog.value['enabled']:self.activate_flow(flow['id'])
+            result=after_save
+        if result==2:
+            from code_library_execution import prepare_run
+            from lumen_detail_routes import open_tasks,task_action
+            task=prepare_run(self.collection,identity);open_tasks(task);task_action(task,'run')
+        elif result==3:
+            self.store.set_workflow_enabled(flow['id'],not flow['enabled'])
+            if not flow['enabled']:self.activate_flow(flow['id'])
+        elif result==4:self.native_metadata(identity)
+        elif result==5:self.collection.update(identity,item['revision'],favorite=not item['favorite'])
+        elif result==6:self.current=item;self.export_file()
+        elif result==7:
+            if QMessageBox.question(self,tr('Lumen · Automation archivieren'),tr('Künftige Starts stoppen und die Automation ins Archiv verschieben? Sie kann in der Sammlung wiederhergestellt werden. Frühere externe Wirkungen werden nicht rückgängig gemacht.'))==QMessageBox.Yes:self.collection.update(identity,item['revision'],archived=True)
+        elif result==8:
+            self.current=item;self.open_task()
+        dialog.deleteLater()
+        if result in (3,4,5,6,8):self.open_native_flow(identity)
+
+    def native_metadata(self,identity):
+        item=self.collection.get(identity);dialog=QDialog(self)
+        from code_design import editor_shell
+        main,_,_=editor_shell(dialog,tr('Lumen · Beschreibung und Projekt'),tr('Die Ablaufaktionen bleiben unverändert.'));box=QVBoxLayout(main);box.setContentsMargins(0,0,0,0)
+        description=QPlainTextEdit(item['description']);description.setAccessibleName(tr('Beschreibung'));box.addWidget(label(tr('Beschreibung')));box.addWidget(description)
+        project=QComboBox();project.setAccessibleName(tr('Lumen-Projekt'));project.addItem(tr('Ohne Projekt'),'')
+        for key,title in self.project_records.items():project.addItem(title,key)
+        if item['project_id'] and project.findData(item['project_id'])<0:project.addItem(tr('Bisherige Projektzuordnung'),item['project_id'])
+        project.setCurrentIndex(max(0,project.findData(item['project_id'])));box.addWidget(label(tr('Lumen-Projekt')));box.addWidget(project)
+        box.addWidget(row(button(tr('Abbrechen'),dialog.reject),button(tr('Speichern'),dialog.accept,primary=True)));dialog.resize(650,520)
+        if dialog.exec():self.collection.update(identity,item['revision'],description=description.toPlainText(),project_id=project.currentData())
+        dialog.deleteLater()
+
     def open_coding(self,identity):
         from code_session import CodingWindow
         from lumen_activation import present
@@ -338,6 +403,7 @@ class CollectionWindow(QMainWindow):
 
     def edit_entry(self,schedule=False):
         if not self.allow_leave():return
+        if self.open_blocks():return
         from code_edit_window import EditDialog
         identity=self.current['id'];user_input=self.input.toPlainText()
         dialog=EditDialog(self.collection,self.collection.get(identity),self,schedule=schedule)
@@ -364,7 +430,7 @@ class CollectionWindow(QMainWindow):
 
     def toggle_favorite(self):
         if self.dirty:self.save()
-        item=self.collection.update(self.current['id'],self.current['revision'],favorite=not self.current['favorite']);self.open_entry(item['id'],blocks=False,apps=False)
+        item=self.collection.update(self.current['id'],self.current['revision'],favorite=not self.current['favorite']);self.current=item;self.open_entry(item['id'],blocks=False,apps=False)
 
     def toggle_archive(self):
         if self.dirty:self.save()
@@ -469,6 +535,12 @@ class CollectionWindow(QMainWindow):
         from code_library_contract import import_template
         value=import_template(path.read_text(encoding='utf-8'))
         if QMessageBox.question(self,tr('Lumen · Vorlage importieren'),tr('„{0}“ als eigenen Entwurf übernehmen? Quellen und Freigaben musst du selbst auswählen.',value['title']))!=QMessageBox.Yes:return
+        if value['kind']=='automation':
+            from code_creation import CreationDialog
+            dialog=CreationDialog(self,self.project_records,self.collection.items(kind='tool'),kind='automation');dialog.load_description(value)
+            if dialog.exec():
+                draft=dialog.value;created=self.collection.create('automation',draft['title'],value['description'],draft['definition'],draft['project_id']);self.open_entry(created['id'])
+            self.refresh();return
         self.open_entry(self.collection.import_entry(value)['id'])
 
     def closeEvent(self,event):

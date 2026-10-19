@@ -28,7 +28,7 @@ class TriggerUiTest(unittest.TestCase):
     def test_all_triggers_are_editable_and_clock_survives_source_change(self):
         from code_sections_editor import SectionsEditor
         from code_clock_editor import ClockEditor
-        w=SectionsEditor();self.addCleanup(lambda:(w.shutdown(),w.close()))
+        w=SectionsEditor(plan={'version':3,'nodes':[node('manual',json.dumps({'kind':'text','text':''})),node('notify')]});self.addCleanup(lambda:(w.shutdown(),w.close()));w.open_detail('input')
         def choose(accessible,value):
             c=next(c for c in w.findChildren(QComboBox) if c.accessibleName()==accessible and c.findData(value)>=0)
             index=c.findData(value);c.setCurrentIndex(index);c.activated.emit(index)
@@ -80,11 +80,12 @@ class TriggerUiTest(unittest.TestCase):
 
     def test_selected_step_updates_summary_without_losing_inspector(self):
         from code_sections_editor import SectionsEditor
-        w=SectionsEditor();self.addCleanup(lambda:(w.shutdown(),w.close()))
+        w=SectionsEditor(plan={'version':3,'nodes':[node('manual',json.dumps({'kind':'text','text':''})),node('ai','Auftrag')]});self.addCleanup(lambda:(w.shutdown(),w.close()))
         step=next(n for n in w.items if n['kind']=='ai');w.select_entry(step['id'])
         w.update_node(step,'config','Prüfe auch den Betrag');w.update_node(step,'title','Beleg prüfen')
-        control,caption,preview=w.summaries[step['id']]
-        self.assertEqual(preview.text(),'Prüfe auch den Betrag');self.assertEqual(caption.text(),'Beleg prüfen');self.assertTrue(control.isChecked())
+        self.assertIsNotNone(w.dialog);w.dialog_apply.click()
+        self.assertEqual(w.plan()['nodes'][1]['config'],'Prüfe auch den Betrag');self.assertEqual(w.plan()['nodes'][1]['title'],'Beleg prüfen')
+        self.assertTrue(w.summaries[step['id']][0].isChecked());self.assertIsNone(w.dialog)
 
     def test_tool_shortcut_uses_same_new_routine_and_preserves_frozen_instruction(self):
         from code_library_window import CollectionWindow
