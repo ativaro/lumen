@@ -48,3 +48,17 @@ vier unveränderten Notes-Dateien zurück. Vollständige Installation und Rückn
 auf kleiner Wegwerfkopie bestanden. Vor älteren Notes-/Panorama-Rückwegen nutzen.
 Andere Skalierungen, persönliche Geräte und eine vollständige Screenreader-/KWin-
 Abnahme sind nicht geprüft. Server und Mobile wurden nicht verändert, kein Push.
+
+
+## Korrektur: Scrollbar am Spaltenrand (19.10.2026)
+
+Der zusätzliche rechte Innenrand von16px neben der Notizlisten-Scrollbar wurde
+entfernt. Suche und Listenaktionen behalten ihren Abstand; Notiztext erhält16px
+mehr Breite, die Spalte bleibt260px. Regression reproduziert16px, danach0px.
+Code0667a2f (Original17117bc): sechs Fälle gegen aktuellen RuntimeMix und sechs
+gegen installierte Module bestanden; sieben echte Aufnahmen über vier Größen und
+vier Themes, Editor-Geometrie unverändert. Zwei Runtime-Dateien ersetzt,647 andere
+Codeassets und Vault-Broker unverändert. Belege/Sicherung: ~/.local/state/lumen/
+notes-scrollbar-gutter-20261019/verification.json. install-desktop.py rollback
+[--apply] geprüft; vor dem vorherigen Notes-Layout-Rückweg verwenden. Persönliche
+Fenster und Notizbücher nicht getestet/verändert; kein Push.
