@@ -14,6 +14,8 @@ class Workbench(ToolWindow):
         super().__init__('workbench',tr('Lumen Projekte'),tr('Projekte, Vorhaben und ihre nächsten Schritte.'),'folder-development',root)
         from projects_data import Projects
         self.projects=Projects(self.library); self.scope=''; self.initiative=''; self.runner=None
+        from projects_trash import ProjectTrash
+        self.project_trash=ProjectTrash(self)
         from projects_runner import recover
         recover(self.projects)
         self.project_source_jobs=set();self.loaded_fields={}; self.loaded_record={}; self.loaded_updated=None; self.interop_path_revision=0
@@ -40,7 +42,7 @@ class Workbench(ToolWindow):
         management = self.takeCentralWidget()
         self.areas = QTabWidget(); self.areas.setAccessibleName(tr('Projektbereiche'))
         self.areas.setStyleSheet('QTabWidget::pane { border: none; }')
-        self.areas.addTab(management, tr('Archiv und Serverabgleich'))
+        self.areas.addTab(management, tr('Papierkorb und Serverabgleich'))
         self.areas.addTab(QWidget(), tr('Projekte'))
         self.areas.addTab(self.automations.flows_page, tr('Automationen'))
         self.areas.tabBar().hide()
@@ -284,7 +286,8 @@ class Workbench(ToolWindow):
         self.task_heading=label(tr('Aufgaben'),'heading');box.addWidget(self.task_heading)
         self.new_task=button(tr('Aufgabe anlegen'),lambda:self.safe(self.create_task));box.addWidget(self.new_task)
         self.task_list=EntryList(self);self.task_list.setAccessibleName(tr('Aufgaben'));self.task_list.currentItemChanged.connect(self.select_task);box.addWidget(self.task_list,1)
-        self.task_archive=button(tr('Aufgabe archivieren'),lambda:self.safe(self.archive_task));box.addWidget(self.task_archive)
+        self.task_archive=button(tr('In den Papierkorb'),lambda:self.safe(self.archive_task));box.addWidget(self.task_archive)
+        self.archived.setText(tr('Papierkorb anzeigen'))
         self.split.insertWidget(1,middle);self.resize(1380,900)
         self.content.addWidget(button(tr('Projektübersicht exportieren'),lambda:self.safe(self.export)));self.content.addStretch(1)
         self.add_button.hide();self.new_task.hide()
@@ -313,7 +316,7 @@ class Workbench(ToolWindow):
         self.entries.setCurrentItem(selected); self.entries.blockSignals(False)
         self.archive_button.setEnabled(bool(self.current))
         archived=self.projects.get(self.initiative)['archived'] if self.initiative else self.library.get(self.current)['_archived'] if self.current else False
-        self.archive_button.setText(tr('Vorhaben wiederherstellen') if archived and self.initiative else tr('Vorhaben archivieren') if self.initiative else tr('Projekt wiederherstellen') if archived else tr('Projekt archivieren'))
+        self.archive_button.setText(tr('Wiederherstellen' if archived else 'In den Papierkorb'))
         self.refresh_tasks()
 
     def select(self,item,old):
@@ -361,7 +364,7 @@ class Workbench(ToolWindow):
         current=self.projects.get(self.scope) if selected else {}
         parent_archived=bool(current and (parents.get(current['parent'],{}).get('archived') or self.library.get(self.current)['_archived']))
         self.task_archive.setEnabled(bool(selected) and not parent_archived)
-        self.task_archive.setText(tr('Wiederherstellen') if current.get('archived') else tr('Aufgabe archivieren'))
+        self.task_archive.setText(tr('Wiederherstellen' if current.get('archived') else 'In den Papierkorb'))
         self.task_heading.setText(tr('Aufgaben')+' · '+str(self.task_list.count()))
 
     def select_task(self,item,old):
@@ -428,23 +431,10 @@ class Workbench(ToolWindow):
         self.projects.update(self.scope,status='open' if value.get('status')=='done' else 'done'); self.open_scope(self.scope)
 
     def archive_task(self):
-        self.save(); self.projects.update(self.scope,archived=not self.projects.get(self.scope)['archived'],enabled=False); self.open_scope(self.initiative)
+        self.project_trash.current()
 
     def archive(self):
-        if self.initiative:
-            self.save(); key=self.initiative
-            self.projects.update(key,archived=not self.projects.get(key)['archived'])
-            for task in self.projects.items(self.current,key):self.projects.update(task['id'],enabled=False)
-            self.open_scope('')
-        else:
-            self.save()
-            if not self.current:return
-            archived=not self.library.get(self.current)['_archived']
-            if archived:
-                for task in self.projects.items(self.current):
-                    if task.get('enabled'):self.projects.update(task['id'],enabled=False)
-            self.library.archive(self.current,archived); self.current=''; self.scope=''
-            self.body.setEnabled(False);self.editor.hide();self.home.project_id='';self.home.scope='';self.home.refresh();self.refresh()
+        if self.current:self.project_trash.current()
 
     def run_task(self):
         self.save()

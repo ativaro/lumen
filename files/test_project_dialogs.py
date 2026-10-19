@@ -90,7 +90,8 @@ class DialogTest(unittest.TestCase):
         with patch.object(QMessageBox,'question',return_value=QMessageBox.Yes):remove_source(self.w,self.key,self.resources[0])
         record=self.w.library.get(self.key);self.assertEqual(record['resources'],[]);self.assertEqual(record['notes'],'Initial notes');self.assertEqual(record['goal'],'Initial goal')
     def test_archive_remains_separate_from_details(self):
-        self.w.journal.project_archive.trigger();self.assertTrue(self.w.library.get(self.key)['_archived'])
+        with patch.object(self.w.project_trash,'confirm',return_value=True):self.w.journal.project_archive.trigger()
+        self.assertTrue(self.w.library.get(self.key)['_archived'])
         self.w.home.choose(self.key);self.w.journal.project_archive.trigger();self.assertFalse(self.w.library.get(self.key)['_archived'])
 
     def test_existing_task_edit_still_scoped(self):

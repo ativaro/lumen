@@ -28,6 +28,7 @@ QWidget#projectJournal QWidget#journalSectionBlock { border-top:1px solid palett
 QWidget#projectJournal QWidget#journalOverview { border-bottom:1px solid palette(mid); }
 QWidget#projectJournal QWidget#journalTimeline { border-left:1px solid palette(mid); }
 QWidget#projectJournal QPushButton#journalAction { background:transparent;border:1px solid palette(mid);border-radius:7px;padding:8px 10px;font-size:11px; }
+QWidget#projectJournal QPushButton#journalAction:checked { background:palette(alternate-base);color:palette(text);border-color:palette(highlight); }
 QWidget#projectJournal QPushButton#journalIntegration { background:transparent;border:0;border-radius:7px;text-align:left;padding:8px 0;font-size:12px; }
 QWidget#projectJournal QPushButton#journalTask { background:transparent;border:0;border-radius:7px;text-align:left;padding:0; }
 QWidget#projectJournal QLabel#journalTaskTitle { font-size:12px; }
@@ -58,10 +59,16 @@ class ProjectJournal(QWidget):
         self.title=label('','journalTitle')
         self.edit=button(tr('Bearbeiten'),lambda:window.safe(self.edit_project));self.edit.setObjectName('journalAction')
         heading=row(self.title,self.edit);heading.layout().setStretch(0,1);layout.addWidget(heading)
-        self.archive=label(tr('Archiviert – Originalinhalte bleiben erhalten.'),'journalMuted');layout.addWidget(self.archive);self.archive.hide()
+        project_menu=QMenu(self);self.project_archive=project_menu.addAction(tr('In den Papierkorb'),lambda:window.safe(self.archive_project))
+        project_more=window.project_trash.menu_button(self,project_menu,'Projektaktionen');heading.layout().addWidget(project_more);window.project_trash.bind(project_more,project_menu,self.project_archive.trigger)
+        self.archive=label(tr('Im Papierkorb – Originalinhalte bleiben erhalten.'),'journalMuted');layout.addWidget(self.archive);self.archive.hide()
         self.tabs=QTabBar();self.tabs.setAccessibleName(tr('Projektansichten'));self.tabs.setExpanding(False);self.tabs.setDrawBase(False);self.tabs.setUsesScrollButtons(True);self.tabs.setMinimumWidth(0)
         for key,title in self.VIEWS:self.tabs.addTab(tr(title).replace('&','&&'))
-        self.tabs.currentChanged.connect(self.change_view);layout.addWidget(self.tabs);layout.addSpacing(26)
+        self.tabs.currentChanged.connect(self.change_view)
+        self.trash_filter=button(tr('Papierkorb'),lambda:None,'user-trash');self.trash_filter.setCheckable(True);self.trash_filter.setObjectName('journalAction');self.trash_filter.setToolTip(tr('Entfernte Vorhaben und Aufgaben anzeigen'))
+        self.trash_filter.setSizePolicy(QSizePolicy.Fixed,QSizePolicy.Fixed)
+        self.trash_filter.toggled.connect(lambda:self.load(self.record,self.readonly) if self.record else None)
+        layout.addWidget(row(self.tabs,self.trash_filter));layout.addSpacing(26)
         scroll=QScrollArea();self.scroll=scroll;scroll.setWidgetResizable(True);scroll.setFrameShape(QScrollArea.NoFrame);scroll.setAccessibleName(tr('Projektjournal'));layout.addWidget(scroll,1)
         self.page=QWidget();self.page.setObjectName('journalPage');self.page.setAttribute(Qt.WA_StyledBackground);scroll.setWidget(self.page)
         self.grid=QGridLayout(self.page);self.grid.setContentsMargins(0,0,8,0);self.grid.setSpacing(28)
@@ -92,7 +99,6 @@ class ProjectJournal(QWidget):
         self.more_menu=menu
         menu.addSeparator()
         source_action=menu.addAction(tr('Quelle hinzufügen'),lambda:window.safe(self.add_files));self.add_controls.append(source_action);self.context_controls.append((source_action,{'file'}))
-        self.project_archive=menu.addAction(tr('Projekt archivieren'),lambda:window.safe(self.archive_project))
         menu.addAction(tr('Gespräche und Aufträge'),lambda:window.home.references.setVisible(not window.home.references.isVisible()))
         side.addWidget(integrations)
         next_section=QWidget();next_section.setObjectName('journalSectionBlock');next_section.setAttribute(Qt.WA_StyledBackground)
@@ -104,8 +110,7 @@ class ProjectJournal(QWidget):
         self.reflow()
 
     def archive_project(self):
-        if self.window.home.plan(scope=''):
-            self.window.archive();self.window.editor.hide()
+        self.window.project_trash.perform(self.project_archive.data())
 
     def edit_project(self):
         from project_dialogs import open_dialog
@@ -183,10 +188,16 @@ class ProjectJournal(QWidget):
         self.question.clear()
 
     def load(self, record, readonly=False):
-        window=self.window;children=window.projects.items(record['id'])
+        from projects_trash import state
+        window=self.window;all_children=window.projects.items(record['id'])+window.projects.items(record['id'],archived=True)
         if self.project!=record['id']:
             self.view='journal';self.tabs.blockSignals(True);self.tabs.setCurrentIndex(0);self.tabs.blockSignals(False)
-        signature=(record,readonly,children,self.view)
+            self.trash_filter.blockSignals(True);self.trash_filter.setChecked(False);self.trash_filter.blockSignals(False)
+        parents={item['id']:item for item in all_children if item['kind']=='initiative'}
+        supports_trash=self.view in ('journal','tasks','results') and not record.get('_archived')
+        in_trash=self.trash_filter.isChecked() and supports_trash
+        children=[item for item in all_children if record.get('_archived') or bool(item['archived'] or parents.get(item['parent'],{}).get('archived'))==in_trash]
+        signature=(record,readonly,children,self.view,in_trash)
         if signature==getattr(self,'signature',None):return
         self.signature=signature;self.record=record;self.readonly=readonly;self.project=record['id']
         self.title.setText(record['title']);self.edit.setVisible(record.get('server_role')!='reader');self.archive.setVisible(bool(record.get('_archived')))
@@ -195,9 +206,10 @@ class ProjectJournal(QWidget):
         self.ask_button.setText(tr('Quellen auswählen' if bound else 'In Lumen öffnen'))
         self.ask_button.setAccessibleName(self.ask_button.text())
         self.question_hint.setText(tr('Stelle Fragen zu deinen ausgewählten Projektquellen. Antworten öffnen sich als Gespräch mit Quellenbelegen.' if bound else 'Eine Frage zu diesem Projekt als Gesprächsentwurf öffnen. Quellen werden erst im Gespräch gelesen.'))
-        self.project_archive.setEnabled(record.get('server_role')!='reader')
-        self.project_archive.setText(tr('Projekt wiederherstellen' if record.get('_archived') else 'Projekt archivieren'))
-        for control in self.add_controls:control.setEnabled(not readonly)
+        self.project_archive.setEnabled(record.get('server_role')!='reader');self.project_archive.setData(state(record))
+        self.project_archive.setText(tr('Wiederherstellen' if record.get('_archived') else 'In den Papierkorb'))
+        self.trash_filter.setVisible(supports_trash)
+        for control in self.add_controls:control.setEnabled(not readonly and not in_trash)
         for control,kinds in self.context_controls:control.setVisible(bool(kinds & self.ASSIGNABLE[self.view]))
         for action in self.more_menu.actions():
             if isinstance(action.data(),set):action.setVisible(self.view in action.data())
@@ -205,25 +217,24 @@ class ProjectJournal(QWidget):
         # Keep the shared menu button alive when its old heading is rebuilt.
         self.add_source.setParent(self)
         self.clear(self.main_box);self.clear(self.next_box)
-        parents={item['id'] for item in children if item['kind']=='initiative'}
         tasks=[item for item in children if item['kind']!='initiative' and item['parent'] in parents]
         entries=[]
         for item in children:
             if item['kind']!='initiative' and item not in tasks:continue
             category='journal' if item['kind']=='initiative' else 'results' if item['kind'] in ('analysis','research') else 'tasks'
             kind='Vorhaben' if item['kind']=='initiative' else KINDS[item['kind']]
-            entries.append(dict(title=item['title'],kind=kind,category=category,updated=item['updated'],detail=tr(STATES.get(item.get('status'),'Offen')),open=lambda key=item['id']:window.safe(window.navigate,record['id'],key)))
-        for index,resource in enumerate(record.get('resources',[])):
+            entries.append(dict(title=item['title'],kind=kind,category=category,updated=item['updated'],detail=tr('Im Papierkorb') if in_trash else tr(STATES.get(item.get('status'),'Offen')),state=state(record,item,parents.get(item['parent'])),open=lambda key=item['id']:window.safe(window.navigate,record['id'],key)))
+        for index,resource in enumerate(record.get('resources',[]) if not in_trash else []):
             kind={'file':'Datei','folder':'Ordner','url':'Weblink','wissen':'Notiz'}.get(resource.get('kind'),'Quelle')
             entries.append(dict(title=resource['title'],kind=kind,category='material',updated=None,detail='',resource=resource,open=lambda i=index:self.open_material(i)))
-        for index,ref in enumerate(record.get('references',[])):
-            entries.append(dict(title=ref['title'],kind='Gespräch' if ref['kind']=='chat' else 'Auftrag',category='conversations' if ref['kind']=='chat' else 'tasks',updated=None,detail='',open=lambda i=index:self.open_reference(i)))
-        for index,ref in enumerate(record.get('server_attachments',[])):
-            entries.append(dict(title=ref.get('title') or tr('Zugeordneter Inhalt'),kind={'file':'Datei','note':'Notiz','task':'Auftrag','conversation':'Gespräch'}.get(ref['kind'],'Quelle'),category='material' if ref['kind'] in ('file','note') else 'conversations' if ref['kind']=='conversation' else 'tasks',updated=None,detail='',open=lambda i=index:self.open_server_material(i)))
+        for index,ref in enumerate(record.get('references',[]) if not in_trash else []):
+            entries.append(dict(title=ref['title'],kind='Gespräch' if ref['kind']=='chat' else 'Auftrag',category='conversations' if ref['kind']=='chat' else 'tasks',updated=None,detail='',unlink=('references',ref),open=lambda i=index:self.open_reference(i)))
+        for index,ref in enumerate(record.get('server_attachments',[]) if not in_trash else []):
+            entries.append(dict(title=ref.get('title') or tr('Zugeordneter Inhalt'),kind={'file':'Datei','note':'Notiz','task':'Auftrag','conversation':'Gespräch'}.get(ref['kind'],'Quelle'),category='material' if ref['kind'] in ('file','note') else 'conversations' if ref['kind']=='conversation' else 'tasks',updated=None,detail='',unlink=('server_attachments',ref),open=lambda i=index:self.open_server_material(i)))
         with window.library.connect() as db:
             linked={row[0] for row in db.execute('SELECT flow FROM project_flows WHERE project=?',(record['id'],))} if db.execute("SELECT 1 FROM sqlite_master WHERE name='project_flows'").fetchone() else set()
         for flow in window.project_store.workflows():
-            if flow['id'] in linked:entries.append(dict(title=flow['name'],kind='Ablauf',category='tasks',updated=None,detail='',open=lambda key=flow['id']:window.safe(window.home.open_flow,key)))
+            if flow['id'] in linked and not in_trash:entries.append(dict(title=flow['name'],kind='Ablauf',category='tasks',updated=None,detail='',unlink=('flow',flow['id']),open=lambda key=flow['id']:window.safe(window.home.open_flow,key)))
         if self.view=='journal':
             overview=QWidget();overview.setObjectName('journalOverview');overview.setAttribute(Qt.WA_StyledBackground)
             box=QVBoxLayout(overview);box.setContentsMargins(0,5,0,24);box.setSpacing(15)
@@ -232,13 +243,13 @@ class ProjectJournal(QWidget):
             box.addWidget(label(record.get('notes') or tr('Füge Quellen, Gespräche und Aufgaben hinzu. Hier bleiben ihre Zusammenhänge sichtbar.'),'journalDescription'))
             counts=tr('{0} zugeordnete Inhalte',len(entries))+'     '+tr('{0} Aufgaben',sum(e['category'] in ('tasks','results') for e in entries))+'     '+tr('{0} Analysen & Recherchen',sum(e['category']=='results' for e in entries))
             box.addWidget(label(counts,'journalSmall'));self.main_box.addWidget(overview);self.main_box.addSpacing(24)
-        heading=row(label(tr('Zugeordnete Inhalte') if self.view=='journal' else tr(dict(self.VIEWS)[self.view]),'journalSection'),self.add_source);heading.layout().setStretch(0,1);self.add_source.setVisible(not readonly);self.main_box.addWidget(heading);self.main_box.addSpacing(20)
+        heading=row(label(tr('Papierkorb') if in_trash else tr('Zugeordnete Inhalte') if self.view=='journal' else tr(dict(self.VIEWS)[self.view]),'journalSection'),self.add_source);heading.layout().setStretch(0,1);self.add_source.setVisible(not readonly and not in_trash);self.main_box.addWidget(heading);self.main_box.addSpacing(20)
         shown=[e for e in entries if self.view=='journal' or e['category']==self.view or self.view=='tasks' and e['category']=='results']
         if self.view=='results':self.main_box.addWidget(label(tr('Vorhandene Analysen und Recherchen bleiben mit ihren Aufgaben und Ergebnissen verbunden.'),'journalMuted'));self.main_box.addSpacing(16)
-        self.visible_titles=[];self.material_controls={}
+        self.visible_titles=[];self.material_controls={};self.entry_menus={}
         for entry in sorted(shown,key=lambda e:e['updated'] or 0,reverse=True):self.add_entry(entry)
         if not shown:self.main_box.addWidget(label(tr('Noch nichts zugeordnet.'),'journalMuted'))
-        for task in sorted(tasks,key=lambda item:item['updated'],reverse=True):
+        for task in sorted(tasks if not in_trash else [],key=lambda item:item['updated'],reverse=True):
             if task.get('status','open') not in ('done','cancelled','failed') and self.next_box.count()<5:
                 control=button('',lambda _checked=False,key=task['id']:window.safe(window.navigate,record['id'],key));control.setObjectName('journalTask');control.setAccessibleName(task['title']);control.setToolTip(task['title']);control.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Preferred)
                 content=QVBoxLayout(control);content.setContentsMargins(0,8,0,8);caption=label(task['title'],'journalTaskTitle');caption.setAttribute(Qt.WA_TransparentForMouseEvents);content.addWidget(caption);self.next_box.addWidget(control)
@@ -257,17 +268,17 @@ class ProjectJournal(QWidget):
         content=QVBoxLayout(control);content.setContentsMargins(0,0,0,0);content.setSpacing(5)
         content.addWidget(label(entry['title'],'journalEntryTitle'));content.addWidget(label(' · '.join(filter(None,(tr(entry['kind']),entry['detail']))),'journalMuted'))
         for child in control.findChildren(QWidget):child.setAttribute(Qt.WA_TransparentForMouseEvents)
-        if 'resource' in entry:
-            self.material_controls[entry['resource']['target']]=control
-            control.setContextMenuPolicy(Qt.CustomContextMenu)
-            def context(position):
-                menu=QMenu(control);menu.addAction(tr('Öffnen'),entry['open'])
-                if not self.readonly:
-                    from project_dialogs import remove_source
-                    menu.addAction(tr('Verknüpfung entfernen'),lambda:self.window.safe(remove_source,self.window,self.project,entry['resource']))
-                menu.exec(control.mapToGlobal(position))
-            control.customContextMenuRequested.connect(context)
-        control.clicked.connect(lambda _checked=False,fn=entry['open']:fn());box.addWidget(control);layout.addWidget(body,1);self.main_box.addWidget(line)
+        menu=QMenu(control);menu.addAction(tr('Öffnen'),entry['open'])
+        if 'state' in entry:
+            action=self.window.project_trash.action(menu,entry['state']);menu.addAction(action);self.entry_menus[entry['state']['scope']]=menu
+        else:
+            from projects_trash import state
+            field,value=('resources',entry['resource']) if 'resource' in entry else entry['unlink']
+            expected=state(self.record);action=menu.addAction(tr('Zuordnung entfernen'),lambda:self.window.safe(self.window.project_trash.unlink,expected,field,value));action.setEnabled(not self.readonly)
+        if 'resource' in entry:self.material_controls[entry['resource']['target']]=control
+        self.window.project_trash.bind(control,menu,action.trigger)
+        more=self.window.project_trash.menu_button(control,menu,'Eintragsaktionen')
+        control.clicked.connect(lambda _checked=False,fn=entry['open']:fn());box.addWidget(control);layout.addWidget(body,1);layout.addWidget(more,0,Qt.AlignTop);self.main_box.addWidget(line)
 
     def open_server_material(self,index):
         if not self.window.home.plan(scope=''):return

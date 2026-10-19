@@ -40,7 +40,7 @@ class ProjectHome(QWidget):
         current=next((r for r in records if r['id']==self.project_id),None)
         self.journal.setVisible(current is not None);self.empty.setVisible(current is None)
         if current:
-            current=self.window.library.get(self.project_id)
+            current=self.window.project_trash.project(self.project_id)
             readonly=bool(current.get('_archived') or current.get('server_role')=='reader')
             self.journal.load(current,readonly);self.references.load(current,readonly)
 
