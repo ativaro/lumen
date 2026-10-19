@@ -64,6 +64,7 @@ class NotesWebTest(unittest.TestCase):
         self.assertNotIn('Schreibprobe',preview)
         self.assertIn('Willkommen',preview)
         self.assertEqual(self.js("document.querySelector('.knowledge-notes').getBoundingClientRect().width"),260)
+        self.assertEqual(self.js("(()=>{let pane=document.querySelector('.knowledge-notes'),list=document.querySelector('.knowledge-note-list');return pane.getBoundingClientRect().right-list.getBoundingClientRect().right;})()"),0)
         self.assertEqual(self.js("getComputedStyle(document.querySelector('.doc-row')).paddingBlock"),"14px")
         self.js(f"({row}).click()")
         self.wait(lambda:self.w.doc['path']==self.first['path'])

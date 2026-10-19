@@ -13,8 +13,9 @@ html,body,#root { height:100%; }
 .desktop-collections { display:flex;flex-direction:column;gap:8px; }
 .desktop-notes .knowledge-collection-list { max-height:none; }
 .desktop-notes .knowledge-collection-list button span { flex:1; }
-.desktop-notes .knowledge-notes { display:flex;flex-direction:column;min-height:0;overflow:hidden;padding:0 16px; }
-.desktop-notes .knowledge-notes > input { flex-shrink:0; }
+.desktop-notes .knowledge-notes { display:flex;flex-direction:column;min-height:0;overflow:hidden;padding:0 0 0 16px; }
+.desktop-notes .knowledge-notes > :not(.knowledge-note-list) { margin-right:16px; }
+.desktop-notes .knowledge-notes > input { flex-shrink:0;width:auto; }
 .desktop-notes .knowledge-list-heading h2 { font-size:12px; }
 .desktop-notes .knowledge-note-list { flex:1;min-height:0;max-height:none;overflow:auto; }
 .desktop-notes .knowledge-editor { display:flex;flex-direction:column;gap:0;min-height:0;overflow:hidden;padding:0;border-radius:var(--radius); }
