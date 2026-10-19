@@ -2,7 +2,7 @@
 import time
 import unittest
 from unittest.mock import patch
-from PySide6.QtCore import QObject, QPoint, QProcess, Qt, QCoreApplication, QEvent
+from PySide6.QtCore import QObject, QPoint, QPointF, QProcess, Qt, QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
@@ -54,6 +54,30 @@ class SystemUITest(unittest.TestCase):
         self.assertTrue(self.controller.data['stale'])
         self.click('pause'); self.assertTrue(self.controller.paused)
         self.assertEqual(self.controller.proc.state(),QProcess.NotRunning)
+
+    def test_panorama_geometry_matches_native_header_at_compact_and_normal_width(self):
+        from desktop_design import AppHeader, PAGE_MARGIN, NAV_WIDTH
+        self.assertEqual(self.controller.theme.get('pageMargin'), PAGE_MARGIN)
+        self.assertEqual(self.controller.theme.get('navWidth'), NAV_WIDTH)
+        header = AppHeader('Lumen System'); header.ensurePolished(); header.title.ensurePolished()
+        try:
+            for width in (960, 1280):
+                self.window.resize(width, 800); QTest.qWait(30)
+                navigation = self.window.findChild(QQuickItem, 'systemNavigation')
+                heading = self.window.findChild(QQuickItem, 'systemPageHeading')
+                self.assertIsNotNone(navigation); self.assertIsNotNone(heading)
+                self.assertEqual(navigation.width(), NAV_WIDTH)
+                self.assertEqual(heading.property('font').pixelSize(), header.title.font().pixelSize())
+                self.assertEqual(heading.property('font').weight(), header.title.font().weight())
+                left = heading.mapToScene(QPointF()).x() - navigation.mapToScene(QPointF(navigation.width(), 0)).x()
+                self.assertEqual(left, PAGE_MARGIN)
+        finally:
+            header.deleteLater()
+
+    def test_english_work_mode_copy_describes_setup_without_a_project_context(self):
+        from lumen_i18n import tr
+        with patch('lumen_i18n.language', return_value='en'):
+            self.assertEqual(tr('Ein Klick, ein passender Arbeitsplatz.'), 'One click to the right setup.')
 
     def test_analysis_is_explicit_and_passed_as_argument(self):
         with patch('system_app.QProcess.startDetached',return_value=(True,42)) as launch:
