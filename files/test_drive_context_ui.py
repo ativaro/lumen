@@ -7,7 +7,7 @@ from unittest.mock import patch, Mock
 from uuid import uuid4
 
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication,QMenu
 from app import Window, create_app
 import drive_browser as browser
 
@@ -77,6 +77,71 @@ class DriveContextUITest(unittest.TestCase):
         context=kwargs['drive_context'];self.assertEqual(context['drive_references'][0]['id'],folder)
         self.assertNotIn(self.config['token'],str(context));self.assertTrue(context['objects'][0].startswith('lumen://object/'))
 
+    def test_server_pdf_menu_checks_central_capability_in_worker_before_chat(self):
+        from file_action_menu import add_lumen_actions
+        path=browser.ROOT+'/file/'+self.family
+        row=dict(id=str(uuid4()),family=self.family,name='Selected.pdf',mime='application/pdf',size=90000,version=3,revision=9,trashed=False)
+        self.window.current_location=browser.ROOT
+        self.window.drive.config=self.config;self.window.drive.profile=dict(id=self.user)
+        self.window.drive.entries[path]=('file',row)
+        chat=SimpleNamespace(begin_context=Mock(),backend=SimpleNamespace(execution='server'))
+        self.window.lumen_host=SimpleNamespace(chat=chat,show_page=Mock())
+        def request(config,path,body=None):
+            if path=='/bridge/me':return dict(id=self.user)
+            self.assertEqual(path,'/bridge/context/capability')
+            return dict(body,supported=True,format='pdf',reason='')
+        with patch.object(self.window.drive,'work') as work,patch.object(browser.lumen_connect,'read_config',return_value=self.config) as config,patch.object(browser.lumen_connect,'request',side_effect=request),patch.object(browser.sync,'inventory',return_value=dict(files={self.family:row},folders={})):
+            menu=QMenu(self.window);add_lumen_actions(self.window,menu,[path])
+            action=next((a for a in menu.actions()[0].menu().actions() if a.text()=='Zusammenfassen'),None)
+            self.assertIsNotNone(action)
+            action.trigger();work.assert_called_once();chat.begin_context.assert_not_called()
+            fn,done=work.call_args.args
+            result=fn(SimpleNamespace(check=lambda:None));done(result)
+            args,kwargs=chat.begin_context.call_args
+            self.assertEqual(args,('summarize',[]))
+            self.assertTrue(kwargs['drive_context']['selection'][0]['content_available'])
+            self.assertNotIn(self.config['token'],str(kwargs))
+            chat.begin_context.reset_mock()
+            config.return_value=dict(self.config,token='different-account')
+            with self.assertRaises(ValueError):done(result)
+            chat.begin_context.assert_not_called()
+
+    def test_server_rejects_unsupported_source_before_starting_context(self):
+        path=browser.ROOT+'/file/'+self.family
+        row=dict(id=str(uuid4()),family=self.family,name='Unsupported.bin',version=1,mime='application/octet-stream',size=10,trashed=False)
+        self.window.drive.config=self.config;self.window.drive.profile=dict(id=self.user)
+        self.window.drive.entries[path]=('file',row)
+        chat=SimpleNamespace(begin_context=Mock(),backend=SimpleNamespace(execution='server'))
+        self.window.lumen_host=SimpleNamespace(chat=chat,show_page=Mock())
+        with patch.object(browser.lumen_connect,'read_config',return_value=self.config),patch.object(self.window.drive,'work') as work:
+            self.window.ask_lumen('summarize',[path])
+            _,done=work.call_args.args
+            with self.assertRaisesRegex(ValueError,'Zentrale Lesegrenze'):
+                done((self.config,[row],[dict(supported=False,reason='Zentrale Lesegrenze')]))
+        chat.begin_context.assert_not_called()
+
+    def test_late_capability_never_replaces_newer_chat_selection_or_input(self):
+        path=browser.ROOT+'/file/'+self.family
+        row=dict(id=str(uuid4()),family=self.family,name='Selected.pdf',version=1,trashed=False)
+        self.window.drive.config=self.config;self.window.drive.profile=dict(id=self.user)
+        self.window.drive.entries[path]=('file',row)
+        text=['']
+        chat=SimpleNamespace(begin_context=Mock(),backend=SimpleNamespace(execution='server',generation=1),composer=SimpleNamespace(toPlainText=lambda:text[0]))
+        self.window.lumen_host=SimpleNamespace(chat=chat,show_page=Mock())
+        result=(self.config,[row],[dict(supported=True,reason='')])
+        with patch.object(browser.lumen_connect,'read_config',return_value=self.config),patch.object(self.window.drive,'work') as work:
+            self.window.ask_lumen('summarize',[path]);old=work.call_args.args[1]
+            chat.backend.generation+=1;old(result)
+            chat.begin_context.assert_not_called()
+            self.window.ask_lumen('summarize',[path]);second=work.call_args.args[1]
+            self.window.ask_lumen('analyze',[path]);latest=work.call_args.args[1]
+            second(result);chat.begin_context.assert_not_called()
+            latest(result);chat.begin_context.assert_called_once()
+            chat.begin_context.reset_mock()
+            self.window.ask_lumen('summarize',[path]);pending=work.call_args.args[1]
+            text[0]='Unsent new question';pending(result)
+            chat.begin_context.assert_not_called()
+
     def test_hidden_drive_preview_resumes_current_selection_on_real_toggle(self):
         from PySide6.QtCore import Qt,QItemSelectionModel,QModelIndex
         from PySide6.QtTest import QTest
@@ -108,7 +173,7 @@ class DriveContextUITest(unittest.TestCase):
         from lumen_context import ContextTools
         context=dict(drive_references=[dict(title='Selected')],objects=['lumen://object/'+'a'*32],intent='open')
         backend=SimpleNamespace(busy=False,preflight=lambda _:True,execution='local',send=Mock(return_value=False),directory=self.tmp.name)
-        panel=SimpleNamespace(backend=backend,paths=[],drive_context=context,drive_context_scope=browser.sync.scope(self.config),error=SimpleNamespace(hide=lambda:None),action='',mode=SimpleNamespace(currentData=lambda:'plan'),context_tools=SimpleNamespace(learn=SimpleNamespace(isChecked=lambda:False)),show_error=Mock(),update_context=Mock())
+        panel=SimpleNamespace(backend=backend,paths=[],draft_project=None,drive_context=context,drive_context_scope=browser.sync.scope(self.config),error=SimpleNamespace(hide=lambda:None),action='',mode=SimpleNamespace(currentData=lambda:'plan'),context_tools=SimpleNamespace(learn=SimpleNamespace(isChecked=lambda:False)),show_error=Mock(),update_context=Mock())
         with patch.object(browser.lumen_connect,'read_config',return_value=self.config) as config:
             ChatPanel.submit(panel,'Discuss selected originals')
             self.assertEqual(backend.send.call_args.kwargs['context_data'],context)

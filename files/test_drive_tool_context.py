@@ -67,6 +67,32 @@ class DriveToolContextTest(unittest.TestCase):
         value._run=lambda operation,fn:fn(request)
         return value
 
+    def capability(self, config, path, body=None):
+        if path == '/bridge/me':return dict(id=self.account)
+        self.assertEqual(path,'/bridge/context/capability')
+        return dict(body, title=self.row['name'], supported=True, readable=None,
+                    format='server-supported-format', limits=dict(characters=60000), reason='')
+
+    def test_server_source_capability_accepts_pdf_office_and_new_formats_without_local_mime_rules(self):
+        with patch.object(drive.lumen_connect,'read_config',return_value=self.config),patch.object(drive.lumen_connect,'request',side_effect=self.capability) as request,patch.object(drive.sync,'inventory',return_value=self.cache),patch('drive_transport.download',side_effect=AssertionError('No local copy')):
+            for name,mime in (('Original.pdf','application/pdf'),('Original.docx','application/octet-stream'),('future.format','new/server-format')):
+                self.row.update(name=name,mime=mime,size=90000)
+                config,attachments=drive.task_attachments([self.ref],'summarize',context_bytes=512)
+                self.assertEqual(config,self.config)
+                self.assertEqual(attachments,[dict(kind='file',id=self.row['id'],revision=3,mode='reference')])
+                self.assertEqual(request.call_args.args[2],attachments[0])
+
+    def test_capability_identity_schema_and_connection_are_rechecked(self):
+        def reply(config,path,body=None):
+            if path == '/bridge/me':return dict(id=self.account)
+            return response
+        good=self.capability(self.config,'/bridge/context/capability',dict(kind='file',id=self.row['id'],revision=3,mode='reference'))
+        for response in (dict(good,id=str(uuid4())),dict(good,revision=4),dict(good,supported='yes'),dict(good,mode='copy')):
+            with patch.object(drive.lumen_connect,'read_config',return_value=self.config),patch.object(drive.lumen_connect,'request',side_effect=reply),patch.object(drive.sync,'inventory',return_value=self.cache),self.assertRaises(ValueError):
+                drive.task_attachments([self.ref],'summarize')
+        with patch.object(drive.lumen_connect,'read_config',side_effect=[self.config,self.config,dict(self.config,token='changed')]),patch.object(drive.lumen_connect,'request',side_effect=self.capability),patch.object(drive.sync,'inventory',return_value=self.cache),self.assertRaises(ValueError):
+            drive.task_attachments([self.ref],'summarize')
+
     def test_server_bridge_attaches_current_file_version_not_a_local_path_or_copy(self):
         calls=[]
         def request(path,body=None):
@@ -77,7 +103,7 @@ class DriveToolContextTest(unittest.TestCase):
             raise AssertionError(path)
         backend=self.backend(request)
         context=dict(drive_references=[self.ref],objects=[Registry().register(self.ref)],intent='summarize')
-        with patch('desktop_backend.connection',return_value=(self.config,'bound')),patch.object(drive.lumen_connect,'read_config',return_value=self.config),patch.object(drive.lumen_connect,'request',return_value=dict(id=self.account)),patch.object(drive.sync,'inventory',return_value=self.cache),patch('drive_transport.download',side_effect=AssertionError('Server attaches originals')):
+        with patch('desktop_backend.connection',return_value=(self.config,'bound')),patch.object(drive.lumen_connect,'read_config',return_value=self.config),patch.object(drive.lumen_connect,'request',side_effect=self.capability),patch.object(drive.sync,'inventory',return_value=self.cache),patch('drive_transport.download',side_effect=AssertionError('Server attaches originals')):
             self.assertTrue(DesktopBackend.send(backend,'Summarize selected original',context_data=context))
         body=next(body for path,body in calls if path=='/bridge/tasks')
         self.assertEqual(body['attachments'][0],dict(id=self.row['id'],kind='file',revision=3,mode='reference'))
@@ -110,7 +136,7 @@ class DriveToolContextTest(unittest.TestCase):
                 with self.assertRaises(ValueError):invoke('lumen_drive_read',dict(ref=url))
             self.assertFalse(list(Path(self.tmp.name+'/cache/lumen-drive-handoffs').glob('copy-*')))
 
-    def test_combined_server_limit_is_actionable_and_clears_pending_key(self):
+    def test_server_source_limit_is_actionable_and_clears_pending_key(self):
         for sizes in ((35000,35000),(60000,)):
             refs=[];rows={}
             for size in sizes:
@@ -119,11 +145,14 @@ class DriveToolContextTest(unittest.TestCase):
             backend.generation=1;backend.timer=Mock()
             def run(operation,fn):DesktopBackend._apply_response(backend,(1,operation,fn(request),False))
             backend._run=run
-            with patch('desktop_backend.connection',return_value=(self.config,'bound')),patch.object(drive.lumen_connect,'read_config',return_value=self.config),patch.object(drive.lumen_connect,'request',return_value=dict(id=self.account)),patch.object(drive.sync,'inventory',return_value=dict(files=rows,folders={})):
+            def limited(config,path,body=None):
+                if path=='/bridge/me':return dict(id=self.account)
+                return dict(body,supported=False,reason='Die Datei überschreitet die zentrale Lesegrenze.')
+            with patch('desktop_backend.connection',return_value=(self.config,'bound')),patch.object(drive.lumen_connect,'read_config',return_value=self.config),patch.object(drive.lumen_connect,'request',side_effect=limited),patch.object(drive.sync,'inventory',return_value=dict(files=rows,folders={})):
                 self.assertTrue(DesktopBackend.send(backend,'Summarize',context_data=dict(drive_references=refs,intent='summarize')))
             self.assertEqual([call.args[0] for call in request.call_args_list],['/bridge/me'])
             self.assertEqual(backend.remote_key,'');self.assertFalse(backend.remote_active)
-            backend.failed.emit.assert_called_once();self.assertIn('60 KB',backend.failed.emit.call_args.args[0])
+            backend.failed.emit.assert_called_once();self.assertIn('zentrale Lesegrenze',backend.failed.emit.call_args.args[0])
             backend.remember.assert_any_call(unittest.mock.ANY,remove=True)
 
     def test_actual_native_worker_deadline_kills_parser_and_removes_copy(self):

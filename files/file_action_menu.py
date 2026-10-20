@@ -384,7 +384,8 @@ def add_lumen_actions(window, menu, paths):
     drive=all(is_drive(path) for path in paths)
     panel=getattr(getattr(window,'lumen_host',None),'chat',getattr(window,'assistant',None))
     server=getattr(getattr(panel,'backend',None),'execution','local')=='server'
-    supported=all(window.drive.entries[p][0]=='file' and readable(window.drive.entries[p][1],server) for p in paths) if drive else all(Path(p).suffix.lower() in TEXT_SUFFIXES+('.pdf','.png','.jpg','.jpeg','.webp','.tif','.tiff') for p in paths)
+    # Server formats are checked asynchronously after the explicit action, not by a second MIME list.
+    supported=all(window.drive.entries[p][0]=='file' and (server or readable(window.drive.entries[p][1])) for p in paths) if drive else all(Path(p).suffix.lower() in TEXT_SUFFIXES+('.pdf','.png','.jpg','.jpeg','.webp','.tif','.tiff') for p in paths)
     submenu=menu.addMenu(QIcon.fromTheme('lumen'),tr('Mit Lumen …'))
     commands=[(tr('Besprechen'),'open')]
     if supported:commands += [(tr('Zusammenfassen'),'summarize'),(tr('Analysieren'),'analyze')]
