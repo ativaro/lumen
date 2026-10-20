@@ -253,6 +253,22 @@ class FileImportTest(unittest.TestCase):
         self.assertEqual(len(self.sessions),1)
         self.assertEqual(self.path.read_bytes(),b'Changed while transfer finished')
 
+    def test_replacement_between_source_check_and_transport_open_sends_no_requests(self):
+        self.prepare();upload=transport.upload
+        replacement=b'X'*len(self.original)
+        def replace_then_upload(*args,**kwargs):
+            other=self.base/'replacement.pdf';other.write_bytes(replacement);other.replace(self.path)
+            return upload(*args,**kwargs)
+        def reject_unconfirmed_finish(*args,**kwargs):
+            if args[1].endswith('/finish'):raise ValueError('Synthetic digest mismatch')
+            return self.wire(*args,**kwargs)
+        with patch.object(transport,'upload',side_effect=replace_then_upload), \
+             patch.object(transport,'request',side_effect=reject_unconfirmed_finish),self.assertRaises(ValueError):self.apply()
+        self.assertEqual(self.calls,[])
+        self.assertEqual(self.sessions,{})
+        self.assertEqual(self.registry.request(self.token)['state'],'pending')
+        self.assertEqual(self.path.read_bytes(),replacement)
+
     def test_changed_destination_after_finish_is_not_reported_as_success(self):
         self.prepare();self.after_finish=lambda:self.folder_row.update(revision=5)
         with self.assertRaises(ValueError):self.apply()

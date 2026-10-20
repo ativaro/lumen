@@ -171,7 +171,8 @@ def apply(token, job, *, root=None):
             progress()
         progress()
         row = transport.upload(config, plan['root'], plan['path'], plan['destination']['id'],
-                               plan['request_id'], plan['sha256'], filename=plan['name'], progress=progress, remember=remember)
+                               plan['request_id'], plan['sha256'], filename=plan['name'], progress=progress,
+                               remember=remember, expected_stamp=plan['stamp'])
         progress()
         _destination(plan['destination'], plan['device_id'], plan['destination_revision'])
         _source(plan, request, job)
