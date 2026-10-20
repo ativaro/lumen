@@ -2,6 +2,7 @@
 import hashlib
 import threading
 from uuid import UUID, uuid4, uuid5
+from urllib.error import HTTPError
 from pathlib import Path
 import os
 import stat
@@ -104,6 +105,8 @@ class DesktopBackend(OpenCodeBackend):
 
     def _run(self, operation, function):
         generation, binding = self.generation, self.binding
+        submission = (binding, self.session, self.remote_key)
+        origin = self.server_origin
         def work():
             try:
                 from lumen_connect import request
@@ -112,6 +115,12 @@ class DesktopBackend(OpenCodeBackend):
                     raise ValueError('Connection changed')
                 result = function(lambda path, body=None: request(config, path, body))
                 return generation, operation, result, False
+            except HTTPError as error:
+                rejected = operation == 'submit' and bool(submission[2]) and error.code == 413 and error.geturl() == origin + '/bridge/tasks'
+                error.close()
+                if rejected:
+                    return generation, operation, dict(rejected_submission=submission, local_context_error=tr('Die gewählten Inhalte überschreiten das Serverlimit. Bitte weniger oder kleinere Quellen auswählen.')), False
+                return generation, operation, None, True
             except Exception:
                 # Never expose bearer headers, provider responses or credentials.
                 return generation, operation, None, True
@@ -139,6 +148,8 @@ class DesktopBackend(OpenCodeBackend):
         if generation != self.generation or self.execution != 'server':
             return
         if operation == 'submit':
+            if not error and data.get('rejected_submission') is not None and data['rejected_submission'] != (self.binding, self.session, self.remote_key):
+                return
             self.submitting = False
             if not error and data.get('local_context_error'):
                 self.remember(self.remote_key,remove=True);self.remote_key='';self.remote_active=False
