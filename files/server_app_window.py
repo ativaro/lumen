@@ -23,12 +23,14 @@ except ImportError:
 
 # Isolated world, main frame only; it exposes no native objects or credentials.
 DRAFT_SCRIPT = '''(() => {
- const capture=()=>{const input=document.querySelector('#translation-text');
+ const capture=event=>{const input=document.querySelector('#translation-text');
+   if(event && event.target!==input)return;
+   if(!event && typeof window.__lumenComposeDraft==='string')return;
    if(input && typeof input.value==='string' && input.value.length<=1048576)
      window.__lumenComposeDraft=input.value;};
  document.addEventListener('input',capture,true);
  document.addEventListener('change',capture,true);
- new MutationObserver(capture).observe(document,{childList:true,subtree:true});
+ new MutationObserver(()=>capture()).observe(document,{childList:true,subtree:true});
  capture();
 })()'''
 DRAFT_READ = "window.__lumenComposeDraft ?? ''"

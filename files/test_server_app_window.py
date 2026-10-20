@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
 
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import Qt, QUrl, QPoint
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
 import shiboken6
@@ -151,6 +151,43 @@ class WindowTest(unittest.TestCase):
         self.assertFalse(any(c['path']=='/api/translate' for c in self.calls))
         with patch.object(QMessageBox,'question',return_value=QMessageBox.StandardButton.Cancel):
             window.close();self.app.processEvents();self.assertFalse(window._disposed)
+
+    def test_empty_remount_preserves_draft_and_user_can_clear(self):
+        self.app.setQuitOnLastWindowClosed(False)
+        window=self.window();draft='Nicht gesendeter Entwurf'
+        window.timer.stop();window.activateWindow();QTest.qWait(500)
+        window.view.setFocus()
+        self.js(window,"document.querySelector('textarea').focus()")
+        QTest.mouseClick(window.view.focusProxy(),Qt.LeftButton,Qt.NoModifier,QPoint(25,20))
+        QTest.qWait(100)
+        QTest.keyClicks(window.view.focusProxy(),draft)
+        QTest.qWait(100)
+        self.assertEqual(self.js(window,"document.querySelector('textarea').value"),draft)
+        self.wait(lambda:self.js(window,"document.querySelector('textarea').value")==draft)
+        captured=[];window._capture(lambda:captured.append(True));self.wait(lambda:bool(captured))
+        self.assertEqual(window.session.draft(window.session.binding),draft)
+        self.js(window,"document.querySelector('textarea').remove();const field=document.createElement('textarea');"
+                       "field.id='translation-text';document.body.append(field)")
+        captured=[];window._capture(lambda:captured.append(True));self.wait(lambda:bool(captured))
+        self.assertEqual(window.session.draft(window.session.binding),draft,
+                         'An empty DOM remount must not erase the bound unsent draft')
+        self.js(window,"const other=document.createElement('input');document.body.append(other);"
+                       "other.value='Anderes Feld';other.dispatchEvent(new Event('input',{bubbles:true}))")
+        captured=[];window._capture(lambda:captured.append(True));self.wait(lambda:bool(captured))
+        self.assertEqual(window.session.draft(window.session.binding),draft)
+        window.view.setFocus()
+        self.js(window,"document.querySelector('textarea').focus();document.addEventListener('input',e=>{"
+                       "if(e.target.id==='translation-text' && e.target.value==='')window.fixtureUserClear=e.isTrusted})")
+        QTest.mouseClick(window.view.focusProxy(),Qt.LeftButton,Qt.NoModifier,QPoint(25,20))
+        QTest.qWait(100)
+        QTest.keyClicks(window.view.focusProxy(),'Bewusst leeren')
+        self.wait(lambda:self.js(window,"document.querySelector('textarea').value")=='Bewusst leeren')
+        QTest.keyClick(window.view.focusProxy(),Qt.Key_A,Qt.ControlModifier)
+        QTest.keyClick(window.view.focusProxy(),Qt.Key_Backspace)
+        self.wait(lambda:self.js(window,"document.querySelector('textarea').value")=='')
+        self.assertTrue(self.js(window,'window.fixtureUserClear'))
+        captured=[];window._capture(lambda:captured.append(True));self.wait(lambda:bool(captured))
+        self.assertEqual(window.session.draft(window.session.binding),'')
 
     def test_tls_callback_rejects_and_uncertain_write_keeps_host_locked(self):
         window=self.window()
