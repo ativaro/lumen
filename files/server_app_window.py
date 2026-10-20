@@ -4,7 +4,7 @@ import os
 import tempfile
 from uuid import uuid4
 
-from PySide6.QtCore import Qt, QThread, QTimer, QUrl
+from PySide6.QtCore import Qt, QThread, QTimer, QUrl, QDateTime
 from PySide6.QtNetwork import QNetworkCookie, QSslCertificate
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton, QStackedWidget, QMessageBox
 from desktop_design import AppHeader, PAGE_MARGIN, PAGE_SPACING
@@ -75,6 +75,7 @@ class ServerAppWindow(QMainWindow):
         super().__init__(parent)
         if not isinstance(session, AppSession) or session.binding.app != 'compose':raise SessionError('identity')
         self.session = session
+        self._binding=session.binding;self._bound_profile=None;self._profile_cookie=None
         self._live = self._loaded = self._disposed = self._closing = False
         self._generation = 0; self._worker = None; self._temporary = None
         self.profile = self.page = self.view = None
@@ -112,6 +113,7 @@ class ServerAppWindow(QMainWindow):
             builder.setAdditionalTrustedCertificates(certs)
         self.profile = builder.createProfile('lumen-app-'+uuid4().hex,self)
         if self.profile is None:raise SessionError('profile')
+        self._bound_profile=self.profile
         temporary = self._temporary
         def cleanup(attempt=0):
             try:temporary.cleanup()
@@ -137,7 +139,8 @@ class ServerAppWindow(QMainWindow):
         self.page.certificateError.connect(self._certificate)
         self.page.renderProcessTerminated.connect(lambda *_:self.block('renderer'))
         self.page.loadFinished.connect(self._loaded_page)
-        self.profile.cookieStore().cookieAdded.connect(self._cookie_added)
+        self.profile.cookieStore().cookieAdded.connect(lambda c,p=self.profile:self._cookie_added(p,c))
+        self.profile.cookieStore().cookieRemoved.connect(lambda c,p=self.profile:self._cookie_removed(p,c))
         script = QWebEngineScript();script.setName('Lumen Compose draft')
         script.setWorldId(QWebEngineScript.ScriptWorldId.ApplicationWorld)
         script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentReady)
@@ -146,6 +149,7 @@ class ServerAppWindow(QMainWindow):
 
     def verify(self, *, reconnect=False):
         if self._disposed or self._closing or not WEBENGINE or self.page is None or self._worker is not None:return
+        if self.session.state=='identity':self.retry.setEnabled(False);return
         if reconnect and self._loaded and not self.session.has_cookie:
             self.block(self.session.state)
             self.status.setText('Sitzung beendet. Entwurf kopieren und die App erneut öffnen.')
@@ -165,24 +169,47 @@ class ServerAppWindow(QMainWindow):
         if generation!=self._generation:return
         self.retry.setEnabled(True)
         if not worker.ok or not self.session.usable:self.block(self.session.state);return
+        if self._loaded:
+            if not self._cookie_valid():self.block('cookie');return
+            self._live=True;self.page.setLifecycleState(QWebEnginePage.LifecycleState.Active)
+            self.stack.setCurrentWidget(self.view);self.timer.start();return
         self.timer.start()
         if self._live:return
         cookies = QNetworkCookie.parseCookies(self.session.web_cookie())
-        if len(cookies)!=1:self.block('cookie');return
+        if len(cookies)!=1 or cookies[0].sameSitePolicy()!=QNetworkCookie.SameSite.Strict:self.block('cookie');return
         self._live = True
         # Initialize Chromium's blank page before waiting for its cookie signal.
         self.page.runJavaScript('void 0',QWebEngineScript.ScriptWorldId.ApplicationWorld)
         self.profile.cookieStore().loadAllCookies()
         self.profile.cookieStore().setCookie(cookies[0],QUrl(self.session.binding.origin))
 
-    def _cookie_added(self, cookie):
-        if self._disposed or not self._live or not self.session.usable or bytes(cookie.name())!=b'lumen_session':return
-        if bytes(cookie.value())!=self.session._cookie or not cookie.isHttpOnly() or not cookie.isSecure():
-            self.profile.cookieStore().deleteCookie(cookie);self.session.close('identity');self.block('identity');return
+    def _cookie_valid(self):
+        cookie=self._profile_cookie
+        # Qt 6.12's signal omits SameSite; native exchange/insertion enforce Strict.
+        return bool(cookie is not None and self.session.binding==self._binding
+            and self.profile is self._bound_profile and not is_deleted(self.profile)
+            and self.page is not None and self.page.profile() is self._bound_profile
+            and self.session.has_cookie and bytes(cookie.value())==self.session._cookie
+            and cookie.domain()==QUrl(self._binding.origin).host() and cookie.path()=='/'
+            and cookie.isHttpOnly() and cookie.isSecure()
+            and (cookie.isSessionCookie() or cookie.expirationDate()>QDateTime.currentDateTimeUtc()))
+
+    def _cookie_added(self, profile, cookie):
+        if self._disposed or self._closing or bytes(cookie.name())!=b'lumen_session':return
+        self._profile_cookie=QNetworkCookie(cookie) if profile is self._bound_profile else None
+        if not self._cookie_valid():
+            self._profile_cookie=None;profile.cookieStore().deleteCookie(cookie)
+            self.session.close('identity');self.block('identity');return
+        if not self._live or not self.session.usable:return
         if not self._loaded:self.view.load(QUrl(self.session.url))
         else:
             self.page.setLifecycleState(QWebEnginePage.LifecycleState.Active)
             self.stack.setCurrentWidget(self.view)
+
+    def _cookie_removed(self, profile, cookie):
+        if self._disposed or self._closing or profile is not self._bound_profile or bytes(cookie.name())!=b'lumen_session':return
+        self._profile_cookie=None
+        self.block(self.session.state if self.session.state in ('identity','revoked','expired') else 'cookie')
 
     def _loaded_page(self, ok):
         if self._disposed or not self._live or not self.session.usable:return
@@ -233,7 +260,7 @@ class ServerAppWindow(QMainWindow):
                     QMessageBox.StandardButton.Cancel)!=QMessageBox.StandardButton.Discard:
                 self._closing=False;return
             self.timer.stop();self._live=False;self._generation+=1
-            self.session.remember_draft('');self.session.close()
+            self._profile_cookie=None;self.session.remember_draft('');self.session.close()
             if self.page is not None:
                 page,profile,view=self.page,self.profile,self.view
                 self.page=self.profile=self.view=None;self._loaded=False

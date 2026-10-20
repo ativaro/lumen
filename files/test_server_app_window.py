@@ -13,7 +13,8 @@ from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
 
-from PySide6.QtCore import Qt, QUrl, QPoint
+from PySide6.QtCore import Qt, QUrl, QPoint, QDateTime
+from PySide6.QtNetwork import QNetworkCookie
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
 import shiboken6
@@ -36,7 +37,8 @@ class WindowTest(unittest.TestCase):
             subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-subj','/CN=localhost',
                         '-addext','subjectAltName=DNS:localhost,IP:127.0.0.1','-days','1',
                         '-out',str(cert),'-keyout',str(target_key)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-        cls.calls=[];cls.revoked=False;cls.challenge=''
+        cls.calls=[];cls.revoked=False;cls.challenge='';cls.hold_write=False
+        cls.write_started=threading.Event();cls.release_write=threading.Event()
         class Handler(BaseHTTPRequestHandler):
             def log_message(self,*args):pass
             def do_GET(self):self.handle_request()
@@ -60,8 +62,11 @@ class WindowTest(unittest.TestCase):
                     status=403 if cls.revoked or 'lumen_session='+'c'*43 not in self.headers.get('Cookie','') else 200
                     data=dict(user=dict(id=USER,device_id=DEVICE,desktop_app='compose',device_kind='desktop',
                                         capabilities=['translate'],admin=False,csrf='fixture'))
-                elif self.path=='/api/translate':status=403;data={'detail':'App jobs remain gated.'}
-                elif self.path=='/api/ping':data={'cookie':bool(self.headers.get('Cookie'))}
+                elif self.path=='/api/translate':
+                    if cls.hold_write:
+                        cls.write_started.set();cls.release_write.wait(timeout=10)
+                    status=403;data={'detail':'App jobs remain gated.'}
+                elif self.path=='/api/ping':data={'cookie':'lumen_session='+'c'*43 in self.headers.get('Cookie','')}
                 else:
                     data='<!doctype html><html><title>Compose fixture</title><textarea id="translation-text"></textarea></html>'
                 raw=data.encode() if isinstance(data,str) else json.dumps(data).encode()
@@ -81,9 +86,11 @@ class WindowTest(unittest.TestCase):
         cls.app.processEvents();cls.temp.cleanup()
 
     def setUp(self):
-        type(self).revoked=False;self.windows=[]
+        type(self).revoked=False;type(self).hold_write=False
+        self.write_started.clear();self.release_write.clear();self.windows=[]
 
     def tearDown(self):
+        self.release_write.set()
         with patch.object(QMessageBox,'question',return_value=QMessageBox.StandardButton.Discard):
             for window in self.windows:window.close()
             self.wait(lambda:all(w._disposed for w in self.windows))
@@ -188,6 +195,77 @@ class WindowTest(unittest.TestCase):
         self.assertTrue(self.js(window,'window.fixtureUserClear'))
         captured=[];window._capture(lambda:captured.append(True));self.wait(lambda:bool(captured))
         self.assertEqual(window.session.draft(window.session.binding),'')
+
+    def pause(self,window):
+        window.block('offline')
+        self.wait(lambda:window.page.lifecycleState()==QWebEnginePage.LifecycleState.Frozen)
+
+    def test_same_cookie_resumes_after_fresh_identity_check_without_new_ticket(self):
+        window=self.window()
+        self.js(window,"document.querySelector('textarea').value='Reconnect-Entwurf';"
+                       "document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))")
+        self.js(window,"fetch('/api/ping').then(r=>r.json()).then(v=>window.cookieBefore=v.cookie)")
+        self.wait(lambda:self.js(window,'window.cookieBefore') is True)
+        tickets=sum(c['path']=='/bridge/apps/session-ticket' for c in self.calls)
+        self.pause(window);window.verify()
+        self.wait(lambda:window._worker is None and window._live
+                  and window.stack.currentWidget() is window.view,timeout=3000)
+        self.js(window,"fetch('/api/ping').then(r=>r.json()).then(v=>window.cookieAfter=v.cookie)")
+        self.wait(lambda:self.js(window,'window.cookieAfter') is True)
+        self.js(window,"document.querySelector('textarea').remove();const field=document.createElement('textarea');"
+                       "field.id='translation-text';document.body.append(field)")
+        captured=[];window._capture(lambda:captured.append(True));self.wait(lambda:bool(captured))
+        self.assertEqual(window.session.draft(window.session.binding),'Reconnect-Entwurf')
+        self.assertEqual(sum(c['path']=='/bridge/apps/session-ticket' for c in self.calls),tickets)
+
+    def test_removed_or_expired_profile_cookie_is_not_reinserted_on_resume(self):
+        for expired in (False,True):
+            with self.subTest(expired=expired):
+                window=self.window();removed=[]
+                cookie=QNetworkCookie.parseCookies(window.session.web_cookie())[0]
+                window.profile.cookieStore().cookieRemoved.connect(lambda c:removed.append(bytes(c.name())))
+                self.pause(window)
+                if expired:
+                    cookie.setExpirationDate(QDateTime.currentDateTimeUtc().addSecs(-30))
+                    window.profile.cookieStore().setCookie(cookie,QUrl(self.origin))
+                else:window.profile.cookieStore().deleteAllCookies()
+                self.wait(lambda:b'lumen_session' in removed)
+                window.verify();self.wait(lambda:window._worker is None)
+                self.assertFalse(window._live)
+                self.assertIs(window.stack.currentWidget(),window.status_page)
+
+    def test_changed_profile_cookie_while_paused_cannot_resume(self):
+        window=self.window();cookie=QNetworkCookie.parseCookies(window.session.web_cookie())[0]
+        changed=[];window.profile.cookieStore().cookieAdded.connect(lambda c:changed.append(bytes(c.value())))
+        self.pause(window);cookie.setValue(b'd'*43)
+        window.profile.cookieStore().setCookie(cookie,QUrl(self.origin))
+        self.wait(lambda:b'd'*43 in changed)
+        window.verify();self.wait(lambda:window._worker is None)
+        self.assertFalse(window._live)
+        self.assertEqual(window.session.state,'identity');self.assertFalse(window.retry.isEnabled())
+        self.assertIs(window.stack.currentWidget(),window.status_page)
+
+    def test_revoked_session_cannot_resume_with_its_old_profile_cookie(self):
+        window=self.window();self.pause(window);type(self).revoked=True
+        window.verify();self.wait(lambda:window._worker is None)
+        self.assertFalse(window._live);self.assertEqual(window.session.state,'revoked')
+
+    def test_different_profile_cannot_supply_resume_cookie_proof(self):
+        window=self.window();other=self.window();original=window.profile
+        self.pause(window);window.profile=other.profile
+        try:
+            window.verify();self.wait(lambda:window._worker is None)
+            self.assertFalse(window._live)
+        finally:window.profile=original
+
+    def test_started_write_without_acknowledgement_stays_locked_without_replay(self):
+        window=self.window();type(self).hold_write=True
+        self.js(window,"fetch('/api/translate',{method:'POST',headers:{'Content-Type':'application/json'},"
+                       "body:JSON.stringify({text:'Nicht doppelt senden'})}).catch(()=>{})")
+        self.wait(lambda:self.write_started.is_set())
+        self.pause(window);window.verify();self.wait(lambda:window._worker is None)
+        self.assertTrue(window.session.uncertain);self.assertFalse(window._live)
+        self.assertEqual(sum(c['path']=='/api/translate' and c['method']=='POST' for c in self.calls),1)
 
     def test_tls_callback_rejects_and_uncertain_write_keeps_host_locked(self):
         window=self.window()
