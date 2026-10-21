@@ -31,7 +31,7 @@ FOLDER='73000000-0000-4000-8000-000000000003'
 FILE='73000000-0000-4000-8000-000000000004'
 
 
-class WindowTest(unittest.TestCase):
+class PrivateHostFixture(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         root=Path(os.environ['LUMEN_HOST_TEST_ROOT']);root.mkdir(parents=True,exist_ok=True,mode=0o700)
@@ -197,6 +197,8 @@ class WindowTest(unittest.TestCase):
         captured=[];window._capture(lambda:captured.append(True));self.wait(lambda:bool(captured))
         self.assertIn('Own unsaved Notes text',window.session.draft(window._binding))
 
+
+class WindowTest(PrivateHostFixture):
     def test_reference_selection_uses_current_app_hook_without_reloading_or_discarding(self):
         window=self.import_window(drive=False,pilot=True,app='notes');self.note_input(window)
         reference=dict(version=2,app='note',id=FILE,title='Own selected note',

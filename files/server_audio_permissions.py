@@ -1,5 +1,6 @@
 """Explicit native inputs for the current private Code or Audio Studio session."""
 from pathlib import Path
+import os
 import stat
 
 from PySide6.QtWidgets import QFileDialog, QMessageBox
@@ -58,9 +59,18 @@ def choose(window, mode):
             else:
                 if (value.name in names or value.name in ('.git','.ssh','.aws','.gitmodules','.gitattributes')
                         or value.name.startswith('.env') or value.name.endswith(('.pem','.key'))):raise ValueError
-                names.add(value.name);total+=info.st_size
-                if total>8*1024**2:raise ValueError
-                text=value.read_bytes().decode('utf-8')
+                names.add(value.name)
+                with os.fdopen(os.open(value,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK),'rb') as stream:
+                    opened=os.fstat(stream.fileno())
+                    if (not stat.S_ISREG(opened.st_mode) or opened.st_size>512*1024
+                            or (opened.st_dev,opened.st_ino)!=(info.st_dev,info.st_ino)):raise ValueError
+                    total+=opened.st_size
+                    if total>8*1024**2:raise ValueError
+                    raw=stream.read(512*1024+1)
+                    after=os.fstat(stream.fileno())
+                    if (len(raw)!=opened.st_size or (after.st_size,after.st_mtime_ns,after.st_ctime_ns)
+                            !=(opened.st_size,opened.st_mtime_ns,opened.st_ctime_ns)):raise ValueError
+                text=raw.decode('utf-8')
                 if '\0' in text:raise ValueError
         return paths if current(window,proof) else []
     except (OSError,ValueError,UnicodeError):
