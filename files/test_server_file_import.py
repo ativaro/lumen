@@ -37,7 +37,7 @@ class FileImportTest(unittest.TestCase):
         self.job=SimpleNamespace(check=lambda:None)
         patches=[patch.object(drive.lumen_connect,'read_config',side_effect=lambda:dict(self.config)),
                  patch.object(drive.lumen_connect,'request',side_effect=self.profile),
-                 patch.object(drive.sync,'inventory',side_effect=lambda _:self.cache),
+                 patch.object(drive.sync,'inventory',side_effect=lambda _,*,job=None:self.cache),
                  patch.object(transport,'request',side_effect=self.wire)]
         for active in patches:active.start();self.addCleanup(active.stop)
 

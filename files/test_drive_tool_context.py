@@ -132,7 +132,7 @@ class DriveToolContextTest(unittest.TestCase):
                 elif change=='revoked':cache['files']={}
                 else:cache['files'][self.family]['revision']+=1
                 return 'MUST NOT ESCAPE'
-            with patch.object(drive.lumen_connect,'read_config',side_effect=lambda:dict(config)),patch.object(drive.lumen_connect,'request',return_value=dict(id=self.account)),patch.object(drive.sync,'inventory',side_effect=lambda _:dict(files={k:dict(v) for k,v in cache['files'].items()},folders={})),patch('drive_transport.download',side_effect=download),patch('tools_data.document_text',side_effect=parse):
+            with patch.object(drive.lumen_connect,'read_config',side_effect=lambda:dict(config)),patch.object(drive.lumen_connect,'request',return_value=dict(id=self.account)),patch.object(drive.sync,'inventory',side_effect=lambda _,*,job=None:dict(files={k:dict(v) for k,v in cache['files'].items()},folders={})),patch('drive_transport.download',side_effect=download),patch('tools_data.document_text',side_effect=parse):
                 with self.assertRaises(ValueError):invoke('lumen_drive_read',dict(ref=url))
             self.assertFalse(list(Path(self.tmp.name+'/cache/lumen-drive-handoffs').glob('copy-*')))
 
