@@ -7,10 +7,11 @@ from urllib.parse import parse_qs,urlsplit
 from uuid import UUID
 
 from PySide6.QtCore import QObject,Qt
-from PySide6.QtWidgets import QDialog,QDialogButtonBox,QLabel,QListWidget,QListWidgetItem,QMessageBox,QVBoxLayout
+from PySide6.QtWidgets import QDialog,QDialogButtonBox,QListWidget,QListWidgetItem,QMessageBox,QVBoxLayout
 from interop_data import Registry,validate_ref
 from interop_dialogs import run_job
 from interop_open import open_url
+from desktop_design import AppHeader,MENU_STYLE,PAGE_MARGIN,PAGE_SPACING
 from lumen_i18n import tr
 from lumen_qt import is_deleted
 import drive_references as drive
@@ -170,7 +171,7 @@ class Links(QObject):
     def menu(self,point):
         w=self.window
         if w._disposed or w._closing or self.pending:return
-        menu=w.view.createStandardContextMenu()
+        menu=w.view.createStandardContextMenu();menu.setStyleSheet(MENU_STYLE)
         menu.addSeparator();action=menu.addAction(tr('Dateiverweise in Lumen Files …'))
         action.setObjectName('lumen-notes-file-references')
         action.setEnabled(w._live and w._loaded and w.session.usable and not w._import_running)
@@ -199,9 +200,10 @@ class Links(QObject):
                 if not rows:
                     QMessageBox.information(w,'Lumen Notes',tr('Für diese Notiz sind auf diesem Gerät keine bestätigten Dateiverweise vorhanden.'));return
                 dialog=QDialog(w);dialog.setWindowTitle(tr('Lumen Notes · Dateiverweise'));dialog.resize(620,400)
-                layout=QVBoxLayout(dialog);layout.setContentsMargins(24,24,24,24)
-                heading=QLabel(title);heading.setTextFormat(Qt.PlainText);heading.setWordWrap(True);layout.addWidget(heading)
+                layout=QVBoxLayout(dialog);layout.setContentsMargins(PAGE_MARGIN,PAGE_MARGIN,PAGE_MARGIN,PAGE_MARGIN);layout.setSpacing(PAGE_SPACING)
+                heading=AppHeader(tr('Dateiverweise'),title);heading.subtitle.setTextFormat(Qt.PlainText);layout.addWidget(heading)
                 listing=QListWidget();listing.setAccessibleName(tr('Dateiverweise dieser Notiz'));listing.setWordWrap(True)
+                listing.setStyleSheet('QListWidget::item { padding:10px 12px; }');listing.setSpacing(4)
                 for row in rows:
                     ref=row['reference'];where=tr('Lumen Drive') if ref['kind'].startswith('drive_') else ref.get('path',ref['id'])
                     item=QListWidgetItem(ref['title']+'\n'+where);item.setData(Qt.UserRole,row['url']);listing.addItem(item)
