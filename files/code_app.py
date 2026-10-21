@@ -13,10 +13,9 @@ def main(arguments=None):
     from server_app_session import SessionError
     activation={'reference':args.ref} if args.ref else {'save_task':args.save_task} if args.save_task else {}
     if args.entry:
-        from interop_dialogs import run_job
-        from server_notes_app import context
+        from server_notes_app import verify_context
         application=create_app()
-        checked=run_job(None,'Lumen Code · Serververbindung wird geprüft …',lambda job:context(job,'code'))
+        checked=verify_context('code')
         if checked is None:return 1
         binding=checked[1]
         reference=dict(version=2,app='code',id=args.entry,title='Lumen Code',locator=dict(server=binding.origin,account=binding.account))
