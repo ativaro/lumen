@@ -101,8 +101,10 @@ def legacy_upload(
             },
             method="POST",
         )
+        progress(0, size)
         with opener(config).open(request, timeout=60) as response:
             raw = response.read(1024 * 1024 + 1)
+        progress(size, size)
         if len(raw) > 1024 * 1024:
             raise ValueError(tr("Serverantwort zu groß."))
         return json.loads(raw)
@@ -153,12 +155,17 @@ def upload(config, root, path, folder, request_id, expected_hash,
             chunk = stream.read(min(4 * 1024**2, size - offset))
             if not chunk or not local.transfer_unchanged(before, os.fstat(stream.fileno())):
                 raise ValueError(tr("Datei während Übertragung verändert."))
+            progress(offset, size)
             state = request(config, f"/uploads/{key}?offset={offset}", chunk, "PUT", "application/octet-stream")
+            progress(offset, size)
             if state["offset"] != offset + len(chunk):
                 raise ValueError(tr("Ungültiger Übertragungsstand."))
             offset += len(chunk)
             progress(offset, size)
-        return request(config, f"/uploads/{key}/finish")
+        progress(offset, size)
+        result = request(config, f"/uploads/{key}/finish")
+        progress(offset, size)
+        return result
 
 
 def download(config, root, row, progress=lambda *_: None):

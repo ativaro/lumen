@@ -49,13 +49,15 @@ def _save_choice(registry, token, saved, choice, state):
         raise ValueError(tr('Die bestätigte Auswahl wurde gleichzeitig geändert. Bitte erneut prüfen.'))
 
 
-def _destination(ref, device=None, revision=None):
+def _destination(ref, device=None, revision=None, *, job=None):
     ref = drive.validate(ref)
     if ref['kind'] != 'drive_folder':
         raise ValueError(tr('Einen vorhandenen Drive-Zielordner auswählen.'))
-    config, rows = drive.resolve([ref])
+    config, rows = drive.resolve([ref], job)
     row = rows[0]
+    if job:job.check()
     profile = drive.lumen_connect.request(config, '/bridge/me')
+    if job:job.check()
     current = str(UUID(profile['device_id']))
     if (profile['id'] != ref['locator']['account'] or device is not None and current != device
             or row.get('can_write') is not True or row.get('name') != ref['title']
@@ -95,7 +97,7 @@ def prepare(token, choice, destination, job, *, root=None):
     captured = from_paths(payload['paths'])
     if captured['source'] != payload['source'] or captured['items'][0]['directory']:
         raise ValueError(tr('Die bestätigte lokale Quelldatei wurde geändert.'))
-    config, device, revision = _destination(destination)
+    config, device, revision = _destination(destination, job=job)
     path = Path(payload['paths'][0])
     origin = source_root(path.parent, native_names=True)
     digest, stamp = checksum(origin, path.name, lambda *_:job.check())
@@ -159,7 +161,7 @@ def apply(token, job, *, root=None):
     try:
         plan = request['choice']['drive_import']
         _source(plan, request, job)
-        config, _, _ = _destination(plan['destination'], plan['device_id'], plan['destination_revision'])
+        config, _, _ = _destination(plan['destination'], plan['device_id'], plan['destination_revision'], job=job)
         def progress(*_):
             job.check()
             _same_connection(config)
@@ -174,7 +176,7 @@ def apply(token, job, *, root=None):
                                plan['request_id'], plan['sha256'], filename=plan['name'], progress=progress,
                                remember=remember, expected_stamp=plan['stamp'])
         progress()
-        _destination(plan['destination'], plan['device_id'], plan['destination_revision'])
+        _destination(plan['destination'], plan['device_id'], plan['destination_revision'], job=job)
         _source(plan, request, job)
         if acknowledgement != [row.get('id')]:
             raise ValueError(tr('Der Server hat die bestätigte Dateiübernahme nicht eindeutig bestätigt.'))

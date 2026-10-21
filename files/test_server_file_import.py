@@ -3,6 +3,12 @@ import hashlib
 import os
 from pathlib import Path
 import tempfile
+import json
+import ssl
+import subprocess
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -13,6 +19,8 @@ import drive_transport as transport
 from interop_data import Registry
 from interop_sources import from_paths
 import server_file_import as imports
+
+NATIVE_REQUEST = drive.lumen_connect.request
 
 
 class FileImportTest(unittest.TestCase):
@@ -79,6 +87,50 @@ class FileImportTest(unittest.TestCase):
 
     def apply(self):
         return imports.apply(self.token,self.job,root=self.base/'tools')
+
+    def test_cancel_during_https_target_resolution_or_device_response_stops_followup(self):
+        from lumen_jobs import Job
+        from tools_data import Cancelled
+        cert=self.base/'target-ca.pem';key=self.base/'target-key.pem'
+        subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-subj','/CN=localhost',
+            '-addext','subjectAltName=IP:127.0.0.1','-days','1','-out',str(cert),'-keyout',str(key)],
+            check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        entered=threading.Event();release=threading.Event();calls=[];gate=[1];owner=self
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self,*args):pass
+            def do_GET(self):
+                calls.append(dict(path=self.path,bearer=bool(self.headers.get('Authorization')),
+                                  cookie=bool(self.headers.get('Cookie'))))
+                held=len(calls)==gate[0]
+                if held:entered.set();release.wait(timeout=5)
+                device='invalid-after-cancel' if held and gate[0]==2 else owner.device
+                raw=json.dumps(dict(id=owner.account,device_id=device)).encode()
+                self.send_response(200);self.send_header('Content-Length',str(len(raw)))
+                self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(raw)
+        server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
+        context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);context.load_cert_chain(cert,key)
+        server.socket=context.wrap_socket(server.socket,server_side=True)
+        thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+        try:
+            self.config.update(server='https://127.0.0.1:'+str(server.server_port),ca_file=str(cert))
+            self.destination['locator']['server']=self.config['server'];self.prepare()
+            saved=dict(self.registry.request(self.token)['choice'])
+            for step in (1,2):
+                with self.subTest(blocked_native_response=step):
+                    gate[0]=step;calls.clear();entered.clear();release.clear();self.job=Job(lambda _:None)
+                    with patch.object(drive.lumen_connect,'request',side_effect=NATIVE_REQUEST),ThreadPoolExecutor(max_workers=1) as pool:
+                        future=pool.submit(self.apply)
+                        try:
+                            self.assertTrue(entered.wait(timeout=5));self.job.cancelled.set()
+                        finally:release.set()
+                        with self.assertRaises(Cancelled):future.result(timeout=5)
+                    self.assertEqual([c['path'] for c in calls],['/bridge/me']*step)
+                    self.assertTrue(all(c['bearer'] and not c['cookie'] for c in calls))
+                    self.assertEqual(self.calls,[]);self.assertEqual(self.registry.request(self.token)['state'],'pending')
+                    self.assertEqual(self.registry.request(self.token)['choice'],saved)
+                    self.assertEqual(len(self.registry.history()),1);self.assertEqual(self.path.read_bytes(),self.original)
+        finally:
+            release.set();server.shutdown();server.server_close();thread.join(timeout=5)
 
     def test_capture_open_and_cancel_do_not_upload(self):
         self.registry.resolve(self.registry.request(self.token)['payload']['source_url'])

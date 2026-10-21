@@ -2,6 +2,9 @@ import io
 import os
 from pathlib import Path
 import tempfile
+from contextlib import contextmanager
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 import unittest
 from unittest.mock import patch
 from urllib.request import Request
@@ -138,6 +141,68 @@ class UploadStampTest(unittest.TestCase):
         if method=='PUT':return dict(offset=len(body))
         if path.endswith('/finish'):return dict(id=self.key)
         return dict(id=self.key,size=len(self.content),offset=0)
+
+    def test_cancel_during_slow_fd_read_sends_no_put_or_finish(self):
+        from lumen_jobs import Job
+        from tools_data import Cancelled
+        entered=Event();release=Event();job=Job(lambda _:None);original=self.local.source
+        class Held:
+            def __init__(self,stream):self.stream=stream
+            def __getattr__(self,name):return getattr(self.stream,name)
+            def read(self,size):
+                data=self.stream.read(size);entered.set()
+                if not release.wait(timeout=5):raise TimeoutError('Own held read')
+                return data
+        @contextmanager
+        def source(*args):
+            with original(*args) as stream:yield Held(stream)
+        with patch.object(self.local,'source',side_effect=source),patch.object(self.transport,'request',side_effect=self.wire), \
+             ThreadPoolExecutor(max_workers=1) as pool:
+            future=pool.submit(self.transport.upload,*self.args,progress=lambda *_:job.check(),expected_stamp=self.stamp)
+            try:self.assertTrue(entered.wait(timeout=5));job.cancelled.set()
+            finally:release.set()
+            with self.assertRaises(Cancelled):future.result(timeout=5)
+        self.assertEqual([method for _,method,_ in self.calls],['POST'])
+        self.assertEqual(self.path.read_bytes(),self.content)
+
+    def legacy_cancel(self,during_reopen):
+        from lumen_jobs import Job
+        from tools_data import Cancelled
+        entered=Event();release=Event();job=Job(lambda _:None);original=self.local.source;opened=[]
+        error=HTTPError('https://staging.invalid/bridge/drive/uploads/test',404,'Not found',None,None)
+        self.addCleanup(error.close)
+        @contextmanager
+        def source(*args):
+            with original(*args) as stream:
+                opened.append(True)
+                if during_reopen and len(opened)==2:
+                    entered.set()
+                    if not release.wait(timeout=5):raise TimeoutError('Own held reopen')
+                yield stream
+        def begin(*args):
+            if not during_reopen:
+                entered.set()
+                if not release.wait(timeout=5):raise TimeoutError('Own held begin')
+            raise error
+        def multipart(request,timeout):
+            b''.join(request.data)
+            return Response(b'{"ok":true}')
+        with patch.object(self.local,'source',side_effect=source),patch.object(self.transport,'request',side_effect=begin) as request, \
+             patch.object(self.transport,'opener') as opener,ThreadPoolExecutor(max_workers=1) as pool:
+            opener.return_value.open.side_effect=multipart
+            future=pool.submit(self.transport.upload,*self.args,progress=lambda *_:job.check(),
+                legacy_target=str(uuid4()),expected_stamp=self.stamp)
+            try:self.assertTrue(entered.wait(timeout=5));job.cancelled.set()
+            finally:release.set()
+            with self.assertRaises(Cancelled):future.result(timeout=5)
+            request.assert_called_once();opener.assert_not_called()
+        self.assertEqual(self.path.read_bytes(),self.content)
+
+    def test_cancel_during_begin_404_never_starts_legacy_http(self):
+        self.legacy_cancel(False)
+
+    def test_cancel_during_legacy_reopen_never_starts_multipart(self):
+        self.legacy_cancel(True)
 
     def test_expected_stamp_allows_unchanged_fd_and_old_positional_callers(self):
         for options in ({},{'expected_stamp':self.stamp}):
