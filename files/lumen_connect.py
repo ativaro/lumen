@@ -460,9 +460,13 @@ def memory_stamp():
     return hashlib.sha256(json.dumps([scope,rows], sort_keys=True).encode()).hexdigest() if scope or rows else ""
 
 
-def receive_artifact(config, action):
+def receive_artifact(config, action, *, job=None):
     """Claim once and download one authenticated immutable object into a private cache."""
     import hashlib
+
+    def check():
+        if job is not None:
+            job.check()
 
     extensions = {
         "text/plain": ".txt",
@@ -477,16 +481,23 @@ def receive_artifact(config, action):
         raise ValueError("Dateityp oder Größe ist nicht freigegeben.")
     identity = str(UUID(action["id"]))
     file_id = str(UUID(action["file_id"]))
-    claimed = request(
-        config, "/bridge/actions/" + identity, dict(state="claimed", revision=action["revision"])
-    )
-    if claimed.get("replayed"):
-        raise ValueError("Diese Anfrage wurde bereits übernommen. Bitte neu senden.")
-    folder = ROOT / "received"
-    folder.mkdir(mode=0o700, exist_ok=True)
-    target = folder / (file_id + extensions[action["mime"]])
     temporary = None
+    fresh_claim = False
     try:
+        check()
+        claimed = request(
+            config, "/bridge/actions/" + identity, dict(state="claimed", revision=action["revision"])
+        )
+        replayed = claimed.get("replayed")
+        if not replayed:
+            revision = claimed["revision"]
+            fresh_claim = True
+        check()
+        if replayed:
+            raise ValueError("Diese Anfrage wurde bereits übernommen. Bitte neu senden.")
+        folder = ROOT / "received"
+        folder.mkdir(mode=0o700, exist_ok=True)
+        target = folder / (file_id + extensions[action["mime"]])
         opener = urllib.request.build_opener(
             urllib.request.HTTPSHandler(context=tls_context(config)), NoRedirect()
         )
@@ -494,31 +505,49 @@ def receive_artifact(config, action):
             config["server"] + "/bridge/artifacts/" + file_id,
             headers={"Authorization": "Bearer " + config["token"]},
         )
-        fd, temporary = tempfile.mkstemp(dir=folder, prefix=".receive-")
         digest = hashlib.sha256()
         count = 0
-        with os.fdopen(fd, "wb") as out, opener.open(req, timeout=20) as response:
-            while chunk := response.read(128 * 1024):
-                count += len(chunk)
-                if count > action["size"]:
-                    raise ValueError("Die Datei wurde verändert.")
-                digest.update(chunk)
-                out.write(chunk)
-            out.flush()
-            os.fsync(out.fileno())
+        check()
+        fd, temporary = tempfile.mkstemp(dir=folder, prefix=".receive-")
+        with os.fdopen(fd, "wb") as out:
+            check()
+            with opener.open(req, timeout=20) as response:
+                check()
+                while True:
+                    check()
+                    chunk = response.read(128 * 1024)
+                    check()
+                    if not chunk:
+                        break
+                    count += len(chunk)
+                    if count > action["size"]:
+                        raise ValueError("Die Datei wurde verändert.")
+                    digest.update(chunk)
+                    check()
+                    out.write(chunk)
+                check()
+                out.flush()
+                check()
+                os.fsync(out.fileno())
+        check()
         if count != action["size"] or digest.hexdigest() != action["sha256"]:
             raise ValueError("Die Datei wurde verändert.")
+        check()
         latest = request(config, "/bridge/actions/" + identity)
-        if latest.get("state") != "claimed" or latest.get("revision") != claimed["revision"]:
+        check()
+        if latest.get("state") != "claimed" or latest.get("revision") != revision:
             raise ValueError("Die Freigabe ist nicht mehr aktuell.")
+        check()
         os.replace(temporary, target)
         temporary = None
-        return dict(path=str(target), revision=claimed["revision"], id=identity)
+        check()
+        return dict(path=str(target), revision=revision, id=identity)
     except Exception:
-        try:
-            request(config, "/bridge/actions/" + identity, dict(state="failed", revision=claimed["revision"]))
-        except (OSError, ValueError):
-            pass
+        if fresh_claim:
+            try:
+                request(config, "/bridge/actions/" + identity, dict(state="failed", revision=revision))
+            except (OSError, ValueError):
+                pass
         raise
     finally:
         if temporary:
