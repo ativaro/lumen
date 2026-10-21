@@ -194,6 +194,8 @@ class Controller(QObject):
 
     def enqueue(self,request):
         if not isinstance(request,dict) or set(request)-{'path','ref','handoff','text'}:raise ValueError(tr('Ungültige Übergabe.'))
+        if getattr(self.window,'memory_only',False) and set(request)-{'path'}:
+            raise ValueError(tr('Dateien und Notizen in der Server-App öffnen. Dieser Editor ist nur für Erinnerungen.'))
         if 'text' in request and getattr(self.window,'name','') != 'translate': raise ValueError(tr('Ungültige Übergabe.'))
         if any(not isinstance(v,str) or len(v)>(12000 if k=='text' else 4096) for k,v in request.items()):raise ValueError(tr('Ungültige Übergabe.'))
         if len(self.queue)>=30:raise ValueError(tr('Zu viele wartende Übergaben.'))
@@ -220,6 +222,8 @@ class Controller(QObject):
         except Exception as exc:self.save_failed(str(exc));error(self.window,exc)
 
     def deliver(self,request):
+        if getattr(self.window,'memory_only',False) and set(request)-{'path'}:
+            raise ValueError(tr('Dateien und Notizen in der Server-App öffnen. Dieser Editor ist nur für Erinnerungen.'))
         w=self.window;registry=Registry(root_for(w))
         if request.get('ref'):
             focus(w,registry.resolve(request['ref']));return
@@ -393,6 +397,7 @@ def browse(window,mode='related',payload=None):
 
 
 def install(window):
+    if getattr(window,'memory_only',False):return
     if getattr(window,'interop_installed',False):return
     window.interop_installed=True;controller(window)
     from interop_audio import install_audio_menu

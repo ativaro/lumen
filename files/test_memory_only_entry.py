@@ -36,6 +36,16 @@ class MemoryEntryTest(unittest.TestCase):
                 labels=[a.text() for a in window.notebook_menu.actions()]
                 self.assertNotIn('Meine Notizen',labels);self.assertNotIn('Neue Sammlung',labels);self.assertNotIn('Dokumentquellen',labels)
                 self.assertFalse(hasattr(window,'sync_timer'));self.assertFalse(store.setting('knowledge/notebook',''))
+                self.assertFalse(getattr(window,'interop_installed',False))
+                from interop_ui import Controller
+                from interop_context import receive_drop
+                with patch('interop_ui.reviewed_send') as send:
+                    with self.assertRaises(ValueError):receive_drop(window,dict(title='Do not import',paths=[str(outside)]))
+                    send.assert_not_called()
+                controller=Controller(window)
+                for request in ({'handoff':'a'*32},{'ref':'lumen://object/'+'b'*32}):
+                    with self.assertRaises(ValueError):controller.enqueue(request)
+                    with self.assertRaises(ValueError):controller.deliver(request)
             finally:
                 window.closing=True;window.after_job=None;window.poll_timer.stop()
                 for job in (window.job,window.poller):

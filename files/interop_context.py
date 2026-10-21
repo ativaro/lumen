@@ -102,6 +102,8 @@ def install(window):
 
 
 def receive_drop(window, payload):
+    if getattr(window,'memory_only',False):
+        raise ValueError(tr('Dateien und Notizen in der Server-App öffnen. Dieser Editor ist nur für Erinnerungen.'))
     from interop_ui import reviewed_send, actions
     name = getattr(window, 'name', '')
     if name == 'reader' and payload.get('paths'):
