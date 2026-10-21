@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import patch
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings,QSize
 from PySide6.QtWidgets import QPushButton,QLabel
 from test_settings_navigation import SettingsFixture
 from test_server_app_window import PrivateHostFixture
@@ -40,12 +40,23 @@ class DesktopServerSettingsTest(SettingsFixture):
 
 
 class ServerHostGeometryTest(PrivateHostFixture):
+    def test_each_app_uses_its_approved_default_bounded_to_the_screen(self):
+        preferences=QSettings('Lumen','Assistant')
+        for app,size in {'code':(1531,1291),'audio':(1400,1399),
+                         'projects':(1866,1159),'notes':(1658,1015)}.items():
+            with self.subTest(app=app):
+                preferences.remove('windows/server/'+app+'/geometry');preferences.sync()
+                window=self.import_window(drive=False,pilot=True,app=app)
+                available=window.screen().availableGeometry().adjusted(24,24,-24,-24)
+                self.assertEqual(window.size(),QSize(*size).boundedTo(available.size()))
+
     def test_normal_server_window_uses_large_default_and_remembers_size(self):
         preferences=QSettings('Lumen','Assistant')
         preferences.remove('windows/server/code/geometry')
         preferences.setValue('apps/code/restoreGeometry',True);preferences.sync()
         window=self.import_window(drive=False,pilot=True,app='code')
-        self.assertEqual((window.width(),window.height()),(1400,900))
+        available=window.screen().availableGeometry().adjusted(24,24,-24,-24)
+        self.assertEqual(window.size(),QSize(1531,1291).boundedTo(available.size()))
         window.resize(1280,820);window.close();self.wait(lambda:window._disposed)
         reopened=self.import_window(drive=False,pilot=True,app='code')
         self.assertEqual((reopened.width(),reopened.height()),(1280,820))

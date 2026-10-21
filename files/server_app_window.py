@@ -19,6 +19,9 @@ from lumen_qt import is_deleted
 from server_app_session import AppSession, SessionError, APPS, APP_NAMES, Binding, origin
 import lumen_connect
 
+DEFAULT_SIZES = {'code': (1531, 1291), 'audio': (1400, 1399),
+                 'projects': (1866, 1159), 'notes': (1658, 1015)}
+
 try:
     from PySide6.QtWebEngineCore import (QWebEnginePage, QWebEngineProfile, QWebEngineProfileBuilder,
         QWebEngineScript, QWebEngineSettings, QWebEngineUrlRequestInterceptor)
@@ -266,7 +269,7 @@ class ServerAppWindow(QMainWindow):
         from window_geometry import restore
         from lumen_apps import startup_preference
         app_key=APP_NAMES.get(self._binding.app,('', 'lumen-translate'))[1].removeprefix('lumen-')
-        restore(self,self._window_settings,self._geometry_key,(1400,900),startup_preference(app_key,'restoreGeometry',self._window_settings))
+        restore(self,self._window_settings,self._geometry_key,DEFAULT_SIZES.get(self._binding.app,(1400,900)),startup_preference(app_key,'restoreGeometry',self._window_settings))
         self.stack = QStackedWidget(); self.setCentralWidget(self.stack)
         self.status_page = QWidget(); layout = QVBoxLayout(self.status_page)
         layout.setContentsMargins(PAGE_MARGIN,PAGE_MARGIN,PAGE_MARGIN,PAGE_MARGIN);layout.setSpacing(PAGE_SPACING)
