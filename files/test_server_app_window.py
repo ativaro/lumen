@@ -197,6 +197,36 @@ class WindowTest(unittest.TestCase):
         captured=[];window._capture(lambda:captured.append(True));self.wait(lambda:bool(captured))
         self.assertIn('Own unsaved Notes text',window.session.draft(window._binding))
 
+    def test_reference_selection_uses_current_app_hook_without_reloading_or_discarding(self):
+        window=self.import_window(drive=False,pilot=True,app='notes');self.note_input(window)
+        reference=dict(version=2,app='note',id=FILE,title='Own selected note',
+                       locator=dict(server=self.origin,account=USER))
+        self.js(window,"window.__lumenOpenReference=value=>{window.selectedReference=value;return false}")
+        result=[];window.open_reference(reference,result.append);self.wait(lambda:bool(result))
+        self.assertEqual(result,[False])
+        self.assertEqual(self.js(window,'window.selectedReference.id'),FILE)
+        self.assertEqual(self.js(window,"document.querySelector('.note-rich-text').textContent"),'Own unsaved Notes text')
+        self.js(window,'window.__lumenOpenReference=()=>true')
+        result=[];window.open_reference(reference,result.append);self.wait(lambda:bool(result))
+        self.assertEqual(result,[True])
+        with self.assertRaises(SessionError):
+            window.open_reference(dict(reference,locator=dict(server=self.origin,account=FOLDER)),result.append)
+        self.js(window,'delete window.__lumenOpenReference')
+        result=[];window.open_reference(reference,result.append);self.wait(lambda:bool(result))
+        self.assertEqual(result,[None])
+
+    def test_reference_callback_is_rejected_after_native_connection_changes(self):
+        window=self.import_window(drive=False,pilot=True,app='notes')
+        reference=dict(version=2,app='note',id=FILE,title='Own selected note',
+                       locator=dict(server=self.origin,account=USER))
+        self.js(window,'window.__lumenOpenReference=()=>true')
+        pending=[];result=[]
+        with patch.object(window,'verify',side_effect=lambda **args:pending.append(args['ready'])):
+            window.open_reference(reference,result.append)
+        lumen_connect.save_private(lumen_connect.CONFIG,json.dumps(self.config))
+        pending.pop()()
+        self.assertEqual(result,[None])
+
     def test_notes_expired_session_keeps_copy_only_for_same_binding_and_connection(self):
         window=self.import_window(drive=False,pilot=True,app='notes');self.note_input(window)
         window.session._deadline=window.session._clock()-1

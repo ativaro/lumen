@@ -64,12 +64,26 @@ class Binding:
         try:
             if not isinstance(value, str) or any(ord(c)<32 or ord(c)==127 or c=='\\' for c in value):return False
             u = urlsplit(value)
+            query=parse_qs(u.query, keep_blank_values=True, strict_parsing=True)
+            key={'notes':'note','projects':'project','code':'entry'}.get(self.app)
+            if key and key in query:
+                selected=query.pop(key)
+                if len(selected)!=1 or str(UUID(selected[0]))!=selected[0]:return False
             return (value.startswith(self.origin + '/') and origin(u.scheme+'://'+u.netloc) == self.origin
                     and u.path == '/' and u.fragment in ('', 'main-content')
-                    and parse_qs(u.query, keep_blank_values=True) == {
+                    and query == {
                         'app': [APPS[self.app][0]], 'presentation': ['desktop']})
         except (ValueError, SessionError):
             return False
+
+    def reference_url(self, reference):
+        from server_app_links import navigation
+        if not isinstance(reference,dict) or reference.get('app')!=APPS[self.app][0]:raise SessionError('identity')
+        try:route=navigation(reference,dict(server=self.origin,account=self.account))['route']
+        except ValueError:raise SessionError('identity') from None
+        value=self.origin+route+'&presentation=desktop'
+        if not self.navigation(value):raise SessionError('identity')
+        return value
 
     def resource(self, value):
         try:

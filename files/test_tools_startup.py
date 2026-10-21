@@ -58,6 +58,19 @@ class StartupIsolation(unittest.TestCase):
             self.assertEqual(tools_app.main(),0)
             native.assert_called_once_with(self.app,profile);library.assert_not_called()
 
+    def test_private_notes_activation_has_explicit_keys_and_no_command_tunnel(self):
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QWidget
+        root,profile,env=self.pilot_environment();window=QWidget();received=[]
+        server=tools_app.listen_window(window,received.append,root=profile/'runtime',request_keys=('reference','handoff'))
+        try:
+            requests=({'reference':'lumen://ref/own-fixture'}, {'handoff':'own-token'},
+                      {'reference':{}}, {'reference':'x','handoff':'y'}, {'path':'/unopened.pdf'}, {})
+            for request in requests:
+                self.assertTrue(tools_app.forward_window(profile/'runtime',request,private=True));QTest.qWait(30)
+            self.assertEqual(received,[requests[0],requests[1],{}])
+        finally:server.close();window.deleteLater()
+
     def test_private_compose_rejects_bad_roots_and_inputs_before_start(self):
         root,profile,env=self.pilot_environment()
         changes=[{key:''} for key in ('LUMEN_DATA','LUMEN_TOOLS_DATA','XDG_CONFIG_HOME','XDG_DATA_HOME',

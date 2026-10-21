@@ -262,6 +262,18 @@ class SessionTest(unittest.TestCase):
                       ORIGIN+'.evil/api/me',ORIGIN+'@other.test/api/me',ORIGIN+'\\api/me'):
             with self.subTest(value=value):self.assertFalse(self.binding.resource(value))
 
+    def test_typed_reference_navigation_is_scoped_and_canonical(self):
+        for app,page,key in (('notes','note','note'),('projects','projects','project'),('code','code','entry')):
+            binding=host.Binding(ORIGIN,USER,DEVICE,app)
+            ref=dict(version=2,app=page,id=USER,title='Lumen source',locator=dict(server=ORIGIN,account=USER))
+            value=binding.reference_url(ref)
+            self.assertTrue(binding.navigation(value));self.assertIn(key+'='+USER,value)
+            self.assertNotIn('account',value)
+            for invalid in (value+'&'+key+'='+DEVICE,value.replace(USER,'../note'),value+'&token=secret'):
+                with self.subTest(value=invalid):self.assertFalse(binding.navigation(invalid))
+            for foreign in (dict(ref,locator=dict(server=ORIGIN,account=DEVICE)),dict(ref,app='note' if page!='note' else 'projects')):
+                with self.assertRaises(ValueError):binding.reference_url(foreign)
+
     def test_close_during_ticket_creation_prevents_exchange(self):
         session=self.session();original=self.native_request
         def close_after_ticket(config,path,body=None,**kwargs):

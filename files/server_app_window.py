@@ -365,6 +365,30 @@ class ServerAppWindow(QMainWindow):
     def _cancel_theme(self):
         self._theme_timer.stop();self._theme_serial+=1;self._theme_reveal=False
 
+    def open_reference(self, reference, completed):
+        """Ask the existing app to select its object, retaining its draft guard."""
+        self.session.binding.reference_url(reference)
+        context=(self.page,self.profile,self.view,self.session,self._binding,
+                 self._generation,self.session._generation)
+        def current():
+            page,profile,view,session,binding,generation,session_generation=context
+            return bool(not is_deleted(self) and not self._disposed and not self._closing
+                and self._live and self._loaded and self.session is session
+                and self._binding==binding==session.binding and self._generation==generation
+                and session._generation==session_generation and session.usable
+                and page is self.page and profile is self.profile and view is self.view
+                and all(obj is not None and not is_deleted(obj) for obj in (page,profile,view))
+                and view.page() is page and self._cookie_valid() and self._pilot_current())
+        if not current() or self._worker is not None:
+            completed(None);return
+        def ready():
+            if not current():completed(None);return
+            value=json.dumps(dict(app=reference['app'],id=reference['id']))
+            script="typeof window.__lumenOpenReference==='function' ? window.__lumenOpenReference("+value+") : null"
+            self.page.runJavaScript(script,QWebEngineScript.ScriptWorldId.MainWorld,
+                lambda accepted:completed(accepted if current() and type(accepted) is bool else None))
+        self.verify(ready=ready)
+
     def verify(self, *, reconnect=False, ready=None):
         if self._disposed or self._closing or not WEBENGINE or self.page is None or self._worker is not None:return
         if not self._pilot_current():self._invalidate_pilot();return

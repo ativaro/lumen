@@ -49,7 +49,7 @@ def forward_window(root, request, *, private=False):
     sent=client.waitForBytesWritten(1000);client.disconnectFromServer();return sent
 
 
-def listen_window(page, activate, *, root=None):
+def listen_window(page, activate, *, root=None, request_keys=()):
     """Private activation and backup-save endpoint for a retained tool page."""
     from interop_flush import server_name, serve_flush
     endpoint = server_name(page.library.root) if root is None else str(Path(root)/'open.sock')
@@ -68,7 +68,10 @@ def listen_window(page, activate, *, root=None):
                 try:
                     request=json.loads(buffer.split(b'\n',1)[0])
                     if root is not None:
-                        if request=={}:activate(request)
+                        if (request=={} or isinstance(request,dict) and len(request)==1
+                                and next(iter(request)) in request_keys
+                                and isinstance(next(iter(request.values())),str)):
+                            activate(request)
                         socket.disconnectFromServer();return
                     if isinstance(request,dict) and 'vault_flush' in request:
                         timer.stop();socket.readyRead.disconnect(receive)
