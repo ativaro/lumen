@@ -113,14 +113,15 @@ def main():
         parser.error(tr('Dieser lokale Einstieg ist ausschließlich für das Lumen-Gedächtnis verfügbar.'))
     if args.tool == 'wissen' and not memory_only:
         app = create_app()
-        if args.path or args.clipboard or args.section or args.area or args.handoff or args.ref:
+        if args.path or args.clipboard or args.section or args.area:
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(None, 'Lumen Notes', tr('Lumen Notes wird als Server-App geöffnet. '
                 'Lokale Dateien, Bereiche und ältere Übergaben werden über diesen Startweg noch nicht unterstützt. '
                 'Lumen Notes ohne weitere Argumente öffnen.'))
             return 2
         from server_notes_app import run
-        return run(app)
+        activation={'handoff':args.handoff} if args.handoff else {'reference':args.ref} if args.ref else {}
+        return run(app,activation)
     if args.path and args.tool not in ('reader','wissen','translate'):parser.error(tr('Dateien können nur an Reader, Notes oder Compose übergeben werden.'))
     if args.area and args.tool != 'wissen': parser.error(tr('Der Bereich ist nur für Lumen Notes verfügbar.'))
     if args.clipboard and args.tool != 'translate': parser.error(tr('Die Zwischenablage ist hier nur für Compose verfügbar.'))

@@ -26,6 +26,9 @@ def open_url(url,root=None):
     if parts.scheme=='lumen' and parts.netloc=='handoff' and TOKEN.fullmatch(parts.path[1:]) and not parts.query and not parts.fragment:
         request=registry.request(parts.path[1:]);launch(request['target'],['--handoff',request['id']],root);return
     ref=registry.resolve(url)
+    if ref.get('version')==2:
+        if ref['app']!='note':raise ValueError(tr('Diesen Serververweis in der zugehörigen Server-App öffnen.'))
+        launch('wissen',['--ref',url],root);return
     if ref['app']=='code':
         launch('code',['--entry',ref['id']],root);return
     if ref.get('kind') in ('drive_file','drive_folder'):

@@ -22,7 +22,7 @@ def context(job):
             or not isinstance(me.get('capabilities'), list) or 'notes' not in me['capabilities']
             or type(me.get('permissions_revision')) is not int or me['permissions_revision'] < 0):
         raise SessionError('identity')
-    return config, Binding(config['server'], me.get('id'), me.get('device_id'), 'notes'), stamp
+    return config, Binding(config['server'], me.get('id'), me.get('device_id'), 'notes'), stamp, me['permissions_revision']
 
 
 def runtime_root(binding, stamp):
@@ -63,7 +63,7 @@ def recover():
     return selected is retry
 
 
-def run(app):
+def run(app, activation=None):
     from interop_dialogs import run_job
     from tools_app import forward_window, listen_window
     app.setApplicationName('lumen-wissen')
@@ -76,20 +76,26 @@ def run(app):
             verified = run_job(None, tr('Lumen Notes · Serververbindung wird geprüft …'), context)
             if verified is None:
                 return 1
-            config, binding, stamp = verified
+            config, binding, stamp, revision = verified
             root = runtime_root(binding, stamp)
-            if forward_window(root, {}, private=True):
+            if forward_window(root, activation or {}, private=True):
                 return 0
             lock = QLockFile(str(root / 'window.lock'))
             if not lock.tryLock(0):
-                if forward_window(root, {}, private=True):
+                if forward_window(root, activation or {}, private=True):
                     return 0
                 raise SessionError('busy')
             if _connection()[1] != stamp:
                 raise SessionError('connection')
             window = ServerAppWindow(AppSession(config, binding), root, pilot_connection=stamp)
-            server = listen_window(window, lambda _: present(window), root=root)
+            from server_notes_handoffs import Requests
+            requests=Requests(window)
+            def activate(value):
+                try:requests.activate(value)
+                except (ValueError,OSError) as error:QMessageBox.warning(window,'Lumen Notes',str(error))
+            server = listen_window(window, activate, root=root, request_keys=('reference','handoff'))
             window.show()
+            if activation:activate(activation)
             app.setQuitOnLastWindowClosed(True)
             return app.exec()
         except (OSError, ValueError, RuntimeError):
