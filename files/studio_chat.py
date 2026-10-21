@@ -110,7 +110,7 @@ class StudioChat(ChatPanel):
         self.save_tool_action = self.output_menu.addAction(tr('Als Werkzeug speichern'), lambda: launch('lumen-code', ['--save-task', self.tracker.task_id]))
         self.output_menu.aboutToShow.connect(lambda: self.save_tool_action.setEnabled(bool(self.tracker.task_id) and not self.backend.busy))
         from note_reviews import show_reviews
-        reviews = QPushButton(tr('Vorschläge & Verlauf'))
+        reviews = QPushButton(tr('Frühere Notizvorschläge'))
         reviews.clicked.connect(lambda: show_reviews(self)); footer.addWidget(reviews)
         self.teach_action = self.output_menu.addAction(tr('Als Lösungsweg lernen …'), lambda: teach(self))
         self.output_menu.aboutToShow.connect(lambda: self.teach_action.setEnabled(bool(self.last_answer) and not self.backend.busy and not self.memory_capture_job))
