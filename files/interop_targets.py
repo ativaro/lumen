@@ -79,14 +79,6 @@ def choices(action, root=None, store=None, *, session=None, permissions_revision
         kinds = ('imap', 'bridge') if action == 'inbox.draft' else ('caldav',)
         records = [record for record in records if record.get('kind') in kinds]
     result=[dict(id=record['id'], title=record['title']) for record in records]
-    if target=='workbench' and action=='workbench.add':
-        from projects_data import Projects
-        projects=Projects(Library(target,root))
-        for record in records:
-            children=projects.items(record['id']); names={item['id']:item['title'] for item in children}
-            for item in children:
-                if item['parent'] and item['parent'] not in names:continue
-                result.append(dict(id=record['id']+'/'+item['id'],title=record['title']+' / '+(names.get(item['parent'],'')+' / ' if item['parent'] else '')+item['title']))
     return result
 
 
@@ -162,27 +154,10 @@ def _filename(payload, path):
 
 def _record(db, library, action, payload, choice, values, extend=()):
     key = choice.get('id') or uuid.uuid4().hex
-    if action=='workbench.add' and '/' in key:
-        project,child=key.split('/',1)
-        existing=db.execute('SELECT * FROM project_items WHERE project=? AND id=? AND archived=0',(project,child)).fetchone()
-        if not existing:raise ValueError(tr('Das gewählte Ziel ist nicht mehr vorhanden.'))
-        if not db.execute('SELECT 1 FROM records WHERE id=? AND archived=0',(project,)).fetchone() or (existing['parent'] and not db.execute('SELECT 1 FROM project_items WHERE id=? AND archived=0',(existing['parent'],)).fetchone()):
-            raise ValueError(tr('Das gewählte Ziel ist archiviert. Bitte zuerst wiederherstellen.'))
-        previous=json.loads(existing['data'])
-        if values.get('questions'):
-            values['notes']=values.get('notes','')+'\n'+'\n'.join(q['text'] for q in values.pop('questions'))
-        for field in extend:
-            if field in values and previous.get(field):values[field]=previous[field]+ ('\n\n' if isinstance(previous[field],str) else [])+values[field]
-        previous.update(values); previous['interop_token']=choice['token']
-        db.execute('UPDATE project_items SET data=?,updated=? WHERE id=?',(json.dumps(previous),time.time(),child))
-        return dict(app='workbench',kind='record',id=project,title=existing['title'],position=dict(part='item:'+child))
     existing = db.execute('SELECT * FROM records WHERE id=?', (key,)).fetchone() if choice.get('id') else None
     if choice.get('id') and not existing: raise ValueError(tr('Das gewählte Ziel ist nicht mehr vorhanden.'))
     previous = json.loads(existing['data']) if existing else {}
     if not existing:
-        if action.startswith('workbench.'):
-            from interop_paths import revision
-            previous.update(notes='', questions=[], resources=[],interop_path_revision=revision(library.root.parent))
         if action == 'household.add': previous.update(kind='Gerät', notes='', attachments=[])
     for field in extend:
         if field not in values: continue
@@ -200,8 +175,6 @@ def _record(db, library, action, payload, choice, values, extend=()):
     return dict(app=ACTIONS[action]['target'], kind='record', id=key, title=title)
 
 
-def _wissen(*args, **kwargs):
-    raise ValueError(tr('Lokale Notes-Übernahmen sind stillgelegt. Die verbundene Server-App verwenden.'))
 
 
 def apply(action, payload, choice, job, root=None, store=None, *, session=None, permissions_revision=None, retry=False):
@@ -225,9 +198,6 @@ def apply(action, payload, choice, job, root=None, store=None, *, session=None, 
         if session is None:raise ValueError(tr('Notizen ausschließlich in der verbundenen Server-App übernehmen.'))
         if Registry(root).request(choice['token'])['payload']!=payload:raise ValueError(tr('Die bestätigte Quelle wurde geändert.'))
         return capture(choice['token'],choice,session,permissions_revision,job,root=root,retry=retry)
-    if payload.get('references') and action in ('wissen.import','workbench.add'):
-        from drive_references import resolve
-        resolve(payload['references'],job)
     if ACTIONS[action]['target'] == 'inbox':
         from inbox_data import store as inbox_store
         library = inbox_store(root)

@@ -17,9 +17,10 @@ import lumen_memory as memory
 
 
 class Wissen(ToolWindow):
-    def __init__(self,root=None,*,memory_only=False):
+    def __init__(self,root=None,*,memory_only=True):
+        if not memory_only: raise ValueError(tr('Lumen Notes wird direkt auf dem Lumen Server geöffnet.'))
         self.memory_only=memory_only
-        super().__init__('wissen',tr('Lumen Notes'),tr('Gedanken festhalten. Quellen verbinden. Zusammenhänge entdecken.'),'lumen-wissen',root)
+        super().__init__('wissen',tr('Lumen Gedächtnis'),tr('Was Lumen über dich weiss.'),'lumen-wissen',root)
         self.store=Store();records=self.library.all();self.current=records[0]['id'] if records else self.library.create(tr('Lumen-Gedächtnis') if memory_only else 'Notes')
         self.book=None;self.notes={};self.doc=None;self.dirty=False;self.conflict=False;self.poller=None;self.after_job=None;self.closing=False;self.answer='';self.answer_sources=[];self.answer_question='';self.pending_file=''
         self.area='user';self.pending_area=None;self.writing=False
@@ -27,23 +28,11 @@ class Wissen(ToolWindow):
         from wissen_ui import build
         build(self)
         self.document_sources=None;self.result_actions=None;self.sources_tab=-1;self.results_tab=-1
-        if not memory_only:
-            from lumen_workspace import Workspace
-            self.document_sources = Workspace(self, store=self.store, sections=('knowledge',))
-            self.sources_tab = self.tabs.addTab(self.document_sources.knowledge_page, tr('Dokumentquellen'))
-            self.result_actions = Workspace(self, store=self.store, sections=('tasks',))
-            self.result_actions.tasks_page.hide()
-            from studio_saved_results import StudioSavedResults
-            self.saved_results = StudioSavedResults(self.result_actions)
-            self.results_tab = self.tabs.addTab(self.saved_results, tr('Ergebnisse'))
         nav = self.navigation.layout()
         self.sources_button = button(tr('Dokumentquellen'), lambda: self.open_section('sources'), 'folder-open')
         self.results_button = button(tr('Ergebnisse'), lambda: self.open_section('results'), 'document-save')
         self.sources_button.setParent(self.navigation);self.sources_button.hide()
         self.results_button.setParent(self.navigation);self.results_button.hide()
-        if not memory_only:
-            self.notebook_menu.addAction(tr('Dokumentquellen'),lambda:self.open_section('sources'))
-            self.notebook_menu.addAction(tr('Ergebnisse'),lambda:self.open_section('results'))
         self.draft_timer=QTimer(self);self.draft_timer.setSingleShot(True);self.draft_timer.setInterval(450);self.draft_timer.timeout.connect(lambda:self.safe(self.save))
         self.autosave_timer=QTimer(self);self.autosave_timer.setSingleShot(True);self.autosave_timer.setInterval(1100);self.autosave_timer.timeout.connect(lambda:self.safe(self.save_note))
         self.poll_timer=QTimer(self);self.poll_timer.setInterval(5000);self.poll_timer.timeout.connect(self.poll);self.poll_timer.start()
@@ -53,14 +42,7 @@ class Wissen(ToolWindow):
         from wissen_sync_ui import install
         install(self)
         self.present_area();self.editor.setEnabled(False)
-        if memory_only: self.switch_area('lumen')
-        else: QTimer.singleShot(0,self.initialize)
-        if not memory_only and not os.environ.get('LUMEN_NOTES_NATIVE'):
-            try:
-                from notes_web import install as install_web
-            except ImportError:
-                pass  # Native Notes remains available without the optional Qt WebEngine.
-            else: install_web(self)
+        self.switch_area('lumen')
 
     def quick_open(self):
         from notes_switcher import NoteSwitcher
@@ -658,9 +640,6 @@ class Wissen(ToolWindow):
         text=self.answer+tr('\n\n## Quellen\n')+'\n'.join('- [['+n['path']+']]' for n in self.answer_sources)
         self.action('create',self.show_note,title=self.answer_question[:150],text=text,source=tr('Lumen-Antwort aus ausgewählten Notizen'))
     def closeEvent(self,event):
-        if hasattr(self,'notes_web_objects'):
-            from notes_web import flush_close
-            if flush_close(self,event): return
         if any(page and not page.can_close() for page in (self.document_sources,self.result_actions)): event.ignore(); return
         if not self.live_preview.shutdown():event.ignore();return
         try:self.save()

@@ -14,38 +14,26 @@ from PySide6.QtWidgets import QApplication
 original = QApplication.exec
 
 def observed_exec(self):
-    def close(window):
-        window.close()
-        QTimer.singleShot(200, self.quit)
     def ready():
         windows = [w for w in self.topLevelWidgets() if w.isVisible() and w.windowTitle().startswith('Lumen')]
-        if not windows:
-            self.exit(7)
-            return
+        assert windows
         window = windows[0]
-        self._start_test_window = window
-        if os.environ['LUMEN_START_TEST'] == 'notes':
-            def rendered(value):
-                if value:
-                    print('LUMEN_START_READY', flush=True)
-                    # Leave the WebEngine callback before closing its owning window.
-                    QTimer.singleShot(0, lambda: close(window))
-                else:
-                    self.exit(8)
-            window.notes_web.page().runJavaScript("!!document.querySelector('.desktop-notes')", rendered)
+        if getattr(window,'job',None) or getattr(window,'poller',None):
+            QTimer.singleShot(30,ready)
+            return
+        if os.environ['LUMEN_START_TEST'] == 'memory':
+            assert window.memory_only and window.area == 'lumen' and window.book
         else:
             window.select('backups')
             assert window.tabs.currentWidget() is window.backups
-            print('LUMEN_START_READY', flush=True)
-            QTimer.singleShot(0, lambda: close(window))
+        print('LUMEN_START_READY', flush=True)
+        def finish():
+            window.close()
+            if window.isVisible():QTimer.singleShot(50,finish)
+            else:self.quit()
+        finish()
     QTimer.singleShot(1500, ready)
-    code = original()
-    if os.environ['LUMEN_START_TEST'] == 'notes':
-        from shiboken6 import isValid
-        window = self._start_test_window
-        assert not any(isValid(obj) for obj in (window, window.editor, window.editor.completion.popup))
-        print('LUMEN_START_DESTROYED', flush=True)
-    return code
+    return original()
 
 QApplication.exec = observed_exec
 '''
@@ -62,7 +50,7 @@ class AppLaunchTest(unittest.TestCase):
                    'XDG_CONFIG_HOME':str(path/'config'), 'XDG_CACHE_HOME':str(path/'cache'),
                    'XDG_DATA_HOME':str(path/'data'), 'PYTHONPATH':str(path),
                    'PYTHONFAULTHANDLER':'1', 'LUMEN_LANGUAGE':'de', 'LUMEN_START_TEST':kind}
-            proc = subprocess.Popen(['dbus-run-session','--',str(root/'bin'/name)], env=env,
+            proc = subprocess.Popen(['dbus-run-session','--',str(root/'bin'/name),*(['--area','lumen'] if kind=='memory' else [])], env=env,
                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
             try:
                 out, error = proc.communicate(timeout=10)
@@ -72,10 +60,9 @@ class AppLaunchTest(unittest.TestCase):
                 self.fail('Launcher did not finish: '+error.decode(errors='replace')[-1500:])
             self.assertEqual(proc.returncode, 0, (out+error).decode(errors='replace')[-4000:])
             self.assertIn(b'LUMEN_START_READY', out)
-            if kind == 'notes': self.assertIn(b'LUMEN_START_DESTROYED', out)
 
-    def test_notes_launcher_renders_web_editor_and_closes(self):
-        self.launch('lumen-wissen','notes')
+    def test_memory_launcher_opens_retained_native_memory_and_closes(self):
+        self.launch('lumen-wissen','memory')
 
     def test_system_launcher_opens_backup_page_and_closes(self):
         self.launch('lumen-system','system')

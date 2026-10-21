@@ -128,9 +128,7 @@ class SetupDialog(QDialog):
         page.addWidget(button(tr('Lokale Bildsuche einrichten · ca. 2 GB'), lambda: self.start_job('image-search')))
         page.addWidget(text(tr('Mehrsprachige CLIP-Bildsuche inklusive deutscher Suchbegriffe. Modelle werden einmalig '
             'heruntergeladen; Fotos und Suchbegriffe bleiben danach auf diesem Rechner. Kein Administratorpasswort nötig.')))
-        page.addWidget(button(tr('Vault vorbereiten · verschlüsselte Sicherungen'), lambda: self.start_job('vault')))
-        page.addWidget(button(tr('Inbox vorbereiten · IMAP/SMTP und Kalender'), lambda: self.start_job('inbox')))
-        page.addWidget(button(tr('Proton Mail Bridge herunterladen …'), lambda: QDesktopServices.openUrl(QUrl('https://proton.me/mail/bridge'))))
+        page.addWidget(button(tr('Lokale Sicherungen vorbereiten'), lambda: self.start_job('vault')))
         page.addStretch()
 
     def build_engine(self):

@@ -167,43 +167,6 @@ class MemoryBackendTest(unittest.TestCase):
             finally:backend.shutdown();backend.deleteLater();QTest.qWait(30)
         server.shutdown();server.server_close()
 
-    def test_native_areas_sharing_correction_forget_and_chat_capture(self):
-        from unittest.mock import patch
-        from PySide6.QtCore import QCoreApplication,QEvent,QSettings
-        from PySide6.QtTest import QTest
-        from PySide6.QtWidgets import QMessageBox
-        from tools_wissen import Wissen
-        from assistant import ChatPanel
-        def wait(window,predicate=lambda:True):
-            for _ in range(300):
-                QTest.qWait(20)
-                if not window.job and not window.poller and predicate():return
-            self.fail(window.status.text())
-        with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,{'LUMEN_DATA':tmp+'/state'}):
-            store=Store();activate(store);book=Notebook(store);personal=book.create('Eigene Ideen','Privater Gedanke')
-            memory=Memory(store);memory.configure(True,True);learned=memory.remember('Stil','Ich möchte kurze Antworten.',automatic=True,evidence='Ich möchte kurze Antworten.',kind='preference')
-            window=Wissen(Path(tmp)/'tools');window.show();wait(window,lambda:personal['path'] in window.notes)
-            window.open_note(personal['path']);wait(window);self.assertFalse(window.share_note.isChecked())
-            window.share_note.setChecked(True);wait(window);self.assertTrue(memory.shared(book,personal['path']))
-            window.editor.appendPlainText('Eigene Ergänzung');window.switch_area('lumen');wait(window,lambda:window.area=='lumen' and learned['path'] in window.notes)
-            self.assertIn('Eigene Ergänzung',book.read(personal['path'])['text']);self.assertNotIn(personal['path'],window.notes)
-            window.open_note(learned['path']);wait(window);window.editor.appendPlainText('Meine Korrektur');window.save_note();wait(window)
-            self.assertFalse(store.setting('memory/records')[learned['path']]['automatic'])
-            with patch.object(QMessageBox,'question',return_value=QMessageBox.Yes):window.archive()
-            wait(window);self.assertEqual(memory.scan()['notes'],[]);self.assertEqual(memory.book.versions(learned['path']),[])
-            window.close();window.deleteLater();QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
-            panel=ChatPanel(tmp,settings=QSettings(tmp+'/assistant.ini',QSettings.IniFormat));panel.last_prompt='Ein gespeicherter Gedanke';panel.last_answer='Eine hilfreiche Antwort.'
-            for remember in (False,True):
-                panel.show_messages([{'info':{'role':'assistant'},'parts':[{'type':'text','text':'Eine hilfreiche Antwort.'}]}])
-                panel.capture_knowledge(remember)
-                self.assertIsNotNone(panel.memory_capture_job,(remember,panel.last_answer,panel.memory_status.text()))
-                for _ in range(200):
-                    QTest.qWait(20)
-                    if panel.memory_capture_job is None:break
-                self.assertIsNone(panel.memory_capture_job)
-                self.assertEqual(panel.memory_status.text(),tr('Im Lumen-Gedächtnis gespeichert.' if remember else 'In deinem Notizbuch gespeichert.'),panel.error.text())
-            self.assertEqual(len(book.scan()['notes']),2);self.assertEqual(len(memory.scan()['notes']),1)
-            panel.context_tools.close();panel.backend.shutdown();panel.close();panel.deleteLater();QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
 
 
 if __name__=='__main__':unittest.main()

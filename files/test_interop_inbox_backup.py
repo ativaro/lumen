@@ -44,7 +44,7 @@ class LocalInboxBackupTest(unittest.TestCase):
         self.assertFalse((self.package/'library.sqlite').exists())
 
     def test_reviewed_account_import_is_unsent_nonoverwriting_and_replay_safe(self):
-        with patch('inbox_data.send_draft') as send:
+        with patch('smtplib.SMTP') as send:
             first = backup.import_package(self.package, self.target, self.account, self.job)
             again = backup.import_package(self.package, self.target, self.account, self.job)
             send.assert_not_called()

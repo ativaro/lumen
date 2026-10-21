@@ -298,22 +298,15 @@ def install_vault():
             shutil.copyfileobj(src,dst)
         binary.chmod(0o755); run([str(binary),'version'],timeout=10)
         os.replace(binary,root/'restic-0.19.1')
-    report(tr('Vault bereit. Ziel und Sicherungspasswort in Lumen Vault auswählen.'),100)
+    report(tr('Lokale Sicherungen bereit. Ziel und Sicherungsschlüssel in Lumen System auswählen.'),100)
 
 
-def install_inbox():
-    root = speech_root().parent / 'inbox-env-v1'; python = str(root / 'bin/python')
-    report(tr('Kalenderanbindung für Inbox vorbereiten'))
-    if not Path(python).is_file(): run([sys.executable,'-m','venv',str(root)])
-    run([python,'-m','pip','--disable-pip-version-check','install','caldav==3.3.1','icalendar==7.3.0','recurring-ical-events==3.8.2'])
-    run([python,'-c','import caldav, icalendar'],timeout=20)
-    report(tr('IMAP/SMTP und Kalenderanbindung bereit. Proton Mail benötigt zusätzlich die angemeldete Proton Mail Bridge.'),100)
 
 
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=('packages', 'engine', 'dictation', 'dictation-quality', 'voice', 'voice-multilingual', 'desktop', 'image-search', 'memory-search', 'vault', 'inbox'))
+    parser.add_argument('action', choices=('packages', 'engine', 'dictation', 'dictation-quality', 'voice', 'voice-multilingual', 'desktop', 'image-search', 'memory-search', 'vault'))
     parser.add_argument('groups', nargs='*', choices=tuple(FEATURES))
     parser.add_argument('--existing-model', default='')
     from appearance import DESIGNS
@@ -338,7 +331,6 @@ def main():
             from lumen_memory import search_home
             install(search_home(), run=run, download=download, report=lambda message:report(tr(message)))
         elif args.action == 'vault': install_vault()
-        elif args.action == 'inbox': install_inbox()
         else:
             if 'engine' in args.groups: install_engine()
             install_packages(missing_packages([group for group in args.groups if group != 'engine']))

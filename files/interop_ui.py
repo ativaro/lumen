@@ -402,9 +402,6 @@ def install(window):
     window.interop_installed=True;controller(window)
     from interop_audio import install_audio_menu
     install_audio_menu(window)
-    if getattr(window,'name','') in ('inbox','meetings','radio'):
-        from interop_communications import install_communications_menu
-        install_communications_menu(window)
     from interop_drag import install_drop_filter
     from interop_context import install as install_context, receive_drop
     install_drop_filter(window,lambda payload:with_saved(window,lambda:receive_drop(window,payload)))

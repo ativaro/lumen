@@ -116,56 +116,6 @@ class ProjectMemoryTest(unittest.TestCase):
         self.assertTrue(copies[0]['memory']['scope'].startswith('project:'))
         self.assertEqual([n['id'] for n in self.memory.eligible(str(self.folder))], [original['id']])
 
-    def test_native_project_choice_copy_and_explicit_consent(self):
-        from app import create_app
-        from PySide6.QtCore import QCoreApplication, QEvent
-        from PySide6.QtWidgets import QApplication, QDialogButtonBox, QLineEdit, QPushButton, QMessageBox
-        from PySide6.QtTest import QTest
-        from lumen_i18n import tr
-        from tools_wissen import Wissen
-        from wissen_data import activate
-        import memory_projects_ui as ui
-        self.qt_app = QApplication.instance() or create_app()
-        def wait(window):
-            for _ in range(400):
-                QTest.qWait(20)
-                if not window.job and not window.poller:
-                    return
-            self.fail(window.status.text())
-        errors = []
-        with patch.dict(os.environ, {'LUMEN_DATA': str(self.root/'state')}), \
-                patch.object(QMessageBox, 'warning', side_effect=lambda *args: errors.append(args[-1])):
-            activate(self.memory.store)
-            original = self.memory.remember('Synthetic choice', 'Use SQLite for this project')
-            window = Wissen(self.root/'tools'); window.show(); wait(window)
-            try:
-                window.switch_area('lumen'); wait(window)
-                window.open_profile_note(original['path']); wait(window)
-                menu = window.more_button.menu(); menu.aboutToShow.emit()
-                action = next(a for a in menu.actions() if a.text() == tr('Als Projektwissen kopieren …'))
-                self.assertTrue(action.isVisible()); action.trigger(); wait(window)
-                self.assertFalse(errors, errors)
-                dialog = window.memory_projects_dialog
-                self.assertTrue(dialog.isVisible())
-                self.assertFalse(dialog.findChild(QDialogButtonBox).button(QDialogButtonBox.Save).isEnabled())
-                with patch.object(ui.QFileDialog, 'getExistingDirectory', return_value=str(self.folder)):
-                    next(b for b in dialog.findChildren(QPushButton) if b.text() == tr('Wählen …')).click()
-                self.assertEqual(dialog.findChild(QLineEdit).text(), str(self.folder))
-                dialog.grab().save('/tmp/lumen-memory-projects.png')
-                dialog.findChild(QDialogButtonBox).button(QDialogButtonBox.Save).click(); wait(window)
-                self.assertFalse(errors, errors)
-                self.assertNotEqual(window.doc['id'], original['id'])
-                self.assertFalse(window.share_note.isChecked())
-                self.assertIn('Example project', window.source.text())
-                self.assertIn(original['id'], [n['id'] for n in self.memory.scan()['notes']])
-                copy = next(n for n in self.memory.scan()['notes'] if n['id'] != original['id'])
-                self.assertEqual(window.doc['note_id'], copy['id'])
-                self.assertNotIn(copy['id'], [n['id'] for n in self.memory.eligible(str(self.folder))])
-                window.share_note.setChecked(True); wait(window)
-                self.assertIn(copy['id'], [n['id'] for n in self.memory.eligible(str(self.folder))])
-            finally:
-                window.close(); window.deleteLater()
-                QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
 
 
 if __name__ == '__main__':

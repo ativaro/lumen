@@ -1,3 +1,5 @@
+> Historischer Leitfaden zur früheren nativen App-Version. Notes, Vault und Inbox sind jetzt Server-Apps; lokale Sicherungen bleiben in Lumen System. Aktuell: [Desktop-Verantwortlichkeiten](docs/desktop-retirement.md).
+
 # Lumen Vault und Inbox
 
 Beide Apps erscheinen im Anwendungsmenü und verwenden das aktive Lumen-Theme.

@@ -89,7 +89,7 @@ def _payload(source, text='', paths=(), items=(), url=''):
 def _bounded(payload):
     if len(payload.get('text', '')) > MAX_TEXT:
         raise ValueError(tr('Bitte einen kürzeren Auszug auswählen.'))
-    if len(json.dumps(payload, ensure_ascii=False).encode()) > MAX_PAYLOAD:
+    if len(payload.get('items', [])) > 1000 or len(json.dumps(payload, ensure_ascii=False).encode()) > MAX_PAYLOAD:
         raise ValueError(tr('Bitte weniger Inhalte für die Übergabe auswählen.'))
     return payload
 

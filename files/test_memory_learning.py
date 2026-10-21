@@ -87,41 +87,6 @@ class LearningBridgeTest(unittest.TestCase):
                 bridge.shutdown();backend.shutdown();backend.deleteLater()
                 QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
 
-    def test_native_profile_links_to_same_editable_memory_and_filters(self):
-        from tools_wissen import Wissen
-        from wissen_data import activate
-        from PySide6.QtTest import QTest
-        from PySide6.QtCore import QCoreApplication,QEvent,Qt
-        from PySide6.QtWidgets import QPushButton
-        from pathlib import Path
-        def wait(window):
-            for _ in range(300):
-                QTest.qWait(20)
-                if not window.job and not window.poller:return
-            self.fail(window.status.text())
-        with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,{'LUMEN_DATA':tmp+'/state'}):
-            store=Store();activate(store);memory=Memory(store);memory.configure(True,True)
-            preference=memory.remember('Antwortstil','Kurze Antworten.',kind='preference')
-            private=memory.remember('Projektintern','Nur im Projekt.',kind='fact',scope=tmp+'/project')
-            window=Wissen(Path(tmp)/'tools');window.show();wait(window)
-            try:
-                window.switch_area('lumen');wait(window)
-                self.assertEqual(window.tabs.currentIndex(),3)
-                buttons=window.profile.findChildren(QPushButton,'memoryProfileEntry')
-                self.assertEqual([b.accessibleName() for b in buttons],['Antwortstil'])
-                self.assertTrue(window.use_memory.isVisible())
-                window.learn_memory.setChecked(False);wait(window)
-                self.assertFalse(store.setting('memory/options')['learn'])
-                buttons[0].click();wait(window)
-                self.assertEqual(window.doc['path'],preference['path'])
-                self.assertEqual(window.tabs.currentIndex(),0)
-                self.assertEqual(window.doc['memory']['kind'],'preference')
-                window.editor.appendPlainText('Manuell ergänzt.');window.save_note();wait(window)
-                self.assertIn('Manuell ergänzt',memory.book.read(preference['path'])['text'])
-                window.set_collection('corrections:all');wait(window);self.assertEqual(window.entries.count(),0)
-                window.set_collection('profile:global');wait(window);self.assertEqual(window.entries.count(),1)
-            finally:
-                window.close();window.deleteLater();QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
 
     def test_clearing_a_conversation_clears_answer_context(self):
         from assistant_backend import OpenCodeBackend
@@ -152,37 +117,5 @@ class MemoryReviewTest(unittest.TestCase):
             memory.configure(True,True)
             self.assertFalse(options(store)['automatic']);self.assertFalse(options(store)['solutions'])
 
-    def test_review_window_has_exact_evidence_and_native_approval(self):
-        from app import create_app
-        from PySide6.QtWidgets import QApplication,QPushButton,QPlainTextEdit
-        from PySide6.QtCore import QCoreApplication,QEvent
-        from PySide6.QtTest import QTest
-        from tools_wissen import Wissen
-        from wissen_data import activate
-        from lumen_i18n import tr
-        import memory_review_ui
-        from pathlib import Path
-        app=QApplication.instance() or create_app()
-        with tempfile.TemporaryDirectory() as temp,patch.dict(os.environ,{'LUMEN_DATA':temp+'/state'}):
-            store=Store();activate(store);memory=Memory(store);memory.configure(True,True,automatic=False)
-            item=dict(title='Antwortstil',text='Kurze Antworten.',evidence='Bitte kurz',kind='preference',scope='global')
-            memory.apply([item],'Bitte kurz',temp,'Synthetic conversation',[],store.setting('memory/revision',0))
-            window=Wissen(Path(temp)/'tools');window.show()
-            def wait():
-                for _ in range(400):
-                    QTest.qWait(20)
-                    if not window.job and not window.poller:return
-                self.fail('Native memory review timed out')
-            try:
-                wait();window.switch_area('lumen');wait()
-                self.assertFalse(window.auto_memory.isChecked());self.assertTrue(window.reuse_solutions.isChecked())
-                memory_review_ui.review(window);wait();dialog=window.memory_review_dialog
-                text=dialog.findChild(QPlainTextEdit).toPlainText()
-                self.assertIn('Kurze Antworten.',text);self.assertIn('Bitte kurz',text)
-                dialog.grab().save('/tmp/lumen-memory-review.png')
-                next(b for b in dialog.findChildren(QPushButton) if b.text()==tr('Genau so übernehmen')).click();wait()
-                self.assertEqual(len(memory.scan()['notes']),1);self.assertEqual(memory.proposals(),[])
-            finally:
-                window.close();window.deleteLater();QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
 
 if __name__=='__main__':unittest.main()

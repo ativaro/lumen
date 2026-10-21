@@ -15,7 +15,6 @@ from lumen_store import Store
 from file_spaces import Catalog
 import lumen_history as history
 import lumen_modes as modes
-import lumen_projects as projects
 import lumen_transfers as transfers
 
 
@@ -24,28 +23,7 @@ class WorkplaceTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name); self.store = Store(self.root / 'state')
 
-    def test_project_room_metadata_survives_autosave_and_sources_keep_origin(self):
-        pc = self.root / 'pc'; pc.mkdir(); (pc / 'same.txt').write_text('pc')
-        value = projects.save_project(self.store, None, 'Research',
-            [{'label': 'PC', 'location': str(pc)}, {'label': 'NAS', 'location': 'smb://nas/research'}],
-            [], ['https://example.org'], 'Finish illustrations')
-        Catalog(self.store).save_room(value, value['name'], {'tabs': [str(pc)], 'draft': 'keep'})
-        saved = projects.projects(Store(self.root / 'state'))[0]
-        self.assertEqual(saved['note'], 'Finish illustrations')
-        self.assertEqual(saved['state']['draft'], 'keep')
-        library = Catalog(self.store).library('project-' + saved['id'])
-        self.assertEqual(library['sources'][1]['label'], 'NAS')
-        self.assertEqual(projects.recent(str(pc))['files'][0]['name'], 'same.txt')
-        with self.assertRaises(ValueError):
-            projects.save_project(self.store, value, 'Stale', value['sources'], [], [], '')
-        self.assertFalse(projects.recent(str(self.root / 'offline'))['files'])
 
-    def test_project_rejects_credentials_and_unsafe_launcher(self):
-        sources = [{'label': 'PC', 'location': str(self.root)}]
-        for apps, urls in [([], ['https://u:pw@example.org']), (['../../evil.desktop'], [])]:
-            with self.assertRaises(ValueError): projects.save_project(self.store, None, 'Bad', sources, apps, urls, '')
-        with self.assertRaises(ValueError):
-            projects.save_project(self.store, None, 'Bad', [{'label': 'NAS', 'location': 'smb://u:pw@nas/share'}], [], [], '')
 
     def test_undo_setting_is_atomic_and_refuses_later_edits(self):
         self.store.set_setting('demo', {'value': 2})
@@ -179,44 +157,6 @@ class NativeWorkplaceTest(unittest.TestCase):
         while not condition() and time.monotonic() < deadline: QTest.qWait(20)
         self.assertTrue(condition())
 
-    def test_sources_offline_cache_and_room_resume_are_native(self):
-        from app import Window
-        from lumen_workplace import Workplace
-        from PySide6.QtCore import QSettings
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp); folder = root / 'source'; folder.mkdir(); (folder / 'note.txt').write_text('one')
-            store = Store(root / 'state'); project = projects.save_project(store, None, 'Work',
-                [dict(label='PC', location=str(folder)), dict(label='NAS', location='smb://nas/share')], [], [], 'Continue here')
-            window = Window(str(root), QSettings(str(root / 'files.ini'), QSettings.IniFormat), Catalog(store))
-            page = Workplace(store=store, files_provider=lambda: window); page.resize(1100, 800); page.show()
-            try:
-                page.scan(); self.wait(lambda: not page.jobs)
-                self.assertEqual(page.sources.item(0, 2).text(), 'Erreichbar')
-                self.assertIn('Offline', page.sources.item(1, 2).text()); self.assertEqual(page.recent.rowCount(), 1)
-                folder.rename(root / 'offline'); page.scan(); self.wait(lambda: not page.jobs)
-                self.assertIn('Offline', page.sources.item(0, 2).text()); self.assertEqual(page.recent.rowCount(), 1)
-                self.assertFalse(page.cached_rows[0][2])
-                (root / 'offline').rename(folder)
-                with patch.object(page, 'connect_sources'), patch.object(page, 'job') as job:
-                    page.resume()
-                    self.assertEqual(window.spaces.active_room['id'], project['id'])
-                    self.assertEqual(window.tabs.count(), 2)
-                    self.assertEqual(job.call_args.args[0], 'launch')
-                page.capture()
-                self.assertEqual(projects.projects(store)[0]['state']['tabs'][0], str(folder))
-                latest = projects.projects(store)[0]
-                edited = projects.save_project(store, latest, 'Renamed', latest['sources'], [], [], 'New note')
-                from PySide6.QtWidgets import QDialog
-                with patch('lumen_workplace.ProjectDialog') as dialog:
-                    dialog.return_value.exec.return_value = QDialog.Accepted
-                    dialog.return_value.saved = edited
-                    page.edit_project()
-                self.assertEqual(window.spaces.active_room['note'], 'New note')
-                self.assertTrue(window.spaces.save_active_room())
-                self.assertEqual(projects.projects(store)[0]['name'], 'Renamed')
-            finally:
-                page.shutdown(); page.close(); window.close(); page.deleteLater(); window.deleteLater()
-                self.app.processEvents()
 
 
 if __name__ == '__main__': unittest.main()

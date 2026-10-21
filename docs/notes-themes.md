@@ -1,3 +1,5 @@
+> Historischer Stand des entfernten nativen Notes-Editors. Aktuell: [Desktop-Verantwortlichkeiten](desktop-retirement.md).
+
 # Lumen Notes: gemeinsame Themes
 
 Notes übernimmt die gemeinsame Qt-Palette statt einer fest eingestellten

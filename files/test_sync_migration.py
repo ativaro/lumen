@@ -65,20 +65,6 @@ class MigrationTest(unittest.TestCase):
             migration.pending_notes(book,state,book.scan())
             self.assertEqual(state['legacy_note_targets'],{identity:old})
 
-    def test_read_only_note_reuses_remote_attachment_without_upload(self):
-        from lumen_store import Store
-        from wissen_data import Notebook, digest
-        from wissen_sync_assets import prepare
-        with tempfile.TemporaryDirectory() as tmp:
-            book=Notebook(Store(Path(tmp)/'state'),Path(tmp)/'notes',create=True)
-            raw=b'already authorized attachment';sha=digest(raw)
-            (book.root/'attachments').mkdir()
-            (book.root/'attachments'/ (sha+'.bin')).write_bytes(raw)
-            note=book.create('Read only','[attachment](attachments/'+sha+'.bin)')
-            target={'note':str(uuid4())}
-            with patch('wissen_sync_assets.transfer',return_value=raw) as transfer:
-                prepare(book,note,{},target,set(),lambda _:None)
-                transfer.assert_called_once_with({},sha,target)
 
 
 if __name__=='__main__':unittest.main()

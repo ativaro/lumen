@@ -90,26 +90,6 @@ class AppCenterTest(unittest.TestCase):
         Wissen.switch_area(window, 'lumen'); window.save_note.assert_called_once()
         with self.assertRaises(ValueError): Wissen.switch_area(window, 'invalid')
 
-    def test_wissen_cold_activation_and_dirty_area_switch_preserve_note(self):
-        import os
-        from PySide6.QtCore import QCoreApplication, QEvent
-        from PySide6.QtTest import QTest
-        from tools_wissen import Wissen
-        def ready(window, area):
-            for _ in range(300):
-                QTest.qWait(20)
-                if window.area == area and window.book and not window.job and not window.poller and not window.pending_area and not window.dirty: return
-            self.fail(window.status.text())
-        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp+'/state'}):
-            window = Wissen(Path(tmp)/'tools'); window.show()
-            QTest.qWait(1); window.switch_area('lumen'); ready(window, 'lumen')
-            window.switch_area('user'); ready(window, 'user')
-            window.create(); ready(window, 'user')
-            path = window.doc['path']; book = window.book
-            window.editor.setPlainText('Dieser Gedanke bleibt beim Wechsel erhalten.')
-            window.switch_area('lumen'); ready(window, 'lumen')
-            self.assertIn('Dieser Gedanke bleibt', book.read(path)['text'])
-            window.close(); window.deleteLater(); QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
 
     def test_edit_workflow_keeps_identity_and_scope(self):
         from types import SimpleNamespace

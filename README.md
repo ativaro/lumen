@@ -98,15 +98,15 @@ gracefully on other setups.
 | **KRunner runner** | Type `lumen <question>`, `ai <question>` or `oc <question>` in KRunner |
 | **Plasma applet** | panel widget with agent status + quick actions (`org.lumen.agent`) |
 | **Lumen Files** (`lumen-files`) | file manager with combined local/NAS libraries and visible origins, personal collection shelves, fast search, previews, tabs, gallery, disk analysis, KIO network folders, native rename/sort with preview and undo, integrated Lumen panel |
-| **Lumen Vault** (`lumen-vault`) | encrypted restic backups, snapshot browsing, verified restore and opt-in schedules. The native credential vault and its guided NAS/Lumen Server backup UI require the [separate prerelease installation](native/vault-ui/README.md) |
-| **Lumen Meeting & Radio** (`lumen-meetings`, `lumen-radio`) | one window with Meeting/Radio tabs, local transcription, editable results and personal audio programmes; both starters keep the same window and retained state |
+| **Lumen Vault** (`lumen-vault`) | shared server vault in a private, device-bound window. Local restic backups remain in Lumen System; the native credential broker remains a separate capability |
+| **Lumen Audio Studio** (`lumen-meetings`, `lumen-radio`) | shared server Meeting/Radio contents and editors; reviewed local recordings are handed over through Drive |
 | **Lumen Compose** (`lumen-translate`) | text translation, writing styles, spelling correction and PDF layout translation |
 | **Lumen System** (`lumen-system`) | retained System, Sound and Work modes tabs: live resource usage, hardware, audio and desktop presets with guarded undo |
-| **Lumen Inbox** (`lumen-inbox`) | local IMAP inbox and SMTP drafts, Proton Bridge preset, CalDAV calendars, read-only ICS subscriptions and local tasks; [setup and limits](VAULT-INBOX.md) |
+| **Lumen Inbox** (`lumen-inbox`) | shared server mail, calendar and tasks, with the existing account and device permissions; no local mail/calendar client installation |
 | **Lumen Reader** (`lumen-reader`) | PDFs, EPUBs and saved articles; reading position, highlights, margin notes, local read-aloud and cited passages in Lumen knowledge |
 | **Sound in Lumen System** (`lumen-sound`) | opens the Sound tab in the existing System window: per-stream volume, mute, outputs, app rules and conversation ducking; [Reader/Sound guide](READER-SOUND.md) |
-| **Lumen Notes** (`lumen-wissen`) | personal notebook with autosave, editable titles, collections, tags and a formatted editor with tables; explicit sharing and account synchronization. Lumen memory belongs to system settings, independently of Notes; [Notes guide](WISSEN.md) |
-| **Project tools and skill** | `lumen-projects` guides native project planning; MCP tools read/create/edit projects, initiatives and tasks, and start research/analysis runs with real history. Project-only write permission is separate from system actions; [MCP setup](MCP.md#project-skill-and-writes). |
+| **Lumen Notes** (`lumen-wissen`) | shared server notebook and formatted editor; no separate Notes synchronization. Local Lumen memory remains independent |
+| **Project tools and skill** | paired, AI-authorized server project tools and native reviewed material/question handoffs; no local project replica |
 | **Application designs** | Glas by default, plus Graphit, Atelier and Mitternacht; shared live themes for Lumen, search, Files, the image viewer, desktop panels and their popups, with native previews in settings |
 | **System watchdog** | systemd timer checks failed units, kernel errors, disk, GPU temp; automatic opencode analysis |
 | **App recovery** | Independent crash/hang detection for Lumen, Files and search; private reports and restoration of views and drafts |
@@ -558,3 +558,5 @@ aktivieren; Wake benötigt zusätzlich `wake`. Bestehende Geräte erhalten diese
 Rechte nicht automatisch. Server-Mitgliedschaft und Zielgerätefreigaben gelten
 weiter. Verbindungen/Freigaben werden über den Link zur vorhandenen Serveransicht
 verwaltet. Alle Aktionen verwenden die bestehende Queue und den Scheduler.
+
+Desktop app ownership and retired native implementations: [Desktop architecture](docs/desktop-retirement.md).

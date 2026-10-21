@@ -122,8 +122,14 @@ def main():
         from server_notes_app import run
         activation={'handoff':args.handoff} if args.handoff else {'reference':args.ref} if args.ref else {}
         return run(app,activation)
-    if args.tool in ('meetings','radio','inbox','vault') or args.tool=='workbench' and args.section in (None,'projects'):
-        kind='audio' if args.tool in ('meetings','radio') else 'projects' if args.tool=='workbench' else args.tool
+    if args.tool == 'workbench' and args.section == 'household':
+        from lumen_detail_routes import launch
+        launch('lumen', ['--page', 'household'])
+        return 0
+    if args.tool == 'workbench' and args.section not in (None, 'projects', 'rooms', 'automations'):
+        parser.error(tr('Unbekannter Projektbereich.'))
+    if args.tool in ('meetings','radio','inbox','vault','workbench'):
+        kind=('code' if args.section == 'automations' else 'projects') if args.tool=='workbench' else 'audio' if args.tool in ('meetings','radio') else args.tool
         if args.path or args.clipboard or args.area:
             parser.error(tr('Diese Lumen-App verwendet Serverinhalte. Dateien über Lumen Files übergeben.'))
         from server_notes_app import run
@@ -136,8 +142,6 @@ def main():
     requested=str(Path(args.path).expanduser().absolute()) if args.path else ''
     if args.tool == 'wissen' and not args.area and not args.ref and not args.handoff: args.area = 'user'
     activation={key:value for key,value in [('path',requested),('handoff',args.handoff),('ref',args.ref),('area',args.area),('section',args.section)] if value}
-    if args.tool == 'household':
-        args.tool = 'workbench'; activation['section'] = 'household'
     if args.tool == 'sound':
         from system_app import main as system_main
         forwarded = ['--page', 'sound' if args.tool == 'sound' else 'backups']
@@ -154,7 +158,7 @@ def main():
         text_segments(activation['text'])
     # Claim libraries before constructing widgets or starting any background jobs.
     from tools_data import Library
-    names = ('meetings', 'radio') if args.tool in ('meetings', 'radio') else (args.tool,)
+    names = (args.tool,)
     # Keep the memory-only window endpoint separate from an older user-notebook window.
     memory_root = Path(os.environ.get('LUMEN_TOOLS_DATA') or Path(os.environ.get('XDG_DATA_HOME', str(Path.home()/'.local/share')))/'lumen-tools')/'memory-view' if memory_only else None
     libraries = {name: Library(name, memory_root) for name in names}
@@ -173,22 +177,16 @@ def main():
             print(tr('Lumen: Das vorhandene Fenster antwortet nicht.'), file=sys.stderr)
             return 1
         locks.append(lock)
-    from tools_household import Household
-    from tools_workbench import Workbench
-    from tools_vault import Vault
-    from tools_inbox import Inbox
-    from tools_reader import Reader
-    from tools_translate import Translate
-    from tools_wissen import Wissen
-    if args.tool in ('meetings', 'radio'):
-        # The host owns both libraries and both legacy activation endpoints.
-        from tools_meeting_radio import MeetingRadio
-        window = MeetingRadio(args.tool)
-        pages = window.pages
-        app.setApplicationName('lumen-meetings'); app.setDesktopFileName('lumen-meetings')
+    if memory_only:
+        from tools_wissen import Wissen
+        window = Wissen(root=memory_root, memory_only=True)
     else:
-        window = Wissen(root=memory_root, memory_only=True) if memory_only else {'household':Household,'workbench':Workbench,'vault':Vault,'inbox':Inbox,'reader':Reader,'wissen':Wissen,'translate':Translate}[args.tool]()
-        pages = {args.tool: window}
+        from importlib import import_module
+        module, name = {'household': ('tools_household', 'Household'),
+                        'reader': ('tools_reader', 'Reader'),
+                        'translate': ('tools_translate', 'Translate')}[args.tool]
+        window = getattr(import_module(module), name)()
+    pages = {args.tool: window}
     app.setApplicationDisplayName(window.windowTitle())
     from interop_data import Registry
     for name, page in pages.items():
@@ -208,7 +206,6 @@ def main():
         if area is not None:
             if page.name != 'wissen' or area not in ('user', 'lumen'): raise ValueError(tr('Unbekannter Bereich.'))
             page.switch_area(area)
-        if len(pages) > 1 and request: window.select(page.name)
         if request: controller(page).enqueue(request)
 
     from lumen_apps import startup_preference
@@ -232,10 +229,6 @@ def main():
         for server in servers: server.close()
         for lock in locks: lock.unlock()
     app.aboutToQuit.connect(remember); window.show()
-    if args.tool == 'vault':
-        from vault_activation import activate_backup
-        # The window must be mapped before KWin can activate it.
-        QTimer.singleShot(150, lambda: activate_backup(os.getpid()))
     if activation:QTimer.singleShot(0,lambda:pages[args.tool].safe(dispatch,pages[args.tool],activation))
     return app.exec()
 

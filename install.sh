@@ -96,13 +96,16 @@ bash "$REPO/native/build-capture.sh" "$BIN/lumen-window-capture"
 mkdir -p "$PREFIX/agent-app"
 install -m 0644 "$REPO/agent-app/main.py" "$PREFIX/agent-app/"
 mkdir -p "$PREFIX/files"
-rm -f "$PREFIX/files/project_environment.py"
-install -m 0644 "$REPO/files/"*.py "$REPO/files/"*.qss "$REPO/files/"*.svg "$PREFIX/files/"
+/usr/bin/python3 "$REPO/packaging/retire-desktop.py" "$PREFIX"
+for module in "$REPO/files/"*.py; do
+    [[ "$(basename "$module")" == test_* ]] || install -m 0644 "$module" "$PREFIX/files/"
+done
+install -m 0644 "$REPO/files/"*.qss "$REPO/files/"*.svg "$PREFIX/files/"
 
 if [[ -f "$GOOGLE_STAGE/client.json" ]]; then
     install -m 0644 "$GOOGLE_STAGE/client.json" "$PREFIX/files/google-drive-client.json"
 fi
-for asset in translations qml fonts notes_icons notes_web memory-runtime; do
+for asset in translations qml fonts notes_icons memory-runtime; do
     mkdir -p "$PREFIX/files/$asset"
     cp -R "$REPO/files/$asset/." "$PREFIX/files/$asset/"
 done

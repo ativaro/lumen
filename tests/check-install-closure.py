@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 
 REPO = Path(__file__).resolve().parents[1]
-ASSETS = ('translations', 'qml', 'fonts', 'notes_icons', 'project_fonts', 'memory-runtime')
+ASSETS = ('translations', 'qml', 'fonts', 'notes_icons', 'memory-runtime')
 
 
 def check(root, applications):

@@ -1,12 +1,10 @@
 """Native review surfaces for household and project handoffs."""
-from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QFormLayout, QVBoxLayout, QLineEdit,
-    QPlainTextEdit, QListWidget, QListWidgetItem, QInputDialog, QFileDialog, QMessageBox, QAbstractItemView)
+from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QVBoxLayout, QLineEdit, QPlainTextEdit, QListWidget, QListWidgetItem, QInputDialog, QFileDialog
 from lumen_i18n import tr
-from tools_ui import button, row, open_path
+from tools_ui import open_path
 import interop_workflows as flow
 
 
@@ -86,97 +84,14 @@ def _export(window, payload):
     window.work(tr('Übergabepaket wird zusammengestellt …'), lambda job: export_payload(payload, folder, job), lambda path: open_path(path))
 
 
-def project(window, workflow):
-    record = _ready(window); values = {}
-    if workflow == 'lessons':
-        text, ok = QInputDialog.getMultiLineText(window, tr('Projekterkenntnisse festhalten'), tr('Welche Erkenntnisse möchtest du übernehmen?'), window.notes.textCursor().selectedText().replace('\u2029', '\n') or record.get('notes', ''))
-        if not ok: return
-        values['text'] = text
-    if workflow == 'milestone':
-        dialog = QDialog(window); dialog.setWindowTitle(tr('Meilenstein planen')); form = QFormLayout(dialog)
-        title = QLineEdit(); due = QLineEdit(); due.setPlaceholderText('JJJJ-MM-TT'); form.addRow(tr('Meilenstein'), title); form.addRow(tr('Datum'), due)
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel); buttons.accepted.connect(dialog.accept); buttons.rejected.connect(dialog.reject); form.addRow(buttons)
-        if dialog.exec() != QDialog.Accepted: return
-        values.update(title=title.text(), due=due.text())
-    if workflow in ('handover', 'export'):
-        paths = _files(window, record)
-        if paths is None: return
-        values['paths'] = paths
-    payload = flow.project_payload(window.library, record['id'], 'handover' if workflow == 'export' else workflow, **values)
-    if workflow == 'export': _export(window, payload)
-    elif workflow == 'status':
-        text, ok = QInputDialog.getMultiLineText(window, tr('Projektstand vorlesen'), tr('Geprüfter Text für Lumen Audio Studio'), payload['text'])
-        if not ok: return
-        payload['text'] = text
-        _send(window,payload,'radio.add')
-    else: _send(window, payload, {'agenda': 'meetings.agenda', 'lessons': 'wissen.import', 'milestone': 'inbox.event', 'handover': 'inbox.draft'}[workflow])
 
 
-def reading(window):
-    record = _ready(window); values = flow.reading_list(window.library, record['id'])
-    if not values: raise ValueError(tr('Zuerst lesbare Dateien zum Projektmaterial hinzufügen.'))
-    dialog = QDialog(window); dialog.setWindowTitle(tr('Lumen Leseliste')); dialog.resize(620, 440); layout = QVBoxLayout(dialog)
-    listing = QListWidget(); listing.setAccessibleName(tr('Lesereihenfolge')); listing.setDragDropMode(QAbstractItemView.InternalMove)
-    for value in values:
-        item = QListWidgetItem(value['title']); item.setData(Qt.UserRole, value); listing.addItem(item)
-    layout.addWidget(listing)
-    def shift(delta):
-        index = listing.currentRow(); target = index+delta
-        if 0 <= index < listing.count() and 0 <= target < listing.count():
-            item = listing.takeItem(index); listing.insertItem(target, item); listing.setCurrentRow(target)
-    def save(): flow.save_reading_list(window.library, record['id'], [listing.item(i).data(Qt.UserRole) for i in range(listing.count())])
-    def opened():
-        item = listing.currentItem()
-        if item:
-            save(); from interop_open import launch
-            launch('reader', [item.data(Qt.UserRole)['path']], window.library.root.parent)
-    layout.addWidget(row(button(tr('Nach oben'), lambda: shift(-1)), button(tr('Nach unten'), lambda: shift(1)), button(tr('Mit Lumen Reader öffnen'), lambda: window.safe(opened))))
-    buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel); buttons.accepted.connect(dialog.accept); buttons.rejected.connect(dialog.reject); layout.addWidget(buttons)
-    if dialog.exec() == QDialog.Accepted: save()
 
 
-def recent(window):
-    record = _ready(window)
-    def show(values):
-        dialog = QDialog(window); dialog.setWindowTitle(tr('Zuletzt geänderte Projektdateien')); dialog.resize(740, 450); layout = QVBoxLayout(dialog); listing = QListWidget()
-        for value in values:
-            item = QListWidgetItem(datetime.fromtimestamp(value['modified']).strftime('%d.%m.%Y %H:%M')+' · '+value['path']); item.setData(Qt.UserRole, value['path']); listing.addItem(item)
-        layout.addWidget(listing); listing.itemDoubleClicked.connect(lambda item: window.safe(open_path, item.data(Qt.UserRole)))
-        buttons = QDialogButtonBox(QDialogButtonBox.Close); buttons.rejected.connect(dialog.reject); layout.addWidget(buttons); dialog.exec()
-    window.work(tr('Projektdateien werden geprüft …'), lambda job: flow.recent_files(window.library, record['id'], job), lambda values: QTimer.singleShot(0, lambda: window.safe(show, values)))
 
 
-def repair(window):
-    record = _ready(window)
-    missing = [r for r in record.get('resources', []) if r.get('kind') == 'file' and not Path(r['target']).exists()]
-    if not missing: raise ValueError(tr('Alle verknüpften Projektdateien sind erreichbar.'))
-    title, ok = QInputDialog.getItem(window, tr('Dateiverknüpfung reparieren'), tr('Fehlende Datei oder Ordner'), [r['target'] for r in missing], 0, False)
-    if not ok: return
-    kind, ok = QInputDialog.getItem(window, tr('Ersatz auswählen'), tr('Art des Ersatzes'), [tr('Datei'), tr('Ordner')], 0, False)
-    if not ok: return
-    target = (QFileDialog.getOpenFileName(window, tr('Ersatzdatei auswählen'), str(Path.home()))[0] if kind == tr('Datei') else QFileDialog.getExistingDirectory(window, tr('Ersatzordner auswählen'), str(Path.home())))
-    if not target: return
-    if QMessageBox.question(window, tr('Verknüpfungen reparieren'), tr('Alle Projektverweise auf diese fehlende Datei oder diesen Ordner auf das gewählte Ziel umstellen?')) != QMessageBox.Yes: return
-    flow.repair_resource(window.library, record['id'], title, target, all_projects=True); window.focus_record(record['id'])
 
 
-def context(window, reopen=False):
-    record = _ready(window)
-    if reopen:
-        from interop_open import open_url
-        urls = record.get('context', [])
-        if not urls: raise ValueError(tr('Zuerst einen Arbeitskontext speichern.'))
-        for url in urls: open_url(url, window.library.root.parent)
-        return
-    values = flow.project_context(window.library, record['id'])
-    if not values: raise ValueError(tr('Zuerst Notizen, Dokumente oder Aufgaben mit diesem Projekt verknüpfen.'))
-    dialog = QDialog(window); dialog.setWindowTitle(tr('Arbeitskontext speichern')); dialog.resize(640, 440); layout = QVBoxLayout(dialog); listing = QListWidget()
-    from interop_graph import app_title
-    for value in values:
-        item = QListWidgetItem(app_title(value['app'])+' · '+value['title']); item.setData(Qt.UserRole, value['url']); item.setFlags(item.flags() | Qt.ItemIsUserCheckable); item.setCheckState(Qt.Checked if value['url'] in record.get('context', []) else Qt.Unchecked); listing.addItem(item)
-    layout.addWidget(listing); buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel); buttons.accepted.connect(dialog.accept); buttons.rejected.connect(dialog.reject); layout.addWidget(buttons)
-    if dialog.exec() == QDialog.Accepted:
-        flow.save_context(window.library, record['id'], [listing.item(i).data(Qt.UserRole) for i in range(listing.count()) if listing.item(i).checkState() == Qt.Checked])
 
 
 def install_menu(window):
@@ -188,9 +103,4 @@ def install_menu(window):
         add(tr('Belegdaten prüfen'), lambda: invoice(window))
         for value, title in [('remind', tr('Kündigungsfrist im Kalender planen')), ('until', tr('Garantie / Vertragsende im Kalender planen')), ('cancel', tr('Kündigungsentwurf vorbereiten')), ('support', tr('Supportentwurf mit Belegen vorbereiten')), ('repair', tr('Reparaturprojekt anlegen')), ('handover', tr('Übergabepaket exportieren'))]:
             add(title, lambda value=value: household(window, value))
-    else:
-        for value, title in [('agenda', tr('Agenda aus offenen Fragen')), ('milestone', tr('Meilenstein im Kalender planen')), ('lessons', tr('Erkenntnisse in Lumen Notes festhalten')), ('handover', tr('Projektübergabe als Mailentwurf')), ('export', tr('Übergabepaket exportieren')), ('status', tr('Projektstand lokal vorlesen'))]:
-            add(title, lambda value=value: project(window, value))
-        add(tr('Leseliste ordnen und öffnen'), lambda: reading(window)); add(tr('Zuletzt geänderte Dateien'), lambda: recent(window)); add(tr('Fehlende Dateiverknüpfungen reparieren'), lambda: repair(window))
-        add(tr('Arbeitskontext speichern'), lambda: context(window)); add(tr('Arbeitskontext öffnen'), lambda: context(window, True))
     return menu

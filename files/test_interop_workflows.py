@@ -56,16 +56,6 @@ class WorkflowTest(unittest.TestCase):
             db.execute('INSERT INTO interop_event_proposals VALUES (?,?)', ('pending', json.dumps(values)))
         self.assertEqual(flow.prepare_event_update(inbox, values, payload['items'][0])['proposal_id'], 'pending')
 
-    def test_project_agenda_lessons_milestone_handover_and_spoken_status(self):
-        agenda = flow.project_payload(self.projects, self.project, 'agenda')
-        self.assertIn('Welche Pumpe?', agenda['text']); self.assertNotIn('Garantie geklärt', agenda['text'])
-        lessons = flow.project_payload(self.projects, self.project, 'lessons', text='Prüfung vor Bestellung.')
-        self.assertEqual(lessons['text'], 'Prüfung vor Bestellung.')
-        milestone = flow.project_payload(self.projects, self.project, 'milestone', title='Abnahme', due='2026-12-02')
-        self.assertEqual(milestone['items'][0]['title'], 'Abnahme'); self.assertTrue(milestone['items'][0]['start'].startswith('2026-12-02'))
-        status = flow.project_payload(self.projects, self.project, 'status')
-        self.assertIn('Garantie geklärt', status['text']); self.assertIn('Welche Pumpe?', status['text'])
-        self.assertEqual(flow.project_payload(self.projects, self.project, 'handover')['source']['id'], self.project)
 
     def test_handover_payload_contains_selected_files_and_provenance_for_shared_exporter(self):
         source = self.root/'manual.txt'; source.write_text('Manual')
@@ -75,75 +65,10 @@ class WorkflowTest(unittest.TestCase):
         self.assertEqual(Registry(self.tools).resolve(payload['source_url'])['id'], self.device)
         self.assertEqual(source.read_text(), 'Manual')
 
-    def test_recent_files_reading_order_and_link_repair(self):
-        folder = self.root/'project'; folder.mkdir(); old = folder/'old.pdf'; old.write_bytes(b'pdf')
-        second = folder/'second.txt'; second.write_text('read')
-        self.projects.update(self.project, resources=[dict(kind='file', target=str(old), title='Old'), dict(kind='file', target=str(second), title='Second')])
-        reading = flow.reading_list(self.projects, self.project)
-        self.assertEqual([item['path'] for item in reading], [str(old), str(second)])
-        flow.save_reading_list(self.projects, self.project, list(reversed(reading)))
-        self.assertEqual(flow.reading_list(self.projects, self.project)[0]['path'], str(second))
-        self.assertEqual(len(flow.recent_files(self.projects, self.project, self.job)), 2)
-        new = folder/'new.pdf'; old.rename(new)
-        registry = Registry(self.tools); url = registry.register(dict(app='files', kind='file', id=str(old), title='Old', path=str(old)))
-        flow.repair_resource(self.projects, self.project, str(old), str(new))
-        self.assertEqual(self.projects.get(self.project)['resources'][0]['target'], str(new))
-        self.assertEqual(registry.resolve(url)['path'], str(new))
 
-    def test_spoken_status_requires_server_review_without_local_audio_or_record(self):
-        payload = flow.project_payload(self.projects, self.project, 'status')
-        self.assertFalse(hasattr(flow,'spoken_status'))
-        self.assertEqual(Registry(self.tools).related(payload['source_url']),[])
-        self.assertFalse((self.tools/'radio').exists())
 
-    def test_native_project_and_household_workflow_menus_send_reviewed_payloads(self):
-        from PySide6.QtWidgets import QApplication
-        from PySide6.QtCore import QCoreApplication, QEvent
-        from tools_household import Household
-        from tools_workbench import Workbench
-        app = QApplication.instance() or QApplication([])
-        windows = [Household(self.tools), Workbench(self.tools)]
-        try:
-            windows[0].focus_record(self.device); windows[1].focus_record(self.project)
-            with patch('interop_ui.reviewed_send') as send:
-                for window, label, action in [(windows[0], 'Kündigungsfrist im Kalender planen', 'inbox.event'), (windows[1], 'Agenda aus offenen Fragen', 'meetings.agenda')]:
-                    menu = window._workflow_menu
-                    next(item for item in menu.actions() if item.text() == label).trigger()
-                    self.assertEqual(send.call_args.args[2], action)
-                    self.assertEqual(send.call_args.args[1]['source']['id'], window.current)
-        finally:
-            for window in windows: window.close(); window.deleteLater()
-            QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
 
-    def test_project_context_captures_related_note_and_current_reader_page(self):
-        path = self.root/'guide.pdf'; path.write_bytes(b'guide')
-        self.projects.update(self.project, resources=[dict(kind='file', target=str(path), title='Guide')])
-        reader = Library('reader', self.tools); book = reader.create('Guide', source=path.as_uri(), page=3, pages=8, notes=[])
-        registry = Registry(self.tools)
-        project_url = registry.register(dict(app='workbench', kind='record', id=self.project, title='Reparatur'))
-        note_url = registry.register(dict(app='wissen', kind='note', id='repair.md', title='Reparaturnotiz'))
-        registry.link(note_url, project_url)
-        context = flow.project_context(self.projects, self.project)
-        self.assertIn(note_url, [item['url'] for item in context])
-        reading = next(item for item in context if item['app'] == 'reader')
-        self.assertEqual(registry.resolve(reading['url'])['position']['page'], 3)
-        flow.save_context(self.projects, self.project, [note_url, reading['url']])
-        self.assertEqual(len(self.projects.get(self.project)['context']), 2)
 
-    def test_project_status_reviews_server_radio_instead_of_synthesizing_locally(self):
-        from PySide6.QtWidgets import QApplication
-        from PySide6.QtCore import QCoreApplication,QEvent
-        from tools_workbench import Workbench
-        import interop_workflow_ui
-        app=QApplication.instance() or QApplication([]);window=Workbench(self.tools)
-        try:
-            window.focus_record(self.project)
-            with patch('interop_workflow_ui.QInputDialog.getMultiLineText',return_value=('Reviewed status',True)),patch('interop_ui.reviewed_send') as send,patch.object(window,'work',side_effect=AssertionError('No local voice')):
-                interop_workflow_ui.project(window,'status')
-                self.assertEqual(send.call_args.args[2],'radio.add');self.assertEqual(send.call_args.args[1]['text'],'Reviewed status')
-            self.assertFalse((self.tools/'radio').exists())
-        finally:
-            window.close();window.deleteLater();QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
 
 
 if __name__ == '__main__': unittest.main()

@@ -15,16 +15,6 @@ NAMES=('lumen_projects_list','lumen_project_read','lumen_project_search','lumen_
        'lumen_project_create','lumen_project_update','lumen_project_start','lumen_project_link','lumen_project_unlink')
 
 class ProjectActionsTest(unittest.TestCase):
-    def test_old_tools_cannot_touch_originals_even_with_all_actions_enabled(self):
-        with tempfile.TemporaryDirectory() as root,patch.dict(os.environ,LUMEN_TOOLS_DATA=root,LUMEN_MCP_ACTIONS='1',LUMEN_MCP_PROJECT_ACTIONS='1'):
-            library=Library('workbench');key=library.create('Keep original',notes='Private original');before=library.get(key)
-            with patch('projects_mcp.invoke',side_effect=AssertionError('retired read')),patch('projects_mcp.mutate',side_effect=AssertionError('retired write')),patch.object(mcp.subprocess,'Popen',side_effect=AssertionError('retired worker')):
-                for name in NAMES:
-                    with self.subTest(name=name):
-                        self.assertNotIn(name,DEFINITIONS)
-                        for entry in (invoke,mcp.tool_native):
-                            with self.assertRaisesRegex(ValueError,'Server'):entry(name,{'id':key})
-            self.assertEqual(library.get(key),before)
 
     def test_stdio_catalog_never_advertises_retired_tools(self):
         for enabled,project_only in (('0','0'),('1','0'),('0','1')):

@@ -1,3 +1,5 @@
+> Historischer Stand des entfernten nativen Notes-Editors. Aktuell: [Desktop-Verantwortlichkeiten](desktop-retirement.md).
+
 # Lumen Notes: Platznutzung wie Lumen Projekte
 
 Vom Nutzer am 19.10.2026 freigegeben und gezielt installiert.

@@ -49,12 +49,3 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(sync.state_label(dict(enabled=True,last_sync=1)), tr('Wartet auf Abgleich'))
         self.assertEqual(sync.state_label(dict(enabled=False)), tr('Pausiert'))
         self.assertEqual(sync.state_label(dict(enabled=True,conflicts=1)), tr('Konflikt / neue Fassung prüfen'))
-
-    def test_one_failed_area_does_not_stop_other_areas_or_run_old_notes(self):
-        with tempfile.TemporaryDirectory() as temp:
-            store=Store(temp)
-            with patch.object(sync,'Store',return_value=store),patch.object(sync,'prepare_connection'),patch('wissen_sync.background',side_effect=AssertionError('retired writer')) as notes,patch('memory_sync.synchronize',side_effect=OSError('offline')),patch('projects_sync.synchronize',side_effect=AssertionError('retired writer')) as projects,patch('drive_sync.read',return_value=dict(roots=[])),patch.object(sync,'vault_root',return_value=Path(temp)/'absent'),patch('preferences_sync.synchronize',return_value={}),patch('lumen_notifications.report'):
-                result=sync.sync_now()
-                self.assertFalse(result['memory']['ok']);self.assertNotIn('notes',result);self.assertNotIn('attachments',result)
-                notes.assert_not_called();projects.assert_not_called();self.assertFalse(store.setting('memory/sync-status')['ok'])
-                self.assertIsNone(store.setting('knowledge/background-status'))

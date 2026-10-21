@@ -130,7 +130,7 @@ class StartupIsolation(unittest.TestCase):
                 if platform=='offscreen':env.update(LUMEN_DATA=tmp+'/state',LUMEN_TOOLS_DATA=tmp+'/tools')
                 else:
                     env.pop('LUMEN_DATA',None);env.pop('LUMEN_TOOLS_DATA',None)
-                with patch.dict(os.environ,env,clear=True),patch('sys.argv',['tools_app.py','workbench']),patch.object(tools_app,'create_app'),patch('tools_data.Library',return_value=SimpleNamespace(root=Path(tmp)/'tools/workbench')),patch.object(tools_app,'QLocalSocket',Socket):
+                with patch.dict(os.environ,env,clear=True),patch('sys.argv',['tools_app.py','household']),patch.object(tools_app,'create_app'),patch('tools_data.Library',return_value=SimpleNamespace(root=Path(tmp)/'tools/household')),patch.object(tools_app,'QLocalSocket',Socket):
                     self.assertEqual(tools_app.main(),0)
 
     def test_system_rejects_incomplete_test_profiles_before_supervision(self):

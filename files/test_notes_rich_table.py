@@ -87,38 +87,3 @@ class RichTableTest(unittest.TestCase):
             QTest.qWait(20)
             if check(): return
         self.fail('Notes table timed out')
-
-    def test_toolbar_menu_formatted_save_reopen_and_source_switch(self):
-        from tools_wissen import Wissen
-        with tempfile.TemporaryDirectory() as root, patch.dict(os.environ, {'LUMEN_DATA':root+'/state', 'XDG_CONFIG_HOME':root+'/config'}):
-            w = Wissen(Path(root)/'tools'); w.resize(1180,850); w.show()
-            try:
-                self.wait(lambda:w.book and not w.job and not w.poller); w.poll_timer.stop()
-                note = w.book.create('Table', '| A | B |\n| --- | --- |\n| one | two |')
-                w.scanned(w.book.scan()); w.show_note(note)
-                w.rich_editor.setTextCursor(w.rich_editor.document().find('one'))
-                self.assertTrue(w.table_tools.isVisible())
-                button = w.editor_tools.widgetForAction(w.table_action)
-                failures = []
-                def choose():
-                    menu = QApplication.activePopupWidget()
-                    try:
-                        self.assertIs(menu, w.rich_editor.table_menu)
-                        self.assertFalse(w.source_mode.isChecked())
-                        next(a for a in menu.actions() if a.data()=='add_column').trigger()
-                    except Exception as error: failures.append(str(error))
-                    finally:
-                        if menu: menu.close()
-                QTimer.singleShot(60, choose); QTest.mouseClick(button, Qt.LeftButton)
-                QTest.qWait(100); self.assertFalse(failures, failures)
-                self.assertEqual(w.rich_editor.textCursor().currentTable().columns(), 3)
-                w.save_note(); self.wait(lambda:not w.job and not w.dirty)
-                w.show_note(w.book.read(note['path']))
-                w.rich_editor.setTextCursor(w.rich_editor.document().find('one'))
-                self.assertEqual(w.rich_editor.textCursor().currentTable().columns(), 3)
-                w.source_mode.setChecked(True); self.assertIsNone(w.table_action.menu());self.assertFalse(w.table_tools.isVisible())
-                w.source_mode.setChecked(False); self.assertIs(w.table_action.menu(), w.rich_editor.table_menu)
-            finally:
-                self.wait(lambda:not w.job and not w.poller and not w.live_preview.job)
-                w.close(); self.wait(lambda:not w.job); w.deleteLater()
-                self.app.sendPostedEvents(None,QEvent.DeferredDelete)

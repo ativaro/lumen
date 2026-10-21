@@ -143,29 +143,6 @@ class IndexUITest(unittest.TestCase):
             if check():return
         self.fail('Notes index UI timed out')
 
-    def test_delta_keeps_selection_and_updates_links_without_losing_draft(self):
-        from PySide6.QtCore import QEvent
-        from tools_wissen import Wissen
-        with tempfile.TemporaryDirectory() as root,patch.dict(os.environ,{'LUMEN_DATA':root+'/state','XDG_CONFIG_HOME':root+'/config'}):
-            w=Wissen(Path(root)/'tools');w.show()
-            try:
-                self.wait(lambda:w.book and not w.job and not w.poller);w.poll_timer.stop()
-                a=w.book.create('One','[[Two]]');b=w.book.create('Two','Body');w.scanned(w.book.scan());w.show_note(b)
-                item=w.note_items[b['path']];w.show_note(w.book.read(a['path']));w.show_note(w.book.read(b['path']))
-                self.assertIs(w.note_items[b['path']],item);self.assertIs(w.entries.currentItem(),item)
-                self.assertIn(a['path'],w.connections_index[1][b['path']])
-                a=w.book.write(a['path'],'# One\nNo link',a['hash'])
-                w.scanned(dict(notes=[a],unchanged=[b['path']],folders=[],errors=0,limited=False))
-                self.assertEqual(len(w.notes),2);self.assertEqual(w.doc['path'],b['path']);self.assertNotIn(b['path'],w.connections_index[1])
-                w.editor.appendPlainText('Local draft');w.autosave_timer.stop()
-                b=w.book.write(b['path'],'# Two\nExternal edit',b['hash'])
-                w.scanned(dict(notes=[b],unchanged=[a['path']],folders=[],errors=0,limited=False))
-                self.assertTrue(w.conflict);self.assertIn('Local draft',w.editor.toPlainText())
-                w.scanned(dict(notes=[],unchanged=[b['path']],folders=[],errors=0,limited=False))
-                self.assertNotIn(a['path'],w.notes);self.assertIn('Local draft',w.editor.toPlainText())
-                w.dirty=False
-            finally:
-                self.wait(lambda:not w.job and not w.poller and not w.live_preview.job);w.close();w.deleteLater();self.app.sendPostedEvents(None,QEvent.DeferredDelete)
 
 
 if __name__ == '__main__': unittest.main()

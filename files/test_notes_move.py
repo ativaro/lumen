@@ -127,30 +127,6 @@ class NativeMoveTest(unittest.TestCase):
             QTest.qWait(20)
             if check():return
         self.fail('Native move timed out')
-    def test_preview_cancel_apply_and_undo_with_worker(self):
-        import os
-        from unittest.mock import patch
-        from PySide6.QtWidgets import QInputDialog,QMessageBox
-        from PySide6.QtCore import QEvent
-        from tools_wissen import Wissen
-        from notes_move import review,recover
-        with tempfile.TemporaryDirectory() as root,patch.dict(os.environ,{'LUMEN_DATA':root+'/state','XDG_CONFIG_HOME':root+'/config'}):
-            w=Wissen(Path(root)/'tools');w.resize(1180,850);w.show()
-            try:
-                self.wait(lambda:w.book and not w.job and not w.poller);w.poll_timer.stop()
-                first=w.book.create('One','Body');second=w.book.create('Two','[['+first['path']+']]')
-                w.scanned(w.book.scan());w.show_note(first)
-                with patch.object(QInputDialog,'getText',return_value=('Renamed.md',True)),patch.object(QMessageBox,'exec',return_value=QMessageBox.Cancel):
-                    review(w);self.wait(lambda:not w.job)
-                self.assertTrue((w.book.root/first['path']).exists());self.assertFalse((w.book.root/'Renamed.md').exists())
-                with patch.object(QInputDialog,'getText',return_value=('Renamed.md',True)),patch.object(QMessageBox,'exec',return_value=QMessageBox.Apply):
-                    review(w);self.wait(lambda:not w.job and w.doc and w.doc['path']=='Renamed.md')
-                self.assertIn('[[Renamed.md]]',w.book.read(second['path'])['text'])
-                recover(w,True);self.wait(lambda:not w.job and w.doc and w.doc['path']==first['path'])
-                self.assertEqual(w.book.read(second['path'])['text'],second['text'])
-            finally:
-                self.wait(lambda:not w.job and not w.poller and not w.live_preview.job)
-                w.close();self.wait(lambda:not w.job);w.deleteLater();self.app.sendPostedEvents(None,QEvent.DeferredDelete)
 
 class MoveSyncTest(unittest.TestCase):
     def test_local_move_keeps_id_and_links_but_cannot_revive_retired_sync(self):

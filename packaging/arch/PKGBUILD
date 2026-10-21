@@ -1,7 +1,7 @@
 # Maintainer: Lumen
 pkgname=lumen
 pkgver=1.2.0
-pkgrel=105
+pkgrel=106
 pkgdesc="Lumen — AI desktop for CachyOS with files, tasks, knowledge and workflows"
 provides=('opencode-lumen')
 # No automatic conflict removal: the legacy package's uninstall script deletes reports.
@@ -15,7 +15,7 @@ makedepends=('gcc' 'pkgconf' 'qt6-base')
 # OpenCode may be installed through its own installer. Native files/tasks remain
 # useful without inference; the app explains a missing engine when AI is requested.
 optdepends=(
-    'qt6-webengine: Server-style Lumen Notes, embedded Code previews and optional native Vault browser'
+    'qt6-webengine: Shared Lumen Server apps and optional native Vault browser'
     'libssh: SSH access through the optional native Vault'
     'kidletime: Desktop inactivity locking in the optional native Vault'
     'rclone: Cloud account login and file access in Lumen Files'
@@ -24,7 +24,7 @@ optdepends=(
     'whisper.cpp: existing offline dictation engine (or use the setup wizard)'
     'pipewire-audio: microphone recording for offline dictation'
     'polkit: native authorization for optional setup packages'
-    'libsecret: credentials for Vault and Inbox in the desktop keyring'
+    'libsecret: credentials for native Vault and network backups in the desktop keyring'
     'restic: encrypted Vault backups (or use the setup wizard)'
     'cmake: optional user-local speech engine build in the setup wizard'
     'gcc: optional user-local speech engine build in the setup wizard'
@@ -186,13 +186,15 @@ package() {
 
     # ---- Lumen Files (file manager) ---------------------------------------
     install -d "$pkgdir/usr/share/lumen/files"
-    install -m0644 "$srcroot/files/"*.py "$pkgdir/usr/share/lumen/files/"
+    for module in "$srcroot/files/"*.py; do
+        [[ "$(basename "$module")" == test_* ]] || install -m0644 "$module" "$pkgdir/usr/share/lumen/files/"
+    done
     install -m0644 "$srcroot/files/"*.qss "$pkgdir/usr/share/lumen/files/"
     install -m0644 "$srcroot/files/"*.svg "$pkgdir/usr/share/lumen/files/"
     if [[ -f "$srcroot/files/google-drive-client.json" ]]; then
         install -m0644 "$srcroot/files/google-drive-client.json" "$pkgdir/usr/share/lumen/files/"
     fi
-    for asset in translations qml fonts notes_icons project_fonts notes_web memory-runtime; do
+    for asset in translations qml fonts notes_icons memory-runtime; do
         cp -R "$srcroot/files/$asset" "$pkgdir/usr/share/lumen/files/"
     done
     install -m0755 "$srcroot/bin/lumen-files" "$pkgdir/usr/bin/lumen-files"

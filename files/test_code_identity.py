@@ -22,15 +22,6 @@ class CodeIdentity(unittest.TestCase):
         (icons/'hicolor/index.theme').write_text('[Icon Theme]\nName=Hicolor\nDirectories=scalable/apps\n[scalable/apps]\nSize=48\nType=Scalable\nContext=Applications\nMinSize=1\nMaxSize=512\n')
         previous=QIcon.themeSearchPaths();QIcon.setThemeSearchPaths([str(icons),*previous]);cls.addClassCleanup(QIcon.setThemeSearchPaths,previous)
 
-    def test_collection_and_dialog_use_code_despite_foreign_application_icon(self):
-        from code_library_window import CollectionWindow
-        from lumen_store import Store
-        icon=QPixmap(16,16);icon.fill(QColor('red'));foreign=QIcon(icon);previous=self.app.windowIcon();self.app.setWindowIcon(foreign);self.addCleanup(self.app.setWindowIcon,previous)
-        with tempfile.TemporaryDirectory() as tmp:
-            w=CollectionWindow(Store(tmp));self.addCleanup(w.close)
-            self.assertFalse(hasattr(w, 'panorama_bar'))
-            self.assertEqual(w.windowIcon().name(),'lumen-code')
-            d=QDialog(w);self.addCleanup(d.close);self.assertEqual(d.windowIcon().name(),'lumen-code')
 
     def test_entrypoint_sets_application_icon_before_constructing_collection(self):
         import code_app

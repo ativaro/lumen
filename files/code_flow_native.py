@@ -18,10 +18,3 @@ def owns_workflow(db,flow):
 def check_task(db,task):
     if db.execute("SELECT 1 FROM events WHERE task=? AND kind IN ('code-flow','code-library') LIMIT 1",(task,)).fetchone():
         unavailable()
-
-
-def configure(*args,**kwargs):unavailable()
-def snapshot(*args,**kwargs):unavailable()
-def complete(*args,**kwargs):unavailable()
-def deliver(*args,**kwargs):unavailable()
-def deliver_notes(*args,**kwargs):unavailable()
