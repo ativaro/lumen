@@ -191,7 +191,7 @@ class _Index:
                     relative = str(path.relative_to(root)); note = parse(relative, raw)
                     if self.bytes+len(raw) > MAX_BYTES: self.counts['limited'] = True; raise _Limit()
                     self.bytes += len(raw)
-                    url = self.emit(dict(app='wissen', kind='note', id=relative, title=note['title'], path=str(path), locator=dict(root=str(root))), note['text'])
+                    url = self.emit(dict(app='wissen', kind='note', id=relative, title=note['title'], path=str(path), locator=dict(root=str(root),area='lumen')), note['text'])
                     urls[relative] = url; notes[relative] = note
                     self.provenance(url, note['source']); self.provenance(url, note['text'])
                 except (OSError, ValueError, UnicodeError): self.counts['skipped'] += 1
@@ -226,12 +226,11 @@ def index_local(registry, store=None, job=None):
             except (sqlite3.Error, ValueError, OSError): index.counts['skipped'] += 1
         notebooks = []
         if store is not None:
-            if store.setting('knowledge/notebook', ''): notebooks.append(store.setting('knowledge/notebook'))
             notebooks.append(store.directory/'lumen-memory')
         else:
             from interop_vault import discover_sources
             for row in discover_sources(index.root):
-                if row.get('kind') == 'notebook' or row.get('slot') == 'state/lumen-memory': notebooks.append(row['path'])
+                if row.get('slot') == 'state/lumen-memory': notebooks.append(row['path'])
         for notebook in dict.fromkeys(str(path) for path in notebooks):
             try: index.notebook(notebook)
             except (sqlite3.Error, ValueError, OSError): index.counts['skipped'] += 1

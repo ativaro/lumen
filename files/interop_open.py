@@ -29,6 +29,9 @@ def open_url(url,root=None):
     if ref.get('version')==2:
         if ref['app']!='note':raise ValueError(tr('Diesen Serververweis in der zugehörigen Server-App öffnen.'))
         launch('wissen',['--ref',url],root);return
+    if ref['app']=='wissen' and ref.get('locator',{}).get('area')=='lumen':
+        path=ref.get('path') or str(Path(ref['locator']['root'])/ref['id'])
+        launch('wissen',[path,'--area','lumen'],root);return
     if ref['app']=='code':
         launch('code',['--entry',ref['id']],root);return
     if ref.get('kind') in ('drive_file','drive_folder'):

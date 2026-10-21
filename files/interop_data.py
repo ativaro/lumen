@@ -174,12 +174,13 @@ class Registry:
 
     def search(self,query,limit=60):
         _text(query,1000);limit=max(1,min(int(limit),200))
+        current="NOT (json_extract(o.data,'$.app')='wissen' AND coalesce(json_extract(o.data,'$.locator.area'),'user')<>'lumen')"
         with self.library.connect() as db:
             if query.startswith('#'):
-                rows=db.execute('SELECT o.* FROM objects o JOIN tags t ON o.id=t.object WHERE lower(t.tag)=lower(?) ORDER BY o.updated DESC LIMIT ?',(query[1:],limit)).fetchall()
+                rows=db.execute('SELECT o.* FROM objects o JOIN tags t ON o.id=t.object WHERE lower(t.tag)=lower(?) AND '+current+' ORDER BY o.updated DESC LIMIT ?',(query[1:],limit)).fetchall()
             else:
                 needle='%'+query.replace('\\','\\\\').replace('%','\\%').replace('_','\\_')+'%'
-                rows=db.execute("SELECT o.* FROM objects o LEFT JOIN search_text t ON t.object=o.id WHERE (o.data LIKE ? ESCAPE '\\' OR t.text LIKE ? ESCAPE '\\') ORDER BY o.updated DESC LIMIT ?",(needle,needle,limit)).fetchall()
+                rows=db.execute("SELECT o.* FROM objects o LEFT JOIN search_text t ON t.object=o.id WHERE (o.data LIKE ? ESCAPE '\\' OR t.text LIKE ? ESCAPE '\\') AND "+current+" ORDER BY o.updated DESC LIMIT ?",(needle,needle,limit)).fetchall()
         return [dict(json.loads(r['data']),url='lumen://object/'+r['id']) for r in rows]
 
     def relocate(self,old,new):
