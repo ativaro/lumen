@@ -19,7 +19,7 @@ from lumen_qt import is_deleted
 from server_app_session import AppSession, SessionError, APPS, APP_NAMES, Binding, origin
 import lumen_connect
 
-DEFAULT_SIZES = {'code': (1531, 1291), 'audio': (1400, 1399),
+DEFAULT_SIZES = {'code': (1531, 1410), 'audio': (1400, 1399),
                  'projects': (1866, 1159), 'notes': (1658, 1015)}
 
 try:
