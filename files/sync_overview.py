@@ -23,8 +23,6 @@ def widget(parent, heading=True):
     layout.addWidget(server)
     layout.addWidget(label(tr('Einmal auswählen, automatisch aktuell. Pausieren behält deine Daten. KI-Zugriff wird separat freigegeben.')))
     domains = [
-        ('notes', 'Notizen & Sammlungen', 'Dein ausgewähltes Notizbuch in beide Richtungen.', 'wissen'),
-        ('attachments', 'Bilder & Notizanhänge', 'Anhänge deines synchronisierten Notizbuchs.', 'wissen'),
         ('memory', 'Persönliches Gedächtnis', 'Erinnerungen und Kategorien. Keine zusätzliche KI-Freigabe.', 'wissen'),
         ('projects', 'Projekte', 'Eigene Projekte automatisch verbinden. Führt keine Aufgaben aus.', 'workbench'),
         ('vault', 'Verschlüsselter Tresor', 'Auch geschlossen und gesperrt. Erste Zuordnung im Tresor einrichten.', 'vault'),
@@ -98,7 +96,7 @@ def widget(parent, heading=True):
             top.addWidget(button(tr('Serverfassung übernehmen'), lambda: run(dict(action='configure',domain='preferences',enabled=True))))
         if application:
             top.addWidget(button(tr('Einrichten / prüfen') if domain == 'vault' else tr('Öffnen'),
-                                 lambda _=False, app=application: launch(app)))
+                                 lambda _=False, app=application, key=domain: launch(app, area='lumen' if key=='memory' else None)))
         body.addLayout(top)
         body.addWidget(label(tr(description), 'muted'))
         status = label('', 'muted')

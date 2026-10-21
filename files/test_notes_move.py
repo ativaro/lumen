@@ -82,7 +82,7 @@ class MoveTest(unittest.TestCase):
         from notes_move import key
         with tempfile.TemporaryDirectory() as root:
             book=self.make_book(root);book.store.set_setting(key(book),{'source':'A'})
-            with patch.object(wissen_sync.lumen_connect,'read_config',return_value={}),patch.object(wissen_sync.lumen_connect,'request') as request:
+            with patch('lumen_connect.read_config',return_value={}),patch('lumen_connect.request') as request:
                 with self.assertRaises(ValueError):wissen_sync.sync(book)
                 request.assert_not_called()
 
@@ -153,24 +153,21 @@ class NativeMoveTest(unittest.TestCase):
                 w.close();self.wait(lambda:not w.job);w.deleteLater();self.app.sendPostedEvents(None,QEvent.DeferredDelete)
 
 class MoveSyncTest(unittest.TestCase):
-    def test_two_clients_move_keeps_id_links_and_replay(self):
+    def test_local_move_keeps_id_and_links_but_cannot_revive_retired_sync(self):
         from unittest.mock import patch
         import wissen_sync as sync
         from notes_move import execute
         with tempfile.TemporaryDirectory() as root:
-            books=[Notebook(Store(Path(root)/('state'+str(i))),Path(root)/('notes'+str(i)),create=True) for i in range(2)]
-            a,b=books;remote={};cfg=dict(server='https://synthetic.invalid',token='synthetic')
-            def request(config,path,body=None):
-                if path=='/bridge/me':return dict(name='Synthetic',capabilities=['notes'])
-                if path=='/bridge/notes':return dict(items=list(remote.values()),next=None)
-                identity=path.rsplit('/',1)[-1];row=remote.get(identity)
-                if body is None:return dict(row)
-                if row and row['revision']!=body['revision']:return dict(applied=False,note=dict(row))
-                row=dict(id=identity,title=body['title'],body=body['body'],deleted=body['deleted'],note_path=body.get('path',''),revision=(row['revision']+1 if row else 1));remote[identity]=row
-                return dict(applied=True,note=dict(row))
-            with patch('lumen_connect.read_config',return_value=cfg),patch('lumen_connect.request',side_effect=request):
-                for book in books:sync.sync_config(book,sync.scope(book,cfg),True)
-                a.write('One.md','# One\nBody','');a.write('Two.md','# Two\n[[One#Body]]','');sync.sync(a);sync.sync(b)
-                identity=a.read('One.md')['note_id'];execute(a,plan(a,'One.md','Renamed.md'));sync.sync(a);sync.sync(b);sync.sync(a)
-                self.assertEqual(len(remote),2);self.assertEqual(b.read('Renamed.md')['note_id'],identity)
-                self.assertFalse((b.root/'One.md').exists());self.assertIn('[[Renamed.md#Body]]',b.read('Two.md')['text'])
+            book=Notebook(Store(Path(root)/'state'),Path(root)/'notes',create=True)
+            identity='11111111-1111-4111-8111-111111111111'
+            book.write('One.md','# One\nBody','',note_id=identity)
+            book.write('Two.md','# Two\n[[One#Body]]','')
+            execute(book,plan(book,'One.md','Renamed.md'))
+            self.assertEqual(book.read('Renamed.md')['note_id'],identity)
+            self.assertFalse((book.root/'One.md').exists())
+            self.assertIn('[[Renamed.md#Body]]',book.read('Two.md')['text'])
+            before={n['path']:n['hash'] for n in book.scan()['notes']}
+            with patch('lumen_connect.request') as network:
+                with self.assertRaises(ValueError):sync.sync(book)
+                network.assert_not_called()
+            self.assertEqual(before,{n['path']:n['hash'] for n in book.scan()['notes']})

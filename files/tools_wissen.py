@@ -658,7 +658,7 @@ class Wissen(ToolWindow):
         try:self.save()
         except (OSError,ValueError) as error:
             self.status.setText(tr('Entwurf konnte nicht gesichert werden: ')+str(error));event.ignore();self.closing=False;return
-        self.sync_timer.stop();self.poll_timer.stop();self.autosave_timer.stop();self.closing=True
+        self.poll_timer.stop();self.autosave_timer.stop();self.closing=True
         if self.poller:self.poller.cancelled.set();event.ignore();return
         if self.job:
             if not self.writing:self.cancel()
