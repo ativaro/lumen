@@ -94,6 +94,9 @@ class PrivateHostFixture(unittest.TestCase):
                     else:status=404;data={}
                 elif self.path=='/bridge/apps/session-ticket':
                     cls.challenge=body['challenge'];data=dict(ticket='t'*43,expires=(datetime.now(timezone.utc)+timedelta(seconds=29)).isoformat())
+                elif self.path=='/bridge/apps/session-renew':
+                    status=503 if cls.renewal_unavailable else 403 if cls.revoked or not self.headers.get('Authorization') or body!={'app':cls.app_kind,'session_hash':hashlib.sha256(('c'*43).encode()).hexdigest()} else 200
+                    data=dict(user_id=USER,device_id=DEVICE,app=cls.app_kind,expires=(datetime.now(timezone.utc)+timedelta(seconds=899)).isoformat())
                 elif self.path=='/api/auth/desktop/exchange':
                     if (body['app']!=cls.app_kind or body['user_id']!=USER or body['device_id']!=DEVICE
                             or hashlib.sha256(body['verifier'].encode()).hexdigest()!=cls.challenge
@@ -136,6 +139,7 @@ class PrivateHostFixture(unittest.TestCase):
 
     def setUp(self):
         type(self).app_kind='compose';type(self).hold_check=False
+        type(self).renewal_unavailable=False
         type(self).revoked=False;type(self).hold_write=False
         type(self).native_user=USER;type(self).native_areas=['translate'];type(self).native_revision=7
         type(self).native_device=DEVICE;type(self).hold_upload=False
@@ -240,8 +244,9 @@ class WindowTest(PrivateHostFixture):
             self.wait(lambda:bool(result))
         self.assertEqual(result,[None]);self.assertFalse(self.js(window,'window.selectedReference === true'))
 
-    def test_notes_expired_session_keeps_copy_only_for_same_binding_and_connection(self):
+    def test_notes_failed_renewal_keeps_copy_only_for_same_binding_and_connection(self):
         window=self.import_window(drive=False,pilot=True,app='notes');self.note_input(window)
+        type(self).renewal_unavailable=True
         window.session._deadline=window.session._clock()-1
         window.verify();self.wait(lambda:window.stack.currentWidget() is window.status_page and window._worker is None)
         self.wait(lambda:window.page.lifecycleState()==QWebEnginePage.LifecycleState.Frozen)
@@ -939,16 +944,24 @@ class WindowTest(PrivateHostFixture):
         self.assertFalse(window._live);self.assertFalse(window._loaded)
         self.assertIs(window.stack.currentWidget(),window.status_page)
 
-    def test_expiry_does_not_renew_or_show_a_late_load(self):
-        window=self.window();window.timer.stop()
-        tickets=sum(c['path']=='/bridge/apps/session-ticket' for c in self.calls)
-        window.session._deadline=0;window.verify()
-        self.wait(lambda:window._worker is None and not window._live)
-        self.assertEqual(sum(c['path']=='/bridge/apps/session-ticket' for c in self.calls),tickets)
-        window._loaded_page(True)
-        self.assertIs(window.stack.currentWidget(),window.status_page)
-        window.verify(reconnect=True);self.assertFalse(window.retry.isEnabled())
-        self.assertEqual(sum(c['path']=='/bridge/apps/session-ticket' for c in self.calls),tickets)
+    def test_all_apps_renew_expired_session_without_reloading_or_replaying_writes(self):
+        for app in ('notes','projects','code','compose','audio','vault','inbox'):
+            with self.subTest(app=app):
+                type(self).native_areas=[{'notes':'notes','projects':'projects','code':'code','compose':'translate','audio':'media','vault':'vault_sync','inbox':'inbox'}[app]]
+                window=self.window(app=app);window.timer.stop()
+                self.js(window,"window.ownUnsavedFixture='Eigener ungesendeter Entwurf';document.querySelector('textarea,input').value=window.ownUnsavedFixture")
+                page=window.page;cookie=window.session._cookie
+                tickets=sum(c['path']=='/bridge/apps/session-ticket' for c in self.calls)
+                writes=sum(c['path'].startswith('/api/') and c['method']!='GET' for c in self.calls)
+                window.session._deadline=0;window.verify(reconnect=True)
+                self.wait(lambda:window._worker is None and window._live)
+                self.assertIs(window.page,page);self.assertEqual(window.session._cookie,cookie)
+                self.assertEqual(self.js(window,'window.ownUnsavedFixture'),'Eigener ungesendeter Entwurf')
+                self.assertEqual(self.js(window,"document.querySelector('textarea,input').value"),'Eigener ungesendeter Entwurf')
+                self.assertEqual(sum(c['path']=='/bridge/apps/session-ticket' for c in self.calls),tickets)
+                self.assertEqual(sum(c['path'].startswith('/api/') and c['method']!='GET' for c in self.calls),writes)
+                with patch.object(QMessageBox,'question',return_value=QMessageBox.StandardButton.Discard):
+                    window.close();self.wait(lambda:window._disposed)
 
     def test_close_destroys_page_before_profile_and_removes_temporary_storage(self):
         window=self.window();storage=Path(window.profile.persistentStoragePath())

@@ -44,6 +44,8 @@ class SessionTest(unittest.TestCase):
         self.native_calls.append((dict(config), path, body))
         if path == '/bridge/me':
             return dict(id=USER, device_id=DEVICE, capabilities=['translate'])
+        if path == '/bridge/apps/session-renew':
+            return {k:self.exchange[k] for k in ('user_id','device_id','app','expires')}
         return dict(ticket='t' * 43, expires=(NOW + timedelta(seconds=30)).isoformat())
 
     def web_request(self, request, **kwargs):
@@ -223,6 +225,39 @@ class SessionTest(unittest.TestCase):
         self.assertFalse(session.check())
         self.assertEqual(session.state,'revoked')
         self.assertFalse(session.usable)
+
+    def test_near_expiry_renews_only_auth_without_rotating_cookie_or_losing_draft(self):
+        session=self.session();session.connect();session.remember_draft('Noch nicht gespeichert')
+        cookie,csrf=session._cookie,session._csrf
+        self.clock=860
+        self.assertTrue(session.check())
+        self.assertEqual(session._cookie,cookie);self.assertEqual(session._csrf,csrf)
+        self.assertEqual(session.draft(self.binding),'Noch nicht gespeichert')
+        self.assertGreater(session._deadline,1000)
+        self.assertEqual(self.native_calls[-1][1],'/bridge/apps/session-renew')
+        self.assertEqual(self.native_calls[-1][2],dict(app='compose',session_hash=host.hashlib.sha256(cookie).hexdigest()))
+        self.assertEqual(sum(r.get_method()=='POST' for r in self.web_calls),1)
+
+    def test_expired_bound_session_can_be_verified_again_without_a_new_web_login(self):
+        session=self.session();session.connect();self.clock=911
+        self.assertFalse(session.usable)
+        self.assertTrue(session.check());self.assertTrue(session.usable)
+        self.assertEqual(sum(r.get_method()=='POST' for r in self.web_calls),1)
+
+    def test_late_or_wrong_renewal_never_reopens_session(self):
+        for change in ('closed','account','app','deadline'):
+            self.clock=10;session=self.session();session.connect();self.clock=860
+            def renewal(config,path,body=None,**kwargs):
+                if path.endswith('/session-renew'):
+                    value={k:self.exchange[k] for k in ('user_id','device_id','app','expires')}
+                    if change=='closed':session.close()
+                    elif change=='account':value['user_id']=DEVICE
+                    elif change=='app':value['app']='notes'
+                    else:value['expires']=(NOW+timedelta(hours=2)).isoformat()
+                    return value
+                return self.native_request(config,path,body,**kwargs)
+            with patch.object(host.lumen_connect,'request',side_effect=renewal):
+                self.assertFalse(session.check());self.assertFalse(session.usable)
 
     def test_interruption_preserves_bound_draft_without_replay(self):
         session=self.session();session.connect();session.remember_draft('Ungesendeter Text')

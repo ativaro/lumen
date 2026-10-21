@@ -438,7 +438,7 @@ class ServerAppWindow(QMainWindow):
             unavailable();return
         if not self._pilot_current():self._invalidate_pilot();unavailable();return
         if self.session.state=='identity':self.retry.setEnabled(False);unavailable();return
-        if reconnect and self._loaded and not self.session.has_cookie:
+        if reconnect and self._loaded and not self.session.has_cookie and not self.session.can_renew:
             self.block(self.session.state)
             self.status.setText('Sitzung beendet. Entwurf kopieren und die App erneut öffnen.')
             self.retry.setEnabled(False);unavailable();return
@@ -447,7 +447,7 @@ class ServerAppWindow(QMainWindow):
         connection=self._pilot_connection
         def check():
             if connection is not None and _connection()[1]!=connection:raise SessionError('connection')
-            if reconnect and not self.session.has_cookie:self.session.connect()
+            if reconnect and not self.session.has_cookie and not self.session.can_renew:self.session.connect()
             else:self.session.check()
             if connection is not None and _connection()[1]!=connection:raise SessionError('connection')
         worker = Call(check,self);self._worker = worker

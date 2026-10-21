@@ -125,13 +125,18 @@ class AppSession:
 
     @property
     def usable(self):
-        if self._cookie and self._clock() >= self._deadline:
-            self.close('expired')
+        if self._cookie and self._clock() >= self._deadline and self.state!='expired':
+            self._generation += 1
+            self.state = 'expired'
         return bool(self._cookie) and self.state == 'ready' and not self.uncertain
 
     @property
     def has_cookie(self):
         return bool(self._cookie) and self._clock() < self._deadline
+
+    @property
+    def can_renew(self):
+        return bool(self._cookie) and not self.uncertain and self.state not in ('identity','revoked')
 
     def _ttl(self, value, maximum):
         try:
@@ -166,7 +171,7 @@ class AppSession:
                 or not target.path.startswith('/api/') or '%' in target.path
                 or any(part in ('','.','..') for part in target.path.split('/')[1:])):
             raise SessionError('request')
-        if not self.usable or not self.check():raise SessionError(self.state)
+        if not self.check() or not self.usable:raise SessionError(self.state)
         generation=self._generation
         writing=body is not None
         if writing:self.observe_write()
@@ -242,10 +247,18 @@ class AppSession:
             self.close('unavailable'); raise SessionError() from None
 
     def check(self):
-        if not self._cookie or self._clock() >= self._deadline:
+        if not self._cookie:
             self.close('expired'); return False
         try:
             generation = self._generation
+            if self.can_renew and self._deadline-self._clock()<=60:
+                renewal = lumen_connect.request(self._config, '/bridge/apps/session-renew',
+                    dict(app=self.binding.app, session_hash=hashlib.sha256(self._cookie).hexdigest()), timeout=10)
+                if generation!=self._generation:return False
+                if (renewal.get('user_id'),renewal.get('device_id'),renewal.get('app')) != (
+                        self.binding.account,self.binding.device,self.binding.app):raise SessionError('identity')
+                self._deadline=self._clock()+self._ttl(renewal.get('expires'),900)
+            if self._clock()>=self._deadline:return False
             value, _ = self._http('/api/me')
             if generation != self._generation:return False
             user = value.get('user', {})
@@ -257,9 +270,11 @@ class AppSession:
             self.state = 'uncertain' if self.uncertain else 'ready'
             return self.usable
         except urllib.error.HTTPError as e:
-            if e.code in (401, 403):self.close('revoked')
+            if e.code in (401, 403, 410):self.close('revoked')
             else:self.suspend('offline')
             e.close()
+        except SessionError as e:
+            self.close(e.kind)
         except Exception:
             self.suspend('offline')
         return False
