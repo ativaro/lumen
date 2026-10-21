@@ -20,7 +20,7 @@ ACTIONS = {
     'translate.import': dict(target='translate', label=tr('In Lumen Compose bearbeiten …'), modes=['copy'], description=tr('Text oder PDF lokal vorbereiten. Übersetzen, Umformulieren oder Korrigieren erst in Compose starten.')),
     'wissen.import': dict(target='wissen', label=tr('Als Notiz speichern …'), modes=['copy', 'link'], description=tr('In Lumen Notes speichern. Die Originaldatei bleibt unverändert.')),
     'workbench.add': dict(target='workbench', label=tr('Zu einem Projekt hinzufügen …'), modes=['copy', 'link','live'], description=tr('Material und Notizen einem neuen oder vorhandenen Projekt zuordnen.')),
-    'workbench.question': dict(target='workbench', label=tr('Als Aufgabe in Lumen Projekte übernehmen'), modes=['copy'], description=tr('Ausgewählten Text als manuelle Aufgabe mit Herkunft speichern.')),
+    'workbench.question': dict(target='workbench', label=tr('Mit Lumen im Projekt besprechen …'), modes=['copy'], description=tr('Ausgewählten Text als Frage im Projektgespräch auf dem Server senden.')),
     'household.add': dict(target='household', label=tr('Zu einem Gerät oder Vertrag hinzufügen …'), modes=['copy','link','live'], description=tr('Belege, Handbücher und Notizen einem Gerät oder Vertrag zuordnen.')),
     'radio.add': dict(target='radio', label=tr('Für eine Radioausgabe sammeln …'), modes=['copy'], description=tr('Lokalen Text für eine neue oder vorhandene Radioausgabe sammeln.')),
     'reader.import': dict(target='reader', label=tr('In Lumen Reader öffnen'), modes=['copy'], description=tr('Eine private Lesekopie mit Herkunft anlegen.')),
@@ -56,6 +56,10 @@ def available(payload):
 
 def choices(action, root=None, store=None, *, session=None, permissions_revision=None, job=None):
     target = ACTIONS[action]['target']
+    if action.startswith('workbench.'):
+        from server_project_capture import projects
+        if session is None or job is None:raise ValueError(tr('Projekte in der verbundenen Lumen-Projekte-App auswählen.'))
+        return projects(session,permissions_revision,job)
     if action == 'wissen.import':
         from server_note_capture import collections
         if session is None or job is None:raise ValueError(tr('Notizsammlungen in der verbundenen Lumen-Notes-App auswählen.'))
@@ -196,6 +200,12 @@ def _wissen(*args, **kwargs):
 def apply(action, payload, choice, job, root=None, store=None, *, session=None, permissions_revision=None, retry=False):
     from interop_undo import snapshot,remember
     _validate(action, payload, choice)
+    if action.startswith('workbench.'):
+        from interop_data import Registry
+        from server_project_capture import capture
+        if session is None:raise ValueError(tr('Projektinhalte ausschließlich in der verbundenen Server-App übernehmen.'))
+        if Registry(root).request(choice['token'])['payload']!=payload:raise ValueError(tr('Die bestätigte Quelle wurde geändert.'))
+        return capture(choice['token'],choice,session,permissions_revision,job,root=root,retry=retry)
     if action=='wissen.import':
         from interop_data import Registry
         from server_note_capture import capture
