@@ -99,6 +99,8 @@ class OpenCodeBackend(QObject):
         self.startup_started = None
         self.model_policy = {}
         self.engine_policy = ''
+        self.server_mcp_binding = None
+        self.checked_session = ''
         self.background_task = False
         self.read_only = False
         self.screen_guidance = False
@@ -120,12 +122,26 @@ class OpenCodeBackend(QObject):
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.poll)
+        self.binding_timer = QTimer(self)
+        self.binding_timer.setInterval(500)
+        self.binding_timer.timeout.connect(self.check_server_mcp_binding)
 
     def set_busy(self, value):
         self.busy = value
         self.busyChanged.emit(value)
 
     def request(self, method, path, body=None, callback=None, error=None):
+        if not self.check_server_mcp_binding():return
+        target = re.match(r'^/session/([A-Za-z0-9_-]+)(?:[/?]|$)', path)
+        if self.proc and target and target[1] != self.checked_session and (method, path) != ('GET', '/session/'+target[1]):
+            def checked(data):
+                if not self.session_matches_binding(data) or data.get('id') != target[1]:
+                    self.fail(tr('Dieses Gespräch gehört nicht zur aktuellen Serververbindung.'), reset_conversation=True)
+                    return
+                self.checked_session = target[1]
+                self.request(method, path, body, callback, error)
+            self.request('GET', '/session/'+target[1], callback=checked)
+            return
         url = QUrl(self.url + path)
         query = QUrlQuery(url)
         query.addQueryItem('directory', self.directory)
@@ -167,6 +183,7 @@ class OpenCodeBackend(QObject):
         def dispatch():
             if _generation != self.generation:
                 return
+            if not self.check_server_mcp_binding():return
             if diagnostic is not None: self.apiDiagnostic.emit(diagnostic)
             if failed:
                 detail = ''
@@ -191,7 +208,24 @@ class OpenCodeBackend(QObject):
         # processing this reply before allowing those callbacks to destroy it.
         QTimer.singleShot(0, dispatch)
 
+    def check_server_mcp_binding(self):
+        # A caller-supplied engine has not received our private runtime config.
+        if self.url and self.proc is None:return True
+        from server_mcp_binding import configuration, BindingError
+        try:
+            _, stamp = configuration(dict(os.environ, **getattr(self, 'learning_environment', {})))
+        except BindingError:
+            self.fail(tr('Die private Server-Werkzeugkonfiguration ist ungültig. Bitte die Serververbindung prüfen.'),
+                      reset_conversation=True)
+            return False
+        if self.server_mcp_binding is not None and stamp != self.server_mcp_binding:
+            self.fail(tr('Die Serververbindung wurde geändert. Bitte die Nachricht in einem neuen Gespräch erneut senden.'),
+                      reset_conversation=True)
+            return False
+        return True
+
     def ensure_server(self, callback):
+        if not self.check_server_mcp_binding():return
         from lumen_store import Store
         self.model_policy = Store().setting('modelPolicy', {})
         local = self.model_policy.get('local_model', '') if self.model_policy.get('privacy') == 'local' else ''
@@ -226,6 +260,15 @@ class OpenCodeBackend(QObject):
             environment.insert('OPENCODE_DISABLE_PROJECT_CONFIG', 'true')
         for key,value in getattr(self,'learning_environment',{}).items():
             environment.insert(key,value)
+        from server_mcp_binding import configuration, BindingError
+        try:
+            content, binding = configuration({key:environment.value(key) for key in environment.keys()})
+            environment.insert('OPENCODE_CONFIG_CONTENT', content)
+        except BindingError:
+            self.proc = None; proc.deleteLater()
+            self.fail(tr('Die private Server-Werkzeugkonfiguration ist ungültig. Bitte die Serververbindung prüfen.'),
+                      reset_conversation=True)
+            return
         if local:
             try:
                 config = json.loads(environment.value('OPENCODE_CONFIG_CONTENT') or '{}')
@@ -236,6 +279,8 @@ class OpenCodeBackend(QObject):
                 self.proc = None; proc.deleteLater()
                 self.fail(tr('Die vorhandene Laufzeitkonfiguration konnte nicht mit der lokalen Richtlinie verbunden werden.')); return
         self.engine_policy = local
+        self.server_mcp_binding = binding
+        self.binding_timer.start()
         proc.setProcessEnvironment(environment)
         proc.setWorkingDirectory(self.directory)
         proc.setProcessChannelMode(QProcess.MergedChannels)
@@ -248,6 +293,7 @@ class OpenCodeBackend(QObject):
         self.start_timer.start(25000)
 
     def read_startup(self, proc):
+        if not self.check_server_mcp_binding():return
         self.log = (self.log + bytes(proc.readAllStandardOutput()))[-8000:]
         if self.url:
             return
@@ -265,7 +311,14 @@ class OpenCodeBackend(QObject):
     def refresh_sessions(self):
         self.ensure_server(lambda: self.request('GET', '/session?limit=200', callback=lambda sessions:
             self.sessionsChanged.emit([s for s in (sessions or []) if s.get('metadata', {}).get('client') == 'lumen'
-                                      and s.get('directory') == self.directory])))
+                                      and self.session_matches_binding(s)])))
+
+    def session_matches_binding(self, session):
+        metadata = session.get('metadata') if isinstance(session, dict) else None
+        return (isinstance(metadata, dict) and session.get('directory') == self.directory
+            and metadata.get('client') in ('lumen', 'lumen-files-proposal')
+            and (self.server_mcp_binding is None or
+                 metadata.get('lumen_server_binding') == self.server_mcp_binding))
 
     def persona_choice(self):
         from lumen_persona import PRESETS
@@ -290,6 +343,7 @@ class OpenCodeBackend(QObject):
         self.timer.stop()
         self.polling = False
         self.session = self.message_id = ''
+        self.checked_session = ''
         self.publish_memory_context({},'idle')
         self.memory_previous_answer = {}
         self.pending_persona = ''
@@ -313,10 +367,16 @@ class OpenCodeBackend(QObject):
     def select_session(self, session):
         if not self.new_conversation():
             return
-        self.session = session
-        self.sessionChanged.emit(session)
-        self.personaChanged.emit()
-        self.ensure_server(self.poll)
+        if not isinstance(session, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,200}', session):return
+        def selected(data):
+            if not self.session_matches_binding(data) or data.get('id') != session:
+                self.fail(tr('Dieses Gespräch gehört nicht zur aktuellen Serververbindung.'), reset_conversation=True)
+                return
+            self.session = self.checked_session = session
+            self.sessionChanged.emit(session)
+            self.personaChanged.emit()
+            self.poll()
+        self.ensure_server(lambda:self.request('GET', '/session/'+session, callback=selected))
 
     def clear_vault_sources(self):
         if self.vault_sources:
@@ -324,6 +384,7 @@ class OpenCodeBackend(QObject):
             self.vault_sources = None
 
     def send(self, text, files=None, agent='build', title=None, proposal=False, memory_text=None,memory_context=False, context_data=None, user_text=None, project_task=False, web_research=False, screen_image=None):
+        if not self.check_server_mcp_binding():return False
         if self.busy or not text.strip():
             return
         if screen_image is not None and (not self.screen_guidance or not isinstance(screen_image, bytes)
@@ -525,6 +586,8 @@ class OpenCodeBackend(QObject):
             else:
                 session = {'title': (title or text.splitlines()[0])[:70],
                            'metadata': {'client': 'lumen-files-proposal' if proposal else 'lumen'}}
+                if self.server_mcp_binding is not None:
+                    session['metadata']['lumen_server_binding'] = self.server_mcp_binding
                 if proposal or self.read_only or project_task or self.screen_guidance:
                     session['permission'] = [{'permission': '*', 'pattern': '*', 'action': 'deny'}]
                     if getattr(self,'learning_environment',None):
@@ -568,6 +631,7 @@ class OpenCodeBackend(QObject):
         self.memoryContextChanged.emit(self.memory_context)
 
     def poll(self):
+        if not self.check_server_mcp_binding():return
         if self.polling or not self.session:
             return
         self.polling = True
@@ -712,7 +776,7 @@ class OpenCodeBackend(QObject):
         self.statusChanged.emit(tr('Abgebrochen'))
         self.completed.emit(False, 'Abgebrochen')
 
-    def fail(self, message):
+    def fail(self, message, reset_conversation=False):
         self.timer.stop()
         self.polling = False
         # Stop our private engine before allowing another request after a transport failure.
@@ -720,6 +784,10 @@ class OpenCodeBackend(QObject):
         self.set_busy(False)
         self.permissions, self.questions = [], []
         self.requestsChanged.emit([], [])
+        if reset_conversation:
+            self.server_mcp_binding = None
+            self.new_conversation()
+            self.sessionsChanged.emit([])
         self.failed.emit(message)
         self.statusChanged.emit(tr('Anfrage fehlgeschlagen'))
         self.completed.emit(False, message)
@@ -753,6 +821,7 @@ class OpenCodeBackend(QObject):
         self.permission_replies.clear()
         self.start_timer.stop()
         self.timer.stop()
+        self.binding_timer.stop()
         self.waiting.clear()
         pending, self.replies = self.replies, {}
         for reply in pending:
