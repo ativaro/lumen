@@ -90,15 +90,11 @@ class WorkflowTest(unittest.TestCase):
         self.assertEqual(self.projects.get(self.project)['resources'][0]['target'], str(new))
         self.assertEqual(registry.resolve(url)['path'], str(new))
 
-    def test_spoken_status_has_real_audio_asset_script_and_source_relation(self):
+    def test_spoken_status_requires_server_review_without_local_audio_or_record(self):
         payload = flow.project_payload(self.projects, self.project, 'status')
-        def voice(text, library, job):
-            library.asset('status.wav').write_bytes(b'local-audio')
-            return dict(audio='status.wav', duration=1000)
-        with patch('tools_data.synthesize', side_effect=voice): result = flow.spoken_status(payload, self.tools, self.job)
-        library = Library('radio', self.tools); record = library.get(result['id'])
-        self.assertEqual(record['script'], payload['text']); self.assertEqual(library.asset(record['audio']).read_bytes(), b'local-audio')
-        self.assertEqual(Registry(self.tools).related(payload['source_url'])[0]['app'], 'radio')
+        self.assertFalse(hasattr(flow,'spoken_status'))
+        self.assertEqual(Registry(self.tools).related(payload['source_url']),[])
+        self.assertFalse((self.tools/'radio').exists())
 
     def test_native_project_and_household_workflow_menus_send_reviewed_payloads(self):
         from PySide6.QtWidgets import QApplication
@@ -134,13 +130,20 @@ class WorkflowTest(unittest.TestCase):
         flow.save_context(self.projects, self.project, [note_url, reading['url']])
         self.assertEqual(len(self.projects.get(self.project)['context']), 2)
 
-    def test_cancelled_spoken_status_cleans_audio_and_does_not_create_radio_record(self):
-        payload = flow.project_payload(self.projects, self.project, 'status')
-        def voice(text, library, job):
-            library.asset('cancelled.wav').write_bytes(b'audio'); job.cancelled.set()
-            return dict(audio='cancelled.wav', duration=1000)
-        with patch('tools_data.synthesize', side_effect=voice), self.assertRaises(Cancelled): flow.spoken_status(payload, self.tools, self.job)
-        radio = Library('radio', self.tools); self.assertEqual(radio.all(), []); self.assertEqual(list(radio.assets.iterdir()), [])
+    def test_project_status_reviews_server_radio_instead_of_synthesizing_locally(self):
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtCore import QCoreApplication,QEvent
+        from tools_workbench import Workbench
+        import interop_workflow_ui
+        app=QApplication.instance() or QApplication([]);window=Workbench(self.tools)
+        try:
+            window.focus_record(self.project)
+            with patch('interop_workflow_ui.QInputDialog.getMultiLineText',return_value=('Reviewed status',True)),patch('interop_ui.reviewed_send') as send,patch.object(window,'work',side_effect=AssertionError('No local voice')):
+                interop_workflow_ui.project(window,'status')
+                self.assertEqual(send.call_args.args[2],'radio.add');self.assertEqual(send.call_args.args[1]['text'],'Reviewed status')
+            self.assertFalse((self.tools/'radio').exists())
+        finally:
+            window.close();window.deleteLater();QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
 
 
 if __name__ == '__main__': unittest.main()

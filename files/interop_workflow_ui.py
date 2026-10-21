@@ -105,15 +105,10 @@ def project(window, workflow):
     payload = flow.project_payload(window.library, record['id'], 'handover' if workflow == 'export' else workflow, **values)
     if workflow == 'export': _export(window, payload)
     elif workflow == 'status':
-        text, ok = QInputDialog.getMultiLineText(window, tr('Projektstand vorlesen'), tr('Geprüfter Text für die lokale Stimme'), payload['text'])
+        text, ok = QInputDialog.getMultiLineText(window, tr('Projektstand vorlesen'), tr('Geprüfter Text für Lumen Audio Studio'), payload['text'])
         if not ok: return
         payload['text'] = text
-        def done(ref):
-            from interop_open import open_url
-            from interop_data import Registry
-            url = Registry(window.library.root.parent).register(ref)
-            QTimer.singleShot(0, lambda: open_url(url, window.library.root.parent))
-        window.work(tr('Projektstand wird lokal vertont …'), lambda job: flow.spoken_status(payload, window.library.root.parent, job), done)
+        _send(window,payload,'radio.add')
     else: _send(window, payload, {'agenda': 'meetings.agenda', 'lessons': 'wissen.import', 'milestone': 'inbox.event', 'handover': 'inbox.draft'}[workflow])
 
 

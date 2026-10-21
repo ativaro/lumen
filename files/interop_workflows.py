@@ -198,19 +198,3 @@ def save_context(library, key, urls):
     registry = Registry(library.root.parent)
     for url in urls: registry.resolve(url)
     library.update(key, context=list(urls))
-
-
-def spoken_status(payload, root, job):
-    from tools_data import Library, synthesize
-    payload = validate_payload(payload); library = Library('radio', root)
-    result = synthesize(payload['text'], library, job)
-    try:
-        job.check()
-        import hashlib
-        key = library.create(payload['title'], script=payload['text'], sources=[dict(title=payload['title'], text=payload['text'], url=payload['source_url'], selected=True)], minutes=5,
-                             interop_sources=[payload['source_url']], audio_hash=hashlib.sha256(payload['text'].encode()).hexdigest(), **result)
-    except BaseException:
-        library.asset(result['audio']).unlink(missing_ok=True); raise
-    ref = dict(app='radio', kind='record', id=key, title=payload['title'])
-    registry = Registry(root); registry.link(payload['source_url'], registry.register(ref), 'spoken-status')
-    return ref

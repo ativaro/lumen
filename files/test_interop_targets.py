@@ -52,15 +52,13 @@ class TargetTest(unittest.TestCase):
         self.assertEqual(project['resources'][1]['target'], str(source))
         self.assertEqual(project['interop_sources'], [self.source])
 
-    def test_household_and_radio_store_real_content(self):
+    def test_household_content_stays_local_but_audio_requires_server_review(self):
         source = self.root/'manual.txt'; source.write_text('Handbuchtext')
         result = self.apply('household.add', dict(self.payload, paths=[str(source)]))
         library = Library('household', self.tools); record = library.get(result['id'])
         self.assertEqual(library.asset(record['attachments'][0]['asset']).read_text(), 'Handbuchtext')
-        result = self.apply('radio.add')
-        record = Library('radio', self.tools).get(result['id'])
-        self.assertEqual(record['sources'][0]['text'], self.payload['text'])
-        self.assertEqual(record['sources'][0]['url'], self.source)
+        with self.assertRaisesRegex(ValueError,'Server-App'):self.apply('radio.add')
+        self.assertFalse((self.tools/'radio').exists())
 
     def test_cancel_after_first_copy_leaves_no_partial_files_or_record(self):
         first = self.root/'one.txt'; second = self.root/'two.txt'
@@ -97,17 +95,15 @@ class TargetTest(unittest.TestCase):
         self.assertEqual(self.apply('reader.import', dict(self.payload, text='', paths=[str(document)])), result)
         self.assertEqual(len(library.all()), 1)
 
-    def test_meeting_audio_and_agenda_only_record_are_complete(self):
+    def test_meeting_audio_and_agenda_require_server_without_local_copy(self):
         import wave
         path = self.root/'sample.wav'
         with wave.open(str(path), 'wb') as audio:
             audio.setnchannels(1); audio.setsampwidth(2); audio.setframerate(8000); audio.writeframes(b'\0\0'*8000)
-        result = self.apply('meetings.import', dict(self.payload, paths=[str(path)]))
-        record = Library('meetings', self.tools).get(result['id'])
-        self.assertEqual(record['duration'], 1000); self.assertEqual(record['segments'], [])
-        agenda = self.apply('meetings.agenda', token='agenda')
-        record = Library('meetings', self.tools).get(agenda['id'])
-        self.assertIn(self.payload['text'], record['agenda']); self.assertFalse(record.get('recording'))
+        original=path.read_bytes()
+        with self.assertRaisesRegex(ValueError,'Server-App'):self.apply('meetings.import',dict(self.payload,paths=[str(path)]))
+        with self.assertRaisesRegex(ValueError,'Server-App'):self.apply('meetings.agenda',token='agenda')
+        self.assertFalse((self.tools/'meetings').exists());self.assertEqual(path.read_bytes(),original)
 
     def test_inbox_draft_task_and_calendar_proposal_stay_local_and_replay(self):
         library = inbox_data.store(self.tools)
@@ -152,20 +148,10 @@ class TargetTest(unittest.TestCase):
         self.assertEqual(path.read_text(),'# Original\n\n## Abschnitt\n\nWichtig.')
         self.assertEqual(wissen_data.Notebook(self.store).scan()['notes'],[])
 
-    def test_agenda_only_meeting_opens_and_preserves_edits(self):
-        from PySide6.QtWidgets import QApplication
-        from PySide6.QtCore import QCoreApplication, QEvent
-        from tools_meetings import Meetings
-        app = QApplication.instance() or QApplication([])
-        result = self.apply('meetings.agenda')
-        window = Meetings(self.tools)
-        try:
-            window.focus_record(result['id'])
-            self.assertIn(self.payload['text'], window.agenda.toPlainText())
-            window.agenda.setPlainText('Geprüfte Agenda'); window.save()
-            self.assertEqual(window.library.get(result['id'])['agenda'], 'Geprüfte Agenda')
-        finally:
-            window.close(); window.deleteLater(); QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    def test_audio_choices_cannot_offer_old_local_meetings(self):
+        library=Library('meetings',self.tools);library.create('Old original',agenda='Keep original')
+        with self.assertRaises(ValueError):targets.choices('meetings.agenda',self.tools)
+        self.assertEqual(library.all()[0]['agenda'],'Keep original')
 
     def test_concurrent_replay_creates_one_destination(self):
         from concurrent.futures import ThreadPoolExecutor

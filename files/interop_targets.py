@@ -13,7 +13,7 @@ import uuid
 from urllib.parse import quote
 
 from lumen_i18n import tr
-from tools_data import Library, document_text, media_duration, web_url
+from tools_data import Library, web_url
 
 
 ACTIONS = {
@@ -22,10 +22,10 @@ ACTIONS = {
     'workbench.add': dict(target='workbench', label=tr('Zu einem Projekt hinzufügen …'), modes=['copy', 'link'], description=tr('Material und Notizen einem neuen oder vorhandenen Projekt zuordnen.')),
     'workbench.question': dict(target='workbench', label=tr('Mit Lumen im Projekt besprechen …'), modes=['copy'], description=tr('Ausgewählten Text als Frage im Projektgespräch auf dem Server senden.')),
     'household.add': dict(target='household', label=tr('Zu einem Gerät oder Vertrag hinzufügen …'), modes=['copy','link','live'], description=tr('Belege, Handbücher und Notizen einem Gerät oder Vertrag zuordnen.')),
-    'radio.add': dict(target='radio', label=tr('Für eine Radioausgabe sammeln …'), modes=['copy'], description=tr('Lokalen Text für eine neue oder vorhandene Radioausgabe sammeln.')),
+    'radio.add': dict(target='radio', label=tr('Für eine Radioausgabe sammeln …'), modes=['copy'], description=tr('Text oder bestätigte Drive-Quellen als neue Radioausgabe auf dem Server sammeln.')),
     'reader.import': dict(target='reader', label=tr('In Lumen Reader öffnen'), modes=['copy'], description=tr('Eine private Lesekopie mit Herkunft anlegen.')),
-    'meetings.import': dict(target='meetings', label=tr('Aufnahme in Lumen Audio Studio · Meeting öffnen'), modes=['copy'], description=tr('Audio lokal importieren; Transkription separat starten.')),
-    'meetings.agenda': dict(target='meetings', label=tr('Als Meeting-Agenda übernehmen'), modes=['copy'], description=tr('Text als Agenda einer neuen oder vorhandenen Besprechung hinzufügen.')),
+    'meetings.import': dict(target='meetings', label=tr('Aufnahme in Lumen Audio Studio · Meeting öffnen'), modes=['copy'], description=tr('Eine bestätigte Drive-Aufnahme im Server-Audio-Studio speichern; Transkription separat starten.')),
+    'meetings.agenda': dict(target='meetings', label=tr('Als Meeting-Agenda übernehmen'), modes=['copy'], description=tr('Text oder bestätigte Drive-Quellen als neue Besprechung auf dem Server speichern.')),
     'inbox.draft': dict(target='inbox', label=tr('Mailentwurf in Lumen Inbox vorbereiten'), modes=['copy'], description=tr('Text und Dateikopien als lokalen, ungesendeten Entwurf speichern.')),
     'inbox.task': dict(target='inbox', label=tr('Aufgabe in Lumen Inbox anlegen'), modes=['copy'], description=tr('Eine lokale Aufgabe mit Fälligkeit und Herkunft erstellen.')),
     'inbox.event': dict(target='inbox', label=tr('Termin in Lumen Inbox vorbereiten'), modes=['copy'], description=tr('Einen lokalen Terminvorschlag zur Prüfung im Kalendereditor vorbereiten.')),
@@ -39,8 +39,11 @@ AUDIO_SUFFIXES = {'.wav', '.mp3', '.m4a', '.ogg', '.flac', '.opus', '.mp4', '.mk
 def available(payload):
     if payload.get('references'):
         refs=payload['references'];result=['wissen.import','workbench.add']
+        if all(ref['kind']=='drive_file' and Path(ref['title']).suffix.lower() in TEXT_SUFFIXES for ref in refs):
+            result+=['radio.add','meetings.agenda']
         if len(refs)==1 and refs[0]['kind']=='drive_file':
             suffix=Path(refs[0]['title']).suffix.lower()
+            if suffix in AUDIO_SUFFIXES:result.append('meetings.import')
             if suffix in READER_SUFFIXES:result.append('reader.import')
             if suffix in ('.pdf','.txt','.md'):result.append('translate.import')
         return result
@@ -58,6 +61,10 @@ def available(payload):
 
 def choices(action, root=None, store=None, *, session=None, permissions_revision=None, job=None):
     target = ACTIONS[action]['target']
+    if action in ('radio.add','meetings.agenda','meetings.import'):
+        from server_audio_capture import choices as audio_choices
+        if session is None or job is None:raise ValueError(tr('Audioinhalte in der verbundenen Lumen-Audio-Studio-App übernehmen.'))
+        return audio_choices(session,permissions_revision,job)
     if action.startswith('workbench.'):
         from server_project_capture import projects
         if session is None or job is None:raise ValueError(tr('Projekte in der verbundenen Lumen-Projekte-App auswählen.'))
@@ -177,8 +184,6 @@ def _record(db, library, action, payload, choice, values, extend=()):
             from interop_paths import revision
             previous.update(notes='', questions=[], resources=[],interop_path_revision=revision(library.root.parent))
         if action == 'household.add': previous.update(kind='Gerät', notes='', attachments=[])
-        if action == 'radio.add': previous.update(sources=[], script='', minutes=5)
-        if action.startswith('meetings.'): previous.update(recording=None, duration=0, segments=[], summary='', results=[], agenda='')
     for field in extend:
         if field not in values: continue
         before = previous.get(field)
@@ -202,6 +207,12 @@ def _wissen(*args, **kwargs):
 def apply(action, payload, choice, job, root=None, store=None, *, session=None, permissions_revision=None, retry=False):
     from interop_undo import snapshot,remember
     _validate(action, payload, choice)
+    if action in ('radio.add','meetings.agenda','meetings.import'):
+        from interop_data import Registry
+        from server_audio_capture import capture
+        if session is None:raise ValueError(tr('Audioinhalte ausschließlich in der verbundenen Server-App übernehmen.'))
+        if Registry(root).request(choice['token'])['payload']!=payload:raise ValueError(tr('Die bestätigte Quelle wurde geändert.'))
+        return capture(choice['token'],choice,session,permissions_revision,job,root=root,retry=retry)
     if action.startswith('workbench.'):
         from interop_data import Registry
         from server_project_capture import capture
@@ -296,27 +307,7 @@ def _prepare(library, action, payload, choice, job, created):
         if mode=='link':return dict(notes=_body(payload,mode),linked_paths=[dict(path=path,title=_filename(payload,path)) for path in paths]),('notes','linked_paths')
         attachments = [dict(_copy(library, path, job, created), name=_filename(payload, path)) for path in paths]
         return dict(notes=_body(payload), attachments=attachments), ('notes', 'attachments')
-    if action == 'radio.add':
-        sources = []
-        for item in payload.get('items', []):
-            if item.get('kind') == 'source' and item.get('text', '').strip():
-                url = web_url(item['url']) if item.get('url', '').startswith(('http://', 'https://')) else payload['source_url']
-                if item.get('url','').startswith('lumen://'):
-                    from interop_data import Registry
-                    Registry(library.root.parent).resolve(item['url']);url=item['url']
-                sources.append(dict(title=item.get('title') or payload['title'], text=item['text'], url=url, selected=True))
-        if not sources and payload.get('text', '').strip(): sources.append(dict(title=payload['title'], text=payload['text'], url=payload['source_url'], selected=True))
-        else:
-            for path in paths:
-                text = document_text(path, job)
-                sources.append(dict(title=Path(path).name, text=text, url=payload['source_url'], selected=True))
-        return dict(sources=sources), ('sources',)
     if action == 'reader.import': return _reader(library, payload, choice, job, created), ()
-    if action == 'meetings.import':
-        if choice.get('id'): raise ValueError(tr('Aufnahmen werden als neue Besprechung importiert.'))
-        duration = media_duration(paths[0], job)
-        return dict(recording=_copy(library, paths[0], job, created, limit=2*1024**3), duration=duration), ()
-    if action == 'meetings.agenda': return dict(agenda=_body(payload)), ('agenda',)
     if action.startswith('inbox.'):
         values = dict(title=(choice.get('title') or payload['title']).strip()[:300], source=payload['source_url'])
         if action != 'inbox.task':
