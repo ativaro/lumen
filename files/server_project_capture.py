@@ -162,7 +162,7 @@ def receive(window,token):
     if request['target']!='workbench' or request['action'] not in ACTIONS:raise ValueError(tr('Diese Übergabe gehört nicht zu Lumen Projekte.'))
     if w._import_running:raise ValueError(tr('Bitte die laufende Übernahme zuerst abschließen.'))
     def current():
-        if (w._disposed or w._closing or w._generation!=generation or w.session is not session
+        if (w._disposed or w._closing or w._import_close or w._generation!=generation or w.session is not session
                 or not session.usable or not w._pilot_current()):raise ValueError(tr('Die App-Sitzung wurde geändert.'))
     def work(title,fn):
         class Guard:

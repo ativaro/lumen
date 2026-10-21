@@ -172,6 +172,13 @@ class HostSignalTest(unittest.TestCase):
         self.assertEqual(next(iter(host.uploads.values()))['data'],original);self.assertEqual(path.read_bytes(),original)
         self.assertEqual(registry.request(token)['state'],'done');self.assertFalse(window._import_running)
         self.assertEqual(set(host.upload_metadata[0]),{'name','size','sha256','folder','replaces','revision','mime'})
+        cancelled=registry.enqueue('radio','radio.add',dict(payload,paths=[],text='Do not commit after native close'))
+        window._import_close=True
+        try:
+            with patch.object(window.session,'request',side_effect=AssertionError('No API after deferred close')):
+                with self.assertRaises(ValueError):audio.receive(window,cancelled)
+            self.assertEqual(registry.request(cancelled)['state'],'pending')
+        finally:window._import_close=False
 
 
 class ReviewDesignTest(unittest.TestCase):
