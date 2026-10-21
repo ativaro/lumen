@@ -297,6 +297,9 @@ class ServerAppWindow(QMainWindow):
         self.profile.downloadRequested.connect(lambda request:request.cancel())
         self.profile.cookieStore().setCookieFilter(lambda request:not request.thirdParty)
         self.view = QWebEngineView();self.page = BoundPage(self.profile,self);self.view.setPage(self.page)
+        if self._binding.app=='notes':
+            from server_notes_links import install
+            install(self)
         settings = self.page.settings()
         for name in ('LocalContentCanAccessRemoteUrls','LocalContentCanAccessFileUrls','JavascriptCanOpenWindows',
                      'JavascriptCanAccessClipboard','JavascriptCanPaste','PluginsEnabled','HyperlinkAuditingEnabled',
