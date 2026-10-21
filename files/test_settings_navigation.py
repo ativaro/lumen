@@ -10,7 +10,7 @@ from app import create_app
 from settings_dialog import SettingsDialog
 
 
-class SettingsNavigationTest(unittest.TestCase):
+class SettingsFixture(unittest.TestCase):
     @classmethod
     def setUpClass(cls): cls.app = QApplication.instance() or create_app()
 
@@ -26,6 +26,8 @@ class SettingsNavigationTest(unittest.TestCase):
         self.dialog.close(); self.dialog.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
 
+
+class SettingsNavigationTest(SettingsFixture):
     def test_system_category_entry_launches_app_on_first_click(self):
         d = self.dialog; d.show(); QTest.qWait(30)
         with patch('lumen_apps.QProcess.startDetached', return_value=(True, 42)) as launch:

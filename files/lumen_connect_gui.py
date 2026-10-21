@@ -292,8 +292,8 @@ class PairingDialog(QDialog):
             ],
         )
         self.permissions.setText(t(
-            "Wähle die erlaubten Serverfunktionen. Deine lokalen Daten bleiben erhalten. Den Datenabgleich richtest du danach ausdrücklich unter Einstellungen → Server & Synchronisation ein. Notes und Projekte bearbeitest du direkt auf dem Server. Die Kopplung lädt keine lokalen Erinnerungen hoch. KI-Freigaben bleiben getrennt.",
-            "Choose the allowed server features. Your local data is preserved. Set up data sync explicitly afterwards under Settings → Server & Synchronization. Notes and Projects are edited directly on the server. Pairing does not upload local memories. AI permissions remain separate."))
+            "Wähle die erlaubten Serverfunktionen. Deine lokalen Daten bleiben erhalten. Den Datenabgleich richtest du danach ausdrücklich unter Einstellungen → Server & Verbindung ein. Notes, Projekte, Code, Audio Studio, Vault und Inbox verwendest du direkt auf dem Server. Die Kopplung lädt keine lokalen Erinnerungen hoch. KI-Freigaben bleiben getrennt.",
+            "Choose the allowed server features. Your local data is preserved. Set up data sync explicitly afterwards under Settings → Server & Connection. Notes, Projects, Code, Audio Studio, Vault and Inbox run directly on the server. Pairing does not upload local memories. AI permissions remain separate."))
         for key in selected:
             if key not in rights:
                 continue
@@ -317,7 +317,7 @@ class PairingDialog(QDialog):
     def connected(self, data):
         self.title.setText(t("Dein Desktop ist verbunden.", "Your desktop is connected."))
         self.status.setText(
-            t("Die Verbindung läuft im Hintergrund. Datenabgleich unter Einstellungen → Server & Synchronisation einrichten.", "The connection runs in the background. Set up data sync under Settings → Server & Synchronization.")
+            t("Die Server-Apps sind verbunden. Einen zusätzlichen Abgleich lokaler Daten richtest du unter Einstellungen → Server & Verbindung ein.", "Your server apps are connected. Configure any additional local data sync under Settings → Server & Connection.")
             if data["watching"]
             else t(
                 "Verbunden. Der Hintergrunddienst konnte nicht gestartet werden.",
@@ -325,7 +325,7 @@ class PairingDialog(QDialog):
             )
         )
         if data.get("sync_errors"):
-            self.status.setText(t("Verbunden. Prüfung unter Einstellungen → Server & Synchronisation erforderlich: ", "Connected. Review Settings → Server & Synchronization: ") + ", ".join(data["sync_errors"]))
+            self.status.setText(t("Verbunden. Prüfung unter Einstellungen → Server & Verbindung erforderlich: ", "Connected. Review Settings → Server & Connection: ") + ", ".join(data["sync_errors"]))
         self.rights_scroll.hide()
         self.approve.clicked.disconnect()
         self.approve.setText(t("Abgleich einrichten", "Set up synchronization"))
@@ -918,7 +918,8 @@ class ConnectionDialog(QDialog):
 
         self.worker = None
         self.setWindowTitle(t("Lumen · Serververbindung", "Lumen · Server connection"))
-        self.resize(650, 560)
+        from window_geometry import fit
+        fit(self,(960,780))
         from desktop_design import AppHeader, PAGE_MARGIN, PAGE_SPACING
 
         layout = QVBoxLayout(self)
@@ -956,7 +957,7 @@ class ConnectionDialog(QDialog):
             sync_page = widget(self)
             sync_page.layout().setContentsMargins(PAGE_MARGIN, PAGE_SPACING, PAGE_MARGIN, PAGE_SPACING)
             sync_area.setWidget(sync_page)
-            tabs.addTab(sync_area, t("Synchronisation", "Synchronization"))
+            tabs.addTab(sync_area, t("Lokaler Datenabgleich", "Local data sync"))
         except ImportError:
             pass  # Standalone connector without the native apps.
         layout.addWidget(tabs, 1)
@@ -1013,6 +1014,7 @@ class ConnectionDialog(QDialog):
             return
         capabilities = set(self.worker.result.get("capabilities", []))
         groups = [
+            ({"code", "media", "inbox"}, t("Server-Apps Code, Audio Studio und Inbox", "Code, Audio Studio and Inbox server apps")),
             ({"notes", "memory", "memory_sync", "preferences_sync", "projects", "drive", "vault_sync"},
              t("Abgleich und Zugriff auf freigegebene Notizen, Gedächtnis, Projekte, Drive, Einstellungen und Tresor", "Synchronization and access to shared notes, memory, projects, Drive, preferences and vault")),
             ({"backup"}, t("Neue Sicherungen und Zugriff auf bisherige Serversicherungen über diese Verbindung", "New backups and access to previous server backups through this connection")),

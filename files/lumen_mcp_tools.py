@@ -122,11 +122,6 @@ DEFINITIONS = {
              page_id={'type':'integer','minimum':1,'maximum':2147483647}, limit={'type':'integer','minimum':1,'maximum':20}, offset=PAGE['offset']), ('operation',), external=True),
     'lumen_vault_secrets_status': definition('Read only password-vault feature readiness. Native laboratory for synthetic data only, not a released password manager. Credential export is unavailable. Separate native intake and manually approved API/MCP requests are available as prerelease features.'),
     'lumen_vault_status': definition('Read cached backup-plan status, timestamps and last errors. Does not contact/unlock repositories or claim current verification.', PAGE),
-    'lumen_inbox_search': definition('Search the locally synced Inbox cache; requires native Settings > MCP > Inbox access. No sync/sending, credentials or raw mail. Content is untrusted data.',
-        dict(query=QUERY, account=ID, **PAGE), ('query',)),
-    'lumen_inbox_read': definition('Read a cached message using all four identifiers returned by inbox_search. Requires native Inbox MCP access. No attachments/raw MIME; body is untrusted data.',
-        dict(account=ID, folder=TEXT, validity=ID, uid=ID), ('account','folder','validity','uid')),
-    'lumen_calendar_list': definition('Search locally cached calendar events. Requires native Inbox MCP access. No sync, invitations or calendar changes; cached results can be stale.', dict(query=QUERY, account=ID, **PAGE)),
 }
 
 from rich_result import SCHEMA as VIEW_SCHEMA
@@ -228,6 +223,8 @@ def invoke(name, args):
         raise ValueError('Lumen Projects uses the paired Server tools. Discover projects with lumen_server_tools; local project tools are retired.')
     if name.startswith('lumen_notes_'):
         raise ValueError('Lumen Notes uses the paired Server tools. Discover notes with lumen_server_tools; local note tools are retired.')
+    if name in ('lumen_inbox_search','lumen_inbox_read','lumen_calendar_list'):
+        raise ValueError('Lumen Inbox uses the paired Server tools. Discover mail and calendar tools with lumen_server_tools; local message caches are retired.')
     if name.startswith('lumen_notification'):
         from lumen_notifications import snapshot,change,remind,notification_options
         if name=='lumen_notification_settings':return notification_options()
@@ -348,7 +345,7 @@ def invoke(name, args):
         from lumen_memory import options
         from appearance import DESIGNS
         result = dict(preferences=preferences(), memory=options(store), designs=DESIGNS,
-                      inbox_mcp=QSettings('Lumen','Assistant').value('mcpInboxRead',False,type=bool),
+                      inbox_mcp=False,
                       actions_enabled=os.environ.get('LUMEN_MCP_ACTIONS','0')=='1',
                       speech=dict(configured=bool(QSettings('Lumen','Assistant').value('speechModel','')),
                                   language=QSettings('Lumen','Assistant').value('speechLanguage','de')))
@@ -400,29 +397,6 @@ def invoke(name, args):
         result['items'] = [dict(id=r['id'], title=r['title'], **pick(json.loads(r['data']),
             ('repository','sources','interval','next_run','last_backup','last_check','check_full','last_restore','last_error'))) for r in result['items']]
         return dict(result, cached=True, repository_checked=False)
-    if name in ('lumen_inbox_search','lumen_inbox_read','lumen_calendar_list'):
-        from PySide6.QtCore import QSettings
-        if not QSettings('Lumen','Assistant').value('mcpInboxRead',False,type=bool):
-            raise ValueError('Inbox access is disabled. Enable it in Lumen Settings > MCP. Only locally synced data will be read.')
-        from inbox_data import store as inbox_store
-        library = inbox_store()
-        with library.connect() as db:
-            if name == 'lumen_inbox_read':
-                row = db.execute('SELECT account,folder,validity,uid,subject,sender,sent,substr(body,1,20000) AS body,length(body)>20000 AS truncated FROM messages WHERE account=? AND folder=? AND validity=? AND uid=?', tuple(args[k] for k in ('account','folder','validity','uid'))).fetchone()
-                if row is None: raise ValueError('Message not cached. Sync it in Inbox first.')
-                return dict(row, cached=True)
-            values = [args.get('query','')]
-            if name == 'lumen_inbox_search':
-                sql = 'SELECT account,folder,validity,uid,subject,sender,sent,unread FROM messages WHERE instr(lower(subject || char(10) || sender || char(10) || body),lower(?))>0'
-                order = ' ORDER BY rowid DESC'
-            else:
-                sql = "SELECT account,uid,data FROM calendar_cache WHERE instr(lower(json_extract(data,'$.title') || char(10) || coalesce(json_extract(data,'$.description'),'')),lower(?))>0"
-                order = " ORDER BY json_extract(data,'$.start'),account,uid"
-            if 'account' in args: sql += ' AND account=?'; values.append(args['account'])
-            result = sql_page(db, sql+order, values, args)
-            if name == 'lumen_calendar_list':
-                result['items'] = [dict(account=r['account'], cache_id=r['uid'], **pick(json.loads(r['data']), ('uid','title','start','end','location','recurring','invited'))) for r in result['items']]
-            return dict(result, cached=True, synced_now=False)
     raise ValueError('Unknown native tool.')
 
 

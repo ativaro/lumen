@@ -156,7 +156,7 @@ def sync_now(progress=lambda text: None, manual=False):
             bad=not report['ok'] or bool(outcome.get('conflicts')) or outcome.get('reason') in ('conflict','incoming','uncertain','connection_changed')
             notify('Lumen Synchronisation',name,bad,
                    tr('Abgleich braucht Aufmerksamkeit') if bad else tr('Abgleich wieder in Ordnung'),
-                   tr('Öffne Server & Synchronisation und prüfe den betroffenen Bereich.') if bad else '',
+                   tr('Öffne Server & Verbindung und prüfe den betroffenen Bereich.') if bad else '',
                    target='app:settings')
 
     return results

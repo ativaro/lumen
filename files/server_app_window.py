@@ -10,7 +10,7 @@ import json
 import time
 from urllib.parse import urlsplit
 
-from PySide6.QtCore import Qt, QThread, QTimer, QUrl, QDateTime, QFileSystemWatcher, Signal, QLockFile, Slot
+from PySide6.QtCore import Qt, QThread, QTimer, QUrl, QDateTime, QFileSystemWatcher, Signal, QLockFile, Slot, QSettings
 from PySide6.QtNetwork import QNetworkCookie, QSslCertificate
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton, QStackedWidget, QMessageBox
 from desktop_design import AppHeader, PAGE_MARGIN, PAGE_SPACING
@@ -260,7 +260,13 @@ class ServerAppWindow(QMainWindow):
         self._theme_timer=QTimer(self);self._theme_timer.setSingleShot(True)
         self._theme_timer.timeout.connect(self._send_theme)
         self.profile = self.page = self.view = None
-        self.setWindowTitle(self._app_title); self.resize(1000, 720); self.setFont(font(14))
+        self.setWindowTitle(self._app_title); self.setFont(font(14))
+        self._window_settings=QSettings('Lumen','Assistant')
+        self._geometry_key='windows/server/'+self._binding.app+'/geometry'
+        from window_geometry import restore
+        from lumen_apps import startup_preference
+        app_key=APP_NAMES.get(self._binding.app,('', 'lumen-translate'))[1].removeprefix('lumen-')
+        restore(self,self._window_settings,self._geometry_key,(1400,900),startup_preference(app_key,'restoreGeometry',self._window_settings))
         self.stack = QStackedWidget(); self.setCentralWidget(self.stack)
         self.status_page = QWidget(); layout = QVBoxLayout(self.status_page)
         layout.setContentsMargins(PAGE_MARGIN,PAGE_MARGIN,PAGE_MARGIN,PAGE_MARGIN);layout.setSpacing(PAGE_SPACING)
@@ -699,6 +705,8 @@ class ServerAppWindow(QMainWindow):
                 elif not self.session.usable:self.block(self.session.state)
                 else:self._queue_theme(reveal=self._live and self._loaded)
                 return
+            from window_geometry import remember
+            remember(self,self._window_settings,self._geometry_key)
             self.timer.stop();self._live=False;self._generation+=1
             self._profile_cookie=None;self.session.remember_draft('');self.session.close()
             if self.page is not None:

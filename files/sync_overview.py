@@ -18,13 +18,13 @@ def widget(parent, heading=True):
     layout = QVBoxLayout(page)
     layout.setContentsMargins(0, 8, 0, 8)
     layout.setSpacing(12)
-    if heading: layout.addWidget(label(tr('Server & Synchronisation'), 'heading'))
+    if heading: layout.addWidget(label(tr('Server & Verbindung'), 'heading'))
     server = label('', 'muted')
     layout.addWidget(server)
-    layout.addWidget(label(tr('Einmal auswählen, automatisch aktuell. Pausieren behält deine Daten. KI-Zugriff wird separat freigegeben.')))
+    layout.addWidget(label(tr('Server-Apps bearbeiten denselben Serverbestand, ohne zusätzlichen App-Abgleich. Die folgenden Schalter betreffen ausschließlich lokale Daten. KI-Zugriff wird separat freigegeben.')))
     domains = [
         ('memory', 'Persönliches Gedächtnis', 'Erinnerungen und Kategorien. Keine zusätzliche KI-Freigabe.', 'wissen'),
-        ('vault', 'Verschlüsselter Tresor', 'Auch geschlossen und gesperrt. Erste Zuordnung im Tresor einrichten.', 'vault'),
+        ('vault', 'Lokaler Tresor auf diesem Gerät', 'Separater verschlüsselter Abgleich des lokalen Zugangsdatenhelfers. Keine Voraussetzung für die Server-App Lumen Vault.', 'vault'),
         ('preferences', 'Persönliche Einstellungen', 'Sprache und Desktop-Design. Serverfassung wird übernommen; Änderungen gelten beim nächsten App-Start.', None),
     ]
     checks, statuses = {}, {}
@@ -80,6 +80,12 @@ def widget(parent, heading=True):
     process.finished.connect(finished)
     process.errorOccurred.connect(lambda error: finished(-1, None) if error == QProcess.ProcessError.FailedToStart else None)
 
+    def local_vault():
+        from lumen_launch import executable
+        program=executable('lumen-vault')
+        started,_=QProcess.startDetached(program,['--lab'])
+        if not started:message.setText(tr('Der lokale Tresor konnte nicht geöffnet werden.'))
+
     for domain, title, description, application in domains:
         card = QFrame(page)
         card.setObjectName('syncCard')
@@ -94,8 +100,8 @@ def widget(parent, heading=True):
         if domain == 'preferences':
             top.addWidget(button(tr('Serverfassung übernehmen'), lambda: run(dict(action='configure',domain='preferences',enabled=True))))
         if application:
-            top.addWidget(button(tr('Einrichten / prüfen') if domain == 'vault' else tr('Öffnen'),
-                                 lambda _=False, app=application, key=domain: launch(app, area='lumen' if key=='memory' else None)))
+            top.addWidget(button(tr('Lokalen Tresor öffnen') if domain == 'vault' else tr('Öffnen'),
+                                 lambda _=False, app=application, key=domain: local_vault() if key=='vault' else launch(app, area='lumen' if key=='memory' else None)))
         body.addLayout(top)
         body.addWidget(label(tr(description), 'muted'))
         status = label('', 'muted')

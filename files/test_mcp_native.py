@@ -133,82 +133,26 @@ class NativeMCPTest(unittest.TestCase):
         self.assertFalse(result['approved']);self.assertEqual(result['status'],'draft')
         self.assertEqual(result['events']['items'][0]['detail'],'Visible draft')
 
-    def test_projects_discovery_hierarchy_history_and_read_only_storage(self):
+    def test_projects_retirement_never_reads_or_mutates_the_local_library(self):
         from tools_data import Library
-        from projects_data import Projects
-        library=Library('workbench'); projects=Projects(library)
-        project=library.create('Home',notes='Project note',resources=[],password='OMIT_PRIVATE')
-        initiative=projects.add(project,'','Office','initiative',notes='Initiative note')
-        task=projects.add(project,initiative,'Beleuchtung prüfen','research',goal='Compare options',
-            resources=[dict(kind='file',title='Brief',target='/missing/brief.pdf',password='OMIT_PRIVATE')])
-        archived=projects.add(project,initiative,'Old task','manual'); projects.update(archived,archived=True)
-        run=projects.begin_run(task,dict(captured=123,sources=[dict(title='Brief',text='OMIT_SOURCE_BODY',revision='SHA256 abc')]))
-        projects.finish_run(run,'done',result='a'*20000+'Final recommendation')
+        library=Library('workbench');key=library.create('Original project',notes='Original text')
         before=library.db.read_bytes()
-        found=invoke('lumen_projects_list',dict(query='PRÜFEN'))
-        self.assertEqual([r['id'] for r in found['items']],[project])
-        self.assertEqual(found['items'][0]['active_tasks_by_status'],{'done':1})
-        root=invoke('lumen_project_read',dict(id=project))
-        self.assertEqual(root['notes']['text'],'Project note')
-        self.assertEqual(root['children']['items'][0]['id'],initiative)
-        parent=invoke('lumen_project_read',dict(id=initiative,include_archived=True,limit=1))
-        second=invoke('lumen_project_read',dict(id=initiative,include_archived=True,limit=1,offset=parent['children']['next_offset']))
-        self.assertEqual({r['id'] for r in parent['children']['items']+second['children']['items']},{task,archived})
-        detail=invoke('lumen_project_read',dict(id=task))
-        self.assertEqual({r['id'] for r in detail['ancestors']},{project,initiative})
-        self.assertEqual(detail['materials']['items'][0]['target'],'/missing/brief.pdf')
-        self.assertNotIn('OMIT_PRIVATE',json.dumps([root,detail]))
-        history=invoke('lumen_project_runs',dict(task=task))
-        self.assertEqual(history['items'][0]['id'],run)
-        result=invoke('lumen_project_runs',dict(task=task,run=run))
-        self.assertEqual(result['status'],'done'); self.assertEqual(result['captured'],123)
-        self.assertNotIn('OMIT_SOURCE_BODY',json.dumps(result))
-        last=invoke('lumen_project_runs',dict(task=task,run=run,text_offset=result['next_text_offset']))
-        self.assertEqual(last['result'],'Final recommendation'); self.assertIsNone(last['next_text_offset'])
-        with self.assertRaises(ValueError):invoke('lumen_project_runs',dict(task=archived,run=run,include_archived=True))
+        for name in ('lumen_projects_list','lumen_project_read','lumen_project_runs'):
+            self.assertNotIn(name,DEFINITIONS)
+            with self.assertRaisesRegex(ValueError,'paired Server tools'):
+                invoke(name,dict(id=key,task=key,include_archived=True))
         self.assertEqual(library.db.read_bytes(),before)
-        projects.update(initiative,archived=True)
-        self.assertEqual(invoke('lumen_projects_list',dict(query='prüfen'))['items'],[])
-        with self.assertRaises(ValueError):invoke('lumen_project_read',dict(id=task))
-        with self.assertRaises(ValueError):invoke('lumen_project_runs',dict(task=task))
-        self.assertTrue(invoke('lumen_project_read',dict(id=task,include_archived=True))['item']['archived'])
-        library.archive(project)
-        self.assertEqual(invoke('lumen_projects_list',{})['items'],[])
-        self.assertEqual(len(invoke('lumen_projects_list',dict(include_archived=True))['items']),1)
 
-    def test_projects_empty_legacy_and_real_stdio_discovery(self):
-        self.assertEqual(invoke('lumen_projects_list',{})['items'],[])
-        self.assertFalse((self.root/'tools').exists())
-        from tools_data import Library
-        library=Library('workbench'); key=library.create('Old project',notes='Original note',questions=[dict(text='Übernahme prüfen',done=False)])
-        before=library.db.read_bytes()
-        self.assertEqual(invoke('lumen_project_read',dict(id=key))['legacy_questions']['items'][0]['text'],'Übernahme prüfen')
-        self.assertEqual(invoke('lumen_projects_list',dict(query='ÜBERNAHME'))['items'][0]['id'],key)
-        from projects_data import Projects
-        Projects(library)  # Another project may have initialized tables before this one was opened.
-        before=library.db.read_bytes()
-        self.assertEqual(invoke('lumen_project_read',dict(id=key))['legacy_questions']['items'][0]['text'],'Übernahme prüfen')
-        requests=[dict(jsonrpc='2.0',id=1,method='tools/list'),dict(jsonrpc='2.0',id=2,method='tools/call',
-                  params=dict(name='lumen_projects_list',arguments={})),dict(jsonrpc='2.0',id=3,method='tools/call',
-                  params=dict(name='lumen_project_read',arguments=dict(id=key)))]
-        result=subprocess.run([sys.executable,str(Path(mcp.__file__))],input='\n'.join(json.dumps(r) for r in requests)+'\n',
-            text=True,capture_output=True,env=dict(os.environ,LUMEN_MCP_ACTIONS='0'),timeout=20)
+    def test_real_stdio_discovery_excludes_retired_project_and_inbox_cache_tools(self):
+        requests=[dict(jsonrpc='2.0',id=1,method='tools/list'),dict(jsonrpc='2.0',id=2,method='tools/call',params=dict(name='lumen_projects_list',arguments={})),dict(jsonrpc='2.0',id=3,method='tools/call',params=dict(name='lumen_inbox_search',arguments={'query':'private'}))]
+        result=subprocess.run([sys.executable,str(Path(mcp.__file__))],input='\n'.join(json.dumps(r) for r in requests)+'\n',text=True,capture_output=True,env=dict(os.environ,LUMEN_MCP_ACTIONS='0'),timeout=20)
         self.assertEqual(result.returncode,0,result.stderr)
         replies={r['id']:r for r in map(json.loads,result.stdout.splitlines())}
-        available={t['name']:t for t in replies[1]['result']['tools']}
-        for name in ('lumen_projects_list','lumen_project_read','lumen_project_runs'):
-            self.assertTrue(available[name]['annotations']['readOnlyHint'])
-        self.assertEqual(replies[2]['result']['structuredContent']['items'][0]['id'],key)
-        self.assertEqual(replies[3]['result']['structuredContent']['notes']['text'],'Original note')
-        self.assertEqual(library.db.read_bytes(),before)
-        projects=Projects(library); projects.migrate(key)
-        migrated_task=next(t for t in projects.items(key) if t['kind']=='manual')
-        projects.update(migrated_task['id'],status='done',archived=True)
-        self.assertEqual(invoke('lumen_projects_list',dict(query='ÜBERNAHME'))['items'],[])
-        self.assertEqual(invoke('lumen_project_read',dict(id=key))['legacy_questions']['items'],[])
-        library.update(key,questions=[dict(text='Übernahme prüfen',done=False),dict(text='Neue Frage',done=False)])
-        self.assertEqual(invoke('lumen_project_read',dict(id=key))['legacy_questions']['items'],[dict(text='Neue Frage',done=False)])
-        self.assertEqual(invoke('lumen_projects_list',dict(query='Neue Frage'))['items'][0]['id'],key)
+        names={t['name'] for t in replies[1]['result']['tools']}
+        self.assertIn('lumen_files_search',names)
+        self.assertTrue({'lumen_projects_list','lumen_project_read','lumen_project_runs','lumen_inbox_search','lumen_inbox_read','lumen_calendar_list'}.isdisjoint(names))
+        self.assertTrue('error' in replies[2] or replies[2].get('result',{}).get('isError'))
+        self.assertTrue('error' in replies[3] or replies[3].get('result',{}).get('isError'))
 
     def test_settings_conflict_history_and_privacy_keys(self):
         from lumen_history import entries
@@ -236,7 +180,7 @@ class NativeMCPTest(unittest.TestCase):
             invoke('lumen_shortcut_set',args);change.assert_called_once_with(args)
             with self.assertRaises(ValueError):invoke('lumen_shortcut_set',dict(args,component='other.desktop'))
 
-    def test_inbox_requires_opt_in_rechecks_revocation_and_omits_raw_credentials(self):
+    def test_retired_inbox_cache_cannot_override_server_rights_even_with_old_opt_in(self):
         from inbox_data import store
         library = store()
         identity=library.create('Test account',kind='imap',password='SECRET_PASSWORD',url='https://secret.invalid')
@@ -244,18 +188,16 @@ class NativeMCPTest(unittest.TestCase):
             for i in range(3):
                 db.execute('INSERT INTO messages VALUES (?,?,?,?,?,?,?,?,?,?,?)',(identity,'INBOX','7',str(i),'thread','Workshop '+str(i),'Sender','Today','Message body',b'RAW_SECRET',1))
             db.execute('INSERT INTO calendar_cache VALUES (?,?,?)',(identity,'event',json.dumps(dict(uid='u',title='Workshop',start='2026-12-01',description='Description',ics='SECRET_ICS'))))
-        with self.assertRaisesRegex(ValueError,'disabled'):invoke('lumen_inbox_search',dict(query='Workshop'))
-        settings=QSettings('Lumen','Assistant');settings.setValue('mcpInboxRead',True);settings.sync()
-        result=invoke('lumen_inbox_search',dict(query='Workshop',limit=2))
-        self.assertEqual(result['next_offset'],2);self.assertEqual(len(result['items']),2)
-        row=result['items'][0]
-        read=invoke('lumen_inbox_read',{k:row[k] for k in ('account','folder','validity','uid')})
-        self.assertEqual(read['body'],'Message body')
-        calendar=invoke('lumen_calendar_list',dict(query='Workshop'))
-        self.assertEqual(calendar['items'][0]['title'],'Workshop')
-        self.assertNotIn('SECRET',json.dumps([result,read,calendar]))
-        settings.setValue('mcpInboxRead',False);settings.sync()
-        with self.assertRaisesRegex(ValueError,'disabled'):invoke('lumen_calendar_list',{})
+        settings=QSettings('Lumen','Assistant')
+        for enabled in (False,True):
+            settings.setValue('mcpInboxRead',enabled);settings.sync()
+            with patch('inbox_data.store',side_effect=AssertionError('No access to retired message caches')):
+                for name in ('lumen_inbox_search','lumen_inbox_read','lumen_calendar_list'):
+                    with self.subTest(enabled=enabled,name=name),self.assertRaisesRegex(ValueError,'paired Server tools'):
+                        invoke(name,{})
+            self.assertFalse(invoke('lumen_settings_get',{})['inbox_mcp'])
+        with library.connect() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM messages').fetchone()[0],3)
 
     def test_vault_status_is_cached_and_does_not_unlock(self):
         from tools_data import Library
@@ -269,11 +211,8 @@ class NativeMCPTest(unittest.TestCase):
     def test_invalid_native_arguments_rejected_before_worker(self):
         for name,args in [('lumen_files_search',dict(library='x',source=True,query='a')),
                           ('lumen_memory_list',dict(query='a',limit=1000)),
-                          ('lumen_projects_list',dict(include_archived='yes')),
-                          ('lumen_project_read',dict(id='x',limit=101)),
-                          ('lumen_project_runs',dict(task='x',text_offset=-1)),
                           ('lumen_settings_get',dict(secret=True)),
-                          ('lumen_inbox_search',[]),('lumen_settings_get',None)]:
+                          ('lumen_settings_get',[]),('lumen_settings_get',None)]:
             with self.subTest(name=name),patch.object(mcp,'tool_native') as worker:
                 with self.assertRaises(ValueError):mcp.validate_schema(args,DEFINITIONS[name]['schema'])
                 worker.assert_not_called()
@@ -315,7 +254,7 @@ class NativeMCPTest(unittest.TestCase):
 
     def test_api_near_limit_reply_through_real_worker_and_adapter(self):
         for char in ('a','ä'):
-            with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, XDG_RUNTIME_DIR=directory):
+            with tempfile.TemporaryDirectory(prefix='lumen-mcp-',dir='/tmp') as directory, patch.dict(os.environ, XDG_RUNTIME_DIR=directory):
                 endpoint=Path(directory)/'lumen-vault-access'
                 service=socket.socket(socket.AF_UNIX);service.bind(str(endpoint));endpoint.chmod(0o600);service.listen(1)
                 service.settimeout(10)

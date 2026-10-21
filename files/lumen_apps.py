@@ -26,13 +26,15 @@ def catalogue(*, include_utilities=False):
         ('meetings', tr('Lumen Audio Studio'), tr('Aufnahmen, Transkripte und dein persönliches Hörprogramm'), 'audio-input-microphone'),
         ('household', tr('Lumen Digitaler Haushalt'), tr('Dokumente und Fristen im Blick behalten'), 'view-calendar'),
         ('workbench', tr('Lumen Projekte'), tr('Projekte und ihre nächsten Schritte organisieren'), 'folder-development'),
-        ('code', tr('Lumen Code & Automation'), tr('Eigene Apps, Werkzeuge und Abläufe in einer Sammlung'), 'code-context'),
+        ('code', tr('Lumen Code & Automation'), tr('Werkzeuge, Automationen, Zeitpläne und Code-Projekte'), 'code-context'),
     ]
 
     return apps if include_utilities else [row for row in apps if row[0] not in ('search', 'updater', 'notification', 'companion', 'household', 'reader', 'translate')]
 
 
 COMPANIONS = ('translate', 'wissen', 'inbox', 'vault', 'reader', 'meetings', 'household', 'workbench', 'radio', 'code')
+from server_app_session import APP_NAMES
+SERVER_APPS = {desktop.removeprefix('lumen-'): kind for kind, (_, desktop) in APP_NAMES.items()}
 
 
 def startup_preference(app, key, settings=None):
