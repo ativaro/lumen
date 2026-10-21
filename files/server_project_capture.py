@@ -1,7 +1,7 @@
 """Reviewed native transfers into the current Server Projects session."""
 import hashlib
 import json
-from uuid import UUID,uuid5
+from uuid import UUID
 from urllib.error import HTTPError
 import lumen_connect
 from interop_data import Registry
@@ -70,19 +70,8 @@ def _save(registry,request,value):
 def _files(request,session,revision,job,root):
     payload=request['payload'];refs=payload.get('references',[])
     if payload.get('paths'):
-        plan=request['choice'].get('project_files')
-        if (not plan or plan.get('payload_hash')!=_digest(payload) or plan.get('binding')!=_profile(session,revision,job)
-                or len(plan.get('children',[]))!=len(payload['paths'])):
-            raise ValueError(tr('Lokale Dateien zuerst ausdrücklich in Lumen Drive übernehmen.'))
-        import server_file_import as imports
-        refs=[]
-        for index,child in enumerate(plan['children']):
-            expected=uuid5(UUID(request['id']),'project-file:'+str(index)).hex
-            value=Registry(root).request(expected)
-            if (child!=dict(token=expected,payload_hash=_digest(value['payload'])) or value['state']!='done'
-                    or value['payload'].get('paths')!=[payload['paths'][index]] or value['action']!=imports.ACTION):
-                raise ValueError(tr('Die bestätigte Dateikopie fehlt oder wurde verändert.'))
-            refs.append(imports.apply(expected,job,root=root)['reference'])
+        from server_file_capture import confirmed
+        refs=confirmed(request,_profile(session,revision,job),job,prefix='project',root=root)
     if len(refs)>20:raise ValueError(tr('Höchstens 20 bestätigte Drive-Dateien auswählen.'))
     if not refs:return []
     import drive_references as drive
@@ -158,43 +147,16 @@ def capture(token,choice,session,revision,job,*,root=None,retry=False):
 
 def begin_files(token,session,revision,job,*,root=None):
     """Persist intent only; each child still uses the existing reviewed Drive import."""
-    from interop_sources import from_paths
-    from server_notes_files import _insert
-    import server_file_import as imports
-    registry=Registry(root);request=registry.request(token);payload=request['payload'];paths=payload.get('paths',[])
-    if (request['target']!='workbench' or request['action']!='workbench.add' or not 1<=len(paths)<=20
-            or len(set(paths))!=len(paths) or payload.get('references')
-            or registry.resolve(payload.get('source_url',''))!=payload.get('source')):
-        raise ValueError(tr('Höchstens 20 lokale Dateien ausdrücklich in Lumen Drive übernehmen.'))
-    binding=_profile(session,revision,job)
-    if request['choice']:
-        plan=request['choice'].get('project_files')
-        if not plan or plan['binding']!=binding or plan['payload_hash']!=_digest(payload):raise ValueError(tr('Die bestätigte Dateiauswahl wurde geändert.'))
-        return plan
-    children=[];payloads=[]
-    for index,path in enumerate(paths):
-        child=from_paths([path]);job.check()
-        if child['items'][0]['directory']:raise ValueError(tr('Ordner zuerst in Lumen Files öffnen.'))
-        child['source_url']=registry.register(child['source']);key=uuid5(UUID(token),'project-file:'+str(index)).hex
-        children.append(dict(token=key,payload_hash=_digest(child)));payloads.append((key,child))
-    plan=dict(binding=binding,payload_hash=_digest(payload),children=children)
-    with registry.library.connect() as db:
-        db.execute('BEGIN IMMEDIATE')
-        current=db.execute('SELECT payload,choice,state FROM handoffs WHERE id=?',(token,)).fetchone()
-        if current['state']!='pending' or json.loads(current['choice'])!=request['choice'] or json.loads(current['payload'])!=payload:raise ValueError(tr('Die Dateiauswahl wurde gleichzeitig geändert.'))
-        for key,child in payloads:_insert(db,key,'files',imports.ACTION,child)
-        db.execute('UPDATE handoffs SET choice=? WHERE id=?',(json.dumps(dict(project_files=plan)),token))
-    return plan
+    from server_file_capture import begin
+    return begin(token,_profile(session,revision,job),target='workbench',actions=('workbench.add',),prefix='project',root=root)
 
 
 def receive(window,token):
     """Native Projects Requests calls this; no renderer bridge or automatic acceptance."""
-    from PySide6.QtCore import QEventLoop,QTimer
     from PySide6.QtWidgets import QMessageBox
     from interop_dialogs import run_job
     from interop_ui import review
     from interop_targets import ACTIONS as specs
-    import time
     w=window;session=w.session;generation=w._generation
     registry=Registry();request=registry.request(token)
     if request['target']!='workbench' or request['action'] not in ACTIONS:raise ValueError(tr('Diese Übergabe gehört nicht zu Lumen Projekte.'))
@@ -213,22 +175,8 @@ def receive(window,token):
     if request['payload'].get('paths'):
         plan=work(tr('Lumen Projekte · Dateiauswahl prüfen …'),lambda job:begin_files(token,session,revision,job))
         if plan is None:return None
-        for child in plan['children']:
-            if registry.request(child['token'])['state']=='done':continue
-            result=[];failure=[];loop=QEventLoop();timer=QTimer();timer.setInterval(100);deadline=time.monotonic()+300
-            def ready(reference,resolved):result.append(reference);loop.quit()
-            def check():
-                try:
-                    current()
-                    if time.monotonic()>deadline:raise ValueError(tr('Die Dateiübernahme wurde nicht abgeschlossen.'))
-                    if w._import_lease is None and not w._import_running and not w._import_accepting:loop.quit()
-                except Exception as error:failure.append(error);loop.quit()
-            window.import_reference_ready.connect(ready);timer.timeout.connect(check)
-            try:
-                current();w._lumen_file_import(child['token']);timer.start();loop.exec()
-            finally:timer.stop();window.import_reference_ready.disconnect(ready)
-            if failure:raise failure[0]
-            if not result:return None
+        from server_file_capture import receive_files
+        if not receive_files(w,plan,current):return None
         request=registry.request(token)
     w._import_running=True
     try:
@@ -240,6 +188,7 @@ def receive(window,token):
                 retry=True
         else:
             spec=dict(specs[request['action']],heading='Lumen Projekte',modes=['link'] if request['payload'].get('references') or request['payload'].get('paths') else ['copy'],
+                      destination_label='Projekt',
                       description=tr('Die bestätigte Auswahl auf dem verbundenen Server speichern. Originale bleiben unverändert.'),
                       save_label='Frage senden' if request['action']=='workbench.question' else 'Übernehmen')
             current();choice=review(w,request,spec=spec,rows=rows)

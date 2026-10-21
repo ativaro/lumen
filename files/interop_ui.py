@@ -127,7 +127,7 @@ def review(window,request,*,spec=None,rows=None):
         mode.addItem({'copy':tr('Eigenständige Kopie speichern'),'link':tr('Link zum Original speichern'),'live':tr('Mit der Originalnotiz aktuell halten')}[key],key)
     if any(Path(p).is_dir() for p in payload.get('paths',[])) and mode.findData('link')>=0:mode.setCurrentIndex(mode.findData('link'))
     if payload.get('references'):
-        hint=tr('Verknüpfungen zum Drive-Original · keine Dateien werden heruntergeladen.') if action in ('wissen.import','workbench.add') else tr('Lokale Kopie mit Herkunft. Das Drive-Original bleibt unverändert. Änderungen über „Original öffnen“ in Lumen Files mit „Dateien hochladen …“ zurückübertragen.')
+        hint=tr(spec['reference_hint']) if spec.get('reference_hint') else tr('Verknüpfungen zum Drive-Original · keine Dateien werden heruntergeladen.') if action in ('wissen.import','workbench.add') else tr('Lokale Kopie mit Herkunft. Das Drive-Original bleibt unverändert. Änderungen über „Original öffnen“ in Lumen Files mit „Dateien hochladen …“ zurückübertragen.')
         label=QLabel(hint);label.setWordWrap(True);form.addRow(label)
     if mode.count()>1 and (payload.get('paths') or action in ('workbench.add','household.add')):
         form.addRow(tr('Inhalt'),mode)
@@ -139,7 +139,7 @@ def review(window,request,*,spec=None,rows=None):
     if explicit and payload.get('paths'):
         source=QPlainTextEdit();source.setReadOnly(True)
         source.setAccessibleName(tr('Gewählte Quelle und Zielordner'));source.setMinimumHeight(112);source.setMaximumHeight(144)
-        def details(*_):source.setPlainText(tr('Quelle: {0}\n\nZielordner: {1}','\n'.join(payload['paths'][:10]),destination.currentText()))
+        def details(*_):source.setPlainText(tr('Quelle: {0}\n\n{1}: {2}','\n'.join(payload['paths'][:10]),tr(spec.get('destination_label','Zielordner')),destination.currentText()))
         destination.currentTextChanged.connect(details);details()
         form.addRow(tr('Quelle und Ziel'),source)
     elif payload.get('paths'):
