@@ -5,7 +5,7 @@ import json
 from PySide6.QtCore import Qt,QObject,QTimer,QEvent,QMimeData,QUrl
 from lumen_qt import is_deleted
 from PySide6.QtWidgets import (QApplication,QDialog,QDialogButtonBox,QVBoxLayout,QFormLayout,
-    QLabel,QLineEdit,QPlainTextEdit,QComboBox,QMenu,QListWidget,QListWidgetItem,QInputDialog,QMessageBox,QPushButton)
+    QLabel,QLineEdit,QPlainTextEdit,QComboBox,QMenu,QListWidget,QListWidgetItem,QInputDialog,QMessageBox,QPushButton,QSizePolicy)
 from lumen_i18n import tr
 from interop_data import Registry,validate_payload
 from interop_open import launch,open_url,focus
@@ -87,18 +87,19 @@ def with_saved(window,callback):
         callback()
 
 
-def review(window,request):
+def review(window,request,*,spec=None,rows=None):
     from interop_targets import ACTIONS,choices
-    action=request['action'];spec=ACTIONS[action];payload=request['payload']
+    explicit=spec is not None
+    action=request['action'];spec=ACTIONS[action] if spec is None else spec;payload=request['payload']
     dialog=QDialog(window);dialog.setWindowTitle(tr(spec['label']));dialog.resize(620,520)
     form=QFormLayout(dialog)
-    form.addRow(QLabel(tr(spec.get('description',spec['label']))))
+    description=QLabel(tr(spec.get('description',spec['label'])));form.addRow(description)
     default_title=payload.get('title','')
     if action=='inbox.task' and payload.get('text','').strip():
         import re
         default_title=re.sub(r'^\s*[-*]\s*\[[ xX]\]\s*','',payload['text'].strip().splitlines()[0])[:300]
-    title=QLineEdit(default_title);form.addRow(tr('Titel'),title)
-    destination=QComboBox();rows=choices(action,root_for(window),store=getattr(window,'store',None))
+    title=QLineEdit(default_title);form.addRow(tr(spec.get('title_label','Titel')),title)
+    destination=QComboBox();rows=choices(action,root_for(window),store=getattr(window,'store',None)) if rows is None else rows
     needs_choice=action in ('inbox.draft','inbox.event') or spec.get('requires_choice',False)
     if not needs_choice and action!='wissen.import':destination.addItem(tr('Neues Projekt') if action.startswith('workbench.') else tr('Neuen Eintrag anlegen'),'')
     for row in rows:destination.addItem(row['title'],row['id'])
@@ -116,6 +117,9 @@ def review(window,request):
         field={'wissen.import':tr('Notizordner'),'workbench.add':tr('Projekt'),'workbench.question':tr('Projekt'),
                'household.add':tr('Gerät oder Vertrag'),'inbox.draft':tr('Mailkonto'),'inbox.event':tr('Kalender')}.get(action,tr('Speichern in'))
         form.addRow(field,destination)
+        if explicit:
+            selected=QLabel(destination.currentText());selected.setTextFormat(Qt.PlainText)
+            destination.currentTextChanged.connect(selected.setText);form.addRow(selected)
     mode=QComboBox()
     for key in spec.get('modes',['copy']):
         if payload.get('references') and key!=('link' if action in ('wissen.import','workbench.add') else 'copy'):continue
@@ -132,12 +136,30 @@ def review(window,request):
     if action in ('inbox.task','inbox.event'):form.addRow(tr('Fällig am') if action=='inbox.task' else tr('Datum'),due)
     preview=QPlainTextEdit(payload.get('text',''));preview.setReadOnly(True);preview.setAccessibleName(tr('Inhalt der neuen Notiz') if action=='wissen.import' else tr('Inhalt'))
     if payload.get('text'):form.addRow(preview)
-    if payload.get('paths'):form.addRow(QLabel('\n'.join(payload['paths'][:10])))
+    if explicit and payload.get('paths'):
+        source=QPlainTextEdit('\n'.join(payload['paths'][:10]));source.setReadOnly(True)
+        source.setAccessibleName(tr('Lokale Quelldatei'));source.setMinimumHeight(80);source.setMaximumHeight(112)
+        form.addRow(tr('Quelle'),source)
+    elif payload.get('paths'):
+        paths=QLabel('\n'.join(payload['paths'][:10]));paths.setTextFormat(Qt.PlainText);form.addRow(paths)
     from interop_sources import source_title
-    form.addRow(QLabel(tr('Quelle: {0}',source_title(payload.get('source',{})))))
+    if not explicit:
+        source=QLabel(tr('Quelle: {0}',source_title(payload.get('source',{}))));source.setTextFormat(Qt.PlainText);form.addRow(source)
     buttons=QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel)
     if action=='wissen.import':buttons.button(QDialogButtonBox.Save).setText(tr('Notiz speichern'))
+    if spec.get('save_label'):buttons.button(QDialogButtonBox.Save).setText(tr(spec['save_label']))
     buttons.accepted.connect(dialog.accept);buttons.rejected.connect(dialog.reject);form.addRow(buttons)
+    if explicit:
+        from desktop_design import PAGE_MARGIN,PAGE_SPACING
+        form.setContentsMargins(PAGE_MARGIN,PAGE_MARGIN,PAGE_MARGIN,PAGE_MARGIN)
+        form.setSpacing(PAGE_SPACING);form.setRowWrapPolicy(QFormLayout.WrapLongRows);form.setFormAlignment(Qt.AlignTop)
+        destination.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        destination.setMinimumContentsLength(1);destination.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Fixed)
+        title.textChanged.connect(title.setToolTip);title.setToolTip(title.text())
+        for text in (description,selected) if rows or needs_choice else (description,):
+            text.setWordWrap(True);text.setTextFormat(Qt.PlainText)
+            text.setAlignment(Qt.AlignLeft|Qt.AlignTop)
+            text.setSizePolicy(QSizePolicy.Ignored,QSizePolicy.Maximum)
     if dialog.exec()!=QDialog.Accepted:return None
     if due.text():
         from datetime import date
@@ -274,6 +296,13 @@ def copy_link(window):
     with_saved(window,copy)
 
 
+def _resume_drive_import(window,row):
+    if row['action']!='files.drive_import' or row['state']!='pending':return False
+    callback=getattr(window,'_lumen_file_import',None)
+    if not callable(callback):raise ValueError(tr('Diese Dateiübernahme benötigt das zugehörige geprüfte Server-App-Fenster.'))
+    callback(row['id']);return True
+
+
 def browse(window,mode='related',payload=None):
     registry=Registry(root_for(window));url=''
     if mode in ('search','related'):
@@ -289,6 +318,9 @@ def browse(window,mode='related',payload=None):
         return
     dialog=QDialog(window);dialog.setWindowTitle(tr('Lumen Verbindungen'));dialog.resize(720,520)
     layout=QVBoxLayout(dialog);query=QLineEdit();query.setPlaceholderText(tr('Suchen oder #Tag eingeben'));layout.addWidget(query)
+    if mode=='history':
+        from desktop_design import PAGE_MARGIN,PAGE_SPACING
+        layout.setContentsMargins(PAGE_MARGIN,PAGE_MARGIN,PAGE_MARGIN,PAGE_MARGIN);layout.setSpacing(PAGE_SPACING)
     listing=QListWidget();listing.setAccessibleName(tr('Verknüpfte Lumen-Inhalte'));layout.addWidget(listing)
     def refresh():
         listing.clear()
@@ -296,13 +328,19 @@ def browse(window,mode='related',payload=None):
             rows=registry.history()
             for row in rows:
                 from datetime import datetime
-                item=QListWidgetItem(datetime.fromtimestamp(row['created']).strftime('%d.%m. %H:%M')+' · '+row['action']+' · '+{'pending':tr('Wartet auf Übernahme'),'applying':tr('Wird übernommen'),'done':tr('Übernommen'),'undone':tr('Rückgängig gemacht')}[row['state']]);item.setData(Qt.UserRole,row['result'] or 'lumen://handoff/'+row['id']);item.setData(Qt.UserRole+1,row);item.setToolTip(row['error']);listing.addItem(item)
+                imported=row['action']=='files.drive_import'
+                action=tr('Datei nach Lumen Drive übernehmen') if imported else row['action']
+                item=QListWidgetItem(datetime.fromtimestamp(row['created']).strftime('%d.%m. %H:%M')+' · '+action+('\n' if imported else ' · ')+{'pending':tr('Wartet auf Übernahme'),'applying':tr('Wird übernommen'),'done':tr('Übernommen'),'undone':tr('Rückgängig gemacht')}[row['state']]);item.setData(Qt.UserRole,row['result'] or 'lumen://handoff/'+row['id']);item.setData(Qt.UserRole+1,row);item.setToolTip(row['error']);listing.addItem(item)
         else:
             rows=registry.related(url) if mode=='related' and not query.text() else registry.search(query.text())
             for ref in rows:
                 item=QListWidgetItem(ref['title']+' · '+app_name(ref['app']));item.setData(Qt.UserRole,ref['url']);listing.addItem(item)
     def activate(item):
-        dialog.accept();safe_action(window,lambda:open_url(item.data(Qt.UserRole),root_for(window)))
+        def proceed():
+            row=item.data(Qt.UserRole+1) if mode=='history' else None
+            if row and _resume_drive_import(window,row):return
+            open_url(item.data(Qt.UserRole),root_for(window))
+        dialog.accept();safe_action(window,proceed)
     listing.itemActivated.connect(activate);query.textChanged.connect(refresh);refresh()
     if mode=='history':
         resume_button=QPushButton(tr('Einrichtung öffnen und Übergabe fortsetzen'));layout.addWidget(resume_button)
@@ -311,6 +349,7 @@ def browse(window,mode='related',payload=None):
                 item=listing.currentItem();row=item.data(Qt.UserRole+1) if item else None
                 if not row or row['state']!='pending':return
                 dialog.accept()
+                if _resume_drive_import(window,row):return
                 if row['target']==getattr(window,'name',''):
                     window.setup();controller(window).enqueue(dict(handoff=row['id']))
                 else:launch(row['target'],['--handoff',row['id']],root_for(window))
@@ -321,6 +360,7 @@ def browse(window,mode='related',payload=None):
             try:
                 item=listing.currentItem();row=item.data(Qt.UserRole+1) if item else None
                 if not row or row['state']!='done':return
+                if row['action']=='files.drive_import':raise ValueError(tr('Dateien bei Bedarf direkt in Lumen Drive in den Papierkorb legen. Die lokale Quelle bleibt erhalten.'))
                 if row['target']!=getattr(window,'name',''):
                     QMessageBox.information(dialog,tr('Im Ziel rückgängig machen'),tr('In der Zielanwendung „Letzte Aktionen …“ öffnen und dort rückgängig machen.'));return
                 if row['action']=='vault.sources':raise ValueError(tr('Sicherungsquellen im Lumen-Vault-Plan bearbeiten. Vorhandene Sicherungen bleiben erhalten.'))
@@ -341,6 +381,12 @@ def browse(window,mode='related',payload=None):
                 with_saved(window,lambda:window.work(tr('Übernahme wird zurückgenommen …'),lambda job:undo(row['action'],row['id'],job,root_for(window),getattr(window,'store',None)),done,finished=finished))
             except Exception as exc:error(window,exc)
         undo_button.clicked.connect(undo_selected)
+        def selected_history(item,previous):
+            row=item.data(Qt.UserRole+1) if item else None
+            imported=bool(row and row['action']=='files.drive_import')
+            resume_button.setText(tr('Übernahme prüfen und fortsetzen') if imported else tr('Einrichtung öffnen und Übergabe fortsetzen'))
+            resume_button.setEnabled(not imported or row['state']=='pending');undo_button.setEnabled(not imported)
+        listing.currentItemChanged.connect(selected_history)
     buttons=QDialogButtonBox(QDialogButtonBox.Close);buttons.rejected.connect(dialog.reject);layout.addWidget(buttons);dialog.exec()
 
 
