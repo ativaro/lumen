@@ -1,18 +1,22 @@
-"""Inactive Compose host. No launcher, local editor or renderer-to-OS bridge."""
+"""Compose host with a private synthetic text pilot; no renderer-to-OS bridge."""
 from pathlib import Path
 from dataclasses import dataclass, replace
 import os
 import stat
 import tempfile
 import threading
+import hashlib
+import json
+import time
+from urllib.parse import urlsplit
 
-from PySide6.QtCore import Qt, QThread, QTimer, QUrl, QDateTime, QFileSystemWatcher, Signal
+from PySide6.QtCore import Qt, QThread, QTimer, QUrl, QDateTime, QFileSystemWatcher, Signal, QLockFile
 from PySide6.QtNetwork import QNetworkCookie, QSslCertificate
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton, QStackedWidget, QMessageBox
 from desktop_design import AppHeader, PAGE_MARGIN, PAGE_SPACING
 from studio_design import font
 from lumen_qt import is_deleted
-from server_app_session import AppSession, SessionError, APPS
+from server_app_session import AppSession, SessionError, APPS, Binding, origin
 import lumen_connect
 
 try:
@@ -106,6 +110,55 @@ class Call(QThread):
         except Exception:pass  # Only fixed native status text crosses the UI boundary.
 
 
+def text_pilot_context(profile,job):
+    if lumen_connect.CONFIG!=profile/'config/lumen-server/connection.json':raise SessionError('profile')
+    job.check();config,stamp=_connection()
+    if urlsplit(origin(config['server'])).hostname not in ('127.0.0.1','localhost','::1'):raise SessionError('origin')
+    me=lumen_connect.request(config,'/bridge/me',timeout=10)
+    job.check()
+    if (_connection()[1]!=stamp or me.get('device_id')!=config.get('device_id')
+            or me.get('capabilities')!=['translate'] or type(me.get('permissions_revision')) is not int
+            or me['permissions_revision']<0):raise SessionError('identity')
+    binding=Binding(config['server'],me.get('id'),me.get('device_id'),'compose')
+    return config,binding,stamp
+
+
+def run_text_pilot(app,profile):
+    from interop_dialogs import run_job
+    from tools_app import forward_window,listen_window
+    from lumen_activation import present
+    app.setApplicationName('lumen-translate');app.setDesktopFileName('lumen-translate')
+    app.setQuitOnLastWindowClosed(False)
+    try:
+        context=run_job(None,'Lumen Compose · Private App-Sitzung wird geprüft …',lambda job:text_pilot_context(profile,job))
+        if context is None:return 1
+        config,binding,stamp=context
+        identity=json.dumps([binding.origin,binding.account,binding.device,binding.app])
+        root=profile/'runtime'/('compose-'+hashlib.sha256(identity.encode()).hexdigest()[:24])
+        if root.is_symlink() or root.resolve()!=root:raise SessionError('profile')
+        root.mkdir(mode=0o700,exist_ok=True)
+        if root.stat().st_uid!=os.getuid() or root.stat().st_mode & 0o077:raise SessionError('profile')
+        if forward_window(root,{},private=True):return 0
+        lock=QLockFile(str(root/'window.lock'))
+        if not lock.tryLock(0):
+            deadline=time.monotonic()+5
+            while time.monotonic()<deadline:
+                if forward_window(root,{},private=True):return 0
+                time.sleep(.05)
+            raise SessionError('busy')
+        try:
+            window=ServerAppWindow(AppSession(config,binding),root,pilot_connection=stamp)
+            server=listen_window(window,lambda _:present(window),root=root)
+            app.setApplicationDisplayName('Lumen Compose');app.setQuitOnLastWindowClosed(True)
+            window.show()
+            try:return app.exec()
+            finally:server.close()
+        finally:lock.unlock()
+    except (OSError,ValueError):
+        QMessageBox.warning(None,'Lumen Compose','Die private App-Sitzung ist nicht verfügbar. Kein lokaler Ersatz wurde geöffnet.')
+        return 1
+
+
 if WEBENGINE:
     class OriginRequests(QWebEngineUrlRequestInterceptor):
         def __init__(self, window, parent):
@@ -134,7 +187,7 @@ if WEBENGINE:
 class ServerAppWindow(QMainWindow):
     import_reference_ready=Signal(object,object)
 
-    def __init__(self, session, profile_root, parent=None):
+    def __init__(self, session, profile_root, parent=None, *, pilot_connection=None):
         super().__init__(parent)
         if not isinstance(session, AppSession) or session.binding.app != 'compose':raise SessionError('identity')
         self.session = session
@@ -146,6 +199,7 @@ class ServerAppWindow(QMainWindow):
         self._import_lease=self._import_reference=self._import_error=None
         self._import_running=self._import_accepting=self._import_close=False
         self._connection_watcher=None
+        self._pilot_connection=pilot_connection;self._pilot_invalid=False
         self.profile = self.page = self.view = None
         self.setWindowTitle('Lumen Compose'); self.resize(1000, 720); self.setFont(font(14))
         self.stack = QStackedWidget(); self.setCentralWidget(self.stack)
@@ -155,12 +209,16 @@ class ServerAppWindow(QMainWindow):
         self.status = QLabel('App-Sitzung wird geprüft.');self.status.setWordWrap(True);layout.addWidget(self.status)
         self.retry = QPushButton('Erneut prüfen');self.retry.clicked.connect(lambda:self.verify(reconnect=True));layout.addWidget(self.retry,0,Qt.AlignLeft)
         self.copy = QPushButton('Entwurf kopieren');self.copy.clicked.connect(self.copy_draft);self.copy.setEnabled(False);layout.addWidget(self.copy,0,Qt.AlignLeft)
+        if pilot_connection is not None:self.copy.hide()
         layout.addStretch();self.stack.addWidget(self.status_page)
         self.timer = QTimer(self);self.timer.setInterval(2000);self.timer.timeout.connect(self.verify)
         if not WEBENGINE:
             self.status.setText('Qt WebEngine fehlt. Diese Serveransicht ist nicht verfügbar.')
             self.retry.setEnabled(False);return
         self._profile(profile_root)
+        if pilot_connection is not None:
+            if not self._pilot_current():raise SessionError('connection')
+            self._watch_connection()
         QTimer.singleShot(0,lambda:self.verify(reconnect=True))
 
     def _profile(self, profile_root):
@@ -218,6 +276,7 @@ class ServerAppWindow(QMainWindow):
 
     def verify(self, *, reconnect=False, ready=None):
         if self._disposed or self._closing or not WEBENGINE or self.page is None or self._worker is not None:return
+        if not self._pilot_current():self._invalidate_pilot();return
         if self.session.state=='identity':self.retry.setEnabled(False);return
         if reconnect and self._loaded and not self.session.has_cookie:
             self.block(self.session.state)
@@ -225,9 +284,12 @@ class ServerAppWindow(QMainWindow):
             self.retry.setEnabled(False);return
         generation = self._generation
         self.retry.setEnabled(False)
+        connection=self._pilot_connection
         def check():
+            if connection is not None and _connection()[1]!=connection:raise SessionError('connection')
             if reconnect and not self.session.has_cookie:self.session.connect()
             else:self.session.check()
+            if connection is not None and _connection()[1]!=connection:raise SessionError('connection')
         worker = Call(check,self);self._worker = worker
         worker.finished.connect(lambda:self._verified(worker,generation,ready));worker.start()
 
@@ -236,6 +298,7 @@ class ServerAppWindow(QMainWindow):
         if self._disposed:return
         if self._closing:self._closing=False;self.close();return
         if generation!=self._generation:return
+        if not self._pilot_current():self._invalidate_pilot();return
         self.retry.setEnabled(True)
         if not worker.ok or not self.session.usable:self.block(self.session.state);return
         if self._loaded:
@@ -310,12 +373,24 @@ class ServerAppWindow(QMainWindow):
         lease=self._import_lease
         try:
             current=_connection()[1]
-            changed=file_event or lease is not None and current!=lease.connection
+            changed=(file_event or lease is not None and current!=lease.connection
+                     or self._pilot_connection is not None and current!=self._pilot_connection)
             self._watch_connection()
         except SessionError:changed=True
         if changed:
+            if self._pilot_connection is not None:self._invalidate_pilot();return
             if lease is not None:self._generation+=1
             self._invalidate_import('connection')
+
+    def _pilot_current(self):
+        if self._pilot_connection is None:return True
+        try:return not self._pilot_invalid and _connection()[1]==self._pilot_connection
+        except SessionError:return False
+
+    def _invalidate_pilot(self):
+        self._pilot_invalid=True;self.session.close('identity');self._profile_cookie=None
+        if not self._disposed and not self._closing:
+            self.block('identity');self.retry.setEnabled(False)
 
     def _import_gui(self,lease):
         if threading.get_ident()!=self._gui_thread:raise SessionError('thread')
@@ -417,6 +492,7 @@ class ServerAppWindow(QMainWindow):
         self._capture(freeze)
 
     def copy_draft(self):
+        if self._pilot_connection is not None:return
         if self.session.state=='identity':return
         QApplication.clipboard().setText(self.session.draft(self.session.binding))
 

@@ -157,15 +157,17 @@ class WindowTest(unittest.TestCase):
         result=[];window.page.runJavaScript(source,world,lambda value:result.append(value))
         self.wait(lambda:bool(result));return result[0]
 
-    def window(self):
+    def window(self,*,pilot=False):
         binding=Binding(self.origin,USER,DEVICE,'compose')
         session=AppSession(dict(server=self.origin,device_id=DEVICE,token='native-only-fixture',ca_file=str(self.cert)),binding)
-        window=ServerAppWindow(session,self.root);self.windows.append(window);window.show()
+        from server_app_window import _connection
+        window=ServerAppWindow(session,self.root,pilot_connection=_connection()[1] if pilot else None)
+        self.windows.append(window);window.show()
         self.wait(lambda:window._loaded or window.session.state not in ('disconnected','ready'))
         self.wait(lambda:window._loaded)
         return window
 
-    def import_window(self,drive=True):
+    def import_window(self,drive=True,*,pilot=False):
         type(self).native_areas=['translate','drive'] if drive else ['translate']
         temp=tempfile.TemporaryDirectory(dir=self.root);self.addCleanup(temp.cleanup)
         self.import_root=Path(temp.name);(self.import_root/'config').mkdir()
@@ -175,8 +177,46 @@ class WindowTest(unittest.TestCase):
         lumen_connect.save_private(lumen_connect.CONFIG,json.dumps(self.config))
         env=patch.dict(os.environ,{'LUMEN_TOOLS_DATA':str(self.import_root/'tools')})
         env.start();self.addCleanup(env.stop)
-        window=self.window();window.timer.stop();self.wait(lambda:window._worker is None)
+        window=self.window(pilot=pilot);window.timer.stop();self.wait(lambda:window._worker is None)
         return window
+
+    def test_text_pilot_atomic_aba_without_import_lease_blocks_old_reconnect(self):
+        window=self.import_window(drive=False,pilot=True);self.assertIsNone(window._import_lease)
+        before=len(self.calls)
+        lumen_connect.save_private(lumen_connect.CONFIG,json.dumps(dict(self.config,token='changed-fixture')))
+        lumen_connect.save_private(lumen_connect.CONFIG,json.dumps(self.config))
+        window.verify();self.wait(lambda:window._pilot_invalid)
+        self.assertFalse(window._live);self.assertEqual(window.session.state,'identity')
+        self.assertFalse(window.retry.isEnabled());self.assertFalse(window.session.has_cookie)
+        window.verify(reconnect=True);QTest.qWait(40)
+        self.assertFalse(any(c['path'] in ('/bridge/apps/session-ticket','/api/auth/desktop/exchange') for c in self.calls[before:]))
+        self.assertTrue(window.copy.isHidden())
+        with patch.object(QApplication,'clipboard',side_effect=AssertionError('No clipboard in pilot')):window.copy_draft()
+
+    def test_text_pilot_config_change_during_close_finishes_profile_cleanup(self):
+        window=self.import_window(drive=False,pilot=True);path=window.profile.persistentStoragePath()
+        with patch.object(QMessageBox,'question',return_value=QMessageBox.StandardButton.Discard):
+            window.close()
+            lumen_connect.save_private(lumen_connect.CONFIG,json.dumps(dict(self.config,token='changed-fixture')))
+            self.wait(lambda:window._disposed)
+        self.assertFalse(Path(path).exists())
+
+    def test_text_bootstrap_worker_has_no_qt_and_only_translate_grant(self):
+        from server_app_window import text_pilot_context
+        from types import SimpleNamespace
+        self.import_window(drive=False)
+        profile=self.import_root/'bootstrap';(profile/'config/lumen-server').mkdir(parents=True,mode=0o700)
+        config=profile/'config/lumen-server/connection.json'
+        lumen_connect.save_private(config,json.dumps(self.config));results=[];errors=[]
+        def boot():
+            try:results.append(text_pilot_context(profile,SimpleNamespace(check=lambda:None)))
+            except Exception as error:errors.append(type(error).__name__)
+        with patch.object(lumen_connect,'CONFIG',config),patch('server_app_window.QUrl',side_effect=AssertionError('No Qt in worker')):
+            thread=threading.Thread(target=boot);thread.start();thread.join(timeout=3)
+            self.assertFalse(thread.is_alive());self.assertEqual(errors,[])
+            self.assertEqual(results[0][1],Binding(self.origin,USER,DEVICE,'compose'))
+            type(self).native_areas=['translate','drive']
+            with self.assertRaises(SessionError):text_pilot_context(profile,SimpleNamespace(check=lambda:None))
 
     def test_import_lease_worker_uses_no_gui_and_is_invalid_after_block(self):
         window=self.import_window();observed=[];errors=[]

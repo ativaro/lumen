@@ -4,6 +4,7 @@ from lumen_i18n import tr
 import argparse
 import json
 import os
+import stat
 from pathlib import Path
 import sys
 import time
@@ -13,10 +14,45 @@ from app import create_app
 from lumen_activation import present
 
 
-def listen_window(page, activate):
+def pilot_profile():
+    selected=os.environ.get('LUMEN_COMPOSE_TEXT_PILOT')
+    if selected is None:return None
+    root=Path(os.environ.get('LUMEN_COMPOSE_TEXT_PILOT_ROOT',''))
+    def private(path):
+        if (not path.is_absolute() or path.resolve()!=path or not path.is_dir()
+                or path.stat().st_uid!=os.getuid() or path.stat().st_mode & 0o077):raise ValueError('Private pilot profile required.')
+    if selected not in ('A','B'):raise ValueError('Private A/B pilot profile required.')
+    private(root);profile=root/selected;private(profile)
+    home=profile/'home';private(home);private(Path.home())
+    if (home.stat().st_dev,home.stat().st_ino)!=(Path.home().stat().st_dev,Path.home().stat().st_ino):
+        raise ValueError('Private pilot home mount required.')
+    marker=root/'.lumen-compose-text-pilot'
+    try:s=marker.lstat()
+    except OSError:raise ValueError('Private synthetic pilot required.') from None
+    if (not stat.S_ISREG(s.st_mode) or s.st_uid!=os.getuid() or s.st_mode & 0o077
+            or s.st_size!=23 or marker.read_text()!='private-synthetic-only\n'):raise ValueError('Private synthetic pilot required.')
+    for key,name in {'LUMEN_DATA':'lumen','LUMEN_TOOLS_DATA':'tools','XDG_CONFIG_HOME':'config',
+            'XDG_DATA_HOME':'data','XDG_CACHE_HOME':'cache','XDG_STATE_HOME':'state',
+            'XDG_RUNTIME_DIR':'runtime','TMPDIR':'tmp'}.items():
+        path=profile/name
+        if os.environ.get(key)!=str(path):raise ValueError('Private pilot paths required.')
+        private(path)
+    return profile
+
+
+def forward_window(root, request, *, private=False):
+    from interop_flush import server_name
+    endpoint=str(Path(root)/'open.sock') if private else server_name(root)
+    client=QLocalSocket();client.connectToServer(endpoint)
+    if not client.waitForConnected(400):return False
+    client.write(json.dumps(request,ensure_ascii=False).encode()+b'\n')
+    sent=client.waitForBytesWritten(1000);client.disconnectFromServer();return sent
+
+
+def listen_window(page, activate, *, root=None):
     """Private activation and backup-save endpoint for a retained tool page."""
     from interop_flush import server_name, serve_flush
-    endpoint = server_name(page.library.root)
+    endpoint = server_name(page.library.root) if root is None else str(Path(root)/'open.sock')
     server = QLocalServer(); QLocalServer.removeServer(endpoint)
     server.setSocketOptions(QLocalServer.UserAccessOption)
     if not server.listen(endpoint): raise RuntimeError(tr('Lokale Fensteraktivierung konnte nicht gestartet werden.'))
@@ -31,6 +67,9 @@ def listen_window(page, activate):
                 if b'\n' not in buffer:return
                 try:
                     request=json.loads(buffer.split(b'\n',1)[0])
+                    if root is not None:
+                        if request=={}:activate(request)
+                        socket.disconnectFromServer();return
                     if isinstance(request,dict) and 'vault_flush' in request:
                         timer.stop();socket.readyRead.disconnect(receive)
                         serve_flush(page,socket,request)
@@ -46,6 +85,8 @@ def listen_window(page, activate):
 def main():
     from lumen_paths import require_test_profile
     require_test_profile()
+    pilot=pilot_profile()
+    if pilot is not None and sys.argv[1:2]!=['translate']:raise ValueError('Only Compose text is available in this pilot.')
     if len(sys.argv)>1 and sys.argv[1]=='code':
         from code_app import main as collection_main
         return collection_main(sys.argv[2:])
@@ -59,6 +100,11 @@ def main():
     destination.add_argument('--handoff')
     destination.add_argument('--ref')
     args=parser.parse_args()
+    if pilot is not None:
+        if args.path or args.clipboard or args.section or args.area or args.handoff or args.ref:
+            parser.error('Only an empty private Compose text window may be opened.')
+        from server_app_window import run_text_pilot
+        return run_text_pilot(create_app(),pilot)
     if args.path and args.tool not in ('reader','wissen','translate'):parser.error(tr('Dateien können nur an Reader, Notes oder Compose übergeben werden.'))
     if args.area and args.tool != 'wissen': parser.error(tr('Der Bereich ist nur für Lumen Notes verfügbar.'))
     if args.clipboard and args.tool != 'translate': parser.error(tr('Die Zwischenablage ist hier nur für Compose verfügbar.'))
@@ -84,16 +130,10 @@ def main():
         text_segments(activation['text'])
     # Claim libraries before constructing widgets or starting any background jobs.
     from tools_data import Library
-    from interop_flush import server_name as native_server_name
     names = ('meetings', 'radio') if args.tool in ('meetings', 'radio') else (args.tool,)
     libraries = {name: Library(name) for name in names}
     def forward():
-        client = QLocalSocket(); client.connectToServer(native_server_name(libraries[args.tool].root))
-        if not client.waitForConnected(400): return False
-        client.write(json.dumps(activation, ensure_ascii=False).encode()+b'\n')
-        sent = client.waitForBytesWritten(1000)
-        client.disconnectFromServer()
-        return sent
+        return forward_window(libraries[args.tool].root,activation)
     if forward(): return 0
     locks = []
     for library in libraries.values():
