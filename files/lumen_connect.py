@@ -481,16 +481,19 @@ def receive_artifact(config, action, *, job=None):
         raise ValueError("Dateityp oder Größe ist nicht freigegeben.")
     identity = str(UUID(action["id"]))
     file_id = str(UUID(action["file_id"]))
+    action_revision = action["revision"]
     temporary = None
     fresh_claim = False
     try:
         check()
         claimed = request(
-            config, "/bridge/actions/" + identity, dict(state="claimed", revision=action["revision"])
+            config, "/bridge/actions/" + identity, dict(state="claimed", revision=action_revision)
         )
         replayed = claimed.get("replayed")
         if not replayed:
             revision = claimed["revision"]
+            if type(revision) is not int or type(action_revision) is not int or revision != action_revision + 1:
+                raise ValueError("Die Übernahme wurde nicht bestätigt.")
             fresh_claim = True
         check()
         if replayed:

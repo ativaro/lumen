@@ -393,5 +393,65 @@ class ArtifactCancellationTest(unittest.TestCase):
         self.assertEqual(self.requests,['claimed','artifact','latest','failed'])
         self.assert_closed_and_clean()
 
+    def claim_ack_revision(self,revision,*,mutate_action_to=None):
+        handler_class = self.server.RequestHandlerClass
+        original_reply = handler_class.reply
+        def reply(handler,value):
+            if handler.command == 'POST' and value.get('state') == 'claimed':
+                value = dict(state='claimed',revision=revision)
+                if mutate_action_to is not None:
+                    self.action['revision'] = mutate_action_to
+            return original_reply(handler,value)
+        return patch.object(handler_class,'reply',reply)
+
+    def test_malformed_claim_revision_remains_unknown(self):
+        for revision in (None,True,False,'2',2.0,3,1,0,-1):
+            for cancel_after_ack in (False,True):
+                with self.subTest(revision=revision,type=type(revision).__name__,cancel_after_ack=cancel_after_ack):
+                    self.target.unlink(missing_ok=True)
+                    self.cancelled.clear()
+                    self.requests.clear()
+                    self.events.clear()
+                    self.responses.clear()
+                    self.outputs.clear()
+                    self.stage = 'claim' if cancel_after_ack else ''
+                    with self.claim_ack_revision(revision):
+                        with self.assertRaises((ValueError,FixtureCancelled)):
+                            self.receive()
+                    self.assertEqual(self.requests,['claimed'])
+                    self.assertEqual(self.responses,[])
+                    self.assertEqual(self.outputs,[])
+                    self.assertFalse(self.target.exists())
+                    self.assert_closed_and_clean()
+                    print(json.dumps(dict(ack_revision=revision,ack_type=type(revision).__name__,
+                                          cancel_after_ack=cancel_after_ack,requests=self.requests,
+                                          transfers=0,failed_receipts=0)),flush=True)
+
+    def test_fresh_claim_without_replayed_field_is_accepted(self):
+        with self.claim_ack_revision(2):
+            result = self.receive()
+        self.assertEqual(result,dict(path=str(self.target),revision=2,id=self.action['id']))
+        self.assertEqual(self.target.read_bytes(),self.payload)
+        self.assertEqual(self.requests,['claimed','artifact','latest'])
+        self.assert_closed_and_clean()
+
+    def test_cancel_after_valid_fresh_ack_allows_one_failed_receipt(self):
+        self.stage = 'claim'
+        with self.claim_ack_revision(2):
+            with self.assertRaises(FixtureCancelled):
+                self.receive()
+        self.assertEqual(self.requests,['claimed','failed'])
+        self.assertFalse(self.target.exists())
+        self.assert_closed_and_clean()
+
+    def test_claim_successor_uses_revision_captured_before_http(self):
+        with self.claim_ack_revision(2,mutate_action_to=10):
+            result = self.receive()
+        self.assertEqual(self.action['revision'],10)
+        self.assertEqual(result['revision'],2)
+        self.assertEqual(self.target.read_bytes(),self.payload)
+        self.assertEqual(self.requests,['claimed','artifact','latest'])
+        self.assert_closed_and_clean()
+
 
 if __name__=='__main__':unittest.main()
