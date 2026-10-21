@@ -30,7 +30,7 @@ class SourceUITest(unittest.TestCase):
                 control.populate();self.assertEqual(len(control.menu.actions()),1)
                 with patch('interop_open.launch') as launch:
                     control.open_source(source)
-                    launch.assert_called_once_with('wissen',[str(memory.book.root/note['path'])])
+                    launch.assert_called_once_with('wissen',[str(memory.book.root/note['path']),'--area','lumen'])
                 changed=memory.write(note['path'],'# Antwortlänge\nAusführliche Antworten',note['hash'])
                 with patch.object(control,'error') as error:
                     control.forget(source);error.assert_called_once()

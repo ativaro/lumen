@@ -68,7 +68,7 @@ class MemorySources(QPushButton):
                 return
             book, note = local_source(Store(), source)
             from interop_open import launch
-            launch('wissen', [str(book.root/note['path'])])
+            launch('wissen', [str(book.root/note['path']), '--area', 'lumen'] if source.get('source_kind')=='memory' else [str(book.root/note['path'])])
         except (OSError, ValueError, KeyError) as error:
             self.error(str(error))
 

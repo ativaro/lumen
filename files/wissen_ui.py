@@ -51,19 +51,21 @@ def build(w):
     settings=button(tr('Einstellungen'),lambda:None,'configure');settings_menu=QMenu(settings)
     w.notebook_menu=settings_menu
     from notes_capture import open_daily,choose_template
-    settings_menu.addAction(tr('Tagesnotiz öffnen'),lambda:w.safe(open_daily,w))
-    settings_menu.addAction(tr('Notiz aus Vorlage …'),lambda:w.safe(choose_template,w))
-    settings_menu.addAction(tr('Gedächtnis'),lambda:w.safe(w.switch_area,'lumen'))
-    settings_menu.addAction(tr('Meine Notizen'),lambda:w.safe(w.switch_area,'user'))
+    if not w.memory_only:
+        settings_menu.addAction(tr('Tagesnotiz öffnen'),lambda:w.safe(open_daily,w))
+        settings_menu.addAction(tr('Notiz aus Vorlage …'),lambda:w.safe(choose_template,w))
+        settings_menu.addAction(tr('Gedächtnis'),lambda:w.safe(w.switch_area,'lumen'))
+        settings_menu.addAction(tr('Meine Notizen'),lambda:w.safe(w.switch_area,'user'))
     from notes_move import review as review_move,recover as recover_move
-    settings_menu.addAction(tr('Unterbrochenes Verschieben fortsetzen'),lambda:w.safe(recover_move,w))
-    settings_menu.addAction(tr('Letztes Verschieben zurücknehmen'),lambda:w.safe(recover_move,w,True))
-    settings_menu.addAction(tr('Neue Sammlung'),lambda:w.safe(w.create_collection))
-    settings_menu.addAction(tr('Sammlung umbenennen / verschieben'),lambda:w.safe(w.rename_collection))
-    settings_menu.addSeparator()
-    settings_menu.addAction(tr('Fragen'),lambda:w.tabs.setCurrentIndex(1))
-    settings_menu.addAction(tr('Notizkarte'),lambda:w.tabs.setCurrentIndex(2))
-    settings_menu.addAction(tr('Notiz öffnen … (Strg+K)'),lambda:w.safe(w.quick_open))
+    if not w.memory_only:
+        settings_menu.addAction(tr('Unterbrochenes Verschieben fortsetzen'),lambda:w.safe(recover_move,w))
+        settings_menu.addAction(tr('Letztes Verschieben zurücknehmen'),lambda:w.safe(recover_move,w,True))
+        settings_menu.addAction(tr('Neue Sammlung'),lambda:w.safe(w.create_collection))
+        settings_menu.addAction(tr('Sammlung umbenennen / verschieben'),lambda:w.safe(w.rename_collection))
+        settings_menu.addSeparator()
+        settings_menu.addAction(tr('Fragen'),lambda:w.tabs.setCurrentIndex(1))
+        settings_menu.addAction(tr('Notizkarte'),lambda:w.tabs.setCurrentIndex(2))
+    settings_menu.addAction(tr('Erinnerung öffnen … (Strg+K)') if w.memory_only else tr('Notiz öffnen … (Strg+K)'),lambda:w.safe(w.quick_open))
     from note_tag_actions import review as review_tags
     tags_action=settings_menu.addAction(tr('Tags umbenennen / entfernen …'),lambda:w.safe(review_tags,w))
     settings_menu.aboutToShow.connect(lambda:tags_action.setVisible(w.area=='user'))

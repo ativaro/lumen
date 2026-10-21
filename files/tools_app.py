@@ -105,7 +105,10 @@ def main():
             parser.error('Only an empty private Compose text window may be opened.')
         from server_app_window import run_text_pilot
         return run_text_pilot(create_app(),pilot)
-    if args.tool == 'wissen':
+    memory_only = args.tool == 'wissen' and args.area == 'lumen'
+    if memory_only and (args.clipboard or args.section or args.handoff or args.ref):
+        parser.error(tr('Dieser lokale Einstieg ist ausschließlich für das Lumen-Gedächtnis verfügbar.'))
+    if args.tool == 'wissen' and not memory_only:
         app = create_app()
         if args.path or args.clipboard or args.section or args.area or args.handoff or args.ref:
             from PySide6.QtWidgets import QMessageBox
@@ -141,7 +144,9 @@ def main():
     # Claim libraries before constructing widgets or starting any background jobs.
     from tools_data import Library
     names = ('meetings', 'radio') if args.tool in ('meetings', 'radio') else (args.tool,)
-    libraries = {name: Library(name) for name in names}
+    # Keep the memory-only window endpoint separate from an older user-notebook window.
+    memory_root = Path(os.environ.get('LUMEN_TOOLS_DATA') or Path(os.environ.get('XDG_DATA_HOME', str(Path.home()/'.local/share')))/'lumen-tools')/'memory-view' if memory_only else None
+    libraries = {name: Library(name, memory_root) for name in names}
     def forward():
         return forward_window(libraries[args.tool].root,activation)
     if forward(): return 0
@@ -171,7 +176,7 @@ def main():
         pages = window.pages
         app.setApplicationName('lumen-meetings'); app.setDesktopFileName('lumen-meetings')
     else:
-        window = {'household':Household,'workbench':Workbench,'vault':Vault,'inbox':Inbox,'reader':Reader,'wissen':Wissen,'translate':Translate}[args.tool]()
+        window = Wissen(root=memory_root, memory_only=True) if memory_only else {'household':Household,'workbench':Workbench,'vault':Vault,'inbox':Inbox,'reader':Reader,'wissen':Wissen,'translate':Translate}[args.tool]()
         pages = {args.tool: window}
     app.setApplicationDisplayName(window.windowTitle())
     from interop_data import Registry
@@ -181,6 +186,8 @@ def main():
     def dispatch(page, request):
         if not isinstance(request, dict): raise ValueError(tr('Ungültige App-Anfrage.'))
         request = dict(request)
+        if memory_only and (set(request)-{'path','area'} or request.get('area','lumen')!='lumen'):
+            raise ValueError(tr('Dieser lokale Einstieg ist ausschließlich für das Lumen-Gedächtnis verfügbar.'))
         section = request.pop('section', None)
         if section is not None:
             if page.name not in ('workbench','wissen'): raise ValueError(tr('Unbekannter Bereich.'))

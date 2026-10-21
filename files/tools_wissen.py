@@ -17,29 +17,33 @@ import lumen_memory as memory
 
 
 class Wissen(ToolWindow):
-    def __init__(self,root=None):
+    def __init__(self,root=None,*,memory_only=False):
+        self.memory_only=memory_only
         super().__init__('wissen',tr('Lumen Notes'),tr('Gedanken festhalten. Quellen verbinden. Zusammenhänge entdecken.'),'lumen-wissen',root)
-        self.store=Store();records=self.library.all();self.current=records[0]['id'] if records else self.library.create('Notes')
+        self.store=Store();records=self.library.all();self.current=records[0]['id'] if records else self.library.create(tr('Lumen-Gedächtnis') if memory_only else 'Notes')
         self.book=None;self.notes={};self.doc=None;self.dirty=False;self.conflict=False;self.poller=None;self.after_job=None;self.closing=False;self.answer='';self.answer_sources=[];self.answer_question='';self.pending_file=''
         self.area='user';self.pending_area=None;self.writing=False
         self.collection='';self.folders=[];self.heading_prefix='';self.heading_separator='\n\n';self.has_heading=True
         from wissen_ui import build
         build(self)
-        from lumen_workspace import Workspace
-        self.document_sources = Workspace(self, store=self.store, sections=('knowledge',))
-        self.sources_tab = self.tabs.addTab(self.document_sources.knowledge_page, tr('Dokumentquellen'))
-        self.result_actions = Workspace(self, store=self.store, sections=('tasks',))
-        self.result_actions.tasks_page.hide()
-        from studio_saved_results import StudioSavedResults
-        self.saved_results = StudioSavedResults(self.result_actions)
-        self.results_tab = self.tabs.addTab(self.saved_results, tr('Ergebnisse'))
+        self.document_sources=None;self.result_actions=None;self.sources_tab=-1;self.results_tab=-1
+        if not memory_only:
+            from lumen_workspace import Workspace
+            self.document_sources = Workspace(self, store=self.store, sections=('knowledge',))
+            self.sources_tab = self.tabs.addTab(self.document_sources.knowledge_page, tr('Dokumentquellen'))
+            self.result_actions = Workspace(self, store=self.store, sections=('tasks',))
+            self.result_actions.tasks_page.hide()
+            from studio_saved_results import StudioSavedResults
+            self.saved_results = StudioSavedResults(self.result_actions)
+            self.results_tab = self.tabs.addTab(self.saved_results, tr('Ergebnisse'))
         nav = self.navigation.layout()
         self.sources_button = button(tr('Dokumentquellen'), lambda: self.open_section('sources'), 'folder-open')
         self.results_button = button(tr('Ergebnisse'), lambda: self.open_section('results'), 'document-save')
         self.sources_button.setParent(self.navigation);self.sources_button.hide()
         self.results_button.setParent(self.navigation);self.results_button.hide()
-        self.notebook_menu.addAction(tr('Dokumentquellen'),lambda:self.open_section('sources'))
-        self.notebook_menu.addAction(tr('Ergebnisse'),lambda:self.open_section('results'))
+        if not memory_only:
+            self.notebook_menu.addAction(tr('Dokumentquellen'),lambda:self.open_section('sources'))
+            self.notebook_menu.addAction(tr('Ergebnisse'),lambda:self.open_section('results'))
         self.draft_timer=QTimer(self);self.draft_timer.setSingleShot(True);self.draft_timer.setInterval(450);self.draft_timer.timeout.connect(lambda:self.safe(self.save))
         self.autosave_timer=QTimer(self);self.autosave_timer.setSingleShot(True);self.autosave_timer.setInterval(1100);self.autosave_timer.timeout.connect(lambda:self.safe(self.save_note))
         self.poll_timer=QTimer(self);self.poll_timer.setInterval(5000);self.poll_timer.timeout.connect(self.poll);self.poll_timer.start()
@@ -48,8 +52,10 @@ class Wissen(ToolWindow):
         QShortcut(QKeySequence('Ctrl+K'),self,activated=lambda:self.safe(self.quick_open))
         from wissen_sync_ui import install
         install(self)
-        self.present_area();self.editor.setEnabled(False);QTimer.singleShot(0,self.initialize)
-        if not os.environ.get('LUMEN_NOTES_NATIVE'):
+        self.present_area();self.editor.setEnabled(False)
+        if memory_only: self.switch_area('lumen')
+        else: QTimer.singleShot(0,self.initialize)
+        if not memory_only and not os.environ.get('LUMEN_NOTES_NATIVE'):
             try:
                 from notes_web import install as install_web
             except ImportError:
@@ -76,6 +82,7 @@ class Wissen(ToolWindow):
         self.search.setAccessibleName(self.search.placeholderText())
 
     def open_section(self, section):
+        if self.memory_only: raise ValueError(tr('Dokumente und Notizen liegen in der Server-App.'))
         if section not in ('sources','results'): raise ValueError(tr('Unbekannter Bereich.'))
         self.tabs.setCurrentIndex(self.sources_tab if section == 'sources' else self.results_tab)
         if section == 'results': self.saved_results.refresh()
@@ -87,6 +94,7 @@ class Wissen(ToolWindow):
     def focus_record(self,key):self.current=key
     def load(self,record):pass
     def switch_area(self,area):
+        if self.memory_only and area!='lumen': raise ValueError(tr('Notizen werden direkt auf dem Lumen Server geöffnet.'))
         if area not in ('user', 'lumen'): raise ValueError(tr('Unbekannter Bereich.'))
         self.pending_area = None
         for key,b in self.area_buttons.items():b.setChecked(key==self.area)
@@ -653,7 +661,7 @@ class Wissen(ToolWindow):
         if hasattr(self,'notes_web_objects'):
             from notes_web import flush_close
             if flush_close(self,event): return
-        if not self.document_sources.can_close() or not self.result_actions.can_close(): event.ignore(); return
+        if any(page and not page.can_close() for page in (self.document_sources,self.result_actions)): event.ignore(); return
         if not self.live_preview.shutdown():event.ignore();return
         try:self.save()
         except (OSError,ValueError) as error:
@@ -665,4 +673,6 @@ class Wissen(ToolWindow):
             event.ignore();return
         if self.dirty and not self.conflict:self.save_note();event.ignore();return
         super().closeEvent(event)
-        if event.isAccepted(): self.document_sources.shutdown(); self.result_actions.shutdown()
+        if event.isAccepted():
+            for page in (self.document_sources,self.result_actions):
+                if page: page.shutdown()
