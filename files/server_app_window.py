@@ -41,6 +41,25 @@ DRAFT_SCRIPT = '''(() => {
  capture();
 })()'''
 DRAFT_READ = "window.__lumenComposeDraft ?? ''"
+NOTES_DRAFT_SCRIPT = '''(() => {
+ const capture=()=>{
+   const note=document.querySelector('.knowledge-editor');
+   if(!note)return;
+   const warning=new Event('beforeunload',{cancelable:true});
+   if(window.dispatchEvent(warning)){window.__lumenNotesDraft='';return;}
+   const text=(note.querySelector('.title-input')?.value ?? '')+'\\n\\n'+
+     (note.querySelector('.note-rich-text')?.innerText ?? '');
+   window.__lumenNotesDraft=new TextEncoder().encode(text).length<=1048576 ? text :
+     text.slice(0,262000)+'\\n\\n[Textkopie gekürzt]';
+ };
+ window.__lumenCaptureNotesDraft=capture;
+ document.addEventListener('input',()=>setTimeout(capture,0),true);
+ document.addEventListener('change',()=>setTimeout(capture,0),true);
+ new MutationObserver(capture).observe(document,{childList:true,subtree:true,characterData:true,
+   attributes:true,attributeFilter:['disabled']});
+ capture();
+})()'''
+NOTES_DRAFT_READ = "window.__lumenCaptureNotesDraft?.(); window.__lumenNotesDraft ?? ''"
 
 
 def _desktop_theme():
@@ -199,8 +218,9 @@ class ServerAppWindow(QMainWindow):
 
     def __init__(self, session, profile_root, parent=None, *, pilot_connection=None):
         super().__init__(parent)
-        if not isinstance(session, AppSession) or session.binding.app != 'compose':raise SessionError('identity')
+        if not isinstance(session, AppSession) or session.binding.app not in ('compose','notes'):raise SessionError('identity')
         self.session = session
+        self._app_title = 'Lumen Notes' if session.binding.app=='notes' else 'Lumen Compose'
         self._binding=session.binding;self._bound_profile=None;self._profile_cookie=None
         self._live = self._loaded = self._disposed = self._closing = False
         self._generation = 0; self._worker = None; self._temporary = None
@@ -214,14 +234,15 @@ class ServerAppWindow(QMainWindow):
         self._theme_timer=QTimer(self);self._theme_timer.setSingleShot(True)
         self._theme_timer.timeout.connect(self._send_theme)
         self.profile = self.page = self.view = None
-        self.setWindowTitle('Lumen Compose'); self.resize(1000, 720); self.setFont(font(14))
+        self.setWindowTitle(self._app_title); self.resize(1000, 720); self.setFont(font(14))
         self.stack = QStackedWidget(); self.setCentralWidget(self.stack)
         self.status_page = QWidget(); layout = QVBoxLayout(self.status_page)
         layout.setContentsMargins(PAGE_MARGIN,PAGE_MARGIN,PAGE_MARGIN,PAGE_MARGIN);layout.setSpacing(PAGE_SPACING)
-        layout.addWidget(AppHeader('Lumen Compose'))
+        layout.addWidget(AppHeader(self._app_title))
         self.status = QLabel('App-Sitzung wird geprüft.');self.status.setWordWrap(True);layout.addWidget(self.status)
         self.retry = QPushButton('Erneut prüfen');self.retry.clicked.connect(lambda:self.verify(reconnect=True));layout.addWidget(self.retry,0,Qt.AlignLeft)
         self.copy = QPushButton('Entwurf kopieren');self.copy.clicked.connect(self.copy_draft);self.copy.setEnabled(False);layout.addWidget(self.copy,0,Qt.AlignLeft)
+        if session.binding.app=='notes':self.copy.setText('Textkopie der ungespeicherten Notiz')
         if pilot_connection is not None:self.copy.hide()
         layout.addStretch();self.stack.addWidget(self.status_page)
         self.timer = QTimer(self);self.timer.setInterval(2000);self.timer.timeout.connect(self.verify)
@@ -285,10 +306,12 @@ class ServerAppWindow(QMainWindow):
         self.page.loadFinished.connect(self._loaded_page)
         self.profile.cookieStore().cookieAdded.connect(lambda c,p=self.profile:self._cookie_added(p,c))
         self.profile.cookieStore().cookieRemoved.connect(lambda c,p=self.profile:self._cookie_removed(p,c))
-        script = QWebEngineScript();script.setName('Lumen Compose draft')
+        script = QWebEngineScript();script.setName(self._app_title+' draft')
         script.setWorldId(QWebEngineScript.ScriptWorldId.ApplicationWorld)
         script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentReady)
-        script.setRunsOnSubFrames(False);script.setSourceCode(DRAFT_SCRIPT);self.page.scripts().insert(script)
+        script.setRunsOnSubFrames(False)
+        script.setSourceCode(NOTES_DRAFT_SCRIPT if self.session.binding.app=='notes' else DRAFT_SCRIPT)
+        self.page.scripts().insert(script)
         self._theme_script=QWebEngineScript();self._theme_script.setName('Lumen desktop theme')
         self._theme_script.setWorldId(QWebEngineScript.ScriptWorldId.MainWorld)
         self._theme_script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentCreation)
@@ -478,6 +501,7 @@ class ServerAppWindow(QMainWindow):
 
     def _lumen_file_import(self,token=None):
         """Native-only entry point; no renderer object, menu or launcher registration."""
+        if self.session.binding.app!='compose':raise SessionError('identity')
         if threading.get_ident()!=self._gui_thread:raise SessionError('thread')
         if self._import_lease is not None or self._import_running:raise SessionError('busy')
         self._invalidate_import(None)
@@ -542,7 +566,8 @@ class ServerAppWindow(QMainWindow):
             if isinstance(value,str):self.session.remember_draft(value)
             self.copy.setEnabled(bool(self.session.draft(self.session.binding)) and self.session.state!='identity')
             callback()
-        self.page.runJavaScript(DRAFT_READ,QWebEngineScript.ScriptWorldId.ApplicationWorld,captured)
+        self.page.runJavaScript(NOTES_DRAFT_READ if self.session.binding.app=='notes' else DRAFT_READ,
+            QWebEngineScript.ScriptWorldId.ApplicationWorld,captured)
 
     def block(self, reason='offline'):
         if self._disposed or self._closing:return
@@ -578,8 +603,10 @@ class ServerAppWindow(QMainWindow):
         self._closing=True
         def finish():
             draft=self.session.draft(self.session.binding)
-            if (draft or self.session.uncertain) and QMessageBox.question(self,'Lumen Compose',
-                    'Ungesendete Eingaben verwerfen und schließen? Ein Serverauftrag kann weiterlaufen.',
+            prompt=('Ungespeicherte Notizänderungen verwerfen und schließen? Bereits gespeicherte Inhalte bleiben auf dem Server.'
+                if self.session.binding.app=='notes' else
+                'Ungesendete Eingaben verwerfen und schließen? Ein Serverauftrag kann weiterlaufen.')
+            if (draft or self.session.uncertain) and QMessageBox.question(self,self._app_title,prompt,
                     QMessageBox.StandardButton.Discard|QMessageBox.StandardButton.Cancel,
                     QMessageBox.StandardButton.Cancel)!=QMessageBox.StandardButton.Discard:
                 self._closing=False;self._queue_theme(reveal=self._live and self._loaded);return
