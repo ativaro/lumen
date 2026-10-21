@@ -45,9 +45,6 @@ class ChatPanel(QWidget):
         self.action = ''
         self.last_answer = ''
         self.last_prompt = ''
-        self.draft_project = ''
-        self.project_sending = False
-        self.backend.sessionChanged.connect(self.link_project_conversation)
         self.rendered = None
         self.request_ids = None
         self.setMinimumWidth(350)
@@ -259,7 +256,7 @@ class ChatPanel(QWidget):
                                for p in m.get('parts', []) if p.get('type') == 'text' and not p.get('synthetic'))[:20000]}]}
                     for m in self.backend.messages[-20:]]
         return {'directory': self.backend.directory, 'session': self.backend.session,
-                'draft': self.composer.toPlainText()[:100000], 'draft_project': self.draft_project, 'messages': messages,
+                'draft': self.composer.toPlainText()[:100000], 'messages': messages,
                 'execution': getattr(self.backend, 'execution', 'local'), 'persona': self.backend.persona_choice(), 'paths': self.paths[:100], 'mode': self.mode.currentData()}
 
     def restore_recovery(self, state):
@@ -278,8 +275,6 @@ class ChatPanel(QWidget):
         self.backend.messages = state.get('messages', [])
         self.show_messages(self.backend.messages)
         self.composer.setPlainText(str(state.get('draft', ''))[:100000])
-        self.draft_project = str(state.get('draft_project') or '')
-        self.project_sending = False
         self.update_context()
         self.status.setText(tr('Wiederhergestellt · Kein Auftrag wurde erneut gestartet'))
 
@@ -416,7 +411,6 @@ class ChatPanel(QWidget):
     def open_session(self, index):
         if self.backend.busy:
             return
-        self.draft_project = ''; self.project_sending = False
         identity=self.sessions.itemData(index)
         if '/more/' in identity or identity.endswith('/history'):
             self.backend.select_session(identity);return
@@ -428,7 +422,6 @@ class ChatPanel(QWidget):
 
     def new_conversation(self):
         if self.backend.new_conversation():
-            self.draft_project = ''; self.project_sending = False
             self.drive_context = {}
             self.error.hide()
             self.last_prompt = ''
@@ -448,12 +441,9 @@ class ChatPanel(QWidget):
             self.show_error(tr('Bitte den laufenden Vorgang abwarten oder abbrechen, bevor du den Kontext wechselst.'))
             return False
         if project:
-            from projects_references import conversation_project
-            try: conversation_project(project)
-            except (OSError, ValueError, sqlite3.Error) as error:
-                self.show_error(str(error)); return False
+            self.show_error(tr('Lumen Projekte wird direkt auf dem Lumen Server bearbeitet.'))
+            return False
         self.new_conversation()
-        self.draft_project = project
         self.paths = []
         self.drive_context = {}
         self.set_action('open')
@@ -462,21 +452,10 @@ class ChatPanel(QWidget):
         self.composer.setFocus()
         return True
 
-    def link_project_conversation(self, session):
-        if not session or not self.project_sending or not self.draft_project or not self.backend.busy:
-            return
-        from projects_references import link_conversation
-        try:
-            link_conversation(self.draft_project, self.backend.directory, session, self.last_prompt.splitlines()[0])
-            self.draft_project = ''; self.project_sending = False
-        except (OSError, ValueError, sqlite3.Error) as error:
-            self.show_error(tr('Gespräch konnte dem Projekt nicht zugeordnet werden: ') + str(error))
-
     def begin_context(self, action='open', paths=None, directory=None, prompt='', drive_context=None):
         if self.backend.busy:
             self.show_error(tr('Bitte den laufenden Vorgang abwarten oder abbrechen, bevor du den Kontext wechselst.'))
             return
-        self.draft_project = ''; self.project_sending = False
         paths = [str(Path(p).expanduser().absolute()) for p in (paths or [])]
         if directory is None and paths:
             first = Path(paths[0])
@@ -528,7 +507,6 @@ class ChatPanel(QWidget):
             return
         self.error.hide()
         self.last_prompt = text
-        self.project_sending = bool(self.draft_project)
         files = []
         if self.paths and getattr(self.backend,'execution','local') == 'server':
             files=[(path,mimetypes.guess_type(path)[0] or 'text/plain') for path in self.paths]
@@ -545,9 +523,7 @@ class ChatPanel(QWidget):
         sent = self.backend.send(text, files, self.mode.currentData(), title=title,memory_text=self.last_prompt,
                           user_text=self.last_prompt if not self.action else None,context_data=getattr(self,'drive_context',None) or None)
         if sent is False:
-            self.project_sending = False
             return
-        self.link_project_conversation(self.backend.session)
         if not self.action:
             self.composer.clear()
 

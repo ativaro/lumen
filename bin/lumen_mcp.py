@@ -489,15 +489,15 @@ def validate_schema(value, schema, path='arguments'):
 def tool_native(name, args):
     from pathlib import Path
     import signal
-    from lumen_mcp_tools import DEFINITIONS, action_allowed, PROJECT_ACTIONS
+    from lumen_mcp_tools import DEFINITIONS, action_allowed
+    if name.startswith(('lumen_project_','lumen_projects_')):
+        raise ValueError('Lumen Projects uses the paired Server tools; local project tools are retired.')
     if not action_allowed(name):
         raise ValueError('MCP actions are disabled.')
     intake = name in ('lumen_vault_store', 'lumen_vault_store_from_chat')
-    project_write = name in PROJECT_ACTIONS
-    mutation = name in ('lumen_notes_propose_edit','lumen_notes_propose_connections','lumen_memory_remember','lumen_memory_propose','lumen_memory_forget') or project_write or intake or name in ('lumen_vault_web_login','lumen_vault_web_click','lumen_vault_web_fill','lumen_vault_ssh_exec','lumen_vault_http_request') or (name == 'lumen_vault_api_request' and args.get('method') != 'GET') or (name == 'lumen_vault_mcp' and args.get('operation') == 'call')
+    mutation = name in ('lumen_notes_propose_edit','lumen_notes_propose_connections','lumen_memory_remember','lumen_memory_propose','lumen_memory_forget') or intake or name in ('lumen_vault_web_login','lumen_vault_web_click','lumen_vault_web_fill','lumen_vault_ssh_exec','lumen_vault_http_request') or (name == 'lumen_vault_api_request' and args.get('method') != 'GET') or (name == 'lumen_vault_mcp' and args.get('operation') == 'call')
     uncertain = ('Vault save outcome is unknown. Check Vault before retrying; do not automatically repeat the save.' if intake else
                  'The remote operation outcome is unknown. Check remote state before retrying; do not automatically repeat the write.')
-    if project_write: uncertain = 'Project action outcome is unknown. Read the project and run history before retrying; do not automatically repeat the action.'
     worker = Path(sys.modules['lumen_mcp_tools'].__file__)
     process = subprocess.Popen([sys.executable, str(worker)], stdin=subprocess.PIPE,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
@@ -521,7 +521,7 @@ def tool_native(name, args):
 
 
 lumen_modules()
-from lumen_mcp_tools import DEFINITIONS, action_allowed, PROJECT_ACTIONS
+from lumen_mcp_tools import DEFINITIONS, action_allowed
 from functools import partial
 for name, definition in DEFINITIONS.items():
     if action_allowed(name):

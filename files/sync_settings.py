@@ -16,7 +16,7 @@ def vault_root():
 
 def prepare_connection():
     from sync_identity import prepare
-    import memory_sync, projects_sync, drive_sync, vault_sync
+    import memory_sync, drive_sync, vault_sync
     store = Store()
     connector.ROOT.mkdir(parents=True, exist_ok=True, mode=0o700)
     with (connector.ROOT/'pairing.lock').open('a') as lock:
@@ -25,7 +25,7 @@ def prepare_connection():
         if config.get('sync_binding'):
             return prepare(config, [])
         aliases = [(['memory'], memory_sync.connection_scope(config)),
-                   (['projects'], projects_sync.scope(config)), (['drive'], drive_sync.scope(config))]
+                   (['drive'], drive_sync.scope(config))]
         root = vault_root()
         if root.is_dir() and not root.is_symlink():
             meta = root.stat()
@@ -36,20 +36,11 @@ def prepare_connection():
         return prepared
 
 
-def project_library():
-    from tools_data import Library
-    from projects_data import Projects
-    library = Library('workbench')
-    Projects(library)
-    return library
-
-
 def snapshot():
-    import drive_sync, projects_sync
+    import drive_sync
     store = Store()
     memory = store.setting('memory/sync-choice', {})
     memory_state = store.setting('memory/server-sync/'+memory.get('scope', ''), {})
-    projects = projects_sync.read_state(project_library())
     try:
         from vault_sync import execute
         vault = execute(dict(op='auto-status', root=str(vault_root()))) if vault_root().exists() else {}
@@ -62,9 +53,6 @@ def snapshot():
     rows = dict(
         memory=dict(enabled=bool(memory.get('enabled')), last_sync=memory_state.get('last_sync', 0),
                     conflicts=len(memory_state.get('conflicts', {}))),
-        projects=dict(enabled=bool(projects.get('enabled')), count=len(projects.get('projects', {})),
-                      all_projects=bool(projects.get('all_projects')), conflicts=len(projects.get('conflicts', {})),
-                      last_sync=projects.get('last_sync', 0)),
         vault=vault,
         preferences={k:v for k,v in store.setting('sync/preferences', {}).items() if k in ('enabled','last_sync','conflicts','reason')},
     )
@@ -94,17 +82,13 @@ def state_label(row):
 
 def configure(domain, enabled):
     store = Store()
-    if domain in ('notes', 'attachments'):
-        if enabled: raise ValueError(tr('Lumen Notes wird direkt auf dem Lumen Server bearbeitet.'))
+    if domain in ('notes', 'attachments', 'projects'):
+        if enabled: raise ValueError(tr('Lumen Notes und Projekte werden direkt auf dem Lumen Server bearbeitet.'))
         return dict(enabled=False, reason='server_owned')
     if domain == 'memory':
         import memory_sync
         config = prepare_connection() if enabled else None
         return memory_sync.configure(store, enabled, memory_sync.connection_scope(config) if enabled else '')
-    if domain == 'projects':
-        import projects_sync
-        if enabled: prepare_connection()
-        return projects_sync.configure(project_library(), enabled, all_projects=True)
     if domain == 'drive':
         import drive_sync
         config = prepare_connection() if enabled else None
@@ -128,12 +112,12 @@ def configure(domain, enabled):
 
 
 def sync_now(progress=lambda text: None, manual=False):
-    import memory_sync, projects_sync, drive_sync, vault_sync
+    import memory_sync, drive_sync, vault_sync
     store = Store()
     try:
         prepare_connection()
     except Exception as error:
-        for name in ('memory','projects','vault','preferences'):
+        for name in ('memory','vault','preferences'):
             store.set_setting('sync/report/'+name, dict(time=time.time(),ok=False,error=type(error).__name__))
         raise
     from preferences_sync import synchronize as preferences
@@ -145,7 +129,6 @@ def sync_now(progress=lambda text: None, manual=False):
             return drive_sync.read()
         return drive_sync.synchronize()
     operations = dict(memory=lambda: memory_sync.synchronize(store),
-                      projects=lambda: projects_sync.synchronize(project_library()),
                       drive=drive,
                       vault=lambda: vault_sync.execute(dict(op='auto-poll', root=str(vault_root()))) if vault_root().exists() else {},
                       preferences=lambda: preferences(store))
@@ -167,7 +150,7 @@ def sync_now(progress=lambda text: None, manual=False):
         store.set_setting('sync/report/'+name, report)
         if name == 'memory':
             store.set_setting('memory/sync-status', report)
-        if name in ('memory','projects','vault'):
+        if name in ('memory','vault'):
             from lumen_notifications import report as notify
             outcome=results[name]
             bad=not report['ok'] or bool(outcome.get('conflicts')) or outcome.get('reason') in ('conflict','incoming','uncertain','connection_changed')

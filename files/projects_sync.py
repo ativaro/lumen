@@ -82,6 +82,7 @@ def locked(library):
 
 
 def configure(library, enabled, project=None, remote_project=None, all_projects=None):
+    raise ValueError(tr('Lumen Projekte wird direkt auf dem Lumen Server bearbeitet.'))
     with locked(library):
         state = read_state(library)
         if not enabled:
@@ -281,6 +282,7 @@ def sync_links(library, project, binding, state, snapshot, request):
 
 
 def synchronize(library):
+    raise ValueError(tr('Lumen Projekte wird direkt auf dem Lumen Server bearbeitet.'))
     Projects(library)
     with (library.root / "server-sync.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -416,6 +418,7 @@ def synchronize(library):
 
 
 def resolve(library, identity_value, keep_local):
+    raise ValueError(tr('Lumen Projekte wird direkt auf dem Lumen Server bearbeitet.'))
     with locked(library):
         config = lumen_connect.read_config()
         state = read_state(library)
@@ -451,16 +454,6 @@ def resolve(library, identity_value, keep_local):
 
 
 if __name__ == "__main__":
-    import signal
-    from tools_data import Library
-
-    signal.alarm(90)
-    library = Library("workbench")
-    if read_state(library)["enabled"]:
-        try:
-            synchronize(library)
-        except Exception:
-            import sys
-
-            print("Projektabgleich nicht abgeschlossen. Status in Lumen Projekte prüfen.", file=sys.stderr)
-            sys.exit(1)
+    import sys
+    print("Lumen Projekte wird direkt auf dem Lumen Server bearbeitet; der lokale Projektabgleich ist stillgelegt.", file=sys.stderr)
+    sys.exit(1)

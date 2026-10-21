@@ -488,8 +488,7 @@ class OpenCodeBackend(QObject):
                         'terminal for sudo. Never ask for a password in chat. Do not assume snapper, Btrfs or a root '
                         'snapshot configuration exists; inspect available backup support before proposing a snapshot. '
                         'If execution fails, report the actual error and what remains undone, not a successful installation.\n')
-                from projects_mcp import INSTRUCTION as PROJECTS_INSTRUCTION
-                body['system'] += PROJECTS_INSTRUCTION
+                body['system'] += ('\nLumen Notes and Projects are owned by the paired Lumen Server. Discover their available tools with lumen_server_tools and use their exact schemas. Local project libraries are not the server record. Never invent synchronization or permissions.\n')
             from vault_access import INSTRUCTION as VAULT_INSTRUCTION
             body['system'] += VAULT_INSTRUCTION
             if isinstance(user_text, str) and not self.read_only and not self.background_task:

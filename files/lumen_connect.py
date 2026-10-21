@@ -895,7 +895,7 @@ def sync_data():
     if not helper.exists():
         helper = Path.home()/".local/share/lumen/files/sync_settings.py"
     if not helper.exists():
-        sync_memory(); sync_projects(); sync_drive(); sync_vault()
+        sync_memory(); sync_drive(); sync_vault()
         return
     _DATA_PROCESS = subprocess.Popen([sys.executable, str(helper)], stdin=subprocess.PIPE,
                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -934,10 +934,8 @@ def sync_vault():
 
 
 _NOTES_PROCESSES = {}
-_PROJECTS_PROCESS = None
 _DRIVE_PROCESS = None
 _DRIVE_NEXT = 0
-_PROJECTS_NEXT = 0
 
 
 def sync_drive():
@@ -958,29 +956,6 @@ def sync_drive():
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-
-
-def sync_projects():
-    """Only explicitly activated project scopes; separate from device heartbeats."""
-    global _PROJECTS_PROCESS, _PROJECTS_NEXT
-    if time.monotonic() < _PROJECTS_NEXT:
-        return
-    if _PROJECTS_PROCESS is not None and _PROJECTS_PROCESS.poll() is None:
-        return
-    data = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
-    root = Path(os.environ.get("LUMEN_TOOLS_DATA", data / "lumen-tools"))
-    helper = Path(__file__).with_name("projects_sync.py")
-    if not helper.exists():
-        helper = data / "lumen/files/projects_sync.py"
-    if not helper.exists() or not (root / "workbench/server-sync.json").exists():
-        return
-    _PROJECTS_NEXT = time.monotonic() + 60
-    _PROJECTS_PROCESS = subprocess.Popen(
-        [sys.executable, str(helper)],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
 
 
 def sync_memory():

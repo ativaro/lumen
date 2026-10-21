@@ -254,7 +254,7 @@ class PairingDialog(QDialog):
                 "Systemstatus und Geräteinformationen ohne weitere Rückfragen",
                 "System status and device information without further prompts",
             ),
-            "projects": t("Projekte synchronisieren", "Synchronize projects"),
+            "projects": t("Serverprojekte nutzen", "Use server projects"),
             "preferences_sync": t("Persönliche Einstellungen synchronisieren", "Synchronize personal preferences"),
             "drive": t("Lumen Drive synchronisieren", "Synchronize Lumen Drive"),
             "notes": t("Lumen Notes verwenden", "Use Lumen Notes"),
@@ -289,8 +289,8 @@ class PairingDialog(QDialog):
             ],
         )
         self.permissions.setText(t(
-            "Wähle die erlaubten Serverfunktionen. Deine lokalen Daten bleiben erhalten. Den Datenabgleich richtest du danach ausdrücklich unter Einstellungen → Server & Synchronisation ein. Die Kopplung lädt keine lokalen Notizen, Erinnerungen oder Projekte hoch. KI-Freigaben bleiben getrennt.",
-            "Choose the allowed server features. Your local data is preserved. Set up data sync explicitly afterwards under Settings → Server & Synchronization. Pairing does not upload local notes, memories or projects. AI permissions remain separate."))
+            "Wähle die erlaubten Serverfunktionen. Deine lokalen Daten bleiben erhalten. Den Datenabgleich richtest du danach ausdrücklich unter Einstellungen → Server & Synchronisation ein. Notes und Projekte bearbeitest du direkt auf dem Server. Die Kopplung lädt keine lokalen Erinnerungen hoch. KI-Freigaben bleiben getrennt.",
+            "Choose the allowed server features. Your local data is preserved. Set up data sync explicitly afterwards under Settings → Server & Synchronization. Notes and Projects are edited directly on the server. Pairing does not upload local memories. AI permissions remain separate."))
         for key in selected:
             if key not in rights:
                 continue

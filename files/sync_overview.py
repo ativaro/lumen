@@ -24,7 +24,6 @@ def widget(parent, heading=True):
     layout.addWidget(label(tr('Einmal auswählen, automatisch aktuell. Pausieren behält deine Daten. KI-Zugriff wird separat freigegeben.')))
     domains = [
         ('memory', 'Persönliches Gedächtnis', 'Erinnerungen und Kategorien. Keine zusätzliche KI-Freigabe.', 'wissen'),
-        ('projects', 'Projekte', 'Eigene Projekte automatisch verbinden. Führt keine Aufgaben aus.', 'workbench'),
         ('vault', 'Verschlüsselter Tresor', 'Auch geschlossen und gesperrt. Erste Zuordnung im Tresor einrichten.', 'vault'),
         ('preferences', 'Persönliche Einstellungen', 'Sprache und Desktop-Design. Serverfassung wird übernommen; Änderungen gelten beim nächsten App-Start.', None),
     ]

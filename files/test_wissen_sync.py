@@ -68,7 +68,7 @@ class NotesRetirementTest(unittest.TestCase):
         import lumen_connect as client
         with patch.object(client,'_DATA_PROCESS',None),patch.object(client,'_DATA_NEXT',0), \
                 patch('pathlib.Path.exists',return_value=False), \
-                patch.object(client,'sync_memory') as memory,patch.object(client,'sync_projects'), \
+                patch.object(client,'sync_memory') as memory, \
                 patch.object(client,'sync_drive'),patch.object(client,'sync_vault'), \
                 patch.object(client.subprocess,'Popen') as spawn:
             client.sync_data();memory.assert_called_once_with();spawn.assert_not_called()
