@@ -1,7 +1,7 @@
 """Inactive native coordinator; no Host callback, launcher or ACTIONS registration.
 
 Series B must supply a lease: window, immutable Binding, permissions_revision,
-thread-safe check() (Host/profile/session/connection generation), and GUI-only
+thread-safe check() (None/True success, otherwise denied; Host/profile/session/connection generation), and GUI-only
 accept_import(reference, resolved). Missing leases fail closed; no Web inputs.
 """
 from uuid import UUID
@@ -18,7 +18,9 @@ from lumen_i18n import tr
 
 
 def _current(context,identity):
-    context.check()
+    checked=context.check()
+    if checked is not None and checked is not True:
+        raise ValueError(tr('Der native App-Kontext ist nicht mehr gültig.'))
     window,binding,revision=identity
     if (context.window is not window or (context.binding,context.permissions_revision)!=(binding,revision)):
         raise ValueError(tr('Die bestätigte App-Bindung wurde geändert.'))

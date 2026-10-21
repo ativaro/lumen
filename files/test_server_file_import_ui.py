@@ -180,6 +180,13 @@ class ImportUITest(unittest.TestCase):
                     start_import(self.window,context,root=self.base/'tools')
         self.assertEqual(self.calls, [])
 
+    def test_denied_native_guard_never_enters_file_selection(self):
+        for value in (False,0,'not ready'):
+            self.context.check=lambda:value
+            with self.subTest(value=value),patch.object(QFileDialog,'getOpenFileName',side_effect=AssertionError('Guard must deny before picker')):
+                with self.assertRaises(ValueError):self.start()
+        self.assertEqual(self.calls,[]);self.assertEqual(len(self.registry.history()),1)
+
     def test_current_identity_revision_and_explicit_areas_are_required(self):
         changes = [('account','other-account'), ('device','other-device'), ('revision',8),
                    ('capabilities',['translate']), ('capabilities',['drive'])]
