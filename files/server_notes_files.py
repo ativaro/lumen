@@ -114,7 +114,7 @@ def note_request(token,session,revision,job,*,root=None):
                 or notes._digest(note['payload'])!=plan.get('note_payload_hash')):
             raise ValueError(tr('Der gespeicherte Notizbeleg passt nicht zur Dateiübernahme.'))
         return note
-    references=[];text_refs=[]
+    references=[];text_refs=[];text_receipts=[]
     for child in children:
         job.check()
         if child['state']!='done':raise ValueError(tr('Zuerst jede gewünschte Drivekopie bestätigen oder die Übergabe abbrechen.'))
@@ -124,10 +124,10 @@ def note_request(token,session,revision,job,*,root=None):
             receipt=child['choice'].get('drive_import_receipt',{})
             if type(receipt.get('size')) is not int or not 0<=receipt['size']<=512000:
                 raise ValueError(tr('Für eine bearbeitbare Textnotiz höchstens 120.000 Zeichen auswählen. Die bestätigte Drivekopie bleibt erhalten.'))
-            text_refs.append(ref)
+            text_refs.append(ref);text_receipts.append(dict(receipt))
     text=request['payload'].get('text','')
     if text_refs:
-        with drive.materialized(text_refs,job) as paths:
+        with drive.materialized(text_refs,job,expected_rows=text_receipts,max_file_bytes=512000) as paths:
             texts=[Path(path).read_text(encoding='utf-8-sig') for path in paths]
             text='\n\n'.join(texts)
     if len(text)>120000:raise ValueError(tr('Für eine bearbeitbare Notiz höchstens 120.000 Zeichen auswählen. Die bestätigten Drivekopien bleiben erhalten.'))

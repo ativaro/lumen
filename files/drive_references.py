@@ -17,6 +17,7 @@ from lumen_i18n import tr
 KINDS = ('drive_file', 'drive_folder')
 MAX_COPY = 128 * 1024**2
 READ_TIMEOUT = 35  # Leave cleanup time before the native dispatcher's 45-second hard limit.
+COPY_RECEIPT_FIELDS = ('id','family','version','revision','sha256','size','name','folder_id')
 TEXT_SUFFIXES = ('.txt','.md','.csv','.json','.log','.py','.js','.ts','.yaml','.yml','.toml','.xml','.html','.htm','.css')
 
 
@@ -153,12 +154,31 @@ def _copy_directory():
 
 
 @contextmanager
-def materialized(references, job):
-    """A bounded private copy lives only for the explicitly invoked consumer."""
+def materialized(references, job, *, expected_rows=None, max_file_bytes=None):
+    """A private copy; optional receipts pin the reviewed version before any bytes."""
     import drive_local as local
     import drive_transport as transport
     from core import valid_name
+    pins=None
+    if expected_rows is not None:
+        if (not isinstance(expected_rows,list) or len(expected_rows)!=len(references)
+                or any(not isinstance(row,dict) or set(row)!=set(COPY_RECEIPT_FIELDS) for row in expected_rows)):
+            raise ValueError(tr('Ein vollständiger Beleg für jede bestätigte Dateikopie ist erforderlich.'))
+        pins=[dict(row) for row in expected_rows]
+    if max_file_bytes is not None and (type(max_file_bytes) is not int or not 0<=max_file_bytes<=MAX_COPY):
+        raise ValueError(tr('Ungültige Grenze für die bestätigte Dateikopie.'))
+    def pinned(rows):
+        if len(rows)!=len(references):raise ValueError(tr('Die Drive-Auswahl wurde verändert.'))
+        if pins is not None and any(
+                row.get('current') is not True or row.get('trashed') is not False
+                or row.get('family')!=ref['id'] or any(type(row.get(key)) is not type(pin[key])
+                    or row.get(key)!=pin[key] for key in COPY_RECEIPT_FIELDS)
+                for ref,row,pin in zip(references,rows,pins)):
+            raise ValueError(tr('Die Drive-Fassung wurde seit der bestätigten Übernahme geändert.'))
+        if max_file_bytes is not None and any(type(row.get('size')) is not int or not 0<=row['size']<=max_file_bytes for row in rows):
+            raise ValueError(tr('Die bestätigte Dateikopie überschreitet die zulässige Textgröße.'))
     config, rows=resolve(references,job)
+    rows=[dict(row) for row in rows];pinned(rows)
     if any(ref['kind']!='drive_file' for ref in references):
         raise ValueError(tr('Hier eine einzelne unterstützte Datei auswählen; Ordner werden nur verknüpft.'))
     if any(type(row['size']) is not int or row['size']<0 for row in rows) or sum(row['size'] for row in rows)>MAX_COPY:
@@ -173,6 +193,7 @@ def materialized(references, job):
             local.install(root,name,staged,None)
             paths.append(str(folder/name))
         current, fresh=resolve(references,job)
+        pinned(fresh)
         if sync.scope(current)!=sync.scope(config) or any((old['id'],old['revision'],old['sha256'])!=(new['id'],new['revision'],new['sha256']) for old,new in zip(rows,fresh)):
             raise ValueError(tr('Die Drive-Datei wurde während des Ladens geändert. Bitte erneut öffnen.'))
         job.check()

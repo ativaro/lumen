@@ -19,6 +19,8 @@ from server_notes_handoffs import Requests
 import server_notes_files as files
 import test_server_file_import as fixture
 
+REAL_MATERIALIZED=files.drive.materialized
+
 
 class LocalNotesTest(unittest.TestCase):
     def wire(self,*args,**kwargs):
@@ -75,7 +77,7 @@ class LocalNotesTest(unittest.TestCase):
         return dict(self.notes[path.rsplit('/',1)[-1]])
 
     @contextmanager
-    def materialized(self,refs,job):
+    def materialized(self,refs,job,**kwargs):
         self.downloads+=1;paths=[]
         for ref in refs:
             row=self.cache['files'][ref['id']]
@@ -191,6 +193,24 @@ class LocalNotesTest(unittest.TestCase):
         self.parent=self.registry.enqueue('wissen','wissen.import',payload)
         with self.assertRaises(ValueError):self.receive()
         self.assertEqual(self.calls,[]);self.assertEqual(self.posts,[]);self.assertTrue(folder.is_dir())
+
+    def test_changed_family_between_receipt_and_materialization_never_downloads_or_posts(self):
+        for size in (len(self.original),512001,128*1024**2):
+            with self.subTest(replacement_size=size):
+                # One fresh parent per race: the change happens after completed-copy
+                # validation, immediately before the helper resolves its family ref.
+                payload=from_paths([str(self.path)]);payload['source_url']=self.registry.register(payload['source'])
+                self.parent=self.registry.enqueue('wissen','wissen.import',payload)
+                def changed(references,job,**kwargs):
+                    family=references[0]['id'];row=self.cache['files'][family]
+                    self.cache['files'][family]=dict(row,id=str(uuid4()),version=2,revision=2,size=size)
+                    return REAL_MATERIALIZED(references,job,**kwargs)
+                with patch.object(files.drive,'materialized',side_effect=changed), \
+                     patch('drive_transport.download',side_effect=AssertionError('Changed family must not download')) as download:
+                    with self.assertRaises(ValueError):self.receive()
+                    download.assert_not_called()
+                self.assertEqual(self.posts,[]);self.assertEqual(self.path.read_bytes(),self.original)
+                self.assertEqual(self.registry.request(self.parent)['state'],'pending')
 
     def test_parent_receipt_failure_does_not_duplicate_note_or_copy_on_resume(self):
         complete=files.complete
