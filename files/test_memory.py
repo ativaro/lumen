@@ -50,7 +50,7 @@ class MemoryTest(unittest.TestCase):
         self.assertIn('kurze Antworten',result['context']);self.assertNotIn('geheimes',result['context']);self.assertNotIn('gemeinsamer',result['context']);self.assertNotIn('bleibt lokal',result['context'])
         self.memory.share('.',True,True);self.memory.share(private['path'],False)
         result=self.memory.prepare('Projekt',str(self.base/'one/sub'))
-        self.assertIn('gemeinsamer Plan',result['context']);self.assertNotIn('geheimes',result['context']);self.assertIn('bleibt lokal',result['context'])
+        self.assertNotIn('gemeinsamer Plan',result['context']);self.assertNotIn('geheimes',result['context']);self.assertIn('bleibt lokal',result['context'])
         before=stamp(self.store);self.memory.share(shared['path'],False);self.assertNotEqual(stamp(self.store),before)
         self.assertNotIn('gemeinsamer',self.memory.prepare('Projekt',str(self.base))['context'])
         self.assertEqual(self.notes.read(private['path'])['text'],private['text'])

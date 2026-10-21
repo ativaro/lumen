@@ -105,15 +105,13 @@ class NativeMCPTest(unittest.TestCase):
         memory = Memory(self.store)
         memory.configure(True,False)
         memory.share(visible['path'],True); memory.share(related['path'],True)
-        result = invoke('lumen_notes_search',dict(query='Workshop'))
-        self.assertEqual(len(result['items']),2)
-        self.assertNotIn('PRIVATE_SECRET',json.dumps(result))
-        read = invoke('lumen_notes_read',dict(path=visible['path']))
-        self.assertEqual(read['links'],[related['path']])
-        for path in (private['path'],'../outside.md'):
-            with self.assertRaises(ValueError):invoke('lumen_notes_read',dict(path=path))
+        before={n['path']:n['hash'] for n in book.scan()['notes']}
+        for name in ('lumen_notes_search','lumen_notes_read','lumen_notes_propose_edit','lumen_notes_propose_connections'):
+            self.assertNotIn(name,DEFINITIONS)
+            with self.assertRaisesRegex(ValueError,'paired Server tools'):
+                invoke(name,dict(path=visible['path'],query='Workshop'))
+        self.assertEqual(before,{n['path']:n['hash'] for n in book.scan()['notes']})
         memory.share(visible['path'],False)
-        with self.assertRaises(ValueError):invoke('lumen_notes_read',dict(path=visible['path']))
         memory.remember('Project fact','Scoped to project',scope=str(self.root/'project'))
         self.assertNotIn('Scoped to project',invoke('lumen_memory_context',dict(query='Project',directory=str(self.root)))['context'])
         with self.assertRaises(ValueError):invoke('lumen_memory_context',dict(query='Project',directory=str(self.root/'project')))

@@ -287,11 +287,6 @@ class Memory:
             state=stamp(self.store);result=dict(stamp=state,revision=self.store.setting('memory/revision',0),notes=[],candidates=[],context='',warning='')
             if not state[0]:return result
             notes=self.eligible(directory)
-        shared=[]
-        if self.store.setting('knowledge/notebook','') and self.store.setting('memory/shares',[]):
-            try:
-                book=Notebook(self.store);shared=[dict(n,id=self.identity('notebook:'+json.dumps(book.identity)+':'+n['path'])) for n in book.scan()['notes'] if self.shared(book,n['path'])]
-            except (OSError,ValueError) as error:result['warning']=tr('Freigegebene Notizen nicht erreichbar: ')+str(error)
         from lumen_connect import shared_memories
         blocked=set(self.store.setting('memory/server_hidden',[]))
         # The replicated local copy owns its independent approval; do not bypass it via the old mirror.
@@ -311,7 +306,7 @@ class Memory:
             with self.book.lock('memory-state.lock'):
                 if state!=stamp(self.store) or result['revision']!=self.store.setting('memory/revision',0):
                     result['warning']=tr('Das Gedächtnis wurde während der Suche geändert. Bitte erneut fragen.');return result
-                search_state=semantic_retrieve(self.entries(notes+shared+server_notes),query,
+                search_state=semantic_retrieve(self.entries(notes+server_notes),query,
                     boundary=str(self.namespace),home=search_home(),cache=self.store.directory/'memory-index',project=directory)
         except (OSError,ValueError):search_state=dict(mode='text',reason='unavailable',scores={})
         self.semantic=search_state.pop('scores') or None
@@ -324,15 +319,12 @@ class Memory:
         ranked=self.retrieve(notes,query,8,preferences=3)
         selected=[dict(n,source_kind='memory',text=self.snippet(n,query),origin=tr('Von dir bestätigter Lösungsweg') if n['memory'].get('kind')=='solution' and n['memory'].get('verification')=='user' and n['memory'].get('hash')==n['hash'] else tr('Lumen-Gedächtnis')) for n in ranked[:6]]
         result['candidates']=[dict(path=n['path'],title=n['title'],text=n['text'][:1800],hash=n['hash'],memory=n['memory']) for n in ranked[:8]]
-        selected.extend(dict(n,source_kind='note',text=self.snippet(n,query),origin=tr('Freigegebene Notiz')) for n in self.retrieve(shared,query,4))
         for note in self.retrieve(server_notes,query,max(0,10-len(selected))):
             selected.append(dict(note,source_kind=note.get('source_kind','server_memory'),text=self.snippet(note,query),origin=tr('Freigegebene Servernotiz') if note.get('source_kind')=='server_note' else tr('Freigegebenes Server-Gedächtnis')))
         current=[]
         for note in selected[:10]:
             try:
-                if note['source_kind'] in ('memory','note'):
-                    source=self.book if note['source_kind']=='memory' else book
-                    if source.read(note['path'])['hash']!=note['hash']:continue
+                if note['source_kind']=='memory' and self.book.read(note['path'])['hash']!=note['hash']:continue
                 current.append(note)
             except (OSError,ValueError):continue
         remote_selected=[n for n in current if n['source_kind']=='server_note']
