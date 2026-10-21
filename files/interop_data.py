@@ -21,6 +21,9 @@ def _text(value, limit=4096):
 
 
 def validate_ref(ref):
+    if isinstance(ref,dict) and 'version' in ref:
+        from server_app_links import validate_ref as server_ref
+        return server_ref(ref)
     if not isinstance(ref,dict) or set(ref)-{'app','kind','id','title','path','position','locator'}:
         raise ValueError(tr('Ungültiger Lumen-Verweis.'))
     value=dict(ref)
@@ -92,6 +95,9 @@ def base_url(url):
 
 
 def _identity(ref):
+    if ref.get('version')==2:
+        from server_app_links import identity
+        return hashlib.sha256(json.dumps(['server-v2',identity(ref)],sort_keys=True).encode()).hexdigest()
     # UI areas and positions describe a view, not a different underlying object.
     locator={key:value for key,value in ref.get('locator',{}).items() if key!='area' and value}
     value=dict(app=ref['app'],kind=ref.get('kind','record'),id=ref['id'],locator=locator)
@@ -129,7 +135,9 @@ class Registry:
         with self.library.connect() as db:row=db.execute('SELECT data FROM objects WHERE id=?',(key,)).fetchone()
         if row is None:raise ValueError(tr('Dieser Lumen-Verweis ist hier nicht bekannt.'))
         value=validate_ref(json.loads(row['data']))
-        if position:value['position']=position
+        if position:
+            if value.get('version')==2:raise ValueError(tr('Serververweise haben keine lokale Fundstelle.'))
+            value['position']=position
         return value
 
     def link(self,source,target,relation='reference'):

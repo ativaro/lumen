@@ -29,15 +29,11 @@ class TargetTest(unittest.TestCase):
                              dict(dict(title='Ziel', mode='copy', token='test-token'), **choice),
                              self.job, root=self.tools, store=self.store)
 
-    def test_wissen_copy_has_source_and_replay_returns_same_note(self):
-        source = self.root/'receipt.txt'; source.write_text('Ein Beleg')
-        result = self.apply('wissen.import', dict(self.payload, paths=[str(source)]))
-        self.assertEqual(result, self.apply('wissen.import', dict(self.payload, paths=[str(source)])))
-        book = wissen_data.Notebook(self.store); note = book.read(result['id'])
-        self.assertEqual(self.source, note['source']); self.assertIn('Ein überprüfbarer Gedanke.', note['text'])
-        self.assertEqual(len(book.scan()['notes']), 1)
-        self.assertEqual(len(list((book.root/'attachments').iterdir())), 1)
-        source.unlink(); self.assertIn('Ein Beleg', next((book.root/'attachments').iterdir()).read_text())
+    def test_legacy_wissen_copy_cannot_write_after_server_switch(self):
+        source=self.root/'receipt.txt';source.write_text('Ein Beleg')
+        book=wissen_data.Notebook(self.store);before=book.scan()['notes']
+        with self.assertRaises(ValueError):self.apply('wissen.import',dict(self.payload,paths=[str(source)]))
+        self.assertEqual(book.scan()['notes'],before);self.assertEqual(source.read_text(),'Ein Beleg')
 
     def test_workbench_copy_add_and_link_preserve_original(self):
         source = self.root/'plan.txt'; source.write_text('Version eins')
@@ -150,11 +146,11 @@ class TargetTest(unittest.TestCase):
         questions = Library('workbench', self.tools).get(result['id'])['questions']
         self.assertEqual(len(questions), 2); self.assertIn('2026-11-03', questions[1]['text'])
 
-    def test_markdown_file_becomes_editable_wissen_text(self):
-        path = self.root/'article.md'; path.write_text('# Original\n\n## Abschnitt\n\nWichtig.')
-        result = self.apply('wissen.import', dict(self.payload, text='', paths=[str(path)]))
-        note = wissen_data.Notebook(self.store).read(result['id'])
-        self.assertIn('## Abschnitt', note['text']); self.assertIn('Wichtig.', note['text'])
+    def test_markdown_note_import_requires_server_capture_instead_of_local_notebook(self):
+        path=self.root/'article.md';path.write_text('# Original\n\n## Abschnitt\n\nWichtig.')
+        with self.assertRaises(ValueError):self.apply('wissen.import',dict(self.payload,text='',paths=[str(path)]))
+        self.assertEqual(path.read_text(),'# Original\n\n## Abschnitt\n\nWichtig.')
+        self.assertEqual(wissen_data.Notebook(self.store).scan()['notes'],[])
 
     def test_agenda_only_meeting_opens_and_preserves_edits(self):
         from PySide6.QtWidgets import QApplication

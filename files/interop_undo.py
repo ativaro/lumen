@@ -33,6 +33,7 @@ def remember(db,token,ref,before,after):
 
 
 def undo(action,token,job,root=None,store=None):
+    if action=='wissen.import':raise ValueError(tr('Notizübernahmen in der verbundenen Server-App prüfen. Lokale Originale bleiben erhalten.'))
     from interop_targets import ACTIONS,_lock
     target=ACTIONS[action]['target'];library=Library(target,root)
     with _lock(library,job),library.connect() as db:
@@ -46,14 +47,7 @@ def undo(action,token,job,root=None,store=None):
         key=ref['id']
         if ref.get('app')=='workbench' and ref.get('position',{}).get('part','').startswith('item:'):
             kind='project_item';key=ref['position']['part'].split(':',1)[1]
-        if kind=='note':
-            from wissen_data import Notebook
-            from lumen_store import Store
-            book=Notebook(store or Store(),root=ref['locator']['root'])
-            try:note=book.read(ref['id'])
-            except FileNotFoundError:note=None
-            if note and note['hash']!=after['hash']:raise ValueError(tr('Der übernommene Inhalt wurde inzwischen geändert. Er bleibt erhalten.'))
-            if note:book.remove(ref['id'],after['hash'])
+        if kind=='note':raise ValueError(tr('Lokale Notizübernahmen sind stillgelegt.'))
         else:
             current=snapshot(db,kind,key)
             if not _same(current,after):raise ValueError(tr('Der übernommene Inhalt wurde inzwischen geändert. Er bleibt erhalten.'))

@@ -50,11 +50,15 @@ class UndoTest(unittest.TestCase):
         undo('household.add','one',self.job,self.root,self.store)
         self.assertTrue(library.get(result['id'])['_archived'])
 
-    def test_wissen_undo_preserves_recoverable_history(self):
-        result=self.transfer('wissen.import')
-        undo('wissen.import','one',self.job,self.root,self.store)
-        book=Notebook(self.store)
-        self.assertFalse((book.root/result['id']).exists());self.assertEqual(len(book.versions(result['id'])),1)
+    def test_retired_wissen_undo_preserves_original_and_receipt_history(self):
+        from interop_undo import remember
+        book=Notebook(self.store);note=book.create('Earlier note','Keep original')
+        ref=dict(app='wissen',kind='note',id=note['path'],title=note['title'],locator=dict(root=str(book.root)))
+        library=Library('wissen',self.root)
+        with library.connect() as db:remember(db,'one',ref,None,dict(hash=note['hash']))
+        with self.assertRaises(ValueError):undo('wissen.import','one',self.job,self.root,self.store)
+        self.assertEqual(book.read(note['path'])['hash'],note['hash'])
+        with library.connect() as db:self.assertEqual(db.execute('SELECT undone FROM interop_undo').fetchone()[0],0)
 
     def test_local_task_removed_without_affecting_other_tasks(self):
         result=self.transfer('inbox.task')

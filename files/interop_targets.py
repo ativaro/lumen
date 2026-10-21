@@ -54,13 +54,12 @@ def available(payload):
     return [action for action in ACTIONS if action in result]
 
 
-def choices(action, root=None, store=None):
+def choices(action, root=None, store=None, *, session=None, permissions_revision=None, job=None):
     target = ACTIONS[action]['target']
     if action == 'wissen.import':
-        from lumen_store import Store
-        from wissen_data import Notebook
-        book = Notebook(store or Store())
-        return [dict(id='.', title=tr('Notizordner'))] + [dict(id=p, title=p) for p in book.scan()['folders']]
+        from server_note_capture import collections
+        if session is None or job is None:raise ValueError(tr('Notizsammlungen in der verbundenen Lumen-Notes-App auswählen.'))
+        return collections(session,permissions_revision,job)
     if action in ('reader.import', 'meetings.import', 'inbox.task', 'translate.import'): return []
     records = Library(target, root).all()
     if target == 'inbox':
@@ -190,57 +189,19 @@ def _record(db, library, action, payload, choice, values, extend=()):
     return dict(app=ACTIONS[action]['target'], kind='record', id=key, title=title)
 
 
-def _wissen(library, payload, choice, job, store, created):
-    from lumen_store import Store
-    from wissen_data import Notebook
-    book = Notebook(store or Store()); folder = choice.get('id') or '.'
-    name = 'Lumen-'+hashlib.sha256(choice['token'].encode()).hexdigest()[:24]+'.md'
-    relative = str(Path(folder)/name); marker = 'interop:'+choice['token']
-    try:
-        note = book.read(relative)
-        if note.get('legacy') != marker: raise ValueError(tr('Am Übergabeziel liegt bereits eine andere Notiz.'))
-    except FileNotFoundError:
-        # The notebook stores the source in portable metadata and displays it
-        # as a named link outside the editable text.
-        text = payload.get('text','').strip() if choice.get('mode','copy')=='copy' else ''; links = []
-        if payload.get('references'):
-            from drive_references import links as drive_links
-            for ref in drive_links(payload['references'],library.root.parent):
-                title=ref['title'].replace('\\','\\\\').replace('[','\\[').replace(']','\\]')
-                links.append('['+title+']('+ref['target']+')')
-        if choice.get('mode', 'copy') == 'copy' and not payload.get('text', '').strip():
-            imported = [document_text(p, job) for p in payload.get('paths', []) if Path(p).suffix.lower() in ('.md', '.txt')]
-            if sum(map(len, imported)) > 120000: raise ValueError(tr('Übergabetext größer als 120.000 Zeichen.'))
-            if imported: text = '\n\n'.join(imported)+'\n\n'+text
-        for path in dict.fromkeys(payload.get('paths', [])):
-            job.check(); path = Path(path)
-            if choice.get('mode') == 'link':
-                links.append('['+path.name.replace(']', '\\]')+']('+path.as_uri()+')'); continue
-            with book.directory() as root:
-                try: os.mkdir('attachments', 0o700, dir_fd=root)
-                except FileExistsError: pass
-            copied = _copy(library, path, job, created)
-            # The notebook API verifies every directory component, including attachments.
-            target = 'attachments/'+copied['asset']
-            with book.directory('attachments') as directory:
-                fd = os.open(copied['asset'], os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600, dir_fd=directory)
-                created.append(book.root/target)
-                with os.fdopen(fd, 'wb') as output, library.asset(copied['asset']).open('rb') as source:
-                    while chunk := source.read(1024*1024): job.check(); output.write(chunk)
-                    output.flush(); os.fsync(output.fileno())
-            library.asset(copied['asset']).unlink()
-            link = os.path.relpath(target, folder)
-            links.append('['+_filename(payload, path).replace(']', '\\]')+']('+quote(link)+')')
-        if links: text += '\n\n'+'\n'.join('- '+link for link in links)
-        job.check()
-        note = book.write(relative, '# '+(choice.get('title') or payload['title'])+'\n\n'+text, '', payload['source_url'], marker)
-        # A crash after this atomic write is replayable from its deterministic name.
-    return dict(app='wissen', kind='note', id=relative, title=note['title'], path=str(book.root/relative), locator=dict(root=str(book.root)))
+def _wissen(*args, **kwargs):
+    raise ValueError(tr('Lokale Notes-Übernahmen sind stillgelegt. Die verbundene Server-App verwenden.'))
 
 
-def apply(action, payload, choice, job, root=None, store=None):
+def apply(action, payload, choice, job, root=None, store=None, *, session=None, permissions_revision=None, retry=False):
     from interop_undo import snapshot,remember
     _validate(action, payload, choice)
+    if action=='wissen.import':
+        from interop_data import Registry
+        from server_note_capture import capture
+        if session is None:raise ValueError(tr('Notizen ausschließlich in der verbundenen Server-App übernehmen.'))
+        if Registry(root).request(choice['token'])['payload']!=payload:raise ValueError(tr('Die bestätigte Quelle wurde geändert.'))
+        return capture(choice['token'],choice,session,permissions_revision,job,root=root,retry=retry)
     if payload.get('references') and action in ('wissen.import','workbench.add'):
         from drive_references import resolve
         resolve(payload['references'],job)
@@ -265,16 +226,6 @@ def apply(action, payload, choice, job, root=None, store=None):
                     text=Path(paths[0]).read_text(encoding='utf-8-sig')
                     if len(text)>12000:raise ValueError(tr('Für Lumen Compose höchstens 12.000 Zeichen auswählen.'))
                     payload.update(text=text,paths=[])
-            if action == 'wissen.import':
-                result = _wissen(library, payload, choice, job, store, created)
-                created.clear()  # The notebook is durable; replay recovers it even if receipt persistence fails.
-                from wissen_data import Notebook
-                from lumen_store import Store
-                note=Notebook(store or Store(),root=result['locator']['root']).read(result['id'])
-                with library.connect() as db:
-                    _remember(db, choice['token'], signature, result)
-                    remember(db,choice['token'],result,None,dict(hash=note['hash']))
-                return result
             values, extend = _prepare(library, action, payload, choice, job, created)
             job.check()
             with library.connect() as db:
