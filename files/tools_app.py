@@ -122,8 +122,8 @@ def main():
         from server_notes_app import run
         activation={'handoff':args.handoff} if args.handoff else {'reference':args.ref} if args.ref else {}
         return run(app,activation)
-    if args.tool in ('meetings','radio') or args.tool=='workbench' and args.section in (None,'projects'):
-        kind='audio' if args.tool in ('meetings','radio') else 'projects'
+    if args.tool in ('meetings','radio','inbox','vault') or args.tool=='workbench' and args.section in (None,'projects'):
+        kind='audio' if args.tool in ('meetings','radio') else 'projects' if args.tool=='workbench' else args.tool
         if args.path or args.clipboard or args.area:
             parser.error(tr('Diese Lumen-App verwendet Serverinhalte. Dateien über Lumen Files übergeben.'))
         from server_notes_app import run
@@ -138,7 +138,7 @@ def main():
     activation={key:value for key,value in [('path',requested),('handoff',args.handoff),('ref',args.ref),('area',args.area),('section',args.section)] if value}
     if args.tool == 'household':
         args.tool = 'workbench'; activation['section'] = 'household'
-    if args.tool in ('sound', 'vault'):
+    if args.tool == 'sound':
         from system_app import main as system_main
         forwarded = ['--page', 'sound' if args.tool == 'sound' else 'backups']
         for key in ('handoff', 'ref'):

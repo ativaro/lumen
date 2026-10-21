@@ -54,6 +54,11 @@ APP_DRAFT_SCRIPT = """(() => {
  window.__lumenCaptureAppDraft=capture;
 })()"""
 APP_DRAFT_READ = "window.__lumenCaptureAppDraft?.(); window.__lumenAppDraft ?? ''"
+PRIVATE_DRAFT_SCRIPT = """window.__lumenPrivateDraft=()=>{
+ const warning=new Event('beforeunload',{cancelable:true});
+ return window.dispatchEvent(warning)?'':'unsaved';
+};"""
+PRIVATE_DRAFT_READ = "window.__lumenPrivateDraft?.() ?? ''"
 
 NOTES_DRAFT_SCRIPT = '''(() => {
  const capture=()=>{
@@ -229,7 +234,7 @@ if WEBENGINE:
 
         def createWindow(self, kind):return None
         def chooseFiles(self, mode, old, types):
-            if self.window._binding.app not in ('audio','code'):return []
+            if self.window._binding.app not in ('audio','code','vault'):return []
             from server_audio_permissions import choose
             return choose(self.window,mode)
 
@@ -263,6 +268,7 @@ class ServerAppWindow(QMainWindow):
         self.status = QLabel('App-Sitzung wird geprüft.');self.status.setWordWrap(True);layout.addWidget(self.status)
         self.retry = QPushButton('Erneut prüfen');self.retry.clicked.connect(lambda:self.verify(reconnect=True));layout.addWidget(self.retry,0,Qt.AlignLeft)
         self.copy = QPushButton('Entwurf kopieren');self.copy.clicked.connect(self.copy_draft);self.copy.setEnabled(False);layout.addWidget(self.copy,0,Qt.AlignLeft)
+        self.copy.setVisible(self._binding.app!='vault')
         if session.binding.app=='notes':self.copy.setText('Textkopie der ungespeicherten Notiz')
         if pilot_connection is not None and session.binding.app=='compose':self.copy.hide()
         layout.addStretch();self.stack.addWidget(self.status_page)
@@ -311,7 +317,8 @@ class ServerAppWindow(QMainWindow):
         # Chromium's final filesystem work can outlive QObject.destroyed.
         self.profile.destroyed.connect(lambda *_:QTimer.singleShot(0,cleanup))
         self.interceptor = OriginRequests(self,self.profile);self.profile.setUrlRequestInterceptor(self.interceptor)
-        self.profile.downloadRequested.connect(lambda request:request.cancel())
+        from server_app_downloads import download
+        self.profile.downloadRequested.connect(lambda request:download(self,request))
         self.profile.cookieStore().setCookieFilter(lambda request:not request.thirdParty)
         self.view = QWebEngineView();self.page = BoundPage(self.profile,self);self.view.setPage(self.page)
         if self._binding.app=='notes':
@@ -323,6 +330,9 @@ class ServerAppWindow(QMainWindow):
                      'DnsPrefetchEnabled','ScreenCaptureEnabled'):
             settings.setAttribute(getattr(QWebEngineSettings.WebAttribute,name),False)
         settings.setUnknownUrlSchemePolicy(QWebEngineSettings.UnknownUrlSchemePolicy.DisallowUnknownUrlSchemes)
+        # Only user-initiated sanitized writes; clipboard reading remains denied.
+        if self._binding.app=='vault':
+            settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanAccessClipboard,True)
         if self._binding.app=='audio':
             from server_audio_permissions import permission
             self.page.permissionRequested.connect(lambda request:permission(self,request))
@@ -337,7 +347,7 @@ class ServerAppWindow(QMainWindow):
         script.setWorldId(QWebEngineScript.ScriptWorldId.ApplicationWorld)
         script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentReady)
         script.setRunsOnSubFrames(False)
-        script.setSourceCode(NOTES_DRAFT_SCRIPT if self.session.binding.app=='notes' else DRAFT_SCRIPT if self.session.binding.app=='compose' else APP_DRAFT_SCRIPT)
+        script.setSourceCode(PRIVATE_DRAFT_SCRIPT if self._binding.app=='vault' else NOTES_DRAFT_SCRIPT if self.session.binding.app=='notes' else DRAFT_SCRIPT if self.session.binding.app=='compose' else APP_DRAFT_SCRIPT)
         self.page.scripts().insert(script)
         self._theme_script=QWebEngineScript();self._theme_script.setName('Lumen desktop theme')
         self._theme_script.setWorldId(QWebEngineScript.ScriptWorldId.MainWorld)
@@ -629,7 +639,7 @@ class ServerAppWindow(QMainWindow):
             if isinstance(value,str):self.session.remember_draft(value)
             self.copy.setEnabled(bool(self.session.draft(self.session.binding)) and self._copy_allowed())
             callback()
-        self.page.runJavaScript(NOTES_DRAFT_READ if self.session.binding.app=='notes' else DRAFT_READ if self.session.binding.app=='compose' else APP_DRAFT_READ,
+        self.page.runJavaScript(PRIVATE_DRAFT_READ if self._binding.app=='vault' else NOTES_DRAFT_READ if self.session.binding.app=='notes' else DRAFT_READ if self.session.binding.app=='compose' else APP_DRAFT_READ,
             QWebEngineScript.ScriptWorldId.ApplicationWorld,captured)
 
     def block(self, reason='offline'):
@@ -640,6 +650,12 @@ class ServerAppWindow(QMainWindow):
         self.stack.setCurrentWidget(self.status_page);self.retry.setEnabled(True)
         self.status.setText('Schreibbestätigung unklar. Kein erneutes Senden; Auftrag zuerst auf dem Server prüfen.'
                             if self.session.uncertain else 'App-Sitzung nicht verfügbar. Eingaben werden nicht erneut gesendet.')
+        if self._binding.app=='vault':
+            # A hung renderer must never keep an unlocked Vault alive after revocation.
+            self.session.remember_draft('')
+            if self.page is not None:self.page.setLifecycleState(QWebEnginePage.LifecycleState.Discarded)
+            self._loaded=False
+            return
         def freeze():
             if self.page is not None:
                 # Discarding Audio stops capture even if its renderer ignores JavaScript.
@@ -649,7 +665,7 @@ class ServerAppWindow(QMainWindow):
         self._capture(freeze)
 
     def _copy_allowed(self):
-        return (not self._disposed and self.session.binding==self._binding and self.session.state!='identity'
+        return (self._binding.app!='vault' and not self._disposed and self.session.binding==self._binding and self.session.state!='identity'
                 and (self._pilot_connection is None or self._binding.app in APP_NAMES and self._pilot_current()))
 
     def copy_draft(self):

@@ -16,9 +16,11 @@ import lumen_connect
 
 
 APPS = {'notes': ('note', 'notes'), 'projects': ('projects', 'projects'),
-        'code': ('code', 'code'), 'compose': ('translate', 'translate'), 'audio': ('media', 'media')}
+        'code': ('code', 'code'), 'compose': ('translate', 'translate'), 'audio': ('media', 'media'),
+        'vault': ('vault', 'vault_sync'), 'inbox': ('inbox', 'inbox')}
 APP_NAMES = {'notes': ('Lumen Notes', 'lumen-wissen'), 'projects': ('Lumen Projekte', 'lumen-workbench'),
-             'code': ('Lumen Code', 'lumen-code'), 'audio': ('Lumen Audio Studio', 'lumen-meetings')}
+             'code': ('Lumen Code', 'lumen-code'), 'audio': ('Lumen Audio Studio', 'lumen-meetings'),
+             'vault': ('Lumen Vault', 'lumen-vault'), 'inbox': ('Lumen Inbox', 'lumen-inbox')}
 
 
 class SessionError(ValueError):

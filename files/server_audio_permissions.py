@@ -17,7 +17,7 @@ def context(window):
 def current(window, proof):
     page,profile,session,generation,session_generation=proof
     return bool(not is_deleted(window) and not window._disposed and not window._closing
-        and window._live and window._loaded and window._binding.app in ('audio','code')
+        and window._live and window._loaded and window._binding.app in ('audio','code','vault','inbox')
         and page is window.page and profile is window.profile and profile is window._bound_profile
         and session is window.session and session.binding==window._binding
         and generation==window._generation and session_generation==session._generation
@@ -32,12 +32,14 @@ def fresh(window, proof):
         okay=proof[2].check()
         job.check()
         return okay
-    return run_job(window,tr('Lumen Audio Studio · Gerätefreigabe wird geprüft …'),check) is True and current(window,proof)
+    return run_job(window,window._app_title+' · '+tr('Gerätefreigabe wird geprüft …'),check) is True and current(window,proof)
 
 
 def choose(window, mode):
+    if window._binding.app not in ('audio','code','vault'):return []
     audio=window._binding.app=='audio'
-    modes=(QWebEnginePage.FileSelectionMode.FileSelectOpen,) if audio else (
+    vault=window._binding.app=='vault'
+    modes=(QWebEnginePage.FileSelectionMode.FileSelectOpen,) if audio or vault else (
         QWebEnginePage.FileSelectionMode.FileSelectOpen,QWebEnginePage.FileSelectionMode.FileSelectOpenMultiple)
     if mode not in modes:return []
     proof=context(window)
@@ -45,18 +47,21 @@ def choose(window, mode):
     if audio:
         path,_=QFileDialog.getOpenFileName(window,tr('Aufnahme für Lumen Audio Studio auswählen'),'',tr('Audio (*.wav *.mp3 *.ogg *.m4a *.flac *.webm)'))
         paths=[path] if path else []
+    elif vault:
+        path,_=QFileDialog.getOpenFileName(window,tr('Lumen Vault · Schlüsseldatei auswählen'),'')
+        paths=[path] if path else []
     else:
         paths,_=QFileDialog.getOpenFileNames(window,tr('Textdateien für Lumen Code auswählen'),'')
     if not paths or not fresh(window,proof):return []
     try:
-        if len(paths)>(1 if audio else 256):raise ValueError
+        if len(paths)>(1 if audio or vault else 256):raise ValueError
         names=set();total=0
         for name in paths:
             value=Path(name);info=value.lstat()
-            if not stat.S_ISREG(info.st_mode) or info.st_size>(64*1024**2 if audio else 512*1024):raise ValueError
+            if not stat.S_ISREG(info.st_mode) or info.st_size>(1024**2 if vault else 64*1024**2 if audio else 512*1024):raise ValueError
             if audio:
                 if not info.st_size or value.suffix.lower() not in ('.wav','.mp3','.ogg','.m4a','.flac','.webm'):raise ValueError
-            else:
+            elif not vault:
                 if (value.name in names or value.name in ('.git','.ssh','.aws','.gitmodules','.gitattributes')
                         or value.name.startswith('.env') or value.name.endswith(('.pem','.key'))):raise ValueError
                 names.add(value.name)
