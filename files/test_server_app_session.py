@@ -74,6 +74,35 @@ class SessionTest(unittest.TestCase):
         self.assertIn('lumen_session=', self.web_calls[1].get_header('Cookie'))
         self.assertNotIn(self.config['token'], repr(session))
 
+    def test_current_server_64_character_cookie_uses_existing_transport(self):
+        token = 'Aa0_' * 16
+        self.cookie = self.cookie.replace('c' * 43, token)
+        session = self.session(); session.connect()
+        self.assertTrue(session.usable)
+        self.assertEqual(session._cookie, token.encode('ascii'))
+        self.assertEqual(self.web_calls[1].get_header('Cookie'), 'lumen_session=' + token)
+        self.assertEqual(len(self.native_calls[1][2]['challenge']), 64)
+        self.assertEqual(len(json.loads(self.web_calls[0].data)['verifier']), 43)
+        self.assertTrue(all(request.get_header('Authorization') is None for request in self.web_calls))
+
+    def test_cookie_rejects_other_lengths_and_invalid_alphabet(self):
+        original = self.cookie
+        for token in ['c' * n for n in (42, 44, 63, 65)] + ['c' * 42 + '!', 'c' * 63 + '!']:
+            with self.subTest(length=len(token), invalid_alphabet='!' in token):
+                self.cookie = original.replace('c' * 43, token)
+                session = self.session(); before = len(self.web_calls)
+                with self.assertRaises(host.SessionError): session.connect()
+                self.assertFalse(session.usable)
+                self.assertEqual(len(self.web_calls), before + 1)
+
+    def test_64_character_ticket_is_not_a_valid_session_ticket(self):
+        def oversized_ticket(config, path, body=None, **kwargs):
+            value = self.native_request(config, path, body, **kwargs)
+            return dict(value, ticket='t' * 64) if path.endswith('/session-ticket') else value
+        with patch.object(host.lumen_connect, 'request', side_effect=oversized_ticket):
+            with self.assertRaises(host.SessionError): self.session().connect()
+        self.assertEqual(self.web_calls, [])
+
     def test_origin_and_ids_reject_ambiguous_or_foreign_binding(self):
         for origin in ['http://lumen.test', ORIGIN+'/', ORIGIN+'?x=1', ORIGIN+'#x',
                        'https://user@lumen.test', ORIGIN+'\\evil', ORIGIN+'%2f', ORIGIN+'\n']:

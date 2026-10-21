@@ -168,7 +168,7 @@ class AppSession:
             cookie.load(values[0])
             if set(cookie) != {'lumen_session'}:raise SessionError()
             c = cookie['lumen_session']
-            if (not re.fullmatch(r'[A-Za-z0-9_-]{43}', c.value) or not c['secure'] or not c['httponly']
+            if (not re.fullmatch(r'(?:[A-Za-z0-9_-]{43}|[A-Za-z0-9_-]{64})', c.value) or not c['secure'] or not c['httponly']
                     or c['samesite'].lower() != 'strict' or c['domain'] or c['path'] != '/'
                     or not c['max-age'].isdigit() or not 0 < int(c['max-age']) <= 900):raise SessionError()
             csrf = result.get('csrf')
