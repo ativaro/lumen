@@ -227,6 +227,17 @@ class WindowTest(unittest.TestCase):
         pending.pop()()
         self.assertEqual(result,[None])
 
+    def test_reference_verification_failure_completes_once_without_selecting(self):
+        window=self.import_window(drive=False,pilot=True,app='notes')
+        reference=dict(version=2,app='note',id=FILE,title='Own selected note',
+                       locator=dict(server=self.origin,account=USER))
+        self.js(window,'window.__lumenOpenReference=()=>{window.selectedReference=true;return true}')
+        result=[]
+        with patch.object(window.session,'check',side_effect=OSError('Own synthetic disconnect')):
+            window.open_reference(reference,result.append)
+            self.wait(lambda:bool(result))
+        self.assertEqual(result,[None]);self.assertFalse(self.js(window,'window.selectedReference === true'))
+
     def test_notes_expired_session_keeps_copy_only_for_same_binding_and_connection(self):
         window=self.import_window(drive=False,pilot=True,app='notes');self.note_input(window)
         window.session._deadline=window.session._clock()-1

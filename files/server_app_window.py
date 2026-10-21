@@ -387,16 +387,19 @@ class ServerAppWindow(QMainWindow):
             script="typeof window.__lumenOpenReference==='function' ? window.__lumenOpenReference("+value+") : null"
             self.page.runJavaScript(script,QWebEngineScript.ScriptWorldId.MainWorld,
                 lambda accepted:completed(accepted if current() and type(accepted) is bool else None))
-        self.verify(ready=ready)
+        self.verify(ready=ready,failed=lambda:completed(None))
 
-    def verify(self, *, reconnect=False, ready=None):
-        if self._disposed or self._closing or not WEBENGINE or self.page is None or self._worker is not None:return
-        if not self._pilot_current():self._invalidate_pilot();return
-        if self.session.state=='identity':self.retry.setEnabled(False);return
+    def verify(self, *, reconnect=False, ready=None, failed=None):
+        def unavailable():
+            if failed is not None:failed()
+        if self._disposed or self._closing or not WEBENGINE or self.page is None or self._worker is not None:
+            unavailable();return
+        if not self._pilot_current():self._invalidate_pilot();unavailable();return
+        if self.session.state=='identity':self.retry.setEnabled(False);unavailable();return
         if reconnect and self._loaded and not self.session.has_cookie:
             self.block(self.session.state)
             self.status.setText('Sitzung beendet. Entwurf kopieren und die App erneut öffnen.')
-            self.retry.setEnabled(False);return
+            self.retry.setEnabled(False);unavailable();return
         generation = self._generation
         self.retry.setEnabled(False)
         connection=self._pilot_connection
@@ -406,7 +409,16 @@ class ServerAppWindow(QMainWindow):
             else:self.session.check()
             if connection is not None and _connection()[1]!=connection:raise SessionError('connection')
         worker = Call(check,self);self._worker = worker
-        worker.finished.connect(lambda:self._verified(worker,generation,ready));worker.start()
+        def finished():
+            notified=False
+            def available():
+                nonlocal notified
+                notified=True
+                if ready is not None:ready()
+            try:self._verified(worker,generation,available)
+            finally:
+                if not notified:unavailable()
+        worker.finished.connect(finished);worker.start()
 
     def _verified(self, worker, generation, ready=None):
         self._worker = None;worker.deleteLater()
