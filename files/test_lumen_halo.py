@@ -48,6 +48,11 @@ with tempfile.TemporaryDirectory() as tmp, patch('desktop_backend.DesktopBackend
   assert p.work_mark.timer.isActive() and mark.property('rotation')!=0
   p.backend.set_busy(False);QTest.qWait(40)
   assert not p.work_mark.timer.isActive() and mark.property('rotation')==0
+  from lumen_halo import LumenHalo
+  with patch('lumen_halo.QApplication.styleHints',return_value=object()):
+   legacy=LumenHalo();legacy.show();legacy.setActive(True)
+   assert legacy.accessibility is None and legacy.timer.isActive()
+   legacy.hide();assert not legacy.timer.isActive()
  finally:
   c.shutdown();w.hide();e.deleteLater();p.context_tools.close();p.backend.shutdown();p.close();QTest.qWait(20)
 ''')

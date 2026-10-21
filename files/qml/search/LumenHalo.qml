@@ -5,7 +5,7 @@ Image {
     id: halo
     objectName: "lumenThinkingMark"
     property bool active: false
-    property bool reduceMotion: Application.styleHints.accessibility.motionPreference === Qt.ReducedMotion
+    property bool reduceMotion: Application.styleHints.accessibility !== undefined && Application.styleHints.accessibility.motionPreference === Qt.ReducedMotion
     source: Qt.resolvedUrl("lumen-mark.svg")
     sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
     fillMode: Image.PreserveAspectFit

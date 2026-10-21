@@ -18,8 +18,9 @@ class LumenHalo(QWidget):
         self.timer.setInterval(33)
         self.timer.timeout.connect(self.tick)
         self.hints = QApplication.styleHints()
-        self.accessibility = self.hints.accessibility()
-        self.accessibility.motionPreferenceChanged.connect(self.update_running)
+        self.accessibility = self.hints.accessibility() if hasattr(self.hints, 'accessibility') else None
+        if self.accessibility:
+            self.accessibility.motionPreferenceChanged.connect(self.update_running)
 
     def setActive(self, active):
         self.active = bool(active)
@@ -27,7 +28,7 @@ class LumenHalo(QWidget):
 
     def update_running(self, *_):
         animate = (self.active and self.isVisible()
-                   and self.accessibility.motionPreference() != Qt.ReducedMotion
+                   and not (self.accessibility and self.accessibility.motionPreference() == Qt.ReducedMotion)
                    and QApplication.style().styleHint(QStyle.SH_Widget_Animate))
         if animate: self.timer.start()
         else: self.timer.stop(); self.angle = 0; self.update()
