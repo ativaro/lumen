@@ -64,6 +64,16 @@ class NotesRetirementTest(unittest.TestCase):
         self.assertIn('# Memory',sync.remote_text(dict(title='Memory',body='Keep memory text')))
         self.assertIn('Keep memory text',sync.remote_text(dict(title='Memory',body='Keep memory text')))
 
+    def test_connector_fallback_only_runs_memory_and_other_remaining_areas(self):
+        import lumen_connect as client
+        with patch.object(client,'_DATA_PROCESS',None),patch.object(client,'_DATA_NEXT',0), \
+                patch('pathlib.Path.exists',return_value=False), \
+                patch.object(client,'sync_memory') as memory,patch.object(client,'sync_projects'), \
+                patch.object(client,'sync_drive'),patch.object(client,'sync_vault'), \
+                patch.object(client.subprocess,'Popen') as spawn:
+            client.sync_data();memory.assert_called_once_with();spawn.assert_not_called()
+        self.assertFalse(hasattr(client,'sync_notes'))
+
     def test_shared_asset_folder_helper_still_verifies_symlinks(self):
         sync.ensure_folder(self.book,'Folder/Nested')
         self.assertTrue((self.book.root/'Folder/Nested').is_dir())

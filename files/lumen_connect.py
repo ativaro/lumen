@@ -895,7 +895,7 @@ def sync_data():
     if not helper.exists():
         helper = Path.home()/".local/share/lumen/files/sync_settings.py"
     if not helper.exists():
-        sync_notes(); sync_notes("memory_sync.py"); sync_projects(); sync_drive(); sync_vault()
+        sync_memory(); sync_projects(); sync_drive(); sync_vault()
         return
     _DATA_PROCESS = subprocess.Popen([sys.executable, str(helper)], stdin=subprocess.PIPE,
                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -983,10 +983,9 @@ def sync_projects():
     )
 
 
-def sync_notes(helper_name="wissen_sync.py"):
-    """The existing opted-in notebook synchronizer runs separately from heartbeats."""
-    if helper_name not in ("wissen_sync.py", "memory_sync.py"):
-        raise ValueError("Invalid notebook synchronizer")
+def sync_memory():
+    """Keep the opted-in memory helper; User Notes are owned by the Server app."""
+    helper_name="memory_sync.py"
     process = _NOTES_PROCESSES.get(helper_name)
     if process is not None and process.poll() is None:
         return
