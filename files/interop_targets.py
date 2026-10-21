@@ -19,7 +19,7 @@ from tools_data import Library, document_text, media_duration, web_url
 ACTIONS = {
     'translate.import': dict(target='translate', label=tr('In Lumen Compose bearbeiten …'), modes=['copy'], description=tr('Text oder PDF lokal vorbereiten. Übersetzen, Umformulieren oder Korrigieren erst in Compose starten.')),
     'wissen.import': dict(target='wissen', label=tr('Als Notiz speichern …'), modes=['copy', 'link'], description=tr('In Lumen Notes speichern. Die Originaldatei bleibt unverändert.')),
-    'workbench.add': dict(target='workbench', label=tr('Zu einem Projekt hinzufügen …'), modes=['copy', 'link','live'], description=tr('Material und Notizen einem neuen oder vorhandenen Projekt zuordnen.')),
+    'workbench.add': dict(target='workbench', label=tr('Zu einem Projekt hinzufügen …'), modes=['copy', 'link'], description=tr('Material und Notizen einem neuen oder vorhandenen Projekt zuordnen.')),
     'workbench.question': dict(target='workbench', label=tr('Mit Lumen im Projekt besprechen …'), modes=['copy'], description=tr('Ausgewählten Text als Frage im Projektgespräch auf dem Server senden.')),
     'household.add': dict(target='household', label=tr('Zu einem Gerät oder Vertrag hinzufügen …'), modes=['copy','link','live'], description=tr('Belege, Handbücher und Notizen einem Gerät oder Vertrag zuordnen.')),
     'radio.add': dict(target='radio', label=tr('Für eine Radioausgabe sammeln …'), modes=['copy'], description=tr('Lokalen Text für eine neue oder vorhandene Radioausgabe sammeln.')),
@@ -47,7 +47,9 @@ def available(payload):
     paths = payload.get('paths', []); text = bool(payload.get('text', '').strip())
     result = ['wissen.import', 'workbench.add', 'household.add', 'inbox.draft', 'inbox.task', 'inbox.event']
     if (text and len(payload.get('text','')) <= 12000) or (not text and len(paths)==1 and Path(paths[0]).suffix.lower()=='.pdf'): result.append('translate.import')
-    if text: result += ['workbench.question', 'meetings.agenda']
+    if text:
+        if not paths: result.append('workbench.question')
+        result.append('meetings.agenda')
     if text or (paths and all(Path(p).suffix.lower() in TEXT_SUFFIXES for p in paths)): result.append('radio.add')
     if text or (len(paths) == 1 and Path(paths[0]).suffix.lower() in READER_SUFFIXES): result.append('reader.import')
     if len(paths) == 1 and Path(paths[0]).suffix.lower() in AUDIO_SUFFIXES: result.append('meetings.import')

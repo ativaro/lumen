@@ -83,6 +83,14 @@ class CaptureTest(unittest.TestCase):
             result=interop_targets.apply('workbench.add',self.payload,self.choice,self.job,root=self.root/'tools',session=self.session,permissions_revision=self.revision)
             self.assertEqual(result['app'],'projects')
 
+    def test_project_action_menu_only_offers_implemented_server_capture_modes(self):
+        import interop_targets
+        self.assertEqual(interop_targets.ACTIONS['workbench.add']['modes'],['copy','link'])
+        self.assertIn('workbench.question',interop_targets.available(self.payload))
+        mixed=dict(self.payload,paths=['/fixture/document.pdf'])
+        self.assertNotIn('workbench.question',interop_targets.available(mixed))
+        self.assertIn('workbench.add',interop_targets.available(mixed))
+
     def test_local_files_cannot_be_silently_copied_without_drive_confirmation(self):
         changed=dict(self.payload,paths=['/fixture/private.pdf']);token=self.registry.enqueue('workbench','workbench.add',changed)
         with self.assertRaisesRegex(ValueError,'Drive'):
