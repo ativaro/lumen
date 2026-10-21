@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 import stat
 import tempfile
-from uuid import uuid4
 from code_library_contract import app_document
 
 
@@ -20,40 +19,8 @@ def directory(collection, item):
 
 
 def prepare_run(collection, identity, user_input=''):
-    item = collection.get(identity)
-    if item['archived']:
-        raise ValueError('Archivierte Einträge können nicht ausgeführt werden.')
-    if not isinstance(user_input, str) or len(user_input) > 20000:
-        raise ValueError('Eingabe: höchstens 20.000 Zeichen.')
-    value = item['definition']; root = directory(collection, item)
-    steps = []; approved = False; prompt = value.get('prompt', '')
-    if item['kind'] == 'automation':
-        flow = next((row for row in collection.store.workflows() if row['id'] == value.get('workflow_id')), None)
-        if flow is None or not flow['approved']:
-            raise ValueError('Die Automation zuerst mit ihren Quellen und Schritten einrichten und freigeben.')
-        steps = flow['steps']; prompt = flow['prompt']; approved = True
-        roots = flow['roots']
-        if not roots:
-            raise ValueError('Der Automation fehlt ein freigegebener Ordner.')
-        root = Path(roots[0]).resolve(strict=True)
-    else:
-        roots = [str(root)]
-    if item['kind'] == 'app':
-        output=collection.store.directory/'code-work'/item['id']/uuid4().hex
-        output.mkdir(parents=True,mode=0o700)
-        roots=list(dict.fromkeys([str(output),*roots]));root=output
-        prompt += '\nErstelle eine eigenständige kleine HTML-Anwendung und speichere sie als index.html im Auftragsordner. Verwende keine externen Ressourcen oder Netzwerkzugriffe. Behalte die Bedienung vollständig innerhalb dieser Datei.'
-    if not prompt.strip() and not steps:
-        raise ValueError('Bitte zuerst einen Auftrag oder feste Schritte hinterlegen.')
-    if user_input.strip():
-        prompt += '\n\nEingabe für diesen Durchlauf:\n' + user_input
-    task = collection.store.create_task(item['title'], prompt=prompt, directory=str(root), roots=roots, steps=steps, approved=approved)
-    if item['kind']=='automation' and flow.get('code_plan'):
-        from code_flow_native import snapshot
-        with collection.store.connect() as db:snapshot(db,task,flow,True)
-    collection.store.event(task, 'code-library', item['id'])
-    collection.used(identity, task)
-    return task
+    from code_flow_native import unavailable
+    unavailable()
 
 
 def generated_html(collection, identity):

@@ -148,19 +148,10 @@ class Store:
         if not values or not set(values) <= allowed: raise ValueError(tr('Ungültige Auftragsfelder.'))
         values['updated'] = time.time()
         with self.connect() as db:
-            if values.get('status')=='completed':
-                from code_flow_native import complete
-                current=db.execute('SELECT result FROM tasks WHERE id=?',(task,)).fetchone()
-                complete(db,task,values.get('result',current['result'] if current else ''))
+            if values.get('status') in ('running','completed'):
+                from code_flow_native import check_task
+                check_task(db,task)
             db.execute('UPDATE tasks SET ' + ','.join(k + '=?' for k in values) + ' WHERE id=?', (*values.values(), task))
-        if values.get('status')=='completed':
-            try:
-                from code_flow_native import deliver
-                deliver(self)
-            except (OSError,ValueError,sqlite3.Error):
-                # The durable pending event can be retried without repeating a result action.
-                import logging
-                logging.getLogger(__name__).warning('Lumen flow notification delivery is pending')
 
     def event(self, task, kind, detail):
         with self.connect() as db:
@@ -204,9 +195,9 @@ class Store:
 
     def save_workflow(self, name, steps, roots, trigger='manual', interval=3600, watch='', enabled=False, now=None, workflow=None, approved=False, prompt='', code_plan='', collection_entry=None):
         from lumen_actions import validate_steps
-        if code_plan:
-            from code_flow import parse
-            parse(code_plan)
+        if code_plan or collection_entry or trigger=='schedule':
+            from code_flow_native import unavailable
+            unavailable()
         if steps: validate_steps(steps)
         elif not prompt.strip(): raise ValueError(tr('Schritte oder ein Auftrag sind erforderlich.'))
         if enabled and not approved: raise PermissionError(tr('Den Ablauf zuerst ausdrücklich freigeben.'))
@@ -218,25 +209,15 @@ class Store:
             watch = str(Path(watch).resolve(strict=True))
             if not Path(watch).is_dir() or not any(Path(watch).is_relative_to(Path(p)) for p in roots):
                 raise ValueError(tr('Beobachteter Ordner muss freigegeben sein.'))
-        if trigger=='schedule' and (not code_plan or 'clock' not in parse(code_plan)):
-            raise ValueError(tr('Ein gültiger Kalenderzeitplan ist erforderlich.'))
         workflow = workflow or identifier(); now = time.time() if now is None else now
         fingerprint = directory_fingerprint(watch) if watch else ''
         next_run=now+int(interval)
-        if trigger=='schedule':
-            from code_clock import starts
-            dates=starts(parse(code_plan)['clock'],now)
-            if not dates:raise ValueError(tr('Bitte eine zukünftige Startzeit wählen.'))
-            next_run=dates[0]
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
-            if collection_entry:
-                entry_id,revision=collection_entry
-                entry=db.execute('SELECT * FROM code_library WHERE id=?',(entry_id,)).fetchone()
-                if entry is None or entry['revision']!=revision or entry['archived']:
-                    raise ValueError(tr('Eintrag inzwischen geändert. Bitte neu laden.'))
-                value=json.loads(entry['definition']);value['workflow_id']=workflow
-                db.execute('UPDATE code_library SET definition=?,revision=revision+1,updated=? WHERE id=?',(json.dumps(value),now,entry_id))
+            current=db.execute('SELECT * FROM workflows WHERE id=?',(workflow,)).fetchone()
+            if current:
+                from code_flow_native import owns_workflow,unavailable
+                if owns_workflow(db,current):unavailable()
             db.execute('INSERT OR REPLACE INTO workflows (id,name,steps,roots,trigger,interval,watch,enabled,next_run,fingerprint,updated,approved,prompt,code_plan) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
                        (workflow, name, json.dumps(steps), json.dumps(roots), trigger, int(interval), watch, int(enabled), next_run, fingerprint, now, int(approved), prompt, code_plan))
         return workflow
@@ -253,14 +234,11 @@ class Store:
             db.execute('BEGIN IMMEDIATE')
             flow=db.execute('SELECT * FROM workflows WHERE id=?',(workflow,)).fetchone()
             if flow is None:raise ValueError(tr('Ablauf nicht mehr verfügbar.'))
+            if enabled:
+                from code_flow_native import owns_workflow,unavailable
+                if owns_workflow(db,flow):unavailable()
             if enabled and not flow['approved']:raise PermissionError(tr('Den Ablauf zuerst freigeben.'))
             next_run=now+flow['interval']
-            if enabled and flow['trigger']=='schedule':
-                from code_flow import parse
-                from code_clock import starts
-                dates=starts(parse(flow['code_plan'])['clock'],now)
-                if not dates:raise ValueError(tr('Bitte eine zukünftige Startzeit wählen.'))
-                next_run=dates[0]
             db.execute('UPDATE workflows SET enabled=?,next_run=?,updated=? WHERE id=?',(int(enabled),next_run,now,workflow))
 
     def enqueue_due(self, now=None):
@@ -269,20 +247,14 @@ class Store:
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             for flow in db.execute("SELECT * FROM workflows WHERE enabled=1 AND approved=1 AND trigger!='manual' AND next_run<=?", (now,)).fetchall():
+                from code_flow_native import owns_workflow
+                if owns_workflow(db,flow):continue
                 fingerprint = flow['fingerprint']
                 if flow['trigger'] == 'directory':
                     try: fingerprint = directory_fingerprint(flow['watch'])
                     except OSError:
                         db.execute('UPDATE workflows SET enabled=0 WHERE id=?', (flow['id'],)); continue
                 next_run=now+flow['interval']
-                if flow['trigger']=='interval' and flow['code_plan']:
-                    from code_flow import parse
-                    if parse(flow['code_plan']).get('clock',{}).get('kind')=='interval':next_run=flow['next_run']+(int((now-flow['next_run'])//flow['interval'])+1)*flow['interval']
-                if flow['trigger']=='schedule':
-                    from code_clock import starts
-                    from code_flow import parse
-                    dates=starts(parse(flow['code_plan'])['clock'],now)
-                    next_run=dates[0] if dates else 253402300799
                 db.execute('UPDATE workflows SET next_run=?,fingerprint=? WHERE id=?', (next_run, fingerprint, flow['id']))
                 if flow['trigger'] == 'directory' and fingerprint == flow['fingerprint']: continue
                 pending = db.execute("SELECT 1 FROM tasks JOIN events ON events.task=tasks.id WHERE events.kind='workflow' AND events.detail=? AND tasks.status IN ('queued','running','needs_input','paused','interrupted') LIMIT 1", (flow['id'],)).fetchone()
@@ -291,8 +263,6 @@ class Store:
                 db.execute('INSERT INTO tasks (id,title,prompt,directory,roots,steps,status,approved,created,updated) VALUES (?,?,?,?,?,?,?,?,?,?)',
                            (task, flow['name'], flow['prompt'], roots[0] if roots else str(Path.home()), flow['roots'], flow['steps'], 'queued', 1, now, now))
                 db.execute('INSERT INTO events (task,kind,detail,created) VALUES (?,?,?,?)', (task, 'workflow', flow['id'], now))
-                from code_flow_native import snapshot
-                snapshot(db,task,flow)
                 queued.append(task)
         return queued
 

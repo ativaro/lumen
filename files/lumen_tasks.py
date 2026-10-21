@@ -17,7 +17,17 @@ def run_steps(store, task_id):
     finally: os.close(lease)
 
 
+def reject_code_task(store,task_id):
+    from code_flow_native import check_task
+    try:
+        with store.connect() as db:check_task(db,task_id)
+    except ValueError as error:
+        store.update_task(task_id,status='failed',error=str(error))
+        raise
+
+
 def _run_steps(store, task_id):
+    reject_code_task(store,task_id)
     task = store.task(task_id)
     if not task['steps']: raise ValueError(tr('Dieser Auftrag benötigt Lumen im Vordergrund.'))
     if not task['approved']: raise PermissionError(tr('Auftrag zuerst freigeben.'))
@@ -60,14 +70,10 @@ def tick(store):
         except BlockingIOError: return
         store.recover()
         store.enqueue_due()
-        from code_flow_native import deliver
-        deliver(store)
         reason = defer_background(store)
-        if not reason:
-            from code_library import Collection
-            from code_blocks_worker import run_pending
-            run_pending(Collection(store))
         for item in store.rows("SELECT id FROM tasks WHERE status='queued' ORDER BY created LIMIT 20"):
+            try:reject_code_task(store,item['id'])
+            except ValueError:continue
             task = store.task(item['id'])
             if reason:
                 store.update_task(task['id'], error=reason); continue
