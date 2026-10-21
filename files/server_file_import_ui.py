@@ -129,7 +129,7 @@ def start_import(window,context,token=None,*,root=None):
             destination=request['choice']['drive_import']['destination']
         else:
             spec=dict(label='Lumen Drive · Datei übernehmen',title_label='Dateiname',save_label='Datei übernehmen',
-                modes=['copy'],requires_choice=True,
+                heading='Datei in Drive speichern',modes=['copy'],requires_choice=True,
                 description=tr('Eine eigenständige Kopie im gewählten Ordner speichern.\nServer: {0}\nKonto: {1}',binding.origin,binding.account))
             choice=review(window,request,spec=spec,rows=[dict(id=row['reference']['id'],title=row['title']) for row in folders])
             if choice is None:return None

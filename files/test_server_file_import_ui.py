@@ -154,6 +154,15 @@ class ImportUITest(unittest.TestCase):
         begin=next(body for path,method,body in self.calls if method=='POST' and path.count('/')==2)
         self.assertEqual(begin['folder'],self.folder)
 
+    def test_repeated_native_file_choices_are_two_explicit_separate_operations(self):
+        original=self.path;self.start()
+        self.path=original.with_name('Second.pdf');self.path.write_bytes(b'Second explicit selection')
+        self.start()
+        rows=[row for row in self.registry.history() if row['id']!=self.token]
+        self.assertEqual(len(rows),2);self.assertTrue(all(row['state']=='done' for row in rows))
+        self.assertEqual(len(self.delivered),2);self.assertEqual(len(self.sessions),2)
+        self.assertEqual(original.read_bytes(),self.original)
+
     def test_picker_and_review_cancellation_never_claim_or_upload(self):
         self.cancel_picker = True; self.assertIsNone(self.start())
         self.assertEqual(len(self.registry.history()), 1)

@@ -91,8 +91,11 @@ def review(window,request,*,spec=None,rows=None):
     from interop_targets import ACTIONS,choices
     explicit=spec is not None
     action=request['action'];spec=ACTIONS[action] if spec is None else spec;payload=request['payload']
-    dialog=QDialog(window);dialog.setWindowTitle(tr(spec['label']));dialog.resize(620,520)
+    dialog=QDialog(window);dialog.setWindowTitle(tr(spec['label']));dialog.resize(620,600 if explicit and spec.get('heading') else 520)
     form=QFormLayout(dialog)
+    if explicit and spec.get('heading'):
+        from desktop_design import AppHeader
+        heading=AppHeader(tr(spec['heading']));heading.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Fixed);form.addRow(heading)
     description=QLabel(tr(spec.get('description',spec['label'])));form.addRow(description)
     default_title=payload.get('title','')
     if action=='inbox.task' and payload.get('text','').strip():
@@ -117,9 +120,6 @@ def review(window,request,*,spec=None,rows=None):
         field={'wissen.import':tr('Notizordner'),'workbench.add':tr('Projekt'),'workbench.question':tr('Projekt'),
                'household.add':tr('Gerät oder Vertrag'),'inbox.draft':tr('Mailkonto'),'inbox.event':tr('Kalender')}.get(action,tr('Speichern in'))
         form.addRow(field,destination)
-        if explicit:
-            selected=QLabel(destination.currentText());selected.setTextFormat(Qt.PlainText)
-            destination.currentTextChanged.connect(selected.setText);form.addRow(selected)
     mode=QComboBox()
     for key in spec.get('modes',['copy']):
         if payload.get('references') and key!=('link' if action in ('wissen.import','workbench.add') else 'copy'):continue
@@ -137,9 +137,11 @@ def review(window,request,*,spec=None,rows=None):
     preview=QPlainTextEdit(payload.get('text',''));preview.setReadOnly(True);preview.setAccessibleName(tr('Inhalt der neuen Notiz') if action=='wissen.import' else tr('Inhalt'))
     if payload.get('text'):form.addRow(preview)
     if explicit and payload.get('paths'):
-        source=QPlainTextEdit('\n'.join(payload['paths'][:10]));source.setReadOnly(True)
-        source.setAccessibleName(tr('Lokale Quelldatei'));source.setMinimumHeight(80);source.setMaximumHeight(112)
-        form.addRow(tr('Quelle'),source)
+        source=QPlainTextEdit();source.setReadOnly(True)
+        source.setAccessibleName(tr('Gewählte Quelle und Zielordner'));source.setMinimumHeight(112);source.setMaximumHeight(144)
+        def details(*_):source.setPlainText(tr('Quelle: {0}\n\nZielordner: {1}','\n'.join(payload['paths'][:10]),destination.currentText()))
+        destination.currentTextChanged.connect(details);details()
+        form.addRow(tr('Quelle und Ziel'),source)
     elif payload.get('paths'):
         paths=QLabel('\n'.join(payload['paths'][:10]));paths.setTextFormat(Qt.PlainText);form.addRow(paths)
     from interop_sources import source_title
@@ -156,7 +158,7 @@ def review(window,request,*,spec=None,rows=None):
         destination.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
         destination.setMinimumContentsLength(1);destination.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Fixed)
         title.textChanged.connect(title.setToolTip);title.setToolTip(title.text())
-        for text in (description,selected) if rows or needs_choice else (description,):
+        for text in (description,):
             text.setWordWrap(True);text.setTextFormat(Qt.PlainText)
             text.setAlignment(Qt.AlignLeft|Qt.AlignTop)
             text.setSizePolicy(QSizePolicy.Ignored,QSizePolicy.Maximum)
