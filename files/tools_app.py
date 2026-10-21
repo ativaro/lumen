@@ -122,6 +122,13 @@ def main():
         from server_notes_app import run
         activation={'handoff':args.handoff} if args.handoff else {'reference':args.ref} if args.ref else {}
         return run(app,activation)
+    if args.tool in ('meetings','radio') or args.tool=='workbench' and args.section in (None,'projects'):
+        kind='audio' if args.tool in ('meetings','radio') else 'projects'
+        if args.path or args.clipboard or args.area:
+            parser.error(tr('Diese Lumen-App verwendet Serverinhalte. Dateien über Lumen Files übergeben.'))
+        from server_notes_app import run
+        activation={'handoff':args.handoff} if args.handoff else {'reference':args.ref} if args.ref else ({'mode':'radio'} if args.tool=='radio' else {})
+        return run(create_app(),activation,kind=kind)
     if args.path and args.tool not in ('reader','wissen','translate'):parser.error(tr('Dateien können nur an Reader, Notes oder Compose übergeben werden.'))
     if args.area and args.tool != 'wissen': parser.error(tr('Der Bereich ist nur für Lumen Notes verfügbar.'))
     if args.clipboard and args.tool != 'translate': parser.error(tr('Die Zwischenablage ist hier nur für Compose verfügbar.'))

@@ -16,7 +16,7 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, Q
 from desktop_design import AppHeader, PAGE_MARGIN, PAGE_SPACING
 from studio_design import font
 from lumen_qt import is_deleted
-from server_app_session import AppSession, SessionError, APPS, Binding, origin
+from server_app_session import AppSession, SessionError, APPS, APP_NAMES, Binding, origin
 import lumen_connect
 
 try:
@@ -41,6 +41,20 @@ DRAFT_SCRIPT = '''(() => {
  capture();
 })()'''
 DRAFT_READ = "window.__lumenComposeDraft ?? ''"
+APP_DRAFT_SCRIPT = """(() => {
+ const capture=()=>{
+  const warning=new Event('beforeunload',{cancelable:true});
+  if(window.dispatchEvent(warning)){window.__lumenAppDraft='';return;}
+  window.__lumenAppDraft=Array.from(document.querySelectorAll(
+   'main textarea,main input[type=text],main input:not([type]),dialog[open] textarea,dialog[open] input[type=text]'))
+   .map(el=>el.value).filter(Boolean).join('\\n\\n').slice(0,262000);
+ };
+ document.addEventListener('input',()=>setTimeout(capture,0),true);
+ document.addEventListener('change',()=>setTimeout(capture,0),true);
+ window.__lumenCaptureAppDraft=capture;
+})()"""
+APP_DRAFT_READ = "window.__lumenCaptureAppDraft?.(); window.__lumenAppDraft ?? ''"
+
 NOTES_DRAFT_SCRIPT = '''(() => {
  const capture=()=>{
    const note=document.querySelector('.knowledge-editor');
@@ -214,7 +228,10 @@ if WEBENGINE:
                         and self.window.session.binding.navigation(url.toString()))
 
         def createWindow(self, kind):return None
-        def chooseFiles(self, mode, old, types):return []
+        def chooseFiles(self, mode, old, types):
+            if self.window._binding.app not in ('audio','code'):return []
+            from server_audio_permissions import choose
+            return choose(self.window,mode)
 
 
 class ServerAppWindow(QMainWindow):
@@ -222,9 +239,9 @@ class ServerAppWindow(QMainWindow):
 
     def __init__(self, session, profile_root, parent=None, *, pilot_connection=None):
         super().__init__(parent)
-        if not isinstance(session, AppSession) or session.binding.app not in ('compose','notes'):raise SessionError('identity')
+        if not isinstance(session, AppSession) or session.binding.app not in APPS:raise SessionError('identity')
         self.session = session
-        self._app_title = 'Lumen Notes' if session.binding.app=='notes' else 'Lumen Compose'
+        self._app_title = APP_NAMES.get(session.binding.app,('Lumen Compose',None))[0]
         self._binding=session.binding;self._bound_profile=None;self._profile_cookie=None
         self._live = self._loaded = self._disposed = self._closing = False
         self._generation = 0; self._worker = None; self._temporary = None
@@ -247,7 +264,7 @@ class ServerAppWindow(QMainWindow):
         self.retry = QPushButton('Erneut prüfen');self.retry.clicked.connect(lambda:self.verify(reconnect=True));layout.addWidget(self.retry,0,Qt.AlignLeft)
         self.copy = QPushButton('Entwurf kopieren');self.copy.clicked.connect(self.copy_draft);self.copy.setEnabled(False);layout.addWidget(self.copy,0,Qt.AlignLeft)
         if session.binding.app=='notes':self.copy.setText('Textkopie der ungespeicherten Notiz')
-        if pilot_connection is not None and session.binding.app!='notes':self.copy.hide()
+        if pilot_connection is not None and session.binding.app=='compose':self.copy.hide()
         layout.addStretch();self.stack.addWidget(self.status_page)
         self.timer = QTimer(self);self.timer.setInterval(2000);self.timer.timeout.connect(self.verify)
         if not WEBENGINE:
@@ -306,7 +323,10 @@ class ServerAppWindow(QMainWindow):
                      'DnsPrefetchEnabled','ScreenCaptureEnabled'):
             settings.setAttribute(getattr(QWebEngineSettings.WebAttribute,name),False)
         settings.setUnknownUrlSchemePolicy(QWebEngineSettings.UnknownUrlSchemePolicy.DisallowUnknownUrlSchemes)
-        self.page.permissionRequested.connect(lambda permission:permission.deny())
+        if self._binding.app=='audio':
+            from server_audio_permissions import permission
+            self.page.permissionRequested.connect(lambda request:permission(self,request))
+        else:self.page.permissionRequested.connect(lambda permission:permission.deny())
         self.page.fileSystemAccessRequested.connect(lambda request:request.reject())
         self.page.certificateError.connect(self._certificate)
         self.page.renderProcessTerminated.connect(lambda *_:self.block('renderer'))
@@ -317,7 +337,7 @@ class ServerAppWindow(QMainWindow):
         script.setWorldId(QWebEngineScript.ScriptWorldId.ApplicationWorld)
         script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentReady)
         script.setRunsOnSubFrames(False)
-        script.setSourceCode(NOTES_DRAFT_SCRIPT if self.session.binding.app=='notes' else DRAFT_SCRIPT)
+        script.setSourceCode(NOTES_DRAFT_SCRIPT if self.session.binding.app=='notes' else DRAFT_SCRIPT if self.session.binding.app=='compose' else APP_DRAFT_SCRIPT)
         self.page.scripts().insert(script)
         self._theme_script=QWebEngineScript();self._theme_script.setName('Lumen desktop theme')
         self._theme_script.setWorldId(QWebEngineScript.ScriptWorldId.MainWorld)
@@ -544,7 +564,7 @@ class ServerAppWindow(QMainWindow):
 
     def _lumen_file_import(self,token=None):
         """Native-only entry point; no renderer object, menu or launcher registration."""
-        if self.session.binding.app!='compose':raise SessionError('identity')
+        if self.session.binding.app not in ('compose','projects','audio'):raise SessionError('identity')
         if threading.get_ident()!=self._gui_thread:raise SessionError('thread')
         if self._import_lease is not None or self._import_running:raise SessionError('busy')
         self._invalidate_import(None)
@@ -609,7 +629,7 @@ class ServerAppWindow(QMainWindow):
             if isinstance(value,str):self.session.remember_draft(value)
             self.copy.setEnabled(bool(self.session.draft(self.session.binding)) and self._copy_allowed())
             callback()
-        self.page.runJavaScript(NOTES_DRAFT_READ if self.session.binding.app=='notes' else DRAFT_READ,
+        self.page.runJavaScript(NOTES_DRAFT_READ if self.session.binding.app=='notes' else DRAFT_READ if self.session.binding.app=='compose' else APP_DRAFT_READ,
             QWebEngineScript.ScriptWorldId.ApplicationWorld,captured)
 
     def block(self, reason='offline'):
@@ -621,12 +641,16 @@ class ServerAppWindow(QMainWindow):
         self.status.setText('Schreibbestätigung unklar. Kein erneutes Senden; Auftrag zuerst auf dem Server prüfen.'
                             if self.session.uncertain else 'App-Sitzung nicht verfügbar. Eingaben werden nicht erneut gesendet.')
         def freeze():
-            if self.page is not None:self.page.setLifecycleState(QWebEnginePage.LifecycleState.Frozen)
+            if self.page is not None:
+                # Discarding Audio stops capture even if its renderer ignores JavaScript.
+                state=QWebEnginePage.LifecycleState.Discarded if self._binding.app=='audio' else QWebEnginePage.LifecycleState.Frozen
+                self.page.setLifecycleState(state)
+                if self._binding.app=='audio':self._loaded=False
         self._capture(freeze)
 
     def _copy_allowed(self):
         return (not self._disposed and self.session.binding==self._binding and self.session.state!='identity'
-                and (self._pilot_connection is None or self._binding.app=='notes' and self._pilot_current()))
+                and (self._pilot_connection is None or self._binding.app in APP_NAMES and self._pilot_current()))
 
     def copy_draft(self):
         if not self._copy_allowed():return

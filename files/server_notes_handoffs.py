@@ -1,6 +1,7 @@
 """Reviewed native Notes handoffs; Server owns the actual notebook and editor."""
 from collections import deque
 import time
+from uuid import UUID
 
 from PySide6.QtCore import QObject, QTimer
 from PySide6.QtWidgets import QMessageBox
@@ -23,11 +24,15 @@ class Requests(QObject):
         present(self.window)
         if not request:return
         if not isinstance(request,dict) or len(request)!=1 or len(self.pending)>=16:
-            raise ValueError(tr('Die Notizübergabe ist ungültig oder noch nicht abgeschlossen.'))
+            raise ValueError(tr('Die Übergabe ist ungültig oder noch nicht abgeschlossen.'))
         key,value=next(iter(request.items()))
         if key=='reference':
             self.window.session.binding.reference_url(Registry().resolve(value))
-        elif key!='handoff' or not isinstance(value,str) or not TOKEN.fullmatch(value):
+        elif key=='save_task' and self.window._binding.app=='code':
+            if not isinstance(value,str) or value not in (str(UUID(value)),UUID(value).hex):raise ValueError(tr('Ungültiger Auftrag.'))
+        elif key=='mode' and self.window._binding.app=='audio':
+            if value not in ('meeting','radio'):raise ValueError(tr('Ungültige Audioansicht.'))
+        elif key!='handoff' or self.window._binding.app not in ('notes','projects','audio') or not isinstance(value,str) or not TOKEN.fullmatch(value):
             raise ValueError(tr('Ungültige Notizübergabe.'))
         self.pending.append((dict(request),time.monotonic()+30))
         if not self.reviewing:self.timer.start()
@@ -40,15 +45,29 @@ class Requests(QObject):
         request,deadline=self.pending[0]
         if time.monotonic()>deadline:
             self.serial+=1;self.busy=False;self.pending.popleft()
-            QMessageBox.warning(w,'Lumen Notes',tr('Die Notiz konnte noch nicht geöffnet werden. '
+            QMessageBox.warning(w,w._app_title,tr('Der Inhalt konnte noch nicht geöffnet werden. '
                 'Serververbindung prüfen und die Übergabe anschließend erneut öffnen.'))
             return
         if self.busy or not w._loaded or not w._live or not w.session.usable or w._worker is not None:return
         self.busy=True;self.serial+=1;serial=self.serial
         try:
-            if 'handoff' in request:
+            if 'mode' in request:
+                import json
+                value=json.dumps(request['mode'])
+                from server_app_window import QWebEngineScript
+                def selected(accepted):
+                    if self.serial!=serial:return
+                    self.busy=False
+                    if accepted is not None:self.pending.popleft()
+                w.page.runJavaScript("window.__lumenAudioMode?.("+value+") ?? null",QWebEngineScript.ScriptWorldId.MainWorld,selected)
+                return
+            if 'handoff' in request or 'save_task' in request:
                 self.timer.stop();self.reviewing=True
-                try:ref=self.receive(request['handoff'])
+                try:
+                    if 'save_task' in request:
+                        from server_code_capture import capture
+                        ref=capture(w,request['save_task'])
+                    else:ref=self.receive(request['handoff'])
                 finally:self.reviewing=False
                 if ref is None:self.pending.popleft();self.busy=False;self.timer.start();return
                 request.clear();request['reference']=Registry().register(ref)
@@ -61,9 +80,15 @@ class Requests(QObject):
             w.open_reference(reference,completed)
         except (ValueError,OSError,RuntimeError) as error:
             self.pending.popleft();self.busy=False;self.timer.start()
-            QMessageBox.warning(w,'Lumen Notes',str(error))
+            QMessageBox.warning(w,w._app_title,str(error))
 
     def receive(self, token):
+        if self.window._binding.app=='projects':
+            from server_project_capture import receive
+            return receive(self.window,token)
+        if self.window._binding.app=='audio':
+            from server_audio_capture import receive
+            return receive(self.window,token)
         registry=Registry();request=registry.request(token)
         if request['target']!='wissen' or request['action']!='wissen.import':
             raise ValueError(tr('Diese Übergabe gehört nicht zu Lumen Notes.'))

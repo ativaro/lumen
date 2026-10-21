@@ -105,7 +105,7 @@ class WindowTest(unittest.TestCase):
                         cls.check_started.set();cls.release_check.wait(timeout=10)
                     status=403 if cls.revoked or 'lumen_session='+'c'*43 not in self.headers.get('Cookie','') else 200
                     data=dict(user=dict(id=USER,device_id=DEVICE,desktop_app=cls.app_kind,device_kind='desktop',
-                                        capabilities=['notes' if cls.app_kind=='notes' else 'translate'],admin=False,csrf='fixture'))
+                                        capabilities=[{'notes':'notes','compose':'translate','projects':'projects','code':'code','audio':'media'}[cls.app_kind]],admin=False,csrf='fixture'))
                 elif self.path=='/api/note-drafts/tags':data=dict(body=body['body'],tags=[])
                 elif self.path=='/api/translate':
                     if cls.hold_write:
@@ -179,7 +179,7 @@ class WindowTest(unittest.TestCase):
         return window
 
     def import_window(self,drive=True,*,pilot=False,app='compose'):
-        type(self).native_areas=['notes' if app=='notes' else 'translate']+(['drive'] if drive else [])
+        type(self).native_areas=[{'notes':'notes','compose':'translate','projects':'projects','code':'code','audio':'media'}[app]]+(['drive'] if drive else [])
         temp=tempfile.TemporaryDirectory(dir=self.root);self.addCleanup(temp.cleanup)
         self.import_root=Path(temp.name);(self.import_root/'config').mkdir()
         self.config=dict(server=self.origin,device_id=DEVICE,token='native-only-fixture',ca_file=str(self.cert))
@@ -722,6 +722,58 @@ class WindowTest(unittest.TestCase):
                 ").then(()=>window.foreignRequest='allowed').catch(()=>window.foreignRequest='blocked')")
         self.wait(lambda:self.js(second,'window.foreignRequest')=='blocked')
         self.assertFalse(any(c['path']=='/api/foreign-resource' for c in self.calls))
+
+    def test_projects_code_and_audio_use_the_existing_private_host(self):
+        for kind,title in (('projects','Lumen Projekte'),('code','Lumen Code'),('audio','Lumen Audio Studio')):
+            with self.subTest(kind=kind):
+                window=self.import_window(drive=False,pilot=True,app=kind)
+                self.assertEqual(window.windowTitle(),title)
+                self.assertTrue(window.session.usable)
+                self.assertTrue(window.profile.isOffTheRecord())
+                self.assertEqual(window.session.binding.app,kind)
+                self.js(window,"document.body.innerHTML='<main><textarea>Own unsent draft</textarea></main>';window.addEventListener('beforeunload',e=>e.preventDefault())")
+                self.js(window,"document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))")
+                QTest.qWait(20);self.app.processEvents()
+                captured=[];window._capture(lambda:captured.append(True));self.wait(lambda:bool(captured))
+                self.assertEqual(window.session.draft(window._binding),'Own unsent draft')
+                self.assertTrue(window._copy_allowed())
+                if kind=='audio':
+                    window.block('offline')
+                    self.wait(lambda:window.page.lifecycleState()==QWebEnginePage.LifecycleState.Discarded)
+                    self.assertFalse(window._loaded)
+                with patch.object(QMessageBox,'question',return_value=QMessageBox.StandardButton.Discard):
+                    window.close();self.wait(lambda:window._disposed)
+
+    def test_audio_input_requires_explicit_same_origin_permission_and_current_generation(self):
+        from server_audio_permissions import permission,choose
+        from PySide6.QtWebEngineCore import QWebEnginePermission
+        window=self.import_window(drive=False,pilot=True,app='audio')
+        class Permission:
+            def __init__(self,origin,kind):self.url=origin;self.kind=kind;self.granted=self.denied=0
+            def origin(self):return QUrl(self.url)
+            def permissionType(self):return self.kind
+            def isValid(self):return True
+            def grant(self):self.granted+=1
+            def deny(self):self.denied+=1
+        kind=QWebEnginePermission.PermissionType.MediaAudioCapture
+        for origin,requested in ((self.origin+'/',QWebEnginePermission.PermissionType.MediaVideoCapture),('https://foreign.invalid/',kind)):
+            value=Permission(origin,requested)
+            with patch.object(QMessageBox,'question',side_effect=AssertionError('No foreign or video prompt')):permission(window,value)
+            self.assertEqual((value.granted,value.denied),(0,1))
+        value=Permission(self.origin+'/',kind)
+        with patch.object(QMessageBox,'question',return_value=QMessageBox.No):permission(window,value)
+        self.assertEqual((value.granted,value.denied),(0,1))
+        value=Permission(self.origin+'/',kind)
+        with patch.object(QMessageBox,'question',return_value=QMessageBox.Yes):permission(window,value)
+        self.assertEqual((value.granted,value.denied),(1,0))
+        path=self.import_root/'explicit.wav';path.write_bytes(b'RIFFown-fixture')
+        with patch.object(QFileDialog,'getOpenFileName',return_value=(str(path),'')):
+            self.assertEqual(choose(window,QWebEnginePage.FileSelectionMode.FileSelectOpen),[str(path)])
+        def changed(*args):window._generation+=1;return str(path),''
+        with patch.object(QFileDialog,'getOpenFileName',side_effect=changed):
+            self.assertEqual(choose(window,QWebEnginePage.FileSelectionMode.FileSelectOpen),[])
+        with patch.object(QFileDialog,'getOpenFileName',side_effect=AssertionError('No directory or multiple file chooser')):
+            self.assertEqual(choose(window,QWebEnginePage.FileSelectionMode.FileSelectOpenMultiple),[])
 
     def test_profile_is_offrecord_with_memory_only_storage_policies(self):
         window=self.window();profile=window.profile

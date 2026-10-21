@@ -9,7 +9,7 @@ from uuid import UUID
 import drive_references as drive
 from lumen_i18n import tr
 
-ROUTES = {'note':'note', 'projects':'project', 'code':'entry'}
+ROUTES = {'note':'note', 'projects':'project', 'code':'entry', 'media':'record'}
 
 
 def _uuid(value):

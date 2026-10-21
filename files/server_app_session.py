@@ -16,7 +16,9 @@ import lumen_connect
 
 
 APPS = {'notes': ('note', 'notes'), 'projects': ('projects', 'projects'),
-        'code': ('code', 'code'), 'compose': ('translate', 'translate')}
+        'code': ('code', 'code'), 'compose': ('translate', 'translate'), 'audio': ('media', 'media')}
+APP_NAMES = {'notes': ('Lumen Notes', 'lumen-wissen'), 'projects': ('Lumen Projekte', 'lumen-workbench'),
+             'code': ('Lumen Code', 'lumen-code'), 'audio': ('Lumen Audio Studio', 'lumen-meetings')}
 
 
 class SessionError(ValueError):
@@ -65,7 +67,7 @@ class Binding:
             if not isinstance(value, str) or any(ord(c)<32 or ord(c)==127 or c=='\\' for c in value):return False
             u = urlsplit(value)
             query=parse_qs(u.query, keep_blank_values=True, strict_parsing=True)
-            key={'notes':'note','projects':'project','code':'entry'}.get(self.app)
+            key={'notes':'note','projects':'project','code':'entry','audio':'record'}.get(self.app)
             if key and key in query:
                 selected=query.pop(key)
                 if len(selected)!=1 or str(UUID(selected[0]))!=selected[0]:return False
