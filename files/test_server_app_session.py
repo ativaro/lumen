@@ -85,6 +85,75 @@ class SessionTest(unittest.TestCase):
         self.assertEqual(len(json.loads(self.web_calls[0].data)['verifier']), 43)
         self.assertTrue(all(request.get_header('Authorization') is None for request in self.web_calls))
 
+    def test_native_request_keeps_cookie_scope_and_checks_current_identity(self):
+        session=self.session();session.connect()
+        result={'id':USER,'body':'x'*100000}
+        def response(request,**kwargs):
+            self.web_calls.append(request)
+            return Response(result if request.full_url.endswith('/documents') else self.me)
+        self.opener.open.side_effect=response
+        self.assertEqual(session.request('/api/documents',{'title':'Lumen'},max_bytes=1024**2),result)
+        sent=[r for r in self.web_calls if r.full_url.endswith('/documents')]
+        self.assertEqual(len(sent),1);self.assertEqual(sent[0].get_header('Origin'),ORIGIN)
+        self.assertEqual(sent[0].get_header('X-lumen-csrf'),'csrf-fixture')
+        self.assertIsNone(sent[0].get_header('Authorization'))
+        self.assertTrue(session.usable)
+
+    def test_native_request_rejects_external_paths_and_unbounded_responses_before_io(self):
+        session=self.session();session.connect();before=len(self.web_calls)
+        for path in ('https://other.invalid/api/documents','//other.invalid/api/documents','/bridge/me',
+                     '/api/documents#fragment','/api/documents\n','/api/../bridge/me','/api/%2e%2e/bridge/me'):
+            with self.subTest(path=path),self.assertRaises(host.SessionError):session.request(path)
+        for maximum in (0,-1,1024**2+1,True,'100'):
+            with self.subTest(maximum=maximum),self.assertRaises(host.SessionError):session.request('/api/documents',max_bytes=maximum)
+        self.assertEqual(len(self.web_calls),before)
+
+    def test_uncertain_native_write_never_retries(self):
+        session=self.session();session.connect();sent=[]
+        def response(request,**kwargs):
+            if request.full_url.endswith('/documents'):
+                sent.append(request);raise TimeoutError()
+            return Response(self.me)
+        self.opener.open.side_effect=response
+        with self.assertRaises(host.SessionError):session.request('/api/documents',{'title':'Lumen'})
+        self.assertTrue(session.uncertain);self.assertFalse(session.usable)
+        with self.assertRaises(host.SessionError):session.request('/api/documents',{'title':'Lumen'})
+        self.assertEqual(len(sent),1)
+
+    def test_known_native_conflict_is_not_an_uncertain_write(self):
+        session=self.session();session.connect()
+        def response(request,**kwargs):
+            if request.full_url.endswith('/documents'):
+                raise host.urllib.error.HTTPError(request.full_url,409,'Conflict',{},None)
+            return Response(self.me)
+        self.opener.open.side_effect=response
+        with self.assertRaises(host.urllib.error.HTTPError):session.request('/api/documents',{'title':'Lumen'})
+        self.assertFalse(session.uncertain);self.assertTrue(session.usable)
+
+    def test_native_write_result_is_not_released_after_identity_changes(self):
+        session=self.session();session.connect()
+        def response(request,**kwargs):
+            if request.full_url.endswith('/documents'):
+                session.close('identity');return Response({'id':USER})
+            return Response(self.me)
+        self.opener.open.side_effect=response
+        with self.assertRaises(host.SessionError):session.request('/api/documents',{'title':'Lumen'})
+        self.assertFalse(session.usable);self.assertTrue(session.uncertain)
+
+    def test_late_native_conflict_body_is_closed_after_expiry_or_identity_change(self):
+        for change in ('identity','expired'):
+            session=self.session();session.connect();response_body=io.BytesIO(b'Old account response')
+            def response(request,**kwargs):
+                if request.full_url.endswith('/documents'):
+                    if change=='identity':session.close('identity')
+                    else:self.clock+=901
+                    raise host.urllib.error.HTTPError(request.full_url,409,'Conflict',{},response_body)
+                return Response(self.me)
+            self.opener.open.side_effect=response
+            with self.subTest(change=change),self.assertRaises(host.SessionError):session.request('/api/documents',{'title':'Lumen'})
+            self.assertTrue(response_body.closed);self.assertTrue(session.uncertain)
+            self.opener.open.side_effect=self.web_request
+
     def test_cookie_rejects_other_lengths_and_invalid_alphabet(self):
         original = self.cookie
         for token in ['c' * n for n in (42, 44, 63, 65)] + ['c' * 42 + '!', 'c' * 63 + '!']:

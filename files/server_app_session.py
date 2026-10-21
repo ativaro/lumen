@@ -123,7 +123,7 @@ class AppSession:
         except (TypeError, ValueError, AttributeError):
             raise SessionError('expired') from None
 
-    def _http(self, path, body=None):
+    def _http(self, path, body=None, *, max_bytes=65536):
         headers = {'Origin': self.binding.origin}
         if body is not None:headers['Content-Type'] = 'application/json'
         if self._cookie:
@@ -134,9 +134,50 @@ class AppSession:
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}),
             urllib.request.HTTPSHandler(context=lumen_connect.tls_context(self._config)), lumen_connect.NoRedirect())
         with opener.open(request, timeout=10) as response:
-            raw = response.read(65537)
-            if len(raw) > 65536:raise SessionError()
+            raw = response.read(max_bytes+1)
+            if len(raw) > max_bytes:raise SessionError()
             return json.loads(raw), response.headers
+
+    def request(self, path, body=None, *, max_bytes=65536):
+        """Native reviewed handoffs use the same restricted app cookie and live proof."""
+        if (type(max_bytes) is not int or not 1<=max_bytes<=1024**2 or not isinstance(path,str)
+                or len(path)>4096 or any(c.isspace() or ord(c)<32 or ord(c)==127 or c=='\\' for c in path)):
+            raise SessionError('request')
+        target=urlsplit(path)
+        if (target.scheme or target.netloc or target.fragment or target.geturl()!=path
+                or not target.path.startswith('/api/') or '%' in target.path
+                or any(part in ('','.','..') for part in target.path.split('/')[1:])):
+            raise SessionError('request')
+        if not self.usable or not self.check():raise SessionError(self.state)
+        generation=self._generation
+        writing=body is not None
+        if writing:self.observe_write()
+        try:
+            result,_=self._http(path,body,max_bytes=max_bytes)
+        except urllib.error.HTTPError as error:
+            if generation!=self._generation or not self.usable:
+                error.close()
+                if writing:self.uncertain=True
+                raise SessionError(self.state) from None
+            if error.code in (401,403):self.close('revoked')
+            if 400<=error.code<500 and error.code!=408:
+                if error.code not in (401,403) and not self.check():
+                    error.close()
+                    if writing:self.uncertain=True
+                    raise SessionError(self.state) from None
+                raise
+            error.close()
+            if writing:self.uncertain=True
+            self.suspend()
+            raise SessionError(self.state) from None
+        except Exception:
+            if writing:self.uncertain=True
+            self.suspend()
+            raise SessionError(self.state) from None
+        if generation!=self._generation or not self.usable or not self.check():
+            if writing:self.uncertain=True
+            raise SessionError(self.state)
+        return result
 
     def connect(self):
         if self.uncertain:raise SessionError('uncertain')
