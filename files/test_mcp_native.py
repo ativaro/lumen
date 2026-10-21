@@ -268,7 +268,7 @@ class NativeMCPTest(unittest.TestCase):
 
     def test_invalid_native_arguments_rejected_before_worker(self):
         for name,args in [('lumen_files_search',dict(library='x',source=True,query='a')),
-                          ('lumen_notes_search',dict(query='a',limit=1000)),
+                          ('lumen_memory_list',dict(query='a',limit=1000)),
                           ('lumen_projects_list',dict(include_archived='yes')),
                           ('lumen_project_read',dict(id='x',limit=101)),
                           ('lumen_project_runs',dict(task='x',text_offset=-1)),
@@ -408,7 +408,7 @@ class NativeMCPTest(unittest.TestCase):
         keyed={r.get('id'):r for r in replies}
         self.assertEqual(keyed[1]['result']['protocolVersion'],'2025-06-18')
         tools={t['name']:t for t in keyed[2]['result']['tools']}
-        self.assertIn('lumen_notes_read',tools);self.assertNotIn('lumen_theme_set',tools)
+        self.assertFalse(any(name.startswith('lumen_notes_') for name in tools));self.assertNotIn('lumen_theme_set',tools)
         self.assertIn('lumen_notification_settings',tools);self.assertNotIn('lumen_notification_configure',tools)
         self.assertIn('lumen_vault_store',tools)
         self.assertIn('lumen_vault_store_from_chat',tools)
@@ -423,10 +423,10 @@ class NativeMCPTest(unittest.TestCase):
         self.assertTrue(tools['lumen_present_files']['annotations']['readOnlyHint'])
         self.assertEqual(keyed[9]['result']['structuredContent']['paths'], [str(self.root/'result.txt')])
         self.assertEqual(json.loads(keyed[9]['result']['content'][0]['text']), keyed[9]['result']['structuredContent'])
-        self.assertTrue(tools['lumen_notes_read']['annotations']['readOnlyHint'])
         self.assertIn('preferences',keyed[3]['result']['structuredContent'])
         self.assertIn('error',keyed[4]);self.assertIn('error',keyed[5]);self.assertEqual(keyed[6]['result'],{})
-        self.assertEqual(keyed[7]['result']['structuredContent']['title'],'Shared fixture')
+        self.assertIn('error',keyed[7])
+        self.assertEqual(Notebook(self.store).read(note['path'])['hash'],note['hash'])
         self.assertEqual(keyed[8]['result']['structuredContent']['title'],'Fixture task')
         env['LUMEN_MCP_ACTIONS']='1'
         completed=subprocess.run([sys.executable,str(Path(mcp.__file__))],input=json.dumps(requests[2])+'\n',text=True,capture_output=True,env=env,timeout=10)
