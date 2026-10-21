@@ -15,7 +15,7 @@ from unittest.mock import patch
 from urllib.parse import urlsplit
 from uuid import uuid4
 
-from PySide6.QtCore import Qt, QUrl, QPoint, QDateTime, QTimer, QThread
+from PySide6.QtCore import Qt, QUrl, QPoint, QDateTime, QTimer, QThread, QFileSystemWatcher
 from PySide6.QtNetwork import QNetworkCookie
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox, QFileDialog, QDialog, QLineEdit, QComboBox
@@ -179,6 +179,123 @@ class WindowTest(unittest.TestCase):
         env.start();self.addCleanup(env.stop)
         window=self.window(pilot=pilot);window.timer.stop();self.wait(lambda:window._worker is None)
         return window
+
+    def theme_property(self, value):
+        previous=self.app.property('lumenDesign')
+        self.addCleanup(lambda:self.app.setProperty('lumenDesign',previous))
+        if getattr(self.app,'theme_watcher',None) is None:
+            self.app.theme_watcher=QFileSystemWatcher(self.app)
+            self.addCleanup(lambda:setattr(self.app,'theme_watcher',None))
+        self.app.setProperty('lumenDesign',value)
+        # Unit sender trigger only; separate A/B acceptance uses real persisted changes.
+        self.app.theme_watcher.fileChanged.emit(str(self.root/'unit-theme-source'))
+
+    def test_theme_start_script_never_targets_foreign_or_closing_page(self):
+        self.theme_property('glass');window=self.window();other=self.window()
+        window.timer.stop();other.timer.stop()
+        for field in ('page','profile','view','_closing'):
+            with self.subTest(field=field):
+                original=getattr(window,field)
+                setattr(window,field,True if field=='_closing' else getattr(other,field))
+                try:
+                    with patch.object(window.page,'scripts',side_effect=AssertionError('No script registration on an unbound or closing page')):
+                        window._theme_changed(str(self.root/'unit-theme-source'))
+                finally:setattr(window,field,original)
+
+    def test_theme_initial_public_ids_are_mainframe_document_creation_data(self):
+        for theme in ('glass','graphite','atelier','midnight'):
+            with self.subTest(theme=theme):
+                self.theme_property(theme);window=self.window()
+                self.assertEqual(self.js(window,'window.__lumenDesktopTheme'),theme)
+                scripts=window.page.scripts().find('Lumen desktop theme')
+                self.assertEqual(len(scripts),1);script=scripts[0]
+                self.assertEqual(script.name(),'Lumen desktop theme')
+                self.assertEqual(script.worldId(),QWebEngineScript.ScriptWorldId.MainWorld)
+                self.assertEqual(script.injectionPoint(),QWebEngineScript.InjectionPoint.DocumentCreation)
+                self.assertFalse(script.runsOnSubFrames())
+                self.assertNotIn('document.',script.sourceCode())
+
+    def test_theme_live_clear_and_invalid_values_never_persist_or_write(self):
+        self.theme_property('glass');window=self.window();window.timer.stop()
+        self.js(window,"window.themeEvents=0;addEventListener('lumen-desktop-theme',()=>window.themeEvents++)")
+        before=len(self.calls)
+        for value,expected in [('atelier','atelier'),('clear',None),('midnight','midnight'),
+                               ('system',None),('graphite','graphite'),(['glass'],None),('<style>',None)]:
+            with self.subTest(value=value):
+                events=self.js(window,'window.themeEvents')
+                self.theme_property(value)
+                self.wait(lambda:self.js(window,'window.themeEvents')>events)
+                self.assertEqual(self.js(window,'window.__lumenDesktopTheme ?? null'),expected or '')
+                self.assertTrue(self.js(window,"localStorage.getItem('lumen-appearance')===null"))
+        self.assertFalse(any(c['method']!='GET' for c in self.calls[before:]))
+        self.assertFalse(any(c['path']=='/bridge/apps/session-ticket' for c in self.calls[before:]))
+
+    def held_theme(self, window, pending):
+        original=window.page.runJavaScript
+        def run(source,*args):
+            if '__lumenDesktopTheme' in source:pending.append(args[-1])
+            else:original(source,*args)
+        return patch.object(window.page,'runJavaScript',side_effect=run)
+
+    def test_theme_all_three_reveal_callers_wait_for_latest_cosmetic_completion(self):
+        from types import SimpleNamespace
+        self.theme_property('glass')
+        for caller in ('load','verify','cookie'):
+            with self.subTest(caller=caller):
+                window=self.window();window.timer.stop();pending=[]
+                self.wait(lambda:window.stack.currentWidget() is window.view)
+                window.stack.setCurrentWidget(window.status_page)
+                with self.held_theme(window,pending):
+                    if caller=='load':window._loaded_page(True)
+                    elif caller=='verify':window._verified(SimpleNamespace(ok=True,deleteLater=lambda:None),window._generation)
+                    else:window._cookie_added(window.profile,window._profile_cookie)
+                    window.timer.stop();self.wait(lambda:len(pending)==1)
+                    self.assertIs(window.stack.currentWidget(),window.status_page)
+                    self.theme_property('atelier');self.wait(lambda:len(pending)==2)
+                    pending[0](True);self.assertIs(window.stack.currentWidget(),window.status_page)
+                    pending[1](True);self.assertIs(window.stack.currentWidget(),window.view)
+                self.theme_property('glass');self.app.processEvents()
+
+    def test_theme_late_completion_never_reveals_changed_context(self):
+        self.theme_property('glass')
+        for field in ('page','profile','view','binding','window_generation','session_generation','expired','blocked'):
+            with self.subTest(field=field):
+                window=self.window();window.timer.stop();pending=[]
+                self.wait(lambda:window.stack.currentWidget() is window.view)
+                window.stack.setCurrentWidget(window.status_page)
+                with self.held_theme(window,pending):
+                    window._loaded_page(True);self.wait(lambda:bool(pending))
+                    original={}
+                    if field in ('page','profile','view'):
+                        original[field]=getattr(window,field);setattr(window,field,None)
+                    elif field=='binding':original['_binding']=window._binding;window._binding=Binding(self.origin,USER,str(uuid4()),'compose')
+                    elif field=='window_generation':window._generation+=1
+                    elif field=='session_generation':window.session._generation+=1
+                    elif field=='expired':window.session._deadline=0
+                    else:window.block('offline')
+                    try:pending[0](True);self.assertIs(window.stack.currentWidget(),window.status_page)
+                    finally:
+                        for key,value in original.items():setattr(window,key,value)
+
+    def test_theme_close_cancel_applies_latest_without_reconnect_then_discard_cancels(self):
+        self.theme_property('glass');window=self.window();window.timer.stop()
+        self.js(window,"document.querySelector('textarea').value='Eigener Entwurf';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))")
+        self.assertEqual(self.js(window,'window.__lumenComposeDraft',QWebEngineScript.ScriptWorldId.ApplicationWorld),'Eigener Entwurf')
+        before=len(self.calls)
+        with patch.object(QMessageBox,'question',return_value=QMessageBox.StandardButton.Cancel) as asked:
+            window.close();self.wait(lambda:asked.called and not window._closing)
+        self.assertFalse(window._disposed)
+        self.theme_property('midnight')
+        self.wait(lambda:self.js(window,'window.__lumenDesktopTheme')=='midnight')
+        self.assertEqual(window.session.draft(window.session.binding),'Eigener Entwurf')
+        self.assertFalse(any(c['method']=='POST' for c in self.calls[before:]))
+        pending=[]
+        with self.held_theme(window,pending):
+            window._loaded_page(True);self.wait(lambda:bool(pending))
+            with patch.object(QMessageBox,'question',return_value=QMessageBox.StandardButton.Discard):
+                window.close();self.wait(lambda:window._disposed)
+            pending[0](True);self.theme_property('atelier');self.app.processEvents()
+            self.assertTrue(window._disposed)
 
     def test_text_pilot_atomic_aba_without_import_lease_blocks_old_reconnect(self):
         window=self.import_window(drive=False,pilot=True);self.assertIsNone(window._import_lease)

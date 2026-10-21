@@ -10,7 +10,7 @@ import json
 import time
 from urllib.parse import urlsplit
 
-from PySide6.QtCore import Qt, QThread, QTimer, QUrl, QDateTime, QFileSystemWatcher, Signal, QLockFile
+from PySide6.QtCore import Qt, QThread, QTimer, QUrl, QDateTime, QFileSystemWatcher, Signal, QLockFile, Slot
 from PySide6.QtNetwork import QNetworkCookie, QSslCertificate
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton, QStackedWidget, QMessageBox
 from desktop_design import AppHeader, PAGE_MARGIN, PAGE_SPACING
@@ -41,6 +41,16 @@ DRAFT_SCRIPT = '''(() => {
  capture();
 })()'''
 DRAFT_READ = "window.__lumenComposeDraft ?? ''"
+
+
+def _desktop_theme():
+    value=QApplication.instance().property('lumenDesign')
+    return value if type(value) is str and value in ('glass','graphite','atelier','midnight') else None
+
+
+def _theme_source(value):
+    assignment='delete window.__lumenDesktopTheme' if value is None else 'window.__lumenDesktopTheme='+json.dumps(value)
+    return assignment+";window.dispatchEvent(new Event('lumen-desktop-theme'));true"
 
 
 def _connection():
@@ -200,6 +210,9 @@ class ServerAppWindow(QMainWindow):
         self._import_running=self._import_accepting=self._import_close=False
         self._connection_watcher=None
         self._pilot_connection=pilot_connection;self._pilot_invalid=False
+        self._theme_serial=0;self._theme_reveal=False;self._theme_script=None;self._theme_watcher=None
+        self._theme_timer=QTimer(self);self._theme_timer.setSingleShot(True)
+        self._theme_timer.timeout.connect(self._send_theme)
         self.profile = self.page = self.view = None
         self.setWindowTitle('Lumen Compose'); self.resize(1000, 720); self.setFont(font(14))
         self.stack = QStackedWidget(); self.setCentralWidget(self.stack)
@@ -216,6 +229,10 @@ class ServerAppWindow(QMainWindow):
             self.status.setText('Qt WebEngine fehlt. Diese Serveransicht ist nicht verfügbar.')
             self.retry.setEnabled(False);return
         self._profile(profile_root)
+        self._theme_watcher=getattr(QApplication.instance(),'theme_watcher',None)
+        if self._theme_watcher is not None:
+            self._theme_watcher.fileChanged.connect(self._theme_changed)
+            self._theme_watcher.directoryChanged.connect(self._theme_changed)
         if pilot_connection is not None:
             if not self._pilot_current():raise SessionError('connection')
             self._watch_connection()
@@ -272,7 +289,54 @@ class ServerAppWindow(QMainWindow):
         script.setWorldId(QWebEngineScript.ScriptWorldId.ApplicationWorld)
         script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentReady)
         script.setRunsOnSubFrames(False);script.setSourceCode(DRAFT_SCRIPT);self.page.scripts().insert(script)
+        self._theme_script=QWebEngineScript();self._theme_script.setName('Lumen desktop theme')
+        self._theme_script.setWorldId(QWebEngineScript.ScriptWorldId.MainWorld)
+        self._theme_script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentCreation)
+        self._theme_script.setRunsOnSubFrames(False)
+        self._theme_script.setSourceCode(_theme_source(_desktop_theme()));self.page.scripts().insert(self._theme_script)
         self.stack.addWidget(self.view)
+
+    @Slot(str)
+    def _theme_changed(self, _path):
+        self._queue_theme()
+
+    def _queue_theme(self, *, reveal=False):
+        if self._disposed:return
+        self._theme_serial+=1;self._theme_reveal|=reveal
+        if (not self._closing and self.page is not None and not is_deleted(self.page)
+                and self.profile is self._bound_profile and self.profile is not None and not is_deleted(self.profile)
+                and self.view is not None and not is_deleted(self.view) and self.view.page() is self.page
+                and self.page.profile() is self._bound_profile and self._theme_script is not None):
+            scripts=self.page.scripts();scripts.remove(self._theme_script)
+            self._theme_script.setSourceCode(_theme_source(_desktop_theme()));scripts.insert(self._theme_script)
+        # Reuse the existing native watcher after its QSettings/palette update.
+        if not self._closing:self._theme_timer.start(0)
+
+    def _theme_current(self, context):
+        page,profile,view,session,binding,generation,session_generation,serial,theme=context
+        if (is_deleted(self) or self._disposed or self._closing or not self._live or not self._loaded
+                or page is not self.page or profile is not self.profile or view is not self.view
+                or session is not self.session or binding!=self._binding or binding!=session.binding
+                or generation!=self._generation or session_generation!=session._generation
+                or serial!=self._theme_serial or theme!=_desktop_theme() or not session.usable
+                or not self._pilot_current()):return False
+        return bool(all(obj is not None and not is_deleted(obj) for obj in (page,profile,view))
+                    and view.page() is page and self._cookie_valid())
+
+    def _send_theme(self):
+        context=(self.page,self.profile,self.view,self.session,self._binding,self._generation,
+                 self.session._generation,self._theme_serial,_desktop_theme())
+        if not self._theme_current(context):return
+        page=context[0]
+        def applied(value):
+            # Qt may invoke this callback while destroying the old page.
+            if value is not True or not self._theme_current(context):return
+            if self._theme_reveal:
+                self._theme_reveal=False;self.stack.setCurrentWidget(context[2])
+        page.runJavaScript(_theme_source(context[-1]),QWebEngineScript.ScriptWorldId.MainWorld,applied)
+
+    def _cancel_theme(self):
+        self._theme_timer.stop();self._theme_serial+=1;self._theme_reveal=False
 
     def verify(self, *, reconnect=False, ready=None):
         if self._disposed or self._closing or not WEBENGINE or self.page is None or self._worker is not None:return
@@ -304,7 +368,7 @@ class ServerAppWindow(QMainWindow):
         if self._loaded:
             if not self._cookie_valid():self.block('cookie');return
             self._live=True;self.page.setLifecycleState(QWebEnginePage.LifecycleState.Active)
-            self.stack.setCurrentWidget(self.view);self.timer.start()
+            self._queue_theme(reveal=True);self.timer.start()
             if ready is not None:ready()
             return
         self.timer.start()
@@ -338,7 +402,7 @@ class ServerAppWindow(QMainWindow):
         if not self._loaded:self.view.load(QUrl(self.session.url))
         else:
             self.page.setLifecycleState(QWebEnginePage.LifecycleState.Active)
-            self.stack.setCurrentWidget(self.view)
+            self._queue_theme(reveal=True)
 
     def _cookie_removed(self, profile, cookie):
         if self._disposed or self._closing or profile is not self._bound_profile or bytes(cookie.name())!=b'lumen_session':return
@@ -348,7 +412,7 @@ class ServerAppWindow(QMainWindow):
     def _loaded_page(self, ok):
         if self._disposed or not self._live or not self.session.usable:return
         if not ok:self.block('load');return
-        self._loaded = True;self.stack.setCurrentWidget(self.view)
+        self._loaded = True;self._queue_theme(reveal=True)
 
     def _certificate(self, error):
         error.rejectCertificate();self.block('tls')
@@ -482,6 +546,7 @@ class ServerAppWindow(QMainWindow):
 
     def block(self, reason='offline'):
         if self._disposed or self._closing:return
+        self._cancel_theme()
         self._invalidate_import('session')
         self._generation += 1;self._live = False;self.timer.stop();self.session.suspend(reason)
         self.stack.setCurrentWidget(self.status_page);self.retry.setEnabled(True)
@@ -498,6 +563,7 @@ class ServerAppWindow(QMainWindow):
 
     def closeEvent(self, event):
         if self._disposed:event.accept();return
+        self._cancel_theme()
         event.ignore()
         self._invalidate_import('closed')
         if self._import_running:
@@ -516,7 +582,7 @@ class ServerAppWindow(QMainWindow):
                     'Ungesendete Eingaben verwerfen und schließen? Ein Serverauftrag kann weiterlaufen.',
                     QMessageBox.StandardButton.Discard|QMessageBox.StandardButton.Cancel,
                     QMessageBox.StandardButton.Cancel)!=QMessageBox.StandardButton.Discard:
-                self._closing=False;return
+                self._closing=False;self._queue_theme(reveal=self._live and self._loaded);return
             self.timer.stop();self._live=False;self._generation+=1
             self._profile_cookie=None;self.session.remember_draft('');self.session.close()
             if self.page is not None:
@@ -527,4 +593,9 @@ class ServerAppWindow(QMainWindow):
         self._capture(finish)
 
     def _finish_close(self):
+        self._cancel_theme()
+        if self._theme_watcher is not None and not is_deleted(self._theme_watcher):
+            self._theme_watcher.fileChanged.disconnect(self._theme_changed)
+            self._theme_watcher.directoryChanged.disconnect(self._theme_changed)
+            self._theme_watcher=None
         self._disposed=True;self.close()

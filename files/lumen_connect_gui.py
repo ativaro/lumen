@@ -360,13 +360,19 @@ class ArtifactDialog(QDialog):
         self.config = client.read_config()
         self.worker = None
         self.action = None
+        self._receive_generation = 0
+        self._receive_active = self._receive_waiting = self._receive_closing = False
+        self._receive_operation = None
+        self.finished.connect(self._receive_finished)
         self.setWindowTitle(t("Lumen · Datei vom Server", "Lumen · File from server"))
         self.resize(520, 320)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 24, 28, 24)
+        layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
-        self.heading = label(t("Auf diesem Desktop öffnen?", "Open on this desktop?"), 22)
-        layout.addWidget(self.heading)
+        from desktop_design import AppHeader
+        header = AppHeader(t("Auf diesem Desktop öffnen?", "Open on this desktop?"), parent=self)
+        self.heading = header.title
+        layout.addWidget(header)
         self.details = label(self.config["server"])
         layout.addWidget(self.details)
         self.notice = label(
@@ -414,24 +420,116 @@ class ArtifactDialog(QDialog):
         self.open.setEnabled(action["state"] == "pending")
 
     def accepted_request(self):
+        if self._receive_active or not self.action or self.action.get("state") != "pending":
+            return
+        self._receive_active = True
+        self._receive_generation += 1
+        self.open.setEnabled(False)
+        self.decline.setEnabled(False)
+        self.decline.setText(t("Schließen", "Close"))
         self.status.setText(t("Datei wird geprüft …", "Verifying file …"))
-        self.work(lambda: client.receive_artifact(self.config, self.action), self.opened)
+        try:
+            from interop_dialogs import run_job
+            config, action = dict(self.config), dict(self.action)
+            self._receive_operation = dict(
+                generation=self._receive_generation, identity=self.identity, revision=action["revision"],
+                config=config, details=self.details.text(), inputs=self._receive_inputs(config),
+            )
+            self._receive_waiting = True
+            try:
+                result = run_job(
+                    self, t("Lumen · Datei empfangen", "Lumen · Receive file"),
+                    lambda job: client.receive_artifact(config, action, job=job),
+                )
+            finally:
+                self._receive_waiting = False
+            if result is None:
+                self._receive_notice(t("Empfang abgebrochen. Eine neue Anfrage kannst du im Server senden.",
+                                       "Reception cancelled. You can send a new request on the server."))
+            else:
+                self.opened(result)
+        except Exception:
+            self._receive_notice(t("Empfang nicht bestätigt. Prüfe die Anfrage im Server; es wird nichts erneut geöffnet.",
+                                   "Reception not confirmed. Check the request on the server; nothing will be reopened."))
+        finally:
+            if self._receive_closing:
+                QDialog.reject(self)
+
+    @staticmethod
+    def _receive_file(path, limit):
+        import hashlib
+        import stat
+        def identity(info):
+            return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns, info.st_mode)
+        path = Path(path)
+        with os.fdopen(os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NONBLOCK), "rb") as stream:
+            before = os.fstat(stream.fileno())
+            if not stat.S_ISREG(before.st_mode) or before.st_size > limit:
+                raise ValueError("Connection file is not a bounded regular file")
+            data = stream.read(limit + 1)
+            after = os.fstat(stream.fileno())
+        if len(data) > limit or identity(before) != identity(after) or identity(after) != identity(path.stat()):
+            raise ValueError("Connection file changed")
+        return (str(path), identity(after), hashlib.sha256(data).hexdigest()), data
+
+    def _receive_inputs(self, config):
+        stamp, raw = self._receive_file(client.CONFIG, 64 * 1024)
+        current = json.loads(raw)
+        if current != config:
+            raise ValueError("Connection changed")
+        ca = self._receive_file(current["ca_file"], 1024 * 1024)[0] if current.get("ca_file") else None
+        return client.connection_scope(current), stamp, ca
+
+    def _receive_current(self, operation):
+        try:
+            return bool(
+                operation and self._receive_operation is operation and not self._receive_closing
+                and self.isVisible() and self._receive_generation == operation["generation"]
+                and self.identity == operation["identity"] and self.action["id"] == operation["identity"]
+                and self.action["revision"] == operation["revision"] and self.config == operation["config"]
+                and self.details.text() == operation["details"]
+                and self._receive_inputs(operation["config"]) == operation["inputs"]
+            )
+        except Exception:
+            return False
+
+    def _receive_notice(self, message):
+        if not self._receive_closing:
+            self.status.setText(message)
+            self.open.setEnabled(False)
+            self.decline.setEnabled(True)
+
+    def _receive_finished(self, result):
+        if self._receive_active:
+            self._receive_closing = True
+            self._receive_generation += 1
 
     def opened(self, result):
         from PySide6.QtCore import QUrl
         from PySide6.QtGui import QDesktopServices
 
-        opened = QDesktopServices.openUrl(QUrl.fromLocalFile(result["path"]))
-        self.work(
-            lambda: client.request(
-                self.config,
-                "/bridge/actions/" + self.identity,
-                dict(state="completed" if opened else "failed", revision=result["revision"]),
-            ),
-            lambda _: self.accept(),
-        )
+        operation = self._receive_operation
+        try:
+            if not self._receive_current(operation):
+                raise ValueError("Reception no longer current")
+            opened = QDesktopServices.openUrl(QUrl.fromLocalFile(result["path"]))
+            if not self._receive_current(operation):
+                raise ValueError("Reception changed during URL dispatch")
+            self.work(
+                lambda: client.request(
+                    operation["config"], "/bridge/actions/" + operation["identity"],
+                    dict(state="completed" if opened else "failed", revision=result["revision"]),
+                ),
+                lambda _: self.accept(),
+            )
+        except Exception:
+            self._receive_notice(t("Anfrage oder Verbindung geändert. Die Datei wird nicht erneut geöffnet.",
+                                   "Request or connection changed. The file will not be reopened."))
 
     def declined(self):
+        if self._receive_active:
+            self.reject()
+            return
         if self.action and self.action["state"] == "pending":
             self.work(
                 lambda: client.request(
@@ -445,10 +543,21 @@ class ArtifactDialog(QDialog):
             self.reject()
 
     def reject(self):
+        if self._receive_active:
+            self._receive_closing = True
+            self._receive_generation += 1
+            if self._receive_waiting:
+                return
         if not self.worker or not self.worker.isRunning():
             super().reject()
 
     def closeEvent(self, event):
+        if self._receive_active:
+            self._receive_closing = True
+            self._receive_generation += 1
+            if self._receive_waiting:
+                event.ignore()
+                return
         if self.worker and self.worker.isRunning():
             event.ignore()
         else:
