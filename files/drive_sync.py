@@ -87,13 +87,15 @@ def request(config, path, body=None):
     return lumen_connect.request(config, "/bridge/drive" + path, body)
 
 
-def inventory(config, binding=None):
+def inventory(config, binding=None, *, job=None):
     from sync_migration import drive_path
     files, folders, seen = {}, {}, set()
     after = cursor = None
     while True:
         route = '/inventory' + ('?' + urlencode({'after': after}) if after else '')
+        if job:job.check()
         page = request(config, drive_path(route, binding))
+        if job:job.check()
         if cursor is None:
             cursor = page['cursor']
         files.update((r['family'], r) for r in page['items'])
@@ -107,15 +109,17 @@ def inventory(config, binding=None):
             raise ValueError(tr('Drive-Bestand unvollständig. Erneut laden.'))
         seen.add(after)
     result = dict(files=files, folders=folders, cursor=cursor)
-    refresh(config, result, binding)
+    refresh(config, result, binding, job=job)
     return result
 
 
-def refresh(config, cache, binding=None):
+def refresh(config, cache, binding=None, *, job=None):
     from sync_migration import drive_path
     while True:
         previous = cache['cursor']
+        if job:job.check()
         page = request(config, drive_path('/changes?' + urlencode(dict(cursor=previous)), binding))
+        if job:job.check()
         cache['files'].update((r['family'], r) for r in page['items'])
         cache['folders'].update((r['id'], r) for r in page['folders'])
         cache['cursor'] = page['cursor']

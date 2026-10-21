@@ -18,6 +18,55 @@ class DriveReferencesTest(unittest.TestCase):
         self.config = dict(server='https://staging.invalid', token='private-device-token')
         self.row = dict(id=str(uuid4()), family=self.ref['id'], name='Renamed.txt', trashed=False, revision=7, size=5, sha256=hashlib.sha256(b'hello').hexdigest())
 
+    def test_inventory_cancel_at_each_response_prevents_another_http_step(self):
+        from lumen_jobs import Job
+        from tools_data import Cancelled
+        for stage in ('before','page','last_page','changes'):
+            with self.subTest(stage=stage):
+                job=Job(lambda _:None);calls=[]
+                if stage=='before':job.cancelled.set()
+                def wire(config,path,body=None):
+                    calls.append(path)
+                    if path=='/inventory':
+                        if stage in ('page','last_page'):job.cancelled.set()
+                        return dict(items=[],folders=[],cursor='1',next='second' if stage=='page' else None)
+                    job.cancelled.set()
+                    return dict(items=[],folders=[],cursor='2',more=True)
+                with patch.object(drive.sync,'request',side_effect=wire),self.assertRaises(Cancelled):
+                    drive.sync.inventory(self.config,job=job)
+                expected=[] if stage=='before' else ['/inventory']
+                if stage=='changes':expected.append('/changes?cursor=1')
+                self.assertEqual(calls,expected)
+
+    def test_refresh_cancel_before_or_after_response_performs_no_next_io(self):
+        from lumen_jobs import Job
+        from tools_data import Cancelled
+        for cancelled_before in (False,True):
+            with self.subTest(cancelled_before=cancelled_before):
+                job=Job(lambda _:None);calls=[]
+                if cancelled_before:job.cancelled.set()
+                def wire(config,path,body=None):
+                    calls.append(path);job.cancelled.set()
+                    return dict(items=[],folders=[],cursor='2',more=True)
+                with patch.object(drive.sync,'request',side_effect=wire),self.assertRaises(Cancelled):
+                    drive.sync.refresh(self.config,dict(files={},folders={},cursor='1'),job=job)
+                self.assertEqual(calls,[] if cancelled_before else ['/changes?cursor=1'])
+
+    def test_resolve_forwards_same_job_and_stops_after_cancelled_native_me(self):
+        from lumen_jobs import Job
+        from tools_data import Cancelled
+        job=Job(lambda _:None);cache=dict(files={self.ref['id']:self.row},folders={})
+        with patch.object(drive.lumen_connect,'read_config',return_value=self.config), \
+             patch.object(drive.lumen_connect,'request',return_value=dict(id=self.ref['locator']['account'])) as me, \
+             patch.object(drive.sync,'inventory',return_value=cache) as inventory:
+            self.assertEqual(drive.resolve([self.ref],job),(self.config,[self.row]))
+            inventory.assert_called_once_with(self.config,job=job);inventory.reset_mock()
+            def cancelled(*args):
+                job.cancelled.set();return dict(id=self.ref['locator']['account'])
+            me.side_effect=cancelled
+            with self.assertRaises(Cancelled):drive.resolve([self.ref],job)
+            inventory.assert_not_called()
+
     def test_reference_and_payload_keep_identity_without_local_path_or_credentials(self):
         self.assertEqual(validate_ref(self.ref), self.ref)
         payload = dict(title='Selection', source=self.ref, paths=[], references=[self.ref])

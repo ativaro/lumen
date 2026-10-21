@@ -48,7 +48,7 @@ class _Job:
 
 
 def _folders(job):
-    cache=drive.sync.inventory(job.profile());job.profile()
+    cache=drive.sync.inventory(job.profile(),job=job);job.profile()
     paths=drive.sync.paths(cache,None)
     result=[]
     for row in cache['folders'].values():

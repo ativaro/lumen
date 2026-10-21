@@ -112,9 +112,10 @@ def resolve(references, job=None):
         raise ValueError(tr('Dieser Drive-Verweis gehört zu einer anderen Serververbindung.'))
     if job: job.check()
     me = lumen_connect.request(config, '/bridge/me')
+    if job: job.check()
     if any(ref['locator']['account'] != me['id'] for ref in refs):
         raise ValueError(tr('Dieser Drive-Verweis gehört zu einem anderen Konto.'))
-    cache = sync.inventory(config)
+    cache = sync.inventory(config, job=job)
     rows = []
     for ref in refs:
         if job: job.check()
