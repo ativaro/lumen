@@ -33,11 +33,13 @@ def running(directory, task):
 
 def applications():
     from lumen_apps import catalogue
+    from server_availability import capabilities, visible
+    grants = capabilities()
     labels = {'lumen': 'Lumen', 'files': tr('Dateien'), 'search': tr('Suche'),
               'meetings': tr('Audio Studio'), 'household': tr('Haushalt'),
-              'radio': tr('Radio')}
+              'radio': tr('Radio'), 'code': 'Code'}
     return [dict(id=key, title=title, label=labels.get(key, title.removeprefix('Lumen ')),
-                 description=description, icon=icon) for key,title,description,icon in catalogue()]
+                 description=description, icon=icon) for key,title,description,icon in catalogue() if visible(key, grants)]
 
 
 def snapshot(directory=None, task_limit=None):

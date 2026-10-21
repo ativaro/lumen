@@ -386,6 +386,13 @@ class Window(QMainWindow):
         from offline_ui import Offline
         self.offline = Offline(self)
         self.offline.catalogChanged.connect(self.populate_places)
+        self.server_grants = frozenset()
+        self.server_job = None
+        self.server_timer = QTimer(self)
+        self.server_timer.setInterval(5000)
+        self.server_timer.timeout.connect(self.refresh_server)
+        self.server_timer.start()
+        QTimer.singleShot(0, self.refresh_server)
         self.network.connected.connect(self.network_connected)
         self.network.failed.connect(self.network_failed)
         self.network.busy.connect(self.cancel_connect_button.setVisible)
@@ -753,6 +760,24 @@ class Window(QMainWindow):
         self.proxy.rowsRemoved.connect(lambda *_: self.update_count())
         self.proxy.modelReset.connect(self.update_count)
 
+    def refresh_server(self):
+        if self.server_job is not None or getattr(self, '_closed', False): return
+        from lumen_jobs import Job
+        from server_availability import capabilities
+        self.server_job = Job(lambda _: capabilities(), self)
+        self.server_job.result.connect(self.server_checked)
+        self.server_job.finished.connect(self.server_check_finished)
+        self.server_job.start()
+
+    def server_check_finished(self):
+        self.server_job.deleteLater()
+        self.server_job = None
+
+    def server_checked(self, grants):
+        if grants != self.server_grants:
+            self.server_grants = grants
+            self.populate_places()
+
     def populate_places(self):
         self.places.clear()
         places = [(tr('Persönlicher Ordner'), str(Path.home()), 'user-home')]
@@ -771,7 +796,8 @@ class Window(QMainWindow):
             from lumen_offline import folders
             for folder in folders(self.offline.store):
                 places.append((folder['name'] + tr(' · Offline'), folder['local'], 'folder-download'))
-        places.append(('Lumen Drive', 'lumen-drive://', 'folder-cloud'))
+        if 'drive' in getattr(self, 'server_grants', ()):
+            places.append(('Lumen Drive', 'lumen-drive://', 'folder-cloud'))
         places.append((tr('Dateisystem'), '/', 'drive-harddisk'))
         places.append((tr('Online-Konten'), None, 'network-server'))
         self.cloud.refresh()
@@ -1827,6 +1853,9 @@ class Window(QMainWindow):
         box.exec()
 
     def closeEvent(self, event):
+        if self.server_job is not None and not self.server_job.wait(1500):
+            self.activity.setText(tr('Serververbindung wird geprüft. Bitte kurz warten.'))
+            event.ignore(); return
         if hasattr(self, 'reading_workspace') and not self.reading_workspace.can_close():
             event.ignore(); return
         if self.drive.jobs:
@@ -1865,6 +1894,7 @@ class Window(QMainWindow):
         self.settings.setValue('last_path', self.current_location)
         self.settings.setValue('geometry', self.saveGeometry())
         self.session_save.stop()
+        self.server_timer.stop()
         self.save_session()
         if self.network.mounts:
             self.view.setModel(None); self.grid.setModel(None); self.proxy.setSourceModel(None)
