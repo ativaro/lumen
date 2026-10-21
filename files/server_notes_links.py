@@ -174,8 +174,9 @@ class Links(QObject):
         menu.addSeparator();action=menu.addAction(tr('Dateiverweise in Lumen Files …'))
         action.setObjectName('lumen-notes-file-references')
         action.setEnabled(w._live and w._loaded and w.session.usable and not w._import_running)
-        chosen=menu.exec(w.view.mapToGlobal(w.view.rect().center() if point.x()<0 else point));menu.deleteLater()
-        if chosen is action:self.current_sources()
+        chosen=menu.exec(w.view.mapToGlobal(w.view.rect().center() if point.x()<0 else point))
+        if not is_deleted(menu):menu.deleteLater()
+        if chosen is action and not is_deleted(w) and not w._disposed and not w._closing:self.current_sources()
 
     def current_sources(self):
         w=self.window
@@ -187,8 +188,11 @@ class Links(QObject):
         except (ValueError,OSError,RuntimeError):return
         self.pending=True
         def received(note_id):
+            owned=False
             try:
-                context.gui();w._import_running=True
+                context.gui()
+                if w._import_running or w._worker is not None:return
+                w._import_running=True;owned=True
                 result=run_job(w,tr('Lumen Notes · Dateiverweise laden …'),lambda job:sources(context,note_id,job))
                 if result is None:return
                 context.gui();title,rows=result
@@ -207,22 +211,22 @@ class Links(QObject):
                 if dialog.exec()!=QDialog.Accepted:return
                 context.gui();item=listing.currentItem()
                 if item is not None:
-                    w._import_running=False;self.open(context,item.data(Qt.UserRole))
+                    w._import_running=False;owned=False;self.open(context,item.data(Qt.UserRole))
             except (ValueError,OSError,RuntimeError) as error:
                 if not is_deleted(w) and not w._disposed and not w._closing and not w._import_close:QMessageBox.warning(w,'Lumen Notes',str(error))
             finally:
                 self.pending=False
-                if not is_deleted(w):
+                if owned and not is_deleted(w):
                     w._import_running=False
                     if w._import_close:w._import_close=False;w.close()
         w.page.runJavaScript("document.querySelector('.knowledge-editor')?.dataset.documentId ?? ''",0,received)
 
     def open(self,context,url):
-        w=self.window
+        w=self.window;owned=False
         try:
             context.gui()
             if w._import_running or w._worker is not None:return
-            w._import_running=True
+            w._import_running=True;owned=True
             target=run_job(w,tr('Lumen Files · Verknüpfung prüfen …'),lambda job:resolve(context,url,job))
             if target is None:return
             context.gui()
@@ -243,7 +247,7 @@ class Links(QObject):
                 QMessageBox.warning(w,'Lumen Files',str(error))
         finally:
             self.pending=False
-            if not is_deleted(w):
+            if owned and not is_deleted(w):
                 w._import_running=False
                 if w._import_close:w._import_close=False;w.close()
 

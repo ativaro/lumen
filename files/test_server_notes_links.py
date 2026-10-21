@@ -191,6 +191,19 @@ class FileLinksTest(unittest.TestCase):
             with self.assertRaises(ValueError):self.known_sources('../../other')
             request.assert_not_called()
 
+    def test_deferred_note_id_reply_does_not_clear_a_newer_import(self):
+        callbacks=[];self.w.page.runJavaScript=lambda code,world,callback:callbacks.append(callback)
+        self.controller.current_sources();self.assertTrue(self.controller.pending)
+        self.w._import_running=True
+        with patch.object(links,'sources',side_effect=AssertionError('A different import owns the window')):
+            callbacks[0](str(uuid4()))
+        self.assertTrue(self.w._import_running);self.assertFalse(self.controller.pending)
+
+    def test_busy_direct_review_does_not_clear_another_import(self):
+        context=links.Context(self.w,self.w.page,self.w.profile,self.w.view,self.w.session,self.binding,0,0,self.stamp,self.w._import_destroyed,self.gui_thread)
+        self.w._import_running=True;self.controller.open(context,self.url)
+        self.assertTrue(self.w._import_running);self.assertEqual(self.confirmed,[])
+
     def test_navigation_stays_closed_even_for_file_link_clicks(self):
         page=SimpleNamespace(window=self.w);kind=QWebEnginePage.NavigationType
         with patch.object(links.Links,'current_sources') as opened:
