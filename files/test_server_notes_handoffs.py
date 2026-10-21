@@ -24,6 +24,10 @@ class NotesHandoffTest(unittest.TestCase):
         self.binding=Binding(self.config['server'],str(uuid4()),self.config['device_id'],'notes')
         self.window=QWidget();self.addCleanup(self.window.deleteLater)
         self.window.session=AppSession(self.config,self.binding);self.window._binding=self.binding;self.window._pilot_connection=('own',)
+        self.window.session._cookie=b'x'*43;self.window.session._deadline=self.window.session._clock()+600
+        self.window.session.state='ready';self.window.session.access='read_write'
+        self.window._generation=0;self.window._disposed=False;self.window._closing=False
+        self.window._import_running=False;self.window._import_close=False;self.window._pilot_current=lambda:True
         self.requests=Requests(self.window)
         source=dict(app='files',kind='file',id='/fixture/source.txt',title='Own source',path='/fixture/source.txt')
         self.payload=dict(title='Own text',text='test\n\n\n\ntest1',source=source,source_url=self.registry.register(source))
@@ -34,17 +38,34 @@ class NotesHandoffTest(unittest.TestCase):
         def job(parent,title,function):return function(SimpleNamespace(check=lambda:None))
         for active in (patch('server_notes_handoffs.run_job',side_effect=job),
             patch('server_notes_app.context',return_value=(self.config,self.binding,('own',),7)),
-            patch.object(AppSession,'connect'),patch('server_notes_handoffs.collections',return_value=[dict(id='',title='Ohne Sammlung')]),
+            patch.object(AppSession,'connect',side_effect=AssertionError('Must not revoke the active window session')),
+            patch.object(AppSession,'check',return_value=True),patch('server_notes_handoffs.collections',return_value=[dict(id='',title='Ohne Sammlung')]),
             patch('server_notes_handoffs.review',return_value=self.choice),
             patch('server_notes_handoffs.capture',side_effect=lambda *args,**kwargs:self.calls.append((args,kwargs)) or self.reference),
             patch.object(Registry,'save_choice',side_effect=AssertionError('Core owns durable choice'))):
             active.start();self.addCleanup(active.stop)
 
-    def test_review_reaches_existing_core_with_fresh_session_and_no_choice_overwrite(self):
+    def test_review_keeps_the_active_window_session_and_no_choice_overwrite(self):
         self.assertEqual(self.requests.receive(self.token),self.reference)
         args,kwargs=self.calls[0]
-        self.assertEqual(args[:2],(self.token,self.choice));self.assertIsNot(args[2],self.window.session)
-        self.assertEqual(args[3],7);self.assertFalse(kwargs['retry']);self.assertFalse(args[2].has_cookie)
+        self.assertEqual(args[:2],(self.token,self.choice));self.assertIs(args[2],self.window.session)
+        self.assertEqual(args[3],7);self.assertFalse(kwargs['retry']);self.assertTrue(args[2].has_cookie)
+
+    def test_modal_handoff_cannot_expire_or_be_replaced_by_a_second_activation(self):
+        import time
+        w=self.window;w._live=True;w._loaded=True;w._worker=None
+        second=self.registry.enqueue('wissen','wissen.import',self.payload)
+        self.requests.pending.append(({'handoff':self.token},time.monotonic()+30))
+        def receive(token):
+            with patch('server_notes_handoffs.present'),patch('server_notes_handoffs.time.monotonic',return_value=time.monotonic()+60):
+                self.requests.activate({'handoff':second});self.requests.next()
+            self.assertEqual(len(self.requests.pending),2)
+            self.assertEqual(self.requests.pending[0][0],{'handoff':self.token})
+            return None
+        with patch.object(self.requests,'receive',side_effect=receive):self.requests.next()
+        self.requests.timer.stop()
+        self.assertFalse(self.requests.busy);self.assertEqual(len(self.requests.pending),1)
+        self.assertEqual(self.requests.pending[0][0],{'handoff':second})
 
     def test_uncertain_result_requires_explicit_retry_and_keeps_original_choice(self):
         stored=dict(self.choice,note_capture=dict(attempted=True))
