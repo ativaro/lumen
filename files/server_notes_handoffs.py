@@ -69,14 +69,16 @@ class Requests(QObject):
             raise ValueError(tr('Diese Übergabe gehört nicht zu Lumen Notes.'))
         w=self.window;session=w.session;generation=w._generation
         if w._import_running or not session.usable:raise SessionError('busy')
+        def current():
+            if (w._disposed or w._closing or w._import_close or w._generation!=generation
+                    or w.session is not session or not session.usable or not w._pilot_current()):
+                raise SessionError('identity')
         def work(title,function):
             class Guard:
                 def __init__(self,job):self.job=job
                 def check(self):
                     self.job.check()
-                    if (w._disposed or w._closing or w._import_close or w._generation!=generation
-                            or w.session is not session or not session.usable or not w._pilot_current()):
-                        raise SessionError('identity')
+                    current()
             return run_job(w,title,lambda job:function(Guard(job)))
         def prepare(job):
             from server_notes_app import context
@@ -90,6 +92,27 @@ class Requests(QObject):
             prepared=work(tr('Lumen Notes · Sammlungen laden …'),prepare)
             if prepared is None:return None
             revision,rows=prepared
+            parent=None
+            if request['payload'].get('paths'):
+                import threading
+                from types import SimpleNamespace
+                import server_notes_files as files
+                from server_file_import_ui import start_import
+                parent=token;gui_thread=threading.get_ident()
+                plan=work(tr('Lumen Notes · Dateiauswahl prüfen …'),lambda job:files.begin(parent,session,revision,job))
+                if plan is None:return None
+                if request['state']!='done':
+                    def accepted(*_):
+                        if threading.get_ident()!=gui_thread:raise SessionError('thread')
+                        current()
+                    lease=SimpleNamespace(window=w,binding=session.binding,permissions_revision=revision,
+                                          check=current,accept_import=accepted)
+                    for child in plan['children']:
+                        current()
+                        if start_import(w,lease,child['token']) is None:return None
+                request=work(tr('Lumen Notes · Notizinhalt vorbereiten …'),lambda job:files.note_request(parent,session,revision,job))
+                if request is None:return None
+                token=request['id']
             stored=request['choice'];retry=False
             if stored.get('note_capture'):
                 choice={key:stored[key] for key in ('id','title','mode','due','token')}
@@ -102,10 +125,16 @@ class Requests(QObject):
                 from interop_targets import ACTIONS
                 spec=dict(ACTIONS['wissen.import'],heading='Als Notiz speichern',
                     description='Eine private Notiz auf deinem verbundenen Server anlegen. Die Quelle bleibt unverändert.')
-                choice=review(w,request,spec=spec,rows=rows)
+                preview=request
+                if parent:
+                    spec.update(modes=['link'],description=tr('Die bestätigten Dateikopien bleiben in Lumen Drive. Eine private Notiz mit Drive-Verweisen und bearbeitbarem Text aus Textdateien speichern. Die Originale bleiben unverändert.'))
+                    preview=dict(request,payload={k:v for k,v in request['payload'].items() if k!='references'})
+                choice=review(w,preview,spec=spec,rows=rows)
                 if choice is None:return None
-            return work(tr('Lumen Notes · Notiz übernehmen …'),lambda job:
+            result=work(tr('Lumen Notes · Notiz übernehmen …'),lambda job:
                 capture(token,choice,session,revision,job,retry=retry))
+            if result is None or not parent:return result
+            return work(tr('Lumen Notes · Übernahme bestätigen …'),lambda job:files.complete(parent,result,session,revision,job))
         finally:
             w._import_running=False
             if not session.usable:w.block(session.state)

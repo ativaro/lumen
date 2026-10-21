@@ -78,7 +78,7 @@ def _request(registry, token, choice):
 
 
 def _body(payload, choice, binding, job):
-    body=payload.get('text','') if choice['mode']=='copy' else ''
+    body=payload.get('text','') if choice['mode']=='copy' or payload.get('references') else ''
     title=payload['source'].get('title') or payload['title']
     def link(label,url):
         label=label.replace('\\','\\\\').replace('[','\\[').replace(']','\\]').replace('\n',' ')
