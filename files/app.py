@@ -1419,23 +1419,45 @@ class Window(QMainWindow):
 
     def ask_lumen(self, action, paths, recovery=None):
         def begin(panel):
+            self.drive_context_request=getattr(self,'drive_context_request',0)+1
+            request_id=self.drive_context_request
             if paths and all(is_drive(path) for path in paths):
                 from interop_sources import from_drive
                 from interop_data import Registry
                 payload=from_drive(self.drive,paths)
                 registry=Registry();refs=payload['references']
                 context=dict(drive_references=refs,objects=[registry.register(ref) for ref in refs],intent=action)
-                from drive_references import readable
+                from drive_references import readable,server_sources
                 server=getattr(panel.backend,'execution','local')=='server'
-                context['selection']=[dict(name=self.drive.entries[p][1]['name'],kind=self.drive.entries[p][0],content_available=self.drive.entries[p][0]=='file' and readable(self.drive.entries[p][1],server)) for p in paths]
-                if action in ('summarize','analyze') and not all(item['content_available'] for item in context['selection']):
-                    raise ValueError(tr('Diese Auswahl kann in der gewählten Ausführung nur als Metadaten besprochen werden.'))
-                import json
-                if len(json.dumps(context,ensure_ascii=False).encode())>512*1024:
-                    raise ValueError(tr('Die Auswahlbeschreibung ist zu groß. Bitte weniger Einträge auswählen.'))
-                directory=Path(QStandardPaths.writableLocation(QStandardPaths.CacheLocation))/'drive-conversations'
-                directory.mkdir(parents=True,exist_ok=True,mode=0o700)
-                panel.begin_context(action,[],directory=str(directory),drive_context=context)
+                def selected(selection):
+                    context['selection']=selection
+                    if action in ('summarize','analyze') and not all(item['content_available'] for item in selection):
+                        raise ValueError(tr('Diese Auswahl kann in der gewählten Ausführung nur als Metadaten besprochen werden.'))
+                    import json
+                    if len(json.dumps(context,ensure_ascii=False).encode())>512*1024:
+                        raise ValueError(tr('Die Auswahlbeschreibung ist zu groß. Bitte weniger Einträge auswählen.'))
+                    directory=Path(QStandardPaths.writableLocation(QStandardPaths.CacheLocation))/'drive-conversations'
+                    directory.mkdir(parents=True,exist_ok=True,mode=0o700)
+                    panel.begin_context(action,[],directory=str(directory),drive_context=context)
+                if server:
+                    generation=getattr(panel.backend,'generation',None)
+                    draft=panel.composer.toPlainText() if hasattr(panel,'composer') else None
+                    def checked(result):
+                        if (request_id!=self.drive_context_request or generation!=getattr(panel.backend,'generation',None)
+                                or draft!=(panel.composer.toPlainText() if hasattr(panel,'composer') else None)):
+                            return
+                        config,rows,capabilities=result
+                        from drive_sync import scope
+                        from lumen_connect import read_config
+                        if scope(read_config())!=scope(config) or getattr(panel.backend,'execution','local')!='server':
+                            raise ValueError(tr('Serververbindung oder Ausführung geändert. Bitte erneut auswählen.'))
+                        for source in capabilities:
+                            if action in ('summarize','analyze') and source and not source['supported']:
+                                raise ValueError(source['reason'] or tr('Diese Quelle ist nicht als Text verfügbar.'))
+                        selected([dict(name=row['name'],kind='file' if ref['kind']=='drive_file' else 'folder',content_available=bool(source and source['supported'])) for ref,row,source in zip(refs,rows,capabilities)])
+                    self.drive.work(lambda job:server_sources(refs,job),checked)
+                else:
+                    selected([dict(name=self.drive.entries[p][1]['name'],kind=self.drive.entries[p][0],content_available=self.drive.entries[p][0]=='file' and readable(self.drive.entries[p][1])) for p in paths])
             else:panel.begin_context(action,paths,directory=self.current_path)
         if hasattr(self, 'lumen_host'):
             begin(self.lumen_host.chat)

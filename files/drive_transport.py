@@ -54,6 +54,8 @@ def legacy_upload(
     progress=lambda *_: None,
     filename=None,
     legacy_target=None,
+    *,
+    expected_stamp=None,
 ):
     boundary = "lumen-" + uuid4().hex
     from sync_migration import drive_upload_fields
@@ -72,14 +74,17 @@ def legacy_upload(
     ).encode()
     tail = f"\r\n--{boundary}--\r\n".encode()
     with local.source(root, path) as stream:
-        size = os.fstat(stream.fileno()).st_size
+        before = local.signature(os.fstat(stream.fileno()))
+        if expected_stamp is not None and before != expected_stamp:
+            raise ValueError(tr("Quelldatei wurde verändert. Bitte einen neuen Upload starten."))
+        size = before[2]
 
         def chunks():
             yield head
             count = 0
             while count < size:
                 chunk = stream.read(min(128 * 1024, size - count))
-                if not chunk:
+                if not chunk or expected_stamp is not None and not local.transfer_unchanged(before, os.fstat(stream.fileno())):
                     raise ValueError(tr("Datei während Übertragung verändert."))
                 count += len(chunk)
                 progress(count, size)
@@ -115,10 +120,14 @@ def request(config, path, body=None, method="POST", content_type="application/js
 
 
 def upload(config, root, path, folder, request_id, expected_hash,
-           previous=None, progress=lambda *_: None, filename=None, *, legacy_target=None, remember=lambda _: None):
+           previous=None, progress=lambda *_: None, filename=None, *, legacy_target=None, remember=lambda _: None,
+           expected_stamp=None):
     name = local.relative(filename or path).name
     with local.source(root, path) as stream:
         before = local.signature(os.fstat(stream.fileno()))
+        # Bind the reviewed selection to this streaming FD before the first request.
+        if expected_stamp is not None and before != expected_stamp:
+            raise ValueError(tr("Quelldatei wurde verändert. Bitte einen neuen Upload starten."))
         size = before[2]
         body = dict(name=name, size=size, sha256=expected_hash,
                     folder=folder, replaces=previous["id"] if previous else None,
@@ -132,7 +141,7 @@ def upload(config, root, path, folder, request_id, expected_hash,
         except HTTPError as error:
             if error.code not in (404, 405) or not legacy_target: raise
             return legacy_upload(config, root, path, folder, request_id, expected_hash,
-                                 previous, progress, filename, legacy_target)
+                                 previous, progress, filename, legacy_target, expected_stamp=expected_stamp)
         key = str(UUID(state["id"]))
         remember(key)
         offset = state["offset"]

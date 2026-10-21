@@ -5,6 +5,7 @@ import time
 import unittest
 from uuid import uuid4
 from unittest.mock import patch
+from urllib.error import HTTPError
 from PySide6.QtCore import QSettings, QObject
 from PySide6.QtWidgets import QApplication
 from desktop_backend import DesktopBackend, PREFIX, _workers
@@ -20,6 +21,57 @@ class ServerConversationTest(unittest.TestCase):
         while not predicate() and time.monotonic() < until:
             self.app.processEvents(); time.sleep(.01)
         self.assertTrue(predicate())
+
+    def test_confirmed_context_rejection_clears_only_its_exact_submission(self):
+        with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,LUMEN_DATA=tmp),patch('lumen_connect.read_config',return_value=dict(server='https://synthetic.invalid',token='synthetic')):
+            backend=DesktopBackend(tmp);backend.settings=QSettings(tmp+'/settings.ini',QSettings.IniFormat)
+            backend.execution='server'
+            from desktop_backend import connection
+            backend.binding=connection()[1]
+            backend.server_origin='https://synthetic.invalid'
+            errors=[];backend.failed.connect(errors.append)
+            def request(config,path,body=None):
+                if path=='/bridge/me':return dict(id=str(uuid4()))
+                raise HTTPError(config['server']+path,413,'Do not display secret body',{},None)
+            try:
+                with patch('lumen_connect.request',side_effect=request):
+                    self.assertTrue(backend.send('Two individually readable sources exceed the combined limit'))
+                    self.wait(lambda:not _workers and not backend.busy)
+                self.assertEqual(backend.remote_key,'');self.assertFalse(backend.remote_active)
+                self.assertEqual(backend.pending(),[])
+                self.assertEqual(len(errors),1);self.assertIn('Serverlimit',errors[0]);self.assertNotIn('secret',errors[0])
+                old_key,new_key=str(uuid4()),str(uuid4())
+                backend.remote_key=new_key;backend.remote_active=True;backend.set_busy(True);backend.remember(new_key)
+                late=dict(local_context_error='Old rejection',rejected_submission=(backend.binding,backend.session,old_key))
+                backend._apply_response((backend.generation,'submit',late,False))
+                self.assertEqual(backend.remote_key,new_key);self.assertTrue(backend.busy)
+                self.assertIn(new_key,backend.pending())
+                late['rejected_submission']=(backend.binding,'another-conversation',new_key)
+                backend._apply_response((backend.generation,'submit',late,False))
+                self.assertEqual(backend.remote_key,new_key);self.assertTrue(backend.busy)
+                late['rejected_submission']=(backend.binding,backend.session,new_key)
+                backend._apply_response((backend.generation-1,'submit',late,False))
+                self.assertEqual(backend.remote_key,new_key);self.assertTrue(backend.busy)
+            finally:backend.set_busy(False);backend.shutdown();self.wait(lambda:not _workers)
+
+    def test_other_http_failures_remain_uncertain(self):
+        for status,path in ((503,'/bridge/tasks'),(413,'/bridge/context/capability')):
+            with self.subTest(status=status,path=path),tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,LUMEN_DATA=tmp),patch('lumen_connect.read_config',return_value=dict(server='https://synthetic.invalid',token='synthetic')):
+                backend=DesktopBackend(tmp);backend.settings=QSettings(tmp+'/settings.ini',QSettings.IniFormat)
+                backend.execution='server'
+                from desktop_backend import connection
+                backend.binding=connection()[1];backend.server_origin='https://synthetic.invalid'
+                def request(config,route,body=None):
+                    if route=='/bridge/me':return dict(id=str(uuid4()))
+                    raise HTTPError(config['server']+path,status,'Not a confirmed task rejection',{},None)
+                try:
+                    with patch('lumen_connect.request',side_effect=request):
+                        self.assertTrue(backend.send('Keep uncertain receipt'))
+                        self.wait(lambda:not _workers and not backend.busy)
+                    self.assertTrue(backend.remote_active)
+                    self.assertTrue(backend.remote_key)
+                    self.assertIn(backend.remote_key,backend.pending())
+                finally:backend.shutdown();self.wait(lambda:not _workers)
 
     def test_delivery_recovery_followup_cancel_and_privacy(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp}):

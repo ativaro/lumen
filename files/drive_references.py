@@ -17,12 +17,10 @@ from lumen_i18n import tr
 KINDS = ('drive_file', 'drive_folder')
 MAX_COPY = 128 * 1024**2
 READ_TIMEOUT = 35  # Leave cleanup time before the native dispatcher's 45-second hard limit.
-TEXT_TYPES = ('text/plain','text/markdown','application/json','text/csv')
 TEXT_SUFFIXES = ('.txt','.md','.csv','.json','.log','.py','.js','.ts','.yaml','.yml','.toml','.xml','.html','.htm','.css')
 
 
-def readable(row, server=False):
-    if server:return row.get('mime') in TEXT_TYPES and row.get('size',MAX_COPY)<=60000
+def readable(row):
     suffix=Path(row['name']).suffix.lower()
     return suffix in TEXT_SUFFIXES and row.get('size',MAX_COPY)<=2*1024**2 or suffix in ('.pdf','.png','.jpg','.jpeg','.webp','.tif','.tiff') and row.get('size',MAX_COPY)<=MAX_COPY
 
@@ -30,17 +28,41 @@ def readable(row, server=False):
 class ContextLimit(ValueError):pass
 
 
+def server_sources(references, job=None):
+    """Ask the bound server about explicitly selected originals; never parse/copy."""
+    refs = [validate(ref) for ref in references]
+    if len(refs) > 20:
+        raise ContextLimit(tr('Bitte höchstens 20 Drive-Einträge auswählen.'))
+    config, rows = resolve(refs, job)
+    capabilities = []
+    for ref, row in zip(refs, rows):
+        if job: job.check()
+        if ref['kind'] != 'drive_file':
+            capabilities.append(None)
+            continue
+        source = dict(kind='file', id=row['id'], revision=row['version'], mode='reference')
+        value = lumen_connect.request(config, '/bridge/context/capability', source)
+        if (not isinstance(value, dict) or any(value.get(key) != item for key,item in source.items())
+                or type(value.get('revision')) is not int or type(value.get('supported')) is not bool
+                or not isinstance(value.get('reason'), str) or len(value['reason']) > 4096):
+            raise ValueError(tr('Der Server hat die gewählte Quelle nicht eindeutig bestätigt.'))
+        capabilities.append(value)
+    if sync.scope(lumen_connect.read_config()) != sync.scope(config):
+        raise ValueError(tr('Serververbindung geändert. Drive neu öffnen.'))
+    return config, rows, capabilities
+
+
 def task_attachments(references, intent='open', context_bytes=0):
-    config,rows=resolve(references)
+    config,rows,capabilities=server_sources(references)
     attachments=[]
-    for ref,row in zip(references,rows):
-        if ref['kind']=='drive_file' and readable(row,server=True):
+    for ref,row,source in zip(references,rows,capabilities):
+        if source and source['supported']:
             attachments.append(dict(kind='file',id=row['id'],revision=row['version'],mode='reference'))
         elif intent!='open':
-            raise ValueError(tr('Servergespräche lesen Text, Markdown, JSON und CSV bis 60 KB. Diese Auswahl ist nur als Metadaten verfügbar.'))
-    # Byte counts conservatively bound the server's combined 60,000-character limit without copying originals.
-    if context_bytes+sum(row['size'] for ref,row in zip(references,rows) if ref['kind']=='drive_file' and readable(row,server=True))>60000:
-        raise ContextLimit(tr('Die Dateien und die Auswahlbeschreibung überschreiten zusammen das Serverlimit von 60 KB. Bitte weniger oder kleinere Dateien auswählen.'))
+            raise ContextLimit(source['reason'] if source and source['reason'] else tr('Diese Auswahl ist nur als Metadaten verfügbar.'))
+    # Extracted characters and the combined source budget remain authoritative on the server.
+    if context_bytes>60000:
+        raise ContextLimit(tr('Die Auswahlbeschreibung überschreitet 60 KB. Bitte weniger Einträge auswählen.'))
     return config,attachments
 
 
