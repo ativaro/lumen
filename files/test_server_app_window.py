@@ -146,6 +146,24 @@ class WindowTest(unittest.TestCase):
         self.wait(lambda:self.js(second,'window.foreignRequest')=='blocked')
         self.assertFalse(any(c['path']=='/api/foreign-resource' for c in self.calls))
 
+    def test_profile_is_offrecord_with_memory_only_storage_policies(self):
+        window=self.window();profile=window.profile
+        self.assertTrue(profile.isOffTheRecord(),'A named temporary directory is not an off-the-record profile')
+        self.assertEqual(profile.storageName(),'')
+        self.assertEqual(profile.persistentCookiesPolicy().name,'NoPersistentCookies')
+        self.assertEqual(profile.httpCacheType().name,'MemoryHttpCache')
+        self.assertEqual(profile.persistentPermissionsPolicy().name,'StoreInMemory')
+        self.assertEqual(len(profile.additionalTrustedCertificates()),1)
+
+    def test_local_storage_and_probe_cookie_stay_in_their_own_profile(self):
+        first=self.window();second=self.window();marker='synthetic-otr-storage-probe'
+        self.js(first,"localStorage.setItem('lumen-storage-probe',"+json.dumps(marker)+
+                ");document.cookie='lumen_probe="+marker+"; Max-Age=3600; Path=/; Secure; SameSite=Strict'")
+        self.assertEqual(self.js(first,"localStorage.getItem('lumen-storage-probe')"),marker)
+        self.assertIn('lumen_probe='+marker,self.js(first,'document.cookie'))
+        self.assertTrue(self.js(second,"localStorage.getItem('lumen-storage-probe')===null"))
+        self.assertNotIn('lumen_probe=',self.js(second,'document.cookie'))
+
     def test_isolated_draft_survives_react_unmount_revoke_and_never_auto_replays(self):
         window=self.window()
         self.js(window,"document.querySelector('textarea').value='Nicht gesendet';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))")

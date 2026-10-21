@@ -2,7 +2,6 @@
 from pathlib import Path
 import os
 import tempfile
-from uuid import uuid4
 
 from PySide6.QtCore import Qt, QThread, QTimer, QUrl, QDateTime
 from PySide6.QtNetwork import QNetworkCookie, QSslCertificate
@@ -111,7 +110,8 @@ class ServerAppWindow(QMainWindow):
             certs = QSslCertificate.fromData(data)
             if not certs:raise SessionError('tls')
             builder.setAdditionalTrustedCertificates(certs)
-        self.profile = builder.createProfile('lumen-app-'+uuid4().hex,self)
+        # An empty name is off-the-record; the builder retains the explicit CA.
+        self.profile = builder.createProfile('',self)
         if self.profile is None:raise SessionError('profile')
         self._bound_profile=self.profile
         temporary = self._temporary
