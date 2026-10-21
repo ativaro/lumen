@@ -1,15 +1,19 @@
 """Inactive Compose host. No launcher, local editor or renderer-to-OS bridge."""
 from pathlib import Path
+from dataclasses import dataclass, replace
 import os
+import stat
 import tempfile
+import threading
 
-from PySide6.QtCore import Qt, QThread, QTimer, QUrl, QDateTime
+from PySide6.QtCore import Qt, QThread, QTimer, QUrl, QDateTime, QFileSystemWatcher, Signal
 from PySide6.QtNetwork import QNetworkCookie, QSslCertificate
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton, QStackedWidget, QMessageBox
 from desktop_design import AppHeader, PAGE_MARGIN, PAGE_SPACING
 from studio_design import font
 from lumen_qt import is_deleted
-from server_app_session import AppSession, SessionError
+from server_app_session import AppSession, SessionError, APPS
+import lumen_connect
 
 try:
     from PySide6.QtWebEngineCore import (QWebEnginePage, QWebEngineProfile, QWebEngineProfileBuilder,
@@ -33,6 +37,64 @@ DRAFT_SCRIPT = '''(() => {
  capture();
 })()'''
 DRAFT_READ = "window.__lumenComposeDraft ?? ''"
+
+
+def _connection():
+    """A scope is not a generation: retain the actual private file identity too."""
+    try:
+        path=lumen_connect.CONFIG
+        if not path.is_absolute() or path.resolve()!=path:raise ValueError
+        def stamp():
+            s=path.lstat();parent=path.parent.stat()
+            if (not stat.S_ISREG(s.st_mode) or s.st_uid!=os.getuid() or s.st_mode & 0o077
+                    or s.st_size>65536 or parent.st_uid!=os.getuid() or parent.st_mode & 0o022):raise ValueError
+            return (s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns,s.st_ctime_ns,parent.st_dev,parent.st_ino)
+        before=stamp();config=lumen_connect.read_config()
+        if stamp()!=before:raise ValueError
+        return config,(str(path),before,lumen_connect.connection_scope(config),config.get('ca_file'))
+    except (OSError,ValueError,KeyError,TypeError):raise SessionError('connection') from None
+
+
+@dataclass(frozen=True)
+class ImportLease:
+    window: object
+    binding: object
+    permissions_revision: int
+    session: object
+    generation: int
+    connection: tuple
+    cancelled: object
+    destroyed: object
+    gui_thread: int
+    page: object
+    profile: object
+
+    def check(self):
+        # Worker checks must never call Qt, including page/profile identity helpers.
+        try:
+            if (self.cancelled.is_set() or self.destroyed.is_set() or self.session.binding!=self.binding
+                    or self.session._generation!=self.generation or not self.session.usable
+                    or _connection()[1]!=self.connection or not self.session.usable
+                    or self.session._generation!=self.generation
+                    or self.cancelled.is_set()):raise SessionError('context')
+        except SessionError:
+            self.cancelled.set();raise
+
+    def native_revision(self,job):
+        job.check();self.check();config,_=_connection()
+        me=lumen_connect.request(config,'/bridge/me',timeout=10)
+        job.check();self.check()
+        revision=me.get('permissions_revision')
+        if (me.get('id')!=self.binding.account or me.get('device_id')!=self.binding.device
+                or type(revision) is not int or revision<0
+                or self.permissions_revision>=0 and revision!=self.permissions_revision
+                or not isinstance(me.get('capabilities'),list)
+                or not {'drive',APPS[self.binding.app][1]}<=set(me['capabilities'])):raise SessionError('identity')
+        return revision
+
+    def accept_import(self,reference,resolved):
+        if threading.get_ident()!=self.gui_thread:raise SessionError('thread')
+        self.window._accept_import(self,reference,resolved)
 
 
 class Call(QThread):
@@ -70,6 +132,8 @@ if WEBENGINE:
 
 
 class ServerAppWindow(QMainWindow):
+    import_reference_ready=Signal(object,object)
+
     def __init__(self, session, profile_root, parent=None):
         super().__init__(parent)
         if not isinstance(session, AppSession) or session.binding.app != 'compose':raise SessionError('identity')
@@ -77,6 +141,11 @@ class ServerAppWindow(QMainWindow):
         self._binding=session.binding;self._bound_profile=None;self._profile_cookie=None
         self._live = self._loaded = self._disposed = self._closing = False
         self._generation = 0; self._worker = None; self._temporary = None
+        self._gui_thread=threading.get_ident();self._import_destroyed=threading.Event()
+        self.destroyed.connect(self._import_destroyed.set)
+        self._import_lease=self._import_reference=self._import_error=None
+        self._import_running=self._import_accepting=self._import_close=False
+        self._connection_watcher=None
         self.profile = self.page = self.view = None
         self.setWindowTitle('Lumen Compose'); self.resize(1000, 720); self.setFont(font(14))
         self.stack = QStackedWidget(); self.setCentralWidget(self.stack)
@@ -147,7 +216,7 @@ class ServerAppWindow(QMainWindow):
         script.setRunsOnSubFrames(False);script.setSourceCode(DRAFT_SCRIPT);self.page.scripts().insert(script)
         self.stack.addWidget(self.view)
 
-    def verify(self, *, reconnect=False):
+    def verify(self, *, reconnect=False, ready=None):
         if self._disposed or self._closing or not WEBENGINE or self.page is None or self._worker is not None:return
         if self.session.state=='identity':self.retry.setEnabled(False);return
         if reconnect and self._loaded and not self.session.has_cookie:
@@ -160,9 +229,9 @@ class ServerAppWindow(QMainWindow):
             if reconnect and not self.session.has_cookie:self.session.connect()
             else:self.session.check()
         worker = Call(check,self);self._worker = worker
-        worker.finished.connect(lambda:self._verified(worker,generation));worker.start()
+        worker.finished.connect(lambda:self._verified(worker,generation,ready));worker.start()
 
-    def _verified(self, worker, generation):
+    def _verified(self, worker, generation, ready=None):
         self._worker = None;worker.deleteLater()
         if self._disposed:return
         if self._closing:self._closing=False;self.close();return
@@ -172,7 +241,9 @@ class ServerAppWindow(QMainWindow):
         if self._loaded:
             if not self._cookie_valid():self.block('cookie');return
             self._live=True;self.page.setLifecycleState(QWebEnginePage.LifecycleState.Active)
-            self.stack.setCurrentWidget(self.view);self.timer.start();return
+            self.stack.setCurrentWidget(self.view);self.timer.start()
+            if ready is not None:ready()
+            return
         self.timer.start()
         if self._live:return
         cookies = QNetworkCookie.parseCookies(self.session.web_cookie())
@@ -219,6 +290,110 @@ class ServerAppWindow(QMainWindow):
     def _certificate(self, error):
         error.rejectCertificate();self.block('tls')
 
+    def _invalidate_import(self,reason,lease=None):
+        if lease is not None and self._import_lease is not lease:
+            lease.cancelled.set();return
+        if self._import_lease is not None:self._import_lease.cancelled.set()
+        self._import_lease=None;self._import_accepting=False;self._import_reference=None
+        self._import_error=reason
+
+    def _watch_connection(self):
+        if self._connection_watcher is None:
+            self._connection_watcher=QFileSystemWatcher(self)
+            self._connection_watcher.fileChanged.connect(lambda *_:self._connection_changed(True))
+            self._connection_watcher.directoryChanged.connect(lambda *_:self._connection_changed(False))
+        path=lumen_connect.CONFIG;watcher=self._connection_watcher
+        missing={str(path),str(path.parent)}-set(watcher.files())-set(watcher.directories())
+        if missing and watcher.addPaths(sorted(missing)):raise SessionError('connection')
+
+    def _connection_changed(self,file_event):
+        lease=self._import_lease
+        try:
+            current=_connection()[1]
+            changed=file_event or lease is not None and current!=lease.connection
+            self._watch_connection()
+        except SessionError:changed=True
+        if changed:
+            if lease is not None:self._generation+=1
+            self._invalidate_import('connection')
+
+    def _import_gui(self,lease):
+        if threading.get_ident()!=self._gui_thread:raise SessionError('thread')
+        lease.check()
+        if (self._disposed or self._closing or self._import_close or not self._live or not self._loaded
+                or self._import_lease is not lease or self.session is not lease.session
+                or self.page is not lease.page or self.profile is not lease.profile
+                or self.view is None or is_deleted(self.view) or is_deleted(self.page)
+                or not self._cookie_valid() or self.view.page() is not self.page):raise SessionError('identity')
+
+    def _fresh_import(self,lease,callback):
+        try:self._import_gui(lease)
+        except SessionError:
+            self._invalidate_import('context',lease);return
+        if self._worker is not None:
+            QTimer.singleShot(20,lambda:self._fresh_import(lease,callback));return
+        def ready():
+            try:self._import_gui(lease);callback()
+            except Exception:self._invalidate_import('unavailable',lease)
+        self.verify(ready=ready)
+
+    def _lumen_file_import(self,token=None):
+        """Native-only entry point; no renderer object, menu or launcher registration."""
+        if threading.get_ident()!=self._gui_thread:raise SessionError('thread')
+        if self._import_lease is not None or self._import_running:raise SessionError('busy')
+        self._invalidate_import(None)
+        try:
+            config,connection=_connection()
+            if (lumen_connect.connection_scope(config)!=lumen_connect.connection_scope(self.session._config)
+                    or config.get('ca_file')!=self.session._config.get('ca_file')):raise SessionError('connection')
+            self._watch_connection()
+            lease=ImportLease(self,self._binding,-1,self.session,self.session._generation,connection,
+                threading.Event(),self._import_destroyed,self._gui_thread,self.page,self.profile)
+            self._import_lease=lease;self._import_gui(lease)
+            self._fresh_import(lease,lambda:self._run_import(lease,token))
+        except SessionError:
+            self._invalidate_import('context');raise
+
+    def _run_import(self,lease,token):
+        from interop_dialogs import run_job
+        from server_file_import_ui import start_import
+        self._import_running=True
+        try:
+            revision=run_job(self,'Lumen Drive · App-Freigabe wird geprüft …',lease.native_revision)
+            if revision is None:return
+            self._import_gui(lease)
+            lease=replace(lease,permissions_revision=revision);self._import_lease=lease
+            start_import(self,lease,token)
+        except Exception:self._invalidate_import('unavailable')
+        finally:
+            self._import_running=False
+            if not self._import_accepting and self._import_lease is lease:self._invalidate_import('cancelled')
+            if self._import_close:self._import_close=False;self.close()
+
+    def _accept_import(self,lease,reference,resolved):
+        from server_file_import_ui import _filtered
+        self._import_gui(lease)
+        if self._import_accepting:raise SessionError('busy')
+        result=_filtered(reference,resolved,lease.binding)
+        self._import_accepting=True
+        # Leave the coordinator's stack before another fresh native/app proof.
+        QTimer.singleShot(0,lambda:self._fresh_import(lease,lambda:self._publish_import(lease,result)))
+
+    def _publish_import(self,lease,result):
+        from interop_dialogs import run_job
+        self._import_running=True
+        try:
+            revision=run_job(self,'Lumen Drive · Ergebnisfreigabe wird geprüft …',lease.native_revision)
+            if revision is None:return
+            self._import_gui(lease)
+            self._import_reference=result
+            lease.cancelled.set();self._import_lease=None;self._import_accepting=False
+            self.import_reference_ready.emit(result['reference'],result['resolved'])
+        finally:
+            self._import_running=False
+            if self._import_lease is lease:self._invalidate_import('cancelled')
+            if self._import_close:self._import_close=False;self.close()
+
     def _capture(self, callback):
         if (self.page is None or not self._loaded
                 or self.page.lifecycleState()==QWebEnginePage.LifecycleState.Frozen):callback();return
@@ -232,6 +407,7 @@ class ServerAppWindow(QMainWindow):
 
     def block(self, reason='offline'):
         if self._disposed or self._closing:return
+        self._invalidate_import('session')
         self._generation += 1;self._live = False;self.timer.stop();self.session.suspend(reason)
         self.stack.setCurrentWidget(self.status_page);self.retry.setEnabled(True)
         self.status.setText('Schreibbestätigung unklar. Kein erneutes Senden; Auftrag zuerst auf dem Server prüfen.'
@@ -247,6 +423,12 @@ class ServerAppWindow(QMainWindow):
     def closeEvent(self, event):
         if self._disposed:event.accept();return
         event.ignore()
+        self._invalidate_import('closed')
+        if self._import_running:
+            self._import_close=True;self._generation+=1;self.timer.stop()
+            dialog=QApplication.activeModalWidget()
+            if dialog is not None and self.isAncestorOf(dialog):dialog.reject()
+            return
         if self._worker is not None:
             self._closing=True;self._generation+=1;self._live=False;self.timer.stop()
             self.stack.setCurrentWidget(self.status_page);self.session.close();return

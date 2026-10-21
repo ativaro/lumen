@@ -12,18 +12,23 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
+from urllib.parse import urlsplit
+from uuid import uuid4
 
-from PySide6.QtCore import Qt, QUrl, QPoint, QDateTime
+from PySide6.QtCore import Qt, QUrl, QPoint, QDateTime, QTimer, QThread
 from PySide6.QtNetwork import QNetworkCookie
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QMessageBox, QFileDialog, QDialog, QLineEdit, QComboBox
 import shiboken6
 
 from server_app_session import AppSession, Binding, SessionError
 from server_app_window import ServerAppWindow, QWebEnginePage, QWebEngineScript
+import lumen_connect
 
 USER='73000000-0000-4000-8000-000000000001'
 DEVICE='73000000-0000-4000-8000-000000000002'
+FOLDER='73000000-0000-4000-8000-000000000003'
+FILE='73000000-0000-4000-8000-000000000004'
 
 
 class WindowTest(unittest.TestCase):
@@ -39,17 +44,53 @@ class WindowTest(unittest.TestCase):
                         '-out',str(cert),'-keyout',str(target_key)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         cls.calls=[];cls.revoked=False;cls.challenge='';cls.hold_write=False
         cls.write_started=threading.Event();cls.release_write=threading.Event()
+        cls.upload_started=threading.Event();cls.release_upload=threading.Event()
+        cls.inventory_started=threading.Event();cls.release_inventory=threading.Event()
         class Handler(BaseHTTPRequestHandler):
             def log_message(self,*args):pass
             def do_GET(self):self.handle_request()
             def do_POST(self):self.handle_request()
+            def do_PUT(self):self.handle_request()
             def handle_request(self):
                 cls.calls.append(dict(path=self.path,method=self.command,bearer=bool(self.headers.get('Authorization')),
                                       cookie=bool(self.headers.get('Cookie')),web='QtWebEngine' in self.headers.get('User-Agent','')))
-                body=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))) or b'{}')
+                raw_body=self.rfile.read(int(self.headers.get('Content-Length','0')))
+                body=raw_body if self.command=='PUT' else json.loads(raw_body or b'{}')
                 status=200;cookie=False
                 if self.path=='/bridge/me':
-                    data=dict(id=USER,device_id=DEVICE,capabilities=['translate'])
+                    data=dict(id=cls.native_user,device_id=cls.native_device,capabilities=cls.native_areas,
+                              permissions_revision=cls.native_revision)
+                elif self.path.startswith('/bridge/drive/'):
+                    # Mock paired auth only; these routes are not proof of Server RLS.
+                    if self.headers.get('Authorization')!='Bearer native-only-fixture' or self.headers.get('Cookie'):
+                        status=403;data={}
+                    elif self.path=='/bridge/drive/inventory':
+                        if cls.hold_inventory:
+                            cls.inventory_started.set();cls.release_inventory.wait(timeout=10)
+                        data=dict(items=cls.drive_files,folders=[cls.folder],cursor='1',next=None)
+                    elif self.path.startswith('/bridge/drive/changes?'):
+                        data=dict(items=[],folders=[],cursor='1',more=False)
+                    elif self.path.startswith('/bridge/drive/uploads/'):
+                        parts=urlsplit(self.path).path.split('/');key=parts[4]
+                        if self.command=='POST' and len(parts)==5:
+                            cls.upload_requests.append(key);cls.upload_metadata.append(body)
+                            if key not in cls.uploads:
+                                cls.uploads[key]=dict(id=str(uuid4()),offset=0,size=body['size'],body=body,data=b'')
+                            state=cls.uploads[key];data={k:state[k] for k in ('id','offset','size')}
+                        else:
+                            state=next(value for value in cls.uploads.values() if value['id']==key)
+                            if self.command=='PUT':
+                                if cls.hold_upload:
+                                    cls.upload_started.set();cls.release_upload.wait(timeout=10)
+                                state['data']+=body;state['offset']+=len(body);data=dict(offset=state['offset'])
+                            elif parts[-1]=='finish':
+                                meta=state['body']
+                                data=dict(id=state['id'],family=FILE,version=1,revision=1,name=meta['name'],
+                                    folder_id=meta['folder'],size=len(state['data']),sha256=hashlib.sha256(state['data']).hexdigest(),
+                                    current=True,trashed=False,purpose='user')
+                                if not cls.drive_files:cls.drive_files.append(data)
+                            else:status=404;data={}
+                    else:status=404;data={}
                 elif self.path=='/bridge/apps/session-ticket':
                     cls.challenge=body['challenge'];data=dict(ticket='t'*43,expires=(datetime.now(timezone.utc)+timedelta(seconds=29)).isoformat())
                 elif self.path=='/api/auth/desktop/exchange':
@@ -87,10 +128,17 @@ class WindowTest(unittest.TestCase):
 
     def setUp(self):
         type(self).revoked=False;type(self).hold_write=False
+        type(self).native_user=USER;type(self).native_areas=['translate'];type(self).native_revision=7
+        type(self).native_device=DEVICE;type(self).hold_upload=False
+        type(self).drive_files=[];type(self).uploads={};type(self).upload_requests=[];type(self).upload_metadata=[]
+        type(self).folder=dict(id=FOLDER,name='Eigene Testkopien',parent_id=None,revision=1,trashed=False,can_write=True)
+        self.upload_started.clear();self.release_upload.clear()
+        type(self).hold_inventory=False;self.inventory_started.clear();self.release_inventory.clear()
+        self.import_call_start=len(self.calls)
         self.write_started.clear();self.release_write.clear();self.windows=[]
 
     def tearDown(self):
-        self.release_write.set()
+        self.release_write.set();self.release_upload.set();self.release_inventory.set()
         with patch.object(QMessageBox,'question',return_value=QMessageBox.StandardButton.Discard):
             for window in self.windows:window.close()
             self.wait(lambda:all(w._disposed for w in self.windows))
@@ -116,6 +164,271 @@ class WindowTest(unittest.TestCase):
         self.wait(lambda:window._loaded or window.session.state not in ('disconnected','ready'))
         self.wait(lambda:window._loaded)
         return window
+
+    def import_window(self,drive=True):
+        type(self).native_areas=['translate','drive'] if drive else ['translate']
+        temp=tempfile.TemporaryDirectory(dir=self.root);self.addCleanup(temp.cleanup)
+        self.import_root=Path(temp.name);(self.import_root/'config').mkdir()
+        self.config=dict(server=self.origin,device_id=DEVICE,token='native-only-fixture',ca_file=str(self.cert))
+        changed=patch.object(lumen_connect,'CONFIG',self.import_root/'config/connection.json')
+        changed.start();self.addCleanup(changed.stop)
+        lumen_connect.save_private(lumen_connect.CONFIG,json.dumps(self.config))
+        env=patch.dict(os.environ,{'LUMEN_TOOLS_DATA':str(self.import_root/'tools')})
+        env.start();self.addCleanup(env.stop)
+        window=self.window();window.timer.stop();self.wait(lambda:window._worker is None)
+        return window
+
+    def test_import_lease_worker_uses_no_gui_and_is_invalid_after_block(self):
+        window=self.import_window();observed=[];errors=[]
+        def coordinator(parent,lease,token):
+            def check():
+                try:
+                    with patch.object(parent,'_cookie_valid',side_effect=AssertionError('Worker touched Qt proof')):
+                        lease.check();observed.append('worker-ready')
+                except Exception as error:errors.append(type(error).__name__)
+            worker=threading.Thread(target=check);worker.start();worker.join(timeout=2)
+            parent.block('offline')
+            try:lease.check()
+            except SessionError:observed.append('blocked')
+        with patch('server_file_import_ui.start_import',side_effect=coordinator):
+            window._lumen_file_import();self.wait(lambda:len(observed)>=2 or bool(errors) or window._import_error)
+        self.assertEqual(observed,['worker-ready','blocked']);self.assertEqual(errors,[])
+
+    def test_import_without_native_drive_grant_never_calls_coordinator(self):
+        window=self.import_window(drive=False);called=[]
+        with patch('server_file_import_ui.start_import',side_effect=lambda *a:called.append(a)):
+            window._lumen_file_import();self.wait(lambda:window._import_error is not None)
+        self.assertEqual(called,[]);self.assertIsNone(window._import_reference)
+
+    def test_import_atomic_config_aba_invalidates_even_equal_end_scope(self):
+        window=self.import_window();observed=[]
+        def coordinator(parent,lease,token):
+            original=lumen_connect.connection_scope(self.config)
+            lumen_connect.save_private(lumen_connect.CONFIG,json.dumps(dict(self.config,token='different-fixture')))
+            lumen_connect.save_private(lumen_connect.CONFIG,json.dumps(self.config))
+            observed.append(lumen_connect.connection_scope(lumen_connect.read_config())==original)
+            try:lease.check()
+            except SessionError:observed.append('denied')
+            self.app.processEvents()
+        with patch('server_file_import_ui.start_import',side_effect=coordinator):
+            window._lumen_file_import();self.wait(lambda:bool(observed))
+        self.assertEqual(observed,[True,'denied']);self.assertIsNone(window._import_reference)
+
+    def import_dialogs(self,path,*,cancel_picker=False,before_review=lambda:None):
+        errors=[];timer=QTimer();timer.setInterval(5);self.addCleanup(timer.stop)
+        def answer():
+            dialog=QApplication.activeModalWidget()
+            if dialog is None or dialog.property('hostFixtureAnswered'):return
+            try:
+                if isinstance(dialog,QFileDialog):
+                    dialog.setProperty('hostFixtureAnswered',True)
+                    if cancel_picker:dialog.reject();return
+                    dialog.setDirectory(str(path.parent))
+                    def choose():
+                        if not shiboken6.isValid(dialog):return
+                        dialog.findChild(QLineEdit,'fileNameEdit').setText(str(path));dialog.accept()
+                    QTimer.singleShot(50,choose)
+                elif isinstance(dialog,QDialog) and dialog.windowTitle()=='Lumen Drive · Datei übernehmen':
+                    dialog.setProperty('hostFixtureAnswered',True);before_review()
+                    combo=dialog.findChild(QComboBox);combo.setCurrentIndex(combo.findData(FOLDER));dialog.accept()
+                elif isinstance(dialog,QMessageBox) and dialog.windowTitle()=='Lumen Drive · Übernahme prüfen':
+                    dialog.setProperty('hostFixtureAnswered',True);dialog.done(QMessageBox.StandardButton.Yes)
+            except Exception as error:
+                errors.append(type(error).__name__);dialog.reject()
+        timer.timeout.connect(answer);timer.start();return errors
+
+    def reference(self):
+        return dict(app='files',kind='drive_file',id=FILE,title='Eigene Testkopie.txt',
+                    locator=dict(server=self.origin,account=USER)),dict(id=FILE,version=1,revision=1)
+
+    def test_import_real_coordinator_https_same_window_and_done_has_no_upload(self):
+        from interop_data import Registry
+        window=self.import_window();other=self.window();other.timer.stop();delivered=[];foreign=[]
+        window.import_reference_ready.connect(lambda ref,resolved:delivered.append((ref,resolved,threading.get_ident())))
+        other.import_reference_ready.connect(lambda *args:foreign.append(args))
+        path=self.import_root/'Synthetisches Original.txt';content=b'Own native HTTPS import fixture\n';path.write_bytes(content)
+        errors=self.import_dialogs(path);start=len(self.calls)
+        window._lumen_file_import();self.wait(lambda:bool(delivered) or window._import_error)
+        self.assertEqual(errors,[]);self.assertEqual(len(delivered),1);self.assertEqual(foreign,[])
+        ref,resolved,thread_id=delivered[0]
+        self.assertEqual(thread_id,threading.get_ident());self.assertEqual(ref['id'],FILE)
+        self.assertEqual(set(ref),{'app','kind','id','title','locator'})
+        self.assertEqual(set(resolved),{'id','version','revision'});self.assertEqual(resolved['version'],1)
+        self.assertEqual(window._import_reference,dict(reference=ref,resolved=resolved))
+        self.assertIsNone(other._import_reference);self.assertEqual(path.read_bytes(),content)
+        self.assertEqual(next(iter(self.uploads.values()))['data'],content)
+        self.assertEqual(set(self.upload_metadata[0]),{'name','size','sha256','folder','replaces','revision','mime'})
+        calls=self.calls[start:]
+        self.assertTrue(any(c['path']=='/api/me' and not c['bearer'] for c in calls))
+        self.assertTrue(all(c['bearer'] and not c['cookie'] and not c['web'] for c in calls if '/bridge/drive/' in c['path']))
+        html=self.js(window,'document.documentElement.outerHTML')
+        self.assertNotIn('native-only-fixture',html);self.assertNotIn(str(path),html)
+        self.assertEqual(self.js(window,'typeof qt'),'undefined')
+        rows=Registry(self.import_root/'tools').history();self.assertEqual(len(rows),1);self.assertEqual(rows[0]['state'],'done')
+        uploads=list(self.upload_requests)
+        window._lumen_file_import(rows[0]['id']);self.wait(lambda:len(delivered)==2 or window._import_error)
+        self.assertEqual(len(delivered),2);self.assertEqual(self.upload_requests,uploads)
+        self.assertFalse(any(c['path']=='/api/translate' and c['method']=='POST' for c in self.calls[start:]))
+
+    def test_import_native_picker_cancel_leaves_no_request_or_reference(self):
+        from interop_data import Registry
+        window=self.import_window();errors=self.import_dialogs(self.import_root/'unused',cancel_picker=True)
+        window._lumen_file_import();self.wait(lambda:window._import_error is not None)
+        self.assertEqual(errors,[]);self.assertEqual(Registry(self.import_root/'tools').history(),[])
+        self.assertIsNone(window._import_reference);self.assertEqual(self.upload_requests,[])
+
+    def test_import_close_waits_for_real_chunk_job_then_explicit_same_request_resume(self):
+        from interop_data import Registry
+        window=self.import_window();type(self).hold_upload=True;order=[];close_seen=[]
+        page,profile=window.page,window.profile
+        page.destroyed.connect(lambda *_:order.append('page'));profile.destroyed.connect(lambda *_:order.append('profile'))
+        path=self.import_root/'Close fixture.txt';path.write_bytes(b'Own cancel chunk fixture')
+        errors=self.import_dialogs(path);watch=QTimer();watch.setInterval(5);self.addCleanup(watch.stop)
+        def close_during_chunk():
+            if not self.upload_started.is_set() or close_seen:return
+            jobs=[j for j in window.findChildren(QThread) if j.isRunning()]
+            for job in jobs:job.finished.connect(lambda:order.append('job'))
+            window.close()
+            close_seen.append((len(jobs),window._disposed,shiboken6.isValid(page),shiboken6.isValid(profile)))
+            self.release_upload.set()
+        watch.timeout.connect(close_during_chunk);watch.start()
+        window._lumen_file_import();self.wait(lambda:window._disposed);watch.stop()
+        self.assertEqual(errors,[]);self.assertEqual(len(close_seen),1)
+        count,disposed,page_alive,profile_alive=close_seen[0]
+        self.assertGreaterEqual(count,1);self.assertEqual((disposed,page_alive,profile_alive),(False,True,True))
+        self.assertLess(order.index('job'),order.index('page'));self.assertLess(order.index('page'),order.index('profile'))
+        registry=Registry(self.import_root/'tools');rows=registry.history();self.assertEqual(len(rows),1)
+        token=rows[0]['id'];self.assertEqual(rows[0]['state'],'pending');self.assertEqual(len(self.upload_requests),1)
+        self.assertFalse(any(c['path'].endswith('/finish') for c in self.calls[self.import_call_start:]));self.assertIsNone(window._import_reference)
+        resumed=self.window();resumed.timer.stop();delivered=[]
+        resumed.import_reference_ready.connect(lambda *args:delivered.append(args))
+        QTest.qWait(50);self.assertEqual(len(self.upload_requests),1)
+        type(self).hold_upload=False;resumed._lumen_file_import(token)
+        self.wait(lambda:bool(delivered) or resumed._import_error)
+        self.assertEqual(len(delivered),1);self.assertEqual(registry.request(token)['state'],'done')
+        self.assertEqual(len(set(self.upload_requests)),1);self.assertEqual(len(self.upload_requests),2)
+        self.assertEqual(len(self.drive_files),1);self.assertFalse(any(c['method']=='DELETE' for c in self.calls[self.import_call_start:]))
+
+    def test_import_progress_cancel_keeps_profile_and_same_pending_request(self):
+        from interop_data import Registry
+        window=self.import_window();type(self).hold_upload=True;cancelled=[];leases=[];signals=[];after=[]
+        window.import_reference_ready.connect(lambda *args:signals.append(args))
+        path=self.import_root/'Cancel fixture.txt';path.write_bytes(b'Own progress cancel fixture')
+        errors=self.import_dialogs(path);watch=QTimer();watch.setInterval(5);self.addCleanup(watch.stop)
+        def cancel():
+            if not self.upload_started.is_set() or cancelled:return
+            dialog=QApplication.activeModalWidget()
+            if dialog is None:return
+            leases.append(window._import_lease);dialog.reject();after.append(len(self.calls))
+            # Root: Job cancellation gates in-flight work; lease expires in finally.
+            cancelled.extend(j.cancelled.is_set() for j in window.findChildren(QThread)
+                             if j.isRunning() and hasattr(j,'cancelled'))
+            self.release_upload.set()
+        watch.timeout.connect(cancel);watch.start()
+        window._lumen_file_import();self.wait(lambda:window._import_error is not None);watch.stop()
+        self.assertEqual(errors,[]);self.assertEqual(cancelled,[True]);self.assertFalse(window._disposed)
+        self.assertEqual(signals,[])
+        with self.assertRaises(SessionError):leases[0].check()
+        QTest.qWait(50)
+        self.assertEqual([c for c in self.calls[after[0]:] if c['path'].startswith('/bridge/')],[])
+        self.assertTrue(shiboken6.isValid(window.profile));self.assertTrue(window._live)
+        rows=Registry(self.import_root/'tools').history();self.assertEqual(len(rows),1)
+        self.assertEqual(rows[0]['state'],'pending');self.assertEqual(len(set(self.upload_requests)),1)
+        self.assertIsNone(window._import_reference);self.assertFalse(any(c['path'].endswith('/finish') for c in self.calls[self.import_call_start:]))
+
+    def test_import_late_accept_requires_fresh_native_and_app_grants(self):
+        cases=('account','device','revision','drive','compose','app_revoked','expired')
+        for case in cases:
+            with self.subTest(case=case):
+                type(self).native_user=USER;type(self).native_device=DEVICE;type(self).native_revision=7;type(self).revoked=False
+                window=self.import_window();signals=[];leases=[]
+                window.import_reference_ready.connect(lambda *args:signals.append(args))
+                def coordinator(parent,lease,token):
+                    leases.append(lease);lease.accept_import(*self.reference())
+                    if case=='account':type(self).native_user=str(uuid4())
+                    elif case=='device':type(self).native_device=str(uuid4())
+                    elif case=='revision':type(self).native_revision+=1
+                    elif case=='drive':type(self).native_areas=['translate']
+                    elif case=='compose':type(self).native_areas=['drive']
+                    elif case=='app_revoked':type(self).revoked=True
+                    elif case=='expired':parent.session._deadline=0
+                with patch('server_file_import_ui.start_import',side_effect=coordinator):
+                    window._lumen_file_import();self.wait(lambda:window._import_error is not None)
+                self.assertEqual(len(leases),1);self.assertEqual(signals,[]);self.assertIsNone(window._import_reference)
+                with self.assertRaises(SessionError):leases[0].check()
+
+    def test_import_cancel_during_inventory_performs_no_later_io(self):
+        window=self.import_window();type(self).hold_inventory=True;cancelled=[];after=[];signals=[];leases=[]
+        window.import_reference_ready.connect(lambda *args:signals.append(args))
+        watch=QTimer();watch.setInterval(5);self.addCleanup(watch.stop)
+        def cancel():
+            if not self.inventory_started.is_set() or cancelled:return
+            dialog=QApplication.activeModalWidget()
+            if dialog is None:return
+            leases.append(window._import_lease);dialog.reject();cancelled.append(True);after.append(len(self.calls))
+            self.release_inventory.set()
+        watch.timeout.connect(cancel);watch.start()
+        window._lumen_file_import();self.wait(lambda:window._import_error is not None);watch.stop()
+        self.assertEqual(cancelled,[True]);self.assertEqual(signals,[]);self.assertEqual(self.upload_requests,[])
+        with self.assertRaises(SessionError):leases[0].check()
+        self.assertEqual([c['path'] for c in self.calls[after[0]:] if c['path'].startswith('/bridge/')],[])
+
+    def test_import_actual_page_or_profile_change_and_worker_accept_are_denied(self):
+        window=self.import_window();other=self.window();other.timer.stop();observed=[]
+        def coordinator(parent,lease,token):
+            foreign=QWebEnginePage(parent.profile,parent);page=parent.page;profile=parent.profile
+            parent.view.setPage(foreign)
+            try:
+                try:lease.accept_import(*self.reference())
+                except SessionError:observed.append('page')
+            finally:parent.view.setPage(page);foreign.deleteLater()
+            parent.profile=other.profile
+            try:
+                try:lease.accept_import(*self.reference())
+                except SessionError:observed.append('profile')
+            finally:parent.profile=profile
+            def accept():
+                try:lease.accept_import(*self.reference())
+                except SessionError:observed.append('thread')
+            thread=threading.Thread(target=accept);thread.start();thread.join(timeout=2)
+        with patch('server_file_import_ui.start_import',side_effect=coordinator):
+            window._lumen_file_import();self.wait(lambda:len(observed)==3 or window._import_error)
+        self.assertEqual(observed,['page','profile','thread']);self.assertIsNone(window._import_reference)
+
+    def test_import_watch_rearms_after_atomic_aba_and_old_callback_cannot_cancel_new_lease(self):
+        window=self.import_window();leases=[];observed=[]
+        def coordinator(parent,lease,token):
+            leases.append(lease)
+            if len(leases)==1:
+                lumen_connect.save_private(lumen_connect.CONFIG,json.dumps(dict(self.config,token='changed-fixture')))
+                self.wait(lambda:parent._import_lease is None)
+                lumen_connect.save_private(lumen_connect.CONFIG,json.dumps(self.config))
+                QTest.qWait(40)
+            else:
+                sibling=lumen_connect.CONFIG.parent/'unrelated';sibling.write_text('Own fixture')
+                QTest.qWait(30);lease.check()
+                parent._fresh_import(leases[0],lambda:observed.append('old callback ran'))
+                lease.check();observed.append('new lease valid')
+        with patch('server_file_import_ui.start_import',side_effect=coordinator):
+            window._lumen_file_import();self.wait(lambda:bool(leases) and not window._import_running)
+            window._lumen_file_import();self.wait(lambda:len(leases)==2 and not window._import_running)
+        self.assertEqual(observed,['new lease valid'])
+        self.assertIn(str(lumen_connect.CONFIG),window._connection_watcher.files())
+        self.assertIsNone(window._import_reference)
+        for lease in leases:
+            with self.assertRaises(SessionError):lease.check()
+
+    def test_import_cookie_removal_and_reconnect_never_revive_old_lease(self):
+        window=self.import_window();old=[];signals=[]
+        window.import_reference_ready.connect(lambda *args:signals.append(args))
+        def coordinator(parent,lease,token):
+            old.append(lease);parent.profile.cookieStore().deleteAllCookies()
+            self.wait(lambda:parent._import_lease is None)
+        with patch('server_file_import_ui.start_import',side_effect=coordinator):
+            window._lumen_file_import();self.wait(lambda:bool(old) and not window._import_running)
+        window.verify();self.wait(lambda:window._worker is None)
+        with self.assertRaises(SessionError):old[0].accept_import(*self.reference())
+        self.assertEqual(signals,[]);self.assertIsNone(window._import_reference)
 
     def test_native_https_cookie_boundary_and_no_global_bridge(self):
         window=self.window()
