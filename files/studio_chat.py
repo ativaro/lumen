@@ -95,7 +95,13 @@ class StudioChat(ChatPanel):
         self.mode.currentIndexChanged.connect(self.update_context)
         self.dont_ask.toggled.connect(self.update_context)
         root.addWidget(self.composer_surface)
-        footer = QHBoxLayout(); footer.addWidget(self.status, 1)
+        from lumen_halo import LumenHalo
+        self.work_mark = LumenHalo(self)
+        def update_halo(*_):
+            self.work_mark.setActive(self.backend.busy and not self.backend.permissions and not self.backend.questions)
+        self.backend.busyChanged.connect(update_halo)
+        self.backend.requestsChanged.connect(update_halo)
+        footer = QHBoxLayout(); footer.addWidget(self.work_mark); footer.addWidget(self.status, 1)
         self.pause_task = QPushButton(tr('Pausieren')); self.pause_task.clicked.connect(self.tracker.pause); footer.addWidget(self.pause_task)
         self.open_task = QPushButton(tr('Auftrag')); self.open_task.clicked.connect(lambda: self.taskRequested.emit(self.tracker.task_id)); footer.addWidget(self.open_task)
         footer.addWidget(self.stop); footer.addWidget(self.close_action)

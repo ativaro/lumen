@@ -1,1 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 62 58"><path d="M31 5C18 5 8 15 8 28s10 23 23 23 23-10 23-23C54 17 47 8 37 6" fill="none" stroke="white" stroke-width="2.8"/><path d="M27 6C9 24 20 42 38 39c-8 12-25 6-25-7C11 21 18 10 27 6Zm-2 8c-9 15 3 24 16 16-1 8-8 13-16 9-10-6-8-16 0-25Z" fill="white"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="40 40 176 176" role="img" aria-label="Lumen"><title>Lumen</title><defs>
+ <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#36505d"/><stop offset=".48" stop-color="#20343f"/><stop offset="1" stop-color="#172b35"/></linearGradient>
+ <linearGradient id="halo" x1=".08" y1=".12" x2=".92" y2=".88"><stop stop-color="#bfffee"/><stop offset=".32" stop-color="#80e6d5"/><stop offset=".68" stop-color="#24bdba"/><stop offset="1" stop-color="#168da7"/></linearGradient>
+ <linearGradient id="light" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#8be9da"/><stop offset=".65" stop-color="#bdfff0"/><stop offset="1" stop-color="#f1fff9"/></linearGradient>
+</defs><circle cx="128" cy="128" r="78" fill="none" stroke="url(#halo)" stroke-width="15"/>
+<path d="M77.86 187.7A78 78 0 0 1 174.94 65.69" fill="none" stroke="url(#light)" stroke-width="13" stroke-linecap="round"/>
+<path d="M78.9 181.1A72.3 72.3 0 0 1 171.51 70.26" fill="none" stroke="#e4fff7" stroke-opacity=".42" stroke-width="1.4" stroke-linecap="round"/><g fill="none" color="#c0f8ec" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"></g></svg>

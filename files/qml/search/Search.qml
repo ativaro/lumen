@@ -61,7 +61,7 @@ ApplicationWindow {
                 RowLayout {
                     id: brand
                     anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; spacing: 10
-                    Image { source: "image://icons/lumen?" + window.theme.name; sourceSize: Qt.size(21,21); Layout.preferredWidth: 21; Layout.preferredHeight: 21 }
+                    LumenHalo { active: window.controller.busy && !window.controller.permissions.length && !window.controller.questions.length; Layout.preferredWidth: 24; Layout.preferredHeight: 24 }
                     Label { text: "Lumen"; color: window.theme.text; font.pixelSize: 16; font.weight: Font.DemiBold }
                 }
                 Frame {
@@ -399,7 +399,6 @@ ApplicationWindow {
                             Repeater { model: window.controller.questions; QuestionCard { required property var modelData; controller: window.controller; request: modelData; Layout.fillWidth: true } }
                             RowLayout {
                                 Layout.fillWidth: true; visible: window.controller.busy
-                                BusyIndicator { running: window.controller.busy; implicitWidth: 24; implicitHeight: 24 }
                                 Label { text: window.controller.status; color: window.theme.muted; font.pixelSize: 12; wrapMode: Text.Wrap; Layout.fillWidth: true }
                             }
                             Item { id: conversationEnd; Layout.preferredHeight: 1; Layout.fillWidth: true }

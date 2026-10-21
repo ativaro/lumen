@@ -46,7 +46,7 @@ Image {
         "dialog-error": "M12 8v5m0 4h.01 M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20",
         "dialog-question": "M9 8a3 3 0 1 1 5 2c-2 1-2 2-2 3m0 4h.01 M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20"
     })
-    source: name === "lumen" ? Qt.resolvedUrl("lumen-halo.png")
+    source: name === "lumen" ? Qt.resolvedUrl("lumen-mark.svg")
         : name.indexOf("lumen-") === 0 ? Qt.resolvedUrl(name + ".svg")
         : "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="' + color + '" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="' + (paths[name] || paths["view-task"]) + '"/></svg>')
     sourceSize.width: Math.ceil(width * Screen.devicePixelRatio)
