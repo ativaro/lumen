@@ -198,7 +198,11 @@ if WEBENGINE:
             if not w._live or not w.session.usable or not w.session.binding.resource(info.requestUrl().toString()):
                 info.block(True); return
             info.setHttpHeader(b'Authorization', b'')
-            if bytes(info.requestMethod()) not in (b'GET', b'HEAD', b'OPTIONS'):
+            method=bytes(info.requestMethod())
+            # This endpoint only transforms draft strings; it persists no note.
+            draft_tags=(w._binding.app=='notes' and method==b'POST'
+                        and info.requestUrl().path()=='/api/note-drafts/tags')
+            if method not in (b'GET', b'HEAD', b'OPTIONS') and not draft_tags:
                 w.session.observe_write()
 
     class BoundPage(QWebEnginePage):
@@ -243,7 +247,7 @@ class ServerAppWindow(QMainWindow):
         self.retry = QPushButton('Erneut prüfen');self.retry.clicked.connect(lambda:self.verify(reconnect=True));layout.addWidget(self.retry,0,Qt.AlignLeft)
         self.copy = QPushButton('Entwurf kopieren');self.copy.clicked.connect(self.copy_draft);self.copy.setEnabled(False);layout.addWidget(self.copy,0,Qt.AlignLeft)
         if session.binding.app=='notes':self.copy.setText('Textkopie der ungespeicherten Notiz')
-        if pilot_connection is not None:self.copy.hide()
+        if pilot_connection is not None and session.binding.app!='notes':self.copy.hide()
         layout.addStretch();self.stack.addWidget(self.status_page)
         self.timer = QTimer(self);self.timer.setInterval(2000);self.timer.timeout.connect(self.verify)
         if not WEBENGINE:
@@ -564,7 +568,7 @@ class ServerAppWindow(QMainWindow):
         def captured(value):
             if self._disposed or generation!=self._generation:return
             if isinstance(value,str):self.session.remember_draft(value)
-            self.copy.setEnabled(bool(self.session.draft(self.session.binding)) and self.session.state!='identity')
+            self.copy.setEnabled(bool(self.session.draft(self.session.binding)) and self._copy_allowed())
             callback()
         self.page.runJavaScript(NOTES_DRAFT_READ if self.session.binding.app=='notes' else DRAFT_READ,
             QWebEngineScript.ScriptWorldId.ApplicationWorld,captured)
@@ -581,10 +585,13 @@ class ServerAppWindow(QMainWindow):
             if self.page is not None:self.page.setLifecycleState(QWebEnginePage.LifecycleState.Frozen)
         self._capture(freeze)
 
+    def _copy_allowed(self):
+        return (not self._disposed and self.session.binding==self._binding and self.session.state!='identity'
+                and (self._pilot_connection is None or self._binding.app=='notes' and self._pilot_current()))
+
     def copy_draft(self):
-        if self._pilot_connection is not None:return
-        if self.session.state=='identity':return
-        QApplication.clipboard().setText(self.session.draft(self.session.binding))
+        if not self._copy_allowed():return
+        QApplication.clipboard().setText(self.session.draft(self._binding))
 
     def closeEvent(self, event):
         if self._disposed:event.accept();return
@@ -597,8 +604,7 @@ class ServerAppWindow(QMainWindow):
             if dialog is not None and self.isAncestorOf(dialog):dialog.reject()
             return
         if self._worker is not None:
-            self._closing=True;self._generation+=1;self._live=False;self.timer.stop()
-            self.stack.setCurrentWidget(self.status_page);self.session.close();return
+            self._closing=True;return
         if self._closing:return
         self._closing=True
         def finish():
@@ -609,7 +615,11 @@ class ServerAppWindow(QMainWindow):
             if (draft or self.session.uncertain) and QMessageBox.question(self,self._app_title,prompt,
                     QMessageBox.StandardButton.Discard|QMessageBox.StandardButton.Cancel,
                     QMessageBox.StandardButton.Cancel)!=QMessageBox.StandardButton.Discard:
-                self._closing=False;self._queue_theme(reveal=self._live and self._loaded);return
+                self._closing=False
+                if not self._pilot_current():self._invalidate_pilot()
+                elif not self.session.usable:self.block(self.session.state)
+                else:self._queue_theme(reveal=self._live and self._loaded)
+                return
             self.timer.stop();self._live=False;self._generation+=1
             self._profile_cookie=None;self.session.remember_draft('');self.session.close()
             if self.page is not None:

@@ -46,6 +46,7 @@ class WindowTest(unittest.TestCase):
         cls.write_started=threading.Event();cls.release_write=threading.Event()
         cls.upload_started=threading.Event();cls.release_upload=threading.Event()
         cls.inventory_started=threading.Event();cls.release_inventory=threading.Event()
+        cls.check_started=threading.Event();cls.release_check=threading.Event()
         class Handler(BaseHTTPRequestHandler):
             def log_message(self,*args):pass
             def do_GET(self):self.handle_request()
@@ -94,22 +95,29 @@ class WindowTest(unittest.TestCase):
                 elif self.path=='/bridge/apps/session-ticket':
                     cls.challenge=body['challenge'];data=dict(ticket='t'*43,expires=(datetime.now(timezone.utc)+timedelta(seconds=29)).isoformat())
                 elif self.path=='/api/auth/desktop/exchange':
-                    if (body['app']!='compose' or body['user_id']!=USER or body['device_id']!=DEVICE
+                    if (body['app']!=cls.app_kind or body['user_id']!=USER or body['device_id']!=DEVICE
                             or hashlib.sha256(body['verifier'].encode()).hexdigest()!=cls.challenge
                             or self.headers.get('Origin')!=cls.origin or self.headers.get('Authorization')):status=403
-                    cookie=True;data=dict(user_id=USER,device_id=DEVICE,app='compose',access='read',csrf='fixture',
+                    cookie=True;data=dict(user_id=USER,device_id=DEVICE,app=cls.app_kind,access='read',csrf='fixture',
                                           expires=(datetime.now(timezone.utc)+timedelta(seconds=899)).isoformat())
                 elif self.path=='/api/me':
+                    if cls.hold_check:
+                        cls.check_started.set();cls.release_check.wait(timeout=10)
                     status=403 if cls.revoked or 'lumen_session='+'c'*43 not in self.headers.get('Cookie','') else 200
-                    data=dict(user=dict(id=USER,device_id=DEVICE,desktop_app='compose',device_kind='desktop',
-                                        capabilities=['translate'],admin=False,csrf='fixture'))
+                    data=dict(user=dict(id=USER,device_id=DEVICE,desktop_app=cls.app_kind,device_kind='desktop',
+                                        capabilities=['notes' if cls.app_kind=='notes' else 'translate'],admin=False,csrf='fixture'))
+                elif self.path=='/api/note-drafts/tags':data=dict(body=body['body'],tags=[])
                 elif self.path=='/api/translate':
                     if cls.hold_write:
                         cls.write_started.set();cls.release_write.wait(timeout=10)
                     status=403;data={'detail':'App jobs remain gated.'}
                 elif self.path=='/api/ping':data={'cookie':'lumen_session='+'c'*43 in self.headers.get('Cookie','')}
                 else:
-                    data='<!doctype html><html><title>Compose fixture</title><textarea id="translation-text"></textarea></html>'
+                    data=('''<!doctype html><html><title>Notes fixture</title><section class="knowledge-editor">
+                        <input class="title-input" value="Own fixture note"><div class="note-rich-text" contenteditable="true">Own fixture text</div>
+                        </section><script>window.fixtureDirty=false;document.addEventListener('input',()=>window.fixtureDirty=true);
+                        window.addEventListener('beforeunload',e=>{if(window.fixtureDirty)e.preventDefault()});</script></html>'''
+                        if cls.app_kind=='notes' else '<!doctype html><html><title>Compose fixture</title><textarea id="translation-text"></textarea></html>')
                 raw=data.encode() if isinstance(data,str) else json.dumps(data).encode()
                 self.send_response(status);self.send_header('Content-Type','text/html' if isinstance(data,str) else 'application/json')
                 self.send_header('Content-Length',str(len(raw)))
@@ -127,6 +135,7 @@ class WindowTest(unittest.TestCase):
         cls.app.processEvents();cls.temp.cleanup()
 
     def setUp(self):
+        type(self).app_kind='compose';type(self).hold_check=False
         type(self).revoked=False;type(self).hold_write=False
         type(self).native_user=USER;type(self).native_areas=['translate'];type(self).native_revision=7
         type(self).native_device=DEVICE;type(self).hold_upload=False
@@ -136,9 +145,10 @@ class WindowTest(unittest.TestCase):
         type(self).hold_inventory=False;self.inventory_started.clear();self.release_inventory.clear()
         self.import_call_start=len(self.calls)
         self.write_started.clear();self.release_write.clear();self.windows=[]
+        self.check_started.clear();self.release_check.clear()
 
     def tearDown(self):
-        self.release_write.set();self.release_upload.set();self.release_inventory.set()
+        self.release_write.set();self.release_upload.set();self.release_inventory.set();self.release_check.set()
         with patch.object(QMessageBox,'question',return_value=QMessageBox.StandardButton.Discard):
             for window in self.windows:window.close()
             self.wait(lambda:all(w._disposed for w in self.windows))
@@ -157,8 +167,9 @@ class WindowTest(unittest.TestCase):
         result=[];window.page.runJavaScript(source,world,lambda value:result.append(value))
         self.wait(lambda:bool(result));return result[0]
 
-    def window(self,*,pilot=False):
-        binding=Binding(self.origin,USER,DEVICE,'compose')
+    def window(self,*,pilot=False,app='compose'):
+        type(self).app_kind=app
+        binding=Binding(self.origin,USER,DEVICE,app)
         session=AppSession(dict(server=self.origin,device_id=DEVICE,token='native-only-fixture',ca_file=str(self.cert)),binding)
         from server_app_window import _connection
         window=ServerAppWindow(session,self.root,pilot_connection=_connection()[1] if pilot else None)
@@ -167,8 +178,8 @@ class WindowTest(unittest.TestCase):
         self.wait(lambda:window._loaded)
         return window
 
-    def import_window(self,drive=True,*,pilot=False):
-        type(self).native_areas=['translate','drive'] if drive else ['translate']
+    def import_window(self,drive=True,*,pilot=False,app='compose'):
+        type(self).native_areas=['notes' if app=='notes' else 'translate']+(['drive'] if drive else [])
         temp=tempfile.TemporaryDirectory(dir=self.root);self.addCleanup(temp.cleanup)
         self.import_root=Path(temp.name);(self.import_root/'config').mkdir()
         self.config=dict(server=self.origin,device_id=DEVICE,token='native-only-fixture',ca_file=str(self.cert))
@@ -177,8 +188,63 @@ class WindowTest(unittest.TestCase):
         lumen_connect.save_private(lumen_connect.CONFIG,json.dumps(self.config))
         env=patch.dict(os.environ,{'LUMEN_TOOLS_DATA':str(self.import_root/'tools')})
         env.start();self.addCleanup(env.stop)
-        window=self.window(pilot=pilot);window.timer.stop();self.wait(lambda:window._worker is None)
+        window=self.window(pilot=pilot,app=app);window.timer.stop();self.wait(lambda:window._worker is None)
         return window
+
+    def note_input(self,window):
+        self.js(window,"const field=document.querySelector('.note-rich-text');field.textContent='Own unsaved Notes text';"
+                       "field.dispatchEvent(new Event('input',{bubbles:true}))")
+        captured=[];window._capture(lambda:captured.append(True));self.wait(lambda:bool(captured))
+        self.assertIn('Own unsaved Notes text',window.session.draft(window._binding))
+
+    def test_notes_expired_session_keeps_copy_only_for_same_binding_and_connection(self):
+        window=self.import_window(drive=False,pilot=True,app='notes');self.note_input(window)
+        window.session._deadline=window.session._clock()-1
+        window.verify();self.wait(lambda:window.stack.currentWidget() is window.status_page and window._worker is None)
+        self.wait(lambda:window.page.lifecycleState()==QWebEnginePage.LifecycleState.Frozen)
+        self.assertTrue(window.copy.isVisible())
+        self.assertTrue(window.copy.isEnabled())
+        QApplication.clipboard().setText('Own recovery sentinel');window.copy.click()
+        self.assertIn('Own unsaved Notes text',QApplication.clipboard().text())
+        binding=window.session.binding
+        window.session.binding=Binding(self.origin,FOLDER,DEVICE,'notes')
+        QApplication.clipboard().setText('Own binding sentinel');window.copy_draft()
+        self.assertEqual(QApplication.clipboard().text(),'Own binding sentinel')
+        window.session.binding=binding
+        lumen_connect.save_private(lumen_connect.CONFIG,json.dumps(self.config))
+        QApplication.clipboard().setText('Own generation sentinel');window.copy_draft()
+        self.assertEqual(QApplication.clipboard().text(),'Own generation sentinel')
+
+    def test_notes_close_during_identity_worker_cancel_preserves_live_session_and_dom(self):
+        window=self.import_window(drive=False,pilot=True,app='notes');self.note_input(window)
+        window.timer.start();cookie=window.session._cookie;session_generation=window.session._generation
+        type(self).hold_check=True;window.verify();self.wait(self.check_started.is_set)
+        with patch.object(QMessageBox,'question',return_value=QMessageBox.StandardButton.Cancel) as question:
+            window.close()
+            self.assertEqual(window.session._cookie,cookie)
+            self.assertEqual(window.session._generation,session_generation)
+            self.assertTrue(window._live);self.assertTrue(window.timer.isActive())
+            self.release_check.set();self.wait(lambda:question.called and not window._closing)
+        self.assertTrue(window.session.usable);self.assertTrue(window._live)
+        self.wait(lambda:window.stack.currentWidget() is window.view)
+        self.assertEqual(self.js(window,"document.querySelector('.note-rich-text').textContent"),'Own unsaved Notes text')
+
+    def test_notes_tag_draft_post_can_resume_but_document_write_stays_uncertain(self):
+        window=self.import_window(drive=False,pilot=True,app='notes');self.note_input(window)
+        self.js(window,"fetch('/api/note-drafts/tags',{method:'POST',headers:{'Content-Type':'application/json'},"
+                       "body:JSON.stringify({body:'Own draft',action:'list'})}).then(()=>window.tagsChecked=true)")
+        self.wait(lambda:self.js(window,'window.tagsChecked') is True)
+        self.assertFalse(window.session._write_seen)
+        self.pause(window);self.assertFalse(window.session.uncertain);window.verify()
+        self.wait(lambda:window._worker is None and window._live and window.stack.currentWidget() is window.view)
+        self.assertEqual(self.js(window,"document.querySelector('.note-rich-text').textContent"),'Own unsaved Notes text')
+        self.js(window,"fetch('/api/documents/"+FILE+"',{method:'PATCH',headers:{'Content-Type':'application/json'},"
+                       "body:'{}'}).then(()=>window.documentWritten=true)")
+        self.wait(lambda:self.js(window,'window.documentWritten') is True)
+        self.assertTrue(window.session._write_seen)
+        self.pause(window);self.assertTrue(window.session.uncertain);window.verify()
+        self.wait(lambda:window._worker is None)
+        self.assertFalse(window._live);self.assertFalse(window.session.usable)
 
     def theme_property(self, value):
         previous=self.app.property('lumenDesign')
