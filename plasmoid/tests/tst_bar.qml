@@ -12,6 +12,17 @@ Rectangle {
     SignalSpy { id: voices; target: bar; signalName: "voice" }
     TestCase {
         name: "LumenCompactBar"; when: windowShown
+        function init() { bar.panelWidth = 0; }
+        function test_search_icon_keeps_action_and_restores_label() {
+            searches.clear(); bar.surface="search"; bar.panelWidth=40; scene.width=68;
+            waitForRendering(bar);
+            const search=findChild(bar,"searchButton"); const voice=findChild(bar,"voiceButton");
+            compare(search.text,""); verify(!voice.visible);
+            verify(search.mapToItem(scene,search.width,0).x <= scene.width);
+            search.forceActiveFocus();keyClick(Qt.Key_Space);compare(searches.count,1);
+            bar.panelWidth=460;scene.width=488;waitForRendering(bar);
+            verify(search.text!=="");verify(voice.visible);
+        }
         function verifyCentered(button) {
             const icon = button.contentItem.children[0];
             verify(Math.abs(icon.mapToItem(scene, 0, icon.height / 2).y - scene.height / 2) <= 0.5,

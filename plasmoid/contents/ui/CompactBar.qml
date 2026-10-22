@@ -14,6 +14,7 @@ RowLayout {
     property int panelWidth: 0
     property int unreadNotifications: 0
     readonly property bool compactHome: surface === "home" && width < 230
+    readonly property bool compactSearch: surface === "search" && panelWidth > 0 && panelWidth < 220
     signal toggle()
     signal launch(string action)
     signal search()
@@ -21,7 +22,7 @@ RowLayout {
     signal notifications()
     spacing: compactHome ? 4 : 12
     Layout.minimumHeight: 28
-    Layout.minimumWidth: surface === "home" ? 154 : surface === "search" ? 220 : surface === "control" ? 94 : 50
+    Layout.minimumWidth: surface === "home" ? 154 : surface === "search" ? (compactSearch ? 40 : 220) : surface === "control" ? 94 : 50
     Layout.preferredWidth: panelWidth > 0 ? Math.max(Layout.minimumWidth, panelWidth) : surface === "home" ? 266 : surface === "search" ? 460 : surface === "control" ? 104 : 62
     LumenButton {
         objectName: "homeButton"
@@ -52,14 +53,14 @@ RowLayout {
         Layout.fillHeight: true
         topPadding: 0; bottomPadding: 0
         objectName: "searchButton"
-        text: bar.tr("Suchen oder fragen …"); icon.name: "search"
+        text: bar.compactSearch ? "" : bar.tr("Suchen oder fragen …"); icon.name: "search"
         font.pixelSize: 16
         flat: true
         Accessible.name: bar.tr("Dateien und Apps suchen oder ein Gespräch führen")
         onClicked: bar.search()
     }
     LumenButton {
-        visible: bar.surface === "search"
+        visible: bar.surface === "search" && !bar.compactSearch
         objectName: "voiceButton"
         Layout.preferredWidth: 42
         Layout.fillHeight: true

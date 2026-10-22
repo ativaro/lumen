@@ -62,6 +62,8 @@ class PageCanvas(QWidget):
 class Reader(ToolWindow):
     def __init__(self,root=None):
         super().__init__('reader',tr('Lumen Reader'),tr('Zeit zum Lesen. Deine Bücher, Gedanken und Fundstellen.'),'lumen-reader',root)
+        from topbar_context import install_reader
+        install_reader(self)
         self.add_button.setText(tr('Buch oder Dokument öffnen'));self.search.setPlaceholderText(tr('In meiner Bibliothek …'))
         self.sidebar.layout().insertWidget(2,button(tr('Artikel speichern'),lambda:self.safe(self.add_article),'internet-web-browser'))
         self.data=None;self.page_index=0;self.note_id='';self.passwords={};self.pending=[];self.restore_scroll=0;self.audio_asset='';self.pending_position={}

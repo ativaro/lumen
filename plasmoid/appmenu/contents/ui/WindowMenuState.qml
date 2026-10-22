@@ -20,6 +20,15 @@ QtObject {
     readonly property bool fullScreen: activeWindow ? activeWindow.model.IsFullScreen : false
     readonly property bool hasMenu: activeWindow ? !!activeWindow.model.ApplicationMenuServiceName && !!activeWindow.model.ApplicationMenuObjectPath : false
     readonly property string appName: activeWindow ? activeWindow.model.AppName : ""
+    readonly property string title: activeWindow ? activeWindow.model.display || "" : ""
+    readonly property int pid: activeWindow ? activeWindow.model.AppPid || 0 : 0
+    function windowAction(action, target = activeWindow) {
+        if (!target) return;
+        const index = windowModel.makeModelIndex(target.index);
+        if (action === "maximize") windowModel.requestToggleMaximized(index);
+        else if (action === "minimize") windowModel.requestToggleMinimized(index);
+        else if (action === "close") windowModel.requestClose(index);
+    }
     property var windowModel: TaskManager.TasksModel {
         groupMode: TaskManager.TasksModel.GroupDisabled
         filterByScreen: true
@@ -30,6 +39,7 @@ QtObject {
         delegate: QtObject {
             id: window
             required property var model
+            required property int index
             readonly property bool active: model.IsActive
             function update() {
                 if (state.holdActiveWindow) return;

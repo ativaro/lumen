@@ -89,6 +89,11 @@ def main():
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--language', action='store_true')
     group.add_argument('--snapshot', action='store_true')
+    group.add_argument('--topbar-snapshot', action='store_true')
+    group.add_argument('--topbar-fit', action='store_true')
+    group.add_argument('--topbar-page')
+    group.add_argument('--topbar-reader', type=int)
+    group.add_argument('--topbar-transfer', type=valid_task)
     group.add_argument('--system-snapshot', action='store_true')
     group.add_argument('--notification-snapshot', action='store_true')
     group.add_argument('--notification-settings', action='store_true')
@@ -107,6 +112,27 @@ def main():
     group.add_argument('--voice', action='store_true')
     group.add_argument('--settings', action='store_true')
     args = parser.parse_args()
+    if args.topbar_fit:
+        script=(Path(__file__).parents[1]/'desktop/appmenu.js').read_text()+'\ninstallLumenAppMenus(panels());'
+        subprocess.run(['qdbus6','org.kde.plasmashell','/PlasmaShell','org.kde.PlasmaShell.evaluateScript',script],
+            check=True,timeout=4,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        return
+    if args.topbar_snapshot:
+        from topbar_context import snapshot as topbar_snapshot
+        print(json.dumps(topbar_snapshot())); return
+    if args.topbar_page or args.topbar_reader:
+        import sys
+        from topbar_context import page_source
+        if args.topbar_page: page_source(args.topbar_page)
+        subprocess.Popen([sys.executable,str(Path(__file__).with_name('topbar_context.py')),
+            'page' if args.topbar_page else 'reader',str(args.topbar_page or args.topbar_reader)],
+            start_new_session=True,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        return
+    if args.topbar_transfer:
+        from lumen_launch import executable
+        subprocess.Popen([executable('lumen-files'),'--transfer',args.topbar_transfer],
+            start_new_session=True,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        return
     if args.notification_snapshot or args.notification_action or args.notification_own_popups:
         from lumen_notifications import snapshot as notification_snapshot, change, popup_context, configure_popups
         try:

@@ -1,10 +1,11 @@
 # Lumen Anwendungsmenü
 
 Die vorhandene linke Desktop-Insel zeigt bei maximierten Fenstern den Appnamen
-und die tatsächlich von der aktiven App angebotenen Menüs. Bei normalen Fenstern
-oder zu wenig Platz bleibt ein kompakter Menüknopf erreichbar. Im echten Vollbild
-werden die Menü-Applets ausgeblendet. Apps ohne Menüaktionen erhalten keine
-erfundenen Einträge.
+und die tatsächlich von der aktiven App angebotenen Menüs rechts von Lumen und Dateien.
+Alle Menüs bleiben sichtbar, solange sie passen. Erst weichen Kontextangaben und
+die Suchfeldbeschriftung; nur überzählige Menüs kommen in „Weitere App-Menüs“.
+Bei normalen Fenstern bleibt ein kompakter Menüknopf erreichbar. Im echten Vollbild
+werden die Menü-Applets ausgeblendet. Apps ohne Menüaktionen erhalten echte Fensteraktionen statt erfundener App-Menüs.
 
 Die Darstellung folgt den vorhandenen Inseln und ihrer Panorama-Palette;
 Systemschrift, Tastaturbedienung, deaktivierte Aktionen und Monitorzuordnung
@@ -27,7 +28,10 @@ gemeinsamen Theme-Farben.
 - `WindowMenuState.qml` beobachtet die aktiven Fenster über KDEs Taskmodell,
   beschränkt auf den jeweiligen Bildschirm. Geöffnete Menüs behalten ihr Fenster.
 - `desktop/appmenu.js` ergänzt vorhandene Inseln, erhält andere Applet-IDs und
-  begrenzt die Erweiterung durch den Abstand zur Suchinsel. Wiederholtes Ausführen
+  nutzt den verfügbaren Abstand zur rechten Systeminsel. Die Suchinsel steht davor
+  und wird bei langen Menüs zum Suchsymbol; bei genügend Platz erhält sie ihre
+  Beschriftung zurück. Die benötigte Menübreite wird nach Fenster-/Menüwechseln
+  entprellt über den bestehenden Panel-Helfer aktualisiert. Wiederholtes Ausführen
   erzeugt keine weiteren Instanzen. Die ursprüngliche sichtbare Inselbreite bleibt
   gespeichert, weil Plasma bei inhaltsangepassten Inseln eine bildschirmbreite
   Mindestlänge melden kann. Ohne installierten Menü-Baustein bleibt der
@@ -63,3 +67,36 @@ nicht aus.
 
 KDE-Referenzen: [AppMenu-Backend](https://github.com/KDE/plasma-workspace/tree/Plasma/6.8/applets/appmenu),
 [Applet-Laden](https://github.com/KDE/libplasma/blob/Plasma/6.8/src/plasma/pluginloader.cpp).
+
+## Kontext und laufende Vorgänge (22.10.2026)
+
+- Der Fenstertitel nutzt den freien Platz nach den Menüs. Browser bieten „Seite
+  merken …“: KDEs Browser-Integration liefert echte passende Tab-Adressen. Bei
+  mehreren Treffern wird ausgewählt; ohne Adresse kann sie eingegeben werden.
+  Die Adresse wird geprüft und als bestehende, überprüfbare Notes-Übergabe geöffnet.
+- Lumen Reader bietet „In Lumen besprechen“. Das aktuelle Lesedokument wird als
+  Dateikontext in der Detailansicht geöffnet; eine Anfrage wird nicht automatisch
+  gesendet. Ein prozessbezogener lokaler D-Bus-Endpunkt bindet den Klick an den
+  tatsächlich aktiven Reader. Bereits laufende Reader müssen normal neu öffnen.
+- Frische aktive Drive-Transfers werden nur lesend aus den vorhandenen Tickets
+  zusammengefasst. Ein Klick öffnet genau die Übertragung in Lumen Files. Der
+  historische Speicherschlüssel `workplace/transfer/` bleibt zur Datenkompatibilität
+  bestehen und führt kein Arbeitsraum-Produktmodell ein.
+- Audio Studio veröffentlicht nach bestätigter Mikrofonfreigabe ausschließlich
+  seine Prozesskennungen, solange die bestehende App-Sitzung gültig ist. Ein
+  laufender PipeWire-Mikrofonstream dieses Prozessbaums aktiviert die Anzeige.
+  Das prüft die vorhandenen Sitzungs-/Cookie-/Gerätebindungen; Inhalte und Tokens
+  werden nicht ausgetauscht. Laufendes Audio Studio muss für den neuen Hook normal
+  neu öffnen. Ohne verlässlichen Status erscheint keine Aufnahmebehauptung.
+- Der Menüüberlauf hält seinen Qt-Quick-Dialog als Wayland-Elternfenster des
+  nativen Untermenüs offen, bis die Menüaktion endet. Deshalb verwendet seine
+  Eintragsdarstellung ItemDelegate mit expliziter Tastaturführung.
+
+Die gezielte Installation aktualisiert fünf Laufzeitmodule/-helfer, die
+Menü-Erweiterung und nur den CompactBar-Baustein der Suchinsel. Sie erneuert vier
+Menü- und zwei Such-Widgets über frische kanonische Paketpfade. Alle anderen
+Applet-IDs, deren Einstellungen und der laufende Plasma-Prozess bleiben erhalten.
+Der native Adapter bleibt unverändert. Der separate Rückweg liegt in
+`islands-deploy.py rollback` neben dem Quell- und Abnahmeartefakt. Keine vollständige
+Arch-Veröffentlichung; der Helfer erhält die bereits installierte neuere
+Server-App-Verfügbarkeitsprüfung als Basis.

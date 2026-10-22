@@ -91,5 +91,8 @@ def permission(window, request):
     accepted=QMessageBox.question(window,tr('Lumen Audio Studio'),
         tr('Mikrofon für diese Aufnahme verwenden? Die Aufnahme wird erst durch „Speichern“ hochgeladen.'),
         QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No,QMessageBox.StandardButton.No)
-    if accepted==QMessageBox.StandardButton.Yes and request.isValid() and fresh(window,proof):request.grant()
+    if accepted==QMessageBox.StandardButton.Yes and request.isValid() and fresh(window,proof):
+        from topbar_context import install_audio
+        install_audio(window)
+        request.grant()
     else:request.deny()

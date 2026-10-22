@@ -44,6 +44,12 @@ TestCase {
         windows.setProperty(0, "ApplicationMenuServiceName", "");
         tryCompare(state, "hasMenu", false);
     }
+    function test_context_title_encoding_preserves_unicode_without_shell_text() {
+        const value = {title:"Überblick – Workshop",app:"Chromium"};
+        const encoded = Qt.btoa(JSON.stringify(value));
+        verify(/^[A-Za-z0-9+/=]+$/.test(encoded));
+        compare(Qt.atob(encoded),JSON.stringify(value));
+    }
     function test_panel_focus_keeps_menu_until_popup_closes() {
         state.holdActiveWindow = true;
         windows.setProperty(0, "IsActive", false);
