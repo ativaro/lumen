@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2013 Heena Mahour <heena393@gmail.com>
+// SPDX-FileCopyrightText: 2013 Sebastian Kügler <sebas@kde.org>
+// SPDX-FileCopyrightText: 2016 Kai Uwe Broulik <kde@privat.broulik.de>
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Keep KDE's full and compact presenters separate so their native menus retain ownership.
 pragma ComponentBehavior: Bound
