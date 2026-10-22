@@ -140,7 +140,7 @@ def browser_pages(source):
         try:
             rows = bus.get_object(service,'/TabsRunner').get_dbus_method('Match','org.kde.krunner1')(title,timeout=2)
             for row in rows:
-                if len(row)!=6 or str(row[2])!=title: continue
+                if len(row)!=6 or str(row[1])!=title: continue
                 for url in row[5].get('urls',[]):
                     try: pages.add(web_url(str(url)))
                     except ValueError: pass

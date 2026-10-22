@@ -7,7 +7,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from topbar_context import page_source, recording, transfer_snapshot, web_url, remember_page, reader_discuss, belongs_to
+from topbar_context import page_source, recording, transfer_snapshot, web_url, remember_page, reader_discuss, belongs_to, browser_pages
 
 
 class TopbarContextTest(unittest.TestCase):
@@ -74,6 +74,14 @@ class TopbarContextTest(unittest.TestCase):
                 self.assertEqual(row['state'],'pending')
                 self.assertEqual(row['payload']['url'],'https://example.org/workshop')
                 self.assertEqual(row['action'],'wissen.import')
+
+    def test_kde_tab_match_uses_title_column_before_icon_column(self):
+        rows=[('7','Workshop','web-browser',100,1.0,{'urls':['https://example.org/workshop']}),
+              ('8','Other page','Workshop',100,1.0,{'urls':['https://example.org/other']})]
+        obj=SimpleNamespace(get_dbus_method=lambda *_:lambda *a,**kw:rows)
+        bus=SimpleNamespace(list_names=lambda:['org.kde.plasma.browser_integration-123'],get_object=lambda *_:obj)
+        with patch('dbus.SessionBus',return_value=bus):
+            self.assertEqual(browser_pages(dict(title='Workshop — Chromium',app='Chromium')),['https://example.org/workshop'])
 
     def test_reader_attaches_current_document_without_sending_prompt(self):
         with tempfile.TemporaryDirectory() as directory:
