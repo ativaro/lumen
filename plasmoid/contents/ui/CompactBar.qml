@@ -13,14 +13,14 @@ RowLayout {
     property bool expanded: false
     property int panelWidth: 0
     property int unreadNotifications: 0
-    readonly property bool compactHome: surface === "home" && width < 230
+    readonly property bool compactHome: surface === "home" && width < 200
     readonly property bool compactSearch: surface === "search" && panelWidth > 0 && panelWidth < 220
     signal toggle()
     signal launch(string action)
     signal search()
     signal voice()
     signal notifications()
-    spacing: compactHome ? 4 : 12
+    spacing: surface === "home" ? 2 : 8
     Layout.minimumHeight: 28
     Layout.minimumWidth: surface === "home" ? 154 : surface === "search" ? (compactSearch ? 40 : 220) : surface === "control" ? 94 : 50
     Layout.preferredWidth: panelWidth > 0 ? Math.max(Layout.minimumWidth, panelWidth) : surface === "home" ? 266 : surface === "search" ? 460 : surface === "control" ? 104 : 62
@@ -29,32 +29,32 @@ RowLayout {
         visible: bar.surface === "home" || bar.surface === "tasks"
         Layout.fillWidth: true
         Layout.fillHeight: true
-        topPadding: 0; bottomPadding: 0
+        leftPadding: 8; rightPadding: 8; topPadding: 0; bottomPadding: 0
         text: bar.surface === "home" && bar.width >= 180 ? "Lumen" : ""
-        icon.name: "lumen"; symbolSize: 28
-        font.pixelSize: 19; font.weight: Font.DemiBold
+        icon.name: "lumen"; symbolSize: 26
+        font.pixelSize: 17; font.weight: Font.Medium
         flat: true; checkable: true; checked: bar.expanded
         Accessible.name: bar.tr("Lumen Systemübersicht")
         onClicked: bar.toggle()
     }
-    Rectangle { visible: bar.surface === "home"; color: Kirigami.Theme.disabledTextColor; opacity: 0.65; implicitWidth: 1; implicitHeight: 26 }
     LumenButton {
         visible: bar.surface === "home"
         objectName: "filesButton"
         Layout.fillHeight: true
-        topPadding: 0; bottomPadding: 0
-        text: bar.compactHome ? "" : bar.tr("Dateien"); icon.name: "folder"; font.pixelSize: 16
+        leftPadding: 8; rightPadding: 8; topPadding: 0; bottomPadding: 0
+        text: bar.compactHome ? "" : bar.tr("Dateien"); icon.name: "folder"; symbolSize: 18; font.pixelSize: 14
         Accessible.name: bar.tr("Dateien")
         flat: true; onClicked: bar.launch("files")
     }
+    Rectangle { visible: bar.surface === "home"; color: Kirigami.Theme.disabledTextColor; opacity: 0.65; implicitWidth: 1; implicitHeight: 26 }
     LumenButton {
         visible: bar.surface === "search"
         Layout.fillWidth: true
         Layout.fillHeight: true
-        topPadding: 0; bottomPadding: 0
+        leftPadding: 8; rightPadding: 8; topPadding: 0; bottomPadding: 0
         objectName: "searchButton"
-        text: bar.compactSearch ? "" : bar.tr("Suchen oder fragen …"); icon.name: "search"
-        font.pixelSize: 16
+        text: bar.compactSearch ? "" : bar.tr("Lumen fragen …"); icon.name: "search"
+        font.pixelSize: 14
         flat: true
         Accessible.name: bar.tr("Dateien und Apps suchen oder ein Gespräch führen")
         onClicked: bar.search()
@@ -64,7 +64,7 @@ RowLayout {
         objectName: "voiceButton"
         Layout.preferredWidth: 42
         Layout.fillHeight: true
-        topPadding: 0; bottomPadding: 0
+        leftPadding: 8; rightPadding: 8; topPadding: 0; bottomPadding: 0
         icon.name: "audio-input-microphone"
         flat: true
         Accessible.name: bar.tr("Mit Lumen sprechen")
@@ -74,7 +74,7 @@ RowLayout {
         visible: bar.surface === "control"
         objectName: "notificationButton"
         Layout.preferredWidth: 40; Layout.fillHeight: true
-        topPadding: 0; bottomPadding: 0; flat: true; icon.name: "notifications"; symbolSize: 22
+        leftPadding: 8; rightPadding: 8; topPadding: 0; bottomPadding: 0; flat: true; icon.name: "notifications"; symbolSize: 22
         Accessible.name: "Lumen Notification" + (bar.unreadNotifications ? " · " + bar.unreadNotifications : "")
         onClicked: bar.notifications()
         Rectangle { visible: bar.unreadNotifications>0; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 6; width: 6; height: 6; radius: 3; color: Kirigami.Theme.highlightColor }
@@ -83,7 +83,7 @@ RowLayout {
         visible: bar.surface === "control"
         Layout.fillWidth: true
         Layout.fillHeight: true
-        topPadding: 0; bottomPadding: 0
+        leftPadding: 8; rightPadding: 8; topPadding: 0; bottomPadding: 0
         objectName: "centerButton"
         icon.name: "adjustlevels"; symbolSize: 24
         flat: true; checkable: true; checked: bar.expanded

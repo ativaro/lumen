@@ -2,6 +2,7 @@
 
 // Product-authored strings only; task titles, results and other user data stay unchanged.
 var english = {
+    "Lumen fragen …": "Ask Lumen …",
     "Mit Lumen besprechen": "Discuss with Lumen",
     "Öffnet einen Entwurf mit dieser Meldung. Erst Senden übermittelt ihn an deinen KI-Anbieter.": "Opens a draft with this notification. Only Send shares it with your AI provider.",
     "Lumen antwortet nicht. Bitte Lumen neu öffnen und erneut versuchen.": "Lumen is not responding. Please reopen Lumen and try again.",

@@ -15,7 +15,11 @@ gemeinsamen Theme-Farben.
 
 ## Aufbau
 
-- `plasmoid/appmenu/` enthält die einzige QML-Implementierung.
+- `plasmoid/appmenu/` enthält die native Menüansicht und den gemeinsamen Fensterbeobachter.
+- `plasmoid/context/` zeigt Fenstertitel, Kontextaktion und aktive Vorgänge separat
+  im freien Topbar-Platz. Die transparente native Darstellung verwendet denselben
+  Fensterbeobachter und die vorhandenen Lumen-Bedienelemente. Die Menüinsel endet
+  nach den echten App-Menüs.
 - `native/appmenu/factory.cpp` instanziiert den installierten KDE-AppMenu-Backend.
   Ein kleiner Factory-Adapter ist notwendig, weil `X-Plasma-RootPath` unter
   Plasma 6.8 zusätzlich KDEs eingebettete QML-Oberfläche erzwingt.
@@ -29,7 +33,8 @@ gemeinsamen Theme-Farben.
   beschränkt auf den jeweiligen Bildschirm. Geöffnete Menüs behalten ihr Fenster.
 - `desktop/appmenu.js` ergänzt vorhandene Inseln, erhält andere Applet-IDs und
   nutzt den verfügbaren Abstand zur rechten Systeminsel. Die Suchinsel steht davor
-  und wird bei langen Menüs zum Suchsymbol; bei genügend Platz erhält sie ihre
+  und wird bei langen Menüs zum Suchsymbol; ab 2000 logischen Pixeln bleibt sie
+  mittig, solange die Menüs daneben passen. Bei genügend Platz erhält sie ihre
   Beschriftung zurück. Die benötigte Menübreite wird nach Fenster-/Menüwechseln
   entprellt über den bestehenden Panel-Helfer aktualisiert. Wiederholtes Ausführen
   erzeugt keine weiteren Instanzen. Die ursprüngliche sichtbare Inselbreite bleibt
@@ -100,3 +105,16 @@ Der native Adapter bleibt unverändert. Der separate Rückweg liegt in
 `islands-deploy.py rollback` neben dem Quell- und Abnahmeartefakt. Keine vollständige
 Arch-Veröffentlichung; der Helfer erhält die bereits installierte neuere
 Server-App-Verfügbarkeitsprüfung als Basis.
+
+## Abgleich mit dem freigegebenen Entwurf „Inseln“
+
+Die Suchinsel ist 350 logische Pixel breit. Auf großen Bildschirmen sitzt sie
+in der Bildschirmmitte; der Kontext nutzt den freien Bereich rechts davon. Auf
+kleineren Bildschirmen teilen sich Kontext und Suche den Platz vor der Systeminsel.
+Alle Fenster bleiben getrennt und überlappen sich nicht. Bei Platzmangel entfallen
+zuerst optionale Kontextangaben; die Suche gibt Breite und gegebenenfalls ihre
+Mittelposition zugunsten vollständiger App-Menüs frei. Erst danach ist ein Menüüberlauf
+nötig. Lumen und Dateien bleiben vor der aktiven App, der Trenner folgt auf Dateien.
+Der native Kontextbaustein wird zusätzlich unter org.lumen.topbarcontext installiert.
+Sein Entfernen und die Rücknahme von Paketpfaden, Widgetkonfigurationen und Panelmaßen
+gehören zum gezielten Rückweg. Persönliche App-Fenster werden nicht neu gestartet.

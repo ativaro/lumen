@@ -223,6 +223,8 @@ package() {
     local appmenu="$pkgdir/usr/share/plasma/plasmoids/org.lumen.appmenu"
     install -d "$appmenu"
     cp -R "$srcroot/plasmoid/appmenu/." "$appmenu/"
+    install -d "$pkgdir/usr/share/plasma/plasmoids/org.lumen.topbarcontext"
+    cp -R "$srcroot/plasmoid/context/." "$pkgdir/usr/share/plasma/plasmoids/org.lumen.topbarcontext/"
     bash "$srcroot/native/build-appmenu.sh" "$pkgdir/usr/lib/qt6/plugins/plasma/applets/org.lumen.appmenu.so"
 
     # ---- system D-Bus policy + activation ---------------------------------

@@ -28,28 +28,12 @@ PlasmoidItem {
     property bool overflowOpen: false
     onAvailableChanged: if (!available && fullRepresentationItem) fullRepresentationItem.closeMenus()
     onMenuBarChanged: if (!compactView && fullRepresentationItem) fullRepresentationItem.fitIslands()
-    property var activity: ({})
-    readonly property string activityCommand: "/usr/bin/lumen-panel --topbar-snapshot"
-    function runContext(action) {
-        if (action === "page") {
-            const value = Qt.btoa(JSON.stringify({title:windowState.title, app:root.appName}));
-            runner.connectSource("/usr/bin/lumen-panel --topbar-page " + value);
-        } else if (action === "reader" && windowState.pid > 0) runner.connectSource("/usr/bin/lumen-panel --topbar-reader " + windowState.pid);
-        else if (action === "transfer" && /^[a-f0-9]{32}$/.test(activity.transfer?.id || "")) runner.connectSource("/usr/bin/lumen-panel --topbar-transfer " + activity.transfer.id);
-        else if (action === "audio") runner.connectSource("/usr/bin/lumen-panel --open-app meetings");
-    }
     P5Support.DataSource {
         id: runner
         engine: "executable"
         connectedSources: []
-        onNewData: (source, data) => {
-            disconnectSource(source);
-            if (source !== root.activityCommand) return;
-            try { root.activity = data["exit code"] === 0 ? JSON.parse(data.stdout) : {}; }
-            catch (error) { root.activity = {}; }
-        }
+        onNewData: (source, data) => disconnectSource(source)
     }
-    Timer { interval: 3000; running: !root.compactView && root.available; repeat: true; triggeredOnStart: true; onTriggered: runner.connectSource(root.activityCommand) }
     Timer { id: fitTimer; interval: 200; onTriggered: runner.connectSource("/usr/bin/lumen-panel --topbar-fit") }
     Plasmoid.constraintHints: Plasmoid.CanFillArea
     Plasmoid.status: !available ? PlasmaCore.Types.HiddenStatus
@@ -90,7 +74,7 @@ PlasmoidItem {
         function closeMenus() { overflowMenu.close(); windowMenu.close(); }
         function fitIslands() {
             if (root.compactView) return;
-            const requested = root.menuBar ? Math.ceil(nativeWidth + Math.min(160, title.implicitWidth) + 12) : 0;
+            const requested = root.menuBar ? Math.ceil(nativeWidth + 12) : 0;
             if (Plasmoid.configuration.requiredWidth !== requested) {
                 Plasmoid.configuration.requiredWidth = requested;
                 fitTimer.restart();
@@ -108,15 +92,9 @@ PlasmoidItem {
             }
             return result;
         }
-        readonly property bool showTitle: nativeWidth + Math.min(160, title.implicitWidth) + 12 <= root.widthBudget
-        readonly property real requiredWidth: Math.min(root.widthBudget, nativeWidth + (showTitle ? Math.min(160, title.implicitWidth) + 12 : 0))
-        readonly property real spareWidth: Math.max(0, root.widthBudget - requiredWidth - 24)
-        readonly property bool browser: /chrom|brave|firefox|edge|vivaldi/i.test(root.appName)
-        readonly property bool reader: /Lumen Reader/i.test(root.appName)
-        readonly property bool contextAction: spareWidth >= 170 && (browser || reader)
-        readonly property bool activityVisible: spareWidth >= 140 + (contextAction ? 170 : 0) && !!(root.activity.transfer || root.activity.audio)
-        readonly property real contextWidth: Math.min(640, Math.max(0, spareWidth - (contextAction ? 170 : 0) - (activityVisible ? 140 : 0)))
-        readonly property real menuWidth: requiredWidth + (contextAction ? 170 : 0) + (activityVisible ? 140 : 0) + (contextWidth >= 80 && windowState.title ? contextWidth : 0)
+        readonly property bool showTitle: nativeWidth + Math.min(120, title.implicitWidth) + 12 <= root.widthBudget
+        readonly property real requiredWidth: Math.min(root.widthBudget, nativeWidth + (showTitle ? Math.min(120, title.implicitWidth) + 12 : 0))
+        readonly property real menuWidth: requiredWidth
         readonly property int overflowIndex: {
             measureRevision;
             if (nativeWidth <= root.widthBudget) return measurements.count;
@@ -137,9 +115,9 @@ PlasmoidItem {
         PlasmaComponents.Label {
             id: title
             text: root.appName
-            font.weight: Font.DemiBold
+            font.weight: Font.Medium
             visible: buttons.showTitle
-            Layout.maximumWidth: 160
+            Layout.maximumWidth: 120
             Layout.rightMargin: 12
             elide: Text.ElideRight
         }
@@ -152,7 +130,7 @@ PlasmoidItem {
                 required property int index
                 required property string activeMenu
                 required property PlasmaCore.Action activeActions
-                readonly property real naturalWidth: Math.ceil(metrics.advanceWidth) + 24
+                readonly property real naturalWidth: Math.ceil(metrics.advanceWidth) + 16
                 property TextMetrics metrics: TextMetrics { font: Kirigami.Theme.defaultFont; text: activeMenu.replace(/&(.)/g, "$1") }
             }
         }
@@ -171,6 +149,7 @@ PlasmoidItem {
                 Layout.maximumWidth: naturalWidth
                 objectName: "applicationMenuButton" + index
                 Layout.fillHeight: true
+                leftPadding: 8; rightPadding: 8
                 text: activeMenu
                 visible: index < buttons.overflowIndex && text !== "" && (activeActions?.visible ?? false)
                 enabled: activeActions?.enabled ?? false
@@ -200,32 +179,6 @@ PlasmoidItem {
                 QQC2.MenuItem { text: i18n("Minimieren"); onTriggered: windowState.windowAction("minimize", windowMenu.targetWindow) }
                 QQC2.MenuItem { text: i18n("Schließen"); onTriggered: windowState.windowAction("close", windowMenu.targetWindow) }
             }
-        }
-        PlasmaComponents.Label {
-            objectName: "activeWindowContext"
-            visible: buttons.contextWidth >= 80 && windowState.title !== ""
-            text: windowState.title
-            Layout.leftMargin: 24
-            Layout.minimumWidth: buttons.contextWidth - 24
-            Layout.maximumWidth: buttons.contextWidth - 24
-            elide: Text.ElideRight
-            opacity: 0.75
-        }
-        PlasmaComponents.ToolButton {
-            objectName: "activeContentAction"
-            visible: buttons.contextAction
-            Layout.minimumWidth: 170; Layout.maximumWidth: 170
-            text: buttons.reader ? i18n("In Lumen besprechen") : i18n("Seite merken …")
-            icon.name: buttons.reader ? "lumen" : "bookmark-new"
-            onClicked: root.runContext(buttons.reader ? "reader" : "page")
-        }
-        PlasmaComponents.ToolButton {
-            objectName: "activeOperation"
-            visible: buttons.activityVisible
-            Layout.minimumWidth: 140; Layout.maximumWidth: 140
-            text: root.activity.audio ? i18n("Aufnahme") : root.activity.transfer ? "Drive · " + (root.activity.transfer.percent === null ? i18n("Überträgt") : root.activity.transfer.percent + " %") : ""
-            icon.name: root.activity.audio ? "audio-input-microphone" : "folder-sync"
-            onClicked: root.runContext(root.activity.audio ? "audio" : "transfer")
         }
         PlasmaComponents.ToolButton {
             id: overflowButton

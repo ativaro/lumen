@@ -7,6 +7,7 @@ Image {
     property string name: ""
     property color color: Kirigami.Theme.textColor
     readonly property var paths: ({
+        "bookmark-new": "M6 3h12v18l-6-4-6 4Z M9 9h6m-3-3v6",
         "notifications": "M6 9a6 6 0 0 1 12 0v5l2 3H4l2-3Z M9 20a3 3 0 0 0 6 0 M12 1v2",
         "notifications-disabled": "M20 15A9 9 0 0 1 9 4a9 9 0 1 0 11 11",
         "view-fullscreen": "M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5",
