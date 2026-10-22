@@ -1,1 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><title>Wiederherstellen</title><path stroke-linecap="butt" d="M20.0902 7.5155A9.25 9.25 0 1 1 16.4845 3.9098"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 9V7H17V15H15M7 9H15V17H7Z"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="6 6 20 20">
+  <title>Wiederherstellen</title>
+  <g id="glyph" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity="1">
+    <path d="M13 9h8a2 2 0 0 1 2 2v8" />
+    <rect x="9" y="13" width="10" height="10" rx="1.8" />
+  </g>
+</svg>

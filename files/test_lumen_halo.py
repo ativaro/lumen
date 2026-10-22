@@ -1,10 +1,29 @@
 """Working marks follow real backend state and stop when waiting or hidden."""
 import unittest
+from pathlib import Path
+from xml.etree import ElementTree as ET
 from test_search_qml import Qt6SearchTest
 
 
 class HaloTests(unittest.TestCase):
     run_qt6 = Qt6SearchTest.run_qt6
+
+    def test_in_app_window_glyphs_match_native_decoration(self):
+        root = Path(__file__).resolve().parent
+        ns = {'svg': 'http://www.w3.org/2000/svg'}
+        for name in ('minimize', 'maximize', 'restore', 'close'):
+            with self.subTest(button=name):
+                icon = ET.parse(root / 'window-controls' / (name + '.svg')).getroot()
+                native = ET.parse(root.parent / 'desktop/aurorae/LumenGraphite' / (name + '.svg')).getroot()
+                glyph = icon.find("svg:g[@id='glyph']", ns)
+                self.assertIsNotNone(glyph, 'In-app controls must use the approved native glyph')
+                expected = native.find(".//svg:g[@id='active-glyph']", ns)
+                self.assertEqual([(p.tag, p.attrib) for p in glyph], [(p.tag, p.attrib) for p in expected])
+                for key in ('stroke-width', 'stroke-linecap', 'stroke-linejoin', 'fill'):
+                    self.assertEqual(glyph.get(key), expected.get(key))
+                self.assertEqual(glyph.get('stroke'), 'currentColor')
+                self.assertEqual(icon.get('viewBox'), '6 6 20 20')
+                self.assertEqual(len(icon), 2, 'No old permanent Halo ring around window glyphs')
 
     def test_working_waiting_hidden_and_reduced_motion(self):
         self.run_qt6('''
