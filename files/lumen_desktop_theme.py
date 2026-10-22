@@ -184,7 +184,7 @@ def prepare_decoration(name, destination=None, source=None):
         (stage / 'decoration.svg').write_text(artwork)
         for button in ('minimize', 'maximize', 'restore', 'close'):
             path = stage / (button + '.svg')
-            artwork = path.read_text().replace('#72c9b1', text).replace('#aebcb8', muted)
+            artwork = path.read_text().replace('#72c9b1', text).replace('#aebcb8', muted).replace('#9be5d8', accent)
             if name == 'atelier': artwork = artwork.replace('#ffb9b4', '#ab3539')
             path.write_text(artwork)
         config = configparser.ConfigParser(); config.optionxform = str
