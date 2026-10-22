@@ -69,6 +69,7 @@ try {
         var pager = panel(screen, "bottom", "center", 140, Math.floor(dockWidth / 2) + 12);
         widget(pager, "org.kde.plasma.pager", {displayedText: 1});
     }
+    installLumenAppMenus(panels().filter(owned));
 } catch (error) {
     created.forEach(function(id) { var p = panelById(id); if (p) p.remove(); });
     throw error;

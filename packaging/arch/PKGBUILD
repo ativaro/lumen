@@ -9,9 +9,9 @@ provides=('opencode-lumen')
 # on file conflicts until the old package has been migrated.
 arch=('x86_64' 'aarch64')
 url="https://forge.example.invalid/ativaro/lumen"
-license=('LicenseRef-Lumen-EULA' 'GPL-3.0-only')
+license=('LicenseRef-Lumen-EULA' 'GPL-3.0-only' 'GPL-2.0-or-later')
 depends=('bash' 'git' 'python3' 'pyside6' 'python-gobject' 'python-pillow' 'python-yaml' 'python-markdown-it-py' 'openssl')
-makedepends=('gcc' 'pkgconf' 'qt6-base')
+makedepends=('gcc' 'pkgconf' 'qt6-base' 'cmake' 'libplasma')
 # OpenCode may be installed through its own installer. Native files/tasks remain
 # useful without inference; the app explains a missing engine when AI is requested.
 optdepends=(
@@ -218,6 +218,12 @@ package() {
         case "$plugin" in system) surface=home;; search|control) surface="$plugin";; esac
         sed -i "s|<default>tasks</default>|<default>$surface</default>|" "$applet/contents/config/main.xml"
     done
+
+    # ---- Native KDE application menu -------------------------------------
+    local appmenu="$pkgdir/usr/share/plasma/plasmoids/org.lumen.appmenu"
+    install -d "$appmenu"
+    cp -R "$srcroot/plasmoid/appmenu/." "$appmenu/"
+    bash "$srcroot/native/build-appmenu.sh" "$pkgdir/usr/lib/qt6/plugins/plasma/applets/org.lumen.appmenu.so"
 
     # ---- system D-Bus policy + activation ---------------------------------
     install -d "$pkgdir/usr/share/dbus-1/system.d"

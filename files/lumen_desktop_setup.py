@@ -58,7 +58,7 @@ def configure_desktop(design, replace_panels=False):
     wallpaper = data / 'wallpapers/LumenLichtstrom/contents/images'
     image = next(wallpaper.glob('*.png'))
     options = {'replacePanels': replace_panels, 'wallpaper': image.as_uri()}
-    script = 'var options = ' + json.dumps(options) + ';\n' + (ARTWORK / 'layout.js').read_text()
+    script = 'var options = ' + json.dumps(options) + ';\n' + (ARTWORK / 'appmenu.js').read_text() + '\n' + (ARTWORK / 'layout.js').read_text()
     result = json.loads(run(PLASMA + [script]))
     (backup / 'created-panels.json').write_text(json.dumps(result, indent=2))
     print(tr('Lumen-Desktop eingerichtet. Rückweg: lumen-desktop-setup --restore'), backup)
