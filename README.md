@@ -12,7 +12,7 @@ Du gibst die Richtung vor und bestimmst, welche Zugriffe und Änderungen du erla
 
 **Das ist Lumen Desktop. Auf deinem Rechner, mit deinen Inhalten, für deine Vorhaben.**
 
-Lumen Desktop ist eigenständig nutzbar. Du brauchst eine eingerichtete Modellanbindung für die KI, aber keinen Lumen Server. Einen Server kannst du später für die gemeinsamen Apps und geräteübergreifende Funktionen verbinden.
+Und wenn du Lumen noch stärker in deinen Alltag einbinden möchtest, verbinde deinen Desktop mit Lumen Server. Deine Notizen, Projekte und Aufgaben kommen zusammen, und Lumen kann wiederkehrende Arbeit für dich übernehmen – auch während du nicht am Rechner sitzt. Mit Lumen Mobile hast du Lumen unterwegs dabei: Gedanken festhalten, auf deine Inhalte zugreifen und später am Computer weiterarbeiten. So wird aus der Hilfe am Desktop ein Begleiter für deinen Alltag.
 
 **Installiere Lumen und bring deine erste Aufgabe mit.**
 
