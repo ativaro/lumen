@@ -26,7 +26,7 @@ Item {
         const matches = !search.text || (row.title+" "+row.body+" "+row.source).toLowerCase().indexOf(search.text.toLowerCase())>=0;
         const later = row.snoozed*1000 > center.now.getTime();
         return matches && (center.filter==="history" ? row.archived : !row.archived &&
-            (center.filter==="later" ? later : !later && (center.filter!=="attention" || row.attention)));
+            (center.filter==="done" ? !!row.resolved : !row.resolved && (center.filter==="later" ? later : !later && (center.filter!=="attention" || row.attention || ["question","decision","problem"].indexOf(row.kind)>=0))));
     }).sort((a,b)=>center.grouped ? a.source.localeCompare(b.source) || b.updated-a.updated : b.updated-a.updated)
     Timer { interval: 30000; running: center.visible; repeat: true; onTriggered: center.now = new Date() }
     ColumnLayout {
@@ -57,13 +57,13 @@ Item {
             placeholderText: center.tr("Meldungen durchsuchen …"); Accessible.name: placeholderText
             onTextChanged: center.pageSize=30
         }
-        RowLayout {
+        Flow {
             Layout.fillWidth: true; spacing: 4
             Repeater {
-                model: [{key:"all",label:"Alle"},{key:"attention",label:"Braucht dich"},{key:"later",label:"Später"},{key:"history",label:"Verlauf"}]
+                model: [{key:"all",label:"Offen"},{key:"attention",label:"Braucht dich"},{key:"later",label:"Später"},{key:"done",label:"Erledigt"},{key:"history",label:"Verlauf"}]
                 delegate: LumenButton {
                     required property var modelData
-                    Layout.fillWidth: true; flat: true; text: center.tr(modelData.label)
+                    flat: true; text: center.tr(modelData.label)
                     checkable: true; checked: center.filter===modelData.key
                     onClicked: { center.filter=modelData.key; center.pageSize=30; }
                 }
@@ -72,21 +72,20 @@ Item {
         PC.Label { visible: center.error!==""; text: center.error; textFormat: Text.PlainText; wrapMode: Text.Wrap; Layout.fillWidth: true; color: Kirigami.Theme.negativeTextColor }
         ListView {
             id: list; objectName: "notificationList"; Layout.fillWidth: true; Layout.fillHeight: true
-            clip: true; spacing: 10; reuseItems: true
+            clip: true; spacing: 0; reuseItems: true
             model: center.filtered.slice(0, center.pageSize)
             PC.ScrollBar.vertical: PC.ScrollBar {}
             delegate: Rectangle {
                 id: card
                 required property var modelData
-                width: list.width; height: content.implicitHeight+28; radius: 14
-                color: Qt.alpha(Kirigami.Theme.textColor, card.modelData.read ? 0.025 : 0.06)
-                border.width: 1; border.color: Qt.alpha(Kirigami.Theme.textColor, 0.09)
+                width: list.width; height: content.implicitHeight+48; color: "transparent"
+                Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: Qt.alpha(Kirigami.Theme.textColor,0.14) }
                 ColumnLayout {
-                    id: content; anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 14; spacing: 8
+                    id: content; anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 16; anchors.topMargin: 24; spacing: 12
                     RowLayout {
                         Layout.fillWidth: true; spacing: 8
                         Kirigami.Icon { source: card.modelData.icon || "notifications"; Layout.preferredWidth: 20; Layout.preferredHeight: 20 }
-                        PC.Label { text: card.modelData.source; textFormat: Text.PlainText; Layout.fillWidth: true; elide: Text.ElideRight; color: Kirigami.Theme.disabledTextColor; font.pixelSize: 12 }
+                        PC.Label { text: card.modelData.source + (({result:"Ergebnis",question:"Rückfrage",decision:"Entscheidung",suggestion:"Vorschlag",problem:"Problem",reminder:"Erinnerung"})[card.modelData.kind] ? " · "+center.tr(({result:"Ergebnis",question:"Rückfrage",decision:"Entscheidung",suggestion:"Vorschlag",problem:"Problem",reminder:"Erinnerung"})[card.modelData.kind]) : ""); textFormat: Text.PlainText; Layout.fillWidth: true; elide: Text.ElideRight; color: Kirigami.Theme.disabledTextColor; font.pixelSize: 12 }
                         PC.Label { text: Qt.formatDateTime(new Date(card.modelData.updated*1000), "dd.MM. hh:mm"); color: Kirigami.Theme.disabledTextColor; font.pixelSize: 12 }
                         Rectangle { visible: !card.modelData.read; implicitWidth: 6; implicitHeight: 6; radius: 3; color: Kirigami.Theme.highlightColor; Accessible.name: center.tr("Ungelesen") }
                         LumenButton {
@@ -100,23 +99,24 @@ Item {
                     PC.Label { visible: text!==""; text: card.modelData.body; textFormat: Text.PlainText; wrapMode: Text.Wrap; maximumLineCount: center.full ? 12 : 4; elide: Text.ElideRight; Layout.fillWidth: true; font.pixelSize: 14 }
                     Flow {
                         Layout.fillWidth: true; spacing: 6
+                        Repeater {
+                            model: card.modelData.actions || []
+                            delegate: LumenButton {
+                                required property var modelData
+                                text: modelData.label; prominent: true; implicitHeight: 44
+                                onClicked: center.action(card.modelData.id, card.modelData.system, modelData.key)
+                            }
+                        }
                         LumenButton {
-                            objectName: "notificationDiscuss"; text: center.tr("Mit Lumen besprechen"); implicitHeight: 34
+                            objectName: "notificationDiscuss"; text: center.tr("Mit Lumen besprechen"); implicitHeight: 44
                             icon.name: "lumen"
                             PC.ToolTip.text: center.tr("Öffnet einen Entwurf mit dieser Meldung. Erst Senden übermittelt ihn an deinen KI-Anbieter.")
                             PC.ToolTip.visible: hovered
                             onClicked: center.action(card.modelData.id, card.modelData.system, "discuss")
                         }
-                        Repeater {
-                            model: card.modelData.actions || []
-                            delegate: LumenButton {
-                                required property var modelData
-                                text: modelData.label; prominent: true; implicitHeight: 34
-                                onClicked: center.action(card.modelData.id, card.modelData.system, modelData.key)
-                            }
-                        }
-                        LumenButton { visible: !card.modelData.system; flat: true; text: center.tr(card.modelData.read ? "Als ungelesen" : "Gelesen"); implicitHeight: 34; onClicked: center.action(card.modelData.id, false, card.modelData.read ? "unread" : "read") }
-                        LumenButton { visible: !card.modelData.system && !card.modelData.archived; flat: true; text: center.tr(card.modelData.snoozed*1000>center.now.getTime() ? "Jetzt" : "In einer Stunde"); implicitHeight: 34; onClicked: center.action(card.modelData.id, false, card.modelData.snoozed*1000>center.now.getTime() ? "now" : "later") }
+                        LumenButton { visible: !card.modelData.system && card.modelData.completion_supported && card.modelData.kind!=="decision" && !card.modelData.archived; flat: true; text: center.tr(card.modelData.resolved ? "Wieder öffnen" : "Erledigen"); implicitHeight: 44; onClicked: center.action(card.modelData.id, false, card.modelData.resolved ? "reopen" : "resolve") }
+                        LumenButton { visible: !card.modelData.system; flat: true; text: center.tr(card.modelData.read ? "Als ungelesen" : "Gelesen"); implicitHeight: 44; onClicked: center.action(card.modelData.id, false, card.modelData.read ? "unread" : "read") }
+                        LumenButton { visible: !card.modelData.system && !card.modelData.archived; flat: true; text: center.tr(card.modelData.snoozed*1000>center.now.getTime() ? "Jetzt" : "In einer Stunde"); implicitHeight: 44; onClicked: center.action(card.modelData.id, false, card.modelData.snoozed*1000>center.now.getTime() ? "now" : "later") }
                     }
                 }
             }

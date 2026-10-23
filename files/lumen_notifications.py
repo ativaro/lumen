@@ -50,6 +50,9 @@ def database(path=None):
                 db.execute(
                     "ALTER TABLE notifications ADD COLUMN wake_notified REAL NOT NULL DEFAULT 0"
                 )
+            columns={row[1] for row in db.execute("PRAGMA table_info(notifications)")}
+            for name,sql in {"kind":"TEXT NOT NULL DEFAULT 'message'","resolved":"INTEGER NOT NULL DEFAULT 0","completion_supported":"INTEGER NOT NULL DEFAULT 1"}.items():
+                if name not in columns:db.execute("ALTER TABLE notifications ADD COLUMN "+name+" "+sql)
             db.execute(
                 "CREATE TABLE IF NOT EXISTS status_events(source TEXT,key TEXT,bad INTEGER,revision INTEGER,PRIMARY KEY(source,key))"
             )
@@ -74,12 +77,15 @@ def publish(
     body="",
     *,
     target="",
+    kind="message",
     revision=1,
     scope="local",
     attention=False,
     popup=True,
     path=None,
 ):
+    if kind not in ("message","result","question","decision","suggestion","problem","reminder"):
+        raise ValueError("Invalid notification kind")
     for value, limit in (
         (source, 100),
         (external_id, 200),
@@ -105,10 +111,10 @@ def publish(
     with database(path) as db:
         changed = db.execute(
             """INSERT INTO notifications
-            (id,scope,source,external_id,revision,title,body,target,created,updated,attention)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+            (id,scope,source,external_id,revision,title,body,target,created,updated,attention,kind)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
             revision=excluded.revision,title=excluded.title,body=excluded.body,target=excluded.target,
-            updated=excluded.updated,attention=excluded.attention,read=0,archived=0,snoozed=0
+            updated=excluded.updated,attention=excluded.attention,kind=excluded.kind,read=0,archived=0,resolved=0,snoozed=0
             WHERE excluded.revision>notifications.revision""",
             (
                 identity,
@@ -122,6 +128,7 @@ def publish(
                 now,
                 now,
                 bool(attention),
+                kind,
             ),
         ).rowcount
         preference = db.execute(
@@ -166,7 +173,7 @@ def snapshot(path=None, wake=True):
                 dict(row)
                 for row in db.execute(
                     """SELECT id,source FROM notifications WHERE
-            snoozed>0 AND snoozed<=? AND wake_notified<snoozed AND archived=0
+            snoozed>0 AND snoozed<=? AND wake_notified<snoozed AND archived=0 AND resolved=0
             AND scope IN ("""
                     + ",".join("?" for _ in allowed)
                     + """)
@@ -203,7 +210,7 @@ def snapshot(path=None, wake=True):
     return {
         "items": rows,
         "unread": sum(
-            not row["read"] and not row["archived"] and row["snoozed"] <= time.time()
+            not row["read"] and not row["archived"] and not row["resolved"] and row["snoozed"] <= time.time()
             for row in rows
         ),
     }
@@ -220,7 +227,9 @@ def change(identity, action, path=None):
             raise ValueError("Notification no longer available")
         if row["scope"] not in active_scopes(db):
             raise ValueError("Server connection no longer available")
-        if action == "open":
+        if action == "discuss" and row["scope"]=="local":
+            raise ValueError("Local discussions use the native selected-message action")
+        if action in ("open","discuss"):
             target = row["target"]
             if row["scope"] != "local":
                 from urllib.parse import urlencode
@@ -229,14 +238,7 @@ def change(identity, action, path=None):
                 binding = db.execute(
                     "SELECT server FROM bindings WHERE scope=?", (row["scope"],)
                 ).fetchone()
-                route = (
-                    {
-                        "app": "tasks",
-                        "task": str(UUID(target.removeprefix("server-task:"))),
-                    }
-                    if target.startswith("server-task:")
-                    else {"app": "notifications"}
-                )
+                route={"app":"notifications","notice":str(int(row["external_id"])),"action":"discuss" if action=="discuss" else "review"}
                 subprocess.Popen(
                     [
                         "xdg-open",
@@ -246,6 +248,13 @@ def change(identity, action, path=None):
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )
+            elif target.startswith('local-task:'):
+                from lumen_panel import valid_task
+                from lumen_store import Store
+                from lumen_detail_routes import open_tasks
+                task_identity=valid_task(target.removeprefix('local-task:'))
+                Store().task(task_identity)
+                open_tasks(task_identity)
             elif target.startswith('transfer:'):
                 from files_activation import open_transfer
                 open_transfer(target.removeprefix('transfer:'))
@@ -286,9 +295,13 @@ def change(identity, action, path=None):
             "restore": ("archived", 0),
             "later": ("snoozed", time.time() + 3600),
             "now": ("snoozed", 0),
+            "resolve": ("resolved", 1),
+            "reopen": ("resolved", 0),
         }
         if action not in changes:
             raise ValueError("Invalid notification action")
+        if action in ("resolve","reopen") and (not row["completion_supported"] or row["kind"]=="decision"):
+            raise ValueError("Please review this request at its source")
         field, value = changes[action]
         db.execute(
             "UPDATE notifications SET " + field + "=? WHERE id=?", (value, identity)
@@ -297,6 +310,8 @@ def change(identity, action, path=None):
             db.execute(
                 "UPDATE notifications SET updated=? WHERE id=?", (time.time(), identity)
             )
+        if action == "resolve":
+            db.execute("UPDATE notifications SET read=1 WHERE id=?", (identity,))
         if action == "later":
             db.execute("UPDATE notifications SET read=0 WHERE id=?", (identity,))
         if row["scope"] != "local":
@@ -307,6 +322,8 @@ def change(identity, action, path=None):
                 "SELECT changes,revision FROM outbox WHERE id=?", (identity,)
             ).fetchone()
             fields = json.loads(queued["changes"]) if queued else {}
+            if action == "resolve":
+                fields["read"] = True
             if action == "later":
                 fields["read"] = False
             fields["snoozed_until" if field == "snoozed" else field] = (
@@ -382,6 +399,7 @@ def report(source, key, bad, title, body="", target="", path=None):
             body,
             target=target,
             attention=bad,
+            kind="problem" if bad else "result",
             revision=revision,
             path=path,
         )
@@ -417,7 +435,7 @@ def remind(title, due, key, path=None):
         raise ValueError(
             "Reminder requires a future time with a timezone (within one year)"
         )
-    identity = publish("Lumen", key, title, popup=False, path=path)
+    identity = publish("Lumen", key, title, kind="reminder", popup=False, path=path)
     with database(path) as db:
         row = db.execute(
             "SELECT title,snoozed FROM notifications WHERE id=?", (identity,)

@@ -98,7 +98,7 @@ def main():
     group.add_argument('--notification-snapshot', action='store_true')
     group.add_argument('--notification-settings', action='store_true')
     group.add_argument('--notification-own-popups', action='store_true')
-    group.add_argument('--notification-action', choices=['open','read','unread','archive','restore','later','now'])
+    group.add_argument('--notification-action', choices=['open','discuss','read','unread','archive','restore','later','now','resolve','reopen'])
     parser.add_argument('--notification-id')
     group.add_argument('--control', choices=['volume', 'brightness', 'mute', 'search', 'network', 'audio', 'display', 'appearance', 'hardware', 'desktop-settings', 'lock'])
     parser.add_argument('--value', type=int)

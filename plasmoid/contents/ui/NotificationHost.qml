@@ -42,7 +42,7 @@ Item {
         function dbusActiveChanged(active) { host.locked=active; }
     }
     readonly property var items: systemItems.concat(localItems).sort((a,b) => b.updated-a.updated)
-    readonly property int unread: items.filter(row => !row.read && !row.archived && row.snoozed*1000<=now.getTime()).length
+    readonly property int unread: items.filter(row => !row.read && !row.archived && !row.resolved && row.snoozed*1000<=now.getTime()).length
     function tr(text) { return I18n.tr(text, uiLanguage); }
     function refresh() {
         if (pending) return;
@@ -96,7 +96,7 @@ Item {
         if(JSON.stringify(systemItems)!==JSON.stringify(rows)) systemItems=rows;
     }
     function act(identity, system, operation) {
-        if(operation==="discuss") {
+        if(operation==="discuss" && !items.some(row=>row.id===identity && row.scope && row.scope!=="local")) {
             const row=items.find(value=>value.id===identity && value.system===system);
             if(!row || discussion) return;
             discussion={source:row.source.slice(0,100),title:row.title.slice(0,300),body:row.body.slice(0,2000)};
@@ -117,7 +117,7 @@ Item {
             }
             error=tr("Diese Meldung ist nicht mehr verfügbar.");return;
         }
-        if (!/^[a-f0-9]{64}$/.test(identity) || ["open","read","unread","archive","restore","later","now"].indexOf(operation)<0) return;
+        if (!/^[a-f0-9]{64}$/.test(identity) || ["open","discuss","read","unread","archive","restore","later","now","resolve","reopen"].indexOf(operation)<0) return;
         if (pending) { queuedActions=queuedActions.concat([{id:identity,operation:operation}]); return; }
         pending=helper+" --notification-action "+operation+" --notification-id "+identity;
         runner.connectSource(pending);
@@ -179,7 +179,7 @@ Item {
                     if(host.primary && host.ownsPopups) N.Server.inhibited=host.inhibited;
                     if(!host.ownsPopups) popup.dismiss();
                 }
-                const next=result.items.map(row=>Object.assign({},row,{system:false,icon:"lumen",actions:row.target?[{key:"open",label:host.tr("Öffnen")}]:[]}));
+                const next=result.items.map(row=>Object.assign({},row,{system:false,icon:"lumen",actions:row.target?[{key:"open",label:host.tr(({question:"Antworten",decision:"Anfrage prüfen",problem:"Ursache prüfen",result:"Ergebnis ansehen",suggestion:"Vorschlag ansehen"})[row.kind]||"Öffnen")}]:[]}));
                 if(JSON.stringify(host.localItems)!==JSON.stringify(next)) host.localItems=next;
                 host.error="";
             } catch(e) {host.error=host.tr("Meldungen gerade nicht erreichbar.");}
