@@ -11,70 +11,49 @@ normal user. Install Plasma and a display manager through your distribution firs
 Lumen supplies its applications, applets, themes, decorations and wallpapers;
 it uses KDE's compositor, tray, clock, task manager and pager.
 
-## GitHub access on a fresh computer or VM
+## Forgejo access on a fresh computer or VM
 
-**The repository is private.** Your GitHub account must be granted access to
-`ativaro/lumen`. Signing in to your Linux desktop or to GitHub in a browser does
-not by itself authenticate Git in the terminal. A new VM needs its own Git
-authentication, even when the same account already works on the host computer.
+**The current repository is private on Forgejo.** Your account needs access to
+[ativaro/lumen](https://forge.example.invalid/ativaro/lumen), and this Forgejo host must be
+reachable from the computer being installed. A browser login does not authenticate
+Git in a new terminal or VM.
 
-Inside the VM's KDE Plasma session, install Git and the GitHub CLI, then sign in:
-
-```bash
-sudo pacman -S --needed git github-cli
-gh auth login --hostname github.com --git-protocol https --web
-gh auth setup-git --hostname github.com
-```
-
-The first command may ask for your **VM/Linux password** to install packages.
-Run the remaining commands as your normal user, **without `sudo`**. Follow the
-browser sign-in, enter the one-time code if prompted, and select the **GitHub
-account with access to Lumen**. The final command configures Git to use that
-GitHub CLI login. If Git already has working credentials in this VM, you can skip
-this setup.
-
-Check repository access before installing:
+Install Git if needed:
 
 ```bash
-git ls-remote https://github.com/ativaro/lumen.git HEAD
+sudo pacman -S --needed git
 ```
 
-Success prints a commit identifier followed by `HEAD`. **Do not replace `ativaro`
-in the URL**: it is the repository owner, not your VM username or a login field.
+Use your configured Git credential helper or Git's login prompt. If your account
+requires a repository-read token, enter it only in the authentication prompt.
+Never put passwords or tokens in a URL, shell command, documentation or chat.
+Check access with:
 
-If authentication still fails:
+```bash
+git ls-remote https://forge.example.invalid/ativaro/lumen.git HEAD
+```
 
-- **`Authentication failed`, `Invalid username or token`, or password authentication
-  unsupported:** GitHub does not accept a normal account password for HTTPS Git
-  operations. Use the browser login above; do not paste a password or token into
-  the installation command.
-- **`Repository not found` or HTTP 404:** check the signed-in account with
-  `gh auth status --hostname github.com` and open
-  [the repository](https://github.com/ativaro/lumen) in a browser signed into that
-  same account. If it cannot access the repository, the account needs access from
-  the repository owner. Changing your Linux username does not grant access.
-- **The old `curl … | bash` command fails:** it downloads without Git credentials
-  and cannot access the private repository. Use the authenticated clone below.
-
-See GitHub's [authentication documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github)
-and [GitHub CLI credential setup](https://cli.github.com/manual/gh_auth_setup-git).
+Success prints a commit and `HEAD`. Keep `ativaro` in the URL: it is the repository
+owner. If authentication fails, check account access and your credential helper.
+A missing route to the private Forgejo host cannot be fixed by Git credentials.
+An unauthenticated download command cannot read this private repository.
 
 ## One-command installation
 
 Inside your Plasma session, run this as your normal user (do not prefix it with sudo):
 
 ```bash
-git clone --branch main --single-branch https://github.com/ativaro/lumen.git && bash lumen/bootstrap.sh
+git clone --branch main --single-branch https://forge.example.invalid/ativaro/lumen.git && bash lumen/bootstrap.sh
 ```
 
 Run from a directory that does not already contain `lumen`, after completing the
-[GitHub access check](#github-access-on-a-fresh-computer-or-vm) above.
+[Forgejo access check](#forgejo-access-on-a-fresh-computer-or-vm) above.
 To update an existing Lumen installation, run
 from **any directory** in your desktop session as your normal user. Neither an
 installed Updater nor the original checkout is needed:
 
 ```bash
-(d="$(mktemp -d)" && trap 'rm -rf -- "$d"' EXIT && git clone --depth 1 --branch main --single-branch https://github.com/ativaro/lumen.git "$d/lumen" && bash "$d/lumen/bin/lumen-updater")
+(d="$(mktemp -d)" && trap 'rm -rf -- "$d"' EXIT && git clone --depth 1 --branch main --single-branch https://forge.example.invalid/ativaro/lumen.git "$d/lumen" && bash "$d/lumen/bin/lumen-updater")
 ```
 
 The update command downloads and opens the latest graphical **Lumen Updater**,
@@ -92,11 +71,10 @@ only for missing base system packages. The bootstrap also installs GCC/pkgconf a
 Internet access, sudo access for missing packages and an existing KDE Plasma 6 session are required.
 It does not install a Linux distribution, display manager or Plasma session.
 
-If the repository is made public in the future, the download-only route is:
+There is no public unauthenticated installer for the current private release.
+Use the authenticated checkout above; a future public download must be documented
+only after it has actually been released.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/ativaro/lumen/main/bootstrap.sh | bash
-```
 
 This public command does **not** work without authentication while the repository
 is private. Its downloaded source is safely extracted into a temporary directory.
@@ -137,26 +115,28 @@ updates. Download or package errors are reported before continuing.
 
 ### What the one-liner installs
 
-The user bundle contains Lumen, Files, Search, Wissen, Translate, System, Inbox,
-Reader, Projects, Household and the combined **Meeting & Radio** window,
-**System** also contains Sound and Work modes. All desktop themes, decorations,
-wallpapers and panels are included. Both Meeting/Radio
-launch commands remain supported. OpenCode, speech models and optional tools are
-prepared through the wizard, reusing an existing installation when available.
+The user bundle contains the local Lumen conversation/search interface, Files,
+Compose, Reader, System, Household, Notification and Companion. System also
+contains Sound and Work modes. Themes, decorations, wallpapers and panels are
+included. OpenCode, speech models and optional tools are prepared through the
+wizard, reusing an existing installation when available.
 
-The Vault backup engine, SMB discovery and keyring integration are included.
-The four-step backup wizard is part of the separate native UI described below;
-the standard bundle opens the Python backup configuration. Restic and network
-dependencies can be added through setup. Backups
-need your source/target choices and a separately stored recovery key; no personal
-backup job or network password is distributed in Git.
+Notes, Projects, Code, Inbox, Audio Studio (Meeting/Radio) and the shared Vault
+have desktop launchers but use the connected Lumen Server's applications. A server
+connection and the relevant account/device permissions are required. Installing
+these launchers does not install an independent offline copy of those apps.
+See [current app ownership](docs/desktop-retirement.md).
 
-The **native credential vault is a separate prerelease**. The standard one-liner
-installs the backup app and Vault integration code, but does not build the Rust/C++
-credential UI. See [native Vault installation](native/vault-ui/README.md) for its
-explicit build/install procedure and current qualification limits. An existing
-native installation and encrypted vault are preserved; update its binary with that
-separate procedure. Updating Python files alone does not rebuild native binaries.
+Local backup configuration remains in Lumen System. The backup engine, SMB
+helpers and keyring integration use your own source/target choices and a
+separately stored recovery key. Restic and network dependencies can be added
+through setup. No personal backup job or network password is distributed in Git.
+
+The native credential broker is a separate local capability. Existing native
+binaries and encrypted data are preserved; updating Python files alone does not
+rebuild Rust/C++ binaries. The [native Vault build notes](native/vault-ui/README.md)
+cover a separate development/qualification path, not an additional standalone
+user Vault installed by this bootstrap.
 
 The Arch package workflow below is an alternative for a system-wide installation.
 
@@ -167,7 +147,7 @@ sudo pacman -S --needed base-devel git pyside6 python-gobject python-pillow \
   python-dbus qt6-tools plasma-workspace plasma-desktop kde-cli-tools \
   breeze-icons kio-extras kio-fuse openssl ffmpeg libnotify \
   wireplumber libpulse networkmanager systemsettings
-git clone https://github.com/ativaro/lumen.git
+git clone https://forge.example.invalid/ativaro/lumen.git
 cd lumen
 ./packaging/arch/build-package.sh --install
 lumen-desktop-setup --apply --replace-panels
@@ -364,7 +344,7 @@ in again for panel changes. A running installation cannot be closed mid-step.
 Failures remain visible, and successfully updated components are retained on retry.
 
 Update state is private/local under `$XDG_STATE_HOME/lumen/updater`. No credentials,
-notebooks, vault data, personal configurations or user files are sent to GitHub.
+notebooks, vault data, personal configurations or user files are sent to the Git host.
 Installation identity is stored in `install.json` alongside each runtime.
 
 ## Screen companion

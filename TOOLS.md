@@ -1,5 +1,12 @@
 # Eigenständige Desktop-Werkzeuge
 
+> **Historischer Leitfaden:** Die frühere lokale Umsetzung von Projekte und
+> Meeting/Radio wurde durch die gemeinsamen Server-Apps ersetzt. Ihre alten
+> Installations- und Offline-Angaben weiter unten beschreiben keinen aktuellen
+> zweiten Betriebsweg. Der lokale Haushalt bleibt erhalten. Maßgeblich für den
+> heutigen Umfang sind [README](README.md#was-die-einzelnen-apps-können) und
+> [Desktop-Architektur](docs/desktop-retirement.md).
+
 Die Werkzeuge werden mit Lumen installiert und haben eigene Einträge im
 Anwendungsmenü. **Meeting & Radio** teilen sich ein Fenster mit zwei Tabs oben;
 beide bisherigen Starter öffnen den jeweiligen Tab. Auswahl, Entwürfe und laufende
