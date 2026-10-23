@@ -2,17 +2,19 @@
 
 **Wir bauen ein System, das für dich arbeitet.**
 
-Lumen hilft dir, Informationen wiederzufinden, Inhalte zu verstehen und Vorhaben voranzubringen. Du beschreibst, was du brauchst. Lumen nutzt die Inhalte, die du freigibst, und hilft beim nächsten Schritt. Du bestimmst, worauf es zugreifen und welche Aktionen es ausführen darf.
+Lumen Desktop verbindet **Gespräche, deinen eigenen Dateimanager und Benachrichtigungen** zu einer Umgebung auf deinem Rechner. Du kannst Gedanken entwickeln, Inhalte verstehen und mit deinen Dateien arbeiten. Lumen begleitet dich dabei im Gespräch: nachfragen, genauer werden, etwas ändern und am gleichen Thema weiterarbeiten.
 
-Lumen besteht aus drei Teilen: **Desktop** bringt Lumen direkt an deinen Computer. **Server** stellt gemeinsame Apps, Inhalte und Hintergrundaufgaben bereit. **Mobile** macht diese Inhalte unterwegs zugänglich. Server und Mobile funktionieren auch ohne Lumen Desktop.
+- **Gespräche, die den Faden behalten:** Stelle eine Frage, hake nach und entwickle die Antwort weiter. Wähle bei Bedarf Texte, Dokumente oder Bilder als Kontext aus.
+- **Deine Dateien direkt dabei:** Lumen Files ist ein eigener Dateimanager mit Tabs, Vorschauen, Suche und integriertem Lumen-Bereich. Öffne eine Datei und arbeite mit ihrem Inhalt im Gespräch weiter.
+- **Benachrichtigungen mit Anschluss:** Lumen Notification bündelt Meldungen auf deinem Desktop. Aus einer Meldung kannst du direkt einen Gesprächsentwurf machen, um sie mit Lumen zu besprechen.
 
-**Lumen Desktop** ergänzt deinen Linux-Desktop um Suche, Gespräche, einen Dateimanager, Lese- und Schreibhilfen sowie Werkzeuge für deinen Rechner. Zum Beispiel: eine Datei finden und ihren Inhalt erklären lassen, einen markierten Absatz überarbeiten oder ein Systemproblem untersuchen. Für diese lokalen Funktionen brauchst du keinen Lumen Server; KI-Funktionen brauchen einen eingerichteten, erreichbaren Modellanbieter oder eine passende lokale Modellanbindung.
+Zum Beispiel: Du findest einen Brief in Lumen Files, lässt dir eine Stelle erklären und fragst anschließend nach, bis die nächsten Schritte klar sind. Oder du greifst eine Systemmeldung auf und lässt dir helfen, sie einzuordnen. Du bestimmst, welche Inhalte du teilst und welche Aktionen du erlaubst.
 
-Gemeinsame Apps wie Notes, Projekte, Code, Inbox, Audio Studio und der gemeinsame Vault benötigen dagegen eine Verbindung zu Lumen Server. Ihre Oberflächen öffnen sich im Desktop, ihre Inhalte und Verarbeitung liegen auf dem Server. [Welche Funktionen eine Verbindung brauchen](#gemeinsame-apps-mit-lumen-server) steht unten ausdrücklich dabei.
-
-**Veröffentlichungsstand:** Der aktuelle Quellstand wird privat auf Forgejo verteilt. Ein öffentlicher Desktop-Download ist noch nicht freigegeben; Server und Mobile sind ebenfalls noch nicht öffentlich gestartet. Preise und künftige Lizenzmodelle sind nicht festgelegt. Für diesen Stand gelten die [Lumen-EULA](LICENSE) und die [Lizenzen der enthaltenen Komponenten](THIRD_PARTY_NOTICES.md).
+**Lumen Desktop funktioniert eigenständig.** Für KI-Gespräche richtest du einen Modellanbieter oder eine passende lokale Modellanbindung ein. Einen Lumen Server brauchst du für diese Desktop-Funktionen nicht. Weitere lokale Werkzeuge für Lesen, Schreiben und deinen Rechner sind ebenfalls enthalten.
 
 ## Installation
+
+**Aktueller Zugang:** Der Quellstand wird privat auf [Forgejo](https://forge.example.invalid/ativaro/lumen) verteilt. Ein öffentlicher Desktop-Download ist noch nicht freigegeben. Es gelten die [Lumen-EULA](LICENSE) und die [Lizenzen der enthaltenen Komponenten](THIRD_PARTY_NOTICES.md).
 
 ### Voraussetzungen
 
@@ -68,27 +70,35 @@ Eine bereits gespeicherte andere Updatequelle wechselt dadurch nicht automatisch
 
 ## Was die einzelnen Apps können
 
-### Lumen: suchen, fragen und mit Inhalten arbeiten
+### Lumen: Gespräche, die dich weiterbringen
 
 **Lokal nutzbar; für Antworten ist eine Modellanbindung nötig.**
 
-Die gemeinsame Suche findet Programme und Dateien. Eine Frage öffnet ein Gespräch; Folgefragen bleiben im selben Zusammenhang. Dateien, Bilder, PDF-Seiten, markierter Text oder die Zwischenablage lassen sich bewusst als Kontext verwenden. Antworten können Quellen und nutzbare Ergebnisdateien enthalten.
+Beginne mit einer Frage oder einer Idee und bleibe im Gespräch: nachfragen, eine Erklärung vertiefen, eine Antwort überarbeiten oder zum nächsten Schritt wechseln. Vorhandene Gespräche lassen sich wieder öffnen und fortsetzen. Fortschritt, Rückfragen und Ergebnisse sind direkt im Gespräch sichtbar.
+
+Dateien, Bilder, PDF-Seiten, markierter Text oder die Zwischenablage lassen sich bewusst als Kontext verwenden. So kannst du über deine eigenen Inhalte sprechen. Antworten können Quellen und nutzbare Ergebnisdateien enthalten. Die gemeinsame Suche findet außerdem Programme und Dateien; aus einer Frage wird ein Gespräch.
 
 Du kannst Vorgänge verfolgen, abbrechen und Ergebnisse später wieder öffnen. Im Analysemodus bleibt der Auftrag lesend. Werkzeugfreigaben bestimmen, welche Änderungen möglich sind; eine ausdrücklich gewählte automatische Freigabe hat weitergehende Wirkung als eine einzelne Bestätigung. Eine Modellantwort ist kein Beweis, dass eine Aktion ausgeführt wurde: Maßgeblich sind der sichtbare Auftragsstatus und das Ergebnis.
 
-Nach einer Serverkopplung kannst du zusätzlich ein **Lumen Server · Textgespräch** auswählen. Dieser Anschluss überträgt Text; lokale Anhänge, Gedächtnis und Tresor werden dabei nicht automatisch hochgeladen. Serveraufträge können nach dem Schließen des Fensters weiterlaufen. [Gespräche über den Server](#lumen-server-verbinden).
-
 ### Lumen Files
 
-**Lokal nutzbar; Lumen Drive braucht eine Serververbindung.**
+**Dein eigener Dateimanager auf dem Rechner.**
 
 Dateien, Ordner und erreichbare Netzlaufwerke durchsuchen, als Tabs öffnen und mit Vorschauen ansehen. Bibliotheken und Sammelfläche helfen, häufig benötigte Inhalte wiederzufinden. Galerie, Dateieigenschaften und Speicheranalyse bieten weitere Ansichten derselben Dateien.
 
 Umbenennen und Sortieren lassen sich vor dem Anwenden prüfen. Für unterstützte Vorgänge gibt es Rückgängig-Funktionen mit Konfliktprüfung. Versionen, vorbereitete Offline-Kopien von NAS-Ordnern, Textsuche und optionale OCR helfen bei umfangreichen Sammlungen. Die Dokumentenwerkstatt bearbeitet ausgewählte PDF-Seiten; Bild- und Inhaltssuche benötigen ihre jeweiligen Zusatzkomponenten.
 
-Der integrierte Lumen-Bereich arbeitet mit bewusst ausgewählten Dateien. Ohne Modell bleiben normale Dateivorgänge verfügbar. Lumen Drive stellt nach der Kopplung die für dein Konto freigegebenen Serverdateien bereit; das gibt dem Server keinen allgemeinen Zugriff auf deinen Rechner.
+Der integrierte Lumen-Bereich arbeitet mit bewusst ausgewählten Dateien. Du kannst Fragen zu ihrem Inhalt stellen und mit den Antworten weiterarbeiten. Auch ohne Modell bleiben die normalen Dateifunktionen verfügbar.
 
 [Bedienung, Formate und Grenzen von Lumen Files](files/README.md).
+
+### Lumen Notification
+
+**Meldungen sammeln, wiederfinden und im Gespräch aufgreifen.**
+
+Die Glocke bündelt KDE- und Lumen-Meldungen. Du kannst Meldungen öffnen, später ansehen oder archivieren. **Mit Lumen besprechen** bereitet einen Gesprächsentwurf vor; erst das Senden übermittelt ihn an die Modellanbindung.
+
+Spielruhe sammelt Meldungen bei erkannten Spielen still. KDE bleibt für Empfang, ursprüngliche Aktionen und Ton zuständig. Lokale Systemmeldungen bleiben auf deinem Rechner. Lokale Erinnerungen brauchen das laufende Panel und erscheinen nach verpassten Terminen beim nächsten Start.
 
 ### Lumen Reader
 
@@ -116,23 +126,15 @@ Geräte, Verträge, Fristen, Handbücher und Belege zusammenhalten. Du kannst In
 
 ### Lumen System
 
-**Die Rechnerfunktionen sind lokal nutzbar; entfernte Geräte brauchen eine Serververbindung und passende Rechte.**
+**Deinen Rechner und seine Einstellungen im Blick behalten.**
 
 Systemwerte wie CPU, GPU, Arbeitsspeicher, Laufwerke, Prozesse und Sensoren ansehen. Die verfügbare Hardware bestimmt, welche Werte angezeigt werden. Eine KI-Auswertung startet auf Anfrage.
 
 Im selben Fenster liegen **Sound** mit Ausgängen, Lautstärken und App-Regeln sowie **Arbeitsmodi** für Desktop- und Audioeinstellungen. Unterstützte Änderungen protokolliert Lumen; ein Rückweg wird nur angeboten, wenn er sicher möglich ist.
 
-Lokale Sicherungen nutzen ausgewählte Quellen und Ziele sowie einen getrennt aufzubewahrenden Wiederherstellungsschlüssel. Eine erfolgreiche Wiederherstellungsprobe ist wichtiger als eine reine Erfolgsmeldung beim Sichern. Für entfernte Diagnosen, Dienstaktionen und Wake-on-LAN müssen die jeweiligen Server- und Gerätefreigaben vorliegen.
+Lokale Sicherungen nutzen ausgewählte Quellen und Ziele sowie einen getrennt aufzubewahrenden Wiederherstellungsschlüssel. Eine erfolgreiche Wiederherstellungsprobe ist wichtiger als eine reine Erfolgsmeldung beim Sichern.
 
 [Systemfunktionen](files/README.md#lumen-system) · [Audio](READER-SOUND.md).
-
-### Lumen Notification
-
-**Lokale Meldungen ohne Server; gemeinsame Lumen-Meldungen mit Serververbindung.**
-
-Die Glocke bündelt KDE- und Lumen-Meldungen. Du kannst Meldungen öffnen, später ansehen oder archivieren. **Mit Lumen besprechen** bereitet einen Gesprächsentwurf vor; erst das Senden übermittelt ihn an die Modellanbindung.
-
-Spielruhe sammelt Meldungen bei erkannten Spielen still. KDE bleibt für Empfang, ursprüngliche Aktionen und Ton zuständig. Eigene Servermeldungen können ihren Lese- und Bearbeitungsstand über verbundene Geräte teilen; lokale Systemmeldungen bleiben lokal. Lokale Erinnerungen brauchen das laufende Panel und erscheinen nach verpassten Terminen beim nächsten Start.
 
 ### Lumen Companion und Bildschirmhilfe
 
@@ -152,6 +154,10 @@ Der Updater zeigt verfügbare Komponenten und führt die ausgewählten Schritte 
 
 ## Gemeinsame Apps mit Lumen Server
 
+**Optionale Erweiterung:** Wenn du einen Lumen Server verbindest, kommen gemeinsame Inhalte und weitere Produktiv-Apps hinzu. Für die oben beschriebenen lokalen Gespräche, Lumen Files und Desktop-Benachrichtigungen ist diese Verbindung nicht erforderlich.
+
+Lumen Server stellt die gemeinsamen Apps und Hintergrundaufgaben bereit; Lumen Mobile macht unterstützte Inhalte unterwegs zugänglich. Beide werden derzeit privat entwickelt und erprobt und sind noch nicht öffentlich gestartet. Preise und künftige Angebote sind nicht festgelegt.
+
 Diese Apps benötigen einen erreichbaren Server, dein Konto und die passenden Gerätefreigaben. Der Desktop zeigt die gemeinsame Serveroberfläche in einem eigenen Fenster. Ihre früheren lokalen Implementierungen sind kein zusätzlicher Offline-Modus. Ohne Verbindung sind die Serverinhalte nicht bearbeitbar; bestehende lokale Dateien und Entwürfe werden dadurch nicht zu Serverdaten.
 
 | App | Was du damit im Desktop erledigst |
@@ -162,6 +168,8 @@ Diese Apps benötigen einen erreichbaren Server, dein Konto und die passenden Ge
 | **Lumen Inbox** | Die auf dem Server eingerichteten E-Mail- und Kalenderkonten nutzen, Nachrichten lesen und Entwürfe prüfen. Versand und Änderungen folgen den Serverfreigaben. |
 | **Lumen Audio Studio** | Die gemeinsamen Meeting-/Radio-Inhalte öffnen, Transkripte und Hörskripte bearbeiten. Lokale Aufnahmen werden erst über einen bestätigten Übergabeweg bereitgestellt. |
 | **Lumen Vault** | Den persönlichen oder freigegebenen Servertresor in einer privaten, gerätegebundenen Sitzung verwenden. Entsperren und Secret-Freigabe sind eigene Schritte; der lokale Zugangsdaten-Broker und lokale Sicherungen sind getrennte Funktionen. |
+
+Zusätzlich kannst du auf Lumen Drive zugreifen, Server-Textgespräche führen und den Bearbeitungsstand eigener Servermeldungen zwischen Geräten teilen. Server-Textgespräche übertragen Text; lokale Anhänge, Gedächtnis und Tresor werden dabei nicht automatisch hochgeladen. Die Verbindung gibt dem Server keinen allgemeinen Zugriff auf deinen Rechner. Entfernte Diagnosen, Dienstaktionen und Wake-on-LAN benötigen eigene Gerätefreigaben.
 
 Der Detailumfang richtet sich nach dem verbundenen Server. Die getrennten READMEs beschreiben [Lumen Server](https://forge.example.invalid/ativaro/lumen-server) und [Lumen Mobile](https://forge.example.invalid/ativaro/lumen-mobile); für die privaten Repositories ist Zugriff nötig. Technische Zuordnung: [Gemeinsame Server-Apps und lokale Fähigkeiten](docs/desktop-retirement.md).
 
