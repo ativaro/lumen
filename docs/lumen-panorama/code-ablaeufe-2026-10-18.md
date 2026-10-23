@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Diese datierte Abnahme gehört zum damaligen Kandidaten. Enthaltene lokale Notes-/Projekt-/Code-/Audio-Editoren sind inzwischen durch Server-Apps ersetzt; nur die Gestaltungsentscheidung bleibt als Referenz bestehen. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](../desktop-retirement.md).
+
 # Lumen Code: die vier gewählten Abläufe
 
 Die frühere Panorama-Korrektur hatte die gemeinsame Kopfzeile angeglichen, aber die vier fachlichen Wege weiterhin in einer Sammlungsnavigation und uneinheitlichen Detail-/Bearbeitungsformularen präsentiert. Dieser Schritt korrigiert die tatsächlichen nativen Ansichten und Übergänge.

@@ -1,7 +1,8 @@
 # Lumen benutzen
 
-Lumen ist die KI-Erweiterung für CachyOS mit gemeinsamen Einstellungen und
-Integrationen. **Lumen** im Panel oder `lumen` öffnet den Assistenten.
+Lumen Desktop verbindet Gespräche, Dateien und Systemhilfe auf deinem Linux-Rechner.
+Für tiefe Gespräche, Inhaltsanalyse und genehmigte Systemaktionen genügt der Desktop
+mit einem funktionierenden KI-Anbieter; Lumen Server ist dafür nicht erforderlich. **Lumen** im Panel oder `lumen` öffnet den Assistenten.
 **Lumen Files** beziehungsweise `lumen-files` öffnet den eigenständigen
 Dateimanager, auch direkt mit einem lokalen Ordner oder einer Netzwerkadresse.
 Der Assistent behält zusätzlich den Dateibereich unter `lumen --page files`.
@@ -77,6 +78,13 @@ nächsten Schritt. Währenddessen wird der Auftragsprozess beim Schließen nicht
 abgeschossen. Snapper verwendet die Root-Konfiguration: persönliche Ordner sind
 nicht automatisch enthalten, und ein Snapshot ist kein unabhängiges Backup.
 
+## Gemeinsame Apps und lokales Gedächtnis
+
+Notes, Projekte, Code, Inbox, Audio Studio und Vault öffnen die verbundenen
+Server-Apps. Ohne Serververbindung oder Gerätefreigabe gibt es keinen stillen
+lokalen Ersatz. Der lokale Gedächtniseinstieg ist davon getrennt.
+[Notes und Gedächtnis](WISSEN.md) · [App-Verantwortlichkeiten](docs/desktop-retirement.md).
+
 ## Wissen und Erinnerungen
 
 Unter **Wissen** ausgewählte Ordner lokal indexieren und durchsuchen. Treffer
@@ -144,9 +152,11 @@ Verweise auf Dateien. **Lumen Projekte** bündelt zugehörige Materialien, Gespr
 und Aufgaben; Quellen werden dort getrennt von Titel, Zielen und initialen
 Notizen verwaltet. Projekte sind keine globale Umgebungsauswahl.
 
-Unter **Einstellungen → Darstellung** stehen **Klar & hell**, **Warmes Studio**,
-**Graphit** und der KDE-Systemstil für beide Apps bereit. Die Auswahl aktualisiert
-offene Fenster und lässt das Desktop-Theme unverändert.
+Die vier Produkt-Themes **Glas**, **Graphit**, **Atelier** und **Mitternacht** folgen
+Panorama. Vorhandene System-/Kompatibilitätswerte sind keine zusätzlichen
+Designrichtungen. Die jeweilige Einstellungsaktion bestimmt, ob nur Appfarben
+oder ausdrücklich auch Plasma und Fensterdekoration geändert werden.
+[Verbindlicher Designstandard](docs/lumen-panorama/standard.md).
 
 Lumen beendet Such-/Vorschauzugriffe und löst Dateimodell-Watcher beim Schließen.
 Nach dem Schließen des letzten Netzwerk-Tabs werden unbenutzte lokale

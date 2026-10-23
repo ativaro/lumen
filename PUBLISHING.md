@@ -13,9 +13,11 @@ Keep that command and [INSTALL.md](INSTALL.md) aligned. Local bootstrap detects 
 checkout without another download and always starts the setup wizard after success.
 An unauthenticated curl command cannot install from this private repository. Never embed a token or personal Git/SSH configuration in the installer.
 
-Before publishing changes to this path, run `files/test_bootstrap.py` and the
-fresh-profile desktop check below. Include all Python/QML/translations and desktop
-assets; preserve the explicit native Vault prerelease boundary described below.
+Before publishing changes to this path, run the relevant bootstrap/installer
+checks and the fresh-profile desktop check below. Include required Python/QML,
+translations and desktop assets. The manifest `packaging/retired-desktop-files.txt`
+excludes retired local app implementations; do not repackage them to satisfy old
+tests. Preserve native Vault prerelease boundaries described below.
 
 ## Verify locally
 
@@ -89,8 +91,10 @@ binaries or a successful installation on every distribution.
 
 The optional native password-vault laboratory is built and installed separately;
 see [native/vault-ui/README.md](native/vault-ui/README.md). It remains restricted
-to synthetic data pending the release gates in its REVIEW.md. The default package
-ships only the launcher route and readiness status, not an audited password manager.
+to synthetic data pending the release gates in its REVIEW.md. The default `lumen-vault` route opens the paired Server app; `--backups` opens
+Lumen System backups and `--lab` explicitly opens an installed native laboratory.
+A native broker may be present for approved credential operations, but this does
+not constitute an independently audited public password manager.
 Native binaries must include the full notice/source bundle produced by its installer.
 
 ## Licenses

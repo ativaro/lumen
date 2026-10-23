@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Diese datierte Abnahme gehört zum damaligen Kandidaten. Enthaltene lokale Notes-/Projekt-/Code-/Audio-Editoren sind inzwischen durch Server-Apps ersetzt; nur die Gestaltungsentscheidung bleibt als Referenz bestehen. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](../desktop-retirement.md).
+
 # Lumen Code: vier ruhige Kopfaktionen
 
 Am 19.10.2026 gezielt installiert: Ziel beschreiben, Schließen, Umbenennen und Beschreibungs-Vorlage öffnen … nutzen im bestehenden Erstellungsdialog denselben ruhigen Nebenaktionsstil wie Aktualisieren. Vier32px-Aktionen, vollständige Beschriftungen und native Fokus-/Hover-/deaktivierte Zustände. Hauptinhalt, Fußbereich, Modell-, Navigations-, Entwurfs- und Ausführungslogik bleiben erhalten.

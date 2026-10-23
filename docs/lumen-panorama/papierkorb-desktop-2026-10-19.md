@@ -1,3 +1,5 @@
+> **Datierter Abnahmebeleg.** Quellpin, Screenshots und Laufzahlen gelten für den beschriebenen Kandidaten. Sie sind keine Prüfung einer heutigen Installation. Für aktuelle App-Zuständigkeiten gilt [Desktop-Verantwortlichkeiten](../desktop-retirement.md), für weitere Gestaltung [Panorama](standard.md).
+
 # Lumen Desktop: Papierkorb mit Wiederherstellen
 
 Installiert und gezielt geprüft am 19.10.2026. Bestehende Archivierung wird als Papierkorb zugänglich, ohne neue Datenbankstruktur, Hard-Delete-API oder Abhängigkeit.

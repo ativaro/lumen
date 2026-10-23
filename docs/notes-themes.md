@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Der lokale Notes-Editor und sein kopierter Offline-Webeditor sind entfernt. Die aktuellen Notes-Farben und Inhalte kommen über den Server-Host. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](desktop-retirement.md).
+
 > Historischer Stand des entfernten nativen Notes-Editors. Aktuell: [Desktop-Verantwortlichkeiten](desktop-retirement.md).
 
 # Lumen Notes: gemeinsame Themes

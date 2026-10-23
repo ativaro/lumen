@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Native Code-Editoren und ihre Module sind stillgelegt. Code wird im gemeinsamen Server-Host geöffnet; diese Bilder/Prüfungen sind keine heutige Desktop-Anleitung. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](desktop-retirement.md).
+
 # Lumen Code Desktop: eigene Erstellungswege
 
 Nutzerentscheidung vom 18.10.2026: Werkzeuge, Zeitpläne & Routinen,

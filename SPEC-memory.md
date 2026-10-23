@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Die frühere gemeinsame Notes-/Gedächtnis-Oberfläche ist aufgeteilt. Den aktuellen lokalen Lernvertrag beschreibt docs/memory/LEARNING.md; normale Notes-Inhalte gehören zum Server. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](docs/desktop-retirement.md).
+
 # Mein Notizbuch und Lumen-Gedächtnis
 
 Angenommener Nutzerentwurf: zwei erkennbare Bereiche in Wissen. Persönliche

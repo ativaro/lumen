@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Die Produktfunktionen werden heute in der Server-App gepflegt. Die unten genannten nativen Python-Editoren sind entfernt; der Desktop verwendet den Server-Host. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](desktop-retirement.md).
+
 # Lumen Code: vom Ziel zum geprüften Helfer
 
 Freigegeben: Nutzer „Go“, 18.10.2026. Bestehende Apps, Entwürfe, Projekte,

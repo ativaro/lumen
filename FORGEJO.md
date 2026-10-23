@@ -1,17 +1,21 @@
-# Private Lumen source publication
+# Lumen Desktop auf Forgejo
 
-Source snapshot: 2026-10-13.
+Die maßgebliche private Quellveröffentlichung liegt unter
+[ativaro/lumen](https://forge.example.invalid/ativaro/lumen). Neue Desktop-Installationen
+verwenden den dortigen `main`-Stand und den authentifizierten Installationsweg
+in [INSTALL.md](INSTALL.md). Ein Browserlogin allein authentifiziert Git nicht.
+Zugangsdaten niemals in Clone-URLs, Skriptargumente oder Dokumentation schreiben.
 
-Desktop Studio, Lumen Notes, system memory and native learning source; Vault service access, pairing/sync, diagnostics and Halo branding.
+Ein bereits installierter Updater berücksichtigt seine gespeicherte Herkunft;
+eine ältere GitHub-Installation wird durch einen Dokumentationswechsel nicht
+ungefragt auf Forgejo umgestellt. GitHub ist kein automatisches zusätzliches
+Push-Ziel dieser Veröffentlichung. Vor einem gezielten Herkunftswechsel den
+bestehenden Zustand und die Zugriffsrechte prüfen.
 
-Only distributable source, tests, documentation and artwork are included. Local
-development history, user data, credentials, device reports, deployment overrides
-and backups are excluded. This source update is not a deployment, binary release
-or full fresh-install qualification.
+Das Repository enthält verteilbare Quellen, Tests, Anleitungen und Assets.
+Private Konfiguration, Modelle, Nutzerdaten, Serverzugänge und Sicherungen
+gehören nicht hinein. Ein Quellpush ist weder eine Installation auf dem
+Desktop noch ein Serverdeployment oder eine neue Mobile-Ausgabe.
 
-Native learning is included as source. Its isolated engine requires a compatible
-host; the current Talos runtime does not meet the Landlock ABI 9 requirement.
-See the memory documentation before enabling or deploying that path.
-
-Both private GitHub and Forgejo repositories carry the same source tree. Existing
-Git history on each platform is retained. Desktop updates continue to use GitHub.
+[Veröffentlichung und Prüfungen](PUBLISHING.md) ·
+[historische Quellbelege](PUBLICATION.md)

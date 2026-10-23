@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Diese datierte Abnahme gehört zum damaligen Kandidaten. Enthaltene lokale Notes-/Projekt-/Code-/Audio-Editoren sind inzwischen durch Server-Apps ersetzt; nur die Gestaltungsentscheidung bleibt als Referenz bestehen. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](../desktop-retirement.md).
+
 # Lumen Code: Absturz bei der Auslöserauswahl
 
 Am 19.10.2026 gezielt installiert. Genau eine Laufzeitdatei geändert: files/code_sections_editor.py, 49254 Bytes, SHA-256 e46c6a9a57f0ef368a88a752277c930a12e51096400728d379bc083aea3a63be, Modus0644. Freigegebener Pin a45d20f3144094335f86da2a195644e1041b1829 auf f925818e2704f30bd07553529860fd7a4555b0af; kanonischer Integrationscommit eb384b4ef434807d80b2b7b393e8c690c75ce2fd. test_code_popup_lifetime.py ist ausschließlich Source/Prüfung, nicht mitinstalliert.

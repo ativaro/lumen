@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Die frühere Richtungsentscheidung ist historisch. Für neue und geänderte Oberflächen gilt Panorama; vorhandene Panelrollen bleiben plattformgerechte Einstiege. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](docs/desktop-retirement.md).
+
 # Lumen-Inseln
 
 Freigegeben am 2026-10-01: Entwurf 2 mit dem gemeinsamen Systemmenü aus Entwurf 3.

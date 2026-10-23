@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Diese datierte Abnahme gehört zum damaligen Kandidaten. Enthaltene lokale Notes-/Projekt-/Code-/Audio-Editoren sind inzwischen durch Server-Apps ersetzt; nur die Gestaltungsentscheidung bleibt als Referenz bestehen. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](../desktop-retirement.md).
+
 # Routinen und Automation: drei durchgängige Desktop-Abläufe
 
 Nutzerziel: sowohl Bedienung als auch Funktionsumfang verbessern. Alle drei konkretisierten Wege gehören zum Umfang: neue/geänderte Datei → prüfen → ablegen; Zeitplan → Quelle lesen → Zusammenfassung; Lumen-Ereignis → Bedingung → Aktion. Der erste echte App-Auslöser ist die Änderung eines ausgewählten Projekts. Keine allgemeine Mail-/Kalenderanbindung daraus ableiten.

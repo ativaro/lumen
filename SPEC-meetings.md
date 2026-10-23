@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Der normale Meeting-Starter öffnet Lumen Audio Studio auf dem verbundenen Server. Die lokale Modell-/Speicherarchitektur unten beschreibt den früheren Stand. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](docs/desktop-retirement.md).
+
 # meetings
 
 ## Ziel und Abnahme

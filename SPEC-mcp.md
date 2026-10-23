@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Der lokale MCP-Ausbau unten enthält historische Projekt-, Notes- und Inbox-Werkzeuge. Der aktuelle Katalog und seine Grenzen stehen in MCP.md; entfernte lokale Werkzeuge nicht wieder aktivieren. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](docs/desktop-retirement.md).
+
 # Native Lumen tools over MCP
 
 Extend the existing local stdio server without adding a second application engine.

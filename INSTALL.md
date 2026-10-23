@@ -76,9 +76,6 @@ Use the authenticated checkout above; a future public download must be documente
 only after it has actually been released.
 
 
-This public command does **not** work without authentication while the repository
-is private. Its downloaded source is safely extracted into a temporary directory.
-
 ## Interface language
 
 Lumen supports German and English. **System language** selects German for a

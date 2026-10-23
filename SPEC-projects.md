@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Lokaler Projekt-Runner, Projekt-SQLite und zugehörige MCP-Schreibwerkzeuge sind stillgelegt. Projekte werden über den gemeinsamen Server-Host bearbeitet. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](docs/desktop-retirement.md).
+
 # Lumen Projekte
 
 Approved by the user: project structure, with projects → initiatives (Vorhaben) →

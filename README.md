@@ -262,3 +262,5 @@ Prüfe vor dem Entfernen, welche Installation aktiv ist, und sichere persönlich
 Der Quellstand allein ist kein Beleg, dass alle optionalen Funktionen auf jeder Hardware geprüft sind. Herkunft und verfügbare Releasebelege stehen in den jeweiligen Veröffentlichungsunterlagen.
 
 Lumen-eigene Bestandteile stehen unter der [Lumen-EULA](LICENSE). Aktuell erlaubt sie persönliche und interne geschäftliche Nutzung sowie die beschriebenen lokalen Anpassungen; Weiterverteilung, Verkauf und kommerzielle Ableitungen benötigen eine ausdrückliche Erlaubnis. Frühere Lizenzgewährungen werden dadurch nicht widerrufen. Abhängigkeiten behalten ihre [eigenen Lizenzen](THIRD_PARTY_NOTICES.md); der Status der Distributionsprüfung steht in [LICENSE-PLAN.md](LICENSE-PLAN.md).
+
+Die [Dokumentationsübersicht](docs/README.md) trennt aktuelle Anleitungen von historischen Entwürfen und Abnahmebelegen.

@@ -1,3 +1,5 @@
+> **Geltungsbereich:** Diese Entwicklungs- und Prüfunterlagen betreffen die separat eingerichtete native Tresor-Vorabversion. Der reguläre Desktop-Starter öffnet heute die Server-Vault-App; `--lab` ist ausdrücklich getrennt, `--backups` führt zu Lumen System. Frühere UI-/Installationszustände sind historische Belege, keine neue Sicherheits- oder Releasefreigabe. [Aktuelle App-Zuordnung](docs/desktop-retirement.md).
+
 # Plan: Lumen Vault für Passwörter und Geheimnisse
 
 Stand: 04.10.2026 · **Architektur und Entwurf 1 freigegeben; native Testversion mit Rust-Prozess umgesetzt. Keine produktive Passwortverwaltung.**

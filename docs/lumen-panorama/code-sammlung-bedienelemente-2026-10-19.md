@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Diese datierte Abnahme gehört zum damaligen Kandidaten. Enthaltene lokale Notes-/Projekt-/Code-/Audio-Editoren sind inzwischen durch Server-Apps ersetzt; nur die Gestaltungsentscheidung bleibt als Referenz bestehen. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](../desktop-retirement.md).
+
 # Lumen Code: Sammlungsfilter und Nebenaktionen
 
 Am 19.10.2026 nach dem separaten Popup-Absturzfix installiert. Dropdown-Pfeile stehen integriert im Feld; die abgesetzten nativen Pfeilblöcke entfallen. Papierkorb/Wiederherstellen und Aktualisieren nutzen den gleichen vorhandenen ruhigen32px-Nebenaktionsstil. Keine zusätzliche globale Leiste oder Änderung an Auswahl-, Revisions-, Rechte- und Ausführungslogik. Die QComboBox-Unterklasse überschreibt nur paintEvent, bewahrt native Ereignisse, Modell und Zugänglichkeit und zeichnet das vorhandene Theme-Icon ohne zusätzlichen Pixmapcache.

@@ -4,10 +4,10 @@
 
 Native Dateiverwaltung für Linux/KDE mit großer Vorschauleiste, laufender Dateinamensuche und Inhaltssuche, lokal und auf Netzwerkservern. Nutzt die bereits installierten Bibliotheken und Werkzeuge.
 
-Die Oberfläche orientiert sich an Apples [Werkzeugleisten](https://developer.apple.com/design/human-interface-guidelines/toolbars)
-und [Seitenleisten](https://developer.apple.com/design/human-interface-guidelines/sidebars):
+Die Oberfläche folgt [Lumen Panorama](../docs/lumen-panorama/standard.md):
 kompakte Navigation, dezente Typografie, klare Dateiliste und eine eigene Vorschau.
-KDE-Farben und Systemschrift werden automatisch übernommen, auch in offenen Fenstern.
+Glas, Graphit, Atelier und Mitternacht sind Themes derselben Gestaltung. Die
+bewusst gewählten App-/Schrifteinstellungen gelten auch für Files.
 Bei Iconsets mit installierter Hell-/Dunkelvariante wählt Files die zu den Farben
 passende Variante. Die Desktop-Einstellungen selbst bleiben erhalten.
 
@@ -45,7 +45,7 @@ Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. Au
 - **Strg+L:** Pfad eingeben. **Alt+Links/Rechts/Hoch:** Verlauf / übergeordneter Ordner. Die seitlichen **Vor-/Zurück-Tasten der Maus** navigieren ebenfalls im Verlauf, unabhängig davon, über welchem Fensterbereich die Maus steht. Als Browser-Tasten gemeldete Signale werden ebenfalls unterstützt. In der Bildgalerie wechseln sie das Bild. **Strg+T / Strg+W:** Tab öffnen / schließen. **Strg+Tab:** nächster Tab.
 - **Strg+C / X / V:** kopieren / ausschneiden / einfügen. **F2:** umbenennen. **Strg+Umschalt+N:** Ordner erstellen. **Entf:** nach Bestätigung in den Systempapierkorb verschieben.
 - **Langsamer zweiter Klick auf den ausgewählten Dateinamen:** direkt in Liste oder Bildraster umbenennen; die Erweiterung bleibt zunächst unmarkiert. **Enter** bestätigt, **Esc** verwirft. Ein schneller Doppelklick öffnet weiterhin die Datei.
-- **Eigenschaften … / Alt+Enter:** Eigenschaften einer einzelnen Datei oder eines Ordners im nativen KDE-Dialog. „Allgemein“ zeigt Typ, „Öffnen mit“ samt Änderung der Standard-App, Speicherort, Größe, belegten Speicher und verfügbare Zeitstempel. Ordner zeigen zusätzlich Dateisystem und Einhängepunkt; „Berechtigungen“ verwaltet Zugriff, Eigentümer und Gruppe entsprechend deinen Rechten. Nicht jeder Netzwerkdienst liefert alle Werte. Ein Rechtsklick auf freien Hintergrund öffnet die Eigenschaften des aktuellen Ordners, auch wenn noch eine Datei ausgewählt ist. Voraussetzung: `kde-cli-tools`, auch über die Lumen-Einrichtung „NAS und Netzwerkordner“ installierbar.
+- **Eigenschaften … / Alt+Enter:** kompakte native Lumen-Infokarte für Datei oder Ordner. **Mehr Details** erweitert denselben Dialog um Speicher, Verlauf und Verknüpfungen. Name und einfache lokale Zugriffsrechte werden erst mit **Übernehmen** gespeichert; keine rekursiven Rechteänderungen. Eigentümer, Gruppen und erweiterte ACLs bleiben unverändert. Bei Drive gelten aktuelle Servermetadaten und Berechtigungen. Rechtsklick auf freien Hintergrund öffnet den aktuellen Ordner.
 - **Strg+H:** versteckte Dateien. **Ort merken** über das Lesezeichen-Symbol neben „Server verbinden“ ergänzt einen Favoriten. Rechtsklick auf einen gemerkten Ort entfernt ihn wieder. Die kompakte Seitenleiste zeigt bis zu zehn Orte auch bei 1000 × 640 Pixeln ohne Scrollen; lange Namen werden gekürzt, vollständige Pfade stehen im Tooltip.
 - Ziehen von Dateien kopiert sie in den Zielordner. Bestehende Ziele werden mit einer Fehlermeldung beibehalten.
 
@@ -191,9 +191,10 @@ keine Aktionen aus. Gespeichert wird weiterhin ausdrücklich über „Übernehme
 - **Tastenkürzel:** die vier registrierten globalen Lumen-Aktionen direkt ändern
   oder durch Leeren deaktivieren, mit Prüfung auf bereits belegte Kombinationen.
   Lokale Files-/Galerie-Kürzel sind als Übersicht vorhanden.
-- **Darstellung:** **Klar & hell**, **Warmes Studio**, **Graphit** oder **KDE-Systemstil**,
-  gemeinsam für Lumen und Lumen Files. Übernehmen aktualisiert offene Fenster;
-  die Systemschrift bleibt erhalten. Die drei Designs ändern keine KDE-Einstellungen.
+- **Darstellung:** **Glas**, **Graphit**, **Atelier** und **Mitternacht** folgen
+  der gemeinsamen Panorama-Gestaltung. Vorhandene System-/Kompatibilitätswerte
+  sind keine zusätzlichen Produktdesigns. Appdarstellung und ausdrücklich
+  gewünschte Desktopanpassungen behalten ihre jeweiligen Übernehmen-Aktionen.
   KDE-Farben, Themes, Icons, Schriften, Kvantum, Effekte und weitere Desktop-
   Einstellungen öffnen den jeweiligen nativen Editor.
 - **Leisten:** echte Panels nach Bildschirm, Position und ID auswählen. Größe,
@@ -467,23 +468,24 @@ Python 3, PySide6/Qt 6 einschließlich QtDBus, QtSvg und QtQuick (`pyside6`), Py
 
 ## Entfernen
 
-Die beiden Starter `~/.local/share/applications/lumen-files.desktop` und `~/.local/bin/lumen-files` entfernen. Optional zusätzlich das Projektverzeichnis und `~/.config/Lumen/Files.conf` entfernen. Dolphin bleibt installiert und unverändert zugeordnet.
-# Arbeitsplatz
+Für eine vollständige Benutzerinstallation den mitgelieferten `uninstall.sh`
+verwenden; Systempakete über den Paketmanager entfernen. Nicht nur einzelne
+Files-Starter löschen und danach den gesamten gemeinsamen Lumen-Datenordner
+entfernen: Er enthält weitere Apps und möglicherweise Benutzerdaten. Eigene
+Bibliotheken, Einstellungen und Sicherungen vor einer Datenbereinigung prüfen.
 
-Im Menü **Arbeitsplatz · Projekte & Verlauf** öffnen. Projekte verbinden benannte
-Quellen auf PC/NAS mit gespeicherten Dateitabs, explizit ausgewählten Programmen,
-Webseiten und einer Notiz. „Weiterarbeiten“ stellt diesen Stand wieder her;
-„Aktuellen Stand merken“ übernimmt die aktuelle Ansicht. „Quellen prüfen“ zeigt
-Erreichbarkeit und die zuletzt geänderten Dateien eines begrenzten Scans. Offline
-bleiben bekannte Dateien als solche gekennzeichnet sichtbar.
+## Projekte, Arbeitsmodi und Transferverlauf
 
-Arbeitsmodi bündeln Audio, Benachrichtigungen, Fenster und Netzwerkordner. Transfers
-und der geprüfte Änderungsverlauf sind mit der Lumen-App geteilt. Downloads werden
-in Lumen gestartet; fremde Browser-Downloads sind nicht eingebunden. Bei Kopien und
-Verschiebungen werden nach einem Fehler verbleibende Einträge erneut versucht.
-Vorhandene Ziele werden nie überschrieben. Native Dateiaktionen lassen sich nur
-zurücknehmen, solange der aufgezeichnete Zustand unverändert ist; Papierkorb-
-Aktionen selbst bleiben reine Verlaufseinträge.
+**Lumen Projekte** öffnet die gemeinsame Server-App. Es ist keine globale
+Arbeitsraumauswahl und stellt keine gespeicherte Sitzung aller Desktopfenster her.
+Die alten lokalen Room-/Workbench-Oberflächen sind entfernt. Historische
+Speicherschlüssel bleiben für Daten- und Referenzkompatibilität erhalten, ohne
+einen zweiten Projekt-Runner zu aktivieren. [Aktueller Projektweg](../PROJECTS.md).
+
+Arbeitsmodi für Audio, Benachrichtigungen und lokale Einstellungen bleiben in
+Lumen System. Transferverlauf und Wiederaufnahme unterbrochener Kopien sind
+lokale Files-Funktionen. Vorhandene Ziele werden nicht blind überschrieben;
+Rücknahme prüft den aufgezeichneten Zustand. [Dranbleiben](../docs/transfer-followup.md).
 
 ### Desktop-Suche und Einstellungen
 
@@ -535,7 +537,9 @@ Das Mikrofon sitzt direkt in der gemeinsamen Sucheingabe und im Chat von Lumen/F
 
 **Unterbrechen** beendet die laufende Antwort/Ausgabe und schaltet wieder auf Zuhören. Während der Ausgabe ist das Mikrofon aus (keine automatische Unterbrechung durch Hineinsprechen und keine Lautsprecher-Rückkopplung). **Beenden** oder Fenster ausblenden schaltet das Mikrofon aus. Unter **Weitere Kontextaktionen → Sprachgespräch einstellen** sind Mikrofonschwelle und Sprechpause einstellbar. Nach drei Minuten ohne erkannte Sprache endet die Aufnahme.
 
-Optional lässt sich unter **Einrichtung → Sprache → Mehrsprachige Stimme einrichten** Qwen3-TTS 0.6B installieren. Die Stimme verarbeitet Deutsch und Englisch im selben Text, auch bisher unbekannte englische Begriffe; es gibt keine manuell gepflegte Wortliste. Das Modell benötigt etwa 2,5 GB, die zusätzliche Python-/GPU-Laufzeit mehrere weitere GB. NVIDIA CUDA wird automatisch genutzt, sonst die CPU (deutlich langsamer). Die bisherige deutsche Thorsten-Stimme bleibt als sparsame Alternative verfügbar. Die gemeinsame Auswahl unter **Sprachausgabe** gilt für Gespräche, Reader, Radio und vorgelesene Projektstände. Das Erkennungsmodell für das Mikrofon ist davon unabhängig.
+Optional lässt sich unter **Einrichtung → Sprache → Mehrsprachige Stimme einrichten** Qwen3-TTS 0.6B installieren. Die Stimme verarbeitet Deutsch und Englisch im selben Text, auch bisher unbekannte englische Begriffe; es gibt keine manuell gepflegte Wortliste. Das Modell benötigt etwa 2,5 GB, die zusätzliche Python-/GPU-Laufzeit mehrere weitere GB. NVIDIA CUDA wird automatisch genutzt, sonst die CPU (deutlich langsamer). Die bisherige deutsche Thorsten-Stimme bleibt als sparsame Alternative verfügbar. Die gemeinsame lokale Auswahl unter **Sprachausgabe** gilt für Desktop-Gespräche
+und Reader. Das verbundene Audio Studio und serverseitige Projekte besitzen ihre
+eigenen Serverfunktionen; ihre Audioausgabe wird damit nicht automatisch konfiguriert. Das Erkennungsmodell für das Mikrofon ist davon unabhängig.
 
 Die mehrsprachige Stimme bleibt während eines aktiven Gesprächs geladen; Beenden oder Unterbrechen gibt den Prozess und seinen Grafikspeicher frei. Bei der nächsten Ausgabe wird sie bei Bedarf neu geladen. Es gibt keinen Netzwerkdienst; Texte gehen über eine lokale Prozess-Pipe. Modelldateien stammen aus einer festgelegten Revision, werden per SHA-256 geprüft und vor der Freigabe mit einer lokalen Probe ausgeführt. Die Ausgabe läuft danach offline. `~` wird nur im gesprochenen Text als „Tilde“, `~/` als „Benutzerordner/“ normalisiert. Dokumente, Antworten und Radio-Quellenpositionen bleiben unverändert. Bereits erzeugte Audiodateien ändern sich erst beim erneuten Erzeugen.
 
@@ -615,9 +619,11 @@ explicitly, or use `lumen-translate --clipboard`; opening content never starts A
 Drafts/results are kept in the local app library and can be archived. Defaults live
 under Settings → Lumen Compose; both German and English UI use the shared themes.
 
-The shared “Send to Lumen” menu accepts selected text from Wissen, Reader, Inbox and
-other apps. Files can send a PDF. Results can return to notes, mail drafts and projects.
-Compose records participate in local object search and Vault app backups.
+Files and Reader can send explicitly selected text or a PDF to local Compose.
+A supported handoff can send a result to Server Notes or Projects after review;
+this requires their connection and permissions. Old local Inbox draft/Notes
+library workflows are not a second offline app. Compose records remain local and
+can participate in the existing local backup workflow.
 
 PDF is an additional tab, for documents with a text layer, using the built-in Lumen
 PDF engine. Original/result page previews and new-file export preserve the
@@ -666,14 +672,15 @@ Individual settings take precedence over the preset's default description.
 
 Kate adapts the source-defined Kate character: warm, direct, honest, with reasoned
 views and empathy without theatrics. It imports no private memories or user data,
-and keeps the configured assistant name and existing permissions. Desktop and
-Server share the same character text; provenance is in `lumen-server/docs/personas.md`.
+and keeps the configured assistant name and existing permissions. Desktop and Server use the shared character direction; provenance is documented
+in the private [Server personas guide](https://forge.example.invalid/ativaro/lumen-server/src/branch/main/docs/personas.md).
 The default remains Guide. Restart an already running app to load the new preset.
 
 ### Personal learning
 
-Wissen → Memory → About you is a view over the same editable memories, grouped
-into preferences, facts and decisions. Corrections and Solutions have their own
+The local memory settings show editable memories grouped into preferences,
+facts and decisions. The technical entry is `lumen-wissen --area lumen`; normal
+`lumen-wissen` opens Server Notes. Corrections and Solutions have their own
 filters. Opening a profile entry uses the existing editor, provenance, history and
 forget controls; project-specific knowledge stays outside the global profile.
 
@@ -789,7 +796,7 @@ Die 20-ms-Frames entsprechen dem [WebRTC-VAD-Vertrag](https://github.com/wiseman
 
 Search verwendet rechts eingerückte, dezente Nutzernachrichten und ruhige
 Antwortkarten mit Lumen-Kopf, gemeinsamer Schriftgröße und begrenzter Lesebreite.
-Kopieren, Notizbuch und Gedächtnis sind im Fuß der letzten Textantwort integriert;
+Kopieren, unterstützte Notes-Übergabe und lokales Gedächtnis sind bei der letzten Textantwort erreichbar;
 während der Bearbeitung sind sie ausgeblendet. Kopieren bestätigt sich direkt am Knopf.
 
 ### Lumen System
@@ -820,57 +827,38 @@ cause from correlation alone. The read-only `lumen_system_snapshot` MCP tool giv
 Lumen the same measurement basis without opening the UI.
 
 
-### Vault: Vorschau der Passwortverwaltung
+### Vault, Sicherungen und native Zugangsdaten
 
-In Lumen Vault öffnet **Tresor · Vorschau** den freigegebenen Entwurf mit
-Sammlungen, Einträgen und Detailansicht. Alternativ: `lumen-vault --preview`.
-Die eigene Qt-Quick-Oberfläche folgt dem gemeinsamen Theme und der Sprache.
-Favoriten, Suche, Papierkorb, Wiederherstellen und Anzeigen eines Beispielwerts
-lassen sich ausprobieren; Sperren setzt alles zurück.
+`lumen-vault` öffnet die gemeinsame Server-App. **Lumen System → Sicherungen**
+(`lumen-system --page backups` oder der kompatible Aufruf `lumen-vault --backups`)
+bleibt der lokale Weg für Restic-Sicherungen. Beide Funktionen sind getrennt.
 
-**Noch kein Passwortmanager:** ausschließlich feste Beispieldaten, keine
-Eingabe/Import eigener Zugangsdaten, keine Speicherung und kein Kopieren von
-Secrets. Die Speicher-Engine ist noch nicht qualifiziert und eine unabhängige
-Sicherheitsprüfung steht aus. Der bestehende Restic-Sicherungsbereich bleibt
-unverändert nutzbar. Details, Prüfergebnisse und verbleibende Freigabestufen:
-[`SPEC-vault-secrets.md`](../SPEC-vault-secrets.md).
+`lumen-vault --preview` ist nur eine Ansicht mit Beispieldaten. Die separat
+installierte native Vorabversion wird ausdrücklich über `lumen-vault --lab`
+geöffnet. Ihr Broker ermöglicht bestätigte Zugangsdatenaktionen; die normale
+Installation verspricht dadurch keinen zweiten regulären Offline-Tresor.
+`PRODUCTION_READY=false` und die dokumentierten Prüfgrenzen gelten weiter.
+[Bedienung und Abgrenzung](../VAULT-INBOX.md) ·
+[Native Schutzgrenzen](../native/vault-ui/README.md).
 
-`lumen_vault_secrets_status` gibt über MCP nur den Entwicklungsstand zurück,
-keine Eintragsdaten oder Geheimnisse. `lumen_vault_status` bleibt der Status
-bestehender Sicherungspläne.
+### Lumen Audio Studio
 
-Der erste echte Rust-Kern ist inzwischen unter
-[`native/vault-core`](../native/vault-core/README.md) als separat ausführbarer
-Testkern vorhanden. Er speichert KDBX4.1/Argon2id, wird gegen KeePassXC geprüft
-und weist Backup/Restore mit festen Testdaten nach. Das ist noch keine Freigabe
-für reale Zugangsdaten und verändert die Desktop-Vorschau nicht.
+`lumen-meetings` und `lumen-radio` öffnen das gemeinsame Audio Studio des
+verbundenen Lumen Servers. Der Radio-Starter wählt den entsprechenden Modus.
+Inhalte, Transkription und dortige Modellaufträge gehören zum Server; die alten
+lokalen Meeting-/Radio-Bibliotheken werden nicht als zweite App fortgeführt.
 
-
-### Meeting & Radio: gemeinsames Fenster
-
-Meeting und Persönliches Radio öffnen jetzt **Lumen Meeting & Radio**. Die Tabs
-**Meeting** und **Radio** stehen oben; beim Wechsel bleiben Auswahl, Entwürfe,
-Verarbeitung und Wiedergabe erhalten. Apps, Panel und Einstellungen bieten einen
-gemeinsamen Eintrag. `lumen-meetings` öffnet den Meeting-Tab, `lumen-radio` den
-Radio-Tab im selben Fenster. Bestehende Verweise funktionieren weiterhin.
-
-Die Bibliotheken `lumen-tools/meetings` und `lumen-tools/radio` bleiben getrennt;
-es werden keine Daten verschoben. Beide Fensteraktivierungen und die jeweiligen
-Vault-Sicherungsfreigaben werden vom gemeinsamen Prozess bedient. Beim Schließen
-werden beide Seiten gespeichert; laufende Verarbeitung wird zuerst abgebrochen,
-Speicherfehler verhindern das Schließen. Die bisherigen Startvorgaben für beide
-Bereiche bleiben auf der gemeinsamen Einstellungsseite verfügbar.
-
-Prüfung: `QT_QPA_PLATFORM=offscreen python -m unittest test_meeting_radio` im
-Verzeichnis `files` mit einem isolierten Benutzerprofil ausführen.
-
+Unterstützte lokale Aufnahmen und Quellen benötigen vor der Übernahme einen
+bestätigten Drive-/Übergabeweg. Das Öffnen der App aktiviert kein Mikrofon und
+startet keine automatische Transkription. Die lokale Spracheingabe im Lumen-Chat
+bleibt unabhängig davon verfügbar. [Aktuelle App-Zuständigkeiten](../docs/desktop-retirement.md).
 
 ### Lumen Drive im Dateifenster
 
 **Lumen Drive** in der Seitenleiste verwendet dieselbe Listen-/Kachelansicht,
 Tabs, Pfadleiste und Zurück/Vor-Navigation wie andere Verzeichnisse. Die bestehende
-Serverkopplung wird übernommen. Bereich und Unterordner öffnen; Suchen filtert
-den angezeigten Ordner. Kopieren/Einfügen und Drag-and-drop übertragen Dateien
+Serverkopplung und aktuelle Drive-Freigabe werden geprüft. Ordner öffnen;
+Suchen filtert den angezeigten Ordner. Es gibt keine globale Arbeitsraumauswahl. Kopieren/Einfügen und Drag-and-drop übertragen Dateien
 und Ordner, Ausschneiden/Einfügen verschiebt innerhalb desselben Serverbereichs.
 Umbenennen, neue Ordner und Papierkorb laufen über die bestehenden Serverrechte.
 Nicht leere Serverordner müssen vor dem Löschen geleert werden.
@@ -879,15 +867,14 @@ Nicht leere Serverordner müssen vor dem Löschen geleert werden.
 in externen Anwendungen werden nicht ungefragt hochgeladen. Für dauerhafte
 beidseitige Bearbeitung im Kontextmenü **Offline verfügbar …** wählen. Dort wird
 der ausgewählte Serverordner im bestehenden Einrichtungsdialog vorausgewählt.
-64 MB pro Datei gelten auch beim manuellen Transfer; vorhandene lokale Dateien
-werden nicht überschrieben. Neue Serverfassungen benötigen eine bewusste Bestätigung.
+Größen- und Speichergrenzen richten sich nach dem aktuellen Transferweg und
+Server. Vorhandene lokale Dateien werden nicht blind überschrieben; Konflikte
+und neue Serverfassungen behalten ihren vorgesehenen Bestätigungsweg.
 
 
-Notizbuch-Identität: Neu ausgewählte Notizordner verwenden Dateisystemkennung und
-Inode statt ausschließlich der flüchtigen Laufwerksnummer. Ein Remount darf den
-Abgleich nicht fälschlich als ausgetauschtes Notizbuch blockieren. Alte Kennungen
-bleiben lesbar; ein tatsächlich ersetzter Ordner benötigt weiterhin eine bewusste
-Neuauswahl. Der Notizabgleich bleibt an Konto und ausgewähltes Notizbuch gebunden.
+Historische Notizbuchkennungen bleiben für bestehende Daten erhalten. Der
+normale Notes-Starter verwendet inzwischen den Servereditor; die früheren lokalen
+Notizordner-/Sync-Dialoge sind kein aktueller zweiter Bedienweg.
 
 
 ### Native Dateieigenschaften
@@ -912,11 +899,11 @@ Dateien, keine Benutzerdateien oder echten Serverzugänge.
 
 ### Lumen Projekte
 
-Ein Projekt fasst Materialien, Gespräche, Aufgaben, Analysen und Recherchen
-zusammen. **Bearbeiten** verändert Titel, initiale Notizen und Ziele.
-**Quellen** verwaltet verknüpfte Dateien, Ordner, Notizen und Weblinks getrennt.
-Das Entfernen einer Verknüpfung löscht kein Original. **Mit Lumen besprechen**
-öffnet eine Frage mit dem Projektkontext als bearbeitbaren Entwurf.
+Projekte werden über den gemeinsamen Server-Host geöffnet. Materialien,
+Gespräche und Aufgaben behalten ihre Herkunft und Rechte. Dateien aus Files
+werden nur über einen unterstützten, ausdrücklich bestätigten Übergabeweg
+bereitgestellt. Die frühere lokale Projektbibliothek und ihre Ausführungen
+sind entfernt; [PROJECTS.md](../PROJECTS.md) beschreibt den aktuellen Weg.
 
 ### Antwortgestaltung in Lumen und Search
 

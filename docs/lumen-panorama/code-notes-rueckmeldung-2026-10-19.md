@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Diese datierte Abnahme gehört zum damaligen Kandidaten. Enthaltene lokale Notes-/Projekt-/Code-/Audio-Editoren sind inzwischen durch Server-Apps ersetzt; nur die Gestaltungsentscheidung bleibt als Referenz bestehen. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](../desktop-retirement.md).
+
 # Lumen Code: Notes-Inhalt und gespeicherte Fehler verständlich anzeigen
 
 Am 19.10.2026 gezielt installiert. Ein gespeicherter Fehler wie Kein Ergebnis zum Speichern vorhanden. erscheint jetzt auch im kompakten Status, unabhängig vom ausgewählten Schritt. Dort normalisierter Klartext, höchstens240 Zeichen; die vollständige gespeicherte Ursache bleibt unverändert im scrollbaren Ergebnis erhalten. Ein erfolgreicher neuer Lauf behält keine alte Fehlermeldung.
