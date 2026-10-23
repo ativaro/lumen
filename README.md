@@ -2,17 +2,19 @@
 
 **Wir bauen ein System, das für dich arbeitet.**
 
-**Lumen Desktop ist dein Assistent für den Computer und deine Daten.** Sprich mit Lumen, lass dir Dateien erklären, installiere Anwendungen und hole dir Hilfe, wenn dein Rechner Probleme macht. Der eigene Dateimanager und die Benachrichtigungen bringen diese Hilfe direkt dorthin, wo du arbeitest.
+Wir bauen Lumen, weil wir uns einen Computer wünschen, mit dem sich die eigene Arbeit leichter anfühlt. Einen, dem du erzählen kannst, was du vorhast. Mit dem du einer Idee nachgehst, dich durch ein Problem arbeitest und am Ende etwas geschafft hast.
 
-- **Verstehe deine Dateien und Daten.** Wähle ein Dokument, eine Tabelle, ein Bild, Quellcode oder ein Fehlerprotokoll und frage, was du wissen möchtest. Lumen kann Inhalte erklären, Zusammenhänge untersuchen und bei der Bearbeitung helfen.
-- **Lass Anwendungen installieren.** Beschreibe, welches Programm du brauchst. Lumen kann die Installation aus dem Gespräch heraus durchführen, nötige Berechtigungen anfordern und das Ergebnis prüfen.
-- **Hol dir IT-Unterstützung.** „Warum startet dieses Programm nicht?“ oder „Was bremst meinen Rechner?“ Lumen kann Systeminformationen und Protokolle untersuchen, Ursachen erklären und erlaubte Schritte zur Behebung ausführen.
-- **Arbeite im Gespräch weiter.** Frage nach, ändere das Ziel und entwickle eine Antwort weiter. Deine ausgewählten Inhalte, Rückfragen und Ergebnisse bleiben im Gespräch zusammen.
-- **Behalte den Überblick.** Lumen Files hilft dir, deine Dateien zu finden und zu bearbeiten. Lumen Notification sammelt Meldungen, die du direkt mit Lumen besprechen kannst.
+Lumen beginnt mit einem Gespräch. Du kannst laut denken, Fragen stellen, widersprechen und deine Richtung ändern. Dabei kann Lumen mit dem arbeiten, was deine Aufgabe ausmacht: deinen Dateien, deinen Daten, deinen Programmen und deinem Rechner. Es kann Zusammenhänge untersuchen, Dinge verständlich machen und selbst Arbeitsschritte ausführen. Du beschreibst auf deine Art, was du erreichen möchtest. Lumen fragt nach, wenn etwas fehlt, und arbeitet mit dir weiter.
 
-Zum Beispiel: Du öffnest eine unbekannte Datei in Lumen Files und fragst, wofür sie da ist. Du lässt dir eine Tabelle erklären. Oder du sagst „Installiere VLC“ und prüfst die nötige Freigabe. Bei einer Fehlermeldung fragst du im selben Stil nach Ursache und Lösung. Du gibst den Auftrag; Lumen unterstützt dich bei der Untersuchung und Ausführung.
+Dafür haben wir Lumen direkt in den Desktop gebracht. Im eigenen Dateimanager liegen deine Inhalte und das Gespräch darüber nebeneinander. Aus einer Benachrichtigung kann der nächste Schritt entstehen. Wenn etwas auf deinem Rechner hakt, kann Lumen mit dir nach der Ursache suchen und bei der Behebung helfen. Wenn für deine Arbeit ein Programm fehlt, kann es die Installation übernehmen. Was zusammengehört, bleibt so auch beim Arbeiten zusammen.
 
-**Diese Desktop-Funktionen benötigen keinen Lumen Server.** Für KI-Aufträge richtest du einen Modellanbieter oder eine passende lokale Modellanbindung ein. Du entscheidest, welche Inhalte Lumen verwenden und welche Änderungen es ausführen darf. Die verfügbaren Werkzeuge, dein System und das gewählte Modell bestimmen, was ein konkreter Auftrag leisten kann.
+Du gibst die Richtung vor und bestimmst, welche Zugriffe und Änderungen du erlaubst. Lumen soll dir den Rücken freihalten und dir helfen, mehr von dem umzusetzen, was dir wichtig ist.
+
+**Das ist Lumen Desktop. Auf deinem Rechner, mit deinen Inhalten, für deine Vorhaben.**
+
+Lumen Desktop ist eigenständig nutzbar. Du brauchst eine eingerichtete Modellanbindung für die KI, aber keinen Lumen Server. Einen Server kannst du später für die gemeinsamen Apps und geräteübergreifende Funktionen verbinden.
+
+**Installiere Lumen und bring deine erste Aufgabe mit.**
 
 ## Installation
 
