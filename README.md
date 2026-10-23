@@ -2,15 +2,17 @@
 
 **Wir bauen ein System, das für dich arbeitet.**
 
-Lumen Desktop verbindet **Gespräche, deinen eigenen Dateimanager und Benachrichtigungen** zu einer Umgebung auf deinem Rechner. Du kannst Gedanken entwickeln, Inhalte verstehen und mit deinen Dateien arbeiten. Lumen begleitet dich dabei im Gespräch: nachfragen, genauer werden, etwas ändern und am gleichen Thema weiterarbeiten.
+**Lumen Desktop ist dein Assistent für den Computer und deine Daten.** Sprich mit Lumen, lass dir Dateien erklären, installiere Anwendungen und hole dir Hilfe, wenn dein Rechner Probleme macht. Der eigene Dateimanager und die Benachrichtigungen bringen diese Hilfe direkt dorthin, wo du arbeitest.
 
-- **Gespräche, die den Faden behalten:** Stelle eine Frage, hake nach und entwickle die Antwort weiter. Wähle bei Bedarf Texte, Dokumente oder Bilder als Kontext aus.
-- **Deine Dateien direkt dabei:** Lumen Files ist ein eigener Dateimanager mit Tabs, Vorschauen, Suche und integriertem Lumen-Bereich. Öffne eine Datei und arbeite mit ihrem Inhalt im Gespräch weiter.
-- **Benachrichtigungen mit Anschluss:** Lumen Notification bündelt Meldungen auf deinem Desktop. Aus einer Meldung kannst du direkt einen Gesprächsentwurf machen, um sie mit Lumen zu besprechen.
+- **Verstehe deine Dateien und Daten.** Wähle ein Dokument, eine Tabelle, ein Bild, Quellcode oder ein Fehlerprotokoll und frage, was du wissen möchtest. Lumen kann Inhalte erklären, Zusammenhänge untersuchen und bei der Bearbeitung helfen.
+- **Lass Anwendungen installieren.** Beschreibe, welches Programm du brauchst. Lumen kann die Installation aus dem Gespräch heraus durchführen, nötige Berechtigungen anfordern und das Ergebnis prüfen.
+- **Hol dir IT-Unterstützung.** „Warum startet dieses Programm nicht?“ oder „Was bremst meinen Rechner?“ Lumen kann Systeminformationen und Protokolle untersuchen, Ursachen erklären und erlaubte Schritte zur Behebung ausführen.
+- **Arbeite im Gespräch weiter.** Frage nach, ändere das Ziel und entwickle eine Antwort weiter. Deine ausgewählten Inhalte, Rückfragen und Ergebnisse bleiben im Gespräch zusammen.
+- **Behalte den Überblick.** Lumen Files hilft dir, deine Dateien zu finden und zu bearbeiten. Lumen Notification sammelt Meldungen, die du direkt mit Lumen besprechen kannst.
 
-Zum Beispiel: Du findest einen Brief in Lumen Files, lässt dir eine Stelle erklären und fragst anschließend nach, bis die nächsten Schritte klar sind. Oder du greifst eine Systemmeldung auf und lässt dir helfen, sie einzuordnen. Du bestimmst, welche Inhalte du teilst und welche Aktionen du erlaubst.
+Zum Beispiel: Du öffnest eine unbekannte Datei in Lumen Files und fragst, wofür sie da ist. Du lässt dir eine Tabelle erklären. Oder du sagst „Installiere VLC“ und prüfst die nötige Freigabe. Bei einer Fehlermeldung fragst du im selben Stil nach Ursache und Lösung. Du gibst den Auftrag; Lumen unterstützt dich bei der Untersuchung und Ausführung.
 
-**Lumen Desktop funktioniert eigenständig.** Für KI-Gespräche richtest du einen Modellanbieter oder eine passende lokale Modellanbindung ein. Einen Lumen Server brauchst du für diese Desktop-Funktionen nicht. Weitere lokale Werkzeuge für Lesen, Schreiben und deinen Rechner sind ebenfalls enthalten.
+**Diese Desktop-Funktionen benötigen keinen Lumen Server.** Für KI-Aufträge richtest du einen Modellanbieter oder eine passende lokale Modellanbindung ein. Du entscheidest, welche Inhalte Lumen verwenden und welche Änderungen es ausführen darf. Die verfügbaren Werkzeuge, dein System und das gewählte Modell bestimmen, was ein konkreter Auftrag leisten kann.
 
 ## Installation
 
@@ -78,6 +80,8 @@ Beginne mit einer Frage oder einer Idee und bleibe im Gespräch: nachfragen, ein
 
 Dateien, Bilder, PDF-Seiten, markierter Text oder die Zwischenablage lassen sich bewusst als Kontext verwenden. So kannst du über deine eigenen Inhalte sprechen. Antworten können Quellen und nutzbare Ergebnisdateien enthalten. Die gemeinsame Suche findet außerdem Programme und Dateien; aus einer Frage wird ein Gespräch.
 
+Gespräche können zu ausgeführten Aufgaben führen. Du kannst etwa „Installiere diese Anwendung“ sagen, Dateien bearbeiten lassen oder ein Computerproblem untersuchen. Direkte Aufträge werden im laufenden Gespräch bearbeitet; erforderliche Werkzeugfreigaben bleiben dort sichtbar. Für Systemänderungen kann zusätzlich der normale grafische Administrator-Dialog erscheinen. Lumen prüft bei unterstützten Datei-, Paket- und Dienstaktionen das tatsächliche Ergebnis.
+
 Du kannst Vorgänge verfolgen, abbrechen und Ergebnisse später wieder öffnen. Im Analysemodus bleibt der Auftrag lesend. Werkzeugfreigaben bestimmen, welche Änderungen möglich sind; eine ausdrücklich gewählte automatische Freigabe hat weitergehende Wirkung als eine einzelne Bestätigung. Eine Modellantwort ist kein Beweis, dass eine Aktion ausgeführt wurde: Maßgeblich sind der sichtbare Auftragsstatus und das Ergebnis.
 
 ### Lumen Files
@@ -88,7 +92,11 @@ Dateien, Ordner und erreichbare Netzlaufwerke durchsuchen, als Tabs öffnen und 
 
 Umbenennen und Sortieren lassen sich vor dem Anwenden prüfen. Für unterstützte Vorgänge gibt es Rückgängig-Funktionen mit Konfliktprüfung. Versionen, vorbereitete Offline-Kopien von NAS-Ordnern, Textsuche und optionale OCR helfen bei umfangreichen Sammlungen. Die Dokumentenwerkstatt bearbeitet ausgewählte PDF-Seiten; Bild- und Inhaltssuche benötigen ihre jeweiligen Zusatzkomponenten.
 
-Der integrierte Lumen-Bereich arbeitet mit bewusst ausgewählten Dateien. Du kannst Fragen zu ihrem Inhalt stellen und mit den Antworten weiterarbeiten. Auch ohne Modell bleiben die normalen Dateifunktionen verfügbar.
+**Lumen Files ist zugleich dein Zugang zum Inhalt deiner Dateien.** Wähle eine Datei oder mehrere Dateien aus und stelle deine eigene Frage. Lumen kann Dokumente und Daten erklären, Programmcode untersuchen, Konfigurationen verständlich machen und bei Fehlern oder Änderungen helfen. Der Gesprächskontext bleibt sichtbar, während du im Dateimanager weiter navigierst.
+
+Das Kontextmenü bietet **Mit Lumen öffnen**, **Erklären**, **Fehler beheben** und **Git-Diff prüfen**. Dateiaktionen haben eine eigene Ergebnisansicht mit Fortschritt, Rückfragen und Freigaben. Du kannst mehr Details anfordern, einen Vorgang abbrechen und unterstützte Ergebnisse nochmals prüfen lassen.
+
+Die Dateiauswahl beschränkt sich nicht auf eine feste Liste von Dokumenttypen. Wie Lumen den Inhalt erschließt, hängt vom Format, den verfügbaren Werkzeugen und dem Modell ab; verschlüsselte oder beschädigte Dateien und fehlende Lesewerkzeuge können die Analyse begrenzen. Normale Dateivorgänge funktionieren auch ohne KI-Modell.
 
 [Bedienung, Formate und Grenzen von Lumen Files](files/README.md).
 
@@ -128,7 +136,9 @@ Geräte, Verträge, Fristen, Handbücher und Belege zusammenhalten. Du kannst In
 
 **Deinen Rechner und seine Einstellungen im Blick behalten.**
 
-Systemwerte wie CPU, GPU, Arbeitsspeicher, Laufwerke, Prozesse und Sensoren ansehen. Die verfügbare Hardware bestimmt, welche Werte angezeigt werden. Eine KI-Auswertung startet auf Anfrage.
+Lumen hilft dir auch als IT-Support für deinen Rechner. Es kann Systemwerte und Protokolle heranziehen, Fehler erklären und gemeinsam mit dir die Ursache eingrenzen. Erlaubte Maßnahmen lassen sich anschließend ausführen, etwa eine Anwendung installieren oder einen Dienst neu starten und seinen Zustand prüfen. Eine Diagnose startet auf deinen Auftrag; Änderungen folgen den Werkzeugfreigaben und nötigen Administratorrechten.
+
+Die Systemansicht zeigt CPU, GPU, Arbeitsspeicher, Laufwerke, Prozesse und Sensoren. Die verfügbare Hardware bestimmt, welche Werte angezeigt werden. Eine KI-Auswertung startet auf Anfrage.
 
 Im selben Fenster liegen **Sound** mit Ausgängen, Lautstärken und App-Regeln sowie **Arbeitsmodi** für Desktop- und Audioeinstellungen. Unterstützte Änderungen protokolliert Lumen; ein Rückweg wird nur angeboten, wenn er sicher möglich ist.
 
@@ -222,6 +232,7 @@ Eine optionale systemweite Sudo-Konfiguration ist in `install-system.sh` enthalt
 - Dateien bleiben lokal, solange du sie nicht ausdrücklich überträgst oder einer Modellanfrage als Kontext mitgibst. Ein externer KI-Anbieter erhält den Inhalt der an ihn gesendeten Anfragen.
 - Der lokale Suchindex und bestätigte Erinnerungen ersetzen nicht die Berechtigungen von Serverinhalten. Normale Textsuche bleibt ohne ein optionales Bedeutungsmodell möglich.
 - Eigene Modelle, Server oder Anbieter können zusätzliche Hardware, Speicher oder Gebühren benötigen. Die Lumen-Installation garantiert keine kostenlose KI-Rechenleistung.
+- Dateiverständnis ist keine Garantie für jedes Format oder jede Aussage. Dateischutz, verfügbare Lesewerkzeuge, Größenlimits und die Fähigkeiten des gewählten Modells gelten auch bei einer frei gewählten Datei.
 - Bevor du wichtige Änderungen übernimmst, prüfe Vorschau und Ergebnis. Nicht jede Modellantwort ist richtig; nicht jede externe Aktion lässt sich rückgängig machen.
 - Vollständige Einrichtung und Integration sind auf Arch/CachyOS mit Plasma 6 ausgerichtet. Einzelne Funktionen auf anderen Linux-Desktops ersetzen keine geprüfte Unterstützung des gesamten Systems.
 
