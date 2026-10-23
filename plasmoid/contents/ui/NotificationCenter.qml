@@ -28,6 +28,11 @@ Item {
         return matches && (center.filter==="history" ? row.archived : !row.archived &&
             (center.filter==="done" ? !!row.resolved : !row.resolved && (center.filter==="later" ? later : !later && (center.filter!=="attention" || row.attention || ["question","decision","problem"].indexOf(row.kind)>=0))));
     }).sort((a,b)=>center.grouped ? a.source.localeCompare(b.source) || b.updated-a.updated : b.updated-a.updated)
+    readonly property var closable: filtered.filter(row => !row.archived)
+    function closeAll() {
+        const rows = closable.slice();
+        for (const row of rows) action(row.id, row.system, "archive");
+    }
     Timer { interval: 30000; running: center.visible; repeat: true; onTriggered: center.now = new Date() }
     ColumnLayout {
         anchors.fill: parent; anchors.margins: center.full ? 28 : 18; spacing: 14
@@ -52,10 +57,21 @@ Item {
                 onClicked: center.grouped=!center.grouped
             }
         }
-        PC.TextField {
-            id: search; objectName: "notificationSearch"; Layout.fillWidth: true
-            placeholderText: center.tr("Meldungen durchsuchen …"); Accessible.name: placeholderText
-            onTextChanged: center.pageSize=30
+        RowLayout {
+            Layout.fillWidth: true; spacing: 8
+            PC.TextField {
+                id: search; objectName: "notificationSearch"; Layout.fillWidth: true
+                placeholderText: center.tr("Meldungen durchsuchen …"); Accessible.name: placeholderText
+                onTextChanged: center.pageSize=30
+            }
+            LumenButton {
+                objectName: "notificationCloseAll"; text: center.tr("Alle schließen")
+                icon.name: "edit-clear-all"; symbolSize: 18; implicitHeight: 44
+                enabled: center.closable.length > 0
+                PC.ToolTip.text: center.tr("Alle Meldungen in dieser Ansicht schließen, auch noch nicht geladene.")
+                PC.ToolTip.visible: hovered
+                onClicked: center.closeAll()
+            }
         }
         Flow {
             Layout.fillWidth: true; spacing: 4
