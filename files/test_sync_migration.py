@@ -1,6 +1,9 @@
 """Saved sync identities and pending work never become a new global selector."""
 from copy import deepcopy
 import unittest
+import hashlib
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 from uuid import uuid4
 import drive_sync as drive
@@ -73,19 +76,96 @@ class MigrationTest(unittest.TestCase):
         root['entries']['new']=dict(pending=dict(request_id=str(uuid4()),staged='new-outgoing'))
         self.assertFalse(migration.pending_drive_uploads(root))
 
-    def test_migration_controller_never_replays_an_upload_through_normal_transport(self):
+    def resume_fixture(self, path, payload=b'original'):
+        digest=hashlib.sha256(payload).hexdigest()
+        pending=dict(request_id=str(uuid4()),staged='outgoing',hash=digest,legacy_upload_target=str(uuid4()))
+        root=dict(path=str(path),identity=[path.stat().st_dev,path.stat().st_ino],entries={'old':dict(pending=pending)})
+        key=str(uuid4());body=dict(name='original.txt',size=len(payload),sha256=digest,workspace=pending['legacy_upload_target'])
+        item=dict(request_id=pending['request_id'],body=body)
+        proposal=dict(plan=dict(uploads=[item]),preview=dict(fingerprint='a'*64,
+            uploads=[dict(id=key,request_id=pending['request_id'],state='uploading')]))
+        (path/'outgoing').write_bytes(payload)
+        return root,proposal,item,key,digest
+
+    def test_migration_controller_uses_only_explicit_approval_and_existing_transfer(self):
         import drive_binding_migration as binding
-        pending = dict(request_id=str(uuid4()),staged='outgoing',legacy_upload_target=str(uuid4()))
-        root = dict(entries={'old':dict(pending=pending)})
-        proposal = dict(preview=dict(uploads=[dict(request_id=pending['request_id'],state='uploading')]))
-        before=deepcopy((root,proposal))
-        with patch.object(drive,'locked'),patch.object(binding,'load',return_value=({}, {}, root)), \
-             patch.object(binding,'check_preview') as check,patch.object(binding.transport,'upload') as upload, \
-             patch.object(drive,'request') as network,patch.object(drive,'save') as save:
-            with self.assertRaisesRegex(ValueError,'bestätigte Fortsetzung'):binding.finish_uploads('old',proposal)
-            check.assert_called_once_with(root,proposal)
-            upload.assert_not_called();network.assert_not_called();save.assert_not_called()
-        self.assertEqual((root,proposal),before)
+        with TemporaryDirectory() as tmp:
+            path=Path(tmp);root,proposal,item,key,digest=self.resume_fixture(path)
+            before=deepcopy((root,proposal))
+            with patch.object(drive,'locked'),patch.object(binding,'load',return_value=({}, {}, root)), \
+                 patch.object(binding,'check_preview') as check,patch.object(binding,'pending',return_value=[item]), \
+                 patch.object(binding.transport,'upload') as upload,patch.object(drive,'save') as save, \
+                 patch.object(drive,'request',return_value=dict(upload=dict(id=key,offset=2,size=8))) as approve, \
+                 patch.object(binding.transport,'request',side_effect=[dict(id=key,offset=8),dict(id=key,sha256=digest)]) as wire:
+                self.assertTrue(binding.finish_uploads('old',proposal))
+                check.assert_called_once_with(root,proposal)
+                approve.assert_called_once_with({},'/migrations/uploads/'+key+'/resume',
+                    dict(plan=proposal['plan'],fingerprint='a'*64))
+                self.assertEqual(wire.call_args_list[0].args,({},'/uploads/'+key+'?offset=2',b'iginal','PUT','application/octet-stream'))
+                self.assertEqual(wire.call_args_list[1].args,({},'/uploads/'+key+'/finish'))
+                upload.assert_not_called();save.assert_not_called()
+            self.assertEqual((root,proposal),before)
+            self.assertEqual((path/'outgoing').read_bytes(),b'original')
+
+    def test_explicit_resume_rejection_never_falls_back_to_normal_upload(self):
+        import drive_binding_migration as binding
+        with TemporaryDirectory() as tmp:
+            root,proposal,item,key,digest=self.resume_fixture(Path(tmp))
+            with patch.object(drive,'locked'),patch.object(binding,'load',return_value=({}, {}, root)), \
+                 patch.object(binding,'check_preview'),patch.object(binding,'pending',return_value=[item]), \
+                 patch.object(drive,'request',side_effect=ValueError('stale approval')), \
+                 patch.object(binding.transport,'request') as wire,patch.object(binding.transport,'upload') as upload:
+                with self.assertRaisesRegex(ValueError,'stale approval'):binding.finish_uploads('old',proposal)
+                wire.assert_not_called();upload.assert_not_called()
+
+    def test_explicit_resume_rechecks_original_bytes_before_any_chunk(self):
+        import drive_binding_migration as binding
+        with TemporaryDirectory() as tmp:
+            path=Path(tmp);root,proposal,item,key,digest=self.resume_fixture(path)
+            (path/'outgoing').write_bytes(b'changed!')
+            with patch.object(drive,'locked'),patch.object(binding,'load',return_value=({}, {}, root)), \
+                 patch.object(binding,'check_preview'),patch.object(binding,'pending',return_value=[item]), \
+                 patch.object(drive,'request',return_value=dict(upload=dict(id=key,offset=2,size=8))), \
+                 patch.object(binding.transport,'request') as wire:
+                with self.assertRaisesRegex(ValueError,'Originalübertragung'):binding.finish_uploads('old',proposal)
+                wire.assert_not_called()
+            self.assertEqual((path/'outgoing').read_bytes(),b'changed!')
+
+    def test_confirmed_migration_releases_only_reviewed_pending_target(self):
+        import drive_binding_migration as binding
+        old,request,folder=[str(uuid4()) for _ in range(3)]
+        intent=dict(request_id=request,hash='a'*64,path='original.txt',staged='original-stage',folder=None,
+                    previous=None,legacy_upload_target=old)
+        root=dict(workspace=old,entries={'old':dict(pending=intent,legacy_upload_target=old)},
+                  cache=dict(files={},folders={}),migration=dict(id=str(uuid4())))
+        state=dict(scope='same-user-origin-device',roots=[root])
+        result=dict(files=[],folders=[],folder=dict(id=folder),uploads=[dict(request_id=request,state='not_started',
+            next_body=dict(folder=folder,sha256='a'*64,name='original.txt'))])
+        with patch.object(binding,'check_preview'),patch.object(binding.lumen_connect,'read_config',return_value={}), \
+             patch.object(drive,'scope',return_value=state['scope']),patch.object(binding,'durable_save') as save:
+            current=binding.finalize(state,root,result)
+            save.assert_called_once_with(state)
+        kept=current['entries']['old']['pending']
+        self.assertEqual((kept['request_id'],kept['hash'],kept['staged']),(request,'a'*64,'original-stage'))
+        self.assertEqual(kept['folder'],folder)
+        self.assertNotIn('workspace',current)
+        self.assertFalse(migration.pending_drive_uploads(current))
+        self.assertIn('workspace',root)  # The separate original/journal is not rewritten.
+
+    def test_unconfirmed_legacy_next_body_cannot_clear_the_pending_stop(self):
+        import drive_binding_migration as binding
+        old,request,folder=[str(uuid4()) for _ in range(3)]
+        root=dict(workspace=old,entries={'old':dict(pending=dict(request_id=request,hash='a'*64,path='original.txt',
+            staged='original-stage',folder=None,previous=None,legacy_upload_target=old))},
+            cache=dict(files={},folders={}),migration=dict(id=str(uuid4())))
+        state=dict(scope='same',roots=[root]);before=deepcopy(state)
+        result=dict(files=[],folders=[],folder=dict(id=folder),uploads=[dict(request_id=request,state='not_started',
+            next_body=dict(folder=folder,sha256='a'*64,name='original.txt',workspace=old))])
+        with patch.object(binding,'check_preview'),patch.object(binding.lumen_connect,'read_config',return_value={}), \
+             patch.object(drive,'scope',return_value='same'),patch.object(binding,'durable_save') as save:
+            with self.assertRaisesRegex(ValueError,'eindeutige'):binding.finalize(state,root,result)
+            save.assert_not_called()
+        self.assertEqual(state,before)
 
 
 
