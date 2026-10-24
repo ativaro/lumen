@@ -34,6 +34,8 @@ def checksum(origin, path, progress):
 
 def upload(store, value, config, sources, progress):
     from lumen_transfers import update, PREFIX
+    from sync_migration import transfer_legacy_target, require_current_upload
+    require_current_upload(transfer_legacy_target(value))
 
     plan = value.get("upload_plan")
     if plan is None:
@@ -89,11 +91,7 @@ def upload(store, value, config, sources, progress):
                 if len(plan["folders"]) + len(plan["files"]) > 10000:
                     raise ValueError(tr("Maximal 10.000 Einträge pro Drive-Ordner."))
         update(store, value["id"], upload_plan=plan)
-    from sync_migration import transfer_legacy_target
-    legacy = transfer_legacy_target(value)
     for folder in plan["folders"]:
-        if legacy and not folder.get('parent_id'):
-            raise ValueError(tr('Alte Übertragung pausiert: Bitte einen konkreten Zielordner wählen.'))
         sync.request(config, '/folders', folder)
         progress(0, 0)
     total, count = sum(item["size"] for item in plan["files"]), 0
@@ -119,7 +117,6 @@ def upload(store, value, config, sources, progress):
                 item["sha256"],
                 item["previous"],
                 lambda n, _: progress(count + n, total),
-                legacy_target=legacy,
             )
             done.append(item["request"])
             update(store, value["id"], upload_done=done)

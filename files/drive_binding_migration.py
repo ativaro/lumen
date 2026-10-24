@@ -202,32 +202,9 @@ def finish_uploads(rootid, proposal, progress=lambda *_: None):
         config, state, root = load(rootid)
         check_preview(root, proposal)
         for item in proposal["preview"]["uploads"]:
-            if item["state"] != "uploading":
-                continue
-            entry = next(
-                e
-                for e in root["entries"].values()
-                if e.get("pending", {}).get("request_id") == item["request_id"]
-            )
-            intent = entry["pending"]
-
-            def remember(key):
-                intent["transfer_id"] = key
-                sync.save(state)
-
-            transport.upload(
-                config,
-                root,
-                intent["staged"],
-                intent["folder"],
-                intent["request_id"],
-                intent["hash"],
-                intent.get("previous"),
-                progress,
-                filename=Path(intent["path"]).name,
-                legacy_target=intent.get("legacy_upload_target"),
-                remember=remember,
-            )
+            if item["state"] == "uploading":
+                # Old receipts need the confirmed server migration, never a normal upload replay.
+                raise ValueError(tr('Diese alte Übertragung benötigt eine bestätigte Fortsetzung über die Server-Umstellung. Kennung, Receipt und lokale Dateien bleiben erhalten.'))
         return True
 
 
