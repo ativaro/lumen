@@ -1,0 +1,67 @@
+"""Actual private Qt profiles and HTTPS; project applications never get a Lumen cookie."""
+import json
+from types import SimpleNamespace
+from test_server_app_window import PrivateHostFixture, FILE
+
+
+class NativeProjectHostTest(PrivateHostFixture):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        original = cls.server.RequestHandlerClass
+        class Handler(original):
+            def handle_request(self):
+                prefix = '/bridge/code-library/' + FILE
+                if self.path == prefix + '/runtime/info':
+                    data = json.dumps(dict(id=FILE, revision=1, title='Actual preview fixture')).encode()
+                    mime = 'application/json'
+                elif self.path.startswith(prefix + '/preview/'):
+                    cls.application_requests.append(dict(path=self.path, cookie=self.headers.get('Cookie'),
+                        app_cookie=self.headers.get('X-Lumen-App-Cookie'), bearer=self.headers.get('Authorization')))
+                    route = self.path[len(prefix + '/preview'):]
+                    if route == '/api/me':
+                        data = b'{"application":true}'; mime = 'application/json'
+                    else:
+                        data = b'''<!doctype html><script>
+                        localStorage.setItem('project-state',localStorage.getItem('project-state')||'retained');
+                        document.cookie='project_cookie=own; Path=/';
+                        fetch('/api/me').then(r=>r.json()).then(v=>window.application=v.application);
+                        </script><h1>Whole application</h1>'''
+                        mime = 'text/html'
+                else: return super().handle_request()
+                self.send_response(200); self.send_header('Content-Type', mime)
+                self.send_header('Content-Length', str(len(data))); self.end_headers(); self.wfile.write(data)
+        cls.server.RequestHandlerClass = Handler
+
+    def test_preview_has_own_origin_cookies_storage_and_no_native_channel(self):
+        type(self).application_requests = []
+        window = self.import_window(drive=False, pilot=True, app='code')
+        self.assertTrue(self.js(window, 'typeof window.lumenCodeHost==="object"'))
+        window._code_host.openPreview(FILE)
+        self.assertIn(FILE, window._code_host.previews)
+        dialog = window._code_host.previews[FILE]
+        from PySide6.QtWebEngineWidgets import QWebEngineView
+        view = dialog.findChild(QWebEngineView)
+        probe = SimpleNamespace(page=view.page())
+        try:
+            self.wait(lambda: self.js(probe, 'window.application===true'))
+        except AssertionError:
+            self.fail(repr(dict(url=view.url().toString(), body=self.js(probe, 'document.body?.innerText'), calls=self.application_requests)))
+        self.assertEqual(self.js(probe, 'typeof window.lumenCodeHost'), 'undefined')
+        self.assertEqual(self.js(probe, 'localStorage.getItem("project-state")'), 'retained')
+        self.assertNotIn('lumen_session', self.js(probe, 'document.cookie'))
+        self.assertTrue(self.application_requests)
+        self.assertTrue(all(row['cookie'] is None for row in self.application_requests))
+        self.assertTrue(all(row['bearer'] == 'Bearer native-only-fixture' for row in self.application_requests))
+        self.assertTrue(any('project_cookie=own' in (row['app_cookie'] or '') for row in self.application_requests))
+        origin = view.url().toString().split('/', 3)[:3]
+        self.js(probe, 'localStorage.setItem("project-state","edited")')
+        dialog.close(); self.wait(lambda: FILE not in window._code_host.previews)
+        self.app.processEvents()
+        window._code_host.openPreview(FILE)
+        dialog = window._code_host.previews[FILE]; view = dialog.findChild(QWebEngineView)
+        probe = SimpleNamespace(page=view.page())
+        self.wait(lambda: self.js(probe, 'window.application===true'))
+        self.assertEqual(view.url().toString().split('/', 3)[:3], origin)
+        self.assertEqual(self.js(probe, 'localStorage.getItem("project-state")'), 'edited')
+        dialog.close()

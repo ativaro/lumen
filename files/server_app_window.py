@@ -247,7 +247,7 @@ if WEBENGINE:
 
         def createWindow(self, kind):return None
         def chooseFiles(self, mode, old, types):
-            if self.window._binding.app not in ('audio','code','vault'):return []
+            if self.window._binding.app not in ('audio','vault'):return []
             from server_audio_permissions import choose
             return choose(self.window,mode)
 
@@ -342,6 +342,9 @@ class ServerAppWindow(QMainWindow):
         self.profile.downloadRequested.connect(lambda request:download(self,request))
         self.profile.cookieStore().setCookieFilter(lambda request:not request.thirdParty)
         self.view = QWebEngineView();self.page = BoundPage(self.profile,self);self.view.setPage(self.page)
+        if self._binding.app=='code':
+            from server_code_host import install
+            install(self, root)
         if self._binding.app=='notes':
             from server_notes_links import install
             install(self)
@@ -368,7 +371,7 @@ class ServerAppWindow(QMainWindow):
         script.setWorldId(QWebEngineScript.ScriptWorldId.ApplicationWorld)
         script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentReady)
         script.setRunsOnSubFrames(False)
-        script.setSourceCode(PRIVATE_DRAFT_SCRIPT if self._binding.app=='vault' else NOTES_DRAFT_SCRIPT if self.session.binding.app=='notes' else DRAFT_SCRIPT if self.session.binding.app=='compose' else APP_DRAFT_SCRIPT)
+        script.setSourceCode(PRIVATE_DRAFT_SCRIPT if self._binding.app=='vault' else NOTES_DRAFT_SCRIPT if self.session.binding.app=='notes' else DRAFT_SCRIPT if self.session.binding.app=='compose' else APP_DRAFT_SCRIPT.replace('.slice(0,262000)','') if self._binding.app=='code' else APP_DRAFT_SCRIPT)
         self.page.scripts().insert(script)
         if self._pilot_connection is not None:
             links=QWebEngineScript();links.setName('Lumen native app links')
