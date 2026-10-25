@@ -18,6 +18,21 @@ class DriveReferencesTest(unittest.TestCase):
         self.config = dict(server='https://staging.invalid', token='private-device-token')
         self.row = dict(id=str(uuid4()), family=self.ref['id'], name='Renamed.txt', trashed=False, revision=7, size=5, sha256=hashlib.sha256(b'hello').hexdigest())
 
+    def test_server_workshop_link_contains_current_ids_but_no_credentials(self):
+        from drive_browser import Browser
+        from urllib.parse import urlsplit,parse_qs
+        opened=[]
+        browser=SimpleNamespace(config=self.config,entries={'lumen-drive://file/'+self.ref['id']:('file',self.row)},profile={'id':self.ref['locator']['account']})
+        browser.work=lambda fn,done:done(fn(None))
+        with patch.object(drive.lumen_connect,'read_config',return_value=self.config), \
+             patch.object(drive,'resolve',return_value=(self.config,[self.row])), \
+             patch('drive_browser.QDesktopServices.openUrl',side_effect=lambda url:opened.append(url.toString())):
+            Browser.server_tools(browser,['lumen-drive://file/'+self.ref['id']],workshop=True)
+        self.assertEqual(len(opened),1)
+        parsed=urlsplit(opened[0]);self.assertEqual(parsed.netloc,'staging.invalid')
+        self.assertEqual(parse_qs(parsed.query),dict(app=['files'],file=[self.row['id']],workshop=[self.row['id']]))
+        self.assertNotIn(self.config['token'],opened[0])
+
     def test_inventory_cancel_at_each_response_prevents_another_http_step(self):
         from lumen_jobs import Job
         from tools_data import Cancelled
@@ -97,26 +112,16 @@ class DriveReferencesTest(unittest.TestCase):
             inventory.return_value=cache;config.side_effect=[self.config,dict(self.config,token='different')]
             with self.assertRaises(ValueError):drive.resolve([self.ref])
 
-    def test_project_and_note_preserve_every_original_without_downloading(self):
-        from interop_data import Registry
+    def test_projects_and_notes_refuse_legacy_native_writes_without_server_session(self):
         from interop_targets import apply
-        from lumen_store import Store
-        from tools_data import Library
-        from tools_ui import Job
-        import wissen_data
-        folder=dict(self.ref,kind='drive_folder',id=str(uuid4()),title='Folder')
-        with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp)/'tools';store=Store(Path(tmp)/'state');wissen_data.activate(store)
-            refs=[self.ref,folder];registry=Registry(root)
-            payload=dict(title='Selection',paths=[],references=refs,source=self.ref,source_url=registry.register(self.ref))
-            job=Job(lambda _:None)
-            with patch.object(drive,'resolve',return_value=(self.config,[])), patch('drive_transport.download',side_effect=AssertionError('No downloads for links')):
-                project=apply('workbench.add',payload,dict(title='Project',mode='link',token='project'),job,root,store)
-                resources=Library('workbench',root).get(project['id'])['resources']
-                self.assertEqual([registry.resolve(r['target']) for r in resources],refs)
-                note=apply('wissen.import',payload,dict(title='Note',mode='link',token='note'),job,root,store)
-                text=wissen_data.Notebook(store).read(note['id'])['text']
-                for ref in refs:self.assertIn(registry.register(ref),text)
+        job=SimpleNamespace(check=lambda:None)
+        from interop_data import Registry
+        with tempfile.TemporaryDirectory() as tmp,patch('interop_targets.Library',side_effect=AssertionError('No native fallback')):
+            registry=Registry(Path(tmp))
+            payload=dict(title='Selection',paths=[],references=[self.ref],source=self.ref,source_url=registry.register(self.ref))
+            for action in ('workbench.add','wissen.import'):
+                with self.subTest(action=action),self.assertRaisesRegex(ValueError,'Server-App'):
+                    apply(action,payload,dict(title='Reference',mode='link',token='request'),job,Path(tmp))
 
     def test_bounded_copy_cleanup_on_success_cancel_and_changed_version(self):
         from tools_data import Cancelled

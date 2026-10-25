@@ -3,7 +3,7 @@
 import os
 import tempfile
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 from uuid import UUID, uuid4
 
 import drive_local as local
@@ -340,6 +340,23 @@ class Browser(QObject):
             )
 
         self.fetch([path], done)
+
+    def server_tools(self, paths, *, workshop=False):
+        from drive_references import capture,resolve as resolve_refs
+        references=capture(self,paths)
+        def run(job):
+            config,rows=resolve_refs(references,job)
+            query=dict(app='files',file=rows[0]['id'])
+            if workshop:query['workshop']=','.join(row['id'] for row in rows)
+            elif len(rows)>1:query['selection']=','.join(row['id'] for row in rows)
+            return config,config['server']+'/?'+urlencode(query)
+        def done(value):
+            config,url=value
+            if sync.scope(lumen_connect.read_config())!=sync.scope(config):
+                QMessageBox.warning(self.window,tr('Lumen Drive'),tr('Serververbindung geändert. Drive neu öffnen.'))
+                return
+            QDesktopServices.openUrl(QUrl(url))
+        self.work(run,done)
 
     def preview(self, paths):
         if self.jobs:
