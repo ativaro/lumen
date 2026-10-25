@@ -158,6 +158,7 @@ class Host(QObject):
                 @Slot(str, str, str)
                 def offer(self, kind, title, body):
                     check()
+                    if not page.url().toString().startswith(proxy.origin+'/'):return
                     if kind not in ('note','task') or not title.strip(): return
                     host.emit(identity, 'result_offer', offer=dict(kind=kind, title=title, body=body, id=str(uuid4())))
                     status.setText('Ergebnis ist im Lumen-Code-Fenster zur Prüfung bereit.')

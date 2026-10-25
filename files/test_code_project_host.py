@@ -77,4 +77,8 @@ class NativeProjectHostTest(PrivateHostFixture):
         self.wait(lambda: self.js(probe, 'window.application===true'))
         self.assertEqual(view.url().toString().split('/', 3)[:3], origin)
         self.assertEqual(self.js(probe, 'localStorage.getItem("project-state")'), 'edited')
+        from PySide6.QtCore import QUrl
+        view.setUrl(QUrl('about:blank'));self.wait(lambda:view.url().toString()=='about:blank')
+        dialog._code_preview[6].offer('note','Outside the application','Must not cross the bridge')
+        self.assertEqual(self.js(window,'window.applicationOffers.length'),1)
         dialog.close()
