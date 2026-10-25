@@ -23,6 +23,22 @@ class Response(io.BytesIO):
 
 
 class SessionTest(unittest.TestCase):
+    def test_only_code_can_embed_known_sandbox_preview_routes(self):
+        code=host.Binding(ORIGIN,USER,DEVICE,'code')
+        path=ORIGIN+'/api/code-library/'+USER
+        for value in (path+'/code-document?entry_revision=1&repo_revision=1&sha256='+('a'*64)+'&channel='+('b'*32),
+                      path+'/document?revision=1&channel='+('b'*32)+'&draft=true', 'about:srcdoc'):
+            with self.subTest(value=value):
+                self.assertTrue(code.preview_navigation(value))
+                for app in host.APPS:
+                    if app!='code':self.assertFalse(host.Binding(ORIGIN,USER,DEVICE,app).preview_navigation(value))
+        for value in (path+'/code-document?token=x',path+'/document?channel=a&channel=b',
+                      path+'/document#secret',path.replace(ORIGIN,'https://foreign.test')+'/document',
+                      path+'/app-note',path+'/document/extra',path.replace(USER,'../secret')+'/document',
+                      ORIGIN+'/?app=code&presentation=desktop','about:blank','about:srcdoc?token=x',
+                      'data:text/html,unsafe','file:///etc/passwd',None):
+            with self.subTest(value=value):self.assertFalse(code.preview_navigation(value))
+
     def setUp(self):
         self.binding = host.Binding(ORIGIN, USER, DEVICE, 'compose')
         self.config = dict(server=ORIGIN, device_id=DEVICE, token='native-only-fixture')

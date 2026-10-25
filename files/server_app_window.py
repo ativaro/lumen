@@ -233,7 +233,8 @@ if WEBENGINE:
 
         def acceptNavigationRequest(self, url, kind, main):
             window=self.window
-            if not (main and window._live and window.session.usable):return False
+            if not (window._live and window.session.usable):return False
+            if not main:return window.session.binding.preview_navigation(url.toString())
             if window.session.binding.navigation(url.toString()):return True
             clicked=QWebEnginePage.NavigationType.NavigationTypeLinkClicked
             if kind in (clicked,clicked.value):

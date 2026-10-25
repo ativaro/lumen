@@ -102,6 +102,21 @@ class Binding:
         except (ValueError, SessionError):
             return False
 
+    def preview_navigation(self, value):
+        """Only Code's sandbox documents; the API checks their source pins and rights."""
+        if self.app!='code':return False
+        if value=='about:srcdoc':return True
+        try:
+            if not isinstance(value,str) or len(value)>8192 or not self.resource(value):return False
+            url=urlsplit(value);parts=url.path.split('/')
+            if (url.fragment or len(parts)!=5 or parts[1:3]!=['api','code-library']
+                    or str(UUID(parts[3]))!=parts[3]):return False
+            allowed=({'entry_revision','repo_revision','sha256','channel','run_id','render'}
+                if parts[4]=='code-document' else {'revision','channel','draft','render'} if parts[4]=='document' else set())
+            query=parse_qs(url.query,keep_blank_values=True,strict_parsing=True)
+            return bool(allowed and not set(query)-allowed and all(len(values)==1 for values in query.values()))
+        except (ValueError,TypeError,AttributeError):return False
+
 
 class AppSession:
     def __init__(self, config, binding, *, now=None, clock=time.monotonic):

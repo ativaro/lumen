@@ -9,6 +9,7 @@ import tempfile
 import threading
 import time
 import unittest
+from html import escape
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
@@ -115,6 +116,8 @@ class PrivateHostFixture(unittest.TestCase):
                         cls.write_started.set();cls.release_write.wait(timeout=10)
                     status=403;data={'detail':'App jobs remain gated.'}
                 elif self.path=='/api/ping':data={'cookie':'lumen_session='+'c'*43 in self.headers.get('Cookie','')}
+                elif cls.preview_document is not None and urlsplit(self.path).path=='/api/code-library/'+FILE+'/code-document':
+                    data=cls.preview_document
                 else:
                     data=('''<!doctype html><html><title>Notes fixture</title><section class="knowledge-editor">
                         <input class="title-input" value="Own fixture note"><div class="note-rich-text" contenteditable="true">Own fixture text</div>
@@ -124,6 +127,9 @@ class PrivateHostFixture(unittest.TestCase):
                 raw=data.encode() if isinstance(data,str) else json.dumps(data).encode()
                 self.send_response(status);self.send_header('Content-Type','text/html' if isinstance(data,str) else 'application/json')
                 self.send_header('Content-Length',str(len(raw)))
+                if cls.preview_document is not None and urlsplit(self.path).path=='/api/code-library/'+FILE+'/code-document':
+                    self.send_header('Content-Security-Policy',"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; frame-src about:; sandbox allow-scripts allow-forms; frame-ancestors 'self'")
+                    self.send_header('X-Frame-Options','SAMEORIGIN')
                 if cookie:self.send_header('Set-Cookie','lumen_session='+'c'*43+'; Path=/; Max-Age=900; Secure; HttpOnly; SameSite=Strict')
                 self.end_headers();self.wfile.write(raw)
         cls.server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
@@ -139,6 +145,7 @@ class PrivateHostFixture(unittest.TestCase):
 
     def setUp(self):
         type(self).app_kind='compose';type(self).hold_check=False
+        type(self).preview_document=None
         type(self).renewal_unavailable=False
         type(self).revoked=False;type(self).hold_write=False
         type(self).native_user=USER;type(self).native_areas=['translate'];type(self).native_revision=7
@@ -203,6 +210,25 @@ class PrivateHostFixture(unittest.TestCase):
 
 
 class WindowTest(PrivateHostFixture):
+    def test_code_preview_runs_nested_sandbox_without_parent_or_native_access(self):
+        window=self.import_window(drive=False,pilot=True,app='code')
+        child="""<h1>Own nested preview</h1><script>
+        let blocked=false;try{parent.document.body}catch(e){blocked=e.name==='SecurityError'};
+        parent.postMessage({fixturePreview:true,text:document.querySelector('h1').textContent,
+            parentBlocked:blocked,nativeMarker:typeof window.__lumenNativeAppLinks},'*');</script>"""
+        type(self).preview_document=('<iframe sandbox="allow-scripts allow-forms" srcdoc="'+escape(child,quote=True)+'"></iframe>'
+            "<script>addEventListener('message',e=>{if(e.source===document.querySelector('iframe').contentWindow&&e.data?.fixturePreview)parent.postMessage(e.data,'*')})</script>")
+        url=self.origin+'/api/code-library/'+FILE+'/code-document?entry_revision=1&repo_revision=1&sha256='+('a'*64)+'&channel='+('b'*32)
+        self.js(window,"const f=document.createElement('iframe');f.sandbox='allow-scripts allow-forms';"
+            "addEventListener('message',e=>{if(e.source===f.contentWindow&&e.data?.fixturePreview)window.previewResult=e.data});"
+            "f.src="+json.dumps(url)+";document.body.append(f)")
+        self.wait(lambda:self.js(window,'window.previewResult?.fixturePreview') is True,timeout=4000)
+        result=json.loads(self.js(window,'JSON.stringify(window.previewResult)'))
+        self.assertEqual(result,dict(fixturePreview=True,text='Own nested preview',parentBlocked=True,nativeMarker='undefined'))
+        self.assertTrue(window._live)
+        self.assertTrue(window.session.binding.navigation(window.view.url().toString()))
+        self.assertTrue(any(c['web'] and c['path']==url.removeprefix(self.origin) and c['cookie'] and not c['bearer'] for c in self.calls))
+
     def test_clicked_app_link_uses_fresh_source_and_a_separate_target_launcher(self):
         window=self.import_window(drive=False,pilot=True,app='code')
         url=self.origin+'/?app=notes&note='+FILE
