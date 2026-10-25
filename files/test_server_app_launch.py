@@ -128,6 +128,19 @@ class LaunchTest(unittest.TestCase):
             self.assertIsNone(launch.verify_context('code'))
             recover.assert_not_called()
 
+    def test_code_preview_receiver_does_not_forward_to_the_old_link_only_host(self):
+        from server_app_session import Binding
+        for app in ('code','notes'):
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary, \
+                 patch.object(launch.QStandardPaths,'writableLocation',return_value=temporary):
+                binding=Binding(self.config['server'],self.me['id'],self.config['device_id'],app)
+                old=Path(temporary)/('lumen-'+app+'-'+hashlib.sha256(json.dumps([binding.origin,binding.account,binding.device,self.stamp,'app-links-1']).encode()).hexdigest()[:24])
+                old.mkdir(mode=0o700);draft=old/'own-draft';draft.write_text('Keep old live draft')
+                target=launch.runtime_root(binding,self.stamp)
+                if app=='code':self.assertNotEqual(target,old)
+                else:self.assertEqual(target,old)
+                self.assertEqual(draft.read_text(),'Keep old live draft')
+
     def test_normal_launch_without_right_never_creates_host(self):
         def answer():
             dialog = QApplication.activeModalWidget()
