@@ -22,7 +22,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox, QFileDialog, QDialog, Q
 import shiboken6
 
 from server_app_session import AppSession, Binding, SessionError
-from server_app_window import ServerAppWindow, QWebEnginePage, QWebEngineScript
+from server_app_window import ServerAppWindow, QWebEnginePage, QWebEngineScript, QWebEngineLoadingInfo
 import lumen_connect
 
 USER='73000000-0000-4000-8000-000000000001'
@@ -203,6 +203,69 @@ class PrivateHostFixture(unittest.TestCase):
 
 
 class WindowTest(PrivateHostFixture):
+    def test_clicked_app_link_uses_fresh_source_and_a_separate_target_launcher(self):
+        window=self.import_window(drive=False,pilot=True,app='code')
+        url=self.origin+'/?app=notes&note='+FILE
+        self.assertEqual(self.js(window,'window.__lumenNativeAppLinks'),1)
+        self.js(window,"document.body.innerHTML="+json.dumps(
+            '<a style="display:block;height:50px" href="'+url+'">Open saved note</a>'
+            '<textarea>Own unsubmitted code request</textarea>'))
+        before=window.view.url().toString()
+        loads=[]
+        window.page.loadingChanged.connect(lambda info:loads.append((info.url().toString(),info.status().name,info.errorCode())))
+        with patch('interop_open.subprocess.Popen') as started:
+            for main,kind in ((False,0),(True,QWebEnginePage.NavigationType.NavigationTypeOther)):
+                self.assertFalse(window.page.acceptNavigationRequest(QUrl(url),kind,main))
+            started.assert_not_called()
+            self.wait(lambda:window.view.isVisible())
+            window.view.setFocus()
+            point=json.loads(self.js(window,'JSON.stringify((()=>{const r=document.querySelector("a").getBoundingClientRect();return [r.x+r.width/2,r.y+r.height/2]})())'))
+            QTest.mouseClick(window.view.focusProxy() or window.view,Qt.LeftButton,pos=QPoint(int(point[0]),int(point[1])))
+            self.wait(lambda:started.called or not window._live)
+            self.assertTrue(started.called,repr(loads))
+        command=started.call_args.args[0]
+        self.assertEqual(command[2:4],['wissen','--ref'])
+        from interop_data import Registry
+        ref=Registry().resolve(command[4])
+        self.assertEqual((ref['app'],ref['id']),('note',FILE))
+        self.assertEqual(ref['locator'],dict(server=self.origin,account=USER))
+        self.assertNotIn('native-only-fixture',json.dumps(command))
+        self.assertNotIn('c'*43,json.dumps(command))
+        self.assertEqual(window.view.url().toString(),before)
+        self.assertEqual(self.js(window,'document.querySelector("textarea").value'),'Own unsubmitted code request')
+
+    def test_app_link_denies_changed_connection_and_revoked_source(self):
+        window=self.import_window(drive=False,pilot=True,app='code')
+        url=self.origin+'/?app=note&note='+FILE
+        with patch('interop_open.subprocess.Popen') as started:
+            with patch.object(window,'_pilot_current',return_value=False):
+                self.assertFalse(window.page.acceptNavigationRequest(QUrl(url),0,True))
+                QTest.qWait(50)
+            started.assert_not_called()
+            type(self).revoked=True
+            self.assertFalse(window.page.acceptNavigationRequest(QUrl(url),0,True))
+            self.wait(lambda:not window._live)
+            started.assert_not_called()
+
+    def test_project_task_reference_reaches_the_existing_draft_aware_hook(self):
+        window=self.import_window(drive=False,pilot=True,app='projects')
+        reference=dict(version=2,app='projects',id=FOLDER,item_id=FILE,title='Own task',
+                       locator=dict(server=self.origin,account=USER))
+        self.js(window,'window.__lumenOpenReference=value=>{window.selectedReference=value;return true}')
+        result=[];window.open_reference(reference,result.append);self.wait(lambda:bool(result))
+        self.assertEqual(result,[True])
+        self.assertEqual(self.js(window,'window.selectedReference.item_id'),FILE)
+
+    def test_expected_link_cancel_does_not_hide_a_document_load_failure(self):
+        from types import SimpleNamespace
+        window=self.import_window(drive=False,pilot=True,app='code')
+        url=self.origin+'/?app=note&note='+FILE
+        window._cancelled_link=(url,window._generation,window.session._generation,window.page,window.view.url().toString())
+        failure=SimpleNamespace(status=lambda:QWebEngineLoadingInfo.LoadStatus.LoadFailedStatus,
+                                errorCode=lambda:-3,url=lambda:QUrl(url))
+        window._load_status(failure)
+        self.assertFalse(window._live)
+
     def test_reference_selection_uses_current_app_hook_without_reloading_or_discarding(self):
         window=self.import_window(drive=False,pilot=True,app='notes');self.note_input(window)
         reference=dict(version=2,app='note',id=FILE,title='Own selected note',

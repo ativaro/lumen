@@ -1,4 +1,4 @@
-"""Compose host with a private synthetic text pilot; no renderer-to-OS bridge."""
+"""Private server-app host; object links open separately authorized native apps."""
 from pathlib import Path
 from dataclasses import dataclass, replace
 import os
@@ -24,7 +24,7 @@ DEFAULT_SIZES = {'code': (1531, 1410), 'audio': (1400, 1399),
 
 try:
     from PySide6.QtWebEngineCore import (QWebEnginePage, QWebEngineProfile, QWebEngineProfileBuilder,
-        QWebEngineScript, QWebEngineSettings, QWebEngineUrlRequestInterceptor)
+        QWebEngineScript, QWebEngineSettings, QWebEngineUrlRequestInterceptor, QWebEngineLoadingInfo)
     from PySide6.QtWebEngineWidgets import QWebEngineView
     WEBENGINE = True
 except ImportError:
@@ -232,8 +232,17 @@ if WEBENGINE:
             super().__init__(profile, window); self.window = window
 
         def acceptNavigationRequest(self, url, kind, main):
-            return bool(main and self.window._live and self.window.session.usable
-                        and self.window.session.binding.navigation(url.toString()))
+            window=self.window
+            if not (main and window._live and window.session.usable):return False
+            if window.session.binding.navigation(url.toString()):return True
+            clicked=QWebEnginePage.NavigationType.NavigationTypeLinkClicked
+            if kind in (clicked,clicked.value):
+                from server_app_links import clicked_reference
+                reference=clicked_reference(url.toString(),window._binding)
+                if reference:
+                    window._cancelled_link=(url.toString(),window._generation,window.session._generation,window.page,window.view.url().toString())
+                    window.open_app_reference(reference)
+            return False
 
         def createWindow(self, kind):return None
         def chooseFiles(self, mode, old, types):
@@ -253,6 +262,8 @@ class ServerAppWindow(QMainWindow):
         self._binding=session.binding;self._bound_profile=None;self._profile_cookie=None
         self._live = self._loaded = self._disposed = self._closing = False
         self._generation = 0; self._worker = None; self._temporary = None
+        self._opening_link=False
+        self._cancelled_link=None
         self._gui_thread=threading.get_ident();self._import_destroyed=threading.Event()
         self.destroyed.connect(self._import_destroyed.set)
         self._import_lease=self._import_reference=self._import_error=None
@@ -349,7 +360,7 @@ class ServerAppWindow(QMainWindow):
         self.page.fileSystemAccessRequested.connect(lambda request:request.reject())
         self.page.certificateError.connect(self._certificate)
         self.page.renderProcessTerminated.connect(lambda *_:self.block('renderer'))
-        self.page.loadFinished.connect(self._loaded_page)
+        self.page.loadingChanged.connect(self._load_status)
         self.profile.cookieStore().cookieAdded.connect(lambda c,p=self.profile:self._cookie_added(p,c))
         self.profile.cookieStore().cookieRemoved.connect(lambda c,p=self.profile:self._cookie_removed(p,c))
         script = QWebEngineScript();script.setName(self._app_title+' draft')
@@ -358,6 +369,13 @@ class ServerAppWindow(QMainWindow):
         script.setRunsOnSubFrames(False)
         script.setSourceCode(PRIVATE_DRAFT_SCRIPT if self._binding.app=='vault' else NOTES_DRAFT_SCRIPT if self.session.binding.app=='notes' else DRAFT_SCRIPT if self.session.binding.app=='compose' else APP_DRAFT_SCRIPT)
         self.page.scripts().insert(script)
+        if self._pilot_connection is not None:
+            links=QWebEngineScript();links.setName('Lumen native app links')
+            links.setWorldId(QWebEngineScript.ScriptWorldId.MainWorld)
+            links.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentCreation)
+            links.setRunsOnSubFrames(False)
+            links.setSourceCode("Object.defineProperty(window,'__lumenNativeAppLinks',{value:1});")
+            self.page.scripts().insert(links)
         self._theme_script=QWebEngineScript();self._theme_script.setName('Lumen desktop theme')
         self._theme_script.setWorldId(QWebEngineScript.ScriptWorldId.MainWorld)
         self._theme_script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentCreation)
@@ -425,11 +443,45 @@ class ServerAppWindow(QMainWindow):
             completed(None);return
         def ready():
             if not current():completed(None);return
-            value=json.dumps(dict(app=reference['app'],id=reference['id']))
+            target=dict(app=reference['app'],id=reference['id'])
+            if 'item_id' in reference:target['item_id']=reference['item_id']
+            value=json.dumps(target)
             script="typeof window.__lumenOpenReference==='function' ? window.__lumenOpenReference("+value+") : null"
             self.page.runJavaScript(script,QWebEngineScript.ScriptWorldId.MainWorld,
                 lambda accepted:completed(accepted if current() and type(accepted) is bool else None))
         self.verify(ready=ready,failed=lambda:completed(None))
+
+    def open_app_reference(self, reference):
+        """Keep the source window and its cookie; the receiver obtains its own session."""
+        if self._opening_link or self._pilot_connection is None:return
+        from server_app_links import navigation
+        reference=navigation(reference,dict(server=self._binding.origin,account=self._binding.account))['reference']
+        if reference['app']==APPS[self._binding.app][0]:return
+        snapshot=(self.page,self.profile,self.view,self.session,self._generation,self.session._generation)
+        def current():
+            return bool(not is_deleted(self) and not self._disposed and not self._closing
+                and not self._import_close and self._live and self._loaded
+                and snapshot==(self.page,self.profile,self.view,self.session,self._generation,self.session._generation)
+                and self.session.usable and self._cookie_valid() and self._pilot_current())
+        if not current():return
+        self._opening_link=True;deadline=time.monotonic()+30
+        def done():self._opening_link=False
+        def opened():
+            try:
+                if not current():return
+                from interop_data import Registry
+                from interop_open import open_url
+                url=Registry().register(reference)
+                if current():open_url(url)
+            except (ValueError,OSError,RuntimeError) as error:
+                if current():QMessageBox.warning(self,self._app_title,str(error))
+            finally:done()
+        def check():
+            if not current() or time.monotonic()>deadline:done();return
+            if self._worker is not None:
+                QTimer.singleShot(25,check);return
+            self.verify(ready=opened,failed=done)
+        check()
 
     def verify(self, *, reconnect=False, ready=None, failed=None):
         def unavailable():
@@ -513,6 +565,16 @@ class ServerAppWindow(QMainWindow):
         if self._disposed or self._closing or profile is not self._bound_profile or bytes(cookie.name())!=b'lumen_session':return
         self._profile_cookie=None
         self.block(self.session.state if self.session.state in ('identity','revoked','expired') else 'cookie')
+
+    def _load_status(self, info):
+        status=info.status()
+        if status==QWebEngineLoadingInfo.LoadStatus.LoadStartedStatus:return
+        cancelled=self._cancelled_link;self._cancelled_link=None
+        if (status==QWebEngineLoadingInfo.LoadStatus.LoadStoppedStatus and info.errorCode()==-3
+                and self._loaded and cancelled==(info.url().toString(),self._generation,
+                    self.session._generation,self.page,self.view.url().toString())):
+            return
+        self._loaded_page(status==QWebEngineLoadingInfo.LoadStatus.LoadSucceededStatus)
 
     def _loaded_page(self, ok):
         if self._disposed or not self._live or not self.session.usable:return

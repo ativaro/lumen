@@ -70,9 +70,13 @@ class Binding:
             u = urlsplit(value)
             query=parse_qs(u.query, keep_blank_values=True, strict_parsing=True)
             key={'notes':'note','projects':'project','code':'entry','audio':'record'}.get(self.app)
+            selected=None
             if key and key in query:
                 selected=query.pop(key)
                 if len(selected)!=1 or str(UUID(selected[0]))!=selected[0]:return False
+            if self.app=='projects' and 'project_task' in query:
+                item=query.pop('project_task')
+                if not selected or len(item)!=1 or str(UUID(item[0]))!=item[0]:return False
             return (value.startswith(self.origin + '/') and origin(u.scheme+'://'+u.netloc) == self.origin
                     and u.path == '/' and u.fragment in ('', 'main-content')
                     and query == {

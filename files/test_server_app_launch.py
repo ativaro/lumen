@@ -1,5 +1,10 @@
 """Missing device rights stay actionable through the real background-job dialog."""
 import threading
+import sys
+import hashlib
+import json
+import tempfile
+from pathlib import Path
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -17,6 +22,7 @@ class LaunchTest(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication([])
 
     def setUp(self):
+        self.enterContext(patch('lumen_i18n.language', return_value='de'))
         self.config = dict(server='https://synthetic.invalid', device_id=str(uuid4()), token='NEVER_IN_BROWSER')
         self.me = dict(id=str(uuid4()), device_id=self.config['device_id'], capabilities=['notes'], permissions_revision=2)
         self.stamp = ('synthetic-private-config',)
@@ -95,6 +101,27 @@ class LaunchTest(unittest.TestCase):
         self.assertIsNone(launch.verify_context('audio'))
         timer.stop()
         self.assertEqual(self.me['capabilities'], ['notes'])
+
+    def test_retired_rooms_cli_fails_before_app_or_network_start(self):
+        import tools_app
+        with patch.object(sys,'argv',['tools_app.py','workbench','--section','rooms']), \
+             patch('lumen_paths.require_test_profile'),patch.object(tools_app,'pilot_profile',return_value=None), \
+             patch.object(tools_app,'create_app',side_effect=AssertionError('No app start')):
+            with self.assertRaises(SystemExit) as caught:tools_app.main()
+        self.assertEqual(caught.exception.code,2)
+
+    def test_new_reference_receiver_does_not_reuse_old_window_ipc_or_drafts(self):
+        from server_app_session import Binding
+        binding=Binding(self.config['server'],self.me['id'],self.config['device_id'],'notes')
+        with tempfile.TemporaryDirectory() as temporary, \
+             patch.object(launch.QStandardPaths,'writableLocation',return_value=temporary):
+            root=Path(temporary)
+            old=root/('lumen-notes-'+hashlib.sha256(json.dumps([binding.origin,binding.account,binding.device,self.stamp]).encode()).hexdigest()[:24])
+            old.mkdir(mode=0o700);draft=old/'own-draft';draft.write_text('Unsaved original')
+            target=launch.runtime_root(binding,self.stamp)
+            self.assertNotEqual(target,old)
+            self.assertEqual(target,launch.runtime_root(binding,self.stamp))
+            self.assertEqual(draft.read_text(),'Unsaved original')
 
     def test_cancel_does_not_reopen_recovery(self):
         with patch('interop_dialogs.run_job', return_value=None), patch.object(launch, 'recover') as recover:
