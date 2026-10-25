@@ -1,5 +1,6 @@
 """Actual private Qt profiles and HTTPS; project applications never get a Lumen cookie."""
 import json
+from unittest.mock import patch
 from types import SimpleNamespace
 from test_server_app_window import PrivateHostFixture, FILE
 
@@ -15,6 +16,8 @@ class NativeProjectHostTest(PrivateHostFixture):
                 if self.path == prefix + '/runtime/info':
                     data = json.dumps(dict(id=FILE, revision=1, title='Actual preview fixture')).encode()
                     mime = 'application/json'
+                elif self.path == prefix + '/runtime/launch':
+                    data = b'{"ready":true}'; mime = 'application/json'
                 elif self.path.startswith(prefix + '/preview/'):
                     cls.application_requests.append(dict(path=self.path, cookie=self.headers.get('Cookie'),
                         app_cookie=self.headers.get('X-Lumen-App-Cookie'), bearer=self.headers.get('Authorization')))
@@ -37,6 +40,7 @@ class NativeProjectHostTest(PrivateHostFixture):
         type(self).application_requests = []
         window = self.import_window(drive=False, pilot=True, app='code')
         self.assertTrue(self.js(window, 'typeof window.lumenCodeHost==="object"'))
+        self.js(window, "window.applicationOffers=[];window.addEventListener('lumen-code-host',e=>{if(e.detail.status==='result_offer')window.applicationOffers.push(e.detail.offer)})")
         window._code_host.openPreview(FILE)
         self.assertIn(FILE, window._code_host.previews)
         dialog = window._code_host.previews[FILE]
@@ -48,6 +52,15 @@ class NativeProjectHostTest(PrivateHostFixture):
         except AssertionError:
             self.fail(repr(dict(url=view.url().toString(), body=self.js(probe, 'document.body?.innerText'), calls=self.application_requests)))
         self.assertEqual(self.js(probe, 'typeof window.lumenCodeHost'), 'undefined')
+        self.wait(lambda: self.js(probe, 'typeof window.lumen?.proposeNote==="function"'))
+        self.js(probe, "window.lumen.proposeNote({title:'Reviewed application result',body:'Complete application text'})")
+        self.wait(lambda: self.js(window, 'window.applicationOffers.length===1'))
+        self.assertEqual(self.js(window, 'window.applicationOffers[0].body'), 'Complete application text')
+        from PySide6.QtWidgets import QFileDialog
+        export = self.import_root / 'application-result.txt'
+        with patch.object(QFileDialog, 'getSaveFileName', return_value=(str(export), '')):
+            self.js(probe, "(()=>{const a=document.createElement('a');a.download='result.txt';a.href=URL.createObjectURL(new Blob(['Actual application export']));a.click()})()")
+            self.wait(lambda: export.exists() and export.read_text() == 'Actual application export')
         self.assertEqual(self.js(probe, 'localStorage.getItem("project-state")'), 'retained')
         self.assertNotIn('lumen_session', self.js(probe, 'document.cookie'))
         self.assertTrue(self.application_requests)

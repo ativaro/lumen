@@ -1,5 +1,6 @@
 """Reviewed exports from the private server page; no automatic filesystem writes."""
 import os
+import re
 from pathlib import Path
 import shutil
 from uuid import uuid4
@@ -17,6 +18,11 @@ def download(window, request):
     proof = context(window)
     url = request.url().toString()
     origin = window._binding.origin
+    if (window._binding.app=='code' and request.page() is window.page and current(window,proof)
+            and re.fullmatch(re.escape(origin)+r'/api/code-library/[0-9a-fA-F-]{36}/runtime/(?:export|file\?path=.+)',url)):
+        def check():
+            if not fresh(window,proof): raise ValueError('App-Sitzung geändert.')
+        return save_download(window, request, check)
     if (window._binding.app not in ('vault', 'inbox') or request.page() is not window.page
             or not current(window, proof)
             or not (window._binding.resource(url) or url.startswith('blob:' + origin + '/'))
@@ -60,3 +66,19 @@ def download(window, request):
     request.receivedBytesChanged.connect(lambda: request.cancel() if request.receivedBytes() > LIMIT else None)
     request.stateChanged.connect(finish)
     request.accept()
+
+
+def save_download(parent, request, check):
+    """Use the native reviewed save target; Code files have no product size ceiling."""
+    try:
+        check()
+        suggested = Path(request.suggestedFileName().replace('\\','/')).name
+        destination, _ = QFileDialog.getSaveFileName(parent, tr('Datei speichern'), suggested)
+        check()
+        if not destination: request.cancel(); return
+        target = Path(destination)
+        if not target.is_absolute(): request.cancel(); return
+        request.setDownloadDirectory(str(target.parent)); request.setDownloadFileName(target.name)
+        request.accept()
+    except Exception:
+        request.cancel()

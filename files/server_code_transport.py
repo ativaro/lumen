@@ -6,17 +6,62 @@ import json
 import os
 from pathlib import Path
 import queue
+import re
 import secrets
 import select
 import stat
+import subprocess
+import signal
+import time
+import tempfile
 import tarfile
 import threading
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, parse_qsl
 import urllib.request
 import lumen_connect
 
 HOP = {'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
        'te', 'trailer', 'transfer-encoding', 'upgrade', 'content-length'}
+
+
+def clone_git(remote, target, check):
+    """Use the Desktop's normal Git credentials and SSH agent, never the model runtime."""
+    if not isinstance(remote, str) or not remote or any(ord(c)<32 for c in remote) or remote.startswith('-'):
+        raise ValueError('Bitte eine gültige Git-Adresse angeben.')
+    url = urlsplit(remote)
+    network = url.scheme in ('https','http','ssh','git') and url.hostname
+    scp = '://' not in remote and '::' not in remote and re.fullmatch(r'(?:[^/\s:@]+@)?[^/\s:]+:.+', remote)
+    if not network and not scp:
+        raise ValueError('Für lokale Projekte „Ordner öffnen“ verwenden; zum Klonen eine Git-Netzwerkadresse angeben.')
+    if url.password or any(name.lower() in ('access_token','token','password','api_key','key') for name,_ in parse_qsl(url.query)):
+        raise ValueError('Zugangsdaten gehören in deine Git-Anmeldung, nicht in die Git-Adresse.')
+    environment = {key:value for key,value in os.environ.items() if not key.startswith('GIT_TRACE') and key!='GIT_CURL_VERBOSE'}
+    environment['GIT_TERMINAL_PROMPT'] = '0'
+    with tempfile.TemporaryFile() as log:
+        process = subprocess.Popen(['git','-c','core.hooksPath=/dev/null','-c','core.fsmonitor=false',
+            'clone','--',remote,str(target)], stdin=subprocess.DEVNULL, stdout=log, stderr=log,
+            env=environment, start_new_session=True)
+        try:
+            while process.poll() is None:
+                check(); time.sleep(.1)
+            check()
+            if process.returncode:
+                log.seek(0); error = log.read().decode(errors='replace').lower()
+                messages = [('permission denied','Die SSH-Anmeldung wurde abgewiesen. Bitte deine Desktop-Git-Anmeldung prüfen.'),
+                            ('authentication failed','Die Git-Anmeldung wurde abgewiesen. Bitte deine Desktop-Git-Anmeldung prüfen.'),
+                            ('could not read username','Bitte die Git-Anmeldung auf deinem Desktop einrichten und erneut klonen.'),
+                            ('certificate','Das Git-Zertifikat wird auf deinem Desktop nicht vertraut.'),
+                            ('host key verification','Der SSH-Hostschlüssel ist auf deinem Desktop nicht bestätigt.'),
+                            ('not found','Das Repository wurde nicht gefunden oder ist für deine Anmeldung nicht freigegeben.'),
+                            ('resolve','Der Git-Server konnte nicht aufgelöst werden.')]
+                raise ValueError(next((message for needle,message in messages if needle in error),
+                                     'Git-Klonen fehlgeschlagen (Exitcode '+str(process.returncode)+'). Bitte Adresse und Desktop-Git-Anmeldung prüfen.'))
+        finally:
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGTERM)
+                try: process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    os.killpg(process.pid, signal.SIGKILL); process.wait()
 
 
 class RawResponse(http.client.HTTPResponse):
