@@ -28,9 +28,12 @@ class NativeProjectHostTest(PrivateHostFixture):
                     if self.headers.get('Upgrade','').lower()=='websocket':
                         cls.websocket_protocols.append(self.headers.get('Sec-WebSocket-Protocol'))
                         accept=base64.b64encode(hashlib.sha1((self.headers['Sec-WebSocket-Key']+'258EAFA5-E914-47DA-95CA-C5AB0DC85B11').encode()).digest()).decode()
+                        if route=='/ws-http10':self.protocol_version='HTTP/1.0'
                         self.send_response(101);self.send_header('Upgrade','websocket');self.send_header('Connection','Upgrade');self.send_header('Sec-WebSocket-Accept',accept)
                         if route=='/ws-protocol':self.send_header('Sec-WebSocket-Protocol','lumen-chat')
-                        self.end_headers();self.wfile.write(b'\x81\x05ready');self.wfile.flush();self.close_connection=True
+                        self._headers_buffer.append(b'\r\n')
+                        packet=b''.join(self._headers_buffer)+b'\x81\x05ready';self._headers_buffer=[]
+                        self.wfile.write(packet);self.wfile.flush();self.close_connection=True
                         self.connection.settimeout(5)
                         try:
                             header=self.rfile.read(2)
@@ -59,10 +62,12 @@ class NativeProjectHostTest(PrivateHostFixture):
         window=self.import_window(drive=False,pilot=True,app='code');window._code_host.openPreview(FILE)
         dialog=window._code_host.previews[FILE];page=dialog._code_preview[3];probe=SimpleNamespace(page=page)
         self.wait(lambda:self.js(probe,'window.application===true'))
-        self.js(probe,"window.socketMessages=[];window.socket=new WebSocket(location.origin.replace('http','ws'));socket.onmessage=e=>{socketMessages.push(e.data);if(e.data==='ready')socket.send('browser-echo')}")
-        self.wait(lambda:self.js(probe,"window.socketMessages.includes('browser-echo')"))
-        self.assertEqual(self.js(probe,'window.socket.protocol'),'')
-        self.assertEqual(self.websocket_protocols,[None])
+        for route in ('/','/ws-http10'):
+            self.js(probe,"window.socketMessages=[];window.socket=new WebSocket(location.origin.replace('http','ws')+"+json.dumps(route)+");socket.onmessage=e=>{socketMessages.push(e.data);if(e.data==='ready')socket.send('browser-echo')}")
+            self.wait(lambda:self.js(probe,"window.socketMessages.includes('browser-echo')"))
+            self.assertEqual(self.js(probe,'window.socket.protocol'),'')
+            self.js(probe,'window.socket.close()')
+        self.assertEqual(self.websocket_protocols,[None,None])
         dialog.close()
 
     def test_preview_websocket_keeps_application_protocol_negotiation(self):

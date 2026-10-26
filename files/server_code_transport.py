@@ -219,11 +219,14 @@ class Preview:
                     headers.update(Upgrade='websocket', Connection='Upgrade')
                     upstream.response_class = RawResponse
                 path = '/bridge/code-library/' + owner.identity + '/preview' + self.path
+                response = None
                 try:
                     body = self.body() if self.command not in ('GET', 'HEAD') else None
                     upstream.request(self.command, path, body=body, headers=headers, encode_chunked=body is not None)
+                    transport = upstream.sock
                     response = upstream.getresponse()
                     self.send_response(response.status)
+                    self.response_started = True
                     for key, value in response.getheaders():
                         if key.lower() not in HOP:
                             if key.lower() == 'location' and value.startswith(owner.config['server'] + '/bridge/code-library/' + owner.identity + '/preview/'):
@@ -237,10 +240,10 @@ class Preview:
                     self.end_headers(); self.close_connection = True
                     if websocket and response.status == 101:
                         self.wfile.flush()
-                        sockets = [self.connection, upstream.sock]
+                        sockets = [self.connection, transport]
                         while True:
                             owner.check()
-                            ready, _, _ = select.select(sockets, [], [], 1)
+                            ready = [transport] if transport.pending() else select.select(sockets, [], [], 1)[0]
                             for source in ready:
                                 data = source.recv(65536)
                                 if not data: return
@@ -249,11 +252,15 @@ class Preview:
                         while chunk := response.read1(65536):
                             owner.check(); self.wfile.write(chunk); self.wfile.flush()
                 finally:
+                    if response is not None: response.close()
                     upstream.close()
             def dispatch(self):
                 try: self.route()
                 except (BrokenPipeError, ConnectionResetError): pass
-                except Exception: self.send_error(502, 'Die App-Vorschau ist noch nicht erreichbar.')
+                except Exception:
+                    self.close_connection = True
+                    if not getattr(self, 'response_started', False):
+                        self.send_error(502, 'Die App-Vorschau ist noch nicht erreichbar.')
             do_GET = do_HEAD = do_OPTIONS = do_POST = do_PUT = do_PATCH = do_DELETE = dispatch
         self.server = ThreadingHTTPServer(('127.0.0.1', port), Handler)
         self.server.daemon_threads = True
