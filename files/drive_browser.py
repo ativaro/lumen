@@ -330,12 +330,12 @@ class Browser(QObject):
         if entry[0] != "file":
             self.window.navigate(path)
             return
+        from reader_server import OFFICE
+        if Path(entry[1]['name']).suffix.lower() in OFFICE:
+            self.server_tools([path],reader=True)
+            return
 
         def done(paths):
-            from reader_server import OFFICE
-            if Path(paths[0]).suffix.lower() in OFFICE|{'.pdf','.epub','.txt','.md','.html','.htm'}:
-                self.window.open_reader(paths[0])
-                return
             QDesktopServices.openUrl(QUrl.fromLocalFile(paths[0]))
             self.window.activity.setText(
                 tr(
@@ -345,12 +345,12 @@ class Browser(QObject):
 
         self.fetch([path], done)
 
-    def server_tools(self, paths, *, workshop=False):
+    def server_tools(self, paths, *, workshop=False, reader=False):
         from drive_references import capture,resolve as resolve_refs
         references=capture(self,paths)
         def run(job):
             config,rows=resolve_refs(references,job)
-            query=dict(app='files',file=rows[0]['id'])
+            query=dict(app='reader' if reader else 'files',file=rows[0]['id'])
             if workshop:query['workshop']=','.join(row['id'] for row in rows)
             elif len(rows)>1:query['selection']=','.join(row['id'] for row in rows)
             return config,config['server']+'/?'+urlencode(query)

@@ -2,6 +2,8 @@
 import html
 import json
 import re
+import os
+import stat
 from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import Request
@@ -13,16 +15,18 @@ from desktop_design import AppHeader
 OFFICE = {'.docx','.docm','.xlsx','.xlsm','.pptx','.pptm','.odt','.ods','.odp'}
 
 
-def read_file(path, offset, job):
+def read_file(path, offset, job, config):
     import lumen_connect
     from drive_http import Session
-    config = lumen_connect.read_config()
     if not config.get('token'):
         raise ValueError(tr('Bitte Lumen Server verbinden und Drive für dieses Gerät freigeben.'))
+    if lumen_connect.read_config()!=config:
+        raise ValueError(tr('Die Serververbindung wurde geändert. Bitte das Dokument erneut öffnen.'))
     path = Path(path)
-    with path.open('rb') as source:
-        import os
+    job.check()
+    with os.fdopen(os.open(path,os.O_RDONLY|os.O_NONBLOCK|os.O_CLOEXEC),'rb') as source:
         before = os.fstat(source.fileno())
+        if not stat.S_ISREG(before.st_mode):raise ValueError(tr('Bitte eine reguläre Dokumentdatei öffnen.'))
         request = Request(config['server']+'/bridge/drive/documents/read?'+urlencode(dict(format=path.suffix.lower().lstrip('.'), offset=offset)),
                           data=source, headers={'Authorization':'Bearer '+config['token'],
                           'Content-Type':'application/octet-stream', 'Content-Length':str(before.st_size)})
@@ -64,10 +68,14 @@ def reading_html(value, offset):
 class ServerDocument(QDialog):
     def __init__(self, reader, path):
         super().__init__(reader)
+        import lumen_connect
+        from urllib.parse import urlsplit
+        self.config=lumen_connect.read_config()
         self.reader=reader; self.path=Path(path); self.offset=0; self.history=[]; self.next=None
         self.setWindowTitle(tr('Lumen Reader')+' · '+self.path.name); self.resize(900,700)
         layout=QVBoxLayout(self);layout.setContentsMargins(24,24,24,24);layout.setSpacing(16)
-        header=AppHeader(self.path.name,tr('Office-Inhaltsansicht · auf deinem Lumen Server gelesen. Das Original wird dort nicht gespeichert.'),self)
+        server=urlsplit(self.config.get('server','')).hostname or tr('kein Server verbunden')
+        header=AppHeader(self.path.name,tr('Inhaltsansicht über {0}. Das Original wird dort nicht gespeichert.',server),self)
         layout.addWidget(header)
         self.start=button(tr('Inhalt auf Lumen Server lesen'),self.load,'document-open');layout.addWidget(self.start)
         self.text=QTextBrowser();self.text.setOpenExternalLinks(False);self.text.setAccessibleName(tr('Dokumentinhalt'));layout.addWidget(self.text,1)
@@ -80,7 +88,7 @@ class ServerDocument(QDialog):
         self.start.setEnabled(False)
         self.state.setText(tr('Dokument wird auf dem Server gelesen …'))
         self.previous.setEnabled(False);self.forward.setEnabled(False);self.text.clear()
-        self.reader.work(tr('Dokument wird gelesen …'),lambda job:read_file(self.path,self.offset,job),self.loaded,failed=self.failed)
+        self.reader.work(tr('Dokument wird gelesen …'),lambda job:read_file(self.path,self.offset,job,self.config),self.loaded,failed=self.failed)
 
     def failed(self,message):
         self.state.setText(message);self.start.setEnabled(True)
