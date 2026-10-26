@@ -177,7 +177,7 @@ class Host(QObject):
             script = QWebEngineScript(); script.setName('Lumen Code preview websocket')
             script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentCreation)
             script.setWorldId(QWebEngineScript.ScriptWorldId.MainWorld); script.setRunsOnSubFrames(True)
-            script.setSourceCode("(()=>{if(location.origin!=="+json.dumps(proxy.origin)+")return;const Native=window.WebSocket;window.WebSocket=class extends Native{constructor(url,protocols){const target=new URL(url,location.href);let p=protocols===undefined?[]:typeof protocols==='string'?[protocols]:Array.from(protocols);if(target.host===location.host)p.push(" + json.dumps('lumen-preview.' + proxy.secret) + ");super(url,p)}}})()")
+            script.setSourceCode("(()=>{if(location.origin!=="+json.dumps(proxy.origin)+")return;const Native=window.WebSocket;const privateProtocol="+json.dumps('lumen-preview.'+proxy.secret)+";window.WebSocket=class extends Native{constructor(url,protocols){const target=new URL(url,location.href);let p=protocols===undefined?[]:typeof protocols==='string'?[protocols]:Array.from(protocols);if(target.host===location.host)p.push(privateProtocol);super(url,p)}get protocol(){const value=super.protocol;return value===privateProtocol?'':value}}})()")
             page.scripts().insert(script); layout.addWidget(view, 1); layout.addWidget(status)
             def navigate():
                 path = address.text()

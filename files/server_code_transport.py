@@ -198,6 +198,7 @@ class Preview:
                 owner.check()
                 protocols = [p.strip() for p in self.headers.get('Sec-WebSocket-Protocol', '').split(',') if p.strip()]
                 private = 'lumen-preview.' + owner.secret
+                private_requested = private in protocols
                 permitted = secrets.compare_digest(self.headers.get('X-Lumen-Preview', ''), owner.secret) or private in protocols
                 origin = self.headers.get('Origin')
                 if not permitted or origin and origin != owner.origin:
@@ -230,6 +231,8 @@ class Preview:
                             self.send_header(key, value)
                     if websocket and response.status == 101:
                         self.send_header('Upgrade', 'websocket'); self.send_header('Connection', 'Upgrade')
+                        if private_requested and not protocols and not response.getheader('Sec-WebSocket-Protocol'):
+                            self.send_header('Sec-WebSocket-Protocol', private)
                     else: self.send_header('Connection', 'close')
                     self.end_headers(); self.close_connection = True
                     if websocket and response.status == 101:
