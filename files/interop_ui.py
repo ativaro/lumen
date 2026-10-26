@@ -418,13 +418,16 @@ def files_menu(window,menu,paths,*,safety=None):
     payload=dict(source={'app':'files'},paths=[] if drive else paths)
     if drive:payload['references']=[dict(kind='drive_'+window.drive.entries[p][0],title=window.drive.entries[p][1]['name']) for p in paths]
     targets=menu.addMenu(tr('Verwenden in …'))
-    if not drive and all(Path(p).suffix.lower() in ('.pdf','.epub','.txt','.md','.html','.htm') for p in paths):
+    from reader_server import OFFICE
+    if not drive and all(Path(p).suffix.lower() in OFFICE|{'.pdf','.epub','.txt','.md','.html','.htm'} for p in paths):
         def reader():
             from_paths(paths)
             if len(paths)==1 and hasattr(window,'open_reader'):
                 window.open_reader(paths[0]);return
             for path in paths:launch('reader',[path],root_for(window))
         targets.addAction(tr('Mit Lumen Reader öffnen'),lambda:safe_action(window,reader))
+    if drive and len(paths)==1 and Path(window.drive.entries[paths[0]][1]['name']).suffix.lower() in OFFICE:
+        targets.addAction(tr('Mit Lumen Reader öffnen'),lambda:safe_action(window,lambda:window.drive.open(paths[0])))
     for action,label in actions(payload):
         if action=='reader.import' and not drive:continue
         targets.addAction(label,lambda checked=False,a=action:safe_action(window,lambda:reviewed_send(window,capture(),a)))

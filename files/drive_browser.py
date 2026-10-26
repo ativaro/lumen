@@ -332,6 +332,10 @@ class Browser(QObject):
             return
 
         def done(paths):
+            from reader_server import OFFICE
+            if Path(paths[0]).suffix.lower() in OFFICE|{'.pdf','.epub','.txt','.md','.html','.htm'}:
+                self.window.open_reader(paths[0])
+                return
             QDesktopServices.openUrl(QUrl.fromLocalFile(paths[0]))
             self.window.activity.setText(
                 tr(

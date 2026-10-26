@@ -1438,7 +1438,7 @@ class Window(QMainWindow):
             self.navigate(path)
         elif file_kind(path) == 'image':
             self.open_gallery(path)
-        elif Path(path).suffix.lower() in ('.pdf', '.epub'):
+        elif Path(path).suffix.lower() in ('.pdf', '.epub', '.docx', '.docm', '.xlsx', '.xlsm', '.pptx', '.pptm', '.odt', '.ods', '.odp'):
             self.open_reader(path)
         elif not QDesktopServices.openUrl(QUrl.fromLocalFile(path)):
             self.error(tr('Die Datei konnte nicht geöffnet werden.'), path)

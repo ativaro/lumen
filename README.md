@@ -103,7 +103,7 @@ gracefully on other setups.
 | **Lumen Compose** (`lumen-translate`) | text translation, writing styles, spelling correction and PDF layout translation |
 | **Lumen System** (`lumen-system`) | retained System, Sound and Work modes tabs: live resource usage, hardware, audio and desktop presets with guarded undo |
 | **Lumen Inbox** (`lumen-inbox`) | shared server mail, calendar and tasks, with the existing account and device permissions; no local mail/calendar client installation |
-| **Lumen Reader** (`lumen-reader`) | PDFs, EPUBs and saved articles; reading position, highlights, margin notes, local read-aloud and cited passages in Lumen knowledge |
+| **Lumen Reader** (`lumen-reader`) | PDFs, EPUBs and saved articles; reading position, highlights, margin notes and local read-aloud. Modern Office/OpenDocument content uses the shared Lumen Server reader after selecting “Inhalt auf Lumen Server lesen”; a paired server with Drive permission is required. The local original is not stored on the server. |
 | **Sound in Lumen System** (`lumen-sound`) | opens the Sound tab in the existing System window: per-stream volume, mute, outputs, app rules and conversation ducking; [Reader/Sound guide](READER-SOUND.md) |
 | **Lumen Notes** (`lumen-wissen`) | shared server notebook and formatted editor; no separate Notes synchronization. Local Lumen memory remains independent |
 | **Project tools and skill** | paired, AI-authorized server project tools and native reviewed material/question handoffs; no local project replica |
