@@ -16,6 +16,12 @@ class NativeProjectHostTest(PrivateHostFixture):
             protocol_version='HTTP/1.1'
             def handle_request(self):
                 prefix = '/bridge/code-library/' + FILE
+                code='/api/code-library/'+FILE+'/runtime/'
+                if self.path.startswith(code+'patch?') or self.path==code+'jobs/'+('a'*32)+'/log':
+                    data=(b'Complete retained Code output\n'*70000)
+                    self.send_response(200);self.send_header('Content-Type','application/octet-stream')
+                    self.send_header('Content-Disposition','attachment; filename="code-output.txt"')
+                    self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
                 if self.path == prefix + '/runtime/info':
                     data = json.dumps(dict(id=FILE, revision=1, title='Actual preview fixture')).encode()
                     mime = 'application/json'
@@ -69,6 +75,17 @@ class NativeProjectHostTest(PrivateHostFixture):
             self.js(probe,'window.socket.close()')
         self.assertEqual(self.websocket_protocols,[None,None])
         dialog.close()
+
+    def test_code_patch_and_job_log_use_the_native_reviewed_download(self):
+        window=self.import_window(drive=False,pilot=True,app='code')
+        from PySide6.QtWidgets import QFileDialog
+        paths=['patch?tree='+('a'*40)+'&head='+('b'*40),'jobs/'+('a'*32)+'/log']
+        for i,path in enumerate(paths):
+            target=self.import_root/('reviewed-code-'+str(i)+'.txt')
+            with patch.object(QFileDialog,'getSaveFileName',return_value=(str(target),'')):
+                self.js(window,"(()=>{const a=document.createElement('a');a.download='code-output.txt';a.href="+json.dumps(self.origin+'/api/code-library/'+FILE+'/runtime/'+path)+";a.click()})()")
+                self.wait(lambda:target.exists() and target.stat().st_size==len(b'Complete retained Code output\n')*70000)
+                self.assertEqual(target.read_bytes(),b'Complete retained Code output\n'*70000)
 
     def test_preview_websocket_keeps_application_protocol_negotiation(self):
         type(self).application_requests=[];type(self).websocket_protocols=[]

@@ -19,7 +19,7 @@ def download(window, request):
     url = request.url().toString()
     origin = window._binding.origin
     if (window._binding.app=='code' and request.page() is window.page and current(window,proof)
-            and re.fullmatch(re.escape(origin)+r'/api/code-library/[0-9a-fA-F-]{36}/runtime/(?:export|file\?path=.+)',url)):
+            and re.fullmatch(re.escape(origin)+r'/api/code-library/[0-9a-fA-F-]{36}/runtime/(?:export|file\?path=.+|patch\?tree=[a-f0-9]{40,64}&head=[a-f0-9]{40,64}|jobs/[a-f0-9]{32}/log)',url)):
         def check():
             if not fresh(window,proof): raise ValueError('App-Sitzung geändert.')
         return save_download(window, request, check)
