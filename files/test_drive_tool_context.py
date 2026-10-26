@@ -87,11 +87,19 @@ class DriveToolContextTest(unittest.TestCase):
             if path == '/bridge/me':return dict(id=self.account)
             return response
         good=self.capability(self.config,'/bridge/context/capability',dict(kind='file',id=self.row['id'],revision=3,mode='reference'))
-        for response in (dict(good,id=str(uuid4())),dict(good,revision=4),dict(good,supported='yes'),dict(good,mode='copy')):
+        for response in (dict(good,id=str(uuid4())),dict(good,revision=4),dict(good,supported='yes'),dict(good,mode='copy'),dict(good,inspectable='yes')):
             with patch.object(drive.lumen_connect,'read_config',return_value=self.config),patch.object(drive.lumen_connect,'request',side_effect=reply),patch.object(drive.sync,'inventory',return_value=self.cache),self.assertRaises(ValueError):
                 drive.task_attachments([self.ref],'summarize')
         with patch.object(drive.lumen_connect,'read_config',side_effect=[self.config,self.config,dict(self.config,token='changed')]),patch.object(drive.lumen_connect,'request',side_effect=self.capability),patch.object(drive.sync,'inventory',return_value=self.cache),self.assertRaises(ValueError):
             drive.task_attachments([self.ref],'summarize')
+
+    def test_inspectable_audio_is_attached_without_claiming_a_text_reader(self):
+        def reply(config,path,body=None):
+            if path == '/bridge/me':return dict(id=self.account)
+            return dict(body, supported=False, inspectable=True, format='wav', reason='No transcript yet')
+        with patch.object(drive.lumen_connect,'read_config',return_value=self.config),patch.object(drive.lumen_connect,'request',side_effect=reply),patch.object(drive.sync,'inventory',return_value=self.cache):
+            _, attachments = drive.task_attachments([self.ref],'summarize')
+        self.assertEqual(attachments,[dict(kind='file',id=self.row['id'],revision=3,mode='reference')])
 
     def test_server_bridge_attaches_current_file_version_not_a_local_path_or_copy(self):
         calls=[]

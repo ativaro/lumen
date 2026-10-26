@@ -120,6 +120,20 @@ class DriveContextUITest(unittest.TestCase):
                 done((self.config,[row],[dict(supported=False,reason='Zentrale Lesegrenze')]))
         chat.begin_context.assert_not_called()
 
+    def test_inspectable_audio_starts_the_normal_server_conversation(self):
+        path=browser.ROOT+'/file/'+self.family
+        row=dict(id=str(uuid4()),family=self.family,name='Selected.wav',version=1,mime='audio/wav',size=100524,trashed=False)
+        self.window.drive.config=self.config;self.window.drive.profile=dict(id=self.user)
+        self.window.drive.entries[path]=('file',row)
+        chat=SimpleNamespace(begin_context=Mock(),backend=SimpleNamespace(execution='server'))
+        self.window.lumen_host=SimpleNamespace(chat=chat,show_page=Mock())
+        with patch.object(browser.lumen_connect,'read_config',return_value=self.config),patch.object(self.window.drive,'work') as work:
+            self.window.ask_lumen('summarize',[path])
+            _,done=work.call_args.args
+            done((self.config,[row],[dict(supported=False,inspectable=True,reason='No transcript yet')]))
+        chat.begin_context.assert_called_once()
+        self.assertEqual(chat.begin_context.call_args.kwargs['drive_context']['drive_references'][0]['id'],row['family'])
+
     def test_late_capability_never_replaces_newer_chat_selection_or_input(self):
         path=browser.ROOT+'/file/'+self.family
         row=dict(id=str(uuid4()),family=self.family,name='Selected.pdf',version=1,trashed=False)

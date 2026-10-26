@@ -1478,9 +1478,9 @@ class Window(QMainWindow):
                         if scope(read_config())!=scope(config) or getattr(panel.backend,'execution','local')!='server':
                             raise ValueError(tr('Serververbindung oder Ausführung geändert. Bitte erneut auswählen.'))
                         for source in capabilities:
-                            if action in ('summarize','analyze') and source and not source['supported']:
+                            if action in ('summarize','analyze') and source and not (source['supported'] or source.get('inspectable') is True):
                                 raise ValueError(source['reason'] or tr('Diese Quelle ist nicht als Text verfügbar.'))
-                        selected([dict(name=row['name'],kind='file' if ref['kind']=='drive_file' else 'folder',content_available=bool(source and source['supported'])) for ref,row,source in zip(refs,rows,capabilities)])
+                        selected([dict(name=row['name'],kind='file' if ref['kind']=='drive_file' else 'folder',content_available=bool(source and (source['supported'] or source.get('inspectable') is True))) for ref,row,source in zip(refs,rows,capabilities)])
                     self.drive.work(lambda job:server_sources(refs,job),checked)
                 else:
                     selected([dict(name=self.drive.entries[p][1]['name'],kind=self.drive.entries[p][0],content_available=self.drive.entries[p][0]=='file' and readable(self.drive.entries[p][1])) for p in paths])

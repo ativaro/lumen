@@ -45,6 +45,7 @@ def server_sources(references, job=None):
         value = lumen_connect.request(config, '/bridge/context/capability', source)
         if (not isinstance(value, dict) or any(value.get(key) != item for key,item in source.items())
                 or type(value.get('revision')) is not int or type(value.get('supported')) is not bool
+                or ('inspectable' in value and type(value['inspectable']) is not bool)
                 or not isinstance(value.get('reason'), str) or len(value['reason']) > 4096):
             raise ValueError(tr('Der Server hat die gewählte Quelle nicht eindeutig bestätigt.'))
         capabilities.append(value)
@@ -57,7 +58,7 @@ def task_attachments(references, intent='open', context_bytes=0):
     config,rows,capabilities=server_sources(references)
     attachments=[]
     for ref,row,source in zip(references,rows,capabilities):
-        if source and source['supported']:
+        if source and (source['supported'] or source.get('inspectable') is True):
             attachments.append(dict(kind='file',id=row['id'],revision=row['version'],mode='reference'))
         elif intent!='open':
             raise ContextLimit(source['reason'] if source and source['reason'] else tr('Diese Auswahl ist nur als Metadaten verfügbar.'))
