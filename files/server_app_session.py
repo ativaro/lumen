@@ -312,7 +312,8 @@ class AppSession:
         self.state = reason if reason == 'identity' else 'uncertain' if self.uncertain else reason
 
     def remember_draft(self, text):
-        if not isinstance(text, str) or len(text.encode('utf-8')) > 1024*1024:raise SessionError('draft')
+        if not isinstance(text, str) or self.binding.app!='code' and len(text.encode('utf-8')) > 1024*1024:
+            raise SessionError('draft')
         self._draft = text
 
     def draft(self, binding):

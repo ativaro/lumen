@@ -23,6 +23,16 @@ class Response(io.BytesIO):
 
 
 class SessionTest(unittest.TestCase):
+    def test_code_draft_keeps_large_unicode_text_without_a_size_rule(self):
+        config=dict(server=ORIGIN,device_id=DEVICE,token='synthetic-device-token')
+        code=host.AppSession(config,host.Binding(ORIGIN,USER,DEVICE,'code'))
+        text='Ungekürzter Code · ä\n'*100000
+        code.remember_draft(text)
+        self.assertEqual(code.draft(code.binding),text)
+        with self.assertRaises(host.SessionError):code.remember_draft(None)
+        other=host.AppSession(config,host.Binding(ORIGIN,USER,DEVICE,'compose'))
+        with self.assertRaises(host.SessionError):other.remember_draft(text)
+
     def test_only_code_can_embed_known_sandbox_preview_routes(self):
         code=host.Binding(ORIGIN,USER,DEVICE,'code')
         path=ORIGIN+'/api/code-library/'+USER
