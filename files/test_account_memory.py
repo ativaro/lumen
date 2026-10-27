@@ -49,6 +49,39 @@ class AccountMemoryTest(unittest.TestCase):
             with self.assertRaises(OSError):self.memory.prepare('Answer length','')
         self.assertEqual(self.memory.scan()['notes'][0]['hash'],self.local['hash'])
 
+    def test_new_statement_uses_shared_learning_without_uploading_local_memory(self):
+        from lumen_memory import stamp
+        import lumen_connect
+        remote=dict(connection=lumen_connect.connection_scope(self.config),stamp=self.version,
+                    preferences=dict(enabled=True,learn=True,solutions=True,automatic=False,revision=3))
+        prepared=dict(stamp=stamp(self.store),revision=-1,remote=remote,candidates=[dict(text='PRIVATE LOCAL CONTENT')])
+        receipt=dict(task_id=str(uuid4()),state='queued',saved=0,pending=0)
+        payloads=[]
+        def request(config,path,body=None,**kwargs):
+            if path=='/bridge/me':return dict(capabilities=['tasks','memory'],sync_features=['memory_learning_v1'])
+            payloads.append((path,body));return receipt
+        event_id='msg_'+uuid4().hex
+        with patch('lumen_connect.read_config',return_value=self.config),patch('lumen_connect.request',side_effect=request):
+            prepared['stamp']=stamp(self.store)
+            self.assertEqual(self.memory.learn_account('Remember concise answers.',prepared,event_id),receipt)
+            self.assertEqual(set(payloads[0][1]),{'text','event_id','preferences_revision'})
+            self.assertEqual(payloads[0][1]['text'],'Remember concise answers.')
+            self.assertNotIn('PRIVATE',str(payloads))
+            self.assertEqual(self.memory.account_learning_status(remote,receipt['task_id']),receipt)
+            count=len(payloads)
+            remote['preferences']['learn']=False
+            self.assertEqual(self.memory.learn_account('New',prepared,event_id)['state'],'disabled')
+            remote['preferences']['learn']=True
+            self.store.set_setting('modelPolicy',dict(privacy='local'))
+            self.assertEqual(self.memory.learn_account('New',prepared,event_id)['state'],'local')
+            self.assertEqual(len(payloads),count)
+            self.store.set_setting('modelPolicy',{})
+            with patch('lumen_connect.read_config',return_value=dict(self.config,token='other')):
+                with self.assertRaises(ValueError):self.memory.account_learning_status(remote,receipt['task_id'])
+            self.memory.configure(True,False)
+            self.assertEqual(self.memory.learn_account('New',prepared,event_id)['state'],'stopped')
+        self.assertEqual(self.memory.book.read(self.local['path'])['hash'],self.local['hash'])
+
     def test_bad_data_disabled_consent_and_existing_hidden_entries(self):
         with patch('lumen_connect.read_config',return_value=self.config),patch('lumen_connect.request',side_effect=self.request):
             self.store.set_setting('memory/server_hidden',[self.config['server']+'#'+self.identity])

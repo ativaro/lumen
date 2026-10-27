@@ -58,5 +58,28 @@ class LearningStatusTest(unittest.TestCase):
                     self.assertIn(expected,messages[-1])
                 bridge.shutdown()
 
+    def test_paired_learning_reports_receipt_not_local_success_or_retries(self):
+        from uuid import uuid4
+        with tempfile.TemporaryDirectory() as tmp:
+            store=Store(tmp);Memory(store).configure(True,True)
+            with patch('memory_bridge.Store',return_value=store),patch('memory_bridge.tr',side_effect=lambda text,*args:text.format(*args)),patch('memory_bridge.QTimer.singleShot') as timer:
+                backend=Backend();bridge=MemoryBridge(backend);messages=[];calls=[]
+                backend.memoryStatus.connect(messages.append)
+                task_id=str(uuid4());event_id='msg_'+uuid4().hex
+                prepared=dict(stamp=stamp(store),revision=-1,candidates=[],remote=dict(connection='synthetic'))
+                results=[dict(task_id=task_id,state='queued',saved=0,pending=0),dict(task_id=task_id,state='completed',saved=0,pending=1)]
+                def job(action,done,failed,**values):calls.append((action,values));done(results.pop(0))
+                bridge.job=job
+                bridge.learn('New statement',tmp,'Test',prepared,event_id=event_id)
+                self.assertEqual(calls[0][0],'learn_account');self.assertIsNone(bridge.learner)
+                self.assertIn('prüft',messages[-1]);self.assertIn(event_id,bridge.account_events)
+                timer.call_args.args[1]()
+                self.assertEqual(calls[1][0],'account_learning_status');self.assertIn('1 Gedächtnisvorschläge warten',messages[-1])
+                self.assertNotIn(event_id,bridge.account_events)
+                bridge.job=lambda action,done,failed,**values:failed('Disconnected')
+                bridge.learn('New statement',tmp,'Test',prepared,event_id=event_id)
+                self.assertIn('nichts automatisch wiederholt',messages[-1]);self.assertEqual(timer.call_count,1)
+                bridge.shutdown()
+
 
 if __name__ == '__main__': unittest.main()

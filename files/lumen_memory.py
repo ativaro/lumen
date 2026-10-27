@@ -371,6 +371,31 @@ class Memory:
         config=knowledge_context.active(self.store)
         return not notes or knowledge_context.valid(self.store,config,notes)
 
+    def learn_account(self,text,prepared,event_id,context=None):
+        import knowledge_context,lumen_connect
+        settings=options(self.store)
+        if not settings['enabled'] or not settings['learn'] or prepared.get('stamp')!=stamp(self.store):
+            return dict(state='stopped')
+        if self.store.setting('modelPolicy',{}).get('privacy')=='local':
+            return dict(state='local')
+        remote=prepared['remote'];preferences=remote.get('preferences')
+        if not preferences or not preferences['enabled'] or not preferences['learn']:
+            return dict(state='disabled')
+        config=knowledge_context.active(self.store)
+        if not config or lumen_connect.connection_scope(config)!=remote['connection']:
+            raise ValueError(tr('Die Serververbindung wurde geändert.'))
+        return knowledge_context.learning(config,remote,text,event_id,context or {})
+
+    def account_learning_status(self,remote,task_id):
+        import knowledge_context,lumen_connect
+        config=knowledge_context.active(self.store)
+        if not config or lumen_connect.connection_scope(config)!=remote['connection']:
+            raise ValueError(tr('Die Serververbindung wurde geändert.'))
+        identity=str(UUID(task_id))
+        result=lumen_connect.request(config,'/bridge/memory-learning/'+identity,timeout=4)
+        if knowledge_context.active(self.store)!=config:raise ValueError(tr('Die Serververbindung wurde geändert.'))
+        return knowledge_context.learning_receipt(result)
+
     def apply(self,items,user_text,directory,source,candidates,revision,context=None,prepared_stamp=None):
         if not isinstance(items,list) or len(items)>3:raise ValueError(tr('Ungültiger Gedächtnisvorschlag.'))
         if not options(self.store)['enabled'] or not options(self.store)['learn']:return 0
@@ -461,7 +486,7 @@ def worker(job,store,action,**values):
 def main():
     from lumen_store import Store
     request=json.load(sys.stdin);memory=Memory(Store(request.pop('store')));action=request.pop('action')
-    if action not in ('configure','scan','migrate','remember','write','restore','forget','share','prepare','valid_prepared','apply','allow','proposals','review','propose','project_info','project_configure'):raise ValueError(tr('Ungültige Gedächtnisaktion.'))
+    if action not in ('configure','scan','migrate','remember','write','restore','forget','share','prepare','valid_prepared','learn_account','account_learning_status','apply','allow','proposals','review','propose','project_info','project_configure'):raise ValueError(tr('Ungültige Gedächtnisaktion.'))
     print(json.dumps(getattr(memory,action)(**request),ensure_ascii=False))
 
 

@@ -3,6 +3,7 @@ from lumen_i18n import tr
 from lumen_qt import QObject,QTimer
 from lumen_jobs import Job
 import json
+import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from memory_agent import PROMPT
@@ -13,7 +14,7 @@ from lumen_memory import worker,options,stamp
 
 class MemoryBridge(QObject):
     def __init__(self,backend):
-        super().__init__(backend);self.backend=backend;self.store=Store();self.jobs=set();self.learner=None;self.queue=[];self.closed=False
+        super().__init__(backend);self.backend=backend;self.store=Store();self.jobs=set();self.learner=None;self.queue=[];self.closed=False;self.account_events=set()
 
     def job(self,action,done,failed,**values):
         job=Job(lambda job:worker(job,self.store,action,**values),self);self.jobs.add(job);results=[];errors=[]
@@ -34,12 +35,41 @@ class MemoryBridge(QObject):
             done(dict(stamp=stamp(self.store),revision=-1,context='',notes=[],candidates=[]))
         self.job('prepare',ready,failed,query=text[:6000],directory=directory)
 
-    def learn(self,text,directory,source,prepared,context=None):
+    def learn(self,text,directory,source,prepared,context=None,event_id=None):
         settings=options(self.store)
-        if self.closed or not settings['enabled'] or not settings['learn'] or prepared.get('revision',-1)<0:return
+        if self.closed or not settings['enabled'] or not settings['learn']:return
         if not isinstance(text,str) or not 1<=len(text.strip())<=6000:return
+        if prepared.get('remote'):
+            self.learn_account(text,prepared,context or {},event_id);return
+        if prepared.get('revision',-1)<0:return
         if len(self.queue)>=4:self.backend.memoryStatus.emit(tr('Gedächtnis ausgelastet · diesen Gedanken bei Bedarf ausdrücklich merken'));return
         self.queue.append(dict(text=text,directory=directory,source=source,prepared=prepared,context=context or {}));self.next()
+
+    def learn_account(self,text,prepared,context,event_id):
+        if not event_id or event_id in self.account_events:return
+        if len(self.account_events)>=4:
+            self.backend.memoryStatus.emit(tr('Gedächtnis ausgelastet · diesen Gedanken bei Bedarf ausdrücklich merken'));return
+        self.account_events.add(event_id);started=time.monotonic()
+        def failed(_):
+            self.account_events.discard(event_id)
+            self.backend.memoryStatus.emit(tr('Server-Lernstatus nicht verfügbar · nichts automatisch wiederholt'))
+        def ready(result):
+            if self.closed:return
+            state=result['state']
+            if state in ('queued','running'):
+                self.backend.memoryStatus.emit(tr('Lumen prüft deine Aussage auf dem Server …'))
+                if time.monotonic()-started<60:
+                    QTimer.singleShot(2000,lambda:None if self.closed else self.job('account_learning_status',ready,failed,remote=prepared['remote'],task_id=result['task_id']))
+                    return
+                message=tr('Lernprüfung auf dem Server noch offen · im Server-Gedächtnis überprüfbar')
+            elif state=='completed':
+                count=result['saved'] or result['pending']
+                message=(tr('{0} Erinnerungen auf dem Server gespeichert',count) if result['saved'] else tr('{0} Gedächtnisvorschläge warten im Server-Gedächtnis',count)) if count else tr('Geprüft · keine neue Erinnerung übernommen')
+            elif state=='disabled':message=tr('Lernen im Serverkonto ausgeschaltet · nichts übertragen')
+            elif state=='local':message=tr('Nur lokales Modell erlaubt · nichts zum Server-Lernen übertragen')
+            else:message=tr('Lernfreigabe geändert oder Lernen fehlgeschlagen · nichts automatisch wiederholt')
+            self.account_events.discard(event_id);self.backend.memoryStatus.emit(message)
+        self.job('learn_account',ready,failed,text=text,prepared=prepared,event_id=event_id,context=context)
 
     def next(self):
         if self.closed or self.learner or not self.queue:return

@@ -707,7 +707,7 @@ class OpenCodeBackend(QObject):
                         and message['info'].get('parentID') == self.message_id
                         for part in message.get('parts', []) if part.get('type') == 'text')
                     if not error and not self.proposal and not self.background_task and not self.screen_guidance and self.memory and self.memory_payload:
-                        self.memory.learn(self.memory_text,self.directory,tr('Lumen-Gespräch · ')+self.memory_text.partition('\n')[0][:120],self.memory_payload,self.memory_previous_answer)
+                        self.memory.learn(self.memory_text,self.directory,tr('Lumen-Gespräch · ')+self.memory_text.partition('\n')[0][:120],self.memory_payload,self.memory_previous_answer,event_id=self.message_id)
                     self.completed.emit(not bool(error), (error.get('data', {}).get('message') or error.get('name', tr('Anfrage fehlgeschlagen.'))) if error else answer)
             else:
                 if state == 'idle' and not self.permissions and not self.questions:
