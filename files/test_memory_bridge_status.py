@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
+from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QApplication
@@ -16,6 +17,7 @@ class Backend(QObject):
     url = "http://unused.test"
     password = ""
     selected_model = "synthetic"
+    def request(self,method,path,callback,**kwargs):callback({})
 
 
 class Engine(QObject):
@@ -36,21 +38,22 @@ class LearningStatusTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = Store(tmp)
             Memory(store).configure(True, True)
-            with patch('memory_bridge.Store', return_value=store), patch.dict('sys.modules', {'assistant_backend': SimpleNamespace(OpenCodeBackend=Engine)}), patch('memory_bridge.tr', side_effect=lambda text,*args: text.format(*args)):
+            with patch('memory_bridge.Store', return_value=store), patch.dict('sys.modules', {'assistant_backend': SimpleNamespace(OpenCodeBackend=Engine)}), patch('memory_bridge.prepare_engine',return_value={}), patch('memory_bridge.tr', side_effect=lambda text,*args: text.format(*args)):
                 backend = Backend()
                 bridge = MemoryBridge(backend)
                 messages = []
                 backend.memoryStatus.connect(messages.append)
                 prepared = dict(stamp=stamp(store), revision=store.setting('memory/revision',0), candidates=[])
                 for success, result, expected in (
-                    (True, '{"memories":[]}', 'Geprüft · keine neue Erinnerung übernommen'),
+                    (True, '[]', 'Geprüft · keine neue Erinnerung übernommen'),
                     (True, '{}', 'Lernen zuletzt nicht möglich'),
                     (False, '', 'Lernen zuletzt nicht möglich'),
-                    (True, json.dumps({'memories':[{}]}), '1 Erinnerungen gespeichert'),
+                    (True, '[{}]', '1 Erinnerungen gespeichert'),
                 ):
                     bridge.job = lambda action, done, failed, **kwargs: done(1)
                     bridge.learn('Synthetic',tmp,'Test',prepared)
                     self.assertEqual(messages[-1],'Lumen prüft deine Aussage …')
+                    (Path(bridge.learner.learning_temporary.name)/'result.json').write_text(result)
                     bridge.learner.completed.emit(success,result)
                     self.assertIn(expected,messages[-1])
                 bridge.shutdown()

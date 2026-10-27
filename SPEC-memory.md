@@ -70,3 +70,18 @@ an einen Modellanbieter senden; synthetische Antworten für die Integration.
 
 Code bleibt im Stil der vorhandenen Notebook-/ToolWindow-/Job-Module. Keine
 Umbauten an Files-Ansichten, Panels, Themes oder anderen Werkzeugen ohne Bedarf.
+# Gekoppelter Gesprächszugriff · 27.10.2026
+
+Bei bestehender Serverkopplung nutzt der normale Gesprächskontext den aktuellen
+kontoweiten Serverbestand und dessen Suchdienst. ID, Revision, Bestätigung und
+Kontofreigabe stammen vom Server; vor dem Absenden wird die Fassung erneut geprüft.
+Eine Korrektur oder ein Entzug beginnt eine neue Engine-Sitzung statt alte
+Kontextnachrichten weiterzureichen. Serverfehler führen nicht zu einem stillen
+lokalen Ersatz. Der Servereditor öffnet dieselben Erinnerungen wie Web/Mobile.
+
+Lokale Inhalte, bestehende Opt-outs und offene Replikationsquittungen bleiben
+unverändert. Nach bewusstem Trennen bleibt lokaler Betrieb möglich. Lokale
+Gedächtniswerkzeuge sind als lokale Ziele beschrieben; gewöhnliche gekoppelte
+Speicheraufträge verwenden die vorhandenen Serverwerkzeuge samt Freigabe.
+Der gekoppelte Leseweg startet keinen lokalen automatischen Lerner. Gemeinsames
+automatisches Lernen und Persona folgen separat (A8), keine Bestandsübernahme.

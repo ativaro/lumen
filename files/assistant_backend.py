@@ -403,6 +403,7 @@ class OpenCodeBackend(QObject):
         recall=(not proposal or memory_context) and not project_task and not self.screen_guidance
         if recall and self.session:
             previous=store.setting('memory/session/'+self.session)
+            if isinstance(previous,dict):previous=previous.get('local')
             if previous is not None and previous!=stamp(store):self.new_conversation()
         self.memory_text=text if memory_text is None else memory_text
         self.memory_payload={}
@@ -488,7 +489,7 @@ class OpenCodeBackend(QObject):
                         'terminal for sudo. Never ask for a password in chat. Do not assume snapper, Btrfs or a root '
                         'snapshot configuration exists; inspect available backup support before proposing a snapshot. '
                         'If execution fails, report the actual error and what remains undone, not a successful installation.\n')
-                body['system'] += ('\nLumen Notes, Projects, Code, Audio Studio, Vault and Inbox app content is owned by the paired Lumen Server. Discover the available server tools with lumen_server_tools and use their exact schemas. Local project libraries and message caches are not the server record. Native Vault tools remain available for explicitly approved local credential handling and connectors. Never invent synchronization or permissions.\n')
+                body['system'] += ('\nLumen Notes, Projects, Code, Audio Studio, Vault, Inbox and account memory are owned by the paired Lumen Server. Discover the available server tools with lumen_server_tools and use their exact schemas. For ordinary memory requests use the connected account; local Desktop memory tools are for deliberately local/offline requests only. Server memory changes require their real server review, not a local copy. Local project libraries and message caches are not the server record. Native Vault tools remain available for explicitly approved local credential handling and connectors. Never invent synchronization or permissions.\n')
             from vault_access import INSTRUCTION as VAULT_INSTRUCTION
             body['system'] += VAULT_INSTRUCTION
             if isinstance(user_text, str) and not self.read_only and not self.background_task:
@@ -504,19 +505,34 @@ class OpenCodeBackend(QObject):
                 except (OSError, ValueError):
                     pass  # Manual native intake remains available without a private runtime.
         base_system=body['system']
-        def submit():
+        def reset_memory():
+            if self.vault_sources:self.vault_sources.retain(source)
+            self.session='';self.memory_previous_answer={};self.messages=[];self.messagesChanged.emit([]);prepare_memory(prepare_session)
+        def submit_current():
             if recall:
                 current_stamp=stamp(store);session_stamp=store.setting('memory/session/'+self.session)
-                if self.memory_payload.get('stamp')!=current_stamp or (session_stamp is not None and session_stamp!=current_stamp):
-                    if self.vault_sources:
-                        self.vault_sources.retain(source)
-                    self.session='';self.memory_previous_answer={};self.messages=[];self.messagesChanged.emit([]);prepare_memory(prepare_session);return
-                store.set_setting('memory/session/'+self.session,self.memory_payload['stamp'])
+                current_session=dict(local=current_stamp,account=self.memory_payload.get('remote',{}).get('stamp',''),
+                                     notes=self.memory_payload.get('remote_notes',[]))
+                if self.memory_payload.get('stamp')!=current_stamp or (session_stamp is not None and session_stamp!=current_session):
+                    reset_memory();return
+                store.set_setting('memory/session/'+self.session,current_session)
             self.prompt_submitted = True
             def accepted(_):
                 self.publish_memory_context(self.memory_payload,'submitted')
                 self.poll()
             self.request('POST', f'/session/{self.session}/prompt_async', body, accepted)
+
+        def submit():
+            if not recall or not self.memory_payload.get('remote'):submit_current();return
+            generation,message=self.generation,self.message_id
+            def checked(valid):
+                if generation!=self.generation or message!=self.message_id or not self.busy:return
+                if valid:submit_current()
+                else:reset_memory()
+            def unavailable(_):
+                if generation==self.generation and message==self.message_id and self.busy:
+                    self.fail(tr('Server-Gedächtnis nicht erreichbar. Die Anfrage wurde nicht mit alten Erinnerungen gesendet.'))
+            self.memory.job('valid_prepared',checked,unavailable,prepared=self.memory_payload)
 
         def created(session):
             self.session = session['id']
@@ -625,6 +641,7 @@ class OpenCodeBackend(QObject):
         fields=('id','revision','path','title','origin','source_kind')
         self.memory_context=dict(version=1,message_id=self.message_id,session_id=self.session,phase=phase,
             server_stamp=result.get('stamp',[''])[-1],
+            server_connection=result.get('remote',{}).get('connection',''),
             sources=[{key:n[key] for key in fields if key in n} for n in result.get('notes',[])],
             retrieval=dict(result.get('retrieval',{})))
         self.memoryContextChanged.emit(self.memory_context)

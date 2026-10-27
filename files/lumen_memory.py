@@ -286,14 +286,11 @@ class Memory:
         with self.book.lock('memory-state.lock'):
             state=stamp(self.store);result=dict(stamp=state,revision=self.store.setting('memory/revision',0),notes=[],candidates=[],context='',warning='')
             if not state[0]:return result
-            notes=self.eligible(directory)
-        from lumen_connect import shared_memories
-        blocked=set(self.store.setting('memory/server_hidden',[]))
-        # The replicated local copy owns its independent approval; do not bypass it via the old mirror.
-        replicated={n['id'] for n in self.scan()['notes'] if n['memory'].get('sync_connection')} | set(self.store.setting('memory/tombstones',{}))
-        server_notes=[dict(path='server:'+n['id'],id='server:'+n['id'],title=n['title'],text=n['body'],
-                           source=n['source'],revision=n['revision']) for n in shared_memories()
-                      if n['source']+'#'+n['id'] not in blocked and n['id'] not in replicated]
+            from knowledge_context import active
+            config=active(self.store)
+            notes=self.eligible(directory) if config is None else []
+        if config is not None:return self.prepare_account(query,config,result)
+        server_notes=[]
         remote_bound=None
         try:
             import knowledge_context
@@ -342,6 +339,37 @@ class Memory:
         result['notes']=[dict(path=n['path'],id=e.id,revision=e.revision,title=n['title'],origin=n['origin'],source_kind=n['source_kind']) for n,e in zip(current,rendered) if e.id in included]
         if included:result['context']=intro+payload['context']
         return result
+
+    def prepare_account(self,query,config,result):
+        import knowledge_context
+        notes,remote=knowledge_context.account_memory(config,query)
+        hidden=set(self.store.setting('memory/server_hidden',[]))
+        # Existing per-device opt-outs still apply; no local replica becomes account consent.
+        notes=[n for n in notes if config['server']+'#'+n['remote_id'] not in hidden]
+        try:
+            shared,bound=knowledge_context.fetch(self,query)
+            if shared and not knowledge_context.valid(self.store,bound,shared):shared=[]
+            notes.extend(dict(n,origin=tr('Freigegebene Servernotiz')) for n in shared)
+        except (OSError,ValueError,KeyError,RuntimeError):
+            result['warning']=tr('Freigegebene Servernotizen derzeit nicht verfügbar.')
+        result.update(remote=remote,revision=-1,remote_notes=[dict(remote_id=n['remote_id'],revision=n['revision']) for n in notes if n['source_kind']=='server_note'])
+        if not self.valid_prepared(result):raise ValueError(tr('Das Server-Gedächtnis wurde geändert. Bitte erneut fragen.'))
+        payload=make_context(self.entries(notes),budget=18000,excerpt=1900)
+        included={n['id'] for n in payload['sources']}
+        result['notes']=[{key:n[key] for key in ('path','id','revision','title','origin','source_kind')} for n in notes if n['id'] in included]
+        result['context']=payload['context']
+        result['retrieval']=dict(mode='server')
+        return result
+
+    def valid_prepared(self,prepared):
+        import knowledge_context
+        if prepared.get('stamp')!=stamp(self.store):return False
+        remote=prepared.get('remote')
+        if not remote:return True
+        if not knowledge_context.account_memory_valid(remote):return False
+        notes=prepared.get('remote_notes',[])
+        config=knowledge_context.active(self.store)
+        return not notes or knowledge_context.valid(self.store,config,notes)
 
     def apply(self,items,user_text,directory,source,candidates,revision,context=None,prepared_stamp=None):
         if not isinstance(items,list) or len(items)>3:raise ValueError(tr('Ungültiger Gedächtnisvorschlag.'))
@@ -433,7 +461,7 @@ def worker(job,store,action,**values):
 def main():
     from lumen_store import Store
     request=json.load(sys.stdin);memory=Memory(Store(request.pop('store')));action=request.pop('action')
-    if action not in ('configure','scan','migrate','remember','write','restore','forget','share','prepare','apply','allow','proposals','review','propose','project_info','project_configure'):raise ValueError(tr('Ungültige Gedächtnisaktion.'))
+    if action not in ('configure','scan','migrate','remember','write','restore','forget','share','prepare','valid_prepared','apply','allow','proposals','review','propose','project_info','project_configure'):raise ValueError(tr('Ungültige Gedächtnisaktion.'))
     print(json.dumps(getattr(memory,action)(**request),ensure_ascii=False))
 
 
