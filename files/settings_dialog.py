@@ -134,7 +134,7 @@ class SettingsDialog(QDialog):
         personality = self.page(tr('Persönlichkeit'), tr('Wie Lumen mit dir spricht und zusammenarbeitet.'))
         self.persona_editor = PersonaEditor(self.assistant, lambda: self.open_page(self.speech_output_page), self)
         self.persona_editor.saved.connect(lambda: (
-            self.preferencesChanged.emit(self.assistant.fileName(), ['personaProfile']),
+            self.preferencesChanged.emit(self.assistant.fileName(), ['personaProfile','personaLocalOverride']),
             self.status.setText(tr('Persönlichkeit gespeichert. Gilt ab der nächsten Nachricht.'))))
         personality.addWidget(self.persona_editor); personality.addStretch()
         from troubleshooter_ui import Troubleshooter
