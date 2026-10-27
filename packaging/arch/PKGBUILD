@@ -236,7 +236,7 @@ package() {
     # ---- opencode commands / skill (system-wide share) --------------------
     install -d "$pkgdir/usr/share/lumen/opencode-command"
     install -m0644 "$srcroot/opencode-command/"*.md "$pkgdir/usr/share/lumen/opencode-command/" 2>/dev/null || true
-    for skill in lumen-admin lumen-projects lumen-service-access; do
+    for skill in lumen-admin lumen-projects lumen-vault-http; do
         install -Dm0644 "$srcroot/opencode-skill/$skill/SKILL.md" "$pkgdir/usr/share/lumen/opencode-skill/$skill/SKILL.md"
     done
 

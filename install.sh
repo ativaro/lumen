@@ -207,10 +207,22 @@ fi
 mkdir -p "$PREFIX/shell" "$PREFIX/opencode-command" "$PREFIX/opencode-skill/lumen-admin"
 cp "$REPO/shell/"* "$PREFIX/shell/"
 cp "$REPO/opencode-command/"*.md "$PREFIX/opencode-command/"
-for skill in lumen-admin lumen-projects lumen-service-access; do
+for skill in lumen-admin lumen-projects lumen-vault-http; do
     mkdir -p "$PREFIX/opencode-skill/$skill"
     cp "$REPO/opencode-skill/$skill/SKILL.md" "$PREFIX/opencode-skill/$skill/"
 done
+# Retired stock skill is replaced by the server catalogue; custom text survives.
+/usr/bin/python3 - "$PREFIX/opencode-skill/lumen-service-access/SKILL.md" <<'PY_SKILL'
+from pathlib import Path
+from hashlib import sha256
+import sys
+path = Path(sys.argv[1])
+if path.is_file() and not path.is_symlink() and sha256(path.read_bytes()).hexdigest() in (
+        'b49193b08585240dbe8df6b30857d7cfed5c79bbdb94950bbee956fd13c652cc',
+        '821b7405f5c2f434963dc5f79421def9987e20187c894b226e9bb30150269160'):
+    path.unlink()
+    if not any(path.parent.iterdir()): path.parent.rmdir()
+PY_SKILL
 UNITDIR="$CONFIG_HOME/systemd/user"
 mkdir -p "$UNITDIR"
 subst "$REPO/system/systemd/user/lumen-jobs.service" > "$UNITDIR/lumen-jobs.service"

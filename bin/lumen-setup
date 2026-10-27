@@ -51,6 +51,21 @@ fi
 
 say() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 
+# Remove only Lumen's retired stock text; preserve user replacements.
+python3 - "$OPENCODE_HOME" <<'PY_CLEAN'
+from hashlib import sha256
+from pathlib import Path
+import sys
+root = Path(sys.argv[1])
+for folder in ('skill', 'skills'):
+    path = root / folder / 'lumen-service-access' / 'SKILL.md'
+    if path.is_file() and not path.is_symlink():
+        if sha256(path.read_bytes()).hexdigest() in ('b49193b08585240dbe8df6b30857d7cfed5c79bbdb94950bbee956fd13c652cc',
+                '821b7405f5c2f434963dc5f79421def9987e20187c894b226e9bb30150269160'):
+            path.unlink()
+            if not any(path.parent.iterdir()): path.parent.rmdir()
+PY_CLEAN
+
 if [ "${1:-}" = "--uninstall" ]; then
     say "Entferne Lumen opencode-Integration"
     python3 - "$OPENCODE_HOME/opencode.jsonc" <<'PY'
@@ -69,8 +84,8 @@ if os.path.exists(p):
         print("  MCP 'cachyos' entfernt")
 PY
     rm -f "$OPENCODE_HOME/command/sync.md" "$OPENCODE_HOME/command/sysreport.md" "$OPENCODE_HOME/command/fix.md"
-    rm -rf "$OPENCODE_HOME/skills/lumen-admin" "$OPENCODE_HOME/skills/lumen-projects" "$OPENCODE_HOME/skills/lumen-service-access"
-    rm -rf "$OPENCODE_HOME/skill/lumen-admin" "$OPENCODE_HOME/skill/lumen-projects" "$OPENCODE_HOME/skill/lumen-service-access"
+    rm -rf "$OPENCODE_HOME/skills/lumen-admin" "$OPENCODE_HOME/skills/lumen-projects" "$OPENCODE_HOME/skills/lumen-vault-http"
+    rm -rf "$OPENCODE_HOME/skill/lumen-admin" "$OPENCODE_HOME/skill/lumen-projects" "$OPENCODE_HOME/skill/lumen-vault-http"
     echo "  Commands/Skill entfernt"
     exit 0
 fi
@@ -81,7 +96,7 @@ mkdir -p "$OPENCODE_HOME/command" "$OPENCODE_HOME/skills"
 if [ -n "$SHARE" ] && [ -d "$SHARE/opencode-command" ]; then
     say "Installiere Commands + Skill nach $OPENCODE_HOME"
     cp "$SHARE/opencode-command/"*.md "$OPENCODE_HOME/command/" 2>/dev/null || true
-    for skill in lumen-admin lumen-projects lumen-service-access; do
+    for skill in lumen-admin lumen-projects lumen-vault-http; do
         if [ -d "$SHARE/opencode-skill/$skill" ]; then
             mkdir -p "$OPENCODE_HOME/skills/$skill"
             cp -r "$SHARE/opencode-skill/$skill/." "$OPENCODE_HOME/skills/$skill/"
