@@ -53,6 +53,13 @@ def configuration(environment):
         stamp = hashlib.sha256(json.dumps([str(home),str(root),
             {k:pairing.get(k) for k in ('server','device_id','token','account','ca_file')}
             if pairing is not None else None], sort_keys=True).encode()).hexdigest()
+        if pairing is not None:
+            skills = config.setdefault('skills', {})
+            if not isinstance(skills, dict): raise BindingError()
+            urls = skills.setdefault('urls', [])
+            if not isinstance(urls, list) or any(not isinstance(url, str) for url in urls): raise BindingError()
+            shared = server + '/api/skills/'
+            if shared not in urls: urls.append(shared)
         config['mcp'] = dict(config.get('mcp', {}), **{'lumen-server':entry})
         return json.dumps(config), stamp
     except (OSError, ValueError, TypeError, AttributeError, UnicodeError):
