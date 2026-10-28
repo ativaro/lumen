@@ -103,6 +103,19 @@ class SetupTest(unittest.TestCase):
                 self.assertEqual(setup.main(), 0)
                 install.assert_called_once(); packages.assert_called_once_with([])
 
+    def test_engine_setup_preserves_qualified_same_version_build(self):
+        from assistant_backend import ENGINE_VERSION, managed_opencode
+        import hashlib
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'XDG_DATA_HOME':tmp, 'LUMEN_OPENCODE_BIN':''}):
+            target=managed_opencode();target.parent.mkdir(parents=True)
+            target.write_bytes(b'qualified-engine')
+            with patch.object(setup.platform, 'machine', return_value='x86_64'), \
+                    patch.dict(setup.QUALIFIED_ENGINE_SHA256, {(ENGINE_VERSION,'x86_64'):hashlib.sha256(target.read_bytes()).hexdigest()}), \
+                    patch.object(setup, 'download') as download, patch.object(setup, 'report'):
+                setup.install_engine()
+                download.assert_not_called()
+                self.assertEqual(target.read_bytes(),b'qualified-engine')
+
     def test_desktop_job_uses_existing_backup_flow_and_reports_failure(self):
         with patch('sys.argv', ['lumen_setup.py', 'desktop', '--theme', 'atelier']), \
                 patch('lumen_desktop_setup.configure_desktop') as configure, patch.object(setup, 'report') as report:

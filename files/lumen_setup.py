@@ -29,6 +29,9 @@ FEATURES = {
     'ocr': (tr('Texterkennung in Bildern und Scans'), ('tesseract', 'tessdata-deu', 'tessdata-eng'), ('tesseract', 'tesseract-data-deu', 'tesseract-data-eng')),
     'capture': (tr('Bildschirmaufnahme'), ('spectacle',), ('spectacle',)),
 }
+QUALIFIED_ENGINE_SHA256 = {
+    ('1.18.34', 'x86_64'): 'f623adf34f0d6f3d288ca279e6d9ad5a8366e9a1008ef2a1661a940a25ece20d',
+}
 VERSION = '1.9.4'
 SOURCE_URL = f'https://codeload.github.com/ggml-org/whisper.cpp/tar.gz/refs/tags/v{VERSION}'
 SOURCE_HASH = '57e280cee375ab02425b806ad5146b99f6eb9357e3c2b31357c8a6af2e2e44ae'
@@ -148,6 +151,10 @@ def install_engine():
     if sys.platform != 'linux' or platform.machine() not in assets:
         raise RuntimeError(tr('Die kompatible Engine ist für Linux x86_64 und ARM64 verfügbar.'))
     target = managed_opencode()
+    # Same-version upstream downloads would undo the qualified SDK/permission fixes.
+    if target.is_file() and hashlib.sha256(target.read_bytes()).hexdigest() == QUALIFIED_ENGINE_SHA256.get((ENGINE_VERSION, platform.machine())):
+        report(tr('Die geprüfte Lumen-Engine ist bereits eingerichtet.'), 100)
+        return
     target.parent.mkdir(parents=True, exist_ok=True)
     arch, size, checksum = assets[platform.machine()]
     report(tr('Kompatible Engine für Lumen einrichten …'))
