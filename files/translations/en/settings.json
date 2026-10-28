@@ -457,6 +457,7 @@
   "Ungültiges Engine-Archiv.": "Invalid engine archive.",
   "Die Engine-Version stimmt nicht mit der geprüften Version überein.": "The engine version does not match the verified version.",
   "Kompatible Engine eingerichtet. Vorhandenes OpenCode und Zugangsdaten bleiben erhalten.": "Compatible engine installed. Existing OpenCode and credentials are preserved.",
+  "Die geprüfte Lumen-Engine ist bereits eingerichtet.": "The verified Lumen engine is already installed.",
   "Verbindung, Aufträge, Sicherungen und geteiltes Gedächtnis": "Connection, tasks, backups and shared memory",
   "Verbinde diesen Desktop über die Geräteansicht deines Servers. Hier siehst du anschließend den aktuellen Abgleich und die freigegebenen Funktionen.": "Connect this desktop from the devices page of your server. Then review sync status and granted features here.",
   "Serververbindung öffnen": "Open server connection",
