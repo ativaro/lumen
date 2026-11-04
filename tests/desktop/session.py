@@ -54,7 +54,8 @@ try:
         time.sleep(.1)
     area=json.loads((root/'kwin-geometry.json').read_text())
     (root/'work-area.json').write_text(json.dumps(area))
-    assert area['y']=={'classic':56,'band':68,'deck':118,'context':60}[os.environ['LUMEN_QA_LAYOUT']] and area['width']==logical,area
+    # KWin keeps fractional logical widths; QScreen rounds to integer pixels.
+    assert area['y']=={'classic':56,'band':68,'deck':118,'context':60}[os.environ['LUMEN_QA_LAYOUT']] and abs(area['width']-logical)<=.5,area
     if not os.environ.get('LUMEN_QA_SURFACE_ONLY'):
         plasma=start(['plasmashell','--no-respawn'],'plasma');time.sleep(2)
         def evaluate(script):
