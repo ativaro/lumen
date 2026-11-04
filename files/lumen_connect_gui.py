@@ -1067,8 +1067,11 @@ class ConnectionDialog(QDialog):
 
     def change_browser_access(self):
         from browser_connector import set_access
+        if self.worker and self.worker.isRunning():return
         enabled=self.browser_access_button.isChecked()
         self.browser_access_button.setEnabled(False)
+        self.system_access_button.setEnabled(False)
+        self.disconnect_button.setEnabled(False)
         self.refresh_button.setEnabled(False)
         self.status.setText(t("Browser wird eingerichtet …", "Setting up browser …") if enabled else t("Browsersteuerung wird ausgeschaltet …", "Disabling browser control …"))
         def setup():
@@ -1077,6 +1080,8 @@ class ConnectionDialog(QDialog):
         self.worker=Worker(setup,self)
         def finished():
             self.browser_access_button.setEnabled(True)
+            self.system_access_button.setEnabled(True)
+            self.disconnect_button.setEnabled(True)
             self.refresh_button.setEnabled(True)
             if self.worker.error or self.worker.result:
                 self.status.setText(self.worker.error or self.worker.result)
@@ -1089,6 +1094,8 @@ class ConnectionDialog(QDialog):
         enabled = self.system_access_button.isChecked()
         self.refresh_button.setEnabled(False)
         self.system_access_button.setEnabled(False)
+        self.browser_access_button.setEnabled(False)
+        self.disconnect_button.setEnabled(False)
         self.worker = Worker(lambda: client.set_system_access(enabled), self)
         self.worker.finished.connect(self.system_access_changed)
         self.worker.start()
@@ -1098,6 +1105,8 @@ class ConnectionDialog(QDialog):
             self.status.setText(self.worker.error)
             self.system_access_button.setChecked(client.system_access_allowed(self.config))
             self.system_access_button.setEnabled(True)
+            self.browser_access_button.setEnabled(True)
+            self.disconnect_button.setEnabled(True)
             self.refresh_button.setEnabled(True)
         else:
             self.refresh()
@@ -1138,6 +1147,7 @@ class ConnectionDialog(QDialog):
         self.identity.setText(self.config["server"])
         self.status.setText(t("Verbindung wird geprüft …", "Checking connection …"))
         self.refresh_button.setEnabled(False)
+        self.browser_access_button.setEnabled(False)
 
         def connection_status():
             client.initialize_system_access(self.config)
@@ -1150,6 +1160,7 @@ class ConnectionDialog(QDialog):
     def loaded(self):
         self.refresh_button.setEnabled(True)
         self.disconnect_button.setEnabled(True)
+        self.browser_access_button.setEnabled(True)
         if self.worker.error:
             self.status.setText(
                 t(
