@@ -8,6 +8,8 @@ ConditionEnvironment=WAYLAND_DISPLAY
 Type=dbus
 BusName=org.lumen.Topbar
 ExecStart=%INSTALL_BIN%/lumen-topbar
+# Applications launched from the bar must outlive a bar restart.
+KillMode=process
 Restart=on-failure
 RestartSec=2
 
