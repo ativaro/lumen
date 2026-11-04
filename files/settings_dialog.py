@@ -285,12 +285,19 @@ class SettingsDialog(QDialog):
             panel.addStretch()
 
     def build_mcp(self):
-        page = self.page('MCP', tr('Lumen-Funktionen für die KI'))
-        page.addWidget(text(tr('Die KI kann Dateien suchen, freigegebene Notizen lesen und Aufträge sowie Sicherungsstände abfragen. Lumen Notes verwendet dieselben Freigaben wie Gespräche.')))
-        page.addWidget(text(tr('Notes, Projekte, Code, Audio Studio und Inbox verwenden die Werkzeuge deines verbundenen Lumen Servers. Gerätefreigaben und KI-Zugriff auf Inhalte gelten dort; ein lokaler Nachrichten-Cache wird nicht verwendet.')))
-        page.addWidget(text(tr('Änderungen und Dienstzugriffe behalten ihre eigenen Bestätigungen. Eine Gerätefreigabe entsperrt keinen Tresor und versendet keine Nachricht.')))
+        from engine_extensions import ExtensionsView
+        page = self.page(tr('Fähigkeiten & Erweiterungen'), tr('MCP, Plugins und Skills von Lumen'))
+        self.extensions = ExtensionsView(lambda parent:OpenCodeBackend(str(Path(self.assistant.value('workdir', str(Path.home()))).expanduser()), parent))
+        page.addWidget(self.extensions, 1)
+        def server_extensions():
+            from server_notes_app import _connection
+            from server_app_session import origin
+            try:
+                config, _ = _connection()
+                if not QDesktopServices.openUrl(QUrl(origin(config['server'])+'/?app=settings&section=extensions')):raise ValueError()
+            except (OSError,ValueError,RuntimeError):self.status.setText(tr('Bitte zuerst Lumen Desktop mit deinem Server verbinden.'))
+        page.addWidget(button(tr('Server-Fähigkeiten im Browser öffnen'),server_extensions))
         page.addWidget(button(tr('Gerätefreigaben auf dem Server öffnen'),self.open_server_permissions))
-        page.addStretch()
 
     def build_speech_settings(self):
         from lumen_speech import add_recognition_fields
@@ -916,6 +923,7 @@ class SettingsDialog(QDialog):
             return
         if self.engine:
             self.engine.shutdown()
+        if hasattr(self, 'extensions'): self.extensions.stop()
         if hasattr(self, 'troubleshooter'): self.troubleshooter.stop()
         if workspace is not None:workspace.shutdown()
         from window_geometry import remember
