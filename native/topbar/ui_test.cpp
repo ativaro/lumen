@@ -187,6 +187,10 @@ private slots:
         const auto routeTop=routeBackground->mapToGlobal(QPointF());
         QVERIFY(routeTop.y()>=audioPopup->property("y").toReal()-1);
         QVERIFY(routeTop.y()+routeBackground->height()<=audioPopup->property("y").toReal()+audioPopup->property("height").toReal()+1);
+        const auto anchorTop=route->mapToGlobal(QPointF()).y();const auto anchorBottom=anchorTop+route->height();
+        const auto above=anchorTop-audioPopup->property("y").toReal()-16;
+        const auto below=audioPopup->property("y").toReal()+audioPopup->property("height").toReal()-16-anchorBottom;
+        if(qMax(above,below)>=routeBackground->height())QVERIFY(routeTop.y()>=anchorBottom-1 || routeTop.y()+routeBackground->height()<=anchorTop+1);
         QVERIFY(window->grabWindow().save("/profile/captures/native-audio-routing.png"));
         QVERIFY(send("key 108\n"));QVERIFY(send("key 28\n"));
         QTRY_COMPARE(data.details()["audio"].toMap()["playback"].toList()[0].toMap()["device"].toString(),QString("8"));

@@ -83,7 +83,7 @@ Popup {
         popup:Popup {
             popupType:Popup.Item;width:choice.width;padding:8
             height:Math.min(implicitHeight,menu.height-32)
-            y:Math.max(16-choice.mapToItem(menu.contentItem,0,0).y,Math.min(choice.height,menu.height-16-choice.mapToItem(menu.contentItem,0,0).y-height))
+            y:{const top=choice.mapToItem(menu.contentItem,0,0).y;return top+choice.height+height<=menu.height-16?choice.height:top-height>=16?-height:16-top}
             background:Rectangle {color:menu.colors.window;radius:menu.colors.radius||10;border.color:menu.colors.border}
             contentItem:ListView {clip:true;implicitHeight:contentHeight;model:choice.popup.visible?choice.delegateModel:null;currentIndex:choice.highlightedIndex;ScrollIndicator.vertical:ScrollIndicator {}}
         }
