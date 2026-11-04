@@ -16,6 +16,9 @@
 #include <QQuickWindow>
 #include <QScreen>
 #include <QTest>
+#include <QSettings>
+#include <QFileDialog>
+#include <QLineEdit>
 #include <LayerShellQt/Window>
 
 class UiTest:public QObject {
@@ -43,7 +46,7 @@ private slots:
         auto screen=QGuiApplication::primaryScreen();window->setScreen(screen);window->setWidth(screen->geometry().width());
         auto layer=LayerShellQt::Window::get(window);layer->setScreen(screen);
         layer->setAnchors(LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorTop)|LayerShellQt::Window::AnchorLeft|LayerShellQt::Window::AnchorRight);
-        layer->setExclusiveZone(56);layer->setLayer(LayerShellQt::Window::LayerTop);layer->setActivateOnShow(false);
+        layer->setExclusiveZone(window->property("barSize").toInt());layer->setLayer(LayerShellQt::Window::LayerTop);layer->setActivateOnShow(false);
         layer->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityOnDemand);
         window->setProperty("ready",true);QTRY_VERIFY_WITH_TIMEOUT(window->isExposed(),5000);
         QTRY_COMPARE_WITH_TIMEOUT(data.snapshot()["apps"].toList().size(),5,5000);
@@ -55,7 +58,7 @@ private slots:
         auto island=item("leftIsland");QVERIFY(island);
         for(int index=0;index<menus->entries().size();++index){
             auto entry=item("applicationMenu_"+QString::number(index));QVERIFY(entry);
-            if(entry->isVisible())QVERIFY2(entry->mapToItem(island,QPointF(entry->width(),0)).x()<=island->width()-6,"Application menu clipped by the right island");
+            if(entry->isVisible())QVERIFY2(entry->mapToItem(window->contentItem(),QPointF(entry->width(),0)).x()<=window->width()-6,"Application menu clipped by the right island");
         }
         auto button=item("applicationMenu_0");
         QTRY_VERIFY(button->isVisible() || item("menuOverflowButton")->isVisible());
@@ -85,7 +88,7 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(QFile::exists("/profile/actions.jsonl"),3000);
         const auto actions=[](){QFile file("/profile/actions.jsonl");if(!file.open(QIODevice::ReadOnly))return QByteArray();return file.readAll();};
         QTRY_VERIFY_WITH_TIMEOUT(actions().contains("--open-app"),3000);
-        QVERIFY(click(item("startButton")));QTRY_VERIFY(apps->property("opened").toBool());
+        if(data.layout()=="classic"){QVERIFY(click(item("startButton")));}else{QVERIFY(click(item("launcherButton")));QTRY_VERIFY(apps->property("opened").toBool());QTest::qWait(180);QVERIFY(click(item("programsTab")));QTRY_VERIFY(apps->property("programs").toBool());}QTRY_VERIFY(apps->property("opened").toBool());
         QTRY_VERIFY_WITH_TIMEOUT(item("programSearch"),4000);
         auto programQuery=item("programSearch");QVERIFY(programQuery->isVisible());QTest::qWait(250);QVERIFY(apps->property("opened").toBool());programQuery->setProperty("text","lumen testprogramm");
         QTRY_COMPARE_WITH_TIMEOUT(item("programList")->property("count").toInt(),1,4000);
@@ -147,10 +150,71 @@ private slots:
         auto secondScreen=QGuiApplication::screens()[1];second->setScreen(secondScreen);second->setGeometry(secondScreen->geometry().x(),secondScreen->geometry().y(),secondScreen->geometry().width(),56);
         auto secondLayer=LayerShellQt::Window::get(second);secondLayer->setScreen(secondScreen);
         secondLayer->setAnchors(LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorTop)|LayerShellQt::Window::AnchorLeft|LayerShellQt::Window::AnchorRight);
-        secondLayer->setLayer(LayerShellQt::Window::LayerTop);secondLayer->setExclusiveZone(56);secondLayer->setActivateOnShow(false);
+        secondLayer->setLayer(LayerShellQt::Window::LayerTop);secondLayer->setExclusiveZone(second->property("barSize").toInt());secondLayer->setActivateOnShow(false);
         second->setProperty("ready",true);QTRY_VERIFY(second->isExposed());
         QCOMPARE(second->width(),secondScreen->geometry().width());QCOMPARE(second->x(),secondScreen->geometry().x());
         QVERIFY(second->grabWindow().save("/profile/captures/native-second-screen.png"));
+        data.control("display");QTRY_VERIFY(data.error().isEmpty());
+        const auto originalLayout=data.layout();
+        QSettings settings("Lumen","Assistant");
+        auto draft=find(find(window->contentItem(),"inlineComposer"),"lumenQuestion");QVERIFY(draft);
+        draft->setProperty("text",QStringLiteral("Entwurf bleibt beim Layoutwechsel erhalten"));
+        for(const auto &layout:{"band","deck","context","classic"}){
+            settings.setValue("topbar/layout",layout);settings.sync();
+            QTRY_COMPARE_WITH_TIMEOUT(data.layout(),QString(layout),1500);
+            const int expected=QString(layout)=="deck"?118:QString(layout)=="band"?68:QString(layout)=="context"?60:56;
+            QTRY_COMPARE(window->property("barSize").toInt(),expected);QTRY_COMPARE(second->property("barSize").toInt(),expected);
+            QTRY_COMPARE(layer->exclusionZone(),expected);QTRY_COMPARE(secondLayer->exclusionZone(),expected);
+            QCOMPARE(draft->property("text").toString(),QStringLiteral("Entwurf bleibt beim Layoutwechsel erhalten"));
+            QTest::qWait(120);
+            QVERIFY(window->grabWindow().save("/profile/captures/layout-"+QString(layout)+".png"));
+        }
+        settings.setValue("topbar/layout","context");settings.sync();QTRY_COMPARE(data.layout(),QString("context"));
+        auto contextComposer=find(window->contentItem(),"inlineComposer");
+        QString prefix="dock";
+        if(contextComposer->isVisible()){QVERIFY(click(find(contextComposer,"lumenQuestion")));}
+        else{QVERIFY(click(find(window->contentItem(),"askButton")));contextComposer=find(window->contentItem(),"popupComposer");prefix="popup";}
+        QTRY_VERIFY(find(window->contentItem(),prefix+"attachFileButton"));
+        auto attachmentButton=find(window->contentItem(),prefix+"attachFileButton");
+        QTRY_VERIFY(attachmentButton->isVisible());QTest::qWait(180);
+        const QString attachmentPath="/profile/context-note.txt";
+        QFile note(attachmentPath);QVERIFY(note.open(QIODevice::WriteOnly));note.write("Synthetic note for the context dock");note.close();
+        bool pickerAccepted=false;
+        // Automate Qt's picker in the private session; the product keeps the platform picker.
+        QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
+        QTimer::singleShot(250,this,[&]{
+            auto picker=qobject_cast<QFileDialog*>(QApplication::activeModalWidget());
+            if(!picker)return;
+            auto filename=picker->findChild<QLineEdit*>("fileNameEdit");
+            if(!filename)return;
+            filename->setText(attachmentPath);
+            pickerAccepted=QMetaObject::invokeMethod(picker,"accept");
+        });
+        QVERIFY(click(attachmentButton));QTRY_VERIFY_WITH_TIMEOUT(pickerAccepted,2000);
+        QTRY_COMPARE(window->property("attachmentPath").toString(),attachmentPath);
+        QApplication::setAttribute(Qt::AA_DontUseNativeDialogs,false);
+        auto suggestion=find(window->contentItem(),prefix+"contextSuggestion_0");QVERIFY(suggestion && suggestion->isEnabled());QTest::qWait(180);
+        QVERIFY(click(suggestion));
+        auto attachedQuestion=find(contextComposer,"lumenQuestion");QVERIFY(attachedQuestion);
+        QTRY_VERIFY(attachedQuestion->property("text").toString().contains(QString::fromUtf8("angehängte Datei")) || attachedQuestion->property("text").toString().contains("attached file"));
+        QVERIFY(window->grabWindow().save("/profile/captures/native-context-attachment.png"));
+        QFile::remove("/profile/asked.json");QVERIFY(click(find(contextComposer,"sendQuestionButton")));
+        QTRY_VERIFY(QFile::exists("/profile/asked.json"));QFile contextualAsk("/profile/asked.json");QVERIFY(contextualAsk.open(QIODevice::ReadOnly));
+        QCOMPARE(QJsonDocument::fromJson(contextualAsk.readAll()).object()["file"].toString(),attachmentPath);
+        QTRY_VERIFY(window->property("attachmentPath").toString().isEmpty());
+        window->setProperty("notePendingAction",data.attachNote(42));
+        QTRY_VERIFY(window->property("noteContext").toMap().contains("reference"));
+        QCOMPARE(window->property("noteContext").toMap()["reference"].toMap()["title"].toString(),QString("Workshop in Notes"));
+        if(contextComposer->isVisible() && prefix=="dock"){QVERIFY(click(find(contextComposer,"inspectAttachmentButton")));}
+        else{QVERIFY(click(find(window->contentItem(),"askButton")));}
+        QTest::qWait(180);
+        QVERIFY(window->grabWindow().save("/profile/captures/native-notes-context.png"));
+        attachedQuestion->setProperty("text",QString("Fasse die Notes-Notiz zusammen."));
+        QFile::remove("/profile/asked.json");QVERIFY(click(find(contextComposer,"sendQuestionButton")));
+        QTRY_VERIFY(QFile::exists("/profile/asked.json"));QFile noteAsk("/profile/asked.json");QVERIFY(noteAsk.open(QIODevice::ReadOnly));
+        QCOMPARE(QJsonDocument::fromJson(noteAsk.readAll()).object()["note"].toObject()["revision"].toInt(),3);
+        QTRY_VERIFY(window->property("noteContext").toMap().isEmpty());
+        settings.setValue("topbar/layout",originalLayout);settings.sync();QTRY_COMPARE(data.layout(),originalLayout);
         input.closeWriteChannel();QVERIFY(input.waitForFinished(1000));
     }
 };

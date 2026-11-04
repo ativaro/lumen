@@ -15,6 +15,7 @@ parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--width',type=int,default=1280)
 parser.add_argument('--scale',type=float,default=1)
 parser.add_argument('--theme',choices=['glass','graphite','atelier','midnight'],default='graphite')
+parser.add_argument('--layout',choices=['classic','band','deck','context'],default='classic')
 parser.add_argument('--language',choices=['de','en'],default='de')
 parser.add_argument('--build-dir',type=Path,default=REPO/'artifacts/desktop-smoke/build')
 parser.add_argument('--artifacts',type=Path,default=REPO/'artifacts/desktop-smoke')
@@ -34,6 +35,8 @@ with (profile/'build.log').open('w') as log:
     subprocess.run(['cmake','--build',str(build),'--parallel','2'],stdout=log,stderr=subprocess.STDOUT,check=True)
 for name in ('home','config','data/applications','state','runtime','cache','captures'):
     (profile/name).mkdir(parents=True,exist_ok=True,mode=0o700)
+(profile/'config/Lumen').mkdir()
+(profile/'config/Lumen/Assistant.conf').write_text('[topbar]\nlayout='+args.layout+'\n')
 host=profile/'host-stage'
 shutil.copytree(REPO/'plasmoid',host)
 qml=host/'contents/ui/main.qml';qml.write_text(qml.read_text().replace('/usr/bin/lumen-panel','/qa/bin/lumen-panel'))
@@ -58,14 +61,14 @@ env=dict(ASAN_OPTIONS='detect_leaks=0:abort_on_error=1:log_path=/profile/asan',
     QT_QPA_PLATFORM='wayland',QT_QUICK_CONTROLS_STYLE='Basic',QT_QPA_PLATFORMTHEME='kde',
     QT_NO_XDG_DESKTOP_PORTAL='1',LUMEN_DATA='/profile/state/lumen',LUMEN_TOOLS_DATA='/profile/state/tools',
     LUMEN_BIN_DIR='/qa/bin',LUMEN_QA_WIDTH=str(args.width),LUMEN_QA_SCALE=str(args.scale),
-    LUMEN_QA_THEME=args.theme,LUMEN_LANGUAGE=args.language,LANG='de_CH.UTF-8',LC_ALL='de_CH.UTF-8')
+    LUMEN_QA_LAYOUT=args.layout,LUMEN_QA_THEME=args.theme,LUMEN_LANGUAGE=args.language,LANG='de_CH.UTF-8',LC_ALL='de_CH.UTF-8')
 for key,value in env.items():command+=['--setenv',key,value]
 command+=['--','dbus-run-session','--','python3','-B','/qa/session.py']
 with (profile/'session.log').open('w') as log:
     result=subprocess.run(command,stdout=log,stderr=subprocess.STDOUT,timeout=90)
 receipt=dict(passed=result.returncode==0,revision=subprocess.check_output(['git','-C',str(REPO),'rev-parse','HEAD'],text=True).strip(),
     binary=hashlib.sha256((build/'lumen-topbar').read_bytes()).hexdigest(),
-    width=args.width,scale=args.scale,theme=args.theme,language=args.language,
+    width=args.width,scale=args.scale,theme=args.theme,language=args.language,layout=args.layout,
     notification_layout_integration=not args.surface_only,seconds=round(time.monotonic()-began,2))
 (profile/'result.json').write_text(json.dumps(receipt,indent=2))
 if result.returncode==0:

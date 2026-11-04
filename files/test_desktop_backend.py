@@ -22,6 +22,39 @@ class ServerConversationTest(unittest.TestCase):
             self.app.processEvents(); time.sleep(.01)
         self.assertTrue(predicate())
 
+    def test_notes_keep_the_original_reference_and_reject_changed_access(self):
+        account=str(uuid4());note_id=str(uuid4())
+        note=dict(reference=dict(version=2,app='note',id=note_id,title='Workshop',
+            locator=dict(server='https://synthetic.invalid',account=account)),revision=4)
+        for allowed in (True,False):
+            with self.subTest(allowed=allowed),tempfile.TemporaryDirectory() as tmp, \
+                    patch.dict(os.environ,LUMEN_DATA=tmp),patch('lumen_connect.read_config',return_value=dict(server='https://synthetic.invalid',token='synthetic')):
+                backend=DesktopBackend(tmp);backend.settings=QSettings(tmp+'/settings.ini',QSettings.IniFormat)
+                backend.execution='server';from desktop_backend import connection
+                backend.binding=connection()[1];backend.server_origin='https://synthetic.invalid'
+                requests=[];errors=[];backend.failed.connect(errors.append)
+                def request(config,path,body=None):
+                    requests.append((path,body))
+                    if path=='/bridge/me':return dict(id=account)
+                    if path=='/bridge/context/capability':
+                        if not allowed:raise HTTPError(config['server']+path,403,'Private server body',{},None)
+                        return dict(body,supported=True)
+                    if path.startswith('/bridge/context-files/'):return dict(id=str(uuid4()),version=1)
+                    if path=='/bridge/tasks':return dict(id=str(uuid4()))
+                    raise AssertionError(path)
+                try:
+                    with patch('lumen_connect.request',side_effect=request),patch.object(backend,'poll'):
+                        self.assertTrue(backend.send('Zusammenfassen',context_data=dict(note_reference=note)))
+                        self.wait(lambda:not _workers and not backend.submitting)
+                    tasks=[body for path,body in requests if path=='/bridge/tasks']
+                    if allowed:
+                        self.assertEqual(tasks[0]['attachments'][0],dict(id=note_id,kind='note',revision=4,mode='reference'))
+                        self.assertFalse(errors)
+                    else:
+                        self.assertFalse(tasks);self.assertFalse(backend.remote_key)
+                        self.assertTrue(errors);self.assertNotIn('Private server body',errors[0])
+                finally:backend.set_busy(False);backend.shutdown();self.wait(lambda:not _workers)
+
     def test_confirmed_context_rejection_clears_only_its_exact_submission(self):
         with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,LUMEN_DATA=tmp),patch('lumen_connect.read_config',return_value=dict(server='https://synthetic.invalid',token='synthetic')):
             backend=DesktopBackend(tmp);backend.settings=QSettings(tmp+'/settings.ini',QSettings.IniFormat)

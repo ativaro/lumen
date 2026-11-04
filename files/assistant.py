@@ -416,6 +416,7 @@ class ChatPanel(QWidget):
             self.backend.select_session(identity);return
         self.paths = []
         self.drive_context = {}
+        self.note_context = {}
         self.update_context()
         self.error.hide()
         self.backend.select_session(identity)
@@ -423,6 +424,8 @@ class ChatPanel(QWidget):
     def new_conversation(self):
         if self.backend.new_conversation():
             self.drive_context = {}
+            self.note_context = {}
+            self.update_context()
             self.error.hide()
             self.last_prompt = ''
             self.mode.setCurrentIndex(1 if self.settings.value('defaultMode', 'build') == 'plan' else 0)
@@ -431,6 +434,7 @@ class ChatPanel(QWidget):
     def update_context(self):
         names = ' · '.join(Path(p).name for p in self.paths)
         if getattr(self,'drive_context',None):names=' · '.join(ref['title'] for ref in self.drive_context['drive_references'])+' · Lumen Drive'
+        if getattr(self,'note_context',None):names=(names+' · ' if names else '')+self.note_context['reference']['title']+' · Lumen Notes'
         if getattr(self,'drive_context',None) and any(not item['content_available'] for item in self.drive_context.get('selection',[])):
             names+=' · '+tr('teilweise nur Metadaten')
         self.context.setText((tr('Auswahl: ') + names + '\n' if names else '') + self.backend.directory)
@@ -446,6 +450,7 @@ class ChatPanel(QWidget):
         self.new_conversation()
         self.paths = []
         self.drive_context = {}
+        self.note_context = {}
         self.set_action('open')
         self.update_context()
         self.composer.setPlainText(text)
@@ -465,6 +470,7 @@ class ChatPanel(QWidget):
             self.last_prompt = ''
         self.paths = paths
         self.drive_context = drive_context or {}
+        self.note_context = {}
         if self.drive_context:
             import drive_sync,lumen_connect
             self.drive_context_scope=drive_sync.scope(lumen_connect.read_config())
@@ -521,7 +527,7 @@ class ChatPanel(QWidget):
         if self.context_tools.learn.isChecked():
             text += tr('\n\nErkläre die wesentlichen Schritte, ihre Wirkung und wie ich sie selbst wiederholen kann.')
         sent = self.backend.send(text, files, self.mode.currentData(), title=title,memory_text=self.last_prompt,
-                          user_text=self.last_prompt if not self.action else None,context_data=getattr(self,'drive_context',None) or None)
+                          user_text=self.last_prompt if not self.action else None,context_data={**getattr(self,'drive_context',{}),**({'note_reference':self.note_context} if getattr(self,'note_context',None) else {})} or None)
         if sent is False:
             return
         if not self.action:

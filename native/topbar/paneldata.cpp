@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: MIT
 #include "paneldata.h"
+#include <QSettings>
+#include <QFileDialog>
+#include <QUuid>
 #include <QApplication>
 #include <QCursor>
 #include <QDBusConnection>
@@ -26,6 +29,9 @@ QVariantMap nativePalette(){
 }
 
 PanelData::PanelData(QObject *parent):QObject(parent) {
+    connect(&m_settingsWatcher,&QFileSystemWatcher::fileChanged,this,&PanelData::readLayout);
+    connect(&m_settingsWatcher,&QFileSystemWatcher::directoryChanged,this,&PanelData::readLayout);
+    readLayout();
     auto bus=QDBusConnection::sessionBus();
     bus.registerService("org.kde.kappmenuview");
     auto viewWatcher=new QDBusServiceWatcher("org.kde.kappmenuview",bus,QDBusServiceWatcher::WatchForUnregistration,this);
@@ -100,9 +106,40 @@ void PanelData::control(const QString &action,int value){
     QStringList arguments={"--control",action};if(numeric)arguments.append({"--value",QString::number(value)});
     runHelper(arguments,action,value);
 }
-void PanelData::ask(const QString &prompt){
-    if(prompt.trimmed().isEmpty() || prompt.size()>4000 || prompt.contains(QChar::Null)){actionError("ask",tr("Bitte eine Frage mit höchstens 4000 Zeichen eingeben."));return;}
-    runHelper({"--ask"},"ask",0,QJsonDocument(QJsonObject{{"prompt",prompt}}).toJson(QJsonDocument::Compact));
+QString PanelData::chooseAttachment(QQuickWindow *window){
+    if(window)LayerShellQt::Window::get(window)->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityNone);
+    const auto title=m_snapshot["labels"].toMap().value("Datei an Lumen anhängen",tr("Datei an Lumen anhängen")).toString();
+    return QFileDialog::getOpenFileName(nullptr,title);
+}
+QString PanelData::attachNote(int pid){
+    const QString action="note:"+QUuid::createUuid().toString(QUuid::WithoutBraces);
+    QTimer::singleShot(0,this,[this,pid,action]{
+        if(pid<2){actionError(action,tr("Ungültiges Notes-Fenster."));return;}
+        runHelper({"--topbar-note",QString::number(pid)},action);
+    });
+    return action;
+}
+QString PanelData::ask(const QString &prompt,const QString &file,const QVariantMap &note){
+    const QString action="ask:"+QUuid::createUuid().toString(QUuid::WithoutBraces);
+    const auto reject=[&](const QString &message){QTimer::singleShot(0,this,[this,action,message]{actionError(action,message);});return action;};
+    if(prompt.trimmed().isEmpty() || prompt.size()>4000 || prompt.contains(QChar::Null))return reject(tr("Bitte eine Frage mit höchstens 4000 Zeichen eingeben."));
+    if(m_helper.isEmpty())return reject(tr("Lumen ist nicht vollständig installiert."));
+    QJsonObject request{{"prompt",prompt}};
+    if(!note.isEmpty()){
+        const auto object=QJsonObject::fromVariantMap(note);
+        if(QJsonDocument(object).toJson(QJsonDocument::Compact).size()>16000)return reject(tr("Ungültige Notes-Auswahl."));
+        request["note"]=object;
+    }
+    if(!file.isEmpty()){
+        const QFileInfo info(file);
+        if(file.size()>4096 || file.contains(QChar::Null) || !info.isAbsolute() || !info.isFile() || !info.isReadable()){
+            return reject(tr("Die angehängte Datei ist nicht mehr lesbar."));
+        }
+        request["file"]=file;
+    }
+    const auto payload=QJsonDocument(request).toJson(QJsonDocument::Compact);
+    QTimer::singleShot(0,this,[this,action,payload]{runHelper({"--ask"},action,0,payload);});
+    return action;
 }
 void PanelData::runHelper(const QStringList &arguments,const QString &action,int value,const QByteArray &input){
     const bool mutating=action=="volume" || action=="brightness" || action=="mute";
@@ -110,7 +147,7 @@ void PanelData::runHelper(const QStringList &arguments,const QString &action,int
     if(m_helper.isEmpty()){actionError(action,tr("Lumen ist nicht vollständig installiert."));return;}
     m_actionError.clear();emit errorChanged();
     if(mutating && m_read.state()!=QProcess::NotRunning){m_ignoreRead=true;m_timeout.stop();m_read.kill();}
-    auto command=new QProcess(this);auto timeout=new QTimer(command);timeout->setSingleShot(true);timeout->setInterval(15000);
+    auto command=new QProcess(this);auto timeout=new QTimer(command);timeout->setSingleShot(true);timeout->setInterval(action.startsWith("note:")?45000:15000);
     if(mutating){m_control=command;connect(command,&QProcess::stateChanged,this,[this]{emit controlBusyChanged();});}
     connect(timeout,&QTimer::timeout,command,[command]{command->setProperty("timedOut",true);command->kill();});
     connect(command,&QProcess::readyReadStandardError,command,[command]{command->readAllStandardError();});
@@ -126,8 +163,10 @@ void PanelData::runHelper(const QStringList &arguments,const QString &action,int
         else if(code || status!=QProcess::NormalExit || bytes.size()>1024*1024 || error.error!=QJsonParseError::NoError || !result.isObject() || !result["error"].isString())failure=tr("Ungültige Systemdaten.");
         else failure=result["error"].toString().left(200);
         if(failure.isEmpty() && mutating && !result["system"].isObject())failure=tr("Ungültige Systemdaten.");
+        if(failure.isEmpty() && action.startsWith("note:") && !result["note"].isObject())failure=tr("Ungültige Notes-Auswahl.");
         if(!failure.isEmpty())actionError(action,failure);
         else{
+            if(action.startsWith("note:"))emit noteAttached(action,result["note"].toObject().toVariantMap());
             if(mutating){m_snapshot["system"]=result["system"].toObject().toVariantMap();emit changed();}
             emit controlFinished(action,value);
         }
@@ -142,13 +181,24 @@ void PanelData::context(const QString &app,const QString &title,int pid){
     static const QStringList browsers={"Chromium","Google Chrome","Brave","Mozilla Firefox","Microsoft Edge","Vivaldi"};
     if(browsers.contains(app) && title.size()<=4000){const auto data=QJsonDocument(QJsonObject{{"title",title},{"app",app}}).toJson(QJsonDocument::Compact).toBase64();start({"--topbar-page",QString::fromLatin1(data)});}
 }
-void PanelData::inputMask(QQuickWindow *window,const QVariantList &rectangles){
+void PanelData::readLayout(){
+    QSettings settings("Lumen","Assistant");settings.sync();
+    auto value=settings.value("topbar/layout","classic").toString();
+    if(!QStringList{"classic","band","deck","context"}.contains(value))value="classic";
+    if(value!=m_layout){m_layout=value;emit layoutChanged();}
+    const QFileInfo file(settings.fileName());
+    // QSettings replaces files atomically; watch the directory and re-arm the file watch.
+    for(const auto &path:{file.absoluteFilePath(),file.absolutePath(),QFileInfo(file.absolutePath()).absolutePath()})
+        if(QFileInfo::exists(path) && !m_settingsWatcher.files().contains(path) && !m_settingsWatcher.directories().contains(path))m_settingsWatcher.addPath(path);
+}
+void PanelData::inputMask(QQuickWindow *window,const QVariantList &rectangles,bool popupOpen){
     if(!window)return;
     QRegion mask;
     for(const auto &value:rectangles){const auto r=value.toRect();if(r.isValid())mask+=r;}
     window->setMask(mask);
+    LayerShellQt::Window::get(window)->setExclusiveZone(window->property("barSize").toInt());
     // Popups opened with Meta need keyboard focus without a preceding pointer event.
-    LayerShellQt::Window::get(window)->setKeyboardInteractivity(rectangles.size()>2
+    LayerShellQt::Window::get(window)->setKeyboardInteractivity(popupOpen
         ?LayerShellQt::Window::KeyboardInteractivityExclusive:LayerShellQt::Window::KeyboardInteractivityOnDemand);
 }
 void PanelData::ShowApps(){auto screen=QGuiApplication::screenAt(QCursor::pos());if(!screen)screen=QGuiApplication::primaryScreen();if(screen)emit showAppsRequested(screen->name());}

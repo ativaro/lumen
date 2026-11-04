@@ -3,7 +3,7 @@
 import json,os,sys
 from pathlib import Path
 sys.path.insert(0,'/source/files')
-from appearance_tokens import COLORS
+from appearance_tokens import COLORS,TOPBAR_KEYS,RADII
 from lumen_i18n import tr
 state=Path('/profile/control-state.json')
 def system():
@@ -12,7 +12,7 @@ if sys.argv[1:]==['--bar-snapshot']:
     names=('window','base','alternate','text','button','border','muted','accent','onAccent')
     print(json.dumps(dict(version=1,language=os.environ.get('LUMEN_LANGUAGE','de'),
         labels=json.loads(Path('/source/files/translations/en/topbar.json').read_text()) if os.environ.get('LUMEN_LANGUAGE')=='en' else {},
-        palette=dict(zip(names,COLORS[os.environ.get('LUMEN_QA_THEME','graphite')])),
+        palette=dict(zip(names,COLORS[os.environ.get('LUMEN_QA_THEME','graphite')]), **dict(zip(('key','inset','highlight','shadow','ring','ink'),TOPBAR_KEYS[os.environ.get('LUMEN_QA_THEME','graphite')])), radius=RADII[os.environ.get('LUMEN_QA_THEME','graphite')]),
         apps=[dict(id=identity,label=tr(label),title=tr(label),icon=icon) for identity,label,icon in
           [('lumen','Lumen','lumen'),('files','Dateien','folder'),('wissen','Notes','accessories-text-editor'),
            ('workbench','Projekte','folder'),('meetings','Audio Studio','microphone-sensitivity-high')]],
@@ -24,6 +24,8 @@ elif any(value.startswith('--notification-') for value in sys.argv[1:]):
     raise SystemExit(subprocess.call(['/usr/bin/python3','/source/files/lumen_panel.py',*sys.argv[1:]]))
 else:
     with Path('/profile/actions.jsonl').open('a') as output:output.write(json.dumps(sys.argv[1:])+'\n')
+    if len(sys.argv)==3 and sys.argv[1]=='--topbar-note':
+        print(json.dumps(dict(error='',note=dict(reference=dict(version=2,app='note',id='00000000-0000-0000-0000-000000000001',title='Workshop in Notes',locator=dict(server='https://synthetic.invalid',account='00000000-0000-0000-0000-000000000002')),revision=3))))
     if sys.argv[1:]==['--ask']:
         value=json.load(sys.stdin)
         Path('/profile/asked.json').write_text(json.dumps(value))

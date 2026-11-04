@@ -25,9 +25,18 @@ import setup_dialog
 setup_dialog.offer_setup=lambda *_:None
 from desktop_backend import DesktopBackend
 DesktopBackend.refresh_sessions=lambda *_:None
+DesktopBackend._run=lambda *_:None
+import desktop_backend
+desktop_backend.connection=lambda:({'server':'https://synthetic.invalid','token':'synthetic'},'test')
 received=[]
 def send(self,text,files,*args,**options):
-    assert text==os.environ['EXPECTED_QUESTION'] and not files
+    expected=os.environ.get('EXPECTED_FILE','')
+    assert (text.startswith(os.environ['EXPECTED_QUESTION']) and expected in text) if expected else text==os.environ['EXPECTED_QUESTION']
+    assert [path for path,mime in files]==([expected] if expected else []),files
+    note=os.environ.get('EXPECTED_NOTE','')
+    if note:
+        import json
+        assert self.execution=='server' and options['context_data']['note_reference']==json.loads(note)
     received.append(text)
     QTimer.singleShot(100,QApplication.instance().quit)
     return True
@@ -41,6 +50,8 @@ QApplication.exec=bounded_exec
 result=desktop.main()
 assert result==0 and len(received)==1,(result,received)
 assert 'LUMEN_ASK_PROMPT' not in os.environ
+assert 'LUMEN_ASK_FILE' not in os.environ
+assert 'LUMEN_ASK_NOTE' not in os.environ
 '''
         with tempfile.TemporaryDirectory() as tmp:
             question='Erkläre $HOME und $(echo test).'
@@ -48,11 +59,18 @@ assert 'LUMEN_ASK_PROMPT' not in os.environ
                 XDG_STATE_HOME=tmp+'/state',XDG_CACHE_HOME=tmp+'/cache',LUMEN_DATA=tmp+'/lumen',LUMEN_TOOLS_DATA=tmp+'/tools',
                 QT_QPA_PLATFORM='offscreen',QT_QUICK_BACKEND='software',LUMEN_CRASH_CHILD='1',
                 LUMEN_OPENCODE_BIN='/nonexistent/test-engine',LUMEN_ASK_PROMPT=question,EXPECTED_QUESTION=question)
-            try:
-                result=subprocess.run(['dbus-run-session','--',sys.executable,'-u','-c',script,str(program)],env=env,capture_output=True,text=True,timeout=15)
-            except subprocess.TimeoutExpired as error:
-                self.fail(str(error.stdout)+str(error.stderr))
-            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            attachment=Path(tmp)/'note.pdf';attachment.write_text('synthetic attachment')
+            for mode in ('plain','file','note'):
+                with self.subTest(mode=mode):
+                    current=dict(env)
+                    if mode=='file':current.update(LUMEN_ASK_FILE=str(attachment),EXPECTED_FILE=str(attachment))
+                    if mode=='note':
+                        note=json.dumps(dict(reference=dict(version=2,app='note',id='00000000-0000-0000-0000-000000000001',title='Workshop',locator=dict(server='https://synthetic.invalid',account='00000000-0000-0000-0000-000000000002')),revision=3))
+                        current.update(LUMEN_ASK_NOTE=note,EXPECTED_NOTE=note)
+                    try:
+                        result=subprocess.run(['dbus-run-session','--',sys.executable,'-u','-c',script,str(program)],env=current,capture_output=True,text=True,timeout=15)
+                    except subprocess.TimeoutExpired as error:self.fail(str(error.stdout)+str(error.stderr))
+                    self.assertEqual(result.returncode,0,result.stdout+result.stderr)
 
     def request(self, payload):
         output=io.StringIO()
@@ -75,6 +93,18 @@ assert 'LUMEN_ASK_PROMPT' not in os.environ
             for payload in payloads:
                 with self.subTest(size=len(payload)):self.assertTrue(self.request(payload)['error'])
             launch.assert_not_called()
+
+    def test_only_explicit_existing_local_files_are_forwarded(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(lumen_panel.subprocess,'Popen') as launch:
+            path=Path(tmp)/'Notiz $HOME.txt';path.write_text('synthetic')
+            for value in (str(path),True,'relative.txt',tmp,'/does-not-exist',str(path)+'\0'):
+                with self.subTest(value=value):
+                    result=self.request(json.dumps(dict(prompt='Zusammenfassen',file=value)).encode())
+                    if value==str(path):
+                        self.assertEqual(result,dict(error=''))
+                        self.assertEqual(launch.call_args.kwargs['env']['LUMEN_ASK_FILE'],str(path))
+                    else:self.assertTrue(result['error'])
+            self.assertEqual(launch.call_count,1)
 
 
 if __name__=='__main__':unittest.main()

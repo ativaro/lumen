@@ -670,6 +670,19 @@ class SettingsDialog(QDialog):
                 self.status.setText(str(error))
         self.apply_appearance = button(tr('Design übernehmen'), save); self.apply_appearance.setObjectName('primary')
         page.addWidget(self.apply_appearance, 0, Qt.AlignLeft)
+        page.addWidget(text(tr('Topbar')))
+        topbar = QFormLayout()
+        self.topbar_layout = combo([(tr('Bisherige Leiste'), 'classic'), (tr('Tastenband'), 'band'),
+            (tr('Doppeldeck'), 'deck'), (tr('Kontextdock'), 'context')], self.field(self.assistant, 'topbar/layout', 'classic'))
+        self.topbar_layout.setAccessibleName(tr('Topbar-Layout'))
+        topbar.addRow(tr('Layout'), self.topbar_layout); page.addLayout(topbar)
+        page.addWidget(text(tr('Das Layout wechselt sofort. Design und geöffnete Apps bleiben erhalten.')))
+        def save_topbar():
+            try:
+                self.save(self.assistant, {'topbar/layout': self.topbar_layout.currentData()})
+                self.status.setText(tr('Topbar-Layout übernommen.'))
+            except (OSError, ValueError) as error: self.status.setText(str(error))
+        self.topbar_layout.currentIndexChanged.connect(save_topbar)
         reading = QFormLayout()
         self.text_size = QSpinBox(); self.text_size.setRange(14, 22); self.text_size.setSuffix(' px')
         self.text_size.setValue(self.field(self.assistant, 'textSize', 17, int))

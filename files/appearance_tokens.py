@@ -20,6 +20,14 @@ COLORS = {
 }
 RADII = {'glass': 16, 'graphite': 10, 'atelier': 8, 'midnight': 6, 'clear': 8, 'system': 8}
 
+# The Panorama key faces used by the server navigation and native topbar.
+TOPBAR_KEYS = {
+    'graphite': ('#292d32', '#1d2024', '#12ffffff', '#65000000', '#94d8c9', '#d3f6ec'),
+    'glass': ('#29434f', '#172b35', '#14ffffff', '#75071923', '#94d8c9', '#d3f6ec'),
+    'atelier': ('#f6f3ec', '#e8e4dc', '#ddffffff', '#25524939', '#2f6653', '#253f35'),
+    'midnight': ('#1c2737', '#0d1522', '#12ffffff', '#65000000', '#b2bfff', '#e2e9ff'),
+}
+
 
 def normalize_design(name):
     name = {'lumen': 'graphite', 'studio': 'atelier'}.get(name, name)

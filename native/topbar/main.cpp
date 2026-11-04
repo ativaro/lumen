@@ -32,10 +32,11 @@ int main(int argc,char **argv){
         QQmlComponent component(&engine,QUrl("qrc:/lumen/Topbar.qml"));
         auto object=component.create();auto window=qobject_cast<QQuickWindow*>(object);
         if(!window){qCritical("Lumen Topbar konnte nicht geladen werden.");for(const auto &error:component.errors())qWarning().noquote()<<error.toString();app.exit(1);return;}
-        window->setScreen(screen);window->setGeometry(screen->geometry().x(),screen->geometry().y(),screen->geometry().width(),56);
+        const int barSize=window->property("barSize").toInt();
+        window->setScreen(screen);window->setGeometry(screen->geometry().x(),screen->geometry().y(),screen->geometry().width(),barSize);
         auto layer=LayerShellQt::Window::get(window);layer->setScreen(screen);layer->setScope("lumen-topbar");
         layer->setAnchors(LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorTop)|LayerShellQt::Window::AnchorLeft|LayerShellQt::Window::AnchorRight);
-        layer->setLayer(LayerShellQt::Window::LayerTop);layer->setExclusiveZone(56);
+        layer->setLayer(LayerShellQt::Window::LayerTop);layer->setExclusiveZone(barSize);
         layer->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityOnDemand);layer->setActivateOnShow(false);
         windows.insert(screen,window);window->setProperty("ready",true);
         QObject::connect(screen,&QScreen::geometryChanged,window,[window](const QRect &r){window->setWidth(r.width());});

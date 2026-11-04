@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 def snapshot():
-    from appearance_tokens import COLORS
+    from appearance_tokens import COLORS, TOPBAR_KEYS, RADII
     from lumen_i18n import language, tr
     from lumen_panel import applications
     from lumen_controls import snapshot as controls
@@ -19,6 +19,9 @@ def snapshot():
     theme = config.get('Theme', 'name', fallback='org.lumen.graphite').removeprefix('org.lumen.')
     colors = COLORS.get(theme)
     palette = dict(zip(('window','base','alternate','text','button','border','muted','accent','onAccent'), colors)) if colors else None
+    if palette:
+        palette.update(zip(('key','inset','highlight','shadow','ring','ink'), TOPBAR_KEYS.get(theme, TOPBAR_KEYS['graphite'])))
+        palette['radius'] = RADII.get(theme, 8)
     try:
         unread = notifications(wake=False)['unread']
         # The background Plasma host publishes the combined system/local count.

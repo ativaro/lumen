@@ -9,9 +9,28 @@ import Lumen.Topbar 1.0
 Window {
     id: bar
     objectName: "lumenStandaloneTopbar"
-    readonly property int barSize:56
+    readonly property string layout:panelData.layout
+    readonly property bool classic:layout==="classic"
+    readonly property bool deck:layout==="deck"
+    readonly property int barSize:classic?56:deck?118:layout==="band"?68:60
+    readonly property int rowHeight:classic?36:44
+    property bool expandedComposer:false
+    property alias attachmentPath:questionState.attachment
+    property alias noteContext:questionState.note
+    property string notePendingAction:""
+    QtObject {
+        id:questionState
+        property string draft:""
+        property string attachment:""
+        property var note:({})
+        property string submittedNote:""
+        property string submitted:""
+        property string submittedAttachment:""
+        property string pendingAction:""
+        property bool pending:false
+    }
     width:1280
-    height:Math.max(barSize,launcher.visible?launcher.y+launcher.height+12:0,systemPopup.visible?systemPopup.y+systemPopup.height+12:0,overflow.visible?overflow.y+overflow.height+12:0,windowMenu.visible?windowMenu.y+windowMenu.height+12:0,trayPopup.visible?trayPopup.y+trayPopup.height+12:0,calendar.visible?calendar.y+calendar.height+12:0,askPopup.visible?askPopup.y+askPopup.height+12:0)
+    height:Math.max(barSize,launcher.visible?launcher.y+launcher.height+12:0,systemPopup.visible?systemPopup.y+systemPopup.height+12:0,overflow.visible?overflow.y+overflow.height+12:0,windowMenu.visible?windowMenu.y+windowMenu.height+12:0,trayPopup.visible?trayPopup.y+trayPopup.height+12:0,calendar.visible?calendar.y+calendar.height+12:0,askPopup.visible?askPopup.y+askPopup.height+12:0,contextDrawer.visible?contextDrawer.y+contextDrawer.height+12:0)
     color:"transparent"
     property bool ready:false
     visible:ready && !windowState.fullScreen
@@ -26,44 +45,50 @@ Window {
     readonly property bool hasPassiveTray:trayModel.items.some(item=>item.status==="Passive")
     property int shownTray:0
     readonly property bool contextAvailable: ["Chromium","Google Chrome","Brave","Mozilla Firefox","Microsoft Edge","Vivaldi","Lumen Reader","Reader"].includes(windowState.appName)
+    readonly property string currentSymbol:({"Lumen Notes":"wissen","Notes":"wissen","Lumen Projekte":"workbench","Projekte":"workbench","Lumen Inbox":"inbox","Inbox":"inbox","Lumen Files":"files","Dateien":"files"})[windowState.appName]||""
     property string clockText:Qt.formatTime(new Date(),"hh:mm")
     function t(source){return stateData.labels?.[source] || source}
     readonly property var uiLocale:Qt.locale(stateData.language==="de"?"de_CH":"en_US")
     function fit(){
         let total=0
         for(let i=0;i<menuButtons.count;i++){const b=menuButtons.itemAt(i);if(b)total+=b.implicitWidth}
-        const extras=networkButton.implicitWidth+volumeButton.implicitWidth+2
-        const currentTray=(trayRow.visible?trayRow.implicitWidth+1:0)+(trayMore.visible?trayMore.implicitWidth+1:0)
+        // Real app menus take priority over the title, tray and expanded question field.
+        const statusExtras=networkButton.implicitWidth+volumeButton.implicitWidth+2
         const compactCost=compactControls.implicitWidth+1
-        const baseSystem=systemRow.implicitWidth-(showStatus?extras:0)-currentTray-(compactControls.visible?compactCost:0)
-        const space=width-24-10-14-leftLayout.anchors.leftMargin-leftLayout.anchors.rightMargin-5*leftLayout.spacing-homeRow.implicitWidth-baseSystem
+        const currentTray=(trayRow.visible?trayRow.implicitWidth+1:0)+(trayMore.visible?trayMore.implicitWidth+1:0)
+        const baseSystem=systemRow.implicitWidth-(showStatus?statusExtras:compactCost)-currentTray
+        const core=deck?32:homeRow.x+homeRow.width+16
+        const available=width-core-baseSystem-24
+        showStatus=width>=1100 && (deck || total+statusExtras+100<available)
+        const controlsCost=showStatus?statusExtras:compactCost
         const allTray=activeTray.length*41+(hasPassiveTray?trayMore.implicitWidth+1:0)
-        const minimumTray=trayModel.items.length?41:0
-        appLabelWidth=appName.visible?Math.max(40,Math.min(appName.naturalWidth,180,space-total-compactCost-minimumTray)):0
-        const withApp=space-appLabelWidth-(!appName.visible?overflowButton.implicitWidth:0)
-        showStatus=width>640 && total+extras+allTray<=withApp
-        const controlsCost=showStatus?extras:compactCost
-        const free=withApp-total-controlsCost
-        shownTray=allTray<=free?activeTray.length:Math.max(0,Math.min(activeTray.length,Math.floor((free-trayMore.implicitWidth-1)/41)))
-        const trayCost=shownTray*41+(shownTray<activeTray.length || hasPassiveTray?trayMore.implicitWidth+1:0)
-        let available=withApp-controlsCost-trayCost
-        showContext=total+120<=available
+        const traySpace=deck?width-homeRow.width-baseSystem-controlsCost-60:available-controlsCost-total-110
+        shownTray=allTray<=traySpace?activeTray.length:Math.max(0,Math.min(activeTray.length,Math.floor((traySpace-41)/41)))
+        expandedComposer=deck?width>=760 && total+340<width:width>=1100 && (classic || available-controlsCost-allTray-total>420)
+        const rightEdge=expandedComposer?inlineComposer.x-8:deck?width-16:systemRow.x-12
+        const menuSpace=rightEdge-appRow.x-14
+        appLabelWidth=Math.max(40,Math.min(appName.naturalWidth,180,menuSpace-total-8))
+        let availableMenus=menuSpace-(appName.visible?appLabelWidth+4:0)
         visibleMenus=menuButtons.count
-        if(total>available){let used=overflowButton.implicitWidth;visibleMenus=0;for(let i=0;i<menuButtons.count;i++){const b=menuButtons.itemAt(i);if(!b || used+b.implicitWidth>available)break;used+=b.implicitWidth;visibleMenus++}}
+        if(total>availableMenus){let used=overflowButton.implicitWidth;visibleMenus=0;for(let i=0;i<menuButtons.count;i++){const b=menuButtons.itemAt(i);if(!b || used+b.implicitWidth>availableMenus)break;used+=b.implicitWidth;visibleMenus++}}
+        showContext=total+appLabelWidth+160<menuSpace
         Qt.callLater(mask)
     }
     function mask(){
-        let regions=[Qt.rect(leftIsland.x,0,leftIsland.width,barSize),Qt.rect(rightIsland.x,0,rightIsland.width,barSize)]
-        for(const popup of [launcher,systemPopup,overflow,windowMenu,trayPopup,calendar,askPopup])if(popup.visible)regions.push(Qt.rect(popup.x,popup.y,popup.width,popup.height))
-        panelData.inputMask(bar,regions)
+        let regions=classic?[Qt.rect(leftIsland.x,0,leftIsland.width,barSize),Qt.rect(rightIsland.x,0,rightIsland.width,barSize)]:[Qt.rect(0,0,width,barSize)]
+        let popupOpen=false
+        for(const popup of [launcher,systemPopup,overflow,windowMenu,trayPopup,calendar,askPopup,contextDrawer])if(popup.visible){regions.push(Qt.rect(popup.x,popup.y,popup.width,popup.height));popupOpen=true}
+        panelData.inputMask(bar,regions,popupOpen)
     }
+    onBarSizeChanged:Qt.callLater(mask)
+    onLayoutChanged:if(ready){launcher.close();systemPopup.close();overflow.close();windowMenu.close();trayPopup.close();calendar.close();askPopup.close();contextDrawer.close();Qt.callLater(()=>{fit();if(layout==="context" && inlineComposer.visible && inlineComposer.editing)contextDrawer.open()})}
     function showLauncher(programs){launcher.programs=programs;launcher.open();panelData.refresh()}
     function updateMenu(){appMenu.setEndpoint(windowState.service,windowState.path)}
-    function dismissIfInactive(){if(!bar.active && !appMenu.opened && !trayModel.opened){launcher.close();systemPopup.close();overflow.close();windowMenu.close();trayPopup.close();calendar.close();askPopup.close();trayModel.close()}}
+    function dismissIfInactive(){if(!bar.active && !appMenu.opened && !trayModel.opened){launcher.close();systemPopup.close();overflow.close();windowMenu.close();trayPopup.close();calendar.close();askPopup.close();contextDrawer.close();trayModel.close()}}
     onHeightChanged:Qt.callLater(mask)
     onActiveChanged:if(active)focusLoss.stop();else focusLoss.restart()
     Timer {id:focusLoss;interval:80;onTriggered:bar.dismissIfInactive()}
-    Timer {id:restoreFocus;interval:100;onTriggered:if(bar.active && !inlineComposer.editing && !appMenu.opened && !trayModel.opened && ![launcher,systemPopup,overflow,windowMenu,trayPopup,calendar,askPopup].some(p=>p.visible))windowState.action("activate")}
+    Timer {id:restoreFocus;interval:100;onTriggered:if(bar.active && !inlineComposer.editing && !appMenu.opened && !trayModel.opened && ![launcher,systemPopup,overflow,windowMenu,trayPopup,calendar,askPopup,contextDrawer].some(p=>p.visible))windowState.action("activate")}
     onWidthChanged:Qt.callLater(fit)
     onVisibleChanged:if(visible)Qt.callLater(fit)
     Timer {interval:1000;running:true;repeat:true;onTriggered:bar.clockText=Qt.formatTime(new Date(),"hh:mm")}
@@ -71,50 +96,70 @@ Window {
         id:windowState
         objectName:"activeWindowState"
         screenGeometry:Qt.rect(bar.screen.virtualX,bar.screen.virtualY,bar.screen.width,bar.screen.height)
-        holdActiveWindow:appMenu.opened || trayModel.opened || launcher.opened || systemPopup.opened || overflow.opened || windowMenu.opened || trayPopup.opened || calendar.opened
+        holdActiveWindow:appMenu.opened || trayModel.opened || launcher.opened || systemPopup.opened || overflow.opened || windowMenu.opened || trayPopup.opened || calendar.opened || askPopup.opened || contextDrawer.opened
         onServiceChanged:Qt.callLater(bar.updateMenu)
         onPathChanged:Qt.callLater(bar.updateMenu)
-        onFullScreenChanged:if(fullScreen){appMenu.close();trayModel.close();launcher.close();systemPopup.close();overflow.close();windowMenu.close();trayPopup.close();calendar.close();askPopup.close()}
+        onFullScreenChanged:if(fullScreen){appMenu.close();trayModel.close();launcher.close();systemPopup.close();overflow.close();windowMenu.close();trayPopup.close();calendar.close();askPopup.close();contextDrawer.close()}
     }
     AppMenu {id:appMenu;objectName:"applicationMenus";onEntriesChanged:Qt.callLater(bar.fit)}
     Connections {target:appMenu;function onOpenedChanged(){if(appMenu.opened)restoreFocus.stop();else{overflow.close();restoreFocus.restart()}Qt.callLater(bar.dismissIfInactive)}}
     Connections {target:trayModel;function onChanged(){Qt.callLater(bar.fit)}function onOpenedChanged(){if(trayModel.opened)restoreFocus.stop();else restoreFocus.restart();Qt.callLater(bar.dismissIfInactive)}}
-    Connections {target:panelData;function onChanged(){Qt.callLater(bar.fit)}function onShowAppsRequested(name){if(name===bar.screen.name){bar.showLauncher(true)}}}
+    Connections {target:panelData;function onChanged(){Qt.callLater(bar.fit)}function onShowAppsRequested(name){if(name===bar.screen.name){bar.showLauncher(true)}}
+        function onNoteAttached(action,note){if(action===bar.notePendingAction){questionState.note=note;bar.notePendingAction=""}}
+        function onControlFailed(action){if(action===bar.notePendingAction)bar.notePendingAction=""}}
     Rectangle {
-        id:leftIsland;objectName:"leftIsland"
+        visible:!bar.classic;width:bar.width;height:bar.barSize;color:bar.colors.window
+        Rectangle {anchors.bottom:parent.bottom;width:parent.width;height:1;color:bar.colors.border}
+        Rectangle {visible:bar.deck;x:16;y:64;width:parent.width-32;height:1;color:bar.colors.border}
+    }
+    Rectangle {
+        id:leftIsland;objectName:"leftIsland";visible:bar.classic
         x:12;y:-18;height:bar.barSize+18
         width:Math.max(0,rightIsland.x-x-10)
         radius:18;color:bar.colors.window;border.color:bar.colors.border
-        RowLayout {
-            id:leftLayout
-            anchors.fill:parent;anchors.topMargin:18;anchors.leftMargin:7;anchors.rightMargin:7;spacing:2
-            Row {
-                id:homeRow;spacing:2
-                BarButton {objectName:"startButton";colors:bar.colors;text:bar.t("Start");glyph:"view-grid";iconOnly:bar.width<1100;onClicked:bar.showLauncher(true)}
-                BarButton {id:homeLauncher;objectName:"launcherButton";colors:bar.colors;text:"Lumen";glyph:"qrc:/lumen/icons/lumen-mark.svg";iconOnly:bar.width<560;font.pixelSize:16;font.weight:Font.Medium;onClicked:bar.showLauncher(false)}
-                Rectangle {width:1;height:22;color:bar.colors.border;anchors.verticalCenter:parent.verticalCenter}
-                BarButton {colors:bar.colors;text:bar.t("Dateien");glyph:"folder";iconOnly:bar.width<720;onClicked:panelData.launch("files")}
-            }
-            BarButton {id:appName;onNaturalWidthChanged:Qt.callLater(bar.fit);iconOnly:bar.appLabelWidth<=41;colors:bar.colors;text:windowState.appName||bar.t("Desktop");glyph:"application-menu";font.pixelSize:14;onClicked:windowMenu.open();visible:bar.width>=560;Layout.minimumWidth:0;Layout.preferredWidth:bar.appLabelWidth;Layout.maximumWidth:180}
-            Row {
-                spacing:0
-                Repeater {
-                    id:menuButtons;model:appMenu.entries
-                    BarButton {required property var modelData;required property int index;objectName:"applicationMenu_"+index;colors:bar.colors;text:modelData.label;enabled:modelData.enabled;font.pixelSize:14;visible:index<bar.visibleMenus;onClicked:appMenu.show(index,this);onImplicitWidthChanged:Qt.callLater(bar.fit)}
-                    onCountChanged:Qt.callLater(bar.fit)
-                }
-                BarButton {id:overflowButton;objectName:"menuOverflowButton";colors:bar.colors;text:bar.t("Weitere App-Menüs");glyph:"overflow-menu";iconOnly:true;visible:bar.visibleMenus<menuButtons.count || !appName.visible;onClicked:menuButtons.count?overflow.open():windowMenu.open()}
-            }
-            Item {Layout.fillWidth:true;Layout.minimumWidth:0}
-            Text {visible:bar.showContext && !!windowState.title;text:windowState.title;color:bar.colors.muted;font.pixelSize:12;elide:Text.ElideRight;textFormat:Text.PlainText;Layout.fillWidth:true;Layout.maximumWidth:300;Layout.minimumWidth:0}
-            BarButton {colors:bar.colors;text:windowState.appName.includes("Reader")?bar.t("In Lumen besprechen"):bar.t("Seite merken …");glyph:"bookmark-new";iconOnly:true;visible:bar.showContext && bar.contextAvailable;onClicked:panelData.context(windowState.appName,windowState.title,windowState.pid)}
-        }
     }
     Rectangle {
-        id:rightIsland;x:bar.width-width-12;y:-18;height:bar.barSize+18;width:systemRow.implicitWidth+14
-        radius:18;color:bar.colors.window;border.color:bar.colors.border
+        id:rightIsland;visible:bar.classic;x:bar.expandedComposer?inlineComposer.x-7:systemRow.x-7;y:-18;height:bar.barSize+18
+        width:bar.width-x-12;radius:18;color:bar.colors.window;border.color:bar.colors.border
+    }
+    Row {
+        id:homeRow;x:bar.classic?19:16;y:(bar.classic?bar.barSize:bar.deck?68:bar.barSize)/2-height/2
+        spacing:bar.classic?2:7
+        onWidthChanged:Qt.callLater(bar.fit)
+        BarButton {objectName:"startButton";visible:bar.classic;colors:bar.colors;text:bar.t("Start");glyph:"view-grid";iconOnly:bar.width<1100;onClicked:bar.showLauncher(true)}
+        BarButton {id:homeLauncher;objectName:"launcherButton";key:!bar.classic;colors:bar.colors;text:bar.classic?"Lumen":"Lumen ⌄";glyph:bar.classic?"qrc:/lumen/icons/lumen-mark.svg":"";symbol:bar.classic?"":"mark";iconOnly:bar.width<560;font.pixelSize:16;font.weight:Font.Medium;onClicked:bar.showLauncher(false)}
+        Rectangle {visible:bar.classic;width:1;height:22;color:bar.colors.border;anchors.verticalCenter:parent.verticalCenter}
+        BarButton {key:!bar.classic;colors:bar.colors;text:bar.t("Dateien");glyph:bar.classic?"folder":"";symbol:bar.classic?"":"files";iconOnly:bar.width<720;onClicked:panelData.launch("files")}
+        Repeater {model:bar.deck?(bar.stateData.apps||[]).filter(app=>["wissen","workbench","inbox"].includes(app.id)):[]
+            BarButton {required property var modelData;objectName:"pin_"+modelData.id;key:true;colors:bar.colors;text:modelData.label;symbol:modelData.id;iconOnly:bar.width<1100;visible:bar.width>=720;onClicked:panelData.launch("app",modelData.id)}
+        }
+    }
+    RowLayout {
+        id:appRow;x:bar.deck?16:homeRow.x+homeRow.width+(bar.classic?2:8);y:bar.deck?72:(bar.barSize-height)/2
+        width:Math.max(0,(bar.expandedComposer?inlineComposer.x-8:bar.deck?bar.width-16:systemRow.x-12)-x);height:bar.rowHeight;spacing:2
+        BarButton {id:appName;objectName:"activeAppButton";key:!bar.classic;current:!bar.classic;onNaturalWidthChanged:Qt.callLater(bar.fit);iconOnly:bar.appLabelWidth<=45;colors:bar.colors;text:windowState.appName||bar.t("Desktop");glyph:"application-menu";symbol:bar.classic?"":bar.currentSymbol;font.pixelSize:14;onClicked:windowMenu.open();visible:bar.width>=560;Layout.minimumWidth:0;Layout.preferredWidth:bar.appLabelWidth;Layout.maximumWidth:180}
         Row {
-            id:systemRow;anchors.top:parent.top;anchors.topMargin:18+(bar.barSize-implicitHeight)/2;anchors.left:parent.left;anchors.leftMargin:7;spacing:1
+            spacing:0
+            Repeater {
+                id:menuButtons;model:appMenu.entries
+                BarButton {required property var modelData;required property int index;objectName:"applicationMenu_"+index;colors:bar.colors;text:modelData.label;enabled:modelData.enabled;font.pixelSize:14;visible:index<bar.visibleMenus;onClicked:appMenu.show(index,this);onImplicitWidthChanged:Qt.callLater(bar.fit)}
+                onCountChanged:Qt.callLater(bar.fit)
+            }
+            BarButton {id:overflowButton;objectName:"menuOverflowButton";colors:bar.colors;text:bar.t("Weitere App-Menüs");glyph:"overflow-menu";iconOnly:true;visible:bar.visibleMenus<menuButtons.count || !appName.visible;onClicked:menuButtons.count?overflow.open():windowMenu.open()}
+        }
+        Item {Layout.fillWidth:true;Layout.minimumWidth:0}
+        Text {visible:bar.showContext && !!windowState.title;text:windowState.title;color:bar.colors.muted;font.pixelSize:12;elide:Text.ElideRight;textFormat:Text.PlainText;Layout.fillWidth:true;Layout.maximumWidth:300;Layout.minimumWidth:0}
+        BarButton {colors:bar.colors;text:windowState.appName.includes("Reader")?bar.t("In Lumen besprechen"):bar.t("Seite merken …");glyph:"bookmark-new";iconOnly:true;visible:bar.showContext && bar.contextAvailable;onClicked:panelData.context(windowState.appName,windowState.title,windowState.pid)}
+    }
+    AskComposer {
+        id:inlineComposer;objectName:"inlineComposer";onEditingChanged:if(editing){restoreFocus.stop();if(bar.layout==="context" && visible)contextDrawer.open()}
+        visible:bar.expandedComposer;width:bar.classic?Math.min(440,Math.max(260,(bar.width-1000)*0.35+220)):310
+        x:bar.deck?bar.width-width-16:systemRow.x-width-8;y:bar.deck?72:(bar.barSize-height)/2
+        colors:bar.colors;translate:bar.t;controller:panelData;keyStyle:!bar.classic
+        request:questionState;onInspectAttachment:contextDrawer.open();onSent:{askPopup.close();contextDrawer.close()}
+    }
+    Row {
+        id:systemRow;x:bar.width-width-(bar.classic?19:16);y:(bar.deck?68:bar.barSize)/2-height/2;spacing:bar.classic?1:5
             Row {
                 id:trayRow;spacing:1;visible:bar.shownTray>0
                 Repeater {model:bar.activeTray.length
@@ -124,19 +169,17 @@ Window {
                 }
             }
             BarButton {id:trayMore;objectName:"trayMoreButton";colors:bar.colors;text:bar.t("Hintergrund-Apps");glyph:"arrow-down";iconOnly:true;visible:bar.shownTray<bar.activeTray.length || bar.hasPassiveTray;onClicked:trayPopup.open()}
-            AskComposer {id:inlineComposer;objectName:"inlineComposer";onEditingChanged:if(editing)restoreFocus.stop();visible:bar.width>=1100;width:Math.min(440,Math.max(260,(bar.width-1000)*0.35+220));colors:bar.colors;translate:bar.t;controller:panelData}
-            BarButton {objectName:"askButton";colors:bar.colors;text:bar.t("Lumen fragen oder suchen");glyph:"search";iconOnly:true;visible:bar.width<1100;onClicked:{askPopup.open();popupComposer.focusInput()}}
-            BarButton {objectName:"compactDictateButton";colors:bar.colors;text:bar.t("Mit Lumen sprechen");glyph:"microphone-sensitivity-high";iconOnly:true;visible:bar.width<1100;onClicked:panelData.launch("voice")}
+            BarButton {key:!bar.classic;objectName:"askButton";colors:bar.colors;text:bar.t("Lumen fragen oder suchen");glyph:"search";iconOnly:true;visible:!bar.expandedComposer;onClicked:{askPopup.open();popupComposer.focusInput()}}
+            BarButton {key:!bar.classic;objectName:"compactDictateButton";colors:bar.colors;text:bar.t("Mit Lumen sprechen");glyph:"microphone-sensitivity-high";iconOnly:true;visible:!bar.expandedComposer;onClicked:panelData.launch("voice")}
             BarButton {colors:bar.colors;text:bar.t("Übertragungen")+(bar.stateData.operations?.transfer?" · "+bar.stateData.operations.transfer.count:"");glyph:"folder-upload";iconOnly:true;visible:!!bar.stateData.operations?.transfer;onClicked:panelData.launch("transfer",bar.stateData.operations.transfer.id)}
             BarButton {colors:bar.colors;text:bar.t("Aufnahme in Audio Studio");glyph:"media-record";iconOnly:true;visible:!!bar.stateData.operations?.audio;onClicked:panelData.launch("app","meetings")}
-            BarButton {objectName:"systemErrorButton";colors:bar.colors;text:bar.t(panelData.error);glyph:"dialog-warning";iconOnly:true;visible:!!panelData.error;onClicked:systemPopup.open()}
-            BarButton {id:networkButton;colors:bar.colors;text:bar.t("Netzwerk");glyph:"network-wireless";iconOnly:true;visible:bar.showStatus;onClicked:{systemPopup.open();panelData.refresh()}}
-            BarButton {id:volumeButton;objectName:"systemControlsButton";colors:bar.colors;text:bar.t("Lautstärke");glyph:bar.stateData.system?.muted?"audio-volume-muted":"audio-volume-high";iconOnly:true;visible:bar.showStatus;onClicked:{systemPopup.open();panelData.refresh()}}
-            BarButton {colors:bar.colors;text:bar.t("Mitteilungen")+(bar.stateData.unread>0?" · "+bar.stateData.unread:"");glyph:bar.stateData.unread>0?"notifications-new":"notifications";iconOnly:true;onClicked:panelData.launch("notifications")}
+            BarButton {key:!bar.classic;objectName:"systemErrorButton";colors:bar.colors;text:bar.t(panelData.error);glyph:"dialog-warning";iconOnly:true;visible:!!panelData.error;onClicked:systemPopup.open()}
+            BarButton {id:networkButton;key:!bar.classic;colors:bar.colors;text:bar.t("Netzwerk");glyph:"network-wireless";iconOnly:true;visible:bar.showStatus;onClicked:{systemPopup.open();panelData.refresh()}}
+            BarButton {id:volumeButton;key:!bar.classic;objectName:"systemControlsButton";colors:bar.colors;text:bar.t("Lautstärke");glyph:bar.stateData.system?.muted?"audio-volume-muted":"audio-volume-high";iconOnly:true;visible:bar.showStatus;onClicked:{systemPopup.open();panelData.refresh()}}
+            BarButton {key:!bar.classic;colors:bar.colors;text:bar.t("Mitteilungen")+(bar.stateData.unread>0?" · "+bar.stateData.unread:"");glyph:bar.stateData.unread>0?"notifications-new":"notifications";iconOnly:true;onClicked:panelData.launch("notifications")}
             BarButton {colors:bar.colors;objectName:"clockButton";text:bar.clockText;visible:bar.width>460;font.pixelSize:13;onClicked:calendar.open()}
-            BarButton {id:compactControls;objectName:"compactControlsButton";colors:bar.colors;text:bar.t("Systemsteuerung");glyph:"settings-configure";iconOnly:true;visible:!bar.showStatus;onClicked:{systemPopup.open();panelData.refresh()}}
-            onImplicitWidthChanged:Qt.callLater(bar.fit)
-        }
+            BarButton {id:compactControls;key:!bar.classic;objectName:"compactControlsButton";colors:bar.colors;text:bar.t("Systemsteuerung");glyph:"settings-configure";iconOnly:true;visible:!bar.showStatus;onClicked:{systemPopup.open();panelData.refresh()}}
+        onImplicitWidthChanged:Qt.callLater(bar.fit)
     }
     component BarPopup:Popup {
         default property alias body:scroller.contentData
@@ -162,7 +205,7 @@ Window {
             Label {text:bar.t("Start");color:bar.colors.text;font.pixelSize:19;font.weight:Font.Medium;Layout.fillWidth:true}
             RowLayout {Layout.fillWidth:true;spacing:4
                 BarButton {colors:bar.colors;text:"Lumen Apps";checkable:true;checked:!launcher.programs;highlighted:!launcher.programs;Layout.fillWidth:true;onClicked:launcher.programs=false}
-                BarButton {colors:bar.colors;text:bar.t("Programme");checkable:true;checked:launcher.programs;highlighted:launcher.programs;Layout.fillWidth:true;onClicked:launcher.programs=true}
+                BarButton {objectName:"programsTab";colors:bar.colors;text:bar.t("Programme");checkable:true;checked:launcher.programs;highlighted:launcher.programs;Layout.fillWidth:true;onClicked:launcher.programs=true}
             }
             Loader {id:programLoader;Layout.fillWidth:true;active:launcher.programs;visible:active;onLoaded:item.focusSearch()
                 sourceComponent:ProgramList {colors:bar.colors;translate:bar.t;onLaunched:launcher.close()}
@@ -183,12 +226,50 @@ Window {
             BarButton {colors:bar.colors;text:bar.t("Lumen fragen oder suchen");glyph:"search";Layout.fillWidth:true;onClicked:{launcher.close();panelData.launch("search")}}
         }
     }
+    component ContextActions:ColumnLayout {
+        id:contextActions
+        required property string prefix
+        spacing:10
+        Label {text:bar.t("Mit Lumen weiterarbeiten");color:bar.colors.text;font.pixelSize:17;Layout.fillWidth:true}
+        Label {visible:!!windowState.title;text:windowState.appName+" · "+windowState.title;color:bar.colors.muted;elide:Text.ElideRight;Layout.fillWidth:true}
+        Label {text:bar.t("Nur ausdrücklich angehängte Quellen werden verwendet.");color:bar.colors.muted;wrapMode:Text.Wrap;Layout.fillWidth:true}
+        BarButton {objectName:contextActions.prefix+"attachNoteButton";colors:bar.colors;glyph:"accessories-text-editor";text:bar.notePendingAction?bar.t("Notiz wird geprüft …"):bar.t("Geöffnete Notes-Notiz anhängen");Layout.fillWidth:true
+            visible:["Notes","Lumen Notes"].includes(windowState.appName);enabled:!bar.notePendingAction
+            onClicked:bar.notePendingAction=panelData.attachNote(windowState.pid)
+        }
+        RowLayout {visible:!!questionState.note.reference;Layout.fillWidth:true
+            Label {objectName:contextActions.prefix+"attachedNoteTitle";text:(questionState.note.reference?.title||"")+" · Lumen Notes";color:bar.colors.text;elide:Text.ElideRight;Layout.fillWidth:true}
+            BarButton {objectName:contextActions.prefix+"removeNoteButton";colors:bar.colors;glyph:"edit-clear";text:bar.t("Notiz entfernen");iconOnly:true;onClicked:questionState.note=({})}
+        }
+        Label {visible:!!questionState.note.reference;text:bar.t("Die gespeicherte Notiz wird im Servergespräch verwendet.");color:bar.colors.muted;wrapMode:Text.Wrap;Layout.fillWidth:true}
+        RowLayout {Layout.fillWidth:true
+            BarButton {objectName:contextActions.prefix+"attachFileButton";colors:bar.colors;glyph:"mail-attachment";text:bar.attachmentPath?bar.t("Datei wechseln …"):bar.t("Datei anhängen …");Layout.fillWidth:true
+                onClicked:{const path=panelData.chooseAttachment(bar);if(path){bar.attachmentPath=path;if(inlineComposer.visible){contextDrawer.open();inlineComposer.focusInput()}}Qt.callLater(bar.mask)}
+            }
+            BarButton {objectName:contextActions.prefix+"removeAttachmentButton";colors:bar.colors;glyph:"edit-clear";text:bar.t("Anhang entfernen");iconOnly:true;visible:!!bar.attachmentPath;onClicked:bar.attachmentPath=""}
+        }
+        Label {objectName:contextActions.prefix+"attachedFileName";visible:!!bar.attachmentPath;text:bar.attachmentPath;elide:Text.ElideMiddle;color:bar.colors.text;Layout.fillWidth:true;Accessible.name:bar.t("Angehängte Datei")+": "+text}
+        Flow {Layout.fillWidth:true;spacing:4
+            Repeater {model:[bar.t("Zusammenfassen"),bar.t("Checkliste erstellen"),bar.t("Offene Punkte finden")]
+                BarButton {required property string modelData;required property int index;objectName:contextActions.prefix+"contextSuggestion_"+index;colors:bar.colors;text:modelData;enabled:!!bar.attachmentPath || !!questionState.note.reference
+                    onClicked:{const composer=inlineComposer.visible?inlineComposer:popupComposer;composer.setPrompt(modelData+": "+bar.t(questionState.note.reference?"Bitte die angehängte Notes-Notiz verwenden.":"Bitte die angehängte Datei verwenden."))}
+                }
+            }
+        }
+        Label {visible:!!panelData.error;text:bar.t(panelData.error);color:bar.colors.text;wrapMode:Text.Wrap;Layout.fillWidth:true}
+    }
+    BarPopup {
+        id:contextDrawer;objectName:"contextDrawer";focus:false
+        width:Math.min(530,bar.width-24);x:bar.width-width-12
+        ContextActions {prefix:"dock";width:parent.width}
+    }
     BarPopup {
         id:askPopup;x:bar.width-width-12
         ColumnLayout {width:parent.width;spacing:12
             Label {text:bar.t("Neue Frage an Lumen");color:bar.colors.text;font.pixelSize:19;Layout.fillWidth:true}
-            AskComposer {id:popupComposer;objectName:"popupComposer";Layout.fillWidth:true;colors:bar.colors;translate:bar.t;controller:panelData;onSent:askPopup.close()}
-            Label {visible:!!panelData.error;text:bar.t(panelData.error);color:bar.colors.text;wrapMode:Text.Wrap;Layout.fillWidth:true}
+            AskComposer {id:popupComposer;objectName:"popupComposer";Layout.fillWidth:true;colors:bar.colors;translate:bar.t;controller:panelData;request:questionState;onSent:{askPopup.close();contextDrawer.close()} onInspectAttachment:{}}
+            ContextActions {prefix:"popup";visible:bar.layout==="context" || !!bar.attachmentPath || !!questionState.note.reference;Layout.fillWidth:true}
+            Label {visible:bar.layout!=="context" && !bar.attachmentPath && !questionState.note.reference && !!panelData.error;text:bar.t(panelData.error);color:bar.colors.text;wrapMode:Text.Wrap;Layout.fillWidth:true}
         }
     }
     BarPopup {

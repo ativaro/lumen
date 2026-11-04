@@ -561,12 +561,19 @@ verwaltet. Alle Aktionen verwenden die bestehende Queue und den Scheduler.
 
 Desktop app ownership and retired native implementations: [Desktop architecture](docs/desktop-retirement.md).
 
+The standalone desktop topbar offers **Settings → Appearance → Topbar → Layout**:
+the existing island bar (default), Key band, Double deck and Context dock. Layouts
+change live on all screens, independently of the four themes. App menus remain
+real application menus; the context drawer sends only explicitly selected files.
+The open Notes entry can be attached explicitly at its saved revision. Notes keep
+their server reference and AI permissions; unsaved changes must be saved first.
+
 Native topbar qualification uses `python3 tests/check-desktop.py`. It builds the
 shipping QML/C++ components and drives real application menus and tray actions in
 a private D-Bus/KWin session with synthetic data and no network. The existing
 `tests/check-install-closure.py` verifies fresh installation, update preservation
 and Arch payloads separately. Theme/size checks can use `--surface-only --theme
-atelier`, `--width 840`, or `--width 1920 --scale 1.5`; results and screenshots stay
+atelier --layout deck`, `--width 840`, or `--width 1920 --scale 1.5`; results and screenshots stay
 under `artifacts/desktop-smoke`. Tests additionally need Bubblewrap, Qt Test,
 Wayland development tools and the installed KDE desktop tools. The test input
 helper is excluded from product builds (`BUILD_TESTING=OFF`).

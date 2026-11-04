@@ -298,6 +298,9 @@ class ServerAppWindow(QMainWindow):
             self.status.setText('Qt WebEngine fehlt. Diese Serveransicht ist nicht verfügbar.')
             self.retry.setEnabled(False);return
         self._profile(profile_root)
+        if self._binding.app=="notes":
+            from topbar_context import install_note
+            install_note(self)
         self._theme_watcher=getattr(QApplication.instance(),'theme_watcher',None)
         if self._theme_watcher is not None:
             self._theme_watcher.fileChanged.connect(self._theme_changed)

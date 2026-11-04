@@ -2,35 +2,51 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-RowLayout {
+Item {
     id:composer
     required property var colors
     required property var translate
     required property var controller
+    property bool keyStyle:false
     readonly property bool editing:input.activeFocus
-    property bool pending:false
-    property string submitted:""
+    required property var request
+    readonly property bool pending:request.pending
     signal sent()
-    spacing:1
+    signal inspectAttachment()
+    implicitHeight:keyStyle?44:36
+    implicitWidth:row.implicitWidth
+    Rectangle {z:-1;anchors.fill:parent;visible:composer.keyStyle;radius:composer.colors.radius||8;color:composer.colors.inset||composer.colors.base;border.color:input.activeFocus?composer.colors.accent:composer.colors.border}
     function focusInput(){input.forceActiveFocus()}
     function submit(){
         if(!input.text.trim() || pending)return
-        submitted=input.text;pending=true;controller.ask(submitted)
+        request.submitted=input.text;request.submittedAttachment=request.attachment;request.submittedNote=JSON.stringify(request.note);request.pending=true
+        request.pendingAction=controller.ask(request.submitted,request.submittedAttachment,request.note)
     }
-    BarButton {objectName:"searchLumenButton";colors:composer.colors;glyph:"search";text:translate("Lumen fragen oder suchen");iconOnly:true;onClicked:controller.launch("search")}
-    TextField {
-        id:input;objectName:"lumenQuestion"
-        Layout.fillWidth:true;Layout.minimumWidth:0
-        placeholderText:translate("Frag Lumen …");Accessible.name:translate("Neue Frage an Lumen")
-        maximumLength:4000;selectByMouse:true;onAccepted:composer.submit()
-        palette.text:composer.colors.text;palette.placeholderText:composer.colors.muted
-        background:Rectangle {color:composer.colors.base;radius:7;border.color:input.activeFocus?composer.colors.accent:composer.colors.border}
+    function setPrompt(value){request.draft=value;focusInput()}
+    Binding {target:input;property:"text";value:composer.request.draft}
+    RowLayout {
+        id:row;anchors.fill:parent;spacing:1
+        BarButton {objectName:"searchLumenButton";colors:composer.colors;glyph:"search";text:translate("Lumen fragen oder suchen");iconOnly:true;onClicked:controller.launch("search")}
+        BarButton {objectName:"inspectAttachmentButton";visible:!!composer.request.attachment || !!composer.request.note.reference;colors:composer.colors;glyph:"mail-attachment";text:translate("Angehängte Quelle")+": "+(composer.request.note.reference?.title || composer.request.attachment.split('/').pop());iconOnly:true;onClicked:composer.inspectAttachment()}
+        TextField {
+            id:input;objectName:"lumenQuestion"
+            onTextChanged:if(composer.request.draft!==text)composer.request.draft=text
+            Layout.fillWidth:true;Layout.minimumWidth:0
+            placeholderText:translate("Frag Lumen …");Accessible.name:translate("Neue Frage an Lumen")
+            maximumLength:4000;selectByMouse:true;onAccepted:composer.submit()
+            palette.text:composer.colors.text;palette.placeholderText:composer.colors.muted
+            background:Rectangle {color:composer.keyStyle?"transparent":composer.colors.base;radius:7;border.width:composer.keyStyle?0:1;border.color:input.activeFocus?composer.colors.accent:composer.colors.border}
+        }
+        BarButton {objectName:"dictateButton";colors:composer.colors;glyph:"microphone-sensitivity-high";text:translate("Mit Lumen sprechen");iconOnly:true;onClicked:controller.launch("voice")}
+        BarButton {objectName:"sendQuestionButton";primary:composer.keyStyle;colors:composer.colors;glyph:"go-up";text:translate("Frage senden");iconOnly:true;enabled:!composer.pending && !!input.text.trim();onClicked:composer.submit()}
     }
-    BarButton {objectName:"dictateButton";colors:composer.colors;glyph:"microphone-sensitivity-high";text:translate("Mit Lumen sprechen");iconOnly:true;onClicked:controller.launch("voice")}
-    BarButton {objectName:"sendQuestionButton";colors:composer.colors;glyph:"go-up";text:translate("Frage senden");iconOnly:true;enabled:!composer.pending && !!input.text.trim();onClicked:composer.submit()}
     Connections {
         target:composer.controller
-        function onControlFinished(action,value){if(action==="ask" && composer.pending){composer.pending=false;if(input.text===composer.submitted)input.clear();composer.sent()}}
-        function onControlFailed(action){if(action==="ask")composer.pending=false}
+        function onControlFinished(action,value){
+            if(action!==composer.request.pendingAction || !composer.pending)return
+            const request=composer.request;request.pending=false
+            if(request.draft===request.submitted && request.attachment===request.submittedAttachment && JSON.stringify(request.note)===request.submittedNote){request.draft="";request.attachment="";request.note=({});composer.sent()}
+        }
+        function onControlFailed(action){if(action===composer.request.pendingAction)composer.request.pending=false}
     }
 }

@@ -148,6 +148,25 @@ class NativeSettingsTest(unittest.TestCase):
                 gallery.close(); dialog.close()
                 apply_design(self.app, DEFAULT_DESIGN)
 
+    def test_topbar_layout_applies_immediately_and_preserves_theme(self):
+        from settings_dialog import SettingsDialog
+        from PySide6.QtCore import QSettings
+        with tempfile.TemporaryDirectory() as tmp, patch.dict('os.environ', {'LUMEN_DATA':tmp+'/state'}):
+            settings=QSettings(tmp+'/assistant.ini',QSettings.IniFormat)
+            settings.setValue('appearance','atelier')
+            files=QSettings(tmp+'/files.ini',QSettings.IniFormat)
+            dialog=SettingsDialog(files_settings=files,assistant_settings=settings,page=3,load_system=False)
+            try:
+                self.assertEqual(dialog.topbar_layout.currentData(),'classic')
+                for layout in ('band','deck','context','classic'):
+                    dialog.topbar_layout.setCurrentIndex(dialog.topbar_layout.findData(layout))
+                    self.assertEqual(settings.value('topbar/layout'),layout)
+                    self.assertEqual(settings.value('appearance'),'atelier')
+                reopened=SettingsDialog(files_settings=files,assistant_settings=settings,page=3,load_system=False)
+                self.assertEqual(reopened.topbar_layout.currentData(),'classic')
+                reopened.close()
+            finally:dialog.close()
+
     def test_preferences_apply_to_files_and_new_windows_without_system_writes(self):
         from app import Window
         from settings_dialog import SettingsDialog

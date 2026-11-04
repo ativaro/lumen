@@ -511,8 +511,22 @@ def main():
             return
         if args.search:
             prompt = args.prompt or os.environ.pop('LUMEN_ASK_PROMPT', '')
+            attachment = os.environ.pop('LUMEN_ASK_FILE', '')
+            note = os.environ.pop('LUMEN_ASK_NOTE', '')
+            if note:
+                from topbar_context import validate_note
+                try:
+                    note=validate_note(json.loads(note))
+                    if not window.chat.backend.set_execution('server'):return
+                    window.chat.note_context=note;window.chat.update_context()
+                except (ValueError,OSError) as error:
+                    window.chat.show_error(str(error));return
             if prompt: window.chat.composer.setPlainText(prompt)
             window.open_search(args.voice)
+            if attachment and hasattr(window, 'search_controller'):
+                if not Path(attachment).is_absolute() or not Path(attachment).is_file():
+                    window.chat.show_error(tr('Die angehängte Datei ist nicht mehr lesbar.')); return
+                window.search_controller.add_attachments([QUrl.fromLocalFile(attachment).toString()])
             if prompt and hasattr(window, 'search_controller'): window.search_controller.submit(True)
             return
         if args.task_action:
