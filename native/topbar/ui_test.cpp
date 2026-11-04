@@ -176,12 +176,12 @@ private slots:
             QCOMPARE(audioPopup->property("section").toInt(),section);
             QVERIFY(window->grabWindow().save("/profile/captures/native-audio-"+QString::number(section)+".png"));
         }
-        QVERIFY(click(item("audioSection1")));QTest::qWait(80);QVERIFY(click(item("deviceDefaultoutput8")));
+        QVERIFY(click(item("audioSection1")));QTest::qWait(80);item("deviceDefaultoutput8")->forceActiveFocus();QTest::qWait(100);QVERIFY(click(item("deviceDefaultoutput8")));
         QTRY_VERIFY(data.details()["audio"].toMap()["outputs"].toList()[1].toMap()["default"].toBool());
-        QVERIFY(click(item("audioSection2")));QTest::qWait(80);QVERIFY(click(item("deviceMuteinput9")));
+        QVERIFY(click(item("audioSection2")));QTest::qWait(80);item("deviceMuteinput9")->forceActiveFocus();QTest::qWait(100);QVERIFY(click(item("deviceMuteinput9")));
         QTRY_VERIFY(data.details()["audio"].toMap()["inputs"].toList()[0].toMap()["muted"].toBool());
         QVERIFY(click(item("audioSection3")));QTest::qWait(80);
-        auto route=item("streamRoute12");QVERIFY(route && route->isVisible());route->forceActiveFocus();QVERIFY(send("key 108\n"));
+        auto route=item("streamRoute12");QVERIFY(route && route->isVisible());route->forceActiveFocus();QTest::qWait(100);QVERIFY(send("key 108\n"));
         QTRY_COMPARE(data.details()["audio"].toMap()["playback"].toList()[0].toMap()["device"].toString(),QString("8"));
         QVERIFY(click(item("audioSection0")));QTest::qWait(50);
         auto slider=item("volumeSlider");QVERIFY(slider);slider->forceActiveFocus();QVERIFY(send("key 106\n"));

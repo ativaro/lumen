@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
@@ -12,7 +13,7 @@ Popup {
     required property real heightLimit
     property int section:0
     readonly property bool network:topic==="network"
-    readonly property bool narrow:width<580
+    readonly property bool narrow:width<580 || height<560
     readonly property var data:controller.details[topic]||({})
     readonly property var outputs:data.outputs||[]
     readonly property var inputs:data.inputs||[]
@@ -40,6 +41,18 @@ Popup {
         for(const child of item.children||[])if(editing(child))return true
         return false
     }
+    function revealFocus(){
+        const focused=menu.contentItem.Window.window?.activeFocusItem
+        const viewport=pageScroll.contentItem
+        if(!focused || !viewport)return
+        let ancestor=focused.parent
+        while(ancestor && ancestor!==viewport)ancestor=ancestor.parent
+        if(!ancestor)return
+        const top=focused.mapToItem(viewport,0,0).y
+        const delta=top<8?top-8:top+focused.height>viewport.height-8?top+focused.height-viewport.height+8:0
+        viewport.contentY=Math.max(0,Math.min(Math.max(0,viewport.contentHeight-viewport.height),viewport.contentY+delta))
+    }
+    Connections {target:menu.contentItem.Window.window;function onActiveFocusItemChanged(){Qt.callLater(menu.revealFocus)}}
     Timer {interval:5000;repeat:true;running:menu.opened;onTriggered:if(!menu.editing(menu.contentItem))menu.controller.inspect(menu.topic)}
     Connections {target:menu.controller
         function onControlFinished(action,value){if(action.startsWith(menu.topic+":") && !action.endsWith(":inspect"))menu.status=menu.t("Status aktualisiert.")}
@@ -128,7 +141,7 @@ Popup {
                         text:menu.t(modelData);colors:menu.colors;current:index===menu.section;Layout.fillWidth:true;Layout.preferredWidth:menu.narrow?0:158
                         implicitHeight:Math.max(40,navLabel.implicitHeight+16)
                         contentItem:Text {id:navLabel;text:parent.text;wrapMode:Text.Wrap;textFormat:Text.PlainText;color:menu.colors.text;font:parent.font}
-                        onClicked:{menu.section=index;pageScroll.ScrollBar.vertical.position=0}
+                        onClicked:{menu.section=index;pageScroll.contentItem.contentY=0}
                     }
                 }
                 Item {visible:!menu.narrow;Layout.fillHeight:true}
