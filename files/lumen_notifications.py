@@ -511,7 +511,11 @@ def popup_context():
 
     settings = QSettings("Lumen", "Assistant")
     gaming = settings.value("notifications/quietGames", True, type=bool) and game_active()
+    from appearance_tokens import COLORS, DEFAULT_DESIGN, normalize_design
+    colors=COLORS.get(normalize_design(settings.value('appearance',DEFAULT_DESIGN)))
+    palette=dict(zip(('window','content','hover','text','button','border','muted','accent','onAccent'),colors)) if colors else None
     return {
+        "palette": palette,
         "gaming": gaming,
         "native": settings.value("notifications/nativePopups", True, type=bool),
     }

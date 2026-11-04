@@ -23,14 +23,13 @@ PlasmoidItem {
     property string systemError: ""
     property bool systemBusy: false
     property string systemCommand: ""
-    property bool notificationPage: false
     property string notificationRequest: Plasmoid.configuration.notificationRequest || ""
     onNotificationRequestChanged: if (notificationRequest && notificationLoader.item) notificationLoader.item.showAll()
     Loader {
         id: notificationLoader
         active: root.surface === "control"
         sourceComponent: Component { NotificationHost {
-            helper: root.helper; uiLanguage: root.uiLanguage; panelOpen: root.expanded && root.notificationPage; popupAnchor: root
+            helper: root.helper; uiLanguage: root.uiLanguage; panelOpen: false; popupAnchor: root
         } }
     }
     preferredRepresentation: compactRepresentation
@@ -94,8 +93,8 @@ PlasmoidItem {
         panelWidth: Plasmoid.configuration.panelWidth || 0
         surface: root.surface; snapshot: root.snapshot; expanded: root.expanded
         unreadNotifications: notificationLoader.item ? notificationLoader.item.unread : 0
-        onToggle: { if(root.expanded && root.notificationPage) root.notificationPage=false; else {root.notificationPage=false;root.expanded=!root.expanded;} }
-        onNotifications: { if(root.expanded && root.notificationPage) root.expanded=false; else {root.notificationPage=true;root.expanded=true;} }
+        onToggle: root.expanded=!root.expanded
+        onNotifications: {root.expanded=false;if(notificationLoader.item)notificationLoader.item.showAll();}
         onLaunch: action => root.launch(action)
         onSearch: { root.expanded = false; runner.connectSource(root.helper + " --search"); }
         onVoice: { root.expanded = false; runner.connectSource(root.helper + " --voice"); }
@@ -106,19 +105,9 @@ PlasmoidItem {
         Layout.preferredHeight: root.surface === "control" ? Kirigami.Units.gridUnit * 32
             : (item ? item.implicitHeight : Kirigami.Units.gridUnit * 24) + Kirigami.Units.largeSpacing * 2
         Layout.maximumHeight: root.surface === "control" ? Infinity : Layout.preferredHeight
-        sourceComponent: root.surface === "control" ? (root.notificationPage ? notificationView : centerView) : taskView
+        sourceComponent: root.surface === "control" ? centerView : taskView
     }
-    Component { id: notificationView; NotificationCenter {
-        uiLanguage: root.uiLanguage
-        items: notificationLoader.item ? notificationLoader.item.items : []
-        inhibited: notificationLoader.item ? notificationLoader.item.inhibited : false
-        gaming: notificationLoader.item ? notificationLoader.item.gaming : false
-        error: notificationLoader.item ? notificationLoader.item.error : ""
-        onAction: (identity,system,operation)=>notificationLoader.item.act(identity,system,operation)
-        onToggleDnd: notificationLoader.item.toggleDnd()
-        onPreferences: notificationLoader.item.preferences()
-        onShowAll: {notificationLoader.item.showAll();root.expanded=false;}
-    } }
+
     Component { id: taskView; PanelView {
         uiLanguage: root.uiLanguage
         snapshot: root.snapshot

@@ -23,8 +23,9 @@ Rectangle {
     }
     TestCase {
         name: "LumenNotification"; when: windowShown
+        function init() {center.selectedKey="";center.filter="all";findChild(center,"notificationSearch").text="";}
         function test_discussion_handoff_uses_only_the_selected_card() {
-            action.clear();
+            action.clear();center.choose(center.items[0]);waitForRendering(center);
             const button=findChild(center,"notificationDiscuss");
             verify(button!==null);button.clicked();
             compare(action.count,1);
@@ -42,6 +43,14 @@ Rectangle {
             compare(toast.y,panel.y+panel.height-panelAnchor.bottomFloatingPadding+8);
             toast.dismiss();toast.anchorItem=null;
         }
+        function test_private_summary_is_only_used_while_unlocked() {
+            const row={id:"system",localIdentity:"local-1",system:true,title:"Generic",body:""};
+            host.localItems=[{id:"local-1",source:"Test",updated:Date.now()/1000,read:false,archived:false,resolved:false,snoozed:0,title:"Private summary",body:"Synthetic",actions:[]}];
+            host.locked=true;compare(host.displayNotice(row).title,"Generic");
+            host.locked=false;host.gaming=false;
+            if(!host.inhibited)compare(host.displayNotice(row).title,"Private summary");
+            host.localItems=[];host.locked=true;
+        }
         function test_one_presenter_and_gaming() {
             verify(host.primary!==secondHost.primary);
             const before=host.inhibited;
@@ -56,6 +65,18 @@ Rectangle {
             mouseClick(findChild(toast.mainItem,"notificationToastAction"));
             compare(toastAction.count,1);compare(toastAction.signalArguments[0][0],"example");compare(toastAction.signalArguments[0][1],"open");
             tryCompare(toast,"visible",false);
+        }
+        function test_selection_and_readable_responsive_detail() {
+            center.choose(center.items[1]);
+            compare(center.selected.title,"Wochenbericht ist bereit");
+            verify(findChild(center,"notificationBack").visible);
+            mouseClick(findChild(center,"notificationBack"));
+            compare(center.selectedKey,"");
+            scene.width=1040;waitForRendering(center);verify(center.wide);
+            center.choose(center.items[0]);compare(center.selected.id,"1");
+            const old=center.selectedKey;
+            center.items=center.items.slice();compare(center.selectedKey,old);
+            scene.width=560;
         }
         function test_click_during_refresh_is_queued() {
             host.act("a".repeat(64),false,"read");
