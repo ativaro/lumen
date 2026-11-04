@@ -56,6 +56,7 @@ private:
     QString m_layout="classic";
     QPointer<QQuickItem> m_tooltipOwner;
     std::unique_ptr<QLabel> m_tooltip;
+    QMetaObject::Connection m_tooltipDestroyed;
     QString m_helper;
     QProcess m_read;
     QPointer<QProcess> m_control;

@@ -100,11 +100,14 @@ void PanelData::applyPalette(const QVariantMap &colors){
 }
 void PanelData::tooltip(QQuickItem *anchor,const QString &text){
     if(text.isEmpty()){
-        if(m_tooltipOwner==anchor){if(m_tooltip)m_tooltip->hide();m_tooltipOwner.clear();}
+        if(m_tooltipOwner==anchor){if(m_tooltip)m_tooltip->hide();disconnect(m_tooltipDestroyed);m_tooltipOwner.clear();}
         return;
     }
     if(!anchor || !anchor->window() || !anchor->window()->isVisible() || !anchor->isVisible() || !anchor->isEnabled())return;
-    m_tooltipOwner=anchor;
+    if(m_tooltipOwner!=anchor){
+        disconnect(m_tooltipDestroyed);m_tooltipOwner=anchor;
+        m_tooltipDestroyed=connect(anchor,&QObject::destroyed,this,[this]{if(m_tooltip)m_tooltip->hide();m_tooltipOwner.clear();});
+    }
     auto position=anchor->mapToGlobal(QPointF(0,anchor->height()+6)).toPoint();
     const auto bounds=anchor->window()->screen()->availableGeometry().adjusted(4,4,-4,-4);
     if(!m_tooltip)m_tooltip=std::make_unique<ButtonTip>();

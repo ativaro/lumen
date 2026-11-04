@@ -98,6 +98,9 @@ private slots:
         QTRY_VERIFY(tip->isVisible() && tip->property("text")==clockTarget->property("text"));
         QVERIFY(screen->geometry().contains(tip->frameGeometry()));
         QVERIFY(tip->grab().save("/profile/captures/native-clock-tooltip.png"));
+        auto temporaryAnchor=new QQuickItem(window->contentItem());temporaryAnchor->setSize(QSizeF(20,20));
+        data.tooltip(temporaryAnchor,"Kurzlebige App-Taste");QVERIFY(tip->isVisible());
+        delete temporaryAnchor;QTRY_VERIFY(!tip->isVisible());
         for(const auto &name:{"launcherButton","activeAppButton","applicationMenu_0","clockButton"})
             QCOMPARE(qvariant_cast<QFont>(item(name)->property("font")).pixelSize(),QApplication::font().pixelSize());
         auto launch=item("launcherButton");QVERIFY(launch);QVERIFY(click(launch));
