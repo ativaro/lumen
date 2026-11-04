@@ -16,7 +16,7 @@
 
 int main(int argc,char **argv){
     QApplication app(argc,argv);app.setApplicationName("lumen-topbar");app.setApplicationDisplayName("Lumen Topbar");
-    app.setDesktopFileName("lumen-topbar");app.setQuitOnLastWindowClosed(false);
+    app.setDesktopFileName("lumen-apps");app.setQuitOnLastWindowClosed(false);
     QCommandLineParser parser;parser.addHelpOption();parser.addOption({"apps","Lumen Apps öffnen"});parser.process(app);
     auto bus=QDBusConnection::sessionBus();
     if(!bus.registerService("org.lumen.Topbar")){
@@ -24,7 +24,7 @@ int main(int argc,char **argv){
         return 0;
     }
     qmlRegisterType<AppMenu>("Lumen.Topbar",1,0,"AppMenu");
-    PanelData data;Tray tray;bus.registerObject("/Topbar",&data,QDBusConnection::ExportAllSlots);
+    PanelData data;Tray tray;bus.registerObject("/Topbar",&data,QDBusConnection::ExportScriptableSlots);
     QQmlEngine engine;engine.rootContext()->setContextProperty("panelData",&data);
     engine.rootContext()->setContextProperty("trayModel",&tray);
     QMap<QScreen*,QQuickWindow*> windows;

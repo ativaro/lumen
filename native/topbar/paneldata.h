@@ -25,7 +25,7 @@ public:
     Q_INVOKABLE void context(const QString &app,const QString &title,int pid);
     Q_INVOKABLE void inputMask(QQuickWindow *window,const QVariantList &rectangles);
 public slots:
-    void ShowApps();
+    Q_SCRIPTABLE void ShowApps();
 signals:
     void controlBusyChanged();
     void controlFinished(const QString &action,int value);
