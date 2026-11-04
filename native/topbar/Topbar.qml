@@ -189,7 +189,6 @@ Window {
             Label {text:bar.t("Neue Frage an Lumen");color:bar.colors.text;font.pixelSize:19;Layout.fillWidth:true}
             AskComposer {id:popupComposer;objectName:"popupComposer";Layout.fillWidth:true;colors:bar.colors;translate:bar.t;controller:panelData;onSent:askPopup.close()}
             Label {visible:!!panelData.error;text:bar.t(panelData.error);color:bar.colors.text;wrapMode:Text.Wrap;Layout.fillWidth:true}
-            BarButton {colors:bar.colors;text:bar.t("Lumen fragen oder suchen");glyph:"search";Layout.fillWidth:true;onClicked:{askPopup.close();panelData.launch("search")}}
         }
     }
     BarPopup {
