@@ -44,3 +44,13 @@ The opt-in multilingual MiniLM model and isolated CPU runtime are pinned, verifi
 and installed separately. Original model card, Apache-2.0 license and dependency
 notices are included in files/memory-runtime/. Binary wheel licenses stay in the installed environment.
 No model weights or personal memory contents are included in this repository.
+
+
+## Optional Desktop browser automation
+
+Browser setup downloads `@playwright/mcp` 0.0.84 and its locked Playwright runtime
+from npm. Playwright and Playwright MCP are Microsoft projects under Apache-2.0;
+license and notice files remain in the downloaded packages. Chromium is installed
+through Playwright and retains its bundled licenses. These components run only in
+separate browser sessions; bubblewrap provides the local filesystem isolation.
+The exact package versions and integrity hashes are in `files/browser-runtime/package-lock.json`.

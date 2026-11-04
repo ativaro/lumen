@@ -15,6 +15,9 @@ makedepends=('gcc' 'pkgconf' 'qt6-base' 'cmake' 'libplasma')
 # OpenCode may be installed through its own installer. Native files/tasks remain
 # useful without inference; the app explains a missing engine when AI is requested.
 optdepends=(
+    'bubblewrap: isolated browser sessions for the connected Lumen server'
+    'nodejs: optional Playwright browser automation runtime'
+    'npm: install the pinned optional browser automation dependencies'
     'qt6-webengine: Shared Lumen Server apps and optional native Vault browser'
     'libssh: SSH access through the optional native Vault'
     'kidletime: Desktop inactivity locking in the optional native Vault'
