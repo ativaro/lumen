@@ -152,6 +152,12 @@ Lumen and Files come first, followed by the active application's actual menus.
 Menus stay visible while space allows; an overflow keeps them accessible on small
 screens. Search, system tray, current transfers/recordings, controls, notifications
 and the calendar occupy the right island. Fullscreen applications hide the bar.
+The visible Start button and Meta open a searchable list of installed programs.
+Lumen Apps remains a separate tab in the same launcher. Wide screens show an
+inline question field, send action and microphone; small screens retain direct
+question/microphone buttons. Enter sends a new question in Lumen, preserving
+existing windows and drafts. The field transfers text through stdin, not shell
+arguments. The microphone uses the existing voice workflow.
 The native task dock remains separate. No additional navigation bar is inserted
 inside Lumen applications.
 

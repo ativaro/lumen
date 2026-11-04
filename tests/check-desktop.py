@@ -41,6 +41,7 @@ qml=host/'contents/ui/main.qml';qml.write_text(qml.read_text().replace('/usr/bin
 for name in ('A','B','Empty','Browser'):
     (profile/'data/applications'/('lumen-menu-test-'+name.lower()+'.desktop')).write_text(
         '[Desktop Entry]\nType=Application\nName=Lumen Menütest '+name+'\nExec=python3 /qa/fixture.py '+name+'\nIcon=application-x-executable\nNoDisplay=true\n')
+(profile/'data/applications/lumen-topbar-program-test.desktop').write_text('[Desktop Entry]\nType=Application\nName=Lumen Testprogramm\nExec=/usr/bin/touch /profile/program-started\nIcon=application-x-executable\nCategories=Utility;\n')
 (profile/'config/kded6rc').write_text('[Module-bluedevil]\nautoload=false\n[Module-baloo]\nautoload=false\n')
 command=['bwrap','--unshare-all','--die-with-parent','--new-session','--clearenv',
     '--ro-bind','/usr','/usr','--symlink','usr/bin','/bin','--symlink','usr/lib','/lib',
@@ -53,7 +54,7 @@ env=dict(ASAN_OPTIONS='detect_leaks=0:abort_on_error=1:log_path=/profile/asan',
     LUMEN_QA_HOT_HOST='1',LUMEN_QA_SURFACE_ONLY='1' if args.surface_only else '',
     PATH='/usr/bin',HOME='/profile/home',XDG_CONFIG_HOME='/profile/config',XDG_DATA_HOME='/profile/data',
     XDG_STATE_HOME='/profile/state',XDG_CACHE_HOME='/profile/cache',XDG_RUNTIME_DIR='/profile/runtime',
-    XDG_SESSION_TYPE='wayland',XDG_CURRENT_DESKTOP='KDE',KDE_FULL_SESSION='true',KDE_SESSION_VERSION='6',
+    XDG_SESSION_TYPE='wayland',XDG_MENU_PREFIX='plasma-',XDG_CURRENT_DESKTOP='KDE',KDE_FULL_SESSION='true',KDE_SESSION_VERSION='6',
     QT_QPA_PLATFORM='wayland',QT_QUICK_CONTROLS_STYLE='Basic',QT_QPA_PLATFORMTHEME='kde',
     QT_NO_XDG_DESKTOP_PORTAL='1',LUMEN_DATA='/profile/state/lumen',LUMEN_TOOLS_DATA='/profile/state/tools',
     LUMEN_BIN_DIR='/qa/bin',LUMEN_QA_WIDTH=str(args.width),LUMEN_QA_SCALE=str(args.scale),

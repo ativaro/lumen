@@ -7,6 +7,8 @@
 #include <QDBusInterface>
 #include <QFile>
 #include <QMenu>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QQmlComponent>
 #include <QQmlContext>
 #include <QQmlEngine>
@@ -83,6 +85,26 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(QFile::exists("/profile/actions.jsonl"),3000);
         const auto actions=[](){QFile file("/profile/actions.jsonl");if(!file.open(QIODevice::ReadOnly))return QByteArray();return file.readAll();};
         QTRY_VERIFY_WITH_TIMEOUT(actions().contains("--open-app"),3000);
+        QVERIFY(click(item("startButton")));QTRY_VERIFY(apps->property("opened").toBool());
+        QTRY_VERIFY_WITH_TIMEOUT(item("programSearch"),4000);
+        auto programQuery=item("programSearch");QVERIFY(programQuery->isVisible());QTest::qWait(250);QVERIFY(apps->property("opened").toBool());programQuery->setProperty("text","lumen testprogramm");
+        QTRY_COMPARE_WITH_TIMEOUT(item("programList")->property("count").toInt(),1,4000);
+        QVERIFY(click(programQuery));QTest::qWait(150);QVERIFY(apps->property("opened").toBool());
+        QVERIFY(window->grabWindow().save("/profile/captures/native-start-menu.png"));
+        QVERIFY(send("key 28\n"));QTRY_VERIFY_WITH_TIMEOUT(QFile::exists("/profile/program-started"),4000);
+        QTRY_VERIFY(!apps->property("opened").toBool());
+        auto composer=item("inlineComposer");QVERIFY(composer);
+        if(!composer->isVisible()){QVERIFY(click(item("askButton")));QTest::qWait(180);composer=item("popupComposer");}
+        QVERIFY(composer);auto question=find(composer,"lumenQuestion");QVERIFY(question && question->isVisible());
+        const QString questionText=QStringLiteral("Erkläre $HOME und $(echo test), ohne etwas auszuführen.");
+        question->setProperty("text",questionText);QVERIFY(click(question));QTRY_VERIFY(question->hasActiveFocus());QTest::qWait(150);QVERIFY(question->hasActiveFocus());
+        QVERIFY(window->grabWindow().save("/profile/captures/native-question.png"));
+        QVERIFY(send("key 28\n"));QTRY_VERIFY_WITH_TIMEOUT(QFile::exists("/profile/asked.json"),3000);
+        QFile asked("/profile/asked.json");QVERIFY(asked.open(QIODevice::ReadOnly));
+        QCOMPARE(QJsonDocument::fromJson(asked.readAll()).object()["prompt"].toString(),questionText);
+        QTRY_VERIFY(question->property("text").toString().isEmpty());
+        auto dictate=item("compactDictateButton");if(!dictate->isVisible())dictate=find(item("inlineComposer"),"dictateButton");
+        QVERIFY(dictate && dictate->isVisible());QVERIFY(click(dictate));QTRY_VERIFY_WITH_TIMEOUT(actions().contains("--voice"),3000);
         auto clock=item("clockButton");QVERIFY(clock);QVERIFY(click(clock));
         auto calendar=window->findChild<QObject*>("calendarPopup");QVERIFY(calendar);
         QTRY_VERIFY(calendar->property("opened").toBool());QTest::qWait(200);

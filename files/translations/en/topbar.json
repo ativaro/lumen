@@ -40,5 +40,16 @@
   "Der Lumen-Mitteilungsdienst ist nicht bereit; vorhandene Panels bleiben erhalten.": "The Lumen notification service is not ready; existing panels are preserved.",
   "Ein früheres Topbar-Paket wurde zwischenzeitlich erneut installiert. Rückweg zuerst prüfen.": "A previous topbar package has been reinstalled. Check the rollback before restoring.",
   "Popups anzeigen": "Show popups",
-  "Die Systemaktion wurde nicht bestätigt. Bitte den Status prüfen.": "The system action was not confirmed. Check its current state."
+  "Die Systemaktion wurde nicht bestätigt. Bitte den Status prüfen.": "The system action was not confirmed. Check its current state.",
+  "Start": "Start",
+  "Programme": "Applications",
+  "Programme suchen …": "Search applications …",
+  "Keine Programme gefunden.": "No applications found.",
+  "Das Programm konnte nicht gestartet werden.": "The application could not be started.",
+  "Neue Frage an Lumen": "New question for Lumen",
+  "Frag Lumen …": "Ask Lumen …",
+  "Frage senden": "Send question",
+  "Mit Lumen sprechen": "Speak to Lumen",
+  "Bitte eine Frage mit höchstens 4000 Zeichen eingeben.": "Enter a question with no more than 4000 characters.",
+  "Die Frage konnte nicht geöffnet werden. Bitte erneut versuchen.": "The question could not be opened. Please try again."
 }

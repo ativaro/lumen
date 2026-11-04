@@ -400,7 +400,7 @@ Wissen. It explains the next step; the user operates the target application.
 ### Native Panorama topbar
 
 `lumen-topbar` uses Wayland layer-shell. It needs Qt Quick, LayerShellQt,
-libdbusmenu-glib, Kirigami and Plasma's task model. The package declares these
+libdbusmenu-glib, Kirigami, KItemModels and Plasma's task and program models. The package declares these
 runtime dependencies; a source installation also needs their CMake development
 files. `lumen-desktop-setup --apply` enables the user service and Meta shortcut,
 then replaces only Lumen's upper panels. The bottom dock and unrelated panels

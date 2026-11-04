@@ -11,7 +11,7 @@ Window {
     objectName: "lumenStandaloneTopbar"
     readonly property int barSize:56
     width:1280
-    height:Math.max(barSize,launcher.visible?launcher.y+launcher.height+12:0,systemPopup.visible?systemPopup.y+systemPopup.height+12:0,overflow.visible?overflow.y+overflow.height+12:0,windowMenu.visible?windowMenu.y+windowMenu.height+12:0,trayPopup.visible?trayPopup.y+trayPopup.height+12:0,calendar.visible?calendar.y+calendar.height+12:0)
+    height:Math.max(barSize,launcher.visible?launcher.y+launcher.height+12:0,systemPopup.visible?systemPopup.y+systemPopup.height+12:0,overflow.visible?overflow.y+overflow.height+12:0,windowMenu.visible?windowMenu.y+windowMenu.height+12:0,trayPopup.visible?trayPopup.y+trayPopup.height+12:0,calendar.visible?calendar.y+calendar.height+12:0,askPopup.visible?askPopup.y+askPopup.height+12:0)
     color:"transparent"
     property bool ready:false
     visible:ready && !windowState.fullScreen
@@ -54,15 +54,16 @@ Window {
     }
     function mask(){
         let regions=[Qt.rect(leftIsland.x,0,leftIsland.width,barSize),Qt.rect(rightIsland.x,0,rightIsland.width,barSize)]
-        for(const popup of [launcher,systemPopup,overflow,windowMenu,trayPopup,calendar])if(popup.visible)regions.push(Qt.rect(popup.x,popup.y,popup.width,popup.height))
+        for(const popup of [launcher,systemPopup,overflow,windowMenu,trayPopup,calendar,askPopup])if(popup.visible)regions.push(Qt.rect(popup.x,popup.y,popup.width,popup.height))
         panelData.inputMask(bar,regions)
     }
+    function showLauncher(programs){launcher.programs=programs;launcher.open();panelData.refresh()}
     function updateMenu(){appMenu.setEndpoint(windowState.service,windowState.path)}
-    function dismissIfInactive(){if(!bar.active && !appMenu.opened && !trayModel.opened){launcher.close();systemPopup.close();overflow.close();windowMenu.close();trayPopup.close();calendar.close();trayModel.close()}}
+    function dismissIfInactive(){if(!bar.active && !appMenu.opened && !trayModel.opened){launcher.close();systemPopup.close();overflow.close();windowMenu.close();trayPopup.close();calendar.close();askPopup.close();trayModel.close()}}
     onHeightChanged:Qt.callLater(mask)
     onActiveChanged:if(active)focusLoss.stop();else focusLoss.restart()
     Timer {id:focusLoss;interval:80;onTriggered:bar.dismissIfInactive()}
-    Timer {id:restoreFocus;interval:100;onTriggered:if(bar.active && !appMenu.opened && !trayModel.opened && ![launcher,systemPopup,overflow,windowMenu,trayPopup,calendar].some(p=>p.visible))windowState.action("activate")}
+    Timer {id:restoreFocus;interval:100;onTriggered:if(bar.active && !inlineComposer.editing && !appMenu.opened && !trayModel.opened && ![launcher,systemPopup,overflow,windowMenu,trayPopup,calendar,askPopup].some(p=>p.visible))windowState.action("activate")}
     onWidthChanged:Qt.callLater(fit)
     onVisibleChanged:if(visible)Qt.callLater(fit)
     Timer {interval:1000;running:true;repeat:true;onTriggered:bar.clockText=Qt.formatTime(new Date(),"hh:mm")}
@@ -73,12 +74,12 @@ Window {
         holdActiveWindow:appMenu.opened || trayModel.opened || launcher.opened || systemPopup.opened || overflow.opened || windowMenu.opened || trayPopup.opened || calendar.opened
         onServiceChanged:Qt.callLater(bar.updateMenu)
         onPathChanged:Qt.callLater(bar.updateMenu)
-        onFullScreenChanged:if(fullScreen){appMenu.close();trayModel.close();launcher.close();systemPopup.close();overflow.close();windowMenu.close();trayPopup.close();calendar.close()}
+        onFullScreenChanged:if(fullScreen){appMenu.close();trayModel.close();launcher.close();systemPopup.close();overflow.close();windowMenu.close();trayPopup.close();calendar.close();askPopup.close()}
     }
     AppMenu {id:appMenu;objectName:"applicationMenus";onEntriesChanged:Qt.callLater(bar.fit)}
     Connections {target:appMenu;function onOpenedChanged(){if(appMenu.opened)restoreFocus.stop();else{overflow.close();restoreFocus.restart()}Qt.callLater(bar.dismissIfInactive)}}
     Connections {target:trayModel;function onChanged(){Qt.callLater(bar.fit)}function onOpenedChanged(){if(trayModel.opened)restoreFocus.stop();else restoreFocus.restart();Qt.callLater(bar.dismissIfInactive)}}
-    Connections {target:panelData;function onChanged(){Qt.callLater(bar.fit)}function onShowAppsRequested(name){if(name===bar.screen.name){launcher.open();panelData.refresh()}}}
+    Connections {target:panelData;function onChanged(){Qt.callLater(bar.fit)}function onShowAppsRequested(name){if(name===bar.screen.name){bar.showLauncher(true)}}}
     Rectangle {
         id:leftIsland;objectName:"leftIsland"
         x:12;y:-18;height:bar.barSize+18
@@ -89,7 +90,8 @@ Window {
             anchors.fill:parent;anchors.topMargin:18;anchors.leftMargin:7;anchors.rightMargin:7;spacing:2
             Row {
                 id:homeRow;spacing:2
-                BarButton {id:homeLauncher;objectName:"launcherButton";colors:bar.colors;text:"Lumen";glyph:"qrc:/lumen/icons/lumen-mark.svg";iconOnly:bar.width<560;font.pixelSize:16;font.weight:Font.Medium;onClicked:{launcher.open();panelData.refresh()}}
+                BarButton {objectName:"startButton";colors:bar.colors;text:bar.t("Start");glyph:"view-grid";iconOnly:bar.width<1100;onClicked:bar.showLauncher(true)}
+                BarButton {id:homeLauncher;objectName:"launcherButton";colors:bar.colors;text:"Lumen";glyph:"qrc:/lumen/icons/lumen-mark.svg";iconOnly:bar.width<560;font.pixelSize:16;font.weight:Font.Medium;onClicked:bar.showLauncher(false)}
                 Rectangle {width:1;height:22;color:bar.colors.border;anchors.verticalCenter:parent.verticalCenter}
                 BarButton {colors:bar.colors;text:bar.t("Dateien");glyph:"folder";iconOnly:bar.width<720;onClicked:panelData.launch("files")}
             }
@@ -122,7 +124,9 @@ Window {
                 }
             }
             BarButton {id:trayMore;objectName:"trayMoreButton";colors:bar.colors;text:bar.t("Hintergrund-Apps");glyph:"arrow-down";iconOnly:true;visible:bar.shownTray<bar.activeTray.length || bar.hasPassiveTray;onClicked:trayPopup.open()}
-            BarButton {colors:bar.colors;text:bar.t("Lumen fragen oder suchen");glyph:"search";iconOnly:true;onClicked:panelData.launch("search")}
+            AskComposer {id:inlineComposer;objectName:"inlineComposer";onEditingChanged:if(editing)restoreFocus.stop();visible:bar.width>=1100;width:Math.min(440,Math.max(260,(bar.width-1000)*0.35+220));colors:bar.colors;translate:bar.t;controller:panelData}
+            BarButton {objectName:"askButton";colors:bar.colors;text:bar.t("Lumen fragen oder suchen");glyph:"search";iconOnly:true;visible:bar.width<1100;onClicked:{askPopup.open();popupComposer.focusInput()}}
+            BarButton {objectName:"compactDictateButton";colors:bar.colors;text:bar.t("Mit Lumen sprechen");glyph:"microphone-sensitivity-high";iconOnly:true;visible:bar.width<1100;onClicked:panelData.launch("voice")}
             BarButton {colors:bar.colors;text:bar.t("Übertragungen")+(bar.stateData.operations?.transfer?" · "+bar.stateData.operations.transfer.count:"");glyph:"folder-upload";iconOnly:true;visible:!!bar.stateData.operations?.transfer;onClicked:panelData.launch("transfer",bar.stateData.operations.transfer.id)}
             BarButton {colors:bar.colors;text:bar.t("Aufnahme in Audio Studio");glyph:"media-record";iconOnly:true;visible:!!bar.stateData.operations?.audio;onClicked:panelData.launch("app","meetings")}
             BarButton {objectName:"systemErrorButton";colors:bar.colors;text:bar.t(panelData.error);glyph:"dialog-warning";iconOnly:true;visible:!!panelData.error;onClicked:systemPopup.open()}
@@ -150,12 +154,21 @@ Window {
     }
     BarPopup {
         id:launcher;objectName:"appsPopup";x:12
+        property bool programs:false
+        onOpened:if(programs)Qt.callLater(()=>programLoader.item?.focusSearch())
         ColumnLayout {
             width:parent.width
             spacing:12
-            Label {text:bar.t("Deine Lumen Apps");color:bar.colors.text;font.pixelSize:19;font.weight:Font.Medium;Layout.fillWidth:true}
+            Label {text:bar.t("Start");color:bar.colors.text;font.pixelSize:19;font.weight:Font.Medium;Layout.fillWidth:true}
+            RowLayout {Layout.fillWidth:true;spacing:4
+                BarButton {colors:bar.colors;text:"Lumen Apps";checkable:true;checked:!launcher.programs;highlighted:!launcher.programs;Layout.fillWidth:true;onClicked:launcher.programs=false}
+                BarButton {colors:bar.colors;text:bar.t("Programme");checkable:true;checked:launcher.programs;highlighted:launcher.programs;Layout.fillWidth:true;onClicked:launcher.programs=true}
+            }
+            Loader {id:programLoader;Layout.fillWidth:true;active:launcher.programs;visible:active;onLoaded:item.focusSearch()
+                sourceComponent:ProgramList {colors:bar.colors;translate:bar.t;onLaunched:launcher.close()}
+            }
             GridLayout {
-                columns:launcher.width>=440?4:3;columnSpacing:4;rowSpacing:6;Layout.fillWidth:true
+                visible:!launcher.programs;columns:launcher.width>=440?4:3;columnSpacing:4;rowSpacing:6;Layout.fillWidth:true
                 Repeater {
                     model:bar.stateData.apps||[]
                     BarButton {required property var modelData;objectName:"openApp_"+modelData.id;colors:bar.colors;text:modelData.label;Layout.fillWidth:true;Layout.preferredWidth:0;Layout.preferredHeight:Math.max(88,contentItem.implicitHeight+20);Accessible.name:modelData.title;
@@ -166,8 +179,17 @@ Window {
             }
             Label {visible:!!panelData.error;text:bar.t(panelData.error);color:bar.colors.text;wrapMode:Text.Wrap;Layout.fillWidth:true}
             Rectangle {height:1;color:bar.colors.border;Layout.fillWidth:true}
-            BarButton {colors:bar.colors;text:bar.t("Alle Aufgaben");glyph:"view-task";Layout.fillWidth:true;onClicked:{launcher.close();panelData.launch("tasks")}}
-            BarButton {colors:bar.colors;text:bar.t("Alle Programme");glyph:"view-app-grid";Layout.fillWidth:true;onClicked:{launcher.close();panelData.control("search")}}
+            BarButton {visible:!launcher.programs;colors:bar.colors;text:bar.t("Alle Aufgaben");glyph:"view-task";Layout.fillWidth:true;onClicked:{launcher.close();panelData.launch("tasks")}}
+            BarButton {colors:bar.colors;text:bar.t("Lumen fragen oder suchen");glyph:"search";Layout.fillWidth:true;onClicked:{launcher.close();panelData.launch("search")}}
+        }
+    }
+    BarPopup {
+        id:askPopup;x:bar.width-width-12
+        ColumnLayout {width:parent.width;spacing:12
+            Label {text:bar.t("Neue Frage an Lumen");color:bar.colors.text;font.pixelSize:19;Layout.fillWidth:true}
+            AskComposer {id:popupComposer;objectName:"popupComposer";Layout.fillWidth:true;colors:bar.colors;translate:bar.t;controller:panelData;onSent:askPopup.close()}
+            Label {visible:!!panelData.error;text:bar.t(panelData.error);color:bar.colors.text;wrapMode:Text.Wrap;Layout.fillWidth:true}
+            BarButton {colors:bar.colors;text:bar.t("Lumen fragen oder suchen");glyph:"search";Layout.fillWidth:true;onClicked:{askPopup.close();panelData.launch("search")}}
         }
     }
     BarPopup {

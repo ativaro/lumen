@@ -24,6 +24,10 @@ elif any(value.startswith('--notification-') for value in sys.argv[1:]):
     raise SystemExit(subprocess.call(['/usr/bin/python3','/source/files/lumen_panel.py',*sys.argv[1:]]))
 else:
     with Path('/profile/actions.jsonl').open('a') as output:output.write(json.dumps(sys.argv[1:])+'\n')
+    if sys.argv[1:]==['--ask']:
+        value=json.load(sys.stdin)
+        Path('/profile/asked.json').write_text(json.dumps(value))
+        print(json.dumps(dict(error='')))
     if len(sys.argv)>2 and sys.argv[1]=='--control':
         current=system();error=''
         if sys.argv[2]=='volume':

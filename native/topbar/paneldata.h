@@ -22,6 +22,7 @@ public:
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void launch(const QString &action,const QString &value={});
     Q_INVOKABLE void control(const QString &action,int value=0);
+    Q_INVOKABLE void ask(const QString &prompt);
     Q_INVOKABLE void context(const QString &app,const QString &title,int pid);
     Q_INVOKABLE void inputMask(QQuickWindow *window,const QVariantList &rectangles);
 public slots:
@@ -34,6 +35,7 @@ signals:
     void errorChanged();
     void showAppsRequested(const QString &screen);
 private:
+    void runHelper(const QStringList &arguments,const QString &action,int value=0,const QByteArray &input={});
     void start(const QStringList &arguments);
     void fail(const QString &message);
     void actionError(const QString &action,const QString &message);

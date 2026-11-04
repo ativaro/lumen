@@ -97,7 +97,15 @@ void PanelData::control(const QString &action,int value){
     if(!actions.contains(action))return;
     const bool numeric=action=="volume" || action=="brightness";
     if(numeric && (value<0 || value>100))return;
-    const bool mutating=numeric || action=="mute";
+    QStringList arguments={"--control",action};if(numeric)arguments.append({"--value",QString::number(value)});
+    runHelper(arguments,action,value);
+}
+void PanelData::ask(const QString &prompt){
+    if(prompt.trimmed().isEmpty() || prompt.size()>4000 || prompt.contains(QChar::Null)){actionError("ask",tr("Bitte eine Frage mit höchstens 4000 Zeichen eingeben."));return;}
+    runHelper({"--ask"},"ask",0,QJsonDocument(QJsonObject{{"prompt",prompt}}).toJson(QJsonDocument::Compact));
+}
+void PanelData::runHelper(const QStringList &arguments,const QString &action,int value,const QByteArray &input){
+    const bool mutating=action=="volume" || action=="brightness" || action=="mute";
     if(mutating && controlBusy())return;
     if(m_helper.isEmpty()){actionError(action,tr("Lumen ist nicht vollständig installiert."));return;}
     m_actionError.clear();emit errorChanged();
@@ -125,8 +133,8 @@ void PanelData::control(const QString &action,int value){
         }
         command->deleteLater();if(mutating)refresh();
     });
-    QStringList arguments={"--control",action};if(numeric)arguments.append({"--value",QString::number(value)});
     command->start(m_helper,arguments);timeout->start();
+    if(!input.isEmpty()){command->write(input);command->closeWriteChannel();}
 }
 
 void PanelData::context(const QString &app,const QString &title,int pid){

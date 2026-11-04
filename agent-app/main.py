@@ -510,7 +510,11 @@ def main():
             if args.search: window.open_search(args.voice)
             return
         if args.search:
-            window.open_search(args.voice); return
+            prompt = args.prompt or os.environ.pop('LUMEN_ASK_PROMPT', '')
+            if prompt: window.chat.composer.setPlainText(prompt)
+            window.open_search(args.voice)
+            if prompt and hasattr(window, 'search_controller'): window.search_controller.submit(True)
+            return
         if args.task_action:
             error = activation.TaskAction(args.task, args.task_action)
             if error: window.chat.show_error(error)

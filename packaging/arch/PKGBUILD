@@ -10,7 +10,7 @@ provides=('opencode-lumen')
 arch=('x86_64' 'aarch64')
 url="https://forge.example.invalid/ativaro/lumen"
 license=('LicenseRef-Lumen-EULA' 'GPL-3.0-only' 'GPL-2.0-or-later')
-depends=('bash' 'git' 'python3' 'pyside6' 'python-gobject' 'python-pillow' 'python-yaml' 'python-markdown-it-py' 'openssl' 'layer-shell-qt' 'libdbusmenu-glib' 'qt6-declarative' 'kirigami' 'plasma-workspace')
+depends=('bash' 'git' 'python3' 'pyside6' 'python-gobject' 'python-pillow' 'python-yaml' 'python-markdown-it-py' 'openssl' 'layer-shell-qt' 'libdbusmenu-glib' 'qt6-declarative' 'kirigami' 'plasma-workspace' 'kitemmodels')
 makedepends=('gcc' 'pkgconf' 'qt6-base' 'cmake' 'layer-shell-qt' 'libdbusmenu-glib' 'qt6-declarative')
 # OpenCode may be installed through its own installer. Native files/tasks remain
 # useful without inference; the app explains a missing engine when AI is requested.
