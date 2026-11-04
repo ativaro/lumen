@@ -26,13 +26,14 @@ Button {
             anchors.fill:parent;anchors.topMargin:control.key && parent.pressed?1:0
             radius:control.key?(control.colors.radius||8):7
             color:control.primary && control.enabled?control.colors.accent:control.key?(parent.pressed?(control.colors.inset||control.colors.base):(control.colors.key||control.colors.window)):(parent.pressed?control.colors.alternate:"transparent")
-            border.width:control.visualFocus?2:control.key?1:0
-            border.color:control.visualFocus?control.colors.accent:control.colors.border
+            border.width:control.visualFocus?2:control.key || (control.enabled && control.hovered && !control.down)?1:0
+            border.color:control.visualFocus || (control.enabled && control.hovered && !control.down)?control.colors.accent:control.colors.border
+            Behavior on border.color {ColorAnimation {duration:Kirigami.Units.shortDuration}}
             Rectangle {visible:control.key;anchors.top:parent.top;anchors.topMargin:1;anchors.horizontalCenter:parent.horizontalCenter;width:parent.width-12;height:1;color:control.colors.highlight||"#12ffffff"}
             Rectangle {
                 anchors.fill:parent;radius:parent.radius
                 color:control.primary?control.colors.onAccent:control.colors.text
-                opacity:control.enabled && control.hovered && !control.down?0.06:0
+                opacity:control.enabled && control.hovered && !control.down?0.07:0
                 Behavior on opacity {NumberAnimation {duration:Kirigami.Units.shortDuration}}
             }
             Rectangle {visible:control.key && control.current;anchors.bottom:parent.bottom;anchors.bottomMargin:4;anchors.horizontalCenter:parent.horizontalCenter;width:16;height:2;radius:1;color:control.colors.accent}
@@ -47,7 +48,14 @@ Button {
         Kirigami.Icon {source: control.glyph;visible: !!control.glyph && !control.symbol;width:22;height:22;anchors.verticalCenter:parent.verticalCenter;color:control.glyph==="qrc:/lumen/icons/lumen-mark.svg"?control.colors.accent:control.primary && control.enabled?control.colors.onAccent:control.colors.text;isMask:control.primary || control.glyph==="qrc:/lumen/icons/lumen-mark.svg"}
         Text {id:label;text:control.text;visible:!control.iconOnly;width:Math.max(0,control.availableWidth-(control.symbol?33:control.glyph?29:0));elide:Text.ElideRight;color:control.enabled?control.colors.text:control.colors.muted;font:control.font;anchors.verticalCenter:parent.verticalCenter;textFormat:Text.PlainText}
     }
-    ToolTip.visible: hovered && (iconOnly || label.truncated)
-    ToolTip.text: text
-    ToolTip.delay: 650
+    function updateTip(){
+        tipDelay.stop();panelData.tooltip(control,"")
+        if(visible && enabled && hovered && !down && text)tipDelay.start()
+    }
+    Timer {id:tipDelay;interval:400;onTriggered:panelData.tooltip(control,control.text)}
+    onHoveredChanged:updateTip()
+    onDownChanged:updateTip()
+    onEnabledChanged:updateTip()
+    onVisibleChanged:updateTip()
+    onTextChanged:if(hovered)updateTip()
 }

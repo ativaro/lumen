@@ -85,6 +85,19 @@ private slots:
         QTRY_VERIFY(hover->property("hovered").toBool());QTest::qWait(250);
         QVERIFY(window->grabWindow().copy(region)!=resting);QCOMPARE(hover->size(),size);
         QVERIFY(window->grabWindow().save("/profile/captures/native-topbar-hover.png"));
+        QWidget *tip=nullptr;
+        QTRY_VERIFY_WITH_TIMEOUT(([&]{for(auto widget:QApplication::topLevelWidgets())if(widget->objectName()=="lumenButtonTooltip" && widget->isVisible()){tip=widget;return true;}return false;})(),2000);
+        QCOMPARE(tip->property("text").toString(),hover->property("text").toString());
+        QVERIFY(tip);QVERIFY(tip->y()>=hover->mapToGlobal(QPointF(0,hover->height())).y());
+        QVERIFY(screen->geometry().contains(tip->frameGeometry()));
+        QVERIFY(tip->grab().save("/profile/captures/native-button-tooltip.png"));
+        QCOMPARE(window->height(),window->property("barSize").toInt());
+        auto clockTarget=item("clockButton");const auto clockPoint=clockTarget->mapToGlobal(QPointF(clockTarget->width()/2,clockTarget->height()/2));
+        QVERIFY(send("move "+QByteArray::number(clockPoint.x())+" "+QByteArray::number(clockPoint.y())+"\n"));
+        QTRY_VERIFY(!tip->isVisible());
+        QTRY_VERIFY(tip->isVisible() && tip->property("text")==clockTarget->property("text"));
+        QVERIFY(screen->geometry().contains(tip->frameGeometry()));
+        QVERIFY(tip->grab().save("/profile/captures/native-clock-tooltip.png"));
         for(const auto &name:{"launcherButton","activeAppButton","applicationMenu_0","clockButton"})
             QCOMPARE(qvariant_cast<QFont>(item(name)->property("font")).pixelSize(),QApplication::font().pixelSize());
         auto launch=item("launcherButton");QVERIFY(launch);QVERIFY(click(launch));

@@ -6,8 +6,11 @@
 #include <QVariantMap>
 #include <QTimer>
 #include <QFileSystemWatcher>
+#include <memory>
 
 class QQuickWindow;
+class QQuickItem;
+class QLabel;
 class PanelData:public QObject {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface","org.lumen.Topbar")
@@ -28,6 +31,7 @@ public:
     Q_INVOKABLE QString ask(const QString &prompt,const QString &file={},const QVariantMap &note={});
     Q_INVOKABLE QString attachNote(int pid);
     Q_INVOKABLE QString chooseAttachment(QQuickWindow *window);
+    Q_INVOKABLE void tooltip(QQuickItem *anchor,const QString &text);
     Q_INVOKABLE void context(const QString &app,const QString &title,int pid);
     Q_INVOKABLE void inputMask(QQuickWindow *window,const QVariantList &rectangles,bool popupOpen=false);
 public slots:
@@ -50,6 +54,8 @@ private:
     void readLayout();
     QFileSystemWatcher m_settingsWatcher;
     QString m_layout="classic";
+    QPointer<QQuickItem> m_tooltipOwner;
+    std::unique_ptr<QLabel> m_tooltip;
     QString m_helper;
     QProcess m_read;
     QPointer<QProcess> m_control;

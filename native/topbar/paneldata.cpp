@@ -5,6 +5,10 @@
 #include <QUuid>
 #include <QApplication>
 #include <QFont>
+#include <QLabel>
+#include <QStylePainter>
+#include <QStyleOption>
+#include <QQuickItem>
 #include <QCursor>
 #include <QDBusConnection>
 #include <QDBusServiceWatcher>
@@ -20,6 +24,19 @@
 #include <LayerShellQt/Window>
 
 namespace {
+class ButtonTip:public QLabel {
+public:
+    ButtonTip():QLabel(nullptr,Qt::ToolTip){
+        setObjectName("lumenButtonTooltip");setMargin(6);setTextFormat(Qt::PlainText);setWordWrap(true);
+        setForegroundRole(QPalette::ToolTipText);setFocusPolicy(Qt::NoFocus);
+        setAttribute(Qt::WA_ShowWithoutActivating);setAttribute(Qt::WA_TransparentForMouseEvents);
+    }
+protected:
+    void paintEvent(QPaintEvent *event) override{
+        QStylePainter painter(this);QStyleOption option;option.initFrom(this);
+        painter.drawPrimitive(QStyle::PE_PanelTipLabel,option);painter.end();QLabel::paintEvent(event);
+    }
+};
 QVariantMap nativePalette(){
     const auto p=QApplication::palette();
     return {{"window",p.color(QPalette::Window).name()},{"base",p.color(QPalette::Base).name()},
@@ -78,7 +95,26 @@ void PanelData::applyPalette(const QVariantMap &colors){
         {QPalette::WindowText,"text"},{QPalette::Text,"text"},{QPalette::ButtonText,"text"},{QPalette::Button,"window"},
         {QPalette::Mid,"border"},{QPalette::Midlight,"alternate"},{QPalette::Highlight,"accent"},
         {QPalette::HighlightedText,"onAccent"},{QPalette::PlaceholderText,"muted"},{QPalette::AlternateBase,"alternate"}};
-    auto p=QApplication::palette();for(const auto &[role,key]:roles){const QColor color(colors[key].toString());if(color.isValid())p.setColor(role,color);}for(auto role:{QPalette::WindowText,QPalette::Text,QPalette::ButtonText})p.setColor(QPalette::Disabled,role,QColor(colors["muted"].toString()));QApplication::setPalette(p);
+    auto p=QApplication::palette();for(const auto &[role,key]:roles){const QColor color(colors[key].toString());if(color.isValid())p.setColor(role,color);}for(auto role:{QPalette::WindowText,QPalette::Text,QPalette::ButtonText})p.setColor(QPalette::Disabled,role,QColor(colors["muted"].toString()));
+    p.setColor(QPalette::ToolTipBase,QColor(colors["window"].toString()));p.setColor(QPalette::ToolTipText,QColor(colors["text"].toString()));QApplication::setPalette(p);
+}
+void PanelData::tooltip(QQuickItem *anchor,const QString &text){
+    if(text.isEmpty()){
+        if(m_tooltipOwner==anchor){if(m_tooltip)m_tooltip->hide();m_tooltipOwner.clear();}
+        return;
+    }
+    if(!anchor || !anchor->window() || !anchor->window()->isVisible() || !anchor->isVisible() || !anchor->isEnabled())return;
+    m_tooltipOwner=anchor;
+    auto position=anchor->mapToGlobal(QPointF(0,anchor->height()+6)).toPoint();
+    const auto bounds=anchor->window()->screen()->availableGeometry().adjusted(4,4,-4,-4);
+    if(!m_tooltip)m_tooltip=std::make_unique<ButtonTip>();
+    m_tooltip->setScreen(anchor->window()->screen());m_tooltip->setMaximumSize(qMin(360,bounds.width()),bounds.height());
+    m_tooltip->setText(text.left(4096));m_tooltip->setWordWrap(m_tooltip->fontMetrics().horizontalAdvance(m_tooltip->text())>m_tooltip->maximumWidth()-12);
+    m_tooltip->adjustSize();m_tooltip->winId();
+    position.setX(qBound(bounds.left(),position.x(),bounds.right()-m_tooltip->width()+1));
+    position.setY(qBound(bounds.top(),position.y(),bounds.bottom()-m_tooltip->height()+1));
+    // Wayland popups need the layer window as transient parent before they are shown.
+    m_tooltip->windowHandle()->setTransientParent(anchor->window());m_tooltip->move(position);m_tooltip->show();
 }
 void PanelData::start(const QStringList &arguments){
     if(m_helper.isEmpty() || !QProcess::startDetached(m_helper,arguments))fail(tr("Die Aktion konnte nicht gestartet werden."));
