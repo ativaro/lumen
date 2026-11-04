@@ -6,14 +6,14 @@ import org.kde.kirigami as Kirigami
 Button {
     id: control
     required property var colors
-    property string glyph: ""
+    property var glyph: ""
     property bool iconOnly: false
-    property int textSize: 14
     hoverEnabled: true
     focusPolicy: Qt.StrongFocus
     leftPadding: 9; rightPadding: 9; topPadding: 6; bottomPadding: 6
     implicitHeight: Math.max(36, label.implicitHeight+12)
-    implicitWidth: row.implicitWidth+leftPadding+rightPadding
+    readonly property real naturalWidth:leftPadding+rightPadding+(glyph?29:0)+label.implicitWidth
+    implicitWidth:iconOnly?leftPadding+rightPadding+(glyph?22:0):naturalWidth
     Accessible.name: text
     background: Rectangle {
         radius: 7
@@ -23,10 +23,10 @@ Button {
     }
     contentItem: Row {
         id: row; spacing: 7
-        Kirigami.Icon {source: control.glyph;visible: !!control.glyph;width:22;height:22;anchors.verticalCenter:parent.verticalCenter;color:control.colors.text;isMask:false}
-        Text {id:label;text:control.text;visible:!control.iconOnly;color:control.enabled?control.colors.text:control.colors.muted;font:control.font;anchors.verticalCenter:parent.verticalCenter;textFormat:Text.PlainText}
+        Kirigami.Icon {source: control.glyph;visible: !!control.glyph;width:22;height:22;anchors.verticalCenter:parent.verticalCenter;color:control.glyph==="qrc:/lumen/icons/lumen-mark.svg"?control.colors.accent:control.colors.text;isMask:control.glyph==="qrc:/lumen/icons/lumen-mark.svg"}
+        Text {id:label;text:control.text;visible:!control.iconOnly;width:Math.max(0,control.availableWidth-(control.glyph?29:0));elide:Text.ElideRight;color:control.enabled?control.colors.text:control.colors.muted;font:control.font;anchors.verticalCenter:parent.verticalCenter;textFormat:Text.PlainText}
     }
-    ToolTip.visible: hovered && iconOnly
+    ToolTip.visible: hovered && (iconOnly || label.truncated)
     ToolTip.text: text
     ToolTip.delay: 650
 }

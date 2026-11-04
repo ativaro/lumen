@@ -5,6 +5,8 @@
 #include "appmenu.h"
 #include <QApplication>
 #include <QTest>
+#include <QQuickItem>
+#include <QQuickWindow>
 
 class MenuTest:public QObject {
     Q_OBJECT
@@ -30,9 +32,18 @@ private slots:
         QCOMPARE(menu.entries()[0].toMap()["label"].toString(),QStringLiteral("Datei"));
         dbusmenu_menuitem_property_set_bool(file,DBUSMENU_MENUITEM_PROP_ENABLED,false);
         QTRY_VERIFY_WITH_TIMEOUT(!menu.entries()[0].toMap()["enabled"].toBool(),3000);
+        dbusmenu_menuitem_property_set(file,DBUSMENU_MENUITEM_PROP_LABEL,"Rock & Roll__Menu");
+        QTRY_COMPARE(menu.entries()[0].toMap()["label"].toString(),QStringLiteral("Rock & Roll_Menu"));
+        bool activated=false;
+        g_signal_connect(file,DBUSMENU_MENUITEM_SIGNAL_ITEM_ACTIVATED,G_CALLBACK(+[](DbusmenuMenuitem*,guint,gpointer value){*static_cast<bool*>(value)=true;}),&activated);
+        QQuickWindow window;QQuickItem anchor(window.contentItem());
+        menu.show(0,&anchor);QTest::qWait(30);QVERIFY(!activated);
+        dbusmenu_menuitem_property_set_bool(file,DBUSMENU_MENUITEM_PROP_ENABLED,true);
+        QTRY_VERIFY(menu.entries()[0].toMap()["enabled"].toBool());menu.show(0,&anchor);
+        QTRY_VERIFY_WITH_TIMEOUT(activated,3000);
         menu.setEndpoint("","");QVERIFY(menu.entries().isEmpty());
         g_object_unref(connection);g_object_unref(file);g_object_unref(root);g_object_unref(server);
     }
 };
 QTEST_MAIN(MenuTest)
-#include "appmenu_test.moc"
+#include "menu_test.moc"

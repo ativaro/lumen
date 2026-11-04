@@ -7,6 +7,7 @@
 
 class QQuickItem;
 class QMenu;
+class QDBusServiceWatcher;
 struct _DbusmenuClient;
 struct _DbusmenuMenuitem;
 
@@ -40,4 +41,6 @@ private:
     QPointer<QMenu> m_popup;
     quint64 m_generation=0;
     QVector<_DbusmenuMenuitem *> m_watched;
+    QPointer<QQuickItem> m_pendingAnchor;
+    QDBusServiceWatcher *m_ownerWatcher=nullptr;
 };

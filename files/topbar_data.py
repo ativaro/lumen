@@ -1,5 +1,6 @@
 """Read-only data for the standalone system bar; no task history or notification delivery."""
 import configparser
+import json
 import os
 import sqlite3
 from pathlib import Path
@@ -7,7 +8,7 @@ from pathlib import Path
 
 def snapshot():
     from appearance_tokens import COLORS
-    from lumen_i18n import language
+    from lumen_i18n import language, tr
     from lumen_panel import applications
     from lumen_controls import snapshot as controls
     from lumen_notifications import snapshot as notifications
@@ -16,14 +17,20 @@ def snapshot():
     config = configparser.ConfigParser(interpolation=None)
     config.read(Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')) / 'plasmarc')
     theme = config.get('Theme', 'name', fallback='org.lumen.graphite').removeprefix('org.lumen.')
-    colors = COLORS.get(theme, COLORS['graphite'])
-    window, base, alternate, text, button, border, muted, accent, on_accent = colors
+    colors = COLORS.get(theme)
+    palette = dict(zip(('window','base','alternate','text','button','border','muted','accent','onAccent'), colors)) if colors else None
     try:
         unread = notifications(wake=False)['unread']
-    except (OSError, ValueError, sqlite3.Error):
+        # The background Plasma host publishes the combined system/local count.
+        host = configparser.ConfigParser(interpolation=None, strict=False)
+        host.read(Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')) / 'plasma-org.kde.plasma.desktop-appletsrc')
+        for section in host.sections():
+            if host.get(section,'plugin',fallback='') == 'org.lumen.notificationhost':
+                unread = host.getint(section+'[Configuration][General]','unread',fallback=unread)
+                break
+    except (OSError, ValueError, sqlite3.Error, configparser.Error):
         unread = None
-    return dict(version=1, language=language(), apps=applications(), system=controls(),
+    labels = json.loads(Path(__file__).with_name("translations").joinpath("en/topbar.json").read_text())
+    return dict(version=1, language=language(), labels={key: tr(key) for key in labels}, apps=applications(), system=controls(),
                 operations=operations(), unread=unread,
-                palette=dict(window=window, base=base, alternate=alternate, text=text,
-                             button=button, border=border, muted=muted, accent=accent,
-                             onAccent=on_accent))
+                palette=palette)

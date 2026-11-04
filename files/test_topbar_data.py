@@ -26,6 +26,16 @@ class TopbarDataTests(unittest.TestCase):
             self.assertNotIn('active', result)
             json.dumps(result)
 
+    def test_system_theme_uses_the_native_palette_and_english_labels(self):
+        with tempfile.TemporaryDirectory() as directory:
+            (Path(directory)/'plasmarc').write_text('[Theme]\nname=org.kde.breeze\n')
+            with patch.dict(os.environ,XDG_CONFIG_HOME=directory),patch('lumen_i18n.language',return_value='en'), \
+                 patch('lumen_panel.applications',return_value=[]),patch('lumen_controls.snapshot',return_value={}), \
+                 patch('topbar_context.snapshot',return_value={}),patch('lumen_notifications.snapshot',return_value=dict(unread=0)):
+                result=snapshot()
+            self.assertIsNone(result['palette'])
+            self.assertEqual(result['labels']['Dateien'],'Files')
+
     def test_unavailable_notification_store_does_not_claim_zero_unread(self):
         with patch('lumen_panel.applications', return_value=[]), \
              patch('lumen_controls.snapshot', return_value={}), \

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include "appmenu.h"
 #include "paneldata.h"
+#include "tray.h"
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QDBusConnection>
@@ -23,8 +24,9 @@ int main(int argc,char **argv){
         return 0;
     }
     qmlRegisterType<AppMenu>("Lumen.Topbar",1,0,"AppMenu");
-    PanelData data;bus.registerObject("/Topbar",&data,QDBusConnection::ExportAllSlots);
+    PanelData data;Tray tray;bus.registerObject("/Topbar",&data,QDBusConnection::ExportAllSlots);
     QQmlEngine engine;engine.rootContext()->setContextProperty("panelData",&data);
+    engine.rootContext()->setContextProperty("trayModel",&tray);
     QMap<QScreen*,QQuickWindow*> windows;
     const auto create=[&](QScreen *screen){
         QQmlComponent component(&engine,QUrl("qrc:/lumen/Topbar.qml"));

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #include "appmenu.h"
 #include "paneldata.h"
+#include "tray.h"
 #include <QApplication>
 #include <QAbstractItemModel>
 #include <QDBusInterface>
@@ -28,10 +29,11 @@ class UiTest:public QObject {
     }
 private slots:
     void realWindowMenusAndLauncher(){
-        QProcess input;input.start("/old-qa/native/input");QVERIFY(input.waitForStarted());
+        QProcess input;input.start("/build/topbar-input");QVERIFY(input.waitForStarted());
         const auto send=[&](const QByteArray &command){input.write(command);if(!input.waitForBytesWritten(1000) || !input.waitForReadyRead(1000))return false;return input.readAllStandardOutput().startsWith("OK");};
         qmlRegisterType<AppMenu>("Lumen.Topbar",1,0,"AppMenu");
-        PanelData data;QQmlEngine engine;engine.rootContext()->setContextProperty("panelData",&data);
+        PanelData data;Tray tray;QQmlEngine engine;engine.rootContext()->setContextProperty("panelData",&data);
+        engine.rootContext()->setContextProperty("trayModel",&tray);
         QQmlComponent component(&engine,QUrl("qrc:/lumen/Topbar.qml"));
         QScopedPointer<QObject> owner(component.create());
         for(const auto &error:component.errors())qWarning().noquote()<<error.toString();
@@ -44,16 +46,19 @@ private slots:
         window->setProperty("ready",true);QTRY_VERIFY_WITH_TIMEOUT(window->isExposed(),5000);
         QTRY_COMPARE_WITH_TIMEOUT(data.snapshot()["apps"].toList().size(),5,5000);
         auto menus=window->findChild<AppMenu*>("applicationMenus");QVERIFY(menus);
-        QTimer::singleShot(2500,window,[window]{
-            auto state=window->findChild<QObject*>("activeWindowState");
-            qInfo()<<"STATE"<<state->property("appName")<<state->property("service")<<state->property("path")<<state->property("screenGeometry");
-            auto model=qvariant_cast<QAbstractItemModel*>(state->property("windowModel"));
-            if(model){const auto roles=model->roleNames();qInfo()<<"ROWS"<<model->rowCount();for(int i=0;i<model->rowCount();i++){QVariantMap row;for(auto it=roles.cbegin();it!=roles.cend();++it){if(it.value()=="AppName" || it.value()=="IsActive" || it.value()=="ApplicationMenuServiceName" || it.value()=="ApplicationMenuObjectPath")row[it.value()]=model->data(model->index(i,0),it.key());}qInfo()<<row;}}
-        });
         QTRY_COMPARE_WITH_TIMEOUT(menus->entries().size(),4,6000);
         QCOMPARE(menus->entries()[0].toMap()["label"].toString(),QStringLiteral("Datei"));
         QTRY_VERIFY_WITH_TIMEOUT(item("applicationMenu_0"),3000);
-        auto button=item("applicationMenu_0");QVERIFY(button->isVisible());
+        QTest::qWait(150);
+        auto island=item("leftIsland");QVERIFY(island);
+        for(int index=0;index<menus->entries().size();++index){
+            auto entry=item("applicationMenu_"+QString::number(index));QVERIFY(entry);
+            if(entry->isVisible())QVERIFY2(entry->mapToItem(island,QPointF(entry->width(),0)).x()<=island->width()-6,"Application menu clipped by the right island");
+        }
+        auto button=item("applicationMenu_0");
+        QTRY_VERIFY(button->isVisible() || item("menuOverflowButton")->isVisible());
+        if(!button->isVisible()){auto overflow=item("menuOverflowButton");QVERIFY(overflow);const auto point=overflow->mapToGlobal(QPointF(overflow->width()/2,overflow->height()/2));QVERIFY(send("click "+QByteArray::number(point.x())+" "+QByteArray::number(point.y())+"\n"));QTRY_VERIFY(item("overflowMenu_0"));button=item("overflowMenu_0");QTest::qWait(150);}
+        QVERIFY(button->isVisible());
         const auto click=[&](QQuickItem *value){const auto point=value->mapToGlobal(QPointF(value->width()/2,value->height()/2));return send("click "+QByteArray::number(point.x())+" "+QByteArray::number(point.y())+"\n");};
         QVERIFY(click(button));QTRY_VERIFY_WITH_TIMEOUT(QApplication::activePopupWidget()!=nullptr,3000);
         auto popup=qobject_cast<QMenu*>(QApplication::activePopupWidget());QVERIFY(popup);
@@ -78,6 +83,52 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(QFile::exists("/profile/actions.jsonl"),3000);
         const auto actions=[](){QFile file("/profile/actions.jsonl");if(!file.open(QIODevice::ReadOnly))return QByteArray();return file.readAll();};
         QTRY_VERIFY_WITH_TIMEOUT(actions().contains("--open-app"),3000);
+        auto clock=item("clockButton");QVERIFY(clock);QVERIFY(click(clock));
+        auto calendar=window->findChild<QObject*>("calendarPopup");QVERIFY(calendar);
+        QTRY_VERIFY(calendar->property("opened").toBool());QTest::qWait(200);
+        QVERIFY(calendar->property("opened").toBool());QVERIFY(window->height()>56);
+        QVERIFY(window->grabWindow().save("/profile/captures/native-calendar.png"));
+        QVERIFY(send("key 1\n"));QTRY_VERIFY(!calendar->property("opened").toBool());
+        QTRY_COMPARE_WITH_TIMEOUT(tray.items().size(),1,4000);
+        QTRY_VERIFY_WITH_TIMEOUT(item("trayItem_0"),2000);
+        auto trayButton=item("trayItem_0");
+        if(!trayButton->isVisible()){QVERIFY(click(item("trayMoreButton")));QTRY_VERIFY(item("overflowTray_0"));trayButton=item("overflowTray_0");QTest::qWait(180);}
+        QVERIFY(trayButton->isVisible());
+        const auto trayPoint=trayButton->mapToGlobal(QPointF(trayButton->width()/2,trayButton->height()/2));
+        QVERIFY(send("right "+QByteArray::number(trayPoint.x())+" "+QByteArray::number(trayPoint.y())+"\n"));
+        QTRY_VERIFY_WITH_TIMEOUT(tray.opened(),3000);
+        auto trayMenu=qobject_cast<QMenu*>(QApplication::activePopupWidget());QVERIFY(trayMenu);
+        QTRY_VERIFY(trayMenu->isActiveWindow());QTRY_VERIFY(trayMenu->windowHandle()->isExposed());
+        QTRY_VERIFY(!trayMenu->actions().isEmpty() && trayMenu->actions()[0]->text()==QStringLiteral("Tray-Testaktion"));
+        QVERIFY(trayMenu->grab().save("/profile/captures/native-tray-menu.png"));
+        QVERIFY(send("key 108\n"));QTRY_VERIFY(trayMenu->activeAction()!=nullptr);QTest::qWait(70);QVERIFY(send("key 28\n"));
+        QTRY_VERIFY_WITH_TIMEOUT(QFile::exists("/profile/tray-action.txt"),3000);
+        QDBusInterface trayControl("org.lumen.TrayTest","/Control",QString());QVERIFY(trayControl.call("quit").type()!=QDBusMessage::ErrorMessage);
+        QTRY_COMPARE_WITH_TIMEOUT(tray.items().size(),0,3000);
+        QDBusInterface fixture("org.lumen.MenuTestA","/Control",QString());QVERIFY(fixture.call("command","fullscreen").type()!=QDBusMessage::ErrorMessage);
+        QTRY_VERIFY_WITH_TIMEOUT(!window->isVisible(),3000);
+        QVERIFY(fixture.call("command","normal").type()!=QDBusMessage::ErrorMessage);QTRY_VERIFY_WITH_TIMEOUT(window->isVisible(),3000);
+        data.ShowApps();QTRY_VERIFY(apps->property("opened").toBool());QTRY_VERIFY(window->isActive());
+        QVERIFY(send("key 1\n"));QTRY_VERIFY(!apps->property("opened").toBool());
+        auto controls=item("systemControlsButton");QVERIFY(controls);if(!controls->isVisible())controls=item("compactControlsButton");QVERIFY(controls->isVisible());QVERIFY(click(controls));QTest::qWait(180);
+        auto slider=item("volumeSlider");QVERIFY(slider);slider->forceActiveFocus();QVERIFY(send("key 106\n"));
+        QTRY_COMPARE_WITH_TIMEOUT(data.snapshot()["system"].toMap()["volume"].toInt(),51,3000);
+        QTRY_VERIFY(!slider->property("pending").toBool());
+        QVERIFY(click(item("muteButton")));QTRY_VERIFY_WITH_TIMEOUT(data.snapshot()["system"].toMap()["muted"].toBool(),3000);
+        data.control("volume",13);data.control("hardware");
+        QTRY_VERIFY_WITH_TIMEOUT(data.error().contains("Synthetischer Kontrollfehler"),3000);
+        QVERIFY(item("systemErrorButton")->isVisible());
+        QVERIFY(window->grabWindow().save("/profile/captures/native-controls.png"));
+        QVERIFY(send("key 1\n"));
+        QQmlComponent secondComponent(&engine,QUrl("qrc:/lumen/Topbar.qml"));
+        QScopedPointer<QObject> secondOwner(secondComponent.create());auto second=qobject_cast<QQuickWindow*>(secondOwner.data());QVERIFY(second);
+        auto secondScreen=QGuiApplication::screens()[1];second->setScreen(secondScreen);second->setGeometry(secondScreen->geometry().x(),secondScreen->geometry().y(),secondScreen->geometry().width(),56);
+        auto secondLayer=LayerShellQt::Window::get(second);secondLayer->setScreen(secondScreen);
+        secondLayer->setAnchors(LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorTop)|LayerShellQt::Window::AnchorLeft|LayerShellQt::Window::AnchorRight);
+        secondLayer->setLayer(LayerShellQt::Window::LayerTop);secondLayer->setExclusiveZone(56);secondLayer->setActivateOnShow(false);
+        second->setProperty("ready",true);QTRY_VERIFY(second->isExposed());
+        QCOMPARE(second->width(),secondScreen->geometry().width());QCOMPARE(second->x(),secondScreen->geometry().x());
+        QVERIFY(second->grabWindow().save("/profile/captures/native-second-screen.png"));
         input.closeWriteChannel();QVERIFY(input.waitForFinished(1000));
     }
 };

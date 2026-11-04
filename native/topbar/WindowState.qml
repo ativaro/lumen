@@ -18,6 +18,9 @@ QtObject {
     readonly property string title: activeWindow ? activeWindow.model.display || "" : ""
     readonly property string service: activeWindow ? activeWindow.model.ApplicationMenuServiceName || "" : ""
     readonly property string path: activeWindow ? activeWindow.model.ApplicationMenuObjectPath || "" : ""
+    readonly property bool closable:activeWindow ? activeWindow.model.IsClosable : false
+    readonly property bool maximizable:activeWindow ? activeWindow.model.IsMaximizable : false
+    readonly property bool minimizable:activeWindow ? activeWindow.model.IsMinimizable : false
     readonly property int pid: activeWindow ? activeWindow.model.AppPid || 0 : 0
     function action(name) {
         if(!activeWindow)return
