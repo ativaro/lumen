@@ -29,10 +29,13 @@ else:
         Path('/profile/asked.json').write_text(json.dumps(value))
         print(json.dumps(dict(error='')))
     if len(sys.argv)>2 and sys.argv[1]=='--control':
-        current=system();error=''
+        previous=system();current=dict(previous);error=''
         if sys.argv[2]=='volume':
             value=int(sys.argv[4])
             if value==13:error='Synthetischer Kontrollfehler'
             else:current['volume']=value
         if sys.argv[2]=='mute':current['muted']=not current['muted']
-        state.write_text(json.dumps(current));print(json.dumps(dict(system=current,error=error)))
+        if current!=previous:
+            pending=state.with_name(state.name+'.'+str(os.getpid()))
+            pending.write_text(json.dumps(current));pending.replace(state)
+        print(json.dumps(dict(system=current,error=error)))
