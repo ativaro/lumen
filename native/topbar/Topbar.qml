@@ -179,7 +179,7 @@ Window {
             BarButton {id:volumeButton;key:!bar.classic;objectName:"systemControlsButton";colors:bar.colors;text:bar.t("Audio");glyph:bar.stateData.system?.muted?"audio-volume-muted":"audio-volume-high";iconOnly:true;visible:bar.showStatus;onClicked:{networkPopup.close();systemPopup.close();audioPopup.open();panelData.refresh()}}
             BarButton {key:!bar.classic;colors:bar.colors;text:bar.t("Mitteilungen")+(bar.stateData.unread>0?" · "+bar.stateData.unread:"");glyph:bar.stateData.unread>0?"notifications-new":"notifications";iconOnly:true;onClicked:panelData.launch("notifications")}
             BarButton {colors:bar.colors;objectName:"clockButton";text:bar.clockText;visible:bar.width>460;onClicked:calendar.open()}
-            BarButton {id:compactControls;key:!bar.classic;objectName:"compactControlsButton";colors:bar.colors;text:bar.t("Systemsteuerung");glyph:"settings-configure";iconOnly:true;visible:!bar.showStatus;onClicked:{systemPopup.open();panelData.refresh()}}
+            BarButton {id:compactControls;key:!bar.classic;objectName:"compactControlsButton";colors:bar.colors;text:bar.t("Systemsteuerung");glyph:"settings-configure";iconOnly:true;onClicked:{networkPopup.close();audioPopup.close();systemPopup.open();panelData.refresh()}}
         onImplicitWidthChanged:Qt.callLater(bar.fit)
     }
     component BarPopup:Popup {
@@ -300,7 +300,7 @@ Window {
         onLaunchStudio:panelData.launch("app","meetings")
     }
     BarPopup {
-        id:systemPopup;x:bar.width-width-12
+        id:systemPopup;objectName:"systemPopup";x:bar.width-width-12
         ColumnLayout {
             width:parent.width
             spacing:12

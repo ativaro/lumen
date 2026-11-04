@@ -218,6 +218,11 @@ private slots:
         auto wifi=item("wifiSwitch");QVERIFY(wifi && wifi->isVisible());QVERIFY(click(wifi));
         QTRY_VERIFY(!data.details()["network"].toMap()["wifiEnabled"].toBool());
         QVERIFY(send("key 1\n"));QTRY_VERIFY(!networkPopup->property("opened").toBool());
+        QVERIFY(item("compactControlsButton")->isVisible());QVERIFY(click(item("compactControlsButton")));
+        auto generalControls=window->findChild<QObject*>("systemPopup");QVERIFY(generalControls);QTRY_VERIFY(generalControls->property("opened").toBool());
+        QVERIFY(!audioPopup->property("opened").toBool());QVERIFY(!networkPopup->property("opened").toBool());
+        QVERIFY(window->grabWindow().save("/profile/captures/native-general-controls.png"));
+        QVERIFY(send("key 1\n"));QTRY_VERIFY(!generalControls->property("opened").toBool());
         QQmlComponent secondComponent(&engine,QUrl("qrc:/lumen/Topbar.qml"));
         QScopedPointer<QObject> secondOwner(secondComponent.create());auto second=qobject_cast<QQuickWindow*>(secondOwner.data());QVERIFY(second);
         auto secondScreen=QGuiApplication::screens()[1];second->setScreen(secondScreen);second->setGeometry(secondScreen->geometry().x(),secondScreen->geometry().y(),secondScreen->geometry().width(),56);
