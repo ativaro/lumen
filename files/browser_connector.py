@@ -154,6 +154,8 @@ class Connector:
             if time.monotonic()-item.touched>1200:item.close();self.sessions.pop(identity)
         command=client.request(config,'/bridge/browser/poll',{'instance':self.instance},timeout=25)
         if command is None:return
+        if command == {'reset':True}:
+            self.close();return
         # Recheck both ends before launching or changing a page.
         if not allowed(config):raise ValueError('Die lokale Browserfreigabe wurde entzogen.')
         rights=client.request(config,'/bridge/me').get('capabilities',[])

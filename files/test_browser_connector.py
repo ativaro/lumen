@@ -40,6 +40,12 @@ class DesktopBrowserTests(unittest.TestCase):
         for method in ('exec','shell','resources/read'):
             with self.assertRaises(ValueError):connector.execute({'session':str(uuid4()),'method':method,'params':{}})
 
+    def test_runtime_restart_closes_old_browser_instances(self):
+        connector=browser.Connector()
+        with patch.object(browser,'allowed',return_value=True),patch.object(browser,'ready',return_value=True),patch.object(browser.client,'request',return_value={'reset':True}),patch.object(connector,'close') as close:
+            connector.step({})
+            close.assert_called_once()
+
     def test_reply_failure_does_not_reexecute(self):
         connector=browser.Connector();command={'id':str(uuid4()),'session':str(uuid4()),'method':'tools/call','params':{}}
         with patch.object(browser,'allowed',return_value=True),patch.object(browser,'ready',return_value=True),patch.object(browser.client,'request',side_effect=[command,{'capabilities':['desktop','browser']},OSError('lost')]),patch.object(connector,'execute',return_value={}) as execute:
