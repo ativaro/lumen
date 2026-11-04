@@ -95,12 +95,14 @@ def main():
     group.add_argument('--topbar-note', type=int)
     group.add_argument('--topbar-transfer', type=valid_task)
     group.add_argument('--system-snapshot', action='store_true')
+    group.add_argument('--system-topic', choices=['network', 'audio'])
+    parser.add_argument('--system-action', action='store_true')
     group.add_argument('--notification-snapshot', action='store_true')
     group.add_argument('--notification-settings', action='store_true')
     group.add_argument('--notification-own-popups', action='store_true')
     group.add_argument('--notification-action', choices=['open','discuss','read','unread','archive','restore','later','now','resolve','reopen'])
     parser.add_argument('--notification-id')
-    group.add_argument('--control', choices=['volume', 'brightness', 'mute', 'search', 'network', 'audio', 'display', 'appearance', 'hardware', 'desktop-settings', 'lock'])
+    group.add_argument('--control', choices=['volume', 'brightness', 'mute', 'search', 'network', 'proxy', 'audio', 'bluetooth', 'firewall', 'display', 'appearance', 'hardware', 'desktop-settings', 'lock'])
     parser.add_argument('--value', type=int)
     parser.add_argument('--task-limit', type=int, choices=range(1,1001), metavar='1..1000')
     from lumen_apps import catalogue
@@ -186,6 +188,21 @@ def main():
         result = snapshot(task_limit=args.task_limit)
         if error: result['error'] = error
         print(json.dumps(result, ensure_ascii=False)); return
+    if args.system_topic:
+        import sys
+        from topbar_system import snapshot as topic_snapshot, act
+        try:
+            if args.system_action:
+                payload = sys.stdin.buffer.read(8193)
+                if len(payload) > 8192:
+                    raise ValueError('Invalid action')
+                details = act(args.system_topic, json.loads(payload))
+            else:
+                details = topic_snapshot(args.system_topic)
+            print(json.dumps(dict(topic=args.system_topic, details=details, error=''), ensure_ascii=False))
+        except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
+            print(json.dumps(dict(error=tr('Systemaktion fehlgeschlagen. Bitte den aktuellen Status prüfen.'))))
+        return
     if args.system_snapshot or args.control:
         from lumen_controls import snapshot as system_snapshot, control
         try:

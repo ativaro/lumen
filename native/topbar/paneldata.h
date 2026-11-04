@@ -18,6 +18,7 @@ class PanelData:public QObject {
     Q_PROPERTY(QString error READ error NOTIFY errorChanged)
     Q_PROPERTY(bool controlBusy READ controlBusy NOTIFY controlBusyChanged)
     Q_PROPERTY(QString layout READ layout NOTIFY layoutChanged)
+    Q_PROPERTY(QVariantMap details READ details NOTIFY detailsChanged)
 public:
     explicit PanelData(QObject *parent=nullptr);
     ~PanelData() override;
@@ -25,6 +26,9 @@ public:
     QString error() const {return m_actionError.isEmpty()?m_error:m_actionError;}
     bool controlBusy() const {return m_control && m_control->state()!=QProcess::NotRunning;}
     QString layout() const {return m_layout;}
+    QVariantMap details() const {return m_details;}
+    Q_INVOKABLE void inspect(const QString &topic);
+    Q_INVOKABLE void systemAction(const QString &topic,const QString &action,const QString &target={},int value=0);
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void launch(const QString &action,const QString &value={});
     Q_INVOKABLE void control(const QString &action,int value=0);
@@ -44,6 +48,7 @@ signals:
     void errorChanged();
     void showAppsRequested(const QString &screen);
     void layoutChanged();
+    void detailsChanged();
     void noteAttached(const QString &action,const QVariantMap &note);
 private:
     void runHelper(const QStringList &arguments,const QString &action,int value=0,const QByteArray &input={});
@@ -63,5 +68,6 @@ private:
     bool m_ignoreRead=false;
     QTimer m_timeout,m_poll;
     QVariantMap m_snapshot;
+    QVariantMap m_details;
     QString m_error,m_actionError;
 };

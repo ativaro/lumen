@@ -140,12 +140,21 @@ void PanelData::actionError(const QString &action,const QString &message){
     m_actionError=message;emit errorChanged();emit controlFailed(action);
 }
 void PanelData::control(const QString &action,int value){
-    static const QStringList actions={"volume","brightness","mute","network","audio","display","appearance","hardware","desktop-settings","lock","search"};
+    static const QStringList actions={"volume","brightness","mute","network","proxy","audio","bluetooth","firewall","display","appearance","hardware","desktop-settings","lock","search"};
     if(!actions.contains(action))return;
     const bool numeric=action=="volume" || action=="brightness";
     if(numeric && (value<0 || value>100))return;
     QStringList arguments={"--control",action};if(numeric)arguments.append({"--value",QString::number(value)});
     runHelper(arguments,action,value);
+}
+void PanelData::inspect(const QString &topic){
+    if((topic!="network" && topic!="audio") || controlBusy())return;
+    runHelper({"--system-topic",topic},topic+":inspect");
+}
+void PanelData::systemAction(const QString &topic,const QString &action,const QString &target,int value){
+    if((topic!="network" && topic!="audio") || action.size()>64 || target.size()>1024 || target.contains(QChar::Null) || controlBusy())return;
+    const auto payload=QJsonDocument(QJsonObject{{"action",action},{"target",target},{"value",value}}).toJson(QJsonDocument::Compact);
+    runHelper({"--system-topic",topic,"--system-action"},topic+":"+action+":"+target,value,payload);
 }
 QString PanelData::chooseAttachment(QQuickWindow *window){
     if(window)LayerShellQt::Window::get(window)->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityNone);
@@ -183,12 +192,13 @@ QString PanelData::ask(const QString &prompt,const QString &file,const QVariantM
     return action;
 }
 void PanelData::runHelper(const QStringList &arguments,const QString &action,int value,const QByteArray &input){
-    const bool mutating=action=="volume" || action=="brightness" || action=="mute";
+    const bool topicAction=action.startsWith("network:") || action.startsWith("audio:");
+    const bool mutating=action=="volume" || action=="brightness" || action=="mute" || topicAction;
     if(mutating && controlBusy())return;
     if(m_helper.isEmpty()){actionError(action,tr("Lumen ist nicht vollständig installiert."));return;}
     m_actionError.clear();emit errorChanged();
     if(mutating && m_read.state()!=QProcess::NotRunning){m_ignoreRead=true;m_timeout.stop();m_read.kill();}
-    auto command=new QProcess(this);auto timeout=new QTimer(command);timeout->setSingleShot(true);timeout->setInterval(action.startsWith("note:")?45000:15000);
+    auto command=new QProcess(this);auto timeout=new QTimer(command);timeout->setSingleShot(true);timeout->setInterval(topicAction?60000:action.startsWith("note:")?45000:15000);
     if(mutating){m_control=command;connect(command,&QProcess::stateChanged,this,[this]{emit controlBusyChanged();});}
     connect(timeout,&QTimer::timeout,command,[command]{command->setProperty("timedOut",true);command->kill();});
     connect(command,&QProcess::readyReadStandardError,command,[command]{command->readAllStandardError();});
@@ -203,12 +213,15 @@ void PanelData::runHelper(const QStringList &arguments,const QString &action,int
         if(command->property("timedOut").toBool())failure=tr("Die Systemaktion wurde nicht bestätigt. Bitte den Status prüfen.");
         else if(code || status!=QProcess::NormalExit || bytes.size()>1024*1024 || error.error!=QJsonParseError::NoError || !result.isObject() || !result["error"].isString())failure=tr("Ungültige Systemdaten.");
         else failure=result["error"].toString().left(200);
-        if(failure.isEmpty() && mutating && !result["system"].isObject())failure=tr("Ungültige Systemdaten.");
+        const bool topicAction=action.startsWith("network:") || action.startsWith("audio:");
+        if(failure.isEmpty() && mutating && !topicAction && !result["system"].isObject())failure=tr("Ungültige Systemdaten.");
+        if(failure.isEmpty() && topicAction && (!result["details"].isObject() || result["topic"].toString()!=action.section(':',0,0)))failure=tr("Ungültige Systemdaten.");
         if(failure.isEmpty() && action.startsWith("note:") && !result["note"].isObject())failure=tr("Ungültige Notes-Auswahl.");
         if(!failure.isEmpty())actionError(action,failure);
         else{
             if(action.startsWith("note:"))emit noteAttached(action,result["note"].toObject().toVariantMap());
-            if(mutating){m_snapshot["system"]=result["system"].toObject().toVariantMap();emit changed();}
+            if(topicAction){m_details[action.section(':',0,0)]=result["details"].toObject().toVariantMap();emit detailsChanged();}
+            else if(mutating){m_snapshot["system"]=result["system"].toObject().toVariantMap();emit changed();}
             emit controlFinished(action,value);
         }
         command->deleteLater();if(mutating)refresh();

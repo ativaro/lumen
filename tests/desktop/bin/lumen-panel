@@ -8,6 +8,19 @@ from lumen_i18n import tr
 state=Path('/profile/control-state.json')
 def system():
     return json.loads(state.read_text()) if state.exists() else dict(volume=50,muted=False,brightness=None,network='Testnetz · Verbunden')
+def details(topic):
+    saved=Path('/profile/'+topic+'-state.json')
+    if saved.exists():return json.loads(saved.read_text())
+    if topic=='network':
+        return dict(available=True,state='connected',connectivity='full',wifiEnabled=True,
+            devices=[dict(id='eth0',name='Ethernet',type='ethernet',state='100 (connected)',profile='Testkabel',details=[dict(label='IPv4',value='192.0.2.42/24'),dict(label='DNS (IPv4)',value='192.0.2.1')])],
+            profiles=[dict(id='00000000-0000-0000-0000-000000000001',name='Privat',type='wireguard',device='--',active=False),dict(id='00000000-0000-0000-0000-000000000002',name='Testnetz',type='802-11-wireless',device='wlan0',active=True)],
+            networks=[dict(id='wlan0/00:00:00:00:00:01',bssid='00:00:00:00:00:01',name='Testnetz: Labor',signal=92,security='WPA3',frequency='5180 MHz',channel='36',device='wlan0',active=True,hidden=False)],errors=[])
+    device=lambda i,name,default:dict(id=i,name=name,default=default,muted=False,volume=50,state='RUNNING',ports=[],activePort='analog-output',format='float32le 2ch 48000Hz')
+    return dict(available=True,outputs=[device('7','Lautsprecher',True),device('8','USB-C-Monitor',False)],inputs=[device('9','USB-Mikrofon',True)],
+        playback=[dict(id='12',name='Audio Studio',media='Synthetische Wiedergabe',volume=70,muted=False,device='7')],recording=[],
+        cards=[dict(id='0',name='USB-Audiogerät',active='stereo',profiles=[dict(id='stereo',name='Stereo'),dict(id='headset',name='Headset')])],
+        server='PipeWire · Testprofil',bluetooth=dict(available=True,adapters=[dict(id='/org/bluez/hci0',name='Bluetooth',powered=True)],devices=[dict(id='00:00:00:00:00:02',name='Studio-Kopfhörer',connected=True,paired=True,battery=82)]),errors=[])
 if sys.argv[1:]==['--bar-snapshot']:
     names=('window','base','alternate','text','button','border','muted','accent','onAccent')
     print(json.dumps(dict(version=1,language=os.environ.get('LUMEN_LANGUAGE','de'),
@@ -17,6 +30,20 @@ if sys.argv[1:]==['--bar-snapshot']:
           [('lumen','Lumen','lumen'),('files','Dateien','folder'),('wissen','Notes','accessories-text-editor'),
            ('workbench','Projekte','folder'),('meetings','Audio Studio','microphone-sensitivity-high')]],
         system=system(),operations=dict(transfer=None,audio=False),unread=2)))
+elif len(sys.argv)>2 and sys.argv[1]=='--system-topic':
+    topic=sys.argv[2];value=details(topic)
+    if '--system-action' in sys.argv:
+        request=json.load(sys.stdin)
+        with Path('/profile/actions.jsonl').open('a') as output:output.write(json.dumps(dict(topic=topic,**request))+'\n')
+        action=request['action'];target=request.get('target','')
+        if action=='wifi':value['wifiEnabled']=bool(request['value'])
+        if action=='default:output':
+            for device in value['outputs']:device['default']=device['id']==target
+        if action=='mute:input':value['inputs'][0]['muted']=not value['inputs'][0]['muted']
+        if action=='volume:input':value['inputs'][0]['volume']=request['value']
+        if action=='route:playback':value['playback'][0]['device']=str(request['value'])
+        Path('/profile/'+topic+'-state.json').write_text(json.dumps(value))
+    print(json.dumps(dict(topic=topic,details=value,error='')))
 elif sys.argv[1:]==['--language']:
     print(json.dumps(dict(language=os.environ.get('LUMEN_LANGUAGE','de'))))
 elif any(value.startswith('--notification-') for value in sys.argv[1:]):

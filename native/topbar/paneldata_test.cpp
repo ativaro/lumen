@@ -8,6 +8,8 @@
 #include <QTest>
 #include <QSettings>
 #include <QSignalSpy>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 class DataTest:public QObject {
     Q_OBJECT
@@ -58,6 +60,28 @@ private slots:
         QVERIFY(elapsed.elapsed()<1500);
         auto controlling=new PanelData;controlling->control("volume",50);QTest::qWait(100);
         QVERIFY(controlling->controlBusy());elapsed.restart();delete controlling;QVERIFY(elapsed.elapsed()<1500);
+        if(previous.isNull())qunsetenv("LUMEN_BIN_DIR");else qputenv("LUMEN_BIN_DIR",previous);
+    }
+    void systemTopicsKeepTheirOwnDataAndRejectWrongReplies(){
+        QTemporaryDir directory;QVERIFY(directory.isValid());
+        QFile helper(directory.filePath("lumen-panel"));QVERIFY(helper.open(QIODevice::WriteOnly));
+        helper.write("#!/bin/sh\ncase \"$*\" in\n"
+            "'--system-topic network') printf '%s' '{\"topic\":\"network\",\"details\":{\"available\":true},\"error\":\"\"}';;\n"
+            "'--system-topic audio --system-action') cat > \"$(dirname \"$0\")/action.json\"; printf '%s' '{\"topic\":\"audio\",\"details\":{\"available\":true},\"error\":\"\"}';;\n"
+            "'--system-topic audio') printf '%s' '{\"topic\":\"network\",\"details\":{},\"error\":\"\"}';;\n"
+            "*) printf '%s' '{\"version\":1,\"apps\":[],\"palette\":null}';;\nesac\n");helper.close();
+        QVERIFY(helper.setPermissions(QFile::ReadOwner|QFile::WriteOwner|QFile::ExeOwner));
+        const auto previous=qgetenv("LUMEN_BIN_DIR");qputenv("LUMEN_BIN_DIR",directory.path().toUtf8());
+        PanelData data;data.inspect("network");QTRY_VERIFY(data.details()["network"].toMap()["available"].toBool());
+        QTRY_VERIFY(!data.controlBusy());
+        data.systemAction("audio","volume:input","9",42);
+        QTRY_VERIFY(data.details()["audio"].toMap()["available"].toBool());
+        QVERIFY(data.details()["network"].toMap()["available"].toBool());
+        QFile request(directory.filePath("action.json"));QVERIFY(request.open(QIODevice::ReadOnly));
+        const auto json=QJsonDocument::fromJson(request.readAll()).object();
+        QCOMPARE(json["action"].toString(),QString("volume:input"));QCOMPARE(json["target"].toString(),QString("9"));QCOMPARE(json["value"].toInt(),42);
+        QSignalSpy failed(&data,&PanelData::controlFailed);QTRY_VERIFY(!data.controlBusy());data.inspect("audio");
+        QTRY_COMPARE(failed.size(),1);QVERIFY(data.details()["audio"].toMap()["available"].toBool());
         if(previous.isNull())qunsetenv("LUMEN_BIN_DIR");else qputenv("LUMEN_BIN_DIR",previous);
     }
 };

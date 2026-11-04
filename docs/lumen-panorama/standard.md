@@ -44,6 +44,20 @@ Die folgenden Ausgangswerte stammen aus der Desktop-Palette und der freigegebene
 
 ## Verbindlicher Abgleich bei UI-Änderungen
 
+Desktop-Topbar, Netzwerk und Audio (04.11.2026): Die beiden Statussymbole öffnen
+eigenständige Panorama-Menüs. Netzwerk gliedert sich in Übersicht, WLAN,
+Kabel/Adapter, VPN/Proxy, Hotspot und Details/Diagnose; Audio in Übersicht,
+Ausgabe, Mikrofon, Apps, Bluetooth und Klang/Technik. Auf schmalen Bildschirmen
+werden diese Bereiche oberhalb des Inhalts angeordnet. Darstellung und Regler
+nutzen dieselben Themes, 14px-Bedienung, Hover und Namenshinweise wie die Leiste.
+WLAN-/VPN-Verbindungen, Audiogeräte und App-Routing zeigen den tatsächlichen
+Systemzustand. Profil-, Sicherheits-, Hotspot-, Proxy-, Firewall- und komplexe
+Audioeinstellungen führen gezielt in die bestehenden nativen Einstellungsseiten.
+Keine erfundenen Messwerte oder funktionslosen Klang-/Mikrofonregler anzeigen.
+Passwörter/Zertifikate bleiben bei der Systemanmeldung. Mikrofone werden für die
+Anzeige nicht geöffnet. Die allgemeine Systemsteuerung enthält Helligkeit,
+Einstellungen und Sperren; sie ist kein zweiter gemeinsamer Audio-/Netzwerkmischer.
+
 1. Betroffene Panorama-Ansicht, Theme und Bedienweg vor der Umsetzung festlegen. Fehlende Details aus vorhandenen Bausteinen ableiten; grundlegende Abweichungen mit dem Nutzer klären.
 2. Einen vollständigen Bedienweg in der tatsächlichen Plattform umsetzen, einschließlich seiner relevanten Zustände und Rechte. Gemeinsam verwendete Komponenten statt weiterer paralleler Stile bevorzugen.
 3. Echte Vorher-/Nachherbilder desselben Bedienwegs mit Sourcepin, Theme, Inhalt, Fenstergröße, Sprache und Skalierung festhalten und mit der freigegebenen Referenz vergleichen: Navigation, proportionale Inhaltsfläche, Typografie, 24px-Außenränder, vollständige Aktionsbeschriftungen, Icons und Zustände. Keine gesonderten Screenshot-Stile verwenden.
