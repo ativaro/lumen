@@ -33,6 +33,8 @@ def install():
         raise ValueError('Für getrennte Browserprofile wird bubblewrap benötigt.')
     if not shutil.which('node') or not shutil.which('npm'):
         raise ValueError('Für die Browsersteuerung werden Node.js und npm benötigt.')
+    major=int(subprocess.check_output(['node','-p','process.versions.node.split(".")[0]'],text=True,timeout=5))
+    if major<20:raise ValueError('Für die Browsersteuerung wird Node.js ab Version 20 benötigt.')
     BASE.parent.mkdir(parents=True,exist_ok=True)
     if shutil.disk_usage(BASE.parent).free < 30*1024**3:
         raise ValueError('Für die Browser-Einrichtung sind 30 GiB freier Speicher erforderlich.')

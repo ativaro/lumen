@@ -249,7 +249,7 @@ die Zeichnungen des unteren Docks und die globalen Schriften werden nicht ersetz
 
 In **Lumen Serververbindung** die Option **Browsersteuerung auf diesem Desktop**
 aktivieren. Lumen lädt beim ersten Mal Chromium und die festgelegten Browserwerkzeuge.
-Dafür werden Node.js ab Version 18, npm und bubblewrap benötigt. Anschließend erscheint
+Dafür werden Node.js ab Version 20, npm und bubblewrap benötigt. Anschließend erscheint
 der online verbundene Desktop im Browserdialog auf dem Server; andere eingerichtete
 Rechner bleiben wählbar. Es wird kein eingehender Port geöffnet.
 
