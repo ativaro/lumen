@@ -72,7 +72,7 @@ class ServerMCPBindingTest(unittest.TestCase):
         expected=dict(type='remote',url='https://staging.invalid/mcp/',
             headers={'Authorization':'Bearer synthetic-device-token'},enabled=True,oauth=False)
         self.assertEqual(result['mcp']['lumen-server'],expected)
-        self.assertEqual({k:v for k,v in result.items() if k not in ('mcp','skills')},
+        self.assertEqual({k:v for k,v in result.items() if k not in ('mcp','skills','plugin')},
                          {k:v for k,v in original.items() if k not in ('mcp','skills')})
         self.assertEqual(result['mcp']['other'],original['mcp']['other'])
         self.assertEqual(result['skills'], {'urls':['https://staging.invalid/api/skills/']})
@@ -80,6 +80,21 @@ class ServerMCPBindingTest(unittest.TestCase):
         self.assertEqual(os.environ['OPENCODE_CONFIG_CONTENT'],json.dumps(original))
         self.assertFalse(any(p.name in ('opencode.json','opencode.jsonc','opencode-mcp.json')
                              for p in set(self.root.rglob('*'))-files))
+
+    def test_compaction_plugin_is_bundled_once_and_preserves_user_plugins(self):
+        asset = Path(__file__).with_name('engine-plugins')/'lumen-continuity.mjs'
+        uri = asset.resolve().as_uri()
+        self.assertTrue(asset.is_file())
+        for own in ([], [uri], [[uri, {'own': 'options'}]]):
+            original = {'plugin': ['@example/owned@1.0.0', *own], 'model': 'chosen/model'}
+            os.environ['OPENCODE_CONFIG_CONTENT'] = json.dumps(original)
+            backend = self.backend()
+            result = self.start(backend)
+            self.assertEqual(result['model'], 'chosen/model')
+            self.assertEqual(result['plugin'][0], '@example/owned@1.0.0')
+            self.assertEqual(sum(row == uri or isinstance(row, list) and row[0] == uri for row in result['plugin']), 1)
+            self.assertEqual(os.environ['OPENCODE_CONFIG_CONTENT'], json.dumps(original))
+            backend.shutdown()
 
     def test_shared_skills_merge_without_overriding_user_paths_or_learning(self):
         from server_mcp_binding import configuration

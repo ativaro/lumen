@@ -264,7 +264,15 @@ class OpenCodeBackend(QObject):
         from server_mcp_binding import configuration, BindingError
         try:
             content, binding = configuration({key:environment.value(key) for key in environment.keys()})
-            environment.insert('OPENCODE_CONFIG_CONTENT', content)
+            config = json.loads(content)
+            plugins = config.setdefault('plugin', [])
+            if not isinstance(plugins, list): raise BindingError()
+            asset = Path(__file__).with_name('engine-plugins')/'lumen-continuity.mjs'
+            if not asset.is_file(): raise BindingError()
+            plugin = asset.resolve().as_uri()
+            if not any(row == plugin or isinstance(row, list) and row and row[0] == plugin for row in plugins):
+                plugins.append(plugin)
+            environment.insert('OPENCODE_CONFIG_CONTENT', json.dumps(config))
         except BindingError:
             self.proc = None; proc.deleteLater()
             self.fail(tr('Die private Server-Werkzeugkonfiguration ist ungültig. Bitte die Serververbindung prüfen.'),

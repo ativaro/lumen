@@ -21,7 +21,7 @@ def install(repo, data, binaries):
         raise ValueError('Das Starterverzeichnis enthält nicht unterstützte Sonderzeichen.')
     sources = sorted(p for p in (repo/'files').iterdir()
                      if p.suffix in ('.py', '.qss', '.svg') and not p.name.startswith('test_'))
-    for directory in ('translations', 'qml', 'fonts', 'notes_icons', 'memory-runtime'):
+    for directory in ('translations', 'qml', 'fonts', 'notes_icons', 'memory-runtime', 'engine-plugins'):
         sources += sorted(p for p in (repo/'files'/directory).rglob('*')
                           if p.is_file() and '__pycache__' not in p.parts and p.suffix != '.pyc')
     if not (repo/'files/tools_app.py').is_file(): raise ValueError('Anwendungsquellen fehlen.')
