@@ -194,7 +194,7 @@ package() {
     if [[ -f "$srcroot/files/google-drive-client.json" ]]; then
         install -m0644 "$srcroot/files/google-drive-client.json" "$pkgdir/usr/share/lumen/files/"
     fi
-    for asset in translations qml fonts notes_icons memory-runtime; do
+    for asset in translations qml fonts notes_icons memory-runtime browser-runtime; do
         cp -R "$srcroot/files/$asset" "$pkgdir/usr/share/lumen/files/"
     done
     install -m0755 "$srcroot/bin/lumen-files" "$pkgdir/usr/bin/lumen-files"

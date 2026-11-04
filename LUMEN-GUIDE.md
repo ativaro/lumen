@@ -243,3 +243,18 @@ ruhige dunkle Menüs. Bei vorhandenem LumenDark erzeugt
 `python plasmoid/install-island-style.py` die Ableitung im Benutzerprofil;
 `plasma-apply-desktoptheme LumenIslands` aktiviert sie. LumenDark bleibt erhalten,
 die Zeichnungen des unteren Docks und die globalen Schriften werden nicht ersetzt.
+
+
+## Browseraufgaben auf diesem Desktop
+
+In **Lumen Serververbindung** die Option **Browsersteuerung auf diesem Desktop**
+aktivieren. Lumen lädt beim ersten Mal Chromium und die festgelegten Browserwerkzeuge.
+Dafür werden Node.js ab Version 18, npm und bubblewrap benötigt. Anschließend erscheint
+der online verbundene Desktop im Browserdialog auf dem Server; andere eingerichtete
+Rechner bleiben wählbar. Es wird kein eingehender Port geöffnet.
+
+Jede Sitzung verwendet ein eigenes, flüchtiges Browserprofil in einer Dateisystem-
+Isolation. Private Browserprofile und Dateien werden nicht eingebunden. Anmeldungen
+können im Serverdialog über **Übernehmen** selbst eingegeben werden. Ausschalten der
+Option beendet den Zugang; nach einem Verbindungsabbruch werden unbekannte Aktionen
+nicht automatisch wiederholt oder auf einen anderen Rechner verschoben.
