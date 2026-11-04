@@ -65,6 +65,29 @@ Popup {
     component Heading:Caption {font.pixelSize:18;font.weight:Font.Medium;Layout.topMargin:8}
     component Rule:Rectangle {height:1;color:menu.colors.border;Layout.fillWidth:true;Layout.topMargin:8;Layout.bottomMargin:8}
     component Action:BarButton {colors:menu.colors;key:true;Layout.fillWidth:true;enabled:!menu.controller.controlBusy}
+    component Choice:ComboBox {
+        id:choice
+        Layout.fillWidth:true;Layout.minimumWidth:0;padding:10;rightPadding:34
+        implicitHeight:44
+        palette.text:menu.colors.text;palette.buttonText:menu.colors.text;palette.base:menu.colors.base;palette.button:menu.colors.window;palette.highlight:menu.colors.accent;palette.highlightedText:menu.colors.onAccent
+        background:Rectangle {color:menu.colors.base;radius:menu.colors.radius||10;border.width:choice.visualFocus?2:1;border.color:choice.visualFocus || choice.hovered?menu.colors.accent:menu.colors.border}
+        contentItem:Text {text:choice.displayText;font:choice.font;color:choice.enabled?menu.colors.text:menu.colors.muted;verticalAlignment:Text.AlignVCenter;elide:Text.ElideRight;textFormat:Text.PlainText}
+        indicator:Kirigami.Icon {source:"arrow-down";x:choice.width-width-10;y:(choice.height-height)/2;width:18;height:18;color:menu.colors.text}
+        delegate:ItemDelegate {
+            required property var modelData
+            required property int index
+            width:choice.width-16;text:modelData[choice.textRole];highlighted:choice.highlightedIndex===index;padding:10
+            contentItem:Text {text:parent.text;font:choice.font;color:menu.colors.text;wrapMode:Text.Wrap;textFormat:Text.PlainText}
+            background:Rectangle {color:parent.highlighted?menu.colors.alternate:menu.colors.window;radius:menu.colors.radius||10}
+        }
+        popup:Popup {
+            popupType:Popup.Item;width:choice.width;padding:8
+            height:Math.min(implicitHeight,menu.height-32)
+            y:Math.max(16-choice.mapToItem(menu.contentItem,0,0).y,Math.min(choice.height,menu.height-16-choice.mapToItem(menu.contentItem,0,0).y-height))
+            background:Rectangle {color:menu.colors.window;radius:menu.colors.radius||10;border.color:menu.colors.border}
+            contentItem:ListView {clip:true;implicitHeight:contentHeight;model:choice.popup.visible?choice.delegateModel:null;currentIndex:choice.highlightedIndex;ScrollIndicator.vertical:ScrollIndicator {}}
+        }
+    }
     component Fold:ColumnLayout {
         default property alias body:contents.data
         property string title
@@ -266,7 +289,7 @@ Popup {
                                 Muted {text:modelData.media;visible:!!text}
                                 Level {kind:streamGroup.modelData.kind;device:parent.modelData}
                                 Action {text:menu.t(modelData.muted?"Ton an":"Stumm");onClicked:menu.act("mute:"+streamGroup.modelData.kind,modelData.id)}
-                                ComboBox {objectName:"streamRoute"+modelData.id;Layout.fillWidth:true;model:streamGroup.modelData.devices;textRole:"name";valueRole:"id";currentIndex:streamGroup.modelData.devices.findIndex(d=>d.id===parent.modelData.device);enabled:!menu.controller.controlBusy;Accessible.name:menu.t("Gerät für App");onActivated:menu.act("route:"+streamGroup.modelData.kind,parent.modelData.id,Number(currentValue))}
+                                Choice {objectName:"streamRoute"+modelData.id;model:streamGroup.modelData.devices;textRole:"name";valueRole:"id";currentIndex:streamGroup.modelData.devices.findIndex(d=>d.id===parent.modelData.device);enabled:!menu.controller.controlBusy;Accessible.name:menu.t("Gerät für App");onActivated:menu.act("route:"+streamGroup.modelData.kind,parent.modelData.id,Number(currentValue))}
                                 Rule {}
                             }
                         }
@@ -294,7 +317,7 @@ Popup {
                 Repeater {model:menu.data.cards||[]
                     ColumnLayout {required property var modelData;Layout.fillWidth:true;spacing:8
                         Heading {text:modelData.name}
-                        ComboBox {Layout.fillWidth:true;model:parent.modelData.profiles;textRole:"name";valueRole:"id";currentIndex:parent.modelData.profiles.findIndex(p=>p.id===parent.modelData.active);enabled:!menu.controller.controlBusy;Accessible.name:menu.t("Audioprofil");onActivated:menu.act("profile",parent.modelData.id+"/"+currentValue)}
+                        Choice {model:parent.modelData.profiles;textRole:"name";valueRole:"id";currentIndex:parent.modelData.profiles.findIndex(p=>p.id===parent.modelData.active);enabled:!menu.controller.controlBusy;Accessible.name:menu.t("Audioprofil");onActivated:menu.act("profile",parent.modelData.id+"/"+currentValue)}
                     }
                 }
                 Action {text:menu.t("Balance, Anschlüsse & Kanalbelegung …");onClicked:menu.settings("audio")}

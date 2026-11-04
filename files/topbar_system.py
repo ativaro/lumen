@@ -105,7 +105,7 @@ def _volume(item):
 
 def _bluez():
     try:
-        objects = json.loads(run(['busctl', '--system', '--json=short', 'call', 'org.bluez', '/',
+        objects = json.loads(run(['busctl', '--system', '--auto-start=no', '--json=short', 'call', 'org.bluez', '/',
                                   'org.freedesktop.DBus.ObjectManager', 'GetManagedObjects']))['data'][0]
         adapters, devices = [], []
         for path, interfaces in objects.items():

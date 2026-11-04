@@ -181,7 +181,14 @@ private slots:
         QVERIFY(click(item("audioSection2")));QTest::qWait(80);item("deviceMuteinput9")->forceActiveFocus();QTest::qWait(100);QVERIFY(click(item("deviceMuteinput9")));
         QTRY_VERIFY(data.details()["audio"].toMap()["inputs"].toList()[0].toMap()["muted"].toBool());
         QVERIFY(click(item("audioSection3")));QTest::qWait(80);
-        auto route=item("streamRoute12");QVERIFY(route && route->isVisible());route->forceActiveFocus();QTest::qWait(100);QVERIFY(send("key 108\n"));
+        auto route=item("streamRoute12");QVERIFY(route && route->isVisible());route->forceActiveFocus();QTest::qWait(100);QVERIFY(click(route));
+        auto routePopup=qvariant_cast<QObject*>(route->property("popup"));QVERIFY(routePopup);QTRY_VERIFY(routePopup->property("visible").toBool());
+        auto routeBackground=qvariant_cast<QQuickItem*>(routePopup->property("background"));QVERIFY(routeBackground);
+        const auto routeTop=routeBackground->mapToGlobal(QPointF());
+        QVERIFY(routeTop.y()>=audioPopup->property("y").toReal()-1);
+        QVERIFY(routeTop.y()+routeBackground->height()<=audioPopup->property("y").toReal()+audioPopup->property("height").toReal()+1);
+        QVERIFY(window->grabWindow().save("/profile/captures/native-audio-routing.png"));
+        QVERIFY(send("key 108\n"));QVERIFY(send("key 28\n"));
         QTRY_COMPARE(data.details()["audio"].toMap()["playback"].toList()[0].toMap()["device"].toString(),QString("8"));
         QVERIFY(click(item("audioSection0")));QTest::qWait(50);
         auto slider=item("volumeSlider");QVERIFY(slider);slider->forceActiveFocus();QVERIFY(send("key 106\n"));

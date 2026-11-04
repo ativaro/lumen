@@ -82,8 +82,9 @@ class SystemTest(unittest.TestCase):
         objects={'/org/bluez/hci0': {'org.bluez.Adapter1': {'Alias': variant('Radio'), 'Powered': variant(True)}},
                  '/org/bluez/hci0/dev_audio': {'org.bluez.Device1': {'Address': variant('00:00:00:00:00:02'), 'Alias': variant('Headset'), 'Icon': variant('audio-headset'), 'Connected': variant(True)}, 'org.bluez.Battery1': {'Percentage': variant(82)}},
                  '/org/bluez/hci0/dev_keyboard': {'org.bluez.Device1': {'Address': variant('00:00:00:00:00:03'), 'Icon': variant('input-keyboard')}}}
-        with patch.object(system, 'run', return_value=json.dumps(dict(data=[objects]))):
+        with patch.object(system, 'run', return_value=json.dumps(dict(data=[objects]))) as read:
             result=system._bluez()
+        self.assertIn('--auto-start=no',read.call_args.args[0])
         self.assertTrue(result['available'])
         self.assertEqual([d['name'] for d in result['devices']], ['Headset'])
         self.assertEqual(result['devices'][0]['battery'], 82)
