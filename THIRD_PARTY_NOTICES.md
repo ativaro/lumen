@@ -9,6 +9,15 @@ complete application can be distributed under proprietary terms.
   Preserve notices, corresponding-source availability and required replacement,
   relinking and debugging rights. Native Vault's modules, notices and instructions
   are documented in [native/vault-ui/LICENSES.md](native/vault-ui/LICENSES.md).
+- **Native desktop bar:** dynamically links the separately installed
+  LayerShellQt (LGPL-2.0-or-later) and libdbusmenu-glib
+  (LGPL-2.1-only OR LGPL-3.0-only) libraries. Their upstream/system-package notices
+  and replacement rights remain applicable. No modified copy of these libraries
+  is bundled. The native bar's own source is in `native/topbar/`.
+- **Desktop test protocol:** `tests/desktop/fake-input.xml` is KDE's
+  fake-input protocol by Martin Gräßlin, LGPL-2.1-or-later. Its copyright is retained
+  in the XML and the license is in `tests/desktop/COPYING.LGPL-2.1`. The generated
+  input helper is used only inside isolated test sessions and is not installed.
 - **PDF processing:** Lumen now uses its own PDF parser, renderer, writer and
   workflow code. No external PDF engine is required or bundled. Qt supplies
   general font, image and drawing primitives; installed fonts retain their own

@@ -6,7 +6,6 @@ import org.kde.plasma.plasma5support as P5Support
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.workspace.dbus as DBus
 import "Translations.js" as I18n
-import "NotificationOwner.js" as Owner
 
 Item {
     id: host
@@ -32,8 +31,9 @@ Item {
     property int discussionAttempts: 0
     property date now: new Date()
     readonly property bool inhibited: gaming || locked || settings.notificationsInhibitedUntil > now || settings.notificationsInhibitedByApplication || (settings.inhibitNotificationsWhenFullscreen && settings.fullscreenFocused) || (settings.inhibitNotificationsWhenScreensMirrored && settings.screensMirrored)
-    onInhibitedChanged: { if(primary && ownsPopups) N.Server.inhibited=inhibited; if(inhibited) popup.dismiss(); }
-    onPrimaryChanged: if(primary) Qt.callLater(refresh)
+    onInhibitedChanged: { if(primary) N.Server.inhibited=inhibited; if(inhibited) popup.dismiss(); }
+    onPrimaryChanged: {if(primary){startedAt=Date.now();Qt.callLater(refresh);}else{ownsPopups=false;popup.dismiss();}}
+    onOwnsPopupsChanged:if(ownsPopups){startedAt=Date.now();rebuildTimer.restart()}
     function checkLock() {
         DBus.SessionBus.asyncCall({service:"org.freedesktop.ScreenSaver",path:"/ScreenSaver",iface:"org.freedesktop.ScreenSaver",member:"GetActive"},
             result=>{host.locked=result.value!==false;}, ()=>{host.locked=true;});
@@ -170,8 +170,7 @@ Item {
     }
     Timer { interval: host.panelOpen || fullWindow.visible ? 2000 : 5000; repeat: true; running: true; triggeredOnStart: true; onTriggered: { host.now=new Date(); host.refresh(); } }
     onPanelOpenChanged: if(panelOpen) {messages.lastRead=new Date();refresh();rebuild();}
-    Component.onCompleted: { Owner.join(host); checkLock(); rebuild(); }
-    Component.onDestruction: Owner.leave(host)
+    Component.onCompleted: { checkLock(); rebuild(); }
     P5Support.DataSource {
         id: runner; engine: "executable"; connectedSources: []
         onNewData: (source,data) => {
@@ -187,12 +186,13 @@ Item {
                     if(source.endsWith(" --notification-own-popups")) host.presenterConfigured=true;
                     host.gaming=!!result.context.gaming;
                     host.ownsPopups=!!result.context.native && host.presenterConfigured;
-                    if(host.primary && host.ownsPopups) N.Server.inhibited=host.inhibited;
+                    if(host.primary) N.Server.inhibited=host.inhibited;
                     if(!host.ownsPopups) popup.dismiss();
                 }
                 const next=result.items.map(row=>Object.assign({},row,{system:false,icon:"lumen",actions:row.target?[{key:"open",label:host.tr(({question:"Antworten",decision:"Anfrage prüfen",problem:"Ursache prüfen",result:"Ergebnis ansehen",suggestion:"Vorschlag ansehen"})[row.kind]||"Öffnen")}]:[]}));
                 if(JSON.stringify(host.localItems)!==JSON.stringify(next)) host.localItems=next;
                 host.error="";
+                if(host.primary && !host.presenterConfigured)Qt.callLater(host.refresh);
             } catch(e) {host.error=host.tr("Meldungen gerade nicht erreichbar.");}
         }
     }

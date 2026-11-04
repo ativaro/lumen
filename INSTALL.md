@@ -170,7 +170,7 @@ sudo pacman -S --needed base-devel git pyside6 python-gobject python-pillow \
 git clone https://github.com/ativaro/lumen.git
 cd lumen
 ./packaging/arch/build-package.sh --install
-lumen-desktop-setup --apply --replace-panels
+lumen-desktop-setup --apply
 ```
 
 Run the last command **as your normal user inside Plasma**, without sudo.
@@ -396,3 +396,18 @@ consent (including optional automatic sharing). Engine/provider history may reta
 them; this feature does not promise ephemeral provider storage. The companion
 has no execution tools and does not automatically learn screen content into Lumen
 Wissen. It explains the next step; the user operates the target application.
+
+### Native Panorama topbar
+
+`lumen-topbar` uses Wayland layer-shell. It needs Qt Quick, LayerShellQt,
+libdbusmenu-glib, Kirigami and Plasma's task model. The package declares these
+runtime dependencies; a source installation also needs their CMake development
+files. `lumen-desktop-setup --apply` enables the user service and Meta shortcut,
+then replaces only Lumen's upper panels. The bottom dock and unrelated panels
+remain. The notification background component retains Plasma's shared history.
+
+To restore the previous desktop, log out of Plasma and run the printed
+`lumen-desktop-setup --restore BACKUP` command from a text console. It also restores
+the previous topbar service enablement. The live desktop is never restarted by
+setup. The bar may be restarted independently with
+`systemctl --user restart lumen-topbar.service`.

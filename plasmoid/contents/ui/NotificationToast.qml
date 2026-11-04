@@ -12,8 +12,6 @@ PlasmaCore.Dialog {
     property var notice: null
     property string uiLanguage: "de"
     property var anchorItem: null
-    readonly property var panelWindow: anchorItem ? anchorItem.Window.window : null
-    readonly property var panelSurface: panelWindow ? panelWindow.contentItem.children.find(item => item.rightFloatingPadding !== undefined) : null
     signal action(string identity, string operation)
     signal centerRequested()
     function tr(text) { return I18n.tr(text,uiLanguage); }
@@ -24,14 +22,9 @@ PlasmaCore.Dialog {
     flags: Qt.WindowDoesNotAcceptFocus | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
     location: PlasmaCore.Types.Floating
     backgroundHints: PlasmaCore.Types.NoBackground
-    // A visualParent makes Plasma recenter the dialog on the small control widget.
-    // Use the panel's visible bounds instead, excluding its floating margins.
-    visible: false
-    readonly property real screenLeft: anchorItem ? anchorItem.Screen.virtualX : Screen.virtualX
-    readonly property real screenWidth: anchorItem ? anchorItem.Screen.width : Screen.width
-    x: Math.max(screenLeft, Math.min(screenLeft + screenWidth - width,
-        panelWindow ? panelWindow.x + panelWindow.width - (panelSurface ? panelSurface.rightFloatingPadding : 0) - width : screenLeft + screenWidth - width - 24))
-    y: panelWindow ? panelWindow.y + panelWindow.height - (panelSurface ? panelSurface.bottomFloatingPadding : 0) + 8 : Screen.virtualY + 76
+    visible:false
+    x:Screen.virtualX+Screen.width-width-24
+    y:Screen.virtualY+76
     mainItem: Rectangle {
         color: Kirigami.Theme.backgroundColor; radius: 18
         border.width: 1; border.color: Qt.alpha(Kirigami.Theme.textColor,0.16)

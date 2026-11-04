@@ -1,0 +1,34 @@
+#!/usr/bin/python3
+"""Synthetic data/actions only; the real notification code sees a private profile."""
+import json,os,sys
+from pathlib import Path
+sys.path.insert(0,'/source/files')
+from appearance_tokens import COLORS
+from lumen_i18n import tr
+state=Path('/profile/control-state.json')
+def system():
+    return json.loads(state.read_text()) if state.exists() else dict(volume=50,muted=False,brightness=None,network='Testnetz · Verbunden')
+if sys.argv[1:]==['--bar-snapshot']:
+    names=('window','base','alternate','text','button','border','muted','accent','onAccent')
+    print(json.dumps(dict(version=1,language=os.environ.get('LUMEN_LANGUAGE','de'),
+        labels=json.loads(Path('/source/files/translations/en/topbar.json').read_text()) if os.environ.get('LUMEN_LANGUAGE')=='en' else {},
+        palette=dict(zip(names,COLORS[os.environ.get('LUMEN_QA_THEME','graphite')])),
+        apps=[dict(id=identity,label=tr(label),title=tr(label),icon=icon) for identity,label,icon in
+          [('lumen','Lumen','lumen'),('files','Dateien','folder'),('wissen','Notes','accessories-text-editor'),
+           ('workbench','Projekte','folder'),('meetings','Audio Studio','microphone-sensitivity-high')]],
+        system=system(),operations=dict(transfer=None,audio=False),unread=2)))
+elif sys.argv[1:]==['--language']:
+    print(json.dumps(dict(language=os.environ.get('LUMEN_LANGUAGE','de'))))
+elif any(value.startswith('--notification-') for value in sys.argv[1:]):
+    import subprocess
+    raise SystemExit(subprocess.call(['/usr/bin/python3','/source/files/lumen_panel.py',*sys.argv[1:]]))
+else:
+    with Path('/profile/actions.jsonl').open('a') as output:output.write(json.dumps(sys.argv[1:])+'\n')
+    if len(sys.argv)>2 and sys.argv[1]=='--control':
+        current=system();error=''
+        if sys.argv[2]=='volume':
+            value=int(sys.argv[4])
+            if value==13:error='Synthetischer Kontrollfehler'
+            else:current['volume']=value
+        if sys.argv[2]=='mute':current['muted']=not current['muted']
+        state.write_text(json.dumps(current));print(json.dumps(dict(system=current,error=error)))

@@ -411,7 +411,6 @@
   "Lumen-Theme, Hintergrund und Panels aktivieren": "Activate Lumen theme, wallpaper and panels",
   "Vorhandene Panels nach Sicherung ersetzen": "Replace existing panels after backing them up",
   "Gesicherte Konfiguration nach Abmeldung wiederherstellen": "Restore backed-up configuration after signing out",
-  "--replace-panels benötigt --apply": "--replace-panels requires --apply",
   "--restore kann nicht mit --apply kombiniert werden": "--restore cannot be combined with --apply",
   "Vier Themes und elf Hintergrundbilder installiert; Desktop unverändert.": "Four themes and eleven wallpapers installed; desktop unchanged.",
   "Unbekanntes Lumen-Theme.": "Unknown Lumen theme.",

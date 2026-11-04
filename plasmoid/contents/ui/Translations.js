@@ -71,7 +71,6 @@ var english = {
     "Zuletzt": "Recent",
     "Alle Aufgaben": "All tasks",
     "Systemstatus": "System status",
-    "Arbeitsplatz": "Workspace",
     "Einstellungen  ›": "Settings  ›",
     "Systemeinstellungen": "System settings",
     "Bildschirm sperren": "Lock screen",

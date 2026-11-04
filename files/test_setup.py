@@ -120,7 +120,7 @@ class SetupTest(unittest.TestCase):
         with patch('sys.argv', ['lumen_setup.py', 'desktop', '--theme', 'atelier']), \
                 patch('lumen_desktop_setup.configure_desktop') as configure, patch.object(setup, 'report') as report:
             self.assertEqual(setup.main(), 0)
-            configure.assert_called_once_with('atelier', replace_panels=True)
+            configure.assert_called_once_with('atelier')
             self.assertFalse(report.call_args.kwargs['cancellable'])
             configure.side_effect = RuntimeError('Plasma nicht erreichbar')
             self.assertEqual(setup.main(), 1)

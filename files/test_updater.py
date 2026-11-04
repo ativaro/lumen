@@ -81,7 +81,7 @@ class UpdaterTest(unittest.TestCase):
         self.assertIn(['pkexec','pacman','-U','--noconfirm',str(package)],calls)
         self.assertIn([str(source/'bin/lumen-desktop-setup'),'--refresh-decoration'],calls)
         self.assertIn(['bash',str(source/'install.sh'),'--no-mcp'],calls)
-        self.assertFalse(any('--desktop' in args or '--replace-panels' in args for args in calls))
+        self.assertFalse(any('--desktop' in args for args in calls))
         self.assertEqual(run.call_args.kwargs['env']['PREFIX'],str(self.install))
 
     def test_install_source_identity_and_credential_rejection(self):

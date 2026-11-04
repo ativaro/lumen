@@ -90,8 +90,6 @@ def main():
     group.add_argument('--language', action='store_true')
     group.add_argument('--snapshot', action='store_true')
     group.add_argument('--bar-snapshot', action='store_true')
-    group.add_argument('--topbar-snapshot', action='store_true')
-    group.add_argument('--topbar-fit', action='store_true')
     group.add_argument('--topbar-page')
     group.add_argument('--topbar-reader', type=int)
     group.add_argument('--topbar-transfer', type=valid_task)
@@ -116,14 +114,6 @@ def main():
     if args.bar_snapshot:
         from topbar_data import snapshot as bar_snapshot
         print(json.dumps(bar_snapshot(), ensure_ascii=False)); return
-    if args.topbar_fit:
-        script=(Path(__file__).parents[1]/'desktop/appmenu.js').read_text()+'\ninstallLumenAppMenus(panels());'
-        subprocess.run(['qdbus6','org.kde.plasmashell','/PlasmaShell','org.kde.PlasmaShell.evaluateScript',script],
-            check=True,timeout=4,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-        return
-    if args.topbar_snapshot:
-        from topbar_context import snapshot as topbar_snapshot
-        print(json.dumps(topbar_snapshot())); return
     if args.topbar_page or args.topbar_reader:
         import sys
         from topbar_context import page_source
@@ -141,7 +131,7 @@ def main():
         from lumen_notifications import snapshot as notification_snapshot, change, popup_context, configure_popups
         try:
             context=popup_context()
-            if args.notification_own_popups and context['native']: configure_popups(True)
+            if args.notification_own_popups: configure_popups(True)
             if args.notification_action: change(args.notification_id or '', args.notification_action)
             print(json.dumps(dict(notification_snapshot(), context=context), ensure_ascii=False))
         except (OSError, sqlite3.Error, ValueError) as error:

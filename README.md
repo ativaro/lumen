@@ -147,35 +147,29 @@ Browser downloads are not intercepted. Stalled workers stop after two minutes
 without progress; original files and staged destination data are preserved.
 Large directory operations beyond 5,000 metadata entries are logged without undo.
 
-The desktop has three purpose-specific surfaces: **Dein System** on the left
-(tasks, system status, workplace and files), **Suchen oder fragen …** in the middle,
-and **Einstellungen** on the right (native controls, Lumen/Files preferences and
-Lumen themes and KDE settings). The middle opens `lumen-search`: one input finds installed apps and
-files in the home folder; a question continues as a conversation in the same window.
-Enter opens the selected result, Ctrl+Enter asks, and follow-up questions keep the
-conversation. Completed and cancelled tasks have an **×** in the system overview and a
-**Schließen** (completed) or **Löschen** (cancelled) button in the task page. This hides them across both displays
-and subsequent starts; result/history remain under **Geschlossene Aufgaben anzeigen**.
-A later task update makes it visible again. Active tasks cannot be dismissed. The scan is asynchronous, bounded to 100 results / 100,000 inspected
-entries and eight seconds. It starts no model until a question is submitted.
-`lumen-settings` opens preferences directly. The existing KRunner shortcut remains
-available. The role-specific applets share their QML implementation and are installed
-as `org.lumen.system`, `org.lumen.search` and `org.lumen.control`.
+The **Panorama Islands** topbar runs as its own Wayland application, `lumen-topbar`.
+Lumen and Files come first, followed by the active application's actual menus.
+Menus stay visible while space allows; an overflow keeps them accessible on small
+screens. Search, system tray, current transfers/recordings, controls, notifications
+and the calendar occupy the right island. Fullscreen applications hide the bar.
+The native task dock remains separate. No additional navigation bar is inserted
+inside Lumen applications.
+
+System notification history and its existing actions stay in Plasma through the
+invisible `org.lumen.notificationhost` background component. The bar itself does
+not host Plasma applets or read task history. It reuses the same Lumen app catalogue,
+controls, notification preferences and browser/Reader handoffs.
 
 ## Complete desktop installation
 
-The repository includes all Lumen applets, four matching Plasma/Aurorae themes,
-eleven wallpapers and a portable panel layout. No pre-existing Lumen or MacTahoe
-installation is required. See [INSTALL.md](INSTALL.md) for a fresh Arch/CachyOS
-setup and recovery instructions.
-
-`lumen-desktop-setup` installs the resources without changing the active desktop.
-`lumen-desktop-setup --apply --replace-panels` explicitly activates the Glas theme,
-Lichtstrom wallpaper, system/search/control panels and native task/pager docks.
-Existing desktop configuration is backed up first. Wide screens use three top
-islands; smaller screens combine the same controls into one top panel.
-Repeated setup does not duplicate Lumen panels. Application-drawn title bars remain
-controlled by their applications.
+The repository includes the native topbar, matching themes, wallpapers and a
+portable dock layout. See [INSTALL.md](INSTALL.md) for setup and recovery.
+`lumen-desktop-setup` installs resources without activating them.
+`lumen-desktop-setup --apply` starts and verifies the native bar before removing
+Lumen's old upper panels. Existing bottom task docks remain intact. The setup
+backs up desktop configuration and the previous topbar service state.
+Unrelated panels are preserved. Meta opens Lumen Apps on the pointer's screen.
+Application-drawn title bars remain controlled by their applications.
 
 Artwork and licenses are in [desktop/CREDITS.md](desktop/CREDITS.md).
 
@@ -248,7 +242,7 @@ git clone https://github.com/ativaro/lumen.git lumen && cd lumen
 ./packaging/arch/build-package.sh --install
 
 # activate the full desktop as your normal user, inside Plasma:
-lumen-desktop-setup --apply --replace-panels
+lumen-desktop-setup --apply
 ```
 
 The package supports repository or standalone OpenCode installations and installs the desktop integration
@@ -350,7 +344,7 @@ askpass (`ksshaskpass`/GNOME/OpenSSH) in `/etc/sudo.conf` if none is set.
 ```
 bin/                      helper scripts + GUI backend (installed to PREFIX/bin)
 agent-app/main.py         Unified native Lumen window
-plasmoid/                 Plasma panel applet (org.lumen.agent)
+plasmoid/                 Background system notification access (no topbar UI)
 files/                    Integrated files, tasks, knowledge and assistant (PySide6)
 shell/                    bash + fish integration (why/vix/sel)
 data/                     .desktop / krunner / dbus / autostart templates
@@ -539,8 +533,8 @@ Termine erscheinen beim nächsten Start.
 Notification-MCP: `lumen_notification_settings` liest die Popup-/Spielruhe-Optionen;
 `lumen_notification_configure` ändert `native_popups` und/oder `quiet_games` mit
 der vorhandenen Aktionsfreigabe. Nicht angegebene Optionen und manueller Ruhemodus
-bleiben unverändert. `native_popups=false` wechselt zu KDE-Popups, statt Meldungen
-stummzuschalten. Die bestehenden Werkzeuge lesen eigene Lumen-Meldungen, ändern
+bleiben unverändert. `native_popups=false` schaltet Popups aus. Die Meldungen
+bleiben im Mitteilungszentrum. Die bestehenden Werkzeuge lesen eigene Lumen-Meldungen, ändern
 Lesen/Archivieren/Später/Jetzt und legen Erinnerungen an.
 
 **Lumen Projekte** fasst Materialien, Gespräche und Aufgaben zusammen. Quellen
@@ -560,3 +554,13 @@ weiter. Verbindungen/Freigaben werden über den Link zur vorhandenen Serveransic
 verwaltet. Alle Aktionen verwenden die bestehende Queue und den Scheduler.
 
 Desktop app ownership and retired native implementations: [Desktop architecture](docs/desktop-retirement.md).
+
+Native topbar qualification uses `python3 tests/check-desktop.py`. It builds the
+shipping QML/C++ components and drives real application menus and tray actions in
+a private D-Bus/KWin session with synthetic data and no network. The existing
+`tests/check-install-closure.py` verifies fresh installation, update preservation
+and Arch payloads separately. Theme/size checks can use `--surface-only --theme
+atelier`, `--width 840`, or `--width 1920 --scale 1.5`; results and screenshots stay
+under `artifacts/desktop-smoke`. Tests additionally need Bubblewrap, Qt Test,
+Wayland development tools and the installed KDE desktop tools. The test input
+helper is excluded from product builds (`BUILD_TESTING=OFF`).

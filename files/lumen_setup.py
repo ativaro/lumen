@@ -325,7 +325,7 @@ def main():
         if args.action == 'desktop':
             from lumen_desktop_setup import configure_desktop
             report(tr('Desktop-Konfiguration sichern und Lumen-Desktop aktivieren …'), cancellable=False)
-            configure_desktop(args.theme, replace_panels=True)
+            configure_desktop(args.theme)
             report(tr('Lumen-Desktop eingerichtet. Die vorherige Konfiguration wurde lokal gesichert.'), 100, cancellable=False)
         elif args.action == 'engine': install_engine()
         elif args.action == 'dictation': install_dictation(args.existing_model)

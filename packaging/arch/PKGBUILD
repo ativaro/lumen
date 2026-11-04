@@ -10,8 +10,8 @@ provides=('opencode-lumen')
 arch=('x86_64' 'aarch64')
 url="https://forge.example.invalid/ativaro/lumen"
 license=('LicenseRef-Lumen-EULA' 'GPL-3.0-only' 'GPL-2.0-or-later')
-depends=('bash' 'git' 'python3' 'pyside6' 'python-gobject' 'python-pillow' 'python-yaml' 'python-markdown-it-py' 'openssl')
-makedepends=('gcc' 'pkgconf' 'qt6-base' 'cmake' 'libplasma')
+depends=('bash' 'git' 'python3' 'pyside6' 'python-gobject' 'python-pillow' 'python-yaml' 'python-markdown-it-py' 'openssl' 'layer-shell-qt' 'libdbusmenu-glib' 'qt6-declarative' 'kirigami' 'plasma-workspace')
+makedepends=('gcc' 'pkgconf' 'qt6-base' 'cmake' 'layer-shell-qt' 'libdbusmenu-glib' 'qt6-declarative')
 # OpenCode may be installed through its own installer. Native files/tasks remain
 # useful without inference; the app explains a missing engine when AI is requested.
 optdepends=(
@@ -106,6 +106,7 @@ package() {
     done
 
     bash "$srcroot/native/build-capture.sh" "$pkgdir/usr/bin/lumen-window-capture"
+    bash "$srcroot/native/build-topbar.sh" "$pkgdir/usr/bin/lumen-topbar"
 
     # system daemon + watchdog + notifier
     install -m0755 "$srcroot/system/lumen-agentd.py" "$pkgdir/usr/bin/lumen-agentd"
@@ -207,28 +208,11 @@ package() {
     install -d "$pkgdir/usr/share/lumen/desktop"
     cp -R "$srcroot/desktop/." "$pkgdir/usr/share/lumen/desktop/"
 
-    # ---- Plasma applet (plasmoid) -----------------------------------------
-    for plugin in agent islands system search control; do
-        local applet="$pkgdir/usr/share/plasma/plasmoids/org.lumen.$plugin"
-        install -d "$applet/contents/ui" "$applet/contents/config"
-        local metadata=metadata.json
-        [[ "$plugin" == agent ]] || metadata="$plugin-metadata.json"
-        install -m0644 "$srcroot/plasmoid/$metadata" "$applet/metadata.json"
-        install -m0644 "$srcroot/LICENSE" "$applet/LICENSE"
-        install -m0644 "$srcroot/plasmoid/contents/ui/"*.qml "$srcroot/plasmoid/contents/ui/"*.js "$srcroot/plasmoid/contents/ui/lumen-halo.png" "$srcroot/plasmoid/contents/ui/"*.svg "$applet/contents/ui/"
-        install -m0644 "$srcroot/plasmoid/contents/config/"* "$applet/contents/config/"
-        local surface=tasks
-        case "$plugin" in system) surface=home;; search|control) surface="$plugin";; esac
-        sed -i "s|<default>tasks</default>|<default>$surface</default>|" "$applet/contents/config/main.xml"
-    done
-
-    # ---- Native KDE application menu -------------------------------------
-    local appmenu="$pkgdir/usr/share/plasma/plasmoids/org.lumen.appmenu"
-    install -d "$appmenu"
-    cp -R "$srcroot/plasmoid/appmenu/." "$appmenu/"
-    install -d "$pkgdir/usr/share/plasma/plasmoids/org.lumen.topbarcontext"
-    cp -R "$srcroot/plasmoid/context/." "$pkgdir/usr/share/plasma/plasmoids/org.lumen.topbarcontext/"
-    bash "$srcroot/native/build-appmenu.sh" "$pkgdir/usr/lib/qt6/plugins/plasma/applets/org.lumen.appmenu.so"
+    # System notification history remains in Plasma, without a topbar applet.
+    local host="$pkgdir/usr/share/plasma/plasmoids/org.lumen.notificationhost"
+    install -d "$host"
+    cp -R "$srcroot/plasmoid/." "$host/"
+    sub "$srcroot/system/systemd/user/lumen-topbar.service" "$pkgdir/usr/lib/systemd/user/lumen-topbar.service"
 
     # ---- system D-Bus policy + activation ---------------------------------
     install -d "$pkgdir/usr/share/dbus-1/system.d"

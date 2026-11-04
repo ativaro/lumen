@@ -226,12 +226,12 @@ class SettingsDialog(QDialog):
             if key == 'vault':
                 panel.addWidget(button(tr('Lokale Sicherungspläne öffnen'), lambda: launch('system',page='backups')))
             if key == 'notification':
-                from lumen_notifications import preferences, set_preference, configure_popups
+                from lumen_notifications import preferences, set_preference, notification_options
                 panel.addWidget(text(tr('Lumen zeigt deine Meldungen. Systemeinstellungen und App-Aktionen bleiben erhalten.')))
-                native = QCheckBox(tr('Popups mit Lumen anzeigen'))
+                native = QCheckBox(tr('Popups anzeigen'))
                 native.setChecked(self.assistant.value('notifications/nativePopups', True, type=bool))
                 def set_popups(enabled):
-                    try: configure_popups(enabled)
+                    try: notification_options({"native_popups":enabled})
                     except (OSError, ValueError, subprocess.SubprocessError) as error:
                         native.blockSignals(True); native.setChecked(not enabled); native.blockSignals(False)
                         self.status.setText(str(error))

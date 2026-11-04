@@ -93,6 +93,7 @@ for bin_file in "$REPO/bin/"*; do
     [ -f "$bin_file" ] && install -m 0755 "$bin_file" "$BIN/"
 done
 bash "$REPO/native/build-capture.sh" "$BIN/lumen-window-capture"
+bash "$REPO/native/build-topbar.sh" "$BIN/lumen-topbar"
 mkdir -p "$PREFIX/agent-app"
 install -m 0644 "$REPO/agent-app/main.py" "$PREFIX/agent-app/"
 mkdir -p "$PREFIX/files"
@@ -111,27 +112,18 @@ for asset in translations qml fonts notes_icons memory-runtime browser-runtime e
 done
 mkdir -p "$PREFIX/desktop"
 cp -R "$REPO/desktop/." "$PREFIX/desktop/"
-for plugin in agent islands system search control; do
-    APPLET="${XDG_DATA_HOME:-$HOME/.local/share}/plasma/plasmoids/org.lumen.$plugin"
-    mkdir -p "$APPLET/contents/ui" "$APPLET/contents/config"
-    METADATA=metadata.json
-    [ "$plugin" = agent ] || METADATA="$plugin-metadata.json"
-    install -m 0644 "$REPO/plasmoid/$METADATA" "$APPLET/metadata.json"
-    install -m 0644 "$REPO/LICENSE" "$APPLET/LICENSE"
-    install -m 0644 "$REPO/plasmoid/contents/ui/"*.qml "$REPO/plasmoid/contents/ui/"*.js "$REPO/plasmoid/contents/ui/lumen-halo.png" "$REPO/plasmoid/contents/ui/"*.svg "$APPLET/contents/ui/"
-    install -m 0644 "$REPO/plasmoid/contents/config/"* "$APPLET/contents/config/"
-    case "$plugin" in system) SURFACE=home;; search|control) SURFACE="$plugin";; *) SURFACE=tasks;; esac
-    sed -i "s|<default>tasks</default>|<default>$SURFACE</default>|" "$APPLET/contents/config/main.xml"
-    # Plasma does not inherit additions to an interactive shell's PATH.
-    /usr/bin/python3 - "$APPLET/contents/ui" "$BIN/lumen-panel" <<'PYCODE'
+APPLET="${XDG_DATA_HOME:-$HOME/.local/share}/plasma/plasmoids/org.lumen.notificationhost"
+STAGED_APPLET="$GOOGLE_STAGE/notificationhost"
+mkdir -p "$STAGED_APPLET"
+cp -R "$REPO/plasmoid/." "$STAGED_APPLET/"
+/usr/bin/python3 - "$STAGED_APPLET/contents/ui/main.qml" "$BIN/lumen-panel" <<'PYCODE'
 import json, shlex, sys
 from pathlib import Path
-for name in ('main.qml', 'ConfigGeneral.qml'):
-    path = Path(sys.argv[1]) / name
-    path.write_text(path.read_text().replace('property string helper: "/usr/bin/lumen-panel"',
-        'property string helper: ' + json.dumps(shlex.quote(sys.argv[2]))))
+path=Path(sys.argv[1])
+path.write_text(path.read_text().replace('"/usr/bin/lumen-panel"',json.dumps(shlex.quote(sys.argv[2]))))
 PYCODE
-done
+if [ -d "$APPLET" ]; then PACKAGE_ACTION=--upgrade; else PACKAGE_ACTION=--install; fi
+kpackagetool6 --type Plasma/Applet "$PACKAGE_ACTION" "$STAGED_APPLET"
 chmod 0755 "$BIN"/lumen-* "$BIN"/lumen_krunner.py "$BIN"/lumen_mcp.py 2>/dev/null || true
 
 # ---- XDG data files --------------------------------------------------------
@@ -161,6 +153,7 @@ subst "$REPO/data/applications/lumen-ask-sel.desktop" > "$DATA_HOME/applications
 subst "$REPO/data/applications/lumen-companion.desktop" > "$DATA_HOME/applications/lumen-companion.desktop"
 subst "$REPO/data/applications/lumen-server-connect.desktop" > "$DATA_HOME/applications/lumen-server-connect.desktop"
 mkdir -p "$CONFIG_HOME/systemd/user"
+subst "$REPO/system/systemd/user/lumen-topbar.service" > "$CONFIG_HOME/systemd/user/lumen-topbar.service"
 subst "$REPO/system/systemd/user/lumen-server-connector.service" > "$CONFIG_HOME/systemd/user/lumen-server-connector.service"
 command -v xdg-mime >/dev/null 2>&1 && xdg-mime default lumen-server-connect.desktop x-scheme-handler/lumen-server || true
 subst "$REPO/data/applications/lumen-window-capture.desktop" > "$DATA_HOME/applications/lumen-window-capture.desktop"
@@ -242,7 +235,7 @@ fi
 
 say "Fertig." "Done."
 if [ "$DESKTOP" = 1 ]; then
-    "$BIN/lumen-desktop-setup" --apply --replace-panels
+    "$BIN/lumen-desktop-setup" --apply
 else
     "$BIN/lumen-desktop-setup" --refresh-decoration
 fi
@@ -256,7 +249,7 @@ Nächste Schritte:
   3. App starten:  $BIN/lumen-agent-app
      oder über das Startmenü: "Lumen"
   4. Desktop bewusst aktivieren (ersetzt Panels nach Sicherung):
-       $BIN/lumen-desktop-setup --apply --replace-panels
+       $BIN/lumen-desktop-setup --apply
 
 Konfiguration (optional, per Umgebungsvariablen):
   LUMEN_OPENCODE_BIN      Pfad zur opencode-Binary
@@ -276,7 +269,7 @@ Next steps:
   3. Start the app:  $BIN/lumen-agent-app
      or choose "Lumen" in the application menu.
   4. Activate the desktop when ready (replaces panels after a backup):
-       $BIN/lumen-desktop-setup --apply --replace-panels
+       $BIN/lumen-desktop-setup --apply
 
 Optional environment variables:
   LUMEN_OPENCODE_BIN      Path to the OpenCode executable

@@ -26,6 +26,9 @@ class NativeMCPTest(unittest.TestCase):
         self.env = patch.dict(os.environ, {'LUMEN_DATA':str(self.root/'state'),
             'LUMEN_TOOLS_DATA':str(self.root/'tools'), 'XDG_CONFIG_HOME':self.config})
         self.env.start(); self.addCleanup(self.env.stop)
+        # Other collected modules may have imported this path before the fixture environment.
+        connection=patch('lumen_connect.CONFIG',self.root/'config/lumen-server/connection.json')
+        connection.start();self.addCleanup(connection.stop)
         QSettings.setPath(QSettings.NativeFormat,QSettings.UserScope,self.config)
         self.addCleanup(QSettings.setPath,QSettings.NativeFormat,QSettings.UserScope,self.old_config)
         self.store = Store()
@@ -44,11 +47,11 @@ class NativeMCPTest(unittest.TestCase):
                 with self.assertRaises(ValueError): invoke('lumen_notification_configure', args)
             configure.assert_not_called()
             self.assertEqual(settings.value('untouched'), 'keep')
-        with patch('lumen_notifications.configure_popups', side_effect=ValueError('tray unavailable')) as configure:
-            with self.assertRaises(ValueError):
-                invoke('lumen_notification_configure', dict(native_popups=False, quiet_games=True))
-            configure.assert_called_once_with(False)
-        self.assertEqual(invoke('lumen_notification_settings', {}), dict(native_popups=True, quiet_games=False))
+        with patch('lumen_notifications.configure_popups', side_effect=AssertionError('A preference must not switch KDE presenters')) as configure:
+            result=invoke('lumen_notification_configure', dict(native_popups=False, quiet_games=True))
+            self.assertEqual(result,dict(native_popups=False,quiet_games=True))
+            configure.assert_not_called()
+        self.assertEqual(invoke('lumen_notification_settings', {}), dict(native_popups=False, quiet_games=True))
 
     def test_library_search_has_origin_and_does_not_traverse_symlink(self):
         from file_spaces import Catalog
