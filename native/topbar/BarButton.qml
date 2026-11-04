@@ -25,10 +25,16 @@ Button {
         Rectangle {
             anchors.fill:parent;anchors.topMargin:control.key && parent.pressed?1:0
             radius:control.key?(control.colors.radius||8):7
-            color:control.primary && control.enabled?control.colors.accent:control.key?(parent.pressed?(control.colors.inset||control.colors.base):control.hovered?control.colors.alternate:(control.colors.key||control.colors.window)):(parent.pressed || control.hovered?control.colors.alternate:"transparent")
+            color:control.primary && control.enabled?control.colors.accent:control.key?(parent.pressed?(control.colors.inset||control.colors.base):(control.colors.key||control.colors.window)):(parent.pressed?control.colors.alternate:"transparent")
             border.width:control.visualFocus?2:control.key?1:0
             border.color:control.visualFocus?control.colors.accent:control.colors.border
             Rectangle {visible:control.key;anchors.top:parent.top;anchors.topMargin:1;anchors.horizontalCenter:parent.horizontalCenter;width:parent.width-12;height:1;color:control.colors.highlight||"#12ffffff"}
+            Rectangle {
+                anchors.fill:parent;radius:parent.radius
+                color:control.primary?control.colors.onAccent:control.colors.text
+                opacity:control.enabled && control.hovered && !control.down?0.06:0
+                Behavior on opacity {NumberAnimation {duration:Kirigami.Units.shortDuration}}
+            }
             Rectangle {visible:control.key && control.current;anchors.bottom:parent.bottom;anchors.bottomMargin:4;anchors.horizontalCenter:parent.horizontalCenter;width:16;height:2;radius:1;color:control.colors.accent}
         }
     }

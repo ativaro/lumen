@@ -21,10 +21,12 @@ int main(int argc,char **argv) {
     wl_display_roundtrip(display);
     char line[256],operation[32]; double x,y; int code;
     while(fgets(line,sizeof(line),stdin)) {
-        if(sscanf(line,"%31s %lf %lf",operation,&x,&y)==3 && (!strcmp(operation,"click") || !strcmp(operation,"right"))) {
+        if(sscanf(line,"%31s %lf %lf",operation,&x,&y)==3 && (!strcmp(operation,"click") || !strcmp(operation,"right") || !strcmp(operation,"move"))) {
             org_kde_kwin_fake_input_pointer_motion_absolute(input,wl_fixed_from_double(x),wl_fixed_from_double(y));wl_display_roundtrip(display);
+            if(strcmp(operation,"move")) {
             org_kde_kwin_fake_input_button(input,!strcmp(operation,"right")?273:272,1);wl_display_roundtrip(display);
             org_kde_kwin_fake_input_button(input,!strcmp(operation,"right")?273:272,0);wl_display_roundtrip(display);
+            }
         } else if(sscanf(line,"key %d",&code)==1) {
             org_kde_kwin_fake_input_keyboard_key(input,code,1);wl_display_roundtrip(display);
             org_kde_kwin_fake_input_keyboard_key(input,code,0);wl_display_roundtrip(display);

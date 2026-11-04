@@ -3,6 +3,7 @@
 #include "paneldata.h"
 #include "tray.h"
 #include <QApplication>
+#include <QFont>
 #include <QAbstractItemModel>
 #include <QDBusInterface>
 #include <QFile>
@@ -68,12 +69,24 @@ private slots:
         const auto click=[&](QQuickItem *value){const auto point=value->mapToGlobal(QPointF(value->width()/2,value->height()/2));return send("click "+QByteArray::number(point.x())+" "+QByteArray::number(point.y())+"\n");};
         QVERIFY(click(button));QTRY_VERIFY_WITH_TIMEOUT(QApplication::activePopupWidget()!=nullptr,3000);
         auto popup=qobject_cast<QMenu*>(QApplication::activePopupWidget());QVERIFY(popup);
+        QCOMPARE(popup->font().pixelSize(),QApplication::font().pixelSize());
         qInfo()<<"MENU_POSITION"<<popup->geometry()<<button->mapToGlobal(QPointF(0,button->height()));
         QVERIFY(popup->grab().save("/profile/captures/native-file-menu.png"));
         QVERIFY(send("key 108\n"));QTest::qWait(70);QVERIFY(send("key 28\n"));
         QTRY_VERIFY_WITH_TIMEOUT(QFile::exists("/profile/saved-A.txt"),3000);
         QTRY_VERIFY_WITH_TIMEOUT(!menus->opened(),3000);
         QVERIFY(window->grabWindow().save("/profile/captures/native-topbar.png"));
+        auto hover=item("activeAppButton");QVERIFY(hover && hover->isVisible());
+        const auto origin=hover->mapToItem(window->contentItem(),QPointF());const auto size=hover->size();const auto scale=window->devicePixelRatio();
+        const QRect region(qRound(origin.x()*scale),qRound(origin.y()*scale),qRound(size.width()*scale),qRound(size.height()*scale));
+        const auto resting=window->grabWindow().copy(region);
+        const auto hoverPoint=hover->mapToGlobal(QPointF(size.width()/2,size.height()/2));
+        QVERIFY(send("move "+QByteArray::number(hoverPoint.x())+" "+QByteArray::number(hoverPoint.y())+"\n"));
+        QTRY_VERIFY(hover->property("hovered").toBool());QTest::qWait(250);
+        QVERIFY(window->grabWindow().copy(region)!=resting);QCOMPARE(hover->size(),size);
+        QVERIFY(window->grabWindow().save("/profile/captures/native-topbar-hover.png"));
+        for(const auto &name:{"launcherButton","activeAppButton","applicationMenu_0","clockButton"})
+            QCOMPARE(qvariant_cast<QFont>(item(name)->property("font")).pixelSize(),QApplication::font().pixelSize());
         auto launch=item("launcherButton");QVERIFY(launch);QVERIFY(click(launch));
         auto apps=window->findChild<QObject*>("appsPopup");QVERIFY(apps);QTRY_VERIFY_WITH_TIMEOUT(apps->property("opened").toBool(),3000);
         QTRY_VERIFY_WITH_TIMEOUT(item("openApp_files"),3000);
@@ -100,6 +113,7 @@ private slots:
         auto composer=item("inlineComposer");QVERIFY(composer);
         if(!composer->isVisible()){QVERIFY(click(item("askButton")));QTest::qWait(180);composer=item("popupComposer");}
         QVERIFY(composer);auto question=find(composer,"lumenQuestion");QVERIFY(question && question->isVisible());
+        QCOMPARE(qvariant_cast<QFont>(question->property("font")).pixelSize(),QApplication::font().pixelSize());
         const QString questionText=QStringLiteral("Erkläre $HOME und $(echo test), ohne etwas auszuführen.");
         question->setProperty("text",questionText);QVERIFY(click(question));QTRY_VERIFY(question->hasActiveFocus());QTest::qWait(150);QVERIFY(question->hasActiveFocus());
         QVERIFY(window->grabWindow().save("/profile/captures/native-question.png"));

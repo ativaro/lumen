@@ -4,6 +4,7 @@
 #include <QFileDialog>
 #include <QUuid>
 #include <QApplication>
+#include <QFont>
 #include <QCursor>
 #include <QDBusConnection>
 #include <QDBusServiceWatcher>
@@ -29,6 +30,7 @@ QVariantMap nativePalette(){
 }
 
 PanelData::PanelData(QObject *parent):QObject(parent) {
+    auto font=QApplication::font();font.setPixelSize(14);QApplication::setFont(font);
     connect(&m_settingsWatcher,&QFileSystemWatcher::fileChanged,this,&PanelData::readLayout);
     connect(&m_settingsWatcher,&QFileSystemWatcher::directoryChanged,this,&PanelData::readLayout);
     readLayout();

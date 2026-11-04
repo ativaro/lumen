@@ -128,7 +128,7 @@ Window {
         spacing:bar.classic?2:7
         onWidthChanged:Qt.callLater(bar.fit)
         BarButton {objectName:"startButton";visible:bar.classic;colors:bar.colors;text:bar.t("Start");glyph:"view-grid";iconOnly:bar.width<1100;onClicked:bar.showLauncher(true)}
-        BarButton {id:homeLauncher;objectName:"launcherButton";key:!bar.classic;colors:bar.colors;text:bar.classic?"Lumen":"Lumen ⌄";glyph:bar.classic?"qrc:/lumen/icons/lumen-mark.svg":"";symbol:bar.classic?"":"mark";iconOnly:bar.width<560;font.pixelSize:16;font.weight:Font.Medium;onClicked:bar.showLauncher(false)}
+        BarButton {id:homeLauncher;objectName:"launcherButton";key:!bar.classic;colors:bar.colors;text:bar.classic?"Lumen":"Lumen ⌄";glyph:bar.classic?"qrc:/lumen/icons/lumen-mark.svg":"";symbol:bar.classic?"":"mark";iconOnly:bar.width<560;font.weight:Font.Medium;onClicked:bar.showLauncher(false)}
         Rectangle {visible:bar.classic;width:1;height:22;color:bar.colors.border;anchors.verticalCenter:parent.verticalCenter}
         BarButton {key:!bar.classic;colors:bar.colors;text:bar.t("Dateien");glyph:bar.classic?"folder":"";symbol:bar.classic?"":"files";iconOnly:bar.width<720;onClicked:panelData.launch("files")}
         Repeater {model:bar.deck?(bar.stateData.apps||[]).filter(app=>["wissen","workbench","inbox"].includes(app.id)):[]
@@ -138,18 +138,18 @@ Window {
     RowLayout {
         id:appRow;x:bar.deck?16:homeRow.x+homeRow.width+(bar.classic?2:8);y:bar.deck?72:(bar.barSize-height)/2
         width:Math.max(0,(bar.expandedComposer?inlineComposer.x-8:bar.deck?bar.width-16:systemRow.x-12)-x);height:bar.rowHeight;spacing:2
-        BarButton {id:appName;objectName:"activeAppButton";key:!bar.classic;current:!bar.classic;onNaturalWidthChanged:Qt.callLater(bar.fit);iconOnly:bar.appLabelWidth<=45;colors:bar.colors;text:windowState.appName||bar.t("Desktop");glyph:"application-menu";symbol:bar.classic?"":bar.currentSymbol;font.pixelSize:14;onClicked:windowMenu.open();visible:bar.width>=560;Layout.minimumWidth:0;Layout.preferredWidth:bar.appLabelWidth;Layout.maximumWidth:180}
+        BarButton {id:appName;objectName:"activeAppButton";key:!bar.classic;current:!bar.classic;onNaturalWidthChanged:Qt.callLater(bar.fit);iconOnly:bar.appLabelWidth<=45;colors:bar.colors;text:windowState.appName||bar.t("Desktop");glyph:"application-menu";symbol:bar.classic?"":bar.currentSymbol;onClicked:windowMenu.open();visible:bar.width>=560;Layout.minimumWidth:0;Layout.preferredWidth:bar.appLabelWidth;Layout.maximumWidth:180}
         Row {
             spacing:0
             Repeater {
                 id:menuButtons;model:appMenu.entries
-                BarButton {required property var modelData;required property int index;objectName:"applicationMenu_"+index;colors:bar.colors;text:modelData.label;enabled:modelData.enabled;font.pixelSize:14;visible:index<bar.visibleMenus;onClicked:appMenu.show(index,this);onImplicitWidthChanged:Qt.callLater(bar.fit)}
+                BarButton {required property var modelData;required property int index;objectName:"applicationMenu_"+index;colors:bar.colors;text:modelData.label;enabled:modelData.enabled;visible:index<bar.visibleMenus;onClicked:appMenu.show(index,this);onImplicitWidthChanged:Qt.callLater(bar.fit)}
                 onCountChanged:Qt.callLater(bar.fit)
             }
             BarButton {id:overflowButton;objectName:"menuOverflowButton";colors:bar.colors;text:bar.t("Weitere App-Menüs");glyph:"overflow-menu";iconOnly:true;visible:bar.visibleMenus<menuButtons.count || !appName.visible;onClicked:menuButtons.count?overflow.open():windowMenu.open()}
         }
         Item {Layout.fillWidth:true;Layout.minimumWidth:0}
-        Text {visible:bar.showContext && !!windowState.title;text:windowState.title;color:bar.colors.muted;font.pixelSize:12;elide:Text.ElideRight;textFormat:Text.PlainText;Layout.fillWidth:true;Layout.maximumWidth:300;Layout.minimumWidth:0}
+        Text {visible:bar.showContext && !!windowState.title;text:windowState.title;color:bar.colors.muted;elide:Text.ElideRight;textFormat:Text.PlainText;Layout.fillWidth:true;Layout.maximumWidth:300;Layout.minimumWidth:0}
         BarButton {colors:bar.colors;text:windowState.appName.includes("Reader")?bar.t("In Lumen besprechen"):bar.t("Seite merken …");glyph:"bookmark-new";iconOnly:true;visible:bar.showContext && bar.contextAvailable;onClicked:panelData.context(windowState.appName,windowState.title,windowState.pid)}
     }
     AskComposer {
@@ -178,7 +178,7 @@ Window {
             BarButton {id:networkButton;key:!bar.classic;colors:bar.colors;text:bar.t("Netzwerk");glyph:"network-wireless";iconOnly:true;visible:bar.showStatus;onClicked:{systemPopup.open();panelData.refresh()}}
             BarButton {id:volumeButton;key:!bar.classic;objectName:"systemControlsButton";colors:bar.colors;text:bar.t("Lautstärke");glyph:bar.stateData.system?.muted?"audio-volume-muted":"audio-volume-high";iconOnly:true;visible:bar.showStatus;onClicked:{systemPopup.open();panelData.refresh()}}
             BarButton {key:!bar.classic;colors:bar.colors;text:bar.t("Mitteilungen")+(bar.stateData.unread>0?" · "+bar.stateData.unread:"");glyph:bar.stateData.unread>0?"notifications-new":"notifications";iconOnly:true;onClicked:panelData.launch("notifications")}
-            BarButton {colors:bar.colors;objectName:"clockButton";text:bar.clockText;visible:bar.width>460;font.pixelSize:13;onClicked:calendar.open()}
+            BarButton {colors:bar.colors;objectName:"clockButton";text:bar.clockText;visible:bar.width>460;onClicked:calendar.open()}
             BarButton {id:compactControls;key:!bar.classic;objectName:"compactControlsButton";colors:bar.colors;text:bar.t("Systemsteuerung");glyph:"settings-configure";iconOnly:true;visible:!bar.showStatus;onClicked:{systemPopup.open();panelData.refresh()}}
         onImplicitWidthChanged:Qt.callLater(bar.fit)
     }
@@ -216,7 +216,7 @@ Window {
                 Repeater {
                     model:bar.stateData.apps||[]
                     BarButton {required property var modelData;objectName:"openApp_"+modelData.id;colors:bar.colors;text:modelData.label;Layout.fillWidth:true;Layout.preferredWidth:0;Layout.preferredHeight:Math.max(88,contentItem.implicitHeight+20);Accessible.name:modelData.title;
-                        contentItem:Column {spacing:6;Kirigami.Icon {source:"qrc:/lumen/icons/"+(modelData.id==="lumen"?"lumen":"lumen-"+modelData.id)+".svg";width:40;height:40;anchors.horizontalCenter:parent.horizontalCenter}Text {text:modelData.label;color:bar.colors.text;font.pixelSize:12;horizontalAlignment:Text.AlignHCenter;width:parent.width;wrapMode:Text.WordWrap}}
+                        contentItem:Column {spacing:6;Kirigami.Icon {source:"qrc:/lumen/icons/"+(modelData.id==="lumen"?"lumen":"lumen-"+modelData.id)+".svg";width:40;height:40;anchors.horizontalCenter:parent.horizontalCenter}Text {text:modelData.label;color:bar.colors.text;horizontalAlignment:Text.AlignHCenter;width:parent.width;wrapMode:Text.WordWrap}}
                         onClicked:{launcher.close();panelData.launch("app",modelData.id)}
                     }
                 }
