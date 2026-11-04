@@ -34,7 +34,7 @@ try:
     start(['python3','/qa/tray-fixture.py'],'tray-fixture')
     fixture=start(['python3','/qa/fixture.py','A'],'fixture')
     time.sleep(1)
-    script=root/'activate.js';script.write_text('const w=workspace.windowList().find(w=>w.caption==="Lumen Menütest A");if(w)workspace.activeWindow=w;')
+    script=root/'activate.js';script.write_text('const w=workspace.windowList().find(w=>w.caption.startsWith("Lumen Menütest A"));if(w)workspace.activeWindow=w;')
     identity=subprocess.check_output(['qdbus6','org.kde.KWin','/Scripting','org.kde.kwin.Scripting.loadScript',str(script)],text=True).strip()
     subprocess.run(['qdbus6','org.kde.KWin','/Scripting/Script'+identity,'org.kde.kwin.Script.run'],check=True,capture_output=True)
     ui=start(['/build/topbar-ui-test'],'ui-test')
@@ -46,7 +46,7 @@ try:
     subprocess.run(['qdbus6','org.lumen.MenuTestA','/Control','command','maximize'],check=True,capture_output=True)
     time.sleep(.2)
     area_script=root/'area.js'
-    area_script.write_text('const w=workspace.windowList().find(w=>w.caption==="Lumen Menütest A");if(w){const r=w.frameGeometry;callDBus("org.lumen.MenuTestA","/Control","","record",JSON.stringify({x:r.x,y:r.y,width:r.width,height:r.height}));}')
+    area_script.write_text('const w=workspace.windowList().find(w=>w.caption.startsWith("Lumen Menütest A"));if(w){const r=w.frameGeometry;callDBus("org.lumen.MenuTestA","/Control","","record",JSON.stringify({x:r.x,y:r.y,width:r.width,height:r.height}));}')
     script_id=subprocess.check_output(['qdbus6','org.kde.KWin','/Scripting','org.kde.kwin.Scripting.loadScript',str(area_script)],text=True).strip()
     subprocess.run(['qdbus6','org.kde.KWin','/Scripting/Script'+script_id,'org.kde.kwin.Script.run'],check=True,capture_output=True)
     for attempt in range(30):
