@@ -89,6 +89,7 @@ def main():
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--language', action='store_true')
     group.add_argument('--snapshot', action='store_true')
+    group.add_argument('--bar-snapshot', action='store_true')
     group.add_argument('--topbar-snapshot', action='store_true')
     group.add_argument('--topbar-fit', action='store_true')
     group.add_argument('--topbar-page')
@@ -112,6 +113,9 @@ def main():
     group.add_argument('--voice', action='store_true')
     group.add_argument('--settings', action='store_true')
     args = parser.parse_args()
+    if args.bar_snapshot:
+        from topbar_data import snapshot as bar_snapshot
+        print(json.dumps(bar_snapshot(), ensure_ascii=False)); return
     if args.topbar_fit:
         script=(Path(__file__).parents[1]/'desktop/appmenu.js').read_text()+'\ninstallLumenAppMenus(panels());'
         subprocess.run(['qdbus6','org.kde.plasmashell','/PlasmaShell','org.kde.PlasmaShell.evaluateScript',script],
