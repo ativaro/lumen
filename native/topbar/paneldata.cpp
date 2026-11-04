@@ -200,5 +200,7 @@ void PanelData::inputMask(QQuickWindow *window,const QVariantList &rectangles,bo
     // Popups opened with Meta need keyboard focus without a preceding pointer event.
     LayerShellQt::Window::get(window)->setKeyboardInteractivity(popupOpen
         ?LayerShellQt::Window::KeyboardInteractivityExclusive:LayerShellQt::Window::KeyboardInteractivityOnDemand);
+    // Wayland applies input regions on the next surface commit, even if no pixels changed.
+    window->update();
 }
 void PanelData::ShowApps(){auto screen=QGuiApplication::screenAt(QCursor::pos());if(!screen)screen=QGuiApplication::primaryScreen();if(screen)emit showAppsRequested(screen->name());}

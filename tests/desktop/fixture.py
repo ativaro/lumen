@@ -5,8 +5,8 @@ from PySide6.QtCore import QObject,Slot,QTimer,Qt
 from PySide6.QtDBus import QDBusConnection
 name=sys.argv[1] if len(sys.argv)>1 else 'A'
 app=QApplication([])
-app.setApplicationName('Lumen Menütest '+name)
-app.setApplicationDisplayName('Chromium' if name=='Browser' else 'Lumen Menütest '+name)
+app.setApplicationName('Lumen Notes' if name=='A' else 'Lumen Menütest '+name)
+app.setApplicationDisplayName('Chromium' if name=='Browser' else 'Lumen Notes' if name=='A' else 'Lumen Menütest '+name)
 app.setDesktopFileName('lumen-menu-test-'+name.lower())
 w=QMainWindow();w.setWindowTitle('Workshop — Chromium' if name=='Browser' else 'Lumen Menütest '+name);w.resize(720,480)
 label=QLabel('Synthetische Testdaten: '+name);label.setAlignment(Qt.AlignCenter);w.setCentralWidget(label)

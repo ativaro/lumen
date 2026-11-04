@@ -42,8 +42,9 @@ shutil.copytree(REPO/'plasmoid',host)
 qml=host/'contents/ui/main.qml';qml.write_text(qml.read_text().replace('/usr/bin/lumen-panel','/qa/bin/lumen-panel'))
 (profile/'config/plasma-org.kde.plasma.desktop-appletsrc').write_text('[Containments][1]\nformfactor=0\nlastScreen=0\nlocation=0\nplugin=org.kde.plasma.folder\nwallpaperplugin=org.kde.image\n')
 for name in ('A','B','Empty','Browser'):
+    title='Lumen Notes' if name=='A' else 'Lumen Menütest '+name
     (profile/'data/applications'/('lumen-menu-test-'+name.lower()+'.desktop')).write_text(
-        '[Desktop Entry]\nType=Application\nName=Lumen Menütest '+name+'\nExec=python3 /qa/fixture.py '+name+'\nIcon=application-x-executable\nNoDisplay=true\n')
+        '[Desktop Entry]\nType=Application\nName='+title+'\nExec=python3 /qa/fixture.py '+name+'\nIcon=application-x-executable\nNoDisplay=true\n')
 (profile/'data/applications/lumen-topbar-program-test.desktop').write_text('[Desktop Entry]\nType=Application\nName=Lumen Testprogramm\nExec=/usr/bin/touch /profile/program-started\nIcon=application-x-executable\nCategories=Utility;\n')
 (profile/'config/kded6rc').write_text('[Module-bluedevil]\nautoload=false\n[Module-baloo]\nautoload=false\n')
 command=['bwrap','--unshare-all','--die-with-parent','--new-session','--clearenv',

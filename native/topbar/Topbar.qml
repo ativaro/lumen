@@ -18,6 +18,7 @@ Window {
     property alias attachmentPath:questionState.attachment
     property alias noteContext:questionState.note
     property string notePendingAction:""
+    property bool choosingAttachment:false
     QtObject {
         id:questionState
         property string draft:""
@@ -96,7 +97,7 @@ Window {
         id:windowState
         objectName:"activeWindowState"
         screenGeometry:Qt.rect(bar.screen.virtualX,bar.screen.virtualY,bar.screen.width,bar.screen.height)
-        holdActiveWindow:appMenu.opened || trayModel.opened || launcher.opened || systemPopup.opened || overflow.opened || windowMenu.opened || trayPopup.opened || calendar.opened || askPopup.opened || contextDrawer.opened
+        holdActiveWindow:bar.choosingAttachment || !!bar.notePendingAction || inlineComposer.editing || appMenu.opened || trayModel.opened || launcher.opened || systemPopup.opened || overflow.opened || windowMenu.opened || trayPopup.opened || calendar.opened || askPopup.opened || contextDrawer.opened
         onServiceChanged:Qt.callLater(bar.updateMenu)
         onPathChanged:Qt.callLater(bar.updateMenu)
         onFullScreenChanged:if(fullScreen){appMenu.close();trayModel.close();launcher.close();systemPopup.close();overflow.close();windowMenu.close();trayPopup.close();calendar.close();askPopup.close();contextDrawer.close()}
@@ -244,7 +245,14 @@ Window {
         Label {visible:!!questionState.note.reference;text:bar.t("Die gespeicherte Notiz wird im Servergespräch verwendet.");color:bar.colors.muted;wrapMode:Text.Wrap;Layout.fillWidth:true}
         RowLayout {Layout.fillWidth:true
             BarButton {objectName:contextActions.prefix+"attachFileButton";colors:bar.colors;glyph:"mail-attachment";text:bar.attachmentPath?bar.t("Datei wechseln …"):bar.t("Datei anhängen …");Layout.fillWidth:true
-                onClicked:{const path=panelData.chooseAttachment(bar);if(path){bar.attachmentPath=path;if(inlineComposer.visible){contextDrawer.open();inlineComposer.focusInput()}}Qt.callLater(bar.mask)}
+                onClicked:{
+                    bar.choosingAttachment=true
+                    try{
+                        const path=panelData.chooseAttachment(bar);if(path)bar.attachmentPath=path
+                        if(inlineComposer.visible){contextDrawer.open();inlineComposer.focusInput()}
+                        else{askPopup.open();popupComposer.focusInput()}
+                    }finally{bar.choosingAttachment=false;Qt.callLater(bar.mask)}
+                }
             }
             BarButton {objectName:contextActions.prefix+"removeAttachmentButton";colors:bar.colors;glyph:"edit-clear";text:bar.t("Anhang entfernen");iconOnly:true;visible:!!bar.attachmentPath;onClicked:bar.attachmentPath=""}
         }

@@ -24,6 +24,7 @@
 class UiTest:public QObject {
     Q_OBJECT
     static QQuickItem *find(QQuickItem *root,const QString &name){
+        if(!root)return nullptr;
         if(root->objectName()==name)return root;
         for(auto child:root->childItems())if(auto value=find(child,name))return value;
         return nullptr;
@@ -173,7 +174,7 @@ private slots:
         auto contextComposer=find(window->contentItem(),"inlineComposer");
         QString prefix="dock";
         if(contextComposer->isVisible()){QVERIFY(click(find(contextComposer,"lumenQuestion")));}
-        else{QVERIFY(click(find(window->contentItem(),"askButton")));contextComposer=find(window->contentItem(),"popupComposer");prefix="popup";}
+        else{QVERIFY(click(find(window->contentItem(),"askButton")));QTRY_VERIFY(find(window->contentItem(),"popupComposer"));contextComposer=find(window->contentItem(),"popupComposer");prefix="popup";}
         QTRY_VERIFY(find(window->contentItem(),prefix+"attachFileButton"));
         auto attachmentButton=find(window->contentItem(),prefix+"attachFileButton");
         QTRY_VERIFY(attachmentButton->isVisible());QTest::qWait(180);
@@ -182,19 +183,23 @@ private slots:
         bool pickerAccepted=false;
         // Automate Qt's picker in the private session; the product keeps the platform picker.
         QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
-        QTimer::singleShot(250,this,[&]{
-            auto picker=qobject_cast<QFileDialog*>(QApplication::activeModalWidget());
+        QTimer pickerDriver;pickerDriver.setInterval(50);
+        connect(&pickerDriver,&QTimer::timeout,this,[&]{
+            QFileDialog *picker=nullptr;
+            for(auto widget:QApplication::topLevelWidgets())if(auto dialog=qobject_cast<QFileDialog*>(widget))if(dialog->isVisible()){picker=dialog;break;}
             if(!picker)return;
             auto filename=picker->findChild<QLineEdit*>("fileNameEdit");
             if(!filename)return;
             filename->setText(attachmentPath);
-            pickerAccepted=QMetaObject::invokeMethod(picker,"accept");
-        });
+            pickerAccepted=QMetaObject::invokeMethod(picker,"accept");pickerDriver.stop();
+        });pickerDriver.start();
+        QVERIFY(window->grabWindow().save("/profile/captures/native-context-before-picker.png"));
         QVERIFY(click(attachmentButton));QTRY_VERIFY_WITH_TIMEOUT(pickerAccepted,2000);
         QTRY_COMPARE(window->property("attachmentPath").toString(),attachmentPath);
         QApplication::setAttribute(Qt::AA_DontUseNativeDialogs,false);
         auto suggestion=find(window->contentItem(),prefix+"contextSuggestion_0");QVERIFY(suggestion && suggestion->isEnabled());QTest::qWait(180);
         QVERIFY(click(suggestion));
+        QTRY_VERIFY(find(contextComposer,"lumenQuestion"));
         auto attachedQuestion=find(contextComposer,"lumenQuestion");QVERIFY(attachedQuestion);
         QTRY_VERIFY(attachedQuestion->property("text").toString().contains(QString::fromUtf8("angehängte Datei")) || attachedQuestion->property("text").toString().contains("attached file"));
         QVERIFY(window->grabWindow().save("/profile/captures/native-context-attachment.png"));
@@ -202,11 +207,13 @@ private slots:
         QTRY_VERIFY(QFile::exists("/profile/asked.json"));QFile contextualAsk("/profile/asked.json");QVERIFY(contextualAsk.open(QIODevice::ReadOnly));
         QCOMPARE(QJsonDocument::fromJson(contextualAsk.readAll()).object()["file"].toString(),attachmentPath);
         QTRY_VERIFY(window->property("attachmentPath").toString().isEmpty());
-        window->setProperty("notePendingAction",data.attachNote(42));
+        if(prefix=="dock"){QVERIFY(click(find(contextComposer,"lumenQuestion")));}
+        else{QVERIFY(click(find(window->contentItem(),"askButton")));}
+        QTRY_VERIFY(find(window->contentItem(),prefix+"attachNoteButton"));
+        auto attachNote=find(window->contentItem(),prefix+"attachNoteButton");QTRY_VERIFY(attachNote->isVisible());QTest::qWait(180);
+        QVERIFY(click(attachNote));
         QTRY_VERIFY(window->property("noteContext").toMap().contains("reference"));
         QCOMPARE(window->property("noteContext").toMap()["reference"].toMap()["title"].toString(),QString("Workshop in Notes"));
-        if(contextComposer->isVisible() && prefix=="dock"){QVERIFY(click(find(contextComposer,"inspectAttachmentButton")));}
-        else{QVERIFY(click(find(window->contentItem(),"askButton")));}
         QTest::qWait(180);
         QVERIFY(window->grabWindow().save("/profile/captures/native-notes-context.png"));
         attachedQuestion->setProperty("text",QString("Fasse die Notes-Notiz zusammen."));
