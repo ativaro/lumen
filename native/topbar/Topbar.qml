@@ -371,7 +371,7 @@ Window {
         }
     }
     BarPopup {
-        id:trayPopup;x:bar.width-width-12
+        id:trayPopup;objectName:"trayPopup";x:bar.width-width-12
         ColumnLayout {width:parent.width;spacing:4
             Label {text:bar.t("Hintergrund-Apps");color:bar.colors.text;font.pixelSize:18;Layout.fillWidth:true}
             Repeater {model:trayModel.items.length

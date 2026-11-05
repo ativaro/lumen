@@ -205,8 +205,13 @@ private slots:
         auto lastVisible=item("trayItem_"+QString::number(window->property("shownTray").toInt()-1));
         if(lastVisible){QVERIFY(lastVisible->isVisible());QVERIFY(lastVisible->mapToItem(window->contentItem(),QPointF()).x()>=0);}
         QVERIFY(click(item("trayMoreButton")));
+        auto trayPopup=window->findChild<QObject*>("trayPopup");QVERIFY(trayPopup);
+        QTRY_VERIFY_WITH_TIMEOUT(trayPopup->property("opened").toBool(),2000);
+        QTRY_VERIFY(window->isActive());
         QTRY_VERIFY_WITH_TIMEOUT(item("overflowTray_39") && item("overflowTray_39")->isVisible(),2000);
-        auto lastTray=item("overflowTray_39");lastTray->forceActiveFocus(Qt::TabFocusReason);
+        auto lastTray=item("overflowTray_39");
+        QTRY_VERIFY(lastTray->y()>39*lastTray->height());
+        lastTray->forceActiveFocus(Qt::TabFocusReason);
         QTRY_VERIFY(lastTray->hasActiveFocus());
         QTRY_VERIFY(lastTray->mapToItem(window->contentItem(),QPointF(0,lastTray->height())).y()<=window->height()-16);
         QSignalSpy painted(window,&QQuickWindow::frameSwapped);window->update();QTRY_VERIFY(painted.count()>0);
