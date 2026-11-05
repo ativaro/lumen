@@ -31,6 +31,9 @@ QtObject {
         else if(name==="activate")windowModel.requestActivate(index)
     }
     function activate(index){if(index>=0 && index<windowModel.count)windowModel.requestActivate(windowModel.makeModelIndex(index))}
+    function activateProcess(pid){
+        for(let i=0;i<windows.count;i++){const w=windows.objectAt(i);if(w&&w.model.AppPid===pid){activate(w.index);return}}
+    }
     property var windowModel: TaskManager.TasksModel {
         groupMode: TaskManager.TasksModel.GroupDisabled
         filterByScreen: true

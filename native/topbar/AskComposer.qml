@@ -15,6 +15,7 @@ Item {
     signal sent()
     signal inspectAttachment()
     signal voiceRequested()
+    signal inputRequested()
     implicitHeight:keyStyle?44:36
     implicitWidth:row.implicitWidth
     Rectangle {z:-1;anchors.fill:parent;visible:composer.keyStyle;radius:composer.colors.radius||8;color:composer.colors.inset||composer.colors.base;border.color:input.activeFocus?composer.colors.accent:composer.colors.border}
@@ -31,6 +32,7 @@ Item {
         BarButton {objectName:"inspectAttachmentButton";visible:!!composer.request.note.reference;colors:composer.colors;glyph:"mail-attachment";text:translate("Angehängte Quelle")+": "+(composer.request.note.reference?.title || "");iconOnly:true;onClicked:composer.inspectAttachment()}
         TextField {
             id:input;objectName:"lumenQuestion"
+            onPressed:composer.inputRequested()
             onTextChanged:if(composer.request.draft!==text)composer.request.draft=text
             Layout.fillWidth:true;Layout.minimumWidth:0
             placeholderText:translate("Frag Lumen oder erledige etwas …");Accessible.name:translate("Neue Frage an Lumen")

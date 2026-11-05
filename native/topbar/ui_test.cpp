@@ -274,7 +274,8 @@ private slots:
             auto dragPoint=dragArea->mapToGlobal(QPointF(40,dragArea->height()/2));
             QVERIFY(send("move "+QByteArray::number(dragPoint.x())+" "+QByteArray::number(dragPoint.y())+"\n"));
             QVERIFY(send("down\n"));QVERIFY(send("move "+QByteArray::number(dragPoint.x()+30)+" "+QByteArray::number(dragPoint.y()+100)+"\n"));
-            QTRY_VERIFY(detached->isVisible());QTRY_VERIFY(window->property("conversationMoveReady").toBool());QVERIFY(send("up\n"));
+            QTRY_VERIFY(detached->isVisible());QTRY_VERIFY(window->property("conversationMoveReady").toBool());
+            if(gesture==1){QVERIFY(send("move "+QByteArray::number(dragPoint.x()+90)+" "+QByteArray::number(dragPoint.y()+160)+"\n"));}QVERIFY(send("up\n"));
             QTRY_VERIFY_WITH_TIMEOUT(detached->isActive(),3000);
             if(gesture==1){QVERIFY(click(question));}
             else{reattach->forceActiveFocus(Qt::TabFocusReason);QTRY_VERIFY(reattach->hasActiveFocus());QVERIFY(send("key 57\n"));}

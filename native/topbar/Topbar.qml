@@ -98,7 +98,7 @@ Window {
         conversationMoveReady=false;draggingConversation=dragging;detachingConversation=true;mask();bar.update()
     }
     onFrameSwapped:if(detachingConversation){
-        detachingConversation=false;conversationWindow.activateWhenMapped=true;conversationWindow.show()
+        detachingConversation=false;conversationWindow.activateWhenMapped=true;conversationWindow.focusPending=true;conversationWindow.show()
     }
     readonly property var uiLocale:Qt.locale(stateData.language==="de"?"de_CH":"en_US")
     function fit(){
@@ -224,7 +224,7 @@ Window {
     }
     AskComposer {
         id:inlineComposer;objectName:"inlineComposer";onEditingChanged:if(editing){restoreFocus.stop();if(bar.layout==="context" && visible)contextDrawer.open()}
-        TapHandler {onPressedChanged:if(pressed&&conversationWindow.visible)bar.openConversation()}
+        onInputRequested:if(conversationWindow.visible)bar.openConversation()
         visible:bar.expandedComposer;width:bar.classic?Math.max(0,activityButton.x-(bar.twoRows?24:appRow.x+appRow.width+12)-60):266
         x:bar.classic?(bar.twoRows?24:appRow.x+appRow.width+12):bar.deck?bar.width-310-16:systemRow.x-310-8;y:bar.classic?(bar.twoRows?82:40)-height/2:bar.deck?72:(bar.barSize-height)/2
         colors:bar.colors;translate:bar.t;controller:panelData;keyStyle:!bar.classic
@@ -260,7 +260,11 @@ Window {
     Window {
         id:conversationWindow;objectName:"detachedConversation";visible:false;transientParent:null
         property bool activateWhenMapped:false
-        onVisibleChanged:Qt.callLater(bar.mask)
+        property bool focusPending:false
+        onVisibleChanged:{if(!visible)focusPending=false;Qt.callLater(bar.mask)}
+        function beginDrag(){if(active&&!activateWhenMapped&&bar.draggingConversation){bar.draggingConversation=false;Qt.callLater(()=>{bar.conversationMoveReady=conversationWindow.startSystemMove()})}}
+        onActiveChanged:if(active){focusPending=false;beginDrag()}
+        screen:bar.screen
         title:"Lumen";flags:Qt.Window|Qt.FramelessWindowHint;width:900;height:700;minimumWidth:440;minimumHeight:400;color:"transparent"
         Rectangle {anchors.fill:parent;z:-1;color:bar.colors.window;radius:bar.colors.radius||12;border.color:bar.colors.border}
         Repeater {
@@ -278,10 +282,12 @@ Window {
         }
         onFrameSwapped:if(activateWhenMapped){
             activateWhenMapped=false
-            Qt.callLater(()=>{conversationWindow.requestActivate();conversationPane.focusInput();if(bar.draggingConversation){bar.draggingConversation=false;bar.conversationMoveReady=conversationWindow.startSystemMove()}})
+            Qt.callLater(()=>{conversationWindow.requestActivate();windowState.activateProcess(panelData.processId);conversationPane.focusInput();conversationWindow.beginDrag()})
         }
+        Timer {interval:1000;running:conversationWindow.focusPending;onTriggered:conversationWindow.focusPending=false}
         onClosing:event=>{event.accepted=false;bar.closeConversation()}
     }
+    Connections {target:windowState.windows;function onObjectAdded(){if(conversationWindow.focusPending)Qt.callLater(()=>windowState.activateProcess(panelData.processId))}}
     Shortcut {sequence:"Escape";enabled:bar.conversationOpen||conversationWindow.active;onActivated:bar.closeConversation()}
     BarButton {id:activityButton;objectName:"activityButton";visible:bar.classic;colors:bar.colors;monochrome:true;text:bar.statusText;glyph:bar.currentActivity.icon
         width:bar.width<900?160:190;x:bar.twoRows?bar.width-width-24:systemRow.x-width-12;y:(bar.twoRows?82:40)-height/2

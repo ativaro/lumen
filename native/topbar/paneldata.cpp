@@ -278,6 +278,7 @@ void PanelData::readLayout(){
     for(const auto &path:{file.absoluteFilePath(),file.absolutePath(),QFileInfo(file.absolutePath()).absolutePath()})
         if(QFileInfo::exists(path) && !m_settingsWatcher.files().contains(path) && !m_settingsWatcher.directories().contains(path))m_settingsWatcher.addPath(path);
 }
+qint64 PanelData::processId() const{return QCoreApplication::applicationPid();}
 void PanelData::inputMask(QQuickWindow *window,const QVariantList &rectangles,bool popupOpen){
     if(!window)return;
     QRegion mask;
