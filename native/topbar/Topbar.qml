@@ -121,12 +121,13 @@ Window {
     }
     onBarSizeChanged:Qt.callLater(mask)
     onLayoutChanged:if(ready){launcher.close();systemPopup.close();networkPopup.close();audioPopup.close();overflow.close();windowMenu.close();trayPopup.close();calendar.close();askPopup.close();contextDrawer.close();activityPopup.close();Qt.callLater(()=>{fit();if(layout==="context" && inlineComposer.visible && inlineComposer.editing)contextDrawer.open()})}
-    function showLauncher(programs){startMenu.reset(!programs);launcher.open();panelData.refresh();panelData.inspect("recent")}
+    function showLauncher(programs){focusLoss.stop();startMenu.reset(!programs);launcher.open();panelData.refresh();panelData.inspect("recent")}
     function updateMenu(){appMenu.setEndpoint(windowState.service,windowState.path)}
     function dismissIfInactive(){if(!bar.active && !appMenu.opened && !trayModel.opened && !startMenu.menuOpened){launcher.close();systemPopup.close();networkPopup.close();audioPopup.close();overflow.close();windowMenu.close();trayPopup.close();calendar.close();askPopup.close();contextDrawer.close();activityPopup.close();trayModel.close()}}
     onHeightChanged:Qt.callLater(mask)
     onActiveChanged:if(active)focusLoss.stop();else focusLoss.restart()
-    Timer {id:focusLoss;interval:80;onTriggered:bar.dismissIfInactive()}
+    // Wayland focus can settle after a layer popup is closed and immediately reopened.
+    Timer {id:focusLoss;interval:250;onTriggered:bar.dismissIfInactive()}
     Timer {id:restoreFocus;interval:100;onTriggered:if(bar.active && !inlineComposer.editing && !appMenu.opened && !trayModel.opened && ![launcher,systemPopup,networkPopup,audioPopup,overflow,windowMenu,trayPopup,calendar,askPopup,contextDrawer,activityPopup].some(p=>p.visible))windowState.action("activate")}
     onWidthChanged:Qt.callLater(fit)
     onVisibleChanged:if(visible)Qt.callLater(fit)

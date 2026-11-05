@@ -130,6 +130,10 @@ private slots:
         auto programsButton=item("programsButton");QVERIFY(programsButton && programsButton->isVisible());
         QVERIFY(programsButton->mapToItem(window->contentItem(),QPointF(programsButton->width(),0)).x()<=launch->mapToItem(window->contentItem(),QPointF()).x());
         QVERIFY(click(programsButton));QTRY_VERIFY(apps->property("opened").toBool());QTRY_VERIFY(!item("startMenu")->property("lumenOnly").toBool());
+        for(int cycle=0;cycle<8;++cycle){
+            QTest::qWait(650);QVERIFY2(apps->property("opened").toBool(),qPrintable("Start menu closed during hover cycle "+QString::number(cycle)));QVERIFY(window->isActive());
+            if(cycle<7){QVERIFY(send("key 1\n"));QTRY_VERIFY(!apps->property("opened").toBool());QVERIFY(click(programsButton));QTRY_VERIFY(apps->property("opened").toBool());}
+        }
         QTRY_VERIFY(item("startPin_5") && item("startPin_5")->isVisible());
         QTRY_VERIFY(item("startRecent_1") && item("startRecent_1")->isVisible());
         QTRY_VERIFY(!data.controlBusy());QTest::qWait(150);
