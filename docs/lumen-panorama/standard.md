@@ -44,6 +44,22 @@ Die folgenden Ausgangswerte stammen aus der Desktop-Palette und der freigegebene
 
 ## Verbindlicher Abgleich bei UI-Änderungen
 
+Desktop-Topbar (05.11.2026): Die Standardleiste folgt dem freigegebenen Entwurf
+`lumen-topbar-alltag.html`: ein zusammenhängendes Panorama-Band mit dauerhafter
+Lumen-Eingabe und Diktat-Einstieg. Fensterübersicht und letzte Inhalte haben je
+einen kleinen Schnellzugriff. Eine gemeinsame Statusfläche priorisiert Freigaben,
+Aufnahmen, Fokuszeit, Übertragungen, Medien und Updates; sie rotiert nicht automatisch.
+Nicht stören bleibt in der Mitteilungsanzeige erkennbar. Bei wenig Platz rückt die
+Eingabe in eine eigene Zeile. Keine Dateiauswahl in der Topbar; Dateien bleiben in
+den zuständigen Apps verwendbar. Bestehende Notes-Übergaben bleiben ausdrücklich.
+Fokuszeit, Nicht stören, Medien und Updates sind über dieselbe Statusfläche erreichbar.
+Freigaben und Aktualisierungen öffnen ihre bestehenden Prüf-/Bestätigungsdialoge.
+Letzte Inhalte nutzen die vorhandenen Dateiverläufe und gespeicherten Gespräche;
+offene Notes-/App-Inhalte sind über die laufenden Fenster erreichbar. Verläufe
+anderer Serverbindungen werden nicht angeboten. Es werden keine Inhalte kopiert.
+Der technische Einstellungswert `classic` heißt in der Oberfläche nun Panorama;
+die ausdrücklich angebotenen alternativen Layouts bleiben wählbar.
+
 Desktop-Topbar, Netzwerk und Audio (04.11.2026): Die beiden Statussymbole öffnen
 eigenständige Panorama-Menüs. Netzwerk gliedert sich in Übersicht, WLAN,
 Kabel/Adapter, VPN/Proxy, Hotspot und Details/Diagnose; Audio in Übersicht,

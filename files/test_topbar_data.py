@@ -10,6 +10,9 @@ from topbar_data import snapshot
 
 
 class TopbarDataTests(unittest.TestCase):
+    def setUp(self):
+        activity=patch('topbar_activity.snapshot',return_value={})
+        activity.start();self.addCleanup(activity.stop)
     def test_bar_reads_shared_palette_without_waking_notifications_or_loading_tasks(self):
         with tempfile.TemporaryDirectory() as directory:
             (Path(directory) / 'plasmarc').write_text('[Theme]\nname=org.lumen.atelier\n')

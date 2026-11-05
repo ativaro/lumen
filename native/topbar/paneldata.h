@@ -65,7 +65,11 @@ private:
     void actionError(const QString &action,const QString &message);
     void applyPalette(const QVariantMap &colors);
     void readLayout();
+    void watchTasks();
     QFileSystemWatcher m_settingsWatcher;
+    QFileSystemWatcher m_taskWatcher;
+    QTimer m_taskRefresh;
+    QString m_taskDirectory;
     QString m_layout="classic";
     QPointer<QQuickItem> m_tooltipOwner;
     std::unique_ptr<QLabel> m_tooltip;
@@ -80,5 +84,6 @@ private:
     QString m_error,m_actionError;
     QMap<QString,QVariantMap> m_players;
     QSet<QString> m_pendingPlayers;
+    QMap<QString,quint64> m_playerEpochs;
     bool m_mediaScanning=false,m_mediaAgain=false;
 };

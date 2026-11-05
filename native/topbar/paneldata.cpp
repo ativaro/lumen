@@ -26,6 +26,17 @@
 #include <LayerShellQt/Window>
 
 namespace {
+QVariantMap mediaMap(const QVariant &value){
+    if(value.metaType()==QMetaType::fromType<QVariantMap>())return value.toMap();
+    if(value.metaType()==QMetaType::fromType<QDBusArgument>() && qvariant_cast<QDBusArgument>(value).currentSignature()=="a{sv}")return qdbus_cast<QVariantMap>(value);
+    return {};
+}
+QString mediaArtist(const QVariant &value){
+    if(value.metaType()==QMetaType::fromType<QStringList>())return value.toStringList().join(", ").left(300);
+    if(value.metaType()==QMetaType::fromType<QDBusArgument>() && qvariant_cast<QDBusArgument>(value).currentSignature()=="as")return qdbus_cast<QStringList>(value).join(", ").left(300);
+    // Malformed third-party metadata must not reach Qt's fatal typed demarshaller.
+    return {};
+}
 class ButtonTip:public QLabel {
 public:
     ButtonTip():QLabel(nullptr,Qt::ToolTip){
@@ -53,12 +64,19 @@ PanelData::PanelData(QObject *parent):QObject(parent) {
     connect(&m_settingsWatcher,&QFileSystemWatcher::fileChanged,this,&PanelData::readLayout);
     connect(&m_settingsWatcher,&QFileSystemWatcher::directoryChanged,this,&PanelData::readLayout);
     readLayout();
+    m_taskDirectory=qEnvironmentVariable("LUMEN_DATA",QDir(qEnvironmentVariable("XDG_STATE_HOME",QDir::homePath()+"/.local/state")).filePath("lumen"));
+    m_taskRefresh.setSingleShot(true);m_taskRefresh.setInterval(200);
+    connect(&m_taskRefresh,&QTimer::timeout,this,&PanelData::refresh);
+    const auto taskChanged=[this]{watchTasks();m_taskRefresh.start();};
+    connect(&m_taskWatcher,&QFileSystemWatcher::directoryChanged,this,taskChanged);
+    connect(&m_taskWatcher,&QFileSystemWatcher::fileChanged,this,taskChanged);
+    watchTasks();
     auto bus=QDBusConnection::sessionBus();
     bus.registerService("org.kde.kappmenuview");
     auto viewWatcher=new QDBusServiceWatcher("org.kde.kappmenuview",bus,QDBusServiceWatcher::WatchForUnregistration,this);
     connect(viewWatcher,&QDBusServiceWatcher::serviceUnregistered,this,[]{QDBusConnection::sessionBus().registerService("org.kde.kappmenuview");});
     bus.connect("org.freedesktop.DBus","/org/freedesktop/DBus","org.freedesktop.DBus","NameOwnerChanged",this,SLOT(mediaOwnerChanged(QString,QString,QString)));
-    bus.connect({},"/org/mpris/MediaPlayer2","org.freedesktop.DBus.Properties","PropertiesChanged",this,SLOT(mediaPropertiesChanged(QString,QVariantMap,QStringList)));
+    bus.connect({},"/org/mpris/MediaPlayer2","org.freedesktop.DBus.Properties","PropertiesChanged","sa{sv}as",this,SLOT(mediaPropertiesChanged(QString,QVariantMap,QStringList)));
     QTimer::singleShot(0,this,&PanelData::refreshMedia);
     const QString directory=qEnvironmentVariable("LUMEN_BIN_DIR",QCoreApplication::applicationDirPath());
     const QString local=QDir(directory).filePath("lumen-panel");
@@ -95,6 +113,10 @@ PanelData::~PanelData(){
 }
 void PanelData::fail(const QString &message){if(message!=m_error){m_error=message;emit errorChanged();}}
 void PanelData::refresh(){if(m_read.state()!=QProcess::NotRunning || controlBusy())return;if(m_helper.isEmpty()){fail(tr("Lumen ist nicht vollständig installiert."));return;}m_read.start(m_helper,{"--bar-snapshot"});m_timeout.start();}
+void PanelData::watchTasks(){
+    for(const auto &path:{m_taskDirectory,QFileInfo(m_taskDirectory).absolutePath(),QDir(m_taskDirectory).filePath("lumen.sqlite3"),QDir(m_taskDirectory).filePath("lumen.sqlite3-wal")})
+        if(QFileInfo::exists(path) && !m_taskWatcher.files().contains(path) && !m_taskWatcher.directories().contains(path))m_taskWatcher.addPath(path);
+}
 void PanelData::applyPalette(const QVariantMap &colors){
     const QList<QPair<QPalette::ColorRole,QString>> roles={{QPalette::Window,"window"},{QPalette::Base,"base"},
         {QPalette::WindowText,"text"},{QPalette::Text,"text"},{QPalette::ButtonText,"text"},{QPalette::Button,"window"},
@@ -264,7 +286,9 @@ void PanelData::mediaPropertiesChanged(const QString &interface,const QVariantMa
 }
 void PanelData::mediaOwnerChanged(const QString &name,const QString &,const QString &newOwner){
     if(!name.startsWith("org.mpris.MediaPlayer2."))return;
-    if(newOwner.isEmpty() && m_players.remove(name))emit playersChanged();
+    Q_UNUSED(newOwner)
+    ++m_playerEpochs[name];
+    if(m_players.remove(name))emit playersChanged();
     QTimer::singleShot(0,this,&PanelData::refreshMedia);
 }
 void PanelData::refreshMedia(){
@@ -284,14 +308,18 @@ void PanelData::refreshMedia(){
     for(const auto &name:live){
         if(m_pendingPlayers.contains(name)){m_mediaAgain=true;continue;}
         m_pendingPlayers.insert(name);
+        const auto epoch=m_playerEpochs.value(name);
         auto message=QDBusMessage::createMethodCall(name,"/org/mpris/MediaPlayer2","org.freedesktop.DBus.Properties","GetAll");
+        message.setAutoStartService(false);
         message.setArguments({"org.mpris.MediaPlayer2.Player"});
         auto watcher=new QDBusPendingCallWatcher(bus.asyncCall(message,1000),this);
-        connect(watcher,&QDBusPendingCallWatcher::finished,this,[this,watcher,name]{
+        connect(watcher,&QDBusPendingCallWatcher::finished,this,[this,watcher,name,epoch]{
             const QDBusPendingReply<QVariantMap> reply=*watcher;m_pendingPlayers.remove(name);
+            // A reply from the old owner must never resurrect a closed/replaced player.
+            if(epoch!=m_playerEpochs.value(name)){watcher->deleteLater();QTimer::singleShot(0,this,&PanelData::refreshMedia);return;}
             if(reply.isValid()){
-                const auto props=reply.value();const auto metadata=qdbus_cast<QVariantMap>(props.value("Metadata"));
-                const auto artist=qdbus_cast<QStringList>(metadata.value("xesam:artist")).join(", ");
+                const auto props=reply.value();const auto metadata=mediaMap(props.value("Metadata"));
+                const auto artist=mediaArtist(metadata.value("xesam:artist"));
                 const QVariantMap player={{"id",name},{"app",name.mid(23).section('.',0,0)},
                     {"title",metadata.value("xesam:title").toString().left(300)},{"artist",artist.left(300)},
                     {"playing",props.value("PlaybackStatus")=="Playing"},{"control",props.value("CanControl").toBool()},
@@ -313,7 +341,8 @@ void PanelData::mediaAction(const QString &service,const QString &action){
     if(action=="Previous" && !player.value("previous").toBool())return;
     if(action=="PlayPause" && !player.value(player.value("playing").toBool()?"pause":"play").toBool())return;
     if(!QStringList{"Next","Previous","PlayPause"}.contains(action))return;
-    const auto message=QDBusMessage::createMethodCall(service,"/org/mpris/MediaPlayer2","org.mpris.MediaPlayer2.Player",action);
+    auto message=QDBusMessage::createMethodCall(service,"/org/mpris/MediaPlayer2","org.mpris.MediaPlayer2.Player",action);
+    message.setAutoStartService(false);
     auto watcher=new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(message,2000),this);
     connect(watcher,&QDBusPendingCallWatcher::finished,this,[this,watcher]{
         const QDBusPendingReply<> reply=*watcher;

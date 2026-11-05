@@ -1,5 +1,6 @@
 """Small local status for the bar; actions reuse the owning application."""
 import math
+import hashlib
 from pathlib import Path
 import re
 import sqlite3
@@ -73,17 +74,42 @@ def snapshot():
 
 def recent():
     from search_home import recent_documents
-    return [row for row in recent_documents() if Path(row['path']).exists()]
+    from lumen_store import state_path
+    from contextlib import closing
+    rows=[dict(row,target=row['path'],kind='file') for row in recent_documents() if Path(row['path']).exists()]
+    path=state_path()/'lumen.sqlite3'
+    if path.is_file():
+        from desktop_backend import connection, PREFIX
+        try: _,binding=connection()
+        except (OSError,ValueError,KeyError): binding=''
+        seen=set()
+        with closing(sqlite3.connect(path.resolve().as_uri()+'?mode=ro',uri=True,timeout=.1)) as db:
+            if db.execute('PRAGMA user_version').fetchone()[0]>2:raise ValueError('Newer tasks')
+            for session,title,directory,updated in db.execute("SELECT session,substr(title,1,200),directory,updated FROM tasks WHERE session!='' AND EXISTS(SELECT 1 FROM events WHERE task=tasks.id AND kind='input') ORDER BY updated DESC LIMIT 50"):
+                if not isinstance(session,str) or not session or len(session)>256 or any(ord(c)<32 for c in session):continue
+                if session.startswith(PREFIX) and (not binding or not session.startswith(PREFIX+binding+'/')):continue
+                key=hashlib.sha256((str(directory)+'\0'+session).encode()).hexdigest()
+                if key in seen:continue
+                seen.add(key)
+                rows.append(dict(target='conversation:'+key,kind='conversation',session=session,directory=directory,
+                                 title=title or tr('Gespräch'),updated=updated,icon='dialog-messages'))
+    return sorted(rows,key=lambda r:r['updated'],reverse=True)[:20]
 
 
 def act(action, target=''):
     if action.startswith('focus:') and not target:
         focus_action(action.removeprefix('focus:'))
     elif action == 'recent':
-        if not any(row['path'] == target for row in recent()):
+        row=next((row for row in recent() if row['target']==target),None)
+        if row is None:
             raise ValueError(tr('Dieser Inhalt ist nicht mehr verfügbar.'))
         from lumen_launch import executable
-        subprocess.Popen([executable('lumen-files'), target], start_new_session=True,
+        if row['kind']=='conversation':
+            directory=Path(row['directory'])
+            if not directory.is_absolute() or not directory.is_dir():raise ValueError(tr('Dieser Inhalt ist nicht mehr verfügbar.'))
+            command=[executable('lumen-agent-app'),'--directory',str(directory),'--session',row['session']]
+        else:command=[executable('lumen-files'),row['path']]
+        subprocess.Popen(command, start_new_session=True,
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     elif action == 'update' and not target:
         from lumen_launch import executable
@@ -97,3 +123,16 @@ def act(action, target=''):
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     else:
         raise ValueError(tr('Ungültige Leistenaktion.'))
+
+
+def act_request(topic, request):
+    if (not isinstance(request,dict) or set(request)!={'action','target','value'}
+            or not isinstance(request['action'],str) or not isinstance(request['target'],str)
+            or '\0' in request['target'] or len(request['target'])>4096
+            or type(request['value']) is not int or request['value']!=0
+            or topic=='recent' and request['action']!='open'
+            or topic=='activity' and request['action'] not in ('focus:start','focus:pause','focus:resume','focus:stop','decision','update')
+            or topic not in ('activity','recent')):
+        raise ValueError(tr('Ungültige Leistenaktion.'))
+    act('recent' if topic=='recent' else request['action'],request['target'])
+    return snapshot() if topic=='activity' else dict(items=recent())

@@ -193,13 +193,8 @@ def main():
                     raise ValueError('Invalid action')
                 request = json.loads(payload)
                 if args.system_topic in ('activity', 'recent'):
-                    from topbar_activity import act as activity_action, snapshot as activity_snapshot, recent
-                    if (not isinstance(request, dict) or set(request) != {'action','target','value'}
-                            or not isinstance(request['action'],str) or not isinstance(request['target'],str)
-                            or '\0' in request['target'] or len(request['target'])>4096 or request['value']!=0):
-                        raise ValueError('Invalid action')
-                    activity_action('recent' if args.system_topic=='recent' and request['action']=='open' else request['action'],request['target'])
-                    details = activity_snapshot() if args.system_topic=='activity' else dict(items=recent())
+                    from topbar_activity import act_request
+                    details = act_request(args.system_topic,request)
                 else:
                     details = act(args.system_topic, request)
             else:

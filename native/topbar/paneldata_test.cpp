@@ -24,9 +24,9 @@ class TestPlayer:public QObject {
     Q_PROPERTY(bool CanGoNext READ no)
     Q_PROPERTY(bool CanGoPrevious READ yes)
 public:
-    bool playing=false;int calls=0;
+    bool playing=false,malformed=false;int calls=0;
     QString status() const{return playing?"Playing":"Paused";}
-    QVariantMap metadata() const{return {{"xesam:title","Test track"},{"xesam:artist",QStringList{"Test artist"}}};}
+    QVariantMap metadata() const{return {{"xesam:title","Test track"},{"xesam:artist",malformed?QVariant(QVariantList{"invalid artist array"}):QVariant(QStringList{"Test artist"})}};}
     bool yes() const{return true;}bool no() const{return false;}
 public slots:
     void PlayPause(){playing=!playing;++calls;}
@@ -38,7 +38,7 @@ class DataTest:public QObject {
     Q_OBJECT
     QTemporaryDir settingsDirectory;
 private slots:
-    void initTestCase(){QVERIFY(settingsDirectory.isValid());QSettings::setPath(QSettings::NativeFormat,QSettings::UserScope,settingsDirectory.path());}
+    void initTestCase(){QVERIFY(settingsDirectory.isValid());QSettings::setPath(QSettings::NativeFormat,QSettings::UserScope,settingsDirectory.path());qputenv("LUMEN_DATA",settingsDirectory.filePath("state").toUtf8());}
     void mediaUsesLivePlayersAndTheirCapabilities(){
         auto bus=QDBusConnection::sessionBus();TestPlayer player;
         const QString service="org.mpris.MediaPlayer2.lumenTest";
@@ -47,6 +47,7 @@ private slots:
         PanelData data;QTRY_COMPARE_WITH_TIMEOUT(data.players().size(),1,2000);
         QCOMPARE(data.players()[0].toMap()["title"].toString(),QString("Test track"));
         QCOMPARE(data.players()[0].toMap()["artist"].toString(),QString("Test artist"));
+        player.malformed=true;data.refreshMedia();QTRY_VERIFY_WITH_TIMEOUT(data.players()[0].toMap()["artist"].toString().isEmpty(),1000);
         data.mediaAction(service,"Next");data.mediaAction("org.mpris.MediaPlayer2.unknown","PlayPause");QTest::qWait(30);QCOMPARE(player.calls,0);
         data.mediaAction(service,"PlayPause");QTRY_COMPARE(player.calls,1);QTRY_VERIFY(data.players()[0].toMap()["playing"].toBool());
         player.playing=false;

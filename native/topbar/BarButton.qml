@@ -11,6 +11,7 @@ Button {
     property bool key: false
     property bool current: false
     property bool primary: false
+    property bool monochrome: false
     property string symbol: ""
     hoverEnabled: true
     focusPolicy: Qt.StrongFocus
@@ -45,8 +46,8 @@ Button {
             Kirigami.Icon {anchors.fill:parent;source:"qrc:/lumen/symbols/halo.svg";isMask:true;color:control.colors.ring||control.colors.accent}
             Kirigami.Icon {anchors.fill:parent;source:control.symbol?"qrc:/lumen/symbols/lumen-"+control.symbol+".svg":"";isMask:true;color:control.colors.ink||control.colors.text}
         }
-        Kirigami.Icon {source: control.glyph;visible: !!control.glyph && !control.symbol;width:22;height:22;anchors.verticalCenter:parent.verticalCenter;color:control.glyph==="qrc:/lumen/icons/lumen-mark.svg"?control.colors.accent:control.primary && control.enabled?control.colors.onAccent:control.colors.text;isMask:control.primary || control.glyph==="qrc:/lumen/icons/lumen-mark.svg"}
-        Text {id:label;text:control.text;visible:!control.iconOnly;width:Math.max(0,control.availableWidth-(control.symbol?33:control.glyph?29:0));elide:Text.ElideRight;color:control.enabled?control.colors.text:control.colors.muted;font:control.font;anchors.verticalCenter:parent.verticalCenter;textFormat:Text.PlainText}
+        Kirigami.Icon {source: control.glyph;visible: !!control.glyph && !control.symbol;width:22;height:22;anchors.verticalCenter:parent.verticalCenter;color:control.glyph==="qrc:/lumen/icons/lumen-mark.svg"?(control.colors.ring||control.colors.accent):control.primary && control.enabled?control.colors.onAccent:control.colors.text;isMask:control.monochrome || control.primary || control.glyph==="qrc:/lumen/icons/lumen-mark.svg"}
+        Text {id:label;text:control.text;visible:!control.iconOnly;width:Math.max(0,control.availableWidth-(control.symbol?33:control.glyph?29:0));elide:Text.ElideRight;color:control.enabled?(control.primary?control.colors.onAccent:control.colors.text):control.colors.muted;font:control.font;anchors.verticalCenter:parent.verticalCenter;textFormat:Text.PlainText}
     }
     function updateTip(){
         tipDelay.stop();panelData.tooltip(control,"")

@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
@@ -15,6 +16,7 @@ Popup {
     property string section:"decision"
     property string selectedPlayer:""
     property real heightLimit:600
+    property bool connected:false
     readonly property bool narrow:width<650
     readonly property var activity:controller.snapshot.activity||({})
     readonly property var focusState:activity.focus||({state:"off",remaining:0,end:0})
@@ -25,12 +27,26 @@ Popup {
     popupType:Popup.Item;focus:true;padding:24
     closePolicy:Popup.CloseOnEscape|Popup.CloseOnPressOutside
     height:Math.min(implicitHeight,heightLimit)
-    background:Rectangle {color:menu.colors.window;radius:menu.colors.radius||10;border.color:menu.colors.border}
+    background:Rectangle {color:menu.connected?"transparent":menu.colors.window;radius:menu.colors.radius||10;border.color:menu.connected?"transparent":menu.colors.border
+        Rectangle {visible:menu.connected;anchors.top:parent.top;width:parent.width;height:1;color:menu.colors.border}}
     onOpened:{controller.inspect(page==="recent"?"recent":"activity");controller.refreshMedia()}
     onPageChanged:if(opened)controller.inspect(page==="recent"?"recent":"activity")
     signal geometryUpdated()
     onVisibleChanged:geometryUpdated()
     onHeightChanged:geometryUpdated()
+    function revealFocus(){
+        const focused=menu.contentItem.Window.window?.activeFocusItem,viewport=scroll.contentItem
+        if(!focused||!viewport)return
+        let ancestor=focused.parent
+        while(ancestor&&ancestor!==viewport)ancestor=ancestor.parent
+        if(!ancestor)return
+        const top=focused.mapToItem(viewport,0,0).y
+        const delta=top<8?top-8:top+focused.height>viewport.height-8?top+focused.height-viewport.height+8:0
+        viewport.contentY=Math.max(0,Math.min(Math.max(0,viewport.contentHeight-viewport.height),viewport.contentY+delta))
+    }
+    Connections {target:menu.contentItem.Window.window;function onActiveFocusItemChanged(){Qt.callLater(menu.revealFocus)}}
+    Connections {target:menu.controller;function onControlFinished(action,value){if(menu.opened&&!action.endsWith(":inspect"))menu.controller.inspect(menu.page==="recent"?"recent":"activity")}}
+    Timer {interval:5000;running:menu.opened;repeat:true;onTriggered:menu.controller.inspect(menu.page==="recent"?"recent":"activity")}
     contentItem:ScrollView {
         id:scroll;clip:true;contentWidth:availableWidth;implicitHeight:body.implicitHeight
         ColumnLayout {
@@ -41,37 +57,39 @@ Popup {
             }
             GridLayout {visible:menu.page==="windows";Layout.fillWidth:true;columns:menu.narrow?1:3;columnSpacing:16;rowSpacing:12
                 Repeater {model:menu.windows.windowModel
-                    BarButton {required property var model;required property int index;objectName:"overviewWindow_"+index;colors:menu.colors
-                        visible:!!model.IsWindow;Layout.fillWidth:true;Layout.preferredWidth:0;Layout.preferredHeight:100
-                        highlighted:!!model.IsActive;text:String(model.display||model.AppName||"");glyph:model.decoration
+                    Frame {required property var model;required property int index;id:windowFrame
+                        visible:!!model.IsWindow;Layout.fillWidth:true;Layout.preferredWidth:0;Layout.maximumWidth:menu.narrow?body.width:(body.width-32)/3;Layout.preferredHeight:126;padding:0
+                        background:Rectangle {color:menu.colors.base;radius:menu.colors.radius||10;border.color:menu.windows.activeWindow?.index===windowFrame.index?menu.colors.accent:menu.colors.border}
+                        BarButton {objectName:"overviewWindow_"+windowFrame.index;anchors.fill:parent;anchors.margins:6;colors:menu.colors
+                        text:String(windowFrame.model.display||windowFrame.model.AppName||"")
                         contentItem:Column {spacing:12;width:parent.width
-                            Kirigami.Icon {source:model.decoration;width:24;height:24;color:menu.colors.text}
-                            Label {text:String(model.AppName||"");color:menu.colors.muted;width:parent.width;elide:Text.ElideRight;textFormat:Text.PlainText}
-                            Label {text:String(model.display||"");color:menu.colors.text;width:parent.width;elide:Text.ElideRight;textFormat:Text.PlainText}
+                            Kirigami.Icon {source:windowFrame.model.decoration;width:24;height:24;color:menu.colors.text}
+                            Label {text:String(windowFrame.model.AppName||"");color:menu.colors.muted;width:parent.width;elide:Text.ElideRight;textFormat:Text.PlainText}
+                            Label {text:String(windowFrame.model.display||"");color:menu.colors.text;width:parent.width;elide:Text.ElideRight;textFormat:Text.PlainText}
                         }
-                        onClicked:{menu.windows.activate(index);menu.close()}
+                        onClicked:{menu.windows.activate(windowFrame.index);menu.close()}}
                     }
                 }
                 Label {visible:menu.windows.windowModel.count===0;text:menu.translate("Keine offenen Fenster.");color:menu.colors.muted;Layout.fillWidth:true}
             }
-            ColumnLayout {visible:menu.page==="recent";Layout.fillWidth:true;spacing:8
+            ColumnLayout {visible:menu.page==="recent";Layout.fillWidth:true;Layout.maximumWidth:800;Layout.alignment:Qt.AlignHCenter;spacing:8
                 Label {text:menu.translate("Geöffnete Inhalte");color:menu.colors.muted;Layout.fillWidth:true}
                 Repeater {model:menu.page==="recent"?menu.windows.windowModel:null
                     BarButton {required property var model;required property int index;colors:menu.colors;visible:!!model.IsWindow;Layout.fillWidth:true;text:String(model.display||model.AppName||"");glyph:model.decoration;onClicked:{menu.windows.activate(index);menu.close()}}
                 }
-                Label {text:menu.translate("Zuletzt verwendete Dateien");color:menu.colors.muted;Layout.topMargin:12;Layout.fillWidth:true}
+                Label {text:menu.translate("Zuletzt verwendete Inhalte");color:menu.colors.muted;Layout.topMargin:12;Layout.fillWidth:true}
                 Repeater {model:menu.controller.details.recent?.items||[]
                     BarButton {required property var modelData;required property int index;objectName:"recentContent_"+index;colors:menu.colors;Layout.fillWidth:true;text:modelData.title;glyph:modelData.icon||"text-x-generic";enabled:!menu.controller.controlBusy
-                        onClicked:menu.controller.systemAction("recent","open",modelData.path)}
+                        onClicked:menu.controller.systemAction("recent","open",modelData.target)}
                 }
-                Label {visible:!(menu.controller.details.recent?.items||[]).length;text:menu.translate("Noch keine zuletzt verwendeten Dateien.");color:menu.colors.muted;Layout.fillWidth:true;wrapMode:Text.Wrap}
+                Label {visible:!(menu.controller.details.recent?.items||[]).length;text:menu.translate("Noch keine zuletzt verwendeten Inhalte.");color:menu.colors.muted;Layout.fillWidth:true;wrapMode:Text.Wrap}
             }
-            GridLayout {visible:menu.page==="status";Layout.fillWidth:true;columns:menu.narrow?1:2;columnSpacing:32;rowSpacing:20
+            GridLayout {visible:menu.page==="status";Layout.fillWidth:true;Layout.maximumWidth:920;Layout.alignment:Qt.AlignHCenter;columns:menu.narrow?1:2;columnSpacing:32;rowSpacing:20
                 ColumnLayout {Layout.fillWidth:true;Layout.minimumWidth:0;spacing:16
                     ColumnLayout {visible:menu.section==="decision";Layout.fillWidth:true;spacing:12
                         Label {text:menu.translate("Deine Entscheidung ist gefragt");color:menu.colors.text;font.pixelSize:20;wrapMode:Text.Wrap;Layout.fillWidth:true}
                         Repeater {model:menu.activity.decisions||[]
-                            BarButton {required property var modelData;required property int index;objectName:"reviewDecision_"+index;colors:menu.colors;Layout.fillWidth:true;text:modelData.title;glyph:"dialog-question";enabled:!menu.controller.controlBusy;onClicked:menu.controller.systemAction("activity","decision",modelData.id)}
+                            BarButton {required property var modelData;required property int index;objectName:"reviewDecision_"+index;colors:menu.colors;monochrome:true;Layout.fillWidth:true;text:modelData.title;glyph:"help-about";enabled:!menu.controller.controlBusy;onClicked:menu.controller.systemAction("activity","decision",modelData.id)}
                         }
                         Label {text:menu.activity.decisionError||menu.translate((menu.activity.decisions||[]).length?"In Lumen prüfen und dort entscheiden.":"Keine offenen Freigaben.");color:menu.colors.muted;wrapMode:Text.Wrap;Layout.fillWidth:true}
                     }
@@ -87,7 +105,7 @@ Popup {
                     ColumnLayout {visible:menu.section==="dnd";Layout.fillWidth:true;spacing:12
                         Label {text:menu.translate("Nicht stören");color:menu.colors.text;font.pixelSize:20;Layout.fillWidth:true}
                         Label {text:menu.translate("Popups pausieren für eine Stunde. Mitteilungen bleiben im Verlauf; Freigaben bleiben erreichbar.");color:menu.colors.muted;wrapMode:Text.Wrap;Layout.fillWidth:true}
-                        BarButton {objectName:"dndToggleButton";colors:menu.colors;checkable:true;checked:menu.quiet;text:menu.translate(menu.quiet?"Nicht stören beenden":"Nicht stören aktivieren");glyph:"notifications-disabled";onClicked:{menu.notifications.notificationsInhibitedUntil=menu.quiet?new Date(0):new Date(Date.now()+3600000);menu.notifications.save()}}
+                        BarButton {objectName:"dndToggleButton";colors:menu.colors;monochrome:true;checkable:true;checked:menu.quiet;text:menu.translate(menu.quiet?"Nicht stören beenden":"Nicht stören aktivieren");glyph:"notifications-disabled";onClicked:{menu.notifications.notificationsInhibitedUntil=menu.quiet?new Date(0):new Date(Date.now()+3600000);menu.notifications.save()}}
                     }
                     ColumnLayout {visible:menu.section==="media";Layout.fillWidth:true;spacing:12
                         Label {text:menu.translate("Wiedergabe");color:menu.colors.text;font.pixelSize:20;Layout.fillWidth:true}
@@ -107,11 +125,17 @@ Popup {
                         Label {text:menu.activity.update?.notes||menu.translate("Im Updater prüfen und die gewünschten Komponenten auswählen.");textFormat:Text.PlainText;color:menu.colors.muted;wrapMode:Text.Wrap;Layout.fillWidth:true}
                         BarButton {objectName:"openUpdaterButton";colors:menu.colors;text:menu.translate("Im Updater ansehen");glyph:"system-software-update";enabled:!menu.controller.controlBusy;onClicked:menu.controller.systemAction("activity","update")}
                     }
+                    ColumnLayout {visible:menu.section==="operations";Layout.fillWidth:true;spacing:12
+                        Label {text:menu.translate("Laufende Aktivitäten");color:menu.colors.text;font.pixelSize:20;Layout.fillWidth:true}
+                        BarButton {visible:!!menu.controller.snapshot.operations?.audio;colors:menu.colors;text:menu.translate("Aufnahme in Audio Studio");glyph:"media-record";onClicked:menu.controller.launch("app","meetings")}
+                        BarButton {visible:!!menu.controller.snapshot.operations?.transfer;colors:menu.colors;text:menu.translate("Übertragungen");glyph:"folder-upload";onClicked:menu.controller.launch("transfer",menu.controller.snapshot.operations.transfer.id)}
+                    }
                 }
                 ColumnLayout {Layout.fillWidth:menu.narrow;Layout.preferredWidth:menu.narrow?-1:210;Layout.alignment:Qt.AlignTop;spacing:4
-                    Repeater {model:[{id:"decision",label:"Freigabe",icon:"dialog-question"},{id:"focus",label:"Fokuszeit",icon:"chronometer"},{id:"dnd",label:"Nicht stören",icon:"notifications-disabled"},{id:"media",label:"Wiedergabe",icon:"media-playback-start"},{id:"update",label:"Updates",icon:"system-software-update"}]
-                        BarButton {required property var modelData;objectName:"activitySection_"+modelData.id;colors:menu.colors;Layout.fillWidth:true;text:menu.translate(modelData.label);glyph:modelData.icon;highlighted:menu.section===modelData.id;onClicked:menu.section=modelData.id}
+                    Repeater {model:[{id:"decision",label:"Freigabe",icon:"help-about"},{id:"focus",label:"Fokuszeit",icon:"chronometer"},{id:"dnd",label:"Nicht stören",icon:"notifications-disabled"},{id:"media",label:"Wiedergabe",icon:"media-playback-start"},{id:"update",label:"Updates",icon:"system-software-update"}]
+                        BarButton {required property var modelData;objectName:"activitySection_"+modelData.id;colors:menu.colors;monochrome:true;Layout.fillWidth:true;text:menu.translate(modelData.label);glyph:modelData.icon;highlighted:menu.section===modelData.id;onClicked:menu.section=modelData.id}
                     }
+                    BarButton {visible:!!menu.controller.snapshot.operations?.transfer||!!menu.controller.snapshot.operations?.audio;colors:menu.colors;Layout.fillWidth:true;text:menu.translate("Laufende Aktivitäten");glyph:"view-task";highlighted:menu.section==="operations";onClicked:menu.section="operations"}
                 }
             }
             Label {visible:!!menu.controller.error;text:menu.translate(menu.controller.error);color:menu.colors.text;wrapMode:Text.Wrap;Layout.fillWidth:true;textFormat:Text.PlainText}

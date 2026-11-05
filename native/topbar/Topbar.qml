@@ -50,8 +50,24 @@ Window {
     readonly property bool quiet:notificationSettings.notificationsInhibitedUntil.getTime()>now
     readonly property var activity:stateData.activity||({})
     readonly property int focusSeconds:activity.focus?.end?Math.max(0,Math.ceil(activity.focus.end-now/1000)):activity.focus?.remaining||0
-    readonly property string statusSection:(activity.decisions||[]).length?"decision":activity.focus?.state!==undefined && activity.focus.state!=="off"?"focus":panelData.players.some(p=>p.playing)?"media":activity.update?.pending?"update":quiet?"dnd":"focus"
-    readonly property string statusText:statusSection==="decision"?t("Freigabe nötig"):statusSection==="focus"&&focusSeconds?t(activity.focus.state==="paused"?"Fokus pausiert":"Fokus")+" · "+Math.floor(focusSeconds/60).toString().padStart(2,"0")+":"+(focusSeconds%60).toString().padStart(2,"0"):statusSection==="media"?(panelData.players.find(p=>p.playing)?.title||t("Wiedergabe")):statusSection==="update"?t("Update bereit"):quiet?t("Nicht stören"):t("Alles im Blick")
+    readonly property var currentActivity:chooseActivity()
+    readonly property string statusSection:currentActivity.section
+    readonly property string statusText:currentActivity.text
+    function chooseActivity(){
+        if(activity.decisionError)return {section:"decision",text:t("Freigaben prüfen"),icon:"dialog-warning"}
+        if((activity.decisions||[]).length)return {section:"decision",text:t("Freigabe nötig"),icon:"help-about"}
+        if(stateData.operations?.audio)return {section:"operations",text:t("Aufnahme in Audio Studio"),icon:"media-record"}
+        if(activity.focus?.state && activity.focus.state!=="off"){
+            const remaining=Math.floor(focusSeconds/60).toString().padStart(2,"0")+":"+(focusSeconds%60).toString().padStart(2,"0")
+            return {section:"focus",text:focusSeconds?t(activity.focus.state==="paused"?"Fokus pausiert":"Fokus")+" · "+remaining:t("Fokuszeit beendet"),icon:"chronometer"}
+        }
+        if(stateData.operations?.transfer)return {section:"operations",text:t("Übertragungen"),icon:"folder-upload"}
+        const player=panelData.players.find(p=>p.playing)
+        if(player)return {section:"media",text:player.title||t("Wiedergabe"),icon:"media-playback-start"}
+        if(activity.update?.pending)return {section:"update",text:t("Update bereit"),icon:"system-software-update"}
+        if(quiet)return {section:"dnd",text:t("Nicht stören"),icon:"notifications-disabled"}
+        return {section:"focus",text:t("Alles im Blick"),icon:"emblem-ok-symbolic"}
+    }
     Notifications.Settings {id:notificationSettings;live:true}
     function showActivity(page){activityPopup.page=page;activityPopup.section=statusSection;activityPopup.open()}
     function t(source){return stateData.labels?.[source] || source}
@@ -87,10 +103,10 @@ Window {
         const rightEdge=expandedComposer?inlineComposer.x-8:deck?width-16:systemRow.x-12
         const menuSpace=rightEdge-appRow.x-14
         appLabelWidth=Math.max(40,Math.min(appName.naturalWidth,180,menuSpace-total-8))
-        let availableMenus=menuSpace-(appName.visible?appLabelWidth+4:0)
+        let availableMenus=menuSpace-(appName.visible?appLabelWidth+4:0)-quickRow.implicitWidth
         visibleMenus=menuButtons.count
         if(total>availableMenus){let used=overflowButton.implicitWidth;visibleMenus=0;for(let i=0;i<menuButtons.count;i++){const b=menuButtons.itemAt(i);if(!b || used+b.implicitWidth>availableMenus)break;used+=b.implicitWidth;visibleMenus++}}
-        showContext=total+appLabelWidth+160<menuSpace
+        showContext=total+appLabelWidth+quickRow.implicitWidth+160<menuSpace
         Qt.callLater(mask)
     }
     function mask(){
@@ -123,7 +139,7 @@ Window {
     AppMenu {id:appMenu;objectName:"applicationMenus";onEntriesChanged:Qt.callLater(bar.fit)}
     Connections {target:appMenu;function onOpenedChanged(){if(appMenu.opened)restoreFocus.stop();else{overflow.close();restoreFocus.restart()}Qt.callLater(bar.dismissIfInactive)}}
     Connections {target:trayModel;function onChanged(){Qt.callLater(bar.fit)}function onOpenedChanged(){if(trayModel.opened)restoreFocus.stop();else restoreFocus.restart();Qt.callLater(bar.dismissIfInactive)}}
-    Connections {target:panelData;function onChanged(){Qt.callLater(bar.fit)}function onShowAppsRequested(name){if(name===bar.screen.name){bar.showLauncher(true)}}
+    Connections {target:panelData;function onChanged(){bar.now=Date.now();Qt.callLater(bar.fit)}function onShowAppsRequested(name){if(name===bar.screen.name){bar.showLauncher(true)}}
         function onNoteAttached(action,note){if(action===bar.notePendingAction){questionState.note=note;bar.notePendingAction=""}}
         function onControlFailed(action){if(action===bar.notePendingAction)bar.notePendingAction=""}}
     Rectangle {
@@ -133,7 +149,7 @@ Window {
     }
     Rectangle {
         id:leftIsland;objectName:"leftIsland";visible:bar.classic
-        x:12;y:12;height:bar.barSize-24;width:bar.width-24
+        x:12;y:12;height:activityPopup.visible?activityPopup.y+activityPopup.height-12:bar.barSize-24;width:bar.width-24
         radius:(bar.colors.radius||10)+7;color:bar.colors.window;border.color:bar.colors.border
     }
     Row {
@@ -176,11 +192,12 @@ Window {
         colors:bar.colors;translate:bar.t;controller:panelData;keyStyle:!bar.classic
         request:questionState;onInspectAttachment:contextDrawer.open();onSent:{askPopup.close();contextDrawer.close()}
     }
-    BarButton {id:activityButton;objectName:"activityButton";visible:bar.classic;colors:bar.colors;text:bar.statusText;glyph:({decision:"dialog-question",focus:"chronometer",media:"media-playback-start",update:"system-software-update",dnd:"notifications-disabled"})[bar.statusSection]
+    BarButton {id:activityButton;objectName:"activityButton";visible:bar.classic;colors:bar.colors;monochrome:true;text:bar.statusText;glyph:bar.currentActivity.icon
         width:bar.width<900?160:190;x:bar.twoRows?bar.width-width-24:systemRow.x-width-12;y:(bar.twoRows?82:40)-height/2
         onClicked:bar.showActivity("status")}
     Row {
         id:systemRow;x:bar.width-width-(bar.classic?24:16);y:(bar.classic?40:bar.deck?34:bar.barSize/2)-height/2;spacing:bar.classic?1:5
+            BarButton {objectName:"activityCompactButton";visible:!bar.classic;colors:bar.colors;text:bar.statusText;glyph:"view-task";iconOnly:true;onClicked:bar.showActivity("status")}
             Row {
                 id:trayRow;spacing:1;visible:bar.shownTray>0
                 Repeater {model:bar.activeTray.length
@@ -288,7 +305,7 @@ Window {
     }
     ActivityMenu {
         id:activityPopup;objectName:"activityPopup";parent:bar.contentItem
-        width:Math.min(980,bar.width-24);x:(bar.width-width)/2;y:bar.barSize+6
+        width:bar.classic?bar.width-24:Math.min(980,bar.width-24);x:(bar.width-width)/2;y:bar.classic?bar.barSize-12:bar.barSize+6;connected:bar.classic
         heightLimit:Math.max(100,bar.screen.height-bar.barSize-24)
         colors:bar.colors;controller:panelData;windows:windowState;notifications:notificationSettings;translate:bar.t;now:bar.now
         onGeometryUpdated:Qt.callLater(bar.mask)

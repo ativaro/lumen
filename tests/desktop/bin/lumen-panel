@@ -8,7 +8,12 @@ from lumen_i18n import tr
 state=Path('/profile/control-state.json')
 def system():
     return json.loads(state.read_text()) if state.exists() else dict(volume=50,muted=False,brightness=None,network='Testnetz · Verbunden')
+def activity():
+    from topbar_activity import focus
+    return dict(focus=focus(),decisions=[] if Path('/profile/decision-resolved').exists() else [dict(id='b'*32,title='Workshop-Zusammenfassung prüfen')],decisionError='',update=dict(checked=True,pending=True,notes='Synthetischer Update-Hinweis'))
 def details(topic):
+    if topic=='activity':return activity()
+    if topic=='recent':return dict(items=[dict(target='/profile/example.txt',title='Workshop-Notizen.txt',icon='text-x-generic')])
     saved=Path('/profile/'+topic+'-state.json')
     if saved.exists():return json.loads(saved.read_text())
     if topic=='network':
@@ -29,13 +34,16 @@ if sys.argv[1:]==['--bar-snapshot']:
         apps=[dict(id=identity,label=tr(label),title=tr(label),icon=icon) for identity,label,icon in
           [('lumen','Lumen','lumen'),('files','Dateien','folder'),('wissen','Notes','accessories-text-editor'),
            ('workbench','Projekte','folder'),('meetings','Audio Studio','microphone-sensitivity-high')]],
-        system=system(),operations=dict(transfer=None,audio=False),unread=2)))
+        system=system(),operations=dict(transfer=None,audio=False),activity=activity(),unread=2)))
 elif len(sys.argv)>2 and sys.argv[1]=='--system-topic':
     topic=sys.argv[2];value=details(topic)
     if '--system-action' in sys.argv:
         request=json.load(sys.stdin)
         with Path('/profile/actions.jsonl').open('a') as output:output.write(json.dumps(dict(topic=topic,**request))+'\n')
         action=request['action'];target=request.get('target','')
+        if topic=='activity' and action.startswith('focus:'):
+            from topbar_activity import focus_action
+            focus_action(action.removeprefix('focus:'));value=activity()
         if action=='wifi':value['wifiEnabled']=bool(request['value'])
         if action=='default:output':
             for device in value['outputs']:device['default']=device['id']==target
