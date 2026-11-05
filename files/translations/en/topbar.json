@@ -250,5 +250,15 @@
   "Frage wird gesendet …": "Sending question…",
   "Neues Gespräch": "New conversation",
   "Gespräch schließen": "Close conversation",
-  "Maximieren oder wiederherstellen": "Maximize or restore"
+  "Maximieren oder wiederherstellen": "Maximize or restore",
+  "Alle als gelesen": "Mark all as read",
+  "ungelesen": "unread",
+  "Bildschirm gesperrt": "Screen locked",
+  "Keine aktuellen Mitteilungen": "No current notifications",
+  "Mitteilungen werden geladen …": "Loading notifications…",
+  "Alle Mitteilungen": "All notifications",
+  "Netzwerk öffnen": "Open network",
+  "Audio öffnen": "Open audio",
+  "Alle Lumen-Apps": "All Lumen apps",
+  "Kurzansicht derzeit nicht verfügbar.": "Preview currently unavailable."
 }

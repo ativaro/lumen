@@ -99,6 +99,7 @@ def main():
     parser.add_argument('--system-action', action='store_true')
     group.add_argument('--notification-snapshot', action='store_true')
     group.add_argument('--notification-settings', action='store_true')
+    group.add_argument('--notification-read-all', action='store_true')
     group.add_argument('--notification-own-popups', action='store_true')
     group.add_argument('--notification-action', choices=['open','discuss','read','unread','archive','restore','later','now','resolve','reopen'])
     parser.add_argument('--notification-id')
@@ -139,10 +140,11 @@ def main():
         subprocess.Popen([executable('lumen-files'),'--transfer',args.topbar_transfer],
             start_new_session=True,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         return
-    if args.notification_snapshot or args.notification_action or args.notification_own_popups:
-        from lumen_notifications import snapshot as notification_snapshot, change, popup_context, configure_popups
+    if args.notification_snapshot or args.notification_action or args.notification_own_popups or args.notification_read_all:
+        from lumen_notifications import snapshot as notification_snapshot, change, popup_context, configure_popups, mark_visible_read
         try:
             context=popup_context()
+            if args.notification_read_all: mark_visible_read()
             if args.notification_own_popups: configure_popups(True)
             if args.notification_action: change(args.notification_id or '', args.notification_action)
             print(json.dumps(dict(notification_snapshot(), context=context), ensure_ascii=False))

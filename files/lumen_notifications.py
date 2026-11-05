@@ -217,133 +217,145 @@ def snapshot(path=None, wake=True):
 
 
 def change(identity, action, path=None):
+    with database(path) as db:
+        _change(db, identity, action)
+
+
+def mark_visible_read(path=None):
+    visible = snapshot(path, wake=False)['items']
+    with database(path) as db:
+        for row in visible:
+            if not row['read'] and not row['archived'] and not row['resolved'] and row['snoozed'] <= time.time():
+                _change(db, row['id'], 'read')
+
+
+def _change(db, identity, action):
     if not re.fullmatch("[a-f0-9]{64}", identity):
         raise ValueError("Invalid notification ID")
-    with database(path) as db:
-        row = db.execute(
-            "SELECT * FROM notifications WHERE id=?", (identity,)
-        ).fetchone()
-        if not row:
-            raise ValueError("Notification no longer available")
-        if row["scope"] not in active_scopes(db):
-            raise ValueError("Server connection no longer available")
-        if action == "discuss" and row["scope"]=="local":
-            raise ValueError("Local discussions use the native selected-message action")
-        if action in ("open","discuss"):
-            target = row["target"]
-            if row["scope"] != "local":
-                from urllib.parse import urlencode
-                from uuid import UUID
-
-                binding = db.execute(
-                    "SELECT server FROM bindings WHERE scope=?", (row["scope"],)
-                ).fetchone()
-                route={"app":"notifications","notice":str(int(row["external_id"])),"action":"discuss" if action=="discuss" else "review"}
-                subprocess.Popen(
-                    [
-                        "xdg-open",
-                        binding["server"] + "/?" + urlencode(route),
-                    ],
-                    start_new_session=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-            elif target.startswith('local-task:'):
-                from lumen_panel import valid_task
-                from lumen_store import Store
-                from lumen_detail_routes import open_tasks
-                task_identity=valid_task(target.removeprefix('local-task:'))
-                Store().task(task_identity)
-                open_tasks(task_identity)
-            elif target.startswith('transfer:'):
-                from files_activation import open_transfer
-                open_transfer(target.removeprefix('transfer:'))
-            elif target in (
-                "app:files",
-                "app:drive",
-                "app:wissen",
-                "app:vault",
-                "app:backups",
-                "app:updater",
-                "app:system",
-                "app:settings",
-            ):
-                from lumen_launch import executable
-
-                name, args = {
-                    "app:drive": ("files", ["lumen-drive://"]),
-                    "app:settings": ("settings", ["--sync"]),
-                    "app:backups": ("vault", ["--backups"]),
-                }.get(target, (target[4:], []))
-                subprocess.Popen(
-                    [executable("lumen-" + name), *args],
-                    start_new_session=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-            elif target.startswith("lumen:"):
-                from interop_open import open_url
-
-                open_url(target)
-            else:
-                raise ValueError("Notification has no local target")
-            action = "read"
-        changes = {
-            "read": ("read", 1),
-            "unread": ("read", 0),
-            "archive": ("archived", 1),
-            "restore": ("archived", 0),
-            "later": ("snoozed", time.time() + 3600),
-            "now": ("snoozed", 0),
-            "resolve": ("resolved", 1),
-            "reopen": ("resolved", 0),
-        }
-        if action not in changes:
-            raise ValueError("Invalid notification action")
-        if action in ("resolve","reopen") and (not row["completion_supported"] or row["kind"]=="decision"):
-            raise ValueError("Please review this request at its source")
-        field, value = changes[action]
-        db.execute(
-            "UPDATE notifications SET " + field + "=? WHERE id=?", (value, identity)
-        )
-        if action == "archive" and row["scope"] == "local":
-            db.execute(
-                "UPDATE notifications SET updated=? WHERE id=?", (time.time(), identity)
-            )
-        if action == "resolve":
-            db.execute("UPDATE notifications SET read=1 WHERE id=?", (identity,))
-        if action == "later":
-            db.execute("UPDATE notifications SET read=0 WHERE id=?", (identity,))
+    row = db.execute(
+        "SELECT * FROM notifications WHERE id=?", (identity,)
+    ).fetchone()
+    if not row:
+        raise ValueError("Notification no longer available")
+    if row["scope"] not in active_scopes(db):
+        raise ValueError("Server connection no longer available")
+    if action == "discuss" and row["scope"]=="local":
+        raise ValueError("Local discussions use the native selected-message action")
+    if action in ("open","discuss"):
+        target = row["target"]
         if row["scope"] != "local":
-            import uuid
-            from datetime import datetime, timezone
+            from urllib.parse import urlencode
+            from uuid import UUID
 
-            queued = db.execute(
-                "SELECT changes,revision FROM outbox WHERE id=?", (identity,)
+            binding = db.execute(
+                "SELECT server FROM bindings WHERE scope=?", (row["scope"],)
             ).fetchone()
-            fields = json.loads(queued["changes"]) if queued else {}
-            if action == "resolve":
-                fields["read"] = True
-            if action == "later":
-                fields["read"] = False
-            fields["snoozed_until" if field == "snoozed" else field] = (
-                (
-                    datetime.fromtimestamp(value, timezone.utc).isoformat()
-                    if value
-                    else None
-                )
-                if field == "snoozed"
-                else bool(value)
+            route={"app":"notifications","notice":str(int(row["external_id"])),"action":"discuss" if action=="discuss" else "review"}
+            subprocess.Popen(
+                [
+                    "xdg-open",
+                    binding["server"] + "/?" + urlencode(route),
+                ],
+                start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
-            db.execute(
-                "INSERT OR REPLACE INTO outbox VALUES (?,?,?,?)",
-                (
-                    identity,
-                    json.dumps(fields),
-                    queued["revision"] if queued else row["state_revision"],
-                    uuid.uuid4().hex,
-                ),
+        elif target.startswith('local-task:'):
+            from lumen_panel import valid_task
+            from lumen_store import Store
+            from lumen_detail_routes import open_tasks
+            task_identity=valid_task(target.removeprefix('local-task:'))
+            Store().task(task_identity)
+            open_tasks(task_identity)
+        elif target.startswith('transfer:'):
+            from files_activation import open_transfer
+            open_transfer(target.removeprefix('transfer:'))
+        elif target in (
+            "app:files",
+            "app:drive",
+            "app:wissen",
+            "app:vault",
+            "app:backups",
+            "app:updater",
+            "app:system",
+            "app:settings",
+        ):
+            from lumen_launch import executable
+
+            name, args = {
+                "app:drive": ("files", ["lumen-drive://"]),
+                "app:settings": ("settings", ["--sync"]),
+                "app:backups": ("vault", ["--backups"]),
+            }.get(target, (target[4:], []))
+            subprocess.Popen(
+                [executable("lumen-" + name), *args],
+                start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
+        elif target.startswith("lumen:"):
+            from interop_open import open_url
+
+            open_url(target)
+        else:
+            raise ValueError("Notification has no local target")
+        action = "read"
+    changes = {
+        "read": ("read", 1),
+        "unread": ("read", 0),
+        "archive": ("archived", 1),
+        "restore": ("archived", 0),
+        "later": ("snoozed", time.time() + 3600),
+        "now": ("snoozed", 0),
+        "resolve": ("resolved", 1),
+        "reopen": ("resolved", 0),
+    }
+    if action not in changes:
+        raise ValueError("Invalid notification action")
+    if action in ("resolve","reopen") and (not row["completion_supported"] or row["kind"]=="decision"):
+        raise ValueError("Please review this request at its source")
+    field, value = changes[action]
+    db.execute(
+        "UPDATE notifications SET " + field + "=? WHERE id=?", (value, identity)
+    )
+    if action == "archive" and row["scope"] == "local":
+        db.execute(
+            "UPDATE notifications SET updated=? WHERE id=?", (time.time(), identity)
+        )
+    if action == "resolve":
+        db.execute("UPDATE notifications SET read=1 WHERE id=?", (identity,))
+    if action == "later":
+        db.execute("UPDATE notifications SET read=0 WHERE id=?", (identity,))
+    if row["scope"] != "local":
+        import uuid
+        from datetime import datetime, timezone
+
+        queued = db.execute(
+            "SELECT changes,revision FROM outbox WHERE id=?", (identity,)
+        ).fetchone()
+        fields = json.loads(queued["changes"]) if queued else {}
+        if action == "resolve":
+            fields["read"] = True
+        if action == "later":
+            fields["read"] = False
+        fields["snoozed_until" if field == "snoozed" else field] = (
+            (
+                datetime.fromtimestamp(value, timezone.utc).isoformat()
+                if value
+                else None
+            )
+            if field == "snoozed"
+            else bool(value)
+        )
+        db.execute(
+            "INSERT OR REPLACE INTO outbox VALUES (?,?,?,?)",
+            (
+                identity,
+                json.dumps(fields),
+                queued["revision"] if queued else row["state_revision"],
+                uuid.uuid4().hex,
+            ),
+        )
 
 
 def active_scopes(db):

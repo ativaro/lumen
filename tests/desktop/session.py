@@ -41,9 +41,15 @@ try:
     fixture=start(['python3','/qa/fixture.py','A'],'fixture')
     time.sleep(1)
     script=root/'activate.js';script.write_text('const w=workspace.windowList().find(w=>w.caption.startsWith("Lumen Menütest A"));if(w)workspace.activeWindow=w;')
+    for _ in range(50):
+        probe=subprocess.run(['qdbus6','org.kde.KWin','/Scripting'],capture_output=True,text=True)
+        if 'org.kde.kwin.Scripting.loadScript' in probe.stdout:break
+        if kwin.poll() is not None:raise RuntimeError('Virtual KWin exited: '+str(kwin.returncode))
+        time.sleep(.1)
+    else:raise RuntimeError('Virtual KWin scripting unavailable: '+probe.stdout[:500]+probe.stderr[:500])
     identity=subprocess.check_output(['qdbus6','org.kde.KWin','/Scripting','org.kde.kwin.Scripting.loadScript',str(script)],text=True).strip()
     subprocess.run(['qdbus6','org.kde.KWin','/Scripting/Script'+identity,'org.kde.kwin.Script.run'],check=True,capture_output=True)
-    ui=start(['/build/topbar-ui-test'],'ui-test')
+    ui=start(['/build/topbar-ui-test','realWindowMenusAndLauncher'],'ui-test')
     result=ui.wait(timeout=40)
     assert result==0,(root/'ui-test.log').read_text()[-4000:]
     bar=start(['/build/lumen-topbar'],'topbar');time.sleep(2)
@@ -119,6 +125,18 @@ try:
         subprocess.run(['notify-send','--app-name=LumenQA','Popup enabled again','Exactly one Lumen popup'],check=True)
         time.sleep(.4);assert popup_count()==1,'Expected one restored popup'
         (root/'popup-toggle.json').write_text(json.dumps(dict(enabled=1,disabled=0,reenabled=1)))
+        # Exercise the real Plasma presenter over the same bus as the native bar.
+        bar.terminate();bar.wait(timeout=5)
+        from sys import path
+        path.insert(0,'/source/files')
+        from lumen_notifications import publish, snapshot
+        identity=publish('Lumen Inbox','compact-preview','Agenda für den Workshop','Mara fragt nach dem Ablauf.',popup=False)
+        (root/'preview-id').write_text(identity)
+        toast=publish('Kalender','compact-calendar','Workshop um 10:00','Besprechungsraum 2',popup=False)
+        peek=start(['/build/topbar-ui-test','notificationPreview'],'notification-preview')
+        assert peek.wait(timeout=45)==0,(root/'notification-preview.log').read_text()[-3500:]
+        entries={row['id']:row for row in snapshot(wake=False)['items']}
+        assert entries[identity]['read'] and entries[toast]['read']
         subprocess.run(['python3','/source/files/lumen_notifications.py'],check=True,timeout=10)
         time.sleep(.5)
         assert plasma.poll() is None,(root/'plasma.log').read_text()[-2000:]

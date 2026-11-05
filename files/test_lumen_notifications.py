@@ -8,6 +8,21 @@ from lumen_notifications import change, publish, snapshot
 
 
 class NotificationTest(unittest.TestCase):
+    def test_mark_all_read_preserves_muted_archived_and_snoozed_notices(self):
+        from lumen_notifications import database, mark_visible_read, set_preference
+        with tempfile.TemporaryDirectory() as tmp, patch("lumen_notifications.toast"):
+            path=Path(tmp)/"notices.db"
+            active=publish("Inbox","a","Visible",path=path)
+            hidden=publish("Silent","b","Muted",path=path)
+            archived=publish("Calendar","c","Archived",path=path)
+            later=publish("Projects","d","Snoozed",path=path)
+            set_preference("Silent","muted",path)
+            change(archived,"archive",path);change(later,"later",path)
+            mark_visible_read(path)
+            with database(path) as db:
+                state=dict(db.execute("SELECT id,read FROM notifications"))
+            self.assertEqual(state,{active:1,hidden:0,archived:0,later:0})
+
     def test_notes_name_preserves_existing_notification_identity_and_mute(self):
         from lumen_notifications import database, set_preference
 

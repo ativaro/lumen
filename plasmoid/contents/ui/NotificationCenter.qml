@@ -34,6 +34,10 @@ Item {
     signal preferences()
     function tr(text) { return I18n.tr(text,uiLanguage); }
     function key(row) { return (row.system ? "system:" : "lumen:")+row.id; }
+    function selectNotice(identity) {
+        search.clear();filter="all";grouped=false;pageSize=30;
+        selectedKey=filtered.some(row=>key(row)===identity)?identity:"";
+    }
     function choose(row) { selectedKey=key(row); }
     readonly property var filtered: items.filter(function(row) {
         const matches=!search.text || (row.title+" "+row.body+" "+row.source).toLowerCase().indexOf(search.text.toLowerCase())>=0;

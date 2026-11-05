@@ -56,6 +56,44 @@ Item {
     }
     function preferences() { runner.connectSource(helper+" --notification-settings"); }
     function showAll() { fullWindow.show(); fullWindow.raise(); fullWindow.requestActivate(); messages.lastRead=new Date(); refresh(); rebuild(); }
+    property bool previewActive:false
+    property bool bulkReadPending:false
+    function publishPreview() {
+        if (!primary || !previewActive) return;
+        const current=locked ? [] : items.filter(row=>!row.archived && !row.resolved && row.snoozed*1000<=Date.now());
+        const rows=current.slice(0,3).map(row=>({key:center.key(row),source:row.source.slice(0,100),title:row.title.slice(0,240),
+            body:row.body.slice(0,180),updated:row.updated,unread:!row.read,icon:row.icon}));
+        DBus.SessionBus.asyncCall({service:"org.lumen.Topbar",path:"/Topbar",iface:"org.lumen.Topbar",member:"SetNoticePreview",
+            arguments:[JSON.stringify({items:rows,unread:current.filter(row=>!row.read).length,locked:locked})]});
+    }
+    onLockedChanged: if(previewActive) publishPreview()
+    onItemsChanged: if(previewActive) Qt.callLater(publishPreview)
+    function previewCommand(action,key) {
+        if(!primary)return;
+        if(action==="stop"){previewActive=false;return;}
+        if(action==="preview"){previewActive=true;publishPreview();refresh();return;}
+        if(locked)return;
+        if(action==="open"){
+            showAll();center.selectNotice(key);
+            const row=center.selected;
+            if(row && !row.read){if(row.system)markSystemRead(new Set([row.id]));else act(row.id,false,"read");}
+        }else if(action==="read"){
+            markSystemRead(new Set(systemItems.filter(row=>!row.read).map(row=>row.id)));
+            messages.lastRead=new Date();bulkReadPending=true;startBulkRead();
+        }
+    }
+    function markSystemRead(ids){
+        for(let i=0;i<messages.rowCount();i++){
+            const idx=messages.index(i,0);
+            if(ids.has(String(messages.data(idx,N.Notifications.IdRole))))
+                messages.setData(idx,true,N.Notifications.ReadRole);
+        }
+        rebuild();
+    }
+    function startBulkRead(){
+        if(!bulkReadPending || pending)return;
+        bulkReadPending=false;pending=helper+" --notification-read-all";runner.connectSource(pending);
+    }
     function displayNotice(row) {
         if(inhibited || !row.localIdentity) return row;
         const local=localItems.find(item=>item.id===row.localIdentity);
@@ -177,6 +215,7 @@ Item {
             disconnectSource(source);
             if(source!==host.pending) return;
             host.pending="";
+            if(host.bulkReadPending)Qt.callLater(host.startBulkRead);
             try {
                 if(data["exit code"]!==0) throw new Error();
                 const result=JSON.parse(data.stdout);
@@ -192,6 +231,7 @@ Item {
                 const next=result.items.map(row=>Object.assign({},row,{system:false,icon:"lumen",actions:row.target?[{key:"open",label:host.tr(({question:"Antworten",decision:"Anfrage prüfen",problem:"Ursache prüfen",result:"Ergebnis ansehen",suggestion:"Vorschlag ansehen"})[row.kind]||"Öffnen")}]:[]}));
                 if(JSON.stringify(host.localItems)!==JSON.stringify(next)) host.localItems=next;
                 host.error="";
+                if(source.endsWith(" --notification-read-all")){host.rebuild();host.publishPreview();}
                 if(host.primary && !host.presenterConfigured)Qt.callLater(host.refresh);
             } catch(e) {host.error=host.tr("Meldungen gerade nicht erreichbar.");}
         }
@@ -206,7 +246,7 @@ Item {
         title: "Lumen Notification"; width: 1040; height: 780; minimumWidth: 420; minimumHeight: 420
         color: host.themeColors ? host.themeColors.window : Kirigami.Theme.backgroundColor
         NotificationCenter {
-            anchors.fill: parent; themeColors: host.themeColors; uiLanguage: host.uiLanguage; items: host.items; inhibited: host.inhibited; gaming: host.gaming; error: host.error
+            id:center;anchors.fill: parent; themeColors: host.themeColors; uiLanguage: host.uiLanguage; items: host.items; inhibited: host.inhibited; gaming: host.gaming; error: host.error
             onAction: (identity,system,operation)=>host.act(identity,system,operation)
             onToggleDnd: host.toggleDnd(); onPreferences: host.preferences()
         }

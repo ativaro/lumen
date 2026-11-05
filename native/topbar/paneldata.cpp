@@ -10,6 +10,9 @@
 #include <QQuickItem>
 #include <QCursor>
 #include <QDBusConnection>
+#include <QDBusConnectionInterface>
+#include <QJsonArray>
+#include <QDBusInterface>
 #include <QDBusServiceWatcher>
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
@@ -223,6 +226,59 @@ QString PanelData::ask(const QString &prompt,const QVariantMap &note){
     QTimer::singleShot(0,this,[this,action,prompt,note]{m_conversation->submit(prompt,note,action);});
     return action;
 }
+void PanelData::noticeCommand(const QString &action,const QString &key){
+    if(action!="preview" && action!="stop" && action!="read" && action!="open")return;
+    static const QRegularExpression identity("^(system:[0-9]{1,20}|lumen:[a-f0-9]{64})$");
+    if(!key.isEmpty() && !identity.match(key).hasMatch())return;
+    // The same Plasma applet owns the full center. Only a command and opaque
+    // identity reach its existing request channel; notice text stays in memory.
+    const QJsonObject request{{"action",action},{"key",key},{"nonce",QUuid::createUuid().toString(QUuid::WithoutBraces)}};
+    const auto literal=QString::fromUtf8(QJsonDocument(request).toJson(QJsonDocument::Compact));
+    const QString script=QStringLiteral(
+        "print(desktops().some(d=>d.widgets().some(w=>{if(w.type!=='org.lumen.notificationhost')return false;"
+        "w.currentConfigGroup=['General'];if(String(w.readConfig('presenterEnabled',false))!=='true' || Number(w.readConfig('previewProtocol',0))!==1)return false;"
+        "w.writeConfig('notificationRequest','topbar:'+JSON.stringify(%1));w.reloadConfig();return true;})));").arg(literal);
+    auto call=QDBusMessage::createMethodCall("org.kde.plasmashell","/PlasmaShell","org.kde.PlasmaShell","evaluateScript");
+    call<<script;
+    const auto pending=QDBusConnection::sessionBus().asyncCall(call);
+    if(action!="preview")return;
+    auto watcher=new QDBusPendingCallWatcher(pending,this);
+    connect(watcher,&QDBusPendingCallWatcher::finished,this,[this,watcher]{
+        QDBusPendingReply<QString> result=*watcher;
+        if(!m_noticeWindows.isEmpty() && (result.isError() || result.value().trimmed()!="true")){
+            m_noticePreview={{"unavailable",true}};emit noticePreviewChanged();
+        }
+        watcher->deleteLater();
+    });
+}
+
+void PanelData::watchNotices(QQuickWindow *window,bool visible){
+    if(!window)return;
+    if(visible && !m_noticeWindows.contains(window)){
+        if(m_noticeWindows.isEmpty())clearNoticePreview();
+        m_noticeWindows.insert(window,connect(window,&QObject::destroyed,this,[this,window]{watchNotices(window,false);}));
+        noticeCommand("preview");
+    }else if(!visible && m_noticeWindows.contains(window)){
+        disconnect(m_noticeWindows.take(window));
+        if(m_noticeWindows.isEmpty()){noticeCommand("stop");clearNoticePreview();}
+    }
+}
+
+void PanelData::clearNoticePreview(){
+    if(!m_noticePreview.isEmpty()){m_noticePreview.clear();emit noticePreviewChanged();}
+}
+
+void PanelData::SetNoticePreview(const QString &json){
+    // Only the session's actual Plasma presenter can supply notification text.
+    if(m_noticeWindows.isEmpty() || !calledFromDBus() || json.size()>32768)return;
+    const auto owner=connection().interface()->serviceOwner("org.kde.plasmashell");
+    if(!owner.isValid() || message().service()!=owner.value())return;
+    const auto object=QJsonDocument::fromJson(json.toUtf8()).object();
+    if(!object.value("items").isArray() || object.value("items").toArray().size()>3)return;
+    const auto preview=object.toVariantMap();
+    if(m_noticePreview!=preview){m_noticePreview=preview;emit noticePreviewChanged();}
+}
+
 void PanelData::runHelper(const QStringList &arguments,const QString &action,int value,const QByteArray &input){
     const bool topicAction=action.startsWith("network:") || action.startsWith("audio:") || action.startsWith("activity:") || action.startsWith("recent:");
     const bool mutating=action=="volume" || action=="brightness" || action=="mute" || topicAction;
@@ -305,6 +361,7 @@ void PanelData::mediaPropertiesChanged(const QString &interface,const QVariantMa
     if(interface=="org.mpris.MediaPlayer2.Player")QTimer::singleShot(0,this,&PanelData::refreshMedia);
 }
 void PanelData::mediaOwnerChanged(const QString &name,const QString &,const QString &newOwner){
+    if(name=="org.kde.plasmashell")clearNoticePreview();
     if(!name.startsWith("org.mpris.MediaPlayer2."))return;
     Q_UNUSED(newOwner)
     ++m_playerEpochs[name];

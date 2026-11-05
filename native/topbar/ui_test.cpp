@@ -125,7 +125,16 @@ private slots:
         delete temporaryAnchor;QTRY_VERIFY(!tip->isVisible());
         for(const auto &name:{"launcherButton","activeAppButton","applicationMenu_0","clockButton"})
             QCOMPARE(qvariant_cast<QFont>(item(name)->property("font")).pixelSize(),QApplication::font().pixelSize());
+        QVERIFY(click(item("notificationsButton")));
+        auto notesPeek=window->findChild<QObject*>("quickMenu");
+        QTRY_VERIFY(notesPeek && notesPeek->property("opened").toBool());
+        QTRY_VERIFY(window->height()>150);
+        QVERIFY(send("key 1\n"));QTRY_VERIFY(!notesPeek->property("opened").toBool());
         auto launch=item("launcherButton");QVERIFY(launch);QVERIFY(click(launch));
+        auto quick=window->findChild<QObject*>("quickMenu");QVERIFY(quick);
+        QTRY_VERIFY(quick->property("opened").toBool());QVERIFY(quick->property("width").toReal()<=390);
+        QVERIFY(quick->property("width").toReal()<window->width());
+        QVERIFY(click(item("quickMore")));
         auto apps=window->findChild<QObject*>("appsPopup");QVERIFY(apps);QTRY_VERIFY_WITH_TIMEOUT(apps->property("opened").toBool(),3000);
         QTRY_VERIFY_WITH_TIMEOUT(item("openApp_files"),3000);
         auto files=item("openApp_files");QTRY_VERIFY(files->window()!=nullptr);
@@ -224,7 +233,13 @@ private slots:
         QVERIFY(click(item("programsButton")));QTRY_VERIFY(apps->property("opened").toBool());QTRY_VERIFY(!data.controlBusy());
         QTRY_VERIFY(item("startRecent_0") && item("startRecent_0")->isVisible());const auto beforeRecent=actions().size();
         QVERIFY(click(item("startRecent_0")));QTRY_VERIFY(actions().size()>beforeRecent && actions().contains("/profile/example.txt"));QTRY_VERIFY(!apps->property("opened").toBool());
-        QVERIFY(click(item("launcherButton")));QTRY_VERIFY(apps->property("opened").toBool());QVERIFY(item("startMenu")->property("lumenOnly").toBool());
+        QVERIFY(click(item("launcherButton")));QTRY_VERIFY(quick->property("opened").toBool());
+        QTest::qWait(160);QVERIFY(window->grabWindow().save("/profile/captures/native-lumen-preview.png"));
+        const auto shortcuts=data.snapshot()["apps"].toList();QString chosen;
+        for(const auto &entry:shortcuts){const auto label=entry.toMap()["label"].toString();if(item("quickRow_"+label)){chosen=label;break;}}
+        QVERIFY(!chosen.isEmpty());QVERIFY(click(item("quickRow_"+chosen)));
+        QTRY_VERIFY(apps->property("opened").toBool());QVERIFY(item("startMenu")->property("lumenOnly").toBool());
+        QVERIFY(item("startMenu")->property("searching").toBool());
         QTest::qWait(180);QVERIFY(click(item("startLibraryButton")));QTRY_VERIFY(!item("startMenu")->property("lumenOnly").toBool());
         QVERIFY(send("key 1\n"));QTRY_VERIFY(!apps->property("opened").toBool());
         QVERIFY(!QFile::exists("/profile/conversation-started"));
@@ -407,7 +422,8 @@ private slots:
         QVERIFY(send("key 1\n"));QTRY_VERIFY(!apps->property("opened").toBool());
         auto controls=item("systemControlsButton");QVERIFY(controls);if(!controls->isVisible()){QVERIFY(click(item("compactControlsButton")));QTest::qWait(180);controls=item("audioMenuEntry");}QVERIFY(controls->isVisible());QVERIFY(click(controls));QTest::qWait(180);
         auto audioPopup=window->findChild<QObject*>("audioPopup");auto networkPopup=window->findChild<QObject*>("networkPopup");QVERIFY(audioPopup && networkPopup);
-        QTRY_VERIFY(audioPopup->property("opened").toBool());QVERIFY(!networkPopup->property("opened").toBool());
+        QTRY_VERIFY(quick->property("opened").toBool());QTest::qWait(180);QVERIFY(window->grabWindow().save("/profile/captures/native-audio-preview.png"));QVERIFY(click(item("quickRow_1")));
+        QTRY_VERIFY(audioPopup->property("opened").toBool());QCOMPARE(audioPopup->property("section").toInt(),1);QVERIFY(!networkPopup->property("opened").toBool());
         QTRY_VERIFY_WITH_TIMEOUT(data.details()["audio"].toMap()["available"].toBool(),3000);
         QVERIFY(window->grabWindow().save("/profile/captures/native-audio-overview.png"));
         for(int section=1;section<6;++section){
@@ -445,7 +461,7 @@ private slots:
         QVERIFY(send("key 1\n"));
         auto networkControl=item("networkButton");QVERIFY(networkControl);
         if(!networkControl->isVisible()){QVERIFY(click(item("compactControlsButton")));QTest::qWait(100);networkControl=item("networkMenuEntry");}
-        QVERIFY(click(networkControl));QTRY_VERIFY(networkPopup->property("opened").toBool());QVERIFY(!audioPopup->property("opened").toBool());
+        QVERIFY(click(networkControl));QTRY_VERIFY(quick->property("opened").toBool());QTest::qWait(180);QVERIFY(window->grabWindow().save("/profile/captures/native-network-preview.png"));QVERIFY(click(item("quickRow_1")));QTRY_VERIFY(networkPopup->property("opened").toBool());QVERIFY(!audioPopup->property("opened").toBool());
         QTRY_VERIFY_WITH_TIMEOUT(data.details()["network"].toMap()["available"].toBool(),3000);
         QVERIFY(window->grabWindow().save("/profile/captures/native-network-overview.png"));
         for(int section=1;section<6;++section){
@@ -509,6 +525,48 @@ private slots:
         settings.setValue("topbar/layout",originalLayout);settings.sync();QTRY_COMPARE(data.layout(),originalLayout);
         input.closeWriteChannel();QVERIFY(input.waitForFinished(1000));
     }
+    void notificationPreview(){
+        auto bus=QDBusConnection::sessionBus();
+        qmlRegisterType<AppMenu>("Lumen.Topbar",1,0,"AppMenu");
+        PanelData data;Tray tray;QQmlEngine engine;
+        QVERIFY(bus.registerService("org.lumen.Topbar"));
+        QVERIFY(bus.registerObject("/Topbar",&data,QDBusConnection::ExportScriptableSlots));
+        engine.rootContext()->setContextProperty("panelData",&data);
+        engine.rootContext()->setContextProperty("trayModel",&tray);
+        QQmlComponent component(&engine,QUrl("qrc:/lumen/Topbar.qml"));
+        QScopedPointer<QQuickWindow> window(qobject_cast<QQuickWindow*>(component.create()));
+        QVERIFY2(window,qPrintable(component.errorString()));
+        auto screen=QGuiApplication::primaryScreen();window->setScreen(screen);window->setWidth(screen->geometry().width());
+        auto layer=LayerShellQt::Window::get(window.data());layer->setScreen(screen);layer->setLayer(LayerShellQt::Window::LayerTop);
+        layer->setAnchors(LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorTop)|LayerShellQt::Window::AnchorLeft|LayerShellQt::Window::AnchorRight);
+        layer->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityOnDemand);
+        window->setProperty("ready",true);QTRY_VERIFY(window->isExposed());
+        auto click=[&](QQuickItem *button){if(!button || !button->isVisible())return false;
+            const QPoint point=button->mapToScene(QPointF(button->width()/2,button->height()/2)).toPoint();
+            QTest::mouseClick(window.data(),Qt::LeftButton,{},point);return true;};
+        QFile file("/profile/preview-id");QVERIFY(file.open(QIODevice::ReadOnly));
+        const QString key="lumen:"+QString::fromUtf8(file.readAll()).trimmed();
+        QVERIFY(click(item("notificationsButton")));
+        auto peek=window->findChild<QObject*>("quickMenu");
+        QTRY_VERIFY(peek && peek->property("opened").toBool());
+        QTRY_VERIFY_WITH_TIMEOUT(!data.noticePreview().isEmpty(),7000);
+        QVERIFY2(!data.noticePreview().value("locked").toBool(),"Private QA screen is locked");
+        QTRY_VERIFY_WITH_TIMEOUT(item("quickRow_"+key),7000);
+        auto quick=window->findChild<QObject*>("quickMenu");QVERIFY(quick && quick->property("opened").toBool());
+        QTRY_VERIFY(window->height()>=quick->property("y").toDouble()+quick->property("height").toDouble());
+        QTest::qWait(250);QVERIFY(window->grabWindow().save("/profile/captures/native-notice-preview.png"));
+        QVERIFY(click(item("quickRow_"+key)));QTRY_VERIFY(!quick->property("visible").toBool());
+        // Only the selected local notice is marked read by the full center.
+        auto isRead=[&]{for(const auto &entry:data.noticePreview().value("items").toList()){
+            const auto row=entry.toMap();if(row["key"]==key)return !row["unread"].toBool();}return false;};
+        data.watchNotices(window.data(),true);
+        QTRY_VERIFY_WITH_TIMEOUT(isRead(),8000);
+        QVERIFY(data.noticePreview().value("unread").toInt()>0);
+        data.noticeCommand("read");
+        QTRY_COMPARE_WITH_TIMEOUT(data.noticePreview().value("unread").toInt(),0,10000);
+        data.watchNotices(window.data(),false);
+    }
+
 };
 QTEST_MAIN(UiTest)
 #include "ui_test.moc"

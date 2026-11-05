@@ -95,8 +95,17 @@ Schließen; Verschieben und Größenänderungen bleiben native Fensteraktionen.
 Der technische Einstellungswert `classic` heißt in der Oberfläche nun Panorama;
 die ausdrücklich angebotenen alternativen Layouts bleiben wählbar.
 
-Desktop-Topbar, Netzwerk und Audio (04.11.2026): Die beiden Statussymbole öffnen
-eigenständige Panorama-Menüs. Netzwerk gliedert sich in Übersicht, WLAN,
+Desktop-Topbar, Kurzansichten (06.11.2026): Glocke, Netzwerk, Audio und
+Lumen-Kreis öffnen jeweils eine angedockte, höchstens 390 Pixel breite Ansicht.
+Die drei Statusmenüs schließen rechts an die Leiste an, der Lumen-Kreis links.
+Auf schmalen Bildschirmen bleibt ein seitlicher Abstand. Ein Eintrag öffnet das
+vollständige Menü mit der gewählten Meldung, dem Gerätebereich oder dem gefilterten
+Lumen-App-Katalog. Der Programmknopf öffnet weiterhin direkt „Dein Start“.
+Plasma führt den gemeinsamen Mitteilungsverlauf und alle Aktionen. Der erste
+Klick zeigt bis zu drei aktuelle Meldungen. Zugangsdaten, Verbindungswechsel und
+Geräteeinstellungen werden erst im dafür zuständigen vollständigen Menü behandelt.
+
+Netzwerk gliedert sich in Übersicht, WLAN,
 Kabel/Adapter, VPN/Proxy, Hotspot und Details/Diagnose; Audio in Übersicht,
 Ausgabe, Mikrofon, Apps, Bluetooth und Klang/Technik. Auf schmalen Bildschirmen
 werden diese Bereiche oberhalb des Inhalts angeordnet. Darstellung und Regler
