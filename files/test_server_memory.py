@@ -11,30 +11,41 @@ import lumen_connect as client
 
 
 class SharedMemoryTest(unittest.TestCase):
-    def test_confirmed_mirror_is_context_only_and_revocation_removes_it(self):
+    def test_paired_context_uses_live_account_and_honors_device_opt_outs(self):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp); config=root/'connection.json'
             settings={'server':'https://lumen.example.test','token':'synthetic'}
             config.write_text(json.dumps(settings))
+            identity='d8ea07d2-786c-49a5-967b-75d50dab58c7'
             with closing(sqlite3.connect(root/'memory.sqlite3')) as db, db:
                 db.execute('CREATE TABLE memories(id TEXT PRIMARY KEY,title TEXT,body TEXT,revision INT,source TEXT)')
                 db.execute('CREATE TABLE memory_owner(scope TEXT NOT NULL)')
                 db.execute('INSERT INTO memory_owner VALUES (?)',(client.connection_scope(settings),))
                 db.executemany('INSERT INTO memories VALUES (?,?,?,?,?)',[
-                    ('one','日本語','Server preference',1,'https://lumen.example.test'),
+                    (identity,'日本語','Stale cached copy',1,'https://lumen.example.test'),
                     ('other','Foreign','Must not leak',1,'https://other.example.test')])
-            with patch.object(client,'ROOT',root),patch.object(client,'CONFIG',config):
+            def request(_config,path,*args,**kwargs):
+                if path=='/bridge/me':
+                    return dict(capabilities=['memory'],sync_features=['memory_context_v1'])
+                if path=='/bridge/memories/context/validate':
+                    return dict(valid=True)
+                if path.startswith('/bridge/memories/context?q='):
+                    items=[dict(id=identity,title='日本語',text='Server preference',revision=1)] if 'Server%20preference' in path else []
+                    return dict(items=items,stamp='1'*64)
+                raise AssertionError(path)
+            with patch.object(client,'ROOT',root),patch.object(client,'CONFIG',config),patch.object(client,'request',side_effect=request):
                 store=Store(root/'state');memory=Memory(store);memory.configure(True,False)
                 personal=memory.remember('Local','Personal note')
                 before=stamp(store)
                 context=memory.prepare('Server preference',str(root))['context']
                 self.assertIn('Server preference',context);self.assertNotIn('Must not leak',context)
+                self.assertNotIn('Stale cached copy',context)
                 self.assertNotIn('Server preference',memory.prepare('unrelated-ZYX',str(root))['context'])
                 self.assertEqual(len(memory.scan()['notes']),1)
-                store.set_setting('memory/server_hidden',['https://lumen.example.test#one'])
+                store.set_setting('memory/server_hidden',[settings['server']+'#'+identity])
                 self.assertNotIn('Server preference',memory.prepare('Server preference',str(root))['context'])
                 store.set_setting('memory/server_hidden',[])
-                store.set_setting('memory/tombstones',{'one':dict(revision='local-forget')})
+                store.set_setting('memory/tombstones',{identity:dict(revision='local-forget')})
                 self.assertNotIn('Server preference',memory.prepare('Server preference',str(root))['context'])
                 config.unlink()
                 self.assertNotEqual(before,stamp(store));self.assertEqual(client.shared_memories(),[])
