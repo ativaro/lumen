@@ -73,6 +73,11 @@ command=['bwrap','--unshare-all','--die-with-parent','--new-session','--clearenv
     '--proc','/proc','--dev','/dev','--tmpfs','/tmp','--bind',str(profile),'/profile',
     '--ro-bind',str(REPO),'/source','--ro-bind',str(build),'/build',
     '--ro-bind',str(REPO/'tests/desktop'),'/qa','--chdir','/profile']
+# The hot-install check needs a fresh Plasma instance, even on a host running Lumen.
+system_applet = Path('/usr/share/plasma/plasmoids/org.lumen.notificationhost')
+if system_applet.is_dir():
+    command.extend(['--tmpfs', str(system_applet)])
+
 if Path('/dev/dri').is_dir():command+=['--dev-bind','/dev/dri','/dev/dri']
 env=dict(ASAN_OPTIONS='detect_leaks=0:abort_on_error=1:log_path=/profile/asan',
     LUMEN_QA_HOT_HOST='1',LUMEN_QA_SURFACE_ONLY='1' if args.surface_only else '',
