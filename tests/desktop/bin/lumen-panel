@@ -27,6 +27,7 @@ def details(topic):
         cards=[dict(id='0',name='USB-Audiogerät',active='stereo',profiles=[dict(id='stereo',name='Stereo'),dict(id='headset',name='Headset')])],
         server='PipeWire · Testprofil',bluetooth=dict(available=True,adapters=[dict(id='/org/bluez/hci0',name='Bluetooth',powered=True)],devices=[dict(id='00:00:00:00:00:02',name='Studio-Kopfhörer',connected=True,paired=True,battery=82)]),errors=[])
 if sys.argv[1:]==['--conversation']:
+    Path('/profile/conversation-started').touch()
     from uuid import uuid4
     from desktop_backend import DesktopBackend
     from search_controller import SearchController

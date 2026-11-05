@@ -23,8 +23,9 @@ Item {
     function submit(){if(!request.draft.trim()||request.pending||controller.busy)return;following=true;request.error="";request.submitted=request.draft;request.submittedNote=JSON.stringify(request.note);request.pending=true;request.pendingAction=host.ask(request.submitted,request.note)}
     function latest(){if(conversation.contentItem){following=true;conversation.contentItem.cancelFlick();conversation.contentItem.contentY=Math.max(0,conversation.contentHeight-conversation.availableHeight)}}
     function followLatest(){if(following&&!scrollbar.pressed&&!conversation.contentItem.moving)latest()}
-    onWidthChanged:widthTimer.restart()
-    Timer {id:widthTimer;interval:150;onTriggered:if(pane.width>=168)pane.controller.model.call("width",[Math.min(712,pane.width-48)])}
+    onWidthChanged:if(visible)widthTimer.restart()
+    onVisibleChanged:visible?widthTimer.restart():widthTimer.stop()
+    Timer {id:widthTimer;interval:150;onTriggered:if(pane.visible&&pane.width>=168)pane.controller.model.call("width",[Math.min(712,pane.width-48)])}
     Connections {target:pane.controller;function onDataChanged(){if(pane.following)Qt.callLater(pane.followLatest)}}
     ColumnLayout {
         x:(parent.width-width)/2;width:Math.max(0,Math.min(760,parent.width-48));height:parent.height;spacing:16

@@ -38,7 +38,12 @@ private slots:
     void realWindowMenusAndLauncher(){
         QProcess input;input.start("/build/topbar-input");QVERIFY(input.waitForStarted());
         // Flush Qt/Wayland before the separate client injects its next input event.
-        const auto send=[&](const QByteArray &command){QGuiApplication::sync();input.write(command);if(input.bytesToWrite()&&!input.waitForBytesWritten(1000))return false;if(!input.bytesAvailable()&&!input.waitForReadyRead(1000))return false;return input.readAllStandardOutput().startsWith("OK");};
+        const auto send=[&](const QByteArray &command){
+            QGuiApplication::sync();if(input.write(command)!=command.size())return false;
+            // Keep handling Wayland configuration while the external input client acknowledges a move.
+            if(!QTest::qWaitFor([&]{return input.canReadLine() || input.state()==QProcess::NotRunning;},2000))return false;
+            return input.readLine().trimmed()=="OK";
+        };
         qmlRegisterType<AppMenu>("Lumen.Topbar",1,0,"AppMenu");
         PanelData data;Tray tray;QQmlEngine engine;engine.rootContext()->setContextProperty("panelData",&data);
         engine.rootContext()->setContextProperty("trayModel",&tray);
@@ -69,6 +74,7 @@ private slots:
         QVERIFY(button->isVisible());
         const auto click=[&](QQuickItem *value){
             if(!value || !value->window() || !value->isVisible())return false;
+            QGuiApplication::sync();
             if(value->objectName().startsWith("start")){value->forceActiveFocus(Qt::TabFocusReason);QTest::qWait(100);}
             QSignalSpy rendered(value->window(),&QQuickWindow::frameSwapped);value->window()->update();
             if(!QTest::qWaitFor([&]{return rendered.count()>0;},1000))return false;
@@ -216,6 +222,7 @@ private slots:
         QVERIFY(click(item("launcherButton")));QTRY_VERIFY(apps->property("opened").toBool());QVERIFY(item("startMenu")->property("lumenOnly").toBool());
         QTest::qWait(180);QVERIFY(click(item("startLibraryButton")));QTRY_VERIFY(!item("startMenu")->property("lumenOnly").toBool());
         QVERIFY(send("key 1\n"));QTRY_VERIFY(!apps->property("opened").toBool());
+        QVERIFY(!QFile::exists("/profile/conversation-started"));
         auto composer=item("inlineComposer");QVERIFY(composer);
         if(!composer->isVisible()){QVERIFY(click(item("askButton")));QTest::qWait(180);composer=item("popupComposer");}
         QVERIFY(composer);auto question=find(composer,"lumenQuestion");QVERIFY(question && question->isVisible());
@@ -265,8 +272,18 @@ private slots:
         auto activities=window->findChild<QObject*>("activityPopup");QVERIFY(activities);QTRY_VERIFY(activities->property("opened").toBool());
         QTRY_VERIFY(item("overviewWindow_0") && item("overviewWindow_0")->isVisible());QTest::qWait(150);
         QVERIFY(window->grabWindow().save("/profile/captures/native-window-overview.png"));
-        QVERIFY(click(item("overviewWindow_0")));QTRY_VERIFY(!activities->property("opened").toBool());
+        auto activeState=window->findChild<QObject*>("activeWindowState");QVERIFY(activeState);
+        auto windowModel=qvariant_cast<QObject*>(activeState->property("windowModel"));QVERIFY(windowModel);
+        QQuickItem *notesWindow=nullptr;
+        for(int index=0;index<windowModel->property("count").toInt();++index){
+            auto candidate=item("overviewWindow_"+QString::number(index));
+            if(candidate && candidate->property("text").toString().startsWith(QStringLiteral("Lumen Menütest A"))){notesWindow=candidate;break;}
+        }
+        QVERIFY(notesWindow);QVERIFY(click(notesWindow));QTRY_VERIFY(!activities->property("opened").toBool());
+        QTRY_VERIFY(([&]{const QDBusReply<bool> active=focusFixture.call("active");return active.isValid() && active.value();})());
+        QTRY_COMPARE(menus->entries().size(),4);
         QVERIFY(click(item("recentContentButton")));QTRY_VERIFY(activities->property("opened").toBool());
+        QTRY_COMPARE(activities->property("page").toString(),QString("recent"));
         QTRY_VERIFY(item("recentContent_0") && item("recentContent_0")->isVisible());
         QTRY_VERIFY(!data.controlBusy());QVERIFY(click(item("recentContent_0")));QTRY_VERIFY(actions().contains("/profile/example.txt"));
         QVERIFY(window->grabWindow().save("/profile/captures/native-recent-content.png"));

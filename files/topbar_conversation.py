@@ -3,8 +3,9 @@ import copy
 import json
 import os
 import sys
+from pathlib import Path
 
-from PySide6.QtCore import QObject, QSocketNotifier, QTimer
+from PySide6.QtCore import QObject, QSettings, QSocketNotifier, QTimer
 
 
 class ConversationPipe(QObject):
@@ -111,7 +112,8 @@ def main():
     from lumen_crash import read_json,write_json
     from lumen_store import state_path
     app=QGuiApplication(['lumen-topbar-conversation']);app.setQuitOnLastWindowClosed(False);install(app)
-    controller=SearchController(applications=[])
+    directory=Path(os.environ.get('LUMEN_WORKDIR') or QSettings('Lumen','Assistant').value('workdir',str(Path.home()/'Documents/work'))).expanduser()
+    controller=SearchController(str(directory if directory.is_dir() else Path.home()),applications=[])
     controller.cancel_scan();controller.debounce.stop();controller.show_conversation()
     recovery=state_path()/'topbar-conversation.json'
     saved=read_json(recovery)
