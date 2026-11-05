@@ -390,9 +390,12 @@ class WindowTest(PrivateHostFixture):
     def theme_property(self, value):
         previous=self.app.property('lumenDesign')
         self.addCleanup(lambda:self.app.setProperty('lumenDesign',previous))
-        if getattr(self.app,'theme_watcher',None) is None:
-            self.app.theme_watcher=QFileSystemWatcher(self.app)
-            self.addCleanup(lambda:setattr(self.app,'theme_watcher',None))
+        if not hasattr(self,'_test_theme_watcher'):
+            previous_watcher=getattr(self.app,'theme_watcher',None)
+            self._test_theme_watcher=QFileSystemWatcher(self.app)
+            self.app.theme_watcher=self._test_theme_watcher
+            self.addCleanup(lambda:setattr(self.app,'theme_watcher',previous_watcher))
+            self.addCleanup(self._test_theme_watcher.deleteLater)
         self.app.setProperty('lumenDesign',value)
         # Unit sender trigger only; separate A/B acceptance uses real persisted changes.
         self.app.theme_watcher.fileChanged.emit(str(self.root/'unit-theme-source'))

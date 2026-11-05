@@ -70,7 +70,7 @@ Item {
                             Layout.fillWidth:true;Layout.leftMargin:user?32:0;spacing:12
                             RowLayout {spacing:8
                                 Kirigami.Icon {visible:!message.user;source:"qrc:/lumen/symbols/halo.svg";isMask:true;color:pane.colors.accent;Layout.preferredWidth:20;Layout.preferredHeight:20}
-                                Label {text:message.user?pane.translate("Du"):"Lumen";color:pane.colors.muted;font.pixelSize:12}
+                                Label {text:message.user?pane.translate("Deine Nachricht"):"Lumen";color:pane.colors.muted;font.pixelSize:12}
                             }
                             TextArea {visible:message.user;Layout.fillWidth:true;text:message.row.body||"";textFormat:TextEdit.RichText;readOnly:true;selectByMouse:true;wrapMode:TextEdit.Wrap;font.pixelSize:pane.controller.theme.fontSize;color:pane.colors.text;background:Rectangle {radius:10;color:pane.colors.base} padding:14;onLinkActivated:link=>pane.controller.open_link(link)}
                             Search.AnswerBlocks {visible:!message.user;Layout.fillWidth:true;blocks:message.row.blocks||[];theme:pane.controller.theme;controller:pane.controller;messageKey:message.row.key||""}

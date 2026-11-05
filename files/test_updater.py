@@ -75,7 +75,8 @@ class UpdaterTest(unittest.TestCase):
         source=updater.source_root();source.mkdir(parents=True)
         package=source/'packaging/arch/lumen-test-any.pkg.tar.zst';package.parent.mkdir(parents=True);package.touch()
         def result(args,**kwargs):return str(package) if args[:2]==['makepkg','--packagelist'] else ''
-        with patch.object(updater,'installations',return_value=[Path('/usr/share/lumen'),self.install]),patch.object(updater,'run',side_effect=result) as run:
+        system=self.root/'system'
+        with patch.object(updater,'SYSTEM_ROOT',system), patch.object(updater,'installations',return_value=[system,self.install]), patch.object(updater,'run',side_effect=result) as run:
             updater.install_bundle(source,'f'*40)
         calls=[call.args[0] for call in run.call_args_list]
         self.assertIn(['pkexec','pacman','-U','--noconfirm',str(package)],calls)

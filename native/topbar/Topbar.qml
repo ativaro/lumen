@@ -75,7 +75,7 @@ Window {
         if(player)return {section:"media",text:player.title||t("Wiedergabe"),icon:"media-playback-start"}
         if(activity.update?.pending)return {section:"update",text:t("Update bereit"),icon:"system-software-update"}
         if(quiet)return {section:"dnd",text:t("Nicht stören"),icon:"notifications-disabled"}
-        return {section:"focus",text:t("Alles im Blick"),icon:"emblem-ok-symbolic"}
+        return {section:"focus",text:t("Auf einen Blick"),icon:"emblem-ok-symbolic"}
     }
     Notifications.Settings {id:notificationSettings;live:true}
     function showActivity(page){if(conversationOpen)closeConversation();activityPopup.page=page;activityPopup.section=statusSection;activityPopup.open()}
