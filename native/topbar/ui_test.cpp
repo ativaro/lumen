@@ -6,6 +6,7 @@
 #include <QFont>
 #include <QAbstractItemModel>
 #include <QDBusInterface>
+#include <QDBusReply>
 #include <QFile>
 #include <QMenu>
 #include <QJsonDocument>
@@ -36,7 +37,8 @@ class UiTest:public QObject {
 private slots:
     void realWindowMenusAndLauncher(){
         QProcess input;input.start("/build/topbar-input");QVERIFY(input.waitForStarted());
-        const auto send=[&](const QByteArray &command){input.write(command);if(!input.waitForBytesWritten(1000) || !input.waitForReadyRead(1000))return false;return input.readAllStandardOutput().startsWith("OK");};
+        // Flush Qt/Wayland before the separate client injects its next input event.
+        const auto send=[&](const QByteArray &command){QGuiApplication::sync();input.write(command);if(!input.waitForBytesWritten(1000) || !input.waitForReadyRead(1000))return false;return input.readAllStandardOutput().startsWith("OK");};
         qmlRegisterType<AppMenu>("Lumen.Topbar",1,0,"AppMenu");
         PanelData data;Tray tray;QQmlEngine engine;engine.rootContext()->setContextProperty("panelData",&data);
         engine.rootContext()->setContextProperty("trayModel",&tray);
@@ -134,6 +136,10 @@ private slots:
             QTest::qWait(650);QVERIFY2(apps->property("opened").toBool(),qPrintable("Start menu closed during hover cycle "+QString::number(cycle)));QVERIFY(window->isActive());
             if(cycle<7){QVERIFY(send("key 1\n"));QTRY_VERIFY(!apps->property("opened").toBool());QVERIFY(click(programsButton));QTRY_VERIFY(apps->property("opened").toBool());}
         }
+        QDBusInterface focusFixture("org.lumen.MenuTestA","/Control",QString());QVERIFY(focusFixture.isValid());
+        QVERIFY(send("key 1\n"));QTRY_VERIFY(!apps->property("opened").toBool());
+        QTRY_VERIFY(([&]{const QDBusReply<bool> active=focusFixture.call("active");return active.isValid() && active.value();})());
+        QVERIFY(click(programsButton));QTRY_VERIFY(apps->property("opened").toBool());
         QTRY_VERIFY(item("startPin_5") && item("startPin_5")->isVisible());
         QTRY_VERIFY(item("startRecent_1") && item("startRecent_1")->isVisible());
         QTRY_VERIFY(!data.controlBusy());QTest::qWait(150);

@@ -41,7 +41,7 @@ ColumnLayout {
     function runFiltered(index) {if(index>=0 && index<filtered.count)run(filtered.sourceModel,filtered.mapToSource(filtered.index(index,0)).row)}
     function contextFor(button,model,row,data) {
         context.source=model;context.row=row;context.favoriteId=data.favoriteId||"";context.title=data.display||""
-        context.actions=(data.actionList||[]).filter(action=>action.actionId==="_kicker_jumpListAction" && action.text)
+        context.actions=(data.actionList||[]).filter(action=>action.actionId==="_kicker_jumpListAction" && action.text && action.actionArgument!=null)
         const point=button.mapToItem(start,0,button.height)
         context.x=Math.max(0,Math.min(start.width-context.width,point.x))
         context.anchorY=point.y
@@ -78,7 +78,7 @@ ColumnLayout {
         palette.text:start.colors.text;palette.placeholderText:start.colors.muted
         background:Rectangle {color:start.colors.base;radius:12;border.color:query.activeFocus?start.colors.accent:start.colors.border}
         Kirigami.Icon {source:"search";isMask:true;color:start.colors.muted;width:18;height:18;x:14;anchors.verticalCenter:parent.verticalCenter}
-        Label {visible:query.width>=440;text:"Strg K";font.pixelSize:12;color:start.colors.muted;anchors.right:parent.right;anchors.rightMargin:14;anchors.verticalCenter:parent.verticalCenter}
+        Label {visible:query.width>=440;text:start.translate("Strg K");font.pixelSize:12;color:start.colors.muted;anchors.right:parent.right;anchors.rightMargin:14;anchors.verticalCenter:parent.verticalCenter}
         onTextChanged:{grid.currentIndex=0;error.text="";context.close();power.close()}
         onAccepted:if(start.lumenOnly){if(start.lumenApps.length){start.controller.launch("app",start.lumenApps[0].id);start.launched()}}else if(start.searching)start.runFiltered(grid.currentIndex)
         Keys.onDownPressed:if(grid.visible&&grid.count){grid.currentIndex=0;grid.forceActiveFocus()}

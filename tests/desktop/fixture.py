@@ -20,6 +20,8 @@ if name!='Empty':
             if title=='Datei':Path('/profile/saved-'+name+'.txt').write_text('Lumen Testdatei '+name)
         a.triggered.connect(hit)
 class Control(QObject):
+    @Slot(result=bool)
+    def active(self):return w.isActiveWindow()
     @Slot(str)
     def record(self,value):Path("/profile/kwin-geometry.json").write_text(value)
     @Slot(str,result=str)
