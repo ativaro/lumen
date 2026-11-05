@@ -88,7 +88,9 @@ Verlauf mit Entwurf und Arbeitsschritten; „In Leiste anheften“ führt ihn zu
 Die Eingabe bleibt erreichbar, während Antworten, Freigaben, Rückfragen und
 aufgeklappte Arbeitsschritte im Inhalt scrollen. Bestehende native Gesprächslogik
 und Antwortbausteine werden wiederverwendet. Der Darstellungswechsel sendet keine
-Nachricht und startet keinen weiteren Auftrag.
+Nachricht und startet keinen weiteren Auftrag. Das abgelöste normale Fenster nutzt
+Lumens vorhandene Fensterknöpfe für Minimieren, Maximieren/Wiederherstellen und
+Schließen; Verschieben und Größenänderungen bleiben native Fensteraktionen.
 
 Der technische Einstellungswert `classic` heißt in der Oberfläche nun Panorama;
 die ausdrücklich angebotenen alternativen Layouts bleiben wählbar.

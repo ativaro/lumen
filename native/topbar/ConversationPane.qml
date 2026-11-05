@@ -46,7 +46,9 @@ Item {
             }
             BarButton {objectName:"detachConversation";colors:pane.colors;glyph:pane.detached?"pin":"go-up";text:pane.translate(pane.detached?"In Leiste anheften":"Als Fenster öffnen");iconOnly:parent.width<560;onClicked:pane.detached?pane.reattachRequested():pane.detachRequested(false)}
             BarButton {objectName:"newTopbarConversation";colors:pane.colors;glyph:"list-add";text:pane.translate("Neues Gespräch");iconOnly:true;enabled:!pane.controller.busy&&!pane.request.pending;onClicked:pane.controller.model.call("reset")}
-            BarButton {objectName:"collapseConversation";colors:pane.colors;glyph:"arrow-up";text:pane.translate("Gespräch einklappen");iconOnly:true;onClicked:pane.collapseRequested()}
+            BarButton {objectName:"conversationMinimize";monochrome:true;visible:pane.detached;colors:pane.colors;glyph:"qrc:/lumen/window-controls/minimize.svg";text:pane.translate("Minimieren");iconOnly:true;onClicked:pane.Window.window.showMinimized()}
+            BarButton {objectName:"conversationMaximize";monochrome:true;visible:pane.detached;colors:pane.colors;glyph:"qrc:/lumen/window-controls/"+(pane.Window.window?.visibility===Window.Maximized?"restore":"maximize")+".svg";text:pane.translate("Maximieren oder wiederherstellen");iconOnly:true;onClicked:pane.Window.window.visibility===Window.Maximized?pane.Window.window.showNormal():pane.Window.window.showMaximized()}
+            BarButton {objectName:"collapseConversation";monochrome:true;colors:pane.colors;glyph:pane.detached?"qrc:/lumen/window-controls/close.svg":"arrow-up";text:pane.translate(pane.detached?"Gespräch schließen":"Gespräch einklappen");iconOnly:true;onClicked:pane.collapseRequested()}
         }
         Item {
             Layout.fillWidth:true;Layout.fillHeight:true;Layout.minimumHeight:100

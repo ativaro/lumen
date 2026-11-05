@@ -249,6 +249,18 @@ private slots:
         QTRY_VERIFY(conversation->window()==detached);
         QCOMPARE(followup->property("text").toString(),QString("Dieselbe Folgefrage behalten"));
         QTest::qWait(150);QVERIFY(detached->grabWindow().save("/profile/captures/native-conversation-detached.png"));
+        auto maximize=find(conversation,"conversationMaximize");QVERIFY(maximize);
+        maximize->forceActiveFocus(Qt::TabFocusReason);QVERIFY(send("key 57\n"));QTRY_COMPARE(detached->visibility(),QWindow::Maximized);
+        maximize->forceActiveFocus(Qt::TabFocusReason);QVERIFY(send("key 57\n"));QTRY_COMPARE(detached->visibility(),QWindow::Windowed);
+        {
+            auto state=window->findChild<QObject*>("activeWindowState");QVERIFY(state);
+            auto tasks=qobject_cast<QAbstractItemModel*>(qvariant_cast<QObject*>(state->property("windowModel")));QVERIFY(tasks);
+            const auto roles=tasks->roleNames();const int pidRole=roles.key("AppPid",-1),minimizedRole=roles.key("IsMinimized",-1);QVERIFY(pidRole>=0 && minimizedRole>=0);
+            const auto minimized=[&]{for(int row=0;row<tasks->rowCount();++row){const auto index=tasks->index(row,0);if(tasks->data(index,pidRole).toLongLong()==QCoreApplication::applicationPid())return tasks->data(index,minimizedRole).toBool();}return false;};
+            auto minimize=find(conversation,"conversationMinimize");QVERIFY(minimize);
+            minimize->forceActiveFocus(Qt::TabFocusReason);QVERIFY(send("key 57\n"));QTRY_VERIFY(minimized());
+            detached->showNormal();detached->requestActivate();QTRY_VERIFY(!minimized() && detached->isActive());
+        }
         // Wayland does not expose a normal window's global position; use its real keyboard focus.
         auto reattach=find(conversation,"detachConversation");QVERIFY(reattach);
         reattach->forceActiveFocus(Qt::TabFocusReason);QTRY_VERIFY(reattach->hasActiveFocus());
@@ -263,8 +275,9 @@ private slots:
             QVERIFY(send("move "+QByteArray::number(dragPoint.x())+" "+QByteArray::number(dragPoint.y())+"\n"));
             QVERIFY(send("down\n"));QVERIFY(send("move "+QByteArray::number(dragPoint.x()+30)+" "+QByteArray::number(dragPoint.y()+100)+"\n"));
             QTRY_VERIFY(detached->isVisible());QTRY_VERIFY(window->property("conversationMoveReady").toBool());QVERIFY(send("up\n"));
-            QTest::qWait(150);reattach->forceActiveFocus(Qt::TabFocusReason);QVERIFY(send("key 57\n"));
+            QTRY_VERIFY_WITH_TIMEOUT(detached->isActive(),3000);reattach->forceActiveFocus(Qt::TabFocusReason);QTRY_VERIFY(reattach->hasActiveFocus());QVERIFY(send("key 57\n"));
             QTRY_VERIFY(!detached->isVisible() && window->property("conversationOpen").toBool());
+            QTRY_VERIFY_WITH_TIMEOUT(window->isActive(),3000);
             QCOMPARE(followup->property("text").toString(),QString("Dieselbe Folgefrage behalten"));
         }
         QVERIFY(click(find(conversation,"collapseConversation")));QTRY_VERIFY(!window->property("conversationOpen").toBool());

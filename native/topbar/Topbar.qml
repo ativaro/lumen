@@ -256,7 +256,21 @@ Window {
     }
     Window {
         id:conversationWindow;objectName:"detachedConversation";visible:false;transientParent:null
-        title:"Lumen";flags:Qt.Window;width:900;height:700;minimumWidth:440;minimumHeight:400;color:bar.colors.window
+        title:"Lumen";flags:Qt.Window|Qt.FramelessWindowHint;width:900;height:700;minimumWidth:440;minimumHeight:400;color:"transparent"
+        Rectangle {anchors.fill:parent;z:-1;color:bar.colors.window;radius:bar.colors.radius||12;border.color:bar.colors.border}
+        Repeater {
+            model:[Qt.LeftEdge,Qt.RightEdge,Qt.TopEdge,Qt.BottomEdge,Qt.TopEdge|Qt.LeftEdge,Qt.TopEdge|Qt.RightEdge,Qt.BottomEdge|Qt.LeftEdge,Qt.BottomEdge|Qt.RightEdge]
+            MouseArea {
+                required property int modelData
+                readonly property bool horizontal:!!(modelData&(Qt.LeftEdge|Qt.RightEdge))
+                readonly property bool vertical:!!(modelData&(Qt.TopEdge|Qt.BottomEdge))
+                z:2;enabled:conversationWindow.visibility!==Window.Maximized
+                x:modelData&Qt.RightEdge?conversationWindow.width-8:0;y:modelData&Qt.BottomEdge?conversationWindow.height-8:0
+                width:horizontal?8:conversationWindow.width;height:vertical?8:conversationWindow.height
+                cursorShape:horizontal&&vertical?(modelData===(Qt.TopEdge|Qt.LeftEdge)||modelData===(Qt.BottomEdge|Qt.RightEdge)?Qt.SizeFDiagCursor:Qt.SizeBDiagCursor):horizontal?Qt.SizeHorCursor:Qt.SizeVerCursor
+                onPressed:conversationWindow.startSystemResize(modelData)
+            }
+        }
         onFrameSwapped:if(bar.draggingConversation){bar.draggingConversation=false;Qt.callLater(()=>{bar.conversationMoveReady=conversationWindow.startSystemMove()})}
         onClosing:event=>{event.accepted=false;bar.closeConversation()}
     }
