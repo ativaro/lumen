@@ -60,5 +60,7 @@
   "Datensicherung": "Backups",
   "Optional": "Optional",
   "Updates an einem Ort.": "Updates in one place.",
-  "Deine Lumen-Komponenten sind aktuell.": "Your Lumen components are up to date."
+  "Deine Lumen-Komponenten sind aktuell.": "Your Lumen components are up to date.",
+  "Dieses Update enthält keine passende Lumen-Topbar. Die Installation bleibt unverändert.": "This update does not include a compatible Lumen topbar. The installation is unchanged.",
+  "Der Topbar-Helfer dieses Updates ist unvollständig. Die Installation bleibt unverändert.": "The topbar helper in this update is incomplete. The installation is unchanged."
 }

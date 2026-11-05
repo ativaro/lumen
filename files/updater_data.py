@@ -168,6 +168,14 @@ def check():
 def install_bundle(source, revision):
     roots = installations()
     if not roots: roots = [data_root()]
+    if any((root/'files/topbar_data.py').is_file() for root in roots):
+        required = ('files/topbar_data.py','files/topbar_activity.py','files/topbar_system.py',
+                    'files/topbar_context.py','native/topbar/CMakeLists.txt','bin/lumen-panel')
+        if any(not (source/name).is_file() for name in required):
+            raise ValueError(tr('Dieses Update enthält keine passende Lumen-Topbar. Die Installation bleibt unverändert.'))
+        help_text = run([str(source/'bin/lumen-panel'),'--help'], cwd=source, timeout=15)
+        if any(flag not in help_text for flag in ('--bar-snapshot','--system-topic','--ask','--topbar-note')):
+            raise ValueError(tr('Der Topbar-Helfer dieses Updates ist unvollständig. Die Installation bleibt unverändert.'))
     # Update every installed runtime; a newer user launcher must not mask an old
     # system copy. Existing installers preserve data and desktop preferences.
     if Path('/usr/share/lumen') in roots:
