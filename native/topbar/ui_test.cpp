@@ -16,6 +16,7 @@
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QScreen>
+#include <QSignalSpy>
 #include <QTest>
 #include <QSettings>
 #include <LayerShellQt/Window>
@@ -73,6 +74,9 @@ private slots:
         QVERIFY(send("key 108\n"));QTest::qWait(70);QVERIFY(send("key 28\n"));
         QTRY_VERIFY_WITH_TIMEOUT(QFile::exists("/profile/saved-A.txt"),3000);
         QTRY_VERIFY_WITH_TIMEOUT(!menus->opened(),3000);
+        QTRY_COMPARE_WITH_TIMEOUT(tray.items().size(),1,4000);
+        QTRY_VERIFY_WITH_TIMEOUT(item("trayItem_0"),2000);
+        if(window->width()>=900)QTRY_VERIFY_WITH_TIMEOUT(item("trayItem_0")->isVisible(),2000);
         QVERIFY(window->grabWindow().save("/profile/captures/native-topbar.png"));
         auto hover=item("activeAppButton");QVERIFY(hover && hover->isVisible());
         const auto origin=hover->mapToItem(window->contentItem(),QPointF());const auto size=hover->size();const auto scale=window->devicePixelRatio();
@@ -187,8 +191,39 @@ private slots:
         QVERIFY(trayMenu->grab().save("/profile/captures/native-tray-menu.png"));
         QVERIFY(send("key 108\n"));QTRY_VERIFY(trayMenu->activeAction()!=nullptr);QTest::qWait(70);QVERIFY(send("key 28\n"));
         QTRY_VERIFY_WITH_TIMEOUT(QFile::exists("/profile/tray-action.txt"),3000);
-        QDBusInterface trayControl("org.lumen.TrayTest","/Control",QString());QVERIFY(trayControl.call("quit").type()!=QDBusMessage::ErrorMessage);
+        QDBusInterface trayControl("org.lumen.TrayTest","/Control",QString());
+        QVERIFY(trayControl.call("populate",4).type()!=QDBusMessage::ErrorMessage);
+        QTRY_COMPARE_WITH_TIMEOUT(tray.items().size(),4,4000);
+        if(window->width()>=900)QTRY_VERIFY_WITH_TIMEOUT(item("trayItem_0")->isVisible(),2000);
+        QTest::qWait(150);QVERIFY(window->grabWindow().save("/profile/captures/native-tray-applications.png"));
+        const auto population=trayControl.call("populate",40);
+        QVERIFY2(population.type()!=QDBusMessage::ErrorMessage,qPrintable(population.errorMessage()));
+        QTRY_COMPARE_WITH_TIMEOUT(tray.items().size(),40,4000);
+        QTRY_VERIFY_WITH_TIMEOUT(window->property("shownTray").toInt()<40,2000);
+        QTRY_VERIFY_WITH_TIMEOUT(item("trayMoreButton")->isVisible(),2000);
+        QVERIFY(item("inlineComposer")->width()>=200);
+        auto lastVisible=item("trayItem_"+QString::number(window->property("shownTray").toInt()-1));
+        if(lastVisible){QVERIFY(lastVisible->isVisible());QVERIFY(lastVisible->mapToItem(window->contentItem(),QPointF()).x()>=0);}
+        QVERIFY(click(item("trayMoreButton")));
+        QTRY_VERIFY_WITH_TIMEOUT(item("overflowTray_39") && item("overflowTray_39")->isVisible(),2000);
+        auto lastTray=item("overflowTray_39");lastTray->forceActiveFocus(Qt::TabFocusReason);
+        QTRY_VERIFY(lastTray->hasActiveFocus());
+        QTRY_VERIFY(lastTray->mapToItem(window->contentItem(),QPointF(0,lastTray->height())).y()<=window->height()-16);
+        QSignalSpy painted(window,&QQuickWindow::frameSwapped);window->update();QTRY_VERIFY(painted.count()>0);
+        QTest::qWait(150);QVERIFY(window->grabWindow().save("/profile/captures/native-tray-overflow.png"));
+        const auto lastTrayPoint=lastTray->mapToGlobal(QPointF(lastTray->width()/2,lastTray->height()/2));
+        QVERIFY(send("move "+QByteArray::number(lastTrayPoint.x())+" "+QByteArray::number(lastTrayPoint.y())+"\n"));
+        QTRY_VERIFY(lastTray->property("hovered").toBool());
+        QVERIFY(send("right "+QByteArray::number(lastTrayPoint.x())+" "+QByteArray::number(lastTrayPoint.y())+"\n"));
+        QTRY_VERIFY_WITH_TIMEOUT(tray.opened(),3000);
+        QTRY_VERIFY(QApplication::activePopupWidget() && QApplication::activePopupWidget()->isActiveWindow());
+        QTRY_VERIFY(QApplication::activePopupWidget()->windowHandle()->isExposed());
+        QVERIFY(send("key 1\n"));QTRY_VERIFY(!tray.opened());
+        QVERIFY(send("key 1\n"));
+        QVERIFY(trayControl.call("quit").type()!=QDBusMessage::ErrorMessage);
         QTRY_COMPARE_WITH_TIMEOUT(tray.items().size(),0,3000);
+        QTRY_COMPARE(window->property("shownTray").toInt(),0);
+        QTRY_VERIFY(!item("trayMoreButton")->isVisible());
         QDBusInterface fixture("org.lumen.MenuTestA","/Control",QString());QVERIFY(fixture.call("command","fullscreen").type()!=QDBusMessage::ErrorMessage);
         QTRY_VERIFY_WITH_TIMEOUT(!window->isVisible(),3000);
         QVERIFY(fixture.call("command","normal").type()!=QDBusMessage::ErrorMessage);QTRY_VERIFY_WITH_TIMEOUT(window->isVisible(),3000);

@@ -78,8 +78,12 @@ Window {
         // Keep the real menus before optional title/tray space; narrow screens get a second input row.
         if(classic){
             showStatus=width>=900
-            shownTray=0
             expandedComposer=true
+            const currentTray=(trayRow.visible?trayRow.implicitWidth+1:0)+(trayMore.visible?trayMore.implicitWidth+1:0)
+            const baseSystem=systemRow.implicitWidth-currentTray
+            const traySpace=width-24-baseSystem-appRow.x-total-(appName.visible?44:0)-quickRow.implicitWidth-12-(twoRows?0:activityButton.width+324)
+            const allTray=activeTray.length*41+(hasPassiveTray?41:0)
+            shownTray=allTray<=traySpace?activeTray.length:Math.max(0,Math.min(activeTray.length,Math.floor((traySpace-41)/41)))
             const available=(twoRows?systemRow.x-12:systemRow.x-activityButton.width-300-24)-appRow.x-quickRow.implicitWidth-12
             appLabelWidth=Math.max(40,Math.min(appName.naturalWidth,180,available-total-8))
             const space=available-appLabelWidth-4
@@ -372,6 +376,11 @@ Window {
             Label {text:bar.t("Hintergrund-Apps");color:bar.colors.text;font.pixelSize:18;Layout.fillWidth:true}
             Repeater {model:trayModel.items.length
                 BarButton {required property int index;readonly property var entry:trayModel.items[index];objectName:"overflowTray_"+index;colors:bar.colors;text:entry?entry.title:"";glyph:entry?entry.icon:"";Layout.fillWidth:true;onClicked:trayModel.activate(entry.identity,this)
+                    onActiveFocusChanged:if(activeFocus)Qt.callLater(()=>{
+                        const viewport=trayPopup.contentItem.contentItem,top=mapToItem(viewport,0,0).y
+                        const delta=top<8?top-8:top+height>viewport.height-8?top+height-viewport.height+8:0
+                        viewport.contentY=Math.max(0,Math.min(Math.max(0,viewport.contentHeight-viewport.height),viewport.contentY+delta))
+                    })
                     TapHandler {acceptedButtons:Qt.RightButton|Qt.MiddleButton;onTapped:(point,button)=>trayModel.activate(parent.entry.identity,parent,button===Qt.RightButton?3:2)}
                 }
             }

@@ -9,6 +9,12 @@ tray=QSystemTrayIcon(QIcon(pixmap));tray.setToolTip('Lumen Tray Test')
 menu=QMenu();action=menu.addAction('Tray-Testaktion');action.triggered.connect(lambda:Path('/profile/tray-action.txt').write_text('done'))
 tray.setContextMenu(menu);tray.show()
 class Control(QObject):
+    extra=[]
+    @Slot(int)
+    def populate(self,count):
+        for index in range(len(self.extra),count-1):
+            extraMenu=QMenu();extraMenu.addAction('Tray-Testaktion')
+            extra=QSystemTrayIcon(QIcon.fromTheme(['folder-sync','keepassxc','audio-headphones'][index%3]));extra.setToolTip('Lumen Tray Test '+str(index+2));extra.setContextMenu(extraMenu);extra.show();self.extra.append((extra,extraMenu))
     @Slot()
     def hide(self):tray.hide()
     @Slot()

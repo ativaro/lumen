@@ -57,6 +57,8 @@ Freigaben und Aktualisierungen öffnen ihre bestehenden Prüf-/Bestätigungsdial
 Letzte Inhalte nutzen die vorhandenen Dateiverläufe und gespeicherten Gespräche;
 offene Notes-/App-Inhalte sind über die laufenden Fenster erreichbar. Verläufe
 anderer Serverbindungen werden nicht angeboten. Es werden keine Inhalte kopiert.
+Aktive Systemtray-Apps bleiben bei ausreichend Platz direkt sichtbar; nur bei
+Platzmangel sowie für passive Apps dient das Menü „Hintergrund-Apps“.
 Der technische Einstellungswert `classic` heißt in der Oberfläche nun Panorama;
 die ausdrücklich angebotenen alternativen Layouts bleiben wählbar.
 
