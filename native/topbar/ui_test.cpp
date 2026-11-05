@@ -484,6 +484,13 @@ private slots:
                 QCOMPARE(full->property("section").toInt(),0);QVERIFY(click(item(topic+"Section1")));
             }
             QTRY_VERIFY(full->property("opened").toBool());QCOMPARE(full->property("section").toInt(),1);
+            QCOMPARE(full->property("y").toReal(),quick->property("y").toReal());
+            QCOMPARE(full->property("x").toInt()+full->property("width").toInt(),window->width()-12);
+            if(window->property("classic").toBool()){
+                auto island=item("leftIsland");
+                QCOMPARE(full->property("y").toReal(),island->y()+island->height()-1);
+                QCOMPARE(island->property("bottomRightRadius").toReal(),0.0);
+            }
         };
         openDevice("systemControlsButton","audio",audioPopup);QVERIFY(!networkPopup->property("opened").toBool());
         QTRY_VERIFY_WITH_TIMEOUT(data.details()["audio"].toMap()["available"].toBool(),3000);

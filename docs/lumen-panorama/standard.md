@@ -110,6 +110,7 @@ Plasma führt den gemeinsamen Mitteilungsverlauf und alle Aktionen. Der erste
 Klick zeigt bis zu drei aktuelle Meldungen. Zugangsdaten, Verbindungswechsel und
 Geräteeinstellungen werden erst im dafür zuständigen vollständigen Menü behandelt.
 
+Die vollständigen Netzwerk- und Audio-Menüs schließen an derselben Kante direkt an die Topbar an wie ihre Kurzansichten.
 Netzwerk gliedert sich in Übersicht, WLAN,
 Kabel/Adapter, VPN/Proxy, Hotspot und Details/Diagnose; Audio in Übersicht,
 Ausgabe, Mikrofon, Apps, Bluetooth und Klang/Technik. Auf schmalen Bildschirmen

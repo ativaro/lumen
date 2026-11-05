@@ -14,6 +14,7 @@ Window {
     readonly property bool classic:layout==="classic"
     readonly property bool deck:layout==="deck"
     readonly property bool twoRows:classic && width<1320
+    readonly property int dockedMenuY:barSize-(classic?13:1)
     readonly property int barSize:classic?(twoRows?118:80):deck?118:layout==="band"?68:60
     readonly property int rowHeight:classic?36:44
     property bool expandedComposer:false
@@ -232,7 +233,7 @@ Window {
     Rectangle {
         id:leftIsland;objectName:"leftIsland";visible:bar.classic
         x:12;y:12;height:bar.conversationOpen?bar.barSize-24+bar.conversationHeight:activityPopup.visible?activityPopup.y+activityPopup.height-12:bar.barSize-24;width:bar.width-24
-        radius:(bar.colors.radius||10)+7;bottomLeftRadius:launcher.visible?0:radius;bottomRightRadius:quickMenu.visible?0:radius;color:bar.colors.window;border.color:bar.colors.border
+        radius:(bar.colors.radius||10)+7;bottomLeftRadius:launcher.visible?0:radius;bottomRightRadius:(quickMenu.visible || networkPopup.visible || audioPopup.visible)?0:radius;color:bar.colors.window;border.color:bar.colors.border
     }
     MouseArea {
         x:bar.classic?12:0;y:bar.classic?12:0;width:bar.width-2*x;height:bar.barSize-2*y
@@ -401,13 +402,14 @@ Window {
         onClosed:{Qt.callLater(bar.mask);restoreFocus.restart()}
         background:Rectangle {color:bar.colors.window;radius:13;border.color:bar.colors.border}
     }
+    component DockedBackground:Rectangle {
+        color:bar.colors.window;radius:bar.colors.radius||10;topLeftRadius:0;topRightRadius:0;border.color:bar.colors.border
+        Rectangle {x:1;y:0;width:parent.width-2;height:2;color:parent.color}
+    }
     component DockedPopup:BarPopup {
         followFocus:true
-        y:bar.barSize-(bar.classic?13:1)
-        background:Rectangle {
-            color:bar.colors.window;radius:bar.colors.radius||10;topLeftRadius:0;topRightRadius:0;border.color:bar.colors.border
-            Rectangle {x:1;y:0;width:parent.width-2;height:2;color:parent.color}
-        }
+        y:bar.dockedMenuY
+        background:DockedBackground {}
     }
     DockedPopup {
         id:quickMenu;objectName:"quickMenu";padding:12
@@ -480,23 +482,18 @@ Window {
         onOpened:restoreFocus.stop()
         onClosed:restoreFocus.restart()
     }
-    SystemMenu {
-        id:networkPopup;objectName:"networkPopup";topic:"network"
-        parent:bar.contentItem;width:Math.min(740,bar.width-24);x:bar.width-width-12;y:bar.barSize+6
+    component DockedSystemMenu:SystemMenu {
+        parent:bar.contentItem;width:Math.min(740,bar.width-24);x:bar.width-width-12;y:bar.dockedMenuY
         heightLimit:Math.max(100,bar.screen.height-bar.barSize-24)
         colors:bar.colors;controller:panelData;translate:bar.t
+        background:DockedBackground {}
         onGeometryUpdated:Qt.callLater(bar.mask)
         onOpened:restoreFocus.stop()
         onClosed:restoreFocus.restart()
     }
-    SystemMenu {
+    DockedSystemMenu {id:networkPopup;objectName:"networkPopup";topic:"network"}
+    DockedSystemMenu {
         id:audioPopup;objectName:"audioPopup";topic:"audio"
-        parent:bar.contentItem;width:Math.min(740,bar.width-24);x:bar.width-width-12;y:bar.barSize+6
-        heightLimit:Math.max(100,bar.screen.height-bar.barSize-24)
-        colors:bar.colors;controller:panelData;translate:bar.t
-        onGeometryUpdated:Qt.callLater(bar.mask)
-        onOpened:restoreFocus.stop()
-        onClosed:restoreFocus.restart()
         onLaunchStudio:panelData.launch("app","meetings")
     }
     BarPopup {

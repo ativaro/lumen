@@ -28,7 +28,6 @@ Popup {
     closePolicy:Popup.CloseOnEscape|Popup.CloseOnPressOutsideParent
     padding:0
     height:Math.min(700,heightLimit)
-    background:Rectangle {color:menu.colors.window;radius:menu.colors.radius||10;border.color:menu.colors.border}
     onOpened:{status="";controller.inspect(topic)}
     onVisibleChanged:geometryUpdated()
     onHeightChanged:geometryUpdated()
