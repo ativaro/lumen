@@ -74,7 +74,7 @@ class ConversationPipe(QObject):
                     from topbar_context import validate_note
                     note=validate_note(note)
                 c.note_context=note;c.set_query(prompt);c.submit(True)
-                if c.query==prompt:raise ValueError(c.error or c.text('Die Frage konnte nicht gesendet werden.'))
+                if c.query.strip()==prompt.strip():raise ValueError(c.error or c.text('Die Frage konnte nicht gesendet werden.'))
             elif method=='width':
                 if len(args)!=1 or type(args[0]) not in (int,float) or not 120<=args[0]<=10000:raise ValueError('Invalid content width')
                 self.width=args[0]

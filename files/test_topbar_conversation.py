@@ -62,7 +62,7 @@ with tempfile.TemporaryDirectory() as directory:
    pipe.dispatch(dict(method='submit',args=['Keep',{}]));send.assert_not_called()
   c.backend.set_busy(False)
   with patch.object(c.backend,'send',return_value=False):
-   pipe.dispatch(dict(method='submit',args=['Keep',{}]));assert c.query=='Keep'
+   pipe.dispatch(dict(method='submit',args=[' Keep ',{}]));assert c.query=='Keep' and c.error
   assert not c.note_context
   with patch.object(c.backend,'new_conversation') as reset,patch.object(c.backend,'send') as send:
    pipe.dispatch(dict(method='reset',args=[]));reset.assert_called_once();send.assert_not_called()
