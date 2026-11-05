@@ -51,7 +51,10 @@ und Bediengeometrie bleiben den vorhandenen semantischen Rollen zugeordnet.
 
 Desktop-Topbar (05.11.2026): Die Standardleiste folgt dem freigegebenen Entwurf
 `lumen-topbar-alltag.html`: ein zusammenhängendes Panorama-Band mit dauerhafter
-Lumen-Eingabe und Diktat-Einstieg. Fensterübersicht und letzte Inhalte haben je
+Lumen-Eingabe und Diktat-Einstieg. Links vor dem Lumen-Kreis steht ein eigener
+Programmknopf: Er öffnet direkt die installierten Anwendungen mit Suche. Der
+Lumen-Kreis öffnet die Lumen-Apps. Beide verwenden dasselbe vorhandene Startmenü.
+Fensterübersicht und letzte Inhalte haben je
 einen kleinen Schnellzugriff. Eine gemeinsame Statusfläche priorisiert Freigaben,
 Aufnahmen, Fokuszeit, Übertragungen, Medien und Updates; sie rotiert nicht automatisch.
 Nicht stören bleibt in der Mitteilungsanzeige erkennbar. Bei wenig Platz rückt die

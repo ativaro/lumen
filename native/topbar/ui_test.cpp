@@ -120,7 +120,9 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(QFile::exists("/profile/actions.jsonl"),3000);
         const auto actions=[](){QFile file("/profile/actions.jsonl");if(!file.open(QIODevice::ReadOnly))return QByteArray();return file.readAll();};
         QTRY_VERIFY_WITH_TIMEOUT(actions().contains("--open-app"),3000);
-        QVERIFY(click(item("launcherButton")));QTRY_VERIFY(apps->property("opened").toBool());QTest::qWait(180);QVERIFY(click(item("programsTab")));QTRY_VERIFY(apps->property("programs").toBool());
+        auto programsButton=item("programsButton");QVERIFY(programsButton && programsButton->isVisible());
+        QVERIFY(programsButton->mapToItem(window->contentItem(),QPointF(programsButton->width(),0)).x()<=launch->mapToItem(window->contentItem(),QPointF()).x());
+        QVERIFY(click(programsButton));QTRY_VERIFY(apps->property("opened").toBool());QTRY_VERIFY(apps->property("programs").toBool());
         QTRY_VERIFY_WITH_TIMEOUT(item("programSearch"),4000);
         auto programQuery=item("programSearch");QVERIFY(programQuery->isVisible());QTest::qWait(250);QVERIFY(apps->property("opened").toBool());programQuery->setProperty("text","lumen testprogramm");
         QTRY_COMPARE_WITH_TIMEOUT(item("programList")->property("count").toInt(),1,4000);
@@ -128,6 +130,9 @@ private slots:
         QVERIFY(window->grabWindow().save("/profile/captures/native-start-menu.png"));
         QVERIFY(send("key 28\n"));QTRY_VERIFY_WITH_TIMEOUT(QFile::exists("/profile/program-started"),4000);
         QTRY_VERIFY(!apps->property("opened").toBool());
+        QVERIFY(click(item("launcherButton")));QTRY_VERIFY(apps->property("opened").toBool());QVERIFY(!apps->property("programs").toBool());
+        QTest::qWait(180);QVERIFY(click(item("programsTab")));QTRY_VERIFY(apps->property("programs").toBool());
+        QVERIFY(send("key 1\n"));QTRY_VERIFY(!apps->property("opened").toBool());
         auto composer=item("inlineComposer");QVERIFY(composer);
         if(!composer->isVisible()){QVERIFY(click(item("askButton")));QTest::qWait(180);composer=item("popupComposer");}
         QVERIFY(composer);auto question=find(composer,"lumenQuestion");QVERIFY(question && question->isVisible());
