@@ -14,9 +14,8 @@ ColumnLayout {
     readonly property var noticeState:controller.noticePreview
     readonly property var detailData:controller.details[topic]||({})
     readonly property var entries:rows()
-    readonly property string title:t(({notifications:"Mitteilungen",network:"Netzwerk",audio:"Audio",lumen:"Lumen Apps",start:"Dein Start",settings:"Einstellungen"})[topic]||"Lumen")
+    readonly property string title:t(({notifications:"Mitteilungen",network:"Netzwerk",audio:"Audio",lumen:"Lumen Apps",settings:"Einstellungen"})[topic]||"Lumen")
     signal drill(string key)
-    signal searchPrograms(string query)
     signal dismiss()
     signal toggleQuiet()
     spacing:2
@@ -24,11 +23,6 @@ ColumnLayout {
     function rows(){
         if(notices)return (noticeState.items||[]).map(n=>({key:n.key,title:n.title,caption:n.source,
             detail:n.body,icon:n.icon,unread:n.unread,time:Qt.formatTime(new Date(n.updated*1000),"hh:mm")}))
-        if(topic==="start"){
-            const recent=controller.details.recent?.items?.[0]
-            return [{key:"library",title:t("Alle Apps"),icon:"applications-all-symbolic"},
-                {key:"recent",title:t("Gleich weiter"),detail:recent?.title||"",icon:"document-open-recent"}]
-        }
         if(topic==="settings")return [
             {key:"network",title:t("Netzwerk"),icon:"network-wireless"},
             {key:"audio",title:t("Audio"),icon:"audio-card"},
@@ -54,16 +48,6 @@ ColumnLayout {
         Layout.fillWidth:true
         Label {text:menu.title;color:menu.colors.text;font.pixelSize:20;font.weight:Font.Medium;Layout.fillWidth:true}
         BarButton {colors:menu.colors;text:menu.t("Schließen");glyph:"window-close";iconOnly:true;onClicked:menu.dismiss()}
-    }
-    function focusStart(){startSearch.clear();startSearch.forceActiveFocus()}
-    TextField {
-        id:startSearch;objectName:"quickStartSearch";visible:menu.topic==="start";Layout.fillWidth:true
-        implicitHeight:42;leftPadding:36;placeholderText:menu.t("Welche App brauchst du?");Accessible.name:placeholderText
-        palette.text:menu.colors.text;palette.placeholderText:menu.colors.muted
-        background:Rectangle {color:menu.colors.base;radius:8;border.color:startSearch.activeFocus?menu.colors.accent:menu.colors.border}
-        Kirigami.Icon {source:"search";isMask:true;color:menu.colors.muted;width:16;height:16;x:11;anchors.verticalCenter:parent.verticalCenter}
-        onTextEdited:if(text && !inputMethodComposing)menu.searchPrograms(text)
-        onAccepted:menu.searchPrograms(text)
     }
     RowLayout {visible:menu.notices && menu.noticeState.unread>0;Layout.fillWidth:true
         Label {text:menu.noticeState.unread+" "+menu.t("ungelesen");color:menu.colors.muted;Layout.fillWidth:true}
@@ -107,7 +91,7 @@ ColumnLayout {
     Rectangle {color:menu.colors.border;implicitHeight:1;Layout.topMargin:5;Layout.fillWidth:true}
     RowLayout {
         Layout.fillWidth:true
-        BarButton {objectName:"quickMore";colors:menu.colors;text:menu.t(({notifications:"Alle Mitteilungen",network:"Netzwerk öffnen",audio:"Audio öffnen",lumen:"Alle Lumen-Apps",start:"Startmenü öffnen",settings:"Systemsteuerung öffnen"})[menu.topic]||"Öffnen");glyph:"go-next";onClicked:menu.drill("")}
+        BarButton {objectName:"quickMore";colors:menu.colors;text:menu.t(({notifications:"Alle Mitteilungen",network:"Netzwerk öffnen",audio:"Audio öffnen",lumen:"Alle Lumen-Apps",settings:"Systemsteuerung öffnen"})[menu.topic]||"Öffnen");glyph:"go-next";onClicked:menu.drill("")}
         Item {Layout.fillWidth:true}
         BarButton {visible:menu.notices;colors:menu.colors;text:menu.t("Nicht stören");glyph:menu.quiet?"notifications-disabled":"notifications";current:menu.quiet;onClicked:menu.toggleQuiet()}
     }

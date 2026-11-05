@@ -152,21 +152,21 @@ private slots:
         auto programsButton=item("programsButton");QVERIFY(programsButton && programsButton->isVisible());
         QVERIFY(programsButton->mapToItem(window->contentItem(),QPointF(programsButton->width(),0)).x()<=launch->mapToItem(window->contentItem(),QPointF()).x());
         const auto openStartHome=[&]{
-            QVERIFY(click(programsButton));QTRY_VERIFY(quick->property("opened").toBool());
-            QVERIFY(click(item("quickMore")));QTRY_VERIFY(apps->property("opened").toBool());
+            QVERIFY(click(programsButton));QTRY_VERIFY(apps->property("opened").toBool());
+            QVERIFY(!quick->property("visible").toBool());
+            QVERIFY(!item("startMenu")->property("lumenOnly").toBool());
+            QVERIFY(!item("startMenu")->property("library").toBool());
         };
-        QVERIFY(click(programsButton));QTRY_VERIFY(quick->property("opened").toBool());
-        QCOMPARE(quick->property("x").toInt(),12);QVERIFY(quick->property("width").toInt()<=390);
-        QTRY_VERIFY(item("quickStartSearch")->hasActiveFocus());
-        QTRY_VERIFY(window->height()>=qCeil(quick->property("y").toReal()+quick->property("height").toReal()));
-        QTest::qWait(160);QVERIFY(window->grabWindow().save("/profile/captures/native-start-preview.png"));
+        openStartHome();
+        QTRY_VERIFY(item("programSearch")->hasActiveFocus());
+        QCOMPARE(apps->property("x").toInt(),12);
+        QCOMPARE(apps->property("y").toInt(),window->property("barSize").toInt()-(window->property("classic").toBool()?13:1));
         QVERIFY(send("key 37\n"));QTRY_VERIFY(apps->property("opened").toBool());
         QTRY_COMPARE(item("programSearch")->property("text").toString(),QString("k"));
         QVERIFY(send("key 18\n"));QTRY_COMPARE(item("programSearch")->property("text").toString(),QString("ke"));
         QVERIFY(send("key 1\n"));QTRY_COMPARE(item("programSearch")->property("text").toString(),QString());
         QVERIFY(send("key 1\n"));QTRY_VERIFY(!apps->property("opened").toBool());
-        QVERIFY(click(programsButton));QTRY_VERIFY(quick->property("opened").toBool());
-        QVERIFY(click(item("quickRow_library")));QTRY_VERIFY(apps->property("opened").toBool());
+        openStartHome();QVERIFY(click(item("startLibraryButton")));
         QVERIFY(item("startMenu")->property("library").toBool());
         QVERIFY(send("key 1\n"));QTRY_VERIFY(!apps->property("opened").toBool());
         openStartHome();QTRY_VERIFY(!item("startMenu")->property("lumenOnly").toBool());
@@ -429,8 +429,9 @@ private slots:
         QVERIFY(fixture.call("command","normal").type()!=QDBusMessage::ErrorMessage);QTRY_VERIFY_WITH_TIMEOUT(window->isVisible(),3000);
         if(!qgetenv("LUMEN_QA_SHORTCUTS").isEmpty()){QVERIFY(send("key 125\n"));}
         else data.ShowApps();
-        QTRY_VERIFY(quick->property("opened").toBool());QCOMPARE(window->property("quickTopic").toString(),QString("start"));
-        QVERIFY(click(item("quickMore")));QTRY_VERIFY(apps->property("opened").toBool());QTRY_VERIFY(window->isActive());
+        QTRY_VERIFY(apps->property("opened").toBool());QTRY_VERIFY(window->isActive());
+        QVERIFY(!quick->property("visible").toBool());QTRY_VERIFY(item("programSearch")->hasActiveFocus());
+        QTRY_VERIFY(item("startPin_0")->isVisible());
         if(!qgetenv("LUMEN_QA_SHORTCUTS").isEmpty()){
             QVERIFY(!item("startMenu")->property("lumenOnly").toBool());
             QVERIFY(window->grabWindow().save("/profile/captures/native-shortcut-start.png"));
@@ -513,9 +514,6 @@ private slots:
         item("startSettingsButton")->forceActiveFocus();QTest::qWait(120);QVERIFY(click(item("startSettingsButton")));
         QTRY_VERIFY(quick->property("opened").toBool());QCOMPARE(window->property("quickTopic").toString(),QString("settings"));
         QVERIFY(click(item("quickRow_preferences")));QTRY_VERIFY(actions().contains("--settings"));
-        QVERIFY(click(programsButton));QTRY_VERIFY(quick->property("opened").toBool());QVERIFY(click(item("quickRow_recent")));
-        auto recentPage=window->findChild<QObject*>("activityPopup");QTRY_VERIFY(recentPage->property("opened").toBool());
-        QCOMPARE(recentPage->property("page").toString(),QString("recent"));QVERIFY(send("key 1\n"));QTRY_VERIFY(!recentPage->property("opened").toBool());
         QQmlComponent secondComponent(&engine,QUrl("qrc:/lumen/Topbar.qml"));
         QScopedPointer<QObject> secondOwner(secondComponent.create());auto second=qobject_cast<QQuickWindow*>(secondOwner.data());QVERIFY(second);
         auto secondScreen=QGuiApplication::screens()[1];second->setScreen(secondScreen);second->setGeometry(secondScreen->geometry().x(),secondScreen->geometry().y(),secondScreen->geometry().width(),56);

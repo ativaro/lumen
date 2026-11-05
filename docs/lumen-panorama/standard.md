@@ -95,14 +95,14 @@ Schließen; Verschieben und Größenänderungen bleiben native Fensteraktionen.
 Der technische Einstellungswert `classic` heißt in der Oberfläche nun Panorama;
 die ausdrücklich angebotenen alternativen Layouts bleiben wählbar.
 
-Desktop-Topbar, Kurzansichten (06.11.2026): Startmenü, Lumen-Kreis, Glocke, Netzwerk, Audio und
+Desktop-Topbar, Kurzansichten (06.11.2026): Lumen-Kreis, Glocke, Netzwerk, Audio und
 Einstellungen öffnen jeweils eine angedockte, höchstens 390 Pixel breite Ansicht.
-Start und Lumen-Kreis schließen links an die Leiste an, die Statusmenüs rechts.
+Der Lumen-Kreis schließt links an die Leiste an, die Statusmenüs rechts.
 Auf schmalen Bildschirmen bleibt ein seitlicher Abstand. Ein Eintrag öffnet das
 vollständige Menü mit der gewählten Meldung, dem Gerätebereich oder dem gefilterten
-Lumen-App-Katalog. Programmknopf und Super öffnen dieselbe Kurzansicht. Beim Tippen geht die Suche
-im vollständigen Startmenü weiter. „Alle Apps“ öffnet den Katalog, „Gleich weiter“
-die letzten Inhalte. Über die Einstellungen sind Netzwerk, Audio, Lumen-Einstellungen
+Lumen-App-Katalog. Programmknopf und Super öffnen direkt das vollständige, links angedockte
+Startmenü „Dein Start“. Die Suche erhält den Tastaturfokus. Angeheftete Apps und
+„Gleich weiter“ sind sofort sichtbar. „Alle Apps“ öffnet den Katalog. Über die Einstellungen sind Netzwerk, Audio, Lumen-Einstellungen
 und die vollständige Systemsteuerung erreichbar.
 Plasma führt den gemeinsamen Mitteilungsverlauf und alle Aktionen. Der erste
 Klick zeigt bis zu drei aktuelle Meldungen. Zugangsdaten, Verbindungswechsel und
