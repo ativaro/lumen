@@ -103,7 +103,9 @@ Auf schmalen Bildschirmen bleibt ein seitlicher Abstand. Ein Eintrag öffnet das
 vollständige Menü mit der gewählten Meldung oder dem Gerätebereich. Programmknopf und Super öffnen direkt das vollständige, links angedockte
 Startmenü „Dein Start“. Die Suche erhält den Tastaturfokus. Angeheftete Apps und
 „Gleich weiter“ sind sofort sichtbar. „Alle Apps“ öffnet den Katalog. Über die Einstellungen sind Netzwerk, Audio, Lumen-Einstellungen
-und die vollständige Systemsteuerung erreichbar.
+und die vollständige Systemsteuerung erreichbar. Ein zweiter Klick auf denselben
+Menüknopf klappt die Ansicht zu. Beim Wechsel zwischen Menüknöpfen ist nur die
+gewählte Ansicht geöffnet. Eigene App-Fenster behalten ihre Fenstersteuerung.
 Plasma führt den gemeinsamen Mitteilungsverlauf und alle Aktionen. Der erste
 Klick zeigt bis zu drei aktuelle Meldungen. Zugangsdaten, Verbindungswechsel und
 Geräteeinstellungen werden erst im dafür zuständigen vollständigen Menü behandelt.

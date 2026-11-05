@@ -86,6 +86,10 @@ private slots:
             const auto point=value->mapToGlobal(QPointF(value->width()/2,value->height()/2));
             return send("click "+QByteArray::number(point.x())+" "+QByteArray::number(point.y())+"\n");
         };
+        if(button->objectName()=="applicationMenu_0"){
+            QVERIFY(click(button));QTRY_VERIFY(menus->opened());
+            QVERIFY(click(button));QTRY_VERIFY(!menus->opened());
+        }
         QVERIFY(click(button));QTRY_VERIFY_WITH_TIMEOUT(QApplication::activePopupWidget()!=nullptr,3000);
         auto popup=qobject_cast<QMenu*>(QApplication::activePopupWidget());QVERIFY(popup);
         QCOMPARE(popup->font().pixelSize(),QApplication::font().pixelSize());
@@ -125,6 +129,28 @@ private slots:
         delete temporaryAnchor;QTRY_VERIFY(!tip->isVisible());
         for(const auto &name:{"launcherButton","activeAppButton","applicationMenu_0","clockButton"})
             QCOMPARE(qvariant_cast<QFont>(item(name)->property("font")).pixelSize(),QApplication::font().pixelSize());
+        const auto twice=[&](const QString &trigger,const char *name){
+            auto control=item(trigger);auto menu=window->findChild<QObject*>(name);
+            QVERIFY2(control && menu && control->isVisible(),qPrintable(trigger));
+            QVERIFY2(click(control),qPrintable(trigger));QTRY_VERIFY2(menu->property("opened").toBool(),qPrintable(trigger));
+            QVERIFY2(click(control),qPrintable(trigger));QTRY_VERIFY2(!menu->property("visible").toBool(),qPrintable(trigger));
+        };
+        twice("programsButton","appsPopup");twice("launcherButton","appsPopup");
+        twice("notificationsButton","quickMenu");twice("compactControlsButton","quickMenu");
+        twice("clockButton","calendarPopup");twice("activeAppButton","windowMenu");
+        twice("recentContentButton","activityPopup");twice("windowOverviewButton","activityPopup");
+        twice(data.layout()=="classic"?"activityButton":"activityCompactButton","activityPopup");
+        if(item("networkButton")->isVisible())twice("networkButton","quickMenu");
+        if(item("systemControlsButton")->isVisible())twice("systemControlsButton","quickMenu");
+        if(item("menuOverflowButton")->isVisible())twice("menuOverflowButton",menus->entries().isEmpty()?"windowMenu":"menuOverflow");
+        if(item("askButton")->isVisible())twice("askButton","askPopup");
+        QVERIFY(click(item("clockButton")));QTRY_VERIFY(window->findChild<QObject*>("calendarPopup")->property("opened").toBool());
+        QVERIFY(click(item("launcherButton")));QTRY_VERIFY(window->findChild<QObject*>("appsPopup")->property("opened").toBool());
+        QVERIFY(!window->findChild<QObject*>("calendarPopup")->property("visible").toBool());
+        QVERIFY(click(item("recentContentButton")));QTRY_VERIFY(window->findChild<QObject*>("activityPopup")->property("opened").toBool());
+        QVERIFY(!window->findChild<QObject*>("appsPopup")->property("visible").toBool());
+        QVERIFY(click(item("windowOverviewButton")));QTRY_COMPARE(window->findChild<QObject*>("activityPopup")->property("page").toString(),QString("windows"));
+        QVERIFY(click(item("windowOverviewButton")));QTRY_VERIFY(!window->findChild<QObject*>("activityPopup")->property("visible").toBool());
         QVERIFY(click(item("notificationsButton")));
         auto notesPeek=window->findChild<QObject*>("quickMenu");
         QTRY_VERIFY(notesPeek && notesPeek->property("opened").toBool());
@@ -404,6 +430,7 @@ private slots:
         QVERIFY(item("inlineComposer")->width()>=200);
         auto lastVisible=item("trayItem_"+QString::number(window->property("shownTray").toInt()-1));
         if(lastVisible){QVERIFY(lastVisible->isVisible());QVERIFY(lastVisible->mapToItem(window->contentItem(),QPointF()).x()>=0);}
+        twice("trayMoreButton","trayPopup");
         QVERIFY(click(item("trayMoreButton")));
         auto trayPopup=window->findChild<QObject*>("trayPopup");QVERIFY(trayPopup);
         QTRY_VERIFY_WITH_TIMEOUT(trayPopup->property("opened").toBool(),2000);

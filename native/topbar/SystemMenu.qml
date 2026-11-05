@@ -25,7 +25,7 @@ Popup {
     signal geometryUpdated()
     focus:true
     popupType:Popup.Item
-    closePolicy:Popup.CloseOnEscape|Popup.CloseOnPressOutside
+    closePolicy:Popup.CloseOnEscape|Popup.CloseOnPressOutsideParent
     padding:0
     height:Math.min(700,heightLimit)
     background:Rectangle {color:menu.colors.window;radius:menu.colors.radius||10;border.color:menu.colors.border}

@@ -79,10 +79,14 @@ Window {
         return {section:"focus",text:t("Auf einen Blick"),icon:"emblem-ok-symbolic"}
     }
     Notifications.Settings {id:notificationSettings;live:true}
-    function showActivity(page){quickMenu.close();if(conversationOpen)closeConversation();activityPopup.page=page;activityPopup.section=statusSection;activityPopup.open()}
+    function showActivity(page){
+        const same=activityPopup.page===page
+        activityPopup.page=page;activityPopup.section=statusSection
+        toggleMenu(activityPopup,same)
+    }
     function t(source){return stateData.labels?.[source] || source}
     function openConversation(){
-        focusLoss.stop();restoreFocus.stop();quickMenu.close();launcher.close();askPopup.close();contextDrawer.close();activityPopup.close()
+        focusLoss.stop();restoreFocus.stop();closeOtherMenus(null)
         conversationPane.parent=bar.contentItem
         conversationOpen=true;panelData.conversation.call("width",[Math.min(712,bar.width-72)])
         if(questionState.draft)panelData.conversation.call("draft",[questionState.draft,questionState.note])
@@ -143,34 +147,39 @@ Window {
         showContext=total+appLabelWidth+quickRow.implicitWidth+160<menuSpace
         Qt.callLater(mask)
     }
+    readonly property var barMenus:[quickMenu,launcher,systemPopup,networkPopup,audioPopup,overflow,windowMenu,trayPopup,calendar,askPopup,contextDrawer,activityPopup]
+    function closeOtherMenus(keep){
+        for(const menu of barMenus)if(menu!==keep && menu.visible)menu.close()
+    }
+    function toggleMenu(menu,sameView=true){
+        const close=menu.visible && sameView
+        closeOtherMenus(menu)
+        if(close){menu.close();return false}
+        if(conversationOpen)closeConversation()
+        focusLoss.stop();restoreFocus.stop()
+        menu.open()
+        return true
+    }
     function mask(){
         let regions=classic?[Qt.rect(12,12,width-24,barSize-24+(conversationOpen?conversationHeight:0))]:[Qt.rect(0,0,width,barSize+(conversationOpen?conversationHeight:0))]
         let popupOpen=false
-        for(const popup of [quickMenu,launcher,systemPopup,networkPopup,audioPopup,overflow,windowMenu,trayPopup,calendar,askPopup,contextDrawer,activityPopup])if(popup.visible){regions.push(Qt.rect(popup.x,popup.y,popup.width,popup.height));popupOpen=true}
+        for(const popup of barMenus)if(popup.visible){regions.push(Qt.rect(popup.x,popup.y,popup.width,popup.height));popupOpen=true}
         yieldingConversation=detachingConversation||(conversationWindow.visible&&!popupOpen&&!conversationOpen)
         panelData.inputMask(bar,regions,popupOpen||conversationOpen)
     }
     onBarSizeChanged:Qt.callLater(mask)
-    onLayoutChanged:if(ready){quickMenu.close();launcher.close();systemPopup.close();networkPopup.close();audioPopup.close();overflow.close();windowMenu.close();trayPopup.close();calendar.close();askPopup.close();contextDrawer.close();activityPopup.close();Qt.callLater(()=>{fit();if(layout==="context" && inlineComposer.visible && inlineComposer.editing)contextDrawer.open()})}
+    onLayoutChanged:if(ready){closeOtherMenus(null);Qt.callLater(()=>{fit();if(layout==="context" && inlineComposer.visible && inlineComposer.editing)contextDrawer.open()})}
     function showLauncher(lumenApps){
-        if(launcher.opened && startMenu.lumenOnly===lumenApps){launcher.close();return}
-        if(conversationOpen)closeConversation()
-        for(const popup of [quickMenu,systemPopup,networkPopup,audioPopup,activityPopup,contextDrawer,askPopup])popup.close()
-        focusLoss.stop();restoreFocus.stop()
-        startMenu.reset(lumenApps)
-        if(launcher.opened){launcher.scrollToTop();startMenu.focusSearch()}
-        else launcher.open()
+        if(!toggleMenu(launcher,startMenu.lumenOnly===lumenApps))return
+        startMenu.reset(lumenApps);launcher.scrollToTop();startMenu.focusSearch()
         panelData.refresh();panelData.inspect("recent")
     }
     function quick(topic){
-        const same=quickMenu.visible && quickTopic===topic
-        if(same){quickMenu.close();return}
-        if(conversationOpen)closeConversation()
-        for(const popup of [launcher,systemPopup,networkPopup,audioPopup,activityPopup,contextDrawer,askPopup])popup.close()
-        focusLoss.stop();restoreFocus.stop()
+        const full=topic==="audio"?audioPopup:topic==="network"?networkPopup:topic==="settings"?systemPopup:null
+        if(full?.visible){closeOtherMenus(null);return}
+        const same=quickTopic===topic
         quickTopic=topic
-        if(topic==="audio" || topic==="network")panelData.inspect(topic)
-        quickMenu.open()
+        if(toggleMenu(quickMenu,same) && (topic==="audio" || topic==="network"))panelData.inspect(topic)
     }
     function drillQuick(key){
         const topic=quickTopic
@@ -190,13 +199,13 @@ Window {
         full.section=section;full.open()
     }
     function updateMenu(){appMenu.setEndpoint(windowState.service,windowState.path)}
-    function dismissIfInactive(){if(!bar.active && !appMenu.opened && !trayModel.opened && !startMenu.menuOpened && !conversationPane.dialogVisible){quickMenu.close();launcher.close();systemPopup.close();networkPopup.close();audioPopup.close();overflow.close();windowMenu.close();trayPopup.close();calendar.close();askPopup.close();contextDrawer.close();activityPopup.close();trayModel.close();if(conversationOpen)closeConversation()}}
+    function dismissIfInactive(){if(!bar.active && !appMenu.opened && !trayModel.opened && !startMenu.menuOpened && !conversationPane.dialogVisible){closeOtherMenus(null);trayModel.close();if(conversationOpen)closeConversation()}}
     onHeightChanged:Qt.callLater(mask)
     onConversationOpenChanged:Qt.callLater(mask)
     onActiveChanged:if(active)focusLoss.stop();else focusLoss.restart()
     Timer {id:focusLoss;interval:80;onTriggered:bar.dismissIfInactive()}
     // A delayed activation can steal focus from a subsequently reopened popup.
-    Timer {id:restoreFocus;interval:0;onTriggered:if(bar.active && !bar.conversationOpen && !bar.detachingConversation && !inlineComposer.editing && !appMenu.opened && !trayModel.opened && ![quickMenu,launcher,systemPopup,networkPopup,audioPopup,overflow,windowMenu,trayPopup,calendar,askPopup,contextDrawer,activityPopup].some(p=>p.visible))windowState.action("activate")}
+    Timer {id:restoreFocus;interval:0;onTriggered:if(bar.active && !bar.conversationOpen && !bar.detachingConversation && !inlineComposer.editing && !appMenu.opened && !trayModel.opened && !barMenus.some(p=>p.visible))windowState.action("activate")}
     onWidthChanged:Qt.callLater(fit)
     onVisibleChanged:if(visible)Qt.callLater(fit)
     Timer {interval:1000;running:true;repeat:true;onTriggered:{bar.now=Date.now();bar.clockText=Qt.formatTime(new Date(),"hh:mm")}}
@@ -207,7 +216,7 @@ Window {
         holdActiveWindow:bar.conversationOpen || bar.detachingConversation || !!bar.notePendingAction || inlineComposer.editing || appMenu.opened || trayModel.opened || quickMenu.opened || launcher.opened || systemPopup.opened || networkPopup.opened || audioPopup.opened || overflow.opened || windowMenu.opened || trayPopup.opened || calendar.opened || askPopup.opened || contextDrawer.opened || activityPopup.opened
         onServiceChanged:Qt.callLater(bar.updateMenu)
         onPathChanged:Qt.callLater(bar.updateMenu)
-        onFullScreenChanged:if(fullScreen){appMenu.close();trayModel.close();quickMenu.close();launcher.close();systemPopup.close();networkPopup.close();audioPopup.close();overflow.close();windowMenu.close();trayPopup.close();calendar.close();askPopup.close();contextDrawer.close();activityPopup.close()}
+        onFullScreenChanged:if(fullScreen){appMenu.close();trayModel.close();closeOtherMenus(null)}
     }
     AppMenu {id:appMenu;objectName:"applicationMenus";onEntriesChanged:Qt.callLater(bar.fit)}
     Connections {target:appMenu;function onOpenedChanged(){if(appMenu.opened)restoreFocus.stop();else{overflow.close();restoreFocus.restart()}Qt.callLater(bar.dismissIfInactive)}}
@@ -225,6 +234,10 @@ Window {
         x:12;y:12;height:bar.conversationOpen?bar.barSize-24+bar.conversationHeight:activityPopup.visible?activityPopup.y+activityPopup.height-12:bar.barSize-24;width:bar.width-24
         radius:(bar.colors.radius||10)+7;bottomLeftRadius:launcher.visible?0:radius;bottomRightRadius:quickMenu.visible?0:radius;color:bar.colors.window;border.color:bar.colors.border
     }
+    MouseArea {
+        x:bar.classic?12:0;y:bar.classic?12:0;width:bar.width-2*x;height:bar.barSize-2*y
+        onClicked:bar.closeOtherMenus(null)
+    }
     Row {
         id:homeRow;x:bar.classic?24:16;y:(bar.classic?40:bar.deck?34:bar.barSize/2)-height/2
         spacing:bar.classic?2:7
@@ -240,16 +253,17 @@ Window {
     RowLayout {
         id:appRow;x:bar.deck?16:homeRow.x+homeRow.width+8;y:bar.classic?40-height/2:bar.deck?72:(bar.barSize-height)/2
         width:bar.classic?(bar.twoRows?Math.max(0,systemRow.x-x-12):bar.appLabelWidth+applicationMenuRow.implicitWidth+quickRow.implicitWidth+12):Math.max(0,(bar.expandedComposer?inlineComposer.x-8:bar.deck?bar.width-16:systemRow.x-12)-x);height:bar.rowHeight;spacing:2
-        BarButton {id:appName;objectName:"activeAppButton";key:!bar.classic;current:!bar.classic;onNaturalWidthChanged:Qt.callLater(bar.fit);iconOnly:bar.appLabelWidth<=45;colors:bar.colors;text:windowState.appName||bar.t("Desktop");glyph:"application-menu";symbol:bar.classic?"":bar.currentSymbol;onClicked:windowMenu.open();visible:bar.width>=560;Layout.minimumWidth:0;Layout.preferredWidth:bar.appLabelWidth;Layout.maximumWidth:180}
+        BarButton {id:appName;objectName:"activeAppButton";key:!bar.classic;current:!bar.classic;onNaturalWidthChanged:Qt.callLater(bar.fit);iconOnly:bar.appLabelWidth<=45;colors:bar.colors;text:windowState.appName||bar.t("Desktop");glyph:"application-menu";symbol:bar.classic?"":bar.currentSymbol;onClicked:bar.toggleMenu(windowMenu);visible:bar.width>=560;Layout.minimumWidth:0;Layout.preferredWidth:bar.appLabelWidth;Layout.maximumWidth:180}
         Row {
             id:applicationMenuRow
             spacing:0
             Repeater {
                 id:menuButtons;model:appMenu.entries
-                BarButton {required property var modelData;required property int index;objectName:"applicationMenu_"+index;colors:bar.colors;text:modelData.label;enabled:modelData.enabled;visible:index<bar.visibleMenus;onClicked:appMenu.show(index,this);onImplicitWidthChanged:Qt.callLater(bar.fit)}
+                BarButton {required property var modelData;required property int index;objectName:"applicationMenu_"+index;colors:bar.colors;text:modelData.label;enabled:modelData.enabled;visible:index<bar.visibleMenus;onClicked:{bar.closeOtherMenus(null);appMenu.show(index,this)}
+                    onImplicitWidthChanged:Qt.callLater(bar.fit)}
                 onCountChanged:Qt.callLater(bar.fit)
             }
-            BarButton {id:overflowButton;objectName:"menuOverflowButton";colors:bar.colors;text:bar.t("Weitere App-Menüs");glyph:"overflow-menu";iconOnly:true;visible:bar.visibleMenus<menuButtons.count || !appName.visible;onClicked:menuButtons.count?overflow.open():windowMenu.open()}
+            BarButton {id:overflowButton;objectName:"menuOverflowButton";colors:bar.colors;text:bar.t("Weitere App-Menüs");glyph:"overflow-menu";iconOnly:true;visible:bar.visibleMenus<menuButtons.count || !appName.visible;onClicked:bar.toggleMenu(menuButtons.count?overflow:windowMenu)}
         }
         Row {id:quickRow;spacing:2
             BarButton {objectName:"windowOverviewButton";colors:bar.colors;text:bar.t("Fensterübersicht");glyph:"view-grid";iconOnly:true;onClicked:bar.showActivity("windows")}
@@ -261,11 +275,14 @@ Window {
     }
     AskComposer {
         id:inlineComposer;objectName:"inlineComposer";onEditingChanged:if(editing){restoreFocus.stop();if(bar.layout==="context" && visible)contextDrawer.open()}
-        onInputRequested:if(conversationWindow.visible)bar.openConversation()
+        onInputRequested:{
+            bar.closeOtherMenus(bar.layout==="context"?contextDrawer:null)
+            if(conversationWindow.visible)bar.openConversation()
+        }
         visible:bar.expandedComposer;width:bar.classic?Math.max(0,activityButton.x-(bar.twoRows?24:appRow.x+appRow.width+12)-60):266
         x:bar.classic?(bar.twoRows?24:appRow.x+appRow.width+12):bar.deck?bar.width-310-16:systemRow.x-310-8;y:bar.classic?(bar.twoRows?82:40)-height/2:bar.deck?72:(bar.barSize-height)/2
         colors:bar.colors;translate:bar.t;controller:panelData;keyStyle:!bar.classic
-        request:questionState;onInspectAttachment:contextDrawer.open();onSent:bar.conversationSent();onVoiceRequested:bar.openConversation()
+        request:questionState;onInspectAttachment:bar.toggleMenu(contextDrawer);onSent:bar.conversationSent();onVoiceRequested:bar.openConversation()
     }
     BarButton {objectName:"conversationToggle";visible:inlineComposer.visible;colors:bar.colors;glyph:bar.conversationOpen?"arrow-up":"arrow-down";text:bar.t(bar.conversationOpen?"Gespräch einklappen":"Gespräch aufklappen");iconOnly:true;x:inlineComposer.x+inlineComposer.width+4;y:inlineComposer.y;onClicked:bar.toggleConversation()}
     ConversationState {id:conversationState;model:panelData.conversation;translate:bar.t;colors:bar.colors}
@@ -335,24 +352,24 @@ Window {
             Row {
                 id:trayRow;spacing:1;visible:bar.shownTray>0
                 Repeater {model:bar.activeTray.length
-                    BarButton {required property int index;readonly property var entry:bar.activeTray[index];objectName:"trayItem_"+index;colors:bar.colors;text:entry?entry.title:"";glyph:entry?entry.icon:"";iconOnly:true;visible:index<bar.shownTray;onClicked:trayModel.activate(entry.identity,this)
+                    BarButton {required property int index;readonly property var entry:bar.activeTray[index];objectName:"trayItem_"+index;colors:bar.colors;text:entry?entry.title:"";glyph:entry?entry.icon:"";iconOnly:true;visible:index<bar.shownTray;onClicked:{bar.closeOtherMenus(null);trayModel.activate(entry.identity,this)}
                         TapHandler {acceptedButtons:Qt.RightButton|Qt.MiddleButton;onTapped:(point,button)=>trayModel.activate(parent.entry.identity,parent,button===Qt.RightButton?3:2)}
                     }
                 }
             }
-            BarButton {id:trayMore;objectName:"trayMoreButton";colors:bar.colors;text:bar.t("Hintergrund-Apps");glyph:"arrow-down";iconOnly:true;visible:bar.shownTray<bar.activeTray.length || bar.hasPassiveTray;onClicked:trayPopup.open()}
-            BarButton {key:!bar.classic;objectName:"askButton";colors:bar.colors;text:bar.t("Lumen fragen oder suchen");glyph:"search";iconOnly:true;visible:!bar.expandedComposer;onClicked:{askPopup.open();popupComposer.focusInput()}}
+            BarButton {id:trayMore;objectName:"trayMoreButton";colors:bar.colors;text:bar.t("Hintergrund-Apps");glyph:"arrow-down";iconOnly:true;visible:bar.shownTray<bar.activeTray.length || bar.hasPassiveTray;onClicked:bar.toggleMenu(trayPopup)}
+            BarButton {key:!bar.classic;objectName:"askButton";colors:bar.colors;text:bar.t("Lumen fragen oder suchen");glyph:"search";iconOnly:true;visible:!bar.expandedComposer;onClicked:if(bar.toggleMenu(askPopup))popupComposer.focusInput()}
             BarButton {key:!bar.classic;objectName:"compactDictateButton";colors:bar.colors;text:bar.t("Mit Lumen sprechen");glyph:"microphone-sensitivity-high";iconOnly:true;visible:!bar.expandedComposer;onClicked:{bar.openConversation();panelData.conversation.call("voice")}}
             BarButton {colors:bar.colors;text:bar.t("Übertragungen")+(bar.stateData.operations?.transfer?" · "+bar.stateData.operations.transfer.count:"");glyph:"folder-upload";iconOnly:true;visible:!bar.classic && !!bar.stateData.operations?.transfer;onClicked:panelData.launch("transfer",bar.stateData.operations.transfer.id)}
             BarButton {colors:bar.colors;text:bar.t("Aufnahme in Audio Studio");glyph:"media-record";iconOnly:true;visible:!bar.classic && !!bar.stateData.operations?.audio;onClicked:panelData.launch("app","meetings")}
-            BarButton {key:!bar.classic;objectName:"systemErrorButton";colors:bar.colors;text:bar.t(panelData.error);glyph:"dialog-warning";iconOnly:true;visible:!!panelData.error;onClicked:systemPopup.open()}
+            BarButton {key:!bar.classic;objectName:"systemErrorButton";colors:bar.colors;text:bar.t(panelData.error);glyph:"dialog-warning";iconOnly:true;visible:!!panelData.error;onClicked:bar.toggleMenu(systemPopup)}
             BarButton {id:networkButton;objectName:"networkButton";key:!bar.classic;colors:bar.colors;text:bar.t("Netzwerk");glyph:"network-wireless";iconOnly:true;visible:bar.showStatus;current:quickMenu.visible && bar.quickTopic==="network";onClicked:bar.quick("network")}
             BarButton {id:volumeButton;key:!bar.classic;objectName:"systemControlsButton";colors:bar.colors;text:bar.t("Audio");glyph:bar.stateData.system?.muted?"audio-volume-muted":"audio-volume-high";iconOnly:true;visible:bar.showStatus;current:quickMenu.visible && bar.quickTopic==="audio";onClicked:bar.quick("audio")}
             BarButton {objectName:"notificationsButton";key:!bar.classic;colors:bar.colors;text:bar.t("Mitteilungen")+(bar.quiet?" · "+bar.t("Nicht stören"):bar.stateData.unread>0?" · "+bar.stateData.unread:"");glyph:bar.quiet?"notifications-disabled":bar.stateData.unread>0?"notifications-new":"notifications";iconOnly:true;current:quickMenu.visible && bar.quickTopic==="notifications";onClicked:bar.quick("notifications")
                 Rectangle {anchors.right:parent.right;anchors.top:parent.top;anchors.rightMargin:4;anchors.topMargin:4;width:7;height:7;radius:4;color:bar.colors.accent
                     visible:!bar.quiet && (quickMenu.visible && bar.quickTopic==="notifications" && panelData.noticePreview.items?panelData.noticePreview.unread:bar.stateData.unread)>0}
             }
-            BarButton {colors:bar.colors;objectName:"clockButton";text:bar.clockText;visible:bar.width>460;onClicked:calendar.open()}
+            BarButton {colors:bar.colors;objectName:"clockButton";text:bar.clockText;visible:bar.width>460;onClicked:bar.toggleMenu(calendar)}
             BarButton {id:compactControls;key:!bar.classic;objectName:"compactControlsButton";colors:bar.colors;text:bar.t("Systemsteuerung");glyph:"settings-configure";iconOnly:true;current:quickMenu.visible && bar.quickTopic==="settings";onClicked:bar.quick("settings")}
         onImplicitWidthChanged:Qt.callLater(bar.fit)
     }
@@ -363,7 +380,7 @@ Window {
         parent:bar.contentItem
         popupType:Popup.Item
         focus:true
-        padding:16;closePolicy:Popup.CloseOnEscape|Popup.CloseOnPressOutside
+        padding:16;closePolicy:Popup.CloseOnEscape|Popup.CloseOnPressOutsideParent
         width:Math.min(380,bar.width-24);y:bar.barSize+6
         height:Math.min(implicitHeight,Math.max(100,bar.screen.height-bar.barSize-24))
         contentItem:ScrollView {id:scroller;clip:true;contentWidth:availableWidth;implicitHeight:contentHeight}
@@ -446,7 +463,7 @@ Window {
         ContextActions {prefix:"dock";width:parent.width}
     }
     BarPopup {
-        id:askPopup;x:bar.width-width-12
+        id:askPopup;objectName:"askPopup";x:bar.width-width-12
         ColumnLayout {width:parent.width;spacing:12
             Label {text:bar.t("Neue Frage an Lumen");color:bar.colors.text;font.pixelSize:19;Layout.fillWidth:true}
             AskComposer {id:popupComposer;objectName:"popupComposer";Layout.fillWidth:true;colors:bar.colors;translate:bar.t;controller:panelData;request:questionState;onSent:bar.conversationSent();onVoiceRequested:bar.openConversation();onInspectAttachment:{}}
@@ -502,14 +519,14 @@ Window {
         }
     }
     BarPopup {
-        id:overflow;x:Math.min(bar.width-width-12,Math.max(12,overflowButton.mapToItem(bar.contentItem,0,0).x))
+        id:overflow;objectName:"menuOverflow";x:Math.min(bar.width-width-12,Math.max(12,overflowButton.mapToItem(bar.contentItem,0,0).x))
         ColumnLayout {width:parent.width;spacing:2
             Repeater {model:appMenu.entries;BarButton {required property var modelData;required property int index;colors:bar.colors;text:modelData.label;enabled:modelData.enabled;objectName:"overflowMenu_"+index;visible:index>=bar.visibleMenus;Layout.fillWidth:true;onClicked:appMenu.show(index,this)}}
             BarButton {colors:bar.colors;text:bar.t("Fensteraktionen");glyph:"window";Layout.fillWidth:true;onClicked:{overflow.close();windowMenu.open()}}
         }
     }
     BarPopup {
-        id:windowMenu;x:Math.min(bar.width-width-12,Math.max(12,appName.mapToItem(bar.contentItem,0,0).x))
+        id:windowMenu;objectName:"windowMenu";x:Math.min(bar.width-width-12,Math.max(12,appName.mapToItem(bar.contentItem,0,0).x))
         ColumnLayout {width:parent.width;spacing:2
             Label {text:windowState.appName||bar.t("Desktop");color:bar.colors.text;font.weight:Font.Medium;Layout.fillWidth:true}
             Repeater {model:[{label:bar.t("Maximieren / Wiederherstellen"),action:"maximize",icon:"window-maximize"},{label:bar.t("Minimieren"),action:"minimize",icon:"window-minimize"},{label:bar.t("Schließen"),action:"close",icon:"window-close"}]
