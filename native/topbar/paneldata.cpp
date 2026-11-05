@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "paneldata.h"
 #include <QSettings>
-#include <QFileDialog>
 #include <QUuid>
 #include <QApplication>
 #include <QFont>
@@ -12,6 +11,9 @@
 #include <QCursor>
 #include <QDBusConnection>
 #include <QDBusServiceWatcher>
+#include <QDBusPendingCallWatcher>
+#include <QDBusPendingReply>
+#include <QDBusArgument>
 #include <QDir>
 #include <QFileInfo>
 #include <QJsonDocument>
@@ -55,6 +57,9 @@ PanelData::PanelData(QObject *parent):QObject(parent) {
     bus.registerService("org.kde.kappmenuview");
     auto viewWatcher=new QDBusServiceWatcher("org.kde.kappmenuview",bus,QDBusServiceWatcher::WatchForUnregistration,this);
     connect(viewWatcher,&QDBusServiceWatcher::serviceUnregistered,this,[]{QDBusConnection::sessionBus().registerService("org.kde.kappmenuview");});
+    bus.connect("org.freedesktop.DBus","/org/freedesktop/DBus","org.freedesktop.DBus","NameOwnerChanged",this,SLOT(mediaOwnerChanged(QString,QString,QString)));
+    bus.connect({},"/org/mpris/MediaPlayer2","org.freedesktop.DBus.Properties","PropertiesChanged",this,SLOT(mediaPropertiesChanged(QString,QVariantMap,QStringList)));
+    QTimer::singleShot(0,this,&PanelData::refreshMedia);
     const QString directory=qEnvironmentVariable("LUMEN_BIN_DIR",QCoreApplication::applicationDirPath());
     const QString local=QDir(directory).filePath("lumen-panel");
     m_helper=QFileInfo(local).isExecutable()?local:QStandardPaths::findExecutable("lumen-panel");
@@ -148,18 +153,13 @@ void PanelData::control(const QString &action,int value){
     runHelper(arguments,action,value);
 }
 void PanelData::inspect(const QString &topic){
-    if((topic!="network" && topic!="audio") || controlBusy())return;
+    if(!QStringList{"network","audio","activity","recent"}.contains(topic) || controlBusy())return;
     runHelper({"--system-topic",topic},topic+":inspect");
 }
 void PanelData::systemAction(const QString &topic,const QString &action,const QString &target,int value){
-    if((topic!="network" && topic!="audio") || action.size()>64 || target.size()>1024 || target.contains(QChar::Null) || controlBusy())return;
+    if(!QStringList{"network","audio","activity","recent"}.contains(topic) || action.size()>64 || target.size()>4096 || target.contains(QChar::Null) || controlBusy())return;
     const auto payload=QJsonDocument(QJsonObject{{"action",action},{"target",target},{"value",value}}).toJson(QJsonDocument::Compact);
     runHelper({"--system-topic",topic,"--system-action"},topic+":"+action+":"+target,value,payload);
-}
-QString PanelData::chooseAttachment(QQuickWindow *window){
-    if(window)LayerShellQt::Window::get(window)->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityNone);
-    const auto title=m_snapshot["labels"].toMap().value("Datei an Lumen anhängen",tr("Datei an Lumen anhängen")).toString();
-    return QFileDialog::getOpenFileName(nullptr,title);
 }
 QString PanelData::attachNote(int pid){
     const QString action="note:"+QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -169,7 +169,7 @@ QString PanelData::attachNote(int pid){
     });
     return action;
 }
-QString PanelData::ask(const QString &prompt,const QString &file,const QVariantMap &note){
+QString PanelData::ask(const QString &prompt,const QVariantMap &note){
     const QString action="ask:"+QUuid::createUuid().toString(QUuid::WithoutBraces);
     const auto reject=[&](const QString &message){QTimer::singleShot(0,this,[this,action,message]{actionError(action,message);});return action;};
     if(prompt.trimmed().isEmpty() || prompt.size()>4000 || prompt.contains(QChar::Null))return reject(tr("Bitte eine Frage mit höchstens 4000 Zeichen eingeben."));
@@ -180,19 +180,12 @@ QString PanelData::ask(const QString &prompt,const QString &file,const QVariantM
         if(QJsonDocument(object).toJson(QJsonDocument::Compact).size()>16000)return reject(tr("Ungültige Notes-Auswahl."));
         request["note"]=object;
     }
-    if(!file.isEmpty()){
-        const QFileInfo info(file);
-        if(file.size()>4096 || file.contains(QChar::Null) || !info.isAbsolute() || !info.isFile() || !info.isReadable()){
-            return reject(tr("Die angehängte Datei ist nicht mehr lesbar."));
-        }
-        request["file"]=file;
-    }
     const auto payload=QJsonDocument(request).toJson(QJsonDocument::Compact);
     QTimer::singleShot(0,this,[this,action,payload]{runHelper({"--ask"},action,0,payload);});
     return action;
 }
 void PanelData::runHelper(const QStringList &arguments,const QString &action,int value,const QByteArray &input){
-    const bool topicAction=action.startsWith("network:") || action.startsWith("audio:");
+    const bool topicAction=action.startsWith("network:") || action.startsWith("audio:") || action.startsWith("activity:") || action.startsWith("recent:");
     const bool mutating=action=="volume" || action=="brightness" || action=="mute" || topicAction;
     if(mutating && controlBusy())return;
     if(m_helper.isEmpty()){actionError(action,tr("Lumen ist nicht vollständig installiert."));return;}
@@ -213,14 +206,15 @@ void PanelData::runHelper(const QStringList &arguments,const QString &action,int
         if(command->property("timedOut").toBool())failure=tr("Die Systemaktion wurde nicht bestätigt. Bitte den Status prüfen.");
         else if(code || status!=QProcess::NormalExit || bytes.size()>1024*1024 || error.error!=QJsonParseError::NoError || !result.isObject() || !result["error"].isString())failure=tr("Ungültige Systemdaten.");
         else failure=result["error"].toString().left(200);
-        const bool topicAction=action.startsWith("network:") || action.startsWith("audio:");
+        const bool topicAction=action.startsWith("network:") || action.startsWith("audio:") || action.startsWith("activity:") || action.startsWith("recent:");
         if(failure.isEmpty() && mutating && !topicAction && !result["system"].isObject())failure=tr("Ungültige Systemdaten.");
         if(failure.isEmpty() && topicAction && (!result["details"].isObject() || result["topic"].toString()!=action.section(':',0,0)))failure=tr("Ungültige Systemdaten.");
         if(failure.isEmpty() && action.startsWith("note:") && !result["note"].isObject())failure=tr("Ungültige Notes-Auswahl.");
         if(!failure.isEmpty())actionError(action,failure);
         else{
             if(action.startsWith("note:"))emit noteAttached(action,result["note"].toObject().toVariantMap());
-            if(topicAction){m_details[action.section(':',0,0)]=result["details"].toObject().toVariantMap();emit detailsChanged();}
+            if(topicAction){m_details[action.section(':',0,0)]=result["details"].toObject().toVariantMap();emit detailsChanged();
+                if(action.startsWith("activity:")){m_snapshot["activity"]=result["details"].toObject().toVariantMap();emit changed();}}
             else if(mutating){m_snapshot["system"]=result["system"].toObject().toVariantMap();emit changed();}
             emit controlFinished(action,value);
         }
@@ -258,3 +252,72 @@ void PanelData::inputMask(QQuickWindow *window,const QVariantList &rectangles,bo
     window->update();
 }
 void PanelData::ShowApps(){auto screen=QGuiApplication::screenAt(QCursor::pos());if(!screen)screen=QGuiApplication::primaryScreen();if(screen)emit showAppsRequested(screen->name());}
+
+QVariantList PanelData::players() const{
+    QVariantList result;
+    for(const auto &player:m_players)if(player["playing"].toBool())result.append(player);
+    for(const auto &player:m_players)if(!player["playing"].toBool())result.append(player);
+    return result;
+}
+void PanelData::mediaPropertiesChanged(const QString &interface,const QVariantMap &,const QStringList &){
+    if(interface=="org.mpris.MediaPlayer2.Player")QTimer::singleShot(0,this,&PanelData::refreshMedia);
+}
+void PanelData::mediaOwnerChanged(const QString &name,const QString &,const QString &newOwner){
+    if(!name.startsWith("org.mpris.MediaPlayer2."))return;
+    if(newOwner.isEmpty() && m_players.remove(name))emit playersChanged();
+    QTimer::singleShot(0,this,&PanelData::refreshMedia);
+}
+void PanelData::refreshMedia(){
+    if(m_mediaScanning){m_mediaAgain=true;return;}
+    m_mediaScanning=true;
+    const auto bus=QDBusConnection::sessionBus();
+    const auto message=QDBusMessage::createMethodCall("org.freedesktop.DBus","/org/freedesktop/DBus","org.freedesktop.DBus","ListNames");
+    auto list=new QDBusPendingCallWatcher(bus.asyncCall(message,1000),this);
+    connect(list,&QDBusPendingCallWatcher::finished,this,[this,list,bus]{
+    m_mediaScanning=false;const QDBusPendingReply<QStringList> names=*list;list->deleteLater();
+    if(!names.isValid())return;
+    QSet<QString> live;
+    for(const auto &name:names.value())if(name.startsWith("org.mpris.MediaPlayer2."))live.insert(name);
+    bool removed=false;
+    for(const auto &name:m_players.keys())if(!live.contains(name)){m_players.remove(name);removed=true;}
+    if(removed)emit playersChanged();
+    for(const auto &name:live){
+        if(m_pendingPlayers.contains(name)){m_mediaAgain=true;continue;}
+        m_pendingPlayers.insert(name);
+        auto message=QDBusMessage::createMethodCall(name,"/org/mpris/MediaPlayer2","org.freedesktop.DBus.Properties","GetAll");
+        message.setArguments({"org.mpris.MediaPlayer2.Player"});
+        auto watcher=new QDBusPendingCallWatcher(bus.asyncCall(message,1000),this);
+        connect(watcher,&QDBusPendingCallWatcher::finished,this,[this,watcher,name]{
+            const QDBusPendingReply<QVariantMap> reply=*watcher;m_pendingPlayers.remove(name);
+            if(reply.isValid()){
+                const auto props=reply.value();const auto metadata=qdbus_cast<QVariantMap>(props.value("Metadata"));
+                const auto artist=qdbus_cast<QStringList>(metadata.value("xesam:artist")).join(", ");
+                const QVariantMap player={{"id",name},{"app",name.mid(23).section('.',0,0)},
+                    {"title",metadata.value("xesam:title").toString().left(300)},{"artist",artist.left(300)},
+                    {"playing",props.value("PlaybackStatus")=="Playing"},{"control",props.value("CanControl").toBool()},
+                    {"next",props.value("CanGoNext").toBool()},{"previous",props.value("CanGoPrevious").toBool()},
+                    {"play",props.value("CanPlay").toBool()},{"pause",props.value("CanPause").toBool()}};
+                if(m_players.value(name)!=player){m_players[name]=player;emit playersChanged();}
+            }else if(m_players.remove(name))emit playersChanged();
+            watcher->deleteLater();
+            if(m_mediaAgain){m_mediaAgain=false;QTimer::singleShot(0,this,&PanelData::refreshMedia);}
+        });
+    }
+    if(m_mediaAgain && m_pendingPlayers.isEmpty()){m_mediaAgain=false;QTimer::singleShot(0,this,&PanelData::refreshMedia);}
+    });
+}
+void PanelData::mediaAction(const QString &service,const QString &action){
+    const auto player=m_players.value(service);
+    if(!player.value("control").toBool())return;
+    if(action=="Next" && !player.value("next").toBool())return;
+    if(action=="Previous" && !player.value("previous").toBool())return;
+    if(action=="PlayPause" && !player.value(player.value("playing").toBool()?"pause":"play").toBool())return;
+    if(!QStringList{"Next","Previous","PlayPause"}.contains(action))return;
+    const auto message=QDBusMessage::createMethodCall(service,"/org/mpris/MediaPlayer2","org.mpris.MediaPlayer2.Player",action);
+    auto watcher=new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(message,2000),this);
+    connect(watcher,&QDBusPendingCallWatcher::finished,this,[this,watcher]{
+        const QDBusPendingReply<> reply=*watcher;
+        if(reply.isError())fail(tr("Der Medienplayer hat die Aktion nicht bestätigt."));
+        watcher->deleteLater();refreshMedia();
+    });
+}

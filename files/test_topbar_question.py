@@ -94,17 +94,14 @@ assert 'LUMEN_ASK_NOTE' not in os.environ
                 with self.subTest(size=len(payload)):self.assertTrue(self.request(payload)['error'])
             launch.assert_not_called()
 
-    def test_only_explicit_existing_local_files_are_forwarded(self):
+    def test_removed_topbar_file_selection_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp, patch.object(lumen_panel.subprocess,'Popen') as launch:
             path=Path(tmp)/'Notiz $HOME.txt';path.write_text('synthetic')
             for value in (str(path),True,'relative.txt',tmp,'/does-not-exist',str(path)+'\0'):
                 with self.subTest(value=value):
                     result=self.request(json.dumps(dict(prompt='Zusammenfassen',file=value)).encode())
-                    if value==str(path):
-                        self.assertEqual(result,dict(error=''))
-                        self.assertEqual(launch.call_args.kwargs['env']['LUMEN_ASK_FILE'],str(path))
-                    else:self.assertTrue(result['error'])
-            self.assertEqual(launch.call_count,1)
+                    self.assertTrue(result['error'])
+            launch.assert_not_called()
 
 
 if __name__=='__main__':unittest.main()

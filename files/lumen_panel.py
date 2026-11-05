@@ -95,7 +95,7 @@ def main():
     group.add_argument('--topbar-note', type=int)
     group.add_argument('--topbar-transfer', type=valid_task)
     group.add_argument('--system-snapshot', action='store_true')
-    group.add_argument('--system-topic', choices=['network', 'audio'])
+    group.add_argument('--system-topic', choices=['network', 'audio', 'activity', 'recent'])
     parser.add_argument('--system-action', action='store_true')
     group.add_argument('--notification-snapshot', action='store_true')
     group.add_argument('--notification-settings', action='store_true')
@@ -122,20 +122,15 @@ def main():
             payload = sys.stdin.buffer.read(65537)
             if len(payload) > 65536: raise ValueError('Invalid prompt')
             value = json.loads(payload)
-            prompt = value.get('prompt') if isinstance(value, dict) and set(value)<= {'prompt','file','note'} and 'prompt' in value else None
+            prompt = value.get('prompt') if isinstance(value, dict) and set(value)<= {'prompt','note'} and 'prompt' in value else None
             if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > 4000 or '\0' in prompt:
                 raise ValueError('Invalid prompt')
-            attachment = value.get('file', '')
-            if ('file' in value and (not isinstance(attachment,str) or not attachment or len(attachment)>4096
-                    or '\0' in attachment or not Path(attachment).is_absolute() or not Path(attachment).is_file()
-                    or not os.access(attachment,os.R_OK))): raise ValueError('Invalid attachment')
             env={**os.environ, 'LUMEN_ASK_PROMPT': prompt}
             env.pop('LUMEN_ASK_FILE',None)
             env.pop('LUMEN_ASK_NOTE',None)
             if 'note' in value:
                 from topbar_context import validate_note
                 env['LUMEN_ASK_NOTE']=json.dumps(validate_note(value['note']))
-            if attachment: env['LUMEN_ASK_FILE']=attachment
             subprocess.Popen([executable('lumen-agent-app'), '--search'],
                 env=env, start_new_session=True,
                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -196,9 +191,22 @@ def main():
                 payload = sys.stdin.buffer.read(8193)
                 if len(payload) > 8192:
                     raise ValueError('Invalid action')
-                details = act(args.system_topic, json.loads(payload))
+                request = json.loads(payload)
+                if args.system_topic in ('activity', 'recent'):
+                    from topbar_activity import act as activity_action, snapshot as activity_snapshot, recent
+                    if (not isinstance(request, dict) or set(request) != {'action','target','value'}
+                            or not isinstance(request['action'],str) or not isinstance(request['target'],str)
+                            or '\0' in request['target'] or len(request['target'])>4096 or request['value']!=0):
+                        raise ValueError('Invalid action')
+                    activity_action('recent' if args.system_topic=='recent' and request['action']=='open' else request['action'],request['target'])
+                    details = activity_snapshot() if args.system_topic=='activity' else dict(items=recent())
+                else:
+                    details = act(args.system_topic, request)
             else:
-                details = topic_snapshot(args.system_topic)
+                if args.system_topic in ('activity','recent'):
+                    from topbar_activity import snapshot as activity_snapshot, recent
+                    details = activity_snapshot() if args.system_topic=='activity' else dict(items=recent())
+                else: details = topic_snapshot(args.system_topic)
             print(json.dumps(dict(topic=args.system_topic, details=details, error=''), ensure_ascii=False))
         except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
             print(json.dumps(dict(error=tr('Systemaktion fehlgeschlagen. Bitte den aktuellen Status prüfen.'))))

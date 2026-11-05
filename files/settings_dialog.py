@@ -672,7 +672,7 @@ class SettingsDialog(QDialog):
         page.addWidget(self.apply_appearance, 0, Qt.AlignLeft)
         page.addWidget(text(tr('Topbar')))
         topbar = QFormLayout()
-        self.topbar_layout = combo([(tr('Bisherige Leiste'), 'classic'), (tr('Tastenband'), 'band'),
+        self.topbar_layout = combo([('Panorama', 'classic'), (tr('Tastenband'), 'band'),
             (tr('Doppeldeck'), 'deck'), (tr('Kontextdock'), 'context')], self.field(self.assistant, 'topbar/layout', 'classic'))
         self.topbar_layout.setAccessibleName(tr('Topbar-Layout'))
         topbar.addRow(tr('Layout'), self.topbar_layout); page.addLayout(topbar)

@@ -6,6 +6,8 @@
 #include <QVariantMap>
 #include <QTimer>
 #include <QFileSystemWatcher>
+#include <QMap>
+#include <QSet>
 #include <memory>
 
 class QQuickWindow;
@@ -19,6 +21,7 @@ class PanelData:public QObject {
     Q_PROPERTY(bool controlBusy READ controlBusy NOTIFY controlBusyChanged)
     Q_PROPERTY(QString layout READ layout NOTIFY layoutChanged)
     Q_PROPERTY(QVariantMap details READ details NOTIFY detailsChanged)
+    Q_PROPERTY(QVariantList players READ players NOTIFY playersChanged)
 public:
     explicit PanelData(QObject *parent=nullptr);
     ~PanelData() override;
@@ -27,20 +30,25 @@ public:
     bool controlBusy() const {return m_control && m_control->state()!=QProcess::NotRunning;}
     QString layout() const {return m_layout;}
     QVariantMap details() const {return m_details;}
+    QVariantList players() const;
+    Q_INVOKABLE void mediaAction(const QString &service,const QString &action);
     Q_INVOKABLE void inspect(const QString &topic);
     Q_INVOKABLE void systemAction(const QString &topic,const QString &action,const QString &target={},int value=0);
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void launch(const QString &action,const QString &value={});
     Q_INVOKABLE void control(const QString &action,int value=0);
-    Q_INVOKABLE QString ask(const QString &prompt,const QString &file={},const QVariantMap &note={});
+    Q_INVOKABLE QString ask(const QString &prompt,const QVariantMap &note={});
     Q_INVOKABLE QString attachNote(int pid);
-    Q_INVOKABLE QString chooseAttachment(QQuickWindow *window);
     Q_INVOKABLE void tooltip(QQuickItem *anchor,const QString &text);
     Q_INVOKABLE void context(const QString &app,const QString &title,int pid);
     Q_INVOKABLE void inputMask(QQuickWindow *window,const QVariantList &rectangles,bool popupOpen=false);
 public slots:
     Q_SCRIPTABLE void ShowApps();
+    void refreshMedia();
+    void mediaPropertiesChanged(const QString &interface,const QVariantMap &changed,const QStringList &invalidated);
+    void mediaOwnerChanged(const QString &name,const QString &oldOwner,const QString &newOwner);
 signals:
+    void playersChanged();
     void controlBusyChanged();
     void controlFinished(const QString &action,int value);
     void controlFailed(const QString &action);
@@ -70,4 +78,7 @@ private:
     QVariantMap m_snapshot;
     QVariantMap m_details;
     QString m_error,m_actionError;
+    QMap<QString,QVariantMap> m_players;
+    QSet<QString> m_pendingPlayers;
+    bool m_mediaScanning=false,m_mediaAgain=false;
 };

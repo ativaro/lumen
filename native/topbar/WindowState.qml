@@ -30,6 +30,7 @@ QtObject {
         else if(name==="close")windowModel.requestClose(index)
         else if(name==="activate")windowModel.requestActivate(index)
     }
+    function activate(index){if(index>=0 && index<windowModel.count)windowModel.requestActivate(windowModel.makeModelIndex(index))}
     property var windowModel: TaskManager.TasksModel {
         groupMode: TaskManager.TasksModel.GroupDisabled
         filterByScreen: true

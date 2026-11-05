@@ -13,6 +13,7 @@ def snapshot():
     from lumen_controls import snapshot as controls
     from lumen_notifications import snapshot as notifications
     from topbar_context import snapshot as operations
+    from topbar_activity import snapshot as activity
 
     config = configparser.ConfigParser(interpolation=None)
     config.read(Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')) / 'plasmarc')
@@ -35,5 +36,5 @@ def snapshot():
         unread = None
     labels = json.loads(Path(__file__).with_name("translations").joinpath("en/topbar.json").read_text())
     return dict(version=1, language=language(), labels={key: tr(key) for key in labels}, apps=applications(), system=controls(),
-                operations=operations(), unread=unread,
+                operations=operations(), activity=activity(), unread=unread,
                 palette=palette)

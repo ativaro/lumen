@@ -18,8 +18,6 @@
 #include <QScreen>
 #include <QTest>
 #include <QSettings>
-#include <QFileDialog>
-#include <QLineEdit>
 #include <LayerShellQt/Window>
 
 class UiTest:public QObject {
@@ -118,7 +116,7 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(QFile::exists("/profile/actions.jsonl"),3000);
         const auto actions=[](){QFile file("/profile/actions.jsonl");if(!file.open(QIODevice::ReadOnly))return QByteArray();return file.readAll();};
         QTRY_VERIFY_WITH_TIMEOUT(actions().contains("--open-app"),3000);
-        if(data.layout()=="classic"){QVERIFY(click(item("startButton")));}else{QVERIFY(click(item("launcherButton")));QTRY_VERIFY(apps->property("opened").toBool());QTest::qWait(180);QVERIFY(click(item("programsTab")));QTRY_VERIFY(apps->property("programs").toBool());}QTRY_VERIFY(apps->property("opened").toBool());
+        QVERIFY(click(item("launcherButton")));QTRY_VERIFY(apps->property("opened").toBool());QTest::qWait(180);QVERIFY(click(item("programsTab")));QTRY_VERIFY(apps->property("programs").toBool());
         QTRY_VERIFY_WITH_TIMEOUT(item("programSearch"),4000);
         auto programQuery=item("programSearch");QVERIFY(programQuery->isVisible());QTest::qWait(250);QVERIFY(apps->property("opened").toBool());programQuery->setProperty("text","lumen testprogramm");
         QTRY_COMPARE_WITH_TIMEOUT(item("programList")->property("count").toInt(),1,4000);
@@ -240,7 +238,7 @@ private slots:
         for(const auto &layout:{"band","deck","context","classic"}){
             settings.setValue("topbar/layout",layout);settings.sync();
             QTRY_COMPARE_WITH_TIMEOUT(data.layout(),QString(layout),1500);
-            const int expected=QString(layout)=="deck"?118:QString(layout)=="band"?68:QString(layout)=="context"?60:56;
+            const int expected=QString(layout)=="deck"?118:QString(layout)=="band"?68:QString(layout)=="context"?60:window->width()<1320?118:80;
             QTRY_COMPARE(window->property("barSize").toInt(),expected);QTRY_COMPARE(second->property("barSize").toInt(),expected);
             QTRY_COMPARE(layer->exclusionZone(),expected);QTRY_COMPARE(secondLayer->exclusionZone(),expected);
             QCOMPARE(draft->property("text").toString(),QStringLiteral("Entwurf bleibt beim Layoutwechsel erhalten"));
@@ -252,40 +250,8 @@ private slots:
         QString prefix="dock";
         if(contextComposer->isVisible()){QVERIFY(click(find(contextComposer,"lumenQuestion")));}
         else{QVERIFY(click(find(window->contentItem(),"askButton")));QTRY_VERIFY(find(window->contentItem(),"popupComposer"));contextComposer=find(window->contentItem(),"popupComposer");prefix="popup";}
-        QTRY_VERIFY(find(window->contentItem(),prefix+"attachFileButton"));
-        auto attachmentButton=find(window->contentItem(),prefix+"attachFileButton");
-        QTRY_VERIFY(attachmentButton->isVisible());QTest::qWait(180);
-        const QString attachmentPath="/profile/context-note.txt";
-        QFile note(attachmentPath);QVERIFY(note.open(QIODevice::WriteOnly));note.write("Synthetic note for the context dock");note.close();
-        bool pickerAccepted=false;
-        // Automate Qt's picker in the private session; the product keeps the platform picker.
-        QApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
-        QTimer pickerDriver;pickerDriver.setInterval(50);
-        connect(&pickerDriver,&QTimer::timeout,this,[&]{
-            QFileDialog *picker=nullptr;
-            for(auto widget:QApplication::topLevelWidgets())if(auto dialog=qobject_cast<QFileDialog*>(widget))if(dialog->isVisible()){picker=dialog;break;}
-            if(!picker)return;
-            auto filename=picker->findChild<QLineEdit*>("fileNameEdit");
-            if(!filename)return;
-            filename->setText(attachmentPath);
-            pickerAccepted=QMetaObject::invokeMethod(picker,"accept");pickerDriver.stop();
-        });pickerDriver.start();
-        QVERIFY(window->grabWindow().save("/profile/captures/native-context-before-picker.png"));
-        QVERIFY(click(attachmentButton));QTRY_VERIFY_WITH_TIMEOUT(pickerAccepted,2000);
-        QTRY_COMPARE(window->property("attachmentPath").toString(),attachmentPath);
-        QApplication::setAttribute(Qt::AA_DontUseNativeDialogs,false);
-        auto suggestion=find(window->contentItem(),prefix+"contextSuggestion_0");QVERIFY(suggestion && suggestion->isEnabled());QTest::qWait(180);
-        QVERIFY(click(suggestion));
-        QTRY_VERIFY(find(contextComposer,"lumenQuestion"));
+        QVERIFY(!find(window->contentItem(),prefix+"attachFileButton"));
         auto attachedQuestion=find(contextComposer,"lumenQuestion");QVERIFY(attachedQuestion);
-        QTRY_VERIFY(attachedQuestion->property("text").toString().contains(QString::fromUtf8("angehängte Datei")) || attachedQuestion->property("text").toString().contains("attached file"));
-        QVERIFY(window->grabWindow().save("/profile/captures/native-context-attachment.png"));
-        QFile::remove("/profile/asked.json");QVERIFY(click(find(contextComposer,"sendQuestionButton")));
-        QTRY_VERIFY(QFile::exists("/profile/asked.json"));QFile contextualAsk("/profile/asked.json");QVERIFY(contextualAsk.open(QIODevice::ReadOnly));
-        QCOMPARE(QJsonDocument::fromJson(contextualAsk.readAll()).object()["file"].toString(),attachmentPath);
-        QTRY_VERIFY(window->property("attachmentPath").toString().isEmpty());
-        if(prefix=="dock"){QVERIFY(click(find(contextComposer,"lumenQuestion")));}
-        else{QVERIFY(click(find(window->contentItem(),"askButton")));}
         QTRY_VERIFY(find(window->contentItem(),prefix+"attachNoteButton"));
         auto attachNote=find(window->contentItem(),prefix+"attachNoteButton");QTRY_VERIFY(attachNote->isVisible());QTest::qWait(180);
         QVERIFY(click(attachNote));
