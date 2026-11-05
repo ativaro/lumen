@@ -151,15 +151,33 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(actions().contains("--open-app"),3000);
         auto programsButton=item("programsButton");QVERIFY(programsButton && programsButton->isVisible());
         QVERIFY(programsButton->mapToItem(window->contentItem(),QPointF(programsButton->width(),0)).x()<=launch->mapToItem(window->contentItem(),QPointF()).x());
-        QVERIFY(click(programsButton));QTRY_VERIFY(apps->property("opened").toBool());QTRY_VERIFY(!item("startMenu")->property("lumenOnly").toBool());
+        const auto openStartHome=[&]{
+            QVERIFY(click(programsButton));QTRY_VERIFY(quick->property("opened").toBool());
+            QVERIFY(click(item("quickMore")));QTRY_VERIFY(apps->property("opened").toBool());
+        };
+        QVERIFY(click(programsButton));QTRY_VERIFY(quick->property("opened").toBool());
+        QCOMPARE(quick->property("x").toInt(),12);QVERIFY(quick->property("width").toInt()<=390);
+        QTRY_VERIFY(item("quickStartSearch")->hasActiveFocus());
+        QTRY_VERIFY(window->height()>=qCeil(quick->property("y").toReal()+quick->property("height").toReal()));
+        QTest::qWait(160);QVERIFY(window->grabWindow().save("/profile/captures/native-start-preview.png"));
+        QVERIFY(send("key 37\n"));QTRY_VERIFY(apps->property("opened").toBool());
+        QTRY_COMPARE(item("programSearch")->property("text").toString(),QString("k"));
+        QVERIFY(send("key 18\n"));QTRY_COMPARE(item("programSearch")->property("text").toString(),QString("ke"));
+        QVERIFY(send("key 1\n"));QTRY_COMPARE(item("programSearch")->property("text").toString(),QString());
+        QVERIFY(send("key 1\n"));QTRY_VERIFY(!apps->property("opened").toBool());
+        QVERIFY(click(programsButton));QTRY_VERIFY(quick->property("opened").toBool());
+        QVERIFY(click(item("quickRow_library")));QTRY_VERIFY(apps->property("opened").toBool());
+        QVERIFY(item("startMenu")->property("library").toBool());
+        QVERIFY(send("key 1\n"));QTRY_VERIFY(!apps->property("opened").toBool());
+        openStartHome();QTRY_VERIFY(!item("startMenu")->property("lumenOnly").toBool());
         for(int cycle=0;cycle<8;++cycle){
             QTest::qWait(650);QVERIFY2(apps->property("opened").toBool(),qPrintable("Start menu closed during hover cycle "+QString::number(cycle)));QVERIFY(window->isActive());
-            if(cycle<7){QVERIFY(send("key 1\n"));QTRY_VERIFY(!apps->property("opened").toBool());QVERIFY(click(programsButton));QTRY_VERIFY(apps->property("opened").toBool());}
+            if(cycle<7){QVERIFY(send("key 1\n"));QTRY_VERIFY(!apps->property("opened").toBool());openStartHome();}
         }
         QDBusInterface focusFixture("org.lumen.MenuTestA","/Control",QString());QVERIFY(focusFixture.isValid());
         QVERIFY(send("key 1\n"));QTRY_VERIFY(!apps->property("opened").toBool());
         QTRY_VERIFY(([&]{const QDBusReply<bool> active=focusFixture.call("active");return active.isValid() && active.value();})());
-        QVERIFY(click(programsButton));QTRY_VERIFY(apps->property("opened").toBool());
+        openStartHome();
         QTRY_VERIFY(item("startPin_5") && item("startPin_5")->isVisible());
         QTRY_VERIFY(item("startRecent_1") && item("startRecent_1")->isVisible());
         QTRY_VERIFY(!data.controlBusy());QTest::qWait(150);
@@ -217,7 +235,7 @@ private slots:
         QVERIFY(window->grabWindow().save("/profile/captures/native-start-menu.png"));
         QVERIFY(send("key 28\n"));QTRY_VERIFY_WITH_TIMEOUT(QFile::exists("/profile/program-started"),4000);
         QTRY_VERIFY(!apps->property("opened").toBool());
-        QVERIFY(click(item("programsButton")));QTRY_VERIFY(apps->property("opened").toBool());
+        openStartHome();
         programQuery=item("programSearch");QVERIFY(programQuery);programQuery->setProperty("text","lumen testprogramm");
         QTRY_COMPARE(item("programList")->property("count").toInt(),1);QTRY_VERIFY(item("program_0") && item("program_0")->isVisible());
         QVERIFY(click(programQuery));QTest::qWait(150);
@@ -230,7 +248,7 @@ private slots:
         const auto actionPoint=actionOrigin+jump->mapToScene(QPointF(jump->width()/2,jump->height()/2));
         QVERIFY(send("click "+QByteArray::number(actionPoint.x())+" "+QByteArray::number(actionPoint.y())+"\n"));
         QTRY_VERIFY(QFile::exists("/profile/program-new-window"));QTRY_VERIFY(!apps->property("opened").toBool());
-        QVERIFY(click(item("programsButton")));QTRY_VERIFY(apps->property("opened").toBool());QTRY_VERIFY(!data.controlBusy());
+        openStartHome();QTRY_VERIFY(!data.controlBusy());
         QTRY_VERIFY(item("startRecent_0") && item("startRecent_0")->isVisible());const auto beforeRecent=actions().size();
         QVERIFY(click(item("startRecent_0")));QTRY_VERIFY(actions().size()>beforeRecent && actions().contains("/profile/example.txt"));QTRY_VERIFY(!apps->property("opened").toBool());
         QVERIFY(click(item("launcherButton")));QTRY_VERIFY(quick->property("opened").toBool());
@@ -411,7 +429,8 @@ private slots:
         QVERIFY(fixture.call("command","normal").type()!=QDBusMessage::ErrorMessage);QTRY_VERIFY_WITH_TIMEOUT(window->isVisible(),3000);
         if(!qgetenv("LUMEN_QA_SHORTCUTS").isEmpty()){QVERIFY(send("key 125\n"));}
         else data.ShowApps();
-        QTRY_VERIFY(apps->property("opened").toBool());QTRY_VERIFY(window->isActive());
+        QTRY_VERIFY(quick->property("opened").toBool());QCOMPARE(window->property("quickTopic").toString(),QString("start"));
+        QVERIFY(click(item("quickMore")));QTRY_VERIFY(apps->property("opened").toBool());QTRY_VERIFY(window->isActive());
         if(!qgetenv("LUMEN_QA_SHORTCUTS").isEmpty()){
             QVERIFY(!item("startMenu")->property("lumenOnly").toBool());
             QVERIFY(window->grabWindow().save("/profile/captures/native-shortcut-start.png"));
@@ -420,10 +439,20 @@ private slots:
             QTRY_VERIFY_WITH_TIMEOUT(QFile::exists("/profile/lumen-shortcut-started"),5000);
         }
         QVERIFY(send("key 1\n"));QTRY_VERIFY(!apps->property("opened").toBool());
-        auto controls=item("systemControlsButton");QVERIFY(controls);if(!controls->isVisible()){QVERIFY(click(item("compactControlsButton")));QTest::qWait(180);controls=item("audioMenuEntry");}QVERIFY(controls->isVisible());QVERIFY(click(controls));QTest::qWait(180);
         auto audioPopup=window->findChild<QObject*>("audioPopup");auto networkPopup=window->findChild<QObject*>("networkPopup");QVERIFY(audioPopup && networkPopup);
-        QTRY_VERIFY(quick->property("opened").toBool());QTest::qWait(180);QVERIFY(window->grabWindow().save("/profile/captures/native-audio-preview.png"));QVERIFY(click(item("quickRow_1")));
-        QTRY_VERIFY(audioPopup->property("opened").toBool());QCOMPARE(audioPopup->property("section").toInt(),1);QVERIFY(!networkPopup->property("opened").toBool());
+        const auto openDevice=[&](const char* button,const QString &topic,QObject *full){
+            if(item(button)->isVisible()){
+                QVERIFY(click(item(button)));QTRY_VERIFY(quick->property("opened").toBool());
+                QTest::qWait(180);QVERIFY(window->grabWindow().save("/profile/captures/native-"+topic+"-preview.png"));
+                QVERIFY(click(item("quickRow_1")));
+            }else{
+                QVERIFY(click(item("compactControlsButton")));QTRY_VERIFY(quick->property("opened").toBool());
+                QVERIFY(click(item("quickRow_"+topic)));QTRY_VERIFY(full->property("opened").toBool());
+                QCOMPARE(full->property("section").toInt(),0);QVERIFY(click(item(topic+"Section1")));
+            }
+            QTRY_VERIFY(full->property("opened").toBool());QCOMPARE(full->property("section").toInt(),1);
+        };
+        openDevice("systemControlsButton","audio",audioPopup);QVERIFY(!networkPopup->property("opened").toBool());
         QTRY_VERIFY_WITH_TIMEOUT(data.details()["audio"].toMap()["available"].toBool(),3000);
         QVERIFY(window->grabWindow().save("/profile/captures/native-audio-overview.png"));
         for(int section=1;section<6;++section){
@@ -459,9 +488,7 @@ private slots:
         QVERIFY(item("systemErrorButton")->isVisible());
         QVERIFY(window->grabWindow().save("/profile/captures/native-controls.png"));
         QVERIFY(send("key 1\n"));
-        auto networkControl=item("networkButton");QVERIFY(networkControl);
-        if(!networkControl->isVisible()){QVERIFY(click(item("compactControlsButton")));QTest::qWait(100);networkControl=item("networkMenuEntry");}
-        QVERIFY(click(networkControl));QTRY_VERIFY(quick->property("opened").toBool());QTest::qWait(180);QVERIFY(window->grabWindow().save("/profile/captures/native-network-preview.png"));QVERIFY(click(item("quickRow_1")));QTRY_VERIFY(networkPopup->property("opened").toBool());QVERIFY(!audioPopup->property("opened").toBool());
+        openDevice("networkButton","network",networkPopup);QVERIFY(!audioPopup->property("opened").toBool());
         QTRY_VERIFY_WITH_TIMEOUT(data.details()["network"].toMap()["available"].toBool(),3000);
         QVERIFY(window->grabWindow().save("/profile/captures/native-network-overview.png"));
         for(int section=1;section<6;++section){
@@ -474,10 +501,21 @@ private slots:
         QTRY_VERIFY(!data.details()["network"].toMap()["wifiEnabled"].toBool());
         QVERIFY(send("key 1\n"));QTRY_VERIFY(!networkPopup->property("opened").toBool());
         QVERIFY(item("compactControlsButton")->isVisible());QVERIFY(click(item("compactControlsButton")));
+        QTRY_VERIFY(quick->property("opened").toBool());
+        QCOMPARE(quick->property("x").toInt()+quick->property("width").toInt(),window->width()-12);
+        QTest::qWait(120);QVERIFY(window->grabWindow().save("/profile/captures/native-settings-preview.png"));
+        QVERIFY(click(item("quickMore")));
         auto generalControls=window->findChild<QObject*>("systemPopup");QVERIFY(generalControls);QTRY_VERIFY(generalControls->property("opened").toBool());
         QVERIFY(!audioPopup->property("opened").toBool());QVERIFY(!networkPopup->property("opened").toBool());
         QVERIFY(window->grabWindow().save("/profile/captures/native-general-controls.png"));
         QVERIFY(send("key 1\n"));QTRY_VERIFY(!generalControls->property("opened").toBool());
+        openStartHome();
+        item("startSettingsButton")->forceActiveFocus();QTest::qWait(120);QVERIFY(click(item("startSettingsButton")));
+        QTRY_VERIFY(quick->property("opened").toBool());QCOMPARE(window->property("quickTopic").toString(),QString("settings"));
+        QVERIFY(click(item("quickRow_preferences")));QTRY_VERIFY(actions().contains("--settings"));
+        QVERIFY(click(programsButton));QTRY_VERIFY(quick->property("opened").toBool());QVERIFY(click(item("quickRow_recent")));
+        auto recentPage=window->findChild<QObject*>("activityPopup");QTRY_VERIFY(recentPage->property("opened").toBool());
+        QCOMPARE(recentPage->property("page").toString(),QString("recent"));QVERIFY(send("key 1\n"));QTRY_VERIFY(!recentPage->property("opened").toBool());
         QQmlComponent secondComponent(&engine,QUrl("qrc:/lumen/Topbar.qml"));
         QScopedPointer<QObject> secondOwner(secondComponent.create());auto second=qobject_cast<QQuickWindow*>(secondOwner.data());QVERIFY(second);
         auto secondScreen=QGuiApplication::screens()[1];second->setScreen(secondScreen);second->setGeometry(secondScreen->geometry().x(),secondScreen->geometry().y(),secondScreen->geometry().width(),56);

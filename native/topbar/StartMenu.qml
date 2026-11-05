@@ -22,6 +22,7 @@ ColumnLayout {
     readonly property var lumenApps: (controller.snapshot.apps||[]).filter(app=>app.label.toLocaleLowerCase().includes(query.text.trim().toLocaleLowerCase()))
     signal launched()
     signal moreRecent()
+    signal settingsRequested()
     spacing: 0
     height:implicitHeight
     onActiveChanged:if(!active){context.close();power.close();error.text=""}
@@ -192,7 +193,7 @@ ColumnLayout {
           Rectangle {height:1;width:parent.width;color:start.colors.border}}
       contentItem:RowLayout {spacing:4
         BarButton {objectName:"startProfileButton";colors:start.colors;text:start.controller.userName;glyph:"user-identity";Layout.fillWidth:true;onClicked:{start.controller.launch("settings");start.launched()}}
-        BarButton {objectName:"startSettingsButton";colors:start.colors;text:start.translate("Einstellungen");glyph:"settings-configure";iconOnly:true;onClicked:{start.controller.launch("settings");start.launched()}}
+        BarButton {objectName:"startSettingsButton";colors:start.colors;text:start.translate("Einstellungen");glyph:"settings-configure";iconOnly:true;onClicked:start.settingsRequested()}
         BarButton {objectName:"startLockButton";colors:start.colors;text:start.translate("Bildschirm sperren");glyph:"system-lock-screen";iconOnly:true;enabled:session.canLock;onClicked:{session.lock();start.launched()}}
         BarButton {id:powerButton;objectName:"startPowerButton";colors:start.colors;text:start.translate("Sitzung und Energie");glyph:"system-shutdown";iconOnly:true;onClicked:power.open()}
       }

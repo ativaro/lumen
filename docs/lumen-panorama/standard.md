@@ -52,7 +52,7 @@ und Bediengeometrie bleiben den vorhandenen semantischen Rollen zugeordnet.
 Desktop-Topbar (05.11.2026): Die Standardleiste folgt dem freigegebenen Entwurf
 `lumen-topbar-alltag.html`: ein zusammenhängendes Panorama-Band mit dauerhafter
 Lumen-Eingabe und Diktat-Einstieg. Links vor dem Lumen-Kreis steht ein eigener
-Programmknopf: Er öffnet direkt die installierten Anwendungen mit Suche. Der
+Programmknopf: Er öffnet die Startansicht mit direkter App-Suche. Der
 Lumen-Kreis öffnet die Lumen-Apps. Beide verwenden dasselbe vorhandene Startmenü.
 Fensterübersicht und letzte Inhalte haben je
 einen kleinen Schnellzugriff. Eine gemeinsame Statusfläche priorisiert Freigaben,
@@ -67,7 +67,7 @@ offene Notes-/App-Inhalte sind über die laufenden Fenster erreichbar. Verläufe
 anderer Serverbindungen werden nicht angeboten. Es werden keine Inhalte kopiert.
 Aktive Systemtray-Apps bleiben bei ausreichend Platz direkt sichtbar; nur bei
 Platzmangel sowie für passive Apps dient das Menü „Hintergrund-Apps“.
-Startmenü-Präzisierung vom 05.11.2026: Der Programmknopf öffnet „Dein Start“
+Startmenü-Präzisierung vom 05.11.2026: Das vollständige Startmenü zeigt „Dein Start“
 nach der freigegebenen Referenz `lumen-start-next.html`: Suche, angeheftete Apps,
 zwei letzte Inhalte unter „Gleich weiter“ und eine ruhige Fußzeile mit Benutzer,
 Einstellungen, Sperren und Sitzungsaktionen. „Alle Apps“ öffnet den nativen,
@@ -95,12 +95,15 @@ Schließen; Verschieben und Größenänderungen bleiben native Fensteraktionen.
 Der technische Einstellungswert `classic` heißt in der Oberfläche nun Panorama;
 die ausdrücklich angebotenen alternativen Layouts bleiben wählbar.
 
-Desktop-Topbar, Kurzansichten (06.11.2026): Glocke, Netzwerk, Audio und
-Lumen-Kreis öffnen jeweils eine angedockte, höchstens 390 Pixel breite Ansicht.
-Die drei Statusmenüs schließen rechts an die Leiste an, der Lumen-Kreis links.
+Desktop-Topbar, Kurzansichten (06.11.2026): Startmenü, Lumen-Kreis, Glocke, Netzwerk, Audio und
+Einstellungen öffnen jeweils eine angedockte, höchstens 390 Pixel breite Ansicht.
+Start und Lumen-Kreis schließen links an die Leiste an, die Statusmenüs rechts.
 Auf schmalen Bildschirmen bleibt ein seitlicher Abstand. Ein Eintrag öffnet das
 vollständige Menü mit der gewählten Meldung, dem Gerätebereich oder dem gefilterten
-Lumen-App-Katalog. Der Programmknopf öffnet weiterhin direkt „Dein Start“.
+Lumen-App-Katalog. Programmknopf und Super öffnen dieselbe Kurzansicht. Beim Tippen geht die Suche
+im vollständigen Startmenü weiter. „Alle Apps“ öffnet den Katalog, „Gleich weiter“
+die letzten Inhalte. Über die Einstellungen sind Netzwerk, Audio, Lumen-Einstellungen
+und die vollständige Systemsteuerung erreichbar.
 Plasma führt den gemeinsamen Mitteilungsverlauf und alle Aktionen. Der erste
 Klick zeigt bis zu drei aktuelle Meldungen. Zugangsdaten, Verbindungswechsel und
 Geräteeinstellungen werden erst im dafür zuständigen vollständigen Menü behandelt.
