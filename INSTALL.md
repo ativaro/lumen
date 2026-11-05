@@ -96,14 +96,11 @@ settings and speech models are reused; the document workshop remains disabled un
 enabled in Files settings. The wizard can be closed and resumed later from
 **Settings → Setup** or `~/.local/share/lumen/bin/lumen-setup-wizard`.
 
-The desktop uses three separate top islands from 960 logical pixels upwards,
-including typical 1024/1280-pixel VM displays; narrower displays use one compact
-bar. After updating an older single-bar installation, run the wizard's **Activate
-Lumen desktop** once more. Existing Lumen layout markers are upgraded after the
-replacement panels have been created; repeating setup does not duplicate panels.
-The previous desktop configuration is backed up before applying the layout.
-If speech is not yet configured, the panel microphone keeps Search open and offers
-**Set up speech**, opening the speech-input settings directly.
+Lumen runs its native topbar on each screen. Its layout follows the available
+width. The desktop setup saves the existing Plasma configuration before applying
+a layout. The Inbox and Notes menu entries open the paired server's interfaces
+in dedicated desktop windows. Use the device permissions on that server to
+grant the corresponding app access.
 
 The update command uses a fresh temporary checkout and leaves your development
 checkout untouched. Running `bootstrap.sh` again

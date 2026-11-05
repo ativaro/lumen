@@ -6,11 +6,12 @@ verwenden den dortigen `main`-Stand und den authentifizierten Installationsweg
 in [INSTALL.md](INSTALL.md). Ein Browserlogin allein authentifiziert Git nicht.
 Zugangsdaten niemals in Clone-URLs, Skriptargumente oder Dokumentation schreiben.
 
-Ein bereits installierter Updater berücksichtigt seine gespeicherte Herkunft;
-eine ältere GitHub-Installation wird durch einen Dokumentationswechsel nicht
-ungefragt auf Forgejo umgestellt. GitHub ist kein automatisches zusätzliches
-Push-Ziel dieser Veröffentlichung. Vor einem gezielten Herkunftswechsel den
-bestehenden Zustand und die Zugriffsrechte prüfen.
+Der aktuelle Updater verwendet für frühere offizielle GitHub-Installationen
+und für Installationen ohne gespeicherte Quelle Forgejo. Wer noch den alten
+Updater hat, kann ihn einmal aus dem Forgejo-Checkout starten. Eine ausdrücklich
+konfigurierte eigene Repository-Adresse gilt weiter. Der Updater prüft vor der
+Installation, ob der Kandidat die bereits verwendeten Server-Apps und die native
+Topbar mitbringt. Dieser Desktop-Stand wird auf dem privaten Forgejo veröffentlicht.
 
 Das Repository enthält verteilbare Quellen, Tests, Anleitungen und Assets.
 Private Konfiguration, Modelle, Nutzerdaten, Serverzugänge und Sicherungen
