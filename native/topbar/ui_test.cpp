@@ -141,7 +141,7 @@ private slots:
         auto activities=window->findChild<QObject*>("activityPopup");QVERIFY(activities);QTRY_VERIFY(activities->property("opened").toBool());
         QTRY_VERIFY(item("overviewWindow_0") && item("overviewWindow_0")->isVisible());QTest::qWait(150);
         QVERIFY(window->grabWindow().save("/profile/captures/native-window-overview.png"));
-        QVERIFY(send("key 1\n"));QTRY_VERIFY(!activities->property("opened").toBool());
+        QVERIFY(click(item("overviewWindow_0")));QTRY_VERIFY(!activities->property("opened").toBool());
         QVERIFY(click(item("recentContentButton")));QTRY_VERIFY(activities->property("opened").toBool());
         QTRY_VERIFY(item("recentContent_0") && item("recentContent_0")->isVisible());
         QVERIFY(!data.controlBusy());QVERIFY(click(item("recentContent_0")));QTRY_VERIFY(actions().contains("/profile/example.txt"));
@@ -151,7 +151,7 @@ private slots:
         QTRY_VERIFY(item("reviewDecision_0") && item("reviewDecision_0")->isVisible());QTRY_VERIFY(!data.controlBusy());
         QVERIFY(click(item("reviewDecision_0")));QTRY_VERIFY(actions().contains(QByteArray(32,'b')));
         QFile resolved("/profile/decision-resolved");QVERIFY(resolved.open(QIODevice::WriteOnly));resolved.close();
-        QTRY_VERIFY(!data.controlBusy());data.refresh();QTRY_VERIFY(data.snapshot()["activity"].toMap()["decisions"].toList().isEmpty());
+        QTRY_VERIFY(!data.controlBusy());data.refresh();QTRY_VERIFY(data.snapshot()["activity"].toMap()["decisions"].toList().isEmpty());QTest::qWait(180);
         QVERIFY(click(item("activitySection_focus")));QTRY_VERIFY(item("focusToggleButton")->isVisible());QTest::qWait(180);QTRY_VERIFY(!data.controlBusy());
         QVERIFY(window->grabWindow().save("/profile/captures/native-focus-before-start.png"));
         QVERIFY(click(item("focusToggleButton")));QTRY_COMPARE(data.snapshot()["activity"].toMap()["focus"].toMap()["state"].toString(),QString("running"));
