@@ -27,22 +27,35 @@ def details(topic):
         cards=[dict(id='0',name='USB-Audiogerät',active='stereo',profiles=[dict(id='stereo',name='Stereo'),dict(id='headset',name='Headset')])],
         server='PipeWire · Testprofil',bluetooth=dict(available=True,adapters=[dict(id='/org/bluez/hci0',name='Bluetooth',powered=True)],devices=[dict(id='00:00:00:00:00:02',name='Studio-Kopfhörer',connected=True,paired=True,battery=82)]),errors=[])
 if sys.argv[1:]==['--conversation']:
-    names=('window','base','alternate','text','button','border','muted','accent','onAccent')
-    theme=dict(zip(names,COLORS[os.environ.get('LUMEN_QA_THEME','graphite')]),fontFamily='Noto Sans',fontSize=14,rowHeight=40,radius=10)
-    state=dict(title='Workshop vorbereiten',messages=[],busy=False,error='',status='Bereit',theme=theme,steps=[],permissions=[],questions=[],rich={})
-    def publish():print(json.dumps(dict(state=state)),flush=True)
-    publish()
-    for line in sys.stdin:
-        value=json.loads(line);method=value['method'];args=value['args']
-        if method=='close':break
-        with Path('/profile/actions.jsonl').open('a') as output:output.write(json.dumps(dict(conversation=method,args=args))+'\n')
-        if method=='submit':
-            request=dict(prompt=args[0])
-            if args[1]:request['note']=args[1]
-            Path('/profile/asked.json').write_text(json.dumps(request))
-            state['messages']+= [dict(key='user',role='user',text=args[0],body=args[0],blocks=[],actions=False),dict(key='answer',role='assistant',text='Drei Punkte sind noch offen.',body='',blocks=[dict(kind='text',body='<h3>Drei Punkte sind noch offen.</h3><p>In deinen Workshop-Notizen stehen diese nächsten Schritte:</p><ol><li><b>Teilnehmende bestätigen.</b> Wer ist beim Architekturteil dabei?</li><li><b>Fragen priorisieren.</b> Welche Entscheidungen müssen im Termin fallen?</li><li><b>Ablauf abstimmen.</b> Plane zum Schluss Zeit für die nächsten Schritte ein.</li></ol>',items=[])],actions=True)]
-            state['steps']=[dict(title=title,status='completed') for title in ('Notes durchsucht','Workshop-Notizen gelesen','Offene Punkte zusammengefasst')]
-        print(json.dumps(dict(id=value.get('id',''),error='')),flush=True);publish()
+    from uuid import uuid4
+    from desktop_backend import DesktopBackend
+    from search_controller import SearchController
+    from voice_session import VoiceSession
+    original=SearchController.__init__
+    def initialize(controller,*args,**kwargs):
+        original(controller,*args,**kwargs);controller.backend.fixture_controller=controller
+    def send(backend,prompt,files,*args,**options):
+        request=dict(prompt=prompt)
+        if backend.fixture_controller.note_context:request['note']=backend.fixture_controller.note_context
+        Path('/profile/asked.json').write_text(json.dumps(request))
+        backend.session=backend.session or 'ses_'+uuid4().hex
+        identity=uuid4().hex
+        answer='### Drei Punkte sind noch offen.\n\nIn deinen Workshop-Notizen stehen diese nächsten Schritte:\n\n1. **Teilnehmende bestätigen.** Wer ist beim Architekturteil dabei?\n\n2. **Fragen priorisieren.** Welche Entscheidungen müssen im Termin fallen?\n\n3. **Ablauf abstimmen.** Plane zum Schluss Zeit für die nächsten Schritte ein.'
+        backend.messages.extend([dict(info=dict(id=identity,role='user'),parts=[dict(type='text',text=prompt)]),dict(info=dict(id=uuid4().hex,role='assistant',parentID=identity,time=dict(completed=1)),parts=[dict(type='text',text=answer)]+[dict(type='tool',tool='read',state=dict(title=title,status='completed')) for title in ('Notes durchsucht','Workshop-Notizen gelesen','Offene Punkte zusammengefasst')])])
+        backend.messagesChanged.emit(backend.messages)
+        backend.sessionsChanged.emit([dict(id=backend.session,title='Workshop vorbereiten',time=dict(updated=1))])
+        return True
+    def execution(backend,target):
+        if target!=backend.execution:backend.new_conversation()
+        backend.execution=target;backend.executionChanged.emit();return True
+    def voice(session):
+        with Path('/profile/actions.jsonl').open('a') as output:output.write(json.dumps(dict(conversation='voice'))+'\n')
+    SearchController.__init__=initialize
+    DesktopBackend.send=send;DesktopBackend.set_execution=execution;DesktopBackend.preflight=lambda *_:True
+    DesktopBackend.refresh_sessions=lambda *_:None;DesktopBackend._run=lambda *_:None;DesktopBackend.poll=lambda *_:None
+    VoiceSession.toggle=voice
+    from topbar_conversation import main
+    main()
     raise SystemExit(0)
 if sys.argv[1:]==['--bar-snapshot']:
     names=('window','base','alternate','text','button','border','muted','accent','onAccent')

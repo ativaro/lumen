@@ -92,10 +92,10 @@ with tempfile.TemporaryDirectory() as directory:
 
     def test_real_helper_protocol_and_draft_recovery_without_model(self):
         self.run_qt6('''
-import json,os,subprocess,sys
+import json,os,subprocess,sys,lumen_panel
 from pathlib import Path
 commands=[dict(method='width',args=[640],id='width'),dict(method='draft',args=['Keep my unsent draft',{}],id='draft'),dict(method='close',args=[])]
-p=subprocess.run([sys.executable,'-c','from topbar_conversation import main;main()'],input=''.join(json.dumps(c)+'\\n' for c in commands),text=True,capture_output=True,timeout=10)
+p=subprocess.run([sys.executable,lumen_panel.__file__,'--conversation'],input=''.join(json.dumps(c)+'\\n' for c in commands),text=True,capture_output=True,timeout=10)
 assert p.returncode==0,p.stderr
 rows=[json.loads(line) for line in p.stdout.splitlines()]
 assert any(row.get('id')=='draft' and not row['error'] for row in rows),rows

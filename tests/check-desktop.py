@@ -36,7 +36,7 @@ with (profile/'build.log').open('w') as log:
 for name in ('home','config','data/applications','state','runtime','cache','captures'):
     (profile/name).mkdir(parents=True,exist_ok=True,mode=0o700)
 (profile/'config/Lumen').mkdir()
-(profile/'config/Lumen/Assistant.conf').write_text('[topbar]\nlayout='+args.layout+'\n')
+(profile/'config/Lumen/Assistant.conf').write_text('[General]\nappearance='+args.theme+'\n[topbar]\nlayout='+args.layout+'\n')
 pin_ids=[]
 for identity,title,icon,category in [('browser','Browser','internet-web-browser','Network'),('files','Dateien','folder','Utility'),
         ('lumen','Lumen','search','Utility'),('kate','Kate','accessories-text-editor','Development'),
