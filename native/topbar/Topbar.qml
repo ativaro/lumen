@@ -21,6 +21,7 @@ Window {
     property bool conversationLoaded:false
     property string conversationQuery:""
     property bool detachingConversation:false
+    property bool yieldingConversation:false
     property bool draggingConversation:false
     property bool conversationMoveReady:false
     readonly property int conversationHeight:Math.max(260,Math.min(620,bar.screen.height-bar.barSize-24))
@@ -97,7 +98,7 @@ Window {
         conversationMoveReady=false;draggingConversation=dragging;detachingConversation=true;mask();bar.update()
     }
     onFrameSwapped:if(detachingConversation){
-        detachingConversation=false;conversationWindow.show();conversationWindow.requestActivate();conversationPane.focusInput()
+        detachingConversation=false;conversationWindow.activateWhenMapped=true;conversationWindow.show()
     }
     readonly property var uiLocale:Qt.locale(stateData.language==="de"?"de_CH":"en_US")
     function fit(){
@@ -145,6 +146,7 @@ Window {
         let regions=classic?[Qt.rect(12,12,width-24,barSize-24+(conversationOpen?conversationHeight:0))]:[Qt.rect(0,0,width,barSize+(conversationOpen?conversationHeight:0))]
         let popupOpen=false
         for(const popup of [launcher,systemPopup,networkPopup,audioPopup,overflow,windowMenu,trayPopup,calendar,askPopup,contextDrawer,activityPopup])if(popup.visible){regions.push(Qt.rect(popup.x,popup.y,popup.width,popup.height));popupOpen=true}
+        yieldingConversation=detachingConversation||(conversationWindow.visible&&!popupOpen&&!conversationOpen)
         panelData.inputMask(bar,regions,popupOpen||conversationOpen)
     }
     onBarSizeChanged:Qt.callLater(mask)
@@ -222,6 +224,7 @@ Window {
     }
     AskComposer {
         id:inlineComposer;objectName:"inlineComposer";onEditingChanged:if(editing){restoreFocus.stop();if(bar.layout==="context" && visible)contextDrawer.open()}
+        TapHandler {onPressedChanged:if(pressed&&conversationWindow.visible)bar.openConversation()}
         visible:bar.expandedComposer;width:bar.classic?Math.max(0,activityButton.x-(bar.twoRows?24:appRow.x+appRow.width+12)-60):266
         x:bar.classic?(bar.twoRows?24:appRow.x+appRow.width+12):bar.deck?bar.width-310-16:systemRow.x-310-8;y:bar.classic?(bar.twoRows?82:40)-height/2:bar.deck?72:(bar.barSize-height)/2
         colors:bar.colors;translate:bar.t;controller:panelData;keyStyle:!bar.classic
@@ -256,6 +259,8 @@ Window {
     }
     Window {
         id:conversationWindow;objectName:"detachedConversation";visible:false;transientParent:null
+        property bool activateWhenMapped:false
+        onVisibleChanged:Qt.callLater(bar.mask)
         title:"Lumen";flags:Qt.Window|Qt.FramelessWindowHint;width:900;height:700;minimumWidth:440;minimumHeight:400;color:"transparent"
         Rectangle {anchors.fill:parent;z:-1;color:bar.colors.window;radius:bar.colors.radius||12;border.color:bar.colors.border}
         Repeater {
@@ -271,7 +276,10 @@ Window {
                 onPressed:conversationWindow.startSystemResize(modelData)
             }
         }
-        onFrameSwapped:if(bar.draggingConversation){bar.draggingConversation=false;Qt.callLater(()=>{bar.conversationMoveReady=conversationWindow.startSystemMove()})}
+        onFrameSwapped:if(activateWhenMapped){
+            activateWhenMapped=false
+            Qt.callLater(()=>{conversationWindow.requestActivate();conversationPane.focusInput();if(bar.draggingConversation){bar.draggingConversation=false;bar.conversationMoveReady=conversationWindow.startSystemMove()}})
+        }
         onClosing:event=>{event.accepted=false;bar.closeConversation()}
     }
     Shortcut {sequence:"Escape";enabled:bar.conversationOpen||conversationWindow.active;onActivated:bar.closeConversation()}

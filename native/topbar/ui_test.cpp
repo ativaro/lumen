@@ -275,7 +275,9 @@ private slots:
             QVERIFY(send("move "+QByteArray::number(dragPoint.x())+" "+QByteArray::number(dragPoint.y())+"\n"));
             QVERIFY(send("down\n"));QVERIFY(send("move "+QByteArray::number(dragPoint.x()+30)+" "+QByteArray::number(dragPoint.y()+100)+"\n"));
             QTRY_VERIFY(detached->isVisible());QTRY_VERIFY(window->property("conversationMoveReady").toBool());QVERIFY(send("up\n"));
-            QTRY_VERIFY_WITH_TIMEOUT(detached->isActive(),3000);reattach->forceActiveFocus(Qt::TabFocusReason);QTRY_VERIFY(reattach->hasActiveFocus());QVERIFY(send("key 57\n"));
+            QTRY_VERIFY_WITH_TIMEOUT(detached->isActive(),3000);
+            if(gesture==1){QVERIFY(click(question));}
+            else{reattach->forceActiveFocus(Qt::TabFocusReason);QTRY_VERIFY(reattach->hasActiveFocus());QVERIFY(send("key 57\n"));}
             QTRY_VERIFY(!detached->isVisible() && window->property("conversationOpen").toBool());
             QTRY_VERIFY_WITH_TIMEOUT(window->isActive(),3000);
             QCOMPARE(followup->property("text").toString(),QString("Dieselbe Folgefrage behalten"));

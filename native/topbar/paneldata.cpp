@@ -285,7 +285,9 @@ void PanelData::inputMask(QQuickWindow *window,const QVariantList &rectangles,bo
     window->setMask(mask);
     LayerShellQt::Window::get(window)->setExclusiveZone(window->property("barSize").toInt());
     // Popups opened with Meta need keyboard focus without a preceding pointer event.
-    LayerShellQt::Window::get(window)->setKeyboardInteractivity(popupOpen
+    // Release the layer's keyboard grab before activating a detached normal window.
+    LayerShellQt::Window::get(window)->setKeyboardInteractivity(window->property("yieldingConversation").toBool()
+        ?LayerShellQt::Window::KeyboardInteractivityNone:popupOpen
         ?LayerShellQt::Window::KeyboardInteractivityExclusive:LayerShellQt::Window::KeyboardInteractivityOnDemand);
     // Wayland applies input regions on the next surface commit, even if no pixels changed.
     window->update();
