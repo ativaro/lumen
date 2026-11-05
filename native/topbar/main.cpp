@@ -16,7 +16,7 @@
 
 int main(int argc,char **argv){
     QApplication app(argc,argv);app.setApplicationName("lumen-topbar");app.setApplicationDisplayName("Lumen Topbar");
-    app.setDesktopFileName("lumen-apps");app.setQuitOnLastWindowClosed(false);
+    app.setDesktopFileName("lumen");app.setQuitOnLastWindowClosed(false);
     QCommandLineParser parser;parser.addHelpOption();parser.addOption({"apps","Startmenü öffnen"});parser.process(app);
     auto bus=QDBusConnection::sessionBus();
     if(!bus.registerService("org.lumen.Topbar")){

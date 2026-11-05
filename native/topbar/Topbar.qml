@@ -17,6 +17,13 @@ Window {
     readonly property int barSize:classic?(twoRows?118:80):deck?118:layout==="band"?68:60
     readonly property int rowHeight:classic?36:44
     property bool expandedComposer:false
+    property bool conversationOpen:false
+    property bool conversationLoaded:false
+    property string conversationQuery:""
+    property bool detachingConversation:false
+    property bool draggingConversation:false
+    property bool conversationMoveReady:false
+    readonly property int conversationHeight:Math.max(260,Math.min(620,bar.screen.height-bar.barSize-24))
     property alias noteContext:questionState.note
     property string notePendingAction:""
     QtObject {
@@ -27,9 +34,10 @@ Window {
         property string submitted:""
         property string pendingAction:""
         property bool pending:false
+        property string error:""
     }
     width:1280
-    height:Math.max(barSize,launcher.visible?launcher.y+launcher.height+12:0,systemPopup.visible?systemPopup.y+systemPopup.height+12:0,networkPopup.visible?networkPopup.y+networkPopup.height+12:0,audioPopup.visible?audioPopup.y+audioPopup.height+12:0,overflow.visible?overflow.y+overflow.height+12:0,windowMenu.visible?windowMenu.y+windowMenu.height+12:0,trayPopup.visible?trayPopup.y+trayPopup.height+12:0,calendar.visible?calendar.y+calendar.height+12:0,askPopup.visible?askPopup.y+askPopup.height+12:0,contextDrawer.visible?contextDrawer.y+contextDrawer.height+12:0,activityPopup.visible?activityPopup.y+activityPopup.height+12:0)
+    height:Math.max(conversationOpen?barSize+conversationHeight:barSize,launcher.visible?launcher.y+launcher.height+12:0,systemPopup.visible?systemPopup.y+systemPopup.height+12:0,networkPopup.visible?networkPopup.y+networkPopup.height+12:0,audioPopup.visible?audioPopup.y+audioPopup.height+12:0,overflow.visible?overflow.y+overflow.height+12:0,windowMenu.visible?windowMenu.y+windowMenu.height+12:0,trayPopup.visible?trayPopup.y+trayPopup.height+12:0,calendar.visible?calendar.y+calendar.height+12:0,askPopup.visible?askPopup.y+askPopup.height+12:0,contextDrawer.visible?contextDrawer.y+contextDrawer.height+12:0,activityPopup.visible?activityPopup.y+activityPopup.height+12:0)
     color:"transparent"
     property bool ready:false
     visible:ready && !windowState.fullScreen
@@ -69,8 +77,28 @@ Window {
         return {section:"focus",text:t("Alles im Blick"),icon:"emblem-ok-symbolic"}
     }
     Notifications.Settings {id:notificationSettings;live:true}
-    function showActivity(page){activityPopup.page=page;activityPopup.section=statusSection;activityPopup.open()}
+    function showActivity(page){if(conversationOpen)closeConversation();activityPopup.page=page;activityPopup.section=statusSection;activityPopup.open()}
     function t(source){return stateData.labels?.[source] || source}
+    function openConversation(){
+        focusLoss.stop();restoreFocus.stop();launcher.close();askPopup.close();contextDrawer.close();activityPopup.close()
+        conversationPane.parent=bar.contentItem
+        conversationOpen=true;panelData.conversation.call("width",[Math.min(712,bar.width-72)])
+        if(questionState.draft)panelData.conversation.call("draft",[questionState.draft,questionState.note])
+        mask();bar.requestActivate();conversationWindow.hide();focusLoss.stop()
+        Qt.callLater(conversationPane.focusInput)
+    }
+    function closeConversation(){conversationOpen=false;conversationWindow.hide();panelData.conversation.call("hidden");Qt.callLater(mask);restoreFocus.restart()}
+    function toggleConversation(){conversationOpen?closeConversation():openConversation()}
+    function conversationSent(){askPopup.close();contextDrawer.close();if(!conversationWindow.visible)openConversation();conversationPane.following=true;Qt.callLater(conversationPane.latest)}
+    function detachConversation(dragging){
+        conversationOpen=false;conversationPane.parent=conversationWindow.contentItem
+        conversationWindow.width=Math.min(900,bar.screen.width-48);conversationWindow.height=Math.min(760,bar.screen.height-80)
+        conversationWindow.x=bar.screen.virtualX+(bar.width-conversationWindow.width)/2;conversationWindow.y=bar.screen.virtualY+bar.barSize+24
+        conversationMoveReady=false;draggingConversation=dragging;detachingConversation=true;mask();bar.update()
+    }
+    onFrameSwapped:if(detachingConversation){
+        detachingConversation=false;conversationWindow.show();conversationWindow.requestActivate();conversationPane.focusInput()
+    }
     readonly property var uiLocale:Qt.locale(stateData.language==="de"?"de_CH":"en_US")
     function fit(){
         let total=0
@@ -114,17 +142,18 @@ Window {
         Qt.callLater(mask)
     }
     function mask(){
-        let regions=classic?[Qt.rect(12,12,width-24,barSize-24)]:[Qt.rect(0,0,width,barSize)]
+        let regions=classic?[Qt.rect(12,12,width-24,barSize-24+(conversationOpen?conversationHeight:0))]:[Qt.rect(0,0,width,barSize+(conversationOpen?conversationHeight:0))]
         let popupOpen=false
         for(const popup of [launcher,systemPopup,networkPopup,audioPopup,overflow,windowMenu,trayPopup,calendar,askPopup,contextDrawer,activityPopup])if(popup.visible){regions.push(Qt.rect(popup.x,popup.y,popup.width,popup.height));popupOpen=true}
-        panelData.inputMask(bar,regions,popupOpen)
+        panelData.inputMask(bar,regions,popupOpen||conversationOpen)
     }
     onBarSizeChanged:Qt.callLater(mask)
     onLayoutChanged:if(ready){launcher.close();systemPopup.close();networkPopup.close();audioPopup.close();overflow.close();windowMenu.close();trayPopup.close();calendar.close();askPopup.close();contextDrawer.close();activityPopup.close();Qt.callLater(()=>{fit();if(layout==="context" && inlineComposer.visible && inlineComposer.editing)contextDrawer.open()})}
-    function showLauncher(programs){focusLoss.stop();restoreFocus.stop();startMenu.reset(!programs);launcher.open();panelData.refresh();panelData.inspect("recent")}
+    function showLauncher(programs){if(conversationOpen)closeConversation();focusLoss.stop();restoreFocus.stop();startMenu.reset(!programs);launcher.open();panelData.refresh();panelData.inspect("recent")}
     function updateMenu(){appMenu.setEndpoint(windowState.service,windowState.path)}
-    function dismissIfInactive(){if(!bar.active && !appMenu.opened && !trayModel.opened && !startMenu.menuOpened){launcher.close();systemPopup.close();networkPopup.close();audioPopup.close();overflow.close();windowMenu.close();trayPopup.close();calendar.close();askPopup.close();contextDrawer.close();activityPopup.close();trayModel.close()}}
+    function dismissIfInactive(){if(!bar.active && !appMenu.opened && !trayModel.opened && !startMenu.menuOpened && !conversationPane.dialogVisible){launcher.close();systemPopup.close();networkPopup.close();audioPopup.close();overflow.close();windowMenu.close();trayPopup.close();calendar.close();askPopup.close();contextDrawer.close();activityPopup.close();trayModel.close();if(conversationOpen)closeConversation()}}
     onHeightChanged:Qt.callLater(mask)
+    onConversationOpenChanged:Qt.callLater(mask)
     onActiveChanged:if(active)focusLoss.stop();else focusLoss.restart()
     Timer {id:focusLoss;interval:80;onTriggered:bar.dismissIfInactive()}
     // A delayed activation can steal focus from a subsequently reopened popup.
@@ -136,7 +165,7 @@ Window {
         id:windowState
         objectName:"activeWindowState"
         screenGeometry:Qt.rect(bar.screen.virtualX,bar.screen.virtualY,bar.screen.width,bar.screen.height)
-        holdActiveWindow:!!bar.notePendingAction || inlineComposer.editing || appMenu.opened || trayModel.opened || launcher.opened || systemPopup.opened || networkPopup.opened || audioPopup.opened || overflow.opened || windowMenu.opened || trayPopup.opened || calendar.opened || askPopup.opened || contextDrawer.opened || activityPopup.opened
+        holdActiveWindow:bar.conversationOpen || bar.detachingConversation || !!bar.notePendingAction || inlineComposer.editing || appMenu.opened || trayModel.opened || launcher.opened || systemPopup.opened || networkPopup.opened || audioPopup.opened || overflow.opened || windowMenu.opened || trayPopup.opened || calendar.opened || askPopup.opened || contextDrawer.opened || activityPopup.opened
         onServiceChanged:Qt.callLater(bar.updateMenu)
         onPathChanged:Qt.callLater(bar.updateMenu)
         onFullScreenChanged:if(fullScreen){appMenu.close();trayModel.close();launcher.close();systemPopup.close();networkPopup.close();audioPopup.close();overflow.close();windowMenu.close();trayPopup.close();calendar.close();askPopup.close();contextDrawer.close();activityPopup.close()}
@@ -148,13 +177,13 @@ Window {
         function onNoteAttached(action,note){if(action===bar.notePendingAction){questionState.note=note;bar.notePendingAction=""}}
         function onControlFailed(action){if(action===bar.notePendingAction)bar.notePendingAction=""}}
     Rectangle {
-        visible:!bar.classic;width:bar.width;height:bar.barSize;color:bar.colors.window
+        visible:!bar.classic;width:bar.width;height:bar.barSize+(bar.conversationOpen?bar.conversationHeight:0);color:bar.colors.window
         Rectangle {anchors.bottom:parent.bottom;width:parent.width;height:1;color:bar.colors.border}
         Rectangle {visible:bar.deck;x:16;y:64;width:parent.width-32;height:1;color:bar.colors.border}
     }
     Rectangle {
         id:leftIsland;objectName:"leftIsland";visible:bar.classic
-        x:12;y:12;height:activityPopup.visible?activityPopup.y+activityPopup.height-12:bar.barSize-24;width:bar.width-24
+        x:12;y:12;height:bar.conversationOpen?bar.barSize-24+bar.conversationHeight:activityPopup.visible?activityPopup.y+activityPopup.height-12:bar.barSize-24;width:bar.width-24
         radius:(bar.colors.radius||10)+7;color:bar.colors.window;border.color:bar.colors.border
     }
     Row {
@@ -193,11 +222,45 @@ Window {
     }
     AskComposer {
         id:inlineComposer;objectName:"inlineComposer";onEditingChanged:if(editing){restoreFocus.stop();if(bar.layout==="context" && visible)contextDrawer.open()}
-        visible:bar.expandedComposer;width:bar.classic?Math.max(0,activityButton.x-(bar.twoRows?24:appRow.x+appRow.width+12)-12):310
+        visible:bar.expandedComposer;width:bar.classic?Math.max(0,activityButton.x-(bar.twoRows?24:appRow.x+appRow.width+12)-60):266
         x:bar.classic?(bar.twoRows?24:appRow.x+appRow.width+12):bar.deck?bar.width-310-16:systemRow.x-310-8;y:bar.classic?(bar.twoRows?82:40)-height/2:bar.deck?72:(bar.barSize-height)/2
         colors:bar.colors;translate:bar.t;controller:panelData;keyStyle:!bar.classic
-        request:questionState;onInspectAttachment:contextDrawer.open();onSent:{askPopup.close();contextDrawer.close()}
+        request:questionState;onInspectAttachment:contextDrawer.open();onSent:bar.conversationSent();onVoiceRequested:bar.openConversation()
     }
+    BarButton {objectName:"conversationToggle";visible:inlineComposer.visible;colors:bar.colors;glyph:bar.conversationOpen?"arrow-up":"arrow-down";text:bar.t(bar.conversationOpen?"Gespräch einklappen":"Gespräch aufklappen");iconOnly:true;x:inlineComposer.x+inlineComposer.width+4;y:inlineComposer.y;onClicked:bar.toggleConversation()}
+    ConversationState {id:conversationState;model:panelData.conversation;translate:bar.t;colors:bar.colors}
+    Connections {target:panelData.conversation;function onChanged(){
+        const incoming=conversationState.data.query||""
+        if(incoming!==bar.conversationQuery){
+            bar.conversationQuery=incoming
+            if(!questionState.pending&&incoming&&conversationState.data.voiceActive)questionState.draft=incoming
+        }
+        if(!bar.conversationLoaded&&Object.keys(conversationState.data).length){
+            bar.conversationLoaded=true
+            if(!questionState.pending&&!questionState.draft&&conversationState.data.query)questionState.draft=conversationState.data.query
+            if(!questionState.pending&&!questionState.note.reference&&conversationState.data.note?.reference)questionState.note=conversationState.data.note
+        }
+    }}
+    Connections {target:questionState;function onPendingChanged(){if(questionState.pending&&!conversationWindow.visible)bar.openConversation()}}
+    Connections {target:questionState;function onDraftChanged(){draftSync.restart()}function onNoteChanged(){draftSync.restart()}}
+    Timer {id:draftSync;interval:250;onTriggered:if(!questionState.pending)panelData.conversation.call("draft",[questionState.draft,questionState.note])}
+    ConversationPane {
+        id:conversationPane;objectName:"topbarConversation";visible:bar.conversationOpen||conversationWindow.visible
+        x:detached?0:12;y:detached?0:bar.barSize-12
+        width:detached?conversationWindow.width:bar.width-24;height:detached?conversationWindow.height:bar.conversationHeight
+        controller:conversationState;request:questionState;host:panelData;colors:bar.colors;translate:bar.t
+        detached:parent===conversationWindow.contentItem
+        onDetachRequested:dragging=>bar.detachConversation(dragging)
+        onCollapseRequested:bar.closeConversation()
+        onReattachRequested:bar.openConversation()
+    }
+    Window {
+        id:conversationWindow;objectName:"detachedConversation";visible:false;transientParent:null
+        title:"Lumen";flags:Qt.Window;width:900;height:700;minimumWidth:440;minimumHeight:400;color:bar.colors.window
+        onFrameSwapped:if(bar.draggingConversation){bar.draggingConversation=false;Qt.callLater(()=>{bar.conversationMoveReady=conversationWindow.startSystemMove()})}
+        onClosing:event=>{event.accepted=false;bar.closeConversation()}
+    }
+    Shortcut {sequence:"Escape";enabled:bar.conversationOpen||conversationWindow.active;onActivated:bar.closeConversation()}
     BarButton {id:activityButton;objectName:"activityButton";visible:bar.classic;colors:bar.colors;monochrome:true;text:bar.statusText;glyph:bar.currentActivity.icon
         width:bar.width<900?160:190;x:bar.twoRows?bar.width-width-24:systemRow.x-width-12;y:(bar.twoRows?82:40)-height/2
         onClicked:bar.showActivity("status")}
@@ -214,7 +277,7 @@ Window {
             }
             BarButton {id:trayMore;objectName:"trayMoreButton";colors:bar.colors;text:bar.t("Hintergrund-Apps");glyph:"arrow-down";iconOnly:true;visible:bar.shownTray<bar.activeTray.length || bar.hasPassiveTray;onClicked:trayPopup.open()}
             BarButton {key:!bar.classic;objectName:"askButton";colors:bar.colors;text:bar.t("Lumen fragen oder suchen");glyph:"search";iconOnly:true;visible:!bar.expandedComposer;onClicked:{askPopup.open();popupComposer.focusInput()}}
-            BarButton {key:!bar.classic;objectName:"compactDictateButton";colors:bar.colors;text:bar.t("Mit Lumen sprechen");glyph:"microphone-sensitivity-high";iconOnly:true;visible:!bar.expandedComposer;onClicked:panelData.launch("voice")}
+            BarButton {key:!bar.classic;objectName:"compactDictateButton";colors:bar.colors;text:bar.t("Mit Lumen sprechen");glyph:"microphone-sensitivity-high";iconOnly:true;visible:!bar.expandedComposer;onClicked:{bar.openConversation();panelData.conversation.call("voice")}}
             BarButton {colors:bar.colors;text:bar.t("Übertragungen")+(bar.stateData.operations?.transfer?" · "+bar.stateData.operations.transfer.count:"");glyph:"folder-upload";iconOnly:true;visible:!bar.classic && !!bar.stateData.operations?.transfer;onClicked:panelData.launch("transfer",bar.stateData.operations.transfer.id)}
             BarButton {colors:bar.colors;text:bar.t("Aufnahme in Audio Studio");glyph:"media-record";iconOnly:true;visible:!bar.classic && !!bar.stateData.operations?.audio;onClicked:panelData.launch("app","meetings")}
             BarButton {key:!bar.classic;objectName:"systemErrorButton";colors:bar.colors;text:bar.t(panelData.error);glyph:"dialog-warning";iconOnly:true;visible:!!panelData.error;onClicked:systemPopup.open()}
@@ -298,7 +361,7 @@ Window {
         id:askPopup;x:bar.width-width-12
         ColumnLayout {width:parent.width;spacing:12
             Label {text:bar.t("Neue Frage an Lumen");color:bar.colors.text;font.pixelSize:19;Layout.fillWidth:true}
-            AskComposer {id:popupComposer;objectName:"popupComposer";Layout.fillWidth:true;colors:bar.colors;translate:bar.t;controller:panelData;request:questionState;onSent:{askPopup.close();contextDrawer.close()} onInspectAttachment:{}}
+            AskComposer {id:popupComposer;objectName:"popupComposer";Layout.fillWidth:true;colors:bar.colors;translate:bar.t;controller:panelData;request:questionState;onSent:bar.conversationSent();onVoiceRequested:bar.openConversation();onInspectAttachment:{}}
             ContextActions {prefix:"popup";visible:bar.layout==="context" || !!questionState.note.reference;Layout.fillWidth:true}
             Label {visible:bar.layout!=="context" && !questionState.note.reference && !!panelData.error;text:bar.t(panelData.error);color:bar.colors.text;wrapMode:Text.Wrap;Layout.fillWidth:true}
         }

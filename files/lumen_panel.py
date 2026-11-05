@@ -112,32 +112,12 @@ def main():
     group.add_argument('--open-page', choices=['chat', 'files', 'system', 'tasks', 'settings', 'workplace'])
     group.add_argument('--search', action='store_true')
     group.add_argument('--voice', action='store_true')
-    group.add_argument('--ask', action='store_true')
+    group.add_argument('--conversation', action='store_true')
     group.add_argument('--settings', action='store_true')
     args = parser.parse_args()
-    if args.ask:
-        import sys
-        from lumen_launch import executable
-        try:
-            payload = sys.stdin.buffer.read(65537)
-            if len(payload) > 65536: raise ValueError('Invalid prompt')
-            value = json.loads(payload)
-            prompt = value.get('prompt') if isinstance(value, dict) and set(value)<= {'prompt','note'} and 'prompt' in value else None
-            if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > 4000 or '\0' in prompt:
-                raise ValueError('Invalid prompt')
-            env={**os.environ, 'LUMEN_ASK_PROMPT': prompt}
-            env.pop('LUMEN_ASK_FILE',None)
-            env.pop('LUMEN_ASK_NOTE',None)
-            if 'note' in value:
-                from topbar_context import validate_note
-                env['LUMEN_ASK_NOTE']=json.dumps(validate_note(value['note']))
-            subprocess.Popen([executable('lumen-agent-app'), '--search'],
-                env=env, start_new_session=True,
-                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            print(json.dumps({'error': ''}))
-        except (OSError, ValueError):
-            print(json.dumps({'error': tr('Die Frage konnte nicht geöffnet werden. Bitte erneut versuchen.')}))
-        return
+    if args.conversation:
+        from topbar_conversation import main
+        main();return
     if args.topbar_note:
         from topbar_context import read_note
         try: print(json.dumps(dict(note=read_note(args.topbar_note),error='')))

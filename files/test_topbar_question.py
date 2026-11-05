@@ -1,6 +1,4 @@
 """Topbar questions cross stdin intact and never become shell arguments."""
-import contextlib
-import io
 import json
 import os
 from pathlib import Path
@@ -8,9 +6,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
-
-import lumen_panel
 
 
 class TopbarQuestionTest(unittest.TestCase):
@@ -79,37 +74,5 @@ assert 'LUMEN_ASK_NOTE' not in os.environ
                     except subprocess.TimeoutExpired as error:self.fail(str(error.stdout)+str(error.stderr))
                     self.assertEqual(result.returncode,0,result.stdout+result.stderr)
                     self.assertNotIn('Traceback (most recent call last)',result.stderr)
-
-    def request(self, payload):
-        output=io.StringIO()
-        with patch('sys.argv',['lumen-panel','--ask']),patch('sys.stdin',io.TextIOWrapper(io.BytesIO(payload))),contextlib.redirect_stdout(output):
-            lumen_panel.main()
-        return json.loads(output.getvalue())
-
-    def test_question_is_preserved_without_shell_or_command_line_text(self):
-        question='Was bedeutet "$(echo test)" und $HOME? Ändere nichts.'
-        with patch('lumen_launch.executable',return_value='/native/lumen-agent-app'),patch.object(lumen_panel.subprocess,'Popen') as launch:
-            self.assertEqual(self.request(json.dumps({'prompt':question}).encode()),{'error':''})
-        self.assertEqual(launch.call_args.args[0],['/native/lumen-agent-app','--search'])
-        self.assertEqual(launch.call_args.kwargs['env']['LUMEN_ASK_PROMPT'],question)
-        self.assertNotIn('shell',launch.call_args.kwargs)
-
-    def test_malformed_or_oversized_requests_do_not_launch(self):
-        payloads=[b'not json',b'[]',b'{"prompt":true}',b'{"prompt":"   "}',b'{"prompt":"x","extra":1}',
-                  json.dumps({'prompt':'x'*4001}).encode(),json.dumps({'prompt':'a\0b'}).encode(),b'{"prompt":"x"}'+b' '*65536]
-        with patch.object(lumen_panel.subprocess,'Popen') as launch:
-            for payload in payloads:
-                with self.subTest(size=len(payload)):self.assertTrue(self.request(payload)['error'])
-            launch.assert_not_called()
-
-    def test_removed_topbar_file_selection_is_rejected(self):
-        with tempfile.TemporaryDirectory() as tmp, patch.object(lumen_panel.subprocess,'Popen') as launch:
-            path=Path(tmp)/'Notiz $HOME.txt';path.write_text('synthetic')
-            for value in (str(path),True,'relative.txt',tmp,'/does-not-exist',str(path)+'\0'):
-                with self.subTest(value=value):
-                    result=self.request(json.dumps(dict(prompt='Zusammenfassen',file=value)).encode())
-                    self.assertTrue(result['error'])
-            launch.assert_not_called()
-
 
 if __name__=='__main__':unittest.main()

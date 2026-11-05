@@ -27,6 +27,8 @@ int main(int argc,char **argv) {
             org_kde_kwin_fake_input_button(input,!strcmp(operation,"right")?273:272,1);wl_display_roundtrip(display);
             org_kde_kwin_fake_input_button(input,!strcmp(operation,"right")?273:272,0);wl_display_roundtrip(display);
             }
+        } else if(!strcmp(line,"down\n") || !strcmp(line,"up\n")){
+            org_kde_kwin_fake_input_button(input,272,!strcmp(line,"down\n"));wl_display_roundtrip(display);
         } else if(sscanf(line,"key %d",&code)==1) {
             org_kde_kwin_fake_input_keyboard_key(input,code,1);wl_display_roundtrip(display);
             org_kde_kwin_fake_input_keyboard_key(input,code,0);wl_display_roundtrip(display);

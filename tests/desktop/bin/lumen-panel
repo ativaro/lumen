@@ -26,6 +26,24 @@ def details(topic):
         playback=[dict(id='12',name='Audio Studio',media='Synthetische Wiedergabe',volume=70,muted=False,device='7')],recording=[],
         cards=[dict(id='0',name='USB-Audiogerät',active='stereo',profiles=[dict(id='stereo',name='Stereo'),dict(id='headset',name='Headset')])],
         server='PipeWire · Testprofil',bluetooth=dict(available=True,adapters=[dict(id='/org/bluez/hci0',name='Bluetooth',powered=True)],devices=[dict(id='00:00:00:00:00:02',name='Studio-Kopfhörer',connected=True,paired=True,battery=82)]),errors=[])
+if sys.argv[1:]==['--conversation']:
+    names=('window','base','alternate','text','button','border','muted','accent','onAccent')
+    theme=dict(zip(names,COLORS[os.environ.get('LUMEN_QA_THEME','graphite')]),fontFamily='Noto Sans',fontSize=14,rowHeight=40,radius=10)
+    state=dict(title='Workshop vorbereiten',messages=[],busy=False,error='',status='Bereit',theme=theme,steps=[],permissions=[],questions=[],rich={})
+    def publish():print(json.dumps(dict(state=state)),flush=True)
+    publish()
+    for line in sys.stdin:
+        value=json.loads(line);method=value['method'];args=value['args']
+        if method=='close':break
+        with Path('/profile/actions.jsonl').open('a') as output:output.write(json.dumps(dict(conversation=method,args=args))+'\n')
+        if method=='submit':
+            request=dict(prompt=args[0])
+            if args[1]:request['note']=args[1]
+            Path('/profile/asked.json').write_text(json.dumps(request))
+            state['messages']+= [dict(key='user',role='user',text=args[0],body=args[0],blocks=[],actions=False),dict(key='answer',role='assistant',text='Drei Punkte sind noch offen.',body='',blocks=[dict(kind='text',body='<h3>Drei Punkte sind noch offen.</h3><p>In deinen Workshop-Notizen stehen diese nächsten Schritte:</p><ol><li><b>Teilnehmende bestätigen.</b> Wer ist beim Architekturteil dabei?</li><li><b>Fragen priorisieren.</b> Welche Entscheidungen müssen im Termin fallen?</li><li><b>Ablauf abstimmen.</b> Plane zum Schluss Zeit für die nächsten Schritte ein.</li></ol>',items=[])],actions=True)]
+            state['steps']=[dict(title=title,status='completed') for title in ('Notes durchsucht','Workshop-Notizen gelesen','Offene Punkte zusammengefasst')]
+        print(json.dumps(dict(id=value.get('id',''),error='')),flush=True);publish()
+    raise SystemExit(0)
 if sys.argv[1:]==['--bar-snapshot']:
     names=('window','base','alternate','text','button','border','muted','accent','onAccent')
     print(json.dumps(dict(version=1,language=os.environ.get('LUMEN_LANGUAGE','de'),
@@ -61,10 +79,6 @@ else:
     with Path('/profile/actions.jsonl').open('a') as output:output.write(json.dumps(sys.argv[1:])+'\n')
     if len(sys.argv)==3 and sys.argv[1]=='--topbar-note':
         print(json.dumps(dict(error='',note=dict(reference=dict(version=2,app='note',id='00000000-0000-0000-0000-000000000001',title='Workshop in Notes',locator=dict(server='https://synthetic.invalid',account='00000000-0000-0000-0000-000000000002')),revision=3))))
-    if sys.argv[1:]==['--ask']:
-        value=json.load(sys.stdin)
-        Path('/profile/asked.json').write_text(json.dumps(value))
-        print(json.dumps(dict(error='')))
     if len(sys.argv)>2 and sys.argv[1]=='--control':
         previous=system();current=dict(previous);error=''
         if sys.argv[2]=='volume':

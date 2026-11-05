@@ -123,7 +123,7 @@ class UpdaterTest(unittest.TestCase):
 
     def test_native_topbar_bundle_checks_the_actual_helper_before_copying(self):
         (self.install/'files/topbar_data.py').touch()
-        for name in ('topbar_data.py','topbar_activity.py','topbar_system.py','topbar_context.py'):
+        for name in ('topbar_data.py','topbar_activity.py','topbar_system.py','topbar_context.py','topbar_conversation.py'):
             (self.repo/'files'/name).touch()
         (self.repo/'native/topbar').mkdir(parents=True)
         (self.repo/'native/topbar/CMakeLists.txt').touch()
@@ -132,7 +132,7 @@ class UpdaterTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 updater.install_bundle(self.repo,self.revision)
             self.assertEqual(run.call_count,1)
-        with patch.object(updater,'run',return_value='--bar-snapshot --system-topic --ask --topbar-note') as run:
+        with patch.object(updater,'run',return_value='--bar-snapshot --system-topic --conversation --topbar-note') as run:
             updater.install_bundle(self.repo,self.revision)
             self.assertEqual(run.call_args_list[0].args[0], [str(self.repo/'bin/lumen-panel'),'--help'])
             self.assertEqual(run.call_args_list[1].args[0][:2], ['bash',str(self.repo/'install.sh')])

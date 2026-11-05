@@ -9,6 +9,7 @@
 #include <QMap>
 #include <QSet>
 #include <memory>
+#include "conversation.h"
 
 class QQuickWindow;
 class QQuickItem;
@@ -24,6 +25,7 @@ class PanelData:public QObject {
     Q_PROPERTY(QVariantList players READ players NOTIFY playersChanged)
     Q_PROPERTY(QStringList pinnedApps READ pinnedApps WRITE setPinnedApps NOTIFY pinnedAppsChanged)
     Q_PROPERTY(QString userName READ userName CONSTANT)
+    Q_PROPERTY(Conversation* conversation READ conversation CONSTANT)
 public:
     explicit PanelData(QObject *parent=nullptr);
     ~PanelData() override;
@@ -36,6 +38,7 @@ public:
     QStringList pinnedApps() const;
     void setPinnedApps(QStringList apps);
     QString userName() const;
+    Conversation *conversation() const {return m_conversation;}
     Q_INVOKABLE void mediaAction(const QString &service,const QString &action);
     Q_INVOKABLE void inspect(const QString &topic);
     Q_INVOKABLE void systemAction(const QString &topic,const QString &action,const QString &target={},int value=0);
@@ -81,6 +84,7 @@ private:
     std::unique_ptr<QLabel> m_tooltip;
     QMetaObject::Connection m_tooltipDestroyed;
     QString m_helper;
+    Conversation *m_conversation=nullptr;
     QProcess m_read;
     QPointer<QProcess> m_control;
     bool m_ignoreRead=false;

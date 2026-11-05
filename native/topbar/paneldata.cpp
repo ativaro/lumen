@@ -96,6 +96,11 @@ PanelData::PanelData(QObject *parent):QObject(parent) {
     const QString directory=qEnvironmentVariable("LUMEN_BIN_DIR",QCoreApplication::applicationDirPath());
     const QString local=QDir(directory).filePath("lumen-panel");
     m_helper=QFileInfo(local).isExecutable()?local:QStandardPaths::findExecutable("lumen-panel");
+    m_conversation=new Conversation(m_helper,this);
+    connect(m_conversation,&Conversation::finished,this,[this](const QString &action,const QString &error){
+        if(action.isEmpty())return;
+        if(error.isEmpty())emit controlFinished(action,0);else actionError(action,error);
+    });
     m_snapshot={{"apps",QVariantList{}},{"system",QVariantMap{}},{"operations",QVariantMap{}},{"palette",nativePalette()}};
     m_read.setProcessChannelMode(QProcess::SeparateChannels);m_timeout.setSingleShot(true);m_timeout.setInterval(15000);
     connect(&m_timeout,&QTimer::timeout,this,[this]{m_read.kill();fail(tr("Die Systemdaten antworten gerade nicht."));});
@@ -211,14 +216,11 @@ QString PanelData::ask(const QString &prompt,const QVariantMap &note){
     const auto reject=[&](const QString &message){QTimer::singleShot(0,this,[this,action,message]{actionError(action,message);});return action;};
     if(prompt.trimmed().isEmpty() || prompt.size()>4000 || prompt.contains(QChar::Null))return reject(tr("Bitte eine Frage mit höchstens 4000 Zeichen eingeben."));
     if(m_helper.isEmpty())return reject(tr("Lumen ist nicht vollständig installiert."));
-    QJsonObject request{{"prompt",prompt}};
     if(!note.isEmpty()){
         const auto object=QJsonObject::fromVariantMap(note);
         if(QJsonDocument(object).toJson(QJsonDocument::Compact).size()>16000)return reject(tr("Ungültige Notes-Auswahl."));
-        request["note"]=object;
     }
-    const auto payload=QJsonDocument(request).toJson(QJsonDocument::Compact);
-    QTimer::singleShot(0,this,[this,action,payload]{runHelper({"--ask"},action,0,payload);});
+    QTimer::singleShot(0,this,[this,action,prompt,note]{m_conversation->submit(prompt,note,action);});
     return action;
 }
 void PanelData::runHelper(const QStringList &arguments,const QString &action,int value,const QByteArray &input){

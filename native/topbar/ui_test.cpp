@@ -38,7 +38,7 @@ private slots:
     void realWindowMenusAndLauncher(){
         QProcess input;input.start("/build/topbar-input");QVERIFY(input.waitForStarted());
         // Flush Qt/Wayland before the separate client injects its next input event.
-        const auto send=[&](const QByteArray &command){QGuiApplication::sync();input.write(command);if(!input.waitForBytesWritten(1000) || !input.waitForReadyRead(1000))return false;return input.readAllStandardOutput().startsWith("OK");};
+        const auto send=[&](const QByteArray &command){QGuiApplication::sync();input.write(command);if(input.bytesToWrite()&&!input.waitForBytesWritten(1000))return false;if(!input.bytesAvailable()&&!input.waitForReadyRead(1000))return false;return input.readAllStandardOutput().startsWith("OK");};
         qmlRegisterType<AppMenu>("Lumen.Topbar",1,0,"AppMenu");
         PanelData data;Tray tray;QQmlEngine engine;engine.rootContext()->setContextProperty("panelData",&data);
         engine.rootContext()->setContextProperty("trayModel",&tray);
@@ -220,15 +220,47 @@ private slots:
         if(!composer->isVisible()){QVERIFY(click(item("askButton")));QTest::qWait(180);composer=item("popupComposer");}
         QVERIFY(composer);auto question=find(composer,"lumenQuestion");QVERIFY(question && question->isVisible());
         QCOMPARE(qvariant_cast<QFont>(question->property("font")).pixelSize(),QApplication::font().pixelSize());
-        const QString questionText=QStringLiteral("Erkläre $HOME und $(echo test), ohne etwas auszuführen.");
+        const QString questionText=QStringLiteral("Was muss ich für den VCF Workshop noch vorbereiten?");
         question->setProperty("text",questionText);QVERIFY(click(question));QTRY_VERIFY(question->hasActiveFocus());QTest::qWait(150);QVERIFY(question->hasActiveFocus());
         QVERIFY(window->grabWindow().save("/profile/captures/native-question.png"));
         QVERIFY(send("key 28\n"));QTRY_VERIFY_WITH_TIMEOUT(QFile::exists("/profile/asked.json"),3000);
         QFile asked("/profile/asked.json");QVERIFY(asked.open(QIODevice::ReadOnly));
         QCOMPARE(QJsonDocument::fromJson(asked.readAll()).object()["prompt"].toString(),questionText);
         QTRY_VERIFY(question->property("text").toString().isEmpty());
+        auto conversation=item("topbarConversation");QVERIFY(conversation);
+        QTRY_VERIFY(window->property("conversationOpen").toBool());
+        QTRY_VERIFY(find(conversation,"conversationComposer"));
+        QTest::qWait(150);QVERIFY(window->grabWindow().save("/profile/captures/native-conversation-attached.png"));
+        QVERIFY(island->height()>window->property("barSize").toInt());
+        auto followup=find(conversation,"conversationComposer");QVERIFY(followup);
+        followup->setProperty("text",QString("Dieselbe Folgefrage behalten"));
+        QVERIFY(click(find(conversation,"detachConversation")));
+        auto detached=window->findChild<QQuickWindow*>("detachedConversation");QVERIFY(detached);
+        QTRY_VERIFY(detached->isVisible() && !window->property("conversationOpen").toBool());
+        QTRY_VERIFY_WITH_TIMEOUT(detached->isActive(),3000);
+        QTRY_VERIFY(conversation->window()==detached);
+        QCOMPARE(followup->property("text").toString(),QString("Dieselbe Folgefrage behalten"));
+        QTest::qWait(150);QVERIFY(detached->grabWindow().save("/profile/captures/native-conversation-detached.png"));
+        // Wayland does not expose a normal window's global position; use its real keyboard focus.
+        auto reattach=find(conversation,"detachConversation");QVERIFY(reattach);
+        reattach->forceActiveFocus(Qt::TabFocusReason);QTRY_VERIFY(reattach->hasActiveFocus());
+        QVERIFY(send("key 57\n"));QTRY_VERIFY(!detached->isVisible() && window->property("conversationOpen").toBool());
+        QCOMPARE(conversation->window(),window);
+        QCOMPARE(followup->property("text").toString(),QString("Dieselbe Folgefrage behalten"));
+        auto dragArea=find(conversation,"conversationDragArea");QVERIFY(dragArea);
+        auto dragPoint=dragArea->mapToGlobal(QPointF(40,dragArea->height()/2));
+        QVERIFY(send("move "+QByteArray::number(dragPoint.x())+" "+QByteArray::number(dragPoint.y())+"\n"));
+        QVERIFY(send("down\n"));QVERIFY(send("move "+QByteArray::number(dragPoint.x()+30)+" "+QByteArray::number(dragPoint.y()+100)+"\n"));
+        QTRY_VERIFY(detached->isVisible());QTRY_VERIFY(window->property("conversationMoveReady").toBool());QVERIFY(send("up\n"));
+        QTest::qWait(150);reattach->forceActiveFocus(Qt::TabFocusReason);QVERIFY(send("key 57\n"));
+        QTRY_VERIFY(!detached->isVisible() && window->property("conversationOpen").toBool());
+        QCOMPARE(followup->property("text").toString(),QString("Dieselbe Folgefrage behalten"));
+        QVERIFY(click(find(conversation,"collapseConversation")));QTRY_VERIFY(!window->property("conversationOpen").toBool());
+        QVERIFY(click(item("conversationToggle")));QTRY_VERIFY(window->property("conversationOpen").toBool());
+        QCOMPARE(followup->property("text").toString(),QString("Dieselbe Folgefrage behalten"));
+        followup->setProperty("text",QString());
         auto dictate=item("compactDictateButton");if(!dictate->isVisible())dictate=find(item("inlineComposer"),"dictateButton");
-        QVERIFY(dictate && dictate->isVisible());QVERIFY(click(dictate));QTRY_VERIFY_WITH_TIMEOUT(actions().contains("--voice"),3000);
+        QVERIFY(dictate && dictate->isVisible());QVERIFY(click(dictate));QTRY_VERIFY_WITH_TIMEOUT(actions().contains("\"voice\""),3000);
         QVERIFY(click(item("windowOverviewButton")));
         auto activities=window->findChild<QObject*>("activityPopup");QVERIFY(activities);QTRY_VERIFY(activities->property("opened").toBool());
         QTRY_VERIFY(item("overviewWindow_0") && item("overviewWindow_0")->isVisible());QTest::qWait(150);

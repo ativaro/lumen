@@ -79,6 +79,17 @@ Bestätigungen. Fehlende Apps oder Verläufe werden als solche angezeigt; keine
 Beispieldaten in der ausgelieferten Oberfläche. Die Fußzeile und Popups verwenden
 die vertiefte Theme-Fläche; normale Beschriftungen bleiben 14px.
 
+Gesprächs-Präzisierung vom 05.11.2026: Nach einer Frage wächst die Topbar nach
+unten zu einer durchgehenden Gesprächsfläche nach `lumen-topbar-gespraech-ablosen.html`.
+Leiste und Gespräch teilen Fläche und Außenkante. Der Knopf unmittelbar rechts
+neben der Eingabe klappt das Gespräch auf und zu. Senden erscheint bei vorhandenem
+Text als eigene Aktion. Herausziehen und „Als Fenster öffnen“ lösen denselben
+Verlauf mit Entwurf und Arbeitsschritten; „In Leiste anheften“ führt ihn zurück.
+Die Eingabe bleibt erreichbar, während Antworten, Freigaben, Rückfragen und
+aufgeklappte Arbeitsschritte im Inhalt scrollen. Bestehende native Gesprächslogik
+und Antwortbausteine werden wiederverwendet. Der Darstellungswechsel sendet keine
+Nachricht und startet keinen weiteren Auftrag.
+
 Der technische Einstellungswert `classic` heißt in der Oberfläche nun Panorama;
 die ausdrücklich angebotenen alternativen Layouts bleiben wählbar.
 
