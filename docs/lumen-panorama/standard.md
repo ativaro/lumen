@@ -37,10 +37,15 @@ Die folgenden Ausgangswerte stammen aus der Desktop-Palette und der freigegebene
 
 | Theme | Fenster | Inhalt | Text | Gedämpft | Linie | Akzent | Auf Akzent | Radius |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Glas | `#20343f` | `#182b35` | `#f0f6f8` | `#b1c5cf` | `#526d79` | `#9be5d8` | `#123a38` | 16 |
+| Glas | `#202c34` | `#19242b` | `#f0f6f8` | `#b1c5cf` | `#526d79` | `#9be5d8` | `#123a38` | 16 |
 | Graphit | `#222529` | `#1a1c1f` | `#eff1f3` | `#aab1ba` | `#393e45` | `#d7dce2` | `#1a1c1f` | 10 |
 | Atelier | `#f2efe8` | `#fcfaf5` | `#302e29` | `#645e54` | `#c4bfb2` | `#52634f` | `#ffffff` | 8 |
 | Mitternacht | `#10151f` | `#141c29` | `#eef1fa` | `#a9b7ce` | `#3d4c65` | `#a7b6ff` | `#18203d` | 6 |
+
+Glas-Präzisierung vom 05.11.2026: Fensterflächen verwenden denselben dunklen
+Rauchblau-/Graphitton wie die Topbar-Referenz des Nutzers. Die gemeinsame
+Fensterfläche ist `#202c34`, die vertiefte Inhaltsfläche `#19242b`; Text, Akzente
+und Bediengeometrie bleiben den vorhandenen semantischen Rollen zugeordnet.
 
 ## Verbindlicher Abgleich bei UI-Änderungen
 

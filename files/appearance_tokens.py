@@ -11,7 +11,7 @@ DESCRIPTIONS = {
 }
 # Window, content, hover, text, button, border, muted, accent, on-accent.
 COLORS = {
-    'glass': ('#20343f', '#182b35', '#344f5d', '#f0f6f8', '#2b4350', '#526d79', '#b1c5cf', '#9be5d8', '#123a38'),
+    'glass': ('#202c34', '#19242b', '#344f5d', '#f0f6f8', '#2b4350', '#526d79', '#b1c5cf', '#9be5d8', '#123a38'),
     'graphite': ('#222529', '#1a1c1f', '#2a2e33', '#eff1f3', '#2a2e33', '#393e45', '#aab1ba', '#d7dce2', '#1a1c1f'),
     'atelier': ('#f2efe8', '#fcfaf5', '#e5e1d6', '#302e29', '#ebe7dd', '#c4bfb2', '#645e54', '#52634f', '#ffffff'),
     'midnight': ('#10151f', '#141c29', '#29364e', '#eef1fa', '#1d283b', '#3d4c65', '#a9b7ce', '#a7b6ff', '#18203d'),
