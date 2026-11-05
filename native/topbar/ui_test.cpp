@@ -132,10 +132,14 @@ private slots:
         QVERIFY(send("key 1\n"));QTRY_VERIFY(!notesPeek->property("opened").toBool());
         auto launch=item("launcherButton");QVERIFY(launch);QVERIFY(click(launch));
         auto quick=window->findChild<QObject*>("quickMenu");QVERIFY(quick);
-        QTRY_VERIFY(quick->property("opened").toBool());QVERIFY(quick->property("width").toReal()<=390);
-        QVERIFY(quick->property("width").toReal()<window->width());
-        QVERIFY(click(item("quickMore")));
         auto apps=window->findChild<QObject*>("appsPopup");QVERIFY(apps);QTRY_VERIFY_WITH_TIMEOUT(apps->property("opened").toBool(),3000);
+        QVERIFY(!quick->property("visible").toBool());QVERIFY(item("startMenu")->property("lumenOnly").toBool());
+        QTRY_VERIFY(item("programSearch")->hasActiveFocus());
+        QCOMPARE(item("programSearch")->property("text").toString(),QString());
+        for(const auto &entry:data.snapshot()["apps"].toList()){
+            const QString id=entry.toMap()["id"].toString();
+            QTRY_VERIFY(item("openApp_"+id) && item("openApp_"+id)->isVisible());
+        }
         QTRY_VERIFY_WITH_TIMEOUT(item("openApp_files"),3000);
         auto files=item("openApp_files");QTRY_VERIFY(files->window()!=nullptr);
         QTRY_VERIFY_WITH_TIMEOUT(files->window()->isExposed(),3000);
@@ -251,13 +255,14 @@ private slots:
         openStartHome();QTRY_VERIFY(!data.controlBusy());
         QTRY_VERIFY(item("startRecent_0") && item("startRecent_0")->isVisible());const auto beforeRecent=actions().size();
         QVERIFY(click(item("startRecent_0")));QTRY_VERIFY(actions().size()>beforeRecent && actions().contains("/profile/example.txt"));QTRY_VERIFY(!apps->property("opened").toBool());
-        QVERIFY(click(item("launcherButton")));QTRY_VERIFY(quick->property("opened").toBool());
-        QTest::qWait(160);QVERIFY(window->grabWindow().save("/profile/captures/native-lumen-preview.png"));
-        const auto shortcuts=data.snapshot()["apps"].toList();QString chosen;
-        for(const auto &entry:shortcuts){const auto label=entry.toMap()["label"].toString();if(item("quickRow_"+label)){chosen=label;break;}}
-        QVERIFY(!chosen.isEmpty());QVERIFY(click(item("quickRow_"+chosen)));
-        QTRY_VERIFY(apps->property("opened").toBool());QVERIFY(item("startMenu")->property("lumenOnly").toBool());
-        QVERIFY(item("startMenu")->property("searching").toBool());
+        QVERIFY(click(launch));QTRY_VERIFY(apps->property("opened").toBool());
+        QVERIFY(!quick->property("visible").toBool());QVERIFY(item("startMenu")->property("lumenOnly").toBool());
+        QVERIFY(send("key 33\n"));QTRY_COMPARE(programQuery->property("text").toString(),QString("f"));
+        QVERIFY(click(programsButton));QTRY_VERIFY(apps->property("opened").toBool() && !item("startMenu")->property("lumenOnly").toBool());
+        QVERIFY(programQuery->property("text").toString().isEmpty());
+        QVERIFY(click(launch));QTRY_VERIFY(apps->property("opened").toBool() && item("startMenu")->property("lumenOnly").toBool());
+        QVERIFY(!item("startMenu")->property("searching").toBool());QTRY_VERIFY(programQuery->hasActiveFocus());
+        QTest::qWait(160);QVERIFY(window->grabWindow().save("/profile/captures/native-direct-lumen.png"));
         QTest::qWait(180);QVERIFY(click(item("startLibraryButton")));QTRY_VERIFY(!item("startMenu")->property("lumenOnly").toBool());
         QVERIFY(send("key 1\n"));QTRY_VERIFY(!apps->property("opened").toBool());
         QVERIFY(!QFile::exists("/profile/conversation-started"));

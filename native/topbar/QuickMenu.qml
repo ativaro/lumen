@@ -14,7 +14,7 @@ ColumnLayout {
     readonly property var noticeState:controller.noticePreview
     readonly property var detailData:controller.details[topic]||({})
     readonly property var entries:rows()
-    readonly property string title:t(({notifications:"Mitteilungen",network:"Netzwerk",audio:"Audio",lumen:"Lumen Apps",settings:"Einstellungen"})[topic]||"Lumen")
+    readonly property string title:t(({notifications:"Mitteilungen",network:"Netzwerk",audio:"Audio",settings:"Einstellungen"})[topic]||"Lumen")
     signal drill(string key)
     signal dismiss()
     signal toggleQuiet()
@@ -40,9 +40,7 @@ ColumnLayout {
                 {key:"2",title:t("Mikrofon"),detail:device(detailData.inputs),icon:"audio-input-microphone"},
                 {key:"3",title:t("Apps"),detail:(detailData.playback||[]).map(p=>p.name).slice(0,2).join(", "),icon:"multimedia-player"}]
         }
-        const apps=controller.snapshot.apps||[]
-        const chosen=["lumen","wissen","inbox"].map(id=>apps.find(a=>a.id===id)).filter(Boolean)
-        return (chosen.length?chosen:apps).slice(0,3).map(a=>({key:a.label,title:a.label,icon:a.icon,detail:""}))
+        return []
     }
     RowLayout {
         Layout.fillWidth:true
@@ -91,7 +89,7 @@ ColumnLayout {
     Rectangle {color:menu.colors.border;implicitHeight:1;Layout.topMargin:5;Layout.fillWidth:true}
     RowLayout {
         Layout.fillWidth:true
-        BarButton {objectName:"quickMore";colors:menu.colors;text:menu.t(({notifications:"Alle Mitteilungen",network:"Netzwerk öffnen",audio:"Audio öffnen",lumen:"Alle Lumen-Apps",settings:"Systemsteuerung öffnen"})[menu.topic]||"Öffnen");glyph:"go-next";onClicked:menu.drill("")}
+        BarButton {objectName:"quickMore";colors:menu.colors;text:menu.t(({notifications:"Alle Mitteilungen",network:"Netzwerk öffnen",audio:"Audio öffnen",settings:"Systemsteuerung öffnen"})[menu.topic]||"Öffnen");glyph:"go-next";onClicked:menu.drill("")}
         Item {Layout.fillWidth:true}
         BarButton {visible:menu.notices;colors:menu.colors;text:menu.t("Nicht stören");glyph:menu.quiet?"notifications-disabled":"notifications";current:menu.quiet;onClicked:menu.toggleQuiet()}
     }

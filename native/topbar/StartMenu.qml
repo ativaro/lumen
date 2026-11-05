@@ -29,7 +29,6 @@ ColumnLayout {
     Shortcut {sequence:"Ctrl+K";enabled:start.active;onActivated:query.forceActiveFocus()}
 
     function reset(lumen) {lumenOnly=lumen;library=lumen;editing=false;category=-1;query.clear();context.close();power.close()}
-    function selectApp(label) {query.text=label}
     function focusSearch() {query.forceActiveFocus()}
     function togglePin(id) {
         if(!id)return

@@ -95,12 +95,12 @@ Schließen; Verschieben und Größenänderungen bleiben native Fensteraktionen.
 Der technische Einstellungswert `classic` heißt in der Oberfläche nun Panorama;
 die ausdrücklich angebotenen alternativen Layouts bleiben wählbar.
 
-Desktop-Topbar, Kurzansichten (06.11.2026): Lumen-Kreis, Glocke, Netzwerk, Audio und
+Desktop-Topbar, Kurzansichten (06.11.2026): Glocke, Netzwerk, Audio und
 Einstellungen öffnen jeweils eine angedockte, höchstens 390 Pixel breite Ansicht.
-Der Lumen-Kreis schließt links an die Leiste an, die Statusmenüs rechts.
+Die Statusmenüs schließen rechts an die Leiste an. Der Lumen-Kreis öffnet links
+direkt den vollständigen Katalog „Lumen Apps“. Seine Suche beginnt leer und hat den Tastaturfokus.
 Auf schmalen Bildschirmen bleibt ein seitlicher Abstand. Ein Eintrag öffnet das
-vollständige Menü mit der gewählten Meldung, dem Gerätebereich oder dem gefilterten
-Lumen-App-Katalog. Programmknopf und Super öffnen direkt das vollständige, links angedockte
+vollständige Menü mit der gewählten Meldung oder dem Gerätebereich. Programmknopf und Super öffnen direkt das vollständige, links angedockte
 Startmenü „Dein Start“. Die Suche erhält den Tastaturfokus. Angeheftete Apps und
 „Gleich weiter“ sind sofort sichtbar. „Alle Apps“ öffnet den Katalog. Über die Einstellungen sind Netzwerk, Audio, Lumen-Einstellungen
 und die vollständige Systemsteuerung erreichbar.
