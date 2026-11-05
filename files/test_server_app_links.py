@@ -1,4 +1,5 @@
 import json
+import tempfile
 import unittest
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
@@ -28,8 +29,65 @@ class ServerAppLinksTest(unittest.TestCase):
                             dict(ref, locator=dict(self.binding, account=str(uuid4()))),
                             dict(ref, locator=dict(self.binding, server='https://other.invalid'))):
                 self.assertNotEqual(links.identity(ref), links.identity(changed))
+
+    def test_project_task_reference_keeps_its_project_and_exact_task(self):
+        ref = dict(self.ref, item_id=str(uuid4()))
+        target = links.navigation(ref, self.binding)
+        self.assertEqual(parse_qs(urlsplit(target['route']).query),
+                         {'app':['projects'], 'project':[ref['id']], 'project_task':[ref['item_id']]})
+        self.assertNotEqual(links.identity(ref), links.identity(self.ref))
+        self.assertEqual(links.validate_ref(ref), ref)
+        from interop_data import Registry
+        with tempfile.TemporaryDirectory() as root:
+            registry=Registry(root)
+            first=registry.register(ref)
+            other=dict(ref,item_id=str(uuid4()))
+            second=registry.register(other)
+            self.assertNotEqual(first,second)
+            self.assertEqual(registry.resolve(first),ref)
+            self.assertEqual(registry.resolve(second),other)
+        for wrong in (dict(ref, app='note'), dict(ref, item_id='../task'), dict(ref, item_id=None)):
+            with self.subTest(ref=wrong), self.assertRaises(ValueError):
+                links.validate_ref(wrong)
+
+    def test_clicked_server_links_use_only_the_current_account_and_known_objects(self):
+        from server_app_session import Binding
+        source = Binding(self.binding['server'], self.binding['account'], str(uuid4()), 'code')
+        for app, key, expected in (('notes','note','note'), ('projects','project','projects'),
+                                   ('code','entry','code'), ('media','record','media'),('inbox','mail','inbox')):
+            with self.subTest(app=app):
+                url=source.origin+'/?app='+app+'&'+key+'='+self.ref['id']
+                ref=links.clicked_reference(url,source)
+                self.assertEqual(ref['app'],expected)
+                self.assertEqual(ref['id'],self.ref['id'])
+                self.assertEqual(ref['locator'],self.binding)
+        task=str(uuid4())
+        url=source.origin+'/?app=projects&project='+self.ref['id']+'&project_task='+task
+        self.assertEqual(links.clicked_reference(url,source)['item_id'],task)
+        for wrong in (url.replace(source.origin,'https://other.invalid'), url+'&token=secret',
+                      url+'&app=projects', url+'&project_task='+task, url+'#secret',
+                      url.replace(task,'../task'), url.replace('project_task=','device='),
+                      source.origin+'/?app=vault', source.origin+'/?app=note&note='+task+'&presentation=web',
+                      'file:///etc/passwd', 'javascript:alert(1)', '//other.invalid/?app=note',
+                      source.origin+'/?app=notes&note='+task+'&project_task='+task):
+            with self.subTest(url=wrong):
+                self.assertIsNone(links.clicked_reference(wrong,source))
         self.assertEqual(links.validate_ref(self.drive), self.drive)
         self.assertNotEqual(links.identity(self.drive), links.identity(dict(self.drive, kind='drive_folder')))
+
+    def test_inbox_mail_and_calendar_event_references_are_exact_and_account_bound(self):
+        from server_app_session import Binding
+        binding=Binding(self.binding['server'],self.binding['account'],str(uuid4()),'inbox')
+        for item in (None,str(uuid4())):
+            ref=dict(self.ref,app='inbox')
+            if item:ref['item_id']=item
+            url=binding.reference_url(ref)
+            self.assertTrue(binding.navigation(url))
+            self.assertEqual(links.clicked_reference(url,binding),dict(ref,title='Lumen Inbox'))
+            self.assertIn(('calendar=' if item else 'mail=')+ref['id'],url)
+            for wrong in (url+'&mail='+ref['id'],url+'&event=bad',url+'&project_task='+ref['id']):
+                self.assertFalse(binding.navigation(wrong))
+                self.assertIsNone(links.clicked_reference(wrong,binding))
 
     def test_legacy_refs_are_not_silently_reinterpreted(self):
         for ref in (dict(app='wissen', kind='note', id='note.md', title='Note', locator={'root':'/tmp/notes'}),
@@ -38,6 +96,23 @@ class ServerAppLinksTest(unittest.TestCase):
                     dict(self.ref, app='files'), dict(self.ref, version=1), dict(self.ref, version=True)):
             with self.subTest(ref=ref), self.assertRaises(ValueError):
                 links.validate_ref(ref)
+
+    def test_registered_server_objects_launch_the_existing_owning_receiver(self):
+        from pathlib import Path
+        from interop_data import Registry
+        from interop_open import open_url
+        with tempfile.TemporaryDirectory() as root:
+            registry=Registry(root)
+            for app,target in (('note','wissen'),('projects','workbench'),('code','code'),('media','meetings'),('inbox','inbox')):
+                with self.subTest(app=app):
+                    ref=dict(self.ref,app=app)
+                    url=registry.register(ref)
+                    with patch('interop_open.subprocess.Popen') as started:open_url(url,root)
+                    command=started.call_args.args[0]
+                    self.assertEqual(Path(command[1]).name,'tools_app.py')
+                    self.assertEqual(command[2:],[target,'--ref',url])
+                    self.assertEqual(registry.resolve(url),ref)
+                    self.assertNotIn(self.config['token'],' '.join(command))
 
     def test_only_exact_token_free_schema_is_accepted(self):
         for ref in (None, [], dict(self.ref, token='secret'), dict(self.ref, path='/tmp/file'),

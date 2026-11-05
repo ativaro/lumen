@@ -455,8 +455,8 @@ def remind(title, due, key, path=None):
 
 def open_center():
     # Keep KDE's notification model in Plasma's process, where its full history lives.
-    script = """var found=false; panels().forEach(function(p){p.widgets().forEach(function(w){
-        if(!found && w.type==="org.lumen.control"){w.currentConfigGroup=["General"];
+    script = """var found=false; desktops().forEach(function(p){p.widgets().forEach(function(w){
+        if(!found && w.type==="org.lumen.notificationhost"){w.currentConfigGroup=["General"];
         w.writeConfig("notificationRequest",String(Date.now()));w.reloadConfig();found=true;}
     });}); print(found);"""
     result = subprocess.run(
@@ -473,7 +473,7 @@ def open_center():
         check=True,
     )
     if result.stdout.strip() != "true":
-        raise ValueError("Lumen Notification benötigt das Lumen-Panel in KDE Plasma.")
+        raise ValueError("Der Lumen-Mitteilungsdienst ist nicht eingerichtet.")
 
 
 def notification_options(changes=None):
@@ -493,12 +493,8 @@ def notification_options(changes=None):
             or any(type(v) is not bool for v in changes.values())
         ):
             raise ValueError("Choose native_popups and/or quiet_games as booleans")
-        if "native_popups" in changes and changes["native_popups"] != settings.value(
-            keys["native_popups"], True, type=bool
-        ):
-            configure_popups(changes["native_popups"])
-        if "quiet_games" in changes:
-            settings.setValue(keys["quiet_games"], changes["quiet_games"])
+        for name,value in changes.items():
+            settings.setValue(keys[name],value)
         settings.sync()
         if settings.status() != QSettings.NoError:
             raise ValueError("Notification settings could not be saved")
@@ -511,15 +507,18 @@ def popup_context():
 
     settings = QSettings("Lumen", "Assistant")
     gaming = settings.value("notifications/quietGames", True, type=bool) and game_active()
+    from appearance_tokens import COLORS, DEFAULT_DESIGN, normalize_design
+    colors=COLORS.get(normalize_design(settings.value('appearance',DEFAULT_DESIGN)))
+    palette=dict(zip(('window','content','hover','text','button','border','muted','accent','onAccent'),colors)) if colors else None
     return {
+        "palette": palette,
         "gaming": gaming,
         "native": settings.value("notifications/nativePopups", True, type=bool),
     }
 
 
 def configure_popups(enabled=True):
-    """Switch only the notification applet; keep KDE's shared model/receiver."""
-    from PySide6.QtCore import QSettings
+    """Reserve KDE's popup frontend for Lumen; false is uninstall recovery only."""
 
     backup = location().with_name("notification-trays.json")
     backup.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -549,7 +548,7 @@ function items(w){w.currentConfigGroup=["General"];return String(w.readConfig("e
         changed = evaluate(
             base
             + """
-if(!panels().some(p=>p.widgets().some(w=>w.type==="org.lumen.control"))) throw Error("Lumen panel missing");
+if(!desktops().some(p=>p.widgets().some(w=>w.type==="org.lumen.notificationhost"))) throw Error("Lumen notification host missing");
 print(JSON.stringify(trays.filter(w=>items(w).includes(plugin)).map(w=>w.id)));"""
         )
         saved = sorted(set(saved + changed))
@@ -572,15 +571,15 @@ print(JSON.stringify(trays.filter(w=>items(w).includes(plugin)).map(w=>w.id)));"
             + json.dumps(saved)
             + ';trays.forEach(w=>{const before=items(w);if(saved.includes(w.id)&&!before.includes(plugin)){before.push(plugin);w.writeConfig("extraItems",before);w.reloadConfig();}});print("true");'
         )
-    settings = QSettings("Lumen", "Assistant")
-    settings.setValue("notifications/nativePopups", enabled)
-    settings.sync()
 
 
 if __name__ == "__main__":
     import sys
 
-    if "--restore-kde" in sys.argv:
+    if "--uninstall" in sys.argv:
         configure_popups(False)
+        subprocess.run(['qdbus6','org.kde.plasmashell','/PlasmaShell','org.kde.PlasmaShell.evaluateScript',
+            'desktops().forEach(d=>d.widgets().filter(w=>w.type==="org.lumen.notificationhost").forEach(w=>w.remove()));'],
+            check=True,capture_output=True,text=True,timeout=10)
     else:
         open_center()

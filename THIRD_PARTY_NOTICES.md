@@ -9,6 +9,15 @@ complete application can be distributed under proprietary terms.
   Preserve notices, corresponding-source availability and required replacement,
   relinking and debugging rights. Native Vault's modules, notices and instructions
   are documented in [native/vault-ui/LICENSES.md](native/vault-ui/LICENSES.md).
+- **Native desktop bar:** dynamically links the separately installed
+  LayerShellQt (LGPL-2.0-or-later) and libdbusmenu-glib
+  (LGPL-2.1-only OR LGPL-3.0-only) libraries. Their upstream/system-package notices
+  and replacement rights remain applicable. No modified copy of these libraries
+  is bundled. The native bar's own source is in `native/topbar/`.
+- **Desktop test protocol:** `tests/desktop/fake-input.xml` is KDE's
+  fake-input protocol by Martin Gräßlin, LGPL-2.1-or-later. Its copyright is retained
+  in the XML and the license is in `tests/desktop/COPYING.LGPL-2.1`. The generated
+  input helper is used only inside isolated test sessions and is not installed.
 - **PDF processing:** Lumen now uses its own PDF parser, renderer, writer and
   workflow code. No external PDF engine is required or bundled. Qt supplies
   general font, image and drawing primitives; installed fonts retain their own
@@ -44,3 +53,13 @@ The opt-in multilingual MiniLM model and isolated CPU runtime are pinned, verifi
 and installed separately. Original model card, Apache-2.0 license and dependency
 notices are included in files/memory-runtime/. Binary wheel licenses stay in the installed environment.
 No model weights or personal memory contents are included in this repository.
+
+
+## Optional Desktop browser automation
+
+Browser setup downloads `@playwright/mcp` 0.0.84 and its locked Playwright runtime
+from npm. Playwright and Playwright MCP are Microsoft projects under Apache-2.0;
+license and notice files remain in the downloaded packages. Chromium is installed
+through Playwright and retains its bundled licenses. These components run only in
+separate browser sessions; bubblewrap provides the local filesystem isolation.
+The exact package versions and integrity hashes are in `files/browser-runtime/package-lock.json`.

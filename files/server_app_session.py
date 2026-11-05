@@ -69,10 +69,19 @@ class Binding:
             if not isinstance(value, str) or any(ord(c)<32 or ord(c)==127 or c=='\\' for c in value):return False
             u = urlsplit(value)
             query=parse_qs(u.query, keep_blank_values=True, strict_parsing=True)
-            key={'notes':'note','projects':'project','code':'entry','audio':'record'}.get(self.app)
+            key={'notes':'note','projects':'project','code':'entry','audio':'record','inbox':'mail'}.get(self.app)
+            calendar=self.app=='inbox' and 'calendar' in query
+            if calendar:key='calendar'
+            selected=None
             if key and key in query:
                 selected=query.pop(key)
                 if len(selected)!=1 or str(UUID(selected[0]))!=selected[0]:return False
+            if calendar:
+                item=query.pop('event',[])
+                if not selected or len(item)!=1 or str(UUID(item[0]))!=item[0]:return False
+            if self.app=='projects' and 'project_task' in query:
+                item=query.pop('project_task')
+                if not selected or len(item)!=1 or str(UUID(item[0]))!=item[0]:return False
             return (value.startswith(self.origin + '/') and origin(u.scheme+'://'+u.netloc) == self.origin
                     and u.path == '/' and u.fragment in ('', 'main-content')
                     and query == {
@@ -89,6 +98,11 @@ class Binding:
         if not self.navigation(value):raise SessionError('identity')
         return value
 
+    def oauth_launch(self, value):
+        if self.app != 'inbox' or not self.resource(value):return False
+        url = urlsplit(value)
+        return bool(not url.query and not url.fragment and re.fullmatch(r'/api/inbox/oauth/launch/[A-Za-z0-9_-]{43}', url.path))
+
     def resource(self, value):
         try:
             if not isinstance(value, str) or any(ord(c)<32 or ord(c)==127 or c=='\\' for c in value):return False
@@ -97,6 +111,22 @@ class Binding:
                     and not u.username and not u.password)
         except (ValueError, SessionError):
             return False
+
+    def preview_navigation(self, value):
+        """Only this app's sandbox documents; API previews retain their source guards."""
+        if self.app=='inbox':return value==self.origin+'/inbox-message.html'
+        if self.app!='code':return False
+        if value=='about:srcdoc':return True
+        try:
+            if not isinstance(value,str) or len(value)>8192 or not self.resource(value):return False
+            url=urlsplit(value);parts=url.path.split('/')
+            if (url.fragment or len(parts)!=5 or parts[1:3]!=['api','code-library']
+                    or str(UUID(parts[3]))!=parts[3]):return False
+            allowed=({'entry_revision','repo_revision','sha256','channel','run_id','render'}
+                if parts[4]=='code-document' else {'revision','channel','draft','render'} if parts[4]=='document' else set())
+            query=parse_qs(url.query,keep_blank_values=True,strict_parsing=True)
+            return bool(allowed and not set(query)-allowed and all(len(values)==1 for values in query.values()))
+        except (ValueError,TypeError,AttributeError):return False
 
 
 class AppSession:
@@ -293,7 +323,8 @@ class AppSession:
         self.state = reason if reason == 'identity' else 'uncertain' if self.uncertain else reason
 
     def remember_draft(self, text):
-        if not isinstance(text, str) or len(text.encode('utf-8')) > 1024*1024:raise SessionError('draft')
+        if not isinstance(text, str) or self.binding.app!='code' and len(text.encode('utf-8')) > 1024*1024:
+            raise SessionError('draft')
         self._draft = text
 
     def draft(self, binding):

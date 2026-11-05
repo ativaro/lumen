@@ -6,7 +6,7 @@ import json
 import mimetypes
 import os
 from pathlib import Path
-from uuid import uuid4
+from uuid import uuid4, UUID
 import drive_sync as sync
 import drive_local as local
 import drive_transport as transport
@@ -134,7 +134,10 @@ def pending(root):
         )
         if intent.get("legacy_upload_target"):
             body["workspace"] = intent["legacy_upload_target"]
-        result.append(dict(request_id=intent["request_id"], body=body))
+        item = dict(request_id=intent["request_id"], body=body)
+        if intent.get("transfer_id"):
+            item["transfer_id"] = str(UUID(intent["transfer_id"]))
+        result.append(item)
     return result
 
 
@@ -201,33 +204,47 @@ def finish_uploads(rootid, proposal, progress=lambda *_: None):
     with sync.locked():
         config, state, root = load(rootid)
         check_preview(root, proposal)
+        original = {item["request_id"]: item for item in pending(root)}
+        approved = []
+        # Approve the same preview before any offset/completion changes invalidate it.
         for item in proposal["preview"]["uploads"]:
             if item["state"] != "uploading":
                 continue
-            entry = next(
-                e
-                for e in root["entries"].values()
-                if e.get("pending", {}).get("request_id") == item["request_id"]
-            )
-            intent = entry["pending"]
-
-            def remember(key):
-                intent["transfer_id"] = key
-                sync.save(state)
-
-            transport.upload(
-                config,
-                root,
-                intent["staged"],
-                intent["folder"],
-                intent["request_id"],
-                intent["hash"],
-                intent.get("previous"),
-                progress,
-                filename=Path(intent["path"]).name,
-                legacy_target=intent.get("legacy_upload_target"),
-                remember=remember,
-            )
+            saved = next((entry["pending"] for entry in root["entries"].values()
+                          if entry.get("pending", {}).get("request_id") == item["request_id"]), None)
+            planned = next((value for value in proposal["plan"]["uploads"]
+                            if value["request_id"] == item["request_id"]), None)
+            if saved is None or original.get(item["request_id"]) != planned:
+                raise ValueError(tr("Die Originalübertragung wurde geändert. Neue Vorschau erforderlich."))
+            key = str(UUID(item["id"]))
+            result = sync.request(config, "/migrations/uploads/" + key + "/resume",
+                                  dict(plan=proposal["plan"], fingerprint=proposal["preview"]["fingerprint"]))
+            approved.append((key, saved, result["upload"]))
+        for key, saved, upload in approved:
+            with local.source(root, saved["staged"]) as stream:
+                stamp = local.signature(os.fstat(stream.fileno()))
+                digest = hashlib.sha256()
+                while chunk := stream.read(128 * 1024):
+                    digest.update(chunk)
+                size = stamp[2]
+                offset = upload["offset"]
+                if (digest.hexdigest() != saved["hash"] or not local.transfer_unchanged(stamp, os.fstat(stream.fileno()))
+                        or upload["id"] != key or upload["size"] != size or not 0 <= offset <= size):
+                    raise ValueError(tr("Die Originalübertragung stimmt nicht mehr überein. Dateien bleiben erhalten."))
+                stream.seek(offset)
+                progress(offset, size)
+                while offset < size:
+                    chunk = stream.read(min(4 * 1024**2, size - offset))
+                    if not chunk or not local.transfer_unchanged(stamp, os.fstat(stream.fileno())):
+                        raise ValueError(tr("Die gesicherte Originaldatei wurde verändert."))
+                    result = transport.request(config, f"/uploads/{key}?offset={offset}", chunk, "PUT", "application/octet-stream")
+                    offset += len(chunk)
+                    if result["id"] != key or result["offset"] != offset:
+                        raise ValueError(tr("Ungültiger Übertragungsstand."))
+                    progress(offset, size)
+                result = transport.request(config, "/uploads/" + key + "/finish")
+                if result["id"] != key or result["sha256"] != saved["hash"]:
+                    raise ValueError(tr("Der Server bestätigt die Originalübertragung nicht."))
         return True
 
 
@@ -289,7 +306,13 @@ def finalize(state, root, result):
         intent = entry["pending"]
         if item["state"] == "not_started":
             body = item["next_body"]
+            if ({"workspace", "workspace_id"} & set(body) or not body.get("folder")
+                    or body.get("sha256") != intent["hash"]
+                    or body.get("name") != Path(intent["path"]).name):
+                raise ValueError(tr("Der Server bestätigt keine eindeutige neue Upload-Zuordnung."))
             intent["folder"] = body["folder"]
+            intent.pop("legacy_upload_target", None)
+            entry.pop("legacy_upload_target", None)
             if intent.get("previous"):
                 intent["previous"]["revision"] = body["revision"]
         elif item["state"] == "completed":
@@ -308,11 +331,14 @@ def finalize(state, root, result):
             )
             entry.pop("pending", None)
             entry.pop("request_id", None)
+            entry.pop("legacy_upload_target", None)
             if family != key:
                 current["entries"].pop(key)
                 current["entries"][family] = entry
             current["cache"]["files"][family] = row
     current["folder"] = result["folder"]["id"]
+    current.pop("workspace", None)
+    current["account_sync_migrated"] = True
     current["enabled"] = True
     current["status"] = tr("Ordner zugeordnet – bereit zum Abgleich")
     current.setdefault("migration_history", []).append(journal["id"])

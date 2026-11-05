@@ -54,6 +54,7 @@ class SearchController(QObject):
         self._sessions = [dict(id='', title=tr('Neues Gespräch'))]; self._theme = {}; self._hint = ''; self._error = ''; self._status = tr('Bereit')
         self._mode = self.settings.value('defaultMode', 'build')
         self._auto_approve = False; self._learn = False; self.last_prompt = ''; self.last_answer = ''
+        self.note_context={}
         self.process = None; self.scan_jobs = []; self.generation = 0; self.last_query = ''
         self.navigated = False; self.memory_job = None; self._voice_level = 0.
         self._voice_setup_required = False
@@ -337,6 +338,7 @@ class SearchController(QObject):
             if self.panel:
                 self._conversation = True; self.panel.submit(query)
                 self.stateChanged.emit(); self.focusRequested.emit(); return
+            if self.note_context and not self.backend.set_execution('server'): return
             if hasattr(self.backend, 'preflight') and not self.backend.preflight(self._attachments): return
             self.cancel_scan(); self._conversation = True; self.last_prompt = query; self._error = ''
             self.set_hint(tr('Gespräch · Antworten und Rückfragen bleiben in dieser Suche.'))
@@ -352,8 +354,10 @@ class SearchController(QObject):
                 for path in self._attachments:
                     mime=mimetypes.guess_type(path)[0] or ''
                     if mime.startswith('image/') or mime=='application/pdf':files.append((path,mime))
-            if self.backend.send(prompt, files, agent=self._mode, memory_text=query, user_text=query) is False:
+            context={'context_data':{'note_reference':self.note_context['reference']}} if self.note_context else {}
+            if self.backend.send(prompt, files, agent=self._mode, memory_text=query, user_text=query,**context) is False:
                 self.set_query(query)
+            else:self.note_context={}
             self.focusRequested.emit(); return
         if not self._results: self.submit(True); return
         row = self._results[self._selection]
@@ -460,6 +464,7 @@ class SearchController(QObject):
         if self.panel: self.panel.new_conversation();self.panel.paths=[];self.panel.update_context()
         else: self.backend.new_conversation()
         self._conversation = False
+        self.note_context={}
         self._error = ''; self.last_prompt = ''; self._attachments=[]; self.set_query(''); self.search(); self.stateChanged.emit(); self.focusRequested.emit()
 
     @Slot()

@@ -61,7 +61,9 @@ def runtime_root(binding, stamp):
                 or path.stat().st_uid != os.getuid() or path.stat().st_mode & 0o077):
             raise SessionError('profile')
     private(runtime)
-    identity = json.dumps([binding.origin, binding.account, binding.device, stamp])
+    # Preserve old unsaved windows while new launchers need task refs and Code previews.
+    receiver = 'code-preview-1' if binding.app=='code' else 'app-links-1'
+    identity = json.dumps([binding.origin, binding.account, binding.device, stamp, receiver])
     root = runtime / ('lumen-' + binding.app + '-' + hashlib.sha256(identity.encode()).hexdigest()[:24])
     if root.is_symlink():
         raise SessionError('profile')

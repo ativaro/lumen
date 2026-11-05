@@ -26,6 +26,9 @@ class NativeMCPTest(unittest.TestCase):
         self.env = patch.dict(os.environ, {'LUMEN_DATA':str(self.root/'state'),
             'LUMEN_TOOLS_DATA':str(self.root/'tools'), 'XDG_CONFIG_HOME':self.config})
         self.env.start(); self.addCleanup(self.env.stop)
+        # Other collected modules may have imported this path before the fixture environment.
+        connection=patch('lumen_connect.CONFIG',self.root/'config/lumen-server/connection.json')
+        connection.start();self.addCleanup(connection.stop)
         QSettings.setPath(QSettings.NativeFormat,QSettings.UserScope,self.config)
         self.addCleanup(QSettings.setPath,QSettings.NativeFormat,QSettings.UserScope,self.old_config)
         self.store = Store()
@@ -44,11 +47,11 @@ class NativeMCPTest(unittest.TestCase):
                 with self.assertRaises(ValueError): invoke('lumen_notification_configure', args)
             configure.assert_not_called()
             self.assertEqual(settings.value('untouched'), 'keep')
-        with patch('lumen_notifications.configure_popups', side_effect=ValueError('tray unavailable')) as configure:
-            with self.assertRaises(ValueError):
-                invoke('lumen_notification_configure', dict(native_popups=False, quiet_games=True))
-            configure.assert_called_once_with(False)
-        self.assertEqual(invoke('lumen_notification_settings', {}), dict(native_popups=True, quiet_games=False))
+        with patch('lumen_notifications.configure_popups', side_effect=AssertionError('A preference must not switch KDE presenters')) as configure:
+            result=invoke('lumen_notification_configure', dict(native_popups=False, quiet_games=True))
+            self.assertEqual(result,dict(native_popups=False,quiet_games=True))
+            configure.assert_not_called()
+        self.assertEqual(invoke('lumen_notification_settings', {}), dict(native_popups=False, quiet_games=True))
 
     def test_library_search_has_origin_and_does_not_traverse_symlink(self):
         from file_spaces import Catalog
@@ -84,6 +87,9 @@ class NativeMCPTest(unittest.TestCase):
         before={'provider':{'example':{'apiKey':'PRIVATE'}},'instructions':['private.md'],
                 'mcp':{'cachyos':{'type':'local','command':['python3','/usr/bin/lumen_mcp.py'],
                                   'enabled':False,'environment':{'LUMEN_MCP_ACTIONS':'1'},'timeout':60000}}}
+        custom = config/'skills/lumen-service-access/SKILL.md'
+        custom.parent.mkdir(parents=True)
+        custom.write_text('My own replacement skill')
         (config/'opencode.jsonc').write_text(json.dumps(before))
         repo=Path(mcp.__file__).resolve().parent.parent
         result=subprocess.run([str(repo/'bin/lumen-setup')],env=dict(os.environ,OPENCODE_HOME=str(config)),capture_output=True,text=True,timeout=10)
@@ -93,6 +99,21 @@ class NativeMCPTest(unittest.TestCase):
         before['mcp']['cachyos']['command']=after['mcp']['cachyos']['command']
         before['$schema']='https://opencode.ai/config.json'
         self.assertEqual(after,before)
+        self.assertEqual(custom.read_text(), 'My own replacement skill')
+        self.assertTrue((config/'skills/lumen-vault-http/SKILL.md').is_file())
+
+    def test_setup_replaces_only_retired_stock_skill(self):
+        repo=Path(mcp.__file__).resolve().parent.parent
+        config=self.root/'stock'
+        retired=config/'skills/lumen-service-access/SKILL.md'
+        retired.parent.mkdir(parents=True)
+        old=(repo/'files/fixtures/retired-service-skill.md').read_bytes()
+        retired.write_bytes(old)
+        result=subprocess.run([str(repo/'bin/lumen-setup')],env=dict(os.environ,OPENCODE_HOME=str(config)),
+            capture_output=True,text=True,timeout=10)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertFalse(retired.exists())
+        self.assertTrue((config/'skills/lumen-vault-http/SKILL.md').is_file())
 
     def test_shared_notes_links_revocation_and_memory_scope(self):
         from wissen_data import activate, Notebook

@@ -124,63 +124,8 @@ class CodeHostTest(PrivateHostFixture):
         with self.task(),self.assertRaises(SessionError):server_code_capture.capture(window,TASK)
         self.assertEqual(len(self.code_posts),1)
 
-    def test_code_multiple_chooser_is_explicit_and_rejects_modal_generation_or_account_change(self):
-        window=self.import_window(drive=False,pilot=True,app='code')
-        first=self.import_root/'one.py';second=self.import_root/'two.txt'
-        first.write_text('print("Eigen")\n');second.write_text('Eigener Text\n')
-        mode=QWebEnginePage.FileSelectionMode.FileSelectOpenMultiple
-        original_cookie=window._cookie_valid
-        def gui_only():
-            self.assertEqual(QThread.currentThread(),self.app.thread());return original_cookie()
-        with patch.object(QFileDialog,'getOpenFileNames',return_value=([str(first),str(second)],'')) as picker, \
-                patch.object(window,'_cookie_valid',side_effect=gui_only):
-            self.assertEqual(permissions.choose(window,mode),[str(first),str(second)])
-        picker.assert_called_once()
-        with patch.object(QFileDialog,'getOpenFileNames',return_value=([],'')):
-            self.assertEqual(permissions.choose(window,mode),[])
-        def changed(*args):window._generation+=1;return [str(first)],''
-        with patch.object(QFileDialog,'getOpenFileNames',side_effect=changed):
-            self.assertEqual(permissions.choose(window,mode),[])
-        def changed_account(*args):type(self).wrong_account=True;return [str(first)],''
-        with patch.object(QFileDialog,'getOpenFileNames',side_effect=changed_account):
-            self.assertEqual(permissions.choose(window,mode),[])
-        self.assertFalse(window.session.usable)
 
-    def test_code_chooser_limits_and_secret_files_fail_closed(self):
-        window=self.import_window(drive=False,pilot=True,app='code')
-        mode=QWebEnginePage.FileSelectionMode.FileSelectOpenMultiple
-        samples=[('.env.production',b'own=synthetic'),('bad.txt',b'bad\xff'),('nul.txt',b'own\0text'),
-            ('large.txt',b'a'*(512*1024+1)),('secret.key',b'own synthetic key')]
-        with patch.object(QMessageBox,'warning') as warning:
-            for name,data in samples:
-                with self.subTest(name=name):
-                    target=self.import_root/name;target.write_bytes(data)
-                    with patch.object(QFileDialog,'getOpenFileNames',return_value=([str(target)],'')):
-                        self.assertEqual(permissions.choose(window,mode),[])
-            self.assertEqual(warning.call_count,len(samples))
-        target=self.import_root/'own.txt';target.write_text('own')
-        with patch.object(QMessageBox,'warning'),patch.object(QFileDialog,'getOpenFileNames',return_value=([str(target)]*257,'')):
-            self.assertEqual(permissions.choose(window,mode),[])
-        class Permission:
-            def isValid(self):return True
-            def permissionType(self):return QWebEnginePermission.PermissionType.MediaAudioCapture
-            def origin(self):return QUrl(window._binding.origin)
-            def grant(self):raise AssertionError('Code cannot grant microphone')
-            def deny(self):self.denied=True
-        request=Permission()
-        with patch.object(QMessageBox,'question',side_effect=AssertionError('No Code microphone prompt')):
-            permissions.permission(window,request)
-        self.assertTrue(request.denied)
 
-    def test_code_chooser_rechecks_actual_bytes_after_size_check(self):
-        window=self.import_window(drive=False,pilot=True,app='code')
-        target=self.import_root/'changed.txt';target.write_text('small')
-        old_info=target.stat();target.write_bytes(b'x'*(512*1024+1))
-        real_lstat=Path.lstat
-        def previous_info(path):return old_info if path==target else real_lstat(path)
-        with patch.object(Path,'lstat',previous_info),patch.object(QMessageBox,'warning'), \
-                patch.object(QFileDialog,'getOpenFileNames',return_value=([str(target)],'')):
-            self.assertEqual(permissions.choose(window,QWebEnginePage.FileSelectionMode.FileSelectOpenMultiple),[])
 
     def test_code_save_task_activation_opens_created_tool_without_reloading(self):
         from server_notes_handoffs import Requests
@@ -223,35 +168,18 @@ class CodeHostTest(PrivateHostFixture):
         with self.assertRaises(ValueError):requests.activate(dict(reference=Registry().register(foreign)))
         self.assertFalse(requests.pending)
 
-    def test_code_chooser_rejects_symlink_and_actual_total_over_eight_mib(self):
-        window=self.import_window(drive=False,pilot=True,app='code')
-        target=self.import_root/'source.txt';target.write_text('own')
-        linked=self.import_root/'link.txt';linked.symlink_to(target)
-        mode=QWebEnginePage.FileSelectionMode.FileSelectOpenMultiple
-        with patch.object(QMessageBox,'warning'),patch.object(QFileDialog,'getOpenFileNames',return_value=([str(linked)],'')):
-            self.assertEqual(permissions.choose(window,mode),[])
-        paths=[]
-        for number in range(17):
-            value=self.import_root/f'bounded-{number}.txt';value.write_bytes(b'x'*(512*1024));paths.append(str(value))
-        with patch.object(QFileDialog,'getOpenFileNames',return_value=(paths[:16],'')):
-            self.assertEqual(permissions.choose(window,mode),paths[:16])
-        with patch.object(QMessageBox,'warning'),patch.object(QFileDialog,'getOpenFileNames',return_value=(paths,'')):
-            self.assertEqual(permissions.choose(window,mode),[])
 
-    def test_code_dom_multiple_file_input_uses_private_native_chooser(self):
-        from PySide6.QtCore import QPoint, Qt
-        from PySide6.QtTest import QTest
+
+    def test_code_uses_folder_host_and_does_not_reintroduce_the_text_only_chooser(self):
         window=self.import_window(drive=False,pilot=True,app='code')
-        first=self.import_root/'main.py';second=self.import_root/'README.md'
-        first.write_text('print("Eigen")\n');second.write_text('# Eigener Text\n')
-        self.js(window,"const picker=document.createElement('input');picker.type='file';picker.multiple=true;"
-            "picker.id='own-code-picker';picker.style='position:fixed;left:10px;top:10px;width:300px;height:50px;z-index:100';"
-            "picker.onchange=async()=>window.picked=await Promise.all(Array.from(picker.files,f=>f.text()));document.body.append(picker)")
-        with patch.object(QFileDialog,'getOpenFileNames',return_value=([str(first),str(second)],'')) as picker:
-            self.wait(lambda:window.stack.currentWidget() is window.view)
-            window.view.setFocus();self.app.processEvents()
-            QTest.mouseClick(window.view.focusProxy() or window.view,Qt.MouseButton.LeftButton,pos=QPoint(40,30))
-            self.wait(lambda:self.js(window,'Array.isArray(window.picked)'))
-        picker.assert_called_once()
-        self.assertEqual(json.loads(self.js(window,'JSON.stringify(window.picked)')),['print("Eigen")\n','# Eigener Text\n'])
-        self.assertTrue(window.session.usable)
+        with patch.object(QFileDialog,'getOpenFileNames',side_effect=AssertionError('Use complete folder host')):
+            self.assertEqual(permissions.choose(window,QWebEnginePage.FileSelectionMode.FileSelectOpenMultiple),[])
+        class Permission:
+            def isValid(self):return True
+            def permissionType(self):return QWebEnginePermission.PermissionType.MediaAudioCapture
+            def origin(self):return QUrl(window._binding.origin)
+            def grant(self):raise AssertionError('Code cannot grant microphone')
+            def deny(self):self.denied=True
+        request=Permission()
+        permissions.permission(window,request)
+        self.assertTrue(request.denied)

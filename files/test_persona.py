@@ -68,6 +68,7 @@ class PersonaIntegrationTest(unittest.TestCase):
         def request(method, path, body=None, callback=None, error=None):
             self.calls.append((path, body))
             if path == '/session' and method == 'POST': callback({'id': 'ses_test'})
+            elif path == '/session/ses_test' and method == 'GET':callback(dict(id='ses_test',directory=self.backend.directory,metadata=dict(client='lumen')))
         self.backend.request = request
         self.enterContext(patch('lumen_memory.options', return_value={'enabled':False}))
         self.addCleanup(self.dispose)
@@ -129,3 +130,53 @@ class PersonaIntegrationTest(unittest.TestCase):
             self.assertEqual(load(self.settings)['name'], 'Nova')
             self.assertIn('anderen Fenster', other.description.text())
         finally: editor.deleteLater(); other.deleteLater()
+
+    def test_account_profile_refresh_local_override_and_unavailable_status_with_memory_off(self):
+        from unittest.mock import patch
+        from PySide6.QtTest import QTest
+        from lumen_persona import normalize
+        config=dict(server='https://synthetic.invalid',device_id='synthetic',token='synthetic')
+        value=dict(profile=normalize(dict(name='Account guide',preset='companion')),revision=1)
+        save(self.settings,dict(name='Local guide',preset='professional'))
+        self.backend.check_server_mcp_binding=lambda:True
+        messages=[];self.backend.memoryStatus.connect(messages.append)
+        def prompt():
+            before=len([p for p,b in self.calls if p.endswith('/prompt_async')]);self.backend.send('Synthetic')
+            for _ in range(200):
+                QTest.qWait(10)
+                answers=[b for p,b in self.calls if p.endswith('/prompt_async')]
+                if len(answers)>before:break
+            self.assertGreater(len(answers),before);self.backend.set_busy(False);return answers[-1]
+        from lumen_persona import account
+        with patch('lumen_connect.read_config',return_value=config),patch('lumen_persona.account_worker',side_effect=lambda job,config:account(config)),patch('lumen_connect.request',side_effect=lambda *a,**k:value) as request:
+            first=prompt();self.assertIn('Account guide',first['system']);self.assertNotIn('Local guide',first['system'])
+            count=lambda:sum(p=='/session' for p,b in self.calls)
+            self.assertEqual(count(),1);prompt();self.assertEqual(count(),1)
+            value['profile']=normalize(dict(name='Changed guide',preset='companion'));value['revision']=2
+            self.assertIn('Changed guide',prompt()['system']);self.assertEqual(count(),2)
+            self.settings.setValue('personaLocalOverride',True)
+            before=request.call_count
+            self.assertIn('Local guide',prompt()['system']);self.assertEqual(request.call_count,before)
+            self.settings.setValue('personaLocalOverride',False)
+            request.side_effect=OSError('Synthetic outage')
+            fallback=prompt();self.assertNotIn('Local guide',fallback['system']);self.assertNotIn('Changed guide',fallback['system'])
+            self.assertTrue(any('Standardstil' in m for m in messages))
+
+    def test_paired_editor_keeps_local_profile_and_requires_explicit_override(self):
+        from unittest.mock import patch
+        from persona_settings import PersonaEditor
+        config=dict(server='https://synthetic.invalid',device_id='synthetic',token='synthetic')
+        save(self.settings,dict(name='Preserved local'))
+        with patch('lumen_connect.read_config',return_value=config):
+            editor=PersonaEditor(self.settings,lambda:None)
+            try:
+                self.assertTrue(editor.local_panel.isHidden());self.assertFalse(editor.override.isChecked())
+                editor.commit();self.assertEqual(load(self.settings)['name'],'Preserved local')
+                editor.override.setChecked(True);self.assertFalse(editor.local_panel.isHidden())
+                editor.fields['name'].setText('Explicit local');editor.commit()
+                self.assertTrue(self.settings.value('personaLocalOverride',type=bool))
+                self.assertEqual(load(self.settings)['name'],'Explicit local')
+                editor.override.setChecked(False);editor.commit()
+                self.assertFalse(self.settings.value('personaLocalOverride',type=bool))
+                self.assertEqual(load(self.settings)['name'],'Explicit local')
+            finally:editor.deleteLater()

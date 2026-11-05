@@ -28,6 +28,13 @@ def check(root, applications):
     return count
 
 
+def check_search_startup(run, root):
+    run([str(REPO/'bin/lumen-python'), '-c',
+         'import sys; from pathlib import Path; from test_topbar_question import TopbarQuestionTest; '
+         'TopbarQuestionTest().check_search_startup(Path(sys.argv[1]))',
+         str(root/'agent-app/main.py')], {'PYTHONPATH': str(REPO/'files')})
+
+
 with tempfile.TemporaryDirectory(prefix='lumen-install-closure-') as tmp:
     home = Path(tmp); runtime = home/'runtime'; runtime.mkdir(mode=0o700)
     env = dict(PATH='/usr/bin:/bin', HOME=tmp, LANG='C.UTF-8', QT_QPA_PLATFORM='offscreen',
@@ -45,6 +52,7 @@ with tempfile.TemporaryDirectory(prefix='lumen-install-closure-') as tmp:
         run(command)
         prefix = home/'data/lumen'
         count = check(prefix, home/'data/applications')
+        check_search_startup(run, prefix)
         # A normal app update must retain data, native opt-in and disabled timers.
         preserved = (home/'data/lumen-tools/workbench/synthetic.md',
                      home/'config/lumen-server/connection.json', prefix/'vault-lab/bin/lumen-vault-lab')
@@ -55,12 +63,14 @@ with tempfile.TemporaryDirectory(prefix='lumen-install-closure-') as tmp:
         assert before == {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in preserved}
         assert not list((home/'config/systemd/user').glob('*.wants/lumen-*.timer'))
         check(prefix, home/'data/applications')
+        check_search_startup(run, prefix)
 
         source = home/'arch-source'; source.mkdir(); (source/'lumen-1.2.0').symlink_to(REPO)
         package = home/'package'
         run(['bash', '-ec', 'source "$1"; package', 'package-check', str(REPO/'packaging/arch/PKGBUILD')],
             dict(LOCALSRC='1', LUMEN_SOURCE_SHA256='0'*64, srcdir=str(source), pkgdir=str(package)))
         check(package/'usr/share/lumen', package/'usr/share/applications')
+        check_search_startup(run, package/'usr/share/lumen')
         assert not (package/'usr/share/lumen/vault-lab').exists()
         print(json.dumps(dict(user_install='pass', user_update_preservation='pass',
                               arch_payload='pass', asset_files=count,

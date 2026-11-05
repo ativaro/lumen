@@ -23,6 +23,56 @@ class Response(io.BytesIO):
 
 
 class SessionTest(unittest.TestCase):
+    def test_inbox_browser_handoff_only_allows_own_exact_authorization_launch(self):
+        inbox = host.Binding(ORIGIN, USER, DEVICE, 'inbox')
+        path = ORIGIN + '/api/inbox/oauth/launch/' + 'a' * 43
+        self.assertTrue(inbox.oauth_launch(path))
+        for bad in (path+'?redirect=x',path+'#x',path+'/extra',path.replace(ORIGIN,'https://evil.test'),
+                    path.replace('/launch/','/callback/'),path+'a', 'https://accounts.google.com/'):
+            self.assertFalse(inbox.oauth_launch(bad),bad)
+        self.assertFalse(self.binding.oauth_launch(path))
+
+    def test_code_draft_keeps_large_unicode_text_without_a_size_rule(self):
+        config=dict(server=ORIGIN,device_id=DEVICE,token='synthetic-device-token')
+        code=host.AppSession(config,host.Binding(ORIGIN,USER,DEVICE,'code'))
+        text='Ungekürzter Code · ä\n'*100000
+        code.remember_draft(text)
+        self.assertEqual(code.draft(code.binding),text)
+        with self.assertRaises(host.SessionError):code.remember_draft(None)
+        other=host.AppSession(config,host.Binding(ORIGIN,USER,DEVICE,'compose'))
+        with self.assertRaises(host.SessionError):other.remember_draft(text)
+
+    def test_only_code_can_embed_known_sandbox_preview_routes(self):
+        code=host.Binding(ORIGIN,USER,DEVICE,'code')
+        path=ORIGIN+'/api/code-library/'+USER
+        for value in (path+'/code-document?entry_revision=1&repo_revision=1&sha256='+('a'*64)+'&channel='+('b'*32),
+                      path+'/document?revision=1&channel='+('b'*32)+'&draft=true', 'about:srcdoc'):
+            with self.subTest(value=value):
+                self.assertTrue(code.preview_navigation(value))
+                for app in host.APPS:
+                    if app!='code':self.assertFalse(host.Binding(ORIGIN,USER,DEVICE,app).preview_navigation(value))
+        for value in (path+'/code-document?token=x',path+'/document?channel=a&channel=b',
+                      path+'/document#secret',path.replace(ORIGIN,'https://foreign.test')+'/document',
+                      path+'/app-note',path+'/document/extra',path.replace(USER,'../secret')+'/document',
+                      ORIGIN+'/?app=code&presentation=desktop','about:blank','about:srcdoc?token=x',
+                      'data:text/html,unsafe','file:///etc/passwd',None):
+            with self.subTest(value=value):self.assertFalse(code.preview_navigation(value))
+
+    def test_only_inbox_can_embed_its_exact_mail_document(self):
+        inbox=host.Binding(ORIGIN,USER,DEVICE,'inbox')
+        document=ORIGIN+'/inbox-message.html'
+        self.assertTrue(inbox.preview_navigation(document))
+        self.assertFalse(inbox.navigation(document))
+        for app in host.APPS:
+            if app!='inbox':self.assertFalse(host.Binding(ORIGIN,USER,DEVICE,app).preview_navigation(document))
+        for value in (document+'?token=x',document+'#mail',document+'/',
+                      document.replace(ORIGIN,'https://foreign.test'),
+                      document.replace(ORIGIN,ORIGIN+'.foreign.test'),
+                      document.replace('https://','https://user@'),
+                      ORIGIN+'/api/me',ORIGIN+'/?app=inbox&presentation=desktop',
+                      'about:srcdoc','about:blank','blob:'+document,'data:text/html,unsafe',None):
+            with self.subTest(value=value):self.assertFalse(inbox.preview_navigation(value))
+
     def setUp(self):
         self.binding = host.Binding(ORIGIN, USER, DEVICE, 'compose')
         self.config = dict(server=ORIGIN, device_id=DEVICE, token='native-only-fixture')

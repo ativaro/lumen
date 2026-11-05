@@ -147,7 +147,7 @@ class SetupDialog(QDialog):
         self.models.addItem(tr('Modelle noch nicht geladen'), '')
         self.models.setEnabled(False)
         self.models.activated.connect(self.save_model)
-        self.model_summary = text(tr('Ohne eigene Auswahl richtet Lumen ein verfügbares Gratis-Modell ein.'))
+        self.model_summary = text(tr('Wähle ein Modell für Lumen oder verbinde einen Anbieter.'))
         page.addWidget(self.model_summary)
         self.model_details = Details(tr('Modell anpassen')); page.addWidget(self.model_details)
         form = QFormLayout(); form.addRow(tr('Modell'), self.models); self.model_details.content.addLayout(form)
@@ -337,6 +337,8 @@ class SetupDialog(QDialog):
         self.checking = True; self.set_busy(True); self.status.setText(tr('Vorhandene KI-Anbindung prüfen …'))
         def configured(config):
             if not isinstance(config, dict): raise ValueError('Invalid engine configuration')
+            from lumen_models import configured_opencode_endpoint
+            self.opencode_endpoint_configured = configured_opencode_endpoint(config)
             self.configured_model = config.get('model') or ''
             self.diagnostic_stage = 'provider_list'
             self.engine.request('GET', '/provider', callback=self.loaded_providers, error=self.engine_failed)
@@ -351,22 +353,20 @@ class SetupDialog(QDialog):
         if any(not isinstance(p, dict) or not isinstance(p.get('id'), str) or
                not isinstance(p.get('models', {}), dict) for p in data['all']):
             raise ValueError('Invalid provider')
-        self.providers = data['all']; connected = set(data['connected']); self.connected = connected
-        from lumen_models import free_default
+        self.providers = data['all']; connected = set(data['connected'])
+        from lumen_models import anonymous_opencode
+        anonymous = (any(anonymous_opencode(provider) for provider in self.providers)
+                     and not getattr(self, 'opencode_endpoint_configured', False))
+        self.connected = connected - ({'opencode'} if anonymous else set())
         from lumen_store import Store
         policy = Store().setting('modelPolicy', {})
         policy_model = policy.get('local_model', '') if policy.get('privacy') == 'local' else policy.get('model', '')
         selected = self.models.currentData() or self.settings.value('model', '') or policy_model or getattr(self, 'configured_model', '')
         if not isinstance(selected, str) or '/' not in selected: selected = ''
-        automatic = not selected
-        if automatic:
-            selected = free_default(data)
-            if selected:
-                self.settings.setValue('model', selected); self.settings.sync()
         self.models.clear(); self.models.addItem(tr('Bisherige Modellwahl beibehalten') if selected else tr('Modell auswählen'), '')
         names = []
         for provider in self.providers:
-            if provider['id'] not in connected: continue
+            if provider['id'] not in self.connected: continue
             name = provider.get('name') or provider['id']
             names.append(name)
             for identifier, model in provider.get('models', {}).items():
@@ -374,9 +374,11 @@ class SetupDialog(QDialog):
                 self.models.addItem(name + ' · ' + (model.get('name') or identifier), provider['id'] + '/' + identifier)
         self.models.setEnabled(any(self.models.itemData(i) for i in range(self.models.count())))
         self.models.setCurrentIndex(max(0, self.models.findData(selected)))
-        self.model_summary.setText(tr('Gratis-Modell bereit: {0}', self.models.currentText()) if automatic and selected else
-            tr('Dein Modell: {0}', selected) if selected else
-            tr('Kein verfügbares Gratis-Modell gefunden. Bitte ein Modell wählen oder einen Anbieter verbinden.'))
+        if not selected: self.model_details.toggle.setChecked(True)
+        summary = tr('Dein Modell: {0}', selected) if selected else tr('Wähle ein Modell für Lumen oder verbinde einen Anbieter.')
+        if selected.startswith('opencode/') and anonymous:
+            summary += '\n' + tr('Der anonyme OpenCode-Zugang ist derzeit deaktiviert. Bitte einen Anbieter verbinden oder ein eingerichtetes Modell wählen.')
+        self.model_summary.setText(summary)
         self.engine_status.setText(tr('Engine erreichbar · Konfiguriert: ') + (', '.join(names) or tr('noch kein Anbieter')) +
             tr('\nZugang und Antwortqualität der Anbieter wurden nicht mit einer Testanfrage geprüft.'))
         if getattr(self.engine, 'database_source', '') == 'lumen':

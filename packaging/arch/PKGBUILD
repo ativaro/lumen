@@ -1,7 +1,7 @@
 # Maintainer: Lumen
 pkgname=lumen
 pkgver=1.2.0
-pkgrel=106
+pkgrel=108
 pkgdesc="Lumen — AI desktop for CachyOS with files, tasks, knowledge and workflows"
 provides=('opencode-lumen')
 # No automatic conflict removal: the legacy package's uninstall script deletes reports.
@@ -10,11 +10,14 @@ provides=('opencode-lumen')
 arch=('x86_64' 'aarch64')
 url="https://forge.example.invalid/ativaro/lumen"
 license=('LicenseRef-Lumen-EULA' 'GPL-3.0-only' 'GPL-2.0-or-later')
-depends=('bash' 'git' 'python3' 'pyside6' 'python-gobject' 'python-pillow' 'python-yaml' 'python-markdown-it-py' 'openssl')
-makedepends=('gcc' 'pkgconf' 'qt6-base' 'cmake' 'libplasma')
+depends=('bash' 'git' 'python3' 'pyside6' 'python-gobject' 'python-pillow' 'python-yaml' 'python-markdown-it-py' 'openssl' 'layer-shell-qt' 'libdbusmenu-glib' 'qt6-declarative' 'kirigami' 'plasma-workspace' 'kitemmodels')
+makedepends=('gcc' 'pkgconf' 'qt6-base' 'cmake' 'layer-shell-qt' 'libdbusmenu-glib' 'qt6-declarative')
 # OpenCode may be installed through its own installer. Native files/tasks remain
 # useful without inference; the app explains a missing engine when AI is requested.
 optdepends=(
+    'bubblewrap: isolated browser sessions for the connected Lumen server'
+    'nodejs: optional Playwright browser automation runtime'
+    'npm: install the pinned optional browser automation dependencies'
     'qt6-webengine: Shared Lumen Server apps and optional native Vault browser'
     'libssh: SSH access through the optional native Vault'
     'kidletime: Desktop inactivity locking in the optional native Vault'
@@ -39,7 +42,8 @@ optdepends=(
     'plasma-workspace: KRunner integration'
     'wireplumber: native volume controls in the Lumen bar'
     'libpulse: Lumen Sound mixer, app rules and audio outputs in work modes'
-    'networkmanager: connection status in the Lumen bar'
+    'networkmanager: native network connections, WLAN, VPN and diagnostics in the Lumen bar'
+    'bluez-utils: Bluetooth audio connections in the Lumen bar'
     'systemsettings: native network, audio and display settings'
     'tesseract: local text recognition in images and scans'
     'tesseract-data-deu: German OCR'
@@ -103,6 +107,7 @@ package() {
     done
 
     bash "$srcroot/native/build-capture.sh" "$pkgdir/usr/bin/lumen-window-capture"
+    bash "$srcroot/native/build-topbar.sh" "$pkgdir/usr/bin/lumen-topbar"
 
     # system daemon + watchdog + notifier
     install -m0755 "$srcroot/system/lumen-agentd.py" "$pkgdir/usr/bin/lumen-agentd"
@@ -194,7 +199,7 @@ package() {
     if [[ -f "$srcroot/files/google-drive-client.json" ]]; then
         install -m0644 "$srcroot/files/google-drive-client.json" "$pkgdir/usr/share/lumen/files/"
     fi
-    for asset in translations qml fonts notes_icons memory-runtime; do
+    for asset in translations qml fonts notes_icons memory-runtime browser-runtime engine-plugins; do
         cp -R "$srcroot/files/$asset" "$pkgdir/usr/share/lumen/files/"
     done
     install -m0755 "$srcroot/bin/lumen-files" "$pkgdir/usr/bin/lumen-files"
@@ -204,28 +209,11 @@ package() {
     install -d "$pkgdir/usr/share/lumen/desktop"
     cp -R "$srcroot/desktop/." "$pkgdir/usr/share/lumen/desktop/"
 
-    # ---- Plasma applet (plasmoid) -----------------------------------------
-    for plugin in agent islands system search control; do
-        local applet="$pkgdir/usr/share/plasma/plasmoids/org.lumen.$plugin"
-        install -d "$applet/contents/ui" "$applet/contents/config"
-        local metadata=metadata.json
-        [[ "$plugin" == agent ]] || metadata="$plugin-metadata.json"
-        install -m0644 "$srcroot/plasmoid/$metadata" "$applet/metadata.json"
-        install -m0644 "$srcroot/LICENSE" "$applet/LICENSE"
-        install -m0644 "$srcroot/plasmoid/contents/ui/"*.qml "$srcroot/plasmoid/contents/ui/"*.js "$srcroot/plasmoid/contents/ui/lumen-halo.png" "$srcroot/plasmoid/contents/ui/"*.svg "$applet/contents/ui/"
-        install -m0644 "$srcroot/plasmoid/contents/config/"* "$applet/contents/config/"
-        local surface=tasks
-        case "$plugin" in system) surface=home;; search|control) surface="$plugin";; esac
-        sed -i "s|<default>tasks</default>|<default>$surface</default>|" "$applet/contents/config/main.xml"
-    done
-
-    # ---- Native KDE application menu -------------------------------------
-    local appmenu="$pkgdir/usr/share/plasma/plasmoids/org.lumen.appmenu"
-    install -d "$appmenu"
-    cp -R "$srcroot/plasmoid/appmenu/." "$appmenu/"
-    install -d "$pkgdir/usr/share/plasma/plasmoids/org.lumen.topbarcontext"
-    cp -R "$srcroot/plasmoid/context/." "$pkgdir/usr/share/plasma/plasmoids/org.lumen.topbarcontext/"
-    bash "$srcroot/native/build-appmenu.sh" "$pkgdir/usr/lib/qt6/plugins/plasma/applets/org.lumen.appmenu.so"
+    # System notification history remains in Plasma, without a topbar applet.
+    local host="$pkgdir/usr/share/plasma/plasmoids/org.lumen.notificationhost"
+    install -d "$host"
+    cp -R "$srcroot/plasmoid/." "$host/"
+    sub "$srcroot/system/systemd/user/lumen-topbar.service" "$pkgdir/usr/lib/systemd/user/lumen-topbar.service"
 
     # ---- system D-Bus policy + activation ---------------------------------
     install -d "$pkgdir/usr/share/dbus-1/system.d"
@@ -236,7 +224,7 @@ package() {
     # ---- opencode commands / skill (system-wide share) --------------------
     install -d "$pkgdir/usr/share/lumen/opencode-command"
     install -m0644 "$srcroot/opencode-command/"*.md "$pkgdir/usr/share/lumen/opencode-command/" 2>/dev/null || true
-    for skill in lumen-admin lumen-projects lumen-service-access; do
+    for skill in lumen-admin lumen-projects lumen-vault-http; do
         install -Dm0644 "$srcroot/opencode-skill/$skill/SKILL.md" "$pkgdir/usr/share/lumen/opencode-skill/$skill/SKILL.md"
     done
 

@@ -118,10 +118,15 @@ class Reader(ToolWindow):
         self.body.installEventFilter(self)
 
     def create(self):
-        path,_=QFileDialog.getOpenFileName(self,tr('Buch oder Dokument öffnen'),str(Path.home()),tr('Lesbare Dokumente (*.pdf *.epub *.txt *.md *.html *.htm)'))
+        path,_=QFileDialog.getOpenFileName(self,tr('Buch oder Dokument öffnen'),str(Path.home()),tr('Lesbare Dokumente (*.pdf *.epub *.txt *.md *.html *.htm *.docx *.docm *.xlsx *.xlsm *.pptx *.pptm *.odt *.ods *.odp)'))
         if path:self.open_file(path)
 
     def open_file(self,path):
+        from reader_server import OFFICE, ServerDocument
+        if Path(path).suffix.lower() in OFFICE:
+            if self.job:raise ValueError(tr('Bitte den laufenden Vorgang abwarten.'))
+            self.server_document=ServerDocument(self,path);self.server_document.show()
+            return
         if len(self.pending)>=10:raise ValueError(tr('Bitte den laufenden Import abwarten.'))
         if self.job:self.pending.append(path);return
         self.work(tr('Private Lesekopie wird angelegt …'),lambda job:reader.import_file(self.library,path,job),self.open_imported)

@@ -14,6 +14,7 @@ from uuid import uuid4, UUID
 import lumen_connect
 import drive_local as local
 from lumen_i18n import tr
+from sync_migration import require_current_upload
 
 
 _active = threading.local()
@@ -57,9 +58,9 @@ def legacy_upload(
     *,
     expected_stamp=None,
 ):
+    require_current_upload(legacy_target)
     boundary = "lumen-" + uuid4().hex
-    from sync_migration import drive_upload_fields
-    fields = drive_upload_fields(dict(request_id=request_id, sha256=expected_hash), legacy_target)
+    fields = dict(request_id=request_id, sha256=expected_hash)
     if folder:
         fields["folder"] = str(UUID(folder))
     if previous:
@@ -124,6 +125,7 @@ def request(config, path, body=None, method="POST", content_type="application/js
 def upload(config, root, path, folder, request_id, expected_hash,
            previous=None, progress=lambda *_: None, filename=None, *, legacy_target=None, remember=lambda _: None,
            expected_stamp=None):
+    require_current_upload(legacy_target)
     name = local.relative(filename or path).name
     with local.source(root, path) as stream:
         before = local.signature(os.fstat(stream.fileno()))
@@ -135,13 +137,11 @@ def upload(config, root, path, folder, request_id, expected_hash,
                     folder=folder, replaces=previous["id"] if previous else None,
                     revision=previous["revision"] if previous else None,
                     mime=mimetypes.guess_type(name)[0] or "application/octet-stream")
-        from sync_migration import drive_upload_fields
-        body = drive_upload_fields(body, legacy_target)
         progress(0, size)
         try:
             state = request(config, "/uploads/" + str(UUID(request_id)), body)
         except HTTPError as error:
-            if error.code not in (404, 405) or not legacy_target: raise
+            if error.code not in (404, 405): raise
             return legacy_upload(config, root, path, folder, request_id, expected_hash,
                                  previous, progress, filename, legacy_target, expected_stamp=expected_stamp)
         key = str(UUID(state["id"]))

@@ -141,7 +141,7 @@ class MemoryBackendTest(unittest.TestCase):
             try:
                 backend.send(user);wait(lambda:memory.scan()['notes']);wait(lambda:not backend.busy)
                 first=state['prompts'][0][0];backend.send('Welche Antwortlänge passt?');wait(lambda:len(state['prompts'])>=2 and not backend.busy)
-                self.assertIn('kurze Antworten',state['prompts'][1][1]['system']);self.assertEqual(first,state['prompts'][1][0])
+                self.assertIn('kurze Antworten',state['prompts'][1][1]['system']);self.assertNotEqual(first,state['prompts'][1][0])
                 used=[x for x in seen if x['phase']=='submitted' and x['sources']][-1]
                 self.assertEqual(used['version'],1);self.assertEqual(used['sources'][0]['source_kind'],'memory')
                 self.assertNotIn('text',used['sources'][0]);self.assertTrue(used['message_id'])

@@ -30,7 +30,7 @@ class DriveBrowserTest(unittest.TestCase):
         self.assertTrue(predicate())
 
     def test_normal_view_history_tabs_search_and_local_clipboard_download(self):
-        space, folder, family, version = (str(uuid4()) for _ in range(4))
+        user, folder, family, version = (str(uuid4()) for _ in range(4))
         config = dict(server="https://example.invalid", token="fixture")
         cache = dict(
             folders={
@@ -54,8 +54,8 @@ class DriveBrowserTest(unittest.TestCase):
         )
 
         def request(_config, path, body=None):
-            self.assertEqual(path, "/spaces")
-            return [dict(id=space, title="Private", role="manager")]
+            self.assertEqual(path, "/bridge/me")
+            return dict(id=user, name="Reader QA", can_create=True)
 
         def download(_config, root, row, progress):
             Path(root["path"], "stage").write_text("hello")
@@ -65,7 +65,7 @@ class DriveBrowserTest(unittest.TestCase):
             tempfile.TemporaryDirectory() as tmp,
             patch.object(browser.lumen_connect, "read_config", return_value=config),
             patch.object(transfers, "start", side_effect=self.start_transfer),
-            patch.object(browser.sync, "request", side_effect=request),
+            patch.object(browser.lumen_connect, "request", side_effect=request),
             patch.object(browser.sync, "inventory", return_value=cache),
             patch.object(browser.transport, "download", side_effect=download),
         ):
@@ -78,10 +78,10 @@ class DriveBrowserTest(unittest.TestCase):
                 self.wait(lambda: not w.drive.jobs)
                 self.assertIs(w.proxy.sourceModel(), w.drive.model)
                 self.assertFalse(hasattr(w, "drive_dialog"))
-                w.open_path(browser.location(space))
+                w.open_path(browser.location())
                 self.wait(lambda: not w.drive.jobs)
                 self.assertEqual(w.drive.model.item(0).text(), "Photos")
-                w.open_path(browser.location(space, folder))
+                w.open_path(browser.location(folder))
                 self.wait(lambda: not w.drive.jobs)
                 self.assertEqual(w.drive.model.item(0).text(), "photo.txt")
                 w.search.setText("missing")
@@ -106,11 +106,11 @@ class DriveBrowserTest(unittest.TestCase):
                 self.assertEqual(Path(tmp, "photo.txt").read_text(), "hello")
                 w.history(-1)
                 self.wait(lambda: not w.drive.jobs)
-                self.assertEqual(w.current_location, browser.location(space, folder))
+                self.assertEqual(w.current_location, browser.location(folder))
                 w.up()
                 self.wait(lambda: not w.drive.jobs)
-                self.assertEqual(w.current_location, browser.location(space))
-                w.new_tab(browser.location(space, folder))
+                self.assertEqual(w.current_location, browser.location())
+                w.new_tab(browser.location(folder))
                 self.wait(lambda: not w.drive.jobs)
                 self.assertEqual(w.tabs.tabText(w.tabs.currentIndex()), "Photos")
                 # Leaving while a listing is in flight must never restore the Drive model.
@@ -127,7 +127,7 @@ class DriveBrowserTest(unittest.TestCase):
                 QTest.qWait(30)
 
     def test_recursive_download_includes_files_directly_in_selected_folder(self):
-        space, folder, family = (str(uuid4()) for _ in range(3))
+        folder, family = (str(uuid4()) for _ in range(2))
         row = dict(
             id=str(uuid4()),
             family=family,
@@ -160,12 +160,12 @@ class DriveBrowserTest(unittest.TestCase):
 
                 with patch.object(browser.transport, "download", side_effect=download):
                     w.drive.download_into(
-                        {}, [browser.location(space, folder)], tmp, Job()
+                        {}, [browser.location(folder)], tmp, Job()
                     )
                 self.assertEqual(Path(tmp, "Folder/inside.txt").read_text(), "hello")
                 with self.assertRaises(ValueError):
                     w.drive.download_into(
-                        {}, [browser.location(space, folder)], tmp, Job()
+                        {}, [browser.location(folder)], tmp, Job()
                     )
             finally:
                 QApplication.clipboard().clear()

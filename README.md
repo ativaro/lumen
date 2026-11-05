@@ -70,7 +70,7 @@ Fehlt der Updater, kannst du ihn aus dem privaten Repository vorübergehend lade
 
 Prüfe die Auswahl und wähle **Alles aktualisieren**. Persönliche Inhalte, Einstellungen und vorhandene gültige Modelle bleiben erhalten. Systempakete und Flatpaks sind zusätzliche, ausdrückliche Auswahlen. Öffne Apps anschließend neu; Änderungen an Plasma-Panels werden spätestens nach einer neuen Anmeldung geladen.
 
-Eine bereits gespeicherte andere Updatequelle wechselt dadurch nicht automatisch zu Forgejo. Zum bewussten Wechsel installiere aus dem oben genannten Forgejo-Checkout. Details: [Native Updates](INSTALL.md#native-updates).
+Bei älteren Installationen mit GitHub als offizieller Quelle öffne einmal den Updater aus dem Forgejo-Checkout wie oben beschrieben. Dieser verwendet Forgejo auch dann, wenn die alte Installation noch keine Quelle gespeichert hat. Eine selbst konfigurierte Repository-Adresse wird weiter berücksichtigt. [Installationsanleitung](INSTALL.md#native-updates).
 
 ## Was die einzelnen Apps können
 

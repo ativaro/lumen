@@ -1057,6 +1057,9 @@ def main():
     elif args.command == "sync":
         print(json.dumps(synchronize(cfg)))
     elif args.command == "watch":
+        from browser_connector import watch as watch_browser
+        import threading
+        threading.Thread(target=watch_browser, args=(sys.modules[__name__],), daemon=True).start()
         while True:
             # Custom connector profiles must never sync the default personal vault.
             if not args.config_dir:

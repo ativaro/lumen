@@ -294,12 +294,13 @@ def actual(path, signature, scan):
 
 
 def reconcile(config, root, persist, progress):
-    from sync_migration import drive_path, drive_upload_target, drive_receipt, migrate_drive_binding
-    migrate_drive_binding(root)
-    if not root.get("folder"):
+    from sync_migration import drive_path, drive_receipt, pending_drive_uploads, require_current_upload
+    if not root.get("folder") or pending_drive_uploads(root):
         root["enabled"] = False
         persist()
         drive_path("", root)
+        require_current_upload(True)
+    root['account_sync_migrated'] = True
     persist()
     with local.directory(root):
         pass
@@ -561,7 +562,6 @@ def reconcile(config, root, persist, progress):
                 path=path,
                 folder=folder,
                 previous=row,
-                **({'legacy_upload_target': entry['legacy_upload_target']} if entry.get('legacy_upload_target') else {}),
             )
             local.capacity(root, scan[path]["signature"][2])
             local.mkdir(root, ".lumen-drive")
@@ -619,7 +619,7 @@ def reconcile(config, root, persist, progress):
             intent["previous"],
             progress,
             filename=Path(intent["path"]).name,
-            legacy_target=drive_upload_target(root, intent), remember=remember,
+            remember=remember,
         )
         entry["base"] = dict(
             path=intent["path"],
@@ -667,7 +667,7 @@ def reconcile(config, root, persist, progress):
             entry.get("pending")
             and row
             and row["id"]
-            == drive_receipt(root, entry['pending'])
+            == drive_receipt(entry['pending'])
         ):
             intent = entry.pop("pending")
             entry["base"] = base = dict(

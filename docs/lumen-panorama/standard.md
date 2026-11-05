@@ -37,12 +37,77 @@ Die folgenden Ausgangswerte stammen aus der Desktop-Palette und der freigegebene
 
 | Theme | Fenster | Inhalt | Text | Gedämpft | Linie | Akzent | Auf Akzent | Radius |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Glas | `#20343f` | `#182b35` | `#f0f6f8` | `#b1c5cf` | `#526d79` | `#9be5d8` | `#123a38` | 16 |
+| Glas | `#202c34` | `#19242b` | `#f0f6f8` | `#b1c5cf` | `#526d79` | `#9be5d8` | `#123a38` | 16 |
 | Graphit | `#222529` | `#1a1c1f` | `#eff1f3` | `#aab1ba` | `#393e45` | `#d7dce2` | `#1a1c1f` | 10 |
 | Atelier | `#f2efe8` | `#fcfaf5` | `#302e29` | `#645e54` | `#c4bfb2` | `#52634f` | `#ffffff` | 8 |
 | Mitternacht | `#10151f` | `#141c29` | `#eef1fa` | `#a9b7ce` | `#3d4c65` | `#a7b6ff` | `#18203d` | 6 |
 
+Glas-Präzisierung vom 05.11.2026: Fensterflächen verwenden denselben dunklen
+Rauchblau-/Graphitton wie die Topbar-Referenz des Nutzers. Die gemeinsame
+Fensterfläche ist `#202c34`, die vertiefte Inhaltsfläche `#19242b`; Text, Akzente
+und Bediengeometrie bleiben den vorhandenen semantischen Rollen zugeordnet.
+
 ## Verbindlicher Abgleich bei UI-Änderungen
+
+Desktop-Topbar (05.11.2026): Die Standardleiste folgt dem freigegebenen Entwurf
+`lumen-topbar-alltag.html`: ein zusammenhängendes Panorama-Band mit dauerhafter
+Lumen-Eingabe und Diktat-Einstieg. Links vor dem Lumen-Kreis steht ein eigener
+Programmknopf: Er öffnet direkt die installierten Anwendungen mit Suche. Der
+Lumen-Kreis öffnet die Lumen-Apps. Beide verwenden dasselbe vorhandene Startmenü.
+Fensterübersicht und letzte Inhalte haben je
+einen kleinen Schnellzugriff. Eine gemeinsame Statusfläche priorisiert Freigaben,
+Aufnahmen, Fokuszeit, Übertragungen, Medien und Updates; sie rotiert nicht automatisch.
+Nicht stören bleibt in der Mitteilungsanzeige erkennbar. Bei wenig Platz rückt die
+Eingabe in eine eigene Zeile. Keine Dateiauswahl in der Topbar; Dateien bleiben in
+den zuständigen Apps verwendbar. Bestehende Notes-Übergaben bleiben ausdrücklich.
+Fokuszeit, Nicht stören, Medien und Updates sind über dieselbe Statusfläche erreichbar.
+Freigaben und Aktualisierungen öffnen ihre bestehenden Prüf-/Bestätigungsdialoge.
+Letzte Inhalte nutzen die vorhandenen Dateiverläufe und gespeicherten Gespräche;
+offene Notes-/App-Inhalte sind über die laufenden Fenster erreichbar. Verläufe
+anderer Serverbindungen werden nicht angeboten. Es werden keine Inhalte kopiert.
+Aktive Systemtray-Apps bleiben bei ausreichend Platz direkt sichtbar; nur bei
+Platzmangel sowie für passive Apps dient das Menü „Hintergrund-Apps“.
+Startmenü-Präzisierung vom 05.11.2026: Der Programmknopf öffnet „Dein Start“
+nach der freigegebenen Referenz `lumen-start-next.html`: Suche, angeheftete Apps,
+zwei letzte Inhalte unter „Gleich weiter“ und eine ruhige Fußzeile mit Benutzer,
+Einstellungen, Sperren und Sitzungsaktionen. „Alle Apps“ öffnet den nativen,
+durchsuchbaren Anwendungskatalog mit dessen tatsächlichen Kategorien; Lumen-Apps
+bleiben dort und über den Lumen-Kreis erreichbar. Favoriten lassen sich anheften
+und über „Anpassen“ entfernen. App-Kontextaktionen stammen vom nativen Katalog.
+Sitzungsaktionen beachten die verfügbaren Plattformfähigkeiten und die nativen
+Bestätigungen. Fehlende Apps oder Verläufe werden als solche angezeigt; keine
+Beispieldaten in der ausgelieferten Oberfläche. Die Fußzeile und Popups verwenden
+die vertiefte Theme-Fläche; normale Beschriftungen bleiben 14px.
+
+Gesprächs-Präzisierung vom 05.11.2026: Nach einer Frage wächst die Topbar nach
+unten zu einer durchgehenden Gesprächsfläche nach `lumen-topbar-gespraech-ablosen.html`.
+Leiste und Gespräch teilen Fläche und Außenkante. Der Knopf unmittelbar rechts
+neben der Eingabe klappt das Gespräch auf und zu. Senden erscheint bei vorhandenem
+Text als eigene Aktion. Herausziehen und „Als Fenster öffnen“ lösen denselben
+Verlauf mit Entwurf und Arbeitsschritten; „In Leiste anheften“ führt ihn zurück.
+Die Eingabe bleibt erreichbar, während Antworten, Freigaben, Rückfragen und
+aufgeklappte Arbeitsschritte im Inhalt scrollen. Bestehende native Gesprächslogik
+und Antwortbausteine werden wiederverwendet. Der Darstellungswechsel sendet keine
+Nachricht und startet keinen weiteren Auftrag. Das abgelöste normale Fenster nutzt
+Lumens vorhandene Fensterknöpfe für Minimieren, Maximieren/Wiederherstellen und
+Schließen; Verschieben und Größenänderungen bleiben native Fensteraktionen.
+
+Der technische Einstellungswert `classic` heißt in der Oberfläche nun Panorama;
+die ausdrücklich angebotenen alternativen Layouts bleiben wählbar.
+
+Desktop-Topbar, Netzwerk und Audio (04.11.2026): Die beiden Statussymbole öffnen
+eigenständige Panorama-Menüs. Netzwerk gliedert sich in Übersicht, WLAN,
+Kabel/Adapter, VPN/Proxy, Hotspot und Details/Diagnose; Audio in Übersicht,
+Ausgabe, Mikrofon, Apps, Bluetooth und Klang/Technik. Auf schmalen Bildschirmen
+werden diese Bereiche oberhalb des Inhalts angeordnet. Darstellung und Regler
+nutzen dieselben Themes, 14px-Bedienung, Hover und Namenshinweise wie die Leiste.
+WLAN-/VPN-Verbindungen, Audiogeräte und App-Routing zeigen den tatsächlichen
+Systemzustand. Profil-, Sicherheits-, Hotspot-, Proxy-, Firewall- und komplexe
+Audioeinstellungen führen gezielt in die bestehenden nativen Einstellungsseiten.
+Keine erfundenen Messwerte oder funktionslosen Klang-/Mikrofonregler anzeigen.
+Passwörter/Zertifikate bleiben bei der Systemanmeldung. Mikrofone werden für die
+Anzeige nicht geöffnet. Die allgemeine Systemsteuerung enthält Helligkeit,
+Einstellungen und Sperren; sie ist kein zweiter gemeinsamer Audio-/Netzwerkmischer.
 
 1. Betroffene Panorama-Ansicht, Theme und Bedienweg vor der Umsetzung festlegen. Fehlende Details aus vorhandenen Bausteinen ableiten; grundlegende Abweichungen mit dem Nutzer klären.
 2. Einen vollständigen Bedienweg in der tatsächlichen Plattform umsetzen, einschließlich seiner relevanten Zustände und Rechte. Gemeinsam verwendete Komponenten statt weiterer paralleler Stile bevorzugen.

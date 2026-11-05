@@ -83,10 +83,14 @@ def _body(payload, choice, binding, job):
     def link(label,url):
         label=label.replace('\\','\\\\').replace('[','\\[').replace(']','\\]').replace('\n',' ')
         return '['+label+'](<'+url.replace('>','%3E')+'>)'
-    body+=(('\n\n' if body else '')+tr('Quelle: ')+link(title,payload['source_url']))
+    if payload['source'].get('kind') not in ('drive_file','drive_folder'):
+        body+=(('\n\n' if body else '')+tr('Quelle: ')+link(title,payload['source_url']))
     resolved=[]
     from server_app_links import drive_navigation
-    for ref in payload.get('references',[]):
+    references=payload.get('references',[])
+    if not references and payload['source'].get('kind') in ('drive_file','drive_folder'):
+        references=[payload['source']]
+    for ref in references:
         if ref['locator']!=dict(server=binding.origin,account=binding.account):
             raise ValueError(tr('Die Drive-Auswahl gehört zu einem anderen Server oder Konto.'))
         navigation=drive_navigation(ref,job)

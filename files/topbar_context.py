@@ -197,6 +197,104 @@ def open_reader(pid):
     if reply.arguments() and reply.arguments()[0]: raise ValueError(str(reply.arguments()[0]))
 
 
+
+def validate_note(value):
+    from server_app_links import validate_ref
+    if not isinstance(value,dict) or set(value)!={'reference','revision'}:
+        raise ValueError('Ungültige Notes-Auswahl.')
+    ref=validate_ref(value['reference'])
+    if ref['app']!='note' or type(value['revision']) is not int or not 1<=value['revision']<=2**31-1:
+        raise ValueError('Ungültige Notes-Auswahl.')
+    return dict(reference=ref,revision=value['revision'])
+
+
+def note_attachment(value,server,account):
+    value=validate_note(value)
+    if value['reference']['locator']!=dict(server=server,account=account):
+        raise ValueError('Die ausgewählte Notiz gehört zu einem anderen Server oder Konto.')
+    return dict(id=value['reference']['id'],kind='note',revision=value['revision'],mode='reference')
+
+
+def saved_note(context,note_id,job):
+    from server_notes_links import _profile
+    from server_app_links import _uuid
+    note_id=_uuid(note_id)
+    _,revision=_profile(context,job)
+    value=context.session.request('/api/documents/'+note_id,max_bytes=1024**2)
+    if (not isinstance(value,dict) or value.get('id')!=note_id or value.get('kind')!='note'
+            or value.get('deleted') is not False or value.get('ai_allowed') is not True):
+        raise ValueError('Diese Notiz ist nicht für Lumen freigegeben. Bitte zuerst in Notes freigeben.')
+    result=validate_note(dict(reference=dict(version=2,app='note',id=note_id,title=value.get('title'),
+        locator=dict(server=context.binding.origin,account=context.binding.account)),revision=value.get('revision')))
+    _profile(context,job,revision=revision);job.check();context.check()
+    return result
+
+
+def install_note(window):
+    from PySide6.QtCore import QObject,Slot,QEventLoop,QTimer
+    from PySide6.QtDBus import QDBusConnection
+    class NoteActions(QObject):
+        @Slot(result=str)
+        def Reference(self):
+            import threading
+            from server_notes_links import Context
+            from server_app_window import _connection
+            from interop_dialogs import run_job
+            owned=False
+            try:
+                w=window
+                if w._import_running or w._worker is not None:raise ValueError('Bitte den laufenden Notes-Vorgang abwarten.')
+                context=Context(w,w.page,w.profile,w.view,w.session,w._binding,w._generation,w.session._generation,
+                    _connection()[1],w._import_destroyed,threading.get_ident());context.gui()
+                values=[];loop=QEventLoop();timeout=QTimer();timeout.setSingleShot(True)
+                timeout.timeout.connect(loop.quit)
+                def received(value):values.append(value);loop.quit()
+                w.page.runJavaScript("""JSON.stringify((() => { const note=document.querySelector('.knowledge-editor');
+                    if(!note)return null;
+                    if(!window.dispatchEvent(new Event('beforeunload',{cancelable:true})))return {dirty:true};
+                    return {id:note.dataset.documentId}; })())""",0,received)
+                if not values:timeout.start(2000);loop.exec()
+                timeout.stop();context.gui()
+                value=values[0] if values else None
+                value=json.loads(value) if isinstance(value,str) and len(value)<=8192 else None
+                if not isinstance(value,dict):raise ValueError('Zuerst eine gespeicherte Notes-Notiz öffnen.')
+                if value.get('dirty'):raise ValueError('Die Notiz zuerst in Notes speichern, damit genau dieser Stand übergeben wird.')
+                w._import_running=True;owned=True
+                note=run_job(w,'Notes-Notiz für Lumen prüfen …',lambda job:saved_note(context,value.get('id'),job))
+                context.gui()
+                if note is None:raise ValueError('Notes-Übergabe abgebrochen.')
+                return json.dumps(dict(note=note,error=''))
+            except (OSError,ValueError,RuntimeError) as error:return json.dumps(dict(error=str(error)))
+            finally:
+                from lumen_qt import is_deleted
+                if owned and not is_deleted(window):
+                    window._import_running=False
+                    if window._import_close:window._import_close=False;window.close()
+    actions=NoteActions(window);bus=QDBusConnection.sessionBus()
+    service='org.lumen.Topbar.Note.p'+str(os.getpid())
+    if bus.registerService(service):
+        bus.registerObject('/Note',actions,QDBusConnection.RegisterOption.ExportAllSlots)
+        window.destroyed.connect(lambda:bus.unregisterService(service))
+    window._topbar_note=actions
+
+
+def read_note(pid):
+    from PySide6.QtCore import QCoreApplication
+    from PySide6.QtDBus import QDBusConnection,QDBusMessage
+    if type(pid) is not int or not 1<pid<10**9:raise ValueError('Ungültiges Notes-Fenster.')
+    app=QCoreApplication.instance() or QCoreApplication([])
+    bus=QDBusConnection.sessionBus();service='org.lumen.Topbar.Note.p'+str(pid)
+    owner=bus.interface().servicePid(service)
+    if not owner.isValid() or owner.value()!=pid:
+        raise ValueError('Lumen Notes bitte einmal schließen und neu öffnen, um die direkte Übergabe zu laden.')
+    call=QDBusMessage.createMethodCall(service,'/Note','','Reference')
+    reply=bus.call(call,timeout=40000)
+    if reply.type()==QDBusMessage.MessageType.ErrorMessage or len(reply.arguments())!=1:
+        raise ValueError('Die geöffnete Notes-Notiz konnte nicht übernommen werden.')
+    value=json.loads(reply.arguments()[0])
+    if value.get('error'):raise ValueError(str(value['error'])[:400])
+    return validate_note(value.get('note'))
+
 def main():
     from PySide6.QtWidgets import QApplication,QMessageBox
     app = QApplication([])

@@ -10,6 +10,7 @@ MCP_FIELDS = {
         'uiLanguage': ('system', str, ('system','de','en')),
         'defaultMode': ('build', str, ('build','plan')),
         'appearance': ('glass', str, ('glass','graphite','atelier','midnight','clear','system')),
+        'topbar/layout': ('classic', str, ('classic','band','deck','context')),
         'translateTarget': ('de', str, ('de','en','fr','it','es','pt','nl','pl','uk','ru','tr','ar','zh','ja','ko','sv','da','fi','cs','el')),
         'translateStyle': ('neutral', str, ('neutral','formal','informal','friendly','concise')),
         'translateMode': ('translate', str, ('translate','rewrite','correct')),

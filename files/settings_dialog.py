@@ -134,7 +134,7 @@ class SettingsDialog(QDialog):
         personality = self.page(tr('Persönlichkeit'), tr('Wie Lumen mit dir spricht und zusammenarbeitet.'))
         self.persona_editor = PersonaEditor(self.assistant, lambda: self.open_page(self.speech_output_page), self)
         self.persona_editor.saved.connect(lambda: (
-            self.preferencesChanged.emit(self.assistant.fileName(), ['personaProfile']),
+            self.preferencesChanged.emit(self.assistant.fileName(), ['personaProfile','personaLocalOverride']),
             self.status.setText(tr('Persönlichkeit gespeichert. Gilt ab der nächsten Nachricht.'))))
         personality.addWidget(self.persona_editor); personality.addStretch()
         from troubleshooter_ui import Troubleshooter
@@ -226,12 +226,12 @@ class SettingsDialog(QDialog):
             if key == 'vault':
                 panel.addWidget(button(tr('Lokale Sicherungspläne öffnen'), lambda: launch('system',page='backups')))
             if key == 'notification':
-                from lumen_notifications import preferences, set_preference, configure_popups
+                from lumen_notifications import preferences, set_preference, notification_options
                 panel.addWidget(text(tr('Lumen zeigt deine Meldungen. Systemeinstellungen und App-Aktionen bleiben erhalten.')))
-                native = QCheckBox(tr('Popups mit Lumen anzeigen'))
+                native = QCheckBox(tr('Popups anzeigen'))
                 native.setChecked(self.assistant.value('notifications/nativePopups', True, type=bool))
                 def set_popups(enabled):
-                    try: configure_popups(enabled)
+                    try: notification_options({"native_popups":enabled})
                     except (OSError, ValueError, subprocess.SubprocessError) as error:
                         native.blockSignals(True); native.setChecked(not enabled); native.blockSignals(False)
                         self.status.setText(str(error))
@@ -285,12 +285,19 @@ class SettingsDialog(QDialog):
             panel.addStretch()
 
     def build_mcp(self):
-        page = self.page('MCP', tr('Lumen-Funktionen für die KI'))
-        page.addWidget(text(tr('Die KI kann Dateien suchen, freigegebene Notizen lesen und Aufträge sowie Sicherungsstände abfragen. Lumen Notes verwendet dieselben Freigaben wie Gespräche.')))
-        page.addWidget(text(tr('Notes, Projekte, Code, Audio Studio und Inbox verwenden die Werkzeuge deines verbundenen Lumen Servers. Gerätefreigaben und KI-Zugriff auf Inhalte gelten dort; ein lokaler Nachrichten-Cache wird nicht verwendet.')))
-        page.addWidget(text(tr('Änderungen und Dienstzugriffe behalten ihre eigenen Bestätigungen. Eine Gerätefreigabe entsperrt keinen Tresor und versendet keine Nachricht.')))
+        from engine_extensions import ExtensionsView
+        page = self.page(tr('Fähigkeiten & Erweiterungen'), tr('MCP, Plugins und Skills von Lumen'))
+        self.extensions = ExtensionsView(lambda parent:OpenCodeBackend(str(Path(self.assistant.value('workdir', str(Path.home()))).expanduser()), parent))
+        page.addWidget(self.extensions, 1)
+        def server_extensions():
+            from server_notes_app import _connection
+            from server_app_session import origin
+            try:
+                config, _ = _connection()
+                if not QDesktopServices.openUrl(QUrl(origin(config['server'])+'/?app=settings&section=extensions')):raise ValueError()
+            except (OSError,ValueError,RuntimeError):self.status.setText(tr('Bitte zuerst Lumen Desktop mit deinem Server verbinden.'))
+        page.addWidget(button(tr('Server-Fähigkeiten im Browser öffnen'),server_extensions))
         page.addWidget(button(tr('Gerätefreigaben auf dem Server öffnen'),self.open_server_permissions))
-        page.addStretch()
 
     def build_speech_settings(self):
         from lumen_speech import add_recognition_fields
@@ -663,6 +670,19 @@ class SettingsDialog(QDialog):
                 self.status.setText(str(error))
         self.apply_appearance = button(tr('Design übernehmen'), save); self.apply_appearance.setObjectName('primary')
         page.addWidget(self.apply_appearance, 0, Qt.AlignLeft)
+        page.addWidget(text(tr('Topbar')))
+        topbar = QFormLayout()
+        self.topbar_layout = combo([('Panorama', 'classic'), (tr('Tastenband'), 'band'),
+            (tr('Doppeldeck'), 'deck'), (tr('Kontextdock'), 'context')], self.field(self.assistant, 'topbar/layout', 'classic'))
+        self.topbar_layout.setAccessibleName(tr('Topbar-Layout'))
+        topbar.addRow(tr('Layout'), self.topbar_layout); page.addLayout(topbar)
+        page.addWidget(text(tr('Das Layout wechselt sofort. Design und geöffnete Apps bleiben erhalten.')))
+        def save_topbar():
+            try:
+                self.save(self.assistant, {'topbar/layout': self.topbar_layout.currentData()})
+                self.status.setText(tr('Topbar-Layout übernommen.'))
+            except (OSError, ValueError) as error: self.status.setText(str(error))
+        self.topbar_layout.currentIndexChanged.connect(save_topbar)
         reading = QFormLayout()
         self.text_size = QSpinBox(); self.text_size.setRange(14, 22); self.text_size.setSuffix(' px')
         self.text_size.setValue(self.field(self.assistant, 'textSize', 17, int))
@@ -916,6 +936,7 @@ class SettingsDialog(QDialog):
             return
         if self.engine:
             self.engine.shutdown()
+        if hasattr(self, 'extensions'): self.extensions.stop()
         if hasattr(self, 'troubleshooter'): self.troubleshooter.stop()
         if workspace is not None:workspace.shutdown()
         from window_geometry import remember

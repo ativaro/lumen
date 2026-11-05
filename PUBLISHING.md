@@ -28,25 +28,23 @@ lumen_test_python="$(bin/lumen-python -c 'import sys; print(sys.executable)')"
 lumen_test_root="$(mktemp -d)"
 HOME="$lumen_test_root" XDG_CONFIG_HOME="$lumen_test_root/config" \
   XDG_DATA_HOME="$lumen_test_root/data" XDG_STATE_HOME="$lumen_test_root/state" \
-  XDG_CACHE_HOME="$lumen_test_root/cache" QT_QPA_PLATFORM=offscreen LUMEN_LANGUAGE=de \
+  XDG_CACHE_HOME="$lumen_test_root/cache" LUMEN_DATA="$lumen_test_root/lumen" \
+  LUMEN_TOOLS_DATA="$lumen_test_root/tools" LUMEN_HOST_TEST_ROOT="$lumen_test_root/host" \
+  QT_QPA_PLATFORM=offscreen LUMEN_LANGUAGE=de \
   LUMEN_PYTHON="$lumen_test_python" dbus-run-session -- "$lumen_test_python" -m unittest discover -s files -v
 ```
 
-Create the ignored screenshot directories and run Qt 6's QML checks:
-
-```bash
-mkdir -p artifacts/islands artifacts/panel artifacts/themes
-/usr/lib/qt6/bin/qmltestrunner -input plasmoid/tests -platform offscreen
-```
-Run the installed desktop in disposable virtual Plasma sessions:
+Exercise the native topbar in a disposable virtual Plasma session:
 
 ```bash
 python3 tests/check-desktop.py
-python3 tests/check-desktop.py --width 1280 --screens 1
+python3 tests/check-desktop.py --width 1600 --scale 1.25 --surface-only
 ```
 
-The check creates an empty HOME/XDG profile and separate D-Bus/compositor session. Verify all three desktop roles, Files/search launchers,
-four themes and Aurorae decorations, wallpaper selection and idempotent setup.
+The runner creates a private profile, bus and virtual compositor. Run
+`tests/check-install-closure.py` for fresh and repeated user installations and the
+system package layout. Verify desktop Inbox and Notes using their normal menu
+commands against an isolated Staging account.
 Do not reset a developer's running Plasma session to test an installer.
 
 Review staged files and the commits that will be pushed for private information.

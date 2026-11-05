@@ -126,7 +126,7 @@ def main():
         from lumen_detail_routes import launch
         launch('lumen', ['--page', 'household'])
         return 0
-    if args.tool == 'workbench' and args.section not in (None, 'projects', 'rooms', 'automations'):
+    if args.tool == 'workbench' and args.section not in (None, 'projects', 'automations'):
         parser.error(tr('Unbekannter Projektbereich.'))
     if args.tool in ('meetings','radio','inbox','vault','workbench'):
         kind=('code' if args.section == 'automations' else 'projects') if args.tool=='workbench' else 'audio' if args.tool in ('meetings','radio') else args.tool

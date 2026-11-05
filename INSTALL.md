@@ -181,19 +181,10 @@ are reused. The **KI-Anbindung** step reads configured providers and models; API
 providers, including Ollama Cloud, can be connected without a terminal. OAuth and
 other login methods still use OpenCode's existing provider setup. Listing configured
 models does not verify a cloud account's credentials or send a test prompt.
-On a fresh profile, Lumen automatically selects and saves an available free model
-from connected providers (preferring OpenCode Zen). Selection uses the live
-catalogue's zero input/output/cache prices and tool support, not hard-coded model
-names. The wizard displays the chosen model above **Modell anpassen**. The first
-conversation also sets up this default if the wizard was skipped. Existing Lumen
-and explicit OpenCode model choices remain in use. If no confirmed free model is
-available, Lumen asks for a selection instead of silently choosing a paid model.
-Loading the catalogue does not guarantee provider uptime or available quota.
-OpenCode Zen currently may reject free-tier requests when tools are disabled
-(see [upstream issue #51315](https://github.com/anomalyco/opencode/issues/51315)).
-This can affect Lumen's restricted proposal/project actions even when ordinary
-chat works. Lumen keeps those restrictions; use another configured model for
-affected actions rather than granting tools solely to bypass the provider error.
+On a fresh profile, choose an available model from a configured provider in the
+setup wizard. Existing explicit Lumen and OpenCode selections keep their settings.
+The anonymous OpenCode service is disabled. An explicitly configured OpenCode
+endpoint and other configured providers remain available.
 
 The optional **Mit deiner Stimme** step installs a pinned, checksum-verified
 whisper.cpp executable and a multilingual Small Q5 model (190 MB) into
@@ -302,6 +293,13 @@ libraries keep their existing paths. The search pilot has become the normal
 search; `lumen-search-preview` remains an alias. See [SEARCH-PREVIEW.md](SEARCH-PREVIEW.md).
 
 ## Native updates
+
+Distributions from the former official GitHub source, and older installations
+with no recorded origin, use the private Forgejo `main` when the Forgejo Updater
+runs. An explicitly configured custom repository keeps its own URL. To start
+using this Updater from an older installation, run the Forgejo update command
+in the installation section above. System package updates leave Lumen itself
+to the checked repository bundle.
 
 Start `lumen-updater`, or use Lumen → Updater in the top panel, Lumen Apps, or
 Settings → Maintenance. Checking fetches

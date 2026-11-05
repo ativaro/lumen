@@ -972,6 +972,12 @@ class ConnectionDialog(QDialog):
                 )
             )
         )
+        self.browser_access_button = QCheckBox(t("Browsersteuerung auf diesem Desktop", "Browser control on this desktop"))
+        self.browser_access_button.clicked.connect(self.change_browser_access)
+        layout.addWidget(self.browser_access_button)
+        layout.addWidget(label(t(
+            "Lumen darf eigene Browsersitzungen auf diesem Rechner öffnen. Persönliche Browserprofile bleiben getrennt. Die erste Einrichtung lädt den Browser herunter.",
+            "Lumen may open separate browser sessions on this computer. Personal browser profiles stay separate. Initial setup downloads the browser.")))
         controls = QHBoxLayout()
         self.refresh_button = QPushButton(t("Aktualisieren", "Refresh"))
         self.refresh_button.clicked.connect(self.refresh)
@@ -1055,13 +1061,41 @@ class ConnectionDialog(QDialog):
         self.disconnect_pending = None
         self.status.setText(t("Daten behalten. Im Server unter Geräte über die Sicherungen entscheiden.", "Data preserved. Decide what to do with backups under Devices on the server."))
         self.system_access_button.setEnabled(False)
+        self.browser_access_button.setEnabled(False)
         for content in self.sections.values():
             content.clear()
+
+    def change_browser_access(self):
+        from browser_connector import set_access
+        if self.worker and self.worker.isRunning():return
+        enabled=self.browser_access_button.isChecked()
+        self.browser_access_button.setEnabled(False)
+        self.system_access_button.setEnabled(False)
+        self.disconnect_button.setEnabled(False)
+        self.refresh_button.setEnabled(False)
+        self.status.setText(t("Browser wird eingerichtet …", "Setting up browser …") if enabled else t("Browsersteuerung wird ausgeschaltet …", "Disabling browser control …"))
+        def setup():
+            try:set_access(enabled)
+            except ValueError as error:return str(error)
+        self.worker=Worker(setup,self)
+        def finished():
+            self.browser_access_button.setEnabled(True)
+            self.system_access_button.setEnabled(True)
+            self.disconnect_button.setEnabled(True)
+            self.refresh_button.setEnabled(True)
+            if self.worker.error or self.worker.result:
+                self.status.setText(self.worker.error or self.worker.result)
+                self.browser_access_button.setChecked(client.read_config().get('browser_access') is True)
+            else:self.refresh()
+        self.worker.finished.connect(finished)
+        self.worker.start()
 
     def change_system_access(self):
         enabled = self.system_access_button.isChecked()
         self.refresh_button.setEnabled(False)
         self.system_access_button.setEnabled(False)
+        self.browser_access_button.setEnabled(False)
+        self.disconnect_button.setEnabled(False)
         self.worker = Worker(lambda: client.set_system_access(enabled), self)
         self.worker.finished.connect(self.system_access_changed)
         self.worker.start()
@@ -1071,6 +1105,8 @@ class ConnectionDialog(QDialog):
             self.status.setText(self.worker.error)
             self.system_access_button.setChecked(client.system_access_allowed(self.config))
             self.system_access_button.setEnabled(True)
+            self.browser_access_button.setEnabled(True)
+            self.disconnect_button.setEnabled(True)
             self.refresh_button.setEnabled(True)
         else:
             self.refresh()
@@ -1101,13 +1137,17 @@ class ConnectionDialog(QDialog):
                 t("Systemabfragen: zuerst verbinden", "System queries: connect first")
             )
             self.system_access_button.setEnabled(False)
+            self.browser_access_button.setEnabled(False)
             return
         self.system_access_button.setEnabled(True)
+        self.browser_access_button.setEnabled(True)
+        self.browser_access_button.setChecked(self.config.get("browser_access") is True)
         self.disconnect_button.setEnabled(False)
         self.system_access_button.setChecked(client.system_access_allowed(self.config))
         self.identity.setText(self.config["server"])
         self.status.setText(t("Verbindung wird geprüft …", "Checking connection …"))
         self.refresh_button.setEnabled(False)
+        self.browser_access_button.setEnabled(False)
 
         def connection_status():
             client.initialize_system_access(self.config)
@@ -1120,6 +1160,7 @@ class ConnectionDialog(QDialog):
     def loaded(self):
         self.refresh_button.setEnabled(True)
         self.disconnect_button.setEnabled(True)
+        self.browser_access_button.setEnabled(True)
         if self.worker.error:
             self.status.setText(
                 t(
@@ -1131,6 +1172,7 @@ class ConnectionDialog(QDialog):
                 content.clear()
             return
         data = self.worker.result
+        self.browser_access_button.setChecked(self.config.get("browser_access") is True and "browser" in data["capabilities"])
         self.system_access_button.setChecked(
             client.system_access_allowed(self.config) and "system_read" in data["capabilities"]
         )

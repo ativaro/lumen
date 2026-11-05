@@ -59,7 +59,7 @@ Lumen augments OpenCode; ordinary research, shell, browser and MCP tools remain
 available under their existing permissions. Do not treat a missing Lumen adapter
 as proof the task is impossible. Discover the service's documented interface with
 normal research tools; choose HTTP/RPC, browser or SSH based on the task and
-actual capabilities. Use the lumen-service-access skill. Do not create a
+actual capabilities. Use the lumen-vault-http skill. Do not create a
 service-specific workaround or ask to convert a login into a token just to use
 an API. Do not extract Vault secrets into OpenCode, scripts or tool arguments.
 For a shared HTTP(S) login or token, lumen_vault_http_open returns a native session

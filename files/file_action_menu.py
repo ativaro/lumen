@@ -336,6 +336,9 @@ def build_file_menu(self, paths):
             target=QFileDialog.getExistingDirectory(self,tr('Downloadordner'))
             if target:self.drive.download(paths,target)
         organize.addAction(tr('Herunterladen …'),download)
+        if all(self.drive.entries[p][0]=='file' for p in paths):
+            pdf=all(self.drive.entries[p][0]=='file' and self.drive.entries[p][1]['name'].lower().endswith('.pdf') for p in paths)
+            organize.addAction(tr('PDF-Werkstatt auf dem Server …') if pdf else tr('Dokumentwerkzeuge auf dem Server …'),lambda:self.drive.server_tools(paths,workshop=pdf))
         organize.addAction(tr('Hier einfügen'),self.paste)
         organize.addAction(tr('Neuer Ordner'),self.mkdir)
         organize.addAction(tr('Aktualisieren'),self.refresh)

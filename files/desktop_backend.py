@@ -325,6 +325,9 @@ class DesktopBackend(OpenCodeBackend):
         return True
 
     def send(self, text, files=None, *args, **kwargs):
+        note=(kwargs.get('context_data') or {}).get('note_reference')
+        if note and self.execution!='server':
+            self.failed.emit(tr('Servernotizen bitte in einem Servergespräch verwenden.'));return False
         if self.session.startswith(PREFIX) and self.execution != 'server':
             # Recovery snapshots may set session directly. Never pass a server
             # identity to the local OpenCode process or silently change provider.
@@ -360,7 +363,7 @@ class DesktopBackend(OpenCodeBackend):
                 self.remember(self.remote_key,remove=True);self.remote_key=''
                 self.failed.emit(tr('Der ausgewählte Kontext ist zu groß.'));return False
             context.append(dict(name='Ausgewählte Eingaben.json',text=encoded))
-        if len(context)+sum(ref['kind']=='drive_file' for ref in drive_refs)>20:
+        if len(context)+sum(ref['kind']=='drive_file' for ref in drive_refs)+bool(note)>20:
             self.remember(self.remote_key,remove=True);self.remote_key=''
             self.failed.emit(tr('Ein Servergespräch unterstützt höchstens 20 Anhänge einschließlich Auswahlbeschreibung. Bitte weniger Dateien auswählen.'));return False
         receipt = UUID(self.remote_key)
@@ -372,6 +375,19 @@ class DesktopBackend(OpenCodeBackend):
         def submit(request):
             user = request('/bridge/me')
             refs=[]
+            if note:
+                from topbar_context import note_attachment
+                try:selected=note_attachment(note,self.server_origin,user['id'])
+                except ValueError as error:return dict(local_context_error=str(error))
+                try:capability=request('/bridge/context/capability',selected)
+                except HTTPError as error:
+                    if error.code not in (403,404,409,422):raise
+                    error.close()
+                    return dict(local_context_error=tr('Die Notes-Notiz wurde geändert oder ist nicht mehr für Lumen freigegeben. Bitte in Notes prüfen und erneut anhängen.'))
+                if (not isinstance(capability,dict) or any(capability.get(key)!=value for key,value in selected.items())
+                        or capability.get('supported') is not True):raise ValueError('Note is not available')
+                if connection()[1]!=self.binding:raise ValueError('Connection changed')
+                refs.append(selected)
             if drive_refs:
                 from drive_references import task_attachments,ContextLimit
                 try:config,refs=task_attachments(drive_refs,(kwargs.get('context_data') or {}).get('intent','open'),sum(len(item['text'].encode()) for item in context))

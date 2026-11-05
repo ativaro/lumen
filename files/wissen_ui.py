@@ -226,9 +226,12 @@ def build(w):
     from memory_review_ui import review as review_memories
     ol.addWidget(button(tr('Gedächtnisvorschläge prüfen …'),lambda:w.safe(review_memories,w)))
     w.reuse_solutions.toggled.connect(lambda _:w.safe(w.configure_memory));w.auto_memory.toggled.connect(lambda _:w.safe(w.configure_memory))
-    ol.addWidget(label(tr('Passende Erinnerungen und freigegebene Notizen gehen an deinen KI-Anbieter. Beim Lernen beurteilt das Modell deine Nachricht und die vorherige Antwort. Gespeichertes bleibt hier einsehbar.'),'muted'))
+    ol.addWidget(label(tr('Mit Serververbindung gelten Gedächtnis, Lernfreigabe, Übernahme und KI-Anbieter deines Serverkontos. „Gedächtnis verwenden“ und „Aus Gesprächen lernen“ können den Zugriff auf diesem Desktop zusätzlich ausschalten. Die beiden weiteren Optionen gelten für den lokalen Offlinebetrieb.'),'muted'))
+    ol.addWidget(label(tr('Beim Server-Lernen werden nur neue Aussagen und die vorherige Antwort übertragen; vorhandene lokale Erinnerungen bleiben lokal. Bei „nur lokales Modell“ wird nichts zum Server-Lernen übertragen.'),'muted'))
+    from server_memory_view import show_server_memory
+    ol.addWidget(button(tr('Gemeinsames Gedächtnis und Lernfreigabe öffnen …'),lambda:w.safe(show_server_memory,w)))
     from memory_sync_ui import configure as configure_memory_sync
-    ol.addWidget(button(tr('Gedächtnis mit Lumen Server abgleichen …'),lambda:w.safe(configure_memory_sync,w),'network-server'))
+    ol.addWidget(button(tr('Lokalen Offlinebestand abgleichen …'),lambda:w.safe(configure_memory_sync,w),'network-server'))
     ol.addWidget(button(tr('Projektordner zuordnen …'),lambda:w.safe(configure_projects,w),'folder'))
     w.use_memory.toggled.connect(lambda _:w.safe(w.configure_memory));w.learn_memory.toggled.connect(lambda _:w.safe(w.configure_memory));dl.addWidget(w.memory_options);w.memory_options.hide()
     w.save_note_button=button(tr('Speichern'),lambda:w.safe(w.save_note),primary=True);w.save_note_button.setIcon(glyph('save'));w.save_note_button.setEnabled(False);w.save_note_button.setMaximumWidth(150)

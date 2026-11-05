@@ -9,20 +9,21 @@ import tempfile
 import threading
 import time
 import unittest
+from html import escape
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
 from urllib.parse import urlsplit
 from uuid import uuid4
 
-from PySide6.QtCore import Qt, QUrl, QPoint, QDateTime, QTimer, QThread, QFileSystemWatcher
+from PySide6.QtCore import Qt, QUrl, QPoint, QDateTime, QTimer, QThread, QFileSystemWatcher, QSettings
 from PySide6.QtNetwork import QNetworkCookie
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox, QFileDialog, QDialog, QLineEdit, QComboBox
 import shiboken6
 
 from server_app_session import AppSession, Binding, SessionError
-from server_app_window import ServerAppWindow, QWebEnginePage, QWebEngineScript
+from server_app_window import ServerAppWindow, QWebEnginePage, QWebEngineScript, QWebEngineLoadingInfo
 import lumen_connect
 
 USER='73000000-0000-4000-8000-000000000001'
@@ -36,6 +37,8 @@ class PrivateHostFixture(unittest.TestCase):
     def setUpClass(cls):
         root=Path(os.environ['LUMEN_HOST_TEST_ROOT']);root.mkdir(parents=True,exist_ok=True,mode=0o700)
         cls.temp=tempfile.TemporaryDirectory(dir=root);cls.root=Path(cls.temp.name)
+        settings=patch('server_app_window.QSettings',side_effect=lambda *args:QSettings(str(cls.root/'window-settings.ini'),QSettings.Format.IniFormat))
+        settings.start();cls.addClassCleanup(settings.stop)
         cls.app=QApplication.instance() or QApplication([])
         cls.cert=cls.root/'ca.pem';cls.wrong_cert=cls.root/'unrelated-ca.pem';key=cls.root/'key.pem'
         for cert,target_key in ((cls.cert,key),(cls.wrong_cert,cls.root/'unrelated-key.pem')):
@@ -115,6 +118,10 @@ class PrivateHostFixture(unittest.TestCase):
                         cls.write_started.set();cls.release_write.wait(timeout=10)
                     status=403;data={'detail':'App jobs remain gated.'}
                 elif self.path=='/api/ping':data={'cookie':'lumen_session='+'c'*43 in self.headers.get('Cookie','')}
+                elif self.path=='/inbox-message.html':
+                    data='<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src blob:; base-uri \'none\'; form-action \'none\'"><title>Mail</title><body></body>'
+                elif cls.preview_document is not None and urlsplit(self.path).path=='/api/code-library/'+FILE+'/code-document':
+                    data=cls.preview_document
                 else:
                     data=('''<!doctype html><html><title>Notes fixture</title><section class="knowledge-editor">
                         <input class="title-input" value="Own fixture note"><div class="note-rich-text" contenteditable="true">Own fixture text</div>
@@ -124,6 +131,9 @@ class PrivateHostFixture(unittest.TestCase):
                 raw=data.encode() if isinstance(data,str) else json.dumps(data).encode()
                 self.send_response(status);self.send_header('Content-Type','text/html' if isinstance(data,str) else 'application/json')
                 self.send_header('Content-Length',str(len(raw)))
+                if cls.preview_document is not None and urlsplit(self.path).path=='/api/code-library/'+FILE+'/code-document':
+                    self.send_header('Content-Security-Policy',"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; frame-src about:; sandbox allow-scripts allow-forms; frame-ancestors 'self'")
+                    self.send_header('X-Frame-Options','SAMEORIGIN')
                 if cookie:self.send_header('Set-Cookie','lumen_session='+'c'*43+'; Path=/; Max-Age=900; Secure; HttpOnly; SameSite=Strict')
                 self.end_headers();self.wfile.write(raw)
         cls.server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
@@ -139,6 +149,7 @@ class PrivateHostFixture(unittest.TestCase):
 
     def setUp(self):
         type(self).app_kind='compose';type(self).hold_check=False
+        type(self).preview_document=None
         type(self).renewal_unavailable=False
         type(self).revoked=False;type(self).hold_write=False
         type(self).native_user=USER;type(self).native_areas=['translate'];type(self).native_revision=7
@@ -203,6 +214,88 @@ class PrivateHostFixture(unittest.TestCase):
 
 
 class WindowTest(PrivateHostFixture):
+    def test_code_preview_runs_nested_sandbox_without_parent_or_native_access(self):
+        window=self.import_window(drive=False,pilot=True,app='code')
+        child="""<h1>Own nested preview</h1><script>
+        let blocked=false;try{parent.document.body}catch(e){blocked=e.name==='SecurityError'};
+        parent.postMessage({fixturePreview:true,text:document.querySelector('h1').textContent,
+            parentBlocked:blocked,nativeMarker:typeof window.__lumenNativeAppLinks},'*');</script>"""
+        type(self).preview_document=('<iframe sandbox="allow-scripts allow-forms" srcdoc="'+escape(child,quote=True)+'"></iframe>'
+            "<script>addEventListener('message',e=>{if(e.source===document.querySelector('iframe').contentWindow&&e.data?.fixturePreview)parent.postMessage(e.data,'*')})</script>")
+        url=self.origin+'/api/code-library/'+FILE+'/code-document?entry_revision=1&repo_revision=1&sha256='+('a'*64)+'&channel='+('b'*32)
+        self.js(window,"const f=document.createElement('iframe');f.sandbox='allow-scripts allow-forms';"
+            "addEventListener('message',e=>{if(e.source===f.contentWindow&&e.data?.fixturePreview)window.previewResult=e.data});"
+            "f.src="+json.dumps(url)+";document.body.append(f)")
+        self.wait(lambda:self.js(window,'window.previewResult?.fixturePreview') is True,timeout=4000)
+        result=json.loads(self.js(window,'JSON.stringify(window.previewResult)'))
+        self.assertEqual(result,dict(fixturePreview=True,text='Own nested preview',parentBlocked=True,nativeMarker='undefined'))
+        self.assertTrue(window._live)
+        self.assertTrue(window.session.binding.navigation(window.view.url().toString()))
+        self.assertTrue(any(c['web'] and c['path']==url.removeprefix(self.origin) and c['cookie'] and not c['bearer'] for c in self.calls))
+
+    def test_clicked_app_link_uses_fresh_source_and_a_separate_target_launcher(self):
+        window=self.import_window(drive=False,pilot=True,app='code')
+        url=self.origin+'/?app=notes&note='+FILE
+        self.assertEqual(self.js(window,'window.__lumenNativeAppLinks'),1)
+        self.js(window,"document.body.innerHTML="+json.dumps(
+            '<a style="display:block;height:50px" href="'+url+'">Open saved note</a>'
+            '<textarea>Own unsubmitted code request</textarea>'))
+        before=window.view.url().toString()
+        loads=[]
+        window.page.loadingChanged.connect(lambda info:loads.append((info.url().toString(),info.status().name,info.errorCode())))
+        with patch('interop_open.subprocess.Popen') as started:
+            for main,kind in ((False,0),(True,QWebEnginePage.NavigationType.NavigationTypeOther)):
+                self.assertFalse(window.page.acceptNavigationRequest(QUrl(url),kind,main))
+            started.assert_not_called()
+            self.wait(lambda:window.view.isVisible())
+            window.view.setFocus()
+            point=json.loads(self.js(window,'JSON.stringify((()=>{const r=document.querySelector("a").getBoundingClientRect();return [r.x+r.width/2,r.y+r.height/2]})())'))
+            QTest.mouseClick(window.view.focusProxy() or window.view,Qt.LeftButton,pos=QPoint(int(point[0]),int(point[1])))
+            self.wait(lambda:started.called or not window._live)
+            self.assertTrue(started.called,repr(loads))
+        command=started.call_args.args[0]
+        self.assertEqual(command[2:4],['wissen','--ref'])
+        from interop_data import Registry
+        ref=Registry().resolve(command[4])
+        self.assertEqual((ref['app'],ref['id']),('note',FILE))
+        self.assertEqual(ref['locator'],dict(server=self.origin,account=USER))
+        self.assertNotIn('native-only-fixture',json.dumps(command))
+        self.assertNotIn('c'*43,json.dumps(command))
+        self.assertEqual(window.view.url().toString(),before)
+        self.assertEqual(self.js(window,'document.querySelector("textarea").value'),'Own unsubmitted code request')
+
+    def test_app_link_denies_changed_connection_and_revoked_source(self):
+        window=self.import_window(drive=False,pilot=True,app='code')
+        url=self.origin+'/?app=note&note='+FILE
+        with patch('interop_open.subprocess.Popen') as started:
+            with patch.object(window,'_pilot_current',return_value=False):
+                self.assertFalse(window.page.acceptNavigationRequest(QUrl(url),0,True))
+                QTest.qWait(50)
+            started.assert_not_called()
+            type(self).revoked=True
+            self.assertFalse(window.page.acceptNavigationRequest(QUrl(url),0,True))
+            self.wait(lambda:not window._live)
+            started.assert_not_called()
+
+    def test_project_task_reference_reaches_the_existing_draft_aware_hook(self):
+        window=self.import_window(drive=False,pilot=True,app='projects')
+        reference=dict(version=2,app='projects',id=FOLDER,item_id=FILE,title='Own task',
+                       locator=dict(server=self.origin,account=USER))
+        self.js(window,'window.__lumenOpenReference=value=>{window.selectedReference=value;return true}')
+        result=[];window.open_reference(reference,result.append);self.wait(lambda:bool(result))
+        self.assertEqual(result,[True])
+        self.assertEqual(self.js(window,'window.selectedReference.item_id'),FILE)
+
+    def test_expected_link_cancel_does_not_hide_a_document_load_failure(self):
+        from types import SimpleNamespace
+        window=self.import_window(drive=False,pilot=True,app='code')
+        url=self.origin+'/?app=note&note='+FILE
+        window._cancelled_link=(url,window._generation,window.session._generation,window.page,window.view.url().toString())
+        failure=SimpleNamespace(status=lambda:QWebEngineLoadingInfo.LoadStatus.LoadFailedStatus,
+                                errorCode=lambda:-3,url=lambda:QUrl(url))
+        window._load_status(failure)
+        self.assertFalse(window._live)
+
     def test_reference_selection_uses_current_app_hook_without_reloading_or_discarding(self):
         window=self.import_window(drive=False,pilot=True,app='notes');self.note_input(window)
         reference=dict(version=2,app='note',id=FILE,title='Own selected note',

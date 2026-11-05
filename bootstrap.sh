@@ -47,13 +47,12 @@ bootstrap() {
         stage="$(mktemp -d)"
         trap "$(printf 'rm -rf -- %q' "$stage")" EXIT
         message 'Lumen wird heruntergeladen …' 'Downloading Lumen …'
-        if ! curl --fail --location --proto '=https' --proto-redir '=https' --retry 2 \
-        --connect-timeout 20 --max-time 300 \
-        https://codeload.github.com/ativaro/lumen/tar.gz/refs/heads/main -o "$stage/lumen.tar.gz"; then
-            message 'Download fehlgeschlagen. Private Repositories benötigen einen angemeldeten Git-Checkout und bootstrap.sh --local.' 'Download failed. Private repositories require an authenticated Git clone and bootstrap.sh --local.' >&2
+        source="$stage/lumen"
+        if ! command -v git >/dev/null; then sudo pacman -S --needed --noconfirm -- git; fi
+        if ! git clone --depth=1 --branch main --single-branch https://forge.example.invalid/ativaro/lumen.git "$source"; then
+            message 'Download fehlgeschlagen. Prüfe den Git-Zugriff auf das private Forgejo-Repository.' 'Download failed. Check Git access to the private Forgejo repository.' >&2
             return 1
         fi
-        source="$stage/lumen-main"
     fi
 
     local packages=(git python pyside6 python-gobject python-pillow python-dbus python-yaml python-markdown-it-py openssl
@@ -61,18 +60,6 @@ bootstrap() {
     if ! pacman -T "${packages[@]}" >/dev/null; then
         message 'Die grafische Basis wird installiert. Dafür ist gegebenenfalls dein Systempasswort nötig.' 'Installing the graphical runtime. Your system password may be required.'
         sudo pacman -S --needed --noconfirm -- "${packages[@]}"
-    fi
-    # Use Python's safe archive filter; never extract downloaded paths as root.
-    if [ "$use_local" = 0 ]; then
-      /usr/bin/python3 - "$stage" <<'PY'
-from pathlib import Path
-import sys, tarfile
-folder = Path(sys.argv[1])
-with tarfile.open(folder / 'lumen.tar.gz') as archive:
-    archive.extractall(folder, filter='data')
-if not (folder / 'lumen-main/install.sh').is_file():
-    raise SystemExit('The downloaded Lumen archive is incomplete.')
-PY
     fi
     "${LUMEN_PYTHON:-/usr/bin/python3}" -c 'import PySide6.QtWidgets, PySide6.QtSvg, PySide6.QtQuick, PySide6.QtQuickWidgets, PySide6.QtDBus, gi, PIL, dbus, yaml, markdown_it'
     if ! qdbus6 org.kde.plasmashell /PlasmaShell >/dev/null 2>&1; then

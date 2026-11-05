@@ -124,7 +124,7 @@ class NotesCaptureTest(unittest.TestCase):
         self.token=self.registry.enqueue('wissen',capture.ACTION,payload);self.choice['token']=self.token
         with self.assertRaises(ValueError):self.apply()
         self.assertEqual(self.wire,[]);self.assertEqual(path.read_text(),'Original')
-        with self.assertRaises(ValueError):interop_targets._wissen(None,None,None,None,None,None)
+        self.assertFalse(hasattr(interop_targets,'_wissen'))
         with self.assertRaises(ValueError):interop_targets.apply('wissen.import',self.payload,self.choice,self.job,self.root/'tools')
 
     def test_cancel_or_readonly_session_cannot_start_write(self):
@@ -138,14 +138,14 @@ class NotesCaptureTest(unittest.TestCase):
 
     def test_existing_drive_ref_is_a_server_link_not_a_download_or_file_copy(self):
         ref=dict(app='files',kind='drive_file',id=str(uuid4()),title='Report.pdf',locator=dict(server=self.binding.origin,account=self.binding.account))
-        payload=dict(self.payload,text='',references=[ref]);self.token=self.registry.enqueue('wissen',capture.ACTION,payload)
+        payload=dict(self.payload,text='',source=ref,source_url=self.registry.register(ref),references=[ref]);self.token=self.registry.enqueue('wissen',capture.ACTION,payload)
         self.choice.update(token=self.token,mode='link')
         resolved=dict(id=str(uuid4()),version=2,revision=7)
         nav=dict(resolved=resolved,route='/?app=files&file='+resolved['id'])
         with patch('server_app_links.drive_navigation',return_value=nav) as navigation,patch('drive_transport.download',side_effect=AssertionError('no download')):
             result=self.apply();navigation.assert_called_once_with(ref,self.job)
         row=self.rows[result['id']];self.assertIn(self.binding.origin+nav['route'],row['body'])
-        self.assertNotIn('file://',row['body']);self.assertEqual(self.registry.request(self.token)['choice']['note_capture']['references'],[dict(reference=ref,resolved=resolved)])
+        self.assertNotIn('lumen:',row['body']);self.assertNotIn('file://',row['body']);self.assertEqual(self.registry.request(self.token)['choice']['note_capture']['references'],[dict(reference=ref,resolved=resolved)])
 
     def test_foreign_drive_selection_is_refused_without_a_write_or_download(self):
         ref=dict(app='files',kind='drive_file',id=str(uuid4()),title='Private.pdf',locator=dict(server=self.binding.origin,account=str(uuid4())))

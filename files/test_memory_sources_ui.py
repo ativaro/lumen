@@ -3,7 +3,8 @@ import os
 import tempfile
 import unittest
 from unittest.mock import patch
-from PySide6.QtWidgets import QApplication, QMessageBox
+from uuid import uuid4
+from PySide6.QtWidgets import QApplication, QMessageBox,QWidget,QDialog,QPushButton,QListWidget
 from PySide6.QtTest import QTest
 from lumen_memory import Memory
 from lumen_store import Store
@@ -16,6 +17,45 @@ class SourceUITest(unittest.TestCase):
     def setUpClass(cls):
         from app import create_app
         cls.app = QApplication.instance() or create_app()
+
+    def test_server_memory_link_uses_current_account_editor_and_rejects_account_switch(self):
+        from lumen_connect import connection_scope
+        from server_memory_view import show_server_memory
+        config=dict(server='https://synthetic.invalid',token='synthetic',device_id=str(uuid4()))
+        backend=OpenCodeBackend('/tmp');control=MemorySources(backend)
+        source=dict(id='server:'+str(uuid4()),source_kind='server_memory',title='Synthetic')
+        control.receive(dict(phase='submitted',sources=[source],server_connection=connection_scope(config)))
+        try:
+            with patch('lumen_connect.read_config',return_value=config),patch('PySide6.QtGui.QDesktopServices.openUrl',return_value=True) as opened:
+                control.open_source(source)
+                self.assertEqual(opened.call_args.args[0].toString(),config['server']+'/?app=memory&document='+source['id'][7:])
+                with tempfile.TemporaryDirectory() as temp,patch('server_memory_view.read_config',return_value=config):
+                    parent=QWidget();parent.store=Store(temp);show_server_memory(parent);parent.deleteLater()
+                self.assertEqual(opened.call_args.args[0].toString(),config['server']+'/?app=memory')
+            with patch('lumen_connect.read_config',return_value=dict(config,token='other')),patch.object(control,'error') as error,patch('PySide6.QtGui.QDesktopServices.openUrl') as opened:
+                control.open_source(source);error.assert_called_once();opened.assert_not_called()
+        finally:backend.shutdown();control.close();control.deleteLater();backend.deleteLater()
+
+    def test_existing_device_opt_out_can_be_restored_without_copying_content(self):
+        from server_memory_view import show_server_memory
+        config=dict(server='https://synthetic.invalid',token='synthetic',device_id=str(uuid4()))
+        with tempfile.TemporaryDirectory() as temp:
+            parent=QWidget();parent.store=Store(temp)
+            hidden=config['server']+'#'+str(uuid4());other='https://other.invalid#'+str(uuid4())
+            parent.store.set_setting('memory/server_hidden',[hidden,other])
+            def restore(dialog):
+                self.assertEqual(dialog.findChild(QListWidget).count(),1)
+                if os.environ.get('LUMEN_QA_MEMORY_SCREENSHOTS'):
+                    for width in (740,460):
+                        dialog.resize(width,580);dialog.show();QApplication.processEvents()
+                        dialog.grab().save(os.environ['LUMEN_QA_MEMORY_SCREENSHOTS']+'/account-memory-optout-'+str(width)+'.png')
+                next(b for b in dialog.findChildren(QPushButton) if b.text()=='Auf diesem Desktop wieder verwenden').click()
+                return QDialog.Accepted
+            with patch('server_memory_view.read_config',return_value=config),patch.object(QDialog,'exec',new=restore):
+                show_server_memory(parent)
+            self.assertEqual(parent.store.setting('memory/server_hidden'),[other])
+            self.assertEqual(parent.store.setting('memory/privacy_revision'),1)
+            parent.close();parent.deleteLater()
 
     def test_open_correct_forget_and_session_reset(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, LUMEN_DATA=temp):

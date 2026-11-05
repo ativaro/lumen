@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
 import unittest
+from copy import deepcopy
 from unittest.mock import patch
 from urllib.request import Request
 from urllib.error import HTTPError
@@ -98,7 +99,7 @@ class SessionTest(unittest.TestCase):
 
 
 class CleanupTest(unittest.TestCase):
-    def test_current_and_legacy_tickets_cancel_only_unfinished_uploads(self):
+    def test_current_tickets_cancel_only_unfinished_uploads_and_legacy_stays_intact(self):
         import lumen_transfers
         import drive_transport
         import drive_sync
@@ -109,9 +110,15 @@ class CleanupTest(unittest.TestCase):
             if legacy:
                 drive['space'] = legacy
             ticket = dict(drive=drive, upload_plan=dict(files=[dict(request='done'), dict(request='pending')]), upload_done=['done'], action='drive-upload')
+            before=deepcopy(ticket)
             with patch.object(lumen_connect, 'read_config', return_value=config), patch.object(drive_transport, 'request') as request:
-                lumen_transfers.cleanup(None, ticket)
-                request.assert_called_once_with(config, '/uploads/pending' + ('?workspace=old-project' if legacy else ''), method='DELETE')
+                if legacy:
+                    with self.assertRaisesRegex(ValueError,'Vorschau'):lumen_transfers.cleanup(None,ticket)
+                    request.assert_not_called()
+                else:
+                    lumen_transfers.cleanup(None, ticket)
+                    request.assert_called_once_with(config, '/uploads/pending', method='DELETE')
+                self.assertEqual(ticket,before)
                 request.reset_mock()
                 ticket['drive'] = {}
                 with self.assertRaises(KeyError):
@@ -121,6 +128,17 @@ class CleanupTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     lumen_transfers.cleanup(None, ticket)
                 request.assert_not_called()
+
+    def test_legacy_upload_ticket_stops_before_plan_changes_or_any_network(self):
+        import drive_transfers,drive_transport,drive_sync,lumen_transfers
+        for plan in (None,dict(folders=[],files=[dict(request='same-request',path='staged')])):
+            ticket=dict(id=str(uuid4()),drive=dict(space='old-source',folder=str(uuid4())),upload_plan=plan,upload_done=[])
+            before=deepcopy(ticket)
+            with patch.object(lumen_transfers,'update') as update,patch.object(drive_sync,'request') as request, \
+                 patch.object(drive_transport,'upload') as upload:
+                with self.assertRaisesRegex(ValueError,'Vorschau'):drive_transfers.upload(None,ticket,{},[],lambda *_:None)
+            update.assert_not_called();request.assert_not_called();upload.assert_not_called()
+            self.assertEqual(ticket,before)
 
 
 class UploadStampTest(unittest.TestCase):
@@ -141,6 +159,14 @@ class UploadStampTest(unittest.TestCase):
         if method=='PUT':return dict(offset=len(body))
         if path.endswith('/finish'):return dict(id=self.key)
         return dict(id=self.key,size=len(self.content),offset=0)
+
+    def test_saved_legacy_targets_stop_before_read_or_network_in_both_upload_paths(self):
+        for upload in (self.transport.upload,self.transport.legacy_upload):
+            with self.subTest(upload=upload.__name__),patch.object(self.local,'source') as source, \
+                 patch.object(self.transport,'request') as request,patch.object(self.transport,'opener') as opener:
+                with self.assertRaisesRegex(ValueError,'Vorschau'):upload(*self.args,legacy_target='saved-source')
+                source.assert_not_called();request.assert_not_called();opener.assert_not_called()
+            self.assertEqual(self.path.read_bytes(),self.content)
 
     def test_cancel_during_slow_fd_read_sends_no_put_or_finish(self):
         from lumen_jobs import Job
@@ -191,7 +217,7 @@ class UploadStampTest(unittest.TestCase):
              patch.object(self.transport,'opener') as opener,ThreadPoolExecutor(max_workers=1) as pool:
             opener.return_value.open.side_effect=multipart
             future=pool.submit(self.transport.upload,*self.args,progress=lambda *_:job.check(),
-                legacy_target=str(uuid4()),expected_stamp=self.stamp)
+                expected_stamp=self.stamp)
             try:self.assertTrue(entered.wait(timeout=5));job.cancelled.set()
             finally:release.set()
             with self.assertRaises(Cancelled):future.result(timeout=5)
@@ -212,6 +238,9 @@ class UploadStampTest(unittest.TestCase):
             self.assertEqual(result,dict(id=self.key))
             self.assertEqual([body for _,method,body in self.calls if method=='PUT'],[self.content])
             self.assertEqual([method for _,method,_ in self.calls],['POST','PUT','POST'])
+            begin=self.calls[0][2]
+            self.assertEqual(begin['folder'],self.args[3])
+            self.assertNotIn('workspace',begin);self.assertNotIn('workspace_id',begin)
             self.assertTrue(progress)
 
     def test_replacement_or_in_place_edit_before_stream_open_sends_nothing(self):
@@ -261,7 +290,7 @@ class UploadStampTest(unittest.TestCase):
             raise error
         with patch.object(self.transport,'request',side_effect=missing) as request, \
              patch.object(self.transport,'opener') as opener,self.assertRaises(ValueError):
-            self.transport.upload(*self.args,legacy_target=str(uuid4()),expected_stamp=self.stamp)
+            self.transport.upload(*self.args,expected_stamp=self.stamp)
         self.assertEqual(request.call_count,1);opener.assert_not_called()
 
     def test_legacy_fallback_preserves_old_callers_and_unchanged_opt_in(self):
@@ -273,9 +302,10 @@ class UploadStampTest(unittest.TestCase):
             with patch.object(self.transport,'request',side_effect=error) as request, \
                  patch.object(self.transport,'opener') as opener:
                 opener.return_value.open.side_effect=opened
-                self.assertEqual(self.transport.upload(*self.args,legacy_target=str(uuid4()),**options),dict(ok=True))
+                self.assertEqual(self.transport.upload(*self.args,**options),dict(ok=True))
             self.assertEqual(request.call_count,1)
             self.assertEqual(len(bodies),1);self.assertIn(self.content,bodies[0])
+            self.assertNotIn(b'name="workspace"',bodies[0])
 
     def test_opt_in_legacy_stream_rejects_in_place_changes_before_file_bytes(self):
         sent=[]
