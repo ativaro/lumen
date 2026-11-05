@@ -276,6 +276,7 @@ private slots:
             QVERIFY(window->grabWindow().save("/profile/captures/layout-"+QString(layout)+".png"));
         }
         settings.setValue("topbar/layout","context");settings.sync();QTRY_COMPARE(data.layout(),QString("context"));
+        QTest::qWait(180);
         auto contextComposer=find(window->contentItem(),"inlineComposer");
         QString prefix="dock";
         if(contextComposer->isVisible()){QVERIFY(click(find(contextComposer,"lumenQuestion")));}
