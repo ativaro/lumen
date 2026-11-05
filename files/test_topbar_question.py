@@ -16,6 +16,9 @@ import lumen_panel
 class TopbarQuestionTest(unittest.TestCase):
     def test_real_search_startup_submits_once_without_an_engine(self):
         program=Path(__file__).resolve().parents[1]/'agent-app/main.py'
+        self.check_search_startup(program)
+
+    def check_search_startup(self,program):
         script=r'''
 import importlib.util,sys,os
 from PySide6.QtCore import QTimer
@@ -29,6 +32,10 @@ DesktopBackend._run=lambda *_:None
 import desktop_backend
 desktop_backend.connection=lambda:({'server':'https://synthetic.invalid','token':'synthetic'},'test')
 received=[]
+def close():
+    for window in QApplication.topLevelWidgets():
+        if isinstance(window,desktop.LumenWindow): window.close()
+    QApplication.instance().quit()
 def send(self,text,files,*args,**options):
     expected=os.environ.get('EXPECTED_FILE','')
     assert (text.startswith(os.environ['EXPECTED_QUESTION']) and expected in text) if expected else text==os.environ['EXPECTED_QUESTION']
@@ -38,7 +45,7 @@ def send(self,text,files,*args,**options):
         import json
         assert self.execution=='server' and options['context_data']['note_reference']==json.loads(note)
     received.append(text)
-    QTimer.singleShot(100,QApplication.instance().quit)
+    QTimer.singleShot(100,close)
     return True
 DesktopBackend.send=send
 sys.argv=[str(desktop.ROOT/'agent-app/main.py'),'--search']
@@ -71,6 +78,7 @@ assert 'LUMEN_ASK_NOTE' not in os.environ
                         result=subprocess.run(['dbus-run-session','--',sys.executable,'-u','-c',script,str(program)],env=current,capture_output=True,text=True,timeout=15)
                     except subprocess.TimeoutExpired as error:self.fail(str(error.stdout)+str(error.stderr))
                     self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+                    self.assertNotIn('Traceback (most recent call last)',result.stderr)
 
     def request(self, payload):
         output=io.StringIO()
