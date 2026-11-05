@@ -238,6 +238,10 @@ if WEBENGINE:
             if window.session.binding.navigation(url.toString()):return True
             clicked=QWebEnginePage.NavigationType.NavigationTypeLinkClicked
             if kind in (clicked,clicked.value):
+                if window._binding.oauth_launch(url.toString()):
+                    from PySide6.QtGui import QDesktopServices
+                    QDesktopServices.openUrl(url)
+                    return False
                 from server_app_links import clicked_reference
                 reference=clicked_reference(url.toString(),window._binding)
                 if reference:
@@ -247,7 +251,7 @@ if WEBENGINE:
 
         def createWindow(self, kind):return None
         def chooseFiles(self, mode, old, types):
-            if self.window._binding.app not in ('audio','vault'):return []
+            if self.window._binding.app not in ('audio','vault','inbox'):return []
             from server_audio_permissions import choose
             return choose(self.window,mode)
 

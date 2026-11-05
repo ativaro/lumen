@@ -1,4 +1,4 @@
-"""Explicit native inputs for Audio Studio and Vault."""
+"""Explicit native inputs for Audio Studio, Vault and Inbox."""
 from pathlib import Path
 import os
 import stat
@@ -36,19 +36,34 @@ def fresh(window, proof):
 
 
 def choose(window, mode):
-    if window._binding.app not in ('audio','vault'):return []
+    if window._binding.app not in ('audio','vault','inbox'):return []
     audio=window._binding.app=='audio'
-    if mode!=QWebEnginePage.FileSelectionMode.FileSelectOpen:return []
+    inbox=window._binding.app=='inbox'
+    multiple=mode==QWebEnginePage.FileSelectionMode.FileSelectOpenMultiple
+    if mode!=QWebEnginePage.FileSelectionMode.FileSelectOpen and not (inbox and multiple):return []
     proof=context(window)
     if not current(window,proof):return []
     if audio:
         path,_=QFileDialog.getOpenFileName(window,tr('Aufnahme für Lumen Audio Studio auswählen'),'',tr('Audio (*.wav *.mp3 *.ogg *.m4a *.flac *.webm)'))
+    elif inbox:
+        if multiple:
+            paths,_=QFileDialog.getOpenFileNames(window,tr('Lumen Inbox · Anhänge auswählen'),'')
+        else:
+            path,_=QFileDialog.getOpenFileName(window,tr('Lumen Inbox · Anhang auswählen'),'')
+            paths=[path] if path else []
+        if not paths or not fresh(window,proof):return []
+        try:
+            if any(not stat.S_ISREG(Path(value).lstat().st_mode) for value in paths):raise ValueError
+            return paths if current(window,proof) else []
+        except (OSError,ValueError):
+            QMessageBox.warning(window,window._app_title,tr('Bitte reguläre Dateien als Anhänge auswählen.'))
+            return []
     else:
         path,_=QFileDialog.getOpenFileName(window,tr('Lumen Vault · Schlüsseldatei auswählen'),'')
     if not path or not fresh(window,proof):return []
     try:
         value=Path(path);info=value.lstat()
-        if not stat.S_ISREG(info.st_mode) or info.st_size>(64*1024**2 if audio else 1024**2):raise ValueError
+        if not stat.S_ISREG(info.st_mode) or (not inbox and info.st_size>(64*1024**2 if audio else 1024**2)):raise ValueError
         if audio and (not info.st_size or value.suffix.lower() not in ('.wav','.mp3','.ogg','.m4a','.flac','.webm')):raise ValueError
         return [path] if current(window,proof) else []
     except (OSError,ValueError):

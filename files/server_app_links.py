@@ -9,7 +9,7 @@ from uuid import UUID
 import drive_references as drive
 from lumen_i18n import tr
 
-ROUTES = {'note':'note', 'projects':'project', 'code':'entry', 'media':'record'}
+ROUTES = {'note':'note', 'projects':'project', 'code':'entry', 'media':'record','inbox':'mail'}
 
 
 def _uuid(value):
@@ -54,7 +54,7 @@ def validate_ref(ref):
     if not isinstance(ref['title'], str) or not ref['title'] or len(ref['title']) > 4096 or '\0' in ref['title']:
         raise ValueError(tr('Ungültiger Server-Name.'))
     if 'item_id' in ref:
-        if ref['app'] != 'projects':raise ValueError(tr('Ungültiger Serververweis.'))
+        if ref['app'] not in ('projects','inbox'):raise ValueError(tr('Ungültiger Serververweis.'))
         _uuid(ref['item_id'])
     return dict(ref, id=_uuid(ref['id']), locator=_binding(ref['locator']))
 
@@ -86,7 +86,9 @@ def navigation(ref, binding, *, source=None, return_to=None):
     if ref['app'] == 'files':
         raise ValueError(tr('Drive-Verweise zuerst online auflösen.'))
     query = {'app':ref['app'], ROUTES[ref['app']]:ref['id']}
-    if 'item_id' in ref:query['project_task'] = ref['item_id']
+    if 'item_id' in ref:
+        if ref['app']=='inbox':query={'app':'inbox','calendar':ref['id'],'event':ref['item_id']}
+        else:query['project_task'] = ref['item_id']
     return _target(ref, binding, query, source, return_to)
 
 
@@ -107,13 +109,17 @@ def clicked_reference(value, binding):
         app='note' if app[0]=='notes' else app[0]
         kind=next((key for key,item in APPS.items() if item[0]==app),None)
         if app not in ROUTES or kind not in APP_NAMES:return None
-        key=ROUTES[app]
-        allowed={'app',key,'presentation'} | ({'project_task'} if app=='projects' else set())
+        calendar=app=='inbox' and 'calendar' in query
+        key='calendar' if calendar else ROUTES[app]
+        allowed={'app',key,'presentation'} | ({'project_task'} if app=='projects' else {'event'} if calendar else set())
         if (set(query)-allowed or len(query.get(key,[]))!=1
                 or query.get('presentation',['desktop'])!=['desktop']):
             return None
         ref=dict(version=2,app=app,id=query[key][0],title=APP_NAMES[kind][0],
                  locator=dict(server=binding.origin,account=binding.account))
+        if calendar:
+            if len(query.get('event',[]))!=1:return None
+            ref['item_id']=query['event'][0]
         if 'project_task' in query:
             if len(query['project_task'])!=1:return None
             ref['item_id']=query['project_task'][0]

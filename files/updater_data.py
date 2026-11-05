@@ -12,7 +12,8 @@ import time
 from urllib.parse import urlsplit
 from lumen_i18n import tr, worker_environment
 
-REMOTE = 'https://github.com/ativaro/lumen.git'
+REMOTE = 'https://forge.example.invalid/ativaro/lumen.git'
+PREVIOUS_OFFICIAL_REMOTE = 'https://github.com/ativaro/lumen.git'
 
 
 def data_root():
@@ -24,7 +25,8 @@ def state_root():
 
 
 def source_root():
-    return Path(os.environ.get('XDG_CACHE_HOME') or Path.home()/'.cache')/'lumen/updater/source'
+    channel = hashlib.sha256(source_url().encode()).hexdigest()
+    return Path(os.environ.get('XDG_CACHE_HOME') or Path.home()/'.cache')/'lumen/updater/sources'/channel
 
 
 def read_json(path):
@@ -72,8 +74,8 @@ def source_url():
     sources = set()
     for root in installations():
         value = read_json(root/'install.json').get('source_url')
-        if value is None:
-            sources.add(REMOTE)  # Legacy installs predate recorded source identity.
+        if value is None or value == PREVIOUS_OFFICIAL_REMOTE:
+            sources.add(REMOTE)
             continue
         if not isinstance(value, str): raise ValueError(tr('Ungültige Lumen-Update-Quelle.'))
         try:
@@ -168,6 +170,10 @@ def check():
 def install_bundle(source, revision):
     roots = installations()
     if not roots: roots = [data_root()]
+    if any((root/'files/server_notes_app.py').is_file() for root in roots):
+        required = ('files/server_notes_app.py','files/server_app_session.py','files/server_app_window.py','files/tools_app.py')
+        if any(not (source/name).is_file() for name in required) or (source/'files/tools_inbox.py').exists():
+            raise ValueError(tr('Dieses Update würde die Server-Apps Inbox oder Notes durch ältere Desktop-Apps ersetzen.'))
     if any((root/'files/topbar_data.py').is_file() for root in roots):
         required = ('files/topbar_data.py','files/topbar_activity.py','files/topbar_system.py',
                     'files/topbar_context.py','files/topbar_conversation.py','native/topbar/CMakeLists.txt','bin/lumen-panel')
@@ -213,7 +219,7 @@ def apply(revision, selected):
         report(component=key, state='running', message=tr('{0} wird aktualisiert …', rows[key]['title']), progress=int(index*100/len(ordered)))
         try:
             if key == 'lumen': install_bundle(source, revision)
-            elif key == 'system': run(['pkexec','pacman','-Syu','--noconfirm'])
+            elif key == 'system': run(['pkexec','pacman','-Syu','--ignore','lumen','--noconfirm'])
             elif key == 'flatpak': run(['flatpak','update','--noninteractive','--assumeyes'])
             elif key == 'qt': run([python,'--install-runtime'])
             elif key == 'native-vault':

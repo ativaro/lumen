@@ -16,7 +16,7 @@ from unittest.mock import patch
 from urllib.parse import urlsplit
 from uuid import uuid4
 
-from PySide6.QtCore import Qt, QUrl, QPoint, QDateTime, QTimer, QThread, QFileSystemWatcher
+from PySide6.QtCore import Qt, QUrl, QPoint, QDateTime, QTimer, QThread, QFileSystemWatcher, QSettings
 from PySide6.QtNetwork import QNetworkCookie
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox, QFileDialog, QDialog, QLineEdit, QComboBox
@@ -37,6 +37,8 @@ class PrivateHostFixture(unittest.TestCase):
     def setUpClass(cls):
         root=Path(os.environ['LUMEN_HOST_TEST_ROOT']);root.mkdir(parents=True,exist_ok=True,mode=0o700)
         cls.temp=tempfile.TemporaryDirectory(dir=root);cls.root=Path(cls.temp.name)
+        settings=patch('server_app_window.QSettings',side_effect=lambda *args:QSettings(str(cls.root/'window-settings.ini'),QSettings.Format.IniFormat))
+        settings.start();cls.addClassCleanup(settings.stop)
         cls.app=QApplication.instance() or QApplication([])
         cls.cert=cls.root/'ca.pem';cls.wrong_cert=cls.root/'unrelated-ca.pem';key=cls.root/'key.pem'
         for cert,target_key in ((cls.cert,key),(cls.wrong_cert,cls.root/'unrelated-key.pem')):
@@ -116,6 +118,8 @@ class PrivateHostFixture(unittest.TestCase):
                         cls.write_started.set();cls.release_write.wait(timeout=10)
                     status=403;data={'detail':'App jobs remain gated.'}
                 elif self.path=='/api/ping':data={'cookie':'lumen_session='+'c'*43 in self.headers.get('Cookie','')}
+                elif self.path=='/inbox-message.html':
+                    data='<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src blob:; base-uri \'none\'; form-action \'none\'"><title>Mail</title><body></body>'
                 elif cls.preview_document is not None and urlsplit(self.path).path=='/api/code-library/'+FILE+'/code-document':
                     data=cls.preview_document
                 else:

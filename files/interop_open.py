@@ -27,7 +27,7 @@ def open_url(url,root=None):
         request=registry.request(parts.path[1:]);launch(request['target'],['--handoff',request['id']],root);return
     ref=registry.resolve(url)
     if ref.get('version')==2:
-        target={'note':'wissen','projects':'workbench','code':'code','media':'meetings'}.get(ref['app'])
+        target={'note':'wissen','projects':'workbench','code':'code','media':'meetings','inbox':'inbox'}.get(ref['app'])
         if not target:raise ValueError(tr('Diesen Serververweis in der zugehörigen Server-App öffnen.'))
         launch(target,['--ref',url],root);return
     if ref['app']=='wissen' and ref.get('locator',{}).get('area')=='lumen':

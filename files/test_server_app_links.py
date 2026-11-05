@@ -54,7 +54,7 @@ class ServerAppLinksTest(unittest.TestCase):
         from server_app_session import Binding
         source = Binding(self.binding['server'], self.binding['account'], str(uuid4()), 'code')
         for app, key, expected in (('notes','note','note'), ('projects','project','projects'),
-                                   ('code','entry','code'), ('media','record','media')):
+                                   ('code','entry','code'), ('media','record','media'),('inbox','mail','inbox')):
             with self.subTest(app=app):
                 url=source.origin+'/?app='+app+'&'+key+'='+self.ref['id']
                 ref=links.clicked_reference(url,source)
@@ -75,6 +75,20 @@ class ServerAppLinksTest(unittest.TestCase):
         self.assertEqual(links.validate_ref(self.drive), self.drive)
         self.assertNotEqual(links.identity(self.drive), links.identity(dict(self.drive, kind='drive_folder')))
 
+    def test_inbox_mail_and_calendar_event_references_are_exact_and_account_bound(self):
+        from server_app_session import Binding
+        binding=Binding(self.binding['server'],self.binding['account'],str(uuid4()),'inbox')
+        for item in (None,str(uuid4())):
+            ref=dict(self.ref,app='inbox')
+            if item:ref['item_id']=item
+            url=binding.reference_url(ref)
+            self.assertTrue(binding.navigation(url))
+            self.assertEqual(links.clicked_reference(url,binding),dict(ref,title='Lumen Inbox'))
+            self.assertIn(('calendar=' if item else 'mail=')+ref['id'],url)
+            for wrong in (url+'&mail='+ref['id'],url+'&event=bad',url+'&project_task='+ref['id']):
+                self.assertFalse(binding.navigation(wrong))
+                self.assertIsNone(links.clicked_reference(wrong,binding))
+
     def test_legacy_refs_are_not_silently_reinterpreted(self):
         for ref in (dict(app='wissen', kind='note', id='note.md', title='Note', locator={'root':'/tmp/notes'}),
                     dict(app='workbench', kind='record', id=self.ref['id'], title='Project'),
@@ -89,7 +103,7 @@ class ServerAppLinksTest(unittest.TestCase):
         from interop_open import open_url
         with tempfile.TemporaryDirectory() as root:
             registry=Registry(root)
-            for app,target in (('note','wissen'),('projects','workbench'),('code','code'),('media','meetings')):
+            for app,target in (('note','wissen'),('projects','workbench'),('code','code'),('media','meetings'),('inbox','inbox')):
                 with self.subTest(app=app):
                     ref=dict(self.ref,app=app)
                     url=registry.register(ref)

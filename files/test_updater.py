@@ -121,6 +121,29 @@ class UpdaterTest(unittest.TestCase):
                 updater.install_bundle(self.repo,self.revision)
             run.assert_not_called()
 
+    def test_official_channel_keeps_prior_cached_checkout_and_old_plans_separate(self):
+        previous=Path(os.environ['XDG_CACHE_HOME'])/'lumen/updater/source'
+        previous.mkdir(parents=True);(previous/'local-edit').write_text('keep')
+        source=updater.source_root()
+        updater.save_json(self.install/'install.json',dict(source_url=updater.PREVIOUS_OFFICIAL_REMOTE))
+        self.assertEqual(updater.source_url(),str(self.repo))
+        self.assertNotEqual(previous,source)
+        updater.save_json(self.install/'install.json',dict(source_url='https://forge.example.test/team/lumen.git'))
+        self.assertNotEqual(source,updater.source_root())
+        self.assertEqual((previous/'local-edit').read_text(),'keep')
+
+    def test_native_inbox_cannot_replace_installed_server_host(self):
+        (self.install/'files/server_notes_app.py').touch()
+        for name in ('server_notes_app','server_app_session','server_app_window','tools_app','tools_inbox'):
+            (self.repo/'files'/f'{name}.py').touch()
+        with patch.object(updater,'run') as run:
+            with self.assertRaisesRegex(ValueError,'Server-Apps'):
+                updater.install_bundle(self.repo,self.revision)
+            run.assert_not_called()
+            (self.repo/'files/tools_inbox.py').unlink()
+            updater.install_bundle(self.repo,self.revision)
+            self.assertEqual(run.call_args.args[0][:2],['bash',str(self.repo/'install.sh')])
+
     def test_native_topbar_bundle_checks_the_actual_helper_before_copying(self):
         (self.install/'files/topbar_data.py').touch()
         for name in ('topbar_data.py','topbar_activity.py','topbar_system.py','topbar_context.py','topbar_conversation.py'):
@@ -162,7 +185,7 @@ class UpdaterTest(unittest.TestCase):
         with patch.object(updater,'run',side_effect=run),patch.object(updater,'install_bundle') as install:
             self.assertTrue(updater.apply(self.revision,['system','flatpak']))
             install.assert_not_called()
-        self.assertEqual(commands,[['pkexec','pacman','-Syu','--noconfirm'],['flatpak','update','--noninteractive','--assumeyes']])
+        self.assertEqual(commands,[['pkexec','pacman','-Syu','--ignore','lumen','--noconfirm'],['flatpak','update','--noninteractive','--assumeyes']])
 
 
 class UpdaterUiTest(unittest.TestCase):

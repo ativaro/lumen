@@ -51,13 +51,8 @@ runtime are required. Run this inside your KDE desktop session, without `sudo`.
 Already have the Updater installed? Run `lumen-updater` from any directory, or open
 **Lumen → Updater** in the top panel, **Lumen Apps → Lumen Updater**, or
 **Settings → Maintenance**. The update source is recorded by the installer; a Forgejo installation follows Forgejo.
-Older installations without a recorded source continue to use GitHub. To move an
-installation to this Forgejo release, run the Forgejo installation command above;
-downloading only its Updater does not silently switch the installed source.
-If user and system installations have different sources, update them separately;
-Lumen reports the conflict instead of choosing a source for both.
-System packages and Flatpaks are optional selections; system changes may ask for
-your password. Reopen apps after updating and log in again to reload the panels.
+Installations without recorded provenance and installations from the former official GitHub URL
+now follow Forgejo. Explicit custom repositories keep their own update channel and cache.
 
 **Deutsch / English:** choose **Settings → Lumen → Interface language**, or select
 a language in the setup wizard. System language is the default. Reopen apps to
@@ -244,7 +239,7 @@ again and preserves personal settings and models. See [INSTALL.md](INSTALL.md).
 
 ```bash
 # from a local build
-git clone https://github.com/ativaro/lumen.git lumen && cd lumen
+git clone https://forge.example.invalid/ativaro/lumen.git lumen && cd lumen
 ./packaging/arch/build-package.sh --install
 
 # activate the full desktop as your normal user, inside Plasma:
@@ -262,7 +257,7 @@ Custom launchers are preserved.
 ### Any distro — per-user install
 
 ```bash
-git clone https://github.com/ativaro/lumen.git lumen && cd lumen
+git clone https://forge.example.invalid/ativaro/lumen.git lumen && cd lumen
 ./install.sh
 ```
 

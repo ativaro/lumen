@@ -26,7 +26,7 @@ def download(window, request):
     if (window._binding.app not in ('vault', 'inbox') or request.page() is not window.page
             or not current(window, proof)
             or not (window._binding.resource(url) or url.startswith('blob:' + origin + '/'))
-            or request.totalBytes() > LIMIT):
+            or window._binding.app=='vault' and request.totalBytes() > LIMIT):
         request.cancel(); return
     suggested = Path(request.suggestedFileName().replace('\\', '/')).name
     destination, _ = QFileDialog.getSaveFileName(window, tr('Lumen · Datei speichern'), suggested)
@@ -38,6 +38,18 @@ def download(window, request):
         QMessageBox.warning(window, window._app_title, tr('Bitte einen neuen Dateinamen wählen. Bestehende Dateien werden nicht überschrieben.'))
         return
     temporary = Path(window._temporary.name) / ('export-' + uuid4().hex)
+    bounded=window._binding.app=='vault'
+    def has_space():
+        try:
+            expected=max(request.totalBytes(),request.receivedBytes(),0)
+            return (shutil.disk_usage(temporary.parent).free>128*1024**2 and
+                    shutil.disk_usage(target.parent).free>expected+128*1024**2)
+        except OSError:
+            return False
+    if not has_space():
+        request.cancel()
+        QMessageBox.warning(window,window._app_title,tr('Für diese Datei reicht der freie Speicher nicht aus. Bitte einen anderen Speicherort wählen.'))
+        return
     request.setDownloadDirectory(str(temporary.parent))
     request.setDownloadFileName(temporary.name)
 
@@ -50,9 +62,10 @@ def download(window, request):
             created = False
             try:
                 if state != QWebEngineDownloadRequest.DownloadCompleted or not fresh(window, proof): return
-                if temporary.is_symlink() or not temporary.is_file() or temporary.stat().st_size > LIMIT:
+                if temporary.is_symlink() or not temporary.is_file() or bounded and temporary.stat().st_size > LIMIT:
                     raise ValueError
                 # Exclusive creation prevents overwriting a file added during the download.
+                if not has_space():raise OSError('Storage reserve reached')
                 fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
                 created = True
                 with os.fdopen(fd, 'wb') as output, temporary.open('rb') as source:
@@ -63,7 +76,11 @@ def download(window, request):
             finally:
                 temporary.unlink(missing_ok=True)
         QTimer.singleShot(0, publish)
-    request.receivedBytesChanged.connect(lambda: request.cancel() if request.receivedBytes() > LIMIT else None)
+    def progress():
+        try:
+            if (bounded and request.receivedBytes()>LIMIT) or not has_space():request.cancel()
+        except OSError:request.cancel()
+    request.receivedBytesChanged.connect(progress)
     request.stateChanged.connect(finish)
     request.accept()
 

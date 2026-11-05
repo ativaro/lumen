@@ -69,11 +69,16 @@ class Binding:
             if not isinstance(value, str) or any(ord(c)<32 or ord(c)==127 or c=='\\' for c in value):return False
             u = urlsplit(value)
             query=parse_qs(u.query, keep_blank_values=True, strict_parsing=True)
-            key={'notes':'note','projects':'project','code':'entry','audio':'record'}.get(self.app)
+            key={'notes':'note','projects':'project','code':'entry','audio':'record','inbox':'mail'}.get(self.app)
+            calendar=self.app=='inbox' and 'calendar' in query
+            if calendar:key='calendar'
             selected=None
             if key and key in query:
                 selected=query.pop(key)
                 if len(selected)!=1 or str(UUID(selected[0]))!=selected[0]:return False
+            if calendar:
+                item=query.pop('event',[])
+                if not selected or len(item)!=1 or str(UUID(item[0]))!=item[0]:return False
             if self.app=='projects' and 'project_task' in query:
                 item=query.pop('project_task')
                 if not selected or len(item)!=1 or str(UUID(item[0]))!=item[0]:return False
@@ -93,6 +98,11 @@ class Binding:
         if not self.navigation(value):raise SessionError('identity')
         return value
 
+    def oauth_launch(self, value):
+        if self.app != 'inbox' or not self.resource(value):return False
+        url = urlsplit(value)
+        return bool(not url.query and not url.fragment and re.fullmatch(r'/api/inbox/oauth/launch/[A-Za-z0-9_-]{43}', url.path))
+
     def resource(self, value):
         try:
             if not isinstance(value, str) or any(ord(c)<32 or ord(c)==127 or c=='\\' for c in value):return False
@@ -103,7 +113,8 @@ class Binding:
             return False
 
     def preview_navigation(self, value):
-        """Only Code's sandbox documents; the API checks their source pins and rights."""
+        """Only this app's sandbox documents; API previews retain their source guards."""
+        if self.app=='inbox':return value==self.origin+'/inbox-message.html'
         if self.app!='code':return False
         if value=='about:srcdoc':return True
         try:
