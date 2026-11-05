@@ -73,7 +73,6 @@ class ConversationPipe(QObject):
                 if note:
                     from topbar_context import validate_note
                     note=validate_note(note)
-                    if not c.backend.set_execution('server'):raise ValueError(c.error or c.text('Bitte zuerst mit einem Server verbinden.'))
                 c.note_context=note;c.set_query(prompt);c.submit(True)
                 if c.query==prompt:raise ValueError(c.error or c.text('Die Frage konnte nicht gesendet werden.'))
             elif method=='width':

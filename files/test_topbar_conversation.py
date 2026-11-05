@@ -87,6 +87,12 @@ with tempfile.TemporaryDirectory() as directory:
    execution.assert_called_once_with('server');send.assert_called_once()
    assert send.call_args.kwargs['context_data']=={'note_reference':note['reference']}
    assert not c.note_context
+   execution.reset_mock();send.reset_mock()
+   pipe.dispatch(dict(method='draft',args=['',note]))
+   c.voice_submit('Dictated question about the selected note')
+   execution.assert_called_once_with('server');send.assert_called_once()
+   assert send.call_args.kwargs['context_data']=={'note_reference':note['reference']}
+   assert not c.note_context
  finally:c.shutdown()
 ''')
 

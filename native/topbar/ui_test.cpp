@@ -41,8 +41,9 @@ private slots:
         const auto send=[&](const QByteArray &command){
             QGuiApplication::sync();if(input.write(command)!=command.size())return false;
             // Keep handling Wayland configuration while the external input client acknowledges a move.
-            if(!QTest::qWaitFor([&]{return input.canReadLine() || input.state()==QProcess::NotRunning;},2000))return false;
-            return input.readLine().trimmed()=="OK";
+            if(!QTest::qWaitFor([&]{return input.canReadLine() || input.state()==QProcess::NotRunning;},2000)){qWarning()<<"Input acknowledgement timeout"<<command.trimmed()<<input.state()<<input.errorString();return false;}
+            const auto reply=input.readLine().trimmed();if(reply!="OK")qWarning()<<"Input acknowledgement invalid"<<command.trimmed()<<reply<<input.state()<<input.errorString();
+            return reply=="OK";
         };
         qmlRegisterType<AppMenu>("Lumen.Topbar",1,0,"AppMenu");
         PanelData data;Tray tray;QQmlEngine engine;engine.rootContext()->setContextProperty("panelData",&data);

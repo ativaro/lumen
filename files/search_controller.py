@@ -338,6 +338,7 @@ class SearchController(QObject):
             if self.panel:
                 self._conversation = True; self.panel.submit(query)
                 self.stateChanged.emit(); self.focusRequested.emit(); return
+            if self.note_context and not self.backend.set_execution('server'): return
             if hasattr(self.backend, 'preflight') and not self.backend.preflight(self._attachments): return
             self.cancel_scan(); self._conversation = True; self.last_prompt = query; self._error = ''
             self.set_hint(tr('Gespräch · Antworten und Rückfragen bleiben in dieser Suche.'))
