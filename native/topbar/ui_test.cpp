@@ -47,6 +47,10 @@ private slots:
         };
         qmlRegisterType<AppMenu>("Lumen.Topbar",1,0,"AppMenu");
         PanelData data;Tray tray;QQmlEngine engine;engine.rootContext()->setContextProperty("panelData",&data);
+        if(qEnvironmentVariableIsSet("LUMEN_QA_SHORTCUTS") && !qgetenv("LUMEN_QA_SHORTCUTS").isEmpty()){
+            QVERIFY(QDBusConnection::sessionBus().registerService("org.lumen.Topbar"));
+            QVERIFY(QDBusConnection::sessionBus().registerObject("/Topbar",&data,QDBusConnection::ExportScriptableSlots));
+        }
         engine.rootContext()->setContextProperty("trayModel",&tray);
         QQmlComponent component(&engine,QUrl("qrc:/lumen/Topbar.qml"));
         QScopedPointer<QObject> owner(component.create());
@@ -390,7 +394,16 @@ private slots:
         QDBusInterface fixture("org.lumen.MenuTestA","/Control",QString());QVERIFY(fixture.call("command","fullscreen").type()!=QDBusMessage::ErrorMessage);
         QTRY_VERIFY_WITH_TIMEOUT(!window->isVisible(),3000);
         QVERIFY(fixture.call("command","normal").type()!=QDBusMessage::ErrorMessage);QTRY_VERIFY_WITH_TIMEOUT(window->isVisible(),3000);
-        data.ShowApps();QTRY_VERIFY(apps->property("opened").toBool());QTRY_VERIFY(window->isActive());
+        if(!qgetenv("LUMEN_QA_SHORTCUTS").isEmpty()){QVERIFY(send("key 125\n"));}
+        else data.ShowApps();
+        QTRY_VERIFY(apps->property("opened").toBool());QTRY_VERIFY(window->isActive());
+        if(!qgetenv("LUMEN_QA_SHORTCUTS").isEmpty()){
+            QVERIFY(!item("startMenu")->property("lumenOnly").toBool());
+            QVERIFY(window->grabWindow().save("/profile/captures/native-shortcut-start.png"));
+            QVERIFY(send("key 1\n"));QTRY_VERIFY(!apps->property("opened").toBool());
+            QVERIFY(send("press 56\n"));QVERIFY(send("key 57\n"));QVERIFY(send("release 56\n"));
+            QTRY_VERIFY_WITH_TIMEOUT(QFile::exists("/profile/lumen-shortcut-started"),5000);
+        }
         QVERIFY(send("key 1\n"));QTRY_VERIFY(!apps->property("opened").toBool());
         auto controls=item("systemControlsButton");QVERIFY(controls);if(!controls->isVisible()){QVERIFY(click(item("compactControlsButton")));QTest::qWait(180);controls=item("audioMenuEntry");}QVERIFY(controls->isVisible());QVERIFY(click(controls));QTest::qWait(180);
         auto audioPopup=window->findChild<QObject*>("audioPopup");auto networkPopup=window->findChild<QObject*>("networkPopup");QVERIFY(audioPopup && networkPopup);

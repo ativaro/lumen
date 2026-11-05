@@ -20,6 +20,7 @@ parser.add_argument('--language',choices=['de','en'],default='de')
 parser.add_argument('--build-dir',type=Path,default=REPO/'artifacts/desktop-smoke/build')
 parser.add_argument('--artifacts',type=Path,default=REPO/'artifacts/desktop-smoke')
 parser.add_argument('--surface-only',action='store_true',help='Skip the already qualified notification/layout integration for theme checks')
+parser.add_argument('--shortcuts',action='store_true',help='Exercise the real global launch keys in the private session')
 args=parser.parse_args()
 if args.width<600 or not 1<=args.scale<=3:parser.error('Use a width >= 600 and scale between 1 and 3')
 for name in ('bwrap','kwin_wayland','qdbus6','kscreen-doctor','dbus-run-session','kpackagetool6'):
@@ -37,6 +38,18 @@ for name in ('home','config','data/applications','state','runtime','cache','capt
     (profile/name).mkdir(parents=True,exist_ok=True,mode=0o700)
 (profile/'config/Lumen').mkdir()
 (profile/'config/Lumen/Assistant.conf').write_text('[General]\nappearance='+args.theme+'\n[topbar]\nlayout='+args.layout+'\n')
+if args.shortcuts:
+    (profile/'bin').mkdir()
+    for name in ('lumen-apps','lumen-quick'):
+        shutil.copy2(REPO/'bin'/name,profile/'bin'/name)
+    start=profile/'bin/lumen-apps';start.write_text(start.read_text().replace('exec qdbus6','touch /profile/start-shortcut-invoked\nexec qdbus6'))
+    service=profile/'bin/systemctl';service.write_text('#!/bin/sh\nif [ "$*" = "--user start lumen-topbar.service" ]; then exit 0; fi\nexec /usr/bin/systemctl "$@"\n');service.chmod(0o755)
+    launcher=profile/'bin/lumen-agent-app';launcher.write_text('#!/bin/sh\nexec /usr/bin/touch /profile/lumen-shortcut-started\n');launcher.chmod(0o755)
+    for name in ('lumen-apps','lumen-ask','lumen-toggle'):
+        text=(REPO/'data/applications'/(name+'.desktop')).read_text().replace('%INSTALL_BIN%','/profile/bin')
+        (profile/'data/applications'/(name+'.desktop')).write_text(text)
+    (profile/'config/kglobalshortcutsrc').write_text('[services][lumen-toggle.desktop]\n_launch=Meta\n[services][org.kde.krunner.desktop]\n_launch=Alt+Space\n[services][lumen-ask.desktop]\n_launch=Meta+Shift+O\n')
+    (profile/'config/kwinrc').write_text('[ModifierOnlyShortcuts]\nMeta=org.lumen.Topbar,/Topbar,org.lumen.Topbar,ShowApps\n')
 pin_ids=[]
 for identity,title,icon,category in [('browser','Browser','internet-web-browser','Network'),('files','Dateien','folder','Utility'),
         ('lumen','Lumen','search','Utility'),('kate','Kate','accessories-text-editor','Development'),
@@ -63,13 +76,13 @@ command=['bwrap','--unshare-all','--die-with-parent','--new-session','--clearenv
 if Path('/dev/dri').is_dir():command+=['--dev-bind','/dev/dri','/dev/dri']
 env=dict(ASAN_OPTIONS='detect_leaks=0:abort_on_error=1:log_path=/profile/asan',
     LUMEN_QA_HOT_HOST='1',LUMEN_QA_SURFACE_ONLY='1' if args.surface_only else '',
-    PATH='/usr/bin',HOME='/profile/home',USER='Ativaro',XDG_CONFIG_HOME='/profile/config',XDG_DATA_HOME='/profile/data',
+    PATH='/profile/bin:/usr/bin' if args.shortcuts else '/usr/bin',HOME='/profile/home',USER='Ativaro',XDG_CONFIG_HOME='/profile/config',XDG_DATA_HOME='/profile/data',
     XDG_STATE_HOME='/profile/state',XDG_CACHE_HOME='/profile/cache',XDG_RUNTIME_DIR='/profile/runtime',
     XDG_SESSION_TYPE='wayland',XDG_MENU_PREFIX='plasma-',XDG_CURRENT_DESKTOP='KDE',KDE_FULL_SESSION='true',KDE_SESSION_VERSION='6',
     QT_QPA_PLATFORM='wayland',QT_QUICK_CONTROLS_STYLE='Basic',QT_QPA_PLATFORMTHEME='kde',
     QT_NO_XDG_DESKTOP_PORTAL='1',LUMEN_DATA='/profile/state/lumen',LUMEN_TOOLS_DATA='/profile/state/tools',
     LUMEN_BIN_DIR='/qa/bin',LUMEN_QA_WIDTH=str(args.width),LUMEN_QA_SCALE=str(args.scale),
-    LUMEN_QA_LAYOUT=args.layout,LUMEN_QA_THEME=args.theme,LUMEN_LANGUAGE=args.language,LANG='de_CH.UTF-8',LC_ALL='de_CH.UTF-8')
+    LUMEN_QA_LAYOUT=args.layout,LUMEN_QA_THEME=args.theme,LUMEN_LANGUAGE=args.language,LUMEN_QA_SHORTCUTS='1' if args.shortcuts else '',LANG='de_CH.UTF-8',LC_ALL='de_CH.UTF-8')
 for key,value in env.items():command+=['--setenv',key,value]
 command+=['--','dbus-run-session','--','python3','-B','/qa/session.py']
 with (profile/'session.log').open('w') as log:
@@ -77,7 +90,7 @@ with (profile/'session.log').open('w') as log:
 receipt=dict(passed=result.returncode==0,revision=subprocess.check_output(['git','-C',str(REPO),'rev-parse','HEAD'],text=True).strip(),
     binary=hashlib.sha256((build/'lumen-topbar').read_bytes()).hexdigest(),
     width=args.width,scale=args.scale,theme=args.theme,language=args.language,layout=args.layout,
-    notification_layout_integration=not args.surface_only,seconds=round(time.monotonic()-began,2))
+    notification_layout_integration=not args.surface_only,global_shortcuts=args.shortcuts,seconds=round(time.monotonic()-began,2))
 (profile/'result.json').write_text(json.dumps(receipt,indent=2))
 if result.returncode==0:
     for name in ('home','data','state','runtime','cache','host-stage'):

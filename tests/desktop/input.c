@@ -31,6 +31,10 @@ int main(int argc,char **argv) {
             fprintf(stderr,"Button received: %s",line);fflush(stderr);
             org_kde_kwin_fake_input_button(input,272,!strcmp(line,"down\n"));wl_display_roundtrip(display);
             fprintf(stderr,"Button completed: %s",line);fflush(stderr);
+        } else if(sscanf(line,"press %d",&code)==1){
+            org_kde_kwin_fake_input_keyboard_key(input,code,1);wl_display_roundtrip(display);
+        } else if(sscanf(line,"release %d",&code)==1){
+            org_kde_kwin_fake_input_keyboard_key(input,code,0);wl_display_roundtrip(display);
         } else if(sscanf(line,"key %d",&code)==1) {
             org_kde_kwin_fake_input_keyboard_key(input,code,1);wl_display_roundtrip(display);
             org_kde_kwin_fake_input_keyboard_key(input,code,0);wl_display_roundtrip(display);

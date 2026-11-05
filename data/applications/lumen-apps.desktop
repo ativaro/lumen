@@ -9,3 +9,5 @@ Icon=lumen
 Terminal=false
 Categories=Utility;
 StartupWMClass=lumen
+X-KDE-GlobalAccel-CommandShortcut=true
+X-KDE-Shortcuts=Meta

@@ -46,10 +46,14 @@ class TopbarCodeRetirementTest(unittest.TestCase):
             (art/'appmenu.js').write_text('old integration')
             names=['plasma-org.kde.plasma.desktop-appletsrc','plasmarc','kwinrc','Lumen/Assistant.conf']
             (backup/'missing.json').write_text(json.dumps(names))
+            shortcut_state={'actions':[], 'meta':''}
+            (backup/'launch-shortcuts.json').write_text(json.dumps(shortcut_state))
             with patch.dict(os.environ,XDG_DATA_HOME=str(data),XDG_CONFIG_HOME=str(root/'config')),patch.object(setup,'ARTWORK',art),patch.object(setup.subprocess,'run',return_value=SimpleNamespace(returncode=1)):
                 setup.retire_topbar_code(backup)
                 self.assertFalse(legacy.exists());self.assertTrue((backup/'retired-code/org.lumen.agent').is_symlink())
-                setup.restore(backup)
+                with patch('desktop_settings.restore_launch_shortcuts') as restore_keys:
+                    setup.restore(backup)
+                    restore_keys.assert_called_once_with(shortcut_state)
             self.assertEqual((legacy/'metadata.json').read_text(),'old code')
             self.assertEqual((other/'metadata.json').read_text(),'preserve')
             self.assertEqual((target/'photo').read_text(),'preserve data')

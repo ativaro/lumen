@@ -10,7 +10,7 @@ def start(command,name,env=None):
     processes.append(process);return process
 try:
     kwin=start(['kwin_wayland','--virtual','--width',os.environ['LUMEN_QA_WIDTH'],'--height','800','--output-count','2',
-                '--no-lockscreen','--no-global-shortcuts','--no-kactivities','--socket','wayland-test'],
+                '--no-lockscreen',*(['--no-global-shortcuts'] if not os.environ.get('LUMEN_QA_SHORTCUTS') else []),'--no-kactivities','--socket','wayland-test'],
                'kwin',dict(os.environ,QT_QPA_PLATFORM='offscreen'))
     for _ in range(80):
         if (root/'runtime/wayland-test').exists():break
@@ -29,6 +29,12 @@ try:
     subprocess.run(['qdbus6','org.kde.kded6','/kded','unloadModule','bluedevil'],capture_output=True,timeout=5)
     check=subprocess.run(['qdbus6','org.kde.kded6','/kded','loadModule','appmenu'],capture_output=True,timeout=5,text=True)
     (root/'module.json').write_text(json.dumps(dict(code=check.returncode,out=check.stdout,error=check.stderr)))
+    if os.environ.get('LUMEN_QA_SHORTCUTS'):
+        result=subprocess.run(['python3','-B','-c','import json;from desktop_settings import configure_launch_shortcuts;print(json.dumps(configure_launch_shortcuts()))'],env=dict(os.environ,PYTHONPATH='/source/files'),capture_output=True,text=True)
+        (root/'shortcuts-setup.log').write_text(result.stdout+result.stderr)
+        assert result.returncode==0,(root/'shortcuts-setup.log').read_text()
+        check=subprocess.run(['python3','-c','import dbus,json; b=dbus.SessionBus(); d=dbus.Interface(b.get_object("org.freedesktop.DBus","/org/freedesktop/DBus"),"org.freedesktop.DBus");print(json.dumps({n:int(d.GetConnectionUnixProcessID(n)) for n in ("org.kde.KWin","org.kde.kglobalaccel")}))'],capture_output=True,text=True)
+        (root/'shortcuts-owner.log').write_text(check.stdout+check.stderr)
     start(['python3','/qa/view-marker.py'],'view-marker');time.sleep(.5)
     (root/'bus-names.txt').write_text(subprocess.check_output(['qdbus6'],text=True))
     start(['python3','/qa/tray-fixture.py'],'tray-fixture')

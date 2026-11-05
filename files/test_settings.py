@@ -8,6 +8,53 @@ import desktop_settings as desktop
 
 
 class DesktopSettingsTest(unittest.TestCase):
+    def launch_accelerator(self):
+        from PySide6.QtGui import QKeySequence
+        meta, alt, other = [QKeySequence(k)[0].toCombined() for k in ('Meta', 'Alt+Space', 'Meta+Shift+O')]
+        class Accel:
+            def __init__(self):
+                self.keys = {('lumen-toggle.desktop', '_launch'): [meta],
+                             ('org.kde.krunner.desktop', '_launch'): [alt],
+                             ('lumen-ask.desktop', '_launch'): [other]}
+                self.fail_once = False
+            def shortcut(self, action): return self.keys.get(tuple(action[:2]), [])
+            def getGlobalShortcutsByKey(self, key):
+                return [[name, name, component, component, 'default', 'Default'] for (component, name), keys in self.keys.items() if key in keys]
+            def doRegister(self, action): self.keys.setdefault(tuple(action[:2]), [])
+            def setShortcut(self, action, keys, flags):
+                assert int(flags) == 6
+                if self.fail_once and list(keys) == [meta]: self.fail_once = False; return []
+                self.keys[tuple(action[:2])] = list(map(int, keys)); return keys
+        return Accel(), meta, alt, other
+
+    def test_launch_keys_move_to_start_and_lumen_and_restore(self):
+        entry = Path(__file__).resolve().parents[1] / 'data/applications/lumen-ask.desktop'
+        self.assertIn('X-KDE-Shortcuts=Alt+Space,Meta+Shift+O', entry.read_text())
+        accel, meta, alt, other = self.launch_accelerator()
+        saved = {}
+        def capture(name, value): saved.update(value); return Path('/backup.json')
+        with patch.object(desktop, 'accelerator', return_value=accel), patch.object(desktop, 'backup', side_effect=capture), patch.object(desktop, 'run', return_value=''):
+            desktop.configure_launch_shortcuts()
+            self.assertEqual(accel.keys[('lumen-apps.desktop', '_launch')], [meta])
+            self.assertEqual(accel.keys[('lumen-toggle.desktop', '_launch')], [])
+            self.assertEqual(accel.keys[('org.kde.krunner.desktop', '_launch')], [])
+            self.assertEqual(accel.keys[('lumen-ask.desktop', '_launch')], [other, alt])
+            desktop.restore_launch_shortcuts(saved)
+            self.assertEqual(accel.keys[('lumen-toggle.desktop', '_launch')], [meta])
+            self.assertEqual(accel.keys[('org.kde.krunner.desktop', '_launch')], [alt])
+            self.assertEqual(accel.keys[('lumen-ask.desktop', '_launch')], [other])
+
+    def test_launch_keys_preserve_foreign_bindings_and_recover_failures(self):
+        accel, meta, alt, other = self.launch_accelerator()
+        accel.keys[('foreign.desktop', '_launch')] = [meta]
+        with patch.object(desktop, 'accelerator', return_value=accel), patch.object(desktop, 'backup') as backup, patch.object(desktop, 'run') as run:
+            with self.assertRaises(ValueError): desktop.configure_launch_shortcuts()
+            backup.assert_not_called(); run.assert_not_called()
+        del accel.keys[('foreign.desktop', '_launch')]; before = dict(accel.keys); accel.fail_once = True
+        with patch.object(desktop, 'accelerator', return_value=accel), patch.object(desktop, 'backup', return_value=Path('/backup.json')), patch.object(desktop, 'run', return_value=''):
+            with self.assertRaises(RuntimeError): desktop.configure_launch_shortcuts()
+        self.assertEqual({k: accel.keys[k] for k in before}, before)
+
     def test_refresh_never_deletes_live_shortcut_components(self):
         from unittest.mock import Mock
         bus = Mock()

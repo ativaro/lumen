@@ -65,6 +65,9 @@ def configure_desktop(design):
     subprocess.run(['systemctl','--user','start','lumen-topbar.service'],check=True)
     # The service is ready before any previous top panel is removed.
     run(['qdbus6','org.lumen.Topbar','/Topbar'])
+    from desktop_settings import configure_launch_shortcuts
+    shortcuts = configure_launch_shortcuts()
+    (backup/'launch-shortcuts.json').write_bytes(Path(shortcuts['backup']).read_bytes())
     bridge = (ARTWORK/'topbar.js').read_text()
     token=str(time.time_ns())
     run(PLASMA+[bridge+'\ninstallLumenNotificationHost('+json.dumps(token)+');'])
@@ -75,9 +78,6 @@ def configure_desktop(design):
     result = json.loads(run(PLASMA + [script]))
     run(PLASMA+[bridge+"\nactivateLumenNotificationHost();"])
     subprocess.run(['systemctl','--user','enable','lumen-topbar.service'],check=True)
-    subprocess.run(['kwriteconfig6','--file','kwinrc','--group','ModifierOnlyShortcuts','--key','Meta',
-                    'org.lumen.Topbar,/Topbar,org.lumen.Topbar,ShowApps'],check=True)
-    subprocess.run(['qdbus6','org.kde.KWin','/KWin','reconfigure'],check=True)
     retire_topbar_code(backup)
     (backup / 'created-panels.json').write_text(json.dumps(result, indent=2))
     print(tr('Lumen-Desktop eingerichtet. Rückweg: lumen-desktop-setup --restore'), backup)
@@ -95,6 +95,10 @@ def retire_topbar_code(backup):
 
 
 def restore(folder):
+    shortcuts = Path(folder)/'launch-shortcuts.json'
+    if shortcuts.exists():
+        from desktop_settings import restore_launch_shortcuts
+        restore_launch_shortcuts(json.loads(shortcuts.read_text()))
     retired=Path(folder)/'retired-code'
     data=Path(os.environ.get('XDG_DATA_HOME',Path.home()/'.local/share'))
     targets={path:(ARTWORK/'appmenu.js' if path.name=='appmenu.js' else data/'plasma/plasmoids'/path.name) for path in retired.iterdir()} if retired.exists() else {}
