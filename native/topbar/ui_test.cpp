@@ -41,7 +41,7 @@ private slots:
         const auto send=[&](const QByteArray &command){
             QGuiApplication::sync();if(input.write(command)!=command.size())return false;
             // Keep handling Wayland configuration while the external input client acknowledges a move.
-            if(!QTest::qWaitFor([&]{return input.canReadLine() || input.state()==QProcess::NotRunning;},2000)){qWarning()<<"Input acknowledgement timeout"<<command.trimmed()<<input.state()<<input.errorString();return false;}
+            if(!QTest::qWaitFor([&]{return input.canReadLine() || input.state()==QProcess::NotRunning;},2000)){qWarning()<<"Input acknowledgement timeout"<<command.trimmed()<<input.state()<<input.errorString()<<input.bytesToWrite()<<input.readAllStandardError();return false;}
             const auto reply=input.readLine().trimmed();if(reply!="OK")qWarning()<<"Input acknowledgement invalid"<<command.trimmed()<<reply<<input.state()<<input.errorString();
             return reply=="OK";
         };
@@ -255,14 +255,18 @@ private slots:
         QVERIFY(send("key 57\n"));QTRY_VERIFY(!detached->isVisible() && window->property("conversationOpen").toBool());
         QCOMPARE(conversation->window(),window);
         QCOMPARE(followup->property("text").toString(),QString("Dieselbe Folgefrage behalten"));
-        auto dragArea=find(conversation,"conversationDragArea");QVERIFY(dragArea);
-        auto dragPoint=dragArea->mapToGlobal(QPointF(40,dragArea->height()/2));
-        QVERIFY(send("move "+QByteArray::number(dragPoint.x())+" "+QByteArray::number(dragPoint.y())+"\n"));
-        QVERIFY(send("down\n"));QVERIFY(send("move "+QByteArray::number(dragPoint.x()+30)+" "+QByteArray::number(dragPoint.y()+100)+"\n"));
-        QTRY_VERIFY(detached->isVisible());QTRY_VERIFY(window->property("conversationMoveReady").toBool());QVERIFY(send("up\n"));
-        QTest::qWait(150);reattach->forceActiveFocus(Qt::TabFocusReason);QVERIFY(send("key 57\n"));
-        QTRY_VERIFY(!detached->isVisible() && window->property("conversationOpen").toBool());
-        QCOMPARE(followup->property("text").toString(),QString("Dieselbe Folgefrage behalten"));
+        for(int gesture=0;gesture<2;++gesture){
+            QGuiApplication::sync();QSignalSpy frame(window,&QQuickWindow::frameSwapped);window->update();QTRY_VERIFY(!frame.isEmpty());
+            qInfo()<<"CONVERSATION_GESTURE"<<gesture;
+            auto dragArea=find(conversation,"conversationDragArea");QVERIFY(dragArea);
+            auto dragPoint=dragArea->mapToGlobal(QPointF(40,dragArea->height()/2));
+            QVERIFY(send("move "+QByteArray::number(dragPoint.x())+" "+QByteArray::number(dragPoint.y())+"\n"));
+            QVERIFY(send("down\n"));QVERIFY(send("move "+QByteArray::number(dragPoint.x()+30)+" "+QByteArray::number(dragPoint.y()+100)+"\n"));
+            QTRY_VERIFY(detached->isVisible());QTRY_VERIFY(window->property("conversationMoveReady").toBool());QVERIFY(send("up\n"));
+            QTest::qWait(150);reattach->forceActiveFocus(Qt::TabFocusReason);QVERIFY(send("key 57\n"));
+            QTRY_VERIFY(!detached->isVisible() && window->property("conversationOpen").toBool());
+            QCOMPARE(followup->property("text").toString(),QString("Dieselbe Folgefrage behalten"));
+        }
         QVERIFY(click(find(conversation,"collapseConversation")));QTRY_VERIFY(!window->property("conversationOpen").toBool());
         QVERIFY(click(item("conversationToggle")));QTRY_VERIFY(window->property("conversationOpen").toBool());
         QCOMPARE(followup->property("text").toString(),QString("Dieselbe Folgefrage behalten"));

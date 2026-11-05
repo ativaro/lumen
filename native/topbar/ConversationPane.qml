@@ -33,7 +33,16 @@ Item {
             objectName:"conversationHeader";Layout.fillWidth:true;Layout.minimumHeight:48;Layout.preferredHeight:48;Layout.maximumHeight:48;spacing:12
             Item {objectName:"conversationDragArea";Layout.fillWidth:true;Layout.fillHeight:true
                 Label {anchors.verticalCenter:parent.verticalCenter;width:parent.width;text:pane.controller.data.title||pane.translate("Gespräch mit Lumen");color:pane.colors.text;font.pixelSize:18;font.weight:Font.Medium;elide:Text.ElideRight}
-                DragHandler {target:null;onActiveChanged:if(active)pane.detached?pane.Window.window.startSystemMove():pane.detachRequested(true)}
+                MouseArea {
+                    anchors.fill:parent;enabled:!pane.detached
+                    property point origin
+                    property bool started:false
+                    onPressed:mouse=>{origin=Qt.point(mouse.x,mouse.y);started=false}
+                    onPositionChanged:mouse=>{
+                        if(pressed&&!started&&Math.hypot(mouse.x-origin.x,mouse.y-origin.y)>=Qt.styleHints.startDragDistance){started=true;pane.detachRequested(true)}
+                    }
+                }
+                MouseArea {anchors.fill:parent;enabled:pane.detached;onPressed:pane.Window.window.startSystemMove()}
             }
             BarButton {objectName:"detachConversation";colors:pane.colors;glyph:pane.detached?"pin":"go-up";text:pane.translate(pane.detached?"In Leiste anheften":"Als Fenster öffnen");iconOnly:parent.width<560;onClicked:pane.detached?pane.reattachRequested():pane.detachRequested(false)}
             BarButton {objectName:"newTopbarConversation";colors:pane.colors;glyph:"list-add";text:pane.translate("Neues Gespräch");iconOnly:true;enabled:!pane.controller.busy&&!pane.request.pending;onClicked:pane.controller.model.call("reset")}
