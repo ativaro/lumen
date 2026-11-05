@@ -39,6 +39,16 @@ class DataTest:public QObject {
     QTemporaryDir settingsDirectory;
 private slots:
     void initTestCase(){QVERIFY(settingsDirectory.isValid());QSettings::setPath(QSettings::NativeFormat,QSettings::UserScope,settingsDirectory.path());qputenv("LUMEN_DATA",settingsDirectory.filePath("state").toUtf8());}
+    void pinsPersistAndPreserveUnrelatedSettings(){
+        QSettings settings("Lumen","Assistant");settings.setValue("topbar/layout","classic");settings.remove("topbar/pinnedApps");settings.sync();
+        PanelData data;QVERIFY(data.pinnedApps().contains("lumen.desktop"));QSignalSpy changed(&data,&PanelData::pinnedAppsChanged);
+        data.setPinnedApps({"org.kde.kate.desktop","org.kde.kate.desktop","lumen.desktop"});
+        QCOMPARE(data.pinnedApps(),QStringList({"org.kde.kate.desktop","lumen.desktop"}));QCOMPARE(changed.count(),1);
+        PanelData other;QCOMPARE(other.pinnedApps(),data.pinnedApps());
+        data.setPinnedApps({QString("bad\nentry")});QCOMPARE(changed.count(),1);
+        data.setPinnedApps({});QVERIFY(data.pinnedApps().isEmpty());QCOMPARE(changed.count(),2);
+        settings.sync();QCOMPARE(settings.value("topbar/layout").toString(),QString("classic"));settings.remove("topbar/pinnedApps");settings.sync();
+    }
     void mediaUsesLivePlayersAndTheirCapabilities(){
         auto bus=QDBusConnection::sessionBus();TestPlayer player;
         const QString service="org.mpris.MediaPlayer2.lumenTest";

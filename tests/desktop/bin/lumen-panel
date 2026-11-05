@@ -13,7 +13,7 @@ def activity():
     return dict(focus=focus(),decisions=[] if Path('/profile/decision-resolved').exists() else [dict(id='b'*32,title='Workshop-Zusammenfassung prüfen')],decisionError='',update=dict(checked=True,pending=True,notes='Synthetischer Update-Hinweis'))
 def details(topic):
     if topic=='activity':return activity()
-    if topic=='recent':return dict(items=[dict(target='/profile/example.txt',title='Workshop-Notizen.txt',icon='text-x-generic')])
+    if topic=='recent':return dict(items=[dict(target='/profile/example.txt',title='Workshop-Notizen.txt',kind='file',icon='text-x-generic'),dict(target='conversation:fixture',title='Ideen für Lumen',kind='conversation',icon='dialog-messages')])
     saved=Path('/profile/'+topic+'-state.json')
     if saved.exists():return json.loads(saved.read_text())
     if topic=='network':

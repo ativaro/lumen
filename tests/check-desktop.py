@@ -37,6 +37,13 @@ for name in ('home','config','data/applications','state','runtime','cache','capt
     (profile/name).mkdir(parents=True,exist_ok=True,mode=0o700)
 (profile/'config/Lumen').mkdir()
 (profile/'config/Lumen/Assistant.conf').write_text('[topbar]\nlayout='+args.layout+'\n')
+pin_ids=[]
+for identity,title,icon,category in [('browser','Browser','internet-web-browser','Network'),('files','Dateien','folder','Utility'),
+        ('lumen','Lumen','search','Utility'),('kate','Kate','accessories-text-editor','Development'),
+        ('steam','Steam','applications-games','Game'),('music','Musik','headphones','AudioVideo')]:
+    name='lumen-start-'+identity+'.desktop';pin_ids.append(name)
+    (profile/'data/applications'/name).write_text('[Desktop Entry]\nType=Application\nName='+title+'\nExec=/usr/bin/touch /profile/pinned-started\nIcon='+icon+'\nCategories='+category+';\n')
+with (profile/'config/Lumen/Assistant.conf').open('a') as output:output.write('pinnedApps='+', '.join(pin_ids)+'\n')
 host=profile/'host-stage'
 shutil.copytree(REPO/'plasmoid',host)
 qml=host/'contents/ui/main.qml';qml.write_text(qml.read_text().replace('/usr/bin/lumen-panel','/qa/bin/lumen-panel'))
@@ -45,7 +52,7 @@ for name in ('A','B','Empty','Browser'):
     title='Lumen Notes' if name=='A' else 'Lumen Menütest '+name
     (profile/'data/applications'/('lumen-menu-test-'+name.lower()+'.desktop')).write_text(
         '[Desktop Entry]\nType=Application\nName='+title+'\nExec=python3 /qa/fixture.py '+name+'\nIcon=application-x-executable\nNoDisplay=true\n')
-(profile/'data/applications/lumen-topbar-program-test.desktop').write_text('[Desktop Entry]\nType=Application\nName=Lumen Testprogramm\nExec=/usr/bin/touch /profile/program-started\nIcon=application-x-executable\nCategories=Utility;\n')
+(profile/'data/applications/lumen-topbar-program-test.desktop').write_text('[Desktop Entry]\nType=Application\nName=Lumen Testprogramm\nExec=/usr/bin/touch /profile/program-started\nIcon=application-x-executable\nCategories=Utility;\nActions=NewWindow;\n[Desktop Action NewWindow]\nName=Neues Testfenster\nExec=/usr/bin/touch /profile/program-new-window\n')
 (profile/'config/kded6rc').write_text('[Module-bluedevil]\nautoload=false\n[Module-baloo]\nautoload=false\n')
 command=['bwrap','--unshare-all','--die-with-parent','--new-session','--clearenv',
     '--ro-bind','/usr','/usr','--symlink','usr/bin','/bin','--symlink','usr/lib','/lib',
@@ -56,7 +63,7 @@ command=['bwrap','--unshare-all','--die-with-parent','--new-session','--clearenv
 if Path('/dev/dri').is_dir():command+=['--dev-bind','/dev/dri','/dev/dri']
 env=dict(ASAN_OPTIONS='detect_leaks=0:abort_on_error=1:log_path=/profile/asan',
     LUMEN_QA_HOT_HOST='1',LUMEN_QA_SURFACE_ONLY='1' if args.surface_only else '',
-    PATH='/usr/bin',HOME='/profile/home',XDG_CONFIG_HOME='/profile/config',XDG_DATA_HOME='/profile/data',
+    PATH='/usr/bin',HOME='/profile/home',USER='Ativaro',XDG_CONFIG_HOME='/profile/config',XDG_DATA_HOME='/profile/data',
     XDG_STATE_HOME='/profile/state',XDG_CACHE_HOME='/profile/cache',XDG_RUNTIME_DIR='/profile/runtime',
     XDG_SESSION_TYPE='wayland',XDG_MENU_PREFIX='plasma-',XDG_CURRENT_DESKTOP='KDE',KDE_FULL_SESSION='true',KDE_SESSION_VERSION='6',
     QT_QPA_PLATFORM='wayland',QT_QUICK_CONTROLS_STYLE='Basic',QT_QPA_PLATFORMTHEME='kde',

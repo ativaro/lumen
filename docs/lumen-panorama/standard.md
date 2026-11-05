@@ -67,6 +67,18 @@ offene Notes-/App-Inhalte sind über die laufenden Fenster erreichbar. Verläufe
 anderer Serverbindungen werden nicht angeboten. Es werden keine Inhalte kopiert.
 Aktive Systemtray-Apps bleiben bei ausreichend Platz direkt sichtbar; nur bei
 Platzmangel sowie für passive Apps dient das Menü „Hintergrund-Apps“.
+Startmenü-Präzisierung vom 05.11.2026: Der Programmknopf öffnet „Dein Start“
+nach der freigegebenen Referenz `lumen-start-next.html`: Suche, angeheftete Apps,
+zwei letzte Inhalte unter „Gleich weiter“ und eine ruhige Fußzeile mit Benutzer,
+Einstellungen, Sperren und Sitzungsaktionen. „Alle Apps“ öffnet den nativen,
+durchsuchbaren Anwendungskatalog mit dessen tatsächlichen Kategorien; Lumen-Apps
+bleiben dort und über den Lumen-Kreis erreichbar. Favoriten lassen sich anheften
+und über „Anpassen“ entfernen. App-Kontextaktionen stammen vom nativen Katalog.
+Sitzungsaktionen beachten die verfügbaren Plattformfähigkeiten und die nativen
+Bestätigungen. Fehlende Apps oder Verläufe werden als solche angezeigt; keine
+Beispieldaten in der ausgelieferten Oberfläche. Die Fußzeile und Popups verwenden
+die vertiefte Theme-Fläche; normale Beschriftungen bleiben 14px.
+
 Der technische Einstellungswert `classic` heißt in der Oberfläche nun Panorama;
 die ausdrücklich angebotenen alternativen Layouts bleiben wählbar.
 

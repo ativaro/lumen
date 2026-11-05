@@ -22,6 +22,8 @@ class PanelData:public QObject {
     Q_PROPERTY(QString layout READ layout NOTIFY layoutChanged)
     Q_PROPERTY(QVariantMap details READ details NOTIFY detailsChanged)
     Q_PROPERTY(QVariantList players READ players NOTIFY playersChanged)
+    Q_PROPERTY(QStringList pinnedApps READ pinnedApps WRITE setPinnedApps NOTIFY pinnedAppsChanged)
+    Q_PROPERTY(QString userName READ userName CONSTANT)
 public:
     explicit PanelData(QObject *parent=nullptr);
     ~PanelData() override;
@@ -31,6 +33,9 @@ public:
     QString layout() const {return m_layout;}
     QVariantMap details() const {return m_details;}
     QVariantList players() const;
+    QStringList pinnedApps() const;
+    void setPinnedApps(QStringList apps);
+    QString userName() const;
     Q_INVOKABLE void mediaAction(const QString &service,const QString &action);
     Q_INVOKABLE void inspect(const QString &topic);
     Q_INVOKABLE void systemAction(const QString &topic,const QString &action,const QString &target={},int value=0);
@@ -48,6 +53,7 @@ public slots:
     void mediaPropertiesChanged(const QString &interface,const QVariantMap &changed,const QStringList &invalidated);
     void mediaOwnerChanged(const QString &name,const QString &oldOwner,const QString &newOwner);
 signals:
+    void pinnedAppsChanged();
     void playersChanged();
     void controlBusyChanged();
     void controlFinished(const QString &action,int value);

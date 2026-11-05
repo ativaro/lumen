@@ -59,6 +59,21 @@ QVariantMap nativePalette(){
 }
 }
 
+QStringList PanelData::pinnedApps() const {
+    return QSettings("Lumen","Assistant").value("topbar/pinnedApps",QStringList{
+        "preferred://browser","lumen-files.desktop","lumen.desktop",
+        "org.kde.kate.desktop","steam.desktop","org.kde.elisa.desktop"}).toStringList();
+}
+void PanelData::setPinnedApps(QStringList apps) {
+    for(const auto &id:apps)if(id.isEmpty() || id.size()>4096 || id.contains(QRegularExpression("[\\x00-\\x1f]")))return;
+    apps.removeDuplicates();
+    if(apps==pinnedApps())return;
+    QSettings settings("Lumen","Assistant");settings.setValue("topbar/pinnedApps",apps);settings.sync();
+    if(settings.status()!=QSettings::NoError){fail(tr("Die angehefteten Apps konnten nicht gespeichert werden."));return;}
+    emit pinnedAppsChanged();
+}
+QString PanelData::userName() const {return qEnvironmentVariable("USER",QDir::home().dirName());}
+
 PanelData::PanelData(QObject *parent):QObject(parent) {
     auto font=QApplication::font();font.setPixelSize(14);QApplication::setFont(font);
     connect(&m_settingsWatcher,&QFileSystemWatcher::fileChanged,this,&PanelData::readLayout);

@@ -121,9 +121,9 @@ Window {
     }
     onBarSizeChanged:Qt.callLater(mask)
     onLayoutChanged:if(ready){launcher.close();systemPopup.close();networkPopup.close();audioPopup.close();overflow.close();windowMenu.close();trayPopup.close();calendar.close();askPopup.close();contextDrawer.close();activityPopup.close();Qt.callLater(()=>{fit();if(layout==="context" && inlineComposer.visible && inlineComposer.editing)contextDrawer.open()})}
-    function showLauncher(programs){launcher.programs=programs;launcher.open();panelData.refresh()}
+    function showLauncher(programs){startMenu.reset(!programs);launcher.open();panelData.refresh();panelData.inspect("recent")}
     function updateMenu(){appMenu.setEndpoint(windowState.service,windowState.path)}
-    function dismissIfInactive(){if(!bar.active && !appMenu.opened && !trayModel.opened){launcher.close();systemPopup.close();networkPopup.close();audioPopup.close();overflow.close();windowMenu.close();trayPopup.close();calendar.close();askPopup.close();contextDrawer.close();activityPopup.close();trayModel.close()}}
+    function dismissIfInactive(){if(!bar.active && !appMenu.opened && !trayModel.opened && !startMenu.menuOpened){launcher.close();systemPopup.close();networkPopup.close();audioPopup.close();overflow.close();windowMenu.close();trayPopup.close();calendar.close();askPopup.close();contextDrawer.close();activityPopup.close();trayModel.close()}}
     onHeightChanged:Qt.callLater(mask)
     onActiveChanged:if(active)focusLoss.stop();else focusLoss.restart()
     Timer {id:focusLoss;interval:80;onTriggered:bar.dismissIfInactive()}
@@ -160,7 +160,7 @@ Window {
         id:homeRow;x:bar.classic?24:16;y:(bar.classic?40:bar.deck?34:bar.barSize/2)-height/2
         spacing:bar.classic?2:7
         onWidthChanged:Qt.callLater(bar.fit)
-        BarButton {objectName:"programsButton";key:!bar.classic;colors:bar.colors;text:bar.t("Alle Programme");glyph:"applications-all-symbolic";monochrome:true;iconOnly:true;onClicked:bar.showLauncher(true)}
+        BarButton {objectName:"programsButton";key:!bar.classic;colors:bar.colors;text:bar.t("Startmenü");glyph:"applications-all-symbolic";monochrome:true;iconOnly:true;onClicked:bar.showLauncher(true)}
         BarButton {id:homeLauncher;objectName:"launcherButton";key:!bar.classic;colors:bar.colors;text:bar.classic?"Lumen":"Lumen ⌄";glyph:bar.classic?"qrc:/lumen/icons/lumen-mark.svg":"";symbol:bar.classic?"":"mark";iconOnly:bar.classic || bar.width<560;font.weight:Font.Medium;onClicked:bar.showLauncher(false)}
         Rectangle {visible:bar.classic;width:1;height:22;color:bar.colors.border;anchors.verticalCenter:parent.verticalCenter}
         BarButton {key:!bar.classic;colors:bar.colors;text:bar.t("Dateien");glyph:bar.classic?"folder":"";symbol:bar.classic?"":"files";iconOnly:bar.classic || bar.width<720;onClicked:panelData.launch("files")}
@@ -225,6 +225,8 @@ Window {
         onImplicitWidthChanged:Qt.callLater(bar.fit)
     }
     component BarPopup:Popup {
+        id:barPopup
+        property bool followFocus:false
         default property alias body:scroller.contentData
         parent:bar.contentItem
         popupType:Popup.Item
@@ -233,40 +235,32 @@ Window {
         width:Math.min(380,bar.width-24);y:bar.barSize+6
         height:Math.min(implicitHeight,Math.max(100,bar.screen.height-bar.barSize-24))
         contentItem:ScrollView {id:scroller;clip:true;contentWidth:availableWidth;implicitHeight:contentHeight}
+        function scrollToTop(){if(scroller.contentItem)scroller.contentItem.contentY=0}
+        function revealFocus(){
+            const focused=bar.activeFocusItem,viewport=scroller.contentItem
+            if(!followFocus || !visible || !focused || !viewport)return
+            let ancestor=focused.parent
+            while(ancestor && ancestor!==viewport)ancestor=ancestor.parent
+            if(!ancestor)return
+            const top=focused.mapToItem(viewport,0,0).y
+            const delta=top<8?top-8:top+focused.height>viewport.height-8?top+focused.height-viewport.height+8:0
+            viewport.contentY=Math.max(0,Math.min(Math.max(0,viewport.contentHeight-viewport.height),viewport.contentY+delta))
+        }
+        Connections {target:bar;function onActiveFocusItemChanged(){if(barPopup.followFocus)Qt.callLater(barPopup.revealFocus)}}
         onVisibleChanged:Qt.callLater(bar.mask)
         onOpened:restoreFocus.stop()
         onClosed:{Qt.callLater(bar.mask);restoreFocus.restart()}
         background:Rectangle {color:bar.colors.window;radius:13;border.color:bar.colors.border}
     }
     BarPopup {
-        id:launcher;objectName:"appsPopup";x:12
-        property bool programs:false
-        onOpened:if(programs)Qt.callLater(()=>programLoader.item?.focusSearch())
-        ColumnLayout {
-            width:parent.width
-            spacing:12
-            Label {text:bar.t("Start");color:bar.colors.text;font.pixelSize:19;font.weight:Font.Medium;Layout.fillWidth:true}
-            RowLayout {Layout.fillWidth:true;spacing:4
-                BarButton {colors:bar.colors;text:"Lumen Apps";checkable:true;checked:!launcher.programs;highlighted:!launcher.programs;Layout.fillWidth:true;onClicked:launcher.programs=false}
-                BarButton {objectName:"programsTab";colors:bar.colors;text:bar.t("Programme");checkable:true;checked:launcher.programs;highlighted:launcher.programs;Layout.fillWidth:true;onClicked:launcher.programs=true}
-            }
-            Loader {id:programLoader;Layout.fillWidth:true;active:launcher.programs;visible:active;onLoaded:item.focusSearch()
-                sourceComponent:ProgramList {colors:bar.colors;translate:bar.t;onLaunched:launcher.close()}
-            }
-            GridLayout {
-                visible:!launcher.programs;columns:launcher.width>=440?4:3;columnSpacing:4;rowSpacing:6;Layout.fillWidth:true
-                Repeater {
-                    model:bar.stateData.apps||[]
-                    BarButton {required property var modelData;objectName:"openApp_"+modelData.id;colors:bar.colors;text:modelData.label;Layout.fillWidth:true;Layout.preferredWidth:0;Layout.preferredHeight:Math.max(88,contentItem.implicitHeight+20);Accessible.name:modelData.title;
-                        contentItem:Column {spacing:6;Kirigami.Icon {source:"qrc:/lumen/icons/"+(modelData.id==="lumen"?"lumen":"lumen-"+modelData.id)+".svg";width:40;height:40;anchors.horizontalCenter:parent.horizontalCenter}Text {text:modelData.label;color:bar.colors.text;horizontalAlignment:Text.AlignHCenter;width:parent.width;wrapMode:Text.WordWrap}}
-                        onClicked:{launcher.close();panelData.launch("app",modelData.id)}
-                    }
-                }
-            }
-            Label {visible:!!panelData.error;text:bar.t(panelData.error);color:bar.colors.text;wrapMode:Text.Wrap;Layout.fillWidth:true}
-            Rectangle {height:1;color:bar.colors.border;Layout.fillWidth:true}
-            BarButton {visible:!launcher.programs;colors:bar.colors;text:bar.t("Alle Aufgaben");glyph:"view-task";Layout.fillWidth:true;onClicked:{launcher.close();panelData.launch("tasks")}}
-            BarButton {colors:bar.colors;text:bar.t("Lumen fragen oder suchen");glyph:"search";Layout.fillWidth:true;onClicked:{launcher.close();panelData.launch("search")}}
+        id:launcher;objectName:"appsPopup";x:12;padding:0;followFocus:true
+        onOpened:{restoreFocus.stop();scrollToTop();Qt.callLater(startMenu.focusSearch)}
+        width:Math.min(650,bar.width-24)
+        background:Rectangle {color:bar.colors.window;radius:(bar.colors.radius||10)+4;border.color:bar.colors.border}
+        StartMenu {id:startMenu;objectName:"startMenu";width:parent.width;colors:bar.colors;controller:panelData;translate:bar.t;active:launcher.opened
+            onMenuOpenedChanged:if(!menuOpened)focusLoss.restart()
+            onLaunched:launcher.close()
+            onMoreRecent:{launcher.close();bar.showActivity("recent")}
         }
     }
     component ContextActions:ColumnLayout {
