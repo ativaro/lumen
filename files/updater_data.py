@@ -14,7 +14,6 @@ from lumen_i18n import tr, worker_environment
 
 REMOTE = 'https://github.com/ativaro/lumen.git'
 SYSTEM_ROOT = Path('/usr/share/lumen')
-PREVIOUS_OFFICIAL_REMOTE = 'https://forge.example.invalid/ativaro/lumen.git'
 
 
 def data_root():
@@ -75,7 +74,7 @@ def source_url():
     sources = set()
     for root in installations():
         value = read_json(root/'install.json').get('source_url')
-        if value is None or value == PREVIOUS_OFFICIAL_REMOTE:
+        if value is None:
             sources.add(REMOTE)
             continue
         if not isinstance(value, str): raise ValueError(tr('Ungültige Lumen-Update-Quelle.'))

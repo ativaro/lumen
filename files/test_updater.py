@@ -99,15 +99,21 @@ class UpdaterTest(unittest.TestCase):
         with patch.object(updater, 'installations', return_value=[self.install, self.root/'legacy']):
             with self.assertRaises(ValueError): updater.source_url()
 
-    def test_github_channel_accepts_existing_official_installations_together(self):
+    def test_official_installations_keep_their_recorded_source(self):
+        for url in ('https://forge.example.invalid/ativaro/lumen.git', 'https://github.com/ativaro/lumen.git'):
+            with self.subTest(source=url):
+                updater.save_json(self.install/'install.json', dict(source_url=url))
+                with patch.object(updater, 'REMOTE', 'https://github.com/ativaro/lumen.git'):
+                    self.assertEqual(updater.source_url(), url)
+                self.assertEqual(updater.read_json(self.install/'install.json')['source_url'], url)
+
+    def test_mixed_official_installations_do_not_silently_change_channels(self):
         system = self.root/'system'
         updater.save_json(self.install/'install.json', dict(source_url='https://forge.example.invalid/ativaro/lumen.git'))
         updater.save_json(system/'install.json', dict(source_url='https://github.com/ativaro/lumen.git'))
         with patch.object(updater, 'REMOTE', 'https://github.com/ativaro/lumen.git'), \
                 patch.object(updater, 'installations', return_value=[self.install, system]):
-            self.assertEqual(updater.source_url(), 'https://github.com/ativaro/lumen.git')
-        self.assertEqual(updater.read_json(self.install/'install.json')['source_url'],
-                         'https://forge.example.invalid/ativaro/lumen.git')
+            with self.assertRaises(ValueError): updater.source_url()
 
     def test_origin_change_after_check_cannot_install(self):
         plan = updater.check()
@@ -135,11 +141,11 @@ class UpdaterTest(unittest.TestCase):
     def test_official_channel_keeps_prior_cached_checkout_and_old_plans_separate(self):
         previous=Path(os.environ['XDG_CACHE_HOME'])/'lumen/updater/source'
         previous.mkdir(parents=True);(previous/'local-edit').write_text('keep')
+        updater.save_json(self.install/'install.json',dict(source_url='https://forge.example.invalid/ativaro/lumen.git'))
+        self.assertEqual(updater.source_url(),'https://forge.example.invalid/ativaro/lumen.git')
         source=updater.source_root()
-        updater.save_json(self.install/'install.json',dict(source_url=updater.PREVIOUS_OFFICIAL_REMOTE))
-        self.assertEqual(updater.source_url(),str(self.repo))
         self.assertNotEqual(previous,source)
-        updater.save_json(self.install/'install.json',dict(source_url='https://forge.example.test/team/lumen.git'))
+        updater.save_json(self.install/'install.json',dict(source_url='https://github.com/ativaro/lumen.git'))
         self.assertNotEqual(source,updater.source_root())
         self.assertEqual((previous/'local-edit').read_text(),'keep')
 

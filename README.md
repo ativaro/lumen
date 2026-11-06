@@ -70,7 +70,7 @@ Fehlt der Updater, kannst du ihn aus dem privaten Repository vorübergehend lade
 
 Prüfe die Auswahl und wähle **Alles aktualisieren**. Persönliche Inhalte, Einstellungen und vorhandene gültige Modelle bleiben erhalten. Systempakete und Flatpaks sind zusätzliche, ausdrückliche Auswahlen. Öffne Apps anschließend neu; Änderungen an Plasma-Panels werden spätestens nach einer neuen Anmeldung geladen.
 
-Ab Version 1.2.0-116 bezieht der Updater den offiziellen Desktop-Stand von GitHub. Bei älteren Installationen mit Forgejo als Quelle öffne einmal den Updater aus dem GitHub-Checkout wie oben beschrieben. Auch Installationen ohne gespeicherte Quelle verwenden GitHub. Eine selbst konfigurierte Repository-Adresse wird weiter berücksichtigt. [Installationsanleitung](INSTALL.md#native-updates).
+**Updatequellen:** Tester beziehen Lumen über GitHub; interne internal-desktop-Installationen über Forgejo. Ab Version 1.2.0-117 behält jede Installation ihre gespeicherte Repository-Adresse. Der Updater wechselt nicht automatisch zwischen diesen Quellen. Ohne gespeicherte Quelle verwendet er GitHub. [Installationsanleitung](INSTALL.md#native-updates).
 
 ## Was die einzelnen Apps können
 

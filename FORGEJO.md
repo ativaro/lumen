@@ -1,14 +1,18 @@
 # Lumen Desktop: Quellen und Updates
 
-Ab Version 1.2.0-116 liegt der offizielle Desktop-Updatekanal auf
-[GitHub · ativaro/lumen](https://github.com/ativaro/lumen), Branch `main`.
-Das Repository bleibt privat. Der vorhandene private
-[Forgejo-Stand](https://forge.example.invalid/ativaro/lumen) wird mit demselben Quellinhalt
-weitergeführt. Zugangsdaten gehören niemals in Clone-URLs oder Skriptargumente.
+Lumen Desktop wird über zwei getrennte Quellen verteilt:
 
-Der aktuelle Updater verwendet GitHub auch für bisherige offizielle
-Forgejo-Installationen und Installationen ohne gespeicherte Quelle.
-Eine ausdrücklich konfigurierte eigene Repository-Adresse gilt weiter.
+- **Intern / internal-desktop:** [Forgejo · ativaro/lumen](https://forge.example.invalid/ativaro/lumen), Branch `main`.
+- **Tester:** [GitHub · ativaro/lumen](https://github.com/ativaro/lumen), Branch `main`.
+
+Beide Repositories bleiben privat und enthalten denselben geprüften Quellinhalt.
+Tester benötigen Zugriff auf GitHub, aber keinen Zugang zum internen Forgejo.
+Zugangsdaten gehören niemals in Clone-URLs oder Skriptargumente.
+
+Ab Version 1.2.0-117 verwendet der Updater die bei der Installation gespeicherte
+Quelle. Forgejo bleibt Forgejo; GitHub bleibt GitHub. Eigene Repository-Adressen
+bleiben ebenfalls erhalten. Nur wenn keine Quelle gespeichert ist, gilt GitHub
+als Standard. Es erfolgt keine automatische Umleitung zwischen den Kanälen.
 Der Updater prüft vor der Installation, ob der Kandidat die bereits verwendeten
 Server-Apps und die native Topbar mitbringt. Alte Updatepläne werden beim
 Quellenwechsel abgewiesen; Quellcaches bleiben nach Repository getrennt.
