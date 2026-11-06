@@ -18,13 +18,13 @@ Und wenn du Lumen noch stärker in deinen Alltag einbinden möchtest, verbinde d
 
 ## Installation
 
-**Aktueller Zugang:** Der Quellstand wird privat auf [Forgejo](https://forge.example.invalid/ativaro/lumen) verteilt. Ein öffentlicher Desktop-Download ist noch nicht freigegeben. Es gelten die [Lumen-EULA](LICENSE) und die [Lizenzen der enthaltenen Komponenten](THIRD_PARTY_NOTICES.md).
+**Aktueller Zugang:** Der Quellstand wird privat auf [GitHub](https://github.com/ativaro/lumen) verteilt. Ein öffentlicher Desktop-Download ist noch nicht freigegeben. Es gelten die [Lumen-EULA](LICENSE) und die [Lizenzen der enthaltenen Komponenten](THIRD_PARTY_NOTICES.md).
 
 ### Voraussetzungen
 
 Für den vollständigen Desktop: **Arch Linux oder CachyOS mit KDE Plasma 6**, angemeldet als normaler Benutzer in einer grafischen Sitzung. Der Installer installiert keine Linux-Distribution und keinen Plasma-Desktop. Du brauchst Internet für fehlende Pakete und die Einrichtung; Paketinstallationen können dein Linux-Passwort verlangen.
 
-Für den derzeitigen Download brauchst du Zugriff auf das private Repository [ativaro/lumen auf Forgejo](https://forge.example.invalid/ativaro/lumen) und eine Netzwerkverbindung zu diesem Forgejo-Server. Eine Anmeldung im Browser meldet Git im Terminal nicht automatisch an. Verwende deinen eingerichteten Git-Zugang oder die Anmeldeabfrage von Git; schreibe keine Zugangsdaten in Befehle oder Repository-URLs.
+Für den derzeitigen Download brauchst du Zugriff auf das private Repository [ativaro/lumen auf GitHub](https://github.com/ativaro/lumen) und eine Internetverbindung. Eine Anmeldung im Browser meldet Git im Terminal nicht automatisch an. Verwende deinen eingerichteten Git-Zugang oder die Anmeldeabfrage von Git; schreibe keine Zugangsdaten in Befehle oder Repository-URLs.
 
 ### Installieren und einrichten
 
@@ -37,7 +37,7 @@ sudo pacman -S --needed git
 Wechsle in einen Ordner, in dem noch kein Unterordner `lumen` existiert, und starte **ohne sudo**:
 
 ```bash
-git clone --branch main --single-branch https://forge.example.invalid/ativaro/lumen.git
+git clone --branch main --single-branch https://github.com/ativaro/lumen.git
 bash lumen/bootstrap.sh
 ```
 
@@ -65,12 +65,12 @@ lumen-updater
 Fehlt der Updater, kannst du ihn aus dem privaten Repository vorübergehend laden. Git-Zugang und die vorhandene Lumen-Laufzeit werden benötigt. Als normaler Benutzer in der Desktop-Sitzung:
 
 ```bash
-(d="$(mktemp -d)" && trap 'rm -rf -- "$d"' EXIT && git clone --depth 1 --branch main --single-branch https://forge.example.invalid/ativaro/lumen.git "$d/lumen" && bash "$d/lumen/bin/lumen-updater")
+(d="$(mktemp -d)" && trap 'rm -rf -- "$d"' EXIT && git clone --depth 1 --branch main --single-branch https://github.com/ativaro/lumen.git "$d/lumen" && bash "$d/lumen/bin/lumen-updater")
 ```
 
 Prüfe die Auswahl und wähle **Alles aktualisieren**. Persönliche Inhalte, Einstellungen und vorhandene gültige Modelle bleiben erhalten. Systempakete und Flatpaks sind zusätzliche, ausdrückliche Auswahlen. Öffne Apps anschließend neu; Änderungen an Plasma-Panels werden spätestens nach einer neuen Anmeldung geladen.
 
-Bei älteren Installationen mit GitHub als offizieller Quelle öffne einmal den Updater aus dem Forgejo-Checkout wie oben beschrieben. Dieser verwendet Forgejo auch dann, wenn die alte Installation noch keine Quelle gespeichert hat. Eine selbst konfigurierte Repository-Adresse wird weiter berücksichtigt. [Installationsanleitung](INSTALL.md#native-updates).
+Ab Version 1.2.0-116 bezieht der Updater den offiziellen Desktop-Stand von GitHub. Bei älteren Installationen mit Forgejo als Quelle öffne einmal den Updater aus dem GitHub-Checkout wie oben beschrieben. Auch Installationen ohne gespeicherte Quelle verwenden GitHub. Eine selbst konfigurierte Repository-Adresse wird weiter berücksichtigt. [Installationsanleitung](INSTALL.md#native-updates).
 
 ## Was die einzelnen Apps können
 

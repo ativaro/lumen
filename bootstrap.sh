@@ -49,8 +49,8 @@ bootstrap() {
         message 'Lumen wird heruntergeladen …' 'Downloading Lumen …'
         source="$stage/lumen"
         if ! command -v git >/dev/null; then sudo pacman -S --needed --noconfirm -- git; fi
-        if ! git clone --depth=1 --branch main --single-branch https://forge.example.invalid/ativaro/lumen.git "$source"; then
-            message 'Download fehlgeschlagen. Prüfe den Git-Zugriff auf das private Forgejo-Repository.' 'Download failed. Check Git access to the private Forgejo repository.' >&2
+        if ! git clone --depth=1 --branch main --single-branch https://github.com/ativaro/lumen.git "$source"; then
+            message 'Download fehlgeschlagen. Prüfe den Git-Zugriff auf das private GitHub-Repository.' 'Download failed. Check Git access to the private GitHub repository.' >&2
             return 1
         fi
     fi

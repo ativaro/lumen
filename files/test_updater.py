@@ -99,6 +99,16 @@ class UpdaterTest(unittest.TestCase):
         with patch.object(updater, 'installations', return_value=[self.install, self.root/'legacy']):
             with self.assertRaises(ValueError): updater.source_url()
 
+    def test_github_channel_accepts_existing_official_installations_together(self):
+        system = self.root/'system'
+        updater.save_json(self.install/'install.json', dict(source_url='https://forge.example.invalid/ativaro/lumen.git'))
+        updater.save_json(system/'install.json', dict(source_url='https://github.com/ativaro/lumen.git'))
+        with patch.object(updater, 'REMOTE', 'https://github.com/ativaro/lumen.git'), \
+                patch.object(updater, 'installations', return_value=[self.install, system]):
+            self.assertEqual(updater.source_url(), 'https://github.com/ativaro/lumen.git')
+        self.assertEqual(updater.read_json(self.install/'install.json')['source_url'],
+                         'https://forge.example.invalid/ativaro/lumen.git')
+
     def test_origin_change_after_check_cannot_install(self):
         plan = updater.check()
         updater.save_json(self.install/'install.json', dict(source_url='https://forge.example.test/team/lumen.git'))

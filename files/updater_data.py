@@ -12,9 +12,9 @@ import time
 from urllib.parse import urlsplit
 from lumen_i18n import tr, worker_environment
 
-REMOTE = 'https://forge.example.invalid/ativaro/lumen.git'
+REMOTE = 'https://github.com/ativaro/lumen.git'
 SYSTEM_ROOT = Path('/usr/share/lumen')
-PREVIOUS_OFFICIAL_REMOTE = 'https://github.com/ativaro/lumen.git'
+PREVIOUS_OFFICIAL_REMOTE = 'https://forge.example.invalid/ativaro/lumen.git'
 
 
 def data_root():

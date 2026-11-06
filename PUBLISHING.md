@@ -1,8 +1,10 @@
 # Build and publish Lumen
 
-Forgejo stores this release of distributable source, tests, documentation and desktop artwork.
-Publication is limited to the existing private Forgejo repository; do not push
-this release or its tags to GitHub. GitHub Actions remain disabled. Personal system inventories, session logs, app data,
+GitHub stores the current Desktop update release at `ativaro/lumen` on `main`.
+The repository remains private; keep the existing Forgejo source in sync.
+When their histories differ, publish the reviewed source tree on top of each
+remote's existing history without force-pushing or copying private development logs.
+GitHub Actions remain disabled. Personal system inventories, session logs, app data,
 credentials, backups and desktop screenshots do not belong in this repository.
 See [INSTALL.md](INSTALL.md) for installation and recovery.
 

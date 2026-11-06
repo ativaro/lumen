@@ -11,11 +11,10 @@ normal user. Install Plasma and a display manager through your distribution firs
 Lumen supplies its applications, applets, themes, decorations and wallpapers;
 it uses KDE's compositor, tray, clock, task manager and pager.
 
-## Forgejo access on a fresh computer or VM
+## GitHub access on a fresh computer or VM
 
-**The current repository is private on Forgejo.** Your account needs access to
-[ativaro/lumen](https://forge.example.invalid/ativaro/lumen), and this Forgejo host must be
-reachable from the computer being installed. A browser login does not authenticate
+**The current repository is private on GitHub.** Your account needs access to
+[ativaro/lumen](https://github.com/ativaro/lumen) and an Internet connection. A browser login does not authenticate
 Git in a new terminal or VM.
 
 Install Git if needed:
@@ -30,12 +29,11 @@ Never put passwords or tokens in a URL, shell command, documentation or chat.
 Check access with:
 
 ```bash
-git ls-remote https://forge.example.invalid/ativaro/lumen.git HEAD
+git ls-remote https://github.com/ativaro/lumen.git HEAD
 ```
 
 Success prints a commit and `HEAD`. Keep `ativaro` in the URL: it is the repository
 owner. If authentication fails, check account access and your credential helper.
-A missing route to the private Forgejo host cannot be fixed by Git credentials.
 An unauthenticated download command cannot read this private repository.
 
 ## One-command installation
@@ -43,17 +41,17 @@ An unauthenticated download command cannot read this private repository.
 Inside your Plasma session, run this as your normal user (do not prefix it with sudo):
 
 ```bash
-git clone --branch main --single-branch https://forge.example.invalid/ativaro/lumen.git && bash lumen/bootstrap.sh
+git clone --branch main --single-branch https://github.com/ativaro/lumen.git && bash lumen/bootstrap.sh
 ```
 
 Run from a directory that does not already contain `lumen`, after completing the
-[Forgejo access check](#forgejo-access-on-a-fresh-computer-or-vm) above.
+[GitHub access check](#github-access-on-a-fresh-computer-or-vm) above.
 To update an existing Lumen installation, run
 from **any directory** in your desktop session as your normal user. Neither an
 installed Updater nor the original checkout is needed:
 
 ```bash
-(d="$(mktemp -d)" && trap 'rm -rf -- "$d"' EXIT && git clone --depth 1 --branch main --single-branch https://forge.example.invalid/ativaro/lumen.git "$d/lumen" && bash "$d/lumen/bin/lumen-updater")
+(d="$(mktemp -d)" && trap 'rm -rf -- "$d"' EXIT && git clone --depth 1 --branch main --single-branch https://github.com/ativaro/lumen.git "$d/lumen" && bash "$d/lumen/bin/lumen-updater")
 ```
 
 The update command downloads and opens the latest graphical **Lumen Updater**,
@@ -141,7 +139,7 @@ sudo pacman -S --needed base-devel git pyside6 python-gobject python-pillow \
   python-dbus qt6-tools plasma-workspace plasma-desktop kde-cli-tools \
   breeze-icons kio-extras kio-fuse openssl ffmpeg libnotify \
   wireplumber libpulse networkmanager systemsettings
-git clone https://forge.example.invalid/ativaro/lumen.git
+git clone https://github.com/ativaro/lumen.git
 cd lumen
 ./packaging/arch/build-package.sh --install
 lumen-desktop-setup --apply --replace-panels
@@ -291,16 +289,16 @@ search; `lumen-search-preview` remains an alias. See [SEARCH-PREVIEW.md](SEARCH-
 
 ## Native updates
 
-Distributions from the former official GitHub source, and older installations
-with no recorded origin, use the private Forgejo `main` when the Forgejo Updater
-runs. An explicitly configured custom repository keeps its own URL. To start
-using this Updater from an older installation, run the Forgejo update command
+Starting with 1.2.0-116, installations from the former official Forgejo source,
+and installations with no recorded origin, use the private GitHub `main`.
+An explicitly configured custom repository keeps its own URL. To start
+using this Updater from an older installation, run the GitHub update command
 in the installation section above. System package updates leave Lumen itself
 to the checked repository bundle.
 
 Start `lumen-updater`, or use Lumen → Updater in the top panel, Lumen Apps, or
 Settings → Maintenance. Checking fetches
-private `main` into `$XDG_CACHE_HOME/lumen/updater/source`; installation uses the
+private `main` into `$XDG_CACHE_HOME/lumen/updater/sources/<channel-hash>`; installation uses the
 exact reviewed commit. A changed checkout is refused. User and system bundles are
 both updated when installed. The existing installers retain data/settings and
 refresh app launchers, desktop assets and integrations without replacing panels.

@@ -1,22 +1,22 @@
-# Lumen Desktop auf Forgejo
+# Lumen Desktop: Quellen und Updates
 
-Die maßgebliche private Quellveröffentlichung liegt unter
-[ativaro/lumen](https://forge.example.invalid/ativaro/lumen). Neue Desktop-Installationen
-verwenden den dortigen `main`-Stand und den authentifizierten Installationsweg
-in [INSTALL.md](INSTALL.md). Ein Browserlogin allein authentifiziert Git nicht.
-Zugangsdaten niemals in Clone-URLs, Skriptargumente oder Dokumentation schreiben.
+Ab Version 1.2.0-116 liegt der offizielle Desktop-Updatekanal auf
+[GitHub · ativaro/lumen](https://github.com/ativaro/lumen), Branch `main`.
+Das Repository bleibt privat. Der vorhandene private
+[Forgejo-Stand](https://forge.example.invalid/ativaro/lumen) wird mit demselben Quellinhalt
+weitergeführt. Zugangsdaten gehören niemals in Clone-URLs oder Skriptargumente.
 
-Der aktuelle Updater verwendet für frühere offizielle GitHub-Installationen
-und für Installationen ohne gespeicherte Quelle Forgejo. Wer noch den alten
-Updater hat, kann ihn einmal aus dem Forgejo-Checkout starten. Eine ausdrücklich
-konfigurierte eigene Repository-Adresse gilt weiter. Der Updater prüft vor der
-Installation, ob der Kandidat die bereits verwendeten Server-Apps und die native
-Topbar mitbringt. Dieser Desktop-Stand wird auf dem privaten Forgejo veröffentlicht.
+Der aktuelle Updater verwendet GitHub auch für bisherige offizielle
+Forgejo-Installationen und Installationen ohne gespeicherte Quelle.
+Eine ausdrücklich konfigurierte eigene Repository-Adresse gilt weiter.
+Der Updater prüft vor der Installation, ob der Kandidat die bereits verwendeten
+Server-Apps und die native Topbar mitbringt. Alte Updatepläne werden beim
+Quellenwechsel abgewiesen; Quellcaches bleiben nach Repository getrennt.
 
 Das Repository enthält verteilbare Quellen, Tests, Anleitungen und Assets.
 Private Konfiguration, Modelle, Nutzerdaten, Serverzugänge und Sicherungen
-gehören nicht hinein. Ein Quellpush ist weder eine Installation auf dem
-Desktop noch ein Serverdeployment oder eine neue Mobile-Ausgabe.
+gehören nicht hinein. Ein Quellpush ist keine Desktop-Installation und kein
+Serverdeployment oder Mobile-Release.
 
-[Veröffentlichung und Prüfungen](PUBLISHING.md) ·
+[Installation](INSTALL.md) · [Veröffentlichung und Prüfungen](PUBLISHING.md) ·
 [historische Quellbelege](PUBLICATION.md)
