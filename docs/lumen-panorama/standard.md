@@ -106,7 +106,8 @@ Startmenü „Dein Start“. Die Suche erhält den Tastaturfokus. Angeheftete Ap
 Menüknopf klappt die Ansicht zu. Beim Wechsel zwischen Menüknöpfen ist nur die
 gewählte Ansicht geöffnet. Eigene App-Fenster behalten ihre Fenstersteuerung.
 Plasma führt den gemeinsamen Mitteilungsverlauf und alle Aktionen. Der erste
-Klick zeigt bis zu drei aktuelle Meldungen. Zugangsdaten, Verbindungswechsel und
+Klick zeigt bis zu drei aktuelle Meldungen. Desktop-Popups erscheinen oben rechts
+auf dem von Plasma priorisierten Monitor. Zugangsdaten, Verbindungswechsel und
 Geräteeinstellungen werden erst im dafür zuständigen vollständigen Menü behandelt.
 
 Die vollständigen Netzwerk- und Audio-Menüs schließen an derselben Kante direkt an die Topbar an wie ihre Kurzansichten.

@@ -12,7 +12,7 @@ Item {
     property string helper: "/usr/bin/lumen-panel"
     property string uiLanguage: "de"
     property bool panelOpen: false
-    property var popupAnchor: null
+    required property var presenter
     property bool primary: false
     property bool ownsPopups: false
     property bool presenterConfigured: false
@@ -237,7 +237,7 @@ Item {
         }
     }
     NotificationToast {
-        id: popup; uiLanguage: host.uiLanguage; anchorItem: host.popupAnchor
+        id: popup; uiLanguage: host.uiLanguage; presenter: host.presenter
         onAction: (identity,operation)=>host.act(identity,popup.notice ? !!popup.notice.system : true,operation)
         onCenterRequested: host.showAll()
     }

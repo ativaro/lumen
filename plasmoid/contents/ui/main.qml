@@ -25,7 +25,7 @@ PlasmoidItem {
             catch(error){console.warn("Invalid topbar notification request")}
         }else host.showAll()
     }
-    NotificationHost {id:host;helper:root.helper;uiLanguage:root.uiLanguage
+    NotificationHost {id:host;presenter:root;helper:root.helper;uiLanguage:root.uiLanguage
         onUnreadChanged:{Plasmoid.configuration.unread=unread;Plasmoid.configuration.writeConfig()}
     }
     Component.onCompleted:{requestsReady=true;Qt.callLater(updatePresenter);acknowledge();language.connectSource(helper+" --language")}

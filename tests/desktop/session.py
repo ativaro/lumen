@@ -102,28 +102,55 @@ try:
         for screen in (0,1):
             assert any(row['screen']==screen and row['location']=='bottom' and 'org.kde.plasma.icontasks' in row['widgets'] for row in second_panels),second_panels
         (root/'layout.json').write_text(json.dumps(dict(idempotent=True,original_panels_preserved=True,panels=second_panels)))
-        def popup_count():
+        def popups_on_desktop():
             probe=root/'popups.js';answer=root/'kwin-geometry.json';answer.unlink(missing_ok=True)
-            probe.write_text('callDBus("org.lumen.MenuTestA","/Control","","record",JSON.stringify({count:workspace.windowList().filter(w=>w.caption==="Lumen Notification").length}));')
+            probe.write_text('callDBus("org.lumen.MenuTestA","/Control","","record",JSON.stringify(workspace.windowList().filter(w=>w.caption==="Lumen Notification").map(w=>({output:w.output.name,x:w.frameGeometry.x,y:w.frameGeometry.y,width:w.frameGeometry.width,height:w.frameGeometry.height}))));')
             identity=subprocess.check_output(['qdbus6','org.kde.KWin','/Scripting','org.kde.kwin.Scripting.loadScript',str(probe)],text=True).strip()
             subprocess.run(['qdbus6','org.kde.KWin','/Scripting/Script'+identity,'org.kde.kwin.Script.run'],check=True,capture_output=True)
             for attempt in range(30):
-                if answer.exists():return json.loads(answer.read_text())['count']
+                if answer.exists():return json.loads(answer.read_text())
                 time.sleep(.05)
             raise AssertionError('No popup count from private compositor')
+        screen_checks=[]
+        def check_toast(summary):
+            layout=json.loads(subprocess.check_output(['kscreen-doctor','-j'],text=True))['outputs']
+            primary=next(o for o in layout if o['priority']==1)
+            other=next(o for o in layout if o['name']!=primary['name'])
+            input_device.stdin.write(f"move {other['pos']['x']+50} {other['pos']['y']+50}\n")
+            input_device.stdin.flush()
+            assert input_device.stdout.readline().strip()=='OK'
+            subprocess.run(['notify-send','--app-name=LumenQA',summary,'Exactly one Lumen popup'],check=True)
+            time.sleep(.4)
+            windows=popups_on_desktop()
+            assert len(windows)==1,windows
+            toast=windows[0]
+            geometry=json.loads(evaluate('print(JSON.stringify(screenGeometry(0)));'))
+            assert toast['output']==primary['name'],(toast,primary['name'],geometry)
+            assert abs(toast['x']+toast['width']-(geometry['x']+geometry['width']-24))<=1,(toast,geometry)
+            assert geometry['y']+75<=toast['y']<=geometry['y']+max(76,area['y'])+1,(toast,geometry)
+            screen_checks.append(dict(primary=primary['name'],pointer=other['name'],toast=toast,geometry=geometry))
         time.sleep(1)
-        subprocess.run(['notify-send','--app-name=LumenQA','After cutover','Exactly one Lumen popup'],check=True)
-        time.sleep(.4);assert popup_count()==1,'Expected one native popup'
+        check_toast('After cutover')
         def popups(enabled):
             subprocess.run(['python3','-c','import sys;sys.path.insert(0,"/source/files");from lumen_notifications import notification_options;notification_options({"native_popups":'+str(enabled)+'})'],check=True)
             time.sleep(5.2)
         popups(False)
         subprocess.run(['notify-send','--app-name=LumenQA','Popup disabled','Keep this in the center'],check=True)
-        time.sleep(.3);assert popup_count()==0,'Disabled popups must not switch to another presenter'
+        time.sleep(.3);assert not popups_on_desktop(),'Disabled popups must not switch to another presenter'
         popups(True)
-        assert popup_count()==0,"Re-enabling must not replay notifications received while disabled"
-        subprocess.run(['notify-send','--app-name=LumenQA','Popup enabled again','Exactly one Lumen popup'],check=True)
-        time.sleep(.4);assert popup_count()==1,'Expected one restored popup'
+        assert not popups_on_desktop(),"Re-enabling must not replay notifications received while disabled"
+        original=screen_checks[0]['primary']
+        alternate=screen_checks[0]['pointer']
+        subprocess.run(['kscreen-doctor','output.'+alternate+'.priority.1'],check=True,capture_output=True)
+        try:
+            for _ in range(30):
+                if json.loads(evaluate('print(JSON.stringify(screenGeometry(0)));'))['x']!=screen_checks[0]['geometry']['x']:break
+                time.sleep(.1)
+            check_toast('Popup enabled again')
+            assert screen_checks[-1]['primary']==alternate,screen_checks
+        finally:
+            subprocess.run(['kscreen-doctor','output.'+original+'.priority.1'],check=True,capture_output=True)
+        (root/'notification-screens.json').write_text(json.dumps(screen_checks,indent=2))
         (root/'popup-toggle.json').write_text(json.dumps(dict(enabled=1,disabled=0,reenabled=1)))
         # Exercise the real Plasma presenter over the same bus as the native bar.
         bar.terminate();bar.wait(timeout=5)
