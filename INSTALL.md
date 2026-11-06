@@ -289,12 +289,16 @@ search; `lumen-search-preview` remains an alias. See [SEARCH-PREVIEW.md](SEARCH-
 
 ## Native updates
 
-Starting with 1.2.0-116, installations from the former official Forgejo source,
-and installations with no recorded origin, use the private GitHub `main`.
-An explicitly configured custom repository keeps its own URL. To start
-using this Updater from an older installation, run the GitHub update command
-in the installation section above. System package updates leave Lumen itself
-to the checked repository bundle.
+Starting with 1.2.0-117, each installation retains its recorded repository:
+GitHub for testers, Forgejo for internal internal-desktop installations. Custom repositories
+also retain their own URL. GitHub is only the default when no source was recorded.
+The updater does not silently switch channels. Installations on the same computer
+with conflicting sources must be updated separately.
+
+For an internal internal-desktop installation, clone
+`https://forge.example.invalid/ativaro/lumen.git` instead of the GitHub URL above and run its
+local `bootstrap.sh`. The installer records the checkout's source. System package
+updates leave Lumen itself to the checked repository bundle.
 
 Start `lumen-updater`, or use Lumen → Updater in the top panel, Lumen Apps, or
 Settings → Maintenance. Checking fetches
