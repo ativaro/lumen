@@ -14,7 +14,7 @@ ColumnLayout {
     readonly property var noticeState:controller.noticePreview
     readonly property var detailData:controller.details[topic]||({})
     readonly property var entries:rows()
-    readonly property string title:t(({notifications:"Mitteilungen",network:"Netzwerk",audio:"Audio",settings:"Einstellungen"})[topic]||"Lumen")
+    readonly property string title:t(({notifications:"Mitteilungen",network:"Netzwerk",audio:"Audio"})[topic]||"Lumen")
     signal drill(string key)
     signal dismiss()
     signal toggleQuiet()
@@ -23,10 +23,6 @@ ColumnLayout {
     function rows(){
         if(notices)return (noticeState.items||[]).map(n=>({key:n.key,title:n.title,caption:n.source,
             detail:n.body,icon:n.icon,unread:n.unread,time:Qt.formatTime(new Date(n.updated*1000),"hh:mm")}))
-        if(topic==="settings")return [
-            {key:"network",title:t("Netzwerk"),icon:"network-wireless"},
-            {key:"audio",title:t("Audio"),icon:"audio-card"},
-            {key:"preferences",title:t("Lumen-Einstellungen"),icon:"settings-configure"}]
         if(topic==="network"){
             const devices=detailData.devices||[]
             const active=types=>devices.filter(d=>types.includes(d.type)&&d.profile && d.profile!=="--").map(d=>d.profile).join(", ")
@@ -89,7 +85,7 @@ ColumnLayout {
     Rectangle {color:menu.colors.border;implicitHeight:1;Layout.topMargin:5;Layout.fillWidth:true}
     RowLayout {
         Layout.fillWidth:true
-        BarButton {objectName:"quickMore";colors:menu.colors;text:menu.t(({notifications:"Alle Mitteilungen",network:"Netzwerk öffnen",audio:"Audio öffnen",settings:"Systemsteuerung öffnen"})[menu.topic]||"Öffnen");glyph:"go-next";onClicked:menu.drill("")}
+        BarButton {objectName:"quickMore";colors:menu.colors;text:menu.t(({notifications:"Alle Mitteilungen",network:"Netzwerk öffnen",audio:"Audio öffnen"})[menu.topic]||"Öffnen");glyph:"go-next";onClicked:menu.drill("")}
         Item {Layout.fillWidth:true}
         BarButton {visible:menu.notices;colors:menu.colors;text:menu.t("Nicht stören");glyph:menu.quiet?"notifications-disabled":"notifications";current:menu.quiet;onClicked:menu.toggleQuiet()}
     }

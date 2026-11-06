@@ -176,7 +176,7 @@ Window {
         panelData.refresh();panelData.inspect("recent")
     }
     function quick(topic){
-        const full=topic==="audio"?audioPopup:topic==="network"?networkPopup:topic==="settings"?systemPopup:null
+        const full=topic==="audio"?audioPopup:topic==="network"?networkPopup:null
         if(full?.visible){closeOtherMenus(null);return}
         const same=quickTopic===topic
         quickTopic=topic
@@ -188,10 +188,6 @@ Window {
         if(topic==="notifications"){
             if(key)panelData.noticeCommand("open",key)
             else panelData.launch("notifications")
-        }else if(topic==="settings"){
-            if(key==="preferences")panelData.launch("settings")
-            else if(key==="network" || key==="audio")openDeviceMenu(key)
-            else {panelData.refresh();systemPopup.open()}
         }else openDeviceMenu(topic,Number(key)||0)
     }
     function openDeviceMenu(topic,section=0){
@@ -233,7 +229,7 @@ Window {
     Rectangle {
         id:leftIsland;objectName:"leftIsland";visible:bar.classic
         x:12;y:12;height:bar.conversationOpen?bar.barSize-24+bar.conversationHeight:activityPopup.visible?activityPopup.y+activityPopup.height-12:bar.barSize-24;width:bar.width-24
-        radius:(bar.colors.radius||10)+7;bottomLeftRadius:launcher.visible?0:radius;bottomRightRadius:(quickMenu.visible || networkPopup.visible || audioPopup.visible)?0:radius;color:bar.colors.window;border.color:bar.colors.border
+        radius:(bar.colors.radius||10)+7;bottomLeftRadius:launcher.visible?0:radius;bottomRightRadius:(quickMenu.visible || systemPopup.visible || networkPopup.visible || audioPopup.visible)?0:radius;color:bar.colors.window;border.color:bar.colors.border
     }
     MouseArea {
         x:bar.classic?12:0;y:bar.classic?12:0;width:bar.width-2*x;height:bar.barSize-2*y
@@ -371,7 +367,7 @@ Window {
                     visible:!bar.quiet && (quickMenu.visible && bar.quickTopic==="notifications" && panelData.noticePreview.items?panelData.noticePreview.unread:bar.stateData.unread)>0}
             }
             BarButton {colors:bar.colors;objectName:"clockButton";text:bar.clockText;visible:bar.width>460;onClicked:bar.toggleMenu(calendar)}
-            BarButton {id:compactControls;key:!bar.classic;objectName:"compactControlsButton";colors:bar.colors;text:bar.t("Systemsteuerung");glyph:"settings-configure";iconOnly:true;current:quickMenu.visible && bar.quickTopic==="settings";onClicked:bar.quick("settings")}
+            BarButton {id:compactControls;key:!bar.classic;objectName:"compactControlsButton";colors:bar.colors;text:bar.t("Systemsteuerung");glyph:"settings-configure";iconOnly:true;current:systemPopup.visible;onClicked:bar.toggleMenu(systemPopup)}
         onImplicitWidthChanged:Qt.callLater(bar.fit)
     }
     component BarPopup:Popup {
@@ -431,7 +427,7 @@ Window {
             onMenuOpenedChanged:if(!menuOpened)focusLoss.restart()
             onLaunched:launcher.close()
             onMoreRecent:{launcher.close();bar.showActivity("recent")}
-            onSettingsRequested:bar.quick("settings")
+            onSettingsRequested:bar.toggleMenu(systemPopup)
         }
     }
     component ContextActions:ColumnLayout {
@@ -496,12 +492,16 @@ Window {
         id:audioPopup;objectName:"audioPopup";topic:"audio"
         onLaunchStudio:panelData.launch("app","meetings")
     }
-    BarPopup {
+    DockedPopup {
         id:systemPopup;objectName:"systemPopup";x:bar.width-width-12
+        onOpened:panelData.refresh()
         ColumnLayout {
             width:parent.width
             spacing:12
-            Label {text:bar.uiLocale.toString(new Date(),"dddd, d. MMMM");color:bar.colors.text;font.pixelSize:18;wrapMode:Text.Wrap;Layout.fillWidth:true}
+            RowLayout {Layout.fillWidth:true
+                Label {text:bar.t("Systemsteuerung");color:bar.colors.text;font.pixelSize:20;font.weight:Font.Medium;Layout.fillWidth:true}
+                BarButton {colors:bar.colors;text:bar.t("Schließen");glyph:"window-close";iconOnly:true;onClicked:systemPopup.close()}
+            }
             RowLayout {visible:typeof(bar.stateData.system?.brightness)==="number";Layout.fillWidth:true
                 Label {text:bar.t("Helligkeit");color:bar.colors.text}
                 ControlSlider {controller:panelData;action:"brightness";modelValue:bar.stateData.system?.brightness;Layout.fillWidth:true;Accessible.name:bar.t("Helligkeit")}
@@ -511,7 +511,7 @@ Window {
             BarButton {objectName:"networkMenuEntry";colors:bar.colors;text:bar.t("Netzwerk");glyph:"network-wireless";Layout.fillWidth:true;onClicked:bar.openDeviceMenu("network")}
             BarButton {objectName:"audioMenuEntry";colors:bar.colors;text:bar.t("Audio");glyph:"audio-card";Layout.fillWidth:true;onClicked:bar.openDeviceMenu("audio")}
             BarButton {colors:bar.colors;text:bar.t("Lumen System");glyph:"qrc:/lumen/icons/lumen-system.svg";Layout.fillWidth:true;onClicked:{systemPopup.close();panelData.control("hardware")}}
-            BarButton {colors:bar.colors;text:bar.t("Einstellungen");glyph:"settings-configure";Layout.fillWidth:true;onClicked:{systemPopup.close();panelData.launch("settings")}}
+            BarButton {objectName:"systemPreferences";colors:bar.colors;text:bar.t("Lumen-Einstellungen");glyph:"settings-configure";Layout.fillWidth:true;onClicked:{systemPopup.close();panelData.launch("settings")}}
             BarButton {colors:bar.colors;text:bar.t("Bildschirm sperren");glyph:"system-lock-screen";Layout.fillWidth:true;onClicked:{systemPopup.close();panelData.control("lock")}}
         }
     }

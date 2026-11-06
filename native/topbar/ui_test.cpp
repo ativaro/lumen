@@ -136,7 +136,7 @@ private slots:
             QVERIFY2(click(control),qPrintable(trigger));QTRY_VERIFY2(!menu->property("visible").toBool(),qPrintable(trigger));
         };
         twice("programsButton","appsPopup");twice("launcherButton","appsPopup");
-        twice("notificationsButton","quickMenu");twice("compactControlsButton","quickMenu");
+        twice("notificationsButton","quickMenu");twice("compactControlsButton","systemPopup");
         twice("clockButton","calendarPopup");twice("activeAppButton","windowMenu");
         twice("recentContentButton","activityPopup");twice("windowOverviewButton","activityPopup");
         twice(data.layout()=="classic"?"activityButton":"activityCompactButton","activityPopup");
@@ -479,8 +479,8 @@ private slots:
                 QTest::qWait(180);QVERIFY(window->grabWindow().save("/profile/captures/native-"+topic+"-preview.png"));
                 QVERIFY(click(item("quickRow_1")));
             }else{
-                QVERIFY(click(item("compactControlsButton")));QTRY_VERIFY(quick->property("opened").toBool());
-                QVERIFY(click(item("quickRow_"+topic)));QTRY_VERIFY(full->property("opened").toBool());
+                QVERIFY(click(item("compactControlsButton")));QTRY_VERIFY(window->findChild<QObject*>("systemPopup")->property("opened").toBool());
+                QVERIFY(!quick->property("visible").toBool());QVERIFY(click(item(topic+"MenuEntry")));QTRY_VERIFY(full->property("opened").toBool());
                 QCOMPARE(full->property("section").toInt(),0);QVERIFY(click(item(topic+"Section1")));
             }
             QTRY_VERIFY(full->property("opened").toBool());QCOMPARE(full->property("section").toInt(),1);
@@ -541,18 +541,18 @@ private slots:
         QTRY_VERIFY(!data.details()["network"].toMap()["wifiEnabled"].toBool());
         QVERIFY(send("key 1\n"));QTRY_VERIFY(!networkPopup->property("opened").toBool());
         QVERIFY(item("compactControlsButton")->isVisible());QVERIFY(click(item("compactControlsButton")));
-        QTRY_VERIFY(quick->property("opened").toBool());
-        QCOMPARE(quick->property("x").toInt()+quick->property("width").toInt(),window->width()-12);
-        QTest::qWait(120);QVERIFY(window->grabWindow().save("/profile/captures/native-settings-preview.png"));
-        QVERIFY(click(item("quickMore")));
         auto generalControls=window->findChild<QObject*>("systemPopup");QVERIFY(generalControls);QTRY_VERIFY(generalControls->property("opened").toBool());
+        QVERIFY(!quick->property("visible").toBool());
+        QCOMPARE(generalControls->property("x").toInt()+generalControls->property("width").toInt(),window->width()-12);
+        QCOMPARE(generalControls->property("y").toReal(),window->property("dockedMenuY").toReal());
+        QTest::qWait(150);
         QVERIFY(!audioPopup->property("opened").toBool());QVERIFY(!networkPopup->property("opened").toBool());
         QVERIFY(window->grabWindow().save("/profile/captures/native-general-controls.png"));
         QVERIFY(send("key 1\n"));QTRY_VERIFY(!generalControls->property("opened").toBool());
         openStartHome();
         item("startSettingsButton")->forceActiveFocus();QTest::qWait(120);QVERIFY(click(item("startSettingsButton")));
-        QTRY_VERIFY(quick->property("opened").toBool());QCOMPARE(window->property("quickTopic").toString(),QString("settings"));
-        QVERIFY(click(item("quickRow_preferences")));QTRY_VERIFY(actions().contains("--settings"));
+        QTRY_VERIFY(generalControls->property("opened").toBool());QVERIFY(!quick->property("visible").toBool());QVERIFY(!apps->property("visible").toBool());
+        QVERIFY(click(item("systemPreferences")));QTRY_VERIFY(actions().contains("--settings"));
         QQmlComponent secondComponent(&engine,QUrl("qrc:/lumen/Topbar.qml"));
         QScopedPointer<QObject> secondOwner(secondComponent.create());auto second=qobject_cast<QQuickWindow*>(secondOwner.data());QVERIFY(second);
         auto secondScreen=QGuiApplication::screens()[1];second->setScreen(secondScreen);second->setGeometry(secondScreen->geometry().x(),secondScreen->geometry().y(),secondScreen->geometry().width(),56);
