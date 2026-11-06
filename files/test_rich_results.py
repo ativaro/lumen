@@ -50,6 +50,26 @@ class RichResultTest(unittest.TestCase):
         forged=message(payload);forged[0]['info']['role']='user';self.assertIsNone(from_messages(forged))
         forged=message(payload);forged[0]['parts'][0]['state']['status']='error';self.assertIsNone(from_messages(forged))
 
+    def test_presentation_segments_preserve_order_and_only_use_completed_assistant_tools(self):
+        from copy import deepcopy
+        from rich_result import display_messages
+        from search_document import message_rows
+        payload=present(sample());history=message(payload)
+        history[0]['info']['id']='answer'
+        history[0]['parts'].insert(0,dict(type='text',text='Before'))
+        history[0]['parts'].append(dict(type='text',text='After'))
+        before=deepcopy(history)
+        rows=display_messages(history)
+        self.assertEqual([bool(row.get('presentation')) for row in rows],[False,True,False])
+        self.assertEqual(rows[0]['parts'][0]['text'],'Before')
+        self.assertEqual(rows[2]['parts'][0]['text'],'After')
+        self.assertEqual(message_rows(history)[1],'Before\n\nAfter')
+        self.assertEqual(history,before)
+        history+=message(present(sample()))
+        self.assertEqual(sum(bool(row.get('presentation')) for row in display_messages(history)),1)
+        history[0]['info']['role']='user';history.pop()
+        self.assertFalse(any(row.get('presentation') for row in display_messages(history)))
+
     def test_sort_filter_selection_values_submit_once_and_recovery(self):
         self.view.update_messages(message(present(sample())))
         self.view.sort_table('table',1)

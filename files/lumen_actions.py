@@ -2,6 +2,7 @@
 from lumen_i18n import tr
 from contextlib import contextmanager
 import hashlib
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -64,6 +65,20 @@ def target_fd(path, roots):
         os.close(root_fd)
 
 
+@contextmanager
+def locked_target(store, path, roots):
+    with target_fd(path, roots) as (parent, name, target):
+        info = os.fstat(parent)
+        key = hashlib.sha256(f'{info.st_dev}:{info.st_ino}:{name}'.encode()).hexdigest()
+        fd = os.open(store.directory / ('target-' + key + '.lock'),
+                     os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        try:
+            # Lock the directory entry, since atomic replacement changes the file inode.
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            yield parent, name, target
+        finally: os.close(fd)
+
+
 def read_at(parent, name):
     try: fd = os.open(name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW, dir_fd=parent)
     except FileNotFoundError: return None, 0o600
@@ -120,7 +135,7 @@ def execute(store, task_id, step):
             with target_fd(step['source'], task['roots']) as (parent, name, _): data, _mode = read_at(parent, name)
             if data is None: raise ValueError(tr('Quelldatei nicht gefunden.'))
         else: data = step['text'].encode('utf-8')
-        with target_fd(step['path'], task['roots']) as (parent, name, target):
+        with locked_target(store, step['path'], task['roots']) as (parent, name, target):
             before, mode = read_at(parent, name)
             change = identifier()
             # Save recovery data before touching the file; pending records survive a crash.
@@ -190,9 +205,10 @@ def undo(store, change_id):
     rows = store.rows('SELECT * FROM changes WHERE id=?', (change_id,))
     if not rows: raise ValueError(tr('Änderung nicht gefunden.'))
     change = rows[0]
-    if change['status'] not in ('applied', 'pending'): raise ValueError(tr('Änderung wurde bereits zurückgenommen.'))
     task = store.task(change['task'])
-    with target_fd(change['path'], task['roots']) as (parent, name, _):
+    with locked_target(store, change['path'], task['roots']) as (parent, name, _):
+        change = store.rows('SELECT * FROM changes WHERE id=?', (change_id,))[0]
+        if change['status'] not in ('applied', 'pending'): raise ValueError(tr('Änderung wurde bereits zurückgenommen.'))
         current, _mode = read_at(parent, name)
         if digest(current) != change['after_hash'] or _mode != change['mode']:
             raise ValueError(tr('Die Datei wurde inzwischen geändert; Rückgängig würde fremde Änderungen überschreiben.'))

@@ -8,6 +8,21 @@ from lumen_notifications import change, publish, snapshot
 
 
 class NotificationTest(unittest.TestCase):
+    def test_mark_all_read_preserves_muted_archived_and_snoozed_notices(self):
+        from lumen_notifications import database, mark_visible_read, set_preference
+        with tempfile.TemporaryDirectory() as tmp, patch("lumen_notifications.toast"):
+            path=Path(tmp)/"notices.db"
+            active=publish("Inbox","a","Visible",path=path)
+            hidden=publish("Silent","b","Muted",path=path)
+            archived=publish("Calendar","c","Archived",path=path)
+            later=publish("Projects","d","Snoozed",path=path)
+            set_preference("Silent","muted",path)
+            change(archived,"archive",path);change(later,"later",path)
+            mark_visible_read(path)
+            with database(path) as db:
+                state=dict(db.execute("SELECT id,read FROM notifications"))
+            self.assertEqual(state,{active:1,hidden:0,archived:0,later:0})
+
     def test_notes_name_preserves_existing_notification_identity_and_mute(self):
         from lumen_notifications import database, set_preference
 
@@ -139,6 +154,46 @@ class NotificationTest(unittest.TestCase):
                 self.assertEqual(
                     db.execute("SELECT count(*) FROM notifications").fetchone()[0], 2
                 )
+
+    def test_typed_incident_updates_remote_content_without_losing_local_click(self):
+        from datetime import datetime,timezone,timedelta
+        from notification_sync import synchronize
+        config={"server":"https://server.test","device_id":"device"}
+        profile={"notification_protocol":1,"user_id":"00000000-0000-0000-0000-000000000001","capabilities":["notifications"]}
+        now=datetime.now(timezone.utc)
+        row=dict(id=1,title="Rückfrage",body="Welche Fassung?",kind="question",resolved=False,task_id=None,created=now.isoformat(),updated=now.isoformat(),read=False,archived=False,snoozed_until=None,state_revision=1)
+        def request(config,url,body=None):
+            if body:
+                row.update({k:v for k,v in body.items() if k!="revision"});row['state_revision']+=1
+                return dict(row)
+            return {"items":[dict(row)],"next":None}
+        with tempfile.TemporaryDirectory() as directory,patch("lumen_connect.read_config",return_value=config),patch("notification_sync.toast") as popup:
+            path=Path(directory)/'notifications.sqlite3'
+            synchronize(config,profile,request,path);identity=snapshot(path,wake=False)['items'][0]['id']
+            self.assertEqual(popup.call_count,1)
+            change(identity,"read",path);synchronize(config,profile,request,path)
+            self.assertFalse(snapshot(path,wake=False)['items'][0]['resolved'])
+            row.update(title="Recherche fertig",body="Neue Antwort",kind="result",resolved=False,read=False,state_revision=3,updated=(now+timedelta(seconds=1)).isoformat())
+            synchronize(config,profile,request,path)
+            current=snapshot(path,wake=False)['items'][0]
+            self.assertEqual((current['title'],current['body'],current['kind']),("Recherche fertig","Neue Antwort","result"))
+            self.assertEqual(popup.call_count,2)
+            change(identity,"resolve",path);self.assertEqual(snapshot(path,wake=False)['unread'],0)
+            synchronize(config,profile,request,path);self.assertTrue(row['resolved'])
+            synchronize(config,profile,request,path);self.assertEqual(popup.call_count,2)
+            change(identity,"reopen",path);synchronize(config,profile,request,path);self.assertFalse(row['resolved'])
+
+    def test_native_message_cannot_create_a_decision_and_retry_keeps_completion(self):
+        from lumen_mcp_tools import invoke
+        from uuid import uuid4
+        with tempfile.TemporaryDirectory() as directory,patch('lumen_notifications.location',return_value=Path(directory)/'notifications.sqlite3'),patch('lumen_notifications.toast'):
+            args=dict(kind='question',title='Welche Fassung?',body='Entwurf oder finale Fassung?',idempotency_key=str(uuid4()))
+            identity=invoke('lumen_notification_send',args)['id']
+            change(identity,'resolve');invoke('lumen_notification_send',args)
+            self.assertTrue(snapshot(wake=False)['items'][0]['resolved'])
+            invoke('lumen_notification_send',{**args,'kind':'result','revision':2})
+            self.assertFalse(snapshot(wake=False)['items'][0]['resolved'])
+            with self.assertRaises(ValueError):invoke('lumen_notification_send',{**args,'kind':'decision'})
 
     def test_popup_failure_keeps_durable_card(self):
         with tempfile.TemporaryDirectory() as directory:

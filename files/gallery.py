@@ -169,6 +169,8 @@ class Gallery(QDialog):
         self.finished.connect(self.quick.cancel)
         self.finished.connect(self.detail_delay.stop)
         build_gallery(self, ImageCanvas(), ImageLoader(self, max_side=192, cache_limit=48))
+        from app import NavigationFilter
+        NavigationFilter.install(self)
         self.loader.ready.connect(self.loaded)
         self.loader.failed.connect(self.failed)
         self.finished.connect(self.loader.cancel)

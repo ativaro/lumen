@@ -33,11 +33,13 @@ def running(directory, task):
 
 def applications():
     from lumen_apps import catalogue
+    from server_availability import capabilities, visible
+    grants = capabilities()
     labels = {'lumen': 'Lumen', 'files': tr('Dateien'), 'search': tr('Suche'),
-              'meetings': tr('Meeting & Radio'), 'household': tr('Haushalt'),
-              'radio': tr('Radio')}
+              'meetings': tr('Audio Studio'), 'household': tr('Haushalt'),
+              'radio': tr('Radio'), 'code': 'Code'}
     return [dict(id=key, title=title, label=labels.get(key, title.removeprefix('Lumen ')),
-                 description=description, icon=icon) for key,title,description,icon in catalogue()]
+                 description=description, icon=icon) for key,title,description,icon in catalogue() if visible(key, grants)]
 
 
 def snapshot(directory=None, task_limit=None):
@@ -87,13 +89,21 @@ def main():
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--language', action='store_true')
     group.add_argument('--snapshot', action='store_true')
+    group.add_argument('--bar-snapshot', action='store_true')
+    group.add_argument('--topbar-page')
+    group.add_argument('--topbar-reader', type=int)
+    group.add_argument('--topbar-note', type=int)
+    group.add_argument('--topbar-transfer', type=valid_task)
     group.add_argument('--system-snapshot', action='store_true')
+    group.add_argument('--system-topic', choices=['network', 'audio', 'activity', 'recent'])
+    parser.add_argument('--system-action', action='store_true')
     group.add_argument('--notification-snapshot', action='store_true')
     group.add_argument('--notification-settings', action='store_true')
+    group.add_argument('--notification-read-all', action='store_true')
     group.add_argument('--notification-own-popups', action='store_true')
-    group.add_argument('--notification-action', choices=['open','read','unread','archive','restore','later','now'])
+    group.add_argument('--notification-action', choices=['open','discuss','read','unread','archive','restore','later','now','resolve','reopen'])
     parser.add_argument('--notification-id')
-    group.add_argument('--control', choices=['volume', 'brightness', 'mute', 'search', 'network', 'audio', 'display', 'appearance', 'hardware', 'desktop-settings', 'lock'])
+    group.add_argument('--control', choices=['volume', 'brightness', 'mute', 'search', 'network', 'proxy', 'audio', 'bluetooth', 'firewall', 'display', 'appearance', 'hardware', 'desktop-settings', 'lock'])
     parser.add_argument('--value', type=int)
     parser.add_argument('--task-limit', type=int, choices=range(1,1001), metavar='1..1000')
     from lumen_apps import catalogue
@@ -103,13 +113,39 @@ def main():
     group.add_argument('--open-page', choices=['chat', 'files', 'system', 'tasks', 'settings', 'workplace'])
     group.add_argument('--search', action='store_true')
     group.add_argument('--voice', action='store_true')
+    group.add_argument('--conversation', action='store_true')
     group.add_argument('--settings', action='store_true')
     args = parser.parse_args()
-    if args.notification_snapshot or args.notification_action or args.notification_own_popups:
-        from lumen_notifications import snapshot as notification_snapshot, change, popup_context, configure_popups
+    if args.conversation:
+        from topbar_conversation import main
+        main();return
+    if args.topbar_note:
+        from topbar_context import read_note
+        try: print(json.dumps(dict(note=read_note(args.topbar_note),error='')))
+        except (OSError,ValueError,RuntimeError) as error: print(json.dumps(dict(error=str(error)[:400])))
+        return
+    if args.bar_snapshot:
+        from topbar_data import snapshot as bar_snapshot
+        print(json.dumps(bar_snapshot(), ensure_ascii=False)); return
+    if args.topbar_page or args.topbar_reader:
+        import sys
+        from topbar_context import page_source
+        if args.topbar_page: page_source(args.topbar_page)
+        subprocess.Popen([sys.executable,str(Path(__file__).with_name('topbar_context.py')),
+            'page' if args.topbar_page else 'reader',str(args.topbar_page or args.topbar_reader)],
+            start_new_session=True,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        return
+    if args.topbar_transfer:
+        from lumen_launch import executable
+        subprocess.Popen([executable('lumen-files'),'--transfer',args.topbar_transfer],
+            start_new_session=True,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        return
+    if args.notification_snapshot or args.notification_action or args.notification_own_popups or args.notification_read_all:
+        from lumen_notifications import snapshot as notification_snapshot, change, popup_context, configure_popups, mark_visible_read
         try:
             context=popup_context()
-            if args.notification_own_popups and context['native']: configure_popups(True)
+            if args.notification_read_all: mark_visible_read()
+            if args.notification_own_popups: configure_popups(True)
             if args.notification_action: change(args.notification_id or '', args.notification_action)
             print(json.dumps(dict(notification_snapshot(), context=context), ensure_ascii=False))
         except (OSError, sqlite3.Error, ValueError) as error:
@@ -129,6 +165,29 @@ def main():
         result = snapshot(task_limit=args.task_limit)
         if error: result['error'] = error
         print(json.dumps(result, ensure_ascii=False)); return
+    if args.system_topic:
+        import sys
+        from topbar_system import snapshot as topic_snapshot, act
+        try:
+            if args.system_action:
+                payload = sys.stdin.buffer.read(8193)
+                if len(payload) > 8192:
+                    raise ValueError('Invalid action')
+                request = json.loads(payload)
+                if args.system_topic in ('activity', 'recent'):
+                    from topbar_activity import act_request
+                    details = act_request(args.system_topic,request)
+                else:
+                    details = act(args.system_topic, request)
+            else:
+                if args.system_topic in ('activity','recent'):
+                    from topbar_activity import snapshot as activity_snapshot, recent
+                    details = activity_snapshot() if args.system_topic=='activity' else dict(items=recent())
+                else: details = topic_snapshot(args.system_topic)
+            print(json.dumps(dict(topic=args.system_topic, details=details, error=''), ensure_ascii=False))
+        except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
+            print(json.dumps(dict(error=tr('Systemaktion fehlgeschlagen. Bitte den aktuellen Status prüfen.'))))
+        return
     if args.system_snapshot or args.control:
         from lumen_controls import snapshot as system_snapshot, control
         try:

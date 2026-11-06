@@ -166,13 +166,27 @@ class Memory:
         return configure(self,**values)
 
     def _remember(self,title,text,source,kind,scope,automatic,evidence,path,expected,correction=False,verification=''):
-        records=self.store.setting('memory/records',{});old=self.record(self.book.read(path),records) if path else {}
+        records=self.store.setting('memory/records',{});previous=self.book.read(path) if path else None
+        old=self.record(previous,records) if previous else {}
         if path:
             if automatic and (not old.get('automatic') or old.get('hash')!=expected):raise ValueError(tr('Manuell bearbeitete Erinnerung bleibt erhalten.'))
             if old['id'] in self.store.setting('memory/tombstones',{}):raise ValueError(tr('Diese Erinnerung wurde vergessen. Bei Bedarf ausdrücklich einen neuen Eintrag anlegen.'))
-            note=self.book.write(path,'# '+title.strip()+'\n\n'+text,expected,source)
-        else:note=self.book.create(title,text,source,note_id=str(uuid4()))
-        meta=dict(old,kind=kind,scope=scope,automatic=automatic,evidence=evidence[:500],created=old.get('created',time.time()),updated=time.time(),hash=note['hash'],correction=bool(correction or old.get('correction')),verification=verification)
+            if previous['hash']!=expected:raise ValueError(tr('CONFLICT: Die Erinnerung wurde inzwischen geändert.'))
+        meta=dict(old,kind=kind,scope=scope,automatic=automatic,evidence=evidence[:500],created=old.get('created',time.time()),updated=time.time(),correction=bool(correction or old.get('correction')),verification=verification)
+        identity=str(uuid4()) if previous is None else old['id']
+        # Bind the portable ID before create() chooses the final filename.
+        pending=previous or dict(path='pending-'+identity+'.md',note_id=identity,hash='')
+        self.changed(True)
+        self.save_record(pending,dict(meta,allowed=False),records)
+        try:
+            note=self.book.write(path,'# '+title.strip()+'\n\n'+text,expected,source) if previous else self.book.create(title,text,source,note_id=identity)
+        except Exception:
+            if previous:
+                try:unchanged=self.book.read(path)['hash']==previous['hash']
+                except (OSError,ValueError):unchanged=False
+                if unchanged:self.store.set_setting('memory/records',records)
+            raise
+        meta['hash']=note['hash']
         if not automatic:
             blocked=set(self.store.setting('memory/forgotten',[]));blocked.difference_update(fingerprint(t) for t in (title,note['text'],evidence) if t);self.store.set_setting('memory/forgotten',sorted(blocked))
         saved=self.save_record(note,meta,records);self.changed();return saved
@@ -269,21 +283,14 @@ class Memory:
             saved=self.save_record(note,dict(meta,allowed=bool(allowed)),records);self.changed(True);return saved
 
     def prepare(self,query,directory):
-        state=stamp(self.store);result=dict(stamp=state,revision=self.store.setting('memory/revision',0),notes=[],candidates=[],context='',warning='')
-        if not state[0]:return result
-        notes=self.eligible(directory)
-        shared=[]
-        if self.store.setting('knowledge/notebook','') and self.store.setting('memory/shares',[]):
-            try:
-                book=Notebook(self.store);shared=[dict(n,id=self.identity('notebook:'+json.dumps(book.identity)+':'+n['path'])) for n in book.scan()['notes'] if self.shared(book,n['path'])]
-            except (OSError,ValueError) as error:result['warning']=tr('Freigegebene Notizen nicht erreichbar: ')+str(error)
-        from lumen_connect import shared_memories
-        blocked=set(self.store.setting('memory/server_hidden',[]))
-        # The replicated local copy owns its independent approval; do not bypass it via the old mirror.
-        replicated={n['id'] for n in self.scan()['notes'] if n['memory'].get('sync_connection')} | set(self.store.setting('memory/tombstones',{}))
-        server_notes=[dict(path='server:'+n['id'],id='server:'+n['id'],title=n['title'],text=n['body'],
-                           source=n['source'],revision=n['revision']) for n in shared_memories()
-                      if n['source']+'#'+n['id'] not in blocked and n['id'] not in replicated]
+        with self.book.lock('memory-state.lock'):
+            state=stamp(self.store);result=dict(stamp=state,revision=self.store.setting('memory/revision',0),notes=[],candidates=[],context='',warning='')
+            if not state[0]:return result
+            from knowledge_context import active
+            config=active(self.store)
+            notes=self.eligible(directory) if config is None else []
+        if config is not None:return self.prepare_account(query,config,result)
+        server_notes=[]
         remote_bound=None
         try:
             import knowledge_context
@@ -296,7 +303,7 @@ class Memory:
             with self.book.lock('memory-state.lock'):
                 if state!=stamp(self.store) or result['revision']!=self.store.setting('memory/revision',0):
                     result['warning']=tr('Das Gedächtnis wurde während der Suche geändert. Bitte erneut fragen.');return result
-                search_state=semantic_retrieve(self.entries(notes+shared+server_notes),query,
+                search_state=semantic_retrieve(self.entries(notes+server_notes),query,
                     boundary=str(self.namespace),home=search_home(),cache=self.store.directory/'memory-index',project=directory)
         except (OSError,ValueError):search_state=dict(mode='text',reason='unavailable',scores={})
         self.semantic=search_state.pop('scores') or None
@@ -309,15 +316,12 @@ class Memory:
         ranked=self.retrieve(notes,query,8,preferences=3)
         selected=[dict(n,source_kind='memory',text=self.snippet(n,query),origin=tr('Von dir bestätigter Lösungsweg') if n['memory'].get('kind')=='solution' and n['memory'].get('verification')=='user' and n['memory'].get('hash')==n['hash'] else tr('Lumen-Gedächtnis')) for n in ranked[:6]]
         result['candidates']=[dict(path=n['path'],title=n['title'],text=n['text'][:1800],hash=n['hash'],memory=n['memory']) for n in ranked[:8]]
-        selected.extend(dict(n,source_kind='note',text=self.snippet(n,query),origin=tr('Freigegebene Notiz')) for n in self.retrieve(shared,query,4))
         for note in self.retrieve(server_notes,query,max(0,10-len(selected))):
             selected.append(dict(note,source_kind=note.get('source_kind','server_memory'),text=self.snippet(note,query),origin=tr('Freigegebene Servernotiz') if note.get('source_kind')=='server_note' else tr('Freigegebenes Server-Gedächtnis')))
         current=[]
         for note in selected[:10]:
             try:
-                if note['source_kind'] in ('memory','note'):
-                    source=self.book if note['source_kind']=='memory' else book
-                    if source.read(note['path'])['hash']!=note['hash']:continue
+                if note['source_kind']=='memory' and self.book.read(note['path'])['hash']!=note['hash']:continue
                 current.append(note)
             except (OSError,ValueError):continue
         remote_selected=[n for n in current if n['source_kind']=='server_note']
@@ -335,6 +339,64 @@ class Memory:
         result['notes']=[dict(path=n['path'],id=e.id,revision=e.revision,title=n['title'],origin=n['origin'],source_kind=n['source_kind']) for n,e in zip(current,rendered) if e.id in included]
         if included:result['context']=intro+payload['context']
         return result
+
+    def prepare_account(self,query,config,result):
+        import knowledge_context
+        notes,remote=knowledge_context.account_memory(config,query)
+        hidden=set(self.store.setting('memory/server_hidden',[]))
+        # Existing per-device opt-outs still apply; no local replica becomes account consent.
+        forgotten=self.store.setting('memory/tombstones',{})
+        notes=[n for n in notes if n['remote_id'] not in forgotten
+               and config['server']+'#'+n['remote_id'] not in hidden]
+        try:
+            shared,bound=knowledge_context.fetch(self,query)
+            if shared and not knowledge_context.valid(self.store,bound,shared):shared=[]
+            notes.extend(dict(n,origin=tr('Freigegebene Servernotiz')) for n in shared)
+        except (OSError,ValueError,KeyError,RuntimeError):
+            result['warning']=tr('Freigegebene Servernotizen derzeit nicht verfügbar.')
+        result.update(remote=remote,revision=-1,remote_notes=[dict(remote_id=n['remote_id'],revision=n['revision']) for n in notes if n['source_kind']=='server_note'])
+        if not self.valid_prepared(result):raise ValueError(tr('Das Server-Gedächtnis wurde geändert. Bitte erneut fragen.'))
+        payload=make_context(self.entries(notes),budget=18000,excerpt=1900)
+        included={n['id'] for n in payload['sources']}
+        result['notes']=[{key:n[key] for key in ('path','id','revision','title','origin','source_kind')} for n in notes if n['id'] in included]
+        result['context']=payload['context']
+        result['retrieval']=dict(mode='server')
+        return result
+
+    def valid_prepared(self,prepared):
+        import knowledge_context
+        if prepared.get('stamp')!=stamp(self.store):return False
+        remote=prepared.get('remote')
+        if not remote:return True
+        if not knowledge_context.account_memory_valid(remote):return False
+        notes=prepared.get('remote_notes',[])
+        config=knowledge_context.active(self.store)
+        return not notes or knowledge_context.valid(self.store,config,notes)
+
+    def learn_account(self,text,prepared,event_id,context=None):
+        import knowledge_context,lumen_connect
+        settings=options(self.store)
+        if not settings['enabled'] or not settings['learn'] or prepared.get('stamp')!=stamp(self.store):
+            return dict(state='stopped')
+        if self.store.setting('modelPolicy',{}).get('privacy')=='local':
+            return dict(state='local')
+        remote=prepared['remote'];preferences=remote.get('preferences')
+        if not preferences or not preferences['enabled'] or not preferences['learn']:
+            return dict(state='disabled')
+        config=knowledge_context.active(self.store)
+        if not config or lumen_connect.connection_scope(config)!=remote['connection']:
+            raise ValueError(tr('Die Serververbindung wurde geändert.'))
+        return knowledge_context.learning(config,remote,text,event_id,context or {})
+
+    def account_learning_status(self,remote,task_id):
+        import knowledge_context,lumen_connect
+        config=knowledge_context.active(self.store)
+        if not config or lumen_connect.connection_scope(config)!=remote['connection']:
+            raise ValueError(tr('Die Serververbindung wurde geändert.'))
+        identity=str(UUID(task_id))
+        result=lumen_connect.request(config,'/bridge/memory-learning/'+identity,timeout=4)
+        if knowledge_context.active(self.store)!=config:raise ValueError(tr('Die Serververbindung wurde geändert.'))
+        return knowledge_context.learning_receipt(result)
 
     def apply(self,items,user_text,directory,source,candidates,revision,context=None,prepared_stamp=None):
         if not isinstance(items,list) or len(items)>3:raise ValueError(tr('Ungültiger Gedächtnisvorschlag.'))
@@ -426,7 +488,7 @@ def worker(job,store,action,**values):
 def main():
     from lumen_store import Store
     request=json.load(sys.stdin);memory=Memory(Store(request.pop('store')));action=request.pop('action')
-    if action not in ('configure','scan','migrate','remember','write','restore','forget','share','prepare','apply','allow','proposals','review','propose','project_info','project_configure'):raise ValueError(tr('Ungültige Gedächtnisaktion.'))
+    if action not in ('configure','scan','migrate','remember','write','restore','forget','share','prepare','valid_prepared','learn_account','account_learning_status','apply','allow','proposals','review','propose','project_info','project_configure'):raise ValueError(tr('Ungültige Gedächtnisaktion.'))
     print(json.dumps(getattr(memory,action)(**request),ensure_ascii=False))
 
 

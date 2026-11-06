@@ -6,5 +6,12 @@
   "Übersetzung als eigener Text. Das Original bleibt unverändert.": "Translation as a separate text. The original remains unchanged.",
   "Zurück zur Quelle": "Back to source",
   "Text für die Übersetzung vorbereiten …": "Preparing text for translation …",
-  "Text übersetzen …": "Translate text …"
+  "Text übersetzen …": "Translate text …",
+  "Gerätefreigabe öffnen": "Open device permissions",
+  "Für dieses Gerät fehlt die Freigabe für {app}. Öffne auf deinem Lumen Server Geräte → dieses Gerät → Serverdaten und aktiviere {app}. Danach „Erneut prüfen“ wählen.": "This device is not allowed to use {app} yet. On your Lumen Server, open Devices → this device → Server data and enable {app}. Then choose “Check again”.",
+  "Die Gerätefreigabe konnte nicht geöffnet werden. Öffne deinen Lumen Server im Browser und wähle Geräte → dieses Gerät → Serverdaten.": "Could not open device permissions. Open your Lumen Server in a browser and choose Devices → this device → Server data.",
+  "Lumen Vault · Schlüsseldatei auswählen": "Lumen Vault · Choose key file",
+  "Lumen · Datei speichern": "Lumen · Save file",
+  "Bitte einen neuen Dateinamen wählen. Bestehende Dateien werden nicht überschrieben.": "Please choose a new file name. Existing files will not be overwritten.",
+  "Die Datei konnte nicht gespeichert werden. Die Serverdaten bleiben erhalten.": "The file could not be saved. Your server data is preserved."
 }

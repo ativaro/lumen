@@ -460,9 +460,13 @@ def memory_stamp():
     return hashlib.sha256(json.dumps([scope,rows], sort_keys=True).encode()).hexdigest() if scope or rows else ""
 
 
-def receive_artifact(config, action):
+def receive_artifact(config, action, *, job=None):
     """Claim once and download one authenticated immutable object into a private cache."""
     import hashlib
+
+    def check():
+        if job is not None:
+            job.check()
 
     extensions = {
         "text/plain": ".txt",
@@ -477,16 +481,26 @@ def receive_artifact(config, action):
         raise ValueError("Dateityp oder Größe ist nicht freigegeben.")
     identity = str(UUID(action["id"]))
     file_id = str(UUID(action["file_id"]))
-    claimed = request(
-        config, "/bridge/actions/" + identity, dict(state="claimed", revision=action["revision"])
-    )
-    if claimed.get("replayed"):
-        raise ValueError("Diese Anfrage wurde bereits übernommen. Bitte neu senden.")
-    folder = ROOT / "received"
-    folder.mkdir(mode=0o700, exist_ok=True)
-    target = folder / (file_id + extensions[action["mime"]])
+    action_revision = action["revision"]
     temporary = None
+    fresh_claim = False
     try:
+        check()
+        claimed = request(
+            config, "/bridge/actions/" + identity, dict(state="claimed", revision=action_revision)
+        )
+        replayed = claimed.get("replayed")
+        if not replayed:
+            revision = claimed["revision"]
+            if type(revision) is not int or type(action_revision) is not int or revision != action_revision + 1:
+                raise ValueError("Die Übernahme wurde nicht bestätigt.")
+            fresh_claim = True
+        check()
+        if replayed:
+            raise ValueError("Diese Anfrage wurde bereits übernommen. Bitte neu senden.")
+        folder = ROOT / "received"
+        folder.mkdir(mode=0o700, exist_ok=True)
+        target = folder / (file_id + extensions[action["mime"]])
         opener = urllib.request.build_opener(
             urllib.request.HTTPSHandler(context=tls_context(config)), NoRedirect()
         )
@@ -494,31 +508,49 @@ def receive_artifact(config, action):
             config["server"] + "/bridge/artifacts/" + file_id,
             headers={"Authorization": "Bearer " + config["token"]},
         )
-        fd, temporary = tempfile.mkstemp(dir=folder, prefix=".receive-")
         digest = hashlib.sha256()
         count = 0
-        with os.fdopen(fd, "wb") as out, opener.open(req, timeout=20) as response:
-            while chunk := response.read(128 * 1024):
-                count += len(chunk)
-                if count > action["size"]:
-                    raise ValueError("Die Datei wurde verändert.")
-                digest.update(chunk)
-                out.write(chunk)
-            out.flush()
-            os.fsync(out.fileno())
+        check()
+        fd, temporary = tempfile.mkstemp(dir=folder, prefix=".receive-")
+        with os.fdopen(fd, "wb") as out:
+            check()
+            with opener.open(req, timeout=20) as response:
+                check()
+                while True:
+                    check()
+                    chunk = response.read(128 * 1024)
+                    check()
+                    if not chunk:
+                        break
+                    count += len(chunk)
+                    if count > action["size"]:
+                        raise ValueError("Die Datei wurde verändert.")
+                    digest.update(chunk)
+                    check()
+                    out.write(chunk)
+                check()
+                out.flush()
+                check()
+                os.fsync(out.fileno())
+        check()
         if count != action["size"] or digest.hexdigest() != action["sha256"]:
             raise ValueError("Die Datei wurde verändert.")
+        check()
         latest = request(config, "/bridge/actions/" + identity)
-        if latest.get("state") != "claimed" or latest.get("revision") != claimed["revision"]:
+        check()
+        if latest.get("state") != "claimed" or latest.get("revision") != revision:
             raise ValueError("Die Freigabe ist nicht mehr aktuell.")
+        check()
         os.replace(temporary, target)
         temporary = None
-        return dict(path=str(target), revision=claimed["revision"], id=identity)
+        check()
+        return dict(path=str(target), revision=revision, id=identity)
     except Exception:
-        try:
-            request(config, "/bridge/actions/" + identity, dict(state="failed", revision=claimed["revision"]))
-        except (OSError, ValueError):
-            pass
+        if fresh_claim:
+            try:
+                request(config, "/bridge/actions/" + identity, dict(state="failed", revision=revision))
+            except (OSError, ValueError):
+                pass
         raise
     finally:
         if temporary:
@@ -863,7 +895,7 @@ def sync_data():
     if not helper.exists():
         helper = Path.home()/".local/share/lumen/files/sync_settings.py"
     if not helper.exists():
-        sync_notes(); sync_notes("memory_sync.py"); sync_projects(); sync_drive(); sync_vault()
+        sync_memory(); sync_drive(); sync_vault()
         return
     _DATA_PROCESS = subprocess.Popen([sys.executable, str(helper)], stdin=subprocess.PIPE,
                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -902,10 +934,8 @@ def sync_vault():
 
 
 _NOTES_PROCESSES = {}
-_PROJECTS_PROCESS = None
 _DRIVE_PROCESS = None
 _DRIVE_NEXT = 0
-_PROJECTS_NEXT = 0
 
 
 def sync_drive():
@@ -928,33 +958,9 @@ def sync_drive():
         )
 
 
-def sync_projects():
-    """Only explicitly activated project scopes; separate from device heartbeats."""
-    global _PROJECTS_PROCESS, _PROJECTS_NEXT
-    if time.monotonic() < _PROJECTS_NEXT:
-        return
-    if _PROJECTS_PROCESS is not None and _PROJECTS_PROCESS.poll() is None:
-        return
-    data = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
-    root = Path(os.environ.get("LUMEN_TOOLS_DATA", data / "lumen-tools"))
-    helper = Path(__file__).with_name("projects_sync.py")
-    if not helper.exists():
-        helper = data / "lumen/files/projects_sync.py"
-    if not helper.exists() or not (root / "workbench/server-sync.json").exists():
-        return
-    _PROJECTS_NEXT = time.monotonic() + 60
-    _PROJECTS_PROCESS = subprocess.Popen(
-        [sys.executable, str(helper)],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-
-
-def sync_notes(helper_name="wissen_sync.py"):
-    """The existing opted-in notebook synchronizer runs separately from heartbeats."""
-    if helper_name not in ("wissen_sync.py", "memory_sync.py"):
-        raise ValueError("Invalid notebook synchronizer")
+def sync_memory():
+    """Keep the opted-in memory helper; User Notes are owned by the Server app."""
+    helper_name="memory_sync.py"
     process = _NOTES_PROCESSES.get(helper_name)
     if process is not None and process.poll() is None:
         return
@@ -1051,6 +1057,9 @@ def main():
     elif args.command == "sync":
         print(json.dumps(synchronize(cfg)))
     elif args.command == "watch":
+        from browser_connector import watch as watch_browser
+        import threading
+        threading.Thread(target=watch_browser, args=(sys.modules[__name__],), daemon=True).start()
         while True:
             # Custom connector profiles must never sync the default personal vault.
             if not args.config_dir:
@@ -1068,14 +1077,12 @@ def main():
                 print("Verbindung unterbrochen; neuer Versuch in 30 Sekunden.", file=sys.stderr)
             time.sleep(30)
     elif args.command == "task":
-        me = request(cfg, "/bridge/me")
         print(
             json.dumps(
                 request(
                     cfg,
                     "/bridge/tasks",
                     {
-                        "workspace_id": me["workspace_id"],
                         "prompt": args.prompt,
                         "kind": args.kind,
                         "idempotency_key": args.idempotency_key,

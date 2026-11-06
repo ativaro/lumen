@@ -11,14 +11,12 @@ class TranslationDialog(QDialog):
     def __init__(self, source, record, root=None):
         super().__init__(source)
         from tools_translate import Translate
-        self.setWindowTitle(tr('Lumen · Text übersetzen')); self.resize(1050, 780)
+        self.setWindowTitle('Lumen Compose'); self.resize(1050, 780)
         layout = QVBoxLayout(self)
         layout.addWidget(label(tr('Übersetzung als eigener Text. Das Original bleibt unverändert.')))
         self.view = Translate(root); self.view.setWindowFlags(Qt.Widget)
         self.view.sidebar.hide(); self.view.setMinimumSize(0, 0)
-        header = self.view.centralWidget().layout().itemAt(0).layout()
-        for i in range(header.count()):
-            if header.itemAt(i).widget(): header.itemAt(i).widget().hide()
+        self.view.app_header.hide()
         self.view.focus_record(record['id']); layout.addWidget(self.view, 1)
         layout.addWidget(button(tr('Zurück zur Quelle'), self.reject, 'go-previous'))
 

@@ -1,3 +1,5 @@
+> **Historischer native App-Vertrag.** Notes, Projekte, Code, Inbox, Audio Studio und Vault verwenden heute den gemeinsamen Server-Host. Die früheren lokalen Empfänger und ihre Sicherungs-/Notizordnerabläufe sind kein zusätzlicher Offline-Modus. Aktuelle Übergaben und offene Anschlussgrenzen: [Interop-Bedienung](docs/interop/USAGE.md).
+
 # Contextual Lumen actions
 
 Replace the added integration chrome with useful actions on the selected content.

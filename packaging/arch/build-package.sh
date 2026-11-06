@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # build-package.sh — build the Arch/CachyOS package from this repo.
 #
-# Creates a source tarball from the working tree (git archive if available,
-# otherwise tar), drops it next to the PKGBUILD and runs makepkg.
+# Creates a checked source tarball from a clean commit, then runs makepkg.
 #
 # Usage:
 #   ./packaging/arch/build-package.sh            # build with makepkg
 #   ./packaging/arch/build-package.sh --srcinfo  # just print .SRCINFO
+#   ./packaging/arch/build-package.sh --source-only # archive + checksum only
 #   ./packaging/arch/build-package.sh --install   # build and install (needs root)
 #   LUMEN_GOOGLE_OAUTH_CLIENT_FILE=/path/desktop.json ./packaging/arch/build-package.sh
 #
@@ -21,17 +21,29 @@ PKGVER="$(grep -m1 '^pkgver=' "$ARCHDIR/PKGBUILD" | cut -d= -f2)"
 say() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 
 DO_INSTALL=0
+SOURCE_ONLY=0
 case "${1:-}" in
-    --srcinfo) exec bash -c "cd '$ARCHDIR' && makepkg --printsrcinfo" ;;
+    --srcinfo) cd "$ARCHDIR"; LOCALSRC=1 exec makepkg --printsrcinfo ;;
+    --source-only) SOURCE_ONLY=1 ;;
     --install) DO_INSTALL=1 ;;
     "") ;;
     *) echo "Unbekannte Option: $1" >&2; exit 2 ;;
 esac
 
+# An archive must identify exactly the source that was reviewed.
+if [[ "$(git -C "$REPO" rev-parse --show-toplevel 2>/dev/null || true)" != "$REPO" ]]; then
+    echo 'Für ein neues Releasearchiv wird ein Git-Checkout benötigt.' >&2; exit 1
+fi
+if [[ -n "$(git -C "$REPO" status --porcelain --untracked-files=all)" ]]; then
+    echo 'Quelländerungen zuerst prüfen und committen; kein Archiv aus einem gemischten Stand.' >&2; exit 1
+fi
 say "Erzeuge Quell-Tarball lumen-$PKGVER.tar.gz"
-rm -f "$ARCHDIR/lumen-$PKGVER.tar.gz"
 BUILD_STAGE="$(mktemp -d)"
 trap 'rm -rf "$BUILD_STAGE"' EXIT
+mkdir -p "$BUILD_STAGE/lumen-$PKGVER"
+/usr/bin/python3 "$REPO/packaging/source-identity.py" "$REPO" > "$BUILD_STAGE/lumen-$PKGVER/source.json"
+SOURCE_DATE_EPOCH="$(/usr/bin/python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["source_date_epoch"])' "$BUILD_STAGE/lumen-$PKGVER/source.json")"
+export SOURCE_DATE_EPOCH
 
 # Only the maintainer's Desktop app identity is bundled, never a user's tokens.
 GOOGLE_CLIENT="${LUMEN_GOOGLE_OAUTH_CLIENT_FILE:-$REPO/files/google-drive-client.json}"
@@ -42,30 +54,24 @@ else
     say "Ohne Google-App-Konfiguration: zentrale Anmeldung bleibt deaktiviert."
 fi
 
-# Prefer git archive (only tracked files); fall back to tar with excludes.
-if git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1; then
-    git -C "$REPO" archive --format=tar \
-        --prefix="lumen-$PKGVER/" \
-        -o "$BUILD_STAGE/source.tar" HEAD
-else
-    tar --exclude='.git' --exclude='__pycache__' --exclude='distro' \
-        --exclude='packaging/arch/pkg' --exclude='packaging/arch/src' \
-        --exclude='files/google-drive-client.json' --exclude='client_secret_*.json' \
-        --transform "s,^,lumen-$PKGVER/," \
-        -cf "$BUILD_STAGE/source.tar" -C "$REPO" .
-fi
+git -C "$REPO" archive --format=tar --prefix="lumen-$PKGVER/" -o "$BUILD_STAGE/source.tar" HEAD
+tar --append --file "$BUILD_STAGE/source.tar" --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 --numeric-owner \
+    --mode=0644 -C "$BUILD_STAGE" "lumen-$PKGVER/source.json"
 if [[ -f "$BUILD_STAGE/lumen-$PKGVER/files/google-drive-client.json" ]]; then
-    tar -rf "$BUILD_STAGE/source.tar" -C "$BUILD_STAGE" "lumen-$PKGVER/files/google-drive-client.json"
+    tar --append --file "$BUILD_STAGE/source.tar" --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 --numeric-owner \
+        --mode=0644 -C "$BUILD_STAGE" "lumen-$PKGVER/files/google-drive-client.json"
 fi
-gzip -c "$BUILD_STAGE/source.tar" > "$ARCHDIR/lumen-$PKGVER.tar.gz"
+gzip -n -c "$BUILD_STAGE/source.tar" > "$BUILD_STAGE/source.tar.gz"
+mv "$BUILD_STAGE/source.tar.gz" "$ARCHDIR/lumen-$PKGVER.tar.gz"
+cd "$ARCHDIR"
+sha256sum "lumen-$PKGVER.tar.gz" > "lumen-$PKGVER.tar.gz.sha256"
 say "Tarball: $(du -h "$ARCHDIR/lumen-$PKGVER.tar.gz" | cut -f1)"
+[[ "$SOURCE_ONLY" = 0 ]] || exit 0
 
 say "Baue Paket mit makepkg (lokaler Quell-Tarball)"
 cd "$ARCHDIR"
 rm -rf src pkg
-# -d: skip dependency checks so maintainers using the standalone opencode
-# installer can build locally. Published builds use the real deps.
-LUMEN_SOURCE_REVISION="$(git -C "$REPO" rev-parse HEAD 2>/dev/null || true)" LOCALSRC=1 makepkg -d -f --noconfirm
+LOCALSRC=1 makepkg -f --noconfirm
 
 echo
 mapfile -t PACKAGES < <(LOCALSRC=1 makepkg --packagelist)

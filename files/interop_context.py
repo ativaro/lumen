@@ -32,6 +32,14 @@ def add_actions(window, menu, payload=None):
     menu.addSeparator()
     link_label = tr('Link zu dieser Notiz kopieren') if source.get('app') == 'wissen' else tr('Link zu dieser Stelle kopieren') if source.get('app') == 'reader' else tr('Link zu diesem Eintrag kopieren')
     menu.addAction(link_label, lambda: safe_action(window, lambda: copy_link(window)))
+    if window.name in ('reader','translate') and window.current:
+        from interop_ui import root_for,open_url,Registry
+        root=root_for(window);registry=Registry(root)
+        originals=list(dict.fromkeys(window.library.get(window.current).get('interop_sources',[])))
+        original_menu=menu.addMenu(tr('Original öffnen')) if len(originals)>1 else menu
+        for url in originals:
+            title=registry.resolve(url).get('title',tr('Original öffnen')) if len(originals)>1 else tr('Original öffnen')
+            original_menu.addAction(title,lambda checked=False,u=url:safe_action(window,lambda:open_url(u,root)))
     if source.get('app') != 'files' and (payload.get('paths') or source.get('path')):
         menu.addAction(tr('Speicherort öffnen'), lambda: safe_action(window, lambda: show_files(window)))
     menu.addAction(tr('Verwendet in …'), lambda: safe_action(window, lambda: browse(window, 'related')))
@@ -94,6 +102,8 @@ def install(window):
 
 
 def receive_drop(window, payload):
+    if getattr(window,'memory_only',False):
+        raise ValueError(tr('Dateien und Notizen in der Server-App öffnen. Dieser Editor ist nur für Erinnerungen.'))
     from interop_ui import reviewed_send, actions
     name = getattr(window, 'name', '')
     if name == 'reader' and payload.get('paths'):

@@ -33,31 +33,6 @@ def task_action(identity, action):
         raise ValueError(tr('Das ausführende Lumen-Fenster ist nicht erreichbar. Der Auftrag wurde nicht verändert.'))
 
 
-def room_action(identity, action, value=''):
-    """Only identifiers cross the app boundary; room data stays in the shared store."""
-    from PySide6.QtCore import QCoreApplication, QElapsedTimer, QThread
-    bus = QDBusConnection.sessionBus()
-    if not bus.isConnected(): raise ValueError(tr('Die lokale Lumen-Verbindung ist nicht verfügbar.'))
-    if not bus.interface().isServiceRegistered('org.lumen.Desktop').value():
-        launch('lumen-agent-app', ['--details'])
-        timer = QElapsedTimer(); timer.start()
-        while not bus.interface().isServiceRegistered('org.lumen.Desktop').value():
-            if timer.elapsed() > 10000: raise ValueError(tr('Lumen startet noch. Bitte erneut versuchen.'))
-            QCoreApplication.processEvents(); QThread.msleep(25)
-    if action == 'project-discuss':
-        probe = QDBusMessage.createMethodCall('org.lumen.Desktop', '/Lumen', 'org.lumen.Desktop', 'ProjectContextVersion')
-        version = bus.call(probe, QDBus.BlockWithGui, 3000)
-        if version.type() == QDBusMessage.ErrorMessage or version.arguments() != [1]:
-            raise ValueError(tr('Bitte Lumen einmal regulär schließen und neu öffnen, damit der neue Projektkontext verfügbar ist. Dein Entwurf bleibt hier erhalten.'))
-    message = QDBusMessage.createMethodCall('org.lumen.Desktop', '/Lumen', 'org.lumen.Desktop', 'RoomAction')
-    message.setArguments([json.dumps(dict(room=identity, action=action, value=value))])
-    reply = bus.call(message, QDBus.BlockWithGui, 15000)
-    if reply.type() == QDBusMessage.ErrorMessage: raise ValueError(tr('Lumen konnte das Projekt nicht übernehmen.'))
-    result = json.loads(reply.arguments()[0])
-    if result.get('error'): raise ValueError(result['error'])
-    return result
-
-
 def open_page(index, task=None):
     targets = {
         1: ('lumen-system', ['--page','diagnostics']),
@@ -66,7 +41,7 @@ def open_page(index, task=None):
         5: ('lumen-wissen', []),
         6: ('lumen-workbench', ['--section','automations']),
         7: ('lumen-settings', ['--models']),
-        8: ('lumen-workbench', ['--section','rooms']),
+        8: ('lumen-workbench', ['--section','projects']),
         10: ('lumen-wissen', ['--section','results']),
         11: ('lumen-companion', []),
         12: ('lumen-workbench', ['--section','household'])}

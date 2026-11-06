@@ -1,10 +1,13 @@
 [Desktop Entry]
 Type=Application
-Name=Lumen Apps
-Comment=All your Lumen apps in one place
-Comment[de]=Alle Lumen-Apps an einem Ort
+Name=Lumen Start
+Name[de]=Lumen Startmenü
+Comment=Installed programs and Lumen apps
+Comment[de]=Installierte Programme und Lumen-Apps
 Exec=%INSTALL_BIN%/lumen-apps
-Icon=org.kde.plasma.kickoff
+Icon=lumen
 Terminal=false
 Categories=Utility;
 StartupWMClass=lumen
+X-KDE-GlobalAccel-CommandShortcut=true
+X-KDE-Shortcuts=Meta

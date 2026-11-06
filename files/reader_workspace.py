@@ -19,9 +19,7 @@ class ReadingWorkspace(QStackedWidget):
         self.files = window.takeCentralWidget(); self.addWidget(self.files)
         self.reader = Reader(root); self.reader.setWindowFlags(Qt.Widget)
         self.reader.setMinimumSize(0, 0); self.reader.sidebar.hide()
-        heading = self.reader.centralWidget().layout().itemAt(0).layout()
-        for index in range(heading.count()):
-            if heading.itemAt(index).widget(): heading.itemAt(index).widget().hide()
+        self.reader.app_header.hide()
         page = QWidget(); layout = QVBoxLayout(page); layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(row(button(tr('Zurück zu den Dateien'), self.back, 'go-previous'),
                              button(tr('Lesebibliothek'), lambda: self.reader.sidebar.setVisible(self.reader.sidebar.isHidden()), 'view-list-details'),
@@ -56,9 +54,7 @@ class ReadingWorkspace(QStackedWidget):
             self.translation = Translate(self.root)
             self.translation.setWindowFlags(Qt.Widget)
             self.translation.setMinimumSize(0, 0)
-            header = self.translation.centralWidget().layout().itemAt(0).layout()
-            for i in range(header.count()):
-                if header.itemAt(i).widget(): header.itemAt(i).widget().hide()
+            self.translation.app_header.hide()
             page = QWidget(); layout = QVBoxLayout(page)
             layout.setContentsMargins(0, 0, 0, 0)
             layout.addWidget(row(button(tr('Zurück zu den Dateien'), self.back, 'go-previous'),

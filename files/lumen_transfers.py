@@ -40,7 +40,15 @@ def update(store, identity, **fields):
         row = db.execute('SELECT value FROM settings WHERE key=?', (PREFIX + identity,)).fetchone()
         if not row: raise ValueError(tr('Transfer nicht gefunden.'))
         value = json.loads(row[0]); value.update(fields, updated=time.time())
+        follow = value.get('followup', {})
+        retired = (follow.get('enabled') or follow.get('pending_notice') or follow.get('state') == 'review') and (value['status'] not in ('paused', 'failed') or value.get('discard'))
+        if retired:
+            value['followup'] = dict(follow, enabled=False, state='off', revision=follow['revision'] + 1,
+                                     archive_pending=bool(follow.get('notification_id')), pending_notice=False)
         db.execute('UPDATE settings SET value=? WHERE key=?', (json.dumps(value), PREFIX + identity))
+    if retired:
+        from transfer_followup import clear_notice
+        clear_notice(value)
     return value
 
 
@@ -96,6 +104,11 @@ def cancel(store, identity):
 def cleanup(store, value):
     import shutil
     import drive_local as local
+    if value.get('moving'):
+        from transfer_copy import restore_source
+        items = {item['source']: item for item in value['copy_plan']['items']}
+        for source, quarantine in value['moving'].items():
+            restore_source(items[source], quarantine)
     if value.get('upload_plan'):
         import drive_sync as sync
         import drive_transport as transport
@@ -103,11 +116,13 @@ def cleanup(store, value):
         config = lumen_connect.read_config()
         if sync.scope(config) != value['drive']['scope']: raise ValueError(tr('Zum Aufräumen die ursprüngliche Serververbindung wiederherstellen.'))
         from urllib.error import HTTPError
-        from urllib.parse import urlencode
+        from sync_migration import transfer_legacy_target, require_current_upload
+        legacy = transfer_legacy_target(value)
+        require_current_upload(legacy)
         for item in value['upload_plan']['files']:
             if item['request'] in value.get('upload_done', []): continue
             try:
-                transport.request(config, '/uploads/' + item['request'] + '?' + urlencode({'workspace': value['drive']['space']}), method='DELETE')
+                transport.request(config, '/uploads/' + item['request'], method='DELETE')
             except HTTPError as error:
                 if error.code != 404: raise
     for plan_name in ('copy_plan', 'download_plan'):
@@ -204,7 +219,7 @@ def execute(store, identity):
         download(store, value)
         return
     from core import copy_entry, move_entry
-    from gi.repository import Gio
+    from gi.repository import Gio, GLib
     from lumen_history import file_change
     done, errors = list(value['done']), []
     count, last = value.get('bytes', 0), 0
@@ -215,6 +230,10 @@ def execute(store, identity):
             update(store, identity, bytes=count, total=total or 0)
             last = time.monotonic()
     if value['action'] == 'copy':
+        from transfer_copy import execute as copy
+        copy(store, value, progress)
+        return
+    if value['action'] == 'move' and value.get('copy_plan'):
         from transfer_copy import execute as copy
         copy(store, value, progress)
         return
@@ -235,13 +254,18 @@ def execute(store, identity):
             if action == 'copy': destination = copy_entry(path, value['target'], value['portable'], progress)
             elif action in ('move', 'rename'):
                 destination = Path(value['target']) / path.name if action == 'move' else Path(value['target'])
-                move_entry(path, destination, progress=progress)
+                move_entry(path, destination, atomic=(action == 'move'), progress=progress)
             elif action == 'mkdir': path.mkdir()
             elif action == 'trash': Gio.File.new_for_path(source).trash(None)
             done.append(source)
             update(store, identity, done=done)
             file_change(store, action, source, str(destination) if destination else None)
         except Exception as error:
+            if (value['action'] == 'move' and isinstance(error, GLib.Error) and
+                    error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.NOT_SUPPORTED)):
+                from transfer_copy import execute as copy
+                copy(store, store.setting(PREFIX + identity), progress)
+                return
             errors.append(path.name + ': ' + str(error))
             update(store, identity, errors=errors)
 

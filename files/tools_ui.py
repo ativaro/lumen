@@ -17,7 +17,11 @@ from lumen_jobs import Job
 
 def button(text, callback, icon='', primary=False):
     b = QPushButton(text); b.setCursor(Qt.PointingHandCursor)
-    if icon: b.setIcon(QIcon.fromTheme(icon))
+    if icon:
+        import studio_design
+        # Existing processes may still hold the previous module until normal restart.
+        factory = getattr(studio_design, 'button_icon', None)
+        b.setIcon(factory(icon, b) if factory else QIcon.fromTheme(icon))
     b.setObjectName('primary' if primary else 'toolButton')
     b.setAccessibleName(text); b.clicked.connect(callback)
     return b
@@ -146,13 +150,16 @@ class ToolWindow(QMainWindow):
         self.job = None; self.engine = None; self.ai_callback = None
         self.settings = QSettings('Lumen', 'Assistant')
         self.setWindowTitle(title); self.setWindowIcon(QIcon.fromTheme(icon)); self.resize(1180,800); self.setMinimumSize(840,600)
+        from desktop_design import AppHeader, PAGE_MARGIN, PAGE_SPACING, NAV_WIDTH
+        from studio_design import font
+        self.setFont(font(14))
         shell = QWidget(); shell.setObjectName('workplace'); self.setCentralWidget(shell)
         shell.setStyleSheet('QDateEdit, QSpinBox { background: palette(base); color: palette(text); border: 1px solid palette(mid); border-radius: 8px; padding: 8px; } QCheckBox::indicator { width: 16px; height: 16px; }')
-        outer = QVBoxLayout(shell); outer.setContentsMargins(24,20,24,16); outer.setSpacing(16)
-        title_area = QWidget(); tl = QVBoxLayout(title_area); tl.setContentsMargins(0,0,0,0)
-        tl.addWidget(label(title, 'workplaceHeading')); tl.addWidget(label(tagline, 'muted'))
-        head = QHBoxLayout(); head.addWidget(title_area,1); head.addWidget(button('Lumen Apps', lambda: self.safe(self.open_apps), 'view-grid')); head.addWidget(button(tr('Einstellungen'), self.open_settings, 'configure'))
-        outer.addLayout(head)
+        outer = QVBoxLayout(shell); outer.setContentsMargins(PAGE_MARGIN,20,PAGE_MARGIN,20); outer.setSpacing(PAGE_SPACING)
+        self.app_header = AppHeader(title, tagline)
+        self.app_header.actions.addWidget(button('Lumen Apps', lambda: self.safe(self.open_apps), 'view-grid'))
+        self.app_header.actions.addWidget(button(tr('Einstellungen'), self.open_settings, 'configure'))
+        outer.addWidget(self.app_header)
         self.split = QSplitter(); outer.addWidget(self.split,1)
         self.sidebar = QWidget(); side = QVBoxLayout(self.sidebar); side.setContentsMargins(0,0,16,0); side.setSpacing(12)
         self.search = QLineEdit(); self.search.setPlaceholderText(tr('Bibliothek durchsuchen …')); self.search.setAccessibleName(tr('Bibliothek durchsuchen'))
@@ -165,7 +172,7 @@ class ToolWindow(QMainWindow):
         self.archive_button = button(tr('Archivieren / wiederherstellen'), lambda: self.safe(self.archive), 'archive-insert'); side.addWidget(self.archive_button)
         self.split.addWidget(self.sidebar)
         self.body = QWidget(); self.content = QVBoxLayout(self.body); self.content.setContentsMargins(16,0,0,0); self.content.setSpacing(12)
-        self.split.addWidget(self.body); self.split.setSizes([280,850]); self.split.setStretchFactor(1,1)
+        self.split.addWidget(self.body); self.split.setSizes([NAV_WIDTH,self.width()-2*PAGE_MARGIN-NAV_WIDTH]); self.split.setStretchFactor(1,1)
         self.status = label(tr('Lokal gespeichert · Bereit'), 'muted')
         self.progress = QProgressBar(); self.progress.setRange(0,0); self.progress.setMaximumWidth(100); self.progress.hide()
         self.cancel_button = button(tr('Abbrechen'), self.cancel, 'process-stop'); self.cancel_button.hide()
@@ -178,13 +185,27 @@ class ToolWindow(QMainWindow):
         self.interop_install_timer.timeout.connect(lambda: install(self))
         self.interop_install_timer.start(0)
 
-    def safe(self, callback, *args):
-        try: return callback(*args)
+    def safe(self, callback, *args, **kwargs):
+        try: return callback(*args, **kwargs)
         except Exception as error: self.error(str(error))
 
     def error(self, text):
         self.status.setText(text)
-        QMessageBox.warning(self, self.windowTitle(), text[:3000])
+        dialog = getattr(self, '_error_dialog', None)
+        if dialog is not None:
+            dialog.setText(text[:3000])
+            if not dialog.isVisible(): dialog.open()
+            return
+        # Background signals must not stack nested modal event loops.
+        dialog = QMessageBox(QMessageBox.Warning, self.windowTitle(), text[:3000], QMessageBox.Ok, self)
+        dialog.setTextFormat(Qt.PlainText)
+        dialog.setAttribute(Qt.WA_DeleteOnClose)
+        self._error_dialog = dialog
+        def cleared(*_):
+            if getattr(self, '_error_dialog', None) is dialog: self._error_dialog = None
+        dialog.finished.connect(cleared)
+        dialog.destroyed.connect(cleared)
+        dialog.open()
 
     def open_apps(self):
         from lumen_apps import launch

@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Der frühere globale Arbeitsraum-/Room-Entwurf ist verworfen. Es gibt keine globale Arbeitsraum-Auswahl; Projekte sind Server-Sammlungen und keine umbenannten Rooms. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](docs/desktop-retirement.md).
+
 # Native workplace
 
 Approved: projects with resume, a shared change history, work modes, shared

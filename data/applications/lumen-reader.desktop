@@ -8,6 +8,6 @@ Exec=%INSTALL_BIN%/lumen-reader %f
 Icon=lumen-reader
 Terminal=false
 Categories=Office;Viewer;
-MimeType=application/pdf;application/epub+zip;text/plain;text/markdown;text/html;
+MimeType=application/pdf;application/epub+zip;text/plain;text/markdown;text/html;application/vnd.openxmlformats-officedocument.wordprocessingml.document;application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;application/vnd.openxmlformats-officedocument.presentationml.presentation;application/vnd.oasis.opendocument.text;application/vnd.oasis.opendocument.spreadsheet;application/vnd.oasis.opendocument.presentation;application/vnd.ms-word.document.macroEnabled.12;application/vnd.ms-excel.sheet.macroEnabled.12;application/vnd.ms-powerpoint.presentation.macroEnabled.12;
 StartupWMClass=lumen-reader
 Keywords=Lumen;Reader;Lesen;Bücher;

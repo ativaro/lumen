@@ -51,6 +51,7 @@ class SystemController(QObject):
     def reload_theme(self):
         from appearance_tokens import COLORS, RADII, DEFAULT_DESIGN, normalize_design
         from ui_typography import metrics
+        from desktop_design import PAGE_MARGIN, NAV_WIDTH
         self.settings.sync(); name = normalize_design(self.settings.value('appearance', DEFAULT_DESIGN))
         colors = COLORS.get(name)
         if colors is None:
@@ -58,7 +59,8 @@ class SystemController(QObject):
             colors = tuple(palette.color(role).name() for role in (QPalette.Window, QPalette.Base, QPalette.AlternateBase,
                            QPalette.Text, QPalette.Button, QPalette.Mid, QPalette.Dark, QPalette.Highlight, QPalette.HighlightedText))
         theme = dict(zip(('window','base','hover','text','button','border','muted','accent','onAccent'), colors))
-        theme.update(metrics(self.settings), radius=RADII[name])
+        theme.update(metrics(self.settings), radius=RADII[name], pageMargin=PAGE_MARGIN,
+                     navWidth=NAV_WIDTH, headingSize=26)
         if theme != self._theme: self._theme = theme; self.themeChanged.emit()
 
     def tick(self): self.reload_theme(); self.refresh()
@@ -243,6 +245,8 @@ def create_window(controller):
 
 
 def main(argv=None):
+    from lumen_paths import require_test_profile
+    require_test_profile()
     parser = argparse.ArgumentParser(description='Lumen System')
     parser.add_argument('--page', choices=('system', 'sound', 'modes', 'server', 'updates', 'diagnostics', 'backups', 'tasks'))
     from lumen_panel import valid_task

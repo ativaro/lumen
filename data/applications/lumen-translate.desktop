@@ -1,7 +1,7 @@
 [Desktop Entry]
 NoDisplay=true
 Type=Application
-Name=Lumen Translate
+Name=Lumen Compose
 Comment=Translate, rewrite and correct texts; translate PDFs with layout
 Comment[de]=Texte übersetzen, umformulieren und korrigieren; PDFs mit Layout übersetzen
 Exec=%INSTALL_BIN%/lumen-translate %f

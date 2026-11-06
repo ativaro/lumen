@@ -38,20 +38,40 @@ class CatalogTest(unittest.TestCase):
         self.assertTrue(any(row.get('path') == str(resource) for row in related))
 
     def test_notebooks_link_text_and_ignore_symlinks(self):
-        notebook = self.root/'notebook'; notebook.mkdir()
+        notebook = self.store.directory/'lumen-memory'; notebook.mkdir()
         (notebook/'first.md').write_text('# First\n\nNeptunium analysis [[Second]]')
         (notebook/'second.md').write_text('# Second\n\nObservable energy')
         outside = self.root/'secret.md'; outside.write_text('# Outside\n\nNever index symlink content')
         (notebook/'escape.md').symlink_to(outside)
         (notebook/'escape-dir').symlink_to(self.root, target_is_directory=True)
-        self.store.set_setting('knowledge/notebook', str(notebook))
         counts = catalog.index_local(self.registry, self.store)
         self.assertEqual(counts['objects'], 2)
         first = self.registry.search('Neptunium')[0]
         self.assertEqual(first['locator']['root'], str(notebook))
+        self.assertEqual(first['locator']['area'],'lumen')
         self.assertTrue(any(row['title'] == 'Second' for row in self.registry.related(first['url'])))
         self.assertEqual(self.registry.search('Never index'), [])
         self.assertFalse((self.store.directory/'wissen-history').exists())
+
+    def test_retired_user_notes_are_not_indexed_or_searched_but_links_and_originals_remain(self):
+        notebook=self.root/'old-user-notes';notebook.mkdir();path=notebook/'old.md'
+        raw='# Old title\n\nOld content must not reenter the current notebook';path.write_text(raw)
+        self.store.set_setting('knowledge/notebook',str(notebook))
+        old=dict(app='wissen',kind='note',id='old.md',title='Old title',path=str(path),locator=dict(root=str(notebook)))
+        url=self.registry.register(old);self.registry.index_text(url,raw);self.registry.set_tags(url,['old'])
+        counts=catalog.index_local(self.registry,self.store)
+        self.assertEqual(counts['objects'],0)
+        for query in ('Old title','Old content','#old',''):self.assertEqual(self.registry.search(query),[])
+        self.assertEqual(self.registry.resolve(url),old);self.assertEqual(path.read_text(),raw)
+
+    def test_memory_reference_opens_only_the_guarded_memory_entry(self):
+        from interop_open import open_url
+        path=self.store.directory/'lumen-memory/entry.md'
+        ref=dict(app='wissen',kind='note',id='entry.md',title='Own memory',path=str(path),locator=dict(root=str(path.parent),area='lumen'))
+        url=self.registry.register(ref)
+        with patch('interop_open.launch') as launch:
+            open_url(url,self.root/'tools')
+            launch.assert_called_once_with('wissen',[str(path),'--area','lumen'],self.root/'tools')
 
     def test_inbox_indexes_visible_fields_without_raw_or_account_secrets(self):
         inbox = inbox_data.store(self.root/'tools')

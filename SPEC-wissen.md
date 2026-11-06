@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Der frühere lokale Notes-Editor und sein eigener Notizabgleich sind stillgelegt. Das lokale Gedächtnis bleibt getrennt erhalten; Notes verwendet den Server-Host. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](docs/desktop-retirement.md).
+
 # Lumen Wissen
 
 Vom Nutzer angenommener Umfang: eigenständige native Wissens-App mit offenem

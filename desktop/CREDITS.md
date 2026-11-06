@@ -5,7 +5,7 @@ by Vince Liuice, from https://github.com/vinceliuice/MacTahoe-kde.
 The Lumen adaptations change colors, rounded panel slices, task indicators and
 title-bar styling. These assets are distributed under GPL-3.0; the complete
 license is in `COPYING.GPL-3.0`. Their editable SVG/SVGZ sources are included.
-The Echo minimize, maximize, restore and close glyphs are original Lumen artwork,
+The Fine minimize, maximize, restore and close glyphs are original Lumen artwork,
 also supplied under GPL-3.0; the window frame retains the attribution above.
 
 The four original Lumen wallpapers (Nacht, Alpen, Nordlicht and Himmel) include

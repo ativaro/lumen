@@ -1,22 +1,19 @@
-# Eigenständige Desktop-Werkzeuge
+# Desktop-Funktionen und Zuständigkeiten
 
-Auftrag: Meeting-Werkstatt (3), digitaler Haushalt (4), Projekt-Werkbank (6), persönliches Radio (7). Eigene Fenster/Starter, gemeinsame lokale Laufzeit und Themes. Pictus und Numen bleiben separate Projekte. Kreativstudio nur als Pictus-Roadmap.
+Diese Zuordnung beschreibt die aktuelle Quellstruktur. Ein Startername allein sagt nicht, dass die betreffende App lokal arbeitet.
 
-| Modul | Verantwortung | Abhängigkeit |
-|---|---|---|
-| tools-common | Private Speicherung, Dateiimport, Jobs, Darstellung, Audio, KI-Vorschläge | vorhandene Qt-/Lumen-Laufzeit |
-| meetings | Aufnahme importieren, lokal transkribieren, Zeitstellen, Entscheidungen/Aufgaben | tools-common, Whisper/ffmpeg |
-| household | Geräte/Verträge mit Fristen und Belegen verwalten, suchen | tools-common |
-| workbench | Projektdateien, Links, Notizen und offene Fragen zusammenführen | tools-common |
-| radio | Gewählte Artikel/Dokumente zu hörbarer Ausgabe mit Quellen machen | tools-common, Piper |
-| vault | Verschlüsselte USB-/NAS-Sicherung, Vorschau, Zeitplan, Verlauf und Wiederherstellung in neue Ordner | tools-common, Restic, Secret Service |
-| inbox | IMAP/SMTP, Proton Bridge, CalDAV/ICS, lokale Entwürfe und Aufgaben | tools-common, Secret Service, optionales Kalender-Environment |
-| reader | PDF/EPUB/Artikel, Lesestand, Markierungen, Randnotizen, Vorlesen und zitierte Wissensstellen | tools-common, eigener PDF-Kern; optional Piper/ffmpeg |
-| sound | Lautstärke/Stumm/Ausgang je Stream, App-Regeln und optionale Gesprächsabsenkung | tools-common, pactl, Pulse-kompatibler Audioserver; systemd für Automatik |
-| wissen | Persönliches Markdown-Notizbuch und separates Lumen-Gedächtnis; Freigaben, optionales Lernen, Korrektur/Vergessen, Editor/Vorschau, Bilder, Links, Karte und Quellenfragen | tools-common, Pillow; OpenCode für Fragen und aktiviertes Lernen |
+| Bereich | Verantwortung | Voraussetzung |
+| --- | --- | --- |
+| Lumen / Search | Gespräche, ausgewählte Dateien, Systemhilfe und genehmigte Aktionen | Lokale Engine; KI-Anbieter für Antworten |
+| Files | Lokale Dateien, NAS, Online-Konten, optionale Drive-Ansicht | Qt/GIO; Netzwerkfunktionen bei Bedarf |
+| Reader | Private Lesekopien, PDF/EPUB/Text, Markierungen und Vorlesen | Eigener PDF-Kern; Stimme optional |
+| Compose | Lokale Text-/PDF-Bearbeitung, Übersetzen/Korrigieren | KI-Anbieter für Verarbeitung |
+| Haushalt | Lokale Geräte/Verträge, Fristen und Belege | Lokale Tools-Bibliothek |
+| System / Sound / Sicherungen | Diagnose, Audio, Arbeitsmodi und lokale Backup-Pläne | Lokale Systemfunktionen; Restic/Ziel für Backups |
+| Gedächtnis | Lokale Erinnerungen und begrenztes Lernen mit Freigaben | Eigene Einstellungen; Modell für Lernen |
+| Notes, Projekte, Code, Inbox, Audio Studio, Vault | Gemeinsame Inhalte und Produktiv-Apps | Lumen Server, Konto und passende Gerätefreigaben |
+| Nativer Vault-Broker | Bestätigte lokale Zugangsdatenoperationen | Separat eingerichtete native Vorabversion, keine allgemeine Freigabe |
 
-Reihenfolge: common → meetings → household → workbench → radio → Installation/Verifikation.
+Alte lokale Projekt- und Notes-Oberflächen sowie Inbox-/Audio-Runner sind aus der Auslieferung entfernt. Vorhandene Benutzerdaten bleiben erhalten; daraus folgt kein automatischer Import und kein Offline-Modus der Server-Apps.
 
-Vault und Inbox: Einrichtung und Grenzen stehen in [VAULT-INBOX.md](VAULT-INBOX.md).
-Reader und Sound: Bedienung, private Speicherung und Automatik in [READER-SOUND.md](READER-SOUND.md).
-Wissen: offenes Dateiformat, Konfliktschutz und Quellenfragen in [WISSEN.md](WISSEN.md).
+[Bedienung](TOOLS.md) · [Desktop-Verantwortlichkeiten](docs/desktop-retirement.md) · [Reader und Sound](READER-SOUND.md) · [Notes und Gedächtnis](WISSEN.md)

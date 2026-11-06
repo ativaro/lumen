@@ -6,14 +6,13 @@ import org.kde.plasma.plasma5support as P5Support
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.workspace.dbus as DBus
 import "Translations.js" as I18n
-import "NotificationOwner.js" as Owner
 
 Item {
     id: host
     property string helper: "/usr/bin/lumen-panel"
     property string uiLanguage: "de"
     property bool panelOpen: false
-    property var popupAnchor: null
+    required property var presenter
     property bool primary: false
     property bool ownsPopups: false
     property bool presenterConfigured: false
@@ -22,6 +21,7 @@ Item {
     property double startedAt: Date.now()
     property var presented: ({})
     property string toastIdentity: ""
+    property var themeColors: null
     property var localItems: []
     property var systemItems: []
     property string error: ""
@@ -31,8 +31,9 @@ Item {
     property int discussionAttempts: 0
     property date now: new Date()
     readonly property bool inhibited: gaming || locked || settings.notificationsInhibitedUntil > now || settings.notificationsInhibitedByApplication || (settings.inhibitNotificationsWhenFullscreen && settings.fullscreenFocused) || (settings.inhibitNotificationsWhenScreensMirrored && settings.screensMirrored)
-    onInhibitedChanged: { if(primary && ownsPopups) N.Server.inhibited=inhibited; if(inhibited) popup.dismiss(); }
-    onPrimaryChanged: if(primary) Qt.callLater(refresh)
+    onInhibitedChanged: { if(primary) N.Server.inhibited=inhibited; if(inhibited) popup.dismiss(); }
+    onPrimaryChanged: {if(primary){startedAt=Date.now();Qt.callLater(refresh);}else{ownsPopups=false;popup.dismiss();}}
+    onOwnsPopupsChanged:if(ownsPopups){startedAt=Date.now();rebuildTimer.restart()}
     function checkLock() {
         DBus.SessionBus.asyncCall({service:"org.freedesktop.ScreenSaver",path:"/ScreenSaver",iface:"org.freedesktop.ScreenSaver",member:"GetActive"},
             result=>{host.locked=result.value!==false;}, ()=>{host.locked=true;});
@@ -42,7 +43,7 @@ Item {
         function dbusActiveChanged(active) { host.locked=active; }
     }
     readonly property var items: systemItems.concat(localItems).sort((a,b) => b.updated-a.updated)
-    readonly property int unread: items.filter(row => !row.read && !row.archived && row.snoozed*1000<=now.getTime()).length
+    readonly property int unread: items.filter(row => !row.read && !row.archived && !row.resolved && row.snoozed*1000<=now.getTime()).length
     function tr(text) { return I18n.tr(text, uiLanguage); }
     function refresh() {
         if (pending) return;
@@ -55,6 +56,53 @@ Item {
     }
     function preferences() { runner.connectSource(helper+" --notification-settings"); }
     function showAll() { fullWindow.show(); fullWindow.raise(); fullWindow.requestActivate(); messages.lastRead=new Date(); refresh(); rebuild(); }
+    property bool previewActive:false
+    property bool bulkReadPending:false
+    function publishPreview() {
+        if (!primary || !previewActive) return;
+        const current=locked ? [] : items.filter(row=>!row.archived && !row.resolved && row.snoozed*1000<=Date.now());
+        const rows=current.slice(0,3).map(row=>({key:center.key(row),source:row.source.slice(0,100),title:row.title.slice(0,240),
+            body:row.body.slice(0,180),updated:row.updated,unread:!row.read,icon:row.icon}));
+        DBus.SessionBus.asyncCall({service:"org.lumen.Topbar",path:"/Topbar",iface:"org.lumen.Topbar",member:"SetNoticePreview",
+            arguments:[JSON.stringify({items:rows,unread:current.filter(row=>!row.read).length,locked:locked})]});
+    }
+    onLockedChanged: if(previewActive) publishPreview()
+    onItemsChanged: if(previewActive) Qt.callLater(publishPreview)
+    function previewCommand(action,key) {
+        if(!primary)return;
+        if(action==="stop"){previewActive=false;return;}
+        if(action==="preview"){previewActive=true;publishPreview();refresh();return;}
+        if(locked)return;
+        if(action==="open"){
+            showAll();center.selectNotice(key);
+            const row=center.selected;
+            if(row && !row.read){if(row.system)markSystemRead(new Set([row.id]));else act(row.id,false,"read");}
+        }else if(action==="read"){
+            markSystemRead(new Set(systemItems.filter(row=>!row.read).map(row=>row.id)));
+            messages.lastRead=new Date();bulkReadPending=true;startBulkRead();
+        }
+    }
+    function markSystemRead(ids){
+        for(let i=0;i<messages.rowCount();i++){
+            const idx=messages.index(i,0);
+            if(ids.has(String(messages.data(idx,N.Notifications.IdRole))))
+                messages.setData(idx,true,N.Notifications.ReadRole);
+        }
+        rebuild();
+    }
+    function startBulkRead(){
+        if(!bulkReadPending || pending)return;
+        bulkReadPending=false;pending=helper+" --notification-read-all";runner.connectSource(pending);
+    }
+    function displayNotice(row) {
+        if(inhibited || !row.localIdentity) return row;
+        const local=localItems.find(item=>item.id===row.localIdentity);
+        return local ? Object.assign({},local,{system:false}) : row;
+    }
+    onLocalItemsChanged: {
+        if(popup.visible && popup.notice && popup.notice.localIdentity && !inhibited)
+            popup.notice=displayNotice(popup.notice);
+    }
     function rebuild() {
         const rows=[];
         const retained={}; let popupValid=false; let presentedNew=false;
@@ -70,7 +118,7 @@ Item {
             // Never render notification HTML, links or remote images in Lumen.
             body=body.replace(/<[^>]*>/g," ").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&amp;/g,"&");
             const date=value(N.Notifications.UpdatedRole) || value(N.Notifications.CreatedRole);
-            const row={id:String(value(N.Notifications.IdRole)), system:true,
+            const row={id:String(value(N.Notifications.IdRole)), system:true, localIdentity:String(hints["x-lumen-id"]||""),
                 source:String(value(N.Notifications.ApplicationNameRole) || tr("System")),
                 icon:/^[a-zA-Z0-9_.-]+$/.test(value(N.Notifications.ApplicationIconNameRole)||"") ? value(N.Notifications.ApplicationIconNameRole) : "notifications", title:String(value(N.Notifications.SummaryRole) || "").slice(0,300),
                 body:body.slice(0,2000), updated:new Date(date).getTime()/1000,
@@ -85,7 +133,7 @@ Item {
                 const allowed=settings.popupBlacklistedApplications.indexOf(app)<0 && settings.popupBlacklistedServices.indexOf(service)<0;
                 const priority=value(N.Notifications.UrgencyRole)!==N.Notifications.LowUrgency || settings.lowPriorityPopups;
                 if(!presentedNew && row.updated*1000>=startedAt && !inhibited && allowed && priority && !value(N.Notifications.ExpiredRole) && !value(N.Notifications.DismissedRole)) {
-                    popup.present(row); toastIdentity=row.id; popupValid=true; messages.playSoundHint(idx);
+                    popup.present(displayNotice(row)); if(row.localIdentity)host.refresh(); toastIdentity=row.id; popupValid=true; messages.playSoundHint(idx);
                     presentedNew=true;
                 }
             }
@@ -96,7 +144,7 @@ Item {
         if(JSON.stringify(systemItems)!==JSON.stringify(rows)) systemItems=rows;
     }
     function act(identity, system, operation) {
-        if(operation==="discuss") {
+        if(operation==="discuss" && !items.some(row=>row.id===identity && row.scope && row.scope!=="local")) {
             const row=items.find(value=>value.id===identity && value.system===system);
             if(!row || discussion) return;
             discussion={source:row.source.slice(0,100),title:row.title.slice(0,300),body:row.body.slice(0,2000)};
@@ -117,7 +165,7 @@ Item {
             }
             error=tr("Diese Meldung ist nicht mehr verfügbar.");return;
         }
-        if (!/^[a-f0-9]{64}$/.test(identity) || ["open","read","unread","archive","restore","later","now"].indexOf(operation)<0) return;
+        if (!/^[a-f0-9]{64}$/.test(identity) || ["open","discuss","read","unread","archive","restore","later","now","resolve","reopen"].indexOf(operation)<0) return;
         if (pending) { queuedActions=queuedActions.concat([{id:identity,operation:operation}]); return; }
         pending=helper+" --notification-action "+operation+" --notification-id "+identity;
         runner.connectSource(pending);
@@ -160,42 +208,45 @@ Item {
     }
     Timer { interval: host.panelOpen || fullWindow.visible ? 2000 : 5000; repeat: true; running: true; triggeredOnStart: true; onTriggered: { host.now=new Date(); host.refresh(); } }
     onPanelOpenChanged: if(panelOpen) {messages.lastRead=new Date();refresh();rebuild();}
-    Component.onCompleted: { Owner.join(host); checkLock(); rebuild(); }
-    Component.onDestruction: Owner.leave(host)
+    Component.onCompleted: { checkLock(); rebuild(); }
     P5Support.DataSource {
         id: runner; engine: "executable"; connectedSources: []
         onNewData: (source,data) => {
             disconnectSource(source);
             if(source!==host.pending) return;
             host.pending="";
+            if(host.bulkReadPending)Qt.callLater(host.startBulkRead);
             try {
                 if(data["exit code"]!==0) throw new Error();
                 const result=JSON.parse(data.stdout);
                 if(result.error) {host.error=result.error;return;}
                 if(result.context) {
+                    if(JSON.stringify(host.themeColors)!==JSON.stringify(result.context.palette||null))host.themeColors=result.context.palette||null;
                     if(source.endsWith(" --notification-own-popups")) host.presenterConfigured=true;
                     host.gaming=!!result.context.gaming;
                     host.ownsPopups=!!result.context.native && host.presenterConfigured;
-                    if(host.primary && host.ownsPopups) N.Server.inhibited=host.inhibited;
+                    if(host.primary) N.Server.inhibited=host.inhibited;
                     if(!host.ownsPopups) popup.dismiss();
                 }
-                const next=result.items.map(row=>Object.assign({},row,{system:false,icon:"lumen",actions:row.target?[{key:"open",label:host.tr("Öffnen")}]:[]}));
+                const next=result.items.map(row=>Object.assign({},row,{system:false,icon:"lumen",actions:row.target?[{key:"open",label:host.tr(({question:"Antworten",decision:"Anfrage prüfen",problem:"Ursache prüfen",result:"Ergebnis ansehen",suggestion:"Vorschlag ansehen"})[row.kind]||"Öffnen")}]:[]}));
                 if(JSON.stringify(host.localItems)!==JSON.stringify(next)) host.localItems=next;
                 host.error="";
+                if(source.endsWith(" --notification-read-all")){host.rebuild();host.publishPreview();}
+                if(host.primary && !host.presenterConfigured)Qt.callLater(host.refresh);
             } catch(e) {host.error=host.tr("Meldungen gerade nicht erreichbar.");}
         }
     }
     NotificationToast {
-        id: popup; uiLanguage: host.uiLanguage; anchorItem: host.popupAnchor
-        onAction: (identity,operation)=>host.act(identity,true,operation)
+        id: popup; uiLanguage: host.uiLanguage; presenter: host.presenter
+        onAction: (identity,operation)=>host.act(identity,popup.notice ? !!popup.notice.system : true,operation)
         onCenterRequested: host.showAll()
     }
     Window {
         id: fullWindow
-        title: "Lumen Notification"; width: 780; height: 820; minimumWidth: 480; minimumHeight: 420
-        color: Kirigami.Theme.backgroundColor
+        title: "Lumen Notification"; width: 1040; height: 780; minimumWidth: 420; minimumHeight: 420
+        color: host.themeColors ? host.themeColors.window : Kirigami.Theme.backgroundColor
         NotificationCenter {
-            anchors.fill: parent; uiLanguage: host.uiLanguage; full: true; items: host.items; inhibited: host.inhibited; gaming: host.gaming; error: host.error
+            id:center;anchors.fill: parent; themeColors: host.themeColors; uiLanguage: host.uiLanguage; items: host.items; inhibited: host.inhibited; gaming: host.gaming; error: host.error
             onAction: (identity,system,operation)=>host.act(identity,system,operation)
             onToggleDnd: host.toggleDnd(); onPreferences: host.preferences()
         }

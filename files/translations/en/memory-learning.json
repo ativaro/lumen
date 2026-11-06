@@ -29,7 +29,7 @@
   "Deine Aussage:": "Your statement:",
   "Gedächtnisvorschlag prüfen …": "Reviewing memory suggestion …",
   "Keine Gedächtnisvorschläge vorhanden.": "No memory suggestions available.",
-  "{0} Gedächtnisvorschläge warten in Lumen Wissen": "{0} memory suggestions are waiting in Lumen Wissen",
+  "{0} Gedächtnisvorschläge warten in Lumen Wissen": "{0} memory suggestions are waiting in Lumen Notes",
   "Vorschlag nicht mehr verfügbar.": "Suggestion no longer available.",
   "Gedächtnis zuerst aktivieren.": "Enable memory first.",
   "Vorschlag ist abgelaufen oder wurde vergessen.": "Suggestion expired or was forgotten.",
@@ -42,5 +42,6 @@
   "Zuerst vorhandene Gedächtnisvorschläge prüfen.": "Review existing memory suggestions first.",
   "Lumen prüft deine Aussage …": "Lumen is reviewing your statement …",
   "Geprüft · keine neue Erinnerung übernommen": "Reviewed · no new memory saved",
-  "Lernen zuletzt nicht möglich · nichts automatisch wiederholt": "Learning was unavailable · no automatic retry"
+  "Lernen zuletzt nicht möglich · nichts automatisch wiederholt": "Learning was unavailable · no automatic retry",
+  "{0} Gedächtnisvorschläge warten in den Gedächtniseinstellungen": "{0} memory suggestions are waiting in memory settings"
 }

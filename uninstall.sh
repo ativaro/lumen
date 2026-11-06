@@ -11,6 +11,8 @@ CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 say() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 
 say "Entferne systemd-User-Timer"
+systemctl --user disable --now lumen-topbar.service >/dev/null 2>&1 || true
+rm -f "$CONFIG_HOME/systemd/user/lumen-topbar.service"
 systemctl --user disable --now lumen-watch.timer lumen-jobs.timer >/dev/null 2>&1 || true
 systemctl --user disable --now lumen-server-connector.service >/dev/null 2>&1 || true
 rm -f "$CONFIG_HOME/systemd/user/lumen-server-connector.service"
@@ -25,7 +27,10 @@ rm -f "$CONFIG_HOME/systemd/user/lumen-sound.service"
 
 say "Entferne Desktop-Integration"
 if [ -x "$PREFIX/bin/lumen-notification" ]; then
-    "$PREFIX/bin/lumen-notification" --restore-kde || { echo 'KDE-Benachrichtigungen zuerst wiederherstellen.' >&2; exit 1; }
+    "$PREFIX/bin/lumen-notification" --uninstall || { echo 'KDE-Benachrichtigungen zuerst wiederherstellen.' >&2; exit 1; }
+fi
+if [ -d "$DATA_HOME/plasma/plasmoids/org.lumen.notificationhost" ]; then
+    kpackagetool6 --type Plasma/Applet --remove org.lumen.notificationhost || exit 1
 fi
 systemctl --user disable --now lumen-vault.timer >/dev/null 2>&1 || true
 systemctl --user stop lumen-vault.service >/dev/null 2>&1 || true

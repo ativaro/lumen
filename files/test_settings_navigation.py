@@ -10,7 +10,7 @@ from app import create_app
 from settings_dialog import SettingsDialog
 
 
-class SettingsNavigationTest(unittest.TestCase):
+class SettingsFixture(unittest.TestCase):
     @classmethod
     def setUpClass(cls): cls.app = QApplication.instance() or create_app()
 
@@ -26,6 +26,8 @@ class SettingsNavigationTest(unittest.TestCase):
         self.dialog.close(); self.dialog.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
 
+
+class SettingsNavigationTest(SettingsFixture):
     def test_system_category_entry_launches_app_on_first_click(self):
         d = self.dialog; d.show(); QTest.qWait(30)
         with patch('lumen_apps.QProcess.startDetached', return_value=(True, 42)) as launch:
@@ -64,6 +66,46 @@ class SettingsNavigationTest(unittest.TestCase):
                 self.assertGreaterEqual(entry.height(), 72)
                 for caption in entry.findChildren(QLabel):
                     self.assertGreater(caption.height(), 0)
+
+    def test_overview_and_details_share_the_panorama_content_edge(self):
+        from PySide6.QtCore import QPoint
+        from PySide6.QtWidgets import QLabel
+        from desktop_design import NAV_WIDTH
+        d = self.dialog; d.resize(960, 640); d.show(); QTest.qWait(30)
+        d.navigation.show_category(0); self.app.processEvents()
+        overview_title = next(label for label in d.navigation.overview.findChildren(QLabel)
+                              if label.text() == d.navigation.categories[0]['title'])
+        overview_x = overview_title.mapTo(d, QPoint()).x()
+        page = next(index for index in range(d.stack.count())
+                    if d.apply_appearance in d.stack.widget(index).findChildren(QPushButton))
+        d.open_page(page); self.app.processEvents()
+        detail_title = next(label for label in d.stack.widget(page).findChildren(QLabel)
+                            if label.text() == d.page_info[page]['title'])
+        self.assertEqual(detail_title.mapTo(d, QPoint()).x(), overview_x)
+        self.assertEqual(d.navigation.nav.width(), NAV_WIDTH)
+        title = next(label for label in d.navigation.findChildren(QLabel)
+                     if label.objectName() == 'desktopAppTitle')
+        self.assertEqual(title.font().pixelSize(), 26)
+
+    def test_compact_design_action_scrolls_into_view_and_works_from_keyboard(self):
+        from PySide6.QtCore import QPoint, QPointF
+        from PySide6.QtGui import QWheelEvent
+        d = self.dialog; d.resize(960, 640); d.show(); QTest.qWait(30)
+        page = next(index for index in range(d.stack.count())
+                    if d.apply_appearance in d.stack.widget(index).findChildren(QPushButton))
+        d.open_page(page); self.app.processEvents()
+        scroll = d.stack.widget(page); viewport = scroll.viewport()
+        point = viewport.rect().center()
+        wheel = QWheelEvent(QPointF(point), QPointF(viewport.mapToGlobal(point)),
+                            QPoint(), QPoint(0, -360), Qt.NoButton, Qt.NoModifier,
+                            Qt.NoScrollPhase, False)
+        QApplication.sendEvent(viewport, wheel); self.app.processEvents()
+        bounds = d.apply_appearance.rect().translated(d.apply_appearance.mapTo(viewport, QPoint()))
+        self.assertTrue(viewport.rect().contains(bounds), bounds)
+        d.apply_appearance.setFocus(Qt.TabFocusReason)
+        with patch.object(d, 'perform') as perform:
+            QTest.keyClick(d.apply_appearance, Qt.Key_Space)
+            self.assertEqual(perform.call_args.args[0], 'appearance')
 
     def test_wizard_changes_refresh_shared_voice_fields_without_reverting_them(self):
         from PySide6.QtWidgets import QFormLayout

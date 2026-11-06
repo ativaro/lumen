@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineE
     QAbstractButton)
 from lumen_i18n import tr
 from lumen_qt import is_deleted
+from desktop_design import NAV_WIDTH, PAGE_SPACING
 
 
 def label(value, style=''):
@@ -33,28 +34,28 @@ class SettingsNavigation(QWidget):
         super().__init__(parent)
         self.stack = stack; self.pages = pages; self.categories = categories
         self.view = ('category', 0); self.previous = self.view; self.hits = []
-        root = QVBoxLayout(self); root.setContentsMargins(0, 0, 0, 0); root.setSpacing(20)
-        header = QHBoxLayout()
-        title = label(tr('Einstellungen'), 'heading'); title.setMinimumWidth(240)
+        root = QVBoxLayout(self); root.setContentsMargins(0, 0, 0, 0); root.setSpacing(PAGE_SPACING)
+        header = QHBoxLayout(); header.setSpacing(PAGE_SPACING)
+        title = label(tr('Einstellungen'), 'desktopAppTitle'); title.setMinimumWidth(NAV_WIDTH)
         header.addWidget(title)
         self.search = QLineEdit(); self.search.setPlaceholderText(tr('Eine Einstellung suchen …'))
         self.search.setAccessibleName(tr('Alle Einstellungen durchsuchen')); self.search.setClearButtonEnabled(True)
         header.addWidget(self.search, 1); root.addLayout(header)
-        body = QHBoxLayout(); body.setSpacing(20); root.addLayout(body, 1)
+        body = QHBoxLayout(); body.setSpacing(PAGE_SPACING); root.addLayout(body, 1)
         self.nav = QListWidget(); self.nav.setObjectName('settingsNavigation')
-        self.nav.setAccessibleName(tr('Einstellungsbereiche')); self.nav.setFixedWidth(240); self.nav.setSpacing(6)
+        self.nav.setAccessibleName(tr('Einstellungsbereiche')); self.nav.setFixedWidth(NAV_WIDTH); self.nav.setSpacing(6)
         for category in categories: self.nav.addItem(category['title'])
         body.addWidget(self.nav)
         self.content = QStackedWidget(); body.addWidget(self.content, 1)
         overview = QScrollArea(); overview.setWidgetResizable(True); overview.setFrameShape(QScrollArea.NoFrame)
         self.overview = QWidget(); self.overview_layout = QVBoxLayout(self.overview)
-        self.overview_layout.setContentsMargins(8, 4, 8, 4); self.overview_layout.setSpacing(10)
+        self.overview_layout.setContentsMargins(0, 4, 0, 4); self.overview_layout.setSpacing(10)
         overview.setWidget(self.overview); self.content.addWidget(overview)
         detail = QWidget(); detail_layout = QVBoxLayout(detail); detail_layout.setContentsMargins(0, 0, 0, 0)
         self.back = QPushButton(); self.back.setAutoDefault(False); self.back.setObjectName('quiet'); self.back.clicked.connect(self.go_back)
         detail_layout.addWidget(self.back, 0, Qt.AlignLeft); detail_layout.addWidget(stack, 1)
         self.content.addWidget(detail)
-        results = QWidget(); results_layout = QVBoxLayout(results); results_layout.setContentsMargins(8, 4, 8, 4)
+        results = QWidget(); results_layout = QVBoxLayout(results); results_layout.setContentsMargins(0, 4, 0, 4)
         self.result_title = label(tr('Suchergebnisse'), 'heading'); results_layout.addWidget(self.result_title)
         self.results = QListWidget(); self.results.setObjectName('settingsResults')
         self.results.setAccessibleName(tr('Gefundene Einstellungen')); results_layout.addWidget(self.results)
@@ -203,23 +204,23 @@ def categories(dialog):
             section(6, tr('Systemintegration'), tr('Standardprogramme, Benachrichtigungen und KDE'))]),
         dict(title=tr('KI & Sprache'), description=tr('Wie Lumen arbeitet, zuhört und spricht.'), sections=[
             section(0, tr('Modell & Arbeitsweise'), tr('KI-Modell, Sprache und Vorgaben für Gespräche')),
+            section(9, tr('Fähigkeiten & Erweiterungen'), tr('MCP-Verbindungen, Plugins und Skills'), activate=dialog.extensions.refresh),
             section(dialog.models_page, description=tr('Standard-, Hintergrund- und lokale Modelle, Zeitlimit und GPU')) ,
             section(dialog.persona_page, description=tr('Vorlagen, Nähe, Anrede und Antwortstil')),
             section(dialog.app_pages['wissen'], tr('Gedächtnis'), tr('Was Lumen über dich weiß und aus Gesprächen lernt'), activate=lambda: __import__('lumen_apps').launch('wissen', area='lumen')),
             section(dialog.speech_input_page, description=tr('Diktat, Erkennungssprache und Mikrofon')),
-            section(dialog.speech_output_page, description=tr('Aussprache und Stimme in allen Lumen-Apps'))]),
+            section(dialog.speech_output_page, description=tr('Aussprache und Stimme auf diesem Desktop'))]),
         dict(title=tr('Dateien & Speicher'), description=tr('Deine Dateien, Vorschauen und verbundenen Orte.'), sections=[
             section(1, tr('Navigation & Vorschau'), tr('Startordner, Tabs, versteckte Dateien und PDF-Bearbeitung')),
             section(1, tr('Dateisuche'), tr('Tipp-Pause und Anzahl der Suchtreffer'), dialog.delay),
             section(1, tr('Orte & Server'), tr('Favoriten, Bibliotheken und NAS · SMB, SFTP, WebDAV'), dialog.places),
             section(dialog.accounts_page),
-            section(dialog.app_pages['vault'], tr('Sicherungen'), tr('Sicherungspläne in Lumen System')),
-            section(dialog.server_page, tr('Server & Synchronisation'), tr('Verbindung und automatischer Datenabgleich'))]),
+            section(dialog.app_pages['system'], tr('Sicherungen'), tr('Lokale Sicherungspläne in Lumen System'), activate=dialog.backups_button.click),
+            section(dialog.server_page, tr('Server & Verbindung'), tr('Server-Apps, Gerätefreigaben und lokaler Datenabgleich'))]),
         dict(title=tr('Apps'), description=tr('Eigene Einstellungen für jede Lumen-App.'), sections=[
-            section(dialog.app_pages[key], tr('Sicherungen') if key == 'vault' else title, tr('Sicherungspläne in Lumen System') if key == 'vault' else description, activate=dialog.open_system if key == 'system' else None) for key, title, description, icon in catalogue(include_utilities=True) if key != 'search']),
+            section(dialog.app_pages[key], title, description, activate=dialog.open_system if key == 'system' else None) for key, title, description, icon in catalogue(include_utilities=True) if key != 'search']),
         dict(title=tr('Datenschutz & Freigaben'), description=tr('Was Lumen lesen, behalten und verändern darf.'), sections=[
             section(0, tr('Werkzeugfreigaben'), tr('Nachfragen und Freigaben für Befehle und Dateiänderungen'), dialog.auto),
-            section(9, tr('KI-Zugriff & MCP'), tr('Zugriff auf lokale Nachrichten, Termine und Werkzeuge')),
             section(dialog.app_pages['wissen'], tr('Lumen-Gedächtnis'), tr('Erinnerungen und ihre Freigaben'), activate=lambda: __import__('lumen_apps').launch('wissen', area='lumen'))]),
         dict(title=tr('Wartung'), description=tr('Einrichtung, Hintergrunddienste und Hilfe bei Problemen.'), sections=[
             section(dialog.troubleshooter_page, description=tr('Lumen prüfen und Hilfe zu gefundenen Problemen erhalten')),

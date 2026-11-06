@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen: show or hide
+Name[de]=Lumen: ein-/ausblenden
+Exec=%INSTALL_BIN%/lumen-quick toggle
+NoDisplay=true
+StartupNotify=false
+Icon=lumen
+X-KDE-GlobalAccel-CommandShortcut=true
+X-KDE-Shortcuts=

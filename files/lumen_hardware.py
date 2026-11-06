@@ -81,6 +81,11 @@ def activity(proc_root=Path('/proc'), uid=None, extra_apps=()):
     return sorted(found)
 
 
+def gaming():
+    """Share current-user game detection with notifications and launcher shortcuts."""
+    return bool({'Steam-Spiel', 'GameMode-Spiel', 'Gamescope-Sitzung'}.intersection(activity()))
+
+
 def background_reason(store):
     policy = store.setting('modelPolicy', {})
     if policy.get('pause_background', False): return tr('Hintergrundaufträge sind pausiert.')

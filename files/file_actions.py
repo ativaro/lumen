@@ -35,7 +35,7 @@ def template(task, paths=()):
 
 
 def expand(flow, paths):
-    if not paths or len(paths) > 100: raise ValueError(tr('Bitte 1 bis 100 Dateien oder Ordner auswählen.'))
+    if not paths: raise ValueError(tr('Zuerst eine Datei auswählen.'))
     selection = [Path(p).absolute() for p in paths]
     if any(not p.exists() or p.is_symlink() for p in selection): raise ValueError(tr('Eine ausgewählte Datei ist nicht mehr verfügbar oder ist eine Verknüpfung.'))
     def render(text, path):

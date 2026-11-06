@@ -15,7 +15,7 @@ import tempfile
 import urllib.request
 
 FEATURES = {
-    'translate_pdf': (tr('Translate: PDF-Layoutübersetzung'), (), ()),
+    'translate_pdf': (tr('Compose: PDF-Layoutübersetzung'), (), ()),
     'sound': (tr('Sound: Lautstärke und App-Ausgänge'), ('pactl',), ('libpulse',)),
     'reader': (tr('Reader: PDF- und EPUB-Lesen'), (), ()),
     'keyring': (tr('System-Schlüsselbund für Vault und Inbox'), ('secret-tool',), ('libsecret',)),
@@ -28,6 +28,9 @@ FEATURES = {
     'workshop': (tr('PDF-Dokumentenwerkstatt'), (), ()),
     'ocr': (tr('Texterkennung in Bildern und Scans'), ('tesseract', 'tessdata-deu', 'tessdata-eng'), ('tesseract', 'tesseract-data-deu', 'tesseract-data-eng')),
     'capture': (tr('Bildschirmaufnahme'), ('spectacle',), ('spectacle',)),
+}
+QUALIFIED_ENGINE_SHA256 = {
+    ('1.18.34', 'x86_64'): 'f623adf34f0d6f3d288ca279e6d9ad5a8366e9a1008ef2a1661a940a25ece20d',
 }
 VERSION = '1.9.4'
 SOURCE_URL = f'https://codeload.github.com/ggml-org/whisper.cpp/tar.gz/refs/tags/v{VERSION}'
@@ -148,6 +151,10 @@ def install_engine():
     if sys.platform != 'linux' or platform.machine() not in assets:
         raise RuntimeError(tr('Die kompatible Engine ist für Linux x86_64 und ARM64 verfügbar.'))
     target = managed_opencode()
+    # Same-version upstream downloads would undo the qualified SDK/permission fixes.
+    if target.is_file() and hashlib.sha256(target.read_bytes()).hexdigest() == QUALIFIED_ENGINE_SHA256.get((ENGINE_VERSION, platform.machine())):
+        report(tr('Die geprüfte Lumen-Engine ist bereits eingerichtet.'), 100)
+        return
     target.parent.mkdir(parents=True, exist_ok=True)
     arch, size, checksum = assets[platform.machine()]
     report(tr('Kompatible Engine für Lumen einrichten …'))
@@ -298,22 +305,15 @@ def install_vault():
             shutil.copyfileobj(src,dst)
         binary.chmod(0o755); run([str(binary),'version'],timeout=10)
         os.replace(binary,root/'restic-0.19.1')
-    report(tr('Vault bereit. Ziel und Sicherungspasswort in Lumen Vault auswählen.'),100)
+    report(tr('Lokale Sicherungen bereit. Ziel und Sicherungsschlüssel in Lumen System auswählen.'),100)
 
 
-def install_inbox():
-    root = speech_root().parent / 'inbox-env-v1'; python = str(root / 'bin/python')
-    report(tr('Kalenderanbindung für Inbox vorbereiten'))
-    if not Path(python).is_file(): run([sys.executable,'-m','venv',str(root)])
-    run([python,'-m','pip','--disable-pip-version-check','install','caldav==3.3.1','icalendar==7.3.0','recurring-ical-events==3.8.2'])
-    run([python,'-c','import caldav, icalendar'],timeout=20)
-    report(tr('IMAP/SMTP und Kalenderanbindung bereit. Proton Mail benötigt zusätzlich die angemeldete Proton Mail Bridge.'),100)
 
 
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=('packages', 'engine', 'dictation', 'dictation-quality', 'voice', 'voice-multilingual', 'desktop', 'image-search', 'memory-search', 'vault', 'inbox'))
+    parser.add_argument('action', choices=('packages', 'engine', 'dictation', 'dictation-quality', 'voice', 'voice-multilingual', 'desktop', 'image-search', 'memory-search', 'vault'))
     parser.add_argument('groups', nargs='*', choices=tuple(FEATURES))
     parser.add_argument('--existing-model', default='')
     from appearance import DESIGNS
@@ -325,7 +325,7 @@ def main():
         if args.action == 'desktop':
             from lumen_desktop_setup import configure_desktop
             report(tr('Desktop-Konfiguration sichern und Lumen-Desktop aktivieren …'), cancellable=False)
-            configure_desktop(args.theme, replace_panels=True)
+            configure_desktop(args.theme)
             report(tr('Lumen-Desktop eingerichtet. Die vorherige Konfiguration wurde lokal gesichert.'), 100, cancellable=False)
         elif args.action == 'engine': install_engine()
         elif args.action == 'dictation': install_dictation(args.existing_model)
@@ -338,7 +338,6 @@ def main():
             from lumen_memory import search_home
             install(search_home(), run=run, download=download, report=lambda message:report(tr(message)))
         elif args.action == 'vault': install_vault()
-        elif args.action == 'inbox': install_inbox()
         else:
             if 'engine' in args.groups: install_engine()
             install_packages(missing_packages([group for group in args.groups if group != 'engine']))

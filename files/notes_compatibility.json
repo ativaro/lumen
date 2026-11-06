@@ -1,0 +1,6 @@
+[
+  {"path":"Haus/Überblick.md","text":"---\ntags: [projekt/hausbau, rechnung]\ncustom: {source: untouched}\n---\n\n# Haus\n\nGrüße 🌍 日本語\n\n#projekt/hausbau #rechnung\n[[Plan|Bauplan]]\n![Skizze](../attachments/skizze.png)\n","bodyTags":["projekt/hausbau","rechnung"]},
+  {"path":"Haus/Plan.md","text":"# Plan\n\n## Kosten\nBudget mit ^budget als zukünftiger Absatzreferenz.\n\n[[Fehlt]]\n","bodyTags":[]},
+  {"path":"Arbeit/Plan.md","text":"# Plan\n\nGleicher Titel, anderer Pfad.\n\n```markdown\n#kein-tag\n[[kein-link]]\n```\n\n`#auch-kein-tag` #arbeit\n","bodyTags":["arbeit"]},
+  {"path":"Ohne-Titel.md","text":"---\nforeign:\n  nested: [one, two]\n---\n\nInhalt ohne H1.\n\n- [ ] Offen\n- [x] Fertig\n","bodyTags":[]}
+]

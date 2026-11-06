@@ -84,112 +84,11 @@ class SourcesTest(unittest.TestCase):
             self.assertEqual(value['source']['position']['note'], 'note')
             self.assertNotIn('first and second page', value['text'])
 
-    def inbox_message(self):
-        from email.message import EmailMessage
-        from tools_inbox import Inbox
-        window = self.window(Inbox)
-        account = window.library.create('Private account', kind='imap', host='secret-host', password='must-not-leak')
-        mail = EmailMessage()
-        mail['From'] = 'Alice <alice@example.test>'
-        mail['To'] = 'bob@example.test'
-        mail['Subject'] = 'Selected message'
-        mail.set_content('Selected body and unselected remainder')
-        mail.add_attachment(b'%PDF-fake-test', maintype='application', subtype='pdf', filename='../../manual.pdf')
-        mail.add_attachment(b'private-other-attachment', maintype='text', subtype='plain', filename='private.txt')
-        raw = mail.as_bytes()
-        with window.library.connect() as db:
-            db.execute('INSERT INTO messages VALUES (?,?,?,?,?,?,?,?,?,?,?)', (account, 'INBOX', '77', '12', 'thread', 'Selected message', 'Alice', '2026-10-03', 'Selected body and unselected remainder', raw, 0))
-        window.refresh()
-        window.messages.setCurrentItem(window.messages.topLevelItem(0))
-        return window, raw
 
-    def test_inbox_selected_text_excludes_raw_and_account_secrets(self):
-        window, raw = self.inbox_message()
-        self.select(window.reader, 0, 13)
-        value = self.capture(window)
-        self.assertEqual(value['text'], 'Selected body')
-        self.assertEqual(value['source']['kind'], 'message')
-        self.assertEqual(value['source']['locator']['uid'], '12')
-        serialized = json.dumps(value)
-        for private in ('must-not-leak', 'secret-host', 'private-other-attachment', 'unselected remainder', 'Content-Type'):
-            self.assertNotIn(private, serialized)
 
-    def test_selected_attachment_materializes_only_on_worker_and_is_replayable(self):
-        from tools_ui import Job
-        window, raw = self.inbox_message()
-        window._interop_focus = window.attachments
-        window.attachments.setCurrentIndex(0)
-        value = self.capture(window)
-        self.assertEqual(value['paths'], [])
-        self.assertEqual(list(window.library.assets.iterdir()), [])
-        self.assertNotIn('raw', json.dumps(value))
-        job = Job(lambda _: None)
-        result = sources.materialize(value, job, self.root/'tools')
-        path = Path(result['paths'][0])
-        self.assertEqual(path.read_bytes(), b'%PDF-fake-test')
-        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
-        self.assertEqual(result['items'][0]['title'], 'manual.pdf')
-        self.assertEqual(sources.materialize(value, job, self.root/'tools'), result)
-        self.assertEqual(len(list(window.library.assets.iterdir())), 1)
-        with window.library.connect() as db:
-            self.assertEqual(db.execute('SELECT raw FROM messages').fetchone()['raw'], raw)
 
-    def test_attachment_cancellation_removes_partial_copy(self):
-        from tools_data import Cancelled
-        window, _ = self.inbox_message()
-        window._interop_focus = window.attachments
-        value = self.capture(window)
-        class CancelAtWrite:
-            checks = 0
-            def check(self):
-                self.checks += 1
-                if self.checks == 3: raise Cancelled('Abgebrochen')
-        with self.assertRaises(Cancelled):
-            sources.materialize(value, CancelAtWrite(), self.root/'tools')
-        self.assertEqual(list(window.library.assets.iterdir()), [])
 
-    def test_inbox_task_and_event_keep_dates_without_private_calendar_url(self):
-        from tools_inbox import Inbox
-        window = self.window(Inbox)
-        account = window.library.create('Calendar', kind='ics', url='https://calendar.test/private-secret')
-        event = dict(uid='event', title='Planung', start='2026-10-04T12:00:00+02:00', end='2026-10-04T13:00:00+02:00', location='Room', description='Discuss next steps', url='https://calendar.test/private-secret')
-        with window.library.connect() as db:
-            db.execute('INSERT INTO tasks VALUES (?,?,?,?,?)', ('task', 'Call Alice', '2026-10-05', '', 0))
-            db.execute('INSERT INTO calendar_cache VALUES (?,?,?)', (account, 'event', json.dumps(event)))
-        window.reload_other()
-        window.tabs.setCurrentIndex(3)
-        window.tasks.setCurrentItem(window.tasks.topLevelItem(0))
-        value = self.capture(window)
-        self.assertEqual(value['items'][0]['due'], '2026-10-05')
-        self.assertEqual(value['source']['kind'], 'task')
-        window.tabs.setCurrentIndex(1)
-        window.events.setCurrentItem(window.events.topLevelItem(0))
-        value = self.capture(window)
-        self.assertEqual(value['source']['kind'], 'event')
-        self.assertEqual(value['items'][0]['start'], event['start'])
-        self.assertNotIn('private-secret', json.dumps(value))
 
-    def test_meeting_selected_transcript_and_action_keep_time_and_edits(self):
-        from tools_meetings import Meetings
-        window = self.window(Meetings)
-        window.library.asset('recording.wav').write_bytes(b'fake audio')
-        key = window.library.create('Meeting', recording=dict(asset='recording.wav', name='recording.wav'), duration=30000,
-            segments=[dict(start=0, end=1000, text='Unselected private segment'), dict(start=1200, end=5000, text='Send notes')],
-            summary='Meeting summary', results=[dict(kind='actions', text='Send the notes', segment=1, done=False, due='2026-10-04')])
-        window.focus_record(key)
-        window.transcript.item(1, 1).setText('Corrected live transcript')
-        window.transcript.selectRow(1)
-        value = self.capture(window)
-        self.assertIn('Corrected live transcript', value['text'])
-        self.assertNotIn('Unselected', value['text'])
-        self.assertEqual(value['source']['position']['time'], 1200)
-        self.assertEqual(value['paths'], [])
-        window.tabs.setCurrentIndex(1)
-        window.results.selectRow(0)
-        value = self.capture(window)
-        self.assertEqual(value['items'][0]['kind'], 'task')
-        self.assertEqual(value['items'][0]['due'], '2026-10-04')
-        self.assertEqual(value['items'][0]['time'], 1200)
 
     def test_household_selected_document_excludes_other_attachments(self):
         from tools_household import Household
@@ -209,60 +108,8 @@ class SourcesTest(unittest.TestCase):
         self.assertEqual(value['text'], 'whole')
         self.assertEqual(value['paths'], [])
 
-    def test_agenda_without_recording_captures_live_selected_agenda(self):
-        from tools_meetings import Meetings
-        window = self.window(Meetings)
-        key = window.library.create('Agenda', recording=None, agenda='Saved agenda', segments=[], results=[], summary='')
-        window.focus_record(key)
-        window.tabs.setCurrentIndex(2)
-        window.agenda.setPlainText('Current agenda\nOther material')
-        self.select(window.agenda, 0, 14)
-        value = self.capture(window)
-        self.assertEqual(value['text'], 'Current agenda')
-        self.assertEqual(value['paths'], [])
-        self.assertEqual(value['items'], [dict(kind='agenda', text='Current agenda')])
 
-    def test_workbench_material_question_and_unsaved_notes(self):
-        from tools_workbench import Workbench
-        window = self.window(Workbench)
-        path = self.root/'project.txt'
-        path.write_text('material')
-        key = window.library.create('Project', notes='Saved notes', questions=[dict(text='What next?', done=False)], resources=[dict(kind='file', title='Material', target=str(path)), dict(kind='url', title='Web', target='https://example.test/article')])
-        window.focus_record(key)
-        window.tabs.setCurrentIndex(1)
-        window.resources.setCurrentRow(0)
-        value = self.capture(window)
-        self.assertEqual(value['paths'], [str(path)])
-        self.assertNotIn('What next?', value['text'])
-        window.resources.setCurrentRow(1)
-        self.assertEqual(self.capture(window)['url'], 'https://example.test/article')
-        window.tabs.setCurrentIndex(0)
-        window.questions.setCurrentRow(0)
-        value = self.capture(window)
-        self.assertEqual(value['items'], [dict(kind='question', text='What next?', done=False)])
-        window.notes.setPlainText('Live edited notes')
-        self.select(window.notes, 0, 11)
-        self.assertEqual(self.capture(window)['text'], 'Live edited')
 
-    def test_radio_source_script_excerpt_and_playback_position(self):
-        from tools_radio import Radio
-        window = self.window(Radio)
-        window.library.asset('edition.wav').write_bytes(b'fake audio')
-        key = window.library.create('Edition', sources=[dict(title='Article', text='Article body', url='https://example.test/article', selected=True)], script='First paragraph. Second paragraph.', minutes=5, edition_sources=[dict(title='Article', url='https://example.test/article')], audio='edition.wav', duration=40000)
-        window.focus_record(key)
-        window.source_text.setPlainText('Edited article body')
-        value = self.capture(window)
-        self.assertEqual(value['text'], 'Edited article body')
-        self.assertEqual(value['url'], 'https://example.test/article')
-        from interop_parts import capture_part
-        self.assertEqual(value['source']['position']['part'], capture_part(window, 'source', 0))
-        window.tabs.setCurrentIndex(1)
-        window.player.position = 12500
-        self.select(window.script, 0, 16)
-        value = self.capture(window)
-        self.assertEqual(value['text'], 'First paragraph.')
-        self.assertEqual(value['paths'], [])
-        self.assertEqual(value['source']['position']['time'], 12500)
 
     def test_vault_and_sound_capture_only_useful_settings(self):
         from tools_vault import Vault

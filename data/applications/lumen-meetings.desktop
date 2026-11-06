@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=Lumen Meeting & Radio
-Name[de]=Lumen Meeting & Radio
+Name=Lumen Audio Studio
+Name[de]=Lumen Audio Studio
 Comment=Recordings, transcripts and your personal radio
 Comment[de]=Aufnahmen, Transkripte und Ergebnisse
 Exec=%INSTALL_BIN%/lumen-meetings

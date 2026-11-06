@@ -62,6 +62,8 @@ class PageCanvas(QWidget):
 class Reader(ToolWindow):
     def __init__(self,root=None):
         super().__init__('reader',tr('Lumen Reader'),tr('Zeit zum Lesen. Deine Bücher, Gedanken und Fundstellen.'),'lumen-reader',root)
+        from topbar_context import install_reader
+        install_reader(self)
         self.add_button.setText(tr('Buch oder Dokument öffnen'));self.search.setPlaceholderText(tr('In meiner Bibliothek …'))
         self.sidebar.layout().insertWidget(2,button(tr('Artikel speichern'),lambda:self.safe(self.add_article),'internet-web-browser'))
         self.data=None;self.page_index=0;self.note_id='';self.passwords={};self.pending=[];self.restore_scroll=0;self.audio_asset='';self.pending_position={}
@@ -96,9 +98,11 @@ class Reader(ToolWindow):
         rl.addWidget(button(tr('Markierung entfernen'),lambda:self.safe(self.remove_note),'edit-delete'))
         rl.addWidget(button(tr('Als Notiz speichern …'),lambda:self.safe(self.remember),'document-save'))
         self.read_split.addWidget(self.rail);self.read_split.setSizes([720,280]);self.read_split.setStretchFactor(0,1)
+        self.focus_button=button(tr('Lesemodus'),self.focus_mode,'view-fullscreen');self.focus_button.setCheckable(True)
+        self._compact=False;self._compact_restore=None
         self.content.addWidget(row(button(tr('Vorlesen'),lambda:self.safe(self.speak),'audio-volume-high'),
             button(tr('Notizen exportieren'),lambda:self.safe(self.export_notes),'document-export'),
-            button(tr('Lesemodus'),self.focus_mode,'view-fullscreen')))
+            self.focus_button))
         self.player=AudioPlayer();self.content.addWidget(self.player);self.player.hide()
         self.scroll.verticalScrollBar().valueChanged.connect(self.edited);self.text.verticalScrollBar().valueChanged.connect(self.edited)
         self.body.setEnabled(False);self.refresh()
@@ -110,13 +114,19 @@ class Reader(ToolWindow):
         actions.addAction(tr('Kapitelmarkierungen als Notiz speichern …'),lambda:self.safe(self.send_marks,True))
         actions.addAction(tr('Alle Markierungen als Notiz speichern …'),lambda:self.safe(self.send_marks,False))
         from interop_reader import send_book_marks
-        actions.addAction(tr('Markierungen mehrerer Dokumente an Lumen Persönliches Radio'),lambda:self.safe(send_book_marks,self))
+        actions.addAction(tr('Markierungen mehrerer Dokumente an Lumen Audio Studio · Radio'),lambda:self.safe(send_book_marks,self))
+        self.body.installEventFilter(self)
 
     def create(self):
-        path,_=QFileDialog.getOpenFileName(self,tr('Buch oder Dokument öffnen'),str(Path.home()),tr('Lesbare Dokumente (*.pdf *.epub *.txt *.md *.html *.htm)'))
+        path,_=QFileDialog.getOpenFileName(self,tr('Buch oder Dokument öffnen'),str(Path.home()),tr('Lesbare Dokumente (*.pdf *.epub *.txt *.md *.html *.htm *.docx *.docm *.xlsx *.xlsm *.pptx *.pptm *.odt *.ods *.odp)'))
         if path:self.open_file(path)
 
     def open_file(self,path):
+        from reader_server import OFFICE, ServerDocument
+        if Path(path).suffix.lower() in OFFICE:
+            if self.job:raise ValueError(tr('Bitte den laufenden Vorgang abwarten.'))
+            self.server_document=ServerDocument(self,path);self.server_document.show()
+            return
         if len(self.pending)>=10:raise ValueError(tr('Bitte den laufenden Import abwarten.'))
         if self.job:self.pending.append(path);return
         self.work(tr('Private Lesekopie wird angelegt …'),lambda job:reader.import_file(self.library,path,job),self.open_imported)
@@ -223,11 +233,35 @@ class Reader(ToolWindow):
 
     def eventFilter(self,obj,event):
         if event.type()==QEvent.Resize and hasattr(self,'canvas') and self.zoom.currentData()==0:self.canvas.resize_page(self.effective_zoom())
+        if obj is self.body and event.type()==QEvent.EnabledChange:self.update_reading_layout()
         return super().eventFilter(obj,event)
 
     def change_mode(self,index):self.views.setCurrentIndex(index);self.edited()
     def focus_mode(self):
-        focused=self.sidebar.isVisible();self.sidebar.setVisible(not focused);self.rail.setVisible(not focused)
+        self._compact_restore=None
+        focused=not self.rail.isHidden();self.sidebar.setVisible(not focused);self.rail.setVisible(not focused);self.reading_mode_status()
+
+    def reading_mode_status(self):
+        focused=self.sidebar.isHidden() and self.rail.isHidden()
+        self.content.setContentsMargins(0 if focused else 16,0,0,0)
+        text=tr('Bibliothek und Gedanken anzeigen' if focused else 'Lesemodus')
+        self.focus_button.setText(text);self.focus_button.setAccessibleName(text);self.focus_button.setChecked(focused)
+
+    def resizeEvent(self,event):
+        super().resizeEvent(event)
+        self.update_reading_layout()
+
+    def update_reading_layout(self):
+        if not hasattr(self,'focus_button') or not self.isWindow():return
+        compact=self.width()<1000 and self.body.isEnabled()
+        if compact==self._compact:return
+        self._compact=compact
+        if compact:
+            self._compact_restore=(not self.sidebar.isHidden(),not self.rail.isHidden())
+            self.sidebar.hide();self.rail.hide();self.reading_mode_status()
+        elif self._compact_restore is not None:
+            sidebar,rail=self._compact_restore;self._compact_restore=None
+            self.sidebar.setVisible(sidebar);self.rail.setVisible(rail);self.reading_mode_status()
 
     def save(self):
         super().save()

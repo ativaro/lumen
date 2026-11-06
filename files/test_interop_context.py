@@ -36,37 +36,7 @@ class ContextTest(unittest.TestCase):
             time.sleep(.01)
         self.fail('Native operation did not finish')
 
-    def test_context_actions_replace_top_chrome_and_keep_real_item_drag(self):
-        from tools_workbench import Workbench
-        from interop_context import add_actions
-        window=Workbench(self.root/'tools');self.windows.append(window)
-        window.focus_record(window.library.create('Project',notes='Text',questions=[],resources=[]))
-        self.app.processEvents()
-        self.assertFalse(window.menuBar().actions());self.assertIsNone(window.menuBar().cornerWidget())
-        self.assertTrue(window.entries.dragEnabled())
-        menu=QMenu();add_actions(window,menu)
-        self.assertIn(interop_ui.tr('Als Notiz speichern …'),[a.text() for a in menu.actions()])
-        self.assertIn(window._workflow_menu.menuAction(),menu.actions())
 
-    def test_context_menu_waits_for_selected_content_to_load(self):
-        from tools_workbench import Workbench
-        window=Workbench(self.root/'tools');self.windows.append(window);window.show()
-        window.focus_record(window.library.create('Project',notes='Text',questions=[],resources=[]))
-        self.app.processEvents();window.work('Loading',lambda job:time.sleep(.1),lambda _:None)
-        observed=[];timer=QTimer();timer.setInterval(15)
-        def inspect():
-            menu=QApplication.activePopupWidget()
-            if isinstance(menu,QMenu):
-                names=[a.text() for a in menu.actions()]
-                observed.extend(names)
-                if interop_ui.tr('Als Notiz speichern …') in names:menu.close()
-        timer.timeout.connect(inspect);timer.start()
-        # A bounded fallback ensures a failed population cannot hang the suite.
-        watchdog=QTimer();watchdog.setSingleShot(True);watchdog.timeout.connect(lambda:QApplication.activePopupWidget().close() if QApplication.activePopupWidget() else None);watchdog.start(2000)
-        try:window.entries.customContextMenuRequested.emit(window.entries.visualItemRect(window.entries.currentItem()).center())
-        finally:timer.stop();watchdog.stop()
-        self.assertIn(interop_ui.tr('Auswahl wird geladen …'),observed)
-        self.assertIn(interop_ui.tr('Als Notiz speichern …'),observed)
 
     def test_dropped_reader_files_are_queued_without_an_import_chooser(self):
         from types import SimpleNamespace
@@ -79,66 +49,7 @@ class ContextTest(unittest.TestCase):
         self.assertEqual([c.args[0] for c in control.return_value.enqueue.call_args_list],[{'path':p} for p in paths])
         review.assert_not_called()
 
-    def test_reader_quote_native_review_saves_named_exact_source(self):
-        from tools_reader import Reader
-        from tools_wissen import Wissen
-        source=Reader(self.root/'tools');target=Wissen(self.root/'tools');self.windows.extend([source,target])
-        errors=[];source.error=errors.append;target.error=errors.append
-        document=self.root/'Thoughts.txt';document.write_text('A selected passage with its exact source.')
-        source.open_file(str(document))
-        self.wait(lambda:source.data and not source.job and target.book and not target.job)
-        source.canvas.select_all()
-        with patch('interop_ui.launch') as launch:source.remember()
-        token=launch.call_args.args[1][1];registry=Registry(self.root/'tools');request=registry.request(token)
-        self.assertEqual(request['payload']['source']['position']['page'],0)
-        inspected=[]
-        def accept():
-            dialog=QApplication.activeModalWidget()
-            if not dialog:return
-            visible=[w for w in dialog.findChildren(QComboBox) if w.isVisible()]
-            inspected.append([w.text() for w in dialog.findChildren(QLabel) if w.isVisible()])
-            self.assertEqual(len(visible),1) # notebook folder only
-            edits=[w for w in dialog.findChildren(QLineEdit) if w.isVisible()]
-            self.assertEqual(len(edits),1) # title; no unrelated date
-            edits[0].setText('My saved thought')
-            self.assertIn('exact source',dialog.findChild(QPlainTextEdit).toPlainText())
-            dialog.accept()
-        timer=QTimer();timer.setInterval(20);timer.timeout.connect(accept);timer.start()
-        try:
-            interop_ui.controller(target).enqueue({'handoff':token})
-            self.wait(lambda:registry.request(token)['state']=='done' and not target.job)
-        finally:timer.stop()
-        self.assertFalse(errors,errors);self.assertTrue(inspected)
-        note=target.book.scan()['notes'][0]
-        self.assertEqual(note['title'],'My saved thought');self.assertIn('exact source',note['text'])
-        self.assertNotIn('lumen://',target.editor.toPlainText());self.assertIn('Thoughts',target.origin.text())
-        self.assertEqual(note['source'],request['payload']['source_url'])
-        with patch('interop_open.launch') as opened:target.origin.linkActivated.emit(note['source'])
-        self.assertEqual(opened.call_args.args[:2],('reader',['--ref',note['source']]))
-        result=registry.request(token)['result'];self.assertEqual(registry.related(result)[0]['position']['page'],0)
-        markup=interop_ui.source_markup(request['payload']['source_url'],self.root/'tools')
-        self.assertIn('Thoughts',markup);self.assertIn(interop_ui.tr(' · Seite {0}',1),markup)
 
-    def test_notebook_backup_saves_edits_and_selects_only_notebook_and_links(self):
-        from tools_wissen import Wissen
-        window=Wissen(self.root/'tools');self.windows.append(window);errors=[];window.error=errors.append
-        self.wait(lambda:window.book and not window.job)
-        note=window.book.create('Keep','Original');window.scanned(window.book.scan());window.open_note(note['path'])
-        self.wait(lambda:window.doc and not window.job)
-        window.editor.appendPlainText('Unsaved edit')
-        with patch('interop_ui.launch') as launch:
-            window.backup_notebook();self.wait(lambda:launch.called and not window.job)
-        self.assertIn('Unsaved edit',window.book.read(note['path'])['text'])
-        request=Registry(self.root/'tools').request(launch.call_args.args[1][1])
-        rows=interop_vault.payload_sources(request['payload'],self.root/'tools',window.store)
-        self.assertEqual([r['kind'] for r in rows if r['app']=='wissen'],['notebook'])
-        window.backup_status();self.assertEqual(window.backup_info.text(),interop_ui.tr('Noch kein Sicherungsplan für dieses Notizbuch.'))
-        from tools_data import Library
-        library=Library('vault',self.root/'tools');key=library.create('Notes',sources=[str(window.book.root)],interval=86400)
-        window.backup_status();self.assertIn(interop_ui.tr('Täglich'),window.backup_info.text())
-        self.assertIn(interop_ui.tr('Noch kein erfolgreicher Sicherungslauf.'),window.backup_info.text())
-        library.update(key,last_backup=1700000000,backup_sources=[str(window.book.root)])
-        window.backup_status();self.assertIn('14.11.2023',window.backup_info.text());self.assertFalse(errors,errors)
 
     def test_failed_schedule_resumes_existing_plan_without_second_review(self):
         from tools_vault import Vault

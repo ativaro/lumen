@@ -11,6 +11,7 @@ ApplicationWindow {
     width: 1240; height: 700
     minimumWidth: 620; minimumHeight: 560
     property int section: 0
+    property bool resultDialogVisible: false
     // A remapped Wayland surface can receive the previous surface's focus-out first.
     property bool focusReceived: false
     readonly property bool homeVisible: !controller.conversation && !controller.query.trim() && section === 0
@@ -27,7 +28,7 @@ ApplicationWindow {
     onActiveChanged: {
         if (active) focusReceived = true
         else if (visible && focusReceived) Qt.callLater(function() {
-            if (window.visible && window.focusReceived && !window.active && !attachments.visible && !resultView.dialogVisible) window.hide()
+            if (window.visible && window.focusReceived && !window.active && !attachments.visible && !window.resultDialogVisible) window.hide()
         })
     }
     onVisibleChanged: { if (!visible) { focusReceived = false; window.controller.hidden() } else { composer.forceActiveFocus(); window.controller.homeView.start() } }
@@ -60,7 +61,7 @@ ApplicationWindow {
                 RowLayout {
                     id: brand
                     anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; spacing: 10
-                    Image { source: "image://icons/lumen?" + window.theme.name; sourceSize: Qt.size(21,21); Layout.preferredWidth: 21; Layout.preferredHeight: 21 }
+                    LumenHalo { active: window.controller.busy && !window.controller.permissions.length && !window.controller.questions.length; Layout.preferredWidth: 24; Layout.preferredHeight: 24 }
                     Label { text: "Lumen"; color: window.theme.text; font.pixelSize: 16; font.weight: Font.DemiBold }
                 }
                 Frame {
@@ -90,15 +91,31 @@ ApplicationWindow {
                     anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; spacing: 3
                     LumenButton { objectName: "openDetails"; theme: window.theme; quiet: true; visible: window.controller.sharedConversation; icon.name: "window-new"; icon.width: 16; icon.height: 16; implicitWidth: 32; implicitHeight: 32; leftPadding: 8; rightPadding: 8; hint: window.controller.text("Detailansicht"); onClicked: window.controller.expand() }
                     LumenButton { theme: window.theme; quiet: true; icon.name: "configure"; icon.width: 16; icon.height: 16; implicitWidth: 32; implicitHeight: 32; leftPadding: 8; rightPadding: 8; hint: window.controller.text("Einstellungen"); onClicked: window.controller.open_setup() }
-                    LumenButton { theme: window.theme; quiet: true; visible: window.width>=800; text: "−"; implicitWidth: 32; implicitHeight: 32; leftPadding: 8; rightPadding: 8; hint: window.controller.text("Minimieren"); onClicked: window.showMinimized() }
-                    LumenButton { theme: window.theme; quiet: true; visible: window.width>=800; text: "□"; implicitWidth: 32; implicitHeight: 32; leftPadding: 8; rightPadding: 8; hint: window.controller.text("Maximieren oder wiederherstellen"); onClicked: window.visibility === Window.Maximized ? window.showNormal() : window.showMaximized() }
+                    LumenButton {
+                        objectName: "windowMinimize"; theme: window.theme; quiet: true; visible: window.width>=800
+                        icon.source: "../../window-controls/minimize.svg"; icon.width: 20; icon.height: 20
+                        implicitWidth: 32; implicitHeight: 32; leftPadding: 6; rightPadding: 6; topPadding: 6; bottomPadding: 6
+                        hint: window.controller.text("Minimieren"); onClicked: window.showMinimized()
+                    }
+                    LumenButton {
+                        objectName: "windowMaximize"; theme: window.theme; quiet: true; visible: window.width>=800
+                        icon.source: window.visibility === Window.Maximized ? "../../window-controls/restore.svg" : "../../window-controls/maximize.svg"
+                        icon.width: 20; icon.height: 20; implicitWidth: 32; implicitHeight: 32; leftPadding: 6; rightPadding: 6; topPadding: 6; bottomPadding: 6
+                        hint: window.controller.text("Maximieren oder wiederherstellen")
+                        onClicked: window.visibility === Window.Maximized ? window.showNormal() : window.showMaximized()
+                    }
                     LumenButton {
                         id: optionsButton; theme: window.theme; quiet: true; text: "···"; font.pixelSize: 23
                         implicitWidth: 32; implicitHeight: 32; leftPadding: 8; rightPadding: 8
                         hint: window.controller.text("Gesprächsoptionen und Verlauf")
                         visible: window.controller.conversation; onClicked: { options.open(); window.controller.load_sessions() }
                     }
-                    LumenButton { theme: window.theme; quiet: true; text: "×"; font.pixelSize: 20; implicitWidth: 32; implicitHeight: 32; leftPadding: 8; rightPadding: 8; hint: window.controller.text("Lumen ausblenden · Esc"); onClicked: window.hide() }
+                    LumenButton {
+                        objectName: "windowHide"; theme: window.theme; quiet: true
+                        icon.source: "../../window-controls/close.svg"; icon.width: 20; icon.height: 20
+                        implicitWidth: 32; implicitHeight: 32; leftPadding: 6; rightPadding: 6; topPadding: 6; bottomPadding: 6
+                        hint: window.controller.text("Lumen ausblenden · Esc"); onClicked: window.hide()
+                    }
                 }
             }
             Rectangle {
@@ -125,10 +142,10 @@ ApplicationWindow {
                             ContextMenu.menu: Menu {
                                 MenuItem { text: qsTr("Copy"); onTriggered: composer.copy() }
                                 MenuItem { text: qsTr("Cut"); onTriggered: composer.cut() }
-                                MenuItem { text: qsTr("Paste"); enabled: !window.controller.clipboard_protected(); onTriggered: { if (!window.controller.clipboard_protected()) composer.paste() } }
+                                MenuItem { text: qsTr("Paste"); enabled: !window.controller.clipboard_protected(); onTriggered: { if (!window.controller.paste_image()) composer.paste() } }
                             }
                             Keys.onPressed: function(event) {
-                                if (event.matches(StandardKey.Paste) && window.controller.clipboard_protected()) { event.accepted = true; return }
+                                if (event.matches(StandardKey.Paste) && window.controller.paste_image()) { event.accepted = true; return }
                                 if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && !(event.modifiers & Qt.ShiftModifier)) { window.controller.submit(!!(event.modifiers & Qt.ControlModifier)); event.accepted = true }
                                 else if (!window.controller.conversation && (event.key === Qt.Key_Down || event.key === Qt.Key_Up)) { window.controller.move_selection(event.key === Qt.Key_Down ? 1 : -1); event.accepted = true }
                             }
@@ -220,45 +237,61 @@ ApplicationWindow {
                         anchors.fill: parent
                         id: conversation; objectName: "conversation"
                         readonly property Flickable scroller: contentItem as Flickable
-                        property string answerKey: ""
-                        readonly property bool newerBelow: scroller !== null && contentHeight - availableHeight - scroller.contentY > 48
-                        function goToLatest() {
-                            scrollPosition.stop()
-                            if (!scroller) return
-                            scroller.cancelFlick()
-                            scroller.contentY = Math.max(0, contentHeight - availableHeight)
-                            composer.forceActiveFocus()
+                    property bool anchoringTurn: true
+                    property int turnIndex: -1
+                    property string lastUserKey: ""
+                    property string firstKey: ""
+                    property real turnY: 0
+                    readonly property real messageEnd: conversationEnd.y
+                    readonly property real scrollEnd: Math.max(0, contentHeight - availableHeight)
+                    readonly property bool newerBelow: scroller !== null && messageEnd - scroller.contentY > availableHeight + 24
+                    function goToLatest() {
+                        if (!scroller) return
+                        scroller.cancelFlick(); anchoringTurn = false
+                        scroller.contentY = Math.min(scrollEnd, Math.max(0, messageEnd - availableHeight + 12))
+                        composer.forceActiveFocus()
+                    }
+                    function updatePosition() {
+                        const rows = window.controller.messages
+                        let userKey = "", userIndex = rows.length ? 0 : -1
+                        for (let i = rows.length - 1; i >= 0; --i) {
+                            if (rows[i].role === "user") { userKey = String(rows[i].key); userIndex = i; break }
                         }
-                        function updatePosition() {
-                            const position = scroller ? scroller.contentY : 0
-                            const rows = window.controller.messages
-                            let answer = -1
-                            for (let i = rows.length - 1; i >= 0; --i) {
-                                if (rows[i].role === "assistant" && rows[i].text) { answer = i; break }
-                            }
-                            const key = answer >= 0 ? String(rows[answer].key) : ""
-                            const target = key !== answerKey ? answer : -1
-                            answerKey = key
-                            const followUser = rows.length && rows[rows.length - 1].role === "user" && scroller && position >= contentHeight - availableHeight - 50
-                            if (!scrollPosition.running || target >= 0) {
-                                scrollPosition.position = position
-                                scrollPosition.targetIndex = target >= 0 ? target : (followUser ? -2 : -1)
-                            }
-                            scrollPosition.restart()
+                        const first = rows.length ? String(rows[0].key) : ""
+                        if (first !== firstKey || userKey !== lastUserKey || !rows.length) anchoringTurn = true
+                        firstKey = first; lastUserKey = userKey; turnIndex = userIndex
+                        while (messageSlots.count < rows.length) messageSlots.append({slot: messageSlots.count})
+                        if (messageSlots.count > rows.length) messageSlots.remove(rows.length, messageSlots.count - rows.length)
+                        positionTurn.restart()
+                    }
+                    onMessageEndChanged: positionTurn.restart()
+                    onContentHeightChanged: positionTurn.restart()
+                    onAvailableHeightChanged: positionTurn.restart()
+                    Component.onCompleted: updatePosition()
+                    ListModel { id: messageSlots }
+                    Timer {
+                        id: positionTurn; interval: 0
+                        onTriggered: {
+                            const row = messageRepeater.itemAt(conversation.turnIndex)
+                            conversation.turnY = row ? row.y : 0
+                            if (conversation.anchoringTurn && conversation.scroller && !conversation.scroller.moving && !conversationBar.pressed) conversation.scroller.contentY = Math.min(conversation.scrollEnd, conversation.turnY)
                         }
-                        Timer {
-                            id: scrollPosition
-                            // Wait one frame for the recreated message delegates to be laid out.
-                            interval: 16
-                            property real position: 0
-                            property int targetIndex: -1
-                            onTriggered: {
-                                if (!conversation.scroller) return
-                                const row = targetIndex >= 0 ? messageRepeater.itemAt(targetIndex) : null
-                                const y = row ? row.y : (targetIndex === -2 ? conversation.contentHeight : position)
-                                conversation.scroller.contentY = Math.max(0, Math.min(y, conversation.contentHeight - conversation.availableHeight))
-                            }
-                        }
+                    }
+                    WheelHandler {
+                        target: null
+                        onWheel: function(event) { conversation.anchoringTurn = false; event.accepted = false }
+                    }
+                    Connections {
+                        target: conversation.scroller
+                        function onMovementStarted() { conversation.anchoringTurn = false }
+                    }
+                    ScrollBar.vertical: ScrollBar {
+                        id: conversationBar; policy: ScrollBar.AsNeeded
+                        onPressedChanged: if (pressed) conversation.anchoringTurn = false
+                    }
+                    Keys.onPressed: function(event) {
+                        if ([Qt.Key_Up, Qt.Key_Down, Qt.Key_PageUp, Qt.Key_PageDown, Qt.Key_Home, Qt.Key_End, Qt.Key_Space].includes(event.key)) conversation.anchoringTurn = false
+                    }
                         clip: true; contentWidth: availableWidth
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                         ColumnLayout {
@@ -266,11 +299,12 @@ ApplicationWindow {
                             Label { Layout.fillWidth: true; visible: window.controller.messages.length === 0 && !window.controller.busy; text: window.controller.text("Wobei kann ich dir helfen?"); color: window.theme.text; font.pixelSize: 24; font.weight: Font.Medium; wrapMode: Text.Wrap }
                             Repeater {
                                 id: messageRepeater
-                                model: window.controller.messages
+                                model: messageSlots
                                 Frame {
                                     id: messageRow
                                     objectName: "messageBubble"
-                                    required property var modelData
+                                    required property int slot
+                                    readonly property var modelData: window.controller.messages[slot] || ({role: "", body: "", blocks: [], key: "", activity: "", actions: false, presentation: false})
                                     readonly property bool userMessage: modelData.role === "user"
                                     Layout.fillWidth: true
                                     Layout.maximumWidth: userMessage ? Math.min(960, conversation.availableWidth) * 8 / 9 : 960
@@ -307,6 +341,16 @@ ApplicationWindow {
                                             theme: window.theme; controller: window.controller
                                             messageKey: messageRow.modelData.key
                                         }
+                                        Loader {
+                                            Layout.fillWidth: true
+                                            active: messageRow.modelData.presentation === true
+                                            visible: active
+                                            sourceComponent: ResultView {
+                                                view: window.controller.richView; theme: window.theme
+                                                onDialogVisibleChanged: window.resultDialogVisible = dialogVisible
+                                                Component.onDestruction: window.resultDialogVisible = false
+                                            }
+                                        }
                                         Label { Layout.fillWidth: true; visible: messageRow.modelData.activity.length > 0; text: messageRow.modelData.activity + " …"; color: window.theme.muted; font.pixelSize: 12; wrapMode: Text.Wrap; textFormat: Text.PlainText }
                                         ColumnLayout {
                                             objectName: "answerActions"
@@ -331,7 +375,6 @@ ApplicationWindow {
                                     }
                                 }
                             }
-                            ResultView { id: resultView; Layout.fillWidth: true; view: window.controller.richView; theme: window.theme }
                             Repeater {
                                 model: window.controller.permissions
                                 Rectangle {
@@ -356,10 +399,10 @@ ApplicationWindow {
                             Repeater { model: window.controller.questions; QuestionCard { required property var modelData; controller: window.controller; request: modelData; Layout.fillWidth: true } }
                             RowLayout {
                                 Layout.fillWidth: true; visible: window.controller.busy
-                                BusyIndicator { running: window.controller.busy; implicitWidth: 24; implicitHeight: 24 }
                                 Label { text: window.controller.status; color: window.theme.muted; font.pixelSize: 12; wrapMode: Text.Wrap; Layout.fillWidth: true }
                             }
-                            Item { Layout.preferredHeight: 10; Layout.fillWidth: true }
+                            Item { id: conversationEnd; Layout.preferredHeight: 1; Layout.fillWidth: true }
+                            Item { Layout.preferredHeight: Math.max(10, conversation.availableHeight - (conversation.messageEnd - conversation.turnY) - parent.spacing); Layout.fillWidth: true }
                         }
                     }
                     LumenButton {

@@ -17,6 +17,7 @@ from lumen_i18n import tr, worker_process
 from voice_session import VoiceSession
 from lumen_voice_ui import VoiceActivity
 from vault_privacy import capture_guard
+from desktop_design import PAGE_MARGIN
 
 
 class Composer(AssistantInput):
@@ -56,8 +57,6 @@ class Companion(QWidget):
         self.setWindowTitle('Lumen Companion'); self.setWindowIcon(QIcon.fromTheme('lumen'))
         if parent is None: self.setWindowFlag(Qt.WindowStaysOnTopHint)
         self.resize(460, 820); self.setMinimumSize(420, 720)
-        from ui_typography import font
-        compact_font = font(); compact_font.setPixelSize(14); self.setFont(compact_font)
         # Empty private working directory prevents project instructions from becoming screen context.
         self.workspace = tempfile.TemporaryDirectory(prefix='lumen-guide-', dir=os.environ.get('XDG_RUNTIME_DIR'))
         self.backend = OpenCodeBackend(self.workspace.name, self, project_config=False)
@@ -69,34 +68,37 @@ class Companion(QWidget):
         self.timer = QTimer(self); self.timer.setInterval(5000); self.timer.timeout.connect(self.observe)
         self.worker_limit = QTimer(self); self.worker_limit.setSingleShot(True)
         self.worker_limit.timeout.connect(lambda: self.pause(tr('Fensterzugriff hat zu lange gedauert. Erneut auswählen oder fortsetzen.')))
-        layout = QVBoxLayout(self); layout.setContentsMargins(22, 18, 22, 18); layout.setSpacing(12)
-        header = QHBoxLayout(); layout.addLayout(header)
-        title = QLabel(tr('An deiner Seite')); title.setObjectName('guideTitle'); header.addWidget(title); header.addStretch()
+        layout = QVBoxLayout(self); layout.setContentsMargins(PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN); layout.setSpacing(12)
+        scroll = QScrollArea(); scroll.setWidgetResizable(True); scroll.setFrameShape(QFrame.NoFrame)
+        content = QWidget(); body = QVBoxLayout(content); body.setContentsMargins(0,0,0,0); body.setSpacing(12)
+        scroll.setWidget(content); layout.addWidget(scroll,1)
+        header = QHBoxLayout(); body.addLayout(header)
+        title = QLabel(tr('An deiner Seite')); title.setObjectName('desktopAppTitle'); header.addWidget(title); header.addStretch()
         self.end = QPushButton(tr('Zurück zu Lumen') if leave else tr('Beenden'))
         self.end.clicked.connect(self.leave_help); header.addWidget(self.end)
         self.history = QCheckBox(tr('Gespräch anzeigen')); self.history.toggled.connect(self.render_answer)
-        layout.addWidget(self.history)
-        caption = QLabel(tr('Ein Fenster. Dein Ziel. Schritt für Schritt.')); caption.setWordWrap(True); layout.addWidget(caption)
+        body.addWidget(self.history)
+        caption = QLabel(tr('Ein Fenster. Dein Ziel. Schritt für Schritt.')); caption.setWordWrap(True); body.addWidget(caption)
         self.choose = QPushButton(QIcon.fromTheme('window'), tr('Fenster auswählen'))
-        self.choose.clicked.connect(self.select); layout.addWidget(self.choose)
+        self.choose.clicked.connect(self.select); body.addWidget(self.choose)
         self.selected = QLabel(tr('Noch kein Fenster freigegeben')); self.selected.setWordWrap(True)
-        self.selected.setTextFormat(Qt.PlainText); layout.addWidget(self.selected)
+        self.selected.setTextFormat(Qt.PlainText); body.addWidget(self.selected)
         self.preview = QPushButton(tr('Hier erscheint deine lokale Vorschau'))
         self.preview.setObjectName('guidePreview')
         self.preview.setAccessibleName(tr('Fensterbild vergrößern')); self.preview.clicked.connect(self.enlarge)
-        layout.addWidget(self.preview)
+        body.addWidget(self.preview)
         self.notice = QLabel(tr('Nur das gewählte Fenster wird geteilt. Bilder gehen an deinen eingestellten Modellanbieter; bei Cloud-Modellen verlassen sie den Rechner. Engine und Anbieter können den Verlauf speichern. Sichtbare Geheimnisse werden nicht zuverlässig erkannt. Vor ihrer Eingabe pausieren.'))
-        self.notice.setWordWrap(True); self.notice.setObjectName('guideNotice'); layout.addWidget(self.notice)
+        self.notice.setWordWrap(True); self.notice.setObjectName('guideNotice'); body.addWidget(self.notice)
         self.auto = QCheckBox(tr('Änderungen automatisch begleiten'))
         self.auto.setToolTip(tr('Nach der ersten Bildfreigabe: höchstens alle 5 Sekunden prüfen. Bei unklarem Schutzstatus wird pausiert.'))
-        self.auto.toggled.connect(self.automatic_changed); layout.addWidget(self.auto)
-        self.approve = QPushButton(tr('Dieses Bild freigeben und starten')); self.approve.setObjectName('guidePrimary')
-        self.approve.clicked.connect(self.send_image); self.approve.hide(); layout.addWidget(self.approve)
+        self.auto.toggled.connect(self.automatic_changed); body.addWidget(self.auto)
+        self.approve = QPushButton(tr('Dieses Bild freigeben und starten')); self.approve.setObjectName('primary')
+        self.approve.clicked.connect(self.send_image); self.approve.hide(); body.addWidget(self.approve)
         self.answer = AnswerView(); self.answer.setOpenLinks(False)
         # No external resources or automatic remote image downloads from model output.
         self.answer.setFrameShape(QFrame.NoFrame)
         self.answer.setPlainText(tr('Wähle ein Fenster und beschreibe, wobei ich dich begleiten soll.'))
-        layout.addWidget(self.answer, 1)
+        body.addWidget(self.answer, 1)
         self.status = QLabel(tr('Bereit · Bildschirm und Mikrofon aus')); self.status.setWordWrap(True)
         self.status.setTextFormat(Qt.PlainText); layout.addWidget(self.status)
         self.indicator = VoiceActivity(self); layout.addWidget(self.indicator)
@@ -107,17 +109,14 @@ class Companion(QWidget):
         self.mic = QPushButton(QIcon.fromTheme('audio-input-microphone'), tr('Sprechen'))
         self.mic.clicked.connect(self.toggle_voice); controls.addWidget(self.mic)
         self.pause_button = QPushButton(tr('Pause')); self.pause_button.clicked.connect(self.toggle_pause); controls.addWidget(self.pause_button)
-        self.next = QPushButton(tr('Nächster Schritt')); self.next.setObjectName('guidePrimary')
+        self.next = QPushButton(tr('Nächster Schritt')); self.next.setObjectName('primary')
         self.next.clicked.connect(self.submit); controls.addWidget(self.next)
         self.voice.transcribedText.connect(self.submit)
         self.voice.changed.connect(self.voice_changed); self.voice.levelChanged.connect(self.indicator.set_level)
         self.voice.failed.connect(self.show_error); self.voice.setupRequested.connect(self.speech_setup)
         self.backend.completed.connect(self.completed)
         self.backend.busyChanged.connect(lambda _: self.update_controls())
-        self.setStyleSheet('''QLabel#guideTitle {font-size:24px; font-weight:600;}
-            QLabel#guideNotice {font-size:12px;}
-            QPushButton {padding:8px 10px; border-radius:10px;}
-            QPushButton#guidePrimary {background:palette(highlight);color:palette(highlighted-text);}
+        self.setStyleSheet('''QLabel#guideNotice {font-size:12px;}
             QPushButton#guidePreview {min-height:120px; max-height:140px; padding:4px;}
             QTextBrowser {background:transparent;}''')
         self.update_controls()

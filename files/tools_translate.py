@@ -7,6 +7,7 @@ from PySide6.QtGui import QPixmap, QKeySequence, QShortcut
 from PySide6.QtWidgets import (QApplication, QComboBox, QPlainTextEdit, QSplitter, QWidget,
     QVBoxLayout, QHBoxLayout, QTabWidget, QFileDialog, QScrollArea, QLabel, QSpinBox)
 from tools_ui import ToolWindow, button, label, row
+from desktop_design import PAGE_SPACING
 from lumen_i18n import tr
 from private_input import AssistantInput
 import translate_data as data
@@ -15,7 +16,7 @@ import translate_pdf as pdf
 
 class Translate(ToolWindow):
     def __init__(self, root=None):
-        super().__init__('translate', 'Lumen Translate', tr('Übersetzen. Besser formulieren. Fehler korrigieren.'), 'lumen-translate', root)
+        super().__init__('translate', 'Lumen Compose', tr('Übersetzen. Besser formulieren. Fehler korrigieren.'), 'lumen-translate', root)
         self.queue = []; self.translations = {}; self.batch_index = 0; self.request_options = {}
         self.add_button.setText(tr('Neuer Text')); self.search.setPlaceholderText(tr('Texte und Übersetzungen finden …'))
         self.mode = QComboBox(); self.mode.setAccessibleName(tr('Text bearbeiten'))
@@ -35,7 +36,8 @@ class Translate(ToolWindow):
         text_page = QWidget(); text_box = QVBoxLayout(text_page); text_box.setContentsMargins(0, 14, 0, 0)
         self.input = AssistantInput(); self.input.setPlaceholderText(tr('Text eingeben oder einfügen …')); self.input.setAccessibleName(tr('Originaltext'))
         self.output = QPlainTextEdit(); self.output.setReadOnly(True); self.output.setPlaceholderText(tr('Dein Ergebnis erscheint hier.')); self.output.setAccessibleName(tr('Bearbeiteter Text'))
-        split = QSplitter()
+        split = QSplitter();split.setObjectName('composeTextSplit');split.setHandleWidth(PAGE_SPACING)
+        split.setStyleSheet('QSplitter#composeTextSplit::handle { background: transparent; }')
         for caption, editor in [(tr('Original'),self.input),(tr('Ergebnis'),self.output)]:
             pane=QWidget();box=QVBoxLayout(pane);box.setContentsMargins(0,0,0,0);box.addWidget(label(caption,'heading'));box.addWidget(editor);split.addWidget(pane)
         split.setSizes([420,420]);text_box.addWidget(split,1)
@@ -184,7 +186,7 @@ class Translate(ToolWindow):
 
     def next_batch(self):
         self.status.setText(tr('Abschnitt {0} von {1} wird bearbeitet …',self.batch_index+1,len(self.queue)))
-        self.engine.send(data.prompt(self.queue[self.batch_index],self.request_options),proposal=True,title='Lumen Translate')
+        self.engine.send(data.prompt(self.queue[self.batch_index],self.request_options),proposal=True,title='Lumen Compose')
 
     def batch_done(self, success, answer):
         if not success:self.end();self.status.setText(answer or tr('Übersetzung abgebrochen.'));return

@@ -4,7 +4,7 @@ import html
 import json
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QTextDocument
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QComboBox, QSplitter, QPushButton, QMenu, QFrame, QTabBar, QStackedWidget, QSizePolicy
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QComboBox, QSplitter, QPushButton, QMenu, QFrame, QTabBar, QStackedWidget, QSizePolicy, QDialog
 from assistant import Transcript, SafeDocument
 from core import file_kind
 from gallery import Gallery, ImageLoader
@@ -13,9 +13,10 @@ from lumen_i18n import tr
 from preview import Preview, label
 from studio_chat import icon_button
 from studio_design import surface, icon, font
+from desktop_design import PAGE_MARGIN, PAGE_SPACING
 
 
-def model_stream(messages, turn):
+def model_stream(messages, turn, *, include_text=True):
     blocks = []
     states = {'pending': tr('Wartet'), 'running': tr('Läuft'), 'completed': tr('Fertig'), 'error': tr('Fehlgeschlagen')}
     for message in messages:
@@ -23,7 +24,7 @@ def model_stream(messages, turn):
         if info.get('role') != 'assistant' or info.get('parentID', '') != turn: continue
         for part in message.get('parts', []):
             kind = part.get('type')
-            if kind in ('reasoning', 'text') and part.get('text') and not part.get('synthetic'):
+            if (kind == 'reasoning' or kind == 'text' and include_text) and part.get('text') and not part.get('synthetic'):
                 document = SafeDocument()
                 document.setMarkdown(part['text'], QTextDocument.MarkdownDialectGitHub | QTextDocument.MarkdownNoHTML)
                 body = document.toHtml().split('<body', 1)[1].split('>', 1)[1].rsplit('</body>', 1)[0]
@@ -82,15 +83,16 @@ class StudioPreview(Preview):
 
 
 class StudioSurface(QWidget):
-    def __init__(self, chat, parent=None):
+    def __init__(self, chat, parent=None, *, conversation_focus=False):
         super().__init__(parent)
+        self.conversation_focus = conversation_focus
         self.chat = chat; self.paths = []; self.preview_wanted = True; self.narrow_preview = False
         self.work_busy = False
         self.answer_key = None
         self.setObjectName('studioWorkbench'); surface(self)
         root = QVBoxLayout(self); root.setContentsMargins(0, 0, 0, 0); root.setSpacing(0)
         header = QFrame(); header.setObjectName('studioWorkHead'); header.setFixedHeight(68)
-        head = QHBoxLayout(header); head.setContentsMargins(26, 0, 24, 0); head.setSpacing(14)
+        head = QHBoxLayout(header); head.setContentsMargins(PAGE_MARGIN, 0, PAGE_MARGIN, 0); head.setSpacing(PAGE_SPACING)
         chat.heading.setObjectName('studioWorkTitle'); chat.heading.setWordWrap(False)
         chat.heading.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred); chat.heading.setMaximumWidth(380); head.addWidget(chat.heading)
         self.directory = label(Path(chat.backend.directory).name, 'studioWorkContext'); head.addWidget(self.directory, 1)
@@ -106,10 +108,11 @@ class StudioSurface(QWidget):
         self.pane = QWidget(); self.pane.setObjectName('studioPreviewPane'); self.pane.setMinimumWidth(0)
         layout = QVBoxLayout(self.pane); layout.setContentsMargins(0, 0, 0, 0); layout.setSpacing(0)
         toolbar = QFrame(); toolbar.setObjectName('studioResultToolbar'); toolbar.setFixedHeight(49)
-        top = QHBoxLayout(toolbar); top.setContentsMargins(22, 0, 18, 0)
+        top = QHBoxLayout(toolbar); top.setContentsMargins(PAGE_MARGIN, 0, PAGE_MARGIN, 0)
         self.result_tabs = QTabBar(); self.result_tabs.setObjectName('studioResultTabs'); self.result_tabs.setDrawBase(False)
         self.result_tabs.addTab(tr('Ergebnis')); self.result_tabs.addTab(tr('Arbeitsschritte')); top.addWidget(self.result_tabs)
         top.addStretch(); self.heading = label(tr('Vorschau'), 'studioResultCaption'); top.addWidget(self.heading)
+        self.pane_heading = top
         self.close_preview = icon_button(tr('Vorschau schließen'), 'window-close', self.close_pane)
         self.close_preview.setFixedSize(26, 26); top.addWidget(self.close_preview); layout.addWidget(toolbar)
         self.choice = QComboBox(); self.choice.setAccessibleName(tr('Datei in der Vorschau'))
@@ -134,10 +137,13 @@ class StudioSurface(QWidget):
         self.execution_detail.setAccessibleName(tr('Arbeitsschritte des Gesprächs')); self.result_pages.addWidget(self.execution_detail)
         self.result_tabs.currentChanged.connect(self.result_pages.setCurrentIndex)
         dock = QFrame(); dock.setObjectName('studioResultDock')
-        self.actions = QHBoxLayout(dock); self.actions.setContentsMargins(22, 14, 22, 14); self.actions.setSpacing(9)
+        self.actions = QHBoxLayout(dock); self.actions.setContentsMargins(PAGE_MARGIN, PAGE_SPACING, PAGE_MARGIN, PAGE_SPACING); self.actions.setSpacing(8)
         self.actions.addWidget(label(tr('Ergebnis verwenden'), 'studioDockCaption')); self.actions.addStretch()
         self.copy_answer = icon_button(tr('Kopieren'), 'edit-copy', chat.copy.click)
-        self.save_answer = QPushButton(tr('Speichern')); self.save_answer.setIcon(icon('document-save')); self.save_answer.setObjectName('studioSave')
+        self.save_answer = QPushButton(tr('Speichern')); self.save_answer.setObjectName('studioSave')
+        import studio_design
+        factory = getattr(studio_design, 'button_icon', None)
+        self.save_answer.setIcon(factory('document-save', self.save_answer) if factory else icon('document-save'))
         self.result_menu = QMenu(self.save_answer)
         self.result_menu.addAction(tr('Für mich speichern'), lambda: chat.capture_knowledge(False, text=self.result_text()))
         self.result_menu.addAction(tr('Merk dir das'), lambda: chat.capture_knowledge(True, text=self.result_text()))
@@ -145,6 +151,8 @@ class StudioSurface(QWidget):
         self.actions.addWidget(self.save_answer); layout.addWidget(dock)
         self.split.addWidget(self.pane); self.split.setStretchFactor(0, 1); self.split.setStretchFactor(1, 1)
         self.split.setSizes([560, 560]); self.pane.hide()
+        if conversation_focus:
+            self.focus_conversation(layout, dock)
         self.preview.filmstrip.chosen.connect(lambda i: self.choice.setCurrentIndex(
             self.choice.findData(self.preview.filmstrip.paths[i])))
         chat.resultChanged.connect(self.set_result); chat.previewRequested.connect(self.toggle_preview)
@@ -156,6 +164,42 @@ class StudioSurface(QWidget):
         self.set_result(chat.presentation)
         self.show_answer()
         self.follow_work(chat.backend.busy)
+
+    def focus_conversation(self, layout, dock):
+        self.result_tabs.hide()
+        self.heading.setText(tr('Arbeitsschritte'))
+        self.pane_heading.removeWidget(self.heading); self.pane_heading.insertWidget(0, self.heading)
+        self.pane.setAccessibleName(tr('Arbeitsschritte des Gesprächs'))
+        self.close_preview.setAccessibleName(tr('Arbeitsschritte schließen'))
+        self.close_preview.setToolTip(tr('Arbeitsschritte schließen'))
+        self.chat.preview_button.setAccessibleName(tr('Arbeitsschritte anzeigen'))
+        self.chat.preview_button.setToolTip(tr('Arbeitsschritte anzeigen'))
+        self.chat.preview_button.setIcon(icon('view-list-details'))
+        self.result_pages.removeWidget(self.stage)
+        self.stage.hide(); self.stage.setParent(self.chat.parking)
+        layout.removeWidget(dock)
+        self.actions.itemAt(0).widget().hide()
+        self.chat.layout().insertWidget(self.chat.layout().indexOf(self.chat.composer_surface), dock)
+        self.files_button = QPushButton(tr('Dateien anzeigen'))
+        self.files_button.setIcon(icon('document-open')); self.files_button.clicked.connect(self.open_files)
+        self.actions.insertWidget(0, self.files_button); self.files_button.hide()
+        self.file_dialog = QDialog(self)
+        self.file_dialog.setWindowTitle(tr('Lumen · Dateien aus dem Gespräch'))
+        self.file_dialog.resize(860, 680)
+        files = QVBoxLayout(self.file_dialog)
+        layout.removeWidget(self.choice); files.addWidget(self.choice); files.addWidget(self.preview)
+        self.file_dialog.finished.connect(lambda _: self.preview.shutdown())
+        self.split.setStretchFactor(0, 1); self.split.setStretchFactor(1, 0)
+        self.pane.setMaximumWidth(480)
+
+    def open_files(self):
+        if not self.paths: return
+        self.file_dialog.show(); self.file_dialog.raise_(); self.file_dialog.activateWindow()
+        self.choose(self.choice.currentIndex())
+
+    def shutdown(self):
+        if self.conversation_focus: self.file_dialog.close()
+        self.preview.shutdown()
 
     def bind_workspace(self, workspace):
         self.workspace = workspace
@@ -176,11 +220,13 @@ class StudioSurface(QWidget):
         self.update_task_actions()
 
     def result_text(self):
+        if self.conversation_focus:
+            return self.chat.transcript.textCursor().selectedText().replace('\u2029', '\n') or self.chat.last_answer
         return self.answer.textCursor().selectedText().replace('\u2029', '\n') or self.chat.last_answer
 
     def update_task_actions(self, *_):
         task = self.chat.answer_task() if not self.chat.backend.busy else None
-        show_text = not self.paths or self.choice.currentData() is None
+        show_text = self.conversation_focus or not self.paths or self.choice.currentData() is None
         self.export_answer.setEnabled(bool(task)); self.reuse_answer.setVisible(show_text); self.reuse_answer.setEnabled(bool(task))
         self.task_link_action.setEnabled(bool(task)); self.task_link.setEnabled(bool(task))
         self.update_execution()
@@ -201,7 +247,7 @@ class StudioSurface(QWidget):
         if getattr(backend, 'execution', 'local') == 'server':
             content = '<p>' + tr('Der Server stellt hier keinen Live-Modellverlauf bereit.') + '</p>'
         else:
-            content = model_stream(backend.messages, turn)
+            content = model_stream(backend.messages, turn, include_text=not self.conversation_focus)
             if not content:
                 content = '<p>' + (tr('Warte auf Modellausgabe …') if backend.busy else tr('Noch kein Modellverlauf für dieses Gespräch.')) + '</p>'
         if (key, content) == getattr(self, 'rendered_execution', None): return
@@ -221,10 +267,12 @@ class StudioSurface(QWidget):
         self.use_task(open_tasks)
 
     def follow_work(self, busy):
+        if self.conversation_focus: return
         if busy and not self.work_busy: self.result_tabs.setCurrentIndex(1)
         self.work_busy = busy
 
     def finish_work(self, success, text):
+        if self.conversation_focus: return
         if not success or not text.strip(): return
         from studio_results import from_messages
         backend = self.chat.backend
@@ -235,6 +283,12 @@ class StudioSurface(QWidget):
         self.result_tabs.setCurrentIndex(0)
 
     def show_answer(self, *_):
+        if self.conversation_focus:
+            self.copy_answer.setEnabled(bool(self.chat.last_answer))
+            self.save_answer.setEnabled(bool(self.chat.last_answer) and not self.chat.backend.busy)
+            if hasattr(self, 'workspace'): self.update_task_actions()
+            else: self.update_execution()
+            return
         key = getattr(self.chat, '_answer_key', None)
         text = self.chat.last_answer
         if (key, text) != getattr(self, 'rendered_answer', None):
@@ -259,16 +313,18 @@ class StudioSurface(QWidget):
 
     def set_result(self, result):
         paths = result['paths'] if result else []
-        self.heading.setText(result['title'] if result and result['title'] else tr('Ergebnis'))
+        if not self.conversation_focus:
+            self.heading.setText(result['title'] if result and result['title'] else tr('Ergebnis'))
         self.paths = paths; self.choice.clear()
-        if paths: self.result_tabs.setCurrentIndex(0)
+        if paths and not self.conversation_focus: self.result_tabs.setCurrentIndex(0)
         for path in paths: self.choice.addItem(Path(path).name or '/', path)
         images = [p for p in paths if file_kind(p) == 'image']
         self.preview.filmstrip.stop()
         self.preview.filmstrip.loader.cache.clear()
         self.preview.filmstrip.select([], -1)
         self.preview.filmstrip.select(images, 0 if images else -1)
-        self.preview_wanted = True; self.narrow_preview = False
+        if not self.conversation_focus:
+            self.preview_wanted = True; self.narrow_preview = False
         self.preview.path = None
         self.update_visibility()
         if not paths:
@@ -277,6 +333,10 @@ class StudioSurface(QWidget):
             self.preview.detail.setText(tr('Hier zeigt Lumen gefundene und erstellte Dateien.'))
             self.preview.show_message(tr('Bitte Lumen, dir etwas zu zeigen.'))
         self.choice.setVisible(bool(paths))
+        if self.conversation_focus:
+            self.files_button.setVisible(bool(paths))
+            if not paths: self.file_dialog.reject()
+            elif self.file_dialog.isVisible(): self.choose(self.choice.currentIndex())
         self.show_answer()
 
     def choose(self, index):
@@ -300,9 +360,13 @@ class StudioSurface(QWidget):
         wide = self.width() >= 900
         show = self.preview_wanted and (wide or self.narrow_preview)
         was_visible = self.pane.isVisible()
-        self.pane.setVisible(show); self.chat.setVisible(wide or not show)
-        if show and (not was_visible or self.preview.path is None) and self.paths: self.choose(self.choice.currentIndex())
-        if not show: self.preview.shutdown()
+        self.pane.setVisible(show); self.chat.setVisible(self.conversation_focus or wide or not show)
+        if self.conversation_focus:
+            if wide and not getattr(self, 'conversation_sized', False):
+                self.split.setSizes([max(320, self.width()-320), 320]); self.conversation_sized = True
+        else:
+            if show and (not was_visible or self.preview.path is None) and self.paths: self.choose(self.choice.currentIndex())
+            if not show: self.preview.shutdown()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

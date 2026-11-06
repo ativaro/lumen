@@ -10,6 +10,13 @@ ColumnLayout {
     required property var controller
     required property string messageKey
     property int checkRevision: 0
+    function syncBlocks() {
+        while (blockSlots.count < blocks.length) blockSlots.append({slot: blockSlots.count})
+        if (blockSlots.count > blocks.length) blockSlots.remove(blocks.length, blockSlots.count - blocks.length)
+    }
+    Component.onCompleted: syncBlocks()
+    onBlocksChanged: syncBlocks()
+    ListModel { id: blockSlots }
     function isChecked(item) {
         const revision = checkRevision
         return controller.answer_item_checked(messageKey, item.key, item.checked)
@@ -20,10 +27,11 @@ ColumnLayout {
     }
     spacing: 16
     Repeater {
-        model: answer.blocks
+        model: blockSlots
         Frame {
             id: block
-            required property var modelData
+            required property int slot
+            readonly property var modelData: answer.blocks[slot] || ({kind: "text", body: "", items: []})
             readonly property bool prose: modelData.kind === "text"
             Layout.fillWidth: true
             padding: prose ? 0 : 16

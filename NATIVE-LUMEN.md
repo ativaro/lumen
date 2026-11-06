@@ -8,7 +8,10 @@ Lumen ist die sichtbare Anwendung; OpenCode arbeitet ausschließlich als lokale 
 - Werkzeugfreigaben werden standardmäßig einzeln bestätigt oder abgelehnt. Der sichtbare Schalter „Nicht mehr nachfragen“ erlaubt sie optional automatisch; inhaltliche Rückfragen bleiben native Formulare.
 - Gespräche sind einem Arbeitsordner zugeordnet und lassen sich fortsetzen oder neu beginnen. Dateien werden nur mit explizitem Dateikontext an eine Anfrage angehängt.
 - Kontextmenüs, KRunner, Auswahl-/Zwischenablage- und Screenshot-Aktionen verwenden Lumen. Systemstatus und Berichte bleiben direkt lesbar.
-- Vorhandenes PySide6 wird für beide Oberflächen genutzt; die bisherige QML-Shell und Textdatei-Polling-Bridge werden durch denselben Chat ersetzt.
+- Der Desktop verwendet PySide6/Qt 6: die Suche und Systemübersicht nutzen QML,
+  Gespräche/Files und gemeinsame Einstellungen native Qt-Ansichten. Server-Apps
+  werden im eigenen privaten QtWebEngine-Host geöffnet, nicht in alten lokalen
+  Notes-/Projektfenstern.
 
 ## Prüfung
 Native UI-Prüfungen, lokaler HTTP-Testserver für Antwortfortschritt, Fehler, Stoppen, Berechtigungen und Rückfragen; realer OpenCode-Server für API-/Session-Lebenszyklus sowie einen kurzen Modellaufruf. Bestehende Files-Tests bleiben erhalten. Launcher-Tests prüfen Argumente und dass keine Terminalprogramme gestartet werden.
@@ -28,7 +31,9 @@ oder Dienstschalter. Keine Modellaufträge, Terminals oder Desktop-Neustarts.
   nachschlagbar. Weitere globale Kürzel im KDE-Editor.
 - Erscheinungsbild: aktiven Zustand anzeigen; KDE-Editoren für globale Themes,
   Farben, Icons, Mauszeiger, Schriften, Fenster, Effekte, Kvantum und Bildschirme.
-  Lumen selbst kann seine dunkle Gestaltung oder den Systemstil verwenden.
+  Die Lumen-Produkt-Themes sind Glas, Graphit, Atelier und Mitternacht; sie folgen
+  [Panorama](docs/lumen-panorama/standard.md). Historische Systemwerte bleiben
+  Kompatibilität, keine alternative Produktgestaltung.
 - Leisten: tatsächlich vorhandene Panels nach Bildschirm/ID auswählen, Position,
   Größe, Schweben und Ausblendverhalten ändern; native Widget-/Tray-Konfiguration.
 - Dienste: reale Zustände von Wächter, Benachrichtigungen, Tages-/Nachtberichten;

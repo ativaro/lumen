@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Der Vertrag unten beschreibt die frühere native All-App-Architektur. Notes, Projekte, Audio, Vault und Inbox sind inzwischen Server-Apps; alte lokale Adapter sind kein vollständiger aktueller Übergabeweg. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](../desktop-retirement.md).
+
 # Lumen interoperability contract
 
 User approved implementation of the two motivating flows and the numbered 100 examples on 2026-10-03. Source apps retain ownership; transfers preserve provenance. No outbound mail or provider calls are performed by a handoff. Calendar writes are reviewed in the existing editor. Data and automation choices remain explicit.

@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QPushButton
 
 
 class StudioTest(unittest.TestCase):
+    conversation_focus = False
     @classmethod
     def setUpClass(cls):
         from app import create_app
@@ -29,6 +30,9 @@ class StudioTest(unittest.TestCase):
         self.enterContext(patch.dict(os.environ, {'LUMEN_DATA': self.tmp + '/state'}))
         self.launch = self.enterContext(patch('lumen_detail_routes.launch'))
         self.settings = QSettings(self.tmp + '/prefs.ini', QSettings.IniFormat)
+        if not self.conversation_focus:
+            from studio_preview import StudioSurface
+            self.enterContext(patch.object(self.desktop, 'StudioSurface', side_effect=lambda chat, **_: StudioSurface(chat)))
         with patch.object(self.desktop, 'QSettings', return_value=self.settings):
             self.window = self.desktop.LumenWindow(self.tmp)
         self.window.chat.backend.refresh_sessions = lambda: None
@@ -100,34 +104,33 @@ class StudioTest(unittest.TestCase):
             other.chat.composer.setPlainText.assert_called_once()
             other.chat.backend.send.assert_not_called()
 
-    def test_new_answer_scrolls_to_start_and_stream_preserves_position(self):
-        from assistant import ChatPanel
-        panels = [self.window.chat, ChatPanel(self.tmp, settings=self.settings)]
-        panels[1].resize(800, 700); panels[1].show()
+    def test_turn_anchor_stream_reading_and_latest(self):
+        chat = self.window.chat
         def message(role, text, key):
             return dict(info=dict(role=role, id=key), parts=[dict(type='text', text=text)])
-        try:
-            for chat in panels:
-                with self.subTest(surface=type(chat).__name__):
-                    history = [message('user', 'Question', 'u1'), message('assistant', 'Old answer\n\n' * 80, 'a1'), message('user', 'Next question', 'u2')]
-                    chat.show_messages(history); QTest.qWait(80)
-                    scroll = chat.transcript.verticalScrollBar(); scroll.setValue(0)
-                    answer = message('assistant', 'New answer\n\n' * 80, 'a2')
-                    chat.show_messages(history + [answer]); QTest.qWait(80)
-                    start = scroll.value()
-                    self.assertGreater(start, 500)
-                    self.assertLess(start, scroll.maximum() - 200)
-                    answer['parts'][0]['text'] += 'More text\n\n' * 30
-                    chat.show_messages(history + [answer]); QTest.qWait(80)
-                    self.assertAlmostEqual(scroll.value(), start, delta=2)
-                    scroll.setValue(120)
-                    answer['parts'][0]['text'] += 'Another chunk'
-                    chat.show_messages(history + [answer]); QTest.qWait(80)
-                    self.assertAlmostEqual(scroll.value(), 120, delta=2)
-                    chat.show_messages(history + [answer, message('user', 'Again', 'u3'), message('assistant', 'Third answer\n\n' * 80, 'a3')]); QTest.qWait(80)
-                    self.assertGreater(scroll.value(), start + 500)
-        finally:
-            panels[1].close(); panels[1].deleteLater()
+        history = [message('user', 'Question', 'u1'), message('assistant', 'Old answer\n\n' * 80, 'a1'), message('user', 'Next question', 'u2')]
+        view = chat.transcript; scroll = view.verticalScrollBar()
+        chat.show_messages(history); QTest.qWait(150)
+        self.assertAlmostEqual(scroll.value(), view.rows[2][0].y(), delta=2)
+        answer = message('assistant', '| A | B |\n|---|---|\n' + '| one | two |\n' * 60, 'a2')
+        chat.show_messages(history + [answer]); QTest.qWait(150)
+        self.assertAlmostEqual(scroll.value(), view.rows[2][0].y(), delta=2)
+        self.assertTrue(view.latest.isVisible())
+        view.reading(); scroll.setValue(120)
+        answer['parts'][0]['text'] += '\nMore text\n\n' * 30
+        chat.show_messages(history + [answer]); QTest.qWait(150)
+        self.assertAlmostEqual(scroll.value(), 120, delta=2)
+        view.latest.click(); QTest.qWait(50)
+        self.assertFalse(view.latest.isVisible())
+        position = scroll.value()
+        answer['parts'][0]['text'] += '\nAnother paragraph\n\n' * 30
+        chat.show_messages(history + [answer]); QTest.qWait(150)
+        self.assertAlmostEqual(scroll.value(), position, delta=2)
+        self.assertTrue(view.latest.isVisible())
+        chat.show_messages(history + [answer, message('user', 'Again', 'u3')]); QTest.qWait(150)
+        self.assertAlmostEqual(scroll.value(), view.rows[4][0].y(), delta=2)
+        self.window.resize(1100, 700); QTest.qWait(150)
+        self.assertAlmostEqual(scroll.value(), view.rows[4][0].y(), delta=2)
 
     def test_enter_sends_shift_enter_inserts_line_break(self):
         chat = self.window.chat
@@ -162,14 +165,15 @@ class StudioTest(unittest.TestCase):
             chat.backend.busy = True; controller.select_session('one'); select.assert_called_once()
         chat.backend.busy = False; chat.backend.session = 'two'; chat.backend.sessionChanged.emit('two')
         self.assertEqual(chat.heading.text(), 'Photos')
-        self.assertFalse(hasattr(self.window, 'navigation'))
+        self.assertEqual(self.window.navigation.recent.count(), 2)
+        self.assertEqual(self.window.navigation.recent.currentItem().data(Qt.UserRole), 'two')
 
     def test_context_bar_routes_without_changing_conversation(self):
         bar, chat = self.window.workspace_bar, self.window.chat
         chat.composer.setPlainText('Keep draft'); chat.paths = [self.tmp + '/attached.txt']
         with patch.object(chat.backend, 'new_conversation') as new:
             bar.project.click()
-            self.assertEqual(self.launch.call_args.args, ('lumen-workbench', ['--section','rooms']))
+            self.assertEqual(self.launch.call_args.args, ('lumen-workbench', ['--section','projects']))
             new.assert_not_called()
         self.assertEqual(chat.composer.toPlainText(), 'Keep draft'); self.assertEqual(len(chat.paths), 1)
         self.assertEqual(self.window.pages.count(), 1)

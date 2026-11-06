@@ -29,6 +29,33 @@ private slots:
     QSettings settings("Lumen", "Assistant");
     settings.setValue("uiLanguage", "de");
   }
+  void panoramaThemeMatchesSharedContract() {
+    QTemporaryDir root;
+    VaultWindow window(root.path()); window.show();
+    const QList<QStringList> themes{
+      {"glass", "#20343f", "#9be5d8", "#182b35"},
+      {"graphite", "#222529", "#d7dce2", "#1a1c1f"},
+      {"atelier", "#f2efe8", "#52634f", "#fcfaf5"},
+      {"midnight", "#10151f", "#a7b6ff", "#141c29"}};
+    for (const auto &theme : themes) {
+      QSettings settings("Lumen", "Assistant");
+      settings.setValue("appearance", theme[0]); settings.sync();
+      QTRY_COMPARE_WITH_TIMEOUT(qApp->palette().color(QPalette::Window).name(), theme[1], 4000);
+      QTest::qWait(50);
+      QCOMPARE(qApp->palette().color(QPalette::Highlight).name(), theme[2]);
+      QCOMPARE(qApp->palette().color(QPalette::Base).name(), theme[3]);
+      QVERIFY(qApp->styleSheet().contains("font-size:14px"));
+      for (auto *label : window.findChildren<QLabel *>())
+        if (label->isVisible() && label->wordWrap() && !label->text().isEmpty()) {
+          const auto textHeight = label->fontMetrics().boundingRect(
+              QRect(0, 0, label->contentsRect().width(), 10000), Qt::TextWordWrap, label->text()).height();
+          QVERIFY2(label->contentsRect().height() >= textHeight, qPrintable(label->text().left(40)));
+        }
+      if (qEnvironmentVariableIsSet("LUMEN_VAULT_PANORAMA_CAPTURE"))
+        window.grab().save(qEnvironmentVariable("LUMEN_VAULT_PANORAMA_CAPTURE") + "/vault-" + theme[0] + ".png");
+    }
+    QSettings("Lumen", "Assistant").setValue("appearance", "glass");
+  }
   void requestedUnlockIsSeparateFromUseAndCanBeCancelled() {
     QTemporaryDir root, runtime;
     VaultWindow window(root.path()); window.show();

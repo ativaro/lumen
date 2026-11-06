@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFil
     QPushButton, QScrollArea, QSpinBox, QStackedWidget, QTimeEdit, QVBoxLayout, QWidget)
 from assistant_backend import OpenCodeBackend
 from desktop_settings import SHORTCUTS
+from desktop_design import PAGE_MARGIN, PAGE_SPACING
 
 
 def text(value):
@@ -50,12 +51,13 @@ class SettingsDialog(QDialog):
         self.setMinimumSize(800, 580)
         self.assistant = assistant_settings if assistant_settings is not None else QSettings('Lumen', 'Assistant')
         self.files = files_settings if files_settings is not None else QSettings('Lumen', 'Files')
+        self._geometry_key='windows/settings/files' if files_only else 'windows/settings/lumen'
         self.job = None
         self.engine = None
         self.desktop = {}
         self.original = {}
         root = QVBoxLayout(self)
-        root.setContentsMargins(24, 24, 24, 18)
+        root.setContentsMargins(PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN)
         self.stack = QStackedWidget()
         self.page_info = []
         self.status = text(tr('Änderungen mit „Übernehmen“ speichern. Systemdialoge übernehmen ihre eigenen Einstellungen.'))
@@ -72,6 +74,8 @@ class SettingsDialog(QDialog):
             self.status.setText(tr('Änderungen mit „Files-Einstellungen übernehmen“ speichern.'))
             self.build_files()
             root.insertWidget(0, self.stack, 1)
+            from window_geometry import restore
+            restore(self,self.assistant,self._geometry_key,(820,800))
             return
         self.build_lumen()
         self.build_files()
@@ -108,6 +112,8 @@ class SettingsDialog(QDialog):
             except (OSError, ValueError) as error: self.status.setText(str(error))
         hardware.addWidget(button(tr('Sound öffnen'), lambda: open_system_page('sound')))
         hardware.addWidget(button(tr('Arbeitsmodi öffnen'), lambda: open_system_page('modes')))
+        self.backups_button=button(tr('Lokale Sicherungspläne öffnen'),lambda:open_system_page('backups'))
+        hardware.addWidget(self.backups_button)
         for app_key, preferences in (
             ('system', [('restoreGeometry', tr('Fenstergröße und Position wiederherstellen'))]),
             ('sound', [('restoreGeometry', tr('Fenstergröße und Position wiederherstellen')), ('restoreSelection', tr('Letzten Eintrag wieder öffnen'))]),
@@ -128,7 +134,7 @@ class SettingsDialog(QDialog):
         personality = self.page(tr('Persönlichkeit'), tr('Wie Lumen mit dir spricht und zusammenarbeitet.'))
         self.persona_editor = PersonaEditor(self.assistant, lambda: self.open_page(self.speech_output_page), self)
         self.persona_editor.saved.connect(lambda: (
-            self.preferencesChanged.emit(self.assistant.fileName(), ['personaProfile']),
+            self.preferencesChanged.emit(self.assistant.fileName(), ['personaProfile','personaLocalOverride']),
             self.status.setText(tr('Persönlichkeit gespeichert. Gilt ab der nächsten Nachricht.'))))
         personality.addWidget(self.persona_editor); personality.addStretch()
         from troubleshooter_ui import Troubleshooter
@@ -143,8 +149,8 @@ class SettingsDialog(QDialog):
         for action in self.stack.findChildren(QPushButton):
             action.setAutoDefault(False); action.setDefault(False)
         self.server_page = self.stack.count()
-        server = self.page(tr('Server & Synchronisation'), tr('Verbindung und automatischer Datenabgleich'))
-        server.addWidget(text(tr('Verbinde diesen Desktop über die Geräteansicht deines Servers. Hier siehst du anschließend den aktuellen Abgleich und die freigegebenen Funktionen.')))
+        server = self.page(tr('Server & Verbindung'), tr('Server-Apps, Gerätefreigaben und lokaler Datenabgleich'))
+        server.addWidget(text(tr('Notes, Projekte, Code, Audio Studio, Vault und Inbox arbeiten direkt auf deinem Lumen Server. Sie benötigen keinen zusätzlichen App-Abgleich. Hier verwaltest du die Verbindung und den Abgleich ausdrücklich lokaler Daten.')))
         def open_server():
             from lumen_connect_gui import ConnectionDialog
             self.connection_dialog = ConnectionDialog(self)
@@ -163,11 +169,19 @@ class SettingsDialog(QDialog):
         root.insertWidget(0, self.navigation, 1)
         destination = self.app_pages.get({'radio': 'meetings', 'sound': 'system'}.get(application, application), page)
         if destination is not None: self.open_page(destination)
+        from window_geometry import restore
+        restore(self,self.assistant,self._geometry_key,(1120,820))
         if load_system:
             QTimer.singleShot(0, self.reload)
 
     def open_page(self, index, target=None):
         self.navigation.open_page(index, target)
+
+    def open_server_permissions(self):
+        from server_notes_app import open_device_permissions
+        try:
+            if not open_device_permissions():raise ValueError(tr('Die Gerätefreigaben konnten nicht geöffnet werden.'))
+        except (OSError,ValueError,RuntimeError) as error:self.status.setText(str(error))
 
     def open_system(self):
         from lumen_apps import launch
@@ -175,27 +189,27 @@ class SettingsDialog(QDialog):
         except (OSError, ValueError) as error: self.status.setText(str(error))
 
     def build_apps(self):
-        from lumen_apps import catalogue, COMPANIONS, launch
+        from lumen_apps import catalogue, COMPANIONS, SERVER_APPS, launch
         explanations = {
             'companion': tr('Fenster, Bildfreigabe und automatische Begleitung steuerst du direkt in Companion. Modell, Darstellung und lokale Sprache teilt sich Companion mit Lumen.'),
             'updater': tr('Prüft Lumen, alle Apps und installierte Erweiterungen. Systempakete und Flatpaks sind zusätzlich auswählbar.'),
             'translate': tr('Texte übersetzen, den Schreibstil ändern oder nur Fehler korrigieren. PDFs werden als neue Datei exportiert. Das konfigurierte Lumen-Modell wird erst nach deinem Start verwendet.'),
             'search': tr('Suche und Gespräch nutzen das gemeinsame Modell, die Sprache und das Erscheinungsbild von Lumen. Diktieren wird im Einrichtungsassistenten eingerichtet.'),
-            'wissen': tr('Notizbuch, Sammlungen und Freigaben verwaltest du in „Meine Notizen“. Im Lumen-Gedächtnis steuerst du Erinnerungen und automatisches Lernen.'),
-            'inbox': tr('Mail- und Kalenderkonten werden in der Inbox verwaltet. Die KI-Lesefreigabe für lokale Nachrichten findest du unter MCP.'),
-            'vault': tr('Quellen, Ziele und Zeitpläne verwaltest du unter Lumen System → Sicherungen.'),
+            'wissen': tr('Notizen, Sammlungen und Quellen liegen auf deinem Lumen Server. Das persönliche Lumen-Gedächtnis bleibt ein eigener Bereich in Lumen Desktop.'),
+            'inbox': tr('Mailkonten, Kalender und Inbox-Aufgaben verwaltest du direkt auf deinem Lumen Server. Die Freigaben für den KI-Zugriff gelten auch auf diesem Desktop.'),
+            'vault': tr('Der Server-Tresor verwahrt verschlüsselte Einträge. Entsperrung und Dienstfreigaben bleiben gesondert geschützt. Sicherungspläne für diesen Desktop findest du unter Lumen System → Sicherungen.'),
             'reader': tr('Stimme und Audioausgabe wählst du im Reader. Bibliothek und Markierungen bleiben lokal gespeichert.'),
             'sound': tr('Ausgabegeräte, Lautstärken und Regeln für Anwendungen verwaltest du in Sound.'),
-            'meetings': tr('Meeting und Radio teilen sich ein Fenster. Oben wechselst du zwischen Aufnahmen, Transkripten und deinem Hörprogramm. Beide Bibliotheken bleiben erhalten.'),
+            'meetings': tr('Aufnahmen, Transkripte und Hörstücke liegen auf deinem Lumen Server. Mikrofon und Dateiauswahl werden lokal bestätigt. Verarbeitung und Sprachmodelle werden auf dem Server eingerichtet.'),
             'household': tr('Dokumente, Kategorien und Erinnerungsfristen stellst du je Eintrag im Digitalen Haushalt ein.'),
             'workbench': tr('Projekte, Vorhaben, Aufgaben und Material verwaltest du in Lumen Projekte.'),
-            'radio': tr('Quellen, Programme, Stimmen und Audioausgabe verwaltest du im Persönlichen Radio.'),
+            'code': tr('Werkzeuge, Automationen, Zeitpläne und Code-Projekte werden auf deinem Lumen Server verwaltet und ausgeführt. Geräteaktionen benötigen weiterhin ihre eigene Freigabe.'),
+            'radio': tr('Quellen, Programme, Stimmen und Audioausgabe verwaltest du im Bereich Radio von Lumen Audio Studio.'),
         }
         self.app_controls = {}
         def open_app(key, area=None):
             try:
-                if key == 'vault': launch('system', page='backups')
-                else: launch(key, area=area)
+                launch(key, area=area)
             except (OSError, ValueError) as error: self.status.setText(str(error))
         for key, title, description, icon in catalogue(include_utilities=True):
             if key == 'search':
@@ -203,16 +217,21 @@ class SettingsDialog(QDialog):
                 continue
             if key in self.app_pages: continue
             self.app_pages[key] = self.stack.count()
-            panel = self.page(tr('Sicherungen') if key == 'vault' else title, explanations['vault'] if key == 'vault' else description)
+            panel = self.page(title, description)
             panel.addWidget(text(explanations.get(key, description)))
             panel.addWidget(button(tr('App öffnen'), lambda _=False, app=key: open_app(app)))
+            if key in SERVER_APPS:
+                panel.addWidget(text(tr('Inhalte und App-Einstellungen liegen auf deinem Lumen Server. Hier stellst du Fenster und Darstellung auf diesem Desktop ein.')))
+                panel.addWidget(button(tr('Gerätefreigaben auf dem Server öffnen'), self.open_server_permissions))
+            if key == 'vault':
+                panel.addWidget(button(tr('Lokale Sicherungspläne öffnen'), lambda: launch('system',page='backups')))
             if key == 'notification':
-                from lumen_notifications import preferences, set_preference, configure_popups
+                from lumen_notifications import preferences, set_preference, notification_options
                 panel.addWidget(text(tr('Lumen zeigt deine Meldungen. Systemeinstellungen und App-Aktionen bleiben erhalten.')))
-                native = QCheckBox(tr('Popups mit Lumen anzeigen'))
+                native = QCheckBox(tr('Popups anzeigen'))
                 native.setChecked(self.assistant.value('notifications/nativePopups', True, type=bool))
                 def set_popups(enabled):
-                    try: configure_popups(enabled)
+                    try: notification_options({"native_popups":enabled})
                     except (OSError, ValueError, subprocess.SubprocessError) as error:
                         native.blockSignals(True); native.setChecked(not enabled); native.blockSignals(False)
                         self.status.setText(str(error))
@@ -237,16 +256,17 @@ class SettingsDialog(QDialog):
                 def save_translate():
                     try:
                         self.save(self.assistant, {pref: control.currentData() for pref, control in defaults.items()})
-                        self.status.setText(tr('Translate-Vorgaben gespeichert. Gilt für neue Texte nach dem nächsten Start.'))
+                        self.status.setText(tr('Compose-Vorgaben gespeichert. Gilt für neue Texte nach dem nächsten Start.'))
                     except (OSError, ValueError) as error: self.status.setText(str(error))
-                panel.addWidget(button(tr('Translate-Vorgaben übernehmen'), save_translate))
+                panel.addWidget(button(tr('Compose-Vorgaben übernehmen'), save_translate))
             if key == 'wissen':
                 panel.addWidget(button(tr('Lumen-Gedächtnis öffnen'), lambda: open_app('wissen', 'lumen')))
             if key in COMPANIONS:
-                for app_key in (('meetings', 'radio') if key == 'meetings' else (key,)):
-                    if key == 'meetings': panel.addWidget(text(tr('Meeting') if app_key == 'meetings' else tr('Radio')))
+                for app_key in (key,):
                     controls = {}
-                    for pref, caption in [('restoreGeometry', tr('Fenstergröße und Position wiederherstellen')), ('restoreSelection', tr('Letzten Eintrag wieder öffnen'))]:
+                    preferences=[('restoreGeometry', tr('Fenstergröße und Position wiederherstellen'))]
+                    if key not in SERVER_APPS:preferences.append(('restoreSelection', tr('Letzten Eintrag wieder öffnen')))
+                    for pref, caption in preferences:
                         control = QCheckBox(caption)
                         control.setChecked(self.field(self.assistant, f'apps/{app_key}/{pref}', True, bool))
                         panel.addWidget(control); controls[pref] = control
@@ -257,30 +277,27 @@ class SettingsDialog(QDialog):
                             self.status.setText(tr('App-Einstellungen gespeichert. Gilt beim nächsten Start.'))
                         except (OSError, ValueError) as error: self.status.setText(str(error))
                     panel.addWidget(button(tr('App-Einstellungen übernehmen'), save_app))
-            panel.addWidget(text(tr('Gemeinsam für alle Lumen-Apps')))
-            panel.addWidget(button(tr('Sprache, Modell und Arbeitsweise'), lambda: self.open_page(0)))
+            panel.addWidget(text(tr('Auf diesem Desktop')))
+            if key not in SERVER_APPS:panel.addWidget(button(tr('Sprache, Modell und Arbeitsweise'), lambda: self.open_page(0)))
             panel.addWidget(button(tr('Erscheinungsbild'), lambda: self.open_page(3)))
-            if key in ('search', 'meetings', 'reader', 'radio', 'companion'):
+            if key in ('search', 'reader', 'companion'):
                 panel.addWidget(button(tr('Spracheingabe und Einrichtung'), lambda: self.open_page(self.speech_input_page)))
-            if key == 'inbox': panel.addWidget(button(tr('KI-Zugriff auf die Inbox'), lambda: self.open_page(9)))
             panel.addStretch()
 
     def build_mcp(self):
-        page = self.page('MCP', tr('Lumen-Funktionen für die KI'))
-        page.addWidget(text(tr('Die KI kann Dateien suchen, freigegebene Notizen lesen und Aufträge sowie Sicherungsstände abfragen. Lumen Notes verwendet dieselben Freigaben wie Gespräche.')))
-        self.mcp_inbox = QCheckBox(tr('Lokale Nachrichten und Termine über MCP lesen'))
-        self.mcp_inbox.setChecked(self.field(self.assistant, 'mcpInboxRead', False, bool))
-        page.addWidget(self.mcp_inbox)
-        page.addWidget(text(tr('Standardmäßig aus. Gelesene Inhalte können an deinen konfigurierten KI-Anbieter übermittelt werden. Es werden keine Nachrichten versendet und keine Konten synchronisiert. Der Entzug gilt ab dem nächsten Werkzeugaufruf; bereits gelesene Chat-Inhalte bleiben erhalten.')))
-        page.addWidget(text(tr('Ändernde Werkzeuge benötigen eine separate Freigabe in OpenCode. Die Lesefreigabe für die Inbox erlaubt keine Änderungen.')))
-        def save():
+        from engine_extensions import ExtensionsView
+        page = self.page(tr('Fähigkeiten & Erweiterungen'), tr('MCP, Plugins und Skills von Lumen'))
+        self.extensions = ExtensionsView(lambda parent:OpenCodeBackend(str(Path(self.assistant.value('workdir', str(Path.home()))).expanduser()), parent))
+        page.addWidget(self.extensions, 1)
+        def server_extensions():
+            from server_notes_app import _connection
+            from server_app_session import origin
             try:
-                self.save(self.assistant, {'mcpInboxRead': self.mcp_inbox.isChecked()})
-                self.status.setText(tr('MCP-Freigabe gespeichert.'))
-            except (OSError, ValueError) as error:
-                self.status.setText(str(error))
-        page.addWidget(button(tr('MCP-Einstellungen übernehmen'), save))
-        page.addStretch()
+                config, _ = _connection()
+                if not QDesktopServices.openUrl(QUrl(origin(config['server'])+'/?app=settings&section=extensions')):raise ValueError()
+            except (OSError,ValueError,RuntimeError):self.status.setText(tr('Bitte zuerst Lumen Desktop mit deinem Server verbinden.'))
+        page.addWidget(button(tr('Server-Fähigkeiten im Browser öffnen'),server_extensions))
+        page.addWidget(button(tr('Gerätefreigaben auf dem Server öffnen'),self.open_server_permissions))
 
     def build_speech_settings(self):
         from lumen_speech import add_recognition_fields
@@ -288,7 +305,7 @@ class SettingsDialog(QDialog):
         from settings_navigation import Details
         from PySide6.QtWidgets import QDoubleSpinBox
         self.speech_input_page = self.stack.count()
-        page = self.page(tr('Spracheingabe'), tr('Mikrofon und Diktieren für alle Lumen-Apps'))
+        page = self.page(tr('Spracheingabe'), tr('Mikrofon und Diktieren in Lumen Desktop'))
         form = QFormLayout(); page.addLayout(form)
         save_recognition = add_recognition_fields(form, self.assistant)
         self.recognition_form = form
@@ -310,7 +327,7 @@ class SettingsDialog(QDialog):
         self.speech_setup_link(page)
         page.addStretch()
         self.speech_output_page = self.stack.count()
-        page = self.page(tr('Stimme & Vorlesen'), tr('Gemeinsame Stimme für Gespräche, Reader und Radio'))
+        page = self.page(tr('Stimme & Vorlesen'), tr('Lokale Stimme für Lumen und Reader'))
         form = QFormLayout(); page.addLayout(form)
         save_voice = add_voice_fields(form, self.assistant)
         self.voice_form = form
@@ -390,8 +407,8 @@ class SettingsDialog(QDialog):
         scroll.setFrameShape(QScrollArea.NoFrame)
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(24, 14, 24, 14)
-        layout.setSpacing(14)
+        layout.setContentsMargins(0, PAGE_SPACING, 0, PAGE_SPACING)
+        layout.setSpacing(PAGE_SPACING)
         heading = text(title)
         heading.setObjectName('heading')
         layout.addWidget(heading)
@@ -653,9 +670,22 @@ class SettingsDialog(QDialog):
                 self.status.setText(str(error))
         self.apply_appearance = button(tr('Design übernehmen'), save); self.apply_appearance.setObjectName('primary')
         page.addWidget(self.apply_appearance, 0, Qt.AlignLeft)
+        page.addWidget(text(tr('Topbar')))
+        topbar = QFormLayout()
+        self.topbar_layout = combo([('Panorama', 'classic'), (tr('Tastenband'), 'band'),
+            (tr('Doppeldeck'), 'deck'), (tr('Kontextdock'), 'context')], self.field(self.assistant, 'topbar/layout', 'classic'))
+        self.topbar_layout.setAccessibleName(tr('Topbar-Layout'))
+        topbar.addRow(tr('Layout'), self.topbar_layout); page.addLayout(topbar)
+        page.addWidget(text(tr('Das Layout wechselt sofort. Design und geöffnete Apps bleiben erhalten.')))
+        def save_topbar():
+            try:
+                self.save(self.assistant, {'topbar/layout': self.topbar_layout.currentData()})
+                self.status.setText(tr('Topbar-Layout übernommen.'))
+            except (OSError, ValueError) as error: self.status.setText(str(error))
+        self.topbar_layout.currentIndexChanged.connect(save_topbar)
         reading = QFormLayout()
         self.text_size = QSpinBox(); self.text_size.setRange(14, 22); self.text_size.setSuffix(' px')
-        self.text_size.setValue(self.field(self.assistant, 'textSize', 17))
+        self.text_size.setValue(self.field(self.assistant, 'textSize', 17, int))
         reading.addRow(tr('Schriftgröße · Lumen'), self.text_size)
         self.content_density = combo([(tr('Komfortabel'), 'comfortable'), (tr('Kompakt'), 'compact')],
             self.field(self.assistant, 'contentDensity', 'comfortable'))
@@ -899,14 +929,18 @@ class SettingsDialog(QDialog):
         timer.start(100000 if action == 'service' and data.get('scope') == 'system' else 60000)
 
     def done(self, result):
-        if not self.resource_workspace.can_close(): return
+        workspace=getattr(self,'resource_workspace',None)
+        if workspace is not None and not workspace.can_close(): return
         if self.job:
             self.status.setText(tr('Bitte die laufende Systemaktion abwarten.'))
             return
         if self.engine:
             self.engine.shutdown()
+        if hasattr(self, 'extensions'): self.extensions.stop()
         if hasattr(self, 'troubleshooter'): self.troubleshooter.stop()
-        self.resource_workspace.shutdown()
+        if workspace is not None:workspace.shutdown()
+        from window_geometry import remember
+        remember(self,self.assistant,self._geometry_key)
         super().done(result)
 
 

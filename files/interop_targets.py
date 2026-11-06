@@ -1,5 +1,5 @@
 """Local, reviewed Lumen transfers. A transfer never sends mail or calls a model."""
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 from datetime import date, datetime, timedelta
 import fcntl
 import hashlib
@@ -13,19 +13,19 @@ import uuid
 from urllib.parse import quote
 
 from lumen_i18n import tr
-from tools_data import Library, document_text, media_duration, web_url
+from tools_data import Library, web_url
 
 
 ACTIONS = {
-    'translate.import': dict(target='translate', label=tr('In Lumen Translate bearbeiten …'), modes=['copy'], description=tr('Text oder PDF lokal vorbereiten. Übersetzen, Umformulieren oder Korrigieren erst in Translate starten.')),
+    'translate.import': dict(target='translate', label=tr('In Lumen Compose bearbeiten …'), modes=['copy'], description=tr('Text oder PDF lokal vorbereiten. Übersetzen, Umformulieren oder Korrigieren erst in Compose starten.')),
     'wissen.import': dict(target='wissen', label=tr('Als Notiz speichern …'), modes=['copy', 'link'], description=tr('In Lumen Notes speichern. Die Originaldatei bleibt unverändert.')),
-    'workbench.add': dict(target='workbench', label=tr('Zu einem Projekt hinzufügen …'), modes=['copy', 'link','live'], description=tr('Material und Notizen einem neuen oder vorhandenen Projekt zuordnen.')),
-    'workbench.question': dict(target='workbench', label=tr('Als Aufgabe in Lumen Projekte übernehmen'), modes=['copy'], description=tr('Ausgewählten Text als manuelle Aufgabe mit Herkunft speichern.')),
+    'workbench.add': dict(target='workbench', label=tr('Zu einem Projekt hinzufügen …'), modes=['copy', 'link'], description=tr('Material und Notizen einem neuen oder vorhandenen Projekt zuordnen.')),
+    'workbench.question': dict(target='workbench', label=tr('Mit Lumen im Projekt besprechen …'), modes=['copy'], description=tr('Ausgewählten Text als Frage im Projektgespräch auf dem Server senden.')),
     'household.add': dict(target='household', label=tr('Zu einem Gerät oder Vertrag hinzufügen …'), modes=['copy','link','live'], description=tr('Belege, Handbücher und Notizen einem Gerät oder Vertrag zuordnen.')),
-    'radio.add': dict(target='radio', label=tr('Für eine Radioausgabe sammeln …'), modes=['copy'], description=tr('Lokalen Text für eine neue oder vorhandene Radioausgabe sammeln.')),
+    'radio.add': dict(target='radio', label=tr('Für eine Radioausgabe sammeln …'), modes=['copy'], description=tr('Text oder bestätigte Drive-Quellen als neue Radioausgabe auf dem Server sammeln.')),
     'reader.import': dict(target='reader', label=tr('In Lumen Reader öffnen'), modes=['copy'], description=tr('Eine private Lesekopie mit Herkunft anlegen.')),
-    'meetings.import': dict(target='meetings', label=tr('Aufnahme in Lumen Meeting-Werkstatt öffnen'), modes=['copy'], description=tr('Audio lokal importieren; Transkription separat starten.')),
-    'meetings.agenda': dict(target='meetings', label=tr('Als Meeting-Agenda übernehmen'), modes=['copy'], description=tr('Text als Agenda einer neuen oder vorhandenen Besprechung hinzufügen.')),
+    'meetings.import': dict(target='meetings', label=tr('Aufnahme in Lumen Audio Studio · Meeting öffnen'), modes=['copy'], description=tr('Eine bestätigte Drive-Aufnahme im Server-Audio-Studio speichern; Transkription separat starten.')),
+    'meetings.agenda': dict(target='meetings', label=tr('Als Meeting-Agenda übernehmen'), modes=['copy'], description=tr('Text oder bestätigte Drive-Quellen als neue Besprechung auf dem Server speichern.')),
     'inbox.draft': dict(target='inbox', label=tr('Mailentwurf in Lumen Inbox vorbereiten'), modes=['copy'], description=tr('Text und Dateikopien als lokalen, ungesendeten Entwurf speichern.')),
     'inbox.task': dict(target='inbox', label=tr('Aufgabe in Lumen Inbox anlegen'), modes=['copy'], description=tr('Eine lokale Aufgabe mit Fälligkeit und Herkunft erstellen.')),
     'inbox.event': dict(target='inbox', label=tr('Termin in Lumen Inbox vorbereiten'), modes=['copy'], description=tr('Einen lokalen Terminvorschlag zur Prüfung im Kalendereditor vorbereiten.')),
@@ -37,41 +37,58 @@ AUDIO_SUFFIXES = {'.wav', '.mp3', '.m4a', '.ogg', '.flac', '.opus', '.mp4', '.mk
 
 
 def available(payload):
+    if payload.get('references'):
+        refs=payload['references'];result=['wissen.import','workbench.add']
+        if all(ref['kind']=='drive_file' and Path(ref['title']).suffix.lower() in TEXT_SUFFIXES for ref in refs):
+            result+=['radio.add','meetings.agenda']
+        if len(refs)==1 and refs[0]['kind']=='drive_file':
+            suffix=Path(refs[0]['title']).suffix.lower()
+            if suffix in AUDIO_SUFFIXES:result.append('meetings.import')
+            if suffix in READER_SUFFIXES:result.append('reader.import')
+            if suffix in ('.pdf','.txt','.md'):result.append('translate.import')
+        return result
     paths = payload.get('paths', []); text = bool(payload.get('text', '').strip())
     result = ['wissen.import', 'workbench.add', 'household.add', 'inbox.draft', 'inbox.task', 'inbox.event']
     if (text and len(payload.get('text','')) <= 12000) or (not text and len(paths)==1 and Path(paths[0]).suffix.lower()=='.pdf'): result.append('translate.import')
-    if text: result += ['workbench.question', 'meetings.agenda']
+    if text:
+        if not paths: result.append('workbench.question')
+        result.append('meetings.agenda')
     if text or (paths and all(Path(p).suffix.lower() in TEXT_SUFFIXES for p in paths)): result.append('radio.add')
     if text or (len(paths) == 1 and Path(paths[0]).suffix.lower() in READER_SUFFIXES): result.append('reader.import')
     if len(paths) == 1 and Path(paths[0]).suffix.lower() in AUDIO_SUFFIXES: result.append('meetings.import')
     return [action for action in ACTIONS if action in result]
 
 
-def choices(action, root=None, store=None):
+def choices(action, root=None, store=None, *, session=None, permissions_revision=None, job=None):
     target = ACTIONS[action]['target']
+    if action in ('radio.add','meetings.agenda','meetings.import'):
+        from server_audio_capture import choices as audio_choices
+        if session is None or job is None:raise ValueError(tr('Audioinhalte in der verbundenen Lumen-Audio-Studio-App übernehmen.'))
+        return audio_choices(session,permissions_revision,job)
+    if action.startswith('workbench.'):
+        from server_project_capture import projects
+        if session is None or job is None:raise ValueError(tr('Projekte in der verbundenen Lumen-Projekte-App auswählen.'))
+        return projects(session,permissions_revision,job)
     if action == 'wissen.import':
-        from lumen_store import Store
-        from wissen_data import Notebook
-        book = Notebook(store or Store())
-        return [dict(id='.', title=tr('Notizordner'))] + [dict(id=p, title=p) for p in book.scan()['folders']]
+        from server_note_capture import collections
+        if session is None or job is None:raise ValueError(tr('Notizsammlungen in der verbundenen Lumen-Notes-App auswählen.'))
+        return collections(session,permissions_revision,job)
     if action in ('reader.import', 'meetings.import', 'inbox.task', 'translate.import'): return []
     records = Library(target, root).all()
     if target == 'inbox':
         kinds = ('imap', 'bridge') if action == 'inbox.draft' else ('caldav',)
         records = [record for record in records if record.get('kind') in kinds]
     result=[dict(id=record['id'], title=record['title']) for record in records]
-    if target=='workbench' and action=='workbench.add':
-        from projects_data import Projects
-        projects=Projects(Library(target,root))
-        for record in records:
-            children=projects.items(record['id']); names={item['id']:item['title'] for item in children}
-            for item in children:
-                if item['parent'] and item['parent'] not in names:continue
-                result.append(dict(id=record['id']+'/'+item['id'],title=record['title']+' / '+(names.get(item['parent'],'')+' / ' if item['parent'] else '')+item['title']))
     return result
 
 
 def _validate(action, payload, choice):
+    if payload.get('references'):
+        from interop_data import validate_payload
+        validate_payload(payload)
+        expected='link' if action in ('wissen.import','workbench.add') else 'copy'
+        if action not in available(payload) or choice.get('mode')!=expected:
+            raise ValueError(tr('Drive-Originale als Verknüpfung übernehmen.'))
     if action not in ACTIONS or choice.get('mode', 'copy') not in ACTIONS[action]['modes']:
         raise ValueError(tr('Diese Übergabeart wird nicht unterstützt.'))
     if choice.get('mode')=='live' and not (payload.get('source',{}).get('app')=='wissen' and payload['source'].get('kind') in ('note','collection')):
@@ -81,8 +98,8 @@ def _validate(action, payload, choice):
     text = payload.get('text', '')
     if not isinstance(text, str) or len(text) > 120000: raise ValueError(tr('Übergabetext größer als 120.000 Zeichen.'))
     paths = payload.get('paths', [])
-    if not isinstance(paths, list) or len(paths) > 100 or any(not isinstance(p, str) or not Path(p).is_absolute() or '\0' in p for p in paths):
-        raise ValueError(tr('Nur bis zu 100 absolute lokale Dateipfade übergeben.'))
+    if not isinstance(paths, list) or any(not isinstance(p, str) or not Path(p).is_absolute() or '\0' in p for p in paths):
+        raise ValueError(tr('Ein absoluter Dateipfad ist erforderlich.'))
     if not re.fullmatch(r'lumen://object/[0-9a-f]{32}(?:\?[^\s]*)?', payload.get('source_url', '')):
         raise ValueError(tr('Die Herkunft der Übergabe fehlt oder ist ungültig.'))
     token = choice.get('token', '')
@@ -137,30 +154,11 @@ def _filename(payload, path):
 
 def _record(db, library, action, payload, choice, values, extend=()):
     key = choice.get('id') or uuid.uuid4().hex
-    if action=='workbench.add' and '/' in key:
-        project,child=key.split('/',1)
-        existing=db.execute('SELECT * FROM project_items WHERE project=? AND id=? AND archived=0',(project,child)).fetchone()
-        if not existing:raise ValueError(tr('Das gewählte Ziel ist nicht mehr vorhanden.'))
-        if not db.execute('SELECT 1 FROM records WHERE id=? AND archived=0',(project,)).fetchone() or (existing['parent'] and not db.execute('SELECT 1 FROM project_items WHERE id=? AND archived=0',(existing['parent'],)).fetchone()):
-            raise ValueError(tr('Das gewählte Ziel ist archiviert. Bitte zuerst wiederherstellen.'))
-        previous=json.loads(existing['data'])
-        if values.get('questions'):
-            values['notes']=values.get('notes','')+'\n'+'\n'.join(q['text'] for q in values.pop('questions'))
-        for field in extend:
-            if field in values and previous.get(field):values[field]=previous[field]+ ('\n\n' if isinstance(previous[field],str) else [])+values[field]
-        previous.update(values); previous['interop_token']=choice['token']
-        db.execute('UPDATE project_items SET data=?,updated=? WHERE id=?',(json.dumps(previous),time.time(),child))
-        return dict(app='workbench',kind='record',id=project,title=existing['title'],position=dict(part='item:'+child))
     existing = db.execute('SELECT * FROM records WHERE id=?', (key,)).fetchone() if choice.get('id') else None
     if choice.get('id') and not existing: raise ValueError(tr('Das gewählte Ziel ist nicht mehr vorhanden.'))
     previous = json.loads(existing['data']) if existing else {}
     if not existing:
-        if action.startswith('workbench.'):
-            from interop_paths import revision
-            previous.update(notes='', questions=[], resources=[],interop_path_revision=revision(library.root.parent))
         if action == 'household.add': previous.update(kind='Gerät', notes='', attachments=[])
-        if action == 'radio.add': previous.update(sources=[], script='', minutes=5)
-        if action.startswith('meetings.'): previous.update(recording=None, duration=0, segments=[], summary='', results=[], agenda='')
     for field in extend:
         if field not in values: continue
         before = previous.get(field)
@@ -177,52 +175,29 @@ def _record(db, library, action, payload, choice, values, extend=()):
     return dict(app=ACTIONS[action]['target'], kind='record', id=key, title=title)
 
 
-def _wissen(library, payload, choice, job, store, created):
-    from lumen_store import Store
-    from wissen_data import Notebook
-    book = Notebook(store or Store()); folder = choice.get('id') or '.'
-    name = 'Lumen-'+hashlib.sha256(choice['token'].encode()).hexdigest()[:24]+'.md'
-    relative = str(Path(folder)/name); marker = 'interop:'+choice['token']
-    try:
-        note = book.read(relative)
-        if note.get('legacy') != marker: raise ValueError(tr('Am Übergabeziel liegt bereits eine andere Notiz.'))
-    except FileNotFoundError:
-        # The notebook stores the source in portable metadata and displays it
-        # as a named link outside the editable text.
-        text = payload.get('text','').strip() if choice.get('mode','copy')=='copy' else ''; links = []
-        if choice.get('mode', 'copy') == 'copy' and not payload.get('text', '').strip():
-            imported = [document_text(p, job) for p in payload.get('paths', []) if Path(p).suffix.lower() in ('.md', '.txt')]
-            if sum(map(len, imported)) > 120000: raise ValueError(tr('Übergabetext größer als 120.000 Zeichen.'))
-            if imported: text = '\n\n'.join(imported)+'\n\n'+text
-        for path in dict.fromkeys(payload.get('paths', [])):
-            job.check(); path = Path(path)
-            if choice.get('mode') == 'link':
-                links.append('['+path.name.replace(']', '\\]')+']('+path.as_uri()+')'); continue
-            with book.directory() as root:
-                try: os.mkdir('attachments', 0o700, dir_fd=root)
-                except FileExistsError: pass
-            copied = _copy(library, path, job, created)
-            # The notebook API verifies every directory component, including attachments.
-            target = 'attachments/'+copied['asset']
-            with book.directory('attachments') as directory:
-                fd = os.open(copied['asset'], os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600, dir_fd=directory)
-                created.append(book.root/target)
-                with os.fdopen(fd, 'wb') as output, library.asset(copied['asset']).open('rb') as source:
-                    while chunk := source.read(1024*1024): job.check(); output.write(chunk)
-                    output.flush(); os.fsync(output.fileno())
-            library.asset(copied['asset']).unlink()
-            link = os.path.relpath(target, folder)
-            links.append('['+_filename(payload, path).replace(']', '\\]')+']('+quote(link)+')')
-        if links: text += '\n\n'+'\n'.join('- '+link for link in links)
-        job.check()
-        note = book.write(relative, '# '+(choice.get('title') or payload['title'])+'\n\n'+text, '', payload['source_url'], marker)
-        # A crash after this atomic write is replayable from its deterministic name.
-    return dict(app='wissen', kind='note', id=relative, title=note['title'], path=str(book.root/relative), locator=dict(root=str(book.root)))
 
 
-def apply(action, payload, choice, job, root=None, store=None):
+def apply(action, payload, choice, job, root=None, store=None, *, session=None, permissions_revision=None, retry=False):
     from interop_undo import snapshot,remember
     _validate(action, payload, choice)
+    if action in ('radio.add','meetings.agenda','meetings.import'):
+        from interop_data import Registry
+        from server_audio_capture import capture
+        if session is None:raise ValueError(tr('Audioinhalte ausschließlich in der verbundenen Server-App übernehmen.'))
+        if Registry(root).request(choice['token'])['payload']!=payload:raise ValueError(tr('Die bestätigte Quelle wurde geändert.'))
+        return capture(choice['token'],choice,session,permissions_revision,job,root=root,retry=retry)
+    if action.startswith('workbench.'):
+        from interop_data import Registry
+        from server_project_capture import capture
+        if session is None:raise ValueError(tr('Projektinhalte ausschließlich in der verbundenen Server-App übernehmen.'))
+        if Registry(root).request(choice['token'])['payload']!=payload:raise ValueError(tr('Die bestätigte Quelle wurde geändert.'))
+        return capture(choice['token'],choice,session,permissions_revision,job,root=root,retry=retry)
+    if action=='wissen.import':
+        from interop_data import Registry
+        from server_note_capture import capture
+        if session is None:raise ValueError(tr('Notizen ausschließlich in der verbundenen Server-App übernehmen.'))
+        if Registry(root).request(choice['token'])['payload']!=payload:raise ValueError(tr('Die bestätigte Quelle wurde geändert.'))
+        return capture(choice['token'],choice,session,permissions_revision,job,root=root,retry=retry)
     if ACTIONS[action]['target'] == 'inbox':
         from inbox_data import store as inbox_store
         library = inbox_store(root)
@@ -233,17 +208,17 @@ def apply(action, payload, choice, job, root=None, store=None):
         with library.connect() as db:
             result = _receipt(db, choice['token'], signature)
         if result: return result
+        temporary=ExitStack()
         try:
-            if action == 'wissen.import':
-                result = _wissen(library, payload, choice, job, store, created)
-                created.clear()  # The notebook is durable; replay recovers it even if receipt persistence fails.
-                from wissen_data import Notebook
-                from lumen_store import Store
-                note=Notebook(store or Store(),root=result['locator']['root']).read(result['id'])
-                with library.connect() as db:
-                    _remember(db, choice['token'], signature, result)
-                    remember(db,choice['token'],result,None,dict(hash=note['hash']))
-                return result
+            if payload.get('references') and action in ('reader.import','translate.import'):
+                from drive_references import materialized
+                refs=payload['references'];paths=temporary.enter_context(materialized(refs,job))
+                payload=dict(payload,paths=paths,items=[dict(kind='file',path=path,title=ref['title']) for ref,path in zip(refs,paths)])
+                payload.pop('references')
+                if action=='translate.import' and Path(paths[0]).suffix.lower()!='.pdf':
+                    text=Path(paths[0]).read_text(encoding='utf-8-sig')
+                    if len(text)>12000:raise ValueError(tr('Für Lumen Compose höchstens 12.000 Zeichen auswählen.'))
+                    payload.update(text=text,paths=[])
             values, extend = _prepare(library, action, payload, choice, job, created)
             job.check()
             with library.connect() as db:
@@ -260,6 +235,7 @@ def apply(action, payload, choice, job, root=None, store=None):
         except BaseException:
             for path in created: path.unlink(missing_ok=True)
             raise
+        finally:temporary.close()
 
 
 def _prepare(library, action, payload, choice, job, created):
@@ -274,6 +250,9 @@ def _prepare(library, action, payload, choice, job, created):
             values.update(document_name=imported['name'], document_asset=imported['asset'], manifest=worker(job, 'inspect', path=str(library.asset(imported['asset']))))
         return values, ()
     if action.startswith('workbench.'):
+        if payload.get('references'):
+            from drive_references import links
+            return dict(notes=_body(payload,'link'),resources=links(payload['references'],library.root.parent),questions=[]),('notes','resources')
         if action == 'workbench.question':
             return dict(questions=[dict(text=_body(payload), done=False)], notes='', resources=[]), ('questions', 'notes', 'resources')
         if mode=='live':return dict(notes='',resources=[dict(kind='lumen',target=payload['source_url'],title=payload['title'],live=True)],questions=[]),('resources',)
@@ -298,27 +277,7 @@ def _prepare(library, action, payload, choice, job, created):
         if mode=='link':return dict(notes=_body(payload,mode),linked_paths=[dict(path=path,title=_filename(payload,path)) for path in paths]),('notes','linked_paths')
         attachments = [dict(_copy(library, path, job, created), name=_filename(payload, path)) for path in paths]
         return dict(notes=_body(payload), attachments=attachments), ('notes', 'attachments')
-    if action == 'radio.add':
-        sources = []
-        for item in payload.get('items', []):
-            if item.get('kind') == 'source' and item.get('text', '').strip():
-                url = web_url(item['url']) if item.get('url', '').startswith(('http://', 'https://')) else payload['source_url']
-                if item.get('url','').startswith('lumen://'):
-                    from interop_data import Registry
-                    Registry(library.root.parent).resolve(item['url']);url=item['url']
-                sources.append(dict(title=item.get('title') or payload['title'], text=item['text'], url=url, selected=True))
-        if not sources and payload.get('text', '').strip(): sources.append(dict(title=payload['title'], text=payload['text'], url=payload['source_url'], selected=True))
-        else:
-            for path in paths:
-                text = document_text(path, job)
-                sources.append(dict(title=Path(path).name, text=text, url=payload['source_url'], selected=True))
-        return dict(sources=sources), ('sources',)
     if action == 'reader.import': return _reader(library, payload, choice, job, created), ()
-    if action == 'meetings.import':
-        if choice.get('id'): raise ValueError(tr('Aufnahmen werden als neue Besprechung importiert.'))
-        duration = media_duration(paths[0], job)
-        return dict(recording=_copy(library, paths[0], job, created, limit=2*1024**3), duration=duration), ()
-    if action == 'meetings.agenda': return dict(agenda=_body(payload)), ('agenda',)
     if action.startswith('inbox.'):
         values = dict(title=(choice.get('title') or payload['title']).strip()[:300], source=payload['source_url'])
         if action != 'inbox.task':
@@ -374,7 +333,7 @@ def _reader(library, payload, choice, job, created):
         with path.open('x') as stream: path.chmod(0o600); stream.write(body)
     path = library.asset(asset); metadata = worker(job, 'metadata', path); metadata.pop('title', None)
     values = dict(asset=asset, source=payload['source_url'], page=0, scroll=0, notes=[], stamp=[path.stat().st_size, path.stat().st_mtime_ns], **metadata)
-    if not payload.get('text') and len(paths) == 1: values['original_path'] = paths[0]
+    if not payload.get('text') and len(paths) == 1 and payload.get('source',{}).get('kind') not in ('drive_file','drive_folder'): values['original_path'] = paths[0]
     return values
 
 

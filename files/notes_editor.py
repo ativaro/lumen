@@ -1,7 +1,7 @@
 """Markdown editing without converting the user's source or replacing undo history."""
 import re
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QKeySequence, QSyntaxHighlighter, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import QPlainTextEdit
 
@@ -47,9 +47,12 @@ class MarkdownHighlight(QSyntaxHighlighter):
 
 
 class NotesEditor(QPlainTextEdit):
+    linkRequested = Signal(str)
     def __init__(self, parent=None):
         super().__init__(parent)
         self.highlight = MarkdownHighlight(self.document())
+        from notes_completion import NoteCompletion
+        self.completion = NoteCompletion(self)
 
     def set_source_mode(self, enabled):
         self.highlight.source_mode = enabled
@@ -60,6 +63,18 @@ class NotesEditor(QPlainTextEdit):
         cursor = self.textCursor()
         start = cursor.selectionStart()
         text = cursor.selectedText().replace('\u2029', '\n')
+        end = cursor.selectionEnd()
+        surrounding = QTextCursor(self.document())
+        surrounding.setPosition(max(0, start-qt_length(marker)))
+        surrounding.setPosition(min(self.document().characterCount()-1,end+qt_length(marker)), QTextCursor.KeepAnchor)
+        left = QTextCursor(self.document()); left.setPosition(start); left.setPosition(0, QTextCursor.KeepAnchor)
+        stars = len(left.selectedText())-len(left.selectedText().rstrip('*'))
+        toggle = marker != '*' or stars % 2 == 1
+        if toggle and surrounding.selectedText().replace('\u2029', '\n') == marker+text+marker:
+            surrounding.beginEditBlock(); surrounding.insertText(text); surrounding.endEditBlock()
+            surrounding.setPosition(start-qt_length(marker))
+            surrounding.setPosition(start-qt_length(marker)+qt_length(text), QTextCursor.KeepAnchor)
+            self.setTextCursor(surrounding); self.setFocus(); return
         cursor.beginEditBlock()
         cursor.insertText(marker+text+marker)
         cursor.endEditBlock()
@@ -83,6 +98,24 @@ class NotesEditor(QPlainTextEdit):
         cursor.endEditBlock()
         self.setTextCursor(cursor); self.setFocus()
 
+    def paragraph_style(self, prefix):
+        """Replace a block style instead of accumulating Markdown prefixes."""
+        if not self.isEnabled() or self.isReadOnly(): return
+        cursor = self.textCursor()
+        start, end = cursor.selectionStart(), cursor.selectionEnd()
+        cursor.setPosition(start); cursor.movePosition(QTextCursor.StartOfBlock)
+        first = cursor.position()
+        cursor.setPosition(end)
+        if end > start and cursor.atBlockStart(): cursor.movePosition(QTextCursor.PreviousCharacter)
+        cursor.movePosition(QTextCursor.EndOfBlock)
+        cursor.setPosition(first, QTextCursor.KeepAnchor)
+        lines = cursor.selectedText().split('\u2029')
+        pattern = r'^(?:#{1,6}\s+|[-+*]\s+(?:\[[ xX]\]\s+)?|\d+[.)]\s+|>\s?)'
+        cursor.beginEditBlock()
+        cursor.insertText('\n'.join(prefix+re.sub(pattern, '', line) for line in lines))
+        cursor.endEditBlock()
+        self.setTextCursor(cursor); self.setFocus()
+
     def toggle_checkbox(self):
         if not self.isEnabled() or self.isReadOnly(): return
         cursor = self.textCursor()
@@ -97,15 +130,20 @@ class NotesEditor(QPlainTextEdit):
 
     def insert_table(self):
         if not self.isEnabled() or self.isReadOnly(): return
-        from lumen_i18n import tr
-        cursor = self.textCursor(); cursor.beginEditBlock()
-        cursor.insertText('\n| '+tr('Spalte 1')+' | '+tr('Spalte 2')+' |\n| --- | --- |\n|  |  |\n')
-        cursor.endEditBlock(); self.setTextCursor(cursor); self.setFocus()
+        from notes_table import edit_table
+        edit_table(self)
 
     def keyPressEvent(self, event):
+        if self.completion.popup.popup().isVisible() and event.key() in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Escape, Qt.Key_Tab, Qt.Key_Backtab):
+            event.ignore(); return
         if event.matches(QKeySequence.Bold): self.wrap('**'); return
         if event.matches(QKeySequence.Italic): self.wrap('*'); return
         cursor = self.textCursor()
+        if event.key() in (Qt.Key_Return,Qt.Key_Enter) and event.modifiers()==Qt.ControlModifier:
+            line=cursor.block().text();position=cursor.positionInBlock()
+            for match in re.finditer(r'\[\[([^\]\n]+)\]\]|(?<!!)\[[^\]\n]+\]\(([^)\n]+)\)',line):
+                if qt_length(line[:match.start()])<=position<=qt_length(line[:match.end()]):
+                    self.linkRequested.emit(match[1] or match[2]);return
         if (event.key() in (Qt.Key_Return, Qt.Key_Enter) and not event.modifiers()
                 and self.isEnabled() and not self.isReadOnly()
                 and not cursor.hasSelection() and cursor.atBlockEnd()):
@@ -123,3 +161,5 @@ class NotesEditor(QPlainTextEdit):
                         cursor.insertText('\n'+match[1]+marker+' '+('[ ] ' if match[3] else ''))
                     cursor.endEditBlock(); self.setTextCursor(cursor); return
         super().keyPressEvent(event)
+        if event.text() or event.key() in (Qt.Key_Backspace, Qt.Key_Delete):
+            self.completion.refresh()

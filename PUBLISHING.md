@@ -1,7 +1,10 @@
 # Build and publish Lumen
 
-GitHub stores distributable source, tests, documentation and desktop artwork.
-GitHub Actions are disabled. Personal system inventories, session logs, app data,
+GitHub stores the current Desktop update release at `ativaro/lumen` on `main`.
+The repository remains private; keep the existing Forgejo source in sync.
+When their histories differ, publish the reviewed source tree on top of each
+remote's existing history without force-pushing or copying private development logs.
+GitHub Actions remain disabled. Personal system inventories, session logs, app data,
 credentials, backups and desktop screenshots do not belong in this repository.
 See [INSTALL.md](INSTALL.md) for installation and recovery.
 
@@ -10,12 +13,13 @@ See [INSTALL.md](INSTALL.md) for installation and recovery.
 The README starts with the authenticated `main` clone and `bootstrap.sh` command.
 Keep that command and [INSTALL.md](INSTALL.md) aligned. Local bootstrap detects its
 checkout without another download and always starts the setup wizard after success.
-The public curl command remains explicitly unavailable while this repository is
-private. Never embed a token or personal Git/SSH configuration in the installer.
+An unauthenticated curl command cannot install from this private repository. Never embed a token or personal Git/SSH configuration in the installer.
 
-Before publishing changes to this path, run `files/test_bootstrap.py` and the
-fresh-profile desktop check below. Include all Python/QML/translations and desktop
-assets; preserve the explicit native Vault prerelease boundary described below.
+Before publishing changes to this path, run the relevant bootstrap/installer
+checks and the fresh-profile desktop check below. Include required Python/QML,
+translations and desktop assets. The manifest `packaging/retired-desktop-files.txt`
+excludes retired local app implementations; do not repackage them to satisfy old
+tests. Preserve native Vault prerelease boundaries described below.
 
 ## Verify locally
 
@@ -26,25 +30,23 @@ lumen_test_python="$(bin/lumen-python -c 'import sys; print(sys.executable)')"
 lumen_test_root="$(mktemp -d)"
 HOME="$lumen_test_root" XDG_CONFIG_HOME="$lumen_test_root/config" \
   XDG_DATA_HOME="$lumen_test_root/data" XDG_STATE_HOME="$lumen_test_root/state" \
-  XDG_CACHE_HOME="$lumen_test_root/cache" QT_QPA_PLATFORM=offscreen LUMEN_LANGUAGE=de \
+  XDG_CACHE_HOME="$lumen_test_root/cache" LUMEN_DATA="$lumen_test_root/lumen" \
+  LUMEN_TOOLS_DATA="$lumen_test_root/tools" LUMEN_HOST_TEST_ROOT="$lumen_test_root/host" \
+  QT_QPA_PLATFORM=offscreen LUMEN_LANGUAGE=de \
   LUMEN_PYTHON="$lumen_test_python" dbus-run-session -- "$lumen_test_python" -m unittest discover -s files -v
 ```
 
-Create the ignored screenshot directories and run Qt 6's QML checks:
-
-```bash
-mkdir -p artifacts/islands artifacts/panel artifacts/themes
-/usr/lib/qt6/bin/qmltestrunner -input plasmoid/tests -platform offscreen
-```
-Run the installed desktop in disposable virtual Plasma sessions:
+Exercise the native topbar in a disposable virtual Plasma session:
 
 ```bash
 python3 tests/check-desktop.py
-python3 tests/check-desktop.py --width 1280 --screens 1
+python3 tests/check-desktop.py --width 1600 --scale 1.25 --surface-only
 ```
 
-The check creates an empty HOME/XDG profile and separate D-Bus/compositor session. Verify all three desktop roles, Files/search launchers,
-four themes and Aurorae decorations, wallpaper selection and idempotent setup.
+The runner creates a private profile, bus and virtual compositor. Run
+`tests/check-install-closure.py` for fresh and repeated user installations and the
+system package layout. Verify desktop Inbox and Notes using their normal menu
+commands against an isolated Staging account.
 Do not reset a developer's running Plasma session to test an installer.
 
 Review staged files and the commits that will be pushed for private information.
@@ -56,7 +58,10 @@ mockups and diagnostic artifacts are not needed to install Lumen.
 
 All desktop programs use PySide6/Qt 6. The [QML search](SEARCH-PREVIEW.md) is the
 production search behind the existing panel and shortcuts. Include `files/qml/search`,
-its translation catalog and `bin/lumen-python` in every package.
+its translation catalog and `bin/lumen-python` in every package. Also include
+`files/fonts`, `files/project_fonts`, `files/notes_icons` and their licenses.
+A release must not resolve missing modules or binaries from a developer checkout
+or a pre-existing personal installation.
 
 Commit the reviewed source, then run:
 
@@ -64,23 +69,32 @@ Commit the reviewed source, then run:
 ./packaging/arch/build-package.sh
 ```
 
-The build uses `git archive HEAD` so only committed project files enter the source
-archive. Check the resulting package contains `usr/share/lumen/desktop`, all
+The build requires a clean Git checkout and uses `git archive HEAD`. It records
+the source revision, credential-free repository URL and fixed source timestamp
+in `source.json`. `--source-only` creates the deterministic source archive and
+its SHA-256 file without building or installing a system package. An extracted
+archive can use `install.sh` without a Git checkout. Check the resulting package contains `usr/share/lumen/desktop`, all
 `org.lumen.*` applets and the three app/Files/search launchers. The package installs
 resources; each user explicitly activates their desktop using `lumen-desktop-setup`.
 Updates preserve existing service preferences and user data.
 
-A fresh-system clone build is supported. The PKGBUILD's release-tarball mode is
-for maintainers: create the matching version tag and replace `SKIP` with the
-verified archive checksum before distributing that PKGBUILD independently.
-No AUR release or binary repository is currently implied by this source repository.
+The package builder verifies the source archive checksum and checks build
+dependencies. For an independently downloaded release archive, maintainers must
+set `LUMEN_SOURCE_ARCHIVE_URL` and `LUMEN_SOURCE_SHA256` explicitly; there is no
+unverified `SKIP` source or assumed release tag. For local metadata, create the
+source archive before running `build-package.sh --srcinfo`.
+No AUR release or binary repository is implied by this source repository.
+Source-archive reproducibility does not by itself establish bit-identical native
+binaries or a successful installation on every distribution.
 
 ## Native Vault laboratory
 
 The optional native password-vault laboratory is built and installed separately;
 see [native/vault-ui/README.md](native/vault-ui/README.md). It remains restricted
-to synthetic data pending the release gates in its REVIEW.md. The default package
-ships only the launcher route and readiness status, not an audited password manager.
+to synthetic data pending the release gates in its REVIEW.md. The default `lumen-vault` route opens the paired Server app; `--backups` opens
+Lumen System backups and `--lab` explicitly opens an installed native laboratory.
+A native broker may be present for approved credential operations, but this does
+not constitute an independently audited public password manager.
 Native binaries must include the full notice/source bundle produced by its installer.
 
 ## Licenses

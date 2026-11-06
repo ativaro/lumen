@@ -53,6 +53,25 @@ def signature(info):
     return [info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns]
 
 
+def transfer_unchanged(before, info):
+    current = signature(info)
+    if current == before:
+        return True
+    if current[:4] != before[:4]:
+        return False
+    # KIO-FUSE refreshes synthetic ctime; uploads still verify the planned SHA-256.
+    device = f"{os.major(info.st_dev)}:{os.minor(info.st_dev)}"
+    try:
+        for line in Path("/proc/self/mountinfo").read_text().splitlines():
+            mount, _, fs = line.partition(" - ")
+            fields = mount.split()
+            if len(fields) > 2 and fields[2] == device and fs.startswith("fuse.kio-fuse "):
+                return True
+    except OSError:
+        pass
+    return False
+
+
 @contextmanager
 def source(root, path):
     p = relative(path, not root.get("native_names"))

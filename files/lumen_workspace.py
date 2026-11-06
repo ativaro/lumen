@@ -63,6 +63,9 @@ class StepDialog(QDialog):
                 else: control.setText(step[key])
         row = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         row.accepted.connect(self.accept); row.rejected.connect(self.reject); box.addWidget(row)
+        if getattr(parent, 'workflow', False):
+            from code_sentence_native import style_step
+            style_step(self, box, step)
 
     def rebuild(self):
         while self.form.rowCount(): self.form.removeRow(0)
@@ -82,10 +85,15 @@ class StepDialog(QDialog):
 
 class PlanDialog(QDialog):
     def __init__(self, parent, task=None, workflow=False):
-        super().__init__(parent); self.setWindowTitle(tr('Ablauf speichern') if workflow else tr('Auftrag vorbereiten'))
+        super().__init__(parent)
         self.resize(760, 700); self.workflow = workflow; self.value = None
         task = task or {}; box = QVBoxLayout(self); box.setContentsMargins(24, 20, 24, 20); box.setSpacing(14)
-        heading = QLabel(tr('Ablauf gestalten') if workflow else tr('Auftrag vorbereiten')); heading.setObjectName('heading'); box.addWidget(heading)
+        if workflow:
+            from code_sentence_native import NativeSentence
+            self.native_sentence = NativeSentence(self, task, box)
+            return
+        self.setWindowTitle(tr('Auftrag vorbereiten'))
+        heading = QLabel(tr('Auftrag vorbereiten')); heading.setObjectName('heading'); box.addWidget(heading)
         self.name = QLineEdit(task.get('title', task.get('name', ''))); self.name.setPlaceholderText(tr('Name')); self.name.setAccessibleName(tr('Name')); box.addWidget(self.name)
         tabs = QTabWidget(); box.addWidget(tabs, 1)
         steps_page = QWidget(); steps_box = QVBoxLayout(steps_page); steps_box.setContentsMargins(16, 16, 16, 16); steps_box.setSpacing(12)
@@ -114,12 +122,7 @@ class PlanDialog(QDialog):
         self.interval = QSpinBox(); self.interval.setRange(1, 525600); self.interval.setSuffix(tr(' Minuten'))
         self.watch = QComboBox(); self.watch.setAccessibleName(tr('Beobachteter Ordner'))
         self.enable = QCheckBox(tr('Automatischen Ablauf aktivieren'))
-        if workflow:
-            form = QFormLayout(); form.setSpacing(12); scope_box.addLayout(form)
-            form.addRow(tr('Auslöser'), self.trigger); form.addRow(tr('Intervall / Prüfintervall'), self.interval)
-            form.addRow(tr('Beobachteter Ordner'), self.watch); scope_box.addWidget(self.enable)
-            info = QLabel(tr('Ordnerauslöser erkennen Änderungen an direkten Einträgen.\nKI-Aufträge und Desktop-/Systemaktionen warten auf Lumen im Vordergrund.')); info.setWordWrap(True); scope_box.addWidget(info)
-        scope_box.addStretch(); tabs.addTab(scope_page, tr('Ordner & Zeitplan') if workflow else tr('Ordner'))
+        scope_box.addStretch(); tabs.addTab(scope_page, tr('Ordner'))
         if task.get('prompt'): tabs.setCurrentWidget(prompt_page)
         self.approve = QCheckBox(tr('Diese Schritte und Ordner freigeben')); box.addWidget(self.approve)
         self.approve.setToolTip(tr('Freigabe gilt für genau diese gespeicherten Schritte. KI-Werkzeuge behalten ihre eigenen Rückfragen.'))
@@ -135,6 +138,10 @@ class PlanDialog(QDialog):
     def add_root(self):
         path = QFileDialog.getExistingDirectory(self, tr('Ordner freigeben'))
         if path: add_item(self.roots, path, path); self.refresh_roots()
+
+    def reject(self):
+        if self.workflow and not self.native_sentence.can_discard(): return
+        super().reject()
 
     def remove_root(self):
         self.roots.takeItem(self.roots.currentRow()); self.refresh_roots()
@@ -439,6 +446,11 @@ class Workspace(QObject):
         from file_actions import save_action
         save_action(self.window, self.store, self.store.task(task_id or selected(self.tasks)))
         self.refresh_flows()
+
+    def task_to_tool(self, task_id=None):
+        from lumen_detail_routes import launch
+        task = self.store.task(task_id or selected(self.tasks))
+        launch('lumen-code', ['--save-task', task['id']])
 
     def task_to_flow(self, task_id=None):
         task = self.store.task(task_id or selected(self.tasks)); self.flow_dialog(task)

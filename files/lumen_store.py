@@ -60,7 +60,7 @@ class Store:
 
             ''')
             columns = {r[1] for r in db.execute('PRAGMA table_info(workflows)')}
-            for name, declaration in [('approved', 'INTEGER NOT NULL DEFAULT 0'), ('prompt', "TEXT NOT NULL DEFAULT ''")]:
+            for name, declaration in [('approved', 'INTEGER NOT NULL DEFAULT 0'), ('prompt', "TEXT NOT NULL DEFAULT ''"),('code_plan',"TEXT NOT NULL DEFAULT ''")]:
                 if name not in columns: db.execute(f'ALTER TABLE workflows ADD COLUMN {name} {declaration}')
             db.execute('PRAGMA user_version=2')
         os.chmod(self.path, 0o600)
@@ -148,6 +148,9 @@ class Store:
         if not values or not set(values) <= allowed: raise ValueError(tr('Ungültige Auftragsfelder.'))
         values['updated'] = time.time()
         with self.connect() as db:
+            if values.get('status') in ('running','completed'):
+                from code_flow_native import check_task
+                check_task(db,task)
             db.execute('UPDATE tasks SET ' + ','.join(k + '=?' for k in values) + ' WHERE id=?', (*values.values(), task))
 
     def event(self, task, kind, detail):
@@ -190,13 +193,16 @@ class Store:
             db.execute('DELETE FROM documents WHERE root=?', (root,))
             db.execute('DELETE FROM roots WHERE path=?', (root,))
 
-    def save_workflow(self, name, steps, roots, trigger='manual', interval=3600, watch='', enabled=False, now=None, workflow=None, approved=False, prompt=''):
+    def save_workflow(self, name, steps, roots, trigger='manual', interval=3600, watch='', enabled=False, now=None, workflow=None, approved=False, prompt='', code_plan='', collection_entry=None):
         from lumen_actions import validate_steps
+        if code_plan or collection_entry or trigger=='schedule':
+            from code_flow_native import unavailable
+            unavailable()
         if steps: validate_steps(steps)
         elif not prompt.strip(): raise ValueError(tr('Schritte oder ein Auftrag sind erforderlich.'))
         if enabled and not approved: raise PermissionError(tr('Den Ablauf zuerst ausdrücklich freigeben.'))
         if not name.strip() or len(name) > 200: raise ValueError(tr('Ein gültiger Name ist erforderlich.'))
-        if trigger not in ('manual', 'interval', 'directory'): raise ValueError(tr('Unbekannter Auslöser.'))
+        if trigger not in ('manual', 'interval', 'directory', 'schedule'): raise ValueError(tr('Unbekannter Auslöser.'))
         if not 60 <= int(interval) <= 31536000: raise ValueError(tr('Intervall: 60 Sekunden bis ein Jahr.'))
         roots = [str(Path(p).resolve(strict=True)) for p in roots]
         if trigger == 'directory':
@@ -205,9 +211,15 @@ class Store:
                 raise ValueError(tr('Beobachteter Ordner muss freigegeben sein.'))
         workflow = workflow or identifier(); now = time.time() if now is None else now
         fingerprint = directory_fingerprint(watch) if watch else ''
+        next_run=now+int(interval)
         with self.connect() as db:
-            db.execute('INSERT OR REPLACE INTO workflows (id,name,steps,roots,trigger,interval,watch,enabled,next_run,fingerprint,updated,approved,prompt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
-                       (workflow, name, json.dumps(steps), json.dumps(roots), trigger, int(interval), watch, int(enabled), now + int(interval), fingerprint, now, int(approved), prompt))
+            db.execute('BEGIN IMMEDIATE')
+            current=db.execute('SELECT * FROM workflows WHERE id=?',(workflow,)).fetchone()
+            if current:
+                from code_flow_native import owns_workflow,unavailable
+                if owns_workflow(db,current):unavailable()
+            db.execute('INSERT OR REPLACE INTO workflows (id,name,steps,roots,trigger,interval,watch,enabled,next_run,fingerprint,updated,approved,prompt,code_plan) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                       (workflow, name, json.dumps(steps), json.dumps(roots), trigger, int(interval), watch, int(enabled), next_run, fingerprint, now, int(approved), prompt, code_plan))
         return workflow
 
     def workflows(self):
@@ -217,10 +229,17 @@ class Store:
         return rows
 
     def set_workflow_enabled(self, workflow, enabled):
+        now=time.time()
         with self.connect() as db:
-            if enabled and not db.execute('SELECT approved FROM workflows WHERE id=?', (workflow,)).fetchone()[0]:
-                raise PermissionError(tr('Den Ablauf zuerst freigeben.'))
-            db.execute('UPDATE workflows SET enabled=?, next_run=?+interval WHERE id=?', (int(enabled), time.time(), workflow))
+            db.execute('BEGIN IMMEDIATE')
+            flow=db.execute('SELECT * FROM workflows WHERE id=?',(workflow,)).fetchone()
+            if flow is None:raise ValueError(tr('Ablauf nicht mehr verfügbar.'))
+            if enabled:
+                from code_flow_native import owns_workflow,unavailable
+                if owns_workflow(db,flow):unavailable()
+            if enabled and not flow['approved']:raise PermissionError(tr('Den Ablauf zuerst freigeben.'))
+            next_run=now+flow['interval']
+            db.execute('UPDATE workflows SET enabled=?,next_run=?,updated=? WHERE id=?',(int(enabled),next_run,now,workflow))
 
     def enqueue_due(self, now=None):
         now = time.time() if now is None else now
@@ -228,12 +247,15 @@ class Store:
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             for flow in db.execute("SELECT * FROM workflows WHERE enabled=1 AND approved=1 AND trigger!='manual' AND next_run<=?", (now,)).fetchall():
+                from code_flow_native import owns_workflow
+                if owns_workflow(db,flow):continue
                 fingerprint = flow['fingerprint']
                 if flow['trigger'] == 'directory':
                     try: fingerprint = directory_fingerprint(flow['watch'])
                     except OSError:
                         db.execute('UPDATE workflows SET enabled=0 WHERE id=?', (flow['id'],)); continue
-                db.execute('UPDATE workflows SET next_run=?,fingerprint=? WHERE id=?', (now + flow['interval'], fingerprint, flow['id']))
+                next_run=now+flow['interval']
+                db.execute('UPDATE workflows SET next_run=?,fingerprint=? WHERE id=?', (next_run, fingerprint, flow['id']))
                 if flow['trigger'] == 'directory' and fingerprint == flow['fingerprint']: continue
                 pending = db.execute("SELECT 1 FROM tasks JOIN events ON events.task=tasks.id WHERE events.kind='workflow' AND events.detail=? AND tasks.status IN ('queued','running','needs_input','paused','interrupted') LIMIT 1", (flow['id'],)).fetchone()
                 if pending: continue

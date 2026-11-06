@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sqlite3
 
 from lumen_store import Store
 from lumen_actions import execute
@@ -16,7 +17,17 @@ def run_steps(store, task_id):
     finally: os.close(lease)
 
 
+def reject_code_task(store,task_id):
+    from code_flow_native import check_task
+    try:
+        with store.connect() as db:check_task(db,task_id)
+    except ValueError as error:
+        store.update_task(task_id,status='failed',error=str(error))
+        raise
+
+
 def _run_steps(store, task_id):
+    reject_code_task(store,task_id)
     task = store.task(task_id)
     if not task['steps']: raise ValueError(tr('Dieser Auftrag benötigt Lumen im Vordergrund.'))
     if not task['approved']: raise PermissionError(tr('Auftrag zuerst freigeben.'))
@@ -48,6 +59,11 @@ def defer_background(store):
 
 
 def tick(store):
+    try:
+        from transfer_followup import tick as followup_tick
+        followup_tick(store)
+    except (ImportError, OSError, sqlite3.Error, ValueError, KeyError, TypeError):
+        print(tr('Lumen Dranbleiben konnte nicht prüfen. Die freigegebenen Aufträge werden weiter bearbeitet.'))
     lock = os.open(store.directory / 'worker.lock', os.O_CREAT | os.O_RDWR, 0o600)
     try:
         try: fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -56,6 +72,8 @@ def tick(store):
         store.enqueue_due()
         reason = defer_background(store)
         for item in store.rows("SELECT id FROM tasks WHERE status='queued' ORDER BY created LIMIT 20"):
+            try:reject_code_task(store,item['id'])
+            except ValueError:continue
             task = store.task(item['id'])
             if reason:
                 store.update_task(task['id'], error=reason); continue

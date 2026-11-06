@@ -13,51 +13,28 @@ it uses KDE's compositor, tray, clock, task manager and pager.
 
 ## GitHub access on a fresh computer or VM
 
-**The repository is private.** Your GitHub account must be granted access to
-`ativaro/lumen`. Signing in to your Linux desktop or to GitHub in a browser does
-not by itself authenticate Git in the terminal. A new VM needs its own Git
-authentication, even when the same account already works on the host computer.
+**The current repository is private on GitHub.** Your account needs access to
+[ativaro/lumen](https://github.com/ativaro/lumen) and an Internet connection. A browser login does not authenticate
+Git in a new terminal or VM.
 
-Inside the VM's KDE Plasma session, install Git and the GitHub CLI, then sign in:
+Install Git if needed:
 
 ```bash
-sudo pacman -S --needed git github-cli
-gh auth login --hostname github.com --git-protocol https --web
-gh auth setup-git --hostname github.com
+sudo pacman -S --needed git
 ```
 
-The first command may ask for your **VM/Linux password** to install packages.
-Run the remaining commands as your normal user, **without `sudo`**. Follow the
-browser sign-in, enter the one-time code if prompted, and select the **GitHub
-account with access to Lumen**. The final command configures Git to use that
-GitHub CLI login. If Git already has working credentials in this VM, you can skip
-this setup.
-
-Check repository access before installing:
+Use your configured Git credential helper or Git's login prompt. If your account
+requires a repository-read token, enter it only in the authentication prompt.
+Never put passwords or tokens in a URL, shell command, documentation or chat.
+Check access with:
 
 ```bash
 git ls-remote https://github.com/ativaro/lumen.git HEAD
 ```
 
-Success prints a commit identifier followed by `HEAD`. **Do not replace `ativaro`
-in the URL**: it is the repository owner, not your VM username or a login field.
-
-If authentication still fails:
-
-- **`Authentication failed`, `Invalid username or token`, or password authentication
-  unsupported:** GitHub does not accept a normal account password for HTTPS Git
-  operations. Use the browser login above; do not paste a password or token into
-  the installation command.
-- **`Repository not found` or HTTP 404:** check the signed-in account with
-  `gh auth status --hostname github.com` and open
-  [the repository](https://github.com/ativaro/lumen) in a browser signed into that
-  same account. If it cannot access the repository, the account needs access from
-  the repository owner. Changing your Linux username does not grant access.
-- **The old `curl … | bash` command fails:** it downloads without Git credentials
-  and cannot access the private repository. Use the authenticated clone below.
-
-See GitHub's [authentication documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github)
-and [GitHub CLI credential setup](https://cli.github.com/manual/gh_auth_setup-git).
+Success prints a commit and `HEAD`. Keep `ativaro` in the URL: it is the repository
+owner. If authentication fails, check account access and your credential helper.
+An unauthenticated download command cannot read this private repository.
 
 ## One-command installation
 
@@ -92,14 +69,10 @@ only for missing base system packages. The bootstrap also installs GCC/pkgconf a
 Internet access, sudo access for missing packages and an existing KDE Plasma 6 session are required.
 It does not install a Linux distribution, display manager or Plasma session.
 
-If the repository is made public in the future, the download-only route is:
+There is no public unauthenticated installer for the current private release.
+Use the authenticated checkout above; a future public download must be documented
+only after it has actually been released.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/ativaro/lumen/main/bootstrap.sh | bash
-```
-
-This public command does **not** work without authentication while the repository
-is private. Its downloaded source is safely extracted into a temporary directory.
 
 ## Interface language
 
@@ -121,14 +94,11 @@ settings and speech models are reused; the document workshop remains disabled un
 enabled in Files settings. The wizard can be closed and resumed later from
 **Settings → Setup** or `~/.local/share/lumen/bin/lumen-setup-wizard`.
 
-The desktop uses three separate top islands from 960 logical pixels upwards,
-including typical 1024/1280-pixel VM displays; narrower displays use one compact
-bar. After updating an older single-bar installation, run the wizard's **Activate
-Lumen desktop** once more. Existing Lumen layout markers are upgraded after the
-replacement panels have been created; repeating setup does not duplicate panels.
-The previous desktop configuration is backed up before applying the layout.
-If speech is not yet configured, the panel microphone keeps Search open and offers
-**Set up speech**, opening the speech-input settings directly.
+Lumen runs its native topbar on each screen. Its layout follows the available
+width. The desktop setup saves the existing Plasma configuration before applying
+a layout. The Inbox and Notes menu entries open the paired server's interfaces
+in dedicated desktop windows. Use the device permissions on that server to
+grant the corresponding app access.
 
 The update command uses a fresh temporary checkout and leaves your development
 checkout untouched. Running `bootstrap.sh` again
@@ -137,26 +107,28 @@ updates. Download or package errors are reported before continuing.
 
 ### What the one-liner installs
 
-The user bundle contains Lumen, Files, Search, Wissen, Translate, System, Inbox,
-Reader, Projects, Household and the combined **Meeting & Radio** window,
-**System** also contains Sound and Work modes. All desktop themes, decorations,
-wallpapers and panels are included. Both Meeting/Radio
-launch commands remain supported. OpenCode, speech models and optional tools are
-prepared through the wizard, reusing an existing installation when available.
+The user bundle contains the local Lumen conversation/search interface, Files,
+Compose, Reader, System, Household, Notification and Companion. System also
+contains Sound and Work modes. Themes, decorations, wallpapers and panels are
+included. OpenCode, speech models and optional tools are prepared through the
+wizard, reusing an existing installation when available.
 
-The Vault backup engine, SMB discovery and keyring integration are included.
-The four-step backup wizard is part of the separate native UI described below;
-the standard bundle opens the Python backup configuration. Restic and network
-dependencies can be added through setup. Backups
-need your source/target choices and a separately stored recovery key; no personal
-backup job or network password is distributed in Git.
+Notes, Projects, Code, Inbox, Audio Studio (Meeting/Radio) and the shared Vault
+have desktop launchers but use the connected Lumen Server's applications. A server
+connection and the relevant account/device permissions are required. Installing
+these launchers does not install an independent offline copy of those apps.
+See [current app ownership](docs/desktop-retirement.md).
 
-The **native credential vault is a separate prerelease**. The standard one-liner
-installs the backup app and Vault integration code, but does not build the Rust/C++
-credential UI. See [native Vault installation](native/vault-ui/README.md) for its
-explicit build/install procedure and current qualification limits. An existing
-native installation and encrypted vault are preserved; update its binary with that
-separate procedure. Updating Python files alone does not rebuild native binaries.
+Local backup configuration remains in Lumen System. The backup engine, SMB
+helpers and keyring integration use your own source/target choices and a
+separately stored recovery key. Restic and network dependencies can be added
+through setup. No personal backup job or network password is distributed in Git.
+
+The native credential broker is a separate local capability. Existing native
+binaries and encrypted data are preserved; updating Python files alone does not
+rebuild Rust/C++ binaries. The [native Vault build notes](native/vault-ui/README.md)
+cover a separate development/qualification path, not an additional standalone
+user Vault installed by this bootstrap.
 
 The Arch package workflow below is an alternative for a system-wide installation.
 
@@ -204,19 +176,10 @@ are reused. The **KI-Anbindung** step reads configured providers and models; API
 providers, including Ollama Cloud, can be connected without a terminal. OAuth and
 other login methods still use OpenCode's existing provider setup. Listing configured
 models does not verify a cloud account's credentials or send a test prompt.
-On a fresh profile, Lumen automatically selects and saves an available free model
-from connected providers (preferring OpenCode Zen). Selection uses the live
-catalogue's zero input/output/cache prices and tool support, not hard-coded model
-names. The wizard displays the chosen model above **Modell anpassen**. The first
-conversation also sets up this default if the wizard was skipped. Existing Lumen
-and explicit OpenCode model choices remain in use. If no confirmed free model is
-available, Lumen asks for a selection instead of silently choosing a paid model.
-Loading the catalogue does not guarantee provider uptime or available quota.
-OpenCode Zen currently may reject free-tier requests when tools are disabled
-(see [upstream issue #51315](https://github.com/anomalyco/opencode/issues/51315)).
-This can affect Lumen's restricted proposal/project actions even when ordinary
-chat works. Lumen keeps those restrictions; use another configured model for
-affected actions rather than granting tools solely to bypass the provider error.
+On a fresh profile, choose an available model from a configured provider in the
+setup wizard. Existing explicit Lumen and OpenCode selections keep their settings.
+The anonymous OpenCode service is disabled. An explicitly configured OpenCode
+endpoint and other configured providers remain available.
 
 The optional **Mit deiner Stimme** step installs a pinned, checksum-verified
 whisper.cpp executable and a multilingual Small Q5 model (190 MB) into
@@ -326,9 +289,16 @@ search; `lumen-search-preview` remains an alias. See [SEARCH-PREVIEW.md](SEARCH-
 
 ## Native updates
 
+Starting with 1.2.0-116, installations from the former official Forgejo source,
+and installations with no recorded origin, use the private GitHub `main`.
+An explicitly configured custom repository keeps its own URL. To start
+using this Updater from an older installation, run the GitHub update command
+in the installation section above. System package updates leave Lumen itself
+to the checked repository bundle.
+
 Start `lumen-updater`, or use Lumen → Updater in the top panel, Lumen Apps, or
 Settings → Maintenance. Checking fetches
-private `main` into `$XDG_CACHE_HOME/lumen/updater/source`; installation uses the
+private `main` into `$XDG_CACHE_HOME/lumen/updater/sources/<channel-hash>`; installation uses the
 exact reviewed commit. A changed checkout is refused. User and system bundles are
 both updated when installed. The existing installers retain data/settings and
 refresh app launchers, desktop assets and integrations without replacing panels.
@@ -364,7 +334,7 @@ in again for panel changes. A running installation cannot be closed mid-step.
 Failures remain visible, and successfully updated components are retained on retry.
 
 Update state is private/local under `$XDG_STATE_HOME/lumen/updater`. No credentials,
-notebooks, vault data, personal configurations or user files are sent to GitHub.
+notebooks, vault data, personal configurations or user files are sent to the Git host.
 Installation identity is stored in `install.json` alongside each runtime.
 
 ## Screen companion

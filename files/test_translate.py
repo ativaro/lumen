@@ -121,7 +121,7 @@ class NativeTest(unittest.TestCase):
             self.assertFalse(w.style.isEnabled());self.assertFalse(w.target_language.isEnabled())
             w.run_translation();self.wait(lambda:not w.engine.busy)
             self.assertEqual(w.output.toPlainText(),'Hello!\n\nMy writing.')
-            self.assertEqual(w.engine.sent[0][1],dict(proposal=True,title='Lumen Translate'))
+            self.assertEqual(w.engine.sent[0][1],dict(proposal=True,title='Lumen Compose'))
             key=w.current;self.dispose(w)
             w=Translate(self.root);self.assertEqual(len(w.library.all()),1)
             self.assertEqual(w.current,key);self.assertEqual(w.output.toPlainText(),'Hello!\n\nMy writing.')

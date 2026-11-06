@@ -1,0 +1,106 @@
+#!/usr/bin/python3
+"""Synthetic data/actions only; the real notification code sees a private profile."""
+import json,os,sys
+from pathlib import Path
+sys.path.insert(0,'/source/files')
+from appearance_tokens import COLORS,TOPBAR_KEYS,RADII
+from lumen_i18n import tr
+state=Path('/profile/control-state.json')
+def system():
+    return json.loads(state.read_text()) if state.exists() else dict(volume=50,muted=False,brightness=None,network='Testnetz · Verbunden')
+def activity():
+    from topbar_activity import focus
+    return dict(focus=focus(),decisions=[] if Path('/profile/decision-resolved').exists() else [dict(id='b'*32,title='Workshop-Zusammenfassung prüfen')],decisionError='',update=dict(checked=True,pending=True,notes='Synthetischer Update-Hinweis'))
+def details(topic):
+    if topic=='activity':return activity()
+    if topic=='recent':return dict(items=[dict(target='/profile/example.txt',title='Workshop-Notizen.txt',kind='file',icon='text-x-generic'),dict(target='conversation:fixture',title='Ideen für Lumen',kind='conversation',icon='dialog-messages')])
+    saved=Path('/profile/'+topic+'-state.json')
+    if saved.exists():return json.loads(saved.read_text())
+    if topic=='network':
+        return dict(available=True,state='connected',connectivity='full',wifiEnabled=True,
+            devices=[dict(id='eth0',name='Ethernet',type='ethernet',state='100 (connected)',profile='Testkabel',details=[dict(label='IPv4',value='192.0.2.42/24'),dict(label='DNS (IPv4)',value='192.0.2.1')])],
+            profiles=[dict(id='00000000-0000-0000-0000-000000000001',name='Privat',type='wireguard',device='--',active=False),dict(id='00000000-0000-0000-0000-000000000002',name='Testnetz',type='802-11-wireless',device='wlan0',active=True)],
+            networks=[dict(id='wlan0/00:00:00:00:00:01',bssid='00:00:00:00:00:01',name='Testnetz: Labor',signal=92,security='WPA3',frequency='5180 MHz',channel='36',device='wlan0',active=True,hidden=False)],errors=[])
+    device=lambda i,name,default:dict(id=i,name=name,default=default,muted=False,volume=50,state='RUNNING',ports=[],activePort='analog-output',format='float32le 2ch 48000Hz')
+    return dict(available=True,outputs=[device('7','Lautsprecher',True),device('8','USB-C-Monitor',False)],inputs=[device('9','USB-Mikrofon',True)],
+        playback=[dict(id='12',name='Audio Studio',media='Synthetische Wiedergabe',volume=70,muted=False,device='7')],recording=[],
+        cards=[dict(id='0',name='USB-Audiogerät',active='stereo',profiles=[dict(id='stereo',name='Stereo'),dict(id='headset',name='Headset')])],
+        server='PipeWire · Testprofil',bluetooth=dict(available=True,adapters=[dict(id='/org/bluez/hci0',name='Bluetooth',powered=True)],devices=[dict(id='00:00:00:00:00:02',name='Studio-Kopfhörer',connected=True,paired=True,battery=82)]),errors=[])
+if sys.argv[1:]==['--conversation']:
+    Path('/profile/conversation-started').touch()
+    from uuid import uuid4
+    from desktop_backend import DesktopBackend
+    from search_controller import SearchController
+    from voice_session import VoiceSession
+    original=SearchController.__init__
+    def initialize(controller,*args,**kwargs):
+        original(controller,*args,**kwargs);controller.backend.fixture_controller=controller
+    def send(backend,prompt,files,*args,**options):
+        request=dict(prompt=prompt)
+        if backend.fixture_controller.note_context:request['note']=backend.fixture_controller.note_context
+        Path('/profile/asked.json').write_text(json.dumps(request))
+        backend.session=backend.session or 'ses_'+uuid4().hex
+        identity=uuid4().hex
+        answer='### Drei Punkte sind noch offen.\n\nIn deinen Workshop-Notizen stehen diese nächsten Schritte:\n\n1. **Teilnehmende bestätigen.** Wer ist beim Architekturteil dabei?\n\n2. **Fragen priorisieren.** Welche Entscheidungen müssen im Termin fallen?\n\n3. **Ablauf abstimmen.** Plane zum Schluss Zeit für die nächsten Schritte ein.'
+        backend.messages.extend([dict(info=dict(id=identity,role='user'),parts=[dict(type='text',text=prompt)]),dict(info=dict(id=uuid4().hex,role='assistant',parentID=identity,time=dict(completed=1)),parts=[dict(type='text',text=answer)]+[dict(type='tool',tool='read',state=dict(title=title,status='completed')) for title in ('Notes durchsucht','Workshop-Notizen gelesen','Offene Punkte zusammengefasst')])])
+        backend.messagesChanged.emit(backend.messages)
+        backend.sessionsChanged.emit([dict(id=backend.session,title='Workshop vorbereiten',time=dict(updated=1))])
+        return True
+    def execution(backend,target):
+        if target!=backend.execution:backend.new_conversation()
+        backend.execution=target;backend.executionChanged.emit();return True
+    def voice(session):
+        with Path('/profile/actions.jsonl').open('a') as output:output.write(json.dumps(dict(conversation='voice'))+'\n')
+    SearchController.__init__=initialize
+    DesktopBackend.send=send;DesktopBackend.set_execution=execution;DesktopBackend.preflight=lambda *_:True
+    DesktopBackend.refresh_sessions=lambda *_:None;DesktopBackend._run=lambda *_:None;DesktopBackend.poll=lambda *_:None
+    VoiceSession.toggle=voice
+    from topbar_conversation import main
+    main()
+    raise SystemExit(0)
+if sys.argv[1:]==['--bar-snapshot']:
+    names=('window','base','alternate','text','button','border','muted','accent','onAccent')
+    print(json.dumps(dict(version=1,language=os.environ.get('LUMEN_LANGUAGE','de'),
+        labels=json.loads(Path('/source/files/translations/en/topbar.json').read_text()) if os.environ.get('LUMEN_LANGUAGE')=='en' else {},
+        palette=dict(zip(names,COLORS[os.environ.get('LUMEN_QA_THEME','graphite')]), **dict(zip(('key','inset','highlight','shadow','ring','ink'),TOPBAR_KEYS[os.environ.get('LUMEN_QA_THEME','graphite')])), radius=RADII[os.environ.get('LUMEN_QA_THEME','graphite')]),
+        apps=[dict(id=identity,label=tr(label),title=tr(label),icon=icon) for identity,label,icon in
+          [('lumen','Lumen','lumen'),('files','Dateien','folder'),('wissen','Notes','accessories-text-editor'),
+           ('workbench','Projekte','folder'),('meetings','Audio Studio','microphone-sensitivity-high')]],
+        system=system(),operations=dict(transfer=None,audio=False),activity=activity(),unread=2)))
+elif len(sys.argv)>2 and sys.argv[1]=='--system-topic':
+    topic=sys.argv[2];value=details(topic)
+    if '--system-action' in sys.argv:
+        request=json.load(sys.stdin)
+        with Path('/profile/actions.jsonl').open('a') as output:output.write(json.dumps(dict(topic=topic,**request))+'\n')
+        action=request['action'];target=request.get('target','')
+        if topic=='activity' and action.startswith('focus:'):
+            from topbar_activity import focus_action
+            focus_action(action.removeprefix('focus:'));value=activity()
+        if action=='wifi':value['wifiEnabled']=bool(request['value'])
+        if action=='default:output':
+            for device in value['outputs']:device['default']=device['id']==target
+        if action=='mute:input':value['inputs'][0]['muted']=not value['inputs'][0]['muted']
+        if action=='volume:input':value['inputs'][0]['volume']=request['value']
+        if action=='route:playback':value['playback'][0]['device']=str(request['value'])
+        Path('/profile/'+topic+'-state.json').write_text(json.dumps(value))
+    print(json.dumps(dict(topic=topic,details=value,error='')))
+elif sys.argv[1:]==['--language']:
+    print(json.dumps(dict(language=os.environ.get('LUMEN_LANGUAGE','de'))))
+elif any(value.startswith('--notification-') for value in sys.argv[1:]):
+    import subprocess
+    raise SystemExit(subprocess.call(['/usr/bin/python3','/source/files/lumen_panel.py',*sys.argv[1:]]))
+else:
+    with Path('/profile/actions.jsonl').open('a') as output:output.write(json.dumps(sys.argv[1:])+'\n')
+    if len(sys.argv)==3 and sys.argv[1]=='--topbar-note':
+        print(json.dumps(dict(error='',note=dict(reference=dict(version=2,app='note',id='00000000-0000-0000-0000-000000000001',title='Workshop in Notes',locator=dict(server='https://synthetic.invalid',account='00000000-0000-0000-0000-000000000002')),revision=3))))
+    if len(sys.argv)>2 and sys.argv[1]=='--control':
+        previous=system();current=dict(previous);error=''
+        if sys.argv[2]=='volume':
+            value=int(sys.argv[4])
+            if value==13:error='Synthetischer Kontrollfehler'
+            else:current['volume']=value
+        if sys.argv[2]=='mute':current['muted']=not current['muted']
+        if current!=previous:
+            pending=state.with_name(state.name+'.'+str(os.getpid()))
+            pending.write_text(json.dumps(current));pending.replace(state)
+        print(json.dumps(dict(system=current,error=error)))

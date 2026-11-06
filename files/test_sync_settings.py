@@ -1,45 +1,51 @@
+"""Only true local data synchronize; Server Notes are never replicated."""
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
 from lumen_store import Store
+from lumen_i18n import tr
 from wissen_data import Notebook
 import lumen_connect as connector
-import wissen_sync
 import sync_settings as sync
 
 
 class SettingsTest(unittest.TestCase):
-    def test_binding_retains_note_scope_and_manual_pause_is_offline(self):
+    def test_binding_preserves_other_areas_without_reopening_old_notebook(self):
         with tempfile.TemporaryDirectory() as temp:
-            root=Path(temp);store=Store(root/'state');book=Notebook(store,root/'notes',create=True)
-            store.set_setting('knowledge/notebook',str(book.root));store.set_setting('knowledge/identity',book.identity)
+            root=Path(temp);store=Store(root/'state')
+            store.set_setting('knowledge/notebook',str(root/'missing-old-notebook'))
+            store.set_setting('knowledge/background-sync',dict(enabled=True,root=str(root/'missing-old-notebook'),identity=[1,2],scope='old'))
             cfg=dict(server='https://test.invalid',device_id=str(uuid4()),token='synthetic')
             user=dict(id=str(uuid4()),workspace_id=str(uuid4()),device_id=cfg['device_id'])
-            old=wissen_sync.scope(book,cfg)
-            store.set_setting('knowledge/background-sync',dict(enabled=True,root=str(book.root),identity=book.identity,scope=old))
-            store.set_setting('knowledge/server-sync/'+old,dict(enabled=True,attachments=True))
-            with patch.object(sync,'Store',return_value=store),patch.object(connector,'ROOT',root/'config'),patch.object(connector,'CONFIG',root/'config/connection.json'),patch.object(connector,'read_config',return_value=cfg),patch.object(connector,'request',return_value=user),patch.object(sync,'vault_root',return_value=root/'absent'):
+            with patch.object(sync,'Store',return_value=store),patch.object(connector,'ROOT',root/'config'),patch.object(connector,'CONFIG',root/'config/connection.json'),patch.object(connector,'read_config',return_value=cfg),patch.object(connector,'request',return_value=user),patch.object(sync,'vault_root',return_value=root/'absent'),patch('wissen_data.Notebook.__init__',side_effect=AssertionError('retired notebook')):
                 prepared=sync.prepare_connection()
-                self.assertEqual(wissen_sync.scope(book,prepared),old)
-                with patch.object(connector,'request',side_effect=OSError('offline')) as network:
-                    sync.configure('attachments',False);sync.configure('notes',False)
-                    network.assert_not_called()
-                self.assertFalse(store.setting('knowledge/background-sync')['enabled'])
-                self.assertFalse(store.setting('knowledge/server-sync/'+old)['attachments'])
+                aliases=prepared['sync_binding']['aliases']
+                self.assertEqual(len(aliases),2)
+                self.assertTrue(store.setting('knowledge/background-sync')['enabled'])
+                self.assertFalse((root/'missing-old-notebook').exists())
+
+    def test_old_note_toggle_cannot_reenable_replication_or_change_originals(self):
+        with tempfile.TemporaryDirectory() as temp:
+            store=Store(Path(temp)/'state');book=Notebook(store,Path(temp)/'notes',create=True);note=book.create('Original','Keep me')
+            with patch.object(sync,'Store',return_value=store),patch.object(sync,'prepare_connection') as prepare:
+                for domain in ('notes','attachments','projects'):
+                    self.assertEqual(sync.configure(domain,False),dict(enabled=False,reason='server_owned'))
+                    with self.assertRaisesRegex(ValueError,'Lumen Server'):sync.configure(domain,True)
+                prepare.assert_not_called()
+            self.assertEqual(book.read(note['path']),note)
+
+    def test_snapshot_has_no_note_replica_status_and_preserves_memory(self):
+        with tempfile.TemporaryDirectory() as temp:
+            store=Store(temp);store.set_setting('memory/sync-choice',dict(enabled=True,scope='m'))
+            store.set_setting('memory/server-sync/m',dict(last_sync=1))
+            with patch.object(sync,'Store',return_value=store),patch('drive_sync.read',return_value=dict(roots=[])),patch.object(sync,'vault_root',return_value=Path(temp)/'absent'),patch.object(connector,'read_config',side_effect=FileNotFoundError):
+                result=sync.snapshot()
+            self.assertNotIn('notes',result);self.assertNotIn('attachments',result);self.assertTrue(result['memory']['enabled'])
+            self.assertEqual(set(result),{'memory','vault','preferences','drive','server'})
 
     def test_status_never_claims_old_success_is_current(self):
-        self.assertEqual(sync.state_label(dict(enabled=True,last_sync=1)), 'Wartet auf Abgleich')
-        self.assertEqual(sync.state_label(dict(enabled=False)), 'Pausiert')
-        self.assertEqual(sync.state_label(dict(enabled=True,conflicts=1)), 'Konflikt / neue Fassung prüfen')
-
-    def test_one_failed_area_does_not_stop_other_areas(self):
-        with tempfile.TemporaryDirectory() as temp:
-            store=Store(temp)
-            with patch.object(sync,'Store',return_value=store),patch.object(sync,'prepare_connection'),patch.object(sync,'project_library'),patch('wissen_sync.background',side_effect=OSError('offline')),patch('memory_sync.synchronize',return_value=dict(enabled=True)) as memory,patch('projects_sync.synchronize',return_value={}) as projects,patch('drive_sync.read',return_value=dict(roots=[])),patch.object(sync,'vault_root',return_value=Path(temp)/'absent'),patch('preferences_sync.synchronize',return_value={}),patch('lumen_notifications.report'):
-                result=sync.sync_now()
-                self.assertFalse(result['notes']['ok'])
-                memory.assert_called_once();projects.assert_called_once()
-                self.assertFalse(store.setting('knowledge/background-status')['ok'])
-                self.assertTrue(store.setting('memory/sync-status')['ok'])
+        self.assertEqual(sync.state_label(dict(enabled=True,last_sync=1)), tr('Wartet auf Abgleich'))
+        self.assertEqual(sync.state_label(dict(enabled=False)), tr('Pausiert'))
+        self.assertEqual(sync.state_label(dict(enabled=True,conflicts=1)), tr('Konflikt / neue Fassung prüfen'))

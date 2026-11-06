@@ -103,7 +103,7 @@ def translate_sync(segments, settings, timeout=150):
         loop = QEventLoop(); timer = QTimer(); timer.setSingleShot(True)
         pending = batches(segments); result = {}; errors = []; index = 0
         def next_batch():
-            backend.send(prompt(pending[index], settings), proposal=True, title='Lumen Translate')
+            backend.send(prompt(pending[index], settings), proposal=True, title='Lumen Compose')
         def completed(success, answer):
             nonlocal index
             if not success: errors.append(answer or tr('Übersetzung abgebrochen.')); loop.quit(); return

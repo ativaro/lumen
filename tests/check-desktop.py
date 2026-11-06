@@ -1,164 +1,106 @@
 #!/usr/bin/python3
-"""Exercise the installed desktop in a disposable, headless Plasma session."""
+"""Test the native bar and desktop scripts in an isolated Wayland session."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
-import shlex
+import resource
 import shutil
 import subprocess
-import tempfile
-import sys
 import time
 
-REPO = Path(__file__).resolve().parent.parent
+REPO=Path(__file__).resolve().parents[1]
+parser=argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--width',type=int,default=1280)
+parser.add_argument('--scale',type=float,default=1)
+parser.add_argument('--theme',choices=['glass','graphite','atelier','midnight'],default='graphite')
+parser.add_argument('--layout',choices=['classic','band','deck','context'],default='classic')
+parser.add_argument('--language',choices=['de','en'],default='de')
+parser.add_argument('--build-dir',type=Path,default=REPO/'artifacts/desktop-smoke/build')
+parser.add_argument('--artifacts',type=Path,default=REPO/'artifacts/desktop-smoke')
+parser.add_argument('--surface-only',action='store_true',help='Skip the already qualified notification/layout integration for theme checks')
+parser.add_argument('--shortcuts',action='store_true',help='Exercise the real global launch keys in the private session')
+args=parser.parse_args()
+if args.width<600 or not 1<=args.scale<=3:parser.error('Use a width >= 600 and scale between 1 and 3')
+for name in ('bwrap','kwin_wayland','qdbus6','kscreen-doctor','dbus-run-session','kpackagetool6'):
+    if not shutil.which(name):parser.error('Missing test tool: '+name)
+resource.setrlimit(resource.RLIMIT_CORE,(0,0))
+began=time.monotonic()
+args.artifacts.mkdir(parents=True,exist_ok=True)
+profile=args.artifacts/(args.theme+'-'+str(time.time_ns()))
+profile.mkdir(mode=0o700)
+build=args.build_dir.resolve()
+with (profile/'build.log').open('w') as log:
+    subprocess.run(['cmake','-S',str(REPO/'native/topbar'),'-B',str(build),'-DBUILD_TESTING=ON','-DCMAKE_BUILD_TYPE=RelWithDebInfo'],stdout=log,stderr=subprocess.STDOUT,check=True)
+    subprocess.run(['cmake','--build',str(build),'--parallel','2'],stdout=log,stderr=subprocess.STDOUT,check=True)
+for name in ('home','config','data/applications','state','runtime','cache','captures'):
+    (profile/name).mkdir(parents=True,exist_ok=True,mode=0o700)
+(profile/'config/Lumen').mkdir()
+(profile/'config/Lumen/Assistant.conf').write_text('[General]\nappearance='+args.theme+'\n[topbar]\nlayout='+args.layout+'\n')
+if args.shortcuts:
+    (profile/'bin').mkdir()
+    for name in ('lumen-apps','lumen-quick'):
+        shutil.copy2(REPO/'bin'/name,profile/'bin'/name)
+    start=profile/'bin/lumen-apps';start.write_text(start.read_text().replace('exec qdbus6','touch /profile/start-shortcut-invoked\nexec qdbus6'))
+    service=profile/'bin/systemctl';service.write_text('#!/bin/sh\nif [ "$*" = "--user start lumen-topbar.service" ]; then exit 0; fi\nexec /usr/bin/systemctl "$@"\n');service.chmod(0o755)
+    launcher=profile/'bin/lumen-agent-app';launcher.write_text('#!/bin/sh\nexec /usr/bin/touch /profile/lumen-shortcut-started\n');launcher.chmod(0o755)
+    for name in ('lumen-apps','lumen-ask','lumen-toggle'):
+        text=(REPO/'data/applications'/(name+'.desktop')).read_text().replace('%INSTALL_BIN%','/profile/bin')
+        (profile/'data/applications'/(name+'.desktop')).write_text(text)
+    (profile/'config/kglobalshortcutsrc').write_text('[services][lumen-toggle.desktop]\n_launch=Meta\n[services][org.kde.krunner.desktop]\n_launch=Alt+Space\n[services][lumen-ask.desktop]\n_launch=Meta+Shift+O\n')
+    (profile/'config/kwinrc').write_text('[ModifierOnlyShortcuts]\nMeta=org.lumen.Topbar,/Topbar,org.lumen.Topbar,ShowApps\n')
+pin_ids=[]
+for identity,title,icon,category in [('browser','Browser','internet-web-browser','Network'),('files','Dateien','folder','Utility'),
+        ('lumen','Lumen','search','Utility'),('kate','Kate','accessories-text-editor','Development'),
+        ('steam','Steam','applications-games','Game'),('music','Musik','headphones','AudioVideo')]:
+    name='lumen-start-'+identity+'.desktop';pin_ids.append(name)
+    (profile/'data/applications'/name).write_text('[Desktop Entry]\nType=Application\nName='+title+'\nExec=/usr/bin/touch /profile/pinned-started\nIcon='+icon+'\nCategories='+category+';\n')
+with (profile/'config/Lumen/Assistant.conf').open('a') as output:output.write('pinnedApps='+', '.join(pin_ids)+'\n')
+host=profile/'host-stage'
+shutil.copytree(REPO/'plasmoid',host)
+qml=host/'contents/ui/main.qml';qml.write_text(qml.read_text().replace('/usr/bin/lumen-panel','/qa/bin/lumen-panel'))
+(profile/'config/plasma-org.kde.plasma.desktop-appletsrc').write_text('[Containments][1]\nformfactor=0\nlastScreen=0\nlocation=0\nplugin=org.kde.plasma.folder\nwallpaperplugin=org.kde.image\n')
+for name in ('A','B','Empty','Browser'):
+    title='Lumen Notes' if name=='A' else 'Lumen Menütest '+name
+    (profile/'data/applications'/('lumen-menu-test-'+name.lower()+'.desktop')).write_text(
+        '[Desktop Entry]\nType=Application\nName='+title+'\nExec=python3 /qa/fixture.py '+name+'\nIcon=application-x-executable\nStartupNotify=false\nNoDisplay=true\n')
+(profile/'data/applications/lumen-topbar-program-test.desktop').write_text('[Desktop Entry]\nType=Application\nName=Lumen Testprogramm\nExec=/usr/bin/touch /profile/program-started\nIcon=application-x-executable\nCategories=Utility;\nActions=NewWindow;\n[Desktop Action NewWindow]\nName=Neues Testfenster\nExec=/usr/bin/touch /profile/program-new-window\n')
+(profile/'config/kded6rc').write_text('[Module-bluedevil]\nautoload=false\n[Module-baloo]\nautoload=false\n')
+command=['bwrap','--unshare-all','--die-with-parent','--new-session','--clearenv',
+    '--ro-bind','/usr','/usr','--symlink','usr/bin','/bin','--symlink','usr/lib','/lib',
+    '--symlink','usr/lib','/lib64','--ro-bind','/etc','/etc','--ro-bind','/sys','/sys',
+    '--proc','/proc','--dev','/dev','--tmpfs','/tmp','--bind',str(profile),'/profile',
+    '--ro-bind',str(REPO),'/source','--ro-bind',str(build),'/build',
+    '--ro-bind',str(REPO/'tests/desktop'),'/qa','--chdir','/profile']
+# The hot-install check needs a fresh Plasma instance, even on a host running Lumen.
+system_applet = Path('/usr/share/plasma/plasmoids/org.lumen.notificationhost')
+if system_applet.is_dir():
+    command.extend(['--tmpfs', str(system_applet)])
 
-
-def search_activation(root):
-    """Observe mapped Search windows in the real disposable Wayland compositor."""
-    from PySide6.QtCore import QObject, Slot, ClassInfo
-    from PySide6.QtGui import QGuiApplication
-    from PySide6.QtQuick import QQuickWindow
-    from PySide6.QtDBus import QDBusConnection
-    from PySide6.QtTest import QTest
-    app = QGuiApplication.instance() or QGuiApplication([])
-    @ClassInfo(**{'D-Bus Interface': 'org.lumen.DesktopTest'})
-    class Observer(QObject):
-        result = None
-        @Slot(str)
-        def report(self, value): self.result = json.loads(value)
-    observer = Observer(); bus = QDBusConnection.sessionBus()
-    assert bus.registerService('org.lumen.DesktopTest')
-    assert bus.registerObject('/Test', observer, QDBusConnection.ExportAllSlots)
-    probe = root/'search-probe.js'
-    probe.write_text('''callDBus("org.lumen.DesktopTest", "/Test", "org.lumen.DesktopTest", "report",
-        JSON.stringify(workspace.windowList().filter(w => w.resourceClass === "lumen-search" || w.desktopFileName === "lumen-search").map(w => ({active:w.active,minimized:w.minimized}))));''')
-    def windows():
-        observer.result = None
-        identity = subprocess.check_output(['qdbus6','org.kde.KWin','/Scripting','org.kde.kwin.Scripting.loadScript',str(probe),'lumen-search-test'],text=True).strip()
-        subprocess.run(['qdbus6','org.kde.KWin','/Scripting/Script'+identity,'org.kde.kwin.Script.run'],check=True,capture_output=True)
-        deadline=time.monotonic()+2
-        while observer.result is None and time.monotonic()<deadline: QTest.qWait(10)
-        subprocess.run(['qdbus6','org.kde.KWin','/Scripting','org.kde.kwin.Scripting.unloadScript','lumen-search-test'],check=True,capture_output=True)
-        assert observer.result is not None, 'No reply from the private compositor'
-        return observer.result
-    other = QQuickWindow(); other.resize(300,200)
-    try:
-        for action in ('--search','--search','--voice'):
-            subprocess.run([str(root/'data/lumen/bin/lumen-panel'),action],check=True,capture_output=True,timeout=3)
-            deadline=time.monotonic()+12
-            while time.monotonic()<deadline:
-                QTest.qWait(100); rows=windows()
-                if len(rows)==1 and rows[0]['active']: break
-            else: raise AssertionError('Panel failed to show/activate Search: '+action+' '+str(rows))
-            QTest.qWait(500)
-            assert len(windows())==1, 'Search immediately disappeared after '+action
-            other.show();other.requestActivate();QTest.qWait(300)
-            assert windows()==[], 'Search must dismiss on an actual outside focus change'
-    finally:
-        other.hide();bus.unregisterObject('/Test');bus.unregisterService('org.lumen.DesktopTest')
-
-
-def session():
-    root = Path(os.environ['HOME'])
-    command = ['qdbus6', 'org.kde.plasmashell', '/PlasmaShell', 'org.kde.PlasmaShell.evaluateScript']
-    with (root / 'plasma.log').open('w') as log:
-        plasma = subprocess.Popen(['plasmashell'], stdout=log, stderr=subprocess.STDOUT)
-    try:
-        for _ in range(60):
-            ready = subprocess.run(command + ['print(desktops().filter(function(d){return d.screen>=0;}).length);'],
-                                   capture_output=True, text=True, timeout=5)
-            if ready.returncode == 0 and ready.stdout.strip().isdigit() and int(ready.stdout) > 0:
-                break
-            time.sleep(.5)
-        else:
-            raise RuntimeError('Disposable Plasma did not start')
-        snapshots = []
-        for attempt in range(3):
-            if attempt == 2:
-                # Emulate the previous installer's single top bar and markers.
-                legacy = (REPO / 'desktop/layout.js').read_text()
-                legacy = legacy.replace('width >= 960', 'width >= 1600')
-                legacy = legacy.replace('"lumenLayoutVersion", "2"', '"lumenLayoutVersion", "1"')
-                legacy = legacy.replace('=== "2"', '=== "1"').replace('!== "2"', '!== "1"')
-                script = ('panels().forEach(function(p){p.remove();});\n'
-                          'var options={replacePanels:true,wallpaper:""};\n' + legacy)
-                subprocess.run(command+[script], check=True, capture_output=True, timeout=10)
-            command_setup = ([sys.executable, str(root / 'data/lumen/files/lumen_setup.py'), 'desktop', '--theme', 'glass']
-                             if attempt == 0 else [str(root / 'data/lumen/bin/lumen-desktop-setup'), '--apply', '--replace-panels'])
-            subprocess.run(command_setup,
-                           check=True, timeout=40)
-            time.sleep(2)
-            script = '''print(JSON.stringify(panels().map(function(p){return {
-                id:p.id,screen:p.screen,location:p.location,length:p.length,offset:p.offset,alignment:p.alignment,
-                widgets:p.widgets().map(function(w){return w.type;})};})));'''
-            rows = json.loads(subprocess.check_output(command + [script], text=True, timeout=5))
-            assert rows and all(row['screen'] >= 0 for row in rows), rows
-            for screen in range(int(ready.stdout)):
-                if int(os.environ.get('LUMEN_TEST_WIDTH', '1920')) >= 960:
-                    top = [row for row in rows if row['screen'] == screen and row['location'] == 'top']
-                    assert len(top) == 3, rows
-                    width = int(os.environ.get('LUMEN_TEST_WIDTH', '1920'))
-                    assert sum(p['length'] for p in top) <= width - 64, top
-                widgets = [w for row in rows if row['screen'] == screen for w in row['widgets']]
-                for name in ('system', 'search', 'control'):
-                    assert widgets.count('org.lumen.' + name) == 1, widgets
-                for name in ('icontasks', 'pager', 'systemtray', 'digitalclock'):
-                    assert widgets.count('org.kde.plasma.' + name) == 1, widgets
-            snapshots.append(rows)
-        assert snapshots[0] == snapshots[1], 'Setup created duplicate panels'
-        assert [row['widgets'] for row in snapshots[0]] == [row['widgets'] for row in snapshots[2]], 'Legacy layout migration lost widgets'
-        (root / 'passed.json').write_text(json.dumps(snapshots[2], indent=2))
-        search_activation(root)
-    finally:
-        plasma.terminate()
-        try:
-            plasma.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            plasma.kill(); plasma.wait()
-
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--width', type=int, default=1920)
-    parser.add_argument('--screens', type=int, default=2)
-    parser.add_argument('--session', action='store_true', help=argparse.SUPPRESS)
-    args = parser.parse_args()
-    if args.session:
-        session(); return
-    for tool in ('dbus-run-session', 'kwin_wayland', 'plasmashell', 'qdbus6'):
-        if not shutil.which(tool): parser.error('Missing: ' + tool)
-    logs = REPO / 'artifacts/desktop-smoke'
-    logs.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix='lumen-desktop-test-') as temporary:
-        root = Path(temporary); (root / 'runtime').mkdir(mode=0o700)
-        env = {k: v for k, v in os.environ.items() if k not in
-               ('DISPLAY', 'WAYLAND_DISPLAY', 'XAUTHORITY', 'DBUS_SESSION_BUS_ADDRESS', 'PREFIX', 'OPENCODE_HOME')
-               and not k.startswith(('LUMEN_', 'OPENCODE_'))}
-        env.update(LUMEN_PYTHON=sys.executable, HOME=str(root), XDG_CONFIG_HOME=str(root / 'config'), XDG_DATA_HOME=str(root / 'data'),
-                   XDG_STATE_HOME=str(root / 'state'), XDG_CACHE_HOME=str(root / 'cache'),
-                   XDG_RUNTIME_DIR=str(root / 'runtime'), QT_QPA_PLATFORM='offscreen',
-                   DBUS_SESSION_BUS_ADDRESS='unix:path=' + str(root / 'runtime/no-bus'))
-        with (logs / 'install.log').open('w') as log:
-            subprocess.run(['bash', str(REPO / 'install.sh'), '--no-mcp', '--no-timer'], env=env,
-                           stdout=log, stderr=subprocess.STDOUT, check=True, timeout=60)
-        env.pop('DBUS_SESSION_BUS_ADDRESS')
-        env.update(QT_QPA_PLATFORM='wayland', WAYLAND_DISPLAY='lumen-test', KWIN_COMPOSE='QPainter',
-                   LUMEN_TEST_WIDTH=str(args.width),
-                   XDG_CURRENT_DESKTOP='KDE', XDG_SESSION_TYPE='wayland', KDE_FULL_SESSION='true', KDE_SESSION_VERSION='6')
-        helper = root / 'session'
-        helper.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' ' + shlex.quote(str(Path(__file__).resolve())) + ' --session\n')
-        helper.chmod(0o755)
-        with (logs / 'session.log').open('w') as log:
-            subprocess.run(['dbus-run-session', '--', 'kwin_wayland', '--virtual', '--xwayland',
-                            '--width', str(args.width), '--height', '900', '--output-count', str(args.screens),
-                            '--no-lockscreen', '--no-global-shortcuts', '--socket', 'lumen-test',
-                            '--exit-with-session', str(helper)], env=env, stdout=log, stderr=subprocess.STDOUT,
-                           check=True, timeout=100)
-        if not (root / 'passed.json').exists():
-            raise RuntimeError('Desktop check failed; see ' + str(logs / 'session.log'))
-        shutil.copy2(root / 'passed.json', logs / 'panels.json')
-    print('Fresh-profile install, desktop roles and repeated setup passed.')
-
-
-if __name__ == '__main__': main()
+if Path('/dev/dri').is_dir():command+=['--dev-bind','/dev/dri','/dev/dri']
+for device in [Path('/dev/nvidiactl'), *Path('/dev').glob('nvidia[0-9]*')]:
+    if device.is_char_device():command+=['--dev-bind',str(device),str(device)]
+env=dict(ASAN_OPTIONS='detect_leaks=0:abort_on_error=1:log_path=/profile/asan',
+    LUMEN_QA_HOT_HOST='1',LUMEN_QA_SURFACE_ONLY='1' if args.surface_only else '',
+    PATH='/profile/bin:/usr/bin' if args.shortcuts else '/usr/bin',HOME='/profile/home',USER='Ativaro',XDG_CONFIG_HOME='/profile/config',XDG_DATA_HOME='/profile/data',
+    XDG_STATE_HOME='/profile/state',XDG_CACHE_HOME='/profile/cache',XDG_RUNTIME_DIR='/profile/runtime',
+    XDG_SESSION_TYPE='wayland',XDG_MENU_PREFIX='plasma-',XDG_CURRENT_DESKTOP='KDE',KDE_FULL_SESSION='true',KDE_SESSION_VERSION='6',
+    QT_QPA_PLATFORM='wayland',QT_QUICK_CONTROLS_STYLE='Basic',QT_QPA_PLATFORMTHEME='kde',
+    QT_NO_XDG_DESKTOP_PORTAL='1',LUMEN_DATA='/profile/state/lumen',LUMEN_TOOLS_DATA='/profile/state/tools',
+    LUMEN_BIN_DIR='/qa/bin',LUMEN_QA_WIDTH=str(args.width),LUMEN_QA_SCALE=str(args.scale),
+    LUMEN_QA_LAYOUT=args.layout,LUMEN_QA_THEME=args.theme,LUMEN_LANGUAGE=args.language,LUMEN_QA_SHORTCUTS='1' if args.shortcuts else '',LANG='de_CH.UTF-8',LC_ALL='de_CH.UTF-8')
+for key,value in env.items():command+=['--setenv',key,value]
+command+=['--','dbus-run-session','--','python3','-B','/qa/session.py']
+with (profile/'session.log').open('w') as log:
+    result=subprocess.run(command,stdout=log,stderr=subprocess.STDOUT,timeout=90)
+receipt=dict(passed=result.returncode==0,revision=subprocess.check_output(['git','-C',str(REPO),'rev-parse','HEAD'],text=True).strip(),
+    binary=hashlib.sha256((build/'lumen-topbar').read_bytes()).hexdigest(),
+    width=args.width,scale=args.scale,theme=args.theme,language=args.language,layout=args.layout,
+    notification_layout_integration=not args.surface_only,global_shortcuts=args.shortcuts,seconds=round(time.monotonic()-began,2))
+(profile/'result.json').write_text(json.dumps(receipt,indent=2))
+if result.returncode==0:
+    for name in ('home','data','state','runtime','cache','host-stage'):
+        shutil.rmtree(profile/name,ignore_errors=True)
+print(json.dumps(dict(**receipt,artifacts=str(profile))))
+raise SystemExit(result.returncode)

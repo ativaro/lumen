@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Der damalige Namenswechsel ist gültige Historie, die beschriebene lokale Notes-Oberfläche wurde danach jedoch stillgelegt. Notes ist jetzt Server-App; das lokale Gedächtnis bleibt separat. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](../desktop-retirement.md).
+
 # Lumen Notes and system memory — installed UI, 13 October 2026
 
 User-facing product names are **Lumen Notes** and **Lumen Gedächtnis** (English:

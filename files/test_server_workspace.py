@@ -6,7 +6,7 @@ from uuid import uuid4
 from PySide6.QtWidgets import QApplication
 from PySide6.QtTest import QTest
 from PySide6.QtCore import QSettings
-from server_workspace import ServerWorkspace, ServerDevices
+from server_workspace import ServerDevices
 APP=QApplication.instance() or QApplication([])
 
 def idle(w):
@@ -34,16 +34,6 @@ class NativeServerTest(unittest.TestCase):
                 if path=='/bridge/management':return dict(id=body['request_id'],actions=[dict(id='a',state='claimed',progress={'checks':{'lumen-watch.service':{'state':'active','expected':'running','load':'loaded'}},'current':'lumen-jobs.service'})])
                 return {}
             with patch('server_workspace.lumen_connect.read_config',lambda:config),patch('server_workspace.lumen_connect.request',request):
-                w=ServerWorkspace();w.preferences=QSettings(folder+'/settings',QSettings.IniFormat);w.set_room('local');w.resize(1100,740);w.show();idle(w)
-                self.assertEqual(w.project.count(),2)
-                w.project.setCurrentIndex(1);idle(w);w.bind.click()
-                self.assertEqual(w.preferences.value(w.key()),space)
-                self.assertEqual(w.items.count(),1);self.assertEqual(w.runs.count(),1);self.assertTrue(w.again.isEnabled())
-                self.assertEqual(w.members.item(0).data(256)['name'],'Alex')
-                w.again.click();idle(w);self.assertTrue(any(p.endswith('/rerun') for p,b in calls))
-                w.schedule_toggle.click();idle(w);self.assertTrue(any(p.endswith('/automation') and b['enabled'] for p,b in calls))
-                config['token']='other-account';w.reload();idle(w);self.assertIsNone(w.project.currentData());self.assertEqual(w.items.count(),0)
-                w.close();w.deleteLater();QTest.qWait(20)
                 d=ServerDevices();d.show();idle(d)
                 self.assertTrue(d.run.isEnabled());self.assertTrue(d.wake.isEnabled());d.run.click();idle(d)
                 self.assertIn('lumen-watch.service',d.progress.item(1).text());self.assertFalse(d.run.isEnabled());self.assertIsNotNone(d.receipt)

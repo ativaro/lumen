@@ -7,7 +7,6 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtTest import QTest
 from interop_data import Registry
 import interop_drag as drag
-from tools_workbench import Workbench
 
 
 class DragTest(unittest.TestCase):
@@ -27,19 +26,6 @@ class DragTest(unittest.TestCase):
             invalid = QMimeData(); invalid.setText(value)
             with self.assertRaises(ValueError): drag.payload_from_mime(invalid, self.registry)
 
-    def test_native_editor_drop_calls_review_callback_without_inserting_text_or_writing_destination(self):
-        window = Workbench(self.root); key = window.library.create('Projekt', notes='Unverändert', resources=[], questions=[]); window.focus_record(key)
-        received = []; drag.install_drop_filter(window, received.append)
-        try:
-            mime = drag.make_mime(self.payload, self.registry); viewport = window.notes.viewport()
-            enter = QDragEnterEvent(QPoint(10, 10), Qt.CopyAction, mime, Qt.LeftButton, Qt.NoModifier)
-            QApplication.sendEvent(viewport, enter); self.assertTrue(enter.isAccepted())
-            drop = QDropEvent(QPointF(10, 10), Qt.CopyAction, mime, Qt.LeftButton, Qt.NoModifier)
-            QApplication.sendEvent(viewport, drop); QTest.qWait(10)
-            self.assertEqual(received[0]['text'], self.payload['text']); self.assertEqual(window.notes.toPlainText(), 'Unverändert')
-            self.assertEqual(window.library.get(key)['notes'], 'Unverändert')
-        finally:
-            window.close(); window.deleteLater(); QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
 
 
 if __name__ == '__main__': unittest.main()

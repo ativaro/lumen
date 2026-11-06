@@ -9,9 +9,12 @@ import subprocess
 import sys
 import tempfile
 import time
+from urllib.parse import urlsplit
 from lumen_i18n import tr, worker_environment
 
 REMOTE = 'https://github.com/ativaro/lumen.git'
+SYSTEM_ROOT = Path('/usr/share/lumen')
+PREVIOUS_OFFICIAL_REMOTE = 'https://forge.example.invalid/ativaro/lumen.git'
 
 
 def data_root():
@@ -23,7 +26,8 @@ def state_root():
 
 
 def source_root():
-    return Path(os.environ.get('XDG_CACHE_HOME') or Path.home()/'.cache')/'lumen/updater/source'
+    channel = hashlib.sha256(source_url().encode()).hexdigest()
+    return Path(os.environ.get('XDG_CACHE_HOME') or Path.home()/'.cache')/'lumen/updater/sources'/channel
 
 
 def read_json(path):
@@ -61,22 +65,46 @@ def run(args, *, cwd=None, timeout=None, env=None):
 
 
 def installations():
-    roots = [data_root(), Path('/usr/share/lumen')]
+    roots = [data_root(), SYSTEM_ROOT]
     own = Path(__file__).resolve().parent.parent
     if (own/'install.json').is_file() and own not in roots: roots.append(own)
     return [p for p in roots if (p/'files/app.py').is_file()]
 
 
+def source_url():
+    sources = set()
+    for root in installations():
+        value = read_json(root/'install.json').get('source_url')
+        if value is None or value == PREVIOUS_OFFICIAL_REMOTE:
+            sources.add(REMOTE)
+            continue
+        if not isinstance(value, str): raise ValueError(tr('Ungültige Lumen-Update-Quelle.'))
+        try:
+            url = urlsplit(value)
+            valid = (url.scheme == 'https' and url.hostname and not url.username and
+                     not url.password and not url.query and not url.fragment and
+                     url.path.endswith('.git') and not any(c.isspace() for c in value))
+            url.port
+        except ValueError:
+            valid = False
+        if not valid: raise ValueError(tr('Ungültige Lumen-Update-Quelle.'))
+        sources.add(value)
+    if len(sources) > 1:
+        raise ValueError(tr('Die installierten Lumen-Versionen stammen aus verschiedenen Quellen. Bitte getrennt aktualisieren.'))
+    return next(iter(sources), REMOTE)
+
+
 def prepare_source():
+    remote = source_url()
     source = source_root(); source.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     try:
         if not source.exists():
             with tempfile.TemporaryDirectory(dir=source.parent) as tmp:
                 staged = Path(tmp)/'source'
-                run(['git', 'clone', '--depth=50', '--single-branch', '--branch', 'main', REMOTE, str(staged)], timeout=180)
+                run(['git', 'clone', '--depth=50', '--single-branch', '--branch', 'main', remote, str(staged)], timeout=180)
                 staged.rename(source)
-        if run(['git','remote','get-url','origin'], cwd=source) != REMOTE:
-            raise ValueError(tr('Der Update-Ordner gehört nicht zur Lumen-Quelle.'))
+        if run(['git','remote','get-url','origin'], cwd=source) != remote:
+            raise ValueError(tr('Der Update-Ordner gehört zu einer anderen Quelle. Bitte den vorhandenen Update-Ordner sichern und entfernen.'))
         if run(['git','status','--porcelain'], cwd=source):
             raise ValueError(tr('Der Update-Ordner enthält eigene Änderungen. Diese zuerst sichern.'))
         run(['git','fetch','--no-tags','origin','main'], cwd=source, timeout=180)
@@ -85,7 +113,7 @@ def prepare_source():
         run(['git','checkout','--detach', revision], cwd=source)
         return revision
     except (OSError, subprocess.SubprocessError, RuntimeError) as error:
-        raise RuntimeError(tr('Die Update-Quelle ist nicht erreichbar. Internet und GitHub-Zugriff auf das private Lumen-Repository prüfen.')) from error
+        raise RuntimeError(tr('Die Update-Quelle ist nicht erreichbar. Internet und Zugriff auf das private Lumen-Repository prüfen.')) from error
 
 
 def component_definitions():
@@ -135,7 +163,7 @@ def check():
     if shutil.which('flatpak'):
         rows.append(dict(id='flatpak', title=tr('Flatpak-Apps'), detail=tr('Installierte Apps und Laufzeiten'), pending=True, optional=True))
     notes = run(['git','log','-6','--format=%s',revision], cwd=source)
-    plan = dict(revision=revision, rows=rows, notes=notes)
+    plan = dict(revision=revision, source_url=source_url(), rows=rows, notes=notes)
     save_json(state_root()/'plan.json', plan); report(plan=plan)
     return plan
 
@@ -143,9 +171,21 @@ def check():
 def install_bundle(source, revision):
     roots = installations()
     if not roots: roots = [data_root()]
+    if any((root/'files/server_notes_app.py').is_file() for root in roots):
+        required = ('files/server_notes_app.py','files/server_app_session.py','files/server_app_window.py','files/tools_app.py')
+        if any(not (source/name).is_file() for name in required) or (source/'files/tools_inbox.py').exists():
+            raise ValueError(tr('Dieses Update würde die Server-Apps Inbox oder Notes durch ältere Desktop-Apps ersetzen.'))
+    if any((root/'files/topbar_data.py').is_file() for root in roots):
+        required = ('files/topbar_data.py','files/topbar_activity.py','files/topbar_system.py',
+                    'files/topbar_context.py','files/topbar_conversation.py','native/topbar/CMakeLists.txt','bin/lumen-panel')
+        if any(not (source/name).is_file() for name in required):
+            raise ValueError(tr('Dieses Update enthält keine passende Lumen-Topbar. Die Installation bleibt unverändert.'))
+        help_text = run([str(source/'bin/lumen-panel'),'--help'], cwd=source, timeout=15)
+        if any(flag not in help_text for flag in ('--bar-snapshot','--system-topic','--conversation','--topbar-note')):
+            raise ValueError(tr('Der Topbar-Helfer dieses Updates ist unvollständig. Die Installation bleibt unverändert.'))
     # Update every installed runtime; a newer user launcher must not mask an old
     # system copy. Existing installers preserve data and desktop preferences.
-    if Path('/usr/share/lumen') in roots:
+    if SYSTEM_ROOT in roots:
         run(['bash',str(source/'packaging/arch/build-package.sh')], cwd=source)
         packages = [Path(p) for p in run(['makepkg','--packagelist'], cwd=source/'packaging/arch', env={'LOCALSRC':'1'}).splitlines()]
         if len(packages)!=1: raise ValueError(tr('Das Update-Paket konnte nicht eindeutig bestimmt werden.'))
@@ -153,14 +193,16 @@ def install_bundle(source, revision):
         # Execute the new helper, even while this updater still runs the old code.
         run([str(source/'bin/lumen-desktop-setup'),'--refresh-decoration'], cwd=source)
     for root in roots:
-        if root == Path('/usr/share/lumen'): continue
+        if root == SYSTEM_ROOT: continue
         run(['bash',str(source/'install.sh'),'--no-mcp'], cwd=source,
-            env={'PREFIX':str(root), 'LUMEN_SOURCE_REVISION':revision})
+            env={'PREFIX':str(root), 'LUMEN_SOURCE_REVISION':revision, 'LUMEN_SOURCE_URL':source_url()})
 
 
 def apply(revision, selected):
     plan = read_json(state_root()/'plan.json'); source = source_root()
     if (not re.fullmatch(r'[a-f0-9]{40}', revision) or plan.get('revision')!=revision or
+            plan.get('source_url') != source_url() or
+            run(['git','remote','get-url','origin'], cwd=source) != plan.get('source_url') or
             run(['git','rev-parse','HEAD'], cwd=source)!=revision or
             run(['git','status','--porcelain'], cwd=source)):
         raise ValueError(tr('Die Update-Auswahl ist veraltet. Bitte erneut prüfen.'))
@@ -178,7 +220,7 @@ def apply(revision, selected):
         report(component=key, state='running', message=tr('{0} wird aktualisiert …', rows[key]['title']), progress=int(index*100/len(ordered)))
         try:
             if key == 'lumen': install_bundle(source, revision)
-            elif key == 'system': run(['pkexec','pacman','-Syu','--noconfirm'])
+            elif key == 'system': run(['pkexec','pacman','-Syu','--ignore','lumen','--noconfirm'])
             elif key == 'flatpak': run(['flatpak','update','--noninteractive','--assumeyes'])
             elif key == 'qt': run([python,'--install-runtime'])
             elif key == 'native-vault':

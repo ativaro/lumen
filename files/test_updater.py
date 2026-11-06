@@ -75,14 +75,46 @@ class UpdaterTest(unittest.TestCase):
         source=updater.source_root();source.mkdir(parents=True)
         package=source/'packaging/arch/lumen-test-any.pkg.tar.zst';package.parent.mkdir(parents=True);package.touch()
         def result(args,**kwargs):return str(package) if args[:2]==['makepkg','--packagelist'] else ''
-        with patch.object(updater,'installations',return_value=[Path('/usr/share/lumen'),self.install]),patch.object(updater,'run',side_effect=result) as run:
+        system=self.root/'system'
+        with patch.object(updater,'SYSTEM_ROOT',system), patch.object(updater,'installations',return_value=[system,self.install]), patch.object(updater,'run',side_effect=result) as run:
             updater.install_bundle(source,'f'*40)
         calls=[call.args[0] for call in run.call_args_list]
         self.assertIn(['pkexec','pacman','-U','--noconfirm',str(package)],calls)
         self.assertIn([str(source/'bin/lumen-desktop-setup'),'--refresh-decoration'],calls)
         self.assertIn(['bash',str(source/'install.sh'),'--no-mcp'],calls)
-        self.assertFalse(any('--desktop' in args or '--replace-panels' in args for args in calls))
+        self.assertFalse(any('--desktop' in args for args in calls))
         self.assertEqual(run.call_args.kwargs['env']['PREFIX'],str(self.install))
+
+    def test_install_source_identity_and_credential_rejection(self):
+        self.assertEqual(updater.source_url(), str(self.repo))
+        url = 'https://forge.example.test/team/lumen.git'
+        updater.save_json(self.install/'install.json', dict(source_url=url))
+        self.assertEqual(updater.source_url(), url)
+        for bad in ('https://user:secret@forge.example.test/lumen.git',
+                    'http://forge.example.test/lumen.git',
+                    'https://forge.example.test/lumen.git?token=test', 42):
+            updater.save_json(self.install/'install.json', dict(source_url=bad))
+            with self.assertRaises(ValueError): updater.source_url()
+        updater.save_json(self.install/'install.json', dict(source_url=url))
+        with patch.object(updater, 'installations', return_value=[self.install, self.root/'legacy']):
+            with self.assertRaises(ValueError): updater.source_url()
+
+    def test_github_channel_accepts_existing_official_installations_together(self):
+        system = self.root/'system'
+        updater.save_json(self.install/'install.json', dict(source_url='https://forge.example.invalid/ativaro/lumen.git'))
+        updater.save_json(system/'install.json', dict(source_url='https://github.com/ativaro/lumen.git'))
+        with patch.object(updater, 'REMOTE', 'https://github.com/ativaro/lumen.git'), \
+                patch.object(updater, 'installations', return_value=[self.install, system]):
+            self.assertEqual(updater.source_url(), 'https://github.com/ativaro/lumen.git')
+        self.assertEqual(updater.read_json(self.install/'install.json')['source_url'],
+                         'https://forge.example.invalid/ativaro/lumen.git')
+
+    def test_origin_change_after_check_cannot_install(self):
+        plan = updater.check()
+        updater.save_json(self.install/'install.json', dict(source_url='https://forge.example.test/team/lumen.git'))
+        with patch.object(updater, 'install_bundle') as install:
+            with self.assertRaises(ValueError): updater.apply(plan['revision'], ['lumen'])
+            install.assert_not_called()
 
     def test_optional_components_follow_installed_files(self):
         with tempfile.TemporaryDirectory() as tmp,patch.object(updater,'data_root',return_value=Path(tmp)),patch.object(updater.shutil,'which',return_value=None):
@@ -92,6 +124,52 @@ class UpdaterTest(unittest.TestCase):
             found={row[0] for row in DISCOVER() if row[3]}
             self.assertTrue({'image-search','voice-multilingual','native-vault'}<=found)
             self.assertNotIn('voice',found);self.assertNotIn('inbox',found)
+
+    def test_bundle_cannot_replace_a_native_topbar_with_an_older_helper(self):
+        (self.install/'files/topbar_data.py').touch()
+        with patch.object(updater,'run') as run:
+            with self.assertRaises(ValueError):
+                updater.install_bundle(self.repo,self.revision)
+            run.assert_not_called()
+
+    def test_official_channel_keeps_prior_cached_checkout_and_old_plans_separate(self):
+        previous=Path(os.environ['XDG_CACHE_HOME'])/'lumen/updater/source'
+        previous.mkdir(parents=True);(previous/'local-edit').write_text('keep')
+        source=updater.source_root()
+        updater.save_json(self.install/'install.json',dict(source_url=updater.PREVIOUS_OFFICIAL_REMOTE))
+        self.assertEqual(updater.source_url(),str(self.repo))
+        self.assertNotEqual(previous,source)
+        updater.save_json(self.install/'install.json',dict(source_url='https://forge.example.test/team/lumen.git'))
+        self.assertNotEqual(source,updater.source_root())
+        self.assertEqual((previous/'local-edit').read_text(),'keep')
+
+    def test_native_inbox_cannot_replace_installed_server_host(self):
+        (self.install/'files/server_notes_app.py').touch()
+        for name in ('server_notes_app','server_app_session','server_app_window','tools_app','tools_inbox'):
+            (self.repo/'files'/f'{name}.py').touch()
+        with patch.object(updater,'run') as run:
+            with self.assertRaisesRegex(ValueError,'Server-Apps'):
+                updater.install_bundle(self.repo,self.revision)
+            run.assert_not_called()
+            (self.repo/'files/tools_inbox.py').unlink()
+            updater.install_bundle(self.repo,self.revision)
+            self.assertEqual(run.call_args.args[0][:2],['bash',str(self.repo/'install.sh')])
+
+    def test_native_topbar_bundle_checks_the_actual_helper_before_copying(self):
+        (self.install/'files/topbar_data.py').touch()
+        for name in ('topbar_data.py','topbar_activity.py','topbar_system.py','topbar_context.py','topbar_conversation.py'):
+            (self.repo/'files'/name).touch()
+        (self.repo/'native/topbar').mkdir(parents=True)
+        (self.repo/'native/topbar/CMakeLists.txt').touch()
+        (self.repo/'bin').mkdir();(self.repo/'bin/lumen-panel').touch()
+        with patch.object(updater,'run',return_value='--snapshot') as run:
+            with self.assertRaises(ValueError):
+                updater.install_bundle(self.repo,self.revision)
+            self.assertEqual(run.call_count,1)
+        with patch.object(updater,'run',return_value='--bar-snapshot --system-topic --conversation --topbar-note') as run:
+            updater.install_bundle(self.repo,self.revision)
+            self.assertEqual(run.call_args_list[0].args[0], [str(self.repo/'bin/lumen-panel'),'--help'])
+            self.assertEqual(run.call_args_list[1].args[0][:2], ['bash',str(self.repo/'install.sh')])
 
     def test_another_worker_cannot_check_or_install_during_an_update(self):
         import sys
@@ -118,7 +196,7 @@ class UpdaterTest(unittest.TestCase):
         with patch.object(updater,'run',side_effect=run),patch.object(updater,'install_bundle') as install:
             self.assertTrue(updater.apply(self.revision,['system','flatpak']))
             install.assert_not_called()
-        self.assertEqual(commands,[['pkexec','pacman','-Syu','--noconfirm'],['flatpak','update','--noninteractive','--assumeyes']])
+        self.assertEqual(commands,[['pkexec','pacman','-Syu','--ignore','lumen','--noconfirm'],['flatpak','update','--noninteractive','--assumeyes']])
 
 
 class UpdaterUiTest(unittest.TestCase):

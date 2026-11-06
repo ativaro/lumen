@@ -1,7 +1,7 @@
 # Maintainer: Lumen
 pkgname=lumen
 pkgver=1.2.0
-pkgrel=104
+pkgrel=116
 pkgdesc="Lumen — AI desktop for CachyOS with files, tasks, knowledge and workflows"
 provides=('opencode-lumen')
 # No automatic conflict removal: the legacy package's uninstall script deletes reports.
@@ -9,13 +9,16 @@ provides=('opencode-lumen')
 # on file conflicts until the old package has been migrated.
 arch=('x86_64' 'aarch64')
 url="https://github.com/ativaro/lumen"
-license=('LicenseRef-Lumen-EULA' 'GPL-3.0-only')
-depends=('bash' 'git' 'python3' 'pyside6' 'python-gobject' 'python-pillow' 'openssl')
-makedepends=('gcc' 'pkgconf' 'qt6-base')
+license=('LicenseRef-Lumen-EULA' 'GPL-3.0-only' 'GPL-2.0-or-later')
+depends=('bash' 'git' 'python3' 'pyside6' 'python-gobject' 'python-pillow' 'python-yaml' 'python-markdown-it-py' 'openssl' 'layer-shell-qt' 'libdbusmenu-glib' 'qt6-declarative' 'kirigami' 'plasma-workspace' 'kitemmodels')
+makedepends=('gcc' 'pkgconf' 'qt6-base' 'cmake' 'layer-shell-qt' 'libdbusmenu-glib' 'qt6-declarative')
 # OpenCode may be installed through its own installer. Native files/tasks remain
 # useful without inference; the app explains a missing engine when AI is requested.
 optdepends=(
-    'qt6-webengine: Browser access through the optional native Vault'
+    'bubblewrap: isolated browser sessions for the connected Lumen server'
+    'nodejs: optional Playwright browser automation runtime'
+    'npm: install the pinned optional browser automation dependencies'
+    'qt6-webengine: Shared Lumen Server apps and optional native Vault browser'
     'libssh: SSH access through the optional native Vault'
     'kidletime: Desktop inactivity locking in the optional native Vault'
     'rclone: Cloud account login and file access in Lumen Files'
@@ -24,7 +27,7 @@ optdepends=(
     'whisper.cpp: existing offline dictation engine (or use the setup wizard)'
     'pipewire-audio: microphone recording for offline dictation'
     'polkit: native authorization for optional setup packages'
-    'libsecret: credentials for Vault and Inbox in the desktop keyring'
+    'libsecret: credentials for native Vault and network backups in the desktop keyring'
     'restic: encrypted Vault backups (or use the setup wizard)'
     'cmake: optional user-local speech engine build in the setup wizard'
     'gcc: optional user-local speech engine build in the setup wizard'
@@ -39,7 +42,8 @@ optdepends=(
     'plasma-workspace: KRunner integration'
     'wireplumber: native volume controls in the Lumen bar'
     'libpulse: Lumen Sound mixer, app rules and audio outputs in work modes'
-    'networkmanager: connection status in the Lumen bar'
+    'networkmanager: native network connections, WLAN, VPN and diagnostics in the Lumen bar'
+    'bluez-utils: Bluetooth audio connections in the Lumen bar'
     'systemsettings: native network, audio and display settings'
     'tesseract: local text recognition in images and scans'
     'tesseract-data-deu: German OCR'
@@ -60,17 +64,21 @@ install="lumen.install"
 # Two modes:
 #  * PUBLISHED  (default): fetch the release tarball from the git host.
 #  * LOCAL      (LOCALSRC=1): build from a tarball sitting next to this PKGBUILD.
-# When publishing, replace _srcurl/_sha256 with the real values from the release
-# (or run `updpkgsums`).
-_srcurl="https://github.com/ativaro/lumen/archive/v$pkgver.tar.gz"
+# Published builds require the exact reviewed archive URL and checksum.
+_srcurl="${LUMEN_SOURCE_ARCHIVE_URL:-}"
+_sha256="${LUMEN_SOURCE_SHA256:-}"
 
 if [ "${LOCALSRC:-0}" = "1" ]; then
     source=("$pkgname-$pkgver.tar.gz")
-    sha256sums=('SKIP')
+    if [[ -z "$_sha256" && -f "$pkgname-$pkgver.tar.gz.sha256" ]]; then
+        read -r _sha256 _ < "$pkgname-$pkgver.tar.gz.sha256"
+    fi
 else
+    [[ -n "$_srcurl" ]] || { echo 'LUMEN_SOURCE_ARCHIVE_URL fehlt.' >&2; return 1; }
     source=("$pkgname-$pkgver.tar.gz::$_srcurl")
-    sha256sums=('SKIP')   # TODO: set the real checksum before publishing (updpkgsums)
 fi
+[[ "$_sha256" =~ ^[a-f0-9]{64}$ ]] || { echo 'LUMEN_SOURCE_SHA256 fehlt oder ist ungültig.' >&2; return 1; }
+sha256sums=("$_sha256")
 
 prepare() {
     cd "$srcdir"
@@ -94,9 +102,12 @@ package() {
 
     # ---- program binaries -------------------------------------------------
     install -d "$pkgdir/usr/bin"
-    install -m0755 "$srcroot/bin/"* "$pkgdir/usr/bin/"
+    for binary in "$srcroot/bin/"*; do
+        if [[ -f "$binary" ]]; then install -m0755 "$binary" "$pkgdir/usr/bin/"; fi
+    done
 
     bash "$srcroot/native/build-capture.sh" "$pkgdir/usr/bin/lumen-window-capture"
+    bash "$srcroot/native/build-topbar.sh" "$pkgdir/usr/bin/lumen-topbar"
 
     # system daemon + watchdog + notifier
     install -m0755 "$srcroot/system/lumen-agentd.py" "$pkgdir/usr/bin/lumen-agentd"
@@ -104,7 +115,7 @@ package() {
     install -m0755 "$srcroot/system/lumen-notify" "$pkgdir/usr/bin/lumen-notify"
 
     install -d "$pkgdir/usr/share/lumen"
-    printf '{"revision":"%s","kind":"system"}\n' "${LUMEN_SOURCE_REVISION:-}" > "$pkgdir/usr/share/lumen/install.json"
+    /usr/bin/python3 "$srcroot/packaging/source-identity.py" "$srcroot" --kind system > "$pkgdir/usr/share/lumen/install.json"
 
     # ---- native desktop app -------------------------------------------
     install -d "$pkgdir/usr/share/lumen/agent-app"
@@ -116,6 +127,7 @@ package() {
 
     install -d "$pkgdir/usr/share/applications"
     sub "$srcroot/data/applications/lumen.desktop" "$pkgdir/usr/share/applications/lumen.desktop"
+    sub "$srcroot/data/applications/lumen-toggle.desktop" "$pkgdir/usr/share/applications/lumen-toggle.desktop"
     sub "$srcroot/data/applications/lumen-ask.desktop" "$pkgdir/usr/share/applications/lumen-ask.desktop"
     sub "$srcroot/data/applications/lumen-ask-sel.desktop" "$pkgdir/usr/share/applications/lumen-ask-sel.desktop"
     sub "$srcroot/data/applications/lumen-companion.desktop" "$pkgdir/usr/share/applications/lumen-companion.desktop"
@@ -179,14 +191,17 @@ package() {
 
     # ---- Lumen Files (file manager) ---------------------------------------
     install -d "$pkgdir/usr/share/lumen/files"
-    install -m0644 "$srcroot/files/"*.py "$pkgdir/usr/share/lumen/files/"
+    for module in "$srcroot/files/"*.py; do
+        [[ "$(basename "$module")" == test_* ]] || install -m0644 "$module" "$pkgdir/usr/share/lumen/files/"
+    done
     install -m0644 "$srcroot/files/"*.qss "$pkgdir/usr/share/lumen/files/"
     install -m0644 "$srcroot/files/"*.svg "$pkgdir/usr/share/lumen/files/"
     if [[ -f "$srcroot/files/google-drive-client.json" ]]; then
         install -m0644 "$srcroot/files/google-drive-client.json" "$pkgdir/usr/share/lumen/files/"
     fi
-    cp -R "$srcroot/files/translations" "$pkgdir/usr/share/lumen/files/"
-    cp -R "$srcroot/files/qml" "$pkgdir/usr/share/lumen/files/"
+    for asset in translations qml fonts notes_icons memory-runtime browser-runtime engine-plugins; do
+        cp -R "$srcroot/files/$asset" "$pkgdir/usr/share/lumen/files/"
+    done
     install -m0755 "$srcroot/bin/lumen-files" "$pkgdir/usr/bin/lumen-files"
     install -m0755 "$srcroot/bin/lumen-open" "$pkgdir/usr/bin/lumen-open"
 
@@ -194,20 +209,11 @@ package() {
     install -d "$pkgdir/usr/share/lumen/desktop"
     cp -R "$srcroot/desktop/." "$pkgdir/usr/share/lumen/desktop/"
 
-    # ---- Plasma applet (plasmoid) -----------------------------------------
-    for plugin in agent islands system search control; do
-        local applet="$pkgdir/usr/share/plasma/plasmoids/org.lumen.$plugin"
-        install -d "$applet/contents/ui" "$applet/contents/config"
-        local metadata=metadata.json
-        [[ "$plugin" == agent ]] || metadata="$plugin-metadata.json"
-        install -m0644 "$srcroot/plasmoid/$metadata" "$applet/metadata.json"
-        install -m0644 "$srcroot/LICENSE" "$applet/LICENSE"
-        install -m0644 "$srcroot/plasmoid/contents/ui/"*.qml "$srcroot/plasmoid/contents/ui/"*.js "$srcroot/plasmoid/contents/ui/lumen-halo.png" "$srcroot/plasmoid/contents/ui/"*.svg "$applet/contents/ui/"
-        install -m0644 "$srcroot/plasmoid/contents/config/"* "$applet/contents/config/"
-        local surface=tasks
-        case "$plugin" in system) surface=home;; search|control) surface="$plugin";; esac
-        sed -i "s|<default>tasks</default>|<default>$surface</default>|" "$applet/contents/config/main.xml"
-    done
+    # System notification history remains in Plasma, without a topbar applet.
+    local host="$pkgdir/usr/share/plasma/plasmoids/org.lumen.notificationhost"
+    install -d "$host"
+    cp -R "$srcroot/plasmoid/." "$host/"
+    sub "$srcroot/system/systemd/user/lumen-topbar.service" "$pkgdir/usr/lib/systemd/user/lumen-topbar.service"
 
     # ---- system D-Bus policy + activation ---------------------------------
     install -d "$pkgdir/usr/share/dbus-1/system.d"
@@ -218,7 +224,7 @@ package() {
     # ---- opencode commands / skill (system-wide share) --------------------
     install -d "$pkgdir/usr/share/lumen/opencode-command"
     install -m0644 "$srcroot/opencode-command/"*.md "$pkgdir/usr/share/lumen/opencode-command/" 2>/dev/null || true
-    for skill in lumen-admin lumen-projects lumen-service-access; do
+    for skill in lumen-admin lumen-projects lumen-vault-http; do
         install -Dm0644 "$srcroot/opencode-skill/$skill/SKILL.md" "$pkgdir/usr/share/lumen/opencode-skill/$skill/SKILL.md"
     done
 

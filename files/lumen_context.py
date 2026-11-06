@@ -13,6 +13,7 @@ from lumen_setup import executable
 class ContextTools(QObject):
     def __init__(self, panel, layout):
         super().__init__(panel); self.panel = panel; self.process = None; self.temp = None; self.recording = False
+        panel.composer.image_handler = self.image
         row = QHBoxLayout(); layout.addLayout(row)
         for title, callback in [(tr('Dateien'), self.files), (tr('Bildschirm'), self.screenshot)]:
             button = QPushButton(title); button.clicked.connect(callback); row.addWidget(button)
@@ -67,12 +68,23 @@ class ContextTools(QObject):
         self.start('spectacle', ['-b', '-r', '-n', '-o', path], captured)
 
     def clear(self):
-        if not self.panel.backend.busy: self.panel.paths = []; self.panel.update_context()
+        if not self.panel.backend.busy: self.panel.paths = []; self.panel.drive_context = {}; self.panel.update_context()
+
+    def image(self, mime):
+        if self.panel.backend.busy: return
+        if len(self.panel.paths)>=24:
+            self.panel.show_error(tr('Bitte höchstens 24 Anhänge hinzufügen.')); return
+        from clipboard_image import save
+        try:
+            path=save(mime)
+            if path and path not in self.panel.paths:
+                self.panel.paths.append(path); self.panel.update_context()
+        except (OSError,ValueError,TypeError) as error: self.panel.show_error(str(error))
 
     def clipboard(self):
         if protected_clipboard(QApplication.clipboard()):
             self.panel.show_error('Protected Vault clipboard content cannot be sent to Lumen.'); return
-        if not self.panel.backend.busy: self.panel.composer.insertPlainText(QApplication.clipboard().text())
+        if not self.panel.backend.busy: self.panel.composer.paste()
 
     def dictate(self):
         if self.conversation and self.conversation.active: self.conversation.stop()

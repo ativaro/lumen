@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Die hier genannten lokalen Notes-/Appfenster und festen Appzahlen sind überholt. App-Sichtbarkeit und Serverzugang werden heute aus der aktuellen Gerätefreigabe abgeleitet. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](docs/desktop-retirement.md).
+
 # Lumen app cohesion
 
 Native Qt surfaces, using the existing shared themes and German/English translations.

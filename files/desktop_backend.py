@@ -2,6 +2,7 @@
 import hashlib
 import threading
 from uuid import UUID, uuid4, uuid5
+from urllib.error import HTTPError
 from pathlib import Path
 import os
 import stat
@@ -104,6 +105,8 @@ class DesktopBackend(OpenCodeBackend):
 
     def _run(self, operation, function):
         generation, binding = self.generation, self.binding
+        submission = (binding, self.session, self.remote_key)
+        origin = self.server_origin
         def work():
             try:
                 from lumen_connect import request
@@ -112,6 +115,12 @@ class DesktopBackend(OpenCodeBackend):
                     raise ValueError('Connection changed')
                 result = function(lambda path, body=None: request(config, path, body))
                 return generation, operation, result, False
+            except HTTPError as error:
+                rejected = operation == 'submit' and bool(submission[2]) and error.code == 413 and error.geturl() == origin + '/bridge/tasks'
+                error.close()
+                if rejected:
+                    return generation, operation, dict(rejected_submission=submission, local_context_error=tr('Die gewählten Inhalte überschreiten das Serverlimit. Bitte weniger oder kleinere Quellen auswählen.')), False
+                return generation, operation, None, True
             except Exception:
                 # Never expose bearer headers, provider responses or credentials.
                 return generation, operation, None, True
@@ -139,7 +148,14 @@ class DesktopBackend(OpenCodeBackend):
         if generation != self.generation or self.execution != 'server':
             return
         if operation == 'submit':
+            if not error and data.get('rejected_submission') is not None and data['rejected_submission'] != (self.binding, self.session, self.remote_key):
+                return
             self.submitting = False
+            if not error and data.get('local_context_error'):
+                self.remember(self.remote_key,remove=True);self.remote_key='';self.remote_active=False
+                self.polling=False;self.timer.stop();self.set_busy(False)
+                self.failed.emit(data['local_context_error']);self.statusChanged.emit(tr('Auswahl verkleinern und erneut senden.'))
+                return
         if error:
             if operation in ('models','approvals','approval_reply'):
                 if operation=='models':self.serverModelsChanged.emit([])
@@ -309,6 +325,9 @@ class DesktopBackend(OpenCodeBackend):
         return True
 
     def send(self, text, files=None, *args, **kwargs):
+        note=(kwargs.get('context_data') or {}).get('note_reference')
+        if note and self.execution!='server':
+            self.failed.emit(tr('Servernotizen bitte in einem Servergespräch verwenden.'));return False
         if self.session.startswith(PREFIX) and self.execution != 'server':
             # Recovery snapshots may set session directly. Never pass a server
             # identity to the local OpenCode process or silently change provider.
@@ -331,12 +350,22 @@ class DesktopBackend(OpenCodeBackend):
         body = dict(prompt=text, parent_id=parent, idempotency_key=self.remote_key)
         if self.server_model: body['model']=self.server_model
         context = list(self.prepared_context)
+        drive_refs=(kwargs.get('context_data') or {}).get('drive_references',[])
+        if drive_refs:
+            from drive_references import validate
+            try:drive_refs=[validate(ref) for ref in drive_refs]
+            except (ValueError,TypeError,KeyError):
+                self.remember(self.remote_key,remove=True);self.remote_key=''
+                self.failed.emit(tr('Die Drive-Auswahl ist ungültig. Bitte erneut auswählen.'));return False
         if kwargs.get('context_data'):
             encoded=json.dumps(kwargs['context_data'],ensure_ascii=False)
             if len(encoded.encode())+sum(len(item['text'].encode()) for item in context)>60000:
                 self.remember(self.remote_key,remove=True);self.remote_key=''
                 self.failed.emit(tr('Der ausgewählte Kontext ist zu groß.'));return False
             context.append(dict(name='Ausgewählte Eingaben.json',text=encoded))
+        if len(context)+sum(ref['kind']=='drive_file' for ref in drive_refs)+bool(note)>20:
+            self.remember(self.remote_key,remove=True);self.remote_key=''
+            self.failed.emit(tr('Ein Servergespräch unterstützt höchstens 20 Anhänge einschließlich Auswahlbeschreibung. Bitte weniger Dateien auswählen.'));return False
         receipt = UUID(self.remote_key)
         self.remote_active = True
         self.set_busy(True)
@@ -346,10 +375,30 @@ class DesktopBackend(OpenCodeBackend):
         def submit(request):
             user = request('/bridge/me')
             refs=[]
+            if note:
+                from topbar_context import note_attachment
+                try:selected=note_attachment(note,self.server_origin,user['id'])
+                except ValueError as error:return dict(local_context_error=str(error))
+                try:capability=request('/bridge/context/capability',selected)
+                except HTTPError as error:
+                    if error.code not in (403,404,409,422):raise
+                    error.close()
+                    return dict(local_context_error=tr('Die Notes-Notiz wurde geändert oder ist nicht mehr für Lumen freigegeben. Bitte in Notes prüfen und erneut anhängen.'))
+                if (not isinstance(capability,dict) or any(capability.get(key)!=value for key,value in selected.items())
+                        or capability.get('supported') is not True):raise ValueError('Note is not available')
+                if connection()[1]!=self.binding:raise ValueError('Connection changed')
+                refs.append(selected)
+            if drive_refs:
+                from drive_references import task_attachments,ContextLimit
+                try:config,refs=task_attachments(drive_refs,(kwargs.get('context_data') or {}).get('intent','open'),sum(len(item['text'].encode()) for item in context))
+                except ContextLimit as exc:return dict(local_context_error=str(exc))
+                if config['server']!=self.server_origin or any(ref['locator']['account']!=user['id'] for ref in drive_refs) or connection()[1]!=self.binding:
+                    raise ValueError('Connection changed')
             for index,item in enumerate(context):
                 file=request('/bridge/context-files/'+str(uuid5(receipt,str(index))),item)
                 refs.append(dict(id=file['id'],kind='file',revision=file['version']))
-            return request('/bridge/tasks', dict(body, workspace_id=user['workspace_id'],attachments=refs))
+            if drive_refs and connection()[1]!=self.binding:raise ValueError('Connection changed')
+            return request('/bridge/tasks', dict(body, attachments=refs))
         self.submitting = True
         self._run('submit', submit)
         return True

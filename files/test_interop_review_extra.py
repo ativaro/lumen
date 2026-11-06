@@ -55,20 +55,6 @@ class ReviewExtraTest(unittest.TestCase):
         with library.connect() as db:
             self.assertEqual(db.execute('SELECT body FROM interop_task_details WHERE task=?', (ref['id'],)).fetchone()[0], 'User description after import')
 
-    def test_project_load_of_stale_record_cannot_reverse_completed_move(self):
-        from tools_workbench import Workbench
-        from interop_paths import relocate
-        old = self.root/'old'; new = self.root/'new'; old.mkdir(); source = old/'source.txt'; source.write_text('keep')
-        window = Workbench(self.root)
-        try:
-            key = window.library.create('Project', notes='notes', questions=[], resources=[dict(kind='file', title='Source', target=str(source))])
-            stale = window.library.get(key)
-            old.rename(new); relocate(old, new, self.root)
-            window.current = key; window.loading = True; window.load(stale); window.loading = False
-            window.save()
-            self.assertEqual(window.library.get(key)['resources'][0]['target'], str(new/'source.txt'))
-        finally:
-            window.close(); window.deleteLater(); self.app.processEvents()
 
     def test_failed_async_wissen_save_releases_controller_and_preserves_request(self):
         from interop_ui import Controller

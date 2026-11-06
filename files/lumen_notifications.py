@@ -50,6 +50,9 @@ def database(path=None):
                 db.execute(
                     "ALTER TABLE notifications ADD COLUMN wake_notified REAL NOT NULL DEFAULT 0"
                 )
+            columns={row[1] for row in db.execute("PRAGMA table_info(notifications)")}
+            for name,sql in {"kind":"TEXT NOT NULL DEFAULT 'message'","resolved":"INTEGER NOT NULL DEFAULT 0","completion_supported":"INTEGER NOT NULL DEFAULT 1"}.items():
+                if name not in columns:db.execute("ALTER TABLE notifications ADD COLUMN "+name+" "+sql)
             db.execute(
                 "CREATE TABLE IF NOT EXISTS status_events(source TEXT,key TEXT,bad INTEGER,revision INTEGER,PRIMARY KEY(source,key))"
             )
@@ -74,12 +77,15 @@ def publish(
     body="",
     *,
     target="",
+    kind="message",
     revision=1,
     scope="local",
     attention=False,
     popup=True,
     path=None,
 ):
+    if kind not in ("message","result","question","decision","suggestion","problem","reminder"):
+        raise ValueError("Invalid notification kind")
     for value, limit in (
         (source, 100),
         (external_id, 200),
@@ -105,10 +111,10 @@ def publish(
     with database(path) as db:
         changed = db.execute(
             """INSERT INTO notifications
-            (id,scope,source,external_id,revision,title,body,target,created,updated,attention)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+            (id,scope,source,external_id,revision,title,body,target,created,updated,attention,kind)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
             revision=excluded.revision,title=excluded.title,body=excluded.body,target=excluded.target,
-            updated=excluded.updated,attention=excluded.attention,read=0,archived=0,snoozed=0
+            updated=excluded.updated,attention=excluded.attention,kind=excluded.kind,read=0,archived=0,resolved=0,snoozed=0
             WHERE excluded.revision>notifications.revision""",
             (
                 identity,
@@ -122,6 +128,7 @@ def publish(
                 now,
                 now,
                 bool(attention),
+                kind,
             ),
         ).rowcount
         preference = db.execute(
@@ -166,7 +173,7 @@ def snapshot(path=None, wake=True):
                 dict(row)
                 for row in db.execute(
                     """SELECT id,source FROM notifications WHERE
-            snoozed>0 AND snoozed<=? AND wake_notified<snoozed AND archived=0
+            snoozed>0 AND snoozed<=? AND wake_notified<snoozed AND archived=0 AND resolved=0
             AND scope IN ("""
                     + ",".join("?" for _ in allowed)
                     + """)
@@ -203,127 +210,152 @@ def snapshot(path=None, wake=True):
     return {
         "items": rows,
         "unread": sum(
-            not row["read"] and not row["archived"] and row["snoozed"] <= time.time()
+            not row["read"] and not row["archived"] and not row["resolved"] and row["snoozed"] <= time.time()
             for row in rows
         ),
     }
 
 
 def change(identity, action, path=None):
+    with database(path) as db:
+        _change(db, identity, action)
+
+
+def mark_visible_read(path=None):
+    visible = snapshot(path, wake=False)['items']
+    with database(path) as db:
+        for row in visible:
+            if not row['read'] and not row['archived'] and not row['resolved'] and row['snoozed'] <= time.time():
+                _change(db, row['id'], 'read')
+
+
+def _change(db, identity, action):
     if not re.fullmatch("[a-f0-9]{64}", identity):
         raise ValueError("Invalid notification ID")
-    with database(path) as db:
-        row = db.execute(
-            "SELECT * FROM notifications WHERE id=?", (identity,)
-        ).fetchone()
-        if not row:
-            raise ValueError("Notification no longer available")
-        if row["scope"] not in active_scopes(db):
-            raise ValueError("Server connection no longer available")
-        if action == "open":
-            target = row["target"]
-            if row["scope"] != "local":
-                from urllib.parse import urlencode
-                from uuid import UUID
-
-                binding = db.execute(
-                    "SELECT server FROM bindings WHERE scope=?", (row["scope"],)
-                ).fetchone()
-                route = (
-                    {
-                        "app": "tasks",
-                        "task": str(UUID(target.removeprefix("server-task:"))),
-                    }
-                    if target.startswith("server-task:")
-                    else {"app": "notifications"}
-                )
-                subprocess.Popen(
-                    [
-                        "xdg-open",
-                        binding["server"] + "/?" + urlencode(route),
-                    ],
-                    start_new_session=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-            elif target in (
-                "app:files",
-                "app:drive",
-                "app:wissen",
-                "app:vault",
-                "app:backups",
-                "app:updater",
-                "app:system",
-                "app:settings",
-            ):
-                from lumen_launch import executable
-
-                name, args = {
-                    "app:drive": ("files", ["lumen-drive://"]),
-                    "app:settings": ("settings", ["--sync"]),
-                    "app:backups": ("vault", ["--backups"]),
-                }.get(target, (target[4:], []))
-                subprocess.Popen(
-                    [executable("lumen-" + name), *args],
-                    start_new_session=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-            elif target.startswith("lumen:"):
-                from interop_open import open_url
-
-                open_url(target)
-            else:
-                raise ValueError("Notification has no local target")
-            action = "read"
-        changes = {
-            "read": ("read", 1),
-            "unread": ("read", 0),
-            "archive": ("archived", 1),
-            "restore": ("archived", 0),
-            "later": ("snoozed", time.time() + 3600),
-            "now": ("snoozed", 0),
-        }
-        if action not in changes:
-            raise ValueError("Invalid notification action")
-        field, value = changes[action]
-        db.execute(
-            "UPDATE notifications SET " + field + "=? WHERE id=?", (value, identity)
-        )
-        if action == "archive" and row["scope"] == "local":
-            db.execute(
-                "UPDATE notifications SET updated=? WHERE id=?", (time.time(), identity)
-            )
-        if action == "later":
-            db.execute("UPDATE notifications SET read=0 WHERE id=?", (identity,))
+    row = db.execute(
+        "SELECT * FROM notifications WHERE id=?", (identity,)
+    ).fetchone()
+    if not row:
+        raise ValueError("Notification no longer available")
+    if row["scope"] not in active_scopes(db):
+        raise ValueError("Server connection no longer available")
+    if action == "discuss" and row["scope"]=="local":
+        raise ValueError("Local discussions use the native selected-message action")
+    if action in ("open","discuss"):
+        target = row["target"]
         if row["scope"] != "local":
-            import uuid
-            from datetime import datetime, timezone
+            from urllib.parse import urlencode
+            from uuid import UUID
 
-            queued = db.execute(
-                "SELECT changes,revision FROM outbox WHERE id=?", (identity,)
+            binding = db.execute(
+                "SELECT server FROM bindings WHERE scope=?", (row["scope"],)
             ).fetchone()
-            fields = json.loads(queued["changes"]) if queued else {}
-            if action == "later":
-                fields["read"] = False
-            fields["snoozed_until" if field == "snoozed" else field] = (
-                (
-                    datetime.fromtimestamp(value, timezone.utc).isoformat()
-                    if value
-                    else None
-                )
-                if field == "snoozed"
-                else bool(value)
+            route={"app":"notifications","notice":str(int(row["external_id"])),"action":"discuss" if action=="discuss" else "review"}
+            subprocess.Popen(
+                [
+                    "xdg-open",
+                    binding["server"] + "/?" + urlencode(route),
+                ],
+                start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
-            db.execute(
-                "INSERT OR REPLACE INTO outbox VALUES (?,?,?,?)",
-                (
-                    identity,
-                    json.dumps(fields),
-                    queued["revision"] if queued else row["state_revision"],
-                    uuid.uuid4().hex,
-                ),
+        elif target.startswith('local-task:'):
+            from lumen_panel import valid_task
+            from lumen_store import Store
+            from lumen_detail_routes import open_tasks
+            task_identity=valid_task(target.removeprefix('local-task:'))
+            Store().task(task_identity)
+            open_tasks(task_identity)
+        elif target.startswith('transfer:'):
+            from files_activation import open_transfer
+            open_transfer(target.removeprefix('transfer:'))
+        elif target in (
+            "app:files",
+            "app:drive",
+            "app:wissen",
+            "app:vault",
+            "app:backups",
+            "app:updater",
+            "app:system",
+            "app:settings",
+        ):
+            from lumen_launch import executable
+
+            name, args = {
+                "app:drive": ("files", ["lumen-drive://"]),
+                "app:settings": ("settings", ["--sync"]),
+                "app:backups": ("vault", ["--backups"]),
+            }.get(target, (target[4:], []))
+            subprocess.Popen(
+                [executable("lumen-" + name), *args],
+                start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
+        elif target.startswith("lumen:"):
+            from interop_open import open_url
+
+            open_url(target)
+        else:
+            raise ValueError("Notification has no local target")
+        action = "read"
+    changes = {
+        "read": ("read", 1),
+        "unread": ("read", 0),
+        "archive": ("archived", 1),
+        "restore": ("archived", 0),
+        "later": ("snoozed", time.time() + 3600),
+        "now": ("snoozed", 0),
+        "resolve": ("resolved", 1),
+        "reopen": ("resolved", 0),
+    }
+    if action not in changes:
+        raise ValueError("Invalid notification action")
+    if action in ("resolve","reopen") and (not row["completion_supported"] or row["kind"]=="decision"):
+        raise ValueError("Please review this request at its source")
+    field, value = changes[action]
+    db.execute(
+        "UPDATE notifications SET " + field + "=? WHERE id=?", (value, identity)
+    )
+    if action == "archive" and row["scope"] == "local":
+        db.execute(
+            "UPDATE notifications SET updated=? WHERE id=?", (time.time(), identity)
+        )
+    if action == "resolve":
+        db.execute("UPDATE notifications SET read=1 WHERE id=?", (identity,))
+    if action == "later":
+        db.execute("UPDATE notifications SET read=0 WHERE id=?", (identity,))
+    if row["scope"] != "local":
+        import uuid
+        from datetime import datetime, timezone
+
+        queued = db.execute(
+            "SELECT changes,revision FROM outbox WHERE id=?", (identity,)
+        ).fetchone()
+        fields = json.loads(queued["changes"]) if queued else {}
+        if action == "resolve":
+            fields["read"] = True
+        if action == "later":
+            fields["read"] = False
+        fields["snoozed_until" if field == "snoozed" else field] = (
+            (
+                datetime.fromtimestamp(value, timezone.utc).isoformat()
+                if value
+                else None
+            )
+            if field == "snoozed"
+            else bool(value)
+        )
+        db.execute(
+            "INSERT OR REPLACE INTO outbox VALUES (?,?,?,?)",
+            (
+                identity,
+                json.dumps(fields),
+                queued["revision"] if queued else row["state_revision"],
+                uuid.uuid4().hex,
+            ),
+        )
 
 
 def active_scopes(db):
@@ -379,6 +411,7 @@ def report(source, key, bad, title, body="", target="", path=None):
             body,
             target=target,
             attention=bad,
+            kind="problem" if bad else "result",
             revision=revision,
             path=path,
         )
@@ -414,7 +447,7 @@ def remind(title, due, key, path=None):
         raise ValueError(
             "Reminder requires a future time with a timezone (within one year)"
         )
-    identity = publish("Lumen", key, title, popup=False, path=path)
+    identity = publish("Lumen", key, title, kind="reminder", popup=False, path=path)
     with database(path) as db:
         row = db.execute(
             "SELECT title,snoozed FROM notifications WHERE id=?", (identity,)
@@ -434,8 +467,8 @@ def remind(title, due, key, path=None):
 
 def open_center():
     # Keep KDE's notification model in Plasma's process, where its full history lives.
-    script = """var found=false; panels().forEach(function(p){p.widgets().forEach(function(w){
-        if(!found && w.type==="org.lumen.control"){w.currentConfigGroup=["General"];
+    script = """var found=false; desktops().forEach(function(p){p.widgets().forEach(function(w){
+        if(!found && w.type==="org.lumen.notificationhost"){w.currentConfigGroup=["General"];
         w.writeConfig("notificationRequest",String(Date.now()));w.reloadConfig();found=true;}
     });}); print(found);"""
     result = subprocess.run(
@@ -452,7 +485,7 @@ def open_center():
         check=True,
     )
     if result.stdout.strip() != "true":
-        raise ValueError("Lumen Notification benötigt das Lumen-Panel in KDE Plasma.")
+        raise ValueError("Der Lumen-Mitteilungsdienst ist nicht eingerichtet.")
 
 
 def notification_options(changes=None):
@@ -472,12 +505,8 @@ def notification_options(changes=None):
             or any(type(v) is not bool for v in changes.values())
         ):
             raise ValueError("Choose native_popups and/or quiet_games as booleans")
-        if "native_popups" in changes and changes["native_popups"] != settings.value(
-            keys["native_popups"], True, type=bool
-        ):
-            configure_popups(changes["native_popups"])
-        if "quiet_games" in changes:
-            settings.setValue(keys["quiet_games"], changes["quiet_games"])
+        for name,value in changes.items():
+            settings.setValue(keys[name],value)
         settings.sync()
         if settings.status() != QSettings.NoError:
             raise ValueError("Notification settings could not be saved")
@@ -485,22 +514,23 @@ def notification_options(changes=None):
 
 
 def popup_context():
-    from lumen_hardware import activity
+    from lumen_hardware import gaming as game_active
     from PySide6.QtCore import QSettings
 
     settings = QSettings("Lumen", "Assistant")
-    gaming = settings.value("notifications/quietGames", True, type=bool) and bool(
-        {"Steam-Spiel", "GameMode-Spiel", "Gamescope-Sitzung"}.intersection(activity())
-    )
+    gaming = settings.value("notifications/quietGames", True, type=bool) and game_active()
+    from appearance_tokens import COLORS, DEFAULT_DESIGN, normalize_design
+    colors=COLORS.get(normalize_design(settings.value('appearance',DEFAULT_DESIGN)))
+    palette=dict(zip(('window','content','hover','text','button','border','muted','accent','onAccent'),colors)) if colors else None
     return {
+        "palette": palette,
         "gaming": gaming,
         "native": settings.value("notifications/nativePopups", True, type=bool),
     }
 
 
 def configure_popups(enabled=True):
-    """Switch only the notification applet; keep KDE's shared model/receiver."""
-    from PySide6.QtCore import QSettings
+    """Reserve KDE's popup frontend for Lumen; false is uninstall recovery only."""
 
     backup = location().with_name("notification-trays.json")
     backup.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -530,7 +560,7 @@ function items(w){w.currentConfigGroup=["General"];return String(w.readConfig("e
         changed = evaluate(
             base
             + """
-if(!panels().some(p=>p.widgets().some(w=>w.type==="org.lumen.control"))) throw Error("Lumen panel missing");
+if(!desktops().some(p=>p.widgets().some(w=>w.type==="org.lumen.notificationhost"))) throw Error("Lumen notification host missing");
 print(JSON.stringify(trays.filter(w=>items(w).includes(plugin)).map(w=>w.id)));"""
         )
         saved = sorted(set(saved + changed))
@@ -553,15 +583,15 @@ print(JSON.stringify(trays.filter(w=>items(w).includes(plugin)).map(w=>w.id)));"
             + json.dumps(saved)
             + ';trays.forEach(w=>{const before=items(w);if(saved.includes(w.id)&&!before.includes(plugin)){before.push(plugin);w.writeConfig("extraItems",before);w.reloadConfig();}});print("true");'
         )
-    settings = QSettings("Lumen", "Assistant")
-    settings.setValue("notifications/nativePopups", enabled)
-    settings.sync()
 
 
 if __name__ == "__main__":
     import sys
 
-    if "--restore-kde" in sys.argv:
+    if "--uninstall" in sys.argv:
         configure_popups(False)
+        subprocess.run(['qdbus6','org.kde.plasmashell','/PlasmaShell','org.kde.PlasmaShell.evaluateScript',
+            'desktops().forEach(d=>d.widgets().filter(w=>w.type==="org.lumen.notificationhost").forEach(w=>w.remove()));'],
+            check=True,capture_output=True,text=True,timeout=10)
     else:
         open_center()

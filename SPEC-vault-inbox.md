@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Regulärer Vault und Inbox sind Server-Apps. Lokale Sicherungen gehören zu Lumen System; der native Zugangsdaten-Broker ist eine separate Vorabversion. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](docs/desktop-retirement.md).
+
 # Lumen Vault und Inbox
 
 Angenommener Auftrag: zwei eigenständige native Apps; Vault zuerst, Inbox mit

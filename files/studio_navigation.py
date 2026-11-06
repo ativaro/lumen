@@ -1,10 +1,11 @@
 """Stable navigation with directly accessible conversation history."""
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QListWidget,
-    QListWidgetItem, QMenu)
+    QListWidgetItem)
 from lumen_i18n import tr
 from preview import label
 from studio_design import icon, surface
+from desktop_design import NAV_WIDTH
 
 
 class StudioNavigation(QWidget):
@@ -12,13 +13,11 @@ class StudioNavigation(QWidget):
         super().__init__(window)
         self.session_limit = 5; self.sessions = []; self.session_directory = window.chat.backend.directory
         self.window = window; self.setObjectName('studioNavigation'); surface(self)
-        self.setMinimumWidth(200); self.setMaximumWidth(420)
+        self.setMinimumWidth(NAV_WIDTH); self.setMaximumWidth(420)
         self.root = QVBoxLayout(self); self.root.setContentsMargins(16, 20, 16, 12); self.root.setSpacing(6)
         self.create = self.entry(tr('Neues Gespräch'), 'list-add', self.new_chat)
         self.create.setObjectName('studioNewChat'); self.root.addWidget(self.create); self.root.addSpacing(12)
         self.buttons = {}
-        conversations = self.entry(tr('Gespräche'), 'dialog-messages', lambda: self.navigate(0))
-        conversations.setCheckable(True); self.buttons[0] = conversations; self.root.addWidget(conversations)
         self.history = QWidget(); box = QVBoxLayout(self.history); box.setContentsMargins(0, 0, 0, 0)
         box.addWidget(label(tr('Letzte Gespräche'), 'studioEyebrow'))
         self.recent = QListWidget(); self.recent.setObjectName('studioRecent'); self.recent.setSpacing(2)
@@ -39,15 +38,6 @@ class StudioNavigation(QWidget):
         self.root.addWidget(self.diagnostics); self.diagnostics.hide()
         self.maintenance.toggled.connect(self.diagnostics.setVisible)
         self.maintenance.toggled.connect(lambda opened: self.maintenance.setIcon(icon('go-down' if opened else 'go-next')))
-        menu = QMenu(self)
-        for index, title in [(3, tr('Dateien')), (5, tr('Notes')), (6, tr('Abläufe')), (7, tr('Modelle')), (9, tr('Apps'))]:
-            menu.addAction(title, lambda i=index: self.navigate(i))
-        menu.addAction(tr('Persönlich'), lambda: self.navigate(8))
-        menu.addSeparator(); menu.addAction(tr('Ordner wählen'), window.choose_directory)
-        menu.addAction(tr('Einstellungen'), window.show_settings)
-        self.account = self.entry(tr('Lumen-Menü'), 'view-more-symbolic', lambda: None); self.account.setMenu(menu)
-        self.account.setObjectName('studioAccount'); self.root.addWidget(self.account)
-        self.account_hint = label(tr('Auf diesem Desktop'), 'studioEyebrow'); self.root.addWidget(self.account_hint)
         backend = window.chat.backend
         backend.sessionsChanged.connect(self.set_sessions); backend.sessionChanged.connect(self.select_session)
         backend.busyChanged.connect(lambda busy: self.recent.setEnabled(not busy))

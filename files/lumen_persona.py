@@ -1,5 +1,6 @@
 """Validated local persona preferences; no permissions, memory or model settings."""
 import json
+import hashlib
 from lumen_i18n import tr
 
 PRESETS = {
@@ -59,11 +60,61 @@ def save(settings, value):
     settings.setValue('personaProfile', json.dumps(normalize(value), ensure_ascii=False)); settings.sync()
 
 
-def effective(settings, override=''):
-    value = load(settings)
+def effective(settings, override='', profile=None):
+    value = normalize(profile) if profile is not None else load(settings)
     if override in PRESETS:
         value.update(PRESETS[override][2]); value['preset'] = override
     return value
+
+
+def binding(settings):
+    import lumen_connect
+    settings.sync()
+    try:config=lumen_connect.read_config()
+    except FileNotFoundError:config=None
+    override=settings.value('personaLocalOverride',False,type=bool)
+    local=hashlib.sha256(json.dumps(load(settings),sort_keys=True).encode()).hexdigest() if not config or override else ''
+    return config,dict(connection=lumen_connect.connection_scope(config) if config else '',override=override,local=local)
+
+
+def account(config):
+    import lumen_connect
+    result=lumen_connect.request(config,'/bridge/persona',timeout=3)
+    profile=result['profile']
+    if (not isinstance(profile,dict) or set(profile)!=set(DEFAULT) or normalize(profile)!=profile
+            or type(result.get('revision')) is not int or result['revision']<0):
+        raise ValueError('Invalid account persona')
+    if lumen_connect.read_config()!=config:raise ValueError('Persona account changed')
+    return result
+
+
+def account_worker(job,config):
+    import sys
+    from pathlib import Path
+    return json.loads(job.command([sys.executable,str(Path(__file__))],data=json.dumps(config).encode(),timeout=5,max_output=10000))
+
+
+def prepare(backend,choice,done):
+    """Fresh account defaults, even with memory off; local deviation is explicit."""
+    from lumen_jobs import Job
+    config,scope=binding(backend.settings)
+    def ready(profile,revision):
+        done(effective(backend.settings,choice,profile),dict(binding=scope,revision=revision,choice=choice))
+    if not config or scope['override']:
+        ready(load(backend.settings),0);return
+    generation,message=backend.generation,backend.message_id
+    job=Job(lambda job:account_worker(job,config),backend);backend.persona_jobs.add(job);results=[]
+    job.result.connect(results.append)
+    def finished():
+        backend.persona_jobs.discard(job);job.deleteLater()
+        if job.cancelled.is_set() or generation!=backend.generation or message!=backend.message_id or not backend.busy:return
+        try:
+            if binding(backend.settings)[1]!=scope:raise ValueError('Persona account changed')
+        except (OSError,ValueError):
+            backend.fail(tr('Persona- oder Serverbindung geändert. Bitte erneut senden.'));return
+        if results:ready(results[0]['profile'],results[0]['revision'])
+        else:ready(DEFAULT,-1)
+    job.finished.connect(finished);job.start()
 
 
 def instruction(value):
@@ -99,3 +150,10 @@ def preview(value):
     if value['length'] == 'detailed': result += ' ' + tr('Ich erkläre die Ergebnisse und den nächsten sinnvollen Schritt.')
     if value['closeness'] == 'personal' and value['user_name']: result = value['user_name'] + ', ' + result
     return result
+
+
+if __name__=='__main__':
+    import sys
+    try:print(json.dumps(account(json.load(sys.stdin)),ensure_ascii=False))
+    except Exception:
+        print('Account persona unavailable',file=sys.stderr);sys.exit(1)

@@ -116,10 +116,12 @@ def present(args):
     return validate(dict(args,kind=KIND,id=uuid.uuid4().hex),check_files=True)
 
 
-def from_messages(messages, include_files=False):
-    for message in reversed(messages):
+def _located_result(messages, include_files=False):
+    for index in range(len(messages)-1, -1, -1):
+        message = messages[index]
         if message.get('info',{}).get('role')!='assistant': continue
-        for part in reversed(message.get('parts',[])):
+        for part_index in range(len(message.get('parts', []))-1, -1, -1):
+            part = message['parts'][part_index]
             tool=part.get('tool',''); state=part.get('state',{})
             if part.get('type')!='tool' or not isinstance(tool,str): continue
             files = include_files and (tool=='lumen_present_files' or tool.endswith('_lumen_present_files'))
@@ -134,6 +136,28 @@ def from_messages(messages, include_files=False):
                     value=dict(kind=KIND,id=value['id'],title=value['title'],blocks=[
                         dict(id='files'+str(i),type='files',label='',paths=value['paths'][i:i+24])
                         for i in range(0,len(value['paths']),24)])
-                return validate(value)
+                return index, part_index, validate(value)
             except (ValueError,TypeError):continue
     return None
+
+
+def from_messages(messages, include_files=False):
+    result = _located_result(messages, include_files)
+    return result[2] if result else None
+
+
+def display_messages(messages, include_files=False):
+    """Anchor the current interactive result between the text parts that produced it."""
+    location = _located_result(messages, include_files)
+    rows = []
+    for index, message in enumerate(messages):
+        info = message.get('info', {})
+        if location is None or index != location[0]:
+            rows.append(dict(info=info, parts=message.get('parts', [])))
+            continue
+        cut = location[1]; parts = message['parts']; key = str(info.get('id', index))
+        if parts[:cut]: rows.append(dict(info=info, parts=parts[:cut]))
+        rows.append(dict(info=dict(info, id=key+':view:'+str(cut)), parts=[], presentation=True))
+        if parts[cut+1:]:
+            rows.append(dict(info=dict(info, id=key+':after:'+str(cut)), parts=parts[cut+1:]))
+    return rows

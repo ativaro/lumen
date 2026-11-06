@@ -10,7 +10,9 @@ import time
 
 CONFIG = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config')))
 SHORTCUTS = {
+    'lumen-apps.desktop': tr('Lumen Startmenü'),
     'lumen-ask.desktop': tr('Lumen öffnen'),
+    'lumen-toggle.desktop': tr('Lumen ein-/ausblenden'),
     'lumen-ask-sel.desktop': tr('Zwischenablage erklären'),
     'lumen-sel.desktop': tr('Auswahl erklären'),
     'lumen-vision.desktop': tr('Bildschirm erklären'),
@@ -141,6 +143,66 @@ def set_shortcut(data, journal=True):
         record(Store(), SHORTCUTS[data['component']] + tr(': Tastenkürzel geändert'),
                'shortcut' if len(previous) <= 1 else 'activity', previous, result, data['component'])
     return result
+
+
+def _apply_launch_shortcuts(accel, rows):
+    import dbus
+    # Release only these launch keys before assigning their new owners.
+    for row in rows:
+        accel.doRegister(dbus.Array(row['action'], signature='s'))
+        accel.setShortcut(dbus.Array(row['action'], signature='s'), dbus.Array([], signature='i'), dbus.UInt32(6))
+    for row in rows:
+        # NoAutoloading | SetPresent also activates a newly registered launcher.
+        result = accel.setShortcut(dbus.Array(row['action'], signature='s'), dbus.Array(row['keys'], signature='i'), dbus.UInt32(6))
+        if sorted(map(int, result)) != sorted(row['keys']):
+            raise RuntimeError(tr('KDE hat die Start-Tastenkürzel nicht übernommen.'))
+
+
+def restore_launch_shortcuts(saved):
+    _apply_launch_shortcuts(accelerator(), saved['actions'])
+    command = ['kwriteconfig6', '--file', 'kwinrc', '--group', 'ModifierOnlyShortcuts', '--key', 'Meta']
+    run(command + ([saved['meta']] if saved['meta'] else ['--delete']))
+
+
+def launch_shortcuts_plan():
+    from PySide6.QtGui import QKeySequence
+    accel = accelerator()
+    targets = {'Meta': ('lumen-apps.desktop', tr('Lumen Startmenü')),
+               'Alt+Space': ('lumen-ask.desktop', tr('Lumen öffnen'))}
+    keys = {text: QKeySequence(text)[0].toCombined() for text in targets}
+    rows = {}
+    for text, (component, title) in targets.items():
+        owners = accel.getGlobalShortcutsByKey(keys[text])
+        allowed = {(component, '_launch'), ('lumen-toggle.desktop', '_launch') if text == 'Meta'
+                   else ('org.kde.krunner.desktop', '_launch')}
+        if text == 'Meta': allowed.add(('plasmashell', 'activate application launcher'))
+        for owner in owners:
+            identity = (str(owner[2]), str(owner[0]))
+            if identity not in allowed:
+                raise ValueError(tr('Das Start-Tastenkürzel ist anderweitig belegt: ') + text)
+            action = [identity[0], identity[1], str(owner[3]), str(owner[1])]
+            rows[identity] = dict(action=action, keys=list(map(int, accel.shortcut(action))))
+        action = [component, '_launch', title, title]
+        rows.setdefault((component, '_launch'), dict(action=action, keys=list(map(int, accel.shortcut(action)))))
+    saved = dict(actions=list(rows.values()), meta=run(['kreadconfig6', '--file', 'kwinrc', '--group',
+                 'ModifierOnlyShortcuts', '--key', 'Meta', '--default', '']))
+    desired = {identity: dict(action=row['action'], keys=[k for k in row['keys'] if k not in keys.values()]) for identity, row in rows.items()}
+    for text, (component, _) in targets.items(): desired[(component, '_launch')]['keys'].append(keys[text])
+    return {'before': saved, 'actions': list(desired.values())}
+
+
+def configure_launch_shortcuts():
+    plan = launch_shortcuts_plan(); saved = plan['before']
+    path = backup('launch-shortcuts', saved)
+    try:
+        refresh_shortcuts({})
+        _apply_launch_shortcuts(accelerator(), plan['actions'])
+        if saved['meta'] == 'org.lumen.Topbar,/Topbar,org.lumen.Topbar,ShowApps':
+            run(['kwriteconfig6', '--file', 'kwinrc', '--group', 'ModifierOnlyShortcuts', '--key', 'Meta', '--delete'])
+    except Exception:
+        restore_launch_shortcuts(saved)
+        raise
+    return {'backup': str(path), 'actions': plan['actions']}
 
 
 def unit_state(scope, unit):

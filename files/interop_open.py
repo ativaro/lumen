@@ -26,6 +26,17 @@ def open_url(url,root=None):
     if parts.scheme=='lumen' and parts.netloc=='handoff' and TOKEN.fullmatch(parts.path[1:]) and not parts.query and not parts.fragment:
         request=registry.request(parts.path[1:]);launch(request['target'],['--handoff',request['id']],root);return
     ref=registry.resolve(url)
+    if ref.get('version')==2:
+        target={'note':'wissen','projects':'workbench','code':'code','media':'meetings','inbox':'inbox'}.get(ref['app'])
+        if not target:raise ValueError(tr('Diesen Serververweis in der zugehörigen Server-App öffnen.'))
+        launch(target,['--ref',url],root);return
+    if ref['app']=='wissen' and ref.get('locator',{}).get('area')=='lumen':
+        path=ref.get('path') or str(Path(ref['locator']['root'])/ref['id'])
+        launch('wissen',[path,'--area','lumen'],root);return
+    if ref['app']=='code':
+        launch('code',['--entry',ref['id']],root);return
+    if ref.get('kind') in ('drive_file','drive_folder'):
+        launch('files',['--ref',url],root);return
     launch(ref['app'],['--ref',url] if ref['app']!='files' else [ref.get('path',ref['id']),'--select'],root)
 
 
@@ -142,6 +153,9 @@ def focus_part(window,position):
             for item in window.projects.items(window.current)+window.projects.items(window.current,archived=True):
                 if item.get('legacy_question')==index and item.get('legacy_text')==listing.item(index).text():
                     listing.setCurrentRow(index);window.open_scope(item['id']);return
+        if kind=='resource' and hasattr(window,'journal'):
+            window.tabs.setCurrentIndex(1);listing.setCurrentRow(index)
+            window.journal.focus_material(index);return
         window.tabs.setCurrentIndex(1 if kind=='resource' else 0);listing.setCurrentRow(index);listing.scrollToItem(listing.currentItem());return
     if app=='household' and kind=='attachment':
         for index in range(window.attachments.count()):

@@ -9,8 +9,8 @@ from urllib.parse import parse_qs, urlencode, urlsplit
 from lumen_i18n import tr
 from tools_data import Library
 
-APPS = frozenset(('files','wissen','reader','inbox','meetings','household','workbench','radio','vault','sound','translate'))
-KINDS = frozenset(('record','note','message','task','event','file','draft','collection'))
+APPS = frozenset(('files','wissen','reader','inbox','meetings','household','workbench','radio','vault','sound','translate','code'))
+KINDS = frozenset(('record','note','message','task','event','file','draft','collection','drive_file','drive_folder'))
 TOKEN = re.compile(r'[a-f0-9]{32}\Z')
 
 
@@ -21,9 +21,15 @@ def _text(value, limit=4096):
 
 
 def validate_ref(ref):
+    if isinstance(ref,dict) and 'version' in ref:
+        from server_app_links import validate_ref as server_ref
+        return server_ref(ref)
     if not isinstance(ref,dict) or set(ref)-{'app','kind','id','title','path','position','locator'}:
         raise ValueError(tr('Ungültiger Lumen-Verweis.'))
     value=dict(ref)
+    if value.get('kind') in ('drive_file','drive_folder'):
+        from drive_references import validate
+        return validate(value)
     if value.get('app') not in APPS or value.get('kind','record') not in KINDS:
         raise ValueError(tr('Unbekannte Lumen-Anwendung.'))
     value.setdefault('kind','record')
@@ -47,21 +53,26 @@ def validate_ref(ref):
 
 
 def validate_payload(payload):
-    if not isinstance(payload,dict) or set(payload)-{'title','text','paths','source','source_url','url','items'}:
+    if not isinstance(payload,dict) or set(payload)-{'title','text','paths','source','source_url','url','items','references'}:
         raise ValueError(tr('Ungültige Übergabe.'))
     _text(payload.get('title',''),1000);_text(payload.get('text',''),120000)
     paths=payload.get('paths',[])
-    if not isinstance(paths,list) or len(paths)>100:raise ValueError(tr('Höchstens 100 Dateien gleichzeitig übergeben.'))
+    if not isinstance(paths,list):raise ValueError(tr('Ungültige Übergabeauswahl.'))
     for path in paths:
         _text(path)
         if not Path(path).is_absolute():raise ValueError(tr('Ein absoluter Dateipfad ist erforderlich.'))
     if payload.get('source'):validate_ref(payload['source'])
+    if 'references' in payload:
+        from drive_references import validate
+        if not isinstance(payload['references'],list) or not payload['references'] or paths:
+            raise ValueError(tr('Ungültige Drive-Auswahl.'))
+        for ref in payload['references']:validate(ref)
     if payload.get('source_url'):_text(payload['source_url'])
     if payload.get('url'):
         from tools_data import web_url
         web_url(payload['url'])
     items=payload.get('items',[])
-    if not isinstance(items,list) or len(items)>1000 or any(not isinstance(x,dict) for x in items):raise ValueError(tr('Ungültige Übergabeauswahl.'))
+    if not isinstance(items,list) or any(not isinstance(x,dict) for x in items):raise ValueError(tr('Ungültige Übergabeauswahl.'))
     encoded=json.dumps(payload,ensure_ascii=False,allow_nan=False)
     if len(encoded.encode())>512*1024:raise ValueError(tr('Übergabe zu groß. Bitte eine kleinere Auswahl treffen.'))
     return json.loads(encoded)
@@ -84,6 +95,9 @@ def base_url(url):
 
 
 def _identity(ref):
+    if ref.get('version')==2:
+        from server_app_links import identity
+        return hashlib.sha256(json.dumps(['server-v2',identity(ref)],sort_keys=True).encode()).hexdigest()
     # UI areas and positions describe a view, not a different underlying object.
     locator={key:value for key,value in ref.get('locator',{}).items() if key!='area' and value}
     value=dict(app=ref['app'],kind=ref.get('kind','record'),id=ref['id'],locator=locator)
@@ -121,7 +135,9 @@ class Registry:
         with self.library.connect() as db:row=db.execute('SELECT data FROM objects WHERE id=?',(key,)).fetchone()
         if row is None:raise ValueError(tr('Dieser Lumen-Verweis ist hier nicht bekannt.'))
         value=validate_ref(json.loads(row['data']))
-        if position:value['position']=position
+        if position:
+            if value.get('version')==2:raise ValueError(tr('Serververweise haben keine lokale Fundstelle.'))
+            value['position']=position
         return value
 
     def link(self,source,target,relation='reference'):
@@ -158,12 +174,13 @@ class Registry:
 
     def search(self,query,limit=60):
         _text(query,1000);limit=max(1,min(int(limit),200))
+        current="NOT (json_extract(o.data,'$.app')='wissen' AND coalesce(json_extract(o.data,'$.locator.area'),'user')<>'lumen')"
         with self.library.connect() as db:
             if query.startswith('#'):
-                rows=db.execute('SELECT o.* FROM objects o JOIN tags t ON o.id=t.object WHERE lower(t.tag)=lower(?) ORDER BY o.updated DESC LIMIT ?',(query[1:],limit)).fetchall()
+                rows=db.execute('SELECT o.* FROM objects o JOIN tags t ON o.id=t.object WHERE lower(t.tag)=lower(?) AND '+current+' ORDER BY o.updated DESC LIMIT ?',(query[1:],limit)).fetchall()
             else:
                 needle='%'+query.replace('\\','\\\\').replace('%','\\%').replace('_','\\_')+'%'
-                rows=db.execute("SELECT o.* FROM objects o LEFT JOIN search_text t ON t.object=o.id WHERE (o.data LIKE ? ESCAPE '\\' OR t.text LIKE ? ESCAPE '\\') ORDER BY o.updated DESC LIMIT ?",(needle,needle,limit)).fetchall()
+                rows=db.execute("SELECT o.* FROM objects o LEFT JOIN search_text t ON t.object=o.id WHERE (o.data LIKE ? ESCAPE '\\' OR t.text LIKE ? ESCAPE '\\') AND "+current+" ORDER BY o.updated DESC LIMIT ?",(needle,needle,limit)).fetchall()
         return [dict(json.loads(r['data']),url='lumen://object/'+r['id']) for r in rows]
 
     def relocate(self,old,new):

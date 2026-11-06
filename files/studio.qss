@@ -1,12 +1,12 @@
 /* Studio layout inherits the active Lumen / KDE palette. */
-QWidget#studioWorkbench, QWidget#studioNavigation, QWidget#taskOverview, QWidget#studioSavedResults { font-family: "DM Sans 9pt"; font-size: 13px; }
-QWidget#studioNavigation { background: palette(window); color: palette(placeholder-text); border: none; }
+QWidget#studioWorkbench, QWidget#studioNavigation, QWidget#taskOverview, QWidget#studioSavedResults { font-size: 14px; }
+QWidget#studioNavigation { background: palette(window); color: palette(placeholder-text); border: none; border-right: 1px solid palette(mid); }
 QLabel#studioMark { background: palette(highlight); color: palette(highlighted-text); border-radius: 8px; font-size: 24px; font-weight: 600; }
 QLabel#studioBrand { font-size: 23px; font-weight: 500; color: palette(text); background: transparent; }
-QPushButton#studioNav, QPushButton#studioAccount { text-align: left; background: transparent; color: palette(placeholder-text); border: 1px solid transparent; border-radius: 8px; padding: 0 9px; min-height: 36px; font-size: 13px; }
+QPushButton#studioNav, QPushButton#studioAccount { text-align: left; background: transparent; color: palette(placeholder-text); border: 1px solid transparent; border-radius: 8px; padding: 0 9px; min-height: 36px; font-size: 14px; }
 QPushButton#studioNav:hover, QPushButton#studioAccount:hover { background: palette(midlight); }
 QPushButton#studioNav:checked { background: palette(midlight); color: palette(text); }
-QPushButton#studioNewChat { background: transparent; color: palette(text); border: 1px solid palette(mid); border-radius: 8px; min-height: 40px; padding: 0 8px; font-size: 13px; text-align: left; }
+QPushButton#studioNewChat { background: transparent; color: palette(text); border: 1px solid palette(mid); border-radius: 8px; min-height: 40px; padding: 0 8px; font-size: 14px; text-align: left; }
 QPushButton#studioNewChat:hover { background: palette(midlight); }
 QPushButton#studioAccount { font-size: 11px; }
 QPushButton#studioNav::menu-indicator, QPushButton#studioAccount::menu-indicator, QPushButton#studioIcon::menu-indicator, QPushButton#taskMore::menu-indicator { image: none; width: 0; }
@@ -104,11 +104,5 @@ QPushButton#studioNav:focus, QPushButton#studioIcon:focus, QPushButton#studioNew
 QWidget#studioSavedResults { background: palette(window); color: palette(text); }
 QTextBrowser#savedResultPreview { color: palette(text); background: palette(base); border: 1px solid palette(mid); border-radius: 8px; padding: 22px; }
 
-/* Panorama: visible workspaces and flat, equal work surfaces. */
-QFrame#studioWorkspaceBar { background: palette(base); border: none; border-bottom: 1px solid palette(mid); }
-QScrollArea#studioWorkspaceScroll, QWidget#studioWorkspaceList { background: transparent; border: none; }
-QPushButton#studioWorkspace { background: transparent; color: palette(text); border: 1px solid transparent; border-radius: 7px; padding: 10px 16px; text-align: left; font-size: 13px; }
-QPushButton#studioWorkspace:hover, QPushButton#studioWorkspace:checked { background: palette(midlight); border-color: palette(mid); }
-QPushButton#studioWorkspace:focus { border-color: palette(highlight); }
-QPushButton#studioNav:disabled, QPushButton#studioWorkspace:disabled { color: palette(placeholder-text); }
+QPushButton#studioNav:disabled { color: palette(placeholder-text); }
 QListWidget#studioRecent::item:focus { border: 1px solid palette(highlight); }

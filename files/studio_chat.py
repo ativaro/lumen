@@ -6,6 +6,7 @@ from assistant import ChatPanel
 from lumen_i18n import tr
 from preview import label
 from studio_design import surface, icon
+from desktop_design import PAGE_MARGIN, PAGE_SPACING
 
 
 def clear_layout(layout, parking):
@@ -37,9 +38,9 @@ class StudioChat(ChatPanel):
         self.backend.messagesChanged.connect(self.update_results)
         self.parking = QWidget(self); self.parking.hide()
         root = self.layout(); clear_layout(root, self.parking)
-        root.setContentsMargins(18, 0, 18, 14); root.setSpacing(10)
+        root.setContentsMargins(PAGE_MARGIN, 0, PAGE_MARGIN, PAGE_SPACING); root.setSpacing(PAGE_SPACING)
         self.setObjectName('studioChat'); surface(self)
-        top = QHBoxLayout(); top.setContentsMargins(4, 0, 0, 0)
+        top = QHBoxLayout(); top.setContentsMargins(0, 0, 0, 0)
         caption = label(tr('Gespräch'), 'studioSection'); caption.setMinimumHeight(48); top.addWidget(caption, 1)
         self.execution.setMaximumWidth(160)
         self.preview_button = icon_button(tr('Ergebnis öffnen'), 'view-preview', self.previewRequested.emit)
@@ -94,7 +95,13 @@ class StudioChat(ChatPanel):
         self.mode.currentIndexChanged.connect(self.update_context)
         self.dont_ask.toggled.connect(self.update_context)
         root.addWidget(self.composer_surface)
-        footer = QHBoxLayout(); footer.addWidget(self.status, 1)
+        from lumen_halo import LumenHalo
+        self.work_mark = LumenHalo(self)
+        def update_halo(*_):
+            self.work_mark.setActive(self.backend.busy and not self.backend.permissions and not self.backend.questions)
+        self.backend.busyChanged.connect(update_halo)
+        self.backend.requestsChanged.connect(update_halo)
+        footer = QHBoxLayout(); footer.addWidget(self.work_mark); footer.addWidget(self.status, 1)
         self.pause_task = QPushButton(tr('Pausieren')); self.pause_task.clicked.connect(self.tracker.pause); footer.addWidget(self.pause_task)
         self.open_task = QPushButton(tr('Auftrag')); self.open_task.clicked.connect(lambda: self.taskRequested.emit(self.tracker.task_id)); footer.addWidget(self.open_task)
         footer.addWidget(self.stop); footer.addWidget(self.close_action)
@@ -105,8 +112,11 @@ class StudioChat(ChatPanel):
                 (tr('Merk dir das'), self.remember_button), (tr('Als Dateiaktion speichern …'), self.save_file_action)]:
             action = self.output_menu.addAction(title, control.click)
             self.output_menu.aboutToShow.connect(lambda a=action, c=control: a.setEnabled(c.isEnabled() and bool(self.last_answer) and (c is not self.save_file_action or not c.isHidden())))
+        from lumen_detail_routes import launch
+        self.save_tool_action = self.output_menu.addAction(tr('Als Werkzeug speichern'), lambda: launch('lumen-code', ['--save-task', self.tracker.task_id]))
+        self.output_menu.aboutToShow.connect(lambda: self.save_tool_action.setEnabled(bool(self.tracker.task_id) and not self.backend.busy))
         from note_reviews import show_reviews
-        reviews = QPushButton(tr('Vorschläge & Verlauf'))
+        reviews = QPushButton(tr('Frühere Notizvorschläge'))
         reviews.clicked.connect(lambda: show_reviews(self)); footer.addWidget(reviews)
         self.teach_action = self.output_menu.addAction(tr('Als Lösungsweg lernen …'), lambda: teach(self))
         self.output_menu.aboutToShow.connect(lambda: self.teach_action.setEnabled(bool(self.last_answer) and not self.backend.busy and not self.memory_capture_job))
@@ -217,8 +227,4 @@ class StudioChat(ChatPanel):
         if not getattr(self, 'studio_ready', False):
             return super().position_messages(position, answer_index)
         self.transcript.entries(self.rendered, self.action)
-        from PySide6.QtCore import QTimer
-        def position_view():
-            target = self.transcript.rows[answer_index][0].y() if answer_index is not None and answer_index < len(self.transcript.rows) else position
-            self.transcript.verticalScrollBar().setValue(target)
-        QTimer.singleShot(0, self.transcript, position_view)
+        self.transcript.position_turn(position, answer_index)

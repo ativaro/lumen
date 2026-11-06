@@ -24,11 +24,12 @@ Pane {
     RowLayout {
         anchors.fill: parent; spacing: 0
         Rectangle {
-            Layout.fillHeight: true; Layout.preferredWidth: root.width < 1000 ? 178 : 218
+            objectName: 'systemNavigation'
+            Layout.fillHeight: true; Layout.preferredWidth: root.t.navWidth
             color: Qt.alpha(t.base,.62)
             Rectangle { anchors.right: parent.right; height: parent.height; width: 1; color: Qt.alpha(t.border,.32) }
             ColumnLayout {
-                anchors.fill: parent; anchors.margins: 18; spacing: 9
+                anchors.fill: parent; anchors.margins: root.t.pageMargin; spacing: 9
                 RowLayout {
                     Layout.topMargin: 15; Layout.bottomMargin: 30; spacing: 12
                     Rectangle {
@@ -53,7 +54,7 @@ Pane {
         ColumnLayout {
             Layout.fillHeight: true; Layout.fillWidth: true; spacing: 0
             RowLayout {
-                Layout.fillWidth: true; Layout.margins: 28; Layout.bottomMargin: 10
+                Layout.fillWidth: true; Layout.margins: root.t.pageMargin; Layout.bottomMargin: 10
                 Rectangle { width: 7; height: 7; radius: 4; color: controller.paused || d.stale ? t.muted : t.accent }
                 LabelText { text: d.status || ''; color: t.muted; font.pixelSize: 13; Layout.fillWidth: true; elide: Text.ElideRight }
                 SystemButton { objectName: 'retry'; visible: d.stale && !controller.paused; theme: root.t; text: root.tx('Erneut starten'); onClicked: controller.restart() }
@@ -65,14 +66,14 @@ Pane {
                 ColumnLayout {
                     width: scroll.availableWidth; spacing: 22
                     ColumnLayout {
-                        Layout.fillWidth: true; Layout.leftMargin: 32; Layout.rightMargin: 32; spacing: 9
-                        LabelText { text: page===0 ? root.tx('Dein System. Auf einen Blick.') : page===1 ? root.tx('Was beschäftigt deinen Rechner?') : root.tx('Deine Geräte. Alle Details.')
-                            font.pixelSize: root.width < 1050 ? 28 : 35; font.weight: Font.DemiBold; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                        Layout.fillWidth: true; Layout.leftMargin: root.t.pageMargin; Layout.rightMargin: root.t.pageMargin; spacing: 9
+                        LabelText { objectName: 'systemPageHeading'; text: page===0 ? root.tx('Dein System. Auf einen Blick.') : page===1 ? root.tx('Was beschäftigt deinen Rechner?') : root.tx('Deine Geräte. Alle Details.')
+                            font.pixelSize: root.t.headingSize; font.weight: Font.Medium; wrapMode: Text.WordWrap; Layout.fillWidth: true }
                         LabelText { text: page===0 ? root.tx('Leistung, Speicher und Aktivität – direkt von deinem Rechner.') : page===1 ? root.tx('Messwerte verstehen. Veränderungen erkennen.') : root.tx('Die Sensoren, die dein System bereitstellt.')
                             color: t.muted; wrapMode: Text.WordWrap; Layout.fillWidth: true; font.pixelSize: t.fontSize-1 }
                     }
                     ColumnLayout {
-                        visible: page===0; Layout.fillWidth: true; Layout.leftMargin: 32; Layout.rightMargin: 32; spacing: 22
+                        visible: page===0; Layout.fillWidth: true; Layout.leftMargin: root.t.pageMargin; Layout.rightMargin: root.t.pageMargin; spacing: 22
                         GridLayout {
                             columns: 2; columnSpacing: 16; rowSpacing: 16; Layout.fillWidth: true
                             Repeater { model: d.metrics || []
@@ -107,7 +108,7 @@ Pane {
                         }
                     }
                     ColumnLayout {
-                        visible: page===1; Layout.fillWidth: true; Layout.leftMargin: 32; Layout.rightMargin: 32; spacing: 18
+                        visible: page===1; Layout.fillWidth: true; Layout.leftMargin: root.t.pageMargin; Layout.rightMargin: root.t.pageMargin; spacing: 18
                         RowLayout {
                             LabelText { text: root.tx('Verlauf'); font.weight: Font.DemiBold; Layout.fillWidth: true }
                             Repeater { model: [{s:60,t:'1 min'},{s:900,t:'15 min'},{s:3600,t:'1 h'}]
@@ -193,7 +194,7 @@ Pane {
                         SystemButton { theme: root.t; primary: true; text: root.tx('Mit Lumen prüfen'); enabled: d.measured !== '—'; onClicked: controller.investigate() }
                     }
                     ColumnLayout {
-                        visible: page===2; Layout.fillWidth: true; Layout.leftMargin: 32; Layout.rightMargin: 32; spacing: 14
+                        visible: page===2; Layout.fillWidth: true; Layout.leftMargin: root.t.pageMargin; Layout.rightMargin: root.t.pageMargin; spacing: 14
                         LabelText { text: (d.cpuName || '—')+' · '+(d.cores || 0)+' '+root.tx('logische Kerne'); font.weight: Font.DemiBold; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                         LabelText { text: d.sensorStatus || ''; color: t.muted; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                         LabelText { text: root.tx('Temperaturen, Lüfter und Leistung hängen von Hardware und Treiber ab. Fehlende Werte sind keine Fehlerdiagnose.'); color: t.muted; Layout.fillWidth: true; wrapMode: Text.WordWrap; font.pixelSize: t.fontSize-2 }
@@ -220,7 +221,7 @@ Pane {
                 }
             }
             Rectangle { Layout.fillWidth: true; height: 1; color: Qt.alpha(t.border,.32) }
-            LabelText { Layout.margins: 20; Layout.leftMargin: 32; Layout.fillWidth: true; text: root.tx('Verlauf nur in dieser Sitzung · bis zu 1 Stunde · keine automatische KI-Analyse'); color: t.muted; font.pixelSize: 12; wrapMode: Text.WordWrap }
+            LabelText { Layout.margins: root.t.pageMargin; Layout.fillWidth: true; text: root.tx('Verlauf nur in dieser Sitzung · bis zu 1 Stunde · keine automatische KI-Analyse'); color: t.muted; font.pixelSize: 12; wrapMode: Text.WordWrap }
         }
     }
     property bool allProcesses: false

@@ -46,14 +46,14 @@ def relocate(old,new,root=None):
                 for item in db.execute('SELECT id,data FROM project_items').fetchall():
                     value=json.loads(item['data'])
                     for resource in value.get('resources',[]):
-                        if resource.get('kind')=='file':resource['target']=mapped(resource['target'],changes)
+                        if resource.get('kind') in ('file','folder'):resource['target']=mapped(resource['target'],changes)
                     value['interop_path_revision']=seq
                     db.execute('UPDATE project_items SET data=?,updated=? WHERE id=?',(json.dumps(value),time.time(),item['id']))
             for row in db.execute('SELECT id,data FROM records').fetchall():
                 value=json.loads(row['data']);before=json.dumps(value)
                 if app=='workbench':
                     for resource in value.get('resources',[]):
-                        if resource.get('kind')=='file':resource['target']=mapped(resource['target'],changes)
+                        if resource.get('kind') in ('file','folder'):resource['target']=mapped(resource['target'],changes)
                     for item in value.get('reading_list',[]):item['path']=mapped(item['path'],changes)
                     value['interop_path_revision']=seq
                 elif app=='household':
@@ -71,7 +71,7 @@ def update_window(window):
     if not changes:return
     for index in range(window.resources.count()):
         item=window.resources.item(index);value=item.data(Qt.UserRole)
-        if value.get('kind')=='file':
+        if value.get('kind') in ('file','folder'):
             value['target']=mapped(value['target'],changes)
             item.setData(Qt.UserRole,value);item.setText(value['title']+'\n'+value['target'])
     window.interop_path_revision=changes[-1]['seq']

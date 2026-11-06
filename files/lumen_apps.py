@@ -6,6 +6,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QLineEdit, QPushButton, QFrame, QScrollArea, QMessageBox)
 from lumen_i18n import tr
+from desktop_design import AppHeader, PAGE_MARGIN, PAGE_SPACING
 
 
 def catalogue(*, include_utilities=False):
@@ -14,7 +15,7 @@ def catalogue(*, include_utilities=False):
         ('files', 'Lumen Files', tr('Dateien, Netzwerkorte und Vorschauen'), 'system-file-manager'),
         ('search', tr('Lumen Suche'), tr('Apps und Dateien finden, mit Lumen sprechen'), 'system-search'),
         ('companion', 'Lumen Companion', tr('Hilfe im gewählten Fenster · Schritt für Schritt'), 'video-display'),
-        ('translate', 'Lumen Translate', tr('Übersetzen, umformulieren und korrigieren'), 'preferences-desktop-locale'),
+        ('translate', 'Lumen Compose', tr('Übersetzen, umformulieren und korrigieren'), 'preferences-desktop-locale'),
         ('wissen', tr('Lumen Notes'), tr('Deine Notizen, Sammlungen und Quellen'), 'accessories-text-editor'),
         ('inbox', 'Lumen Inbox', tr('Nachrichten und Kalender an einem Ort'), 'mail-unread'),
         ('notification', 'Lumen Notification', tr('Meldungen, Ergebnisse und Erinnerungen'), 'notifications'),
@@ -22,15 +23,18 @@ def catalogue(*, include_utilities=False):
         ('reader', 'Lumen Reader', tr('Lesen, markieren und vorlesen lassen'), 'application-pdf'),
         ('updater', 'Lumen Updater', tr('Lumen, Apps und Erweiterungen aktualisieren'), 'system-software-update'),
         ('system', 'Lumen System', tr('Geräte, Sound, Arbeitsmodi, Updates und Diagnose'), 'utilities-system-monitor'),
-        ('meetings', tr('Lumen Meeting & Radio'), tr('Aufnahmen, Transkripte und dein persönliches Hörprogramm'), 'audio-input-microphone'),
+        ('meetings', tr('Lumen Audio Studio'), tr('Aufnahmen, Transkripte und dein persönliches Hörprogramm'), 'audio-input-microphone'),
         ('household', tr('Lumen Digitaler Haushalt'), tr('Dokumente und Fristen im Blick behalten'), 'view-calendar'),
         ('workbench', tr('Lumen Projekte'), tr('Projekte und ihre nächsten Schritte organisieren'), 'folder-development'),
+        ('code', tr('Lumen Code & Automation'), tr('Werkzeuge, Automationen, Zeitpläne und Code-Projekte'), 'code-context'),
     ]
 
     return apps if include_utilities else [row for row in apps if row[0] not in ('search', 'updater', 'notification', 'companion', 'household', 'reader', 'translate')]
 
 
-COMPANIONS = ('translate', 'wissen', 'inbox', 'vault', 'reader', 'meetings', 'household', 'workbench', 'radio')
+COMPANIONS = ('translate', 'wissen', 'inbox', 'vault', 'reader', 'meetings', 'household', 'workbench', 'radio', 'code')
+from server_app_session import APP_NAMES
+SERVER_APPS = {desktop.removeprefix('lumen-'): kind for kind, (_, desktop) in APP_NAMES.items()}
 
 
 def startup_preference(app, key, settings=None):
@@ -69,21 +73,18 @@ def launch(app, *, area=None, page=None):
 class AppCenter(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        outer = QVBoxLayout(self); outer.setContentsMargins(24, 20, 24, 16); outer.setSpacing(16)
-        heading = QLabel('Lumen Apps'); heading.setObjectName('heading')
-        header = QHBoxLayout(); header.addWidget(heading, 1)
+        outer = QVBoxLayout(self); outer.setContentsMargins(PAGE_MARGIN, 20, PAGE_MARGIN, PAGE_SPACING); outer.setSpacing(PAGE_SPACING)
+        header = AppHeader('Lumen Apps', tr('Ein Zuhause für deine Lumen-Apps.'))
         self.notifications = QPushButton(QIcon.fromTheme('notifications'), tr('Meldungen'))
         self.notifications.clicked.connect(lambda: self.open('notification'))
-        header.addWidget(self.notifications); outer.addLayout(header)
-        subtitle = QLabel(tr('Ein Zuhause für deine Lumen-Apps.')); subtitle.setObjectName('muted'); outer.addWidget(subtitle)
+        header.actions.addWidget(self.notifications); outer.addWidget(header)
         self.search = QLineEdit(); self.search.setPlaceholderText(tr('App finden …')); self.search.setAccessibleName(tr('Lumen-Apps durchsuchen')); outer.addWidget(self.search)
         scroll = QScrollArea(); scroll.setWidgetResizable(True); scroll.setFrameShape(QFrame.NoFrame)
         content = QWidget(); self.grid = QGridLayout(content); self.grid.setContentsMargins(0, 0, 0, 0); self.grid.setSpacing(14)
         scroll.setWidget(content); outer.addWidget(scroll, 1)
         self.cards = []
         for app, title, description, icon in catalogue():
-            card = QFrame(); card.setObjectName('appCard')
-            card.setStyleSheet('QFrame#appCard { background: palette(base); border: 1px solid palette(mid); border-radius: 16px; }')
+            card = QFrame(); card.setObjectName('appCard'); card.setFrameShape(QFrame.StyledPanel)
             box = QVBoxLayout(card); box.setContentsMargins(20, 18, 20, 18); box.setSpacing(10)
             top = QHBoxLayout(); mark = QLabel(); mark.setPixmap(QIcon.fromTheme('lumen' if app == 'lumen' else 'lumen-' + app, QIcon.fromTheme(icon)).pixmap(40, 40)); top.addWidget(mark)
             name = QLabel(title); name.setWordWrap(True); font = name.font(); font.setBold(True); name.setFont(font); top.addWidget(name, 1); box.addLayout(top)

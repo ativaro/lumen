@@ -7,14 +7,36 @@ import json
 import mimetypes
 import os
 import urllib.request
+import threading
+from contextlib import contextmanager
 from urllib.error import HTTPError
 from uuid import uuid4, UUID
 import lumen_connect
 import drive_local as local
 from lumen_i18n import tr
+from sync_migration import require_current_upload
+
+
+_active = threading.local()
+
+
+@contextmanager
+def session(config):
+    from drive_http import Session
+    previous = getattr(_active, 'session', None)
+    current = Session(config)
+    _active.session = current
+    try:
+        yield current
+    finally:
+        _active.session = previous
+        current.close()
 
 
 def opener(config):
+    current = getattr(_active, 'session', None)
+    if current is not None and current.config == config:
+        return current
     return urllib.request.build_opener(
         urllib.request.ProxyHandler({}),
         urllib.request.HTTPSHandler(context=lumen_connect.tls_context(config)),
@@ -26,16 +48,19 @@ def legacy_upload(
     config,
     root,
     path,
-    workspace,
     folder,
     request_id,
     expected_hash,
     previous=None,
     progress=lambda *_: None,
     filename=None,
+    legacy_target=None,
+    *,
+    expected_stamp=None,
 ):
+    require_current_upload(legacy_target)
     boundary = "lumen-" + uuid4().hex
-    fields = dict(workspace=workspace, request_id=request_id, sha256=expected_hash)
+    fields = dict(request_id=request_id, sha256=expected_hash)
     if folder:
         fields["folder"] = str(UUID(folder))
     if previous:
@@ -50,14 +75,17 @@ def legacy_upload(
     ).encode()
     tail = f"\r\n--{boundary}--\r\n".encode()
     with local.source(root, path) as stream:
-        size = os.fstat(stream.fileno()).st_size
+        before = local.signature(os.fstat(stream.fileno()))
+        if expected_stamp is not None and before != expected_stamp:
+            raise ValueError(tr("Quelldatei wurde verändert. Bitte einen neuen Upload starten."))
+        size = before[2]
 
         def chunks():
             yield head
             count = 0
             while count < size:
                 chunk = stream.read(min(128 * 1024, size - count))
-                if not chunk:
+                if not chunk or expected_stamp is not None and not local.transfer_unchanged(before, os.fstat(stream.fileno())):
                     raise ValueError(tr("Datei während Übertragung verändert."))
                 count += len(chunk)
                 progress(count, size)
@@ -74,8 +102,10 @@ def legacy_upload(
             },
             method="POST",
         )
+        progress(0, size)
         with opener(config).open(request, timeout=60) as response:
             raw = response.read(1024 * 1024 + 1)
+        progress(size, size)
         if len(raw) > 1024 * 1024:
             raise ValueError(tr("Serverantwort zu groß."))
         return json.loads(raw)
@@ -92,13 +122,18 @@ def request(config, path, body=None, method="POST", content_type="application/js
     return json.loads(raw)
 
 
-def upload(config, root, path, workspace, folder, request_id, expected_hash,
-           previous=None, progress=lambda *_: None, filename=None):
+def upload(config, root, path, folder, request_id, expected_hash,
+           previous=None, progress=lambda *_: None, filename=None, *, legacy_target=None, remember=lambda _: None,
+           expected_stamp=None):
+    require_current_upload(legacy_target)
     name = local.relative(filename or path).name
     with local.source(root, path) as stream:
         before = local.signature(os.fstat(stream.fileno()))
+        # Bind the reviewed selection to this streaming FD before the first request.
+        if expected_stamp is not None and before != expected_stamp:
+            raise ValueError(tr("Quelldatei wurde verändert. Bitte einen neuen Upload starten."))
         size = before[2]
-        body = dict(workspace=str(UUID(workspace)), name=name, size=size, sha256=expected_hash,
+        body = dict(name=name, size=size, sha256=expected_hash,
                     folder=folder, replaces=previous["id"] if previous else None,
                     revision=previous["revision"] if previous else None,
                     mime=mimetypes.guess_type(name)[0] or "application/octet-stream")
@@ -107,9 +142,10 @@ def upload(config, root, path, workspace, folder, request_id, expected_hash,
             state = request(config, "/uploads/" + str(UUID(request_id)), body)
         except HTTPError as error:
             if error.code not in (404, 405): raise
-            return legacy_upload(config, root, path, workspace, folder, request_id, expected_hash,
-                                 previous, progress, filename)
+            return legacy_upload(config, root, path, folder, request_id, expected_hash,
+                                 previous, progress, filename, legacy_target, expected_stamp=expected_stamp)
         key = str(UUID(state["id"]))
+        remember(key)
         offset = state["offset"]
         if not 0 <= offset <= size or state["size"] != size:
             raise ValueError(tr("Ungültiger Übertragungsstand."))
@@ -117,14 +153,19 @@ def upload(config, root, path, workspace, folder, request_id, expected_hash,
         progress(offset, size)
         while offset < size:
             chunk = stream.read(min(4 * 1024**2, size - offset))
-            if not chunk or local.signature(os.fstat(stream.fileno())) != before:
+            if not chunk or not local.transfer_unchanged(before, os.fstat(stream.fileno())):
                 raise ValueError(tr("Datei während Übertragung verändert."))
+            progress(offset, size)
             state = request(config, f"/uploads/{key}?offset={offset}", chunk, "PUT", "application/octet-stream")
+            progress(offset, size)
             if state["offset"] != offset + len(chunk):
                 raise ValueError(tr("Ungültiger Übertragungsstand."))
             offset += len(chunk)
             progress(offset, size)
-        return request(config, f"/uploads/{key}/finish")
+        progress(offset, size)
+        result = request(config, f"/uploads/{key}/finish")
+        progress(offset, size)
+        return result
 
 
 def download(config, root, row, progress=lambda *_: None):

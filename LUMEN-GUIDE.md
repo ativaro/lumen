@@ -1,7 +1,8 @@
 # Lumen benutzen
 
-Lumen ist die KI-Erweiterung für CachyOS mit gemeinsamen Einstellungen und
-Integrationen. **Lumen** im Panel oder `lumen` öffnet den Assistenten.
+Lumen Desktop verbindet Gespräche, Dateien und Systemhilfe auf deinem Linux-Rechner.
+Für tiefe Gespräche, Inhaltsanalyse und genehmigte Systemaktionen genügt der Desktop
+mit einem funktionierenden KI-Anbieter; Lumen Server ist dafür nicht erforderlich. **Lumen** im Panel oder `lumen` öffnet den Assistenten.
 **Lumen Files** beziehungsweise `lumen-files` öffnet den eigenständigen
 Dateimanager, auch direkt mit einem lokalen Ordner oder einer Netzwerkadresse.
 Der Assistent behält zusätzlich den Dateibereich unter `lumen --page files`.
@@ -77,6 +78,13 @@ nächsten Schritt. Währenddessen wird der Auftragsprozess beim Schließen nicht
 abgeschossen. Snapper verwendet die Root-Konfiguration: persönliche Ordner sind
 nicht automatisch enthalten, und ein Snapshot ist kein unabhängiges Backup.
 
+## Gemeinsame Apps und lokales Gedächtnis
+
+Notes, Projekte, Code, Inbox, Audio Studio und Vault öffnen die verbundenen
+Server-Apps. Ohne Serververbindung oder Gerätefreigabe gibt es keinen stillen
+lokalen Ersatz. Der lokale Gedächtniseinstieg ist davon getrennt.
+[Notes und Gedächtnis](WISSEN.md) · [App-Verantwortlichkeiten](docs/desktop-retirement.md).
+
 ## Wissen und Erinnerungen
 
 Unter **Wissen** ausgewählte Ordner lokal indexieren und durchsuchen. Treffer
@@ -140,13 +148,15 @@ erfolgreiche Verbindung.
 
 Unter **Dateien → Quellen …** lassen sich lokale und Netzwerkordner zu einer
 Bibliothek verbinden. Die Herkunft steht bei jeder Datei. Die Sammelfläche hält
-Verweise, **Arbeitsräume** halten Tabs, Auswahl, eigene Sammlung, Gespräch und
-Entwurf zusammen. Raumwechsel senden nichts an die Engine. Details und Grenzen
-stehen im [Files-Handbuch](files/README.md#bibliotheken-sammelfläche-und-arbeitsräume).
+Verweise auf Dateien. **Lumen Projekte** bündelt zugehörige Materialien, Gespräche
+und Aufgaben; Quellen werden dort getrennt von Titel, Zielen und initialen
+Notizen verwaltet. Projekte sind keine globale Umgebungsauswahl.
 
-Unter **Einstellungen → Darstellung** stehen **Klar & hell**, **Warmes Studio**,
-**Graphit** und der KDE-Systemstil für beide Apps bereit. Die Auswahl aktualisiert
-offene Fenster und lässt das Desktop-Theme unverändert.
+Die vier Produkt-Themes **Glas**, **Graphit**, **Atelier** und **Mitternacht** folgen
+Panorama. Vorhandene System-/Kompatibilitätswerte sind keine zusätzlichen
+Designrichtungen. Die jeweilige Einstellungsaktion bestimmt, ob nur Appfarben
+oder ausdrücklich auch Plasma und Fensterdekoration geändert werden.
+[Verbindlicher Designstandard](docs/lumen-panorama/standard.md).
 
 Lumen beendet Such-/Vorschauzugriffe und löst Dateimodell-Watcher beim Schließen.
 Nach dem Schließen des letzten Netzwerk-Tabs werden unbenutzte lokale
@@ -243,3 +253,18 @@ ruhige dunkle Menüs. Bei vorhandenem LumenDark erzeugt
 `python plasmoid/install-island-style.py` die Ableitung im Benutzerprofil;
 `plasma-apply-desktoptheme LumenIslands` aktiviert sie. LumenDark bleibt erhalten,
 die Zeichnungen des unteren Docks und die globalen Schriften werden nicht ersetzt.
+
+
+## Browseraufgaben auf diesem Desktop
+
+In **Lumen Serververbindung** die Option **Browsersteuerung auf diesem Desktop**
+aktivieren. Lumen lädt beim ersten Mal Chromium und die festgelegten Browserwerkzeuge.
+Dafür werden Node.js ab Version 20, npm und bubblewrap benötigt. Anschließend erscheint
+der online verbundene Desktop im Browserdialog auf dem Server; andere eingerichtete
+Rechner bleiben wählbar. Es wird kein eingehender Port geöffnet.
+
+Jede Sitzung verwendet ein eigenes, flüchtiges Browserprofil in einer Dateisystem-
+Isolation. Private Browserprofile und Dateien werden nicht eingebunden. Anmeldungen
+können im Serverdialog über **Übernehmen** selbst eingegeben werden. Ausschalten der
+Option beendet den Zugang; nach einem Verbindungsabbruch werden unbekannte Aktionen
+nicht automatisch wiederholt oder auf einen anderen Rechner verschoben.

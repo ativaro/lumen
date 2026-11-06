@@ -103,11 +103,24 @@ class SetupTest(unittest.TestCase):
                 self.assertEqual(setup.main(), 0)
                 install.assert_called_once(); packages.assert_called_once_with([])
 
+    def test_engine_setup_preserves_qualified_same_version_build(self):
+        from assistant_backend import ENGINE_VERSION, managed_opencode
+        import hashlib
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'XDG_DATA_HOME':tmp, 'LUMEN_OPENCODE_BIN':''}):
+            target=managed_opencode();target.parent.mkdir(parents=True)
+            target.write_bytes(b'qualified-engine')
+            with patch.object(setup.platform, 'machine', return_value='x86_64'), \
+                    patch.dict(setup.QUALIFIED_ENGINE_SHA256, {(ENGINE_VERSION,'x86_64'):hashlib.sha256(target.read_bytes()).hexdigest()}), \
+                    patch.object(setup, 'download') as download, patch.object(setup, 'report'):
+                setup.install_engine()
+                download.assert_not_called()
+                self.assertEqual(target.read_bytes(),b'qualified-engine')
+
     def test_desktop_job_uses_existing_backup_flow_and_reports_failure(self):
         with patch('sys.argv', ['lumen_setup.py', 'desktop', '--theme', 'atelier']), \
                 patch('lumen_desktop_setup.configure_desktop') as configure, patch.object(setup, 'report') as report:
             self.assertEqual(setup.main(), 0)
-            configure.assert_called_once_with('atelier', replace_panels=True)
+            configure.assert_called_once_with('atelier')
             self.assertFalse(report.call_args.kwargs['cancellable'])
             configure.side_effect = RuntimeError('Plasma nicht erreichbar')
             self.assertEqual(setup.main(), 1)
@@ -255,7 +268,7 @@ class SetupDialogTest(unittest.TestCase):
             self.assertTrue(settings.value('setupCompleted', type=bool))
             dialog.deleteLater(); reopened.deleteLater()
 
-    def test_fresh_zen_profile_selects_engine_default_without_api_key(self):
+    def test_fresh_profile_requires_explicit_model_selection_even_with_a_free_catalogue(self):
         from PySide6.QtCore import QSettings
         from setup_dialog import SetupDialog
         with tempfile.TemporaryDirectory() as tmp:
@@ -272,10 +285,10 @@ class SetupDialogTest(unittest.TestCase):
                 callback({})
             with patch.object(dialog.engine, 'request', side_effect=request):
                 dialog.loaded_providers(inventory)
-                self.assertEqual(dialog.models.currentData(), 'opencode/free-b')
-                self.assertEqual(dialog.models.currentText(), 'OpenCode Zen · free-b')
-                self.assertEqual(settings.value('model'), 'opencode/free-b')
-                self.assertIn('Gratis-Modell bereit', dialog.model_summary.text())
+                self.assertEqual(dialog.models.currentData(), '')
+                self.assertFalse(settings.contains('model'))
+                self.assertIn('Wähle ein Modell', dialog.model_summary.text())
+                self.assertTrue(dialog.model_details.toggle.isChecked())
                 self.assertEqual(dialog.key.text(), '')
                 dialog.models.setCurrentIndex(dialog.models.findData('opencode/free-a'))
                 dialog.loaded_providers(inventory)
@@ -287,6 +300,61 @@ class SetupDialogTest(unittest.TestCase):
                 self.assertFalse(dialog.models.isEnabled())
                 self.assertIn('keine verfügbaren Modelle', dialog.status.text())
                 self.assertEqual(settings.value('model'), 'opencode/free-a')
+
+    def test_anonymous_catalogue_keeps_saved_choice_and_offers_connection_instead(self):
+        from PySide6.QtCore import QSettings
+        from setup_dialog import SetupDialog
+        from test_model_default import catalogue
+        with tempfile.TemporaryDirectory() as tmp:
+            settings = QSettings(tmp+'/prefs.ini', QSettings.IniFormat)
+            settings.setValue('model', 'opencode/free')
+            dialog = SetupDialog(settings=settings)
+            self.addCleanup(dialog.deleteLater); self.addCleanup(dialog.reject)
+            inventory = catalogue()
+            inventory['all'][0]['options'] = {'apiKey': 'public'}
+            def request(method, path, body=None, callback=None, **kwargs):
+                self.assertEqual((method, path), ('GET', '/provider/auth'))
+                callback({})
+            with patch.object(dialog.engine, 'request', side_effect=request):
+                dialog.loaded_providers(inventory)
+                self.assertEqual(settings.value('model'), 'opencode/free')
+                self.assertFalse(dialog.models.isEnabled())
+                self.assertIn('anonyme OpenCode-Zugang', dialog.model_summary.text())
+                self.assertIn('opencode/free', dialog.model_summary.text())
+                self.assertTrue(dialog.auth_toggle.isChecked())
+                self.assertTrue(dialog.connect_provider.isEnabled())
+                inventory['all'][0]['options'] = {'apiKey': 'synthetic-user-key'}
+                dialog.loaded_providers(inventory)
+                self.assertEqual(dialog.models.currentData(), 'opencode/free')
+                self.assertEqual(settings.value('model'), 'opencode/free')
+
+    def test_explicit_custom_opencode_endpoints_override_only_the_public_sdk_default(self):
+        from PySide6.QtCore import QSettings
+        from setup_dialog import SetupDialog
+        from test_model_default import catalogue
+        with tempfile.TemporaryDirectory() as tmp:
+            settings = QSettings(tmp+'/prefs.ini', QSettings.IniFormat)
+            settings.setValue('model', 'opencode/free')
+            dialog = SetupDialog(settings=settings)
+            self.addCleanup(dialog.deleteLater); self.addCleanup(dialog.reject)
+            inventory = catalogue()
+            inventory['all'][0]['options'] = {'apiKey': 'public', 'baseURL': 'https://unproven.example.test/v1'}
+            config = {}
+            def request(method, path, body=None, callback=None, **kwargs):
+                callback(config if path == '/config' else inventory if path == '/provider' else {})
+            with patch.object(dialog.engine, 'ensure_server', side_effect=lambda callback: callback()), \
+                    patch.object(dialog.engine, 'request', side_effect=request):
+                for endpoint in ('http://127.0.0.1:8080/v1', 'http://model.lan:8080/v1', 'https://models.example.test/v1'):
+                    config = {'provider': {'opencode': {'options': {'baseURL': endpoint}}}}
+                    dialog.load_engine()
+                    self.assertEqual(dialog.models.currentData(), 'opencode/free')
+                    self.assertNotIn('deaktiviert', dialog.model_summary.text())
+                    self.assertEqual(settings.value('model'), 'opencode/free')
+                config = {}
+                dialog.load_engine()
+                self.assertFalse(dialog.models.isEnabled())
+                self.assertIn('deaktiviert', dialog.model_summary.text())
+                self.assertEqual(settings.value('model'), 'opencode/free')
 
     def test_direct_model_setup_loads_automatically_and_keeps_engine_choice(self):
         from PySide6.QtCore import QSettings
@@ -580,7 +648,7 @@ class SetupDialogTest(unittest.TestCase):
                 self.assertTrue(dialog.repair_engine.isHidden())
                 self.assertEqual(dialog.models.currentData(), '')
                 self.assertFalse(dialog.settings.contains('model'))
-                self.assertIn('Kein verfügbares Gratis-Modell', dialog.model_summary.text())
+                self.assertIn('Wähle ein Modell', dialog.model_summary.text())
                 dialog.models.setCurrentIndex(dialog.models.findData('example/test'))
                 dialog.connect_provider.click(); wait()
                 self.assertEqual(dialog.key.text(), 'test-only-secret')

@@ -47,11 +47,11 @@ def fingerprint(path):
     return result
 
 
-def file_change(store, action, source, destination=None):
+def file_change(store, action, source, destination=None, *, undoable=True):
     names = {'copy': tr('Kopiert'), 'move': tr('Verschoben'), 'rename': tr('Umbenannt'),
              'mkdir': tr('Ordner erstellt'), 'trash': tr('In den Papierkorb verschoben')}
     kind, after = 'activity', None
-    if action in ('copy', 'move', 'rename', 'mkdir'):
+    if undoable and action in ('copy', 'move', 'rename', 'mkdir'):
         try:
             after = fingerprint(destination or source)
             kind = 'file-move' if action in ('move', 'rename') else 'file-create'
@@ -62,6 +62,13 @@ def file_change(store, action, source, destination=None):
 
 
 def can_undo(value):
+    if value['kind'] == 'file-move':
+        try:
+            # The inverse is atomic; retain cross-device moves as history only.
+            if Path(value['before']).parent.stat().st_dev != value['after'][0][1]:
+                return False
+        except (OSError, TypeError, IndexError, KeyError):
+            return False
     return value['status'] in ('applied', 'pending') and value['kind'] in (
         'task-file', 'file-move', 'file-create', 'store-setting', 'preferences', 'panel', 'shortcut', 'mode')
 

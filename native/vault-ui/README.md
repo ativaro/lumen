@@ -13,20 +13,19 @@ plugin (`qt6-base`, `qt6-webengine`, `qt6-svg` on Arch/CachyOS), libssh 0.11+ (`
 ```sh
 ./native/vault-ui/build.sh
 ./native/vault-ui/install-laboratory.sh
-lumen-vault
+lumen-vault --lab
 ```
 
-Installation remains explicit and user-local. If that native installation exists,
-`lumen-vault` opens the native three-column vault. `lumen-vault --lab` remains an
-explicit alias. `lumen-vault --backups` selects Backups in the same native
-window. Both tabs are retained widgets: selection and snapshots survive switching,
-with no second application window or focus handoff. Branding, tabs and the vault
-lock control live in one persistent header outside the page stack; their position
-and the window size remain stable when switching, including at 1080×720. The lock
-control is also available on Backups while the vault is unlocked. Subsequent launches activate
-the existing native instance. Legacy explicit interop/handoff CLI arguments still
-use the established Python review dialogs; fresh production installs without the
-explicit native prerelease retain the Python backup application.
+Installation remains explicit and user-local. The normal `lumen-vault` command
+opens the paired **Server Vault app**, even when the native laboratory is installed.
+Use `lumen-vault --lab` to open the native test surface explicitly; it requires the
+installed laboratory binary. `lumen-vault --backups` now opens **Lumen System →
+Backups**, not a tab in the credential app. Do not apply the historical two-tab
+launch instructions to a regular desktop installation.
+
+The following native UI/broker details describe the separately built prerelease.
+Its own retained views do not change current public starter routing. Existing
+local credential data and backup plans are not converted to Server app data.
 
 The backup page uses the installed Lumen Python runtime and headless
 `files/vault_service.py` (PySide6 Core/Network). The service reuses Restic, keyring,

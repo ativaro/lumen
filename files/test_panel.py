@@ -100,7 +100,8 @@ class PanelTest(unittest.TestCase):
         from lumen_panel import applications, main
         from lumen_apps import catalogue
         from unittest.mock import patch
-        self.assertEqual({a['id'] for a in applications()}, {a[0] for a in catalogue()})
+        with patch('server_availability.capabilities', return_value={'notes','projects','code','media','vault_sync','inbox'}):
+            self.assertEqual({a['id'] for a in applications()}, {a[0] for a in catalogue()})
         for key, *_ in catalogue(include_utilities=True):
             with patch('sys.argv', ['lumen-panel','--open-app',key]), patch('lumen_panel.subprocess.Popen') as start:
                 main()
@@ -125,10 +126,11 @@ class PanelTest(unittest.TestCase):
              patch('sys.argv', ['lumen-panel', '--open-task', 'a'*32]), \
              patch('lumen_panel.subprocess.Popen') as launch:
             main()
-            self.assertEqual(launch.call_args.args[0], [str(Path(__file__).resolve().parents[1]/'bin/lumen-agent-app'), '--task', 'a'*32])
+            from lumen_launch import executable
+            self.assertEqual(launch.call_args.args[0], [executable('lumen-agent-app'), '--task', 'a'*32])
             self.assertTrue(launch.call_args.kwargs['start_new_session'])
             self.assertNotIn('shell', launch.call_args.kwargs)
         for flag, binary in [('--search', 'lumen-search'), ('--voice', 'lumen-search'), ('--settings', 'lumen-settings')]:
             with patch('sys.argv', ['lumen-panel', flag]), patch('lumen_panel.subprocess.Popen') as launch:
                 main()
-                self.assertEqual(launch.call_args.args[0], [str(Path(__file__).resolve().parents[1]/'bin'/binary)] + (['--voice'] if flag == '--voice' else []))
+                self.assertEqual(launch.call_args.args[0], [executable(binary)] + (['--voice'] if flag == '--voice' else []))

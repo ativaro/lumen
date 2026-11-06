@@ -1,97 +1,41 @@
-# Eigenständige Desktop-Werkzeuge
+# Lumen Desktop: lokale Werkzeuge und gemeinsame Apps
 
-Die Werkzeuge werden mit Lumen installiert und haben eigene Einträge im
-Anwendungsmenü. **Meeting & Radio** teilen sich ein Fenster mit zwei Tabs oben;
-beide bisherigen Starter öffnen den jeweiligen Tab. Auswahl, Entwürfe und laufende
-Vorgänge bleiben beim Wechsel erhalten. Kein Terminal, keine zusätzliche Weboberfläche.
-Sie verwenden die vier Lumen-Themes und die vorhandene Einrichtung.
+Die vollständige Installation liefert die Starter, gemeinsame Einstellungen und die lokale Qt-Laufzeit. Für einen neuen Rechner [INSTALL.md](INSTALL.md) verwenden. `install-tools.py` ist ein älterer ergänzender Benutzerinstaller bei vorhandenen Abhängigkeiten, kein zweiter vollständiger Offline-Produktumfang. Für die aktuelle Gesamtinstallation und ihre vollständigen Starterwege den regulären Installer verwenden; die Sonderflags der heutigen `bin/`-Starter werden vom älteren Tools-Installer nicht sämtlich nachgebildet.
 
-| Anwendung | Start | Ablauf |
-|---|---|---|
-| Lumen Meeting & Radio · Meeting | `lumen-meetings` | Aufnahme importieren → lokal transkribieren → Zeitstelle anklicken → Ergebnisse vorschlagen → korrigieren/exportieren |
-| Lumen Digitaler Haushalt | `lumen-household` | Gerät/Vertrag anlegen → Daten und Fristen eintragen → Belege/Handbücher hinzufügen → durchsuchen/öffnen |
-| Lumen Projekte | `lumen-workbench` | Projekt anlegen → Notizen und Fragen festhalten → Dateien, Ordner und Webseiten verknüpfen |
-| Lumen Meeting & Radio · Radio | `lumen-radio` | Ausgabe anlegen → Artikel/Dokumente/Text auswählen → Hörskript erzeugen und prüfen → lokal vertonen → abspielen/exportieren |
+## Was eigenständig auf dem Desktop arbeitet
 
-## Ohne Administratorrechte installieren
+| Funktion | Einstieg | Ort der Arbeit |
+| --- | --- | --- |
+| Gespräche, Dateien verstehen, IT-Hilfe und Softwareinstallation | `lumen`, `lumen-search` | Lokale Lumen-Engine mit deinem eingerichteten KI-Anbieter und dessen Freigaben |
+| Dateien und Netzwerkordner | `lumen-files` | Lokaler Dateimanager; Online-Konten und Netzfreigaben werden einzeln verbunden |
+| Lesen | `lumen-reader` | Lokale Lesekopien, Positionen und Markierungen |
+| Text- und Dokumentbearbeitung | `lumen-translate` | Lokales Compose-Fenster; KI-Aufträge verwenden den gewählten Anbieter |
+| Haushalt | `lumen-household` | Lokale Geräte, Verträge, Fristen und Belege |
+| System, Sound, Arbeitsmodi, Sicherungen | `lumen-system`, `lumen-sound` | Lokale Diagnose, Einstellungen und ausdrücklich eingerichtete Sicherungsziele |
+| Gedächtnis | Lumen-Einstellungen; technisch `lumen-wissen --area lumen` | Eigene lokale Erinnerungen und Lernfreigaben |
+| Mitteilungen und Bildschirmhilfe | `lumen-notification`, `lumen-companion` | Lokaler Desktop mit seinen jeweiligen Freigaben |
 
-Wenn die Lumen-Abhängigkeiten bereits vorhanden sind, die eigenständigen Werkzeuge
-für den aktuellen Benutzer installieren:
+Dateiverwaltung, Haushalt und Systemübersicht benötigen kein Modell. Antworten und inhaltliche KI-Verarbeitung brauchen eine funktionierende Modellauswahl. Systemänderungen verwenden Werkzeugfreigaben und erforderliche Administratorrechte. Ein lokaler Desktop ist kein Versprechen ausschließlich lokaler Inferenz.
 
-```bash
-./install-tools.py
-```
+## Was die Serververbindung ergänzt
 
-Dies installiert eine eigene Laufzeitkopie unter
-`~/.local/share/lumen-tools/runtime/`, Starter in `~/.local/bin/` und
-Menüeinträge samt Icons. Bibliotheken, Panels und die laufenden Lumen-Fenster
-werden dabei nicht verändert. Die vorhandenen Sprachmodelle und Einstellungen
-werden weiterverwendet. Nach einer späteren Systeminstallation rufen die lokalen
-Starter automatisch die jeweilige Anwendung unter `/usr/bin/` auf.
-Die vollständige Installation auf einem frischen System benötigt weiterhin die
-im Haupt-README beschriebenen Systemabhängigkeiten.
+| Gemeinsame App | Kompatibler Starter |
+| --- | --- |
+| Lumen Notes | `lumen-wissen` |
+| Lumen Projekte | `lumen-workbench` |
+| Lumen Code | `lumen-code` |
+| Lumen Audio Studio | `lumen-meetings`, `lumen-radio` |
+| Lumen Inbox | `lumen-inbox` |
+| Lumen Vault | `lumen-vault` |
 
-## Speicherung und Verhalten
+Diese Starter öffnen die laufende Serveroberfläche in einem eigenen Desktopfenster. Server, Konto, App-Sitzung und Gerätefreigabe werden geprüft. Ohne Verbindung gibt es keinen zweiten lokalen Editor. Eine App installieren, öffnen oder entsperren erteilt keine neue Daten- oder Ausführungsfreigabe. Die verfügbaren Funktionen bestimmt der verbundene Server.
 
-- Private Bibliotheken liegen unter `$XDG_DATA_HOME/lumen-tools/` bzw.
-  `~/.local/share/lumen-tools/`, getrennt nach Anwendung. Zum Sichern bei
-  geschlossenen Fenstern das komplette Verzeichnis kopieren.
-- Notizen, Korrekturen und Auswahl werden automatisch gespeichert. Beim
-  nächsten Start wird der zuletzt geöffnete aktive Eintrag wieder angezeigt.
-- Archivieren entfernt einen Eintrag aus der aktiven Bibliothek. „Archiv
-  anzeigen“ und „Wiederherstellen“ holen ihn zurück.
-- Meetings und Haushaltsbelege sind importierte Kopien. Projektdateien sind
-  Verknüpfungen; Netzlaufwerke müssen erreichbar sein. Radio speichert den
-  importierten Quellentext und seine Herkunft, unabhängig vom Original.
-- Keine Aufnahme startet automatisch. Transkription und Vertonung sind lokal.
-  Ergebnisvorschläge und Hörskripte verwenden erst nach dem entsprechenden
-  Knopfdruck den eingerichteten OpenCode-/LLM-Provider. Das kann ein
-  Cloud-Provider sein. Die üblichen OpenCode-Grundeinstellungen gelten.
-  Modellantworten erhalten keine Werkzeuge oder Änderungsrechte.
-- Haushalt und Werkbank funktionieren vollständig ohne KI. Fristen werden
-  angezeigt; es gibt keine automatische Kündigung oder Hintergrund-Erinnerung.
-- Ein erneutes Vertonen ersetzt die aktive Ausgabe erst nach Erfolg.
-  Nach Textänderungen wird vorhandenes Audio als ältere Fassung markiert.
-  Quellenlinks einer erzeugten Ausgabe bleiben als zugehöriger Stand erhalten.
-- Die Anwendungen senden keine Daten automatisch an GitHub. Laufzeitbibliotheken,
-  Medien, Modelle und Anmeldedaten gehören nicht in die Repositories.
+## Daten, Sicherungen und Altbestände
 
-## Voraussetzungen und Grenzen
+Lokale Anwendungen behalten ihre privaten Datenverzeichnisse. Frühere Notes-/Projekt-/Inbox-/Audio-Daten werden nicht durch die Entfernung alter Programmdateien gelöscht, aber auch nicht automatisch importiert oder weiter synchronisiert. Der Server ist für seine Appdaten maßgeblich. Nicht das ganze Verzeichnis bei geöffneten Datenbanken kopieren: den vorgesehenen Sicherungs-/Exportweg verwenden und eine Wiederherstellung prüfen.
 
-Vorhandene Lumen-Laufzeit: Python, PySide6, QtSvg, PyGObject, Pillow. Audio benötigt
-`ffmpeg` einschließlich `ffprobe`/`ffplay`; PDF-Text den eigenen Lumen-PDF-Kern; gescannte Belege
-Tesseract samt Sprachdaten. Lokale Whisper-/Piper-Modelle lassen sich über
-„Einrichtung“ installieren. Ohne Textindex bleibt ein Haushaltsbeleg gespeichert
-und kann weiterhin geöffnet werden.
+`lumen-vault --backups` ist ein kompatibler Verweis auf **Lumen System → Sicherungen**. `lumen-vault --lab` ist eine ausdrücklich getrennte native Testversion, kein normaler App-Start und keine öffentliche Passwortmanager-Freigabe. [Tresor und Sicherungen](VAULT-INBOX.md).
 
-Aufnahmen: maximal 2 GB und acht Stunden. Belege: 128 MB. Radioquellen:
-PDF/Text/Markdown oder Text in Bildern, pro Quelle höchstens 120.000 Zeichen;
-für eine KI-Ausgabe höchstens 70.000 ausgewählte Zeichen. Meeting-KI hat dasselbe
-Textlimit. Größere Eingaben werden erklärt zurückgewiesen, nicht still gekürzt.
-Ein Hörskript darf höchstens 24.000 Zeichen enthalten. Die Minutenwahl ist ein
-Schreibziel, keine garantierte Audio-Länge. Artikel hinter Login/Paywall oder
-nur per JavaScript gerenderte Inhalte können als Text eingefügt werden.
+## Entwicklung und Prüfung
 
-Es gibt keine automatische Sprecheridentifikation. Zeitstellen kommen aus
-Whisper-Segmenten; Text, Entscheidungen und Aufgaben bleiben korrigierbar.
-KI-Ergebnisse können falsch sein – die Originalstelle ist direkt erreichbar.
-
-## Entwicklung und Verifikation
-
-`CAPABILITIES-tools.md` ordnet die vier Specs zu. `files/tools_data.py` enthält
-Speicherung und lokale Verarbeitung, `tools_ui.py` gemeinsame Widgets/Jobs,
-`tools_app.py` Fensteraktivierung. Die vier `tools_*.py`-Anwendungsmodule bleiben
-getrennt von Lumen Files und dem Systemassistenten.
-
-```bash
-QT_QPA_PLATFORM=offscreen /usr/bin/python3 -m unittest discover -s files -p 'test_tools.py' -v
-./bin/lumen-meetings
-./packaging/arch/build-package.sh
-```
-
-`LUMEN_TOOLS_DATA` kann für isolierte Tests auf ein temporäres Verzeichnis zeigen.
-Die Prüfungen decken Import, Abbruch, Persistenz, Archiv/Wiederherstellen,
-Originalschutz, Quellenvalidierung, Projektwechsel und veraltete Radioausgaben ab.
-Sprachpipeline und native Oberflächen wurden zusätzlich mit synthetischen
-Testdaten geprüft; echte Meetings oder persönliche Belege wurden dafür nicht
-verwendet.
+[Funktionszuordnung](CAPABILITIES-tools.md), [gemeinsamer App-Host](docs/desktop-retirement.md) und [Veröffentlichung](PUBLISHING.md) beschreiben die aktuellen Grenzen. Für Tests temporäre HOME/XDG- und `LUMEN_TOOLS_DATA`-Profile verwenden. Keine persönlichen Konten, Tresore oder Desktop-Sitzungen als Testumgebung einsetzen. Bereits dokumentierte Abnahmen belegen ihren jeweiligen Sourcepin, nicht automatisch jeden späteren Stand.

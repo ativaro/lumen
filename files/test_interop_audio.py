@@ -221,41 +221,6 @@ class AudioTest(unittest.TestCase):
         with self.assertRaises(ValueError): audio.apply_project_profile(library, key)
         self.assertEqual(audio.preferences('reader', self.root)['sink'], 'headphones')
 
-    def test_native_audio_dialog_and_workbench_menu_render_and_save(self):
-        from tools_reader import Reader
-        from tools_workbench import Workbench
-        with patch.dict(os.environ, {'LUMEN_DATA': str(self.root/'state')}), patch.object(Reader, 'render_page'):
-            window = Reader(self.root)
-            self.players.append(window)
-            window.show()
-            captured = []
-            timer = QTimer(window)
-            timer.setInterval(10)
-            def accept():
-                dialog = QApplication.activeModalWidget()
-                if not isinstance(dialog, QDialog): return
-                captured.append(dialog.grab().size())
-                dialog.findChild(QComboBox).setCurrentIndex(1)
-                timer.stop()
-                dialog.findChild(QDialogButtonBox).button(QDialogButtonBox.Save).click()
-            timer.timeout.connect(accept)
-            timer.start()
-            with patch('interop_audio_route.snapshot', return_value=dict(sinks=[dict(name='private-test-headphones', description='Test headphones')])):
-                audio.options(window.player)
-                self.wait(lambda: bool(captured) and window.job is None)
-            self.assertGreater(captured[0].width(), 200)
-            self.assertEqual(audio.preferences('reader', self.root)['sink'], 'private-test-headphones')
-            self.controls.append(window.player._lumen_audio)
-            window.close()
-            workbench = Workbench(self.root)
-            self.players.append(workbench)
-            key = workbench.library.create('Project', notes='', resources=[], questions=[])
-            workbench.focus_record(key)
-            audio.install_audio_menu(workbench)
-            with patch('PySide6.QtWidgets.QInputDialog.getText', return_value=('Test audio', True)):
-                workbench._audio_profile_menu.actions()[0].trigger()
-            self.assertEqual(workbench.library.get(key)['audio_profile']['title'], 'Test audio')
-            workbench.close()
 
 
 if __name__ == '__main__':

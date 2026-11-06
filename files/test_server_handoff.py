@@ -97,6 +97,19 @@ class ConnectionTests(unittest.TestCase):
                 self.assertTrue(all(not section.text() for section in dialog.sections.values()))
             dialog.close()
 
+    def test_browser_setup_blocks_competing_connection_changes(self):
+        import browser_connector, threading
+        data={'name':'Test Desktop','capabilities':['desktop'], 'tasks':[], 'backup':None,'memory':None}
+        release=threading.Event()
+        with patch.object(gui.client,'read_config',return_value={'server':'https://synthetic.invalid'}),patch.object(gui.client,'request',return_value=data),patch.object(gui.client,'initialize_system_access'),patch.object(browser_connector,'set_access',side_effect=lambda enabled:release.wait(2)):
+            dialog=gui.ConnectionDialog();wait(lambda:dialog.refresh_button.isEnabled())
+            dialog.browser_access_button.click()
+            self.assertFalse(dialog.system_access_button.isEnabled())
+            self.assertFalse(dialog.disconnect_button.isEnabled())
+            release.set();wait(lambda:dialog.refresh_button.isEnabled())
+            wait(lambda:not dialog.worker.isRunning())
+            dialog.close()
+
 if __name__=='__main__':unittest.main()
 
 class SnapshotTests(unittest.TestCase):

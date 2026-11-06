@@ -16,8 +16,6 @@ from interop_parts import capture_part
 
 
 MAX_TEXT = 120000
-MAX_PATHS = 100
-MAX_ITEMS = 1000
 MAX_PAYLOAD = 512 * 1024
 
 
@@ -89,9 +87,9 @@ def _payload(source, text='', paths=(), items=(), url=''):
 
 
 def _bounded(payload):
-    if len(payload.get('text', '')) > MAX_TEXT or len(payload.get('items', [])) > MAX_ITEMS:
+    if len(payload.get('text', '')) > MAX_TEXT:
         raise ValueError(tr('Bitte einen kürzeren Auszug auswählen.'))
-    if len(payload.get('paths', [])) > MAX_PATHS or len(json.dumps(payload, ensure_ascii=False).encode()) > MAX_PAYLOAD:
+    if len(payload.get('items', [])) > 1000 or len(json.dumps(payload, ensure_ascii=False).encode()) > MAX_PAYLOAD:
         raise ValueError(tr('Bitte weniger Inhalte für die Übergabe auswählen.'))
     return payload
 
@@ -99,14 +97,14 @@ def _bounded(payload):
 def from_paths(paths):
     """Capture explicit Files selections without scanning folders or reading files."""
     values = []
+    seen = set()
     for value in paths:
         path = _path(value)
         if not path:
             raise ValueError(tr('Bitte eine vorhandene lokale Datei oder einen Ordner auswählen.'))
-        if path not in values:
+        if path not in seen:
             values.append(path)
-        if len(values) > MAX_PATHS:
-            raise ValueError(tr('Bitte höchstens 100 Dateien auswählen.'))
+            seen.add(path)
     if not values:
         raise ValueError(tr('Zuerst eine Datei auswählen.'))
     first = Path(values[0])
@@ -115,6 +113,14 @@ def from_paths(paths):
     result = _payload(source, paths=values, items=items)
     if len(values) > 1:
         result['title'] = tr('{0} ausgewählte Dateien', len(values))
+    return _bounded(result)
+
+
+def from_drive(browser, paths):
+    from drive_references import capture
+    refs=capture(browser,paths)
+    result=_payload(refs[0]);result['references']=refs
+    if len(refs)>1:result['title']=tr('{0} ausgewählte Dateien',len(refs))
     return _bounded(result)
 
 

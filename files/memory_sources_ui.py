@@ -57,18 +57,21 @@ class MemorySources(QPushButton):
     def open_source(self, source):
         try:
             if source.get('source_kind') in ('server_memory','server_note'):
-                from lumen_connect import memory_stamp, read_config
+                from lumen_connect import memory_stamp, read_config, connection_scope
                 from PySide6.QtCore import QUrl
                 from PySide6.QtGui import QDesktopServices
-                if self.snapshot.get('server_stamp') != memory_stamp():
+                config=read_config()
+                bound=self.snapshot.get('server_connection')
+                if (bound and bound!=connection_scope(config)) or (not bound and self.snapshot.get('server_stamp') != memory_stamp()):
                     raise ValueError(tr('Die Serverquelle wurde geändert. Bitte erneut fragen.'))
                 from uuid import UUID
                 identity = str(UUID(source['id'].removeprefix('server:').removeprefix('server-note:')))
-                QDesktopServices.openUrl(QUrl(read_config()['server']+'/?app=note&document='+identity))
+                app='memory' if source.get('source_kind')=='server_memory' else 'note'
+                QDesktopServices.openUrl(QUrl(config['server']+'/?app='+app+'&document='+identity))
                 return
             book, note = local_source(Store(), source)
             from interop_open import launch
-            launch('wissen', [str(book.root/note['path'])])
+            launch('wissen', [str(book.root/note['path']), '--area', 'lumen'] if source.get('source_kind')=='memory' else [str(book.root/note['path'])])
         except (OSError, ValueError, KeyError) as error:
             self.error(str(error))
 

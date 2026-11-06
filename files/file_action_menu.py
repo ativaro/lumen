@@ -292,3 +292,111 @@ class ActionMenu(QMenu):
             self.search_actions()
             return
         super().keyPressEvent(event)
+
+
+def build_file_menu(self, paths):
+    from pathlib import Path
+    from PySide6.QtWidgets import QApplication, QFileDialog
+    from drive_browser import is_drive
+    from file_spaces import SHELF, virtual
+    drive=bool(paths and is_drive(paths[0])) or is_drive(self.current_location)
+    if not paths:
+        menu = QMenu(self)
+        menu.addAction(tr('Hier einfügen\tStrg+V'), self.paste)
+        menu.addAction(tr('Neuer Ordner'), self.mkdir)
+        menu.addSeparator()
+        if drive:
+            menu.addAction(tr('Aktualisieren'),self.refresh)
+            menu.addAction(tr('Synchronisation und Offline-Verfügbarkeit …'),lambda:self.drive.settings(False))
+        else:menu.addAction(tr('Letzte Lumen-Dateiaktion rückgängig …'), lambda: self.organize_files('undo'))
+        if not drive and not virtual(self.current_location):
+            menu.addAction(tr('Eigenschaften …'), lambda: self.show_properties([self.current_path]))
+        return menu
+    title = (self.drive.entries[paths[0]][1]['name'] if drive else Path(paths[0]).name) if len(paths) == 1 else tr('{0} Einträge ausgewählt', len(paths))
+    directory = len(paths) == 1 and (self.drive.entries[paths[0]][0]=='folder' if drive else Path(paths[0]).is_dir())
+    writable = not drive or all(self.drive.entries[p][1].get('can_write') is True for p in paths)
+    menu = ActionMenu(self, title, 'Lumen Drive' if drive else str(Path(paths[0]).parent) if len(paths) == 1 else tr('Mehrfachauswahl'),
+                      'folder' if directory or len(paths) > 1 else 'text-x-generic')
+    menu.quick(tr('Kopieren'), 'edit-copy', lambda: self.copy(False), tr('Strg+C'))
+    menu.quick(tr('Ausschneiden'), 'edit-cut', lambda: self.copy(True), tr('Strg+X'), enabled=writable)
+    menu.quick(tr('Umbenennen'), 'edit-rename', self.rename, 'F2', enabled=writable and (not drive or len(paths)==1))
+    menu.quick(tr('Papierkorb'), 'user-trash', self.trash, tr('Entf'), enabled=writable)
+    menu.addAction(QIcon.fromTheme('document-open'), tr('Öffnen'), self.open_selected)
+    if len(paths) == 1:
+        preview_action = menu.addAction(QIcon.fromTheme('view-preview'), tr('Große Vorschau'), self.quicklook)
+        preview_action.setToolTip(tr('Große Vorschau\tLeertaste').replace('\t', ' · '))
+    menu.addSeparator()
+    organize = menu.addMenu(QIcon.fromTheme('folder'), tr('Organisieren'))
+    safety = menu.addMenu(QIcon.fromTheme('document-save'), tr('Sichern & synchronisieren').replace('&', '&&'))
+    from interop_ui import files_menu
+    files_menu(self, menu, paths, safety=safety)
+    if drive:
+        if directory:organize.addAction(tr('In neuem Tab öffnen'),lambda:self.new_tab(paths[0]))
+        def download():
+            target=QFileDialog.getExistingDirectory(self,tr('Downloadordner'))
+            if target:self.drive.download(paths,target)
+        organize.addAction(tr('Herunterladen …'),download)
+        if all(self.drive.entries[p][0]=='file' for p in paths):
+            pdf=all(self.drive.entries[p][0]=='file' and self.drive.entries[p][1]['name'].lower().endswith('.pdf') for p in paths)
+            organize.addAction(tr('PDF-Werkstatt auf dem Server …') if pdf else tr('Dokumentwerkzeuge auf dem Server …'),lambda:self.drive.server_tools(paths,workshop=pdf))
+        organize.addAction(tr('Hier einfügen'),self.paste)
+        organize.addAction(tr('Neuer Ordner'),self.mkdir)
+        organize.addAction(tr('Aktualisieren'),self.refresh)
+        def upload():
+            chosen,_=QFileDialog.getOpenFileNames(self,tr('Dateien hochladen …'))
+            if chosen:self.drive.upload(chosen)
+        safety.addAction(tr('Dateien hochladen …'),upload)
+        safety.addAction(tr('Offline verfügbar …'),lambda:self.drive.settings(True))
+        safety.addAction(tr('Synchronisation und Offline-Verfügbarkeit …'),lambda:self.drive.settings(False))
+    else:
+        if all(Path(p).suffix.lower() == '.pdf' for p in paths):
+            self.add_workshop_action(organize, paths)
+        organize.addAction(tr('Zur Sammelfläche hinzufügen'), lambda: self.spaces.collect(paths))
+        organize.addAction(tr('In Ordner kopieren …'), self.spaces.copy_to)
+        if self.current_location == SHELF:
+            organize.addAction(tr('Aus Sammelfläche entfernen (Dateien behalten)'), lambda: self.spaces.remove_shelf(paths))
+        if len(paths) == 1:
+            safety.addAction(tr('Dateiversionen …'), lambda: self.show_versions(paths[0]))
+            organize.addAction(tr('Enthaltenden Ordner öffnen'), lambda: self.navigate(Path(paths[0]).parent))
+            if directory:
+                organize.addAction(tr('In neuem Tab öffnen'), lambda: self.new_tab(paths[0]))
+                from drive_ui import show as show_drive
+                safety.addAction(tr('Mit Lumen Drive synchronisieren …'), lambda: show_drive(self, paths[0]))
+                remote = self.network.remote(paths[0])
+                if remote: safety.addAction(tr('Offline verfügbar machen …'), lambda: self.offline.add(remote))
+                organize.addAction(tr('Ordnergröße berechnen'), lambda: self.open_analysis(paths[0], apparent=True))
+                organize.addAction(tr('Speicher analysieren'), lambda: self.open_analysis(paths[0]))
+        organize.addAction(tr('Pfad kopieren'), lambda: QApplication.clipboard().setText('\n'.join(self.network.remote(p) or p for p in paths)))
+        from file_actions import menu as personal_actions_menu
+        personal_actions_menu(self, organize, paths)
+        organize.addSeparator()
+        organize.addAction(tr('Hier einfügen\tStrg+V'), self.paste)
+        organize.addAction(tr('Neuer Ordner'), self.mkdir)
+        organize.addAction(tr('Letzte Lumen-Dateiaktion rückgängig …'), lambda: self.organize_files('undo'))
+    self.lumen_menu(menu, paths)
+    menu.finish()
+    menu.addAction(QIcon.fromTheme('document-properties'), tr('Eigenschaften …'), lambda: self.show_properties(paths))
+    return menu
+
+
+def add_lumen_actions(window, menu, paths):
+    if not paths:return
+    from pathlib import Path
+    from drive_browser import is_drive
+    from drive_references import readable,TEXT_SUFFIXES
+    drive=all(is_drive(path) for path in paths)
+    panel=getattr(getattr(window,'lumen_host',None),'chat',getattr(window,'assistant',None))
+    server=getattr(getattr(panel,'backend',None),'execution','local')=='server'
+    # Server formats are checked asynchronously after the explicit action, not by a second MIME list.
+    supported=all(window.drive.entries[p][0]=='file' and (server or readable(window.drive.entries[p][1])) for p in paths) if drive else all(Path(p).suffix.lower() in TEXT_SUFFIXES+('.pdf','.png','.jpg','.jpeg','.webp','.tif','.tiff') for p in paths)
+    submenu=menu.addMenu(QIcon.fromTheme('lumen'),tr('Mit Lumen …'))
+    commands=[(tr('Besprechen'),'open')]
+    if supported:commands += [(tr('Zusammenfassen'),'summarize'),(tr('Analysieren'),'analyze')]
+    if not drive:commands += [(tr('Erklären'),'explain'),(tr('Fehler beheben'),'fix'),(tr('Git-Diff prüfen'),'review')]
+    from interop_ui import safe_action
+    for title,action in commands:
+        submenu.addAction(title,lambda _=False,a=action:safe_action(window,lambda:window.ask_lumen(a,paths)))
+    if not drive:
+        submenu.addSeparator()
+        submenu.addAction(tr('Intelligent umbenennen …'),lambda:window.organize_files('rename',paths))
+        submenu.addAction(tr('Dateien sortieren …'),lambda:window.organize_files('sort',paths))

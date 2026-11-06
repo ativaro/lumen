@@ -10,7 +10,10 @@ BRIGHTNESS_INTERFACE = 'org.kde.Solid.PowerManagement.Actions.BrightnessControl.
 ACTIONS = {
     'search': ['qdbus6', 'org.kde.krunner', '/App', 'org.kde.krunner.App.display'],
     'network': ['systemsettings', 'kcm_networkmanagement'],
+    'proxy': ['systemsettings', 'kcm_proxy'],
     'audio': ['systemsettings', 'kcm_pulseaudio'],
+    'bluetooth': ['systemsettings', 'kcm_bluetooth'],
+    'firewall': ['systemsettings', 'kcm_firewall'],
     'display': ['systemsettings', 'kcm_kscreen'],
     'appearance': ['lumen-settings', '--appearance'],
     'desktop-settings': ['systemsettings'],
