@@ -40,5 +40,10 @@
   "Quellen, Schritte und Freigaben über „Routine bearbeiten“ ändern.": "Change sources, steps and permissions using “Edit routine”.",
   "Bestehende Apps": "Existing apps",
   "Routine · Feste Schritte mit manuellem Start oder Zeitplan.": "Routine · A sequence of steps started manually or on a schedule.",
-  "Gespeicherte App benutzen oder Änderungen als Entwurf prüfen.": "Use the saved app or review changes as a draft."
+  "Gespeicherte App benutzen oder Änderungen als Entwurf prüfen.": "Use the saved app or review changes as a draft.",
+  "Jede Minute": "Every minute",
+  "1 freigegebener Ordner": "1 approved folder",
+  " Minute": " minute",
+  " Minuten": " minutes",
+  "{0} freigegebene Ordner": "{0} approved folders"
 }

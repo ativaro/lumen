@@ -26,7 +26,6 @@ Button {
         color: control.primary ? control.theme.accent : control.checked ? Qt.alpha(control.theme.accent,0.15) : control.down ? control.theme.hover : control.hovered ? Qt.alpha(control.theme.hover, 0.8) : control.quiet ? "transparent" : control.theme.button
         border.width: control.activeFocus ? 2 : control.quiet ? 0 : 1
         border.color: control.activeFocus ? control.theme.accent : Qt.alpha(control.theme.border, 0.6)
-        Behavior on color { ColorAnimation { duration: 100 } }
     }
     ToolTip.visible: hovered && hint.length > 0
     ToolTip.text: hint

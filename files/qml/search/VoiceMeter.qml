@@ -13,9 +13,9 @@ RowLayout {
         radius: 19; color: Qt.alpha(meter.theme.accent, 0.12)
         Rectangle {
             anchors.centerIn: parent
-            width: 10 + meter.controller.voiceLevel * 12; height: width; radius: width / 2
+            width: 22; height: 22; radius: 11
             color: meter.theme.accent
-            Behavior on width { NumberAnimation { duration: 80 } }
+            opacity: 0.35 + Math.max(0, Math.min(1, meter.controller.voiceLevel)) * 0.65
         }
     }
     ColumnLayout {
@@ -27,9 +27,9 @@ RowLayout {
                 Rectangle {
                     required property int index
                     width: 3; radius: 1.5; anchors.verticalCenter: parent.verticalCenter
-                    height: 3 + meter.controller.voiceLevel * (8 + 13 * Math.abs(Math.sin(index * 1.7)))
+                    height: 11 + 13 * Math.abs(Math.sin(index * 1.7))
                     color: meter.theme.accent
-                    Behavior on height { NumberAnimation { duration: 70 } }
+                    opacity: 0.2 + Math.max(0, Math.min(1, meter.controller.voiceLevel)) * 0.8
                 }
             }
         }
