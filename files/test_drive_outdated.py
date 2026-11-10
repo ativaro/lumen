@@ -7,6 +7,10 @@ import drive_sync as drive
 
 
 class OutdatedTest(unittest.TestCase):
+    def setUp(self):
+        # The assertions name the German source text; do not depend on the language of the test machine.
+        language = patch('lumen_i18n.language', return_value='de'); language.start(); self.addCleanup(language.stop)
+
     def roots(self):
         old, pending = str(uuid4()), dict(request_id=str(uuid4()), staged='outgoing')
         return dict(

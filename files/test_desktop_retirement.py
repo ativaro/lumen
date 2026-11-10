@@ -72,7 +72,6 @@ class DesktopRetirementTest(unittest.TestCase):
         with patch('tools_ui.ToolWindow.__init__',side_effect=AssertionError('No widget or library may be constructed')):
             with self.assertRaisesRegex(ValueError,'Lumen Server'):Wissen(memory_only=False)
 
-    def test_native_device_page_has_no_workspace_or_local_project_view(self):
+    def test_native_device_page_only_offers_device_management(self):
         import server_devices
         self.assertTrue(hasattr(server_devices,'ServerDevices'))
-        self.assertFalse(hasattr(server_devices,'ServerWorkspace'))

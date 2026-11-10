@@ -45,7 +45,7 @@ gemeinsamen Theme-Farben.
 
 ## Installation und Rückweg
 
-Voraussetzung: Plasma/Plasma Workspace 6.8 oder neuer. Das Arch-Paket baut den
+Voraussetzung: Plasma 6.8 oder neuer. Das Arch-Paket baut den
 Adapter mit `native/build-appmenu.sh` und installiert ihn unter
 `/usr/lib/qt6/plugins/plasma/applets/`, das QML-Paket unter
 `/usr/share/plasma/plasmoids/org.lumen.appmenu/`.

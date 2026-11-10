@@ -99,6 +99,10 @@ class SessionTest(unittest.TestCase):
 
 
 class CleanupTest(unittest.TestCase):
+    def setUp(self):
+        # The assertions name the German source text; do not depend on the language of the test machine.
+        language = patch('lumen_i18n.language', return_value='de'); language.start(); self.addCleanup(language.stop)
+
     def test_current_tickets_cancel_only_unfinished_uploads_and_legacy_stays_intact(self):
         import lumen_transfers
         import drive_transport

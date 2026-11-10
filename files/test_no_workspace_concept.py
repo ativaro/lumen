@@ -73,12 +73,12 @@ KWIN_API = (r'\bworkspace\.(?:windowList|clientArea|currentDesktop|activeWindow|
             r'|activeScreen|screens|stackingOrder|raiseWindow|sendClientToScreen)\b')
 KWIN_REASON = ('KWin scripting API: the global object of a KWin script is called "workspace"; '
                'the JavaScript is sent to KWin and the name is not ours to choose.')
-KWIN_FILES = ('files/lumen_actions.py', 'files/lumen_activation.py', 'files/lumen_modes.py',
+KWIN_FILES = ('files/lumen_actions.py', 'files/lumen_activation.py',
               'files/test_lumen_activation.py', 'tests/check-screen-companion.py',
               'tests/desktop/session.py')
 PLASMA_PKG = r'\bplasma-workspace\b'
 PLASMA_REASON = 'Name of the upstream KDE package and repository "plasma-workspace".'
-PLASMA_FILES = ('INSTALL.md', 'SPEC-appmenu.md', 'SPEC-modes-activity.md', 'packaging/arch/PKGBUILD')
+PLASMA_FILES = ('INSTALL.md', 'SPEC-appmenu.md', 'packaging/arch/PKGBUILD')
 
 ALLOWED = (
     *(allow(path, KWIN_API, KWIN_REASON) for path in KWIN_FILES),
@@ -101,8 +101,18 @@ ALLOWED = (
           'This guard defines the forbidden terms and their exceptions.'),
     allow('files/lumen_store.py', r'workplace/',
           'One-time takeover of settings stored under the old key prefix "workplace/"; '
-          'optional until the store migration is merged, and limited to a single line.',
-          optional=True, limit=1),
+          'limited to the two lines of that single SQL statement.', limit=2),
+    allow('files/test_store_migration.py', r'workplace/?',
+          'The takeover test has to create a database that still holds the old key prefix.'),
+    # Knowingly kept until Lumen Server stops sending the field and version 1 pairings are renewed
+    # (see HANDOVER-server-arbeitsplatz-reste.md). Removing these lines changes stored scope keys.
+    *(allow(path, r'\bworkspace(?:_id)?\b', 'Stored version 1 pairings and the reply of /bridge/me still carry '
+            'workspace_id, and existing scope keys hash it; the desktop only reads it to keep those scopes or to refuse old records.')
+      for path in ('files/sync_identity.py', 'files/memory_sync.py', 'files/drive_sync.py')),
+    *(allow(path, r'workspace(?:_id)?', 'Test data for the kept server contract: replies that still carry workspace_id, '
+            'and old records or requests with the retired field that must be refused.')
+      for path in ('files/test_desktop_backend.py', 'files/test_sync_identity.py', 'files/test_sync_settings.py',
+                   'files/test_drive_http.py', 'files/test_drive_mcp.py', 'files/test_drive_outdated.py')),
     allow('README.md', r'\bleave room for\b',
           'English idiom for spare capacity (retained update runs), not the room model.'),
     allow('files/translations/en/troubleshooter.json', r'\bMake room so\b',
