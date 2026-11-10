@@ -84,9 +84,7 @@ KDE-Referenzen: [AppMenu-Backend](https://github.com/KDE/plasma-workspace/tree/P
   gesendet. Ein prozessbezogener lokaler D-Bus-Endpunkt bindet den Klick an den
   tatsächlich aktiven Reader. Bereits laufende Reader müssen normal neu öffnen.
 - Frische aktive Drive-Transfers werden nur lesend aus den vorhandenen Tickets
-  zusammengefasst. Ein Klick öffnet genau die Übertragung in Lumen Files. Der
-  historische Speicherschlüssel `workplace/transfer/` bleibt zur Datenkompatibilität
-  bestehen und führt kein Arbeitsraum-Produktmodell ein.
+  zusammengefasst. Ein Klick öffnet genau die Übertragung in Lumen Files.
 - Audio Studio veröffentlicht nach bestätigter Mikrofonfreigabe ausschließlich
   seine Prozesskennungen, solange die bestehende App-Sitzung gültig ist. Ein
   laufender PipeWire-Mikrofonstream dieses Prozessbaums aktiviert die Anzeige.
