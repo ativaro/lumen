@@ -468,14 +468,11 @@ Python 3, PySide6/Qt 6 einschließlich QtDBus, QtSvg und QtQuick (`pyside6`), Py
 ## Entfernen
 
 Die beiden Starter `~/.local/share/applications/lumen-files.desktop` und `~/.local/bin/lumen-files` entfernen. Optional zusätzlich das Projektverzeichnis und `~/.config/Lumen/Files.conf` entfernen. Dolphin bleibt installiert und unverändert zugeordnet.
-# Arbeitsplatz
+# Arbeitsmodi, Übertragungen und Verlauf
 
-Im Menü **Arbeitsplatz · Projekte & Verlauf** öffnen. Projekte verbinden benannte
-Quellen auf PC/NAS mit gespeicherten Dateitabs, explizit ausgewählten Programmen,
-Webseiten und einer Notiz. „Weiterarbeiten“ stellt diesen Stand wieder her;
-„Aktuellen Stand merken“ übernimmt die aktuelle Ansicht. „Quellen prüfen“ zeigt
-Erreichbarkeit und die zuletzt geänderten Dateien eines begrenzten Scans. Offline
-bleiben bekannte Dateien als solche gekennzeichnet sichtbar.
+Das Menü öffnet **Lumen Projekte** sowie **Verlauf & Rückgängig**. Projekte fassen
+Materialien, Gespräche und Aufgaben zusammen; die frühere Raumansicht mit
+„Weiterarbeiten“ wurde am 19.10.2026 entfernt.
 
 Arbeitsmodi bündeln Audio, Benachrichtigungen, Fenster und Netzwerkordner. Transfers
 und der geprüfte Änderungsverlauf sind mit der Lumen-App geteilt. Downloads werden

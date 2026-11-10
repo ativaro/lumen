@@ -24,7 +24,7 @@ from app import create_app, button
 from assistant import Transcript
 from studio_chat import StudioChat
 from studio_preview import StudioSurface
-from studio_workspaces import StudioWorkspaces
+from studio_context_bar import StudioContextBar
 from preview import label
 from desktop_design import NAV_WIDTH
 
@@ -103,8 +103,8 @@ class DesktopActivation(QObject):
     def TaskCapabilities(self, identity):
         try:
             from lumen_panel import valid_task
-            task = self.window.workspace.store.task(valid_task(identity)) if self.window else None
-            return json.dumps(self.window.workspace.task_capabilities(task)) if task else '{}'
+            task = self.window.work_pages.store.task(valid_task(identity)) if self.window else None
+            return json.dumps(self.window.work_pages.task_capabilities(task)) if task else '{}'
         except (ValueError, OSError): return '{}'
 
     @Slot(str, str, result=str)
@@ -114,31 +114,31 @@ class DesktopActivation(QObject):
             identity = valid_task(identity)
             if self.window is None: raise ValueError(tr('Lumen startet noch. Bitte erneut versuchen.'))
             if action not in ('run','pause','cancel','conversation'): raise ValueError(tr('Unbekannte Auftragsaktion.'))
-            workspace = self.window.workspace
-            task = workspace.store.task(identity)
+            work = self.window.work_pages
+            task = work.store.task(identity)
             if not task: raise ValueError(tr('Auftrag nicht mehr vorhanden.'))
-            if action != 'conversation' and not workspace.task_capabilities(task)['run' if action == 'run' else action]:
+            if action != 'conversation' and not work.task_capabilities(task)['run' if action == 'run' else action]:
                 raise ValueError(tr('Diese Steuerung ist für diesen Auftrag hier nicht verfügbar.'))
-            workspace.select_task(identity)
+            work.select_task(identity)
             # Native confirmation dialogs and engine work happen after the IPC reply.
             def perform():
                 try:
-                    workspace.select_task(identity)
+                    work.select_task(identity)
                     if action in ('run','conversation'):
                         if hasattr(self.window, 'search_window'): self.window.search_window.hide()
                         from lumen_activation import present
                         present(self.window)
-                    if action == 'run': workspace.run_task(identity)
-                    elif action == 'conversation': workspace.open_task_conversation(identity)
-                    else: workspace.stop_task('paused' if action == 'pause' else 'cancelled')
+                    if action == 'run': work.run_task(identity)
+                    elif action == 'conversation': work.open_task_conversation(identity)
+                    else: work.stop_task('paused' if action == 'pause' else 'cancelled')
                     if action in ('run','conversation'):
                         if hasattr(self.window, 'search_window'): self.window.search_window.hide()
                         from lumen_activation import present
                         present(self.window)
                 except (ValueError, OSError) as error: self.window.chat.show_error(str(error))
-            if action in ('pause','cancel'): workspace.stop_task('paused' if action == 'pause' else 'cancelled')
+            if action in ('pause','cancel'): work.stop_task('paused' if action == 'pause' else 'cancelled')
             elif action == 'conversation':
-                workspace.open_task_conversation(identity)
+                work.open_task_conversation(identity)
                 if hasattr(self.window, 'search_window'): self.window.search_window.hide()
                 from lumen_activation import present
                 present(self.window)
@@ -179,7 +179,7 @@ class DesktopActivation(QObject):
             self.window.show_page(page)
             if page in (2, 9): return
         if self.task:
-            self.window.workspace.select_task(self.task)
+            self.window.work_pages.select_task(self.task)
             self.task = ''
         from lumen_activation import present
         if hasattr(self.window, 'search_window'): self.window.search_window.hide()
@@ -217,21 +217,21 @@ class LumenWindow(QMainWindow):
         self.chat.backend.failed.connect(lambda _: setattr(self, "copy_after_answer", False))
         self.file_window = None
         self.companion = None
-        from lumen_workspace import Workspace
-        self.workspace = Workspace(self, sections=('tasks',))
-        self.workspace.tasks_page.hide()
-        self.studio.bind_workspace(self.workspace)
+        from work_pages import WorkPages
+        self.work_pages = WorkPages(self, sections=('tasks',))
+        self.work_pages.tasks_page.hide()
+        self.studio.bind_work_pages(self.work_pages)
         from lumen_detail_routes import open_tasks
         self.chat.taskRequested.connect(open_tasks)
         QShortcut(QKeySequence('Ctrl+,'), self, activated=self.show_settings)
-        self.workspace_bar = StudioWorkspaces(self)
-        row.addWidget(self.workspace_bar)
+        self.context_bar = StudioContextBar(self)
+        row.addWidget(self.context_bar)
         from studio_navigation import StudioNavigation
         self.navigation = StudioNavigation(self)
         self.history_toggle = QPushButton(tr('Gesprächsverlauf'))
         self.history_toggle.setCheckable(True)
         self.history_toggle.toggled.connect(self.navigation.setVisible)
-        self.workspace_bar.layout().insertWidget(1, self.history_toggle)
+        self.context_bar.layout().insertWidget(1, self.history_toggle)
         self.history_split = QSplitter(Qt.Horizontal)
         self.history_split.setObjectName('studioNavigationSplit')
         self.history_split.setChildrenCollapsible(False)
@@ -273,7 +273,7 @@ class LumenWindow(QMainWindow):
         return self.file_window
 
     def present_action(self, action):
-        self.workspace_bar.setVisible(not action)
+        self.context_bar.setVisible(not action)
         self.navigation.setVisible(not action and self.history_toggle.isChecked())
         self.setWindowTitle('Lumen — ' + self.chat.heading.text() if action else tr('Lumen · Detailansicht'))
         self.setMinimumSize(560, 520) if action else self.setMinimumSize(760, 600)
@@ -283,7 +283,7 @@ class LumenWindow(QMainWindow):
         if compact != self._history_compact:
             self._history_compact = compact
             self.history_toggle.setChecked(not compact)
-            self.navigation.setVisible(not compact and not self.workspace_bar.isHidden())
+            self.navigation.setVisible(not compact and not self.context_bar.isHidden())
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -382,7 +382,7 @@ class LumenWindow(QMainWindow):
         present(self); self.chat.composer.setFocus()
 
     def closeEvent(self, event):
-        if not self.workspace.can_close():
+        if not self.work_pages.can_close():
             event.ignore(); return
         if not self.chat.can_close():
             event.ignore()
@@ -394,7 +394,7 @@ class LumenWindow(QMainWindow):
         self.studio.shutdown()
         if self.companion is not None: self.companion.close()
         self.chat.tracker.interrupt()
-        self.workspace.shutdown()
+        self.work_pages.shutdown()
         self.chat.context_tools.close()
         self.chat.backend.shutdown()
         for job in self.jobs[:]:
@@ -430,7 +430,7 @@ def main():
     parser.add_argument('--file', action='append', default=[])
     parser.add_argument('--selection')
     parser.add_argument('--clipboard-image', action='store_true')
-    parser.add_argument('--page', choices=['chat', 'system', 'actions', 'files', 'tasks', 'knowledge', 'workflows', 'models', 'workplace', 'settings', 'apps', 'results', 'companion', 'household'])
+    parser.add_argument('--page', choices=['chat', 'system', 'actions', 'files', 'tasks', 'knowledge', 'workflows', 'models', 'projects', 'settings', 'apps', 'results', 'companion', 'household'])
     args = parser.parse_args()
     if args.toggle:
         if any(value != parser.get_default(key) for key,value in vars(args).items() if key != 'toggle'):
@@ -462,7 +462,7 @@ def main():
         (args.directory, args.location, args.prompt, args.draft, args.session, args.context, args.file, args.selection,
          args.clipboard_image, os.environ.get('LUMEN_ASK_PROMPT'))))
     args.search = args.search or (plain_launch and not (args.page or args.task or args.restore_state))
-    page_index = {'chat': 0, 'system': 1, 'actions': 2, 'files': 3, 'tasks': 4, 'knowledge': 5, 'workflows': 6, 'models': 7, 'workplace': 8, 'apps': 9, 'results': 10, 'companion': 11, 'household': 12}
+    page_index = {'chat': 0, 'system': 1, 'actions': 2, 'files': 3, 'tasks': 4, 'knowledge': 5, 'workflows': 6, 'models': 7, 'projects': 8, 'apps': 9, 'results': 10, 'companion': 11, 'household': 12}
     from lumen_detail_routes import open_page
     if args.task and not args.task_action:
         open_page(4, args.task); return 0

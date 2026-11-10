@@ -15,13 +15,13 @@ class DetailToolsTest(unittest.TestCase):
         cls.app = QApplication.instance() or create_app()
 
     def test_independent_pages_share_existing_records(self):
-        from lumen_workspace import Workspace
+        from work_pages import WorkPages
         with tempfile.TemporaryDirectory() as tmp:
             store = Store(Path(tmp)/'state')
             flow = store.save_workflow('Keep trigger', [{'action':'open','path':tmp}], [tmp],
                                       trigger='directory', watch=tmp, interval=300, enabled=False, approved=True)
             host = QWidget()
-            pages = [Workspace(host, store, [section]) for section in ('flows', 'knowledge', 'models', 'tasks')]
+            pages = [WorkPages(host, store, [section]) for section in ('flows', 'knowledge', 'models', 'tasks')]
             self.assertFalse(hasattr(host, 'chat'))
             self.assertEqual(pages[0].flows.item(0).data(256)['id'], flow)
             self.assertFalse(hasattr(pages[0], 'tasks_page'))
@@ -35,20 +35,20 @@ class DetailToolsTest(unittest.TestCase):
 
 
     def test_populated_task_page_routes_ai_controls_and_keeps_native_controls(self):
-        from lumen_workspace import Workspace
+        from work_pages import WorkPages
         with tempfile.TemporaryDirectory() as tmp:
             store = Store(Path(tmp)/'state'); host = QWidget()
             task = store.create_task('Resume existing task', directory=tmp, status='paused')
             store.update_task(task, result='Existing answer', session='same-session')
-            workspace = Workspace(host, store, ('tasks',))
-            workspace.select_task(task)
-            self.assertEqual(workspace.task_title.text(), 'Resume existing task')
+            pages = WorkPages(host, store, ('tasks',))
+            pages.select_task(task)
+            self.assertEqual(pages.task_title.text(), 'Resume existing task')
             with patch('lumen_detail_routes.task_action') as action:
-                workspace.run_task(task); action.assert_called_with(task,'run')
-                workspace.open_task_conversation(task); action.assert_called_with(task,'conversation')
-            workspace.stop_task('cancelled')
+                pages.run_task(task); action.assert_called_with(task,'run')
+                pages.open_task_conversation(task); action.assert_called_with(task,'conversation')
+            pages.stop_task('cancelled')
             self.assertEqual(store.task(task)['status'], 'cancelled')
-            workspace.shutdown(); host.close()
+            pages.shutdown(); host.close()
 
     def test_models_share_settings_and_do_not_launch_a_backend_on_open(self):
         import os
@@ -58,7 +58,7 @@ class DetailToolsTest(unittest.TestCase):
             prefs=QSettings(tmp+'/prefs.ini',QSettings.IniFormat)
             dialog=SettingsDialog(assistant_settings=prefs,files_settings=QSettings(tmp+'/files.ini',QSettings.IniFormat),load_system=False)
             try:
-                page=dialog.resource_workspace
+                page=dialog.resource_pages
                 self.assertIsNone(page.model_backend)
                 page.model_controls['model'].setCurrentText('provider/selected')
                 page.save_models()

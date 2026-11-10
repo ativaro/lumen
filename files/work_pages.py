@@ -221,7 +221,7 @@ class Indexer(QThread):
         except Exception as exc: self.outcome.emit(str(exc))
 
 
-class Workspace(QObject):
+class WorkPages(QObject):
     def __init__(self, window, store=None, sections=None):
         super().__init__(window); self.window = window
         self.store = store or (window.chat.tracker.store if hasattr(window, 'chat') else Store())

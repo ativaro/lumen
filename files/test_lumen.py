@@ -100,7 +100,7 @@ class NativeTest(unittest.TestCase):
                 self.assertLess(abs(restored.splitter.sizes()[1] - sizes[1]), 5)
             finally:
                 restored.close(); restored.deleteLater()
-            # A requested folder takes precedence over the saved workspace.
+            # A requested folder takes precedence over the saved folder.
             explicit = Window(str(first), settings)
             self.assertEqual(explicit.tabs.count(), 1)
             explicit.close(); explicit.deleteLater()

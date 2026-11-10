@@ -59,7 +59,7 @@ def expand(flow, paths):
 
 def save_action(parent, store, task, paths=()):
     if task['status'] != 'completed': raise ValueError(tr('Zuerst die Aufgabe erfolgreich abschließen.'))
-    from lumen_workspace import PlanDialog
+    from work_pages import PlanDialog
     from PySide6.QtWidgets import QLabel
     dialog = PlanDialog(parent, template(task, paths), workflow=True)
     dialog.setWindowTitle(tr('Eigene Dateiaktion speichern'))
@@ -73,7 +73,7 @@ def save_action(parent, store, task, paths=()):
 
 
 def run_action(window, flow, paths):
-    from lumen_workspace import PlanDialog
+    from work_pages import PlanDialog
     value = expand(flow, paths); dialog = PlanDialog(window, value)
     dialog.setWindowTitle(tr('Dateiaktion prüfen · ') + flow['name'])
     if not dialog.exec(): return

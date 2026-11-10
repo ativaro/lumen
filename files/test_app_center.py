@@ -6,7 +6,7 @@ from unittest.mock import patch, Mock
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QApplication, QPushButton
 from lumen_apps import AppCenter, catalogue, launch, startup_preference
-from lumen_workspace import PlanDialog, StepDialog
+from work_pages import PlanDialog, StepDialog
 
 
 class AppCenterTest(unittest.TestCase):
@@ -93,17 +93,17 @@ class AppCenterTest(unittest.TestCase):
 
     def test_edit_workflow_keeps_identity_and_scope(self):
         from types import SimpleNamespace
-        from lumen_workspace import Workspace
+        from work_pages import WorkPages
         from lumen_store import Store
         with tempfile.TemporaryDirectory() as tmp:
             store = Store(Path(tmp)/'state')
             key = store.save_workflow('Alt', [{'action':'open','path':tmp}], [tmp], approved=True)
             values = dict(name='Neu', steps=[{'action':'diagnose'}], roots=[tmp], trigger='interval', interval=300, watch='', enabled=True, approved=True)
             window = SimpleNamespace(chat=SimpleNamespace(backend=SimpleNamespace(directory=tmp)))
-            workspace = SimpleNamespace(window=window, store=store, refresh_flows=Mock())
+            pages = SimpleNamespace(window=window, store=store, refresh_flows=Mock())
             dialog = Mock(value=values); dialog.exec.return_value = True
-            with patch('lumen_workspace.PlanDialog', return_value=dialog):
-                Workspace.flow_dialog(workspace, store.workflows()[0], workflow=key)
+            with patch('work_pages.PlanDialog', return_value=dialog):
+                WorkPages.flow_dialog(pages, store.workflows()[0], workflow=key)
             rows = store.workflows(); self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]['id'], key); self.assertEqual(rows[0]['interval'], 300)
             self.assertEqual(rows[0]['roots'], [tmp]); self.assertTrue(rows[0]['approved'])

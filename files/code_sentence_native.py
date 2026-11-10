@@ -91,7 +91,7 @@ class NativeSentence(QObject):
         self.baseline=self.snapshot();d.installEventFilter(self);self.refresh()
 
     def description(self,step):
-        from lumen_workspace import step_description
+        from work_pages import step_description
         return step_description(step)
 
     @staticmethod

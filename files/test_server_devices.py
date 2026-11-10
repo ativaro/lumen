@@ -6,7 +6,7 @@ from uuid import uuid4
 from PySide6.QtWidgets import QApplication
 from PySide6.QtTest import QTest
 from PySide6.QtCore import QSettings
-from server_workspace import ServerDevices
+from server_devices import ServerDevices
 APP=QApplication.instance() or QApplication([])
 
 def idle(w):
@@ -33,13 +33,13 @@ class NativeServerTest(unittest.TestCase):
                 if path=='/bridge/management' and body is None:return [dict(id=device,name='Desktop',inventory={'hostname':'desktop'},operations=['services'],last_seen=None,wake_ready=True)]
                 if path=='/bridge/management':return dict(id=body['request_id'],actions=[dict(id='a',state='claimed',progress={'checks':{'lumen-watch.service':{'state':'active','expected':'running','load':'loaded'}},'current':'lumen-jobs.service'})])
                 return {}
-            with patch('server_workspace.lumen_connect.read_config',lambda:config),patch('server_workspace.lumen_connect.request',request):
+            with patch('server_devices.lumen_connect.read_config',lambda:config),patch('server_devices.lumen_connect.request',request):
                 d=ServerDevices();d.show();idle(d)
                 self.assertTrue(d.run.isEnabled());self.assertTrue(d.wake.isEnabled());d.run.click();idle(d)
                 self.assertIn('lumen-watch.service',d.progress.item(1).text());self.assertFalse(d.run.isEnabled());self.assertIsNotNone(d.receipt)
                 d.show_progress(dict(actions=[dict(state='completed',result=dict(services={'lumen-watch.service':'active'}))]))
                 self.assertIsNone(d.receipt);self.assertTrue(d.run.isEnabled())
-                with patch('server_workspace.lumen_connect.request',side_effect=lambda *a,**k:(__import__('time').sleep(.05),request(*a,**k))[1]):
+                with patch('server_devices.lumen_connect.request',side_effect=lambda *a,**k:(__import__('time').sleep(.05),request(*a,**k))[1]):
                     d.reload();d.close();d.deleteLater()
                     for _ in range(200):
                         QTest.qWait(10)

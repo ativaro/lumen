@@ -77,7 +77,7 @@ class SystemUITest(unittest.TestCase):
     def test_english_work_mode_copy_describes_setup_without_a_project_context(self):
         from lumen_i18n import tr
         with patch('lumen_i18n.language', return_value='en'):
-            self.assertEqual(tr('Ein Klick, ein passender Arbeitsplatz.'), 'One click to the right setup.')
+            self.assertEqual(tr('Ein Klick, alles passend eingestellt.'), 'One click to the right setup.')
 
     def test_analysis_is_explicit_and_passed_as_argument(self):
         with patch('system_app.QProcess.startDetached',return_value=(True,42)) as launch:

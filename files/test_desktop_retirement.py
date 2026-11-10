@@ -73,6 +73,6 @@ class DesktopRetirementTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'Lumen Server'):Wissen(memory_only=False)
 
     def test_native_device_page_has_no_workspace_or_local_project_view(self):
-        import server_workspace
-        self.assertTrue(hasattr(server_workspace,'ServerDevices'))
-        self.assertFalse(hasattr(server_workspace,'ServerWorkspace'))
+        import server_devices
+        self.assertTrue(hasattr(server_devices,'ServerDevices'))
+        self.assertFalse(hasattr(server_devices,'ServerWorkspace'))

@@ -7,7 +7,7 @@ from lumen_i18n import tr
 from tools_ui import button, row
 
 
-class ReadingWorkspace(QStackedWidget):
+class ReadingView(QStackedWidget):
     def __init__(self, window, root=None):
         super().__init__(window)
         from tools_reader import Reader

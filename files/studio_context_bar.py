@@ -5,7 +5,7 @@ from lumen_i18n import tr
 from studio_design import icon, surface
 
 
-class StudioWorkspaces(QFrame):
+class StudioContextBar(QFrame):
     def __init__(self, window):
         super().__init__(window); self.window = window
         self.setObjectName('studioContextBar'); surface(self)

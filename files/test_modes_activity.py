@@ -18,7 +18,7 @@ import lumen_modes as modes
 import lumen_transfers as transfers
 
 
-class WorkplaceTest(unittest.TestCase):
+class ModesActivityTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name); self.store = Store(self.root / 'state')
@@ -144,7 +144,7 @@ class WorkplaceTest(unittest.TestCase):
         settings.sync(); self.assertFalse(settings.value('preview', type=bool)); self.assertEqual(settings.value('limit', type=int), 50)
 
 
-class NativeWorkplaceTest(unittest.TestCase):
+class NativeModesActivityTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from app import create_app

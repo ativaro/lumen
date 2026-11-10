@@ -1,4 +1,4 @@
-"""Task cards and inspector; actions stay on the existing Workspace controller."""
+"""Task cards and inspector; actions stay on the existing WorkPages controller."""
 from datetime import datetime
 from PySide6.QtCore import Qt, QSize, QRectF
 from PySide6.QtGui import QPalette, QPainter, QPen, QFont, QDesktopServices

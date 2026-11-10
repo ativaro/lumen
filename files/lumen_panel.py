@@ -109,7 +109,7 @@ def main():
     group.add_argument('--open-app', choices=[item[0] for item in catalogue(include_utilities=True)])
     group.add_argument('--open-task', type=valid_task)
     group.add_argument('--dismiss-task', type=valid_task)
-    group.add_argument('--open-page', choices=['chat', 'files', 'system', 'tasks', 'settings', 'workplace'])
+    group.add_argument('--open-page', choices=['chat', 'files', 'system', 'tasks', 'settings', 'projects'])
     group.add_argument('--search', action='store_true')
     group.add_argument('--voice', action='store_true')
     group.add_argument('--conversation', action='store_true')

@@ -1,4 +1,4 @@
-# Native workplace
+# Native work modes, transfers and history
 
 Approved: projects with resume, a shared change history, work modes, shared
 transfers and a project overview across local and network storage.
@@ -38,34 +38,14 @@ Desktop API references: KDE's [notification settings](https://github.com/KDE/pla
 [KConfig date serialization](https://github.com/KDE/kconfig/blob/master/src/core/kconfiggroup.cpp)
 and [KWin window properties](https://github.com/KDE/kwin/blob/master/src/window.h).
 
-## Arbeitsräume: Weiterarbeiten und Werkbank (07.10.2026)
+## Room landing page and workbench (07.10.2026, removed 19.10.2026)
 
-Approved combination: proposal 1 as landing page, proposal 2 inside a room.
-Keep the existing Catalog project/room identity, stored tabs, selection, chat,
-NAS sources, configured launch actions, guarded history and transfer subsystem.
-No content migration or separate task database.
+The room landing page and project workbench approved on 07.10.2026 were removed
+on 19.10.2026 (`files/workplace_rooms.py`, `files/projects_rooms.py`). Lumen has
+projects only; see `docs/lumen-panorama/project-editor-2026-10-19.md`. Work modes,
+transfers and guarded history above remain in `files/modes_activity.py`.
 
-Implemented: featured last room, responsive room cards, compact creation with
-name/folder, workbench columns for next step/knowledge, material, conversations
-and tasks. Files, Tasks and History tabs retain detailed navigation. Global
-transfers/history remain under Activity; work modes remain in Lumen System.
-
-Pins store bounded references: registered file/knowledge objects, validated web
-URLs, explicit conversation identity and existing task identity. Removal/reorder
-never deletes originals. Live note excerpts are transient (first eight pinned
-notes, 350 characters each); reading occurs in a timed worker. Sources do not
-claim availability until checked. File pins follow existing relocation registry.
-Optional opening on Resume is explicit per file/web pin. Saved application/web
-launch preferences continue to apply. Resume preserves the existing room-state
-flow; unsent chat replacement requires an explicit choice with No as default.
-
-Discuss opens an editable conversation draft with linked file paths and the
-room's next step; it does not submit automatically. Task state comes from the
-existing Store. Pins and room edits refuse stale snapshots and refresh the
-active-room reference so autosave cannot silently erase them. No new engine,
-server synchronization, task execution or Focusroom mode in this UI change.
-
-Verification: test_workplace and test_workplace_rooms; native source/installed
+Verification: test_modes_activity; native source/installed
 Lumen host navigation and clean exit; DE/EN and dark/light Qt renders. Existing
 Files menu, Drive and interop UI checks remain applicable. Direct installer
 already includes new Python modules and translation catalogs by directory.

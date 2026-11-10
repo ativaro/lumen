@@ -6,7 +6,7 @@ from unittest.mock import patch
 from PySide6.QtCore import QCoreApplication, QEvent, QTimer, Qt
 from PySide6.QtWidgets import QApplication, QDialog, QFrame, QListWidget, QMenu, QMessageBox, QTabWidget
 from PySide6.QtTest import QTest
-from lumen_workspace import PlanDialog, StepDialog
+from work_pages import PlanDialog, StepDialog
 from lumen_store import Store
 
 
@@ -37,7 +37,7 @@ class NativeSentenceTest(unittest.TestCase):
         task=self.dialog(self.value(),workflow=False)
         self.assertEqual(task.findChildren(QTabWidget)[0].count(),3)
         self.assertIsNone(task.findChild(QFrame,'sentence'))
-        with patch('lumen_workspace.QMessageBox.question') as question:task.reject();question.assert_not_called()
+        with patch('work_pages.QMessageBox.question') as question:task.reject();question.assert_not_called()
 
     def test_native_save_reopen_keeps_fields_scope_and_identity(self):
         value=self.value();value['name']='Ein bestehender Automationsname'.ljust(200,'x');d=self.dialog(value)
@@ -122,12 +122,12 @@ class NativeSentenceTest(unittest.TestCase):
 
     def test_dirty_close_cancel_discard_and_save(self):
         d=self.dialog(self.value());d.show();QTest.qWait(20);d.name.setText('Geändert')
-        with patch('lumen_workspace.QMessageBox.question',return_value=QMessageBox.Cancel):d.reject()
+        with patch('work_pages.QMessageBox.question',return_value=QMessageBox.Cancel):d.reject()
         self.assertTrue(d.isVisible());self.assertIsNone(d.value)
-        with patch('lumen_workspace.QMessageBox.question',return_value=QMessageBox.Discard):d.reject()
+        with patch('work_pages.QMessageBox.question',return_value=QMessageBox.Discard):d.reject()
         self.assertFalse(d.isVisible());self.assertIsNone(d.value)
         saved=self.dialog(self.value());saved.show();QTest.qWait(20);saved.name.setText('Gespeichert');saved.approve.setChecked(True)
-        with patch('lumen_workspace.QMessageBox.question',return_value=QMessageBox.Save):saved.reject()
+        with patch('work_pages.QMessageBox.question',return_value=QMessageBox.Save):saved.reject()
         self.assertEqual(saved.result(),QDialog.Accepted);self.assertEqual(saved.value['name'],'Gespeichert')
 
     def test_file_action_manual_lock_remains_effective(self):

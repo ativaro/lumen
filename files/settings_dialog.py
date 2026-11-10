@@ -159,10 +159,10 @@ class SettingsDialog(QDialog):
         from sync_overview import widget as sync_widget
         server.addWidget(sync_widget(self, heading=False))
         server.addStretch()
-        from lumen_workspace import Workspace
-        self.resource_workspace = Workspace(self, sections=('models',))
+        from work_pages import WorkPages
+        self.resource_pages = WorkPages(self, sections=('models',))
         self.models_page = self.stack.count()
-        self.page(tr('Modelle & Ressourcen'), tr('Modelle, Datenschutz und Grenzen für Hintergrundaufträge')).addWidget(self.resource_workspace.models_page)
+        self.page(tr('Modelle & Ressourcen'), tr('Modelle, Datenschutz und Grenzen für Hintergrundaufträge')).addWidget(self.resource_pages.models_page)
         from settings_navigation import SettingsNavigation, categories
         self.navigation = SettingsNavigation(self.stack, self.page_info, categories(self), self)
         self.nav = self.navigation.nav; self.nav_search = self.navigation.search
@@ -428,13 +428,13 @@ class SettingsDialog(QDialog):
             {key: self.original.get((settings.fileName(), key)) for key in values})
         for key, value in values.items():
             self.original[(settings.fileName(), key)] = value
-        if settings.fileName() == self.assistant.fileName() and 'model' in values and hasattr(self, 'resource_workspace'):
+        if settings.fileName() == self.assistant.fileName() and 'model' in values and hasattr(self, 'resource_pages'):
             selected = values['model']
             if self.model.findData(selected) < 0: self.model.addItem(selected, selected)
             self.model.setCurrentIndex(max(0, self.model.findData(selected)))
-            self.resource_workspace.model_controls['model'].setCurrentText(selected)
-            policy = self.resource_workspace.store.setting('modelPolicy', {})
-            self.resource_workspace.store.set_setting('modelPolicy', dict(policy, model=selected))
+            self.resource_pages.model_controls['model'].setCurrentText(selected)
+            policy = self.resource_pages.store.setting('modelPolicy', {})
+            self.resource_pages.store.set_setting('modelPolicy', dict(policy, model=selected))
         self.preferencesChanged.emit(settings.fileName(), list(changes))
 
     def folder_field(self, form, title, settings, key, default):
@@ -929,8 +929,8 @@ class SettingsDialog(QDialog):
         timer.start(100000 if action == 'service' and data.get('scope') == 'system' else 60000)
 
     def done(self, result):
-        workspace=getattr(self,'resource_workspace',None)
-        if workspace is not None and not workspace.can_close(): return
+        pages=getattr(self,'resource_pages',None)
+        if pages is not None and not pages.can_close(): return
         if self.job:
             self.status.setText(tr('Bitte die laufende Systemaktion abwarten.'))
             return
@@ -938,7 +938,7 @@ class SettingsDialog(QDialog):
             self.engine.shutdown()
         if hasattr(self, 'extensions'): self.extensions.stop()
         if hasattr(self, 'troubleshooter'): self.troubleshooter.stop()
-        if workspace is not None:workspace.shutdown()
+        if pages is not None:pages.shutdown()
         from window_geometry import remember
         remember(self,self.assistant,self._geometry_key)
         super().done(result)

@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QMainWindow, QTabWidget
 from PySide6.QtQuickWidgets import QQuickWidget
 from lumen_i18n import tr
 from tools_sound import Sound
-from lumen_workplace import Workplace
+from modes_activity import ModesActivity
 
 
 class SystemWindow(QMainWindow):
@@ -29,8 +29,8 @@ class SystemWindow(QMainWindow):
             raise RuntimeError('Lumen System QML failed to load')
         self.system.setFocusPolicy(Qt.StrongFocus)
         self.sound = Sound(root); self.sound.setWindowFlags(Qt.Widget)
-        self.modes = Workplace(store=store, system_only=True)
-        from server_workspace import ServerDevices
+        self.modes = ModesActivity(store=store, system_only=True)
+        from server_devices import ServerDevices
         self.server_devices = ServerDevices(self)
         from updater_app import UpdaterPage
         from system_diagnostics import DiagnosticsPage
@@ -82,7 +82,7 @@ class SystemWindow(QMainWindow):
         self.activate('backups')
 
     def closeEvent(self, event):
-        if not self.diagnostics.system_status.can_close() or not self.diagnostics.workspace.can_close(): event.ignore(); return
+        if not self.diagnostics.system_status.can_close() or not self.diagnostics.work_pages.can_close(): event.ignore(); return
         if self.backups.setup_dialog and self.backups.setup_dialog.isVisible():
             self.backups.setup_dialog.raise_(); self.backups.setup_dialog.activateWindow()
             event.ignore(); return
@@ -113,7 +113,7 @@ class SystemWindow(QMainWindow):
             self.select('sound'); self.sound.error(str(error)); event.ignore(); return
         self.sound.closing = True; self.sound.timer.stop()
         self.diagnostics.checks.stop()
-        self.diagnostics.workspace.shutdown()
+        self.diagnostics.work_pages.shutdown()
         self.diagnostics.system_status.shutdown()
         self.modes.shutdown(); self.controller.shutdown()
         self.backup_state.setValue('record', self.backups.current); self.backup_state.sync()

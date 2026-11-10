@@ -109,7 +109,7 @@ gracefully on other setups.
 | **MCP server `cachyos`** | read tools `systemctl`, `journal`, `pacman`, `disk`, `gpu`, `memory`, `sensors`, `kwin`, guarded `cmd` — plus **opt-in action tools** (`notify`, `restart_unit`, `media`, `wallpaper`, `screenshot`) behind `LUMEN_MCP_ACTIONS=1` |
 | **opencode commands/skill** | `/sync`, `/sysreport`, `/fix` + `lumen-admin` skill |
 
-## Native workplace
+## Native desktop
 
 First launch offers **Lumen einrichten**, also available from **Einstellungen →
 Einrichtung** and `lumen-setup-wizard`. It checks optional dependencies, reuses

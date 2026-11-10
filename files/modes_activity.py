@@ -49,7 +49,7 @@ def table(headers):
     widget.setShowGrid(False); widget.verticalHeader().hide(); widget.verticalHeader().setDefaultSectionSize(44)
     widget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
     widget.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-    widget.setObjectName('workplaceTable'); widget.setAccessibleName(' · '.join(headers))
+    widget.setObjectName('activityTable'); widget.setAccessibleName(' · '.join(headers))
     return widget
 
 
@@ -132,16 +132,16 @@ class ModeDialog(QDialog):
         except (ValueError, OSError) as error: self.error.setText(str(error))
 
 
-class Workplace(QWidget):
+class ModesActivity(QWidget):
     def __init__(self, parent=None, store=None, files_provider=None, system_only=False, activity_only=False):
         super().__init__(parent)
         self.system_only = system_only
         self.store = store or Store(); self.files_provider = files_provider
         self.jobs, self.connections = [], []
         self.generation = 0; self.busy = False
-        self.setObjectName('workplace'); layout = QVBoxLayout(self); layout.setContentsMargins(28, 24, 28, 18); layout.setSpacing(16)
+        self.setObjectName('activity'); layout = QVBoxLayout(self); layout.setContentsMargins(28, 24, 28, 18); layout.setSpacing(16)
         if system_only:
-            layout.addWidget(text(tr('Arbeitsmodi'),'workplaceHeading'))
+            layout.addWidget(text(tr('Arbeitsmodi'),'activityHeading'))
             self.summary=text(tr('Audio, Ruhezeit, Fenster und Netzwerkordner gemeinsam steuern.'),'muted');layout.addWidget(self.summary)
         self.tabs = QTabWidget(); layout.addWidget(self.tabs, 1)
         if system_only: self.modes_page()
@@ -158,7 +158,7 @@ class Workplace(QWidget):
         self.guard(lambda: launch('system', page='modes'))
 
     def page(self, name):
-        widget = QWidget(); widget.setObjectName('workplacePage'); box = QVBoxLayout(widget); box.setContentsMargins(4, 18, 4, 4); box.setSpacing(12)
+        widget = QWidget(); widget.setObjectName('activityPage'); box = QVBoxLayout(widget); box.setContentsMargins(4, 18, 4, 4); box.setSpacing(12)
         self.tabs.addTab(widget, name); return box
 
     def guard(self, fn):
@@ -219,7 +219,7 @@ class Workplace(QWidget):
 
     def modes_page(self):
         box = self.page(tr('Arbeitsmodi'))
-        box.addWidget(text(tr('Ein Klick, ein passender Arbeitsplatz.'), 'heading'))
+        box.addWidget(text(tr('Ein Klick, alles passend eingestellt.'), 'heading'))
         box.addWidget(text(tr('Audioausgabe, Ruhezeit, Fensteranordnung und Netzwerkordner zusammen einstellen. Änderungen lassen sich im Verlauf einzeln zurücknehmen.'), 'muted'))
         self.mode_table = table([tr('Modus'), tr('Fenster'), tr('Ruhezeit'), tr('Verbindungen')]); box.addWidget(self.mode_table, 1)
         row(box, [(tr('Modus anwenden'), self.apply_mode), (tr('Anpassen …'), self.edit_mode)])
@@ -358,7 +358,7 @@ if __name__ == '__main__':
         if action == 'audio': result = modes.audio_devices()
         elif action == 'mode': result = modes.apply_mode(store, value)
         elif action == 'undo': history.undo_record(store, value['id']); result = True
-        else: raise ValueError(tr('Unbekannte Arbeitsplatz-Aktion.'))
+        else: raise ValueError(tr('Unbekannte Aktion.'))
         print(json.dumps(result))
     except Exception as error:
         print(str(error), file=sys.stderr); sys.exit(1)

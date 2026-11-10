@@ -8,7 +8,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QScrollArea
 from app import create_app
 from backup_setup_ui import BackupWizard
-from lumen_workspace import PlanDialog
+from work_pages import PlanDialog
 from tools_data import Library
 
 

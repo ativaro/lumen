@@ -11,7 +11,7 @@ from app import create_app
 from desktop_design import AppHeader, PAGE_MARGIN
 from lumen_store import Store
 from lumen_i18n import tr
-from lumen_workplace import ModeDialog
+from modes_activity import ModeDialog
 from updater_app import UpdaterPage
 
 

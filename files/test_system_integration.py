@@ -63,7 +63,7 @@ class SystemIntegrationTest(unittest.TestCase):
             pending = None; probe = None
             def mount(self, address): self.address = address; self.connected.emit(address, '/synthetic/mount')
             def close(self): pass
-        with patch('lumen_workplace.Network', Connection), patch.object(page, 'job') as job:
+        with patch('modes_activity.Network', Connection), patch.object(page, 'job') as job:
             page.apply_mode()
             self.assertEqual(job.call_args.args[:2], ('mode', value))
             self.assertTrue(job.call_args.kwargs['mutating'])

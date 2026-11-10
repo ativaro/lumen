@@ -153,7 +153,7 @@ class ToolWindow(QMainWindow):
         from desktop_design import AppHeader, PAGE_MARGIN, PAGE_SPACING, NAV_WIDTH
         from studio_design import font
         self.setFont(font(14))
-        shell = QWidget(); shell.setObjectName('workplace'); self.setCentralWidget(shell)
+        shell = QWidget(); shell.setObjectName('activity'); self.setCentralWidget(shell)
         shell.setStyleSheet('QDateEdit, QSpinBox { background: palette(base); color: palette(text); border: 1px solid palette(mid); border-radius: 8px; padding: 8px; } QCheckBox::indicator { width: 16px; height: 16px; }')
         outer = QVBoxLayout(shell); outer.setContentsMargins(PAGE_MARGIN,20,PAGE_MARGIN,20); outer.setSpacing(PAGE_SPACING)
         self.app_header = AppHeader(title, tagline)

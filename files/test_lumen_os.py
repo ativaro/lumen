@@ -181,7 +181,7 @@ app.exec()
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]['path'], str(shared / 'invoice.txt'))
             self.assertIn('Rechnung', rows[0]['snippet'])
-            memory = store.save_memory('Arbeitsplatz', 'Monitor links', source='Von mir')
+            memory = store.save_memory('Schreibtisch', 'Monitor links', source='Von mir')
             self.assertEqual(store.memories()[0]['id'], memory)
             store.delete_memory(memory)
             store.remove_root(str(shared / '..' / 'shared'))
@@ -274,7 +274,7 @@ class LumenIntegrationTest(unittest.TestCase):
                 window.show()
                 for index in range(8): window.show_page(index); QTest.qWait(15)
                 self.assertEqual(window.file_window.window(), window)
-                space = window.workspace
+                space = window.work_pages
                 space.store.set_setting('modelPolicy', {'gpu_limit': 100, 'pause_on_activity': False})
                 flow = space.store.save_workflow('Bericht', [{'action': 'write', 'path': tmp+'/bericht.md', 'text': 'Prüfung bestanden'}], [tmp], trigger='interval', interval=60, enabled=True, approved=True, now=0)
                 space.tick()

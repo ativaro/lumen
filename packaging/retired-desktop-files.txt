@@ -44,6 +44,8 @@ files/interop_communications.py
 files/interop_radio_audio.py
 files/lumen_projects.py
 files/lumen_search.py
+files/lumen_workplace.py
+files/lumen_workspace.py
 files/notes_web.py
 files/notes_web/NOTICES.txt
 files/notes_web/dependencies.json
@@ -74,11 +76,15 @@ files/projects_mcp.py
 files/projects_overview.py
 files/projects_question_ui.py
 files/projects_references_ui.py
+files/projects_rooms.py
 files/projects_runner.py
 files/projects_sync.py
 files/projects_sync_ui.py
 files/projects_trash.py
+files/reader_workspace.py
+files/server_workspace.py
 files/studio_saved_results.py
+files/studio_workspaces.py
 files/tools_inbox.py
 files/tools_meeting_radio.py
 files/tools_meetings.py
@@ -90,3 +96,4 @@ files/translations/en/projects-panorama.json
 files/vault_activation.py
 files/wissen_sync_assets.py
 files/wissen_sync_folders.py
+files/workplace_rooms.py
