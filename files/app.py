@@ -1797,10 +1797,11 @@ class Window(QMainWindow):
 
     def show_menu(self):
         menu = QMenu(self)
-        menu.addAction(tr('Lumen Projekte'), self.show_activity)
+        from lumen_detail_routes import open_page
+        menu.addAction(tr('Lumen Projekte'), lambda: open_page(8))
         from transfer_panel import panel
         menu.addAction(panel(self).toggleViewAction())
-        menu.addAction(tr('Verlauf & Rückgängig'), lambda: self.show_activity(2))
+        menu.addAction(tr('Verlauf & Rückgängig'), lambda: self.show_activity(1))
         menu.addAction(tr('Offline verfügbare Ordner …'), self.offline.show)
         menu.addAction(tr('Dateiversionen …'), self.show_versions)
         self.add_workshop_action(menu)
@@ -1826,11 +1827,8 @@ class Window(QMainWindow):
         dialog = VersionsDialog(self, path if isinstance(path, str) else None); dialog.exec(); dialog.deleteLater()
 
     def show_activity(self, tab=0):
-        if int(tab) == 0:
-            from lumen_detail_routes import open_page
-            open_page(8); return
         if not hasattr(self, 'activity_dialog'):
-            from modes_activity import ModesActivity
+            from files_activity import FilesActivity
             class ActivityDialog(QDialog):
                 def reject(dialog):
                     if not dialog.page.can_close(): return
@@ -1840,9 +1838,9 @@ class Window(QMainWindow):
             self.activity_dialog = ActivityDialog(self)
             self.activity_dialog.setWindowTitle(tr('Lumen Files · Übertragungen & Verlauf')); self.activity_dialog.resize(1120, 800)
             layout = QVBoxLayout(self.activity_dialog)
-            self.activity_dialog.page = ModesActivity(self.activity_dialog, files_provider=lambda: self, activity_only=True)
+            self.activity_dialog.page = FilesActivity(self.activity_dialog, files_provider=lambda: self)
             layout.addWidget(self.activity_dialog.page)
-        self.activity_dialog.page.tabs.setCurrentIndex(int(tab)-1)
+        self.activity_dialog.page.tabs.setCurrentIndex(int(tab))
         self.activity_dialog.show(); self.activity_dialog.raise_(); self.activity_dialog.activateWindow()
 
     def error(self, message, detail=''):

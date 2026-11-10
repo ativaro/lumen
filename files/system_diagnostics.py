@@ -6,7 +6,7 @@ from troubleshooter_ui import Troubleshooter, label
 
 
 class DiagnosticsPage(QWidget):
-    def __init__(self, system):
+    def __init__(self, system, store=None):
         super().__init__(system)
         self.system = system
         self.assistant = QSettings('Lumen', 'Assistant')
@@ -25,7 +25,7 @@ class DiagnosticsPage(QWidget):
         report = QPushButton(tr('Systemstatus & Wächterbericht')); root.addWidget(report)
         report.clicked.connect(lambda: self.views.setCurrentIndex(2))
         from work_pages import WorkPages
-        self.work_pages = WorkPages(self, store=system.modes.store, sections=('tasks',))
+        self.work_pages = WorkPages(self, store=store, sections=('tasks',))
         task_view = QWidget(); layout = QVBoxLayout(task_view)
         back = QPushButton(tr('Zurück zur Diagnose')); back.clicked.connect(lambda: self.views.setCurrentIndex(0)); layout.addWidget(back)
         layout.addWidget(self.work_pages.tasks_page); self.views.addWidget(task_view)

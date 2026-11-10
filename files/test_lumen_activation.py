@@ -58,8 +58,7 @@ def verify_private_kde():
     from PySide6.QtWidgets import QApplication, QMainWindow, QDialog
     from PySide6.QtQuick import QQuickWindow
     from PySide6.QtTest import QTest
-    from lumen_activation import activate_process, present
-    from lumen_modes import window_script
+    from lumen_activation import activate_process, present, window_script
     from types import SimpleNamespace
     app = QApplication([]); app.setApplicationName('lumen-test-preview'); app.setDesktopFileName('lumen-test')
     window = QMainWindow(); window.setWindowTitle('Lumen focus test')
