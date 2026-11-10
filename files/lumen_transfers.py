@@ -14,7 +14,7 @@ import uuid
 
 from lumen_store import Store
 
-PREFIX = 'workplace/transfer/'
+PREFIX = 'transfer/'
 ACTIVE = ('queued', 'running', 'cancelling')
 LABELS = {'queued': tr('Wartet'), 'running': tr('Läuft'), 'cancelling': tr('Wird angehalten'),
           'paused': tr('Angehalten'), 'failed': tr('Fehlgeschlagen'), 'completed': tr('Fertig'), 'cancelled': tr('Abgebrochen')}
