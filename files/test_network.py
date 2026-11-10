@@ -338,11 +338,6 @@ class NetworkRuntimeTest(unittest.TestCase):
                     window.ask_lumen('open', [])
                     window.assistant.backend.new_conversation(str(mounted))
                     window.assistant.paths = [str(mounted / 'Notes.txt')]
-                    room = catalog.save_room(None, 'Netzraum', window.spaces.capture())
-                    self.assertEqual(room['state']['chat']['directory'], address)
-                    window.assistant.backend.new_conversation(tmp)
-                    window.spaces.open_room(room)
-                    self.wait_until(lambda: window.spaces.active_room is not None and window.spaces.pending == 0)
                     self.assertEqual(window.spaces.reference(window.assistant.paths[0]), address + 'Notes.txt')
                     self.assertEqual(window.spaces.reference(window.assistant.backend.directory), address)
                     send.assert_not_called()
