@@ -11,7 +11,6 @@ from PySide6.QtWidgets import QApplication, QPushButton, QFrame, QTreeWidgetItem
 from app import Window, create_app
 from desktop_design import AppHeader, PAGE_MARGIN, NAV_WIDTH
 from drive_ui import Drive
-from drive_migration_ui import Migration
 from file_spaces import Catalog
 from lumen_i18n import tr
 from lumen_store import Store
@@ -92,22 +91,6 @@ class FilesLayoutTest(unittest.TestCase):
             for b in w.findChildren(QPushButton):
                 if b.isVisible():
                     self.assertGreaterEqual(b.width(), b.sizeHint().width(), b.text())
-
-    def test_migration_keeps_long_confirmation_and_explicit_preview(self):
-        with patch.object(Drive, 'reload'), patch.object(Drive, 'refresh_roots'):
-            parent = Drive()
-            self.windows.append(parent)
-            parent.timer.stop()
-            w = self.show(Migration(parent, {'id': 'fixture', 'path': str(self.root), 'entries': {}, 'folder': None}), 640, 650)
-            w.finish.show()
-            self.app.processEvents()
-            self.assertEqual(w.layout().contentsMargins().left(), PAGE_MARGIN)
-            self.assertEqual(w.findChild(AppHeader).title.font().pixelSize(), 26)
-            self.assertFalse(w.commit.isEnabled())
-            for b in (w.inspect, w.finish, w.commit, w.close_button):
-                self.assertGreaterEqual(b.width(), b.sizeHint().width(), b.text())
-            self.assertGreater(w.commit.y(), w.inspect.y())
-
 
 if __name__ == '__main__':
     unittest.main()

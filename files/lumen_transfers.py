@@ -116,9 +116,8 @@ def cleanup(store, value):
         config = lumen_connect.read_config()
         if sync.scope(config) != value['drive']['scope']: raise ValueError(tr('Zum Aufräumen die ursprüngliche Serververbindung wiederherstellen.'))
         from urllib.error import HTTPError
-        from sync_migration import transfer_legacy_target, require_current_upload
-        legacy = transfer_legacy_target(value)
-        require_current_upload(legacy)
+        from drive_transfers import require_current
+        require_current(value)
         for item in value['upload_plan']['files']:
             if item['request'] in value.get('upload_done', []): continue
             try:
