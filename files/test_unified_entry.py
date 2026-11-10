@@ -44,7 +44,7 @@ class Probe(Original):
    self.search_controller.expand()
    assert self.isVisible() and not self.search_window.isVisible()
    assert self.windowTitle()=='Lumen · Detailansicht'
-   QTest.mouseClick(self.context_bar.compact,d.Qt.LeftButton)
+   QTest.mouseClick(self.context_compact,d.Qt.LeftButton)
    assert self.search_window.isVisible() and not self.isVisible()
    for args,compact in [(['--details'],False),([],True),(['--page','apps'],True),(['--search'],True)]:
     child=QProcess();child.start(sys.executable,[program,*args])

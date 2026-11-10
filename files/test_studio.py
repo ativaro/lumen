@@ -170,15 +170,22 @@ class StudioTest(unittest.TestCase):
 
     def test_context_bar_routes_without_changing_conversation(self):
         bar, chat = self.window.context_bar, self.window.chat
+        self.assertEqual(bar.objectName(), 'studioContextBar'); self.assertTrue(self.window.context_timer.isActive())
         chat.composer.setPlainText('Keep draft'); chat.paths = [self.tmp + '/attached.txt']
         with patch.object(chat.backend, 'new_conversation') as new:
-            bar.project.click()
+            self.window.show_page(8)
             self.assertEqual(self.launch.call_args.args, ('lumen-workbench', ['--section','projects']))
             new.assert_not_called()
         self.assertEqual(chat.composer.toPlainText(), 'Keep draft'); self.assertEqual(len(chat.paths), 1)
         self.assertEqual(self.window.pages.count(), 1)
         self.window.resize(760, 600); self.app.processEvents()
-        self.assertTrue(bar.project.isVisible()); self.assertTrue(bar.directory.isVisible())
+        directory = self.window.context_directory
+        self.assertTrue(self.window.context_compact.isVisible()); self.assertTrue(directory.isVisible())
+        self.assertEqual(directory.text(), Path(chat.backend.directory).name or '/'); self.assertEqual(directory.toolTip(), chat.backend.directory)
+        chat.backend.busy = True; self.window.context_timer.timeout.emit(); self.assertFalse(directory.isEnabled())
+        chat.backend.busy = False; self.window.context_timer.timeout.emit(); self.assertTrue(directory.isEnabled())
+        self.window.present_action('explain'); self.assertFalse(bar.isVisible()); self.assertFalse(self.window.context_timer.isActive())
+        self.window.present_action(''); self.assertTrue(bar.isVisible()); self.assertTrue(self.window.context_timer.isActive())
         chat.composer.clear(); chat.paths = []
 
     def test_real_image_preview_strip_close_and_compact_view(self):
