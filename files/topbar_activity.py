@@ -64,7 +64,7 @@ def snapshot():
         try:
             from contextlib import closing
             with closing(sqlite3.connect(path.resolve().as_uri()+'?mode=ro',uri=True,timeout=.1)) as db:
-                if db.execute('PRAGMA user_version').fetchone()[0]>2:raise ValueError('Newer tasks')
+                if db.execute('PRAGMA user_version').fetchone()[0]>3:raise ValueError('Newer tasks')
                 for identity,title,engine in db.execute("SELECT id,substr(title,1,200),EXISTS(SELECT 1 FROM events WHERE task=tasks.id AND kind='input') FROM tasks WHERE status='needs_input' AND "+VISIBLE_TASKS+" ORDER BY updated DESC LIMIT 5"):
                     valid_task(identity)
                     if not engine or running(directory,identity): decisions.append(dict(id=identity,title=title))
@@ -84,7 +84,7 @@ def recent():
         except (OSError,ValueError,KeyError): binding=''
         seen=set()
         with closing(sqlite3.connect(path.resolve().as_uri()+'?mode=ro',uri=True,timeout=.1)) as db:
-            if db.execute('PRAGMA user_version').fetchone()[0]>2:raise ValueError('Newer tasks')
+            if db.execute('PRAGMA user_version').fetchone()[0]>3:raise ValueError('Newer tasks')
             for session,title,directory,updated in db.execute("SELECT session,substr(title,1,200),directory,updated FROM tasks WHERE session!='' AND EXISTS(SELECT 1 FROM events WHERE task=tasks.id AND kind='input') ORDER BY updated DESC LIMIT 50"):
                 if not isinstance(session,str) or not session or len(session)>256 or any(ord(c)<32 for c in session):continue
                 if session.startswith(PREFIX) and (not binding or not session.startswith(PREFIX+binding+'/')):continue

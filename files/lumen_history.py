@@ -9,7 +9,7 @@ import uuid
 
 from lumen_store import Store
 
-PREFIX = 'workplace/history/'
+PREFIX = 'history/'
 
 
 def record(store, title, kind='activity', before=None, after=None, target=None):

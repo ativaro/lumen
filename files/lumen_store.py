@@ -29,7 +29,8 @@ class Store:
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.path = self.directory / 'lumen.sqlite3'
         with self.connect() as db:
-            if db.execute('PRAGMA user_version').fetchone()[0] > 2:
+            version = db.execute('PRAGMA user_version').fetchone()[0]
+            if version > 3:
                 raise ValueError(tr('Diese Lumen-Datenbank benötigt eine neuere Version.'))
             db.executescript('''
                 CREATE TABLE IF NOT EXISTS tasks (
@@ -62,7 +63,13 @@ class Store:
             columns = {r[1] for r in db.execute('PRAGMA table_info(workflows)')}
             for name, declaration in [('approved', 'INTEGER NOT NULL DEFAULT 0'), ('prompt', "TEXT NOT NULL DEFAULT ''"),('code_plan',"TEXT NOT NULL DEFAULT ''")]:
                 if name not in columns: db.execute(f'ALTER TABLE workflows ADD COLUMN {name} {declaration}')
-            db.execute('PRAGMA user_version=2')
+            if version < 3:
+                # Version 3 renames the transfer and history keys once; the rename and the version commit together.
+                db.execute("""UPDATE settings SET key=substr(key,11)
+                    WHERE (key >= 'workplace/transfer/' AND key < 'workplace/transfer0'
+                        OR key >= 'workplace/history/' AND key < 'workplace/history0')
+                    AND NOT EXISTS (SELECT 1 FROM settings AS target WHERE target.key=substr(settings.key,11))""")
+                db.execute('PRAGMA user_version=3')
         os.chmod(self.path, 0o600)
 
     @contextmanager

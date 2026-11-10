@@ -80,7 +80,7 @@ class PhotoToolsTest(unittest.TestCase):
             path.write_bytes(b'changed')
             execute(store,value['id'])
             self.assertEqual(path.read_bytes(),b'changed')
-            self.assertIn('verändert',store.setting('workplace/transfer/'+value['id'])['errors'][0])
+            self.assertIn('verändert',store.setting('transfer/'+value['id'])['errors'][0])
 
     def test_native_review_is_explicit_cancellable_and_uses_preview(self):
         from PySide6.QtWidgets import QApplication

@@ -53,7 +53,7 @@ def snapshot(directory=None, task_limit=None):
         with closing(sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True, timeout=.2)) as db:
             db.row_factory = sqlite3.Row
             db.execute('BEGIN')
-            if db.execute('PRAGMA user_version').fetchone()[0] > 2:
+            if db.execute('PRAGMA user_version').fetchone()[0] > 3:
                 raise ValueError(tr('Die Auftragsdaten benötigen eine neuere Lumen-Version.'))
             columns = '''id, substr(title,1,200) AS title, status, updated, cursor,
                 json_array_length(steps) AS total, substr(result,1,1600) AS result,
