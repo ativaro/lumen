@@ -14,17 +14,17 @@ if __name__ == '__main__':
     supervise('lumen')
 from lumen_i18n import tr, language
 
-from PySide6.QtCore import QObject, ClassInfo, QProcess, QSettings, Qt, QTimer, QUrl, Slot
+from PySide6.QtCore import QEvent, QObject, ClassInfo, QProcess, QSettings, Qt, QTimer, QUrl, Slot
 from PySide6.QtDBus import QDBus, QDBusConnection, QDBusMessage
 from PySide6.QtGui import QIcon, QKeySequence, QTextDocument
 from PySide6.QtGui import QShortcut
-from PySide6.QtWidgets import (QApplication, QFileDialog, QGridLayout, QHBoxLayout, QMainWindow, QPushButton,
+from PySide6.QtWidgets import (QApplication, QFileDialog, QFrame, QGridLayout, QHBoxLayout, QMainWindow, QPushButton,
     QSplitter, QStackedWidget, QVBoxLayout, QWidget)
 from app import create_app, button
 from assistant import Transcript
 from studio_chat import StudioChat
 from studio_preview import StudioSurface
-from studio_context_bar import StudioContextBar
+from studio_design import icon, surface
 from preview import label
 from desktop_design import NAV_WIDTH
 
@@ -224,7 +224,7 @@ class LumenWindow(QMainWindow):
         from lumen_detail_routes import open_tasks
         self.chat.taskRequested.connect(open_tasks)
         QShortcut(QKeySequence('Ctrl+,'), self, activated=self.show_settings)
-        self.context_bar = StudioContextBar(self)
+        self.build_context_bar()
         row.addWidget(self.context_bar)
         from studio_navigation import StudioNavigation
         self.navigation = StudioNavigation(self)
@@ -243,6 +243,29 @@ class LumenWindow(QMainWindow):
         self.show_page(0)
         self.chat.actionChanged.connect(self.present_action)
         self.chat.closeRequested.connect(self.close)
+
+    def build_context_bar(self):
+        bar = self.context_bar = QFrame(self); bar.setObjectName('studioContextBar'); surface(bar)
+        box = QHBoxLayout(bar); box.setContentsMargins(24, 12, 24, 12)
+        self.context_compact = QPushButton(tr('Zurück zu Lumen')); self.context_compact.setIcon(icon('go-previous'))
+        self.context_compact.clicked.connect(self.open_search); box.addWidget(self.context_compact)
+        box.addStretch()
+        self.context_directory = QPushButton(); self.context_directory.setIcon(icon('folder-open'))
+        self.context_directory.setAccessibleName(tr('Gesprächsordner wählen')); self.context_directory.clicked.connect(self.choose_directory)
+        box.addWidget(self.context_directory)
+        self.context_timer = QTimer(bar); self.context_timer.setInterval(1500); self.context_timer.timeout.connect(self.refresh_context_bar)
+        bar.installEventFilter(self); self.refresh_context_bar()
+
+    def refresh_context_bar(self):
+        path = self.chat.backend.directory
+        self.context_directory.setText(Path(path).name or '/'); self.context_directory.setToolTip(path)
+        self.context_directory.setEnabled(not self.chat.backend.busy)
+
+    def eventFilter(self, watched, event):
+        if watched is self.context_bar and event.type() in (QEvent.Show, QEvent.Hide):
+            if event.type() == QEvent.Hide: self.context_timer.stop()
+            else: self.refresh_context_bar(); self.context_timer.start()
+        return super().eventFilter(watched, event)
 
     def recovery_state(self):
         return {'page': self.pages.currentIndex(), 'chat': self.chat.recovery_state(),
