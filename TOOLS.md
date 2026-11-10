@@ -48,7 +48,7 @@ im Haupt-README beschriebenen Systemabhängigkeiten.
   Knopfdruck den eingerichteten OpenCode-/LLM-Provider. Das kann ein
   Cloud-Provider sein. Die üblichen OpenCode-Grundeinstellungen gelten.
   Modellantworten erhalten keine Werkzeuge oder Änderungsrechte.
-- Haushalt und Werkbank funktionieren vollständig ohne KI. Fristen werden
+- Haushalt und Projekte funktionieren vollständig ohne KI. Fristen werden
   angezeigt; es gibt keine automatische Kündigung oder Hintergrund-Erinnerung.
 - Ein erneutes Vertonen ersetzt die aktive Ausgabe erst nach Erfolg.
   Nach Textänderungen wird vorhandenes Audio als ältere Fassung markiert.

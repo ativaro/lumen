@@ -97,7 +97,7 @@ updates. Download or package errors are reported before continuing.
 
 The user bundle contains Lumen, Files, Search, Wissen, Translate, System, Inbox,
 Reader, Projects, Household and the combined **Meeting & Radio** window,
-**System** also contains Sound and Work modes. All desktop themes, decorations,
+**System** also contains Sound. All desktop themes, decorations,
 wallpapers and panels are included. Both Meeting/Radio
 launch commands remain supported. OpenCode, speech models and optional tools are
 prepared through the wizard, reusing an existing installation when available.

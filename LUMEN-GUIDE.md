@@ -77,29 +77,20 @@ nächsten Schritt. Währenddessen wird der Auftragsprozess beim Schließen nicht
 abgeschossen. Snapper verwendet die Root-Konfiguration: persönliche Ordner sind
 nicht automatisch enthalten, und ein Snapshot ist kein unabhängiges Backup.
 
-## Wissen und Erinnerungen
+## Wissen
 
-Unter **Wissen** ausgewählte Ordner lokal indexieren und durchsuchen. Treffer
-zeigen Datei, Seite und Auszug. Die Suche überspringt versteckte Pfade, Symlinks
-und übliche Geheimnisdateinamen. Sie erkennt nicht jeden beliebigen vertraulichen
-Inhalt; nur bewusst ausgewählte Ordner freigeben. Grenzen: 10.000 Einträge,
-32 MiB extrahierter Text pro Lauf, die Größenlimits des vorhandenen Textlesers
-und 16 MiB für native Änderungen. Geänderte Dateien werden bis zur erneuten
-Indexierung nicht als aktuelle Treffer ausgegeben.
-
-Freigabe entfernen löscht den Index dieses Ordners. Erinnerungen sind von dir
-angelegte, bearbeitbare Einträge mit Quelle. **Verwenden** legt Kontext sichtbar
-in den Gesprächsentwurf. `lumen_knowledge` kann freigegebene Wissensordner für
-Anfragen durchsuchen; Auszüge gehen dabei an das gewählte Modell. Es gibt kein
-heimliches Indexieren des gesamten persönlichen Ordners.
+`lumen_knowledge` kann freigegebene Wissensordner für Anfragen durchsuchen;
+Auszüge gehen dabei an das gewählte Modell. Es gibt kein heimliches Indexieren
+des gesamten persönlichen Ordners.
 
 ## Abläufe
 
-Einen Auftrag **als Ablauf speichern** oder Schritte neu zusammenstellen.
+In der Aufgabenansicht einen Auftrag **als Ablauf speichern**; die Schritte
+lassen sich dabei anpassen.
 Auslöser: manuell, Zeitintervall oder Änderungen an direkten Einträgen eines
 freigegebenen Ordners. Die Beobachtung ist nicht rekursiv. Änderungen werden bei
 der nächsten Prüfung zusammengefasst; verpasste Intervalle werden nicht mehrfach
-nachgeholt. **Hintergrundprüfung aktivieren** schaltet `lumen-jobs.timer` ein.
+nachgeholt. Die Hintergrundprüfung läuft über `lumen-jobs.timer`.
 Eine Pause des Ablaufs verhindert neue Aufträge; bereits angelegte Aufträge
 werden separat pausiert/abgebrochen.
 
