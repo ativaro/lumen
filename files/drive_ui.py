@@ -83,13 +83,6 @@ class Drive(QDialog):
         self.roots.setAccessibleName(tr("Synchronisierte Ordner"))
         self.roots.currentTextChanged.connect(self.roots.setToolTip)
         outer.addWidget(self.roots)
-        self.migration_status=QLabel()
-        self.migration_status.setTextFormat(Qt.PlainText)
-        self.migration_status.setWordWrap(True)
-        outer.addWidget(self.migration_status)
-        self.migration_button=button(tr('Ordner zuordnen …'),self.migrate_binding,'folder-sync')
-        outer.addWidget(self.migration_button)
-        self.roots.currentIndexChanged.connect(self.refresh_migration)
         commands = QHBoxLayout()
         for title, fn, icon in [
             (tr("Jetzt abgleichen"), self.sync_now, "view-refresh"),
@@ -376,33 +369,12 @@ class Drive(QDialog):
             title = (
                 Path(root["path"]).name
                 + " · "
-                + (tr("Umstellung erforderlich") if not root.get("folder") else root.get("status", "") if root["enabled"] else tr("Pausiert"))
+                + (tr("Prüfung erforderlich") if sync.outdated(root) else root.get("status", "") if root["enabled"] else tr("Pausiert"))
             )
             self.roots.addItem(title, root["id"])
         if previous:
             self.roots.setCurrentIndex(max(0, self.roots.findData(previous)))
         self.roots.blockSignals(False)
-        self.refresh_migration()
-
-    def refresh_migration(self,*_):
-        root=self.current_root()
-        needed=bool(root and not root.get('folder'))
-        self.migration_button.setVisible(needed)
-        self.migration_status.setVisible(needed)
-        if needed:
-            count=sum(bool(e.get('pending') or e.get('request_id')) for e in root['entries'].values())
-            self.migration_status.setText(tr('Umstellung erforderlich')+' · '+root['path']+'\n'+
-                tr('Ausstehende Übertragungen:')+' '+str(count)+' · '+tr('Lokale Dateien und Warteschlange bleiben erhalten.'))
-            self.migration_button.setText(tr('Umstellung fortsetzen …') if root.get('migration') else tr('Ordner zuordnen …'))
-
-    def migrate_binding(self):
-        root=self.current_root()
-        if self.job or not root or root.get('folder'):return
-        from drive_migration_ui import Migration
-        if Migration(self,root).exec()==QDialog.Accepted:
-            self.folder=(self.current_root() or {}).get('folder') or self.folder
-            self.reload()
-        self.refresh_roots()
 
     def current_root(self):
         return next(

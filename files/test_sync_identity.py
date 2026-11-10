@@ -33,5 +33,15 @@ class IdentityTest(unittest.TestCase):
             bound = sync.prepare(cfg, [(['drive'], 'invalid')])
             with self.assertRaises(ValueError): sync.scope(bound, ['drive'], 'a' * 64)
 
+    def test_server_workspace_id_is_ignored_and_a_version_one_binding_keeps_its_scopes(self):
+        user = dict(id=str(uuid4()), workspace_id=str(uuid4()), device_id=str(uuid4()))
+        self.assertNotIn('workspace_id', sync.identity(dict(server='https://test.invalid'), user))
+        stored = dict(server='https://test.invalid', user_id=user['id'], workspace_id=user['workspace_id'], device_id=user['device_id'])
+        cfg = dict(server='https://test.invalid', token='synthetic', device_id=user['device_id'],
+                   sync_binding=dict(version=1, identity=stored, aliases={}))
+        with patch('lumen_connect.request', return_value=user):
+            self.assertEqual(sync.scope(cfg, ['vault'], 'a' * 64), sync.key([stored, ['vault']]))
+        self.assertEqual(cfg['sync_binding']['identity'], stored)
+
 
 if __name__ == '__main__': unittest.main()

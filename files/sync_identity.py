@@ -25,8 +25,8 @@ def scope(config, parts, legacy):
     stamp = key([config['server'], config.get('device_id'), config.get('token'), bound])
     if config.get(_VERIFIED) != stamp:
         current = identity(config, connector.request(config, '/bridge/me'))
-        from sync_migration import account_identity
-        expected = account_identity(bound.get('identity', {})) if bound['version'] == 1 else bound.get('identity')
+        # Version 1 bindings also stored the server's workspace_id; their scope keys below still hash it.
+        expected = {k: v for k, v in bound.get('identity', {}).items() if k != 'workspace_id'} if bound['version'] == 1 else bound.get('identity')
         if current != expected or current['device_id'] != config.get('device_id'):
             raise ValueError('Synchronization account changed; review the connection in settings.')
         config[_VERIFIED] = stamp
