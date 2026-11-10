@@ -1,4 +1,4 @@
-"""Persistent file references and bounded listings for libraries, shelf and rooms."""
+"""Persistent file references and bounded listings for libraries and the shelf."""
 from lumen_i18n import tr
 import hashlib
 import json
@@ -52,7 +52,6 @@ def title(value):
 class Catalog:
     def __init__(self, store=None):
         self.store = store or Store()
-        self.shelf_kind = 'shelf'
 
     def objects(self, kind):
         return [json.loads(row['value']) for row in self.store.rows(
@@ -88,9 +87,6 @@ class Catalog:
         return result + list(values.values())
 
     def library(self, identity):
-        if identity.startswith('project-'):
-            room = next((r for r in self.rooms() if r['id'] == identity[8:] and r.get('project')), None)
-            if room: return dict(id=identity, name=room['name'], sources=room['sources'], project=room['id'])
         return next((item for item in self.libraries() if item['id'] == identity), None)
 
     def save_library(self, previous, name, sources):
@@ -110,25 +106,7 @@ class Catalog:
             'sources': checked}, previous)
 
     def shelf(self):
-        return [item['location'] for item in sorted(self.objects(self.shelf_kind), key=lambda item: item['added'])]
-
-    def use_room_shelf(self, identity=None, snapshot=()):
-        """Each room has its own references; reopen never overwrites another window."""
-        if identity == 'previous': identity = None
-        kind = 'room-shelf/' + identity if identity else 'shelf'
-        checked = [canonical(item) for item in snapshot]
-        if any(virtual(item) for item in checked): raise ValueError(tr('Ungültige Sammelfläche.'))
-        if identity:
-            with self.store.connect() as db:
-                db.execute('BEGIN IMMEDIATE')
-                marker = PREFIX + kind
-                if not db.execute('SELECT 1 FROM settings WHERE key=?', (marker,)).fetchone():
-                    for location in checked:
-                        key = PREFIX + kind + '/' + hashlib.sha256(location.encode()).hexdigest()
-                        db.execute('INSERT OR IGNORE INTO settings VALUES (?,?)',
-                                   (key, json.dumps({'location': location, 'added': time.time()})))
-                    db.execute('INSERT INTO settings VALUES (?,?)', (marker, 'true'))
-        self.shelf_kind = kind
+        return [item['location'] for item in sorted(self.objects('shelf'), key=lambda item: item['added'])]
 
     def add_shelf(self, locations):
         checked = [canonical(item) for item in locations]
@@ -137,29 +115,22 @@ class Catalog:
         with self.store.connect() as db:
             for location in checked:
                 identity = hashlib.sha256(location.encode()).hexdigest()
-                db.execute('INSERT OR IGNORE INTO settings VALUES (?,?)', (PREFIX + self.shelf_kind + '/' + identity,
+                db.execute('INSERT OR IGNORE INTO settings VALUES (?,?)', (PREFIX + 'shelf/' + identity,
                     json.dumps({'location': location, 'added': time.time()})))
 
     def remove_shelf(self, locations):
         for location in locations:
-            self.remove(self.shelf_kind, hashlib.sha256(canonical(location).encode()).hexdigest())
-
-    def rooms(self):
-        return sorted(self.objects('room'), key=lambda item: item['name'].casefold())
-
-    def save_room(self, previous, name, state):
-        return self.put('room', {**(previous or {}), 'id': previous['id'] if previous else uuid.uuid4().hex,
-            'name': title(name), 'state': state}, previous)
+            self.remove('shelf', hashlib.sha256(canonical(location).encode()).hexdigest())
 
     def replace_shelf(self, locations):
         checked = [canonical(item) for item in locations]
         if any(virtual(item) for item in checked):
             raise ValueError(tr('Ungültige Sammelfläche.'))
         with self.store.connect() as db:
-            db.execute('DELETE FROM settings WHERE key LIKE ?', (PREFIX + self.shelf_kind + '/%',))
+            db.execute('DELETE FROM settings WHERE key LIKE ?', (PREFIX + 'shelf/%',))
             for i, location in enumerate(dict.fromkeys(checked)):
                 identity = hashlib.sha256(location.encode()).hexdigest()
-                db.execute('INSERT INTO settings VALUES (?,?)', (PREFIX + self.shelf_kind + '/' + identity,
+                db.execute('INSERT INTO settings VALUES (?,?)', (PREFIX + 'shelf/' + identity,
                     json.dumps({'location': location, 'added': time.time() + i / 1000})))
 
 
