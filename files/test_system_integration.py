@@ -6,7 +6,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
-from PySide6.QtCore import QCoreApplication, QEvent, QObject, Signal
+from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QApplication
 from system_app import SystemController
@@ -28,7 +28,7 @@ class SystemIntegrationTest(unittest.TestCase):
         self.window.show(); self.app.processEvents()
 
     def tearDown(self):
-        self.window.sound.job = None; self.window.modes.jobs.clear()
+        self.window.sound.job = None
         self.window.close(); self.window.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
         self.controller.deleteLater(); self.app.processEvents()
@@ -39,7 +39,7 @@ class SystemIntegrationTest(unittest.TestCase):
         root.setProperty('page', 2)
         self.window.select('sound'); self.window.sound.tabs.setCurrentIndex(1)
         self.window.sound.level.setValue(37); self.window.sound.duck.setChecked(True)
-        self.window.select('modes'); self.window.select('system'); self.window.select('sound')
+        self.window.select('diagnostics'); self.window.select('system'); self.window.select('sound')
         self.assertEqual(root.property('page'), 2)
         self.assertEqual(self.window.sound.tabs.currentIndex(), 1)
         self.assertEqual(self.window.sound.level.value(), 37)
@@ -47,39 +47,11 @@ class SystemIntegrationTest(unittest.TestCase):
         with self.assertRaises(ValueError): self.window.select('invalid')
         self.assertEqual(sum(w.isVisible() for w in self.app.topLevelWidgets()), 1)
 
-    def test_modes_keep_existing_store_and_connect_without_files_window(self):
-        from lumen_modes import save_mode, modes
-        from lumen_history import record
-        page = self.window.modes
-        old = modes(page.store)[0]
-        value = dict(old, name='Quiet studio', volume=42, connections=['smb://example.test/audio'])
-        save_mode(page.store, old, value)
-        record(page.store, 'Unrelated file operation')
-        self.window.select('modes')
-        self.assertEqual(page.mode()['name'], 'Quiet studio')
-        self.assertEqual(len(page.history_values), 1)
-        class Connection(QObject):
-            connected = Signal(str, str); failed = Signal(str)
-            pending = None; probe = None
-            def mount(self, address): self.address = address; self.connected.emit(address, '/synthetic/mount')
-            def close(self): pass
-        with patch('modes_activity.Network', Connection), patch.object(page, 'job') as job:
-            page.apply_mode()
-            self.assertEqual(job.call_args.args[:2], ('mode', value))
-            self.assertTrue(job.call_args.kwargs['mutating'])
-            job.call_args.args[2]({'applied':['Audio'], 'errors':[]}, '')
-            self.assertEqual(page.connections[0].address, 'smb://example.test/audio')
-            self.assertIn('example.test', page.status.text())
-        self.assertEqual(page.tabs.count(), 2)  # Modes and guarded history.
-
     def test_close_waits_for_changes_and_save_errors(self):
         self.window.sound.job = Mock()
         event = QCloseEvent(); self.window.closeEvent(event)
         self.assertFalse(event.isAccepted()); self.assertFalse(self.controller.closing)
-        self.window.sound.job = None; self.window.modes.jobs.append(Mock())
-        event = QCloseEvent(); self.window.closeEvent(event)
-        self.assertFalse(event.isAccepted()); self.assertIs(self.window.tabs.currentWidget(), self.window.modes)
-        self.window.modes.jobs.clear()
+        self.window.sound.job = None
         with patch.object(self.window.sound, 'save', side_effect=OSError('disk full')), patch.object(self.window.sound, 'error'):
             event = QCloseEvent(); self.window.closeEvent(event)
             self.assertFalse(event.isAccepted()); self.assertFalse(self.controller.closing)
@@ -91,8 +63,9 @@ class SystemIntegrationTest(unittest.TestCase):
         with patch('lumen_apps.QProcess.startDetached', return_value=(True, 42)) as start:
             launch('sound'); self.assertTrue(start.call_args.args[0].endswith('lumen-system'))
             self.assertEqual(start.call_args.args[1], ['--page', 'sound'])
-            launch('system', page='modes'); self.assertEqual(start.call_args.args[1], ['--page', 'modes'])
-        with self.assertRaises(ValueError): launch('files', page='modes')
+            launch('system', page='server'); self.assertEqual(start.call_args.args[1], ['--page', 'server'])
+            with self.assertRaises(ValueError): launch('system', page='modes')
+        with self.assertRaises(ValueError): launch('files', page='server')
         dialog = SettingsDialog(application='sound', load_system=False)
         self.assertEqual(dialog.stack.currentIndex(), dialog.app_pages['system'])
         self.assertIn('sound', dialog.app_controls); self.assertIn('system', dialog.app_controls)
@@ -117,12 +90,12 @@ with open(folder/'child.log','w') as output:
    assert proc.poll() is None
    assert time.monotonic()<deadline
    time.sleep(.05)
-  for module,args in [('system_app.py',['--page','modes']),('system_app.py',[]),('tools_app.py',['sound']),('updater_app.py',[]),('system_app.py',['--page','diagnostics']),('tools_app.py',['vault']),('system_app.py',['--page','system'])]:
+  for module,args in [('system_app.py',['--page','diagnostics']),('system_app.py',[]),('tools_app.py',['sound']),('updater_app.py',[]),('system_app.py',['--page','diagnostics']),('tools_app.py',['vault']),('system_app.py',['--page','system'])]:
    result=subprocess.run([sys.executable,str(Path(os.environ['TEST_SOURCE'])/module),*args],stdout=output,stderr=output,timeout=12)
    assert result.returncode==0
   deadline=time.monotonic()+3
   while len(log.read_text().splitlines())<7 and time.monotonic()<deadline: time.sleep(.05)
-  assert log.read_text().splitlines()==['system','modes','sound','updates','diagnostics','backups','system'],log.read_text()
+  assert log.read_text().splitlines()==['system','diagnostics','sound','updates','diagnostics','backups','system'],log.read_text()
   assert int((folder/'tools/vault/window.lock').read_text().splitlines()[0])==proc.pid
   assert int((folder/'tools/sound/window.lock').read_text().splitlines()[0])==proc.pid
   sock=QLocalSocket();sock.connectToServer(server_name(folder/'tools/sound'))

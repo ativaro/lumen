@@ -70,7 +70,7 @@ def can_undo(value):
         except (OSError, TypeError, IndexError, KeyError):
             return False
     return value['status'] in ('applied', 'pending') and value['kind'] in (
-        'task-file', 'file-move', 'file-create', 'store-setting', 'preferences', 'panel', 'shortcut', 'mode')
+        'task-file', 'file-move', 'file-create', 'store-setting', 'preferences', 'panel', 'shortcut')
 
 
 def undo_record(store, identity):
@@ -134,9 +134,6 @@ def undo_record(store, identity):
         elif kind == 'shortcut':
             from desktop_settings import set_shortcut
             set_shortcut({'component': target, 'before': after, 'key': before[0] if before else 0}, journal=False)
-        elif kind == 'mode':
-            from lumen_modes import restore_snapshot
-            restore_snapshot(store, before, after)
         value['status'] = 'undone'
         store.set_setting(PREFIX + identity, value)
     finally:

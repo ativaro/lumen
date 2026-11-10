@@ -102,7 +102,7 @@ class SettingsDialog(QDialog):
         self.build_mcp()
         from hardware_ui import HardwareView
         self.hardware_page = self.stack.count()
-        hardware = self.page('Lumen System', tr('Leistung, Geräte, Sound und Arbeitsmodi'))
+        hardware = self.page('Lumen System', tr('Leistung, Geräte und Sound'))
         hardware.addWidget(HardwareView(self))
         self.app_pages = {'lumen': 0, 'files': 1, 'system': self.hardware_page}
         self.build_apps()
@@ -111,7 +111,6 @@ class SettingsDialog(QDialog):
             try: launch('system', page=page)
             except (OSError, ValueError) as error: self.status.setText(str(error))
         hardware.addWidget(button(tr('Sound öffnen'), lambda: open_system_page('sound')))
-        hardware.addWidget(button(tr('Arbeitsmodi öffnen'), lambda: open_system_page('modes')))
         self.backups_button=button(tr('Lokale Sicherungspläne öffnen'),lambda:open_system_page('backups'))
         hardware.addWidget(self.backups_button)
         for app_key, preferences in (

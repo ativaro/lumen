@@ -22,7 +22,7 @@ def catalogue(*, include_utilities=False):
         ('vault', 'Lumen Vault', tr('Passwörter und geschützte Einträge'), 'document-encrypt'),
         ('reader', 'Lumen Reader', tr('Lesen, markieren und vorlesen lassen'), 'application-pdf'),
         ('updater', 'Lumen Updater', tr('Lumen, Apps und Erweiterungen aktualisieren'), 'system-software-update'),
-        ('system', 'Lumen System', tr('Geräte, Sound, Arbeitsmodi, Updates und Diagnose'), 'utilities-system-monitor'),
+        ('system', 'Lumen System', tr('Geräte, Sound, Updates und Diagnose'), 'utilities-system-monitor'),
         ('meetings', tr('Lumen Audio Studio'), tr('Aufnahmen, Transkripte und dein persönliches Hörprogramm'), 'audio-input-microphone'),
         ('household', tr('Lumen Digitaler Haushalt'), tr('Dokumente und Fristen im Blick behalten'), 'view-calendar'),
         ('workbench', tr('Lumen Projekte'), tr('Projekte und ihre nächsten Schritte organisieren'), 'folder-development'),
@@ -50,7 +50,7 @@ def launch(app, *, area=None, page=None):
         raise ValueError(tr('Unbekannter Bereich.'))
     if app == 'sound': app, page = 'system', 'sound'
     if app == 'updater': app, page = 'system', 'updates'
-    if page is not None and (app != 'system' or page not in ('system', 'sound', 'modes', 'server', 'updates', 'diagnostics', 'backups')):
+    if page is not None and (app != 'system' or page not in ('system', 'sound', 'server', 'updates', 'diagnostics', 'backups')):
         raise ValueError(tr('Unbekannter Systembereich.'))
     folder = Path(__file__).resolve().parent
     if app == 'notification':

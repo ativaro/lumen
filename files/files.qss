@@ -6,7 +6,6 @@ QListWidget#searchResults::item { padding: 12px; margin: 3px 0; border-radius: 8
 QListWidget#searchResults::item:selected { background: palette(midlight); color: palette(text); }
 QWidget#activity QTabWidget::pane { border: none; background: palette(window); }
 QWidget#activityPage { background: palette(window); }
-QLabel#activityHeading { font-size: 26px; font-weight: 600; letter-spacing: -1px; }
 QFrame#activityCard { background: palette(base); border: 1px solid palette(mid); border-radius: 14px; padding: 14px; }
 QFrame#activityCard QLabel { border: none; padding: 0; }
 QTableWidget#activityTable { background: palette(base); color: palette(text); border: 1px solid palette(mid); border-radius: 10px; outline: none; }

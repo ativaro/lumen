@@ -248,7 +248,7 @@ def main(argv=None):
     from lumen_paths import require_test_profile
     require_test_profile()
     parser = argparse.ArgumentParser(description='Lumen System')
-    parser.add_argument('--page', choices=('system', 'sound', 'modes', 'server', 'updates', 'diagnostics', 'backups', 'tasks'))
+    parser.add_argument('--page', choices=('system', 'sound', 'server', 'updates', 'diagnostics', 'backups', 'tasks'))
     from lumen_panel import valid_task
     parser.add_argument('--task', type=valid_task)
     destination = parser.add_mutually_exclusive_group()
