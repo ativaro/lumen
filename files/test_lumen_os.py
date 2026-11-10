@@ -256,14 +256,13 @@ class LumenIntegrationTest(unittest.TestCase):
         from PySide6.QtWidgets import QApplication
         cls.app = QApplication.instance() or create_app()
 
-    def test_native_pages_workflow_result_and_source_context(self):
+    def test_native_pages_workflow_and_result(self):
         import importlib.util
         import os
         import time
         from unittest.mock import patch
         from PySide6.QtCore import QSettings, Qt
         from PySide6.QtTest import QTest
-        from lumen_knowledge import index_root
         spec = importlib.util.spec_from_file_location('lumen_desktop_test', Path(__file__).resolve().parents[1] / 'agent-app/main.py')
         desktop = importlib.util.module_from_spec(spec); spec.loader.exec_module(desktop)
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp + '/state'}), patch('lumen_detail_routes.launch'):
@@ -277,7 +276,7 @@ class LumenIntegrationTest(unittest.TestCase):
                 space = window.work_pages
                 space.store.set_setting('modelPolicy', {'gpu_limit': 100, 'pause_on_activity': False})
                 flow = space.store.save_workflow('Bericht', [{'action': 'write', 'path': tmp+'/bericht.md', 'text': 'Prüfung bestanden'}], [tmp], trigger='interval', interval=60, enabled=True, approved=True, now=0)
-                space.tick()
+                space.start_process([str(Path(__file__).with_name('lumen_tasks.py')), '--tick'])
                 deadline = time.monotonic()+10
                 while space.processes and time.monotonic() < deadline: QTest.qWait(20)
                 self.assertFalse(space.processes)
@@ -291,7 +290,6 @@ class LumenIntegrationTest(unittest.TestCase):
                 while space.knowledge_job and time.monotonic()<deadline:QTest.qWait(20)
                 self.assertIsNone(space.knowledge_job)
                 self.assertIn(completed_id,space.store.memories()[0]['source'])
-                self.assertIn(str(space.store.setting('knowledge/notebook')), space.knowledge_status.text())
                 space.close_task.click(); self.assertEqual(space.tasks.count(), 0)
                 self.assertFalse(space.close_task.isEnabled())
                 self.assertEqual(space.store.task(completed_id)['status'], 'completed')
@@ -304,12 +302,6 @@ class LumenIntegrationTest(unittest.TestCase):
                 space.close_task.click(); self.assertEqual(space.tasks.count(), 0)
                 self.assertEqual(space.store.task(cancelled_id)['status'], 'cancelled')
                 self.assertIn('Prüfung bestanden', Path(tmp+'/bericht.md').read_text())
-                index_root(space.store, tmp)
-                space.query.setText('bestanden'); space.search()
-                self.assertEqual(space.results.count(), 1)
-                space.results.setCurrentRow(0); space.use_source()
-                self.assertIn('bericht.md', window.chat.composer.toPlainText())
-                self.assertEqual(window.chat.paths, [tmp+'/bericht.md'])
                 self.assertFalse(window.chat.backend.busy)
             finally:
                 window.close(); window.deleteLater(); QTest.qWait(30)

@@ -1,17 +1,14 @@
-"""Native pages for durable work, selected knowledge and execution preferences."""
+"""Native pages for durable work and execution preferences."""
 from lumen_i18n import worker_process, tr
 import json
-from html import escape
 from pathlib import Path
 import sys
 
-from PySide6.QtCore import QObject, QProcess, QThread, QTimer, Qt, QUrl, Signal, QEvent
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import QObject, QProcess, QTimer, Qt, QEvent
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
-    QFrame, QFormLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-    QMessageBox, QMenu, QPlainTextEdit, QProgressBar, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QSplitter, QTabWidget, QTextBrowser, QVBoxLayout, QWidget)
+    QFormLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem,
+    QMessageBox, QMenu, QPlainTextEdit, QProgressBar, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QTabWidget, QVBoxLayout, QWidget)
 from lumen_actions import ACTIONS, undo
-from lumen_knowledge import index_root, search
 from lumen_store import Store, STATES
 FIELDS = {'path': tr('Zielpfad oder Webadresse'), 'source': tr('Quelldatei'), 'text': tr('Inhalt'),
           'desktop': tr('Anwendung (.desktop-Dateiname)'), 'unit': tr('Dienst (.service)'),
@@ -202,37 +199,18 @@ class PlanDialog(QDialog):
         self.accept()
 
 
-class Indexer(QThread):
-    outcome = Signal(str)
-    def __init__(self, store, root, parent):
-        super().__init__(parent); self.store = store; self.root = root
-    def run(self):
-        try:
-            from lumen_hardware import background_reason
-            def pause():
-                while reason := background_reason(self.store):
-                    self.outcome.emit(reason + tr(' · wird automatisch fortgesetzt'))
-                    for _ in range(20):
-                        if self.isInterruptionRequested(): raise InterruptedError(tr('Indexierung abgebrochen.'))
-                        self.msleep(250)
-            result = index_root(self.store, self.root, self.isInterruptionRequested, pause)
-            self.outcome.emit(tr('{0} Dokumente aufgenommen; {1} nicht lesbar.', result['documents'], result['errors']) +
-                              (tr(' Größenlimit erreicht; kleinere Ordner wählen.') if result['limited'] else ''))
-        except Exception as exc: self.outcome.emit(str(exc))
-
-
 class WorkPages(QObject):
     def __init__(self, window, store=None, sections=None):
         super().__init__(window); self.window = window
         self.store = store or (window.chat.tracker.store if hasattr(window, 'chat') else Store())
-        self.sections = set(sections or ('tasks', 'flows', 'knowledge', 'models'))
+        self.sections = set(sections or ('tasks', 'models'))
         self.model_backend = None
-        self.store.recover(); self.processes = []; self.indexer = None; self.task_signature = None; self.knowledge_job = None
+        self.store.recover(); self.processes = []; self.task_signature = None; self.knowledge_job = None
         for name in self.sections:
             widget = getattr(self, 'build_' + name)(); widget.setParent(window)
             setattr(self, name + '_page', widget)
         self.timer = QTimer(self); self.timer.timeout.connect(self.refresh_tasks); self.timer.start(1500)
-        self.refresh_tasks(); self.refresh_flows(); self.refresh_knowledge()
+        self.refresh_tasks()
 
     def guarded(self, fn):
         def call(*_):
@@ -445,12 +423,6 @@ class WorkPages(QObject):
     def task_to_file_action(self, task_id=None):
         from file_actions import save_action
         save_action(self.window, self.store, self.store.task(task_id or selected(self.tasks)))
-        self.refresh_flows()
-
-    def task_to_tool(self, task_id=None):
-        from lumen_detail_routes import launch
-        task = self.store.task(task_id or selected(self.tasks))
-        launch('lumen-code', ['--save-task', task['id']])
 
     def task_to_flow(self, task_id=None):
         task = self.store.task(task_id or selected(self.tasks)); self.flow_dialog(task)
@@ -468,7 +440,7 @@ class WorkPages(QObject):
     def task_to_knowledge(self, task_id=None):
         task=self.store.task(task_id or selected(self.tasks))
         if not task['result']:raise ValueError(tr('Dieser Auftrag hat noch kein Ergebnis.'))
-        self.knowledge_work('save_memory',lambda _:self.refresh_knowledge(),title=task['title'],text=task['result'],source=tr('Lumen-Auftrag · ')+task['id'])
+        self.knowledge_work('save_memory',title=task['title'],text=task['result'],source=tr('Lumen-Auftrag · ')+task['id'])
 
     def undo_change(self):
         task = selected(self.tasks); changes = [r for r in self.store.changes(task) if r['status'] in ('applied', 'pending')]
@@ -477,128 +449,11 @@ class WorkPages(QObject):
         choice, ok = QInputDialog.getItem(self.window, tr('Änderung rückgängig'), tr('Datei'), titles, 0, False)
         if ok: undo(self.store, changes[titles.index(choice)]['id']); self.show_task()
 
-    def build_flows(self):
-        widget, box = page(tr('Abläufe'), tr('Einmal vorbereiten. Jederzeit wiederholen.'))
-        box.setContentsMargins(24, 20, 24, 16); box.setSpacing(16)
-        create = QPushButton(tr('Neuer Ablauf')); create.setObjectName('primary')
-        create.clicked.connect(self.guarded(lambda: self.flow_dialog())); box.addWidget(create, 0, Qt.AlignLeft)
-        split = QSplitter(); self.flows = QListWidget(); self.flows.setObjectName('searchResults'); self.flows.setSpacing(8)
-        self.flows.setAccessibleName(tr('Wiederverwendbare Abläufe')); self.flows.setMinimumWidth(220)
-        split.addWidget(self.flows)
-        detail = QWidget(); details = QVBoxLayout(detail); details.setContentsMargins(20, 0, 0, 0)
-        self.flow_detail = QTextBrowser(); self.flow_detail.setOpenExternalLinks(False); self.flow_detail.setFrameShape(QFrame.NoFrame)
-        self.flow_detail.setAccessibleName(tr('Ablaufvorschau')); details.addWidget(self.flow_detail, 1)
-        self.flow_buttons = {}
-        row = QHBoxLayout()
-        for key, title, callback in [('run', tr('Jetzt starten'), self.run_flow), ('edit', tr('Bearbeiten'), self.edit_flow),
-                                     ('toggle', tr('Aktivieren'), self.toggle_flow), ('remove', tr('Entfernen'), self.remove_flow)]:
-            control = QPushButton(title); control.clicked.connect(self.guarded(callback)); row.addWidget(control); self.flow_buttons[key] = control
-        self.flow_buttons['run'].setObjectName('primary'); details.addLayout(row)
-        split.addWidget(detail); split.setStretchFactor(1, 2); split.setSizes([290, 600]); box.addWidget(split, 1)
-        self.flows.currentItemChanged.connect(self.show_flow)
-        self.flows.itemDoubleClicked.connect(self.guarded(self.edit_flow))
-        self.timer_status = QLabel(); self.timer_status.setObjectName('muted'); self.timer_status.setWordWrap(True); box.addWidget(self.timer_status)
-        buttons(box, [(tr('Hintergrundprüfung aktivieren'), self.guarded(lambda: self.set_timer(True))),
-                      (tr('Hintergrundprüfung stoppen'), self.guarded(lambda: self.set_timer(False))), (tr('Jetzt prüfen'), self.guarded(self.tick))])
-        return widget
+    def flow_dialog(self, task):
+        dialog = PlanDialog(self.window, task, workflow=True)
+        if dialog.exec(): self.store.save_workflow(**dialog.value)
 
-    def flow_dialog(self, task=None, workflow=None):
-        dialog = PlanDialog(self.window, task or {'roots': [self.directory()]}, workflow=True)
-        if dialog.exec():
-            self.store.save_workflow(**dialog.value, workflow=workflow); self.refresh_flows()
-
-    def edit_flow(self):
-        flow = selected(self.flows); self.flow_dialog(flow, workflow=flow['id'])
-
-    def refresh_flows(self):
-        if 'flows' not in self.sections: return
-        current = self.flows.currentItem().data(Qt.UserRole)['id'] if self.flows.currentItem() else None
-        self.flows.clear()
-        for flow in self.store.workflows():
-            trigger = {'manual': tr('Manuell'), 'interval': tr('Zeitplan'), 'directory': tr('Ordneränderung')}[flow['trigger']]
-            state = tr('Aktiv') if flow['enabled'] else tr('Pausiert') if flow['trigger'] != 'manual' else tr('Bereit')
-            if not flow['approved']: state = tr('Freigabe erforderlich')
-            add_item(self.flows, flow['name'] + '\n' + trigger + ' · ' + state, flow)
-            if flow['id'] == current: self.flows.setCurrentRow(self.flows.count()-1)
-        if self.flows.currentRow() < 0 and self.flows.count(): self.flows.setCurrentRow(0)
-        self.show_flow()
-        self.timer_status.setText(tr('Zeit- und Ordnerauslöser benötigen die Hintergrundprüfung. Laufende Schritte werden bei Pause zu Ende geführt.'))
-
-    def show_flow(self, *_):
-        item = self.flows.currentItem()
-        for control in self.flow_buttons.values(): control.setEnabled(bool(item))
-        if not item:
-            self.flow_detail.setPlainText(tr('Dein erster Ablauf\n\nFasse wiederkehrende Handgriffe zu einer Folge zusammen oder beschreibe einen KI-Auftrag. Lege fest, wann er startet und auf welche Ordner er zugreifen darf.'))
-            return
-        flow = item.data(Qt.UserRole)
-        self.flow_buttons['run'].setEnabled(bool(flow['approved']))
-        self.flow_buttons['toggle'].setEnabled(bool(flow['approved']) and flow['trigger'] != 'manual')
-        self.flow_buttons['toggle'].setText(tr('Pausieren') if flow['enabled'] else tr('Aktivieren'))
-        trigger = tr('Nur wenn du ihn startest') if flow['trigger'] == 'manual' else tr('Alle {0} Minuten', flow['interval']//60)
-        if flow['trigger'] == 'directory': trigger += ' · ' + flow['watch']
-        html = '<h2>' + escape(flow['name']) + '</h2><p>' + escape(trigger) + '</p>'
-        html += '<h3>' + tr('Freigegebene Ordner') + '</h3><p>' + '<br>'.join(escape(root) for root in flow['roots']) + '</p>'
-        if flow['prompt']: html += '<h3>' + tr('KI-Auftrag') + '</h3><p>' + escape(flow['prompt']).replace('\n', '<br>') + '</p>'
-        else:
-            html += '<h3>' + tr('Schritt für Schritt') + '</h3><ol>'
-            html += ''.join('<li><p>' + escape(step_description(step)).replace('\n', '<br>') + '</p></li>' for step in flow['steps']) + '</ol>'
-        if not flow['approved']: html += '<p>' + tr('Zum Freigeben den Ablauf bearbeiten und speichern.') + '</p>'
-        self.flow_detail.setHtml(html)
-
-    def run_flow(self):
-        flow = selected(self.flows)
-        if not flow['approved']: raise PermissionError(tr('Ablauf ist nicht freigegeben. Neu speichern.'))
-        task = self.store.create_task(flow['name'], prompt=flow['prompt'], directory=flow['roots'][0], roots=flow['roots'], steps=flow['steps'], approved=True)
-        self.store.event(task, 'workflow', flow['id']); self.refresh_tasks()
-        if 'tasks' not in self.sections:
-            self.run_task(task)
-            from lumen_detail_routes import open_tasks
-            open_tasks(task); return
-        for i in range(self.tasks.count()):
-            if self.tasks.item(i).data(Qt.UserRole) == task: self.tasks.setCurrentRow(i)
-        self.window.show_page(4); self.run_task()
-
-    def toggle_flow(self):
-        flow = selected(self.flows); self.store.set_workflow_enabled(flow['id'], not flow['enabled']); self.refresh_flows()
-
-    def remove_flow(self):
-        flow = selected(self.flows)
-        if QMessageBox.question(self.window, tr('Ablauf entfernen'), tr('„{0}“ entfernen? Bisherige Aufträge bleiben erhalten.', flow['name'])) != QMessageBox.Yes: return
-        with self.store.connect() as db: db.execute('DELETE FROM workflows WHERE id=?', (flow['id'],))
-        self.refresh_flows()
-
-    def set_timer(self, enabled):
-        from lumen_actions import command
-        command(['systemctl', '--user', 'enable' if enabled else 'disable', '--now', 'lumen-jobs.timer'])
-        self.timer_status.setText(tr('Hintergrundprüfung aktiv.') if enabled else tr('Hintergrundprüfung gestoppt.'))
-
-    def tick(self): self.start_process([str(Path(__file__).with_name('lumen_tasks.py')), '--tick'])
-
-    def build_knowledge(self):
-        widget, box = page(tr('Dokumentquellen'), tr('Freigegebene Ordner durchsuchen und ausgewählte Quellen im Gespräch verwenden.'))
-        box.setContentsMargins(24, 20, 24, 16); box.setSpacing(16)
-        self.knowledge_status = QLabel(); self.knowledge_status.setWordWrap(True); self.knowledge_status.setObjectName('muted'); box.addWidget(self.knowledge_status)
-        source_box = box
-        info = QLabel(tr('Nur ausgewählte Ordner werden lokal indexiert. Quellen werden erst mit „Im Gespräch verwenden“ an das gewählte Modell übergeben.')); info.setWordWrap(True); source_box.addWidget(info)
-        self.roots = QListWidget(); self.roots.setMaximumHeight(85); self.roots.setAccessibleName(tr('Notizordner')); source_box.addWidget(self.roots)
-        buttons(source_box, [(tr('Ordner aufnehmen'), self.guarded(self.add_knowledge)), (tr('Neu indexieren'), self.guarded(lambda: self.start_index(selected(self.roots)))),
-                      (tr('Freigabe entfernen'), self.guarded(self.remove_knowledge)), (tr('Indexierung stoppen'), self.cancel_index)])
-        self.index_status = QLabel(); self.index_status.setWordWrap(True); source_box.addWidget(self.index_status)
-        self.query = QLineEdit(); self.query.setPlaceholderText(tr('Dokumente durchsuchen …')); self.query.setAccessibleName(tr('Notizsuche'))
-        self.query.returnPressed.connect(self.guarded(self.search)); source_box.addWidget(self.query)
-        self.results = QListWidget(); self.results.setAccessibleName(tr('Dokumente mit Quellen')); source_box.addWidget(self.results, 1)
-        buttons(source_box, [(tr('Suchen'), self.guarded(self.search)), (tr('Quelle öffnen'), self.guarded(self.open_source)),
-                      (tr('Im Gespräch verwenden'), self.guarded(self.use_source))])
-        return widget
-
-    def refresh_knowledge(self):
-        if 'knowledge' not in self.sections: return
-        self.roots.clear()
-        for row in self.store.rows('SELECT * FROM roots ORDER BY path'): add_item(self.roots, row['path'], row['path'])
-        notebook = self.store.setting('knowledge/notebook', '')
-        self.knowledge_status.setText(tr('Notizbuch: {0}', notebook) if notebook else tr('Beim ersten Öffnen wird dein Notizbuch eingerichtet. Vorhandene Erinnerungen bleiben erhalten.'))
-
-    def knowledge_work(self,action,done,**values):
+    def knowledge_work(self,action,**values):
         from tools_ui import Job
         from wissen_data import worker
         if self.knowledge_job:raise ValueError(tr('Den laufenden Notizvorgang kurz abwarten.'))
@@ -612,49 +467,8 @@ class WorkPages(QObject):
         job.result.connect(results.append);job.failed.connect(lambda message:self.index_status.setText(message))
         def finished():
             self.knowledge_job=None;job.deleteLater()
-            if results and not job.cancelled.is_set():self.index_status.setText(tr('Notizordner aktualisiert.'));self.guarded(lambda:done(results[0]))()
+            if results and not job.cancelled.is_set():self.index_status.setText(tr('Notizordner aktualisiert.'))
         job.finished.connect(finished);job.start()
-
-    def open_notebook(self, area='user'):
-        from lumen_apps import launch
-        launch('wissen', area=area)
-
-    def add_knowledge(self):
-        root = QFileDialog.getExistingDirectory(self.window, tr('Notizordner freigeben'))
-        if root: self.start_index(root)
-
-    def start_index(self, root):
-        if self.indexer and self.indexer.isRunning(): raise ValueError(tr('Die laufende Indexierung zuerst beenden.'))
-        self.index_status.setText(tr('Indexierung läuft …')); self.indexer = Indexer(self.store, root, self)
-        self.indexer.outcome.connect(self.index_status.setText)
-        self.indexer.finished.connect(self.refresh_knowledge); self.indexer.start()
-
-    def cancel_index(self):
-        if self.indexer: self.indexer.requestInterruption()
-
-    def remove_knowledge(self):
-        if self.indexer and self.indexer.isRunning(): raise ValueError(tr('Vor dem Entfernen die Indexierung beenden.'))
-        self.store.remove_root(selected(self.roots)); self.results.clear(); self.refresh_knowledge()
-
-    def search(self):
-        self.results.clear()
-        for row in search(self.store, self.query.text()):
-            add_item(self.results, tr('{0} · Seite {1}\n{2}\n{3}', Path(row['path']).name, row['page'], row['snippet'], row['path']), row)
-
-    def open_source(self): QDesktopServices.openUrl(QUrl.fromLocalFile(selected(self.results)['path']))
-
-    def use_source(self):
-        row = selected(self.results)
-        self.to_chat(tr('Quelle: {0} (Seite {1})\nAuszug: {2}\n\n', row['path'], row['page'], row['snippet']), [row['path']])
-
-    def to_chat(self, text, paths=None):
-        if not hasattr(self.window, 'chat'):
-            from lumen_detail_routes import launch
-            launch('lumen-agent-app', ['--prompt', text] + [arg for p in paths or [] for arg in ('--file', p)])
-            return
-        if self.window.chat.backend.busy: raise ValueError(tr('Bitte den laufenden Auftrag zuerst pausieren.'))
-        self.window.chat.begin_context(paths=paths or [])
-        self.window.chat.composer.setPlainText(text); self.window.show_page(0)
 
     def build_models(self):
         widget, box = page(tr('Modelle & Ressourcen'), tr('Wähle, welche Modelle Lumen verwenden darf. „Lokaler Dienst“ erzwingt eine Loopback-Adresse; dessen eigene Weiterleitungen bleiben dessen Verantwortung.'))
@@ -700,9 +514,6 @@ class WorkPages(QObject):
     def can_close(self):
         if any(p.state() != QProcess.NotRunning for p in self.processes):
             QMessageBox.information(self.window, tr('Auftrag läuft'), tr('Bitte den laufenden nativen Schritt beenden lassen.')); return False
-        if self.indexer and self.indexer.isRunning():
-            self.indexer.requestInterruption(); self.indexer.wait(5000)
-            if self.indexer.isRunning(): return False
         if self.knowledge_job:
             self.knowledge_job.cancelled.set();self.knowledge_job.wait(3000)
             if self.knowledge_job.isRunning():return False
