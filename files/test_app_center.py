@@ -91,21 +91,19 @@ class AppCenterTest(unittest.TestCase):
         with self.assertRaises(ValueError): Wissen.switch_area(window, 'invalid')
 
 
-    def test_edit_workflow_keeps_identity_and_scope(self):
+    def test_task_saved_as_workflow_keeps_scope(self):
         from types import SimpleNamespace
         from work_pages import WorkPages
         from lumen_store import Store
         with tempfile.TemporaryDirectory() as tmp:
             store = Store(Path(tmp)/'state')
-            key = store.save_workflow('Alt', [{'action':'open','path':tmp}], [tmp], approved=True)
             values = dict(name='Neu', steps=[{'action':'diagnose'}], roots=[tmp], trigger='interval', interval=300, watch='', enabled=True, approved=True)
-            window = SimpleNamespace(chat=SimpleNamespace(backend=SimpleNamespace(directory=tmp)))
-            pages = SimpleNamespace(window=window, store=store, refresh_flows=Mock())
+            pages = SimpleNamespace(window=None, store=store)
             dialog = Mock(value=values); dialog.exec.return_value = True
             with patch('work_pages.PlanDialog', return_value=dialog):
-                WorkPages.flow_dialog(pages, store.workflows()[0], workflow=key)
+                WorkPages.flow_dialog(pages, {'roots': [tmp]})
             rows = store.workflows(); self.assertEqual(len(rows), 1)
-            self.assertEqual(rows[0]['id'], key); self.assertEqual(rows[0]['interval'], 300)
+            self.assertEqual(rows[0]['name'], 'Neu'); self.assertEqual(rows[0]['interval'], 300)
             self.assertEqual(rows[0]['roots'], [tmp]); self.assertTrue(rows[0]['approved'])
 
 

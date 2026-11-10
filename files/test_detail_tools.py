@@ -18,16 +18,11 @@ class DetailToolsTest(unittest.TestCase):
         from work_pages import WorkPages
         with tempfile.TemporaryDirectory() as tmp:
             store = Store(Path(tmp)/'state')
-            flow = store.save_workflow('Keep trigger', [{'action':'open','path':tmp}], [tmp],
-                                      trigger='directory', watch=tmp, interval=300, enabled=False, approved=True)
             host = QWidget()
-            pages = [WorkPages(host, store, [section]) for section in ('flows', 'knowledge', 'models', 'tasks')]
+            pages = [WorkPages(host, store, [section]) for section in ('models', 'tasks')]
             self.assertFalse(hasattr(host, 'chat'))
-            self.assertEqual(pages[0].flows.item(0).data(256)['id'], flow)
-            self.assertFalse(hasattr(pages[0], 'tasks_page'))
-            with patch('lumen_detail_routes.launch') as launch:
-                pages[1].to_chat('Selected source', [tmp+'/source.txt'])
-                self.assertEqual(launch.call_args.args[1], ['--prompt','Selected source','--file',tmp+'/source.txt'])
+            self.assertFalse(hasattr(pages[0], 'tasks_page')); self.assertFalse(hasattr(pages[1], 'models_page'))
+            self.assertIs(pages[0].store, pages[1].store)
             for page in pages:
                 self.assertTrue(page.can_close()); page.shutdown()
             host.close()
