@@ -276,8 +276,11 @@ Window {
             bar.closeOtherMenus(bar.layout==="context"?contextDrawer:null)
             if(conversationWindow.visible)bar.openConversation()
         }
-        visible:bar.expandedComposer;width:bar.classic?Math.max(0,activityButton.x-(bar.twoRows?24:appRow.x+appRow.width+12)-16):300
-        x:bar.classic?(bar.twoRows?24:appRow.x+appRow.width+12):bar.deck?bar.width-300-16:systemRow.x-300-8;y:bar.classic?(bar.twoRows?82:40)-height/2:bar.deck?72:(bar.barSize-height)/2
+        // Wide screens keep a readable field in the middle instead of stretching it across the bar.
+        readonly property real slotStart:bar.twoRows?24:appRow.x+appRow.width+12
+        readonly property real slotWidth:Math.max(0,activityButton.x-slotStart-16)
+        visible:bar.expandedComposer;width:bar.classic?(bar.twoRows?slotWidth:Math.min(slotWidth,720)):300
+        x:bar.classic?Math.max(slotStart,Math.min(slotStart+slotWidth-width,(bar.width-width)/2)):bar.deck?bar.width-300-16:systemRow.x-300-8;y:bar.classic?(bar.twoRows?82:40)-height/2:bar.deck?72:(bar.barSize-height)/2
         colors:bar.colors;translate:bar.t;controller:panelData;keyStyle:!bar.classic
         showToggle:true;conversationOpen:bar.conversationOpen;onToggleRequested:bar.toggleConversation()
         request:questionState;onInspectAttachment:bar.toggleMenu(contextDrawer);onSent:bar.conversationSent();onVoiceRequested:bar.openConversation()
