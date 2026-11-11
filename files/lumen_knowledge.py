@@ -1,13 +1,13 @@
-"""Explicit-root local knowledge search, reusing Lumen's bounded text/PDF reader."""
+"""Explicit-root local knowledge search, reusing Lumen's bounded text, PDF and Office reader."""
 from lumen_i18n import tr
 import os
 from pathlib import Path
 import time
 
-from content_search import folder_fd, read_content, query_groups
+from content_search import OFFICE, folder_fd, read_content, query_groups
 
 EXCLUDED = {'node_modules', 'vendor', '__pycache__', 'credentials', 'secrets', 'id_rsa', 'id_ed25519', 'passwords', 'password', 'tokens', 'apikey', 'api_key', 'private_key', 'secret'}
-SUFFIXES = {'.txt', '.md', '.rst', '.pdf', '.csv', '.py', '.js', '.ts', '.html', '.odt.txt', '.log'}
+SUFFIXES = {'.txt', '.md', '.rst', '.pdf', '.csv', '.py', '.js', '.ts', '.html', '.odt.txt', '.log'} | OFFICE
 
 
 def index_root(store, directory, cancelled=lambda: False, pause=lambda: None):
