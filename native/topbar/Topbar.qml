@@ -372,14 +372,17 @@ Window {
             BarButton {key:!bar.classic;objectName:"systemErrorButton";colors:bar.colors;text:bar.t(panelData.error);glyph:"dialog-warning";iconOnly:true;visible:!!panelData.error;onClicked:bar.toggleMenu(systemPopup)}
             BarButton {id:networkButton;objectName:"networkButton";key:!bar.classic;colors:bar.colors;text:bar.t("Netzwerk");glyph:"network-wireless";iconOnly:true;visible:bar.showStatus;current:quickMenu.visible && bar.quickTopic==="network";onClicked:bar.quick("network")}
             BarButton {id:volumeButton;key:!bar.classic;objectName:"systemControlsButton";colors:bar.colors;text:bar.t("Audio");glyph:bar.stateData.system?.muted?"audio-volume-muted":"audio-volume-high";iconOnly:true;visible:bar.showStatus;current:quickMenu.visible && bar.quickTopic==="audio";onClicked:bar.quick("audio")}
-            BarButton {objectName:"notificationsButton";key:!bar.classic;colors:bar.colors;text:bar.t("Mitteilungen")+(bar.quiet?" · "+bar.t("Nicht stören")+(bar.stateData.unread>0?" · "+bar.stateData.unread+" "+bar.t("zurückgehalten"):""):bar.needsYou?" · "+bar.t("Braucht dich"):bar.freshNotices>0?" · "+bar.freshNotices+" "+bar.t("neu"):"");glyph:bar.quiet?"notifications-disabled":bar.freshNotices>0?"notifications-new":"notifications";iconOnly:true;current:quickMenu.visible && bar.quickTopic==="notifications";onClicked:bar.quick("notifications")
+            BarButton {objectName:"notificationsButton";key:!bar.classic;colors:bar.colors;text:bar.t("Mitteilungen")+(bar.quiet?" · "+bar.t("Nicht stören")+(bar.freshNotices>0?" · "+bar.freshNotices+" "+bar.t("zurückgehalten"):""):bar.needsYou?" · "+bar.t("Braucht dich"):bar.freshNotices>0?" · "+bar.freshNotices+" "+bar.t("neu"):"");glyph:bar.quiet?"notifications-disabled":bar.freshNotices>0?"notifications-new":"notifications";iconOnly:true;current:quickMenu.visible && bar.quickTopic==="notifications";onClicked:bar.quick("notifications")
                 // A number for what is new since the last look, a mark for what waits on a decision; nothing otherwise.
+                // While notifications are held back the number stays, subdued, so quiet does not look like empty.
                 Rectangle {
-                    objectName:"notificationBadge";visible:!bar.quiet && (bar.needsYou || bar.freshNotices>0)
+                    objectName:"notificationBadge";readonly property bool held:bar.quiet && !bar.needsYou
+                    visible:bar.needsYou || bar.freshNotices>0
                     anchors.right:parent.right;anchors.top:parent.top;anchors.rightMargin:1;anchors.topMargin:2
                     width:Math.max(16,badgeText.implicitWidth+8);height:16;radius:8
-                    color:bar.needsYou?(bar.colors.ring||bar.colors.accent):bar.colors.accent
-                    Text {id:badgeText;anchors.centerIn:parent;text:bar.needsYou?"!":bar.freshNotices>9?"9+":bar.freshNotices;color:bar.colors.onAccent;font.pixelSize:11;font.weight:Font.Medium}
+                    color:held?bar.colors.alternate:bar.needsYou?(bar.colors.ring||bar.colors.accent):bar.colors.accent
+                    border.width:held?1:0;border.color:bar.colors.border
+                    Text {id:badgeText;anchors.centerIn:parent;text:bar.needsYou?"!":bar.freshNotices>9?"9+":bar.freshNotices;color:parent.held?bar.colors.text:bar.colors.onAccent;font.pixelSize:11;font.weight:Font.Medium}
                 }
             }
             BarButton {colors:bar.colors;objectName:"clockButton";text:bar.clockText;visible:bar.width>460;onClicked:bar.toggleMenu(calendar)}
