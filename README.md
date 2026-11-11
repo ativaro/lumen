@@ -114,7 +114,7 @@ Spielruhe sammelt Meldungen bei erkannten Spielen still. KDE bleibt für Empfang
 
 **Lokal nutzbar.**
 
-PDFs, EPUBs und gespeicherte Artikel lesen, Leseposition behalten, Text markieren und Randnotizen erfassen. Ausgewählte Passagen lassen sich als Quellen für Lumen verwenden. Lokales Vorlesen benötigt eine installierte Stimme. Nicht jedes Dokument enthält auslesbaren Text; Scans brauchen für Textfunktionen OCR.
+PDFs, EPUBs, Office-Dokumente (Word, Excel, PowerPoint, OpenDocument) und gespeicherte Artikel lesen, Leseposition behalten, Text markieren und Randnotizen erfassen. Ausgewählte Passagen lassen sich als Quellen für Lumen verwenden. Lokales Vorlesen benötigt eine installierte Stimme. Nicht jedes Dokument enthält auslesbaren Text; Scans brauchen für Textfunktionen OCR.
 
 [Reader und Vorlesen](READER-SOUND.md).
 

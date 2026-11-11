@@ -110,7 +110,8 @@ def worker(job,action,path,**values):
 
 def import_file(library,path,job):
     path=Path(path).expanduser().resolve(strict=True)
-    if path.suffix.lower() not in ('.pdf','.epub','.txt','.md','.html','.htm'):raise ValueError(tr('PDF, EPUB, Text, Markdown oder HTML auswählen.'))
+    from lumen_office import OFFICE
+    if path.suffix.lower() not in {'.pdf','.epub','.txt','.md','.html','.htm'}|OFFICE:raise ValueError(tr('PDF, EPUB, Text, Markdown, HTML oder ein Office-Dokument auswählen.'))
     if path.suffix.lower() in ('.html','.htm'):
         if path.stat().st_size>2*1024**2:raise ValueError(tr('HTML-Artikel größer als 2 MiB.'))
         parser=ArticleParser();parser.feed(path.read_text(errors='replace'));return import_text(library,path.stem,parser.text(),path.as_uri(),job)

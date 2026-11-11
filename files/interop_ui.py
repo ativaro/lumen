@@ -418,7 +418,7 @@ def files_menu(window,menu,paths,*,safety=None):
     payload=dict(source={'app':'files'},paths=[] if drive else paths)
     if drive:payload['references']=[dict(kind='drive_'+window.drive.entries[p][0],title=window.drive.entries[p][1]['name']) for p in paths]
     targets=menu.addMenu(tr('Verwenden in …'))
-    from reader_server import OFFICE
+    from lumen_office import OFFICE
     if not drive and all(Path(p).suffix.lower() in OFFICE|{'.pdf','.epub','.txt','.md','.html','.htm'} for p in paths):
         def reader():
             from_paths(paths)

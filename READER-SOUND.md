@@ -10,7 +10,7 @@ Dateizuordnungen ersetzt und keine Audioregeln automatisch aktiviert.
 
 ## Reader
 
-**Buch oder Dokument öffnen** importiert PDF, EPUB, TXT, Markdown oder HTML in
+**Buch oder Dokument öffnen** importiert PDF, EPUB, TXT, Markdown, HTML oder ein Office-Dokument in
 eine private Bibliothek. Auch **Öffnen mit → Lumen Reader** und
 `lumen-reader "/pfad/buch.pdf"` funktionieren; ein weiteres Dokument erreicht
 das bereits geöffnete Fenster. **Artikel speichern** lädt eine ausdrücklich
