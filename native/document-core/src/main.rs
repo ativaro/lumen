@@ -149,7 +149,12 @@ fn pdf_reader(path: &str, page: Option<usize>) -> Result<String, lumen_document:
         }
         let (width, height, words) = lumen_document::text::Page::words(&document, index)?;
         let scale = f64::min(2.0, f64::min(1800.0 / width, 2600.0 / height));
-        let picture = lumen_document::render::render(&document, index, scale)?;
+        let picture = lumen_document::render::render_file(
+            std::path::Path::new(path),
+            &password(),
+            index,
+            scale,
+        )?;
         let png = picture
             .encode_png()
             .map_err(|_| Error::Pdf("PDF-Vorschaubild zu groß oder ungültig.".into()))?;
@@ -220,8 +225,9 @@ fn pdf_cli(args: &[String]) -> ExitCode {
                     .ok_or_else(invalid)? as f64;
                 let (width, height, _) = lumen_document::text::Page::words(&document, index)
                     .map_err(|error| error.to_string())?;
-                let picture = lumen_document::render::render(
-                    &document,
+                let picture = lumen_document::render::render_file(
+                    std::path::Path::new(path),
+                    &password(),
                     index,
                     f64::min(4.0, edge / width.max(height)),
                 )
