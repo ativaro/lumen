@@ -19,10 +19,12 @@ sys.path.insert(0, files)
 import lumen_pdf  # noqa: E402
 from lumen_pdf_page import Page  # noqa: E402
 from PySide6.QtCore import Qt  # noqa: E402
-from PySide6.QtGui import QImage  # noqa: E402
+from PySide6.QtGui import QColorSpace, QImage  # noqa: E402
 
 
 def grey(image):
+    # A PNG carries a colour space, and Qt then weighs grey in linear light; both pictures are compared as plain values.
+    image = image.convertToFormat(QImage.Format.Format_RGB888); image.setColorSpace(QColorSpace())
     small = image.scaled(160, 200, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation).convertToFormat(QImage.Format.Format_Grayscale8)
     raw = bytes(small.constBits())
     return b''.join(raw[y * small.bytesPerLine():y * small.bytesPerLine() + 160] for y in range(200))

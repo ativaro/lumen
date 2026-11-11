@@ -30,14 +30,17 @@ engine refuses is still read here.
 `lumen-document pdf-render <file> <page> <scale> <png>` draws a page (`src/render.rs`): paths,
 text as glyph outlines, pictures, forms with transparency and knockout groups, clipping, shadings,
 shading and tiling patterns, and annotations. `compare-render.py` draws the same pages with both
-engines and compares reduced grey pictures: of 142 pages of the 40 real files, 121 are equal, 18
-differ slightly (2 to 12 % mean difference, none with strong differences; the cause on pages with
-many overlapping translucent shapes is not found yet) and 3 are refused by name.
+engines and compares reduced grey pictures: of 418 pages of the 40 real files, 417 are equal and
+one is refused by name (a four-channel JPEG picture). Drawing those pages takes 16 s here and 50 s
+in the Python engine, with a process start and a PNG file per page on this side.
+
+Soft masks, Type 4 functions (`src/calculator.rs`), matte pictures, knockout groups and stroke
+adjustment are drawn as the Python engine draws them.
 
 Not ported yet: encrypted files (refused with a clear message), embedded Type 1 font programs,
-soft masks, Type 4 functions, JPEG 2000 and four-channel JPEG pictures, stroking with patterns,
-radial shadings between two offset circles, and ICC profiles (the component count picks the device
-space). The Reader does not use the renderer yet.
+JPEG 2000 and some four-channel JPEG pictures, stroking with patterns, radial shadings between two
+offset circles, transparency groups in grey outside a mask, and ICC profiles (the component count
+picks the device space). The Reader does not use the renderer yet.
 
 ## Checks
 

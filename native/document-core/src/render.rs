@@ -233,7 +233,12 @@ fn function(
             }
             output
         }
-        Some(4) => return later("Farbfunktionen vom Typ 4"),
+        Some(4) => {
+            let Some(stream) = stream else {
+                return bad("Unbekannte PDF-Farbfunktion.");
+            };
+            crate::calculator::calculate(&document.decode(stream)?, &source)?
+        }
         _ => return bad("Unbekannte PDF-Farbfunktion."),
     };
     if let Some(limits) = limits {
@@ -645,15 +650,19 @@ fn picture(
             let wanted = match channels {
                 1 => ColorSpace::Luma,
                 3 => ColorSpace::RGB,
-                _ => return later("JPEG-Bilder mit vier Farbkanälen"),
+                4 => ColorSpace::CMYK,
+                _ => return bad("Ungültige JPEG-/JPX-Farbkomponenten."),
             };
             let mut decoder = zune_jpeg::JpegDecoder::new_with_options(
                 &encoded[..],
                 DecoderOptions::default().jpeg_set_out_colorspace(wanted),
             );
-            let pixels = decoder
-                .decode()
-                .map_err(|_| Error::Pdf("PDF-Bild konnte nicht dekodiert werden.".into()))?;
+            let pixels = match decoder.decode() {
+                Ok(pixels) => pixels,
+                // ponytail: the JPEG decoder does not turn every four-channel picture into CMYK samples.
+                Err(_) if channels == 4 => return later("JPEG-Bilder mit vier Farbkanälen"),
+                Err(_) => return bad("PDF-Bild konnte nicht dekodiert werden."),
+            };
             if decoder
                 .info()
                 .is_none_or(|info| info.width as usize != w || info.height as usize != h)
@@ -691,39 +700,92 @@ fn picture(
     } else {
         // Indexed default Decode uses the sample's integer index, regardless of the palette's highest used entry (ISO 32000-1 table 89).
         let indexed = matches!(space, Space::Indexed { .. }) && !custom;
-        let mut known: HashMap<Vec<u32>, [u8; 3]> = HashMap::new();
-        let mut pixel = vec![0u32; channels];
-        for y in 0..h {
-            let row = &raw[y * stride..(y + 1) * stride];
-            for x in 0..w {
-                for (channel, slot) in pixel.iter_mut().enumerate() {
-                    *slot = sample(row, x * channels + channel, bits);
-                }
-                let colour = match known.get(&pixel) {
-                    Some(colour) => *colour,
-                    None => {
-                        let decoded: Vec<f64> = pixel
-                            .iter()
-                            .enumerate()
-                            .map(|(i, v)| {
-                                if indexed {
-                                    f64::from(*v)
-                                } else {
-                                    decode[2 * i]
-                                        + f64::from(*v) / maximum
-                                            * (decode[2 * i + 1] - decode[2 * i])
-                                }
-                            })
-                            .collect();
-                        let rgb = space.rgb(document, &decoded)?;
-                        let colour = [byte(rgb[0]), byte(rgb[1]), byte(rgb[2])];
-                        if known.len() < 65536 {
-                            known.insert(pixel.clone(), colour);
-                        }
-                        colour
+        let colour_of = |pixel: &[u32]| -> Outcome<[u8; 3]> {
+            let decoded: Vec<f64> = pixel
+                .iter()
+                .enumerate()
+                .map(|(i, v)| {
+                    if indexed {
+                        f64::from(*v)
+                    } else {
+                        decode[2 * i]
+                            + f64::from(*v) / maximum * (decode[2 * i + 1] - decode[2 * i])
                     }
-                };
-                rgba[(y * w + x) * 4..(y * w + x) * 4 + 3].copy_from_slice(&colour);
+                })
+                .collect();
+            let rgb = space.rgb(document, &decoded)?;
+            Ok([byte(rgb[0]), byte(rgb[1]), byte(rgb[2])])
+        };
+        // Whole bytes in a device space with the usual value range need no arithmetic per sample.
+        let plain = bits == 8 && !custom;
+        match &space {
+            Space::Gray if plain => {
+                for (target, value) in rgba.as_chunks_mut::<4>().0.iter_mut().zip(&raw) {
+                    target[..3].copy_from_slice(&[*value; 3]);
+                }
+            }
+            Space::Rgb if plain => {
+                for (target, source) in rgba
+                    .as_chunks_mut::<4>()
+                    .0
+                    .iter_mut()
+                    .zip(raw.as_chunks::<3>().0)
+                {
+                    target[..3].copy_from_slice(source);
+                }
+            }
+            Space::Cmyk if plain => {
+                for (target, source) in rgba
+                    .as_chunks_mut::<4>()
+                    .0
+                    .iter_mut()
+                    .zip(raw.as_chunks::<4>().0)
+                {
+                    let key = 255 - u32::from(source[3]);
+                    for channel in 0..3 {
+                        target[channel] =
+                            (((255 - u32::from(source[channel])) * key + 127) / 255) as u8;
+                    }
+                }
+            }
+            // One sample per pixel has at most 256 colours: each is worked out once.
+            _ if channels == 1 && bits <= 8 => {
+                let table: Vec<[u8; 3]> = (0..1u32 << bits)
+                    .map(|value| colour_of(&[value]))
+                    .collect::<Outcome<_>>()?;
+                for y in 0..h {
+                    let row = &raw[y * stride..(y + 1) * stride];
+                    for x in 0..w {
+                        rgba[(y * w + x) * 4..(y * w + x) * 4 + 3]
+                            .copy_from_slice(&table[sample(row, x, bits) as usize]);
+                    }
+                }
+            }
+            _ => {
+                // Pictures repeat colours; each distinct one is converted once.
+                let mut known: HashMap<u64, [u8; 3]> = HashMap::new();
+                let mut pixel = vec![0u32; channels];
+                for y in 0..h {
+                    let row = &raw[y * stride..(y + 1) * stride];
+                    for x in 0..w {
+                        let mut key = 0u64;
+                        for (channel, slot) in pixel.iter_mut().enumerate() {
+                            *slot = sample(row, x * channels + channel, bits);
+                            key = key.wrapping_mul(65537).wrapping_add(u64::from(*slot));
+                        }
+                        let colour = match known.get(&key).filter(|_| channels <= 4) {
+                            Some(colour) => *colour,
+                            None => {
+                                let colour = colour_of(&pixel)?;
+                                if known.len() < 65536 && channels <= 4 {
+                                    known.insert(key, colour);
+                                }
+                                colour
+                            }
+                        };
+                        rgba[(y * w + x) * 4..(y * w + x) * 4 + 3].copy_from_slice(&colour);
+                    }
+                }
             }
         }
     }
@@ -835,6 +897,9 @@ struct State {
     filling: Option<Filling>,
     /// Stroke adjustment: lines are drawn on whole pixels, without smoothed edges.
     adjust: bool,
+    /// The soft mask in force. It is already part of `clip`; `unveiled` keeps the clip without it.
+    soft: Option<Rc<Mask>>,
+    unveiled: Option<Option<Rc<Mask>>>,
 }
 
 impl State {
@@ -867,6 +932,8 @@ impl State {
             knockout: None,
             filling: None,
             adjust: false,
+            soft: None,
+            unveiled: None,
         }
     }
 }
@@ -971,6 +1038,37 @@ fn shading(document: &Document, reference: &Value, resources: &Dict) -> Outcome<
         )?;
         stops.push((t, space.rgb(document, &colour)?));
     }
+    // The rasteriser walks every stop for every pixel. Stops that lie on the straight line between their
+    // neighbours, within half a colour level, say nothing new and are left out.
+    let mut kept: Vec<(f64, [f64; 3])> = Vec::with_capacity(8);
+    let mut from = 0;
+    while from < stops.len() {
+        kept.push(stops[from]);
+        let mut to = from + 1;
+        while to + 1 < stops.len() {
+            let (start, end) = (stops[from], stops[to + 1]);
+            let straight = stops[from + 1..=to].iter().all(|(t, colour)| {
+                let share = if end.0 > start.0 {
+                    (t - start.0) / (end.0 - start.0)
+                } else {
+                    0.0
+                };
+                (0..3).all(|c| {
+                    (start.1[c] + share * (end.1[c] - start.1[c]) - colour[c]).abs() <= 0.5 / 255.0
+                })
+            });
+            if !straight {
+                break;
+            }
+            to += 1;
+        }
+        from = to;
+        if from + 1 == stops.len() {
+            kept.push(stops[from]);
+            break;
+        }
+    }
+    let stops = kept;
     let frame = match attrs.get("BBox") {
         Some(frame) => {
             let c = values(&document.resolve(frame)?, Some(4))?;
@@ -1185,6 +1283,8 @@ struct Renderer<'d> {
     image_pixels: usize,
     layer_pixels: std::cell::Cell<usize>,
     tiles: HashMap<(usize, u32, u32), Rc<Pixmap>>,
+    /// Above zero while a soft mask's group is being drawn.
+    masking: usize,
 }
 
 const BLENDS: &[(&str, BlendMode)] = &[
@@ -1553,6 +1653,7 @@ impl Renderer<'_> {
         path: &tiny_skia::Path,
         rule: FillRule,
     ) -> Outcome<Option<Rc<Mask>>> {
+        MASKS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let matrix = transform(state.ctm.then(self.base));
         let mask = match &state.clip {
             Some(clip) => {
@@ -1570,8 +1671,135 @@ impl Renderer<'_> {
         Ok(Some(Rc::new(mask)))
     }
 
+    /// Narrows the clip to a path, or to nothing. Under a soft mask the clip without the mask is narrowed alongside.
+    fn narrow(
+        &self,
+        target: &Pixmap,
+        state: &mut State,
+        path: Option<&tiny_skia::Path>,
+        rule: FillRule,
+    ) -> Outcome<()> {
+        let narrowed = |clip: &Option<Rc<Mask>>| -> Outcome<Option<Rc<Mask>>> {
+            match path {
+                Some(path) => self.clipped(
+                    target,
+                    &State {
+                        clip: clip.clone(),
+                        ..state.clone()
+                    },
+                    path,
+                    rule,
+                ),
+                None => Ok(Some(Rc::new(
+                    Mask::new(target.width(), target.height())
+                        .ok_or(Error::Pdf("PDF-Vorschaubild zu groß oder ungültig.".into()))?,
+                ))),
+            }
+        };
+        let effective = narrowed(&state.clip)?;
+        let pure = match &state.unveiled {
+            Some(pure) => Some(narrowed(pure)?),
+            None => None,
+        };
+        (state.clip, state.unveiled) = (effective, pure);
+        Ok(())
+    }
+
+    /// A soft mask as coverage: the alpha or the luminance of its group, drawn where the graphics state stood.
+    fn soft_mask(
+        &mut self,
+        target: &Pixmap,
+        attrs: &Dict,
+        state: &State,
+        resources: &Rc<Dict>,
+    ) -> Outcome<Mask> {
+        let document = self.document;
+        let form = match document.resolve(attrs.get("G").unwrap_or(&Value::Null))? {
+            Value::Stream(form)
+                if form.attrs.get("Subtype").and_then(Value::name) == Some("Form") =>
+            {
+                form
+            }
+            _ => return bad("PDF-Weichmaskengruppe fehlt."),
+        };
+        let luminous = match attrs.get("S").and_then(Value::name) {
+            Some("Alpha") => false,
+            Some("Luminosity") => true,
+            _ => return bad("Ungültige PDF-Weichmaske."),
+        };
+        let mut surface = self.layer(target)?;
+        if luminous {
+            let group = document.resolve(form.attrs.get("Group").unwrap_or(&Value::Null))?;
+            let space = Space::parse(
+                document,
+                group
+                    .dict()
+                    .and_then(|group| group.get("CS"))
+                    .unwrap_or(&Value::Name("DeviceRGB".into())),
+                resources,
+                0,
+            )?;
+            let backdrop = match attrs.get("BC") {
+                Some(colour) => values(&document.resolve(colour)?, Some(space.components()))?,
+                None => vec![0.0; space.components()],
+            };
+            let colour = space.rgb(document, &backdrop)?;
+            surface.fill(
+                tiny_skia::Color::from_rgba(
+                    colour[0] as f32,
+                    colour[1] as f32,
+                    colour[2] as f32,
+                    1.0,
+                )
+                .unwrap_or(tiny_skia::Color::BLACK),
+            );
+        }
+        let mut inner = state.clone();
+        (inner.fill_alpha, inner.stroke_alpha, inner.blend) = (1.0, 1.0, BlendMode::SourceOver);
+        (inner.clip, inner.soft, inner.unveiled, inner.knockout) = (None, None, None, None);
+        self.masking += 1;
+        let drawn = self.form(&mut surface, &form, resources, &mut Vec::new(), 0, &inner);
+        self.masking -= 1;
+        drawn?;
+        let mut cover: Vec<u8> = surface
+            .data()
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|p| {
+                if luminous {
+                    ((30 * u32::from(p[0]) + 59 * u32::from(p[1]) + 11 * u32::from(p[2]) + 50)
+                        / 100) as u8
+                } else {
+                    p[3]
+                }
+            })
+            .collect();
+        let transfer =
+            document.resolve(attrs.get("TR").unwrap_or(&Value::Name("Identity".into())))?;
+        if transfer.name() != Some("Identity") {
+            let mut table = [0u8; 256];
+            for (level, slot) in table.iter_mut().enumerate() {
+                let mapped = function(document, &transfer, &[level as f64 / 255.0], 0)?
+                    .first()
+                    .copied()
+                    .unwrap_or(0.0);
+                *slot = (mapped.clamp(0.0, 1.0) * 255.0).round() as u8;
+            }
+            for value in &mut cover {
+                *value = table[*value as usize];
+            }
+        }
+        tiny_skia::IntSize::from_wh(surface.width(), surface.height())
+            .and_then(|size| Mask::from_vec(cover, size))
+            .ok_or(Error::Pdf(
+                "PDF-Transparenzfläche konnte nicht angelegt werden.".into(),
+            ))
+    }
+
     /// Counts one more surface of the output's size against the transparency budget.
     fn count(&self, target: &Pixmap) -> Outcome<()> {
+        LAYERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         self.layer_pixels
             .set(self.layer_pixels.get() + (target.width() * target.height()) as usize);
         if self.layer_pixels.get() > 160_000_000 {
@@ -1750,6 +1978,8 @@ impl Renderer<'_> {
                 .resolve(group.get("CS").unwrap_or(&Value::Name("DeviceRGB".into())))?;
             match space.name() {
                 Some("DeviceRGB") => {}
+                // A mask group in grey is drawn in colour; its luminance is the same.
+                Some("DeviceGray") if self.masking > 0 => {}
                 Some("DeviceGray") => return later("Transparenzgruppen in Graustufen"),
                 _ => return unsupported("PDF-Gruppenfarbraum noch nicht unterstützt."),
             }
@@ -1777,7 +2007,7 @@ impl Renderer<'_> {
         frame.line_to(c[0] as f32, c[3] as f32);
         frame.close();
         if let Some(frame) = frame.finish() {
-            inner.clip = self.clipped(target, &inner, &frame, FillRule::Winding)?;
+            self.narrow(target, &mut inner, Some(&frame), FillRule::Winding)?;
         }
         let data = self.document.decode(stream)?;
         forms.push(identity);
@@ -1788,7 +2018,8 @@ impl Renderer<'_> {
         let isolated = group
             .as_ref()
             .is_some_and(|group| matches!(group.get("I"), Some(Value::Bool(true))));
-        let outside = state.fill_alpha != 1.0 || state.blend != BlendMode::SourceOver;
+        let outside =
+            state.fill_alpha != 1.0 || state.blend != BlendMode::SourceOver || state.soft.is_some();
         // A group is one object. It gets its own surface when it is isolated, when the outside applies opacity or a
         // blend mode, or when it is itself an object of a knockout group.
         let apart = group.is_some() && (isolated || outside || state.knockout.is_some());
@@ -1799,6 +2030,13 @@ impl Renderer<'_> {
                 inner.blend,
                 inner.knockout,
             ) = (1.0, 1.0, BlendMode::SourceOver, None);
+        }
+        if group.is_some() {
+            // A soft mask applies to the group as one object, not to each thing inside it.
+            inner.soft = None;
+            if let Some(pure) = inner.unveiled.take() {
+                inner.clip = pure;
+            }
         }
         let result = if apart {
             if knocking {
@@ -1815,7 +2053,14 @@ impl Renderer<'_> {
                         blend_mode: state.blend,
                         quality: tiny_skia::FilterQuality::Nearest,
                     };
-                    target.draw_pixmap(0, 0, surface.as_ref(), &paint, Transform::identity(), None);
+                    target.draw_pixmap(
+                        0,
+                        0,
+                        surface.as_ref(),
+                        &paint,
+                        Transform::identity(),
+                        state.soft.as_deref(),
+                    );
                 }
             }
             result
@@ -1831,7 +2076,13 @@ impl Renderer<'_> {
         result
     }
 
-    fn graphics_state(&mut self, settings: &Dict, state: &mut State) -> Outcome<()> {
+    fn graphics_state(
+        &mut self,
+        target: &Pixmap,
+        resources: &Rc<Dict>,
+        settings: &Dict,
+        state: &mut State,
+    ) -> Outcome<()> {
         for (key, value) in settings.iter() {
             let value = self.document.resolve(value)?;
             let number = |value: &Value| numbers(std::slice::from_ref(value), None).map(|n| n[0]);
@@ -1863,11 +2114,35 @@ impl Renderer<'_> {
                         None => return unsupported("PDF-Mischmodus noch nicht unterstützt."),
                     }
                 }
-                "SMask" => match &value {
-                    Value::Name(name) if &**name == "None" => {}
-                    Value::Dict(_) => return later("Weichmasken"),
-                    _ => return bad("Ungültige PDF-Weichmaske."),
-                },
+                "SMask" => {
+                    if let Some(pure) = state.unveiled.take() {
+                        state.clip = pure;
+                    }
+                    state.soft = None;
+                    match &value {
+                        Value::Name(name) if &**name == "None" => {}
+                        Value::Dict(mask) => {
+                            let veil = Rc::new(self.soft_mask(target, mask, state, resources)?);
+                            let covered = match &state.clip {
+                                None => (*veil).clone(),
+                                Some(clip) => {
+                                    let mut covered = (**clip).clone();
+                                    for (own, other) in
+                                        covered.data_mut().iter_mut().zip(veil.data())
+                                    {
+                                        *own = ((u16::from(*own) * u16::from(*other) + 127) / 255)
+                                            as u8;
+                                    }
+                                    covered
+                                }
+                            };
+                            state.unveiled = Some(state.clip.take());
+                            state.clip = Some(Rc::new(covered));
+                            state.soft = Some(veil);
+                        }
+                        _ => return bad("Ungültige PDF-Weichmaske."),
+                    }
+                }
                 "SA" if matches!(value, Value::Bool(_)) => {
                     state.adjust = matches!(value, Value::Bool(true))
                 }
@@ -2082,14 +2357,11 @@ impl Renderer<'_> {
                             self.stroke(target, finished, &state)?;
                         }
                         if let Some(rule) = clipping {
-                            state.clip = self.clipped(target, &state, finished, rule)?;
+                            self.narrow(target, &mut state, Some(finished), rule)?;
                         }
                     } else if clipping.is_some() {
                         // Clipping to an empty path leaves nothing visible.
-                        state.clip =
-                            Some(Rc::new(Mask::new(target.width(), target.height()).ok_or(
-                                Error::Pdf("PDF-Vorschaubild zu groß oder ungültig.".into()),
-                            )?));
+                        self.narrow(target, &mut state, None, FillRule::Winding)?;
                     }
                     clipping = None;
                 }
@@ -2401,7 +2673,7 @@ impl Renderer<'_> {
                     else {
                         return bad("Ungültiger PDF-Grafikzustand.");
                     };
-                    self.graphics_state(&settings, &mut state)?;
+                    self.graphics_state(target, resources, &settings, &mut state)?;
                 }
                 "sh" => {
                     let (Some(Value::Name(name)), 1) = (a.first(), a.len()) else {
@@ -2613,6 +2885,9 @@ impl Renderer<'_> {
     }
 }
 
+pub static LAYERS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+pub static MASKS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 /// The page as an opaque picture on white, `scale` output pixels per page pixel.
 pub fn render(document: &Document, index: usize, scale: f64) -> Outcome<Pixmap> {
     let page = Page::prepare(document, index)?;
@@ -2643,6 +2918,7 @@ pub fn render(document: &Document, index: usize, scale: f64) -> Outcome<Pixmap> 
         image_pixels: 0,
         layer_pixels: std::cell::Cell::new(0),
         tiles: HashMap::new(),
+        masking: 0,
     };
     renderer.interpret(
         &mut surface,
