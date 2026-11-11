@@ -377,6 +377,20 @@ fn main() -> ExitCode {
             }
         };
     }
+    if args.len() == 3 && args[0] == "office-text" {
+        // `office-text <file> <.suffix>`: the plain text for a search.
+        return match lumen_document::office::text(std::path::Path::new(&args[1]), &args[2]) {
+            Ok(text) => {
+                use std::io::Write;
+                let _ = std::io::stdout().write_all(text.as_bytes());
+                ExitCode::SUCCESS
+            }
+            Err(message) => {
+                eprintln!("{message}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     if args.len() < 2 || args[0] != "office" {
         eprintln!("usage: lumen-document office <file> [--label German=Translation]...");
         return ExitCode::from(2);

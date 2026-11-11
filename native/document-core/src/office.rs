@@ -91,6 +91,10 @@ struct Pack {
     names: HashSet<String>,
     archive: RefCell<zip::ZipArchive<File>>,
     labels: HashMap<String, String>,
+    /// The most sheet rows and columns read: the reading view is cut, the search is not.
+    rows: usize,
+    columns: usize,
+    hidden: bool,
 }
 
 impl Pack {
@@ -117,6 +121,9 @@ impl Pack {
             names,
             archive: RefCell::new(archive),
             labels: labels.clone(),
+            rows: MAX_ROWS,
+            columns: MAX_COLUMNS,
+            hidden: false,
         })
     }
 
@@ -704,7 +711,7 @@ fn spreadsheet(pack: &Pack) -> Outcome<Vec<String>> {
     let epoch_days = if late { -24_107 } else { -25_569 }; // 1904-01-01 and 1899-12-30, in days since 1970-01-01
     let mut result = Vec::new();
     for sheet in all(workbook.root_element(), S, "sheet") {
-        if matches!(sheet.attribute("state"), Some("hidden" | "veryHidden")) {
+        if !pack.hidden && matches!(sheet.attribute("state"), Some("hidden" | "veryHidden")) {
             continue;
         }
         let Some(name) = sheet
@@ -732,7 +739,7 @@ fn spreadsheet(pack: &Pack) -> Outcome<Vec<String>> {
                     .bytes()
                     .fold(0usize, |sum, letter| sum * 26 + (letter - 64) as usize);
                 let line: usize = figures.parse().unwrap_or(0);
-                if line > MAX_ROWS || column > MAX_COLUMNS {
+                if line > pack.rows || column > pack.columns {
                     cut = true;
                     continue;
                 }
@@ -837,8 +844,8 @@ fn spreadsheet(pack: &Pack) -> Outcome<Vec<String>> {
                 escape(
                     &pack
                         .label("Gekürzt auf {0} Zeilen und {1} Spalten.")
-                        .replace("{0}", &MAX_ROWS.to_string())
-                        .replace("{1}", &MAX_COLUMNS.to_string())
+                        .replace("{0}", &pack.rows.to_string())
+                        .replace("{1}", &pack.columns.to_string())
                 )
             )
         } else {
@@ -1134,7 +1141,7 @@ impl Open<'_> {
                     .unwrap_or(1);
                 filled |= !text.is_empty();
                 if cells.matches("<td").count() + if text.is_empty() { 0 } else { repeat }
-                    > MAX_COLUMNS
+                    > self.pack.columns
                 {
                     break;
                 }
@@ -1147,18 +1154,20 @@ impl Open<'_> {
                     span.map(|s| format!(" colspan=\"{s}\""))
                         .unwrap_or_default()
                 );
-                cells.push_str(&one.repeat(if !text.is_empty() || repeat <= MAX_COLUMNS {
-                    repeat
-                } else {
-                    1
-                }));
+                cells.push_str(
+                    &one.repeat(if !text.is_empty() || repeat <= self.pack.columns {
+                        repeat
+                    } else {
+                        1
+                    }),
+                );
             }
             // Sheets are padded with repeated empty rows and cells down to their last line.
             if !filled {
                 continue;
             }
             lines += 1;
-            if lines > MAX_ROWS {
+            if lines > self.pack.rows {
                 break;
             }
             let mut kept = cells.as_str();
@@ -1292,6 +1301,67 @@ fn open_document(pack: &Pack, kind: &str) -> Outcome<Vec<String>> {
     Ok(result)
 }
 
+fn parts(pack: &Pack, kind: &str) -> Outcome<Vec<String>> {
+    match kind {
+        ".docx" | ".docm" => word(pack),
+        ".xlsx" | ".xlsm" => spreadsheet(pack),
+        ".pptx" | ".pptm" => slides(pack),
+        ".odt" | ".ods" | ".odp" => open_document(pack, kind),
+        _ => Err("Geschützte oder beschädigte Office-Datei.".into()),
+    }
+}
+
+/// A section as plain text: one line per paragraph, heading and table row, cells apart by a tab.
+fn plain(html: &str) -> String {
+    let mut out = String::new();
+    let mut rest = html;
+    while let Some(start) = rest.find('<') {
+        out.push_str(&rest[..start]);
+        let Some(end) = rest[start..].find('>') else {
+            break;
+        };
+        match rest[start + 1..start + end]
+            .split(' ')
+            .next()
+            .unwrap_or_default()
+        {
+            "/p" | "/h2" | "/tr" | "br" => out.push('\n'),
+            "/td" => out.push('\t'),
+            _ => {}
+        }
+        rest = &rest[start + end + 1..];
+    }
+    out.push_str(rest);
+    // `&amp;` last, so that an escaped entity stays text.
+    out.replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#x27;", "'")
+        .replace("&amp;", "&")
+}
+
+/// The whole text for a search: every sheet row and column, hidden sheets, and Word's footnotes and
+/// endnotes, which the reading view leaves out. `kind` is the lower-case suffix, since a searched file may be
+/// opened through a descriptor without a name.
+pub fn text(path: &Path, kind: &str) -> Outcome<String> {
+    let mut pack = Pack::open(path, &HashMap::new())?;
+    (pack.rows, pack.columns, pack.hidden) = (usize::MAX, usize::MAX, true);
+    let mut out: Vec<String> = parts(&pack, kind)?.iter().map(|part| plain(part)).collect();
+    for name in ["word/footnotes.xml", "word/endnotes.xml"] {
+        if matches!(kind, ".docx" | ".docm") && pack.names.contains(name) {
+            let notes = pack.part(name)?;
+            for paragraph in all(parse(&notes)?.root_element(), W, "p") {
+                out.push(
+                    all(paragraph, W, "t")
+                        .filter_map(|run| run.text())
+                        .collect(),
+                );
+            }
+        }
+    }
+    Ok(out.join("\n"))
+}
+
 /// Title and one HTML section per document, sheet or slide. `labels` translates the few words the
 /// reader writes itself; a missing entry leaves the German word.
 pub fn read(path: &Path, labels: &HashMap<String, String>) -> Outcome<Reading> {
@@ -1300,13 +1370,7 @@ pub fn read(path: &Path, labels: &HashMap<String, String>) -> Outcome<Reading> {
         .extension()
         .map(|e| format!(".{}", e.to_string_lossy().to_lowercase()))
         .unwrap_or_default();
-    let parts = match kind.as_str() {
-        ".docx" | ".docm" => word(&pack)?,
-        ".xlsx" | ".xlsm" => spreadsheet(&pack)?,
-        ".pptx" | ".pptm" => slides(&pack)?,
-        ".odt" | ".ods" | ".odp" => open_document(&pack, &kind)?,
-        _ => return Err("Geschützte oder beschädigte Office-Datei.".into()),
-    };
+    let parts = parts(&pack, &kind)?;
     let mut title = String::new();
     for name in ["docProps/core.xml", "meta.xml"] {
         if pack.names.contains(name) {
@@ -1384,5 +1448,11 @@ mod tests {
         );
         assert_eq!(escape("a<b>&\"'"), "a&lt;b&gt;&amp;&quot;&#x27;");
         assert_eq!(length(Some("5cm")), 189.0);
+        assert_eq!(
+            plain(
+                "<h2>A &amp;amp; B</h2><table border=\"1\"><tr><td>1</td><td>&lt;2&gt;</td></tr></table><p>x<br>y</p>"
+            ),
+            "A &amp; B\n1\t<2>\t\nx\ny\n"
+        );
     }
 }
