@@ -33,9 +33,14 @@ HOME="$lumen_test_root" XDG_CONFIG_HOME="$lumen_test_root/config" \
   XDG_DATA_HOME="$lumen_test_root/data" XDG_STATE_HOME="$lumen_test_root/state" \
   XDG_CACHE_HOME="$lumen_test_root/cache" LUMEN_DATA="$lumen_test_root/lumen" \
   LUMEN_TOOLS_DATA="$lumen_test_root/tools" LUMEN_HOST_TEST_ROOT="$lumen_test_root/host" \
-  QT_QPA_PLATFORM=offscreen LUMEN_LANGUAGE=de \
+  LUMEN_IMPORT_FIXTURES="$lumen_test_root" \
+  QT_QPA_PLATFORM="offscreen:configfile=$PWD/tests/offscreen-screen.json" LUMEN_LANGUAGE=de \
   LUMEN_PYTHON="$lumen_test_python" dbus-run-session -- "$lumen_test_python" -m unittest discover -s files -v
 ```
+
+The screen file gives the offscreen platform a 1920×1200 display; Qt's 800×800
+default is smaller than the window sizes the tests expect. `LUMEN_IMPORT_FIXTURES`
+is the folder in which the import tests create their private files.
 
 Exercise the native topbar in a disposable virtual Plasma session:
 
