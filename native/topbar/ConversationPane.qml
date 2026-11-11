@@ -16,12 +16,14 @@ Item {
     property bool detached:false
     property bool dialogVisible:false
     property bool following:true
+    // True only while this pane moves the view itself, so its own jumps are not read as the user scrolling.
+    property bool jumping:false
     signal detachRequested(bool dragging)
     signal collapseRequested()
     signal reattachRequested()
     function focusInput(){composer.forceActiveFocus()}
     function submit(){if(!request.draft.trim()||request.pending||controller.busy)return;following=true;request.error="";request.submitted=request.draft;request.submittedNote=JSON.stringify(request.note);request.pending=true;request.pendingAction=host.ask(request.submitted,request.note)}
-    function latest(){if(conversation.contentItem){following=true;conversation.contentItem.cancelFlick();conversation.contentItem.contentY=Math.max(0,conversation.contentHeight-conversation.availableHeight)}}
+    function latest(){if(conversation.contentItem){following=true;jumping=true;conversation.contentItem.cancelFlick();conversation.contentItem.contentY=Math.max(0,conversation.contentHeight-conversation.availableHeight);jumping=false}}
     function followLatest(){if(following&&!scrollbar.pressed&&!conversation.contentItem.moving)latest()}
     onWidthChanged:if(visible)widthTimer.restart()
     onVisibleChanged:visible?widthTimer.restart():widthTimer.stop()
@@ -86,8 +88,14 @@ Item {
                 id:conversation;objectName:"topbarConversationScroll";anchors.fill:parent;clip:true
                 contentWidth:availableWidth;ScrollBar.horizontal.policy:ScrollBar.AlwaysOff
                 onContentHeightChanged:if(pane.following)Qt.callLater(pane.followLatest)
-                ScrollBar.vertical:ScrollBar {id:scrollbar;onPressedChanged:if(pressed)pane.following=false}
-                Connections {target:conversation.contentItem;function onMovementStarted(){pane.following=false}function onMovementEnded(){pane.following=conversation.contentHeight-conversation.contentItem.contentY-conversation.availableHeight<28}}
+                ScrollBar.vertical:ScrollBar {
+                    id:scrollbar;parent:conversation;x:conversation.width-width;height:conversation.availableHeight;policy:ScrollBar.AsNeeded
+                    onPressedChanged:if(pressed)pane.following=false
+                    contentItem:Rectangle {implicitWidth:6;radius:3;color:pane.colors.muted;opacity:scrollbar.size<1?(scrollbar.pressed||scrollbar.hovered?0.9:0.5):0}
+                }
+                // Follow new text only while the reader is at the end. Wheels and touchpads move the view without
+                // movement signals, so the position itself decides.
+                Connections {target:conversation.contentItem;function onContentYChanged(){if(!pane.jumping)pane.following=conversation.contentHeight-conversation.contentItem.contentY-conversation.availableHeight<28}}
                 ColumnLayout {
                     width:conversation.availableWidth;spacing:24
                     Label {visible:!pane.controller.messages.length;Layout.fillWidth:true;text:pane.translate("Wobei kann ich dir helfen?");color:pane.colors.text;font.pixelSize:24;wrapMode:Text.Wrap}
