@@ -1910,7 +1910,7 @@ class Window(QMainWindow):
         if hasattr(self, 'view'):
             self.view.setColumnHidden(3, self.width() < 1180)
         if hasattr(self, 'disk_label'):
-            # Compact windows keep the room for the places list.
+            # Compact windows give this height to the places list.
             self.disk_label.setVisible(self.height() >= 700)
             self.location_badge.setVisible(self.height() >= 700)
 

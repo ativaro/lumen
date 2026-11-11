@@ -128,11 +128,11 @@ class FilesActivity(QWidget):
         return window
 
     def transfers_page(self):
-        box = self.page(tr('Transfers'))
+        box = self.page(tr('Übertragungen'))
         box.addWidget(text(tr('Alles, was unterwegs ist.'), 'heading'))
         box.addWidget(text(tr('Kopien, Verschiebungen und Downloads aus Lumen · auch zum NAS. Browser-Downloads bleiben in deinem Browser.'), 'muted'))
         self.transfers = table([tr('Datei / Vorgang'), tr('Fortschritt'), tr('Status')]); box.addWidget(self.transfers, 1)
-        self.transfer_detail = text(tr('Wähle einen Transfer für Details.')); box.addWidget(self.transfer_detail)
+        self.transfer_detail = text(''); box.addWidget(self.transfer_detail)
         self.progress = QProgressBar(); self.progress.setRange(0, 100); box.addWidget(self.progress)
         row(box, [(tr('Download starten …'), self.new_download), (tr('Anhalten'), self.pause_transfer), (tr('Fortsetzen / erneut versuchen'), self.retry_transfer)])
         self.transfers.itemSelectionChanged.connect(self.transfer_details)
@@ -157,7 +157,10 @@ class FilesActivity(QWidget):
 
     def transfer_details(self):
         value = next((v for v in getattr(self, 'transfer_values', []) if v['id'] == chosen(self.transfers)), None)
-        if not value: return
+        if not value:
+            self.transfer_detail.setText(tr('Wähle eine Übertragung für Details.') if getattr(self, 'transfer_values', [])
+                                         else tr('Noch keine Übertragungen. Kopien, Verschiebungen und Downloads erscheinen hier.'))
+            return
         self.transfer_detail.setText((value['target'] or '\n'.join(value['sources'])) + ('\n' + '\n'.join(value['errors']) if value['errors'] else ''))
         total = value['total'] if value['action'] == 'download' else len(value['sources'])
         done = value['bytes'] if value['action'] == 'download' else len(value['done'])
@@ -176,7 +179,8 @@ class FilesActivity(QWidget):
     def history_details(self):
         value = next((v for v in getattr(self, 'history_values', []) if v['id'] == chosen(self.history)), None)
         self.undo_button.setEnabled(bool(value and history.can_undo(value) and not self.busy))
-        self.history_detail.setText(str(value.get('target') or '') if value else '')
+        self.history_detail.setText(str(value.get('target') or '') if value else '' if getattr(self, 'history_values', [])
+                                    else tr('Noch keine Änderungen. Dateiaktionen und geänderte Einstellungen erscheinen hier.'))
 
     def undo(self):
         identity = chosen(self.history)
