@@ -1,11 +1,11 @@
-"""Sentence presentation over native workflow steps; no runner conversion."""
+"""Sentence presentation of a file action over native steps; no runner conversion."""
 import json
 from html import escape
 from PySide6.QtCore import QObject, QEvent, QTimer, Qt, QLocale
 from PySide6.QtGui import QFontMetrics
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
-    QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-    QMenu, QMessageBox, QPlainTextEdit, QScrollArea, QSpinBox, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QFileDialog,
+    QFormLayout, QFrame, QHBoxLayout, QLineEdit, QListWidget, QListWidgetItem,
+    QMenu, QMessageBox, QPlainTextEdit, QScrollArea, QVBoxLayout, QWidget)
 from code_sentence_ui import SentenceFlow, SentencePart, STYLE
 from code_design import STYLE as CODE_STYLE
 from desktop_design import AppHeader, PAGE_SPACING
@@ -47,10 +47,10 @@ def style_step(dialog, box, step):
 class NativeSentence(QObject):
     def __init__(self,d,task,box):
         super().__init__(d);self.d=d;self.parts=[];self.shown=False
-        d.setWindowTitle(tr('Lumen Automation'));d.resize(1040,720);d.setFont(font(14))
+        d.setWindowTitle(tr('Eigene Dateiaktion'));d.resize(1040,720);d.setFont(font(14))
         d.setObjectName('codeShell');d.setStyleSheet(CODE_STYLE+STYLE);box.setSpacing(PAGE_SPACING)
-        box.addWidget(AppHeader(tr('Lumen Automation'),tr('Ein Ablauf, den du lesen kannst.')))
-        d.name=QLineEdit(task.get('title',task.get('name','')));d.name.setPlaceholderText(tr('Name der Automation'))
+        box.addWidget(AppHeader(tr('Eigene Dateiaktion'),tr('Eine Aktion, die du lesen kannst.')))
+        d.name=QLineEdit(task.get('title',task.get('name','')));d.name.setPlaceholderText(tr('Name der Dateiaktion'))
         d.name.setAccessibleName(tr('Name'));d.name.setObjectName('codeFlowTitle');box.addWidget(d.name)
         self.scratch=QWidget(d);self.scratch.hide()
         d.steps=QListWidget(self.scratch);d.steps.setAccessibleName(tr('Native Schritte'))
@@ -60,15 +60,7 @@ class NativeSentence(QObject):
         d.prompt=QPlainTextEdit(task.get('prompt',''),self.scratch);d.prompt.setAccessibleName(tr('KI-Auftrag'))
         d.roots=QListWidget(self.scratch)
         for root in task.get('roots',[]):self.add_root_item(d.roots,root)
-        d.trigger=QComboBox(self.scratch)
-        for text,key in (('Manuell','manual'),('Regelmäßig','interval'),('Bei Ordneränderung','directory')):d.trigger.addItem(tr(text),key)
-        d.interval=QSpinBox(self.scratch);d.interval.setRange(1,525600);d.interval.setSuffix(tr(' Minuten'))
-        d.watch=QComboBox(self.scratch);d.watch.setAccessibleName(tr('Beobachteter Ordner'))
-        d.enable=QCheckBox(tr('Automatischen Ablauf aktivieren'),self.scratch)
         d.approve=QCheckBox(tr('Diese Schritte und Ordner freigeben'),self.scratch)
-        d.refresh_roots();d.trigger.setCurrentIndex(max(0,d.trigger.findData(task.get('trigger','manual'))))
-        d.interval.setValue(max(1,int(task.get('interval',3600))//60));d.watch.setCurrentIndex(max(0,d.watch.findText(task.get('watch',''))))
-        d.enable.setChecked(bool(task.get('enabled',False)));d.trigger.currentIndexChanged.connect(d.update_trigger);d.update_trigger()
         scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setFrameShape(QScrollArea.NoFrame)
         body=QWidget();content=QVBoxLayout(body);content.setContentsMargins(0,0,0,0);content.setSpacing(16)
         self.sentence=QFrame();self.sentence.setObjectName('sentence');self.lines=QVBoxLayout(self.sentence)
@@ -78,7 +70,7 @@ class NativeSentence(QObject):
         actions.addWidget(button(tr('KI-Auftrag bearbeiten'),self.prompt,'tools-wizard'))
         permissions=button(tr('Ordner & Freigabe').replace('&','&&'),self.permissions,'dialog-password')
         permissions.setAccessibleName(tr('Ordner & Freigabe'));actions.addWidget(permissions);content.addWidget(action_bar)
-        content.addWidget(label(tr('Jeder hervorgehobene Satzteil ist bearbeitbar. Zeitpunkt und Freigabedetails legst du bei Bedarf fest.'),'muted'))
+        content.addWidget(label(tr('Jeder hervorgehobene Satzteil ist bearbeitbar. Freigabedetails legst du bei Bedarf fest.'),'muted'))
         self.summary=label('','muted');content.addWidget(self.summary);content.addStretch();scroll.setWidget(body);box.addWidget(scroll,1)
         d.error=label('');d.error.setWordWrap(True);box.addWidget(d.error)
         footer=QVBoxLayout();hint=label(tr('Änderungen gelten erst nach dem Speichern.'),'muted');hint.setWordWrap(True);footer.addWidget(hint)
@@ -86,12 +78,11 @@ class NativeSentence(QObject):
         save=button(tr('Speichern'),d.save,'document-save',True);save.setDefault(True);buttons.addWidget(save);footer.addLayout(buttons);box.addLayout(footer)
         self.timer=QTimer(self);self.timer.setSingleShot(True);self.timer.timeout.connect(self.refresh)
         for signal in (d.name.textChanged,d.prompt.textChanged,d.steps.model().rowsInserted,d.steps.model().rowsRemoved,
-                       d.steps.model().dataChanged,d.roots.model().rowsInserted,d.roots.model().rowsRemoved,
-                       d.trigger.currentIndexChanged,d.interval.valueChanged,d.watch.currentIndexChanged,d.enable.toggled,d.approve.toggled):signal.connect(self.queue)
+                       d.steps.model().dataChanged,d.roots.model().rowsInserted,d.roots.model().rowsRemoved,d.approve.toggled):signal.connect(self.queue)
         self.baseline=self.snapshot();d.installEventFilter(self);self.refresh()
 
     def description(self,step):
-        from work_pages import step_description
+        from plan_dialog import step_description
         return step_description(step)
 
     @staticmethod
@@ -101,8 +92,7 @@ class NativeSentence(QObject):
     def snapshot(self):
         d=self.d
         return json.dumps([d.name.text(),[d.steps.item(i).data(Qt.UserRole) for i in range(d.steps.count())],
-            d.prompt.toPlainText(),[d.roots.item(i).data(Qt.UserRole) for i in range(d.roots.count())],
-            d.trigger.currentData(),d.interval.value(),d.watch.currentText(),d.enable.isChecked(),d.approve.isChecked()],sort_keys=True)
+            d.prompt.toPlainText(),[d.roots.item(i).data(Qt.UserRole) for i in range(d.roots.count())],d.approve.isChecked()],sort_keys=True)
 
     def eventFilter(self,watched,event):
         if event.type()==QEvent.Show:
@@ -122,13 +112,8 @@ class NativeSentence(QObject):
             item=label(value,'sentenceText');flow.addWidget(item)
         def chip(value,callback,glyph,full_text=None):
             item=part(value,callback,glyph,full_text);flow.addWidget(item);self.parts.append(item);return item
-        d.interval.setSuffix(tr(' Minute') if d.interval.value()==1 else tr(' Minuten'))
-        interval=tr('Jede Minute') if d.interval.value()==1 else tr('Alle {0} Minuten',QLocale(language()).toString(d.interval.value()))
-        start=tr('Auf Knopfdruck') if d.trigger.currentData()=='manual' else interval if d.trigger.currentData()=='interval' else tr('Bei Änderung in {0}',d.watch.currentText() or tr('einem freigegebenen Ordner'))
         metrics=QFontMetrics(font(23))
-        start_caption=metrics.elidedText(start,Qt.ElideMiddle,480) if d.trigger.currentData()=='directory' and metrics.horizontalAdvance(start)>700 else start
-        self.start_part=chip(start_caption,self.start,'input-mouse' if d.trigger.currentData()=='manual' else 'chronometer',start)
-        self.start_part.setEnabled(d.trigger.isEnabled());text(tr('soll Lumen'))
+        text(tr('Auf Knopfdruck'));text(tr('soll Lumen'))
         for i in range(d.steps.count()):
             step=d.steps.item(i).data(Qt.UserRole)
             if i:text(tr('und danach'))
@@ -174,24 +159,6 @@ class NativeSentence(QObject):
         buttons=QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel)
         buttons.accepted.connect(dialog.accept);buttons.rejected.connect(dialog.reject);box.addWidget(buttons)
 
-    def start(self):
-        d=self.d
-        if not d.trigger.isEnabled():return
-        dialog,box=self.detail('Start festlegen');form=QFormLayout();form.setSpacing(12);box.addLayout(form)
-        trigger=QComboBox()
-        for i in range(d.trigger.count()):trigger.addItem(d.trigger.itemText(i),d.trigger.itemData(i))
-        trigger.setCurrentIndex(d.trigger.currentIndex());form.addRow(tr('Auslöser'),trigger)
-        interval=QSpinBox();interval.setRange(d.interval.minimum(),d.interval.maximum());interval.setSuffix(d.interval.suffix());interval.setValue(d.interval.value());form.addRow(tr('Intervall / Prüfintervall'),interval)
-        interval.valueChanged.connect(lambda value:interval.setSuffix(tr(' Minute') if value==1 else tr(' Minuten')))
-        watch=QComboBox();watch.addItems([d.roots.item(i).text() for i in range(d.roots.count())]);watch.setCurrentIndex(max(0,watch.findText(d.watch.currentText())));form.addRow(tr('Beobachteter Ordner'),watch)
-        enabled=QCheckBox(d.enable.text());enabled.setChecked(d.enable.isChecked());box.addWidget(enabled)
-        def state(*_):interval.setEnabled(trigger.currentData()!='manual');watch.setEnabled(trigger.currentData()=='directory');enabled.setEnabled(trigger.currentData()!='manual')
-        trigger.currentIndexChanged.connect(state);state()
-        box.addWidget(label(tr('Ordnerauslöser erkennen Änderungen an direkten Einträgen. KI-Aufträge und Desktop-/Systemaktionen warten auf Lumen im Vordergrund.'),'muted'));box.addStretch();self.detail_buttons(dialog,box)
-        if dialog.exec():
-            d.trigger.setCurrentIndex(trigger.currentIndex());d.interval.setValue(interval.value());d.watch.setCurrentIndex(max(0,d.watch.findText(watch.currentText())));d.enable.setChecked(enabled.isChecked())
-        dialog.deleteLater();self.refresh()
-
     def permissions(self):
         d=self.d;dialog,box=self.detail('Ordner & Freigabe');roots=QListWidget();roots.setObjectName('codeSteps');roots.setAccessibleName(tr('Freigegebene Ordner'));roots.setWordWrap(True);box.addWidget(roots,1)
         for i in range(d.roots.count()):self.add_root_item(roots,d.roots.item(i).data(Qt.UserRole))
@@ -205,7 +172,7 @@ class NativeSentence(QObject):
         if dialog.exec():
             d.roots.clear()
             for i in range(roots.count()):self.add_root_item(d.roots,roots.item(i).data(Qt.UserRole))
-            d.refresh_roots();d.approve.setChecked(approve.isChecked())
+            d.approve.setChecked(approve.isChecked())
         dialog.deleteLater();self.refresh()
 
     def prompt(self):

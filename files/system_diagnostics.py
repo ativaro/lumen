@@ -24,11 +24,11 @@ class DiagnosticsPage(QWidget):
         self.system_status = SystemStatus(self)
         report = QPushButton(tr('Systemstatus & Wächterbericht')); root.addWidget(report)
         report.clicked.connect(lambda: self.views.setCurrentIndex(2))
-        from work_pages import WorkPages
-        self.work_pages = WorkPages(self, store=store, sections=('tasks',))
+        from task_controller import TaskController
+        self.task_controller = TaskController(self, store=store)
         task_view = QWidget(); layout = QVBoxLayout(task_view)
         back = QPushButton(tr('Zurück zur Diagnose')); back.clicked.connect(lambda: self.views.setCurrentIndex(0)); layout.addWidget(back)
-        layout.addWidget(self.work_pages.tasks_page); self.views.addWidget(task_view)
+        layout.addWidget(self.task_controller.tasks_page); self.views.addWidget(task_view)
         status_view = QWidget(); status_layout = QVBoxLayout(status_view)
         back = QPushButton(tr('Zurück zur Diagnose')); back.clicked.connect(lambda: self.views.setCurrentIndex(0)); status_layout.addWidget(back)
         status_layout.addWidget(self.system_status); self.views.addWidget(status_view)
@@ -48,6 +48,6 @@ class DiagnosticsPage(QWidget):
         self.assistant.sync()
 
     def open_tasks(self, identity=None):
-        self.work_pages.refresh_tasks()
-        if isinstance(identity, str): self.work_pages.select_task(identity)
+        self.task_controller.refresh_tasks()
+        if isinstance(identity, str): self.task_controller.select_task(identity)
         self.views.setCurrentIndex(1)

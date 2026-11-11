@@ -291,7 +291,7 @@ class StudioTest(unittest.TestCase):
     def test_theme_and_permission_hint(self):
         from PySide6.QtGui import QPalette
         from appearance import apply_design
-        chat, space, surface = self.window.chat, self.window.work_pages, self.window.studio
+        chat, space, surface = self.window.chat, self.window.task_controller, self.window.studio
         chat.mode.setCurrentIndex(chat.mode.findData('build'))
         chat.dont_ask.setChecked(True); self.assertIn('Automatische', chat.mode_hint.text())
         chat.dont_ask.setChecked(False); self.assertEqual(chat.mode_hint.text(), 'Mit Freigaben')
@@ -392,7 +392,7 @@ class StudioTest(unittest.TestCase):
 
     def test_results_have_their_own_preview_selection_and_actions(self):
         from studio_saved_results import StudioSavedResults
-        space = self.window.work_pages
+        space = self.window.task_controller
         pending = space.store.create_task('Pending', directory=self.tmp, status='paused')
         done = space.store.create_task('Done', directory=self.tmp, status='completed')
         space.store.update_task(done, result='Saved output'); space.select_task(pending)
@@ -402,7 +402,7 @@ class StudioTest(unittest.TestCase):
         results.setParent(self.window)
         self.assertEqual(results.preview.toPlainText(), 'Saved output')
         self.assertEqual(space.tasks.currentItem().data(Qt.UserRole), pending)
-        with patch('work_pages.QFileDialog.getSaveFileName', return_value=(self.tmp+'/result.md', '')): results.export.click()
+        with patch('task_controller.QFileDialog.getSaveFileName', return_value=(self.tmp+'/result.md', '')): results.export.click()
         self.assertEqual(Path(self.tmp+'/result.md').read_text(), 'Saved output')
         results.search.setText('missing'); self.assertFalse(results.export.isEnabled()); self.assertEqual(results.preview.toPlainText(), '')
 
@@ -427,8 +427,8 @@ class StudioTest(unittest.TestCase):
             chat.paths = []; controller.select_session('two'); select.assert_called_once_with('two')
 
     def test_task_overview_search_controls_export_and_conversation(self):
-        from work_pages import selected
-        space, chat = self.window.work_pages, self.window.chat
+        from plan_dialog import selected
+        space, chat = self.window.task_controller, self.window.chat
         task = space.store.create_task('Küche', directory=self.tmp, roots=[self.tmp], approved=True,
             steps=[{'action': 'write', 'path': self.tmp + '/notiz.md', 'text': 'Erhaltenes Ergebnis'}])
         waiting = space.store.create_task('Rückfrage', directory=self.tmp, status='needs_input')
@@ -440,7 +440,7 @@ class StudioTest(unittest.TestCase):
         self.assertFalse(space.task_buttons['pause'].isVisible())
         self.assertIn('notiz.md', space.task_result.toPlainText())
         result = space.store.task(task)['result']
-        with patch('work_pages.QFileDialog.getSaveFileName', return_value=(self.tmp + '/export.md', '')):
+        with patch('task_controller.QFileDialog.getSaveFileName', return_value=(self.tmp + '/export.md', '')):
             space.export_task()
         self.assertEqual(Path(self.tmp + '/export.md').read_text(), result)
         space.task_search.setText('Rückfrage'); self.assertEqual(selected(space.tasks), waiting)
@@ -460,7 +460,7 @@ class StudioTest(unittest.TestCase):
         self.assertFalse(any(space.tasks.item(i).data(Qt.UserRole) == task for i in range(space.tasks.count())))
 
     def test_pause_uses_tracker_and_is_not_offered_as_server_cancel(self):
-        chat, space = self.window.chat, self.window.work_pages
+        chat, space = self.window.chat, self.window.task_controller
         chat.backend.busy = True
         chat.tracker.started('Ein Auftrag', [], 'build')
         task = chat.tracker.task_id
@@ -483,7 +483,7 @@ class StudioTest(unittest.TestCase):
         chat.backend.execution = 'local'; chat.backend.busy = False
 
     def test_result_actions_follow_answer_identity_not_last_tracked_task(self):
-        chat, space, surface = self.window.chat, self.window.work_pages, self.window.studio
+        chat, space, surface = self.window.chat, self.window.task_controller, self.window.studio
         def answer(session, text, turn='turn'):
             chat.backend.session = session
             chat.show_messages([{'info': {'role': 'assistant', 'id': 'answer', 'parentID': turn}, 'parts': [{'type': 'text', 'text': text}]}])
@@ -498,7 +498,7 @@ class StudioTest(unittest.TestCase):
         self.assertEqual(chat.answer_task()['id'], first)
         with patch('file_actions.save_action') as save:
             chat.save_as_file_action(); self.assertEqual(save.call_args.args[2]['id'], first)
-        with patch('work_pages.QFileDialog.getSaveFileName', return_value=(self.tmp + '/antwort.md', '')):
+        with patch('task_controller.QFileDialog.getSaveFileName', return_value=(self.tmp + '/antwort.md', '')):
             surface.export_answer.trigger()
         self.assertEqual(Path(self.tmp + '/antwort.md').read_text(), 'Antwort eins')
         surface.task_link.click(); self.assertEqual(self.launch.call_args.args, ('lumen-system', ['--task',first]))

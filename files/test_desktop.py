@@ -60,9 +60,9 @@ class Probe(desktop.LumenWindow):
         QApplication.exit(0 if okay else 1)
 
     def probe(self):
-        self.task = self.work_pages.store.create_task('Auftrag aus dem Panel', directory=directory,
+        self.task = self.task_controller.store.create_task('Auftrag aus dem Panel', directory=directory,
                                                       status='completed')
-        self.work_pages.store.update_task(self.task, result='Konkretes Ergebnis')
+        self.task_controller.store.update_task(self.task, result='Konkretes Ergebnis')
         self.chat.composer.setPlainText('Entwurf bleibt erhalten')
         self.chat.backend.session = 'test-existing-conversation'
         self.chat.backend.busy = True
@@ -92,11 +92,11 @@ class Probe(desktop.LumenWindow):
     def verify_task(self, code):
         okay = (code == 0 and self.pages.currentIndex() == 0
                 and self.system.diagnostics.views.currentIndex() == 1
-                and 'Konkretes Ergebnis' in self.system.diagnostics.work_pages.detail.toPlainText()
+                and 'Konkretes Ergebnis' in self.system.diagnostics.task_controller.detail.toPlainText()
                 and self.chat.composer.toPlainText() == 'Entwurf bleibt erhalten'
                 and self.chat.backend.busy)
         if not okay:
-            print('task relaunch', code, self.pages.currentIndex(), self.work_pages.detail.toPlainText(), bytes(self.child.readAllStandardError()).decode(), flush=True)
+            print('task relaunch', code, self.pages.currentIndex(), self.task_controller.detail.toPlainText(), bytes(self.child.readAllStandardError()).decode(), flush=True)
             self.finish(False)
             return
         # An explicit working directory must still receive its own context window.

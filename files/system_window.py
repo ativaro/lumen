@@ -75,7 +75,7 @@ class SystemWindow(QMainWindow):
         self.activate('backups')
 
     def closeEvent(self, event):
-        if not self.diagnostics.system_status.can_close() or not self.diagnostics.work_pages.can_close(): event.ignore(); return
+        if not self.diagnostics.system_status.can_close() or not self.diagnostics.task_controller.can_close(): event.ignore(); return
         if self.backups.setup_dialog and self.backups.setup_dialog.isVisible():
             self.backups.setup_dialog.raise_(); self.backups.setup_dialog.activateWindow()
             event.ignore(); return
@@ -105,7 +105,7 @@ class SystemWindow(QMainWindow):
             self.select('sound'); self.sound.error(str(error)); event.ignore(); return
         self.sound.closing = True; self.sound.timer.stop()
         self.diagnostics.checks.stop()
-        self.diagnostics.work_pages.shutdown()
+        self.diagnostics.task_controller.shutdown()
         self.diagnostics.system_status.shutdown()
         self.controller.shutdown()
         self.backup_state.setValue('record', self.backups.current); self.backup_state.sync()

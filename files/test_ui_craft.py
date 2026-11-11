@@ -8,7 +8,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QScrollArea
 from app import create_app
 from backup_setup_ui import BackupWizard
-from work_pages import PlanDialog
+from plan_dialog import PlanDialog
 from tools_data import Library
 
 
@@ -26,10 +26,10 @@ class NativeCraftTest(unittest.TestCase):
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
         self.app.processEvents()
 
-    def flow(self, interval=60):
+    def flow(self):
         d = PlanDialog(None, dict(name='Unterlagen prüfen', roots=[str(self.root)],
             steps=[dict(action='write', path=str(self.root/'Ergebnis.txt'), text='Prüfergebnis')],
-            prompt='', trigger='interval', interval=interval, enabled=False, approved=False), workflow=True)
+            prompt='', approved=False), file_action=True)
         self.windows.append(d); d.resize(320, 640); d.show(); QTest.qWait(40)
         return d
 
@@ -43,12 +43,9 @@ class NativeCraftTest(unittest.TestCase):
             self.assertLessEqual(left + button.width(), viewport.width(), text)
         self.assertLessEqual(d.width(), 320)
 
-    def test_single_folder_and_interval_use_the_singular(self):
+    def test_single_folder_uses_the_singular(self):
         d = self.flow()
-        self.assertEqual(d.native_sentence.start_part.caption.text(), 'Jede Minute')
         self.assertTrue(d.native_sentence.summary.text().startswith('1 freigegebener Ordner ·'))
-        d.interval.setValue(525600); d.native_sentence.refresh()
-        self.assertIn('525.600', d.native_sentence.start_part.caption.text())
 
     def test_backup_page_has_a_readable_native_heading(self):
         with patch('backup_setup_ui.execute', return_value=dict(files=[], lumen=[], vault=[], servers=[])):

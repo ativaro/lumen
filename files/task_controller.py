@@ -1,214 +1,21 @@
-"""Native pages for durable work and execution preferences."""
+"""Controller of the task page: list, inspector, execution and results of durable Lumen tasks."""
 from lumen_i18n import worker_process, tr
-import json
 from pathlib import Path
 import sys
 
 from PySide6.QtCore import QObject, QProcess, QTimer, Qt, QEvent
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
-    QFormLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-    QMessageBox, QMenu, QPlainTextEdit, QProgressBar, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QTabWidget, QVBoxLayout, QWidget)
-from lumen_actions import ACTIONS, undo
+from PySide6.QtWidgets import QFileDialog, QInputDialog, QLabel, QListWidgetItem, QMessageBox
+from lumen_actions import undo
 from lumen_store import Store, STATES
-FIELDS = {'path': tr('Zielpfad oder Webadresse'), 'source': tr('Quelldatei'), 'text': tr('Inhalt'),
-          'desktop': tr('Anwendung (.desktop-Dateiname)'), 'unit': tr('Dienst (.service)'),
-          'scope': tr('Dienstbereich'), 'packages': tr('Paketnamen (durch Leerzeichen getrennt)')}
+from plan_dialog import PlanDialog, add_item, selected, step_description
 
 
-def page(title, description):
-    widget = QWidget(); layout = QVBoxLayout(widget)
-    heading = QLabel(title); heading.setObjectName('heading'); heading.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed); layout.addWidget(heading)
-    info = QLabel(description); info.setWordWrap(True); info.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed); layout.addWidget(info)
-    return widget, layout
-
-
-def buttons(layout, entries):
-    row = QHBoxLayout()
-    for title, callback in entries:
-        item = QPushButton(title); item.clicked.connect(callback); row.addWidget(item)
-    layout.addLayout(row)
-
-
-def selected(widget):
-    item = widget.currentItem()
-    if item is None: raise ValueError(tr('Bitte zuerst einen Eintrag auswählen.'))
-    return item.data(Qt.UserRole)
-
-
-def add_item(widget, title, value):
-    item = QListWidgetItem(title); item.setData(Qt.UserRole, value); widget.addItem(item)
-
-
-def step_description(step):
-    title = ACTIONS.get(step.get('action'), (step.get('action', ''), ()))[0]
-    fields = [f'{FIELDS.get(key, key)}: {value}' for key, value in step.items() if key != 'action']
-    return '\n'.join([title, *fields])
-
-
-class StepDialog(QDialog):
-    def __init__(self, parent, step=None):
-        super().__init__(parent); self.setWindowTitle(tr('Schritt hinzufügen')); self.resize(560, 350)
-        box = QVBoxLayout(self); self.action = QComboBox(); self.action.setAccessibleName(tr('Aktion'))
-        for key, (title, _) in ACTIONS.items(): self.action.addItem(title, key)
-        box.addWidget(self.action); self.form = QFormLayout(); box.addLayout(self.form)
-        self.controls = {}; self.action.currentIndexChanged.connect(self.rebuild); self.rebuild()
-        if step:
-            self.action.setCurrentIndex(self.action.findData(step['action']))
-            for key, control in self.controls.items():
-                if isinstance(control, QPlainTextEdit): control.setPlainText(step[key])
-                elif isinstance(control, QComboBox): control.setCurrentIndex(control.findData(step[key]))
-                else: control.setText(step[key])
-        row = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        row.accepted.connect(self.accept); row.rejected.connect(self.reject); box.addWidget(row)
-        if getattr(parent, 'workflow', False):
-            from code_sentence_native import style_step
-            style_step(self, box, step)
-
-    def rebuild(self):
-        while self.form.rowCount(): self.form.removeRow(0)
-        self.controls = {}
-        for key in ACTIONS[self.action.currentData()][1]:
-            if key == 'text': control = QPlainTextEdit()
-            elif key == 'scope':
-                control = QComboBox(); control.addItem(tr('Benutzer'), 'user'); control.addItem(tr('System (Authentifizierung)'), 'system')
-            else: control = QLineEdit()
-            control.setAccessibleName(FIELDS[key]); self.form.addRow(FIELDS[key], control); self.controls[key] = control
-
-    def step(self):
-        return {'action': self.action.currentData(), **{key: control.toPlainText() if isinstance(control, QPlainTextEdit)
-            else control.currentData() if isinstance(control, QComboBox) else control.text().strip()
-            for key, control in self.controls.items()}}
-
-
-class PlanDialog(QDialog):
-    def __init__(self, parent, task=None, workflow=False):
-        super().__init__(parent)
-        self.resize(760, 700); self.workflow = workflow; self.value = None
-        task = task or {}; box = QVBoxLayout(self); box.setContentsMargins(24, 20, 24, 20); box.setSpacing(14)
-        if workflow:
-            from code_sentence_native import NativeSentence
-            self.native_sentence = NativeSentence(self, task, box)
-            return
-        self.setWindowTitle(tr('Auftrag vorbereiten'))
-        heading = QLabel(tr('Auftrag vorbereiten')); heading.setObjectName('heading'); box.addWidget(heading)
-        self.name = QLineEdit(task.get('title', task.get('name', ''))); self.name.setPlaceholderText(tr('Name')); self.name.setAccessibleName(tr('Name')); box.addWidget(self.name)
-        tabs = QTabWidget(); box.addWidget(tabs, 1)
-        steps_page = QWidget(); steps_box = QVBoxLayout(steps_page); steps_box.setContentsMargins(16, 16, 16, 16); steps_box.setSpacing(12)
-        intro = QLabel(tr('Native Schritte werden in dieser Reihenfolge ausgeführt.')); intro.setWordWrap(True); steps_box.addWidget(intro)
-        self.steps = QListWidget(); self.steps.setObjectName('searchResults'); self.steps.setSpacing(5); steps_box.addWidget(self.steps, 2)
-        self.steps.setAccessibleName(tr('Native Schritte'))
-        self.step_preview = QPlainTextEdit(); self.step_preview.setReadOnly(True)
-        self.step_preview.setAccessibleName(tr('Vollständiger ausgewählter Schritt')); steps_box.addWidget(self.step_preview, 1)
-        self.steps.currentItemChanged.connect(lambda current, previous: self.step_preview.setPlainText(step_description(current.data(Qt.UserRole)) if current else ''))
-        for step in task.get('steps', []): self.add_step_item(step)
-        buttons(steps_box, [(tr('Hinzufügen'), self.add_step), (tr('Bearbeiten'), self.edit_step), (tr('Nach oben'), lambda: self.move_step(-1)), (tr('Nach unten'), lambda: self.move_step(1)), (tr('Entfernen'), lambda: self.steps.takeItem(self.steps.currentRow()))])
-        self.steps.itemDoubleClicked.connect(lambda _: self.edit_step())
-        tabs.addTab(steps_page, tr('Schritte'))
-        prompt_page = QWidget(); prompt_box = QVBoxLayout(prompt_page); prompt_box.setContentsMargins(16, 16, 16, 16); prompt_box.setSpacing(12)
-        intro = QLabel(tr('Verwende entweder feste Schritte oder einen KI-Auftrag. KI-Werkzeuge behalten ihre eigenen Rückfragen.')); intro.setWordWrap(True); prompt_box.addWidget(intro)
-        self.prompt = QPlainTextEdit(task.get('prompt', '')); self.prompt.setAccessibleName(tr('KI-Auftrag'))
-        self.prompt.setPlaceholderText(tr('Was soll Lumen für dich erledigen?')); prompt_box.addWidget(self.prompt, 1)
-        tabs.addTab(prompt_page, tr('KI-Auftrag'))
-        scope_page = QWidget(); scope_box = QVBoxLayout(scope_page); scope_box.setContentsMargins(16, 16, 16, 16); scope_box.setSpacing(12)
-        scope_box.addWidget(QLabel(tr('Freigegebene Ordner')))
-        self.roots = QListWidget(); self.roots.setObjectName('searchResults'); self.roots.setMaximumHeight(150); scope_box.addWidget(self.roots)
-        for root in task.get('roots', []): add_item(self.roots, root, root)
-        buttons(scope_box, [(tr('Ordner hinzufügen'), self.add_root), (tr('Ordner entfernen'), self.remove_root)])
-        self.trigger = QComboBox()
-        for title, key in [(tr('Manuell'), 'manual'), (tr('Regelmäßig'), 'interval'), (tr('Bei Ordneränderung'), 'directory')]: self.trigger.addItem(title, key)
-        self.interval = QSpinBox(); self.interval.setRange(1, 525600); self.interval.setSuffix(tr(' Minuten'))
-        self.watch = QComboBox(); self.watch.setAccessibleName(tr('Beobachteter Ordner'))
-        self.enable = QCheckBox(tr('Automatischen Ablauf aktivieren'))
-        scope_box.addStretch(); tabs.addTab(scope_page, tr('Ordner'))
-        if task.get('prompt'): tabs.setCurrentWidget(prompt_page)
-        self.approve = QCheckBox(tr('Diese Schritte und Ordner freigeben')); box.addWidget(self.approve)
-        self.approve.setToolTip(tr('Freigabe gilt für genau diese gespeicherten Schritte. KI-Werkzeuge behalten ihre eigenen Rückfragen.'))
-        self.error = QLabel(); self.error.setWordWrap(True); box.addWidget(self.error)
-        row = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
-        row.accepted.connect(self.save); row.rejected.connect(self.reject); box.addWidget(row); self.refresh_roots()
-        self.trigger.setCurrentIndex(max(0, self.trigger.findData(task.get('trigger', 'manual'))))
-        self.interval.setValue(max(1, int(task.get('interval', 3600)) // 60))
-        self.watch.setCurrentIndex(max(0, self.watch.findText(task.get('watch', ''))))
-        self.enable.setChecked(bool(task.get('enabled', False)))
-        self.trigger.currentIndexChanged.connect(self.update_trigger); self.update_trigger()
-
-    def add_root(self):
-        path = QFileDialog.getExistingDirectory(self, tr('Ordner freigeben'))
-        if path: add_item(self.roots, path, path); self.refresh_roots()
-
-    def reject(self):
-        if self.workflow and not self.native_sentence.can_discard(): return
-        super().reject()
-
-    def remove_root(self):
-        self.roots.takeItem(self.roots.currentRow()); self.refresh_roots()
-
-    def update_trigger(self):
-        scheduled = self.trigger.currentData() != 'manual'
-        self.interval.setEnabled(scheduled); self.watch.setEnabled(self.trigger.currentData() == 'directory')
-        self.enable.setEnabled(scheduled)
-
-    def refresh_roots(self):
-        previous = self.watch.currentText()
-        self.watch.clear()
-        for i in range(self.roots.count()): self.watch.addItem(self.roots.item(i).text())
-        self.watch.setCurrentIndex(max(0, self.watch.findText(previous)))
-
-    def add_step_item(self, step):
-        summary = ACTIONS[step['action']][0] + '\n' + ', '.join(f'{FIELDS[k]}: {v}' for k, v in step.items() if k not in ('action', 'text'))
-        if 'text' in step: summary += '\n' + step['text'][:300]
-        add_item(self.steps, summary, step)
-        self.steps.setCurrentRow(self.steps.count()-1)
-
-    def add_step(self):
-        dialog = StepDialog(self)
-        if dialog.exec():
-            from lumen_actions import validate_steps
-            try: step = dialog.step(); validate_steps([step]); self.add_step_item(step)
-            except ValueError as exc: self.error.setText(str(exc))
-
-    def edit_step(self):
-        item = self.steps.currentItem()
-        if not item: return
-        dialog = StepDialog(self, item.data(Qt.UserRole))
-        if dialog.exec():
-            from lumen_actions import validate_steps
-            try:
-                step = dialog.step(); validate_steps([step])
-                item.setData(Qt.UserRole, step); item.setText(step_description(step))
-                self.step_preview.setPlainText(step_description(step))
-            except ValueError as error: self.error.setText(str(error))
-
-    def move_step(self, offset):
-        current = self.steps.currentRow(); target = current + offset
-        if current < 0 or not 0 <= target < self.steps.count(): return
-        item = self.steps.takeItem(current); self.steps.insertItem(target, item); self.steps.setCurrentRow(target)
-
-    def save(self):
-        roots = [self.roots.item(i).data(Qt.UserRole) for i in range(self.roots.count())]
-        steps = [self.steps.item(i).data(Qt.UserRole) for i in range(self.steps.count())]
-        prompt = self.prompt.toPlainText().strip()
-        if not self.name.text().strip() or not roots or not (steps or prompt) or not self.approve.isChecked():
-            self.error.setText(tr('Name, mindestens ein Ordner, Schritte oder KI-Auftrag und deine Freigabe sind erforderlich.')); return
-        if steps and prompt:
-            self.error.setText(tr('Bitte native Schritte oder einen KI-Auftrag verwenden; beide können getrennte Abläufe sein.')); return
-        self.value = dict(name=self.name.text().strip(), roots=roots, steps=steps, prompt=prompt,
-                          trigger=self.trigger.currentData(), interval=self.interval.value()*60,
-                          watch=self.watch.currentText() if self.trigger.currentData() == 'directory' else '',
-                          enabled=self.enable.isChecked(), approved=True)
-        self.accept()
-
-
-class WorkPages(QObject):
-    def __init__(self, window, store=None, sections=None):
+class TaskController(QObject):
+    def __init__(self, window, store=None):
         super().__init__(window); self.window = window
         self.store = store or (window.chat.tracker.store if hasattr(window, 'chat') else Store())
-        self.sections = set(sections or ('tasks', 'models'))
-        self.model_backend = None
         self.store.recover(); self.processes = []; self.task_signature = None; self.knowledge_job = None
-        for name in self.sections:
-            widget = getattr(self, 'build_' + name)(); widget.setParent(window)
-            setattr(self, name + '_page', widget)
+        widget = self.build_tasks(); widget.setParent(window); self.tasks_page = widget
         self.timer = QTimer(self); self.timer.timeout.connect(self.refresh_tasks); self.timer.start(1500)
         self.refresh_tasks()
 
@@ -231,7 +38,6 @@ class WorkPages(QObject):
         return super().eventFilter(watched, event)
 
     def refresh_tasks(self, *_):
-        if 'tasks' not in self.sections: return
         rows = self.store.tasks(include_dismissed=self.show_closed.isChecked())
         query = self.task_search.text().casefold().strip()
         signature = (query, [(r['id'], r['status'], r['updated']) for r in rows])
@@ -424,9 +230,6 @@ class WorkPages(QObject):
         from file_actions import save_action
         save_action(self.window, self.store, self.store.task(task_id or selected(self.tasks)))
 
-    def task_to_flow(self, task_id=None):
-        task = self.store.task(task_id or selected(self.tasks)); self.flow_dialog(task)
-
     def export_task(self, task_id=None):
         task = self.store.task(task_id or selected(self.tasks))
         if not task['result']: raise ValueError(tr('Dieser Auftrag hat noch kein Ergebnis.'))
@@ -449,10 +252,6 @@ class WorkPages(QObject):
         choice, ok = QInputDialog.getItem(self.window, tr('Änderung rückgängig'), tr('Datei'), titles, 0, False)
         if ok: undo(self.store, changes[titles.index(choice)]['id']); self.show_task()
 
-    def flow_dialog(self, task):
-        dialog = PlanDialog(self.window, task, workflow=True)
-        if dialog.exec(): self.store.save_workflow(**dialog.value)
-
     def knowledge_work(self,action,**values):
         from tools_ui import Job
         from wissen_data import worker
@@ -470,47 +269,6 @@ class WorkPages(QObject):
             if results and not job.cancelled.is_set():self.index_status.setText(tr('Notizordner aktualisiert.'))
         job.finished.connect(finished);job.start()
 
-    def build_models(self):
-        widget, box = page(tr('Modelle & Ressourcen'), tr('Wähle, welche Modelle Lumen verwenden darf. „Lokaler Dienst“ erzwingt eine Loopback-Adresse; dessen eigene Weiterleitungen bleiben dessen Verantwortung.'))
-        form = QFormLayout(); box.addLayout(form); policy = self.store.setting('modelPolicy', {})
-        self.privacy = QComboBox(); self.privacy.addItem(tr('Konfigurierte Anbieter (auch Cloud)'), 'configured'); self.privacy.addItem(tr('Nur lokaler Dienst'), 'local')
-        self.privacy.setCurrentIndex(1 if policy.get('privacy') == 'local' else 0); form.addRow(tr('Verarbeitung'), self.privacy)
-        self.model_controls = {}
-        for key, title in [('model', tr('Standardmodell')), ('background_model', tr('Modell für wiederkehrende KI-Aufträge')), ('local_model', tr('Lokales Modell'))]:
-            control = QComboBox(); control.setEditable(True); control.addItem(policy.get(key, '')); control.setAccessibleName(title)
-            form.addRow(title, control); self.model_controls[key] = control
-        self.timeout = QSpinBox(); self.timeout.setRange(1, 120); self.timeout.setValue(int(policy.get('timeout_seconds', 900))//60); self.timeout.setSuffix(tr(' Minuten')); form.addRow(tr('Zeitlimit pro KI-Auftrag'), self.timeout)
-        self.gpu = QSpinBox(); self.gpu.setRange(1,100); self.gpu.setValue(int(policy.get('gpu_limit',90))); self.gpu.setSuffix(' %'); form.addRow(tr('Hintergrundarbeit pausiert ab GPU-Auslastung'), self.gpu)
-        self.pause_background = QCheckBox(tr('Alle Hintergrundaufträge pausieren')); self.pause_background.setChecked(policy.get('pause_background',False)); box.addWidget(self.pause_background)
-        self.model_status = QLabel(tr('GPU-Prüfung verwendet NVIDIA-SMI, wenn verfügbar. 100 % deaktiviert die GPU-Grenze.')); self.model_status.setWordWrap(True); box.addWidget(self.model_status)
-        buttons(box, [(tr('Verfügbare Modelle laden'), self.load_models), (tr('Speichern'), self.guarded(self.save_models))]); box.addStretch(); return widget
-
-    def load_models(self):
-        if hasattr(self.window, 'chat'): backend = self.window.chat.backend
-        else:
-            if self.model_backend is None:
-                from desktop_backend import DesktopBackend
-                self.model_backend = DesktopBackend(self.directory(), self)
-            backend = self.model_backend
-        def loaded(data):
-            names = [p['id'] + '/' + model for p in data.get('providers', []) for model in p.get('models', {})]
-            for control in self.model_controls.values():
-                old = control.currentText(); control.clear(); control.addItem(''); control.addItems(names); control.setCurrentText(old)
-            self.model_status.setText(tr('{0} Modelle verfügbar. Lokale Anbieter in den Verbindungseinstellungen konfigurieren.', len(names)))
-        backend.ensure_server(lambda: backend.request('GET','/config/providers',callback=loaded))
-
-    def save_models(self):
-        policy = self.store.setting('modelPolicy', {})
-        policy.update({key: c.currentText().strip() for key,c in self.model_controls.items()})
-        if self.privacy.currentData() == 'local' and '/' not in policy['local_model']: raise ValueError(tr('Lokales Modell als anbieter/modell auswählen.'))
-        policy.update(privacy=self.privacy.currentData(),timeout_seconds=self.timeout.value()*60,gpu_limit=self.gpu.value(),pause_background=self.pause_background.isChecked())
-        from PySide6.QtCore import QSettings
-        settings = self.window.chat.settings if hasattr(self.window, 'chat') else getattr(self.window, 'assistant', None) or QSettings('Lumen', 'Assistant')
-        if hasattr(self.window, 'preferencesChanged'): self.window.save(settings, {'model': policy['model']})
-        else: settings.setValue('model', policy['model']); settings.sync()
-        self.store.set_setting('modelPolicy',policy)
-        self.model_status.setText(tr('Gespeichert. Die Richtlinie gilt ab dem nächsten Auftrag.'))
-
     def can_close(self):
         if any(p.state() != QProcess.NotRunning for p in self.processes):
             QMessageBox.information(self.window, tr('Auftrag läuft'), tr('Bitte den laufenden nativen Schritt beenden lassen.')); return False
@@ -526,4 +284,3 @@ class WorkPages(QObject):
 
     def shutdown(self):
         self.timer.stop()
-        if self.model_backend is not None: self.model_backend.shutdown()

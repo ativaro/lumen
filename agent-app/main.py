@@ -103,8 +103,8 @@ class DesktopActivation(QObject):
     def TaskCapabilities(self, identity):
         try:
             from lumen_panel import valid_task
-            task = self.window.work_pages.store.task(valid_task(identity)) if self.window else None
-            return json.dumps(self.window.work_pages.task_capabilities(task)) if task else '{}'
+            task = self.window.task_controller.store.task(valid_task(identity)) if self.window else None
+            return json.dumps(self.window.task_controller.task_capabilities(task)) if task else '{}'
         except (ValueError, OSError): return '{}'
 
     @Slot(str, str, result=str)
@@ -114,7 +114,7 @@ class DesktopActivation(QObject):
             identity = valid_task(identity)
             if self.window is None: raise ValueError(tr('Lumen startet noch. Bitte erneut versuchen.'))
             if action not in ('run','pause','cancel','conversation'): raise ValueError(tr('Unbekannte Auftragsaktion.'))
-            work = self.window.work_pages
+            work = self.window.task_controller
             task = work.store.task(identity)
             if not task: raise ValueError(tr('Auftrag nicht mehr vorhanden.'))
             if action != 'conversation' and not work.task_capabilities(task)['run' if action == 'run' else action]:
@@ -179,7 +179,7 @@ class DesktopActivation(QObject):
             self.window.show_page(page)
             if page in (2, 9): return
         if self.task:
-            self.window.work_pages.select_task(self.task)
+            self.window.task_controller.select_task(self.task)
             self.task = ''
         from lumen_activation import present
         if hasattr(self.window, 'search_window'): self.window.search_window.hide()
@@ -217,10 +217,10 @@ class LumenWindow(QMainWindow):
         self.chat.backend.failed.connect(lambda _: setattr(self, "copy_after_answer", False))
         self.file_window = None
         self.companion = None
-        from work_pages import WorkPages
-        self.work_pages = WorkPages(self, sections=('tasks',))
-        self.work_pages.tasks_page.hide()
-        self.studio.bind_work_pages(self.work_pages)
+        from task_controller import TaskController
+        self.task_controller = TaskController(self)
+        self.task_controller.tasks_page.hide()
+        self.studio.bind_tasks(self.task_controller)
         from lumen_detail_routes import open_tasks
         self.chat.taskRequested.connect(open_tasks)
         QShortcut(QKeySequence('Ctrl+,'), self, activated=self.show_settings)
@@ -405,7 +405,7 @@ class LumenWindow(QMainWindow):
         present(self); self.chat.composer.setFocus()
 
     def closeEvent(self, event):
-        if not self.work_pages.can_close():
+        if not self.task_controller.can_close():
             event.ignore(); return
         if not self.chat.can_close():
             event.ignore()
@@ -417,7 +417,7 @@ class LumenWindow(QMainWindow):
         self.studio.shutdown()
         if self.companion is not None: self.companion.close()
         self.chat.tracker.interrupt()
-        self.work_pages.shutdown()
+        self.task_controller.shutdown()
         self.chat.context_tools.close()
         self.chat.backend.shutdown()
         for job in self.jobs[:]:

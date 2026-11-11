@@ -61,7 +61,7 @@ apply a change; desktop panels pick it up when Plasma starts again.
 
 
 Lumen is an AI extension for CachyOS, combining conversations, file management,
-durable tasks, selected knowledge, reusable workflows and system diagnostics.
+durable tasks, selected knowledge, personal file actions and system diagnostics.
 [OpenCode](https://opencode.ai) is the background engine; the product and package
 are **Lumen**. The desktop bar has a system overview on the left, unified search and conversation in the middle, and settings on the right. **Lumen Files**
 (`lumen-files`) opens a separate file-manager window with the same settings and

@@ -1,4 +1,4 @@
-"""Private durable state for Lumen tasks, changes, workflows and knowledge."""
+"""Private durable state for Lumen tasks, changes, file actions and knowledge."""
 from lumen_i18n import tr
 from contextlib import contextmanager
 import json
@@ -200,90 +200,22 @@ class Store:
             db.execute('DELETE FROM documents WHERE root=?', (root,))
             db.execute('DELETE FROM roots WHERE path=?', (root,))
 
-    def save_workflow(self, name, steps, roots, trigger='manual', interval=3600, watch='', enabled=False, now=None, workflow=None, approved=False, prompt='', code_plan='', collection_entry=None):
+    def save_file_action(self, name, steps, roots, approved=False, prompt=''):
+        """Store a personal file action. It only ever starts from the file menu."""
         from lumen_actions import validate_steps
-        if code_plan or collection_entry or trigger=='schedule':
-            from code_flow_native import unavailable
-            unavailable()
         if steps: validate_steps(steps)
         elif not prompt.strip(): raise ValueError(tr('Schritte oder ein Auftrag sind erforderlich.'))
-        if enabled and not approved: raise PermissionError(tr('Den Ablauf zuerst ausdrücklich freigeben.'))
         if not name.strip() or len(name) > 200: raise ValueError(tr('Ein gültiger Name ist erforderlich.'))
-        if trigger not in ('manual', 'interval', 'directory', 'schedule'): raise ValueError(tr('Unbekannter Auslöser.'))
-        if not 60 <= int(interval) <= 31536000: raise ValueError(tr('Intervall: 60 Sekunden bis ein Jahr.'))
         roots = [str(Path(p).resolve(strict=True)) for p in roots]
-        if trigger == 'directory':
-            watch = str(Path(watch).resolve(strict=True))
-            if not Path(watch).is_dir() or not any(Path(watch).is_relative_to(Path(p)) for p in roots):
-                raise ValueError(tr('Beobachteter Ordner muss freigegeben sein.'))
-        workflow = workflow or identifier(); now = time.time() if now is None else now
-        fingerprint = directory_fingerprint(watch) if watch else ''
-        next_run=now+int(interval)
+        identity = identifier(); now = time.time()
         with self.connect() as db:
-            db.execute('BEGIN IMMEDIATE')
-            current=db.execute('SELECT * FROM workflows WHERE id=?',(workflow,)).fetchone()
-            if current:
-                from code_flow_native import owns_workflow,unavailable
-                if owns_workflow(db,current):unavailable()
-            db.execute('INSERT OR REPLACE INTO workflows (id,name,steps,roots,trigger,interval,watch,enabled,next_run,fingerprint,updated,approved,prompt,code_plan) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-                       (workflow, name, json.dumps(steps), json.dumps(roots), trigger, int(interval), watch, int(enabled), next_run, fingerprint, now, int(approved), prompt, code_plan))
-        return workflow
+            # The table keeps its historical name and columns; file actions are its manual rows.
+            db.execute('INSERT INTO workflows (id,name,steps,roots,trigger,interval,watch,enabled,next_run,fingerprint,updated,approved,prompt,code_plan) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                       (identity, name, json.dumps(steps), json.dumps(roots), 'manual', 3600, '', 0, now, '', now, int(approved), prompt, ''))
+        return identity
 
-    def workflows(self):
-        rows = self.rows('SELECT * FROM workflows ORDER BY name')
+    def file_actions(self):
+        rows = self.rows("SELECT * FROM workflows WHERE trigger='manual' ORDER BY name")
         for row in rows:
             row['steps'] = json.loads(row['steps']); row['roots'] = json.loads(row['roots'])
         return rows
-
-    def set_workflow_enabled(self, workflow, enabled):
-        now=time.time()
-        with self.connect() as db:
-            db.execute('BEGIN IMMEDIATE')
-            flow=db.execute('SELECT * FROM workflows WHERE id=?',(workflow,)).fetchone()
-            if flow is None:raise ValueError(tr('Ablauf nicht mehr verfügbar.'))
-            if enabled:
-                from code_flow_native import owns_workflow,unavailable
-                if owns_workflow(db,flow):unavailable()
-            if enabled and not flow['approved']:raise PermissionError(tr('Den Ablauf zuerst freigeben.'))
-            next_run=now+flow['interval']
-            db.execute('UPDATE workflows SET enabled=?,next_run=?,updated=? WHERE id=?',(int(enabled),next_run,now,workflow))
-
-    def enqueue_due(self, now=None):
-        now = time.time() if now is None else now
-        queued = []
-        with self.connect() as db:
-            db.execute('BEGIN IMMEDIATE')
-            for flow in db.execute("SELECT * FROM workflows WHERE enabled=1 AND approved=1 AND trigger!='manual' AND next_run<=?", (now,)).fetchall():
-                from code_flow_native import owns_workflow
-                if owns_workflow(db,flow):continue
-                fingerprint = flow['fingerprint']
-                if flow['trigger'] == 'directory':
-                    try: fingerprint = directory_fingerprint(flow['watch'])
-                    except OSError:
-                        db.execute('UPDATE workflows SET enabled=0 WHERE id=?', (flow['id'],)); continue
-                next_run=now+flow['interval']
-                db.execute('UPDATE workflows SET next_run=?,fingerprint=? WHERE id=?', (next_run, fingerprint, flow['id']))
-                if flow['trigger'] == 'directory' and fingerprint == flow['fingerprint']: continue
-                pending = db.execute("SELECT 1 FROM tasks JOIN events ON events.task=tasks.id WHERE events.kind='workflow' AND events.detail=? AND tasks.status IN ('queued','running','needs_input','paused','interrupted') LIMIT 1", (flow['id'],)).fetchone()
-                if pending: continue
-                task = identifier(); roots = json.loads(flow['roots'])
-                db.execute('INSERT INTO tasks (id,title,prompt,directory,roots,steps,status,approved,created,updated) VALUES (?,?,?,?,?,?,?,?,?,?)',
-                           (task, flow['name'], flow['prompt'], roots[0] if roots else str(Path.home()), flow['roots'], flow['steps'], 'queued', 1, now, now))
-                db.execute('INSERT INTO events (task,kind,detail,created) VALUES (?,?,?,?)', (task, 'workflow', flow['id'], now))
-                queued.append(task)
-        return queued
-
-
-def directory_fingerprint(directory):
-    import hashlib
-    root = Path(directory)
-    if root.is_symlink() or root.resolve() != root: raise OSError(tr('Beobachteter Ordner wurde ersetzt.'))
-    # ponytail: watch immediate children only, add explicit recursive subscriptions if needed.
-    entries = []
-    with os.scandir(root) as scan:
-        for entry in scan:
-            if entry.name.startswith('.') or entry.is_symlink(): continue
-            info = entry.stat(follow_symlinks=False)
-            entries.append((entry.name, info.st_size, info.st_mtime_ns))
-            if len(entries) > 10000: raise OSError(tr('Zu viele Einträge im beobachteten Ordner.'))
-    return hashlib.sha256(json.dumps(sorted(entries)).encode()).hexdigest()

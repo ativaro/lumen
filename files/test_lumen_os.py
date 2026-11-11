@@ -142,29 +142,6 @@ app.exec()
             with self.assertRaises((PermissionError, OSError)):
                 execute(store, task, {'action': 'write', 'path': str(work / 'escape' / 'outside'), 'text': 'x'})
 
-    def test_workflow_due_once_pause_and_restart(self):
-        from lumen_store import Store
-        with tempfile.TemporaryDirectory() as tmp:
-            store = Store(Path(tmp) / 'state')
-            flow = store.save_workflow('Ordner öffnen', [{'action': 'open', 'path': tmp}], [tmp],
-                                      trigger='interval', interval=60, enabled=True, approved=True, now=100)
-            self.assertEqual(store.enqueue_due(now=159), [])
-            tasks = store.enqueue_due(now=160)
-            self.assertEqual(len(tasks), 1)
-            self.assertEqual(store.enqueue_due(now=160), [])
-            self.assertTrue(store.task(tasks[0])['approved'])
-            self.assertEqual(store.enqueue_due(now=220), [])
-            with self.assertRaises(PermissionError):
-                store.save_workflow('Ungeprüft', [{'action':'diagnose'}], [tmp], enabled=True)
-            with self.assertRaises(BlockingIOError):
-                lease = store.acquire(tasks[0])
-                try: store.acquire(tasks[0])
-                finally:
-                    import os
-                    os.close(lease)
-            store.set_workflow_enabled(flow, False)
-            self.assertEqual(Store(Path(tmp) / 'state').enqueue_due(now=300), [])
-
     def test_knowledge_roots_and_memories(self):
         from lumen_store import Store
         from lumen_knowledge import index_root, search
@@ -273,9 +250,9 @@ class LumenIntegrationTest(unittest.TestCase):
                 window.show()
                 for index in range(8): window.show_page(index); QTest.qWait(15)
                 self.assertEqual(window.file_window.window(), window)
-                space = window.work_pages
+                space = window.task_controller
                 space.store.set_setting('modelPolicy', {'gpu_limit': 100, 'pause_on_activity': False})
-                flow = space.store.save_workflow('Bericht', [{'action': 'write', 'path': tmp+'/bericht.md', 'text': 'Prüfung bestanden'}], [tmp], trigger='interval', interval=60, enabled=True, approved=True, now=0)
+                space.store.create_task('Bericht', directory=tmp, roots=[tmp], steps=[{'action': 'write', 'path': tmp+'/bericht.md', 'text': 'Prüfung bestanden'}], approved=True, status='queued')
                 space.start_process([str(Path(__file__).with_name('lumen_tasks.py')), '--tick'])
                 deadline = time.monotonic()+10
                 while space.processes and time.monotonic() < deadline: QTest.qWait(20)

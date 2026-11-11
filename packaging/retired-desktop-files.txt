@@ -106,4 +106,5 @@ files/translations/en/workplace-rooms.json
 files/vault_activation.py
 files/wissen_sync_assets.py
 files/wissen_sync_folders.py
+files/work_pages.py
 files/workplace_rooms.py

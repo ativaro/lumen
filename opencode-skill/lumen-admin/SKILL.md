@@ -27,7 +27,7 @@ Prefer the MCP tools over free-form shell:
 - `lumen_tasks_list` / `lumen_task_get` — status, results and events without approval or execution
 - `lumen_settings_get` — preferences and optional live desktop state
 - `lumen_vault_status` — cached backup metadata, not a current repository verification
-- `lumen_propose_task` — only for explicitly requested saved drafts, reusable workflows or deferred execution; never an execution approval
+- `lumen_propose_task` — only for explicitly requested saved drafts or deferred execution; never an execution approval
 
 For an immediate user-requested action, including installing software, use the
 execution tools in the current conversation and verify the result. Do not create

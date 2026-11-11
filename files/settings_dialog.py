@@ -158,8 +158,8 @@ class SettingsDialog(QDialog):
         from sync_overview import widget as sync_widget
         server.addWidget(sync_widget(self, heading=False))
         server.addStretch()
-        from work_pages import WorkPages
-        self.resource_pages = WorkPages(self, sections=('models',))
+        from model_policy_page import ModelPolicyPage
+        self.resource_pages = ModelPolicyPage(self)
         self.models_page = self.stack.count()
         self.page(tr('Modelle & Ressourcen'), tr('Modelle, Datenschutz und Grenzen für Hintergrundaufträge')).addWidget(self.resource_pages.models_page)
         from settings_navigation import SettingsNavigation, categories

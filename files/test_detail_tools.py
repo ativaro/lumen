@@ -15,11 +15,12 @@ class DetailToolsTest(unittest.TestCase):
         cls.app = QApplication.instance() or create_app()
 
     def test_independent_pages_share_existing_records(self):
-        from work_pages import WorkPages
+        from model_policy_page import ModelPolicyPage
+        from task_controller import TaskController
         with tempfile.TemporaryDirectory() as tmp:
             store = Store(Path(tmp)/'state')
             host = QWidget()
-            pages = [WorkPages(host, store, [section]) for section in ('models', 'tasks')]
+            pages = [ModelPolicyPage(host, store), TaskController(host, store)]
             self.assertFalse(hasattr(host, 'chat'))
             self.assertFalse(hasattr(pages[0], 'tasks_page')); self.assertFalse(hasattr(pages[1], 'models_page'))
             self.assertIs(pages[0].store, pages[1].store)
@@ -30,12 +31,12 @@ class DetailToolsTest(unittest.TestCase):
 
 
     def test_populated_task_page_routes_ai_controls_and_keeps_native_controls(self):
-        from work_pages import WorkPages
+        from task_controller import TaskController
         with tempfile.TemporaryDirectory() as tmp:
             store = Store(Path(tmp)/'state'); host = QWidget()
             task = store.create_task('Resume existing task', directory=tmp, status='paused')
             store.update_task(task, result='Existing answer', session='same-session')
-            pages = WorkPages(host, store, ('tasks',))
+            pages = TaskController(host, store)
             pages.select_task(task)
             self.assertEqual(pages.task_title.text(), 'Resume existing task')
             with patch('lumen_detail_routes.task_action') as action:
