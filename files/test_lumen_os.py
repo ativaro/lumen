@@ -289,7 +289,7 @@ class LumenIntegrationTest(unittest.TestCase):
         with patch('lumen_detail_routes.QProcess.startDetached',side_effect=AssertionError('Unexpected detached app')), \
              patch.object(self,'assertEqual',side_effect=AssertionError('Synthetic page assertion')):
             with self.assertRaisesRegex(AssertionError,'Synthetic page assertion'):
-                self.test_native_pages_workflow_result_and_source_context()
+                self.test_native_pages_workflow_and_result()
 
     def test_local_policy_blocks_prompt_before_remote_submission(self):
         import os
