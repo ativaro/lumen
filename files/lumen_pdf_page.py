@@ -29,6 +29,13 @@ def numbers(values,count=None):
     return values
 
 
+def box(values):
+    """Operands of a rectangle; writers use enormous ones for 'everything', which are cut to a size the rasteriser handles."""
+    if len(values)!=4 or any(type(v) not in (int,float) or not math.isfinite(v) for v in values):raise PDFError('Ungültige PDF-Grafikoperanden.')
+    x0,y0,x1,y1=(max(-1e7,min(1e7,v)) for v in (values[0],values[1],values[0]+values[2],values[1]+values[3]))
+    return x0,y0,x1-x0,y1-y0
+
+
 def rectangle(value):
     if not isinstance(value,list): raise PDFError('Ungültiges PDF-Rechteck.')
     x0,y0,x1,y1=numbers(value,4)
@@ -536,7 +543,7 @@ class Page:
                 x1,y1,x3,y3=numbers(a,4); path.cubicTo(x1,y1,x3,y3,x3,y3)
             elif op=='h': numbers(a,0); path.closeSubpath()
             elif op=='re':
-                x,y,w,h=numbers(a,4); path.moveTo(x,y); path.lineTo(x+w,y); path.lineTo(x+w,y+h); path.lineTo(x,y+h); path.closeSubpath()
+                x,y,w,h=box(a); path.moveTo(x,y); path.lineTo(x+w,y); path.lineTo(x+w,y+h); path.lineTo(x,y+h); path.closeSubpath()
             elif op in ('W','W*'): numbers(a,0); clipping=Qt.FillRule.OddEvenFill if op=='W*' else Qt.FillRule.WindingFill
             elif op in ('n','S','s','f','F','f*','B','B*','b','b*'):
                 numbers(a,0)
@@ -705,7 +712,8 @@ class Page:
                 if op=='i': numbers(a,1)
                 elif len(a)!=1 or not isinstance(a[0],Name): raise PDFError('Ungültige PDF-Renderingabsicht.')
             else: raise UnsupportedPDF('PDF-Grafikoperator noch nicht unterstützt: '+op)
-        if operands or stack or text: raise PDFError('Unvollständiger PDF-Grafikstream.')
+        if operands or text: raise PDFError('Unvollständiger PDF-Grafikstream.')
+        for _ in stack:painter.restore()  # a stream may end without closing every saved state
         self.hidden-=sum(mark[0] for mark in marks)
 
     def _image(self,stream,resources=None,fill=None):

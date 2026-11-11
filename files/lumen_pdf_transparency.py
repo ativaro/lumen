@@ -48,8 +48,7 @@ def soft_mask(page,painter,entry):
     attrs,transform,resources,inherited=entry;document=page.document
     form=document.resolve(attrs.get('G'))
     if not isinstance(form,Stream) or form.attrs.get('Subtype')!='Form':raise PDFError('PDF-Weichmaskengruppe fehlt.')
-    settings=group(document,form.attrs.get('Group'))
-    if settings is None:raise PDFError('PDF-Weichmaske ohne Transparenzgruppe.')
+    settings=group(document,form.attrs.get('Group')) or {}  # a mask form without its group entry uses the defaults
     subtype=attrs.get('S')
     if subtype not in ('Alpha','Luminosity'):raise PDFError('Ungültige PDF-Weichmaske.')
     space=ColorSpace(document,settings.get('CS',Name('DeviceRGB')),resources)
