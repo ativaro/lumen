@@ -16,7 +16,7 @@ source texts, which the caller translates.
 `lumen-document pdf-info <file>` reads a PDF's structure (`src/pdf.rs`): syntax, cross-reference
 tables and streams, object streams, the stream filters, the page tree, document information and the
 outline. It prints page count, title, outline and, per page, its box and a checksum of its decoded
-content. The Reader does not use it yet; it still reads PDFs with `files/lumen_pdf*.py`.
+content. The Reader reads PDFs through `pdf-reader` (see below).
 `compare-pdf.py` runs both readers over the same files and requires equal results or the same
 refusal: 40 real files with 1419 pages are equal.
 
@@ -40,7 +40,14 @@ adjustment are drawn as the Python engine draws them.
 Not ported yet: encrypted files (refused with a clear message), embedded Type 1 font programs,
 JPEG 2000 and some four-channel JPEG pictures, stroking with patterns, radial shadings between two
 offset circles, transparency groups in grey outside a mask, and ICC profiles (the component count
-picks the device space). The Reader does not use the renderer yet.
+picks the device space).
+
+`lumen-document pdf-reader <file> metadata | page <index>` is what the Reader asks: page count,
+title and outline, and for a page its words and its picture as PNG. `files/reader_data.py` calls it
+in the Reader's own job thread, without a Python worker. When the core refuses a file or a page,
+the Reader falls back to the Python engine (`files/lumen_pdf*.py`), which also still does everything
+that writes PDFs. That fallback is the transition named in the migration plan; it ends when the
+list above is empty.
 
 ## Checks
 

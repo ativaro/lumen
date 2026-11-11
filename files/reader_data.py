@@ -103,7 +103,86 @@ def process(payload):
         return result
 
 
+def core(job,*arguments):
+    """An answer of Lumen's document core, or None when it does not read this file (yet) and the Python engine has to."""
+    from lumen_office import program
+    from tools_data import Cancelled
+    try:return json.loads(job.command([program(),*arguments],timeout=120,max_output=48*1024**2))
+    except Cancelled:raise
+    except (ValueError,OSError):
+        job.check();return None
+
+
+class CorePage:
+    def __init__(self,words):self.words=words
+    def text(self):
+        lines={}
+        for word in self.words:lines.setdefault(word[6],[]).append(word[4])
+        return '\n'.join(' '.join(words) for words in lines.values())
+
+
+class CoreDocument:
+    """The pages of a PDF as the document core reads them, fetched when asked for."""
+    def __init__(self,job,path,pages):self.job,self.path,self.pages,self.cache=job,path,pages,{}
+    def __len__(self):return self.pages
+    def page(self,index):
+        if index not in self.cache:
+            data=core(self.job,'pdf-words',str(self.path),str(index),'1')
+            if not data or 'words' not in data[0]:raise LookupError(index)
+            self.cache[index]=CorePage([word[:5]+[0,word[5]] for word in data[0]['words']])
+        return self.cache[index]
+
+
+def core_process(job,action,path,values):
+    """What process() answers for a PDF, from the document core without starting a Python worker; None to fall back."""
+    from lumen_pdf_worker import signature
+    before=signature(path);expected=values.get('stamp')
+    if expected and expected!=[before[2],before[3]]:raise ValueError(tr('Die Lesekopie wurde extern geändert. Als neue Datei importieren, damit Markierungen korrekt bleiben.'))
+    if not path.is_file() or path.stat().st_size>MAX_FILE:raise ValueError(tr('Lesedatei fehlt oder ist größer als 200 MiB.'))
+    try:
+        if action in ('metadata','page'):
+            index=int(values.get('page',0));legacy=action=='page' and values.get('legacy')
+            # A page answer carries the document's data too; only re-anchoring needs the page count first.
+            data=core(job,'pdf-reader',str(path),'metadata') if action=='metadata' or legacy else core(job,'pdf-reader',str(path),'page',str(index))
+            if data is None:return None
+            if not 0<data['pages']<=10000:raise ValueError(tr('Das Dokument muss 1 bis 10.000 Seiten enthalten.'))
+            result=dict(pages=data['pages'],toc=data['toc'],title=data['title'],locked=False,engine=ENGINE)
+            if action=='page':
+                if legacy:
+                    result['notes']=reanchor(CoreDocument(job,path,data['pages']),values.get('notes',[]),False);result['position_changed']=False
+                    index=min(max(0,index),data['pages']-1)
+                if not 0<=index<data['pages']:raise ValueError(tr('Seite nicht vorhanden.'))
+                shown=core(job,'pdf-reader',str(path),'page',str(index)) if legacy else data
+                if shown is None:return None
+                words=shown['words'][:30000]
+                result.update(page=index,width=shown['width'],height=shown['height'],words=words,text=CorePage(shown['words']).text()[:150000],png=shown['png'])
+        elif action in ('text','search'):
+            pages=core(job,'pdf-words',str(path),'0','10000')
+            if pages is None or any('words' not in page for page in pages):return None
+            texts=[CorePage([word[:5]+[0,word[5]] for word in page['words']]).text() for page in pages]
+            if action=='text':
+                if sum(map(len,texts))>120000:raise ValueError(tr('Mehr als 120.000 Zeichen; bitte einen kürzeren Auszug importieren.'))
+                result=dict(text='\n\n'.join(texts))
+            else:
+                needle=values['query'].strip().casefold()
+                if not needle or len(needle)>200:raise ValueError(tr('Suchbegriff mit 1 bis 200 Zeichen eingeben.'))
+                result=[]
+                for index,text in enumerate(texts):
+                    offset=text.casefold().find(needle)
+                    if offset>=0:result.append(dict(page=index,text=text[max(0,offset-60):offset+180].replace('\n',' ')))
+                    if len(result)>=100:break
+        else:return None
+    except LookupError:return None
+    if signature(path)!=before:raise ValueError('Lesekopie wurde während des Lesens verändert.')
+    return result
+
+
 def worker(job,action,path,**values):
+    # A PDF is read by the document core in this thread. What the core does not read yet, and every
+    # other format, goes to the Python worker as before.
+    if Path(path).suffix.lower()=='.pdf' and not values.get('password'):
+        result=core_process(job,action,Path(path),values)
+        if result is not None:return result
     payload=dict(action=action,path=str(path),**values)
     return json.loads(job.command([sys.executable,str(Path(__file__))],data=json.dumps(payload).encode(),timeout=120,max_output=32*1024**2))
 

@@ -86,6 +86,16 @@ Primitiven; PDF-Schlüsselableitung und Sicherheits-Handler R2–R6 sind eigener
   auf 128 MiB/12 Sekunden und 1 MiB Text pro Datei begrenzt; Volltextimport meldet
   Überschreitung von 120.000 **Zeichen** ausdrücklich, statt UTF-8 zu kürzen.
 
+### Dokument-Kern in Rust (Übergang seit 12.11.2026)
+
+Der Reader liest PDFs zuerst mit Lumens Dokument-Kern in Rust (`native/document-core`, Programm
+`lumen-document`): Struktur, Wörter mit Position und Seitenbild. Er ist an 418 Seiten aus 40 Dateien
+gegen den Python-Kern geprüft (Wörter gleich, Bild gleich bis auf eine abgelehnte Seite). Lehnt der
+Rust-Kern eine Datei oder Seite ab, übernimmt der Python-Kern. Offen im Rust-Kern: Verschlüsselung,
+eingebettete Type-1-Schriften, JPEG 2000, ein Teil der vierkanaligen JPEGs, ICC-Profile, Linien mit
+Muster. Alles, was PDFs schreibt (Ordnen, Schwärzen, Export, Übersetzung), sowie Suche und Vorschau
+in Files bleiben beim Python-Kern, bis sie eigens umgestellt sind.
+
 ### Bewusste Formatgrenzen
 
 Keine vollständige ISO-32000-Implementierung. Nicht unterstützte Konstrukte
