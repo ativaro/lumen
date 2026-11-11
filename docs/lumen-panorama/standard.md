@@ -109,6 +109,12 @@ Nachrichten im Topbar-Gespräch stehen in runden Sprechblasen (Radius 18, die Ec
 sprechenden Seite 6): eigene Nachrichten rechts, Antworten von Lumen links. Nutzerentscheidung
 vom 11.11.2026; die Blasen folgen bewusst nicht dem Theme-Radius.
 
+Desktop-Topbar, Mitteilungen (11.11.2026): Die Glocke zeigt eine Zahl nur für Meldungen, die
+seit dem letzten Öffnen gekommen sind; Öffnen setzt sie zurück. Wartet eine Freigabe, zeigt
+sie ein Ausrufezeichen in der Lumen-Farbe. Ungelesenes allein erzeugt keine Markierung. Die
+Kurzansicht nennt zuerst „Braucht dich“, dann „Neu“ mit mehreren Meldungen einer Quelle in
+einer Zeile, dann frühere Meldungen; bis zu acht Einträge statt drei.
+
 Desktop-Topbar, Kurzansichten (06.11.2026): Glocke, Netzwerk und Audio öffnen jeweils eine angedockte, höchstens 390 Pixel breite Ansicht.
 Die Statusmenüs schließen rechts an die Leiste an. Der Lumen-Kreis öffnet links
 direkt den vollständigen Katalog „Lumen Apps“. Seine Suche beginnt leer und hat den Tastaturfokus.

@@ -60,6 +60,12 @@ Window {
     property double now:Date.now()
     readonly property bool quiet:notificationSettings.notificationsInhibitedUntil.getTime()>now
     readonly property var activity:stateData.activity||({})
+    readonly property bool needsYou:(activity.decisions||[]).length>0
+    // The snapshot is polled, so opening the notifications clears the count at once and it stays cleared until the host confirms.
+    property bool noticesJustSeen:false
+    property int lastFresh:0
+    readonly property int freshNotices:noticesJustSeen?0:Math.max(0,stateData.fresh||0)
+    onStateDataChanged:{const fresh=Math.max(0,stateData.fresh||0);if(fresh<lastFresh||fresh===0)noticesJustSeen=false;lastFresh=fresh}
     readonly property int focusSeconds:activity.focus?.end?Math.max(0,Math.ceil(activity.focus.end-now/1000)):activity.focus?.remaining||0
     readonly property var currentActivity:chooseActivity()
     readonly property string statusSection:currentActivity.section
@@ -366,9 +372,15 @@ Window {
             BarButton {key:!bar.classic;objectName:"systemErrorButton";colors:bar.colors;text:bar.t(panelData.error);glyph:"dialog-warning";iconOnly:true;visible:!!panelData.error;onClicked:bar.toggleMenu(systemPopup)}
             BarButton {id:networkButton;objectName:"networkButton";key:!bar.classic;colors:bar.colors;text:bar.t("Netzwerk");glyph:"network-wireless";iconOnly:true;visible:bar.showStatus;current:quickMenu.visible && bar.quickTopic==="network";onClicked:bar.quick("network")}
             BarButton {id:volumeButton;key:!bar.classic;objectName:"systemControlsButton";colors:bar.colors;text:bar.t("Audio");glyph:bar.stateData.system?.muted?"audio-volume-muted":"audio-volume-high";iconOnly:true;visible:bar.showStatus;current:quickMenu.visible && bar.quickTopic==="audio";onClicked:bar.quick("audio")}
-            BarButton {objectName:"notificationsButton";key:!bar.classic;colors:bar.colors;text:bar.t("Mitteilungen")+(bar.quiet?" · "+bar.t("Nicht stören"):bar.stateData.unread>0?" · "+bar.stateData.unread:"");glyph:bar.quiet?"notifications-disabled":bar.stateData.unread>0?"notifications-new":"notifications";iconOnly:true;current:quickMenu.visible && bar.quickTopic==="notifications";onClicked:bar.quick("notifications")
-                Rectangle {anchors.right:parent.right;anchors.top:parent.top;anchors.rightMargin:4;anchors.topMargin:4;width:7;height:7;radius:4;color:bar.colors.accent
-                    visible:!bar.quiet && (quickMenu.visible && bar.quickTopic==="notifications" && panelData.noticePreview.items?panelData.noticePreview.unread:bar.stateData.unread)>0}
+            BarButton {objectName:"notificationsButton";key:!bar.classic;colors:bar.colors;text:bar.t("Mitteilungen")+(bar.quiet?" · "+bar.t("Nicht stören")+(bar.stateData.unread>0?" · "+bar.stateData.unread+" "+bar.t("zurückgehalten"):""):bar.needsYou?" · "+bar.t("Braucht dich"):bar.freshNotices>0?" · "+bar.freshNotices+" "+bar.t("neu"):"");glyph:bar.quiet?"notifications-disabled":bar.freshNotices>0?"notifications-new":"notifications";iconOnly:true;current:quickMenu.visible && bar.quickTopic==="notifications";onClicked:bar.quick("notifications")
+                // A number for what is new since the last look, a mark for what waits on a decision; nothing otherwise.
+                Rectangle {
+                    objectName:"notificationBadge";visible:!bar.quiet && (bar.needsYou || bar.freshNotices>0)
+                    anchors.right:parent.right;anchors.top:parent.top;anchors.rightMargin:1;anchors.topMargin:2
+                    width:Math.max(16,badgeText.implicitWidth+8);height:16;radius:8
+                    color:bar.needsYou?(bar.colors.ring||bar.colors.accent):bar.colors.accent
+                    Text {id:badgeText;anchors.centerIn:parent;text:bar.needsYou?"!":bar.freshNotices>9?"9+":bar.freshNotices;color:bar.colors.onAccent;font.pixelSize:11;font.weight:Font.Medium}
+                }
             }
             BarButton {colors:bar.colors;objectName:"clockButton";text:bar.clockText;visible:bar.width>460;onClicked:bar.toggleMenu(calendar)}
             BarButton {id:compactControls;key:!bar.classic;objectName:"compactControlsButton";colors:bar.colors;text:bar.t("Systemsteuerung");glyph:"settings-configure";iconOnly:true;current:systemPopup.visible;onClicked:bar.toggleMenu(systemPopup)}
@@ -415,12 +427,13 @@ Window {
         id:quickMenu;objectName:"quickMenu";padding:12
         width:Math.min(390,Math.max(1,bar.width-36));x:bar.width-width-12
         QuickMenu {width:parent.width;topic:bar.quickTopic;colors:bar.colors;controller:panelData;translate:bar.t;quiet:bar.quiet
+            decisions:bar.activity.decisions||[];onReview:{quickMenu.close();bar.showActivity("decision")}
             onDrill:key=>bar.drillQuick(key)
             onDismiss:quickMenu.close()
             onToggleQuiet:{notificationSettings.notificationsInhibitedUntil=bar.quiet?new Date(0):new Date(Date.now()+3600000);notificationSettings.save();bar.now=Date.now()}
         }
         readonly property bool watchingNotices:visible && bar.quickTopic==="notifications"
-        onWatchingNoticesChanged:panelData.watchNotices(bar,watchingNotices)
+        onWatchingNoticesChanged:{if(watchingNotices)bar.noticesJustSeen=true;panelData.watchNotices(bar,watchingNotices)}
         Timer {interval:5000;repeat:true;running:quickMenu.watchingNotices && !panelData.noticePreview.items;onTriggered:panelData.noticeCommand("preview")}
     }
     DockedPopup {

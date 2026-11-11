@@ -274,7 +274,7 @@ void PanelData::SetNoticePreview(const QString &json){
     const auto owner=connection().interface()->serviceOwner("org.kde.plasmashell");
     if(!owner.isValid() || message().service()!=owner.value())return;
     const auto object=QJsonDocument::fromJson(json.toUtf8()).object();
-    if(!object.value("items").isArray() || object.value("items").toArray().size()>3)return;
+    if(!object.value("items").isArray() || object.value("items").toArray().size()>8)return;
     const auto preview=object.toVariantMap();
     if(m_noticePreview!=preview){m_noticePreview=preview;emit noticePreviewChanged();}
 }

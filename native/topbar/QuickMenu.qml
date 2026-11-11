@@ -10,6 +10,8 @@ ColumnLayout {
     required property var controller
     required property var translate
     required property bool quiet
+    property var decisions:[]
+    signal review()
     readonly property bool notices:topic==="notifications"
     readonly property var noticeState:controller.noticePreview
     readonly property var detailData:controller.details[topic]||({})
@@ -21,8 +23,7 @@ ColumnLayout {
     spacing:2
     function t(label){return translate(label)}
     function rows(){
-        if(notices)return (noticeState.items||[]).map(n=>({key:n.key,title:n.title,caption:n.source,
-            detail:n.body,icon:n.icon,unread:n.unread,time:Qt.formatTime(new Date(n.updated*1000),"hh:mm")}))
+        if(notices)return noticeRows()
         if(topic==="network"){
             const devices=detailData.devices||[]
             const active=types=>devices.filter(d=>types.includes(d.type)&&d.profile && d.profile!=="--").map(d=>d.profile).join(", ")
@@ -38,25 +39,61 @@ ColumnLayout {
         }
         return []
     }
+    readonly property int freshCount:(noticeState.items||[]).filter(n=>n.fresh).length
+    function noticeRow(n){return {key:n.key,title:n.title,caption:n.source,detail:n.body,icon:n.icon,unread:n.unread,time:Qt.formatTime(new Date(n.updated*1000),"hh:mm"),heading:""}}
+    // New notices come first, several from one source as a single line; earlier ones follow.
+    function noticeRows(){
+        const items=noticeState.items||[],fresh=items.filter(n=>n.fresh),older=items.filter(n=>!n.fresh),out=[],handled={}
+        for(const n of fresh){
+            if(handled[n.source])continue
+            handled[n.source]=true
+            const group=fresh.filter(m=>m.source===n.source)
+            out.push(group.length>1?Object.assign(noticeRow(n),{key:"",title:group.length+" "+t("neue Meldungen"),detail:n.title+" "+t("und")+" "+(group.length-1)+" "+t(group.length===2?"weitere":"weitere Meldungen")}):noticeRow(n))
+        }
+        if(out.length)out[0].heading=t("Neu")+" · "+fresh.length
+        const earlier=older.slice(0,Math.max(2,5-out.length)).map(noticeRow)
+        if(earlier.length)earlier[0].heading=t(fresh.length?"Früher":"Zuletzt")
+        return out.concat(earlier)
+    }
     RowLayout {
         Layout.fillWidth:true
         Label {text:menu.title;color:menu.colors.text;font.pixelSize:20;font.weight:Font.Medium;Layout.fillWidth:true}
+        BarButton {objectName:"quickReadAll";visible:menu.notices && menu.noticeState.unread>0;outlined:true;colors:menu.colors;text:menu.t("Alle als gelesen");onClicked:menu.controller.noticeCommand("read")}
         BarButton {colors:menu.colors;text:menu.t("Schließen");glyph:"window-close";iconOnly:true;onClicked:menu.dismiss()}
     }
-    RowLayout {visible:menu.notices && menu.noticeState.unread>0;Layout.fillWidth:true
-        Label {text:menu.noticeState.unread+" "+menu.t("ungelesen");color:menu.colors.muted;Layout.fillWidth:true}
-        BarButton {colors:menu.colors;text:menu.t("Alle als gelesen");onClicked:menu.controller.noticeCommand("read")}
+    Label {visible:menu.notices && menu.decisions.length>0;text:menu.t("Braucht dich");color:menu.colors.muted;font.pixelSize:12;Layout.topMargin:6}
+    Rectangle {
+        objectName:"quickDecision";visible:menu.notices && menu.decisions.length>0
+        Layout.fillWidth:true;implicitHeight:decisionRow.implicitHeight+24;radius:menu.colors.innerRadius||7
+        color:menu.colors.base;border.color:menu.colors.ring||menu.colors.accent
+        RowLayout {id:decisionRow;anchors.fill:parent;anchors.margins:12;spacing:10
+            Kirigami.Icon {source:"qrc:/lumen/icons/lumen-mark.svg";isMask:true;color:menu.colors.ring||menu.colors.accent;implicitWidth:18;implicitHeight:18}
+            ColumnLayout {Layout.fillWidth:true;spacing:2
+                Label {Layout.fillWidth:true;text:menu.decisions[0]?.title||"";color:menu.colors.text;font.weight:Font.Medium;textFormat:Text.PlainText;wrapMode:Text.Wrap;maximumLineCount:2;elide:Text.ElideRight}
+                Label {Layout.fillWidth:true;visible:menu.decisions.length>1;text:menu.t("und")+" "+(menu.decisions.length-1)+" "+menu.t(menu.decisions.length===2?"weitere":"weitere Freigaben");color:menu.colors.muted;textFormat:Text.PlainText}
+            }
+            BarButton {objectName:"quickReview";primary:true;colors:menu.colors;text:menu.t("Prüfen");onClicked:menu.review()}
+        }
+    }
+    Label {
+        Layout.fillWidth:true;Layout.topMargin:6;visible:menu.notices && noticeList.count>0 && !menu.freshCount
+        text:menu.t("Alles gesehen.");color:menu.colors.text;font.weight:Font.Medium
     }
     Label {
         Layout.fillWidth:true;visible:menu.notices && !noticeList.count
-        text:menu.noticeState.unavailable?menu.t("Kurzansicht derzeit nicht verfügbar."):menu.noticeState.locked?menu.t("Bildschirm gesperrt"):menu.noticeState.items?menu.t("Keine aktuellen Mitteilungen"):menu.t("Mitteilungen werden geladen …")
+        text:menu.noticeState.unavailable?menu.t("Kurzansicht derzeit nicht verfügbar."):menu.noticeState.locked?menu.t("Bildschirm gesperrt"):menu.noticeState.items?menu.t("Alles gesehen. Es gibt keine aktuellen Mitteilungen."):menu.t("Mitteilungen werden geladen …")
         color:menu.colors.muted;wrapMode:Text.Wrap
     }
     Repeater {
         id:noticeList;model:menu.entries.length
-        Button {
+        ColumnLayout {
+          id:slot
+          required property int index
+          Layout.fillWidth:true;spacing:2
+          Label {visible:!!text;text:(menu.entries[slot.index]||({})).heading||"";color:menu.colors.muted;font.pixelSize:12;Layout.topMargin:8}
+          Button {
             id:row
-            required property int index
+            readonly property int index:slot.index
             readonly property var modelData:menu.entries[index]||({})
             property string pressedKey:""
             objectName:"quickRow_"+modelData.key
@@ -80,6 +117,7 @@ ColumnLayout {
                 }
                 Kirigami.Icon {visible:!menu.notices;source:"go-next";implicitWidth:16;implicitHeight:16;color:menu.colors.muted}
             }
+          }
         }
     }
     Rectangle {color:menu.colors.border;implicitHeight:1;Layout.topMargin:5;Layout.fillWidth:true}
