@@ -95,6 +95,29 @@ fn pdf_words(path: &str, first: usize, count: usize) -> Result<String, lumen_doc
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.len() == 5 && args[0] == "pdf-render" {
+        // pdf-render <file> <page> <scale> <png>
+        let drawn = lumen_document::pdf::Document::open(std::path::Path::new(&args[1])).and_then(
+            |document| {
+                lumen_document::render::render(
+                    &document,
+                    args[2].parse().unwrap_or(0),
+                    args[3].parse().unwrap_or(1.0),
+                )
+            },
+        );
+        return match drawn.map(|picture| picture.save_png(&args[4])) {
+            Ok(Ok(())) => ExitCode::SUCCESS,
+            Ok(Err(error)) => {
+                eprintln!("{error}");
+                ExitCode::FAILURE
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     if args.len() == 4 && args[0] == "pdf-words" {
         return match pdf_words(
             &args[1],

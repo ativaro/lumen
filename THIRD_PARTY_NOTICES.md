@@ -74,21 +74,35 @@ contains these packages; each package's licence text is in its folder under `ven
 | Package | Version | Licence |
 |---|---|---|
 | `adler2` | 2.0.1 | 0BSD OR MIT OR Apache-2.0 |
+| `arrayref` | 0.3.9 | BSD-2-Clause |
+| `arrayvec` | 0.7.8 | MIT OR Apache-2.0 |
+| `bitflags` | 1.3.2 | MIT/Apache-2.0 |
 | `bumpalo` | 3.20.3 | MIT OR Apache-2.0 |
+| `bytemuck` | 1.25.2 | Zlib OR Apache-2.0 OR MIT |
 | `cfg-if` | 1.0.5 | MIT OR Apache-2.0 |
 | `crc32fast` | 1.5.5 | MIT OR Apache-2.0 |
 | `equivalent` | 1.0.3 | Apache-2.0 OR MIT |
+| `fdeflate` | 0.3.7 | MIT OR Apache-2.0 |
 | `flate2` | 1.1.11 | MIT OR Apache-2.0 |
 | `hashbrown` | 0.17.1 | MIT OR Apache-2.0 |
 | `indexmap` | 2.14.2 | Apache-2.0 OR MIT |
 | `log` | 0.4.35 | MIT OR Apache-2.0 |
 | `memchr` | 2.8.3 | Unlicense OR MIT |
+| `miniz_oxide` | 0.8.9 | MIT OR Zlib OR Apache-2.0 |
 | `miniz_oxide` | 0.9.1 | MIT OR Zlib OR Apache-2.0 |
+| `png` | 0.17.16 | MIT OR Apache-2.0 |
 | `roxmltree` | 0.20.0 | MIT OR Apache-2.0 |
 | `simd-adler32` | 0.3.10 | MIT |
+| `strict-num` | 0.1.1 | MIT |
+| `tiny-skia` | 0.11.4 | BSD-3-Clause |
+| `tiny-skia-path` | 0.11.4 | BSD-3-Clause |
 | `ttf-parser` | 0.25.1 | MIT OR Apache-2.0 |
 | `zip` | 2.6.1 | MIT |
 | `zopfli` | 0.8.4 | Apache-2.0 |
+| `zune-core` | 0.4.12 | MIT OR Apache-2.0 OR Zlib |
+| `zune-jpeg` | 0.4.21 | MIT OR Apache-2.0 OR Zlib |
+
+The glyph names in `src/text.rs` are taken from the Adobe Glyph List (BSD-3-Clause, Adobe Systems).
 
 The other folders under `vendor/` belong to build tools and to platforms and features that are
 not compiled into the program.

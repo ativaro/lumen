@@ -27,8 +27,17 @@ and lines as the Python engine, with positions within half a pixel: 418 pages of
 are equal. Drawing operators are passed over in this pass, so a page whose drawing the Python
 engine refuses is still read here.
 
+`lumen-document pdf-render <file> <page> <scale> <png>` draws a page (`src/render.rs`): paths,
+text as glyph outlines, pictures, forms with transparency and knockout groups, clipping, shadings,
+shading and tiling patterns, and annotations. `compare-render.py` draws the same pages with both
+engines and compares reduced grey pictures: of 142 pages of the 40 real files, 121 are equal, 18
+differ slightly (2 to 12 % mean difference, none with strong differences; the cause on pages with
+many overlapping translucent shapes is not found yet) and 3 are refused by name.
+
 Not ported yet: encrypted files (refused with a clear message), embedded Type 1 font programs,
-glyph names of bare CFF fonts, and rendering.
+soft masks, Type 4 functions, JPEG 2000 and four-channel JPEG pictures, stroking with patterns,
+radial shadings between two offset circles, and ICC profiles (the component count picks the device
+space). The Reader does not use the renderer yet.
 
 ## Checks
 
@@ -48,5 +57,5 @@ section were equal for 40 real and 4 synthetic files.
 Only licences that can be used freely without buying or separately licensing them are accepted
 (MIT, Apache-2.0, BSD, Zlib, ISC and the like); `check-licenses.py` fails on anything else.
 A part without such a building block is written in this crate. Direct dependencies: `roxmltree`
-(XML tree), `zip` (archive, Deflate only), `flate2` (Deflate for PDF streams) and `ttf-parser`
-(font tables).
+(XML tree), `zip` (archive, Deflate only), `flate2` (Deflate for PDF streams), `ttf-parser` (font tables),
+`tiny-skia` (rasteriser) and `zune-jpeg` (JPEG pictures).

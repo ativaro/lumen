@@ -16,7 +16,7 @@ fn unsupported<T>(text: impl Into<String>) -> Outcome<T> {
 }
 
 /// Operands of a drawing or text operator: finite numbers of a sane size, and as many as expected.
-fn numbers(values: &[Value], count: Option<usize>) -> Outcome<Vec<f64>> {
+pub(crate) fn numbers(values: &[Value], count: Option<usize>) -> Outcome<Vec<f64>> {
     let read: Option<Vec<f64>> = values
         .iter()
         .map(|value| value.number().filter(|n| n.is_finite() && n.abs() <= 1e8))
@@ -30,16 +30,16 @@ fn numbers(values: &[Value], count: Option<usize>) -> Outcome<Vec<f64>> {
 /// An affine map in Qt's convention: `x' = m11 x + m21 y + dx`, and `a.then(b)` applies `a` first.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Matrix {
-    m11: f64,
-    m12: f64,
-    m21: f64,
-    m22: f64,
-    dx: f64,
-    dy: f64,
+    pub(crate) m11: f64,
+    pub(crate) m12: f64,
+    pub(crate) m21: f64,
+    pub(crate) m22: f64,
+    pub(crate) dx: f64,
+    pub(crate) dy: f64,
 }
 
 impl Matrix {
-    const IDENTITY: Matrix = Matrix {
+    pub(crate) const IDENTITY: Matrix = Matrix {
         m11: 1.0,
         m12: 0.0,
         m21: 0.0,
@@ -48,7 +48,7 @@ impl Matrix {
         dy: 0.0,
     };
 
-    fn new(v: &[f64]) -> Matrix {
+    pub(crate) fn new(v: &[f64]) -> Matrix {
         Matrix {
             m11: v[0],
             m12: v[1],
@@ -59,7 +59,7 @@ impl Matrix {
         }
     }
 
-    fn then(self, o: Matrix) -> Matrix {
+    pub(crate) fn then(self, o: Matrix) -> Matrix {
         Matrix {
             m11: self.m11 * o.m11 + self.m12 * o.m21,
             m12: self.m11 * o.m12 + self.m12 * o.m22,
@@ -70,7 +70,7 @@ impl Matrix {
         }
     }
 
-    fn inverted(self) -> Matrix {
+    pub(crate) fn inverted(self) -> Matrix {
         let determinant = self.m11 * self.m22 - self.m12 * self.m21;
         if determinant == 0.0 {
             return Matrix::IDENTITY;
@@ -87,7 +87,7 @@ impl Matrix {
     }
 
     /// A rotation by degrees, exact for the quarter turns.
-    fn rotation(degrees: f64) -> Matrix {
+    pub(crate) fn rotation(degrees: f64) -> Matrix {
         let (sine, cosine) = if degrees == 0.0 {
             (0.0, 1.0)
         } else if degrees == 90.0 || degrees == -270.0 {
@@ -109,14 +109,14 @@ impl Matrix {
         }
     }
 
-    fn map(self, x: f64, y: f64) -> (f64, f64) {
+    pub(crate) fn map(self, x: f64, y: f64) -> (f64, f64) {
         (
             self.m11 * x + self.m21 * y + self.dx,
             self.m12 * x + self.m22 * y + self.dy,
         )
     }
 
-    fn map_rect(self, r: Rect) -> Rect {
+    pub(crate) fn map_rect(self, r: Rect) -> Rect {
         if self.m12 == 0.0 && self.m21 == 0.0 {
             let (mut x, mut w) = (self.m11 * r.x + self.dx, self.m11 * r.w);
             let (mut y, mut h) = (self.m22 * r.y + self.dy, self.m22 * r.h);
@@ -153,21 +153,21 @@ impl Matrix {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Rect {
-    x: f64,
-    y: f64,
-    w: f64,
-    h: f64,
+    pub(crate) x: f64,
+    pub(crate) y: f64,
+    pub(crate) w: f64,
+    pub(crate) h: f64,
 }
 
 impl Rect {
-    fn right(self) -> f64 {
+    pub(crate) fn right(self) -> f64 {
         self.x + self.w
     }
-    fn bottom(self) -> f64 {
+    pub(crate) fn bottom(self) -> f64 {
         self.y + self.h
     }
     /// The smallest rectangle around both; a rectangle without any size does not count.
-    fn united(self, o: Rect) -> Rect {
+    pub(crate) fn united(self, o: Rect) -> Rect {
         if self.w == 0.0 && self.h == 0.0 {
             return o;
         }
@@ -190,7 +190,7 @@ impl Rect {
             h: b1.max(b2) - t1.min(t2),
         }
     }
-    fn intersected(self, o: Rect) -> Rect {
+    pub(crate) fn intersected(self, o: Rect) -> Rect {
         let (left, right) = (self.x.max(o.x), self.right().min(o.right()));
         let (top, bottom) = (self.y.max(o.y), self.bottom().min(o.bottom()));
         if left >= right || top >= bottom {
@@ -212,7 +212,7 @@ impl Rect {
 }
 
 /// A PDF rectangle with a positive size.
-fn rectangle(value: &Value) -> Outcome<Rect> {
+pub(crate) fn rectangle(value: &Value) -> Outcome<Rect> {
     let Some(corners) = value.array() else {
         return bad("Ungültiges PDF-Rechteck.");
     };
@@ -248,6 +248,252 @@ fn stripped_empty(text: &str) -> bool {
 
 const WINDOWS: &str = "€\u{0}‚ƒ„…†‡ˆ‰Š‹Œ\u{0}Ž\u{0}\u{0}‘’“”•–—˜™š›œ\u{0}žŸ";
 const MACINTOSH: &str = "ÄÅÇÉÑÖÜáàâäãåçéèêëíìîïñóòôöõúùûü†°¢£§•¶ß®©™´¨≠ÆØ∞±≤≥¥µ∂∑∏π∫ªºΩæø¿¡¬√ƒ≈∆«»…\u{a0}ÀÃÕŒœ–—“”‘’÷◊ÿŸ⁄€‹›ﬁﬂ‡·‚„‰ÂÊÁËÈÍÎÏÌÓÔ\u{f8ff}ÒÚÛÙıˆ˜¯˘˙˚¸˝˛ˇ";
+
+/// Glyph names of the Latin characters of the PDF encodings, from the Adobe Glyph List (BSD-3-Clause).
+const GLYPH_LIST: &[(char, &str)] = &[
+    ('\u{20}', "space"),
+    ('\u{21}', "exclam"),
+    ('\u{22}', "quotedbl"),
+    ('\u{23}', "numbersign"),
+    ('\u{24}', "dollar"),
+    ('\u{25}', "percent"),
+    ('\u{26}', "ampersand"),
+    ('\u{27}', "quotesingle"),
+    ('\u{28}', "parenleft"),
+    ('\u{29}', "parenright"),
+    ('\u{2a}', "asterisk"),
+    ('\u{2b}', "plus"),
+    ('\u{2c}', "comma"),
+    ('\u{2d}', "hyphen"),
+    ('\u{2e}', "period"),
+    ('\u{2f}', "slash"),
+    ('\u{30}', "zero"),
+    ('\u{31}', "one"),
+    ('\u{32}', "two"),
+    ('\u{33}', "three"),
+    ('\u{34}', "four"),
+    ('\u{35}', "five"),
+    ('\u{36}', "six"),
+    ('\u{37}', "seven"),
+    ('\u{38}', "eight"),
+    ('\u{39}', "nine"),
+    ('\u{3a}', "colon"),
+    ('\u{3b}', "semicolon"),
+    ('\u{3c}', "less"),
+    ('\u{3d}', "equal"),
+    ('\u{3e}', "greater"),
+    ('\u{3f}', "question"),
+    ('\u{40}', "at"),
+    ('\u{41}', "A"),
+    ('\u{42}', "B"),
+    ('\u{43}', "C"),
+    ('\u{44}', "D"),
+    ('\u{45}', "E"),
+    ('\u{46}', "F"),
+    ('\u{47}', "G"),
+    ('\u{48}', "H"),
+    ('\u{49}', "I"),
+    ('\u{4a}', "J"),
+    ('\u{4b}', "K"),
+    ('\u{4c}', "L"),
+    ('\u{4d}', "M"),
+    ('\u{4e}', "N"),
+    ('\u{4f}', "O"),
+    ('\u{50}', "P"),
+    ('\u{51}', "Q"),
+    ('\u{52}', "R"),
+    ('\u{53}', "S"),
+    ('\u{54}', "T"),
+    ('\u{55}', "U"),
+    ('\u{56}', "V"),
+    ('\u{57}', "W"),
+    ('\u{58}', "X"),
+    ('\u{59}', "Y"),
+    ('\u{5a}', "Z"),
+    ('\u{5b}', "bracketleft"),
+    ('\u{5c}', "backslash"),
+    ('\u{5d}', "bracketright"),
+    ('\u{5e}', "asciicircum"),
+    ('\u{5f}', "underscore"),
+    ('\u{60}', "grave"),
+    ('\u{61}', "a"),
+    ('\u{62}', "b"),
+    ('\u{63}', "c"),
+    ('\u{64}', "d"),
+    ('\u{65}', "e"),
+    ('\u{66}', "f"),
+    ('\u{67}', "g"),
+    ('\u{68}', "h"),
+    ('\u{69}', "i"),
+    ('\u{6a}', "j"),
+    ('\u{6b}', "k"),
+    ('\u{6c}', "l"),
+    ('\u{6d}', "m"),
+    ('\u{6e}', "n"),
+    ('\u{6f}', "o"),
+    ('\u{70}', "p"),
+    ('\u{71}', "q"),
+    ('\u{72}', "r"),
+    ('\u{73}', "s"),
+    ('\u{74}', "t"),
+    ('\u{75}', "u"),
+    ('\u{76}', "v"),
+    ('\u{77}', "w"),
+    ('\u{78}', "x"),
+    ('\u{79}', "y"),
+    ('\u{7a}', "z"),
+    ('\u{7b}', "braceleft"),
+    ('\u{7c}', "bar"),
+    ('\u{7d}', "braceright"),
+    ('\u{7e}', "asciitilde"),
+    ('\u{a0}', "space"),
+    ('\u{a1}', "exclamdown"),
+    ('\u{a2}', "cent"),
+    ('\u{a3}', "sterling"),
+    ('\u{a4}', "currency"),
+    ('\u{a5}', "yen"),
+    ('\u{a6}', "brokenbar"),
+    ('\u{a7}', "section"),
+    ('\u{a8}', "dieresis"),
+    ('\u{a9}', "copyright"),
+    ('\u{aa}', "ordfeminine"),
+    ('\u{ab}', "guillemotleft"),
+    ('\u{ac}', "logicalnot"),
+    ('\u{ad}', "hyphen"),
+    ('\u{ae}', "registered"),
+    ('\u{af}', "macron"),
+    ('\u{b0}', "degree"),
+    ('\u{b1}', "plusminus"),
+    ('\u{b2}', "twosuperior"),
+    ('\u{b3}', "threesuperior"),
+    ('\u{b4}', "acute"),
+    ('\u{b5}', "mu"),
+    ('\u{b6}', "paragraph"),
+    ('\u{b7}', "periodcentered"),
+    ('\u{b8}', "cedilla"),
+    ('\u{b9}', "onesuperior"),
+    ('\u{ba}', "ordmasculine"),
+    ('\u{bb}', "guillemotright"),
+    ('\u{bc}', "onequarter"),
+    ('\u{bd}', "onehalf"),
+    ('\u{be}', "threequarters"),
+    ('\u{bf}', "questiondown"),
+    ('\u{c0}', "Agrave"),
+    ('\u{c1}', "Aacute"),
+    ('\u{c2}', "Acircumflex"),
+    ('\u{c3}', "Atilde"),
+    ('\u{c4}', "Adieresis"),
+    ('\u{c5}', "Aring"),
+    ('\u{c6}', "AE"),
+    ('\u{c7}', "Ccedilla"),
+    ('\u{c8}', "Egrave"),
+    ('\u{c9}', "Eacute"),
+    ('\u{ca}', "Ecircumflex"),
+    ('\u{cb}', "Edieresis"),
+    ('\u{cc}', "Igrave"),
+    ('\u{cd}', "Iacute"),
+    ('\u{ce}', "Icircumflex"),
+    ('\u{cf}', "Idieresis"),
+    ('\u{d0}', "Eth"),
+    ('\u{d1}', "Ntilde"),
+    ('\u{d2}', "Ograve"),
+    ('\u{d3}', "Oacute"),
+    ('\u{d4}', "Ocircumflex"),
+    ('\u{d5}', "Otilde"),
+    ('\u{d6}', "Odieresis"),
+    ('\u{d7}', "multiply"),
+    ('\u{d8}', "Oslash"),
+    ('\u{d9}', "Ugrave"),
+    ('\u{da}', "Uacute"),
+    ('\u{db}', "Ucircumflex"),
+    ('\u{dc}', "Udieresis"),
+    ('\u{dd}', "Yacute"),
+    ('\u{de}', "Thorn"),
+    ('\u{df}', "germandbls"),
+    ('\u{e0}', "agrave"),
+    ('\u{e1}', "aacute"),
+    ('\u{e2}', "acircumflex"),
+    ('\u{e3}', "atilde"),
+    ('\u{e4}', "adieresis"),
+    ('\u{e5}', "aring"),
+    ('\u{e6}', "ae"),
+    ('\u{e7}', "ccedilla"),
+    ('\u{e8}', "egrave"),
+    ('\u{e9}', "eacute"),
+    ('\u{ea}', "ecircumflex"),
+    ('\u{eb}', "edieresis"),
+    ('\u{ec}', "igrave"),
+    ('\u{ed}', "iacute"),
+    ('\u{ee}', "icircumflex"),
+    ('\u{ef}', "idieresis"),
+    ('\u{f0}', "eth"),
+    ('\u{f1}', "ntilde"),
+    ('\u{f2}', "ograve"),
+    ('\u{f3}', "oacute"),
+    ('\u{f4}', "ocircumflex"),
+    ('\u{f5}', "otilde"),
+    ('\u{f6}', "odieresis"),
+    ('\u{f7}', "divide"),
+    ('\u{f8}', "oslash"),
+    ('\u{f9}', "ugrave"),
+    ('\u{fa}', "uacute"),
+    ('\u{fb}', "ucircumflex"),
+    ('\u{fc}', "udieresis"),
+    ('\u{fd}', "yacute"),
+    ('\u{fe}', "thorn"),
+    ('\u{ff}', "ydieresis"),
+    ('\u{131}', "dotlessi"),
+    ('\u{152}', "OE"),
+    ('\u{153}', "oe"),
+    ('\u{160}', "Scaron"),
+    ('\u{161}', "scaron"),
+    ('\u{178}', "Ydieresis"),
+    ('\u{17d}', "Zcaron"),
+    ('\u{17e}', "zcaron"),
+    ('\u{192}', "florin"),
+    ('\u{2c6}', "circumflex"),
+    ('\u{2c7}', "caron"),
+    ('\u{2d8}', "breve"),
+    ('\u{2d9}', "dotaccent"),
+    ('\u{2da}', "ring"),
+    ('\u{2db}', "ogonek"),
+    ('\u{2dc}', "tilde"),
+    ('\u{2dd}', "hungarumlaut"),
+    ('\u{3a9}', "Omega"),
+    ('\u{3c0}', "pi"),
+    ('\u{2013}', "endash"),
+    ('\u{2014}', "emdash"),
+    ('\u{2018}', "quoteleft"),
+    ('\u{2019}', "quoteright"),
+    ('\u{201a}', "quotesinglbase"),
+    ('\u{201c}', "quotedblleft"),
+    ('\u{201d}', "quotedblright"),
+    ('\u{201e}', "quotedblbase"),
+    ('\u{2020}', "dagger"),
+    ('\u{2021}', "daggerdbl"),
+    ('\u{2022}', "bullet"),
+    ('\u{2026}', "ellipsis"),
+    ('\u{2030}', "perthousand"),
+    ('\u{2039}', "guilsinglleft"),
+    ('\u{203a}', "guilsinglright"),
+    ('\u{2044}', "fraction"),
+    ('\u{20ac}', "Euro"),
+    ('\u{2122}', "trademark"),
+    ('\u{2202}', "partialdiff"),
+    ('\u{2206}', "Delta"),
+    ('\u{220f}', "product"),
+    ('\u{2211}', "summation"),
+    ('\u{221a}', "radical"),
+    ('\u{221e}', "infinity"),
+    ('\u{222b}', "integral"),
+    ('\u{2248}', "approxequal"),
+    ('\u{2260}', "notequal"),
+    ('\u{2264}', "lessequal"),
+    ('\u{2265}', "greaterequal"),
+    ('\u{25ca}', "lozenge"),
+    ('\u{fb01}', "fi"),
+    ('\u{fb02}', "fl"),
+];
 
 /// The ToUnicode map of a font: character code to text.
 fn unicode_map(
@@ -482,7 +728,7 @@ fn symbol_cmap(table: &[u8]) -> Option<(u16, HashMap<u32, u16>)> {
     Some((platform, codes))
 }
 
-enum Program {
+pub(crate) enum Program {
     /// TrueType or OpenType data.
     Open(Vec<u8>),
     /// A bare CFF table, as PDF embeds Type 1C fonts.
@@ -530,9 +776,40 @@ impl Program {
                 };
                 found.copied().unwrap_or(0)
             }
-            // ponytail: a bare CFF font has no Unicode table and the name list is not consulted here, so
-            // every character counts as present. The renderer needs the Adobe glyph list; use it here then.
-            Program::Compact(_) => 1,
+            // A bare CFF font has no Unicode table; its glyphs are found by their names in the Adobe glyph list.
+            Program::Compact(data) => {
+                let Some(table) = ttf_parser::cff::Table::parse(data) else {
+                    return 0;
+                };
+                let name = GLYPH_LIST
+                    .iter()
+                    .find(|entry| entry.0 == first)
+                    .map(|entry| entry.1);
+                name.and_then(|name| table.glyph_index_by_name(name))
+                    .map(|g| g.0)
+                    .unwrap_or(0)
+            }
+        }
+    }
+
+    /// Draws a glyph's outline in font units and returns the units per em; None when there is no outline.
+    pub(crate) fn outline(
+        &self,
+        gid: u16,
+        builder: &mut dyn ttf_parser::OutlineBuilder,
+    ) -> Option<f64> {
+        match self {
+            Program::Open(data) => {
+                let face = ttf_parser::Face::parse(data, 0).ok()?;
+                face.outline_glyph(ttf_parser::GlyphId(gid), builder)?;
+                Some(f64::from(face.units_per_em()))
+            }
+            Program::Compact(data) => {
+                ttf_parser::cff::Table::parse(data)?
+                    .outline(ttf_parser::GlyphId(gid), builder)
+                    .ok()?;
+                Some(1000.0)
+            }
         }
     }
 
@@ -648,7 +925,7 @@ fn substitute(family: &str, bold: bool, italic: bool) -> Option<Vec<u8>> {
 }
 
 pub struct Font {
-    composite: bool,
+    pub(crate) composite: bool,
     widths: HashMap<u32, f64>,
     default_width: Option<Value>,
     differences: HashMap<u32, String>,
@@ -657,21 +934,22 @@ pub struct Font {
     encoding: String,
     /// None for the identity map of a composite font.
     gidmap: Option<Vec<u8>>,
-    program: Program,
+    pub(crate) program: Program,
     glyph_names: HashMap<String, u16>,
     name_text: HashMap<String, String>,
     ascent: f64,
     descent: f64,
 }
 
-struct Glyph {
-    cid: u32,
-    text: String,
-    width: f64,
+pub(crate) struct Glyph {
+    pub(crate) cid: u32,
+    pub(crate) gid: u16,
+    pub(crate) text: String,
+    pub(crate) width: f64,
 }
 
 impl Font {
-    fn new(document: &Document, attrs: &Rc<Dict>) -> Outcome<Font> {
+    pub(crate) fn new(document: &Document, attrs: &Rc<Dict>) -> Outcome<Font> {
         let get = |dict: &Dict, key: &str| dict.get(key).cloned().unwrap_or(Value::Null);
         let subtype = attrs.get("Subtype").and_then(Value::name).unwrap_or("");
         if !matches!(subtype, "Type0" | "Type1" | "TrueType") {
@@ -917,7 +1195,7 @@ impl Font {
         })
     }
 
-    fn glyphs(&self, data: &[u8]) -> Outcome<Vec<Glyph>> {
+    pub(crate) fn glyphs(&self, data: &[u8]) -> Outcome<Vec<Glyph>> {
         let size = if self.composite { 2 } else { 1 };
         if !data.len().is_multiple_of(size) {
             return bad("Ungültige PDF-Textzeichenfolge.");
@@ -1038,10 +1316,66 @@ impl Font {
                     None => self.program.advance(gid),
                 },
             };
-            result.push(Glyph { cid, text, width });
+            result.push(Glyph {
+                cid,
+                gid,
+                text,
+                width,
+            });
         }
         Ok(result)
     }
+}
+
+/// The page's map from PDF units to page pixels, its visible box in PDF units and its size in pixels.
+pub(crate) fn geometry(document: &Document, attrs: &Dict) -> Outcome<(Matrix, Rect, f64, f64)> {
+    let rotation = match attrs.get("Rotate") {
+        None | Some(Value::Null) => 0,
+        Some(Value::Int(turn)) if turn % 90 == 0 => turn.rem_euclid(360),
+        Some(value)
+            if !value.number().is_some_and(|n| n != 0.0)
+                && !matches!(value, Value::Real(_) | Value::Int(_)) =>
+        {
+            0
+        }
+        Some(Value::Real(turn)) if *turn == 0.0 => 0,
+        _ => return bad("Ungültige PDF-Seitendrehung."),
+    };
+    let unit = match attrs.get("UserUnit") {
+        None => 1.0,
+        Some(value) => numbers(&[document.resolve(value)?], None)?[0],
+    };
+    if !(unit > 0.0 && unit <= 75000.0) {
+        return bad("Ungültige PDF-Seiteneinheit.");
+    }
+    let media = rectangle(attrs.get("MediaBox").unwrap_or(&Value::Null))?;
+    let crop = match attrs.get("CropBox") {
+        Some(value)
+            if value.array().is_some_and(|a| !a.is_empty())
+                || !matches!(value, Value::Null | Value::Array(_)) =>
+        {
+            rectangle(value)?
+        }
+        _ => media,
+    };
+    let area = media.intersected(crop);
+    if area.w <= 0.0 || area.h <= 0.0 {
+        return bad("Leerer PDF-Seitenausschnitt.");
+    }
+    let (x, y, w, h) = (area.x, area.y, area.w, area.h);
+    let turned = match rotation {
+        90 => Matrix::new(&[0.0, 1.0, 1.0, 0.0, -y, -x]),
+        180 => Matrix::new(&[-1.0, 0.0, 0.0, 1.0, x + w, -y]),
+        270 => Matrix::new(&[0.0, -1.0, -1.0, 0.0, y + h, x + w]),
+        _ => Matrix::new(&[1.0, 0.0, 0.0, -1.0, -x, y + h]),
+    };
+    let transform = turned.then(Matrix::new(&[unit, 0.0, 0.0, unit, 0.0, 0.0]));
+    let (width, height) = if rotation % 180 != 0 {
+        (h * unit, w * unit)
+    } else {
+        (w * unit, h * unit)
+    };
+    Ok((transform, area, width, height))
 }
 
 /// A word: left, top, right, bottom in page pixels, its text and its line.
@@ -1075,12 +1409,13 @@ struct State {
 
 pub struct Page<'d> {
     document: &'d Document,
+    pub(crate) index: usize,
     pub width: f64,
     pub height: f64,
-    area: Rect,
-    transform: Matrix,
+    pub(crate) area: Rect,
+    pub(crate) transform: Matrix,
     hidden_layers: Vec<Rc<Dict>>,
-    hidden: usize,
+    pub(crate) hidden: usize,
     fonts: RefCell<HashMap<usize, Rc<Font>>>,
     characters: Vec<Character>,
     operations: usize,
@@ -1094,59 +1429,15 @@ const KNOWN: &[&str] = &[
 ];
 
 impl<'d> Page<'d> {
-    /// Reads the page's text. Drawing is not checked here.
-    pub fn words(document: &'d Document, index: usize) -> Outcome<(f64, f64, Vec<Word>)> {
+    /// The page's geometry and layer visibility, before any content is read.
+    pub(crate) fn prepare(document: &'d Document, index: usize) -> Outcome<Page<'d>> {
         let Some(attrs) = document.pages.get(index) else {
             return bad("Ungültige PDF-Ganzzahl oder überschrittenes Limit.");
         };
-        let rotation = match attrs.get("Rotate") {
-            None | Some(Value::Null) => 0,
-            Some(Value::Int(turn)) if turn % 90 == 0 => turn.rem_euclid(360),
-            Some(value)
-                if !value.number().is_some_and(|n| n != 0.0)
-                    && !matches!(value, Value::Real(_) | Value::Int(_)) =>
-            {
-                0
-            }
-            Some(Value::Real(turn)) if *turn == 0.0 => 0,
-            _ => return bad("Ungültige PDF-Seitendrehung."),
-        };
-        let unit = match attrs.get("UserUnit") {
-            None => 1.0,
-            Some(value) => numbers(&[document.resolve(value)?], None)?[0],
-        };
-        if !(unit > 0.0 && unit <= 75000.0) {
-            return bad("Ungültige PDF-Seiteneinheit.");
-        }
-        let media = rectangle(attrs.get("MediaBox").unwrap_or(&Value::Null))?;
-        let crop = match attrs.get("CropBox") {
-            Some(value)
-                if value.array().is_some_and(|a| !a.is_empty())
-                    || !matches!(value, Value::Null | Value::Array(_)) =>
-            {
-                rectangle(value)?
-            }
-            _ => media,
-        };
-        let area = media.intersected(crop);
-        if area.w <= 0.0 || area.h <= 0.0 {
-            return bad("Leerer PDF-Seitenausschnitt.");
-        }
-        let (x, y, w, h) = (area.x, area.y, area.w, area.h);
-        let turned = match rotation {
-            90 => Matrix::new(&[0.0, 1.0, 1.0, 0.0, -y, -x]),
-            180 => Matrix::new(&[-1.0, 0.0, 0.0, 1.0, x + w, -y]),
-            270 => Matrix::new(&[0.0, -1.0, -1.0, 0.0, y + h, x + w]),
-            _ => Matrix::new(&[1.0, 0.0, 0.0, -1.0, -x, y + h]),
-        };
-        let transform = turned.then(Matrix::new(&[unit, 0.0, 0.0, unit, 0.0, 0.0]));
-        let (width, height) = if rotation % 180 != 0 {
-            (h * unit, w * unit)
-        } else {
-            (w * unit, h * unit)
-        };
+        let (transform, area, width, height) = geometry(document, attrs)?;
         let mut page = Page {
             document,
+            index,
             width,
             height,
             area,
@@ -1159,6 +1450,14 @@ impl<'d> Page<'d> {
             character_units: 0,
         };
         page.hidden_layers = page.layers()?;
+        Ok(page)
+    }
+
+    /// Reads the page's text. Drawing is not checked here.
+    pub fn words(document: &'d Document, index: usize) -> Outcome<(f64, f64, Vec<Word>)> {
+        let mut page = Page::prepare(document, index)?;
+        let attrs = &document.pages[index];
+        let (width, height) = (page.width, page.height);
         let resources = match document.resolve(attrs.get("Resources").unwrap_or(&Value::Null))? {
             Value::Dict(resources) => resources,
             _ => Rc::new(Dict::new()),
@@ -1227,7 +1526,7 @@ impl<'d> Page<'d> {
     }
 
     /// Whether content tagged with this layer group or membership dictionary is shown.
-    fn visible(&self, reference: Option<&Value>) -> Outcome<bool> {
+    pub(crate) fn visible(&self, reference: Option<&Value>) -> Outcome<bool> {
         let value = self.document.resolve(reference.unwrap_or(&Value::Null))?;
         let dict = match &value {
             Value::Null => return Ok(true),
@@ -1271,7 +1570,7 @@ impl<'d> Page<'d> {
         })
     }
 
-    fn resource(&self, resources: &Dict, category: &str, name: &str) -> Outcome<Value> {
+    pub(crate) fn resource(&self, resources: &Dict, category: &str, name: &str) -> Outcome<Value> {
         let missing = || Error::Pdf(format!("PDF-Ressource fehlt: {name}"));
         let dictionary = match resources.get(category) {
             None => return Err(missing()),
@@ -1284,7 +1583,7 @@ impl<'d> Page<'d> {
         self.document.resolve(entry)
     }
 
-    fn font(&self, resources: &Dict, name: &str) -> Outcome<Rc<Font>> {
+    pub(crate) fn font(&self, resources: &Dict, name: &str) -> Outcome<Rc<Font>> {
         let Value::Dict(attrs) = self.resource(resources, "Font", name)? else {
             return bad("PDF-Schrift fehlt.");
         };
