@@ -31,6 +31,9 @@ Item {
     Connections {target:pane.controller;function onDataChanged(){if(pane.following)Qt.callLater(pane.followLatest)}}
     readonly property var steps:controller.data.steps||[]
     property bool stepsClosed:false
+    // Message bubbles are rounded like a chat, with one tighter corner pointing at the speaker.
+    readonly property int bubbleRadius:18
+    readonly property int bubbleTail:6
     function stepStatus(value){const names={completed:"Erledigt",running:"Läuft",pending:"Wartet",error:"Fehlgeschlagen",failed:"Fehlgeschlagen"};return names[value]?translate(names[value]):(value||"")}
     // Wide docked conversations show the steps beside the answer; otherwise they stay a collapsible line below it.
     readonly property bool sideSteps:!detached && steps.length>0 && !stepsClosed && width>=1100
@@ -97,7 +100,7 @@ Item {
                 // movement signals, so the position itself decides.
                 Connections {target:conversation.contentItem;function onContentYChanged(){if(!pane.jumping)pane.following=conversation.contentHeight-conversation.contentItem.contentY-conversation.availableHeight<28}}
                 ColumnLayout {
-                    width:conversation.availableWidth;spacing:24
+                    width:conversation.availableWidth-14;spacing:24  // leaves the scrollbar its own lane
                     Label {visible:!pane.controller.messages.length;Layout.fillWidth:true;text:pane.translate("Wobei kann ich dir helfen?");color:pane.colors.text;font.pixelSize:24;wrapMode:Text.Wrap}
                     Repeater {
                         model:pane.controller.messages.length
@@ -110,8 +113,13 @@ Item {
                                 Kirigami.Icon {visible:!message.user;source:"qrc:/lumen/symbols/halo.svg";isMask:true;color:pane.colors.accent;Layout.preferredWidth:20;Layout.preferredHeight:20}
                                 Label {text:message.user?pane.translate("Deine Nachricht"):"Lumen";color:pane.colors.muted;font.pixelSize:12}
                             }
-                            TextArea {visible:message.user;Layout.alignment:Qt.AlignRight;Layout.maximumWidth:Math.min(620,mainColumn.width-32);text:message.row.body||"";textFormat:TextEdit.RichText;readOnly:true;selectByMouse:true;wrapMode:TextEdit.Wrap;font.pixelSize:pane.controller.theme.fontSize;color:pane.colors.text;background:Rectangle {radius:pane.colors.innerRadius||7;color:pane.detached?pane.colors.base:pane.colors.alternate} padding:14;onLinkActivated:link=>pane.controller.open_link(link)}
-                            Search.AnswerBlocks {visible:!message.user;Layout.fillWidth:true;blocks:message.row.blocks||[];theme:pane.controller.theme;controller:pane.controller;messageKey:message.row.key||""}
+                            TextArea {visible:message.user;Layout.alignment:Qt.AlignRight;Layout.maximumWidth:Math.min(620,mainColumn.width-32);text:message.row.body||"";textFormat:TextEdit.RichText;readOnly:true;selectByMouse:true;wrapMode:TextEdit.Wrap;font.pixelSize:pane.controller.theme.fontSize;color:pane.colors.text;background:Rectangle {radius:pane.bubbleRadius;bottomRightRadius:pane.bubbleTail;color:pane.colors.alternate} leftPadding:16;rightPadding:16;topPadding:10;bottomPadding:10;onLinkActivated:link=>pane.controller.open_link(link)}
+                            Rectangle {
+                                visible:!message.user && (message.row.blocks||[]).length>0
+                                Layout.fillWidth:true;Layout.rightMargin:32;implicitHeight:answerBlocks.implicitHeight+24
+                                radius:pane.bubbleRadius;bottomLeftRadius:pane.bubbleTail;color:pane.detached?pane.colors.base:pane.colors.window
+                                Search.AnswerBlocks {id:answerBlocks;x:16;y:12;width:parent.width-32;blocks:message.row.blocks||[];theme:pane.controller.theme;controller:pane.controller;messageKey:message.row.key||""}
+                            }
                             Loader {Layout.fillWidth:true;active:!!message.row.presentation;visible:active
                                 sourceComponent:Search.ResultView {view:pane.controller.richView;theme:pane.controller.theme;onDialogVisibleChanged:pane.dialogVisible=dialogVisible;Component.onDestruction:pane.dialogVisible=false}
                             }

@@ -105,6 +105,9 @@ Gespräch ist dessen mehrzeiliges Feld die Eingabe; das Feld der Leiste nennt da
 Gespräch und behält Diktat und Einklappen. Eingeklappt bietet es „Abbrechen“, solange
 Lumen arbeitet. Ab 1100 px stehen die Arbeitsschritte als schließbare Nebenansicht rechts,
 darunter als aufklappbare Zeile. Das gelöste Gesprächsfenster behält seine eigene Eingabe.
+Nachrichten im Topbar-Gespräch stehen in runden Sprechblasen (Radius 18, die Ecke zur
+sprechenden Seite 6): eigene Nachrichten rechts, Antworten von Lumen links. Nutzerentscheidung
+vom 11.11.2026; die Blasen folgen bewusst nicht dem Theme-Radius.
 
 Desktop-Topbar, Kurzansichten (06.11.2026): Glocke, Netzwerk und Audio öffnen jeweils eine angedockte, höchstens 390 Pixel breite Ansicht.
 Die Statusmenüs schließen rechts an die Leiste an. Der Lumen-Kreis öffnet links
