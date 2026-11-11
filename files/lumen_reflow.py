@@ -93,7 +93,8 @@ class ReflowBook:
                     walk(ncx)
             elif path.suffix.lower() in ('.docx','.docm','.xlsx','.xlsm','.pptx','.pptm','.odt','.ods','.odp'):
                 import lumen_office
-                self.archive=lumen_office.open_archive(path);self.metadata['title'],parts=lumen_office.sections(path.suffix.lower(),self.archive)
+                # The document core has checked the archive; it is opened here only to hand its pictures to the layout.
+                self.metadata['title'],parts=lumen_office.read(path);self.archive=zipfile.ZipFile(path)
                 for part in parts:self._add(part,'office',rich=True)
             else:
                 text=path.read_text(encoding='utf-8-sig',errors='replace')

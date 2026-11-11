@@ -138,8 +138,9 @@ def _in_scope_files():
         if not base.is_dir():
             continue
         for folder, dirs, files in os.walk(base):
-            dirs[:] = sorted(d for d in dirs if d not in SKIP_DIR_NAMES)
             relative = Path(folder).relative_to(ROOT).as_posix()
+            # Frozen third-party Rust sources: "workspace" there is Cargo's build term, not Lumen's product model.
+            dirs[:] = sorted(d for d in dirs if d not in SKIP_DIR_NAMES and (relative, d) != ('native/document-core', 'vendor'))
             if folder != str(base):
                 yield relative, Path(folder), True
             for name in sorted(files):

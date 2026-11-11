@@ -19,5 +19,7 @@
   "Präsentation ohne Folien.": "Presentation without slides.",
   "OpenDocument-Datei ohne Inhalt.": "OpenDocument file without content.",
   "Gekürzt auf {0} Zeilen und {1} Spalten.": "Cut to {0} rows and {1} columns.",
-  "Das Dokument ist zu groß für die Leseansicht und wurde hier gekürzt.": "The document is too large for the reading view and was cut here."
+  "Das Dokument ist zu groß für die Leseansicht und wurde hier gekürzt.": "The document is too large for the reading view and was cut here.",
+  "Der Dokumentleser fehlt. Bitte die Lumen-Installation prüfen.": "The document reader is missing. Please check the Lumen installation.",
+  "XML-Entitäten im EPUB werden nicht geladen.": "XML entities in the EPUB are not loaded."
 }

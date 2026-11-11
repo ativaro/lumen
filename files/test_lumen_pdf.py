@@ -70,6 +70,9 @@ class PDFTest(unittest.TestCase):
         stream=pdf.Stream({'Filter':pdf.Name('FlateDecode'),'DecodeParms':{'Predictor':15,'Columns':3}},zlib.compress(raw))
         self.assertEqual(pdf.decoded(stream),bytes([10,20,30,15,25,35]))
         # Complete data without its closing checksum is read; data cut short is refused.
+        # A checksum that ends in a zero byte must not make the shortened data look damaged.
+        zeroed=next(text for text in (payload+bytes([n]) for n in range(256)) if zlib.adler32(text)&255==0)
+        self.assertEqual(pdf.decoded(pdf.Stream({'Filter':pdf.Name('FlateDecode')},zlib.compress(zeroed)[:-1])),zeroed)
         for missing in (1,4): self.assertEqual(pdf.decoded(pdf.Stream({'Filter':pdf.Name('FlateDecode')},zlib.compress(payload)[:-missing])),payload)
         with self.assertRaises(pdf.PDFError): pdf.decoded(pdf.Stream({'Filter':pdf.Name('FlateDecode')},zlib.compress(payload)[:-6]))
         with self.assertRaises(pdf.PDFError): pdf.decoded(pdf.Stream({'Filter':pdf.Name('RunLengthDecode')},b'\x7fA'))

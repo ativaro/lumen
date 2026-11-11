@@ -31,6 +31,16 @@ def png():
             + chunk(b'IDAT', zlib.compress(b''.join(b'\0' + bytes((200, 40, 40)) * 40 for _ in range(20)))) + chunk(b'IEND', b''))
 
 
+def setUpModule():
+    """The reading is done by the document core; a source tree without its program builds it once."""
+    import shutil, subprocess
+    core = Path(__file__).resolve().parents[1] / 'native/document-core'
+    try: lumen_office.program()
+    except PDFError:
+        if not shutil.which('cargo'): raise unittest.SkipTest('cargo is needed to build the document reader')
+        subprocess.run(['cargo', 'build', '--release', '--locked', '--offline', '--bin', 'lumen-document'], cwd=core, check=True, capture_output=True)
+
+
 class OfficeTest(unittest.TestCase):
     def book(self, name, parts):
         folder = tempfile.TemporaryDirectory(); self.addCleanup(folder.cleanup)
@@ -119,7 +129,6 @@ class OfficeTest(unittest.TestCase):
                                                                  '<Relationship Id="rId1" Target="file:///etc/passwd" TargetMode="External"/></Relationships>')
             # A picture outside the file is not fetched; the page says that a picture is missing.
             with ReflowBook(outside) as book: self.assertIn('Bild', book.page(0).text())
-        self.assertEqual(lumen_office.cell_text('3.0'), '3')
 
 
 if __name__ == '__main__': unittest.main()

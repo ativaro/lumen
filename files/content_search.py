@@ -8,14 +8,12 @@ import subprocess
 import sys
 import tempfile
 import time
-import zipfile
-import zlib
-from xml.etree import ElementTree as ET
 from collections import deque
 from pathlib import Path
 
 
 MAX_TEXT = 1024 * 1024
+OFFICE = {'.docx', '.docm', '.xlsx', '.xlsm', '.pptx', '.pptm', '.odt', '.ods', '.odp'}
 STOP_WORDS = set(('der die das den dem des ein eine einen einem einer eines für fuer von vom zum zur zu '
                   'und oder mit ohne im in auf am an aus bei nach über ueber unter ich du mir mich mein '
                   'meine meinen meinem meiner meines bitte suche suchen finde finden zeige zeigen wo ist '
@@ -91,23 +89,18 @@ def read_content(path, directory_fd=None):
         if not stat.S_ISREG(info.st_mode):
             return '', False
         partial = False
-        from document_text import EXTENSIONS, extract
-        if path.suffix.lower() in EXTENSIONS:
-            if info.st_size > 64 * 1024 * 1024:
-                raise ValueError(tr('Office-Datei zu groß.'))
-            try:
-                text, partial = extract(stream, path.suffix.lower(), MAX_TEXT)
-                data = text.encode('utf-8')
-            except (KeyError, IndexError, zipfile.BadZipFile, ET.ParseError, RuntimeError, zlib.error) as error:
-                raise ValueError(tr('Office-Datei nicht lesbar.')) from error
-        elif path.suffix.lower() == '.pdf':
-            if info.st_size > 128 * 1024 * 1024:
+        suffix = path.suffix.lower()
+        if suffix in OFFICE or suffix == '.pdf':
+            if info.st_size > (64 if suffix in OFFICE else 128) * 1024 * 1024:
+                if suffix in OFFICE: raise ValueError(tr('Office-Datei zu groß.'))
                 return '', True
+            from lumen_office import pdf_tool, program
+            # An inherited descriptor pins the checked file, even if its path changes.
+            pinned = f'/proc/self/fd/{stream.fileno()}'
+            command = ([program(), 'office-text', pinned, suffix] if suffix in OFFICE
+                       else pdf_tool('text', pinned, '--limit', str(MAX_TEXT+1), beside=__file__))
             with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as errors:
-                # An inherited descriptor pins the checked file, even if its path changes.
-                proc = subprocess.Popen([sys.executable,str(Path(__file__).with_name('lumen_pdf_worker.py')),'text',
-                                         f'/proc/self/fd/{stream.fileno()}', '--limit',str(MAX_TEXT+1)],
-                                        stdin=subprocess.DEVNULL, stdout=output, stderr=errors,
+                proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=output, stderr=errors,
                                         pass_fds=(stream.fileno(),))
                 deadline = time.monotonic() + 12
                 try:
@@ -120,7 +113,8 @@ def read_content(path, directory_fd=None):
                     proc.wait()
                     if proc.returncode and not partial and os.fstat(output.fileno()).st_size <= MAX_TEXT:
                         errors.seek(0)
-                        raise ValueError(tr('PDF nicht lesbar.') + ' ' + errors.read(600).decode('utf-8', errors='replace').strip())
+                        raise ValueError((tr('Office-Datei nicht lesbar.') if suffix in OFFICE else tr('PDF nicht lesbar.'))
+                                         + ' ' + errors.read(600).decode('utf-8', errors='replace').strip())
                     output.seek(0)
                     data = output.read(MAX_TEXT + 1)
                 finally:
@@ -168,7 +162,6 @@ def scan(root, groups, hidden=False, max_hits=500, max_entries=100000, ocr=False
 
 def scan_tree(root, root_fd, groups, hidden, max_hits, max_entries, ocr=False, thumbnail_dir=None, visual=True):
     from core import file_kind
-    from document_text import EXTENSIONS
     root = Path(root).resolve()
     queue = deque([Path('.')])
     visited = scanned = hits = errors = partial = empty = 0
@@ -195,7 +188,7 @@ def scan_tree(root, root_fd, groups, hidden, max_hits, max_entries, ocr=False, t
                             continue
                         if entry.is_dir(follow_symlinks=False):
                             queue.append(relative / entry.name)
-                        elif entry.is_file(follow_symlinks=False) and (file_kind(path) in {'text', 'pdf', 'image'} or path.suffix.lower() in EXTENSIONS):
+                        elif entry.is_file(follow_symlinks=False) and (file_kind(path) in {'text', 'pdf', 'image'} or path.suffix.lower() in OFFICE):
                             scanned += 1
                             kind = file_kind(path)
                             text, incomplete = read_content(path, descriptor) if kind != 'image' else ('', False)

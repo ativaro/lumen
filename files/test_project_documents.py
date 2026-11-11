@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tools_data import Library
+from test_lumen_office import OPEN, SHEET, SLIDE, TYPES, WORD, relations, setUpModule  # noqa: F401 - builds the document reader once
 
 
 class ProjectDocumentsTest(unittest.TestCase):
@@ -27,38 +28,47 @@ class ProjectDocumentsTest(unittest.TestCase):
 
 
 
-    def test_slide_order_inline_cells_and_partial_documents_are_explicit(self):
+    def test_office_search_reads_slides_whole_sheets_footnotes_and_open_document(self):
         from content_search import read_content
+        def slide(line):
+            return f'<p:sld {SLIDE}><p:cSld><p:spTree><p:sp><p:nvSpPr><p:nvPr><p:ph idx="1"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t>{line}</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>'
         path = self.archive('ordered.pptx', {
-            'ppt/presentation.xml': '<presentation xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sldIdLst><sldId r:id="b"/><sldId r:id="a"/></sldIdLst></presentation>',
-            'ppt/_rels/presentation.xml.rels': '<Relationships><Relationship Id="a" Target="slides/slide1.xml"/><Relationship Id="b" Target="slides/slide2.xml"/></Relationships>',
-            'ppt/slides/slide1.xml': '<sld><p><t>Second authored slide</t></p></sld>',
-            'ppt/slides/slide2.xml': '<sld><p><t>VCF first authored slide</t></p></sld>'})
+            '[Content_Types].xml': TYPES,
+            'ppt/presentation.xml': f'<p:presentation {SLIDE}><p:sldIdLst><p:sldId id="256" r:id="b"/><p:sldId id="257" r:id="a"/></p:sldIdLst>'
+                                    '<p:extLst><p:ext><sectionLst><section><sldIdLst><sldId id="256"/></sldIdLst></section></sectionLst></p:ext></p:extLst></p:presentation>',
+            'ppt/_rels/presentation.xml.rels': relations(('a', 'slides/slide1.xml'), ('b', 'slides/slide2.xml')),
+            'ppt/slides/slide1.xml': slide('Second authored slide'), 'ppt/slides/slide2.xml': slide('VCF first authored slide')})
         text, partial = read_content(path)
-        self.assertTrue(text.startswith('Slide 1\nVCF first authored slide'))
+        self.assertLess(text.index('VCF first authored slide'), text.index('Second authored slide'))
+        self.assertEqual(text.count('Folie '), 2)  # a section list repeats slide IDs without adding slides
         self.assertFalse(partial)
+        rows = ''.join(f'<row r="{n}"><c r="A{n}" t="inlineStr"><is><t>row {n}</t></is></c></row>' for n in range(1, 1501))
         path = self.archive('inline.xlsm', {
-            'xl/workbook.xml': '<workbook xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Decision" r:id="r"/></sheets></workbook>',
-            'xl/_rels/workbook.xml.rels': '<Relationships><Relationship Id="r" Target="worksheets/sheet1.xml"/><Relationship Id="external" TargetMode="External" Target="https://invalid.example"/></Relationships>',
-            'xl/worksheets/sheet1.xml': '<worksheet><c r="A1" t="inlineStr"><is><t>VCF inline</t></is></c><c r="B1"><f>1+1</f></c></worksheet>',
+            '[Content_Types].xml': TYPES,
+            'xl/workbook.xml': f'<workbook {SHEET} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Decision" r:id="r"/></sheets></workbook>',
+            'xl/_rels/workbook.xml.rels': relations(('r', 'worksheets/sheet1.xml')),
+            'xl/worksheets/sheet1.xml': f'<worksheet {SHEET}><sheetData>{rows}<row r="1501"><c r="AZ1501" t="inlineStr"><is><t>VCF beyond the reading view</t></is></c></row></sheetData></worksheet>',
             'xl/vbaProject.bin': b'must never execute'})
         text, partial = read_content(path)
-        self.assertIn('Decision!A1: VCF inline', text)
-        self.assertIn('[formula; no saved value]', text)
-        self.assertNotIn('must never execute', text)
-        path = self.archive('partial.docx', {'word/document.xml': '<document><p><t>'+('VCF '*400000)+'</t></p></document>'})
+        self.assertIn('Decision', text); self.assertIn('row 1500', text)
+        self.assertIn('VCF beyond the reading view', text)  # the reading view stops at 1000 rows and 40 columns
+        self.assertNotIn('Gekürzt', text); self.assertNotIn('must never execute', text)
+        path = self.archive('notes.docx', {
+            '[Content_Types].xml': TYPES,
+            'word/document.xml': f'<w:document {WORD}><w:body><w:p><w:r><w:t>Body &amp; text</w:t></w:r></w:p></w:body></w:document>',
+            'word/footnotes.xml': f'<w:footnotes {WORD}><w:footnote><w:p><w:r><w:t>VCF footnote</w:t></w:r></w:p></w:footnote></w:footnotes>'})
+        self.assertEqual(read_content(path), ('Body & text\n\nVCF footnote', False))
+        path = self.archive('minutes.odt', {
+            'mimetype': 'application/vnd.oasis.opendocument.text',
+            'content.xml': f'<office:document-content {OPEN}><office:body><office:text><text:p>VCF open document</text:p></office:text></office:body></office:document-content>'})
+        self.assertIn('VCF open document', read_content(path)[0])
+        path = self.archive('partial.docx', {
+            '[Content_Types].xml': TYPES,
+            'word/document.xml': f'<w:document {WORD}><w:body><w:p><w:r><w:t>'+('VCF '*400000)+'</w:t></w:r></w:p></w:body></w:document>'})
         text, partial = read_content(path)
         self.assertTrue(partial); self.assertLessEqual(len(text.encode()), 1024*1024)
-
-    def test_presentation_sections_are_not_extra_slides(self):
-        from content_search import read_content
-        path = self.archive('sections.pptx', {
-            'ppt/presentation.xml': '<presentation xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sldIdLst><sldId id="256" r:id="slide"/></sldIdLst><extLst><ext><sectionLst><section><sldIdLst><sldId id="256"/></sldIdLst></section></sectionLst></ext></extLst></presentation>',
-            'ppt/_rels/presentation.xml.rels': '<Relationships><Relationship Id="slide" Target="slides/slide1.xml"/></Relationships>',
-            'ppt/slides/slide1.xml': '<sld><p><t>VCF section evidence</t></p></sld>'})
-        text, partial = read_content(path)
-        self.assertEqual(text, 'Slide 1\nVCF section evidence')
-        self.assertFalse(partial)
+        broken = self.folder/'broken.docx'; broken.write_bytes(b'not an archive')
+        with self.assertRaisesRegex(ValueError, 'Office-Datei nicht lesbar'): read_content(broken)
 
     def test_pdf_search_preserves_the_actual_reader_failure(self):
         import content_search

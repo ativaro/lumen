@@ -60,6 +60,15 @@ if ! command -v g++ >/dev/null || ! command -v pkg-config >/dev/null || ! pkg-co
         exit 1
     fi
 fi
+if ! command -v cargo >/dev/null; then
+    if command -v pacman >/dev/null && command -v pkexec >/dev/null; then
+        say "Richte den Dokumentleser ein" "Preparing the document reader"
+        pkexec pacman -S --needed --noconfirm -- rust
+    else
+        message "Benötigt: Rust mit cargo (ab 1.89) für den Dokumentleser." "Required: Rust with cargo (1.89 or newer) for the document reader." >&2
+        exit 1
+    fi
+fi
 if [ "$DESKTOP" = 1 ]; then
     for c in qdbus6 kreadconfig6 kwriteconfig6 plasma-apply-desktoptheme kbuildsycoca6; do
         command -v "$c" >/dev/null || { message "Desktop-Einrichtung benötigt $c und eine KDE-Plasma-6-Sitzung." "Desktop setup requires $c and a KDE Plasma 6 session." >&2; exit 1; }
@@ -94,6 +103,7 @@ for bin_file in "$REPO/bin/"*; do
 done
 bash "$REPO/native/build-capture.sh" "$BIN/lumen-window-capture"
 bash "$REPO/native/build-topbar.sh" "$BIN/lumen-topbar"
+bash "$REPO/native/build-document.sh" "$BIN/lumen-document"
 mkdir -p "$PREFIX/agent-app"
 install -m 0644 "$REPO/agent-app/main.py" "$PREFIX/agent-app/"
 mkdir -p "$PREFIX/files"
