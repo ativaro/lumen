@@ -91,9 +91,11 @@ Primitiven; PDF-Schlüsselableitung und Sicherheits-Handler R2–R6 sind eigener
 Der Reader liest PDFs zuerst mit Lumens Dokument-Kern in Rust (`native/document-core`, Programm
 `lumen-document`): Struktur, Wörter mit Position und Seitenbild. Er ist an 418 Seiten aus 40 Dateien
 gegen den Python-Kern geprüft (Wörter gleich, Bild gleich bis auf eine abgelehnte Seite). Lehnt der
-Rust-Kern eine Datei oder Seite ab, übernimmt der Python-Kern. Offen im Rust-Kern: Verschlüsselung,
-eingebettete Type-1-Schriften, JPEG 2000, ein Teil der vierkanaligen JPEGs, ICC-Profile, Linien mit
-Muster. Alles, was PDFs schreibt (Ordnen, Schwärzen, Export, Übersetzung), sowie Suche und Vorschau
+Rust-Kern eine Datei oder Seite ab, übernimmt der Python-Kern. Der Rust-Kern öffnet verschlüsselte
+PDFs (Revision 2 bis 6), liest eingebettete Type-1-Schriften und vierkanalige JPEGs. Er lehnt noch
+ab: Farbprofile außer sRGB, JPEG 2000, Linien mit Muster, radiale Verläufe zwischen zwei versetzten
+Kreisen, graue Transparenzgruppen außerhalb von Masken und Passwörter mit Sonderzeichen bei
+Revision 6. Stand der Prüfung: 78 Dateien, 646 Seiten in Wort und Bild gleich. Alles, was PDFs schreibt (Ordnen, Schwärzen, Export, Übersetzung), sowie Suche und Vorschau
 in Files bleiben beim Python-Kern, bis sie eigens umgestellt sind.
 
 ### Bewusste Formatgrenzen

@@ -733,6 +733,8 @@ pub(crate) enum Program {
     Open(Vec<u8>),
     /// A bare CFF table, as PDF embeds Type 1C fonts.
     Compact(Vec<u8>),
+    /// A Type 1 font program.
+    Classic(crate::type1::Font),
 }
 
 impl Program {
@@ -776,6 +778,21 @@ impl Program {
                 };
                 found.copied().unwrap_or(0)
             }
+            // A Type 1 font has no Unicode table either; the glyph list names the character.
+            Program::Classic(font) => {
+                let named = GLYPH_LIST
+                    .iter()
+                    .find(|entry| entry.0 == first)
+                    .map_or(0, |entry| font.glyph(entry.1));
+                if named != 0 {
+                    return named;
+                }
+                // A symbol font has its own names; its built-in encoding says which glyph a code selects.
+                u8::try_from(first as u32)
+                    .ok()
+                    .and_then(|code| font.encoding.get(&code))
+                    .map_or(0, |name| font.glyph(name))
+            }
             // A bare CFF font has no Unicode table; its glyphs are found by their names in the Adobe glyph list.
             Program::Compact(data) => {
                 let Some(table) = ttf_parser::cff::Table::parse(data) else {
@@ -810,6 +827,7 @@ impl Program {
                     .ok()?;
                 Some(1000.0)
             }
+            Program::Classic(font) => font.outline(gid, builder).map(|_| 1000.0),
         }
     }
 
@@ -829,6 +847,7 @@ impl Program {
                 .and_then(|table| table.glyph_width(ttf_parser::GlyphId(gid)))
                 .map(f64::from)
                 .unwrap_or(0.0),
+            Program::Classic(font) => font.advance(gid),
         }
     }
 
@@ -843,6 +862,9 @@ impl Program {
                 Err(_) => (750.0, -250.0),
             },
             Program::Compact(_) => (750.0, -250.0),
+            Program::Classic(font) => font
+                .vertical
+                .map_or((750.0, -250.0), |(low, high)| (high, low)),
         }
     }
 
@@ -868,6 +890,16 @@ impl Program {
                         texts
                             .entry(name.to_string())
                             .or_insert_with(|| code.to_string());
+                    }
+                }
+            }
+            Program::Classic(font) => {
+                for (gid, name) in font.names.iter().enumerate() {
+                    glyphs.insert(name.clone(), gid as u16);
+                    if let Some(entry) = GLYPH_LIST.iter().find(|entry| entry.1 == name) {
+                        texts
+                            .entry(name.clone())
+                            .or_insert_with(|| entry.0.to_string());
                     }
                 }
             }
@@ -1083,6 +1115,14 @@ impl Font {
                 Program::Open(data)
             } else if ttf_parser::cff::Table::parse(&data).is_some() {
                 Program::Compact(data)
+            } else if let Some(font) = crate::type1::Font::parse(
+                &data,
+                match stream.attrs.get("Length1") {
+                    Some(Value::Int(length)) if *length > 0 => Some(*length as usize),
+                    _ => None,
+                },
+            ) {
+                Program::Classic(font)
             } else {
                 return unsupported("Eingebettetes PDF-Schriftformat wird noch nicht unterstützt.");
             }

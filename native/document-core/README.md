@@ -37,10 +37,17 @@ in the Python engine, with a process start and a PNG file per page on this side.
 Soft masks, Type 4 functions (`src/calculator.rs`), matte pictures, knockout groups and stroke
 adjustment are drawn as the Python engine draws them.
 
-Not ported yet: encrypted files (refused with a clear message), embedded Type 1 font programs,
-JPEG 2000 and some four-channel JPEG pictures, stroking with patterns, radial shadings between two
-offset circles, transparency groups in grey outside a mask, and ICC profiles (the component count
-picks the device space).
+Encrypted files open with the standard security handler, revisions 2 to 6 (`src/security.rs`); a
+password reaches the program on standard input when `LUMEN_PDF_PASSWORD_STDIN` is set. Embedded
+Type 1 font programs are read by `src/type1.rs`. Four-channel JPEG pictures go through
+`jpeg-decoder`. An sRGB colour profile is used as it is.
+
+Checked against the Python engine on 78 real files: structure equal for all, words and pictures
+equal on all 646 pages that both draw.
+
+Refused by name, and then read by the Python engine: colour profiles other than sRGB, JPEG 2000
+pictures, stroking with patterns, radial shadings between two offset circles, transparency groups
+in grey outside a mask, and non-ASCII passwords of revision 6.
 
 `lumen-document pdf-reader <file> metadata | page <index>` is what the Reader asks: page count,
 title and outline, and for a page its words and its picture as PNG. `files/reader_data.py` calls it
@@ -68,4 +75,5 @@ Only licences that can be used freely without buying or separately licensing the
 (MIT, Apache-2.0, BSD, Zlib, ISC and the like); `check-licenses.py` fails on anything else.
 A part without such a building block is written in this crate. Direct dependencies: `roxmltree`
 (XML tree), `zip` (archive, Deflate only), `flate2` (Deflate for PDF streams), `ttf-parser` (font tables),
-`tiny-skia` (rasteriser) and `zune-jpeg` (JPEG pictures).
+`tiny-skia` (rasteriser), `zune-jpeg` and `jpeg-decoder` (JPEG pictures), and `md-5`, `sha2` and
+`aes` (primitives for encrypted files).

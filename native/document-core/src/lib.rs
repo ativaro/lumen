@@ -3,4 +3,6 @@ pub mod calculator;
 pub mod office;
 pub mod pdf;
 pub mod render;
+pub mod security;
 pub mod text;
+pub mod type1;

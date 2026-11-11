@@ -23,7 +23,7 @@ fn json(text: &str) -> String {
 /// Page count, title, outline and, per page, its box and a fingerprint of its decoded content.
 fn pdf_info(path: &str) -> Result<String, lumen_document::pdf::Error> {
     use lumen_document::pdf::{Document, Value};
-    let document = Document::open(std::path::Path::new(path))?;
+    let document = Document::open(std::path::Path::new(path), &password())?;
     let toc: Vec<String> = document
         .toc()?
         .iter()
@@ -63,7 +63,7 @@ fn pdf_info(path: &str) -> Result<String, lumen_document::pdf::Error> {
 
 /// The words of pages `first .. first + count`, one JSON object per page; a page that cannot be read carries its message.
 fn pdf_words(path: &str, first: usize, count: usize) -> Result<String, lumen_document::pdf::Error> {
-    let document = lumen_document::pdf::Document::open(std::path::Path::new(path))?;
+    let document = lumen_document::pdf::Document::open(std::path::Path::new(path), &password())?;
     let mut pages = Vec::new();
     for index in first..document.pages.len().min(first + count) {
         pages.push(match lumen_document::text::Page::words(&document, index) {
@@ -93,6 +93,21 @@ fn pdf_words(path: &str, first: usize, count: usize) -> Result<String, lumen_doc
     Ok(format!("[{}]", pages.join(", ")))
 }
 
+/// The password for an encrypted PDF: one line on standard input when `LUMEN_PDF_PASSWORD_STDIN` is set,
+/// so that it never appears in an argument list. Without it the empty password is tried.
+fn password() -> String {
+    static GIVEN: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    GIVEN
+        .get_or_init(|| {
+            let mut line = String::new();
+            if std::env::var_os("LUMEN_PDF_PASSWORD_STDIN").is_some() {
+                let _ = std::io::stdin().read_line(&mut line);
+            }
+            line.trim_end_matches(['\r', '\n']).to_string()
+        })
+        .clone()
+}
+
 fn base64(data: &[u8]) -> String {
     const LETTERS: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
@@ -114,7 +129,7 @@ fn base64(data: &[u8]) -> String {
 /// What the Reader asks for: the document's outline data, and for `page` also that page's words and picture.
 fn pdf_reader(path: &str, page: Option<usize>) -> Result<String, lumen_document::pdf::Error> {
     use lumen_document::pdf::{Document, Error};
-    let document = Document::open(std::path::Path::new(path))?;
+    let document = Document::open(std::path::Path::new(path), &password())?;
     let toc: Vec<String> = document
         .toc()?
         .iter()
@@ -162,15 +177,15 @@ fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.len() == 5 && args[0] == "pdf-render" {
         // pdf-render <file> <page> <scale> <png>
-        let drawn = lumen_document::pdf::Document::open(std::path::Path::new(&args[1])).and_then(
-            |document| {
-                lumen_document::render::render(
-                    &document,
-                    args[2].parse().unwrap_or(0),
-                    args[3].parse().unwrap_or(1.0),
-                )
-            },
-        );
+        let drawn =
+            lumen_document::pdf::Document::open(std::path::Path::new(&args[1]), &password())
+                .and_then(|document| {
+                    lumen_document::render::render(
+                        &document,
+                        args[2].parse().unwrap_or(0),
+                        args[3].parse().unwrap_or(1.0),
+                    )
+                });
         return match drawn.map(|picture| picture.save_png(&args[4])) {
             Ok(Ok(())) => ExitCode::SUCCESS,
             Ok(Err(error)) => {

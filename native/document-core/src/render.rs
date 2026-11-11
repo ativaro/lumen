@@ -319,14 +319,16 @@ impl Space {
                 let Value::Stream(profile) = part(1)? else {
                     return bad("PDF-ICC-Profil fehlt.");
                 };
-                // ponytail: the profile itself is not applied; its component count picks the device space.
-                // Colours of wide-gamut and press profiles are therefore approximate. Apply the profile when a
-                // freely usable colour management building block is in place.
-                match integer(profile.attrs.get("N").unwrap_or(&Value::Null), 1, 4)? {
-                    1 => Ok(Space::Gray),
-                    3 => Ok(Space::Rgb),
-                    4 => Ok(Space::Cmyk),
-                    _ => bad("Ungültiger PDF-ICC-Farbraum."),
+                // An sRGB profile describes the colours this renderer works in, so its values are used as they are.
+                // Any other profile needs colour management, which is not ported: such a page is left to the Python
+                // engine instead of being drawn with approximate colours.
+                let components = integer(profile.attrs.get("N").unwrap_or(&Value::Null), 1, 4)?;
+                let data = document.decode(&profile)?;
+                let standard = data.windows(4).any(|window| window == b"sRGB");
+                match components {
+                    3 if standard => Ok(Space::Rgb),
+                    1 | 3 | 4 => later("Farbprofile außer sRGB"),
+                    _ => bad("Ungültige PDF-ICC-Komponenten."),
                 }
             }
             "Indexed" | "I" => {
@@ -646,29 +648,52 @@ fn picture(
                 attrs,
                 raw: stream.raw.clone(),
             })?;
-            use zune_jpeg::zune_core::{colorspace::ColorSpace, options::DecoderOptions};
-            let wanted = match channels {
-                1 => ColorSpace::Luma,
-                3 => ColorSpace::RGB,
-                4 => ColorSpace::CMYK,
-                _ => return bad("Ungültige JPEG-/JPX-Farbkomponenten."),
+            let pixels = if channels == 4 {
+                // Four channels (CMYK or YCCK) go to the decoder that returns them as CMYK samples.
+                let mut decoder = jpeg_decoder::Decoder::new(&encoded[..]);
+                let Ok(pixels) = decoder.decode() else {
+                    return bad("PDF-Bild konnte nicht dekodiert werden.");
+                };
+                match decoder.info() {
+                    Some(info) if info.pixel_format != jpeg_decoder::PixelFormat::CMYK32 => {
+                        return bad("Ungültige JPEG-/JPX-Farbkomponenten.");
+                    }
+                    Some(info) if usize::from(info.width) == w && usize::from(info.height) == h => {
+                    }
+                    _ => return bad("PDF-Bildkopf und Größe stimmen nicht überein."),
+                }
+                // The decoder turns Adobe's inverted samples into plain ones. PDF applies its own Decode array,
+                // so the convention of the file is restored first.
+                if encoded[..encoded.len().min(65536)]
+                    .windows(5)
+                    .any(|window| window == b"Adobe")
+                {
+                    pixels.iter().map(|value| 255 - value).collect()
+                } else {
+                    pixels
+                }
+            } else {
+                use zune_jpeg::zune_core::{colorspace::ColorSpace, options::DecoderOptions};
+                let wanted = match channels {
+                    1 => ColorSpace::Luma,
+                    3 => ColorSpace::RGB,
+                    _ => return bad("Ungültige JPEG-/JPX-Farbkomponenten."),
+                };
+                let mut decoder = zune_jpeg::JpegDecoder::new_with_options(
+                    &encoded[..],
+                    DecoderOptions::default().jpeg_set_out_colorspace(wanted),
+                );
+                let Ok(pixels) = decoder.decode() else {
+                    return bad("PDF-Bild konnte nicht dekodiert werden.");
+                };
+                if decoder
+                    .info()
+                    .is_none_or(|info| info.width as usize != w || info.height as usize != h)
+                {
+                    return bad("PDF-Bildkopf und Größe stimmen nicht überein.");
+                }
+                pixels
             };
-            let mut decoder = zune_jpeg::JpegDecoder::new_with_options(
-                &encoded[..],
-                DecoderOptions::default().jpeg_set_out_colorspace(wanted),
-            );
-            let pixels = match decoder.decode() {
-                Ok(pixels) => pixels,
-                // ponytail: the JPEG decoder does not turn every four-channel picture into CMYK samples.
-                Err(_) if channels == 4 => return later("JPEG-Bilder mit vier Farbkanälen"),
-                Err(_) => return bad("PDF-Bild konnte nicht dekodiert werden."),
-            };
-            if decoder
-                .info()
-                .is_none_or(|info| info.width as usize != w || info.height as usize != h)
-            {
-                return bad("PDF-Bildkopf und Größe stimmen nicht überein.");
-            }
             bits = 8;
             pixels
         }

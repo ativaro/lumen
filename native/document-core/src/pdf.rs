@@ -823,6 +823,7 @@ pub struct Document {
     active: RefCell<HashSet<Ref>>,
     object_streams: RefCell<HashMap<i64, Rc<ObjectStream>>>,
     decoded_size: Cell<usize>,
+    security: Option<crate::security::Security>,
     pub trailer: Dict,
     pub catalog: Rc<Dict>,
     /// Page attributes with the inherited ones filled in.
@@ -837,7 +838,8 @@ fn is_name(value: Option<&Value>, name: &str) -> bool {
 }
 
 impl Document {
-    pub fn open(path: &std::path::Path) -> Outcome<Document> {
+    /// Opens a file; `password` is tried as user and as owner password of an encrypted one.
+    pub fn open(path: &std::path::Path, password: &str) -> Outcome<Document> {
         use std::io::Read;
         let mut data = Vec::new();
         let file = std::fs::File::open(path)
@@ -845,10 +847,14 @@ impl Document {
         file.take(MAX_FILE as u64 + 1)
             .read_to_end(&mut data)
             .map_err(|_| Error::Pdf("Lesedatei fehlt oder ist größer als 200 MiB.".into()))?;
-        Document::new(data)
+        Document::with_password(data, password)
     }
 
     pub fn new(data: Vec<u8>) -> Outcome<Document> {
+        Document::with_password(data, "")
+    }
+
+    pub fn with_password(data: Vec<u8>, password: &str) -> Outcome<Document> {
         if data.len() > MAX_FILE {
             return bad("PDF größer als 512 MiB.");
         }
@@ -871,6 +877,7 @@ impl Document {
             active: RefCell::new(HashSet::new()),
             object_streams: RefCell::new(HashMap::new()),
             decoded_size: Cell::new(0),
+            security: None,
             trailer: Dict::new(),
             catalog: Rc::new(Dict::new()),
             pages: Vec::new(),
@@ -878,14 +885,34 @@ impl Document {
             metadata: BTreeMap::new(),
         };
         document.references(start)?;
-        if document
+        if let Some(encrypt) = document
             .trailer
             .get("Encrypt")
-            .is_some_and(|value| !value.is_null())
+            .filter(|value| !value.is_null())
+            .cloned()
         {
-            return Err(Error::Unsupported(
-                "Verschlüsselte PDFs liest der Rust-Kern noch nicht.".into(),
-            ));
+            // The encryption dictionary and its crypt filters are read before any key exists.
+            let Value::Dict(listed) = document.resolve(&encrypt)? else {
+                return Err(Error::Unsupported(
+                    "PDF-Sicherheitsverfahren wird nicht unterstützt.".into(),
+                ));
+            };
+            let mut attrs = Dict::new();
+            for (key, value) in listed.iter() {
+                attrs.insert(key.clone(), document.resolve(value)?);
+            }
+            if let Some(Value::Dict(filters)) = attrs.get("CF").cloned() {
+                let mut resolved = Dict::new();
+                for (key, value) in filters.iter() {
+                    resolved.insert(key.clone(), document.resolve(value)?);
+                }
+                attrs.insert("CF".into(), Value::Dict(Rc::new(resolved)));
+            }
+            document.security = Some(crate::security::Security::new(
+                &attrs,
+                document.trailer.get("ID"),
+                password,
+            )?);
         }
         let catalog = document.resolve(document.trailer.get("Root").unwrap_or(&Value::Null))?;
         match catalog.dict() {
@@ -1158,7 +1185,10 @@ impl Document {
         self.active.borrow_mut().insert(*reference);
         let result = self.load(*reference, entry);
         self.active.borrow_mut().remove(reference);
-        let result = result?;
+        let mut result = result?;
+        if let (1, Some(security)) = (entry.0, &self.security) {
+            result = security.value(&result, *reference, &|value| self.resolve(value))?;
+        }
         if matches!(result, Value::Ref(_) | Value::Operator(_)) {
             return bad("Ungültiger indirekter PDF-Objektwert.");
         }
