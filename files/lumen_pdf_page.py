@@ -10,7 +10,7 @@ import re
 import unicodedata
 from PySide6.QtCore import QByteArray, QBuffer, QIODevice, QPointF, QRectF, Qt
 from PySide6.QtGui import QBrush, QColor, QColorSpace, QFont, QGuiApplication, QImage, QImageReader, QPainter, QPainterPath, QPen, QPicture, QRawFont, QTransform, QPolygonF
-from lumen_pdf import Document, Name, Operator, PDFError, Ref, Stream, Syntax, UnsupportedPDF, integer
+from lumen_pdf import Document, Name, Operator, PDFError, Ref, Stream, Syntax, UnsupportedPDF, integer, pdf_string
 
 _gui = None
 
@@ -90,11 +90,44 @@ def unicode_map(document,reference):
     return result
 
 
+def symbol_cmap(table):
+    """Character codes of a symbolic TrueType font: its (3,0) or (1,0) cmap, formats 0, 4 and 6."""
+    import struct
+    try:
+        count=struct.unpack_from('>H',table,2)[0];found={}
+        for index in range(min(count,32)):
+            platform,encoding,offset=struct.unpack_from('>HHI',table,4+index*8)
+            if (platform,encoding) in ((3,0),(1,0)):found[platform]=offset
+        if not found:return None
+        platform=3 if 3 in found else 1;offset=found[platform];kind=struct.unpack_from('>H',table,offset)[0];codes={}
+        if kind==0:
+            codes={code:gid for code,gid in enumerate(table[offset+6:offset+262]) if gid}
+        elif kind==6:
+            first,number=struct.unpack_from('>HH',table,offset+6)
+            for index,gid in enumerate(struct.unpack_from('>%dH'%min(number,65536),table,offset+10)):
+                if gid:codes[first+index]=gid
+        elif kind==4:
+            segments=struct.unpack_from('>H',table,offset+6)[0]//2;base=offset+14
+            ends=struct.unpack_from('>%dH'%segments,table,base);starts=struct.unpack_from('>%dH'%segments,table,base+2+segments*2)
+            deltas=struct.unpack_from('>%dH'%segments,table,base+2+segments*4);ranges=base+2+segments*6
+            for index in range(segments):
+                if starts[index]>ends[index] or ends[index]-starts[index]>65535 or len(codes)>65536:continue
+                shift=struct.unpack_from('>H',table,ranges+index*2)[0]
+                for code in range(starts[index],ends[index]+1):
+                    if code==0xFFFF:continue
+                    gid=code if not shift else struct.unpack_from('>H',table,ranges+index*2+shift+(code-starts[index])*2)[0]
+                    if gid or not shift:gid=(gid+deltas[index])&0xFFFF
+                    if gid:codes[code]=gid
+        else:return None
+        return platform,codes
+    except (struct.error,IndexError):return None
+
+
 class Font:
     def __init__(self,document,resource):
         self.document=document; self.attrs=document.resolve(resource)
         if not isinstance(self.attrs,dict): raise PDFError('PDF-Schrift fehlt.')
-        subtype=self.attrs.get('Subtype'); self.composite=subtype=='Type0'; self.widths={}; self.differences={}
+        subtype=self.attrs.get('Subtype'); self.composite=subtype=='Type0'; self.widths={}; self.differences={}; self.symbols=None
         if subtype not in ('Type0','Type1','TrueType'): raise UnsupportedPDF('PDF-Schrifttyp noch nicht unterstützt: '+str(subtype))
         self.mapping=unicode_map(document,self.attrs.get('ToUnicode'))
         self.base=str(self.attrs.get('BaseFont','')); self.bold='bold' in self.base.lower(); self.italic=any(s in self.base.lower() for s in ('italic','oblique'))
@@ -133,11 +166,16 @@ class Font:
             if not isinstance(stream,Stream): raise PDFError('PDF-Schriftdatei fehlt.')
             self.raw=QRawFont(QByteArray(document.decode(stream)),1000,QFont.HintingPreference.PreferNoHinting)
             if not self.raw.isValid(): raise UnsupportedPDF('Eingebettetes PDF-Schriftformat wird noch nicht unterstützt.')
+            # A symbolic TrueType font without an encoding selects glyphs through its own cmap, not by character name.
+            self.symbols=symbol_cmap(bytes(self.raw.fontTable('cmap'))) if subtype=='TrueType' and 'Encoding' not in self.attrs and not self.composite else None
         else:
             base=self.base.split('+')[-1]
-            if base not in ('Helvetica','Helvetica-Bold','Helvetica-Oblique','Helvetica-BoldOblique','Times-Roman','Times-Bold','Times-Italic','Times-BoldItalic','Courier','Courier-Bold','Courier-Oblique','Courier-BoldOblique'):
-                raise UnsupportedPDF('Nicht eingebettete PDF-Schrift noch nicht verfügbar: '+base)
-            family='Liberation Mono' if base.startswith('Courier') else 'Liberation Serif' if base.startswith('Times') else 'Liberation Sans'
+            if self.composite:raise UnsupportedPDF('Nicht eingebettete PDF-CID-Schrift noch nicht verfügbar: '+base)
+            # A font the file does not carry is replaced by the metric-compatible Liberation family of the same
+            # kind; the widths still come from the PDF, so the layout stays where the author put it.
+            flags=descriptor.get('Flags',0) if type(descriptor.get('Flags',0)) is int else 0;name=base.lower()
+            family=('Liberation Mono' if flags&1 or any(part in name for part in ('courier','mono','consol')) else
+                    'Liberation Serif' if flags&2 or any(part in name for part in ('times','serif','georgia','garamond','cambria','palatino')) and 'sans' not in name else 'Liberation Sans')
             font=QFont(family); font.setPixelSize(1000); font.setBold(self.bold); font.setItalic(self.italic)
             self.raw=QRawFont.fromFont(font)
             if not self.raw.isValid(): raise PDFError('Systemschrift für PDF fehlt.')
@@ -177,6 +215,11 @@ class Font:
                     if text is None and re.fullmatch(r'uni(?:[0-9A-Fa-f]{4})+',name): text=bytes.fromhex(name[3:]).decode('utf-16-be')
                     if text is None and re.fullmatch(r'u[0-9A-Fa-f]{4,6}',name): text=chr(int(name[1:],16))
                 if text is None or gid is None: raise UnsupportedPDF('PDF-Zeichenname noch nicht unterstützt: '+name)
+            elif self.symbols and (symbol:=next((self.symbols[1][c] for c in ((cid,0xF000+cid,0xF100+cid,0xF200+cid) if self.symbols[0]==3 else (cid,)) if c in self.symbols[1]),0)):
+                gid=symbol
+                if text is None:
+                    if not 32<=cid<=126:raise UnsupportedPDF('PDF-Symbolschrift ohne Unicode-Zuordnung.')
+                    text=chr(cid)
             else:
                 if self.encoding=='StandardEncoding':
                     if not 32<=cid<=126: raise UnsupportedPDF('Erweiterte PDF-StandardEncoding noch nicht unterstützt.')
@@ -199,7 +242,7 @@ class Page:
         gui(); self.document=document; integer(index,0,len(document)-1); self.index=index; self.attrs=dict(document.pages[index])
         if type(rotation) is not int or rotation not in (0,90,180,270):raise PDFError('Ungültige PDF-Drehung.')
         self.attrs['Rotate']=(self.attrs.get('Rotate') or 0)+rotation
-        if document.catalog.get('OCProperties'): raise UnsupportedPDF('PDF-Ebenen werden noch nicht unterstützt.')
+        self.hidden=0;self.hidden_layers=self._layers()
         from lumen_pdf_transparency import group
         self.page_group=group(document,self.attrs.get('Group')) or {}
         unit=self.document.resolve(self.attrs.get('UserUnit',1));numbers([unit])
@@ -213,14 +256,43 @@ class Page:
         self.transform=transforms[self.rotation]*QTransform.fromScale(unit,unit)
         self.width,self.height=(h*unit,w*unit) if self.rotation%180 else (w*unit,h*unit)
         self.fonts={}; self.spans=[]; self.characters=[]; self.operations=0; self.image_count=0; self.image_pixels=0; self.character_units=0
-        self.collect=True;self.effects=False;self.effect_pixels=0;self.effect_depth=0
+        self.collect=True;self.effects=False;self.effect_pixels=0;self.effect_depth=0;self.tiles={}
         self.picture=QPicture(); painter=QPainter(self.picture)
         try:
             self._draw(painter)
         finally: painter.end()
         self.words=self._words()
 
+    def _layers(self):
+        """Layer groups that the document's default configuration switches off."""
+        resolve=self.document.resolve;properties=resolve(self.document.catalog.get('OCProperties'))
+        if properties is None:return []
+        config=resolve(properties.get('D',{})) if isinstance(properties,dict) else None
+        groups=resolve(properties.get('OCGs',[])) if isinstance(properties,dict) else None
+        if not isinstance(config,dict) or not isinstance(groups,list) or len(groups)>10000:raise PDFError('Ungültige PDF-Ebenen.')
+        def listed(key):
+            entries=resolve(config.get(key,[])) or []
+            if not isinstance(entries,list) or len(entries)>10000:raise PDFError('Ungültige PDF-Ebenen.')
+            return [resolve(entry) for entry in entries]
+        off=listed('OFF')
+        if config.get('BaseState')=='OFF':
+            on=listed('ON');off=[group for group in map(resolve,groups) if not any(group is shown for shown in on)]
+        return [group for group in off if isinstance(group,dict)]
+
+    def _visible(self,reference):
+        """Whether content tagged with this layer group or membership dictionary is shown."""
+        resolve=self.document.resolve;value=resolve(reference)
+        if value is None:return True
+        if not isinstance(value,dict):raise PDFError('Ungültige PDF-Ebenenzuordnung.')
+        if value.get('Type')!='OCMD':return not any(value is group for group in self.hidden_layers)
+        if 'VE' in value:raise UnsupportedPDF('PDF-Ebenenausdruck noch nicht unterstützt.')
+        members=resolve(value.get('OCGs',[]));members=members if isinstance(members,list) else [members]
+        states=[not any(resolve(member) is group for group in self.hidden_layers) for member in members[:10000] if resolve(member) is not None]
+        if not states:return True
+        return {'AllOn':all(states),'AnyOff':not all(states),'AllOff':not any(states)}.get(str(value.get('P','AnyOn')),any(states))
+
     def _draw(self,painter):
+        self.hidden=0
         painter.setClipRect(QRectF(0,0,self.width,self.height));painter.setTransform(self.transform,True)
         painter.save()
         try:self._interpret(self.document.contents(self.index),self.document.resolve(self.attrs.get('Resources')) or {},painter,set())
@@ -233,7 +305,7 @@ class Page:
         for reference in annotations:
             annotation=self.document.resolve(reference)
             if not isinstance(annotation,dict):raise PDFError('Ungültige PDF-Anmerkung.')
-            if annotation.get('F',0)&(1|2|32):continue
+            if annotation.get('F',0)&(1|2|32) or not self._visible(annotation.get('OC')):continue
             rect=rectangle(self.document.resolve(annotation.get('Rect')));appearance=self.document.resolve(annotation.get('AP',{}));appearance=self.document.resolve(appearance.get('N')) if isinstance(appearance,dict) else None
             if isinstance(appearance,dict):appearance=self.document.resolve(appearance.get(annotation.get('AS')))
             if isinstance(appearance,Stream):
@@ -275,28 +347,40 @@ class Page:
     def _form(self,obj,resources,painter,forms,depth,state,mask_group=False):
         from lumen_pdf_transparency import group,paint
         if id(obj) in forms:raise PDFError('Zyklische PDF-Form.')
-        if obj.attrs.get('OC'):raise UnsupportedPDF('PDF-Form mit Ebenen noch nicht unterstützt.')
+        box=numbers(self.document.resolve(obj.attrs.get('BBox')),4) if isinstance(self.document.resolve(obj.attrs.get('BBox')),list) else None
+        if box and (box[0]==box[2] or box[1]==box[3]):return  # a form without area shows nothing
         settings=group(self.document,obj.attrs.get('Group'))
-        if settings and not mask_group and state is not None:
-            if not settings.get('I',False) and (state['fillalpha']!=1 or state['blend'] not in ('Normal','Compatible') or state['mask']):
-                raise UnsupportedPDF('Nicht isolierte PDF-Gruppe mit äußerer Transparenz noch nicht unterstützt.')
+        # With normal blending inside, a group gives the same result isolated or not; such a group is
+        # composited on its own surface, and a blend mode inside it, which would need the backdrop, is refused.
+        flat=bool(settings and not mask_group and state is not None and not settings.get('I',False)
+                  and (state['fillalpha']!=1 or state['blend'] not in ('Normal','Compatible') or state['mask']))
         def draw(output):
             output.save()
             try:
                 output.setTransform(QTransform(*numbers(obj.attrs.get('Matrix',[1,0,0,1,0,0]),6)),True)
-                output.setClipRect(rectangle(obj.attrs.get('BBox')),Qt.ClipOperation.IntersectClip)
+                # The two corners of a form's box may come in either order.
+                output.setClipRect(QRectF(QPointF(box[0],box[1]),QPointF(box[2],box[3])).normalized() if box else rectangle(obj.attrs.get('BBox')),Qt.ClipOperation.IntersectClip)
                 inherited=copy(state) if state is not None else None
-                if settings and inherited is not None:inherited.update(fillalpha=1,strokealpha=1,blend=Name('Normal'),mask=None)
+                if settings and inherited is not None:
+                    inherited.update(fillalpha=1,strokealpha=1,blend=Name('Normal'),mask=None,knockout=None,flat=flat)
+                    if settings.get('K'):
+                        # A group that was not given its own surface starts from what is already on the page.
+                        device=output.device();backdrop=None
+                        if not self.collect and not settings.get('I') and state.get('knockout') is None and isinstance(device,QImage):
+                            self.effect_pixels+=device.width()*device.height()
+                            if self.effect_pixels>160_000_000:raise PDFError('PDF-Transparenzbudget überschritten.')
+                            backdrop=device.copy()
+                        inherited['knockout']=dict(backdrop=backdrop)
                 if settings and inherited is not None and (settings.get('I') or mask_group):inherited['blendspace']=settings.get('CS',inherited['blendspace'])
                 self._interpret(self.document.decode(obj),self.document.resolve(obj.attrs.get('Resources',resources)),output,forms|{id(obj)},depth+1,inherited)
             finally:output.restore()
-        if settings and settings.get('I') and not mask_group and state is not None:paint(self,painter,state,'fill',draw,isolated=True)
+        if settings and (settings.get('I') or flat or state is not None and state.get('knockout') is not None) and not mask_group and state is not None:paint(self,painter,state,'fill',draw,isolated=True)
         else:draw(painter)
 
     def _interpret(self,data,resources,painter,forms,depth=0,initial_state=None):
         from lumen_pdf_transparency import paint,BLENDS
         if depth>32: raise PDFError('PDF-Formen zu tief verschachtelt.')
-        syntax=Syntax(data); operands=[]; stack=[]; path=QPainterPath(); clipping=None; text=False; matrix=QTransform(); line=QTransform()
+        syntax=Syntax(data); operands=[]; stack=[]; marks=[]; path=QPainterPath(); clipping=None; text=False; matrix=QTransform(); line=QTransform()
         state=dict(fill=QColor('black'),stroke=QColor('black'),width=1,cap=0,join=0,miter=10,dash=[],phase=0,fillspace='DeviceGray',strokespace='DeviceGray',font=None,size=0,charspace=0,wordspace=0,scale=1,leading=0,rise=0,mode=0,fillalpha=1,strokealpha=1,blend=Name('Normal'),mask=None,fillpattern=None,strokepattern=None)
         state['blendspace']=self.page_group.get('CS',Name('DeviceRGB'))
         if initial_state is not None: state=copy(initial_state)
@@ -309,10 +393,35 @@ class Page:
                     gradient.setStops([(t,gray_color(c)) for t,c in gradient.stops()]);result=QBrush(gradient)
                 else:result=QBrush(gray_color(result.color()))
             return result
+        def tile(pattern,output):
+            # One cell of a coloured tiling pattern, drawn once at the output resolution and repeated as a texture.
+            stream,base=pattern;attrs=stream.attrs
+            transform=QTransform(*numbers(attrs.get('Matrix',[1,0,0,1,0,0]),6))*base
+            box=rectangle(attrs.get('BBox'));xstep,ystep=(abs(v) for v in numbers([attrs.get('XStep'),attrs.get('YStep')],2))
+            current,ok=output.transform().inverted()
+            if not ok or not xstep or not ystep:raise PDFError('Ungültiges PDF-Kachelmuster.')
+            w=math.ceil(xstep*math.hypot(transform.m11(),transform.m12()));h=math.ceil(ystep*math.hypot(transform.m21(),transform.m22()))
+            if not 1<=w<=4096 or not 1<=h<=4096:raise UnsupportedPDF('PDF-Kachelmuster in dieser Größe noch nicht unterstützt.')
+            key=(id(stream),w,h);cell=self.tiles.get(key)
+            if cell is None:
+                self.effect_pixels+=w*h
+                if self.effect_pixels>160_000_000 or len(self.tiles)>=64:raise PDFError('PDF-Transparenzbudget überschritten.')
+                cell=QImage(w,h,QImage.Format.Format_ARGB32_Premultiplied);cell.fill(Qt.GlobalColor.transparent)
+                inner=QPainter(cell);collect=self.collect;self.collect=False
+                try:
+                    inner.setRenderHints(output.renderHints());inner.scale(w/xstep,h/ystep);inner.translate(-box.x(),-box.y())
+                    inner.setClipRect(box)
+                    self._interpret(self.document.decode(stream),self.document.resolve(attrs.get('Resources',resources)),inner,forms|{id(stream)},depth+1)
+                finally:self.collect=collect;inner.end()
+                self.tiles[key]=cell
+            result=QBrush(cell)
+            result.setTransform(QTransform(xstep/w,0,0,ystep/h,box.x(),box.y())*transform*current)
+            return result
         def brush(slot,output,background=False):
             pattern=state[slot+'pattern']
             if pattern is None:return None if background else converted(QBrush(state[slot]))
             from lumen_pdf_shading import brush as shading_brush
+            if isinstance(pattern[0],Stream):return None if background else tile(pattern,output)
             attrs,base=pattern;transform=QTransform(*numbers(attrs.get('Matrix',[1,0,0,1,0,0]),6))*base
             shade=self.document.resolve(attrs.get('Shading'))
             if background and (not isinstance(shade,dict) or 'Background' not in shade):return None
@@ -386,7 +495,7 @@ class Page:
                 bounds=glyph_transform.mapRect(rect)
                 layout_rect=(glyph_transform*to_layout).mapRect(rect)
                 layout_bbox=layout_rect if layout_bbox is None else layout_bbox.united(layout_rect)
-                if self.collect:self.characters.append((bounds,letter,state['mode'],angle,(glyph_transform*to_normal*straight).mapRect(rect)))
+                if self.collect and not self.hidden:self.characters.append((bounds,letter,state['mode'],angle,(glyph_transform*to_normal*straight).mapRect(rect)))
                 self.character_units+=len(letter)
                 if self.character_units>500000: raise PDFError('Zu viele PDF-Textzeichen auf einer Seite.')
                 matrix=QTransform(1,0,0,1,advance,0)*matrix
@@ -468,8 +577,10 @@ class Page:
                 if state[slot+'space']=='Pattern':
                     if len(a)!=1 or not isinstance(a[0],Name):raise PDFError('Ungültige PDF-Musterfarbe.')
                     pattern=self._resource(resources,'Pattern',a[0])
-                    if not isinstance(pattern,dict) or pattern.get('PatternType')!=2:raise UnsupportedPDF('PDF-Kachelmuster noch nicht unterstützt.')
-                    if pattern.get('ExtGState'):raise UnsupportedPDF('PDF-Verlaufsmuster mit eigenem Grafikzustand noch nicht unterstützt.')
+                    if isinstance(pattern,Stream) and pattern.attrs.get('PatternType')==1:
+                        if pattern.attrs.get('PaintType')!=1 or id(pattern) in forms:raise UnsupportedPDF('Ungefärbtes PDF-Kachelmuster noch nicht unterstützt.')
+                    elif not isinstance(pattern,dict) or pattern.get('PatternType')!=2:raise PDFError('Ungültiges PDF-Muster.')
+                    elif pattern.get('ExtGState'):raise UnsupportedPDF('PDF-Verlaufsmuster mit eigenem Grafikzustand noch nicht unterstützt.')
                     state[slot+'pattern']=(pattern,default_transform)
                 else:state[slot]=color(a,state[slot+'space'])
             elif op=='BT':
@@ -512,6 +623,7 @@ class Page:
                 if len(a)!=1 or not isinstance(a[0],Name): raise PDFError('Ungültiges PDF-XObject.')
                 obj=self._resource(resources,'XObject',a[0])
                 if not isinstance(obj,Stream): raise PDFError('PDF-XObject ist kein Stream.')
+                if not self._visible(obj.attrs.get('OC')):continue
                 if obj.attrs.get('Subtype')=='Image':
                     image=self._image(obj,resources,state['fill'])
                     if state['blendspace']=='DeviceGray':
@@ -523,13 +635,23 @@ class Page:
                 elif obj.attrs.get('Subtype')=='Form':
                     self._form(obj,resources,painter,forms,depth,state)
                 else: raise UnsupportedPDF('PDF-XObject-Typ noch nicht unterstützt.')
+            elif op in ('BX','EX'):pass  # compatibility markers; an operator this engine lacks is still refused by name
             elif op in ('BMC','BDC','EMC','MP','DP'):
-                # Marked content may carry ActualText/OC: refusing avoids wrong text
-                # selection or exposing a layer that should be hidden.
-                if op in ('BDC','DP'):
+                # A marked span can sit on a hidden layer, or carry the text to read in place of its glyphs.
+                if op=='BMC':marks.append((False,None,0))
+                elif op=='BDC':
                     if len(a)!=2:raise PDFError('Ungültige PDF-Inhaltsmarkierung.')
                     properties=self._resource(resources,'Properties',a[1]) if isinstance(a[1],Name) else a[1]
-                    if a[0]=='OC' or not isinstance(properties,dict) or 'ActualText' in properties:raise UnsupportedPDF('PDF-Ebenen oder ersetzender Markierungstext werden noch nicht unterstützt.')
+                    if not isinstance(properties,dict) or len(marks)>=64:raise PDFError('Ungültige PDF-Inhaltsmarkierung.')
+                    hide=a[0]=='OC' and not self._visible(properties);actual=self.document.resolve(properties.get('ActualText'))
+                    if actual is not None and not isinstance(actual,bytes):raise PDFError('Ungültiger PDF-Markierungstext.')
+                    self.hidden+=hide;marks.append((hide,None if actual is None else ''.join(c for c in pdf_string(actual) if unicodedata.category(c)!='Cf'),len(self.characters)))
+                elif op=='EMC' and marks:
+                    hide,actual,start=marks.pop();self.hidden-=hide;span=self.characters[start:]
+                    if actual is not None and self.collect and span:
+                        bounds=QRectF(span[0][0]);area=QRectF(span[0][4])
+                        for character in span[1:]:bounds=bounds.united(character[0]);area=area.united(character[4])
+                        self.characters[start:]=[(bounds,actual,span[0][2],span[0][3],area)] if actual.strip() else []
             elif op=='gs':
                 if len(a)!=1 or not isinstance(a[0],Name): raise PDFError('Ungültiger PDF-Grafikzustand.')
                 settings=self._resource(resources,'ExtGState',a[0])
@@ -545,6 +667,7 @@ class Page:
                         modes=value if isinstance(value,list) else [value]
                         chosen=next((m for m in modes if isinstance(m,Name) and m in BLENDS),None)
                         if chosen is None:raise UnsupportedPDF('PDF-Mischmodus noch nicht unterstützt: '+str(value))
+                        if state.get('flat') and chosen not in ('Normal','Compatible'):raise UnsupportedPDF('PDF-Mischmodus in nicht isolierter transparenter Gruppe noch nicht unterstützt.')
                         state['blend']=chosen;continue
                     if key=='SMask':
                         if value=='None':state['mask']=None
@@ -553,6 +676,18 @@ class Page:
                         else:raise PDFError('Ungültige PDF-Weichmaske.')
                         continue
                     if key=='SA' and type(value) is bool:state['adjust']=value;continue
+                    if key=='AIS' and type(value) is bool:
+                        # Alpha as shape only changes the result inside a knockout group.
+                        if value and state.get('knockout') is not None:raise UnsupportedPDF('PDF-Alpha als Form in Knockout-Gruppe noch nicht unterstützt.')
+                        continue
+                    # The same line settings as the w, J, j and M operators.
+                    if key in ('LW','ML'):
+                        numbers([value])
+                        if value<0 or key=='ML' and value<1:raise PDFError('Ungültige PDF-Linienangabe.')
+                        state['width' if key=='LW' else 'miter']=value;continue
+                    if key in ('LC','LJ'):state['cap' if key=='LC' else 'join']=integer(value,0,2);continue
+                    # Overprint only changes separations on a press; on screen without overprint preview it draws as usual.
+                    if key in ('OP','op') and type(value) is bool or key=='OPM' and value in (0,1):continue
                     if key=='SM':
                         numbers([value]);
                         if not 0<=value<=1:raise PDFError('Ungültige PDF-Kurvenglättung.')
@@ -571,6 +706,7 @@ class Page:
                 elif len(a)!=1 or not isinstance(a[0],Name): raise PDFError('Ungültige PDF-Renderingabsicht.')
             else: raise UnsupportedPDF('PDF-Grafikoperator noch nicht unterstützt: '+op)
         if operands or stack or text: raise PDFError('Unvollständiger PDF-Grafikstream.')
+        self.hidden-=sum(mark[0] for mark in marks)
 
     def _image(self,stream,resources=None,fill=None):
         from lumen_pdf_image import image
@@ -581,9 +717,10 @@ class Page:
         normal=QTransform(1,0,0,-1,-self.box.x(),self.box.bottom())
         to_normal=self.transform.inverted()[0]*normal
         to_display=to_normal.inverted()[0]
+        # Many writers position words without drawing a space; a tenth of the line height separates them, kerning stays below it.
         for displayed,letter,mode,angle,bounds in self.characters:
             if any(unicodedata.bidirectional(c) in ('R','AL','RLE','RLO','RLI') for c in letter):raise UnsupportedPDF('Rechts-nach-links-PDF-Text wird noch nicht zuverlässig gelesen.')
-            gap=previous is not None and (angle!=last_angle or abs(bounds.top()-previous.top())>max(2,bounds.height()*.4) or bounds.left()-previous.right()>max(2,bounds.height()*.15))
+            gap=previous is not None and (angle!=last_angle or abs(bounds.top()-previous.top())>max(2,bounds.height()*.4) or bounds.left()-previous.right()>max(1,bounds.height()*.1))
             if letter.isspace() or gap:
                 if text: words.append([rect.left(),rect.top(),rect.right(),rect.bottom(),text,0,0,last_angle]); text=''; rect=None
             if not letter.isspace(): text+=letter; rect=QRectF(bounds) if rect is None else rect.united(bounds)

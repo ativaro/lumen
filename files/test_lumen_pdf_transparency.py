@@ -98,6 +98,69 @@ class PDFTransparencyTest(unittest.TestCase):
             (80, 30, (128, 128, 255)), (5, 30, (255, 255, 255)),
         ])
 
+    def test_knockout_group_replaces_earlier_objects_with_its_backdrop(self):
+        writer = Writer()
+        form = writer.stream(b'1 0 0 rg 10 10 50 40 re f /Half gs 0 0 1 rg 40 10 50 40 re f',
+            Type=Name('XObject'), Subtype=Name('Form'), BBox=[0, 0, 100, 60],
+            Group={'S': Name('Transparency'), 'CS': Name('DeviceRGB'), 'K': True},
+            Resources={'ExtGState': {'Half': {'ca': .5}}})
+        writer.add_page(100, 60, b'/Group Do', {'XObject': {'Group': form}})
+        # Without knockout the overlap would mix blue into red: (128, 0, 128).
+        self.assert_pixels(Document(writer.bytes()), [
+            (20, 30, (255, 0, 0)), (50, 30, (128, 128, 255)), (80, 30, (128, 128, 255)),
+        ])
+
+    def test_group_that_is_not_isolated_takes_outer_opacity_once(self):
+        writer = Writer()
+        form = writer.stream(b'1 0 0 rg 10 10 50 40 re f 0 1 0 rg 40 10 50 40 re f',
+            Type=Name('XObject'), Subtype=Name('Form'), BBox=[0, 0, 100, 60],
+            Group={'S': Name('Transparency'), 'CS': Name('DeviceRGB')}, Resources={})
+        writer.add_page(100, 60, b'/Half gs /Group Do',
+            {'ExtGState': {'Half': {'ca': .5}}, 'XObject': {'Group': form}})
+        self.assert_pixels(Document(writer.bytes()), [
+            (20, 30, (255, 128, 128)), (50, 30, (128, 255, 128)), (80, 30, (128, 255, 128)),
+        ])
+
+    def test_coloured_tiling_pattern_repeats_its_cell(self):
+        writer = Writer()
+        cell = writer.stream(b'1 0 0 rg 0 0 10 20 re f', Type=Name('Pattern'), PatternType=1, PaintType=1,
+            TilingType=1, BBox=[0, 0, 20, 20], XStep=20, YStep=20, Resources={})
+        writer.add_page(100, 60, b'/Pattern cs /Tile scn 0 0 100 40 re f', {'Pattern': {'Tile': cell}})
+        self.assert_pixels(Document(writer.bytes()), [
+            (5, 10, (255, 0, 0)), (15, 10, (255, 255, 255)), (45, 30, (255, 0, 0)),
+            (55, 30, (255, 255, 255)), (45, 50, (255, 255, 255)),
+        ])
+
+    def test_graphics_state_sets_line_style_and_ignores_overprint(self):
+        writer = Writer()
+        writer.add_page(100, 60, b'/Line gs 20 30 m 60 30 l S',
+            {'ExtGState': {'Line': {'LW': 10, 'LC': 1, 'LJ': 1, 'ML': 4, 'OP': True, 'op': True, 'OPM': 1, 'AIS': False}}})
+        # The round cap reaches four units past the end of the line.
+        self.assert_pixels(Document(writer.bytes()), [
+            (40, 30, (0, 0, 0)), (17, 30, (0, 0, 0)), (63, 30, (0, 0, 0)), (12, 30, (255, 255, 255)),
+        ])
+
+    def test_layer_switched_off_by_default_is_neither_drawn_nor_read(self):
+        writer = Writer()
+        font = {'Type': Name('Font'), 'Subtype': Name('Type1'), 'BaseFont': Name('ArialMT'), 'Encoding': Name('WinAnsiEncoding')}
+        hidden = writer.add({'Type': Name('OCG'), 'Name': b'Entwurf'})
+        shown = writer.add({'Type': Name('OCG'), 'Name': b'Inhalt'})
+        stamp = writer.stream(b'0 1 0 rg 70 10 20 20 re f', Type=Name('XObject'), Subtype=Name('Form'),
+            BBox=[0, 0, 100, 60], OC=hidden, Resources={})
+        empty = writer.stream(b'0 1 0 rg 0 0 100 60 re f', Type=Name('XObject'), Subtype=Name('Form'),
+            BBox=[10, 10, 10, 30], Resources={})
+        writer.add_page(100, 60,
+            b'/OC /Off BDC 1 0 0 rg 10 10 20 20 re f BT /F1 8 Tf 10 50 Td (geheim) Tj ET EMC '
+            b'/OC /On BDC 0 0 1 rg 40 10 20 20 re f BT /F1 8 Tf 40 50 Td (sichtbar) Tj ET EMC /Stamp Do /Empty Do',
+            {'Font': {'F1': font}, 'Properties': {'Off': hidden, 'On': shown}, 'XObject': {'Stamp': stamp, 'Empty': empty}})
+        document = Document(writer.bytes())
+        document.catalog['OCProperties'] = {'OCGs': [hidden, shown], 'D': {'OFF': [hidden]}}
+        self.assert_pixels(document, [(20, 20, (255, 255, 255)), (50, 20, (0, 0, 255)), (80, 20, (255, 255, 255))])
+        # The font the file does not carry is replaced, and only the visible layer is read.
+        self.assertEqual(Page(document, 0).text(), 'sichtbar')
+        document.catalog['OCProperties']['D'] = {'BaseState': Name('OFF'), 'ON': [hidden]}
+        self.assertEqual(Page(document, 0).text(), 'geheim')
+
     def test_soft_masks_capture_gs_transform_and_none_removes_mask(self):
         for subtype in ('Alpha', 'Luminosity'):
             with self.subTest(subtype=subtype):

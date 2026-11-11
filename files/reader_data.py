@@ -11,7 +11,8 @@ from tools_data import ArticleParser, fetch_article
 MAX_FILE=200*1024**2
 
 
-ENGINE='lumen-1'
+# Raised whenever the engine reads other words from the same page, so that notes are anchored again by their quote.
+ENGINE='lumen-2'
 
 
 def validate_epub(path):
