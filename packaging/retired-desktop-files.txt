@@ -92,6 +92,8 @@ files/studio_context_bar.py
 files/studio_saved_results.py
 files/studio_workspaces.py
 files/sync_migration.py
+files/system_backups.py
+files/system_center.py
 files/tools_inbox.py
 files/tools_meeting_radio.py
 files/tools_meetings.py
@@ -102,6 +104,7 @@ files/translations/en/household-workspace.json
 files/translations/en/project-consolidation.json
 files/translations/en/projects-panorama.json
 files/translations/en/server-workspace.json
+files/translations/en/system-center.json
 files/translations/en/workplace-rooms.json
 files/vault_activation.py
 files/wissen_sync_assets.py
