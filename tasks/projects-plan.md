@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Der frühere lokale Projektbau und dessen Auslieferungsschritte sind abgelöst. Aktuelle Projekte verwenden die Server-App; alte Daten bleiben erhalten, ohne zugesicherten automatischen Import. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](../docs/desktop-retirement.md).
+
 # Lumen Projekte implementation
 
 Separate plan to preserve the other sessions' unfinished plans.

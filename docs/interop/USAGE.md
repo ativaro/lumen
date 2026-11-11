@@ -1,35 +1,19 @@
 # Lumen-Anwendungen verbinden
 
-Alle Tools beginnen sichtbar mit **Lumen**, einschließlich **Lumen Persönliches Radio** und **Lumen Projekt-Werkbank**.
+Eine Übergabe verbindet ausdrücklich gewählte Inhalte. Sie verschiebt nicht automatisch alle Daten und erteilt keine neuen Kontorechte. Ob das Ziel lokal oder eine Server-App ist, entscheidet der aktuelle App-Vertrag.
 
-## Einstieg
+## Lokale Inhalte weiterverwenden
 
-1. In Lumen Files eine Datei markieren und das Kontextmenü öffnen. Dokumente lassen sich direkt in Lumen Reader öffnen oder über die weiteren Lumen-Aktionen übernehmen.
-2. Den gewünschten Eintrag mit der rechten Maustaste öffnen. Passende Aktionen beschreiben das Ergebnis, beispielsweise **Als Notiz speichern …** oder **Zu einem Projekt hinzufügen …**. Einträge lassen sich auch direkt aus ihrer Liste in das Zielwerkzeug ziehen. Dort erscheint der passende Speicherdialog.
-3. Im Reader eine Textstelle markieren und **Als Notiz speichern …** wählen. In Lumen Wissen Titel und Notizordner prüfen. Die neue Notiz enthält einen Link mit Dokumentname und genauer Seite. In Wissen stehen weitere Aktionen auch im vorhandenen **Mehr**-Menü.
-4. Zusätzliche Entscheidungen erscheinen nur dort, wo sie etwas ändern: **Eigenständige Kopie speichern**, **Link zum Original speichern** oder **Mit der Originalnotiz aktuell halten**. Ein Datum erscheint bei Aufgaben und Terminen.
-5. Benannte Quellen öffnen wieder die ursprüngliche Stelle. **Letzte Aktionen …** zeigt wartende, erledigte und fehlgeschlagene Aktionen und erlaubt das Zurücknehmen unveränderter lokaler Übernahmen. Es ist über die Kontextmenüs, im Reader im Dokumentmenü und in Wissen unter Einstellungen erreichbar.
+In Lumen Files eine Datei auswählen und die passende Aktion unter **Mit Lumen bearbeiten** verwenden. Dokumente lassen sich lokal in **Lumen Reader** öffnen, Texte/PDFs in **Lumen Compose** bearbeiten und geeignete Belege dem lokalen **Haushalt** zuordnen. Die Zielansicht zeigt, was übernommen wird; reine Verweise lassen die Originaldatei unverändert.
 
-## Wissen und Sicherungen
+**Als Notiz speichern …**, **Zu einem Projekt hinzufügen …** und die unterstützten Audio-Studio-Übergaben führen in die jeweilige Server-App. Sie brauchen eine gültige Gerätebindung und die betroffenen Quellen-/Apprechte. Lokale Dateien sind am Server nicht automatisch lesbar. Wo erforderlich, muss eine Datei über den vorgesehenen Drive-/Kopierweg ausdrücklich bereitgestellt und geprüft werden. Öffnen, Vorschau und Speichern sind getrennte Schritte.
 
-In Lumen Wissen **Einstellungen → Notizbuch sichern …** wählen. Zuvor werden offene Änderungen gespeichert. Lumen Vault zeigt den Notizordner samt Bildern und vorhandenen Quellenverknüpfungen zur Prüfung; gemeinsame Lumen-Einstellungen und das Gedächtnis werden dabei nicht automatisch hinzugefügt. Einen vorhandenen Plan ergänzen oder einen neuen verschlüsselten Sicherungsplan anlegen. Der Zeitplan kann manuell, täglich oder wöchentlich sein. Ein neuer Plan bleibt standardmäßig manuell; **Jetzt sichern** startet die erste Sicherung sofort.
+Benannte Quellen öffnen den gespeicherten Objektverweis. Eine alte lokale Kennung ist jedoch kein gleichnamiger Serverdatensatz; fehlende Herkunft oder Rechte nicht durch einen ähnlichen Titel ersetzen. Unklare Übergaben erst nachlesen, bevor sie wiederholt werden.
 
-Die Notizbuch-Einstellungen zeigen den eingerichteten Rhythmus und den letzten erfolgreichen Sicherungslauf getrennt. Scheitert das Aktivieren eines Zeitplans, bleibt der Plan erhalten und zeigt den offenen Schritt an. **Zeitplan übernehmen** oder das erneute Öffnen der wartenden Aktion setzt die Einrichtung fort. Offene Lumen-Anwendungen bestätigen vor einer Sicherung das Speichern; Konflikte oder nicht erreichbare aktive Fenster brechen die Sicherung ab. Andere Änderungen während der Sicherung bleiben technisch möglich.
+## Sicherungen und Grenzen
 
-Wiederherstellungen erscheinen zunächst in einer getrennten Umgebung. Notizen lassen sich vor der Übernahme vergleichen; Inbox-Aufgaben und Entwürfe erhalten bei der Übernahme neue Kennungen und bleiben ungesendet. Eine Plananzeige allein beweist keine gesicherte Version einer bestimmten Datei: Dafür die Dateiversionen in Lumen Vault prüfen.
+Lokale Sicherungen liegen in **Lumen System → Sicherungen**, nicht mehr hinter dem normalen Server-Vault-Starter. Ein Plan oder ein alter Erfolgszeitpunkt allein beweist keine gesicherte Dateiversion. Eine Wiederherstellung mit dem getrennt aufbewahrten Schlüssel prüfen.
 
-## Nützliche Verbindungen
+Die frühere Liste von 100 lokalen Verbindungen unter [COVERAGE.md](COVERAGE.md) ist ein historischer Nachweis der damaligen nativen Apps. Sie bestätigt nicht, dass alle Wege nach der Server-Konsolidierung wieder vollständig angeschlossen sind. Insbesondere alte lokale Inbox-Aufgaben/Entwürfe, Projekt-Replikate und direkte Notes-Ordnerabläufe dürfen nicht als aktueller Offline-Weg beworben werden.
 
-- Reader-Markierungen und Buchstellen nach Wissen, Workbench, Radio oder als Inbox-Aufgabe übernehmen.
-- Mailanhänge im Reader öffnen, Rechnungen mit geprüften Feldvorschlägen dem Haushalt zuordnen und vollständige Threads mit Herkunft übernehmen.
-- Meeting-Aufgaben, Entscheidungen und offene Fragen an Inbox beziehungsweise Workbench weitergeben; Zeitlinks führen zur Aufnahme zurück.
-- Vertragsfristen als überprüfbare Kalenderentwürfe und Supportanfragen als ungesendete Mailentwürfe vorbereiten.
-- Projektfragen als Meeting-Agenda, Erkenntnisse als Wissensnotiz und ausgewählte Ergebnisse als Übergabepaket verwenden.
-
-## Grenzen
-
-Die [Abdeckungstabelle](COVERAGE.md) beschreibt alle 100 Abläufe und ihre jeweiligen Grenzen. Arbeitskontexte enthalten bis zu acht ausgewählte Verweise; mehrere Verweise auf dasselbe Tool werden in dessen bestehendem Fenster nacheinander geöffnet. Ein vollständiger Desktop-Sitzungsabzug wird nicht erstellt.
-
-Audiounterbrechungen und feste Gerätebindung sind ausdrücklich aktivierbar. Die feste Bindung ohne Lautsprecher-Fallback ist für PipeWire 1.6.9 mit WirePlumber 0.5.18 und separate USB-/Bluetooth-Ausgänge ohne Lautsprecherport geprüft. Bei anderen Konfigurationen gibt es nur periodische Trennungserkennung. Wiederhergestellte Audioregeln bleiben ausgeschaltet, bis Geräte bewusst neu zugeordnet und die Regeln aktiviert werden.
-
-Nach einem Programmupdate geöffnete Lumen-Fenster schließen und neu starten.
+Kein Übergabeklick versendet von sich aus eine E-Mail, aktiviert einen Zeitplan oder genehmigt ein Secret. Die Entscheidung bleibt bei der aktuellen Fachansicht. [Aktuelle App-Zuständigkeiten](../desktop-retirement.md) · [Notes](../../WISSEN.md) · [Projekte](../../PROJECTS.md) · [Vault und Inbox](../../VAULT-INBOX.md).

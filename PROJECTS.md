@@ -1,66 +1,30 @@
-# Lumen Projekte
+# Lumen Projekte auf dem Desktop
 
-Links stehen Projekte mit ihren Vorhaben, in der Mitte die Aufgaben, rechts der
-ausgewählte Inhalt. Ein Projekt kann mehrere Vorhaben enthalten, jedes Vorhaben
-mehrere Aufgaben. Notizen und Material lassen sich auf jeder Ebene anheften.
-Dateiverknüpfungen lassen die Originaldatei an ihrem Ort.
+Lumen Projekte ist eine gemeinsame **Server-App**, die der Desktop in einem eigenen Fenster öffnet. `lumen-workbench` bleibt der kompatible Starter; er startet keinen lokalen Projekt-Runner und keine zweite Projektdatenbank.
 
-| Aufgabenart | Verhalten |
-| --- | --- |
-| Manuell | Selbst bearbeiten und als erledigt markieren; bei Bedarf wieder öffnen. |
-| Recherche | Webquellen mit dem eingerichteten KI-Provider recherchieren. Deep Research ergänzt Gegenprüfung und abschließende Zusammenfassung. |
-| Analyse | Angeheftete Inhalte auswerten und das gewünschte Ergebnis erstellen. |
-| Automation | Recherche oder Analyse alle 60 Minuten, 24 Stunden oder 7 Tage wiederholen. |
+## Öffnen und arbeiten
 
-Aufgaben verwenden auch Notizen und Material ihres Projekts und Vorhabens.
-Unterlagen werden für den Lauf eingelesen; Textstände, Dateiprüfsummen,
-Arbeitsschritte und Ergebnisse bleiben im Ausführungsverlauf erhalten.
-Unterstützte Analysequellen: PDF, TXT, Markdown, CSV, Bilder mit OCR, HTML, EPUB
-und verknüpfte Lumen-Wissen-Notizen. Andere Dateien können angeheftet und geöffnet
-werden; für die Analyse ist ein unterstützter Auszug erforderlich. Pro Datei
-gelten 32 MB, insgesamt 120.000 Textzeichen.
+1. Lumen Server verbinden und unter **Geräte → dieses Gerät → Serverdaten** die Projektfreigabe prüfen.
+2. **Lumen Projekte** im App-Menü oder `lumen-workbench` öffnen.
+3. Ein vorhandenes Projekt wählen oder im gemeinsamen Projekteditor anlegen. Projekte fassen ausgewählte Materialien, Gespräche und Aufgaben zusammen.
+4. Quellen und Aufträge bewusst auswählen. Eine Verknüpfung startet keine Arbeit und erweitert keine Zugriffsrechte.
 
-Recherche und Analyse brauchen einen eingerichteten KI-Provider. Recherche
-verwendet die OpenCode-Websuche und Webabruf; andere Aktionswerkzeuge bleiben
-gesperrt. Angeheftete Quellen werden als Kontext an diesen Provider übergeben.
-Das allgemeine Lumen-Gedächtnis wird für Projektläufe nicht zusätzlich eingelesen.
-Die Webwerkzeuge und ihre Freigaberegeln entsprechen der
-[OpenCode-Dokumentation](https://opencode.ai/docs/tools/).
+Die sichtbaren Funktionen und Ausführungen stammen vom verbundenen Server. Persönliche Aufgaben, Fälligkeiten und Erinnerungen sowie vorhandene Code-Aktionen folgen dessen jeweiligen Freigaben. Ein abgeschlossener automatischer Lauf ist nicht automatisch eine vom Nutzer erledigte Aufgabe. [Server-Dokumentation](https://forge.example.invalid/ativaro/lumen-server/src/branch/main/docs/projects.md) (privater Zugang erforderlich).
 
-Im Lumen-Chat lassen sich gespeicherte Projekte, Vorhaben, Aufgaben und Ergebnisse
-abfragen, etwa „Wie steht mein Projekt?“ oder „Was hat die Recherche ergeben?“.
-Lumen kann dafür die aktuellen Projektdaten gezielt nachschlagen. Material wird
-als Verknüpfung angezeigt; das Nachschlagen allein liest keine Dokumentdateien
-ein und startet keine Aufgabe. Notizen des Projekts und Vorhabens können über die
-jeweilige übergeordnete Ebene gelesen werden. Archivierte Einträge werden auf
-Anfrage einbezogen. Nach Installation dieser Anbindung Lumen einmal vollständig
-schließen und neu öffnen, damit die Chat-Engine die neuen Werkzeuge lädt.
+## Quellen und Freigaben
 
-Unter „Ergebnisse“ lässt sich jeder Lauf auswählen. „Auftrag, Quellen und
-Arbeitsschritte ansehen“ zeigt den damaligen Kontext. Ergebnisse können als Notiz
-in Lumen Wissen gespeichert werden. Ein Rechtsklick auf ein Dokument bietet
-Lumen Reader an; Lumen Vault übernimmt die Projektbibliothek einschließlich
-Aufgaben und Verlauf sowie die angehefteten lokalen Dateien in einen geprüften
-Sicherungsplan. Eingehendes Material lässt sich direkt einem Projekt, Vorhaben
-oder einer Aufgabe zuordnen.
+Der Desktop kann ein ausgewähltes Material über den geprüften Übergabedialog an das Projekt geben. Lokale Pfade sind für den Server nicht automatisch lesbar. Eine benötigte Datei muss über den vorgesehenen Drive-/Kopierweg bewusst bereitgestellt werden; Herkunft und aktuelle Kontobindung werden geprüft. Projektmitgliedschaft allein gibt keine privaten Dateien oder Gespräche frei.
 
-Automationen beginnen erst nach Aktivierung. Der erste Lauf erfolgt nach dem
-gewählten Intervall; Intervalländerungen setzen diesen Zeitpunkt neu. Ein
-Benutzer-Timer prüft ungefähr jede Minute, auch bei geschlossenem Projektfenster.
-Der Benutzer muss angemeldet sein, die Bibliothek erreichbar und der Provider
-eingerichtet. Während der Hardware-Schonung werden Läufe verschoben. Verpasste
-Intervalle werden einmal nachgeholt. Abhängigkeiten müssen erledigt sein;
-gleichzeitige Doppelausführungen werden verhindert. Ein Abbruch, Fehler oder
-unterbrochener Lauf pausiert die Automation bis zur erneuten Aktivierung.
-Benachrichtigungen erscheinen nur bei verändertem Ergebnis oder Fehler.
+Im lokalen Lumen-Gespräch können passende Serverwerkzeuge verfügbar sein. Der eingerichtete Katalog und die aktuellen Gerätefähigkeiten sind maßgeblich; alte lokale `lumen_project_*`-Werkzeuge sind stillgelegt. Ein unklarer Schreib- oder Startausgang darf nicht blind wiederholt werden.
 
-Archivierte Vorhaben bleiben im Archiv ihres Projekts auffindbar. Bei
-archivierten Eltern zuerst das Projekt bzw. Vorhaben wiederherstellen.
-Automationen bleiben nach dem Archivieren ausgeschaltet.
+## Ohne Verbindung und vorhandene Daten
 
-Der bisherige Starter `lumen-workbench`, seine Desktop-Kennung und der lokale
-Speicher `lumen-tools/workbench` bleiben für bestehende Verweise erhalten.
-Die Anwendung heißt jetzt Lumen Projekte. Alte Notizen und Dateien bleiben
-erhalten; Fragen werden einmalig als manuelle Aufgaben übernommen. Angefangene
-Fragen bleiben als Entwurf im Projekt sichtbar. Es werden keine Beispielprojekte
-oder ungefragten KI-Aufträge in der persönlichen Bibliothek angelegt.
+Ohne erreichbaren Server oder Projektfreigabe bietet der Starter die Verbindungsprüfung an. Es gibt keinen stillen lokalen Ersatz und keinen zusätzlichen Offline-Projekteditor. Lokale Lumen-Gespräche, Dateien und Systemhilfe bleiben unabhängig nutzbar.
+
+Frühere Daten unter `lumen-tools/workbench` werden durch die Bereinigung alter Programmdateien nicht gelöscht. Sie werden dadurch aber auch nicht automatisch als neue Serverprojekte importiert. Alte Wiederholungsintervalle und lokale Projekt-Timer sind kein aktuelles Installationsrezept.
+
+## Technischer Weg
+
+`bin/lumen-workbench` → `files/tools_app.py` → `files/server_notes_app.py` → `files/server_app_window.py`. Die Sitzung ist an Server, Konto, Gerät und App gebunden und wird im selben Fenster erneuert. Ein App-Neustart oder Session-Refresh genehmigt und wiederholt keine Schreiboperation.
+
+[Desktop-Verantwortlichkeiten](docs/desktop-retirement.md) · [Server-App-Verbindung](docs/notes-server-desktop.md) · [Übergaben](docs/interop/USAGE.md)

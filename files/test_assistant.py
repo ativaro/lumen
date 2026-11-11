@@ -384,7 +384,7 @@ class AssistantTest(unittest.TestCase):
             backend = OpenCodeBackend(tmp)
             calls = []
             backend.refresh_sessions = lambda: None
-            def send(text, files=None, agent='build', title=None,memory_text=None,user_text=None):
+            def send(text, files=None, agent='build', title=None,memory_text=None,user_text=None,context_data=None):
                 self.assertIsNone(user_text, 'Generated file-action prompts must not become credential sources')
                 calls.append((text, agent, title))
                 backend.message_id = 'msg_action'

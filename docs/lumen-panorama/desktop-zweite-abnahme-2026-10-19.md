@@ -1,3 +1,5 @@
+> **Datierter Abnahmebeleg.** Quellpin, Screenshots und Laufzahlen gelten für den beschriebenen Kandidaten. Sie sind keine Prüfung einer heutigen Installation. Für aktuelle App-Zuständigkeiten gilt [Desktop-Verantwortlichkeiten](../desktop-retirement.md), für weitere Gestaltung [Panorama](standard.md).
+
 # Zweite gezielte Desktop-Abnahme · 19.10.2026
 
 Installiert nach Roots Sicht- und Sourceprüfung: Appkatalog und Einrichtung,

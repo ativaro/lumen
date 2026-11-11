@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Der lokale Workbench-Editor ist stillgelegt; der kompatible Starter lumen-workbench öffnet die Server-Projekte. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](docs/desktop-retirement.md).
+
 # workbench
 
 ## Ziel und Abnahme

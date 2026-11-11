@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Die 100 Bewertungen gehören zur Abnahme vom 03.10.2026, nicht zum heutigen Funktionsumfang. Die Server-Konsolidierung hat die früheren lokalen Empfänger ersetzt; aktuelle Wege und Grenzen stehen in USAGE.md. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](../desktop-retirement.md).
+
 # Abdeckung der 100 Verbindungen
 
 Geprüfter Stand 03.10.2026. **Umgesetzt** bezeichnet vorhandenen und geprüften Ablauf. **Teilweise** benennt konkrete Grenzen. Die beiden ursprünglichen Beispiele sind enthalten: Wissen → Vault über „Lumen verbinden“, Files → Reader direkt im Kontextmenü. Keine automatische Mailzustellung, Veröffentlichung, Modellabfrage oder aktivierte Audioautomatik.

@@ -5,6 +5,7 @@ import subprocess
 import sys
 import time
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock,patch
 from uuid import uuid4
@@ -61,7 +62,7 @@ class TopbarNotesTest(unittest.TestCase):
             with patch('server_notes_links.Context',return_value=context),patch('server_app_window._connection',return_value=({},())), \
                     patch('interop_dialogs.run_job',return_value=note) as capture:
                 script='import json;from topbar_context import read_note;print(json.dumps(read_note('+str(os.getpid())+')))'
-                process=subprocess.Popen([sys.executable,'-c',script],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+                process=subprocess.Popen([sys.executable,'-c',script],cwd=Path(__file__).parent,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
                 until=time.monotonic()+8
                 while process.poll() is None and time.monotonic()<until:self.app.processEvents();time.sleep(.01)
                 if process.poll() is None:process.kill()

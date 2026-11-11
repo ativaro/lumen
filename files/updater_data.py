@@ -12,8 +12,8 @@ import time
 from urllib.parse import urlsplit
 from lumen_i18n import tr, worker_environment
 
-REMOTE = 'https://forge.example.invalid/ativaro/lumen.git'
-PREVIOUS_OFFICIAL_REMOTE = 'https://github.com/ativaro/lumen.git'
+REMOTE = 'https://github.com/ativaro/lumen.git'
+SYSTEM_ROOT = Path('/usr/share/lumen')
 
 
 def data_root():
@@ -64,7 +64,7 @@ def run(args, *, cwd=None, timeout=None, env=None):
 
 
 def installations():
-    roots = [data_root(), Path('/usr/share/lumen')]
+    roots = [data_root(), SYSTEM_ROOT]
     own = Path(__file__).resolve().parent.parent
     if (own/'install.json').is_file() and own not in roots: roots.append(own)
     return [p for p in roots if (p/'files/app.py').is_file()]
@@ -74,7 +74,7 @@ def source_url():
     sources = set()
     for root in installations():
         value = read_json(root/'install.json').get('source_url')
-        if value is None or value == PREVIOUS_OFFICIAL_REMOTE:
+        if value is None:
             sources.add(REMOTE)
             continue
         if not isinstance(value, str): raise ValueError(tr('Ungültige Lumen-Update-Quelle.'))
@@ -184,7 +184,7 @@ def install_bundle(source, revision):
             raise ValueError(tr('Der Topbar-Helfer dieses Updates ist unvollständig. Die Installation bleibt unverändert.'))
     # Update every installed runtime; a newer user launcher must not mask an old
     # system copy. Existing installers preserve data and desktop preferences.
-    if Path('/usr/share/lumen') in roots:
+    if SYSTEM_ROOT in roots:
         run(['bash',str(source/'packaging/arch/build-package.sh')], cwd=source)
         packages = [Path(p) for p in run(['makepkg','--packagelist'], cwd=source/'packaging/arch', env={'LOCALSRC':'1'}).splitlines()]
         if len(packages)!=1: raise ValueError(tr('Das Update-Paket konnte nicht eindeutig bestimmt werden.'))
@@ -192,7 +192,7 @@ def install_bundle(source, revision):
         # Execute the new helper, even while this updater still runs the old code.
         run([str(source/'bin/lumen-desktop-setup'),'--refresh-decoration'], cwd=source)
     for root in roots:
-        if root == Path('/usr/share/lumen'): continue
+        if root == SYSTEM_ROOT: continue
         run(['bash',str(source/'install.sh'),'--no-mcp'], cwd=source,
             env={'PREFIX':str(root), 'LUMEN_SOURCE_REVISION':revision, 'LUMEN_SOURCE_URL':source_url()})
 

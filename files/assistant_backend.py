@@ -578,17 +578,7 @@ class OpenCodeBackend(QObject):
                 body['model'] = {'providerID': provider, 'modelID': name}
                 prepare_session()
             else:
-                self.request('GET', '/provider', callback=default_loaded)
-
-        def default_loaded(data):
-            from lumen_models import free_default
-            choice = free_default(data)
-            if not choice:
-                self.fail(tr('Kein verfügbares Gratis-Modell gefunden. Bitte ein Modell wählen oder einen Anbieter verbinden.')); return
-            self.settings.setValue('model', choice); self.settings.sync()
-            provider, name = choice.split('/', 1)
-            body['model'] = {'providerID': provider, 'modelID': name}
-            prepare_session()
+                self.fail(tr('Bitte zuerst ein Modell auswählen oder einen Anbieter verbinden.'))
 
         def local_config(config):
             def providers_loaded(data):
@@ -611,6 +601,28 @@ class OpenCodeBackend(QObject):
             self.request('GET', '/config/providers', callback=providers_loaded)
 
         def prepare_session():
+            if body['model']['providerID'] == 'opencode':
+                self.request('GET', '/provider', callback=opencode_access)
+            else:
+                create_session()
+
+        def opencode_access(data):
+            from lumen_models import anonymous_opencode
+            if not isinstance(data, dict) or not isinstance(data.get('all'), list):
+                raise ValueError('Invalid provider inventory')
+            if any(anonymous_opencode(provider) for provider in data['all']):
+                self.request('GET', '/config', callback=opencode_endpoint)
+            else:
+                create_session()
+
+        def opencode_endpoint(config):
+            from lumen_models import configured_opencode_endpoint
+            if configured_opencode_endpoint(config):
+                create_session()
+            else:
+                self.fail(tr('Der anonyme OpenCode-Zugang ist derzeit deaktiviert. Bitte einen Anbieter verbinden oder ein eingerichtetes Modell wählen.'))
+
+        def create_session():
             if self.session:
                 submit()
             else:

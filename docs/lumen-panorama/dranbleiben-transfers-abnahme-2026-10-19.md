@@ -1,3 +1,5 @@
+> **Datierter Abnahmebeleg.** Quellpin, Screenshots und Laufzahlen gelten für den beschriebenen Kandidaten. Sie sind keine Prüfung einer heutigen Installation. Für aktuelle App-Zuständigkeiten gilt [Desktop-Verantwortlichkeiten](../desktop-retirement.md), für weitere Gestaltung [Panorama](standard.md).
+
 # Lumen Files: Dranbleiben bei unterbrochenen Kopien
 
 Installiert und im aktuellen zusammengesetzten Runtime-Stand unabhängig abgenommen am19.10.2026. Bei einer unterbrochenen unterstützten nativen Kopie ist Melden, wenn es weitergeht standardmäßig aus. Nach ausdrücklichem Einschalten prüft Lumen nur diese Kopie und meldet erreichbares ursprüngliches Ziel beziehungsweise nötige Prüfung. Fortsetzen bleibt eine ausdrückliche Benutzeraktion und prüft vorhandene Teile erneut; keine automatische Wiederholung oder Schreibaktion am Kopierziel. In einer Stunde verschiebt die nächste Prüfung, Ausschalten zieht die zugehörige Meldung zurück. Übertragungs-Verweise öffnen nur den exakten gespeicherten Vorgang. Alte/ungebundene oder unbekannte Empfänger melden einen sichtbaren Fehler statt den Verweis still anzunehmen.

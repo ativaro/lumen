@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Die damaligen nativen Projekteditoren und Tests sind stillgelegt. Der aktuelle Projekte-Starter verwendet die gemeinsame Server-App. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](desktop-retirement.md).
+
 # Lumen Projekte: gemeinsame Themes
 
 Projektübersicht, Journal, Quellenauswahl und Bearbeitungsdialoge verwenden die

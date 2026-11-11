@@ -23,9 +23,9 @@ Popup {
     readonly property int seconds:focusState.end?Math.max(0,Math.ceil(focusState.end-now/1000)):focusState.remaining||0
     readonly property bool quiet:notifications.notificationsInhibitedUntil.getTime()>now
     readonly property var player:controller.players.find(p=>p.id===selectedPlayer)||controller.players[0]||null
-    readonly property string title:page==="windows"?translate("Deine offenen Fenster"):page==="recent"?translate("Dort weitermachen"):translate("Alles im Blick")
+    readonly property string title:page==="windows"?translate("Deine offenen Fenster"):page==="recent"?translate("Dort weitermachen"):translate("Auf einen Blick")
     popupType:Popup.Item;focus:true;padding:24
-    closePolicy:Popup.CloseOnEscape|Popup.CloseOnPressOutside
+    closePolicy:Popup.CloseOnEscape|Popup.CloseOnPressOutsideParent
     height:Math.min(implicitHeight,heightLimit)
     background:Rectangle {color:menu.connected?"transparent":menu.colors.window;radius:menu.colors.radius||10;border.color:menu.connected?"transparent":menu.colors.border
         Rectangle {visible:menu.connected;anchors.top:parent.top;width:parent.width;height:1;color:menu.colors.border}}

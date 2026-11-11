@@ -64,7 +64,7 @@ qml=host/'contents/ui/main.qml';qml.write_text(qml.read_text().replace('/usr/bin
 for name in ('A','B','Empty','Browser'):
     title='Lumen Notes' if name=='A' else 'Lumen Menütest '+name
     (profile/'data/applications'/('lumen-menu-test-'+name.lower()+'.desktop')).write_text(
-        '[Desktop Entry]\nType=Application\nName='+title+'\nExec=python3 /qa/fixture.py '+name+'\nIcon=application-x-executable\nNoDisplay=true\n')
+        '[Desktop Entry]\nType=Application\nName='+title+'\nExec=python3 /qa/fixture.py '+name+'\nIcon=application-x-executable\nStartupNotify=false\nNoDisplay=true\n')
 (profile/'data/applications/lumen-topbar-program-test.desktop').write_text('[Desktop Entry]\nType=Application\nName=Lumen Testprogramm\nExec=/usr/bin/touch /profile/program-started\nIcon=application-x-executable\nCategories=Utility;\nActions=NewWindow;\n[Desktop Action NewWindow]\nName=Neues Testfenster\nExec=/usr/bin/touch /profile/program-new-window\n')
 (profile/'config/kded6rc').write_text('[Module-bluedevil]\nautoload=false\n[Module-baloo]\nautoload=false\n')
 command=['bwrap','--unshare-all','--die-with-parent','--new-session','--clearenv',
@@ -73,7 +73,14 @@ command=['bwrap','--unshare-all','--die-with-parent','--new-session','--clearenv
     '--proc','/proc','--dev','/dev','--tmpfs','/tmp','--bind',str(profile),'/profile',
     '--ro-bind',str(REPO),'/source','--ro-bind',str(build),'/build',
     '--ro-bind',str(REPO/'tests/desktop'),'/qa','--chdir','/profile']
+# The hot-install check needs a fresh Plasma instance, even on a host running Lumen.
+system_applet = Path('/usr/share/plasma/plasmoids/org.lumen.notificationhost')
+if system_applet.is_dir():
+    command.extend(['--tmpfs', str(system_applet)])
+
 if Path('/dev/dri').is_dir():command+=['--dev-bind','/dev/dri','/dev/dri']
+for device in [Path('/dev/nvidiactl'), *Path('/dev').glob('nvidia[0-9]*')]:
+    if device.is_char_device():command+=['--dev-bind',str(device),str(device)]
 env=dict(ASAN_OPTIONS='detect_leaks=0:abort_on_error=1:log_path=/profile/asan',
     LUMEN_QA_HOT_HOST='1',LUMEN_QA_SURFACE_ONLY='1' if args.surface_only else '',
     PATH='/profile/bin:/usr/bin' if args.shortcuts else '/usr/bin',HOME='/profile/home',USER='Ativaro',XDG_CONFIG_HOME='/profile/config',XDG_DATA_HOME='/profile/data',

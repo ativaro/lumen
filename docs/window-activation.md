@@ -8,7 +8,7 @@ begrenzen das Ziel. Liegt das Fenster auf einem anderen virtuellen Desktop,
 wechselt KWin dorthin. Andere Desktops verwenden die normale Qt-Aktivierung.
 
 `files/lumen_activation.py` bündelt diesen Weg für Desktop, Suche, System/Sound,
-alle nativen Tool-Fenster, Vault-Vorschau sowie Files, Updater und Companion.
+lokale Tool-Fenster und Server-App-Hosts sowie Files, Updater und Companion.
 Der native C++-Vault verwendet denselben Helfer. Seine Sperr- und Freigabewege
 bleiben bestehen; eine Aktivierung entsperrt keinen Tresor und bestätigt nichts.
 
@@ -25,7 +25,14 @@ Explizite Auftrags-, Bereichs- und Übergabelinks behalten ihre Navigation.
 Bewusst neue Gesprächskontexte und einzelne Freigabe-/Aufnahmedialoge behalten
 ihre eigenständigen Fenster. Das KDE-Benachrichtigungszentrum bleibt ein Panel.
 
-## Prüfung
+## Historische Prüfung vom 08.10.2026
+
+Die folgenden Befehle und Module gehören zur damaligen Appstruktur. Einige
+Tests für native Notes-, Projekt- und Audiofenster wurden mit deren Stilllegung
+entfernt. Für heutige Host- und Aktivierungsprüfungen vorhandene
+`test_server_app*.py`, `test_lumen_activation.py` und
+`test_desktop_retirement.py` auswählen; alte persönliche Prozesse oder
+Verzeichnisse nicht aus diesem Beleg rekonstruieren.
 
 ```sh
 QT_QPA_PLATFORM=offscreen PYTHONPATH=files python3 -m unittest \

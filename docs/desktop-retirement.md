@@ -1,6 +1,6 @@
 # Lumen Desktop: gemeinsame Server-Apps, lokale Fähigkeiten
 
-Stand: 21.10.2026. Notes, Projects, Code, Audio Studio, Vault und Inbox öffnen
+Quellvertrag der veröffentlichten Desktoplinie; aktuelle Zuordnung: Notes, Projects, Code, Audio Studio, Vault und Inbox öffnen
 über `tools_app.py`/`code_app.py` den privaten `server_notes_app.py`-Host.
 `server_app_window.py` verwendet die bestehende geräte- und kontogebundene Sitzung.
 Die Fachlogik und Oberflächen dieser sechs Apps werden auf dem Server gepflegt.
@@ -27,3 +27,22 @@ Zugangsdaten und bestehende Rechte werden durch diese Codebereinigung nicht geä
 Server-Starter, den nativen Haushalt, den verbleibenden Datenhelfer sowie die
 Updatebereinigung einschließlich Symlink-Abbruch und Datenerhalt. Die vorhandenen
 Server-Handoff-, Rechte-, Gedächtnis-, Datei- und Sicherungstests bleiben maßgeblich.
+
+## Installation, Offline und Kompatibilität
+
+Der [Benutzerinstaller](../INSTALL.md) liefert die aktuellen Starter. Die normale
+Vault-App wird nicht durch eine vorhandene Laborinstallation ersetzt;
+`lumen-vault --lab` bleibt der ausdrückliche Laborweg, `--backups` führt zu
+Lumen System. `lumen-wissen --area lumen` öffnet das lokale Gedächtnis, während
+der normale Notes-Aufruf zum Server führt. Compose bleibt lokal; der private
+Compose-Text-Pilot ist kein allgemein freigeschalteter Serverersatz.
+
+Vorhandene lokale Notes-/Projekt-/Inbox-/Audio-Daten werden nicht gelöscht.
+Sie werden aber auch nicht durch die bloße Installation automatisch importiert.
+Alte handschriftliche Angaben zu Rooms, lokalen Projekt-Timern und
+Notes-Ordnersynchronisation beschreiben keinen weiteren Produktmodus.
+
+Reguläre Desktop-Gespräche, tiefe Analysen ausgewählter Dateien und genehmigte
+Systemaktionen bleiben ohne Lumen Server verfügbar. Der eingerichtete Anbieter
+und seine Rechte bestimmen die KI-Ausführung. Ein verbundener Server erweitert
+diesen Umfang, ohne pauschal die lokale Festplatte lesen zu dürfen.

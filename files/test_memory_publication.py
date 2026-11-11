@@ -61,14 +61,15 @@ class MemoryPublicationTest(unittest.TestCase):
             if calls == 2:
                 raise OSError('Interrupted before final approval')
             return save(note, meta, records)
-        def rescope_after_snapshot():
+        def rescope_after_snapshot(_memory, _query):
             with patch.object(self.memory, 'save_record', side_effect=interrupted):
                 with self.assertRaises(OSError):
                     self.memory.remember('Secret', 'Private alpha detail', scope=str(self.alpha),
                                          path=original['path'], expected=original['hash'])
-            return []
-        with patch('lumen_connect.memory_stamp', return_value='synthetic'), patch('lumen_connect.shared_memories', side_effect=rescope_after_snapshot):
+            return [], None
+        with patch('lumen_connect.memory_stamp', return_value='synthetic'), patch('knowledge_context.fetch', side_effect=rescope_after_snapshot) as fetch:
             result = self.memory.prepare('Private alpha detail', str(self.beta))
+        fetch.assert_called_once()
         self.assertEqual(self.memory.book.read(original['path'])['hash'], original['hash'])
         self.assertEqual(result['context'], '')
         self.assertEqual(result['notes'], [])

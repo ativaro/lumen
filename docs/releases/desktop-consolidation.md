@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Dieser eingefrorene frühere Kandidat wurde durch spätere Veröffentlichungen und die Server-App-Konsolidierung abgelöst. Seine Sourcepins und Testzahlen sind keine Aussage über einen heutigen Rechner. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](../desktop-retirement.md).
+
 # Desktop consolidation candidate
 
 Status: integrated source candidate for independent review and isolated installation tests; not yet published.

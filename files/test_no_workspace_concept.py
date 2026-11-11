@@ -83,8 +83,9 @@ PLASMA_FILES = ('INSTALL.md', 'SPEC-appmenu.md', 'packaging/arch/PKGBUILD')
 ALLOWED = (
     *(allow(path, KWIN_API, KWIN_REASON) for path in KWIN_FILES),
     *(allow(path, PLASMA_PKG, PLASMA_REASON) for path in PLASMA_FILES),
-    allow('plasmoid/contents/ui/NotificationHost.qml', r'\borg\.kde\.plasma\.workspace\b',
-          'QML import of the KDE module org.kde.plasma.workspace.dbus, an upstream name.'),
+    *(allow(path, r'\borg\.kde\.plasma\.workspace\b',
+            'QML import of the KDE module org.kde.plasma.workspace.dbus, an upstream name.')
+      for path in ('plasmoid/contents/ui/NotificationHost.qml', 'plasmoid/contents/ui/NotificationToast.qml')),
     allow('packaging/GOOGLE_DRIVE.md', r'developers\.google\.com/workspace\b',
           'Google publishes its Drive API documentation under developers.google.com/workspace.'),
     allow('*', r'\bGoogle Workspace\b',
@@ -113,8 +114,6 @@ ALLOWED = (
             'and old records or requests with the retired field that must be refused.')
       for path in ('files/test_desktop_backend.py', 'files/test_sync_identity.py', 'files/test_sync_settings.py',
                    'files/test_drive_http.py', 'files/test_drive_mcp.py', 'files/test_drive_outdated.py')),
-    allow('README.md', r'\bleave room for\b',
-          'English idiom for spare capacity (retained update runs), not the room model.'),
     allow('files/translations/en/troubleshooter.json', r'\bMake room so\b',
           'English idiom for freeing disk space, not the room model.'),
     allow('files/translations/en/desktop-workbench.json', r'\bRoom for your result\b',

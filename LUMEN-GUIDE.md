@@ -1,7 +1,8 @@
 # Lumen benutzen
 
-Lumen ist die KI-Erweiterung für CachyOS mit gemeinsamen Einstellungen und
-Integrationen. **Lumen** im Panel oder `lumen` öffnet den Assistenten.
+Lumen Desktop verbindet Gespräche, Dateien und Systemhilfe auf deinem Linux-Rechner.
+Für tiefe Gespräche, Inhaltsanalyse und genehmigte Systemaktionen genügt der Desktop
+mit einem funktionierenden KI-Anbieter; Lumen Server ist dafür nicht erforderlich. **Lumen** im Panel oder `lumen` öffnet den Assistenten.
 **Lumen Files** beziehungsweise `lumen-files` öffnet den eigenständigen
 Dateimanager, auch direkt mit einem lokalen Ordner oder einer Netzwerkadresse.
 Der Assistent behält zusätzlich den Dateibereich unter `lumen --page files`.
@@ -54,7 +55,7 @@ mit den verfügbaren Ausführungswerkzeugen bearbeitet. Lumen soll dafür keinen
 separaten Entwurf anlegen und dich nicht zur Freigabe in die Auftragsansicht
 schicken. Erforderliche Werkzeugfreigaben bleiben im Gespräch; Administratorrechte
 werden über den grafischen Systemdialog angefragt. Ein ausdrücklich gewünschter
-gespeicherter Entwurf oder späterer Ablauf behält seine eigene Freigabe.
+gespeicherter Entwurf behält seine eigene Freigabe.
 Die Paketnamen und das Ergebnis müssen geprüft werden; ein Snapshot setzt eine
 tatsächlich vorhandene und geeignete Snapshot-Konfiguration voraus.
 
@@ -77,27 +78,24 @@ nächsten Schritt. Währenddessen wird der Auftragsprozess beim Schließen nicht
 abgeschossen. Snapper verwendet die Root-Konfiguration: persönliche Ordner sind
 nicht automatisch enthalten, und ein Snapshot ist kein unabhängiges Backup.
 
+## Gemeinsame Apps und lokales Gedächtnis
+
+Notes, Projekte, Code, Inbox, Audio Studio und Vault öffnen die verbundenen
+Server-Apps. Ohne Serververbindung oder Gerätefreigabe gibt es keinen stillen
+lokalen Ersatz. Der lokale Gedächtniseinstieg ist davon getrennt.
+[Notes und Gedächtnis](WISSEN.md) · [App-Verantwortlichkeiten](docs/desktop-retirement.md).
+
 ## Wissen
 
 `lumen_knowledge` kann freigegebene Wissensordner für Anfragen durchsuchen;
 Auszüge gehen dabei an das gewählte Modell. Es gibt kein heimliches Indexieren
 des gesamten persönlichen Ordners.
 
-## Abläufe
+## Dateiaktionen
 
-In der Aufgabenansicht einen Auftrag **als Ablauf speichern**; die Schritte
-lassen sich dabei anpassen.
-Auslöser: manuell, Zeitintervall oder Änderungen an direkten Einträgen eines
-freigegebenen Ordners. Die Beobachtung ist nicht rekursiv. Änderungen werden bei
-der nächsten Prüfung zusammengefasst; verpasste Intervalle werden nicht mehrfach
-nachgeholt. Die Hintergrundprüfung läuft über `lumen-jobs.timer`.
-Eine Pause des Ablaufs verhindert neue Aufträge; bereits angelegte Aufträge
-werden separat pausiert/abgebrochen.
-
-Datei- und Diagnoseabläufe können mit der gespeicherten Freigabe im Hintergrund
-laufen. KI-Aufträge sowie Desktop- und Systemaktionen werden als **Braucht dich**
-bereitgelegt und im Vordergrund gestartet. So bleiben Werkzeugrückfragen und
-Authentifizierung sichtbar. Neue/angepasste Schritte benötigen erneut Freigabe.
+In der Auftragsansicht einen Auftrag **Als Dateiaktion** speichern. Dateiaktionen
+starten nur auf Knopfdruck. Automationen mit Zeitplan oder Ordnerbeobachtung
+laufen auf Lumen Server, nicht auf dem Desktop.
 
 ## Modelle, Ressourcen und Kontext
 
@@ -135,9 +133,11 @@ Verweise auf Dateien. **Lumen Projekte** bündelt zugehörige Materialien, Gespr
 und Aufgaben; Quellen werden dort getrennt von Titel, Zielen und initialen
 Notizen verwaltet. Projekte sind keine globale Umgebungsauswahl.
 
-Unter **Einstellungen → Darstellung** stehen **Klar & hell**, **Warmes Studio**,
-**Graphit** und der KDE-Systemstil für beide Apps bereit. Die Auswahl aktualisiert
-offene Fenster und lässt das Desktop-Theme unverändert.
+Die vier Produkt-Themes **Glas**, **Graphit**, **Atelier** und **Mitternacht** folgen
+Panorama. Vorhandene System-/Kompatibilitätswerte sind keine zusätzlichen
+Designrichtungen. Die jeweilige Einstellungsaktion bestimmt, ob nur Appfarben
+oder ausdrücklich auch Plasma und Fensterdekoration geändert werden.
+[Verbindlicher Designstandard](docs/lumen-panorama/standard.md).
 
 Lumen beendet Such-/Vorschauzugriffe und löst Dateimodell-Watcher beim Schließen.
 Nach dem Schließen des letzten Netzwerk-Tabs werden unbenutzte lokale

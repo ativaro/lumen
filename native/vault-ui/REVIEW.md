@@ -1,3 +1,5 @@
+> **Geltungsbereich:** Diese Entwicklungs- und Prüfunterlagen betreffen die separat eingerichtete native Tresor-Vorabversion. Der reguläre Desktop-Starter öffnet heute die Server-Vault-App; `--lab` ist ausdrücklich getrennt, `--backups` führt zu Lumen System. Frühere UI-/Installationszustände sind historische Belege, keine neue Sicherheits- oder Releasefreigabe. [Aktuelle App-Zuordnung](../../docs/desktop-retirement.md).
+
 # Review handoff — release remains closed
 
 Scope: native/vault-core + native/vault-ui, launcher `--lab`, optional native

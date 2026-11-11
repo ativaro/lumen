@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Diese datierte Abnahme gehört zum damaligen Kandidaten. Enthaltene lokale Notes-/Projekt-/Code-/Audio-Editoren sind inzwischen durch Server-Apps ersetzt; nur die Gestaltungsentscheidung bleibt als Referenz bestehen. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](../desktop-retirement.md).
+
 # Lumen Notes und System: Startkorrektur vom 18.10.2026
 
 Notes beendete sich im echten Starter mit SIGSEGV. Direkte Fenstertests hatten die normale QApplication verwendet und den globalen Python-Ereignisfilter des eigentlichen Starts nicht abgedeckt. Der Filter ist jetzt ein separates QObject und wird ausschließlich an Files-/Galerie-Widgets angebracht. Die Maus-/Tastatur-Navigation bleibt bestehen; WebEngine-interne Quick-Fenster werden nicht mehr global durch Python gewrappt. Gegenproben: alter Starter reproduzierbar Exit139; normale QApplication ohne globalen Filter und neue gezielte Filterung starten und schließen erfolgreich.

@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Bibliotheken und Sammelfläche bestehen weiter. Die alten Theme-Namen sind überholt und dürfen nicht wieder eingeführt werden. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](docs/desktop-retirement.md).
+
 # File spaces — approved in chat, 2026-09-30
 
 The user approved the suggested libraries and shelf, and added a request for

@@ -1,3 +1,5 @@
+> **Datierter Abnahmebeleg.** Quellpin, Screenshots und Laufzahlen gelten für den beschriebenen Kandidaten. Sie sind keine Prüfung einer heutigen Installation. Für aktuelle App-Zuständigkeiten gilt [Desktop-Verantwortlichkeiten](../desktop-retirement.md), für weitere Gestaltung [Panorama](standard.md).
+
 # Fensterzeichen Fein
 
 Der Nutzer hat am 19.10.2026 den Entwurf **Fein** freigegeben und den Einbau

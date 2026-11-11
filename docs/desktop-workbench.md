@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Die lokalen Notes-/Projekt-/App-Proben sind damalige Abnahmen. Die heutigen sechs gemeinsamen Produktiv-Apps verwenden den Server-Host. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](desktop-retirement.md).
+
 # Lumen Werkbank
 
 Die Desktop-Werkbank verbindet das Gespräch mit der aktuellen Antwort und

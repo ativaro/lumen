@@ -1,571 +1,266 @@
-# Lumen — AI-first desktop for CachyOS
+# Lumen Desktop
 
-**License: proprietary [Lumen EULA](LICENSE).** Personal and internal business use
-are allowed; redistribution, resale and commercial derivatives require prior
-written permission. [Third-party rights and release constraints](THIRD_PARTY_NOTICES.md) remain applicable.
+**Wir bauen ein System, das für dich arbeitet.**
 
-## Install → setup wizard
+Wir bauen Lumen, weil wir uns einen Computer wünschen, mit dem sich die eigene Arbeit leichter anfühlt. Einen, dem du erzählen kannst, was du vorhast. Mit dem du einer Idee nachgehst, dich durch ein Problem arbeitest und am Ende etwas geschafft hast.
 
-**Arch/CachyOS · KDE Plasma 6 · run as your normal user.**
-This release is published **privately on Forgejo**. Your Forgejo account must have
-access to `ativaro/lumen` at `forge.example.invalid`; this address must be reachable from the
-computer being installed. The GitHub repository is not updated for this release.
+Lumen beginnt mit einem Gespräch. Du kannst laut denken, Fragen stellen, widersprechen und deine Richtung ändern. Dabei kann Lumen mit dem arbeiten, was deine Aufgabe ausmacht: deinen Dateien, deinen Daten, deinen Programmen und deinem Rechner. Es kann Zusammenhänge untersuchen, Dinge verständlich machen und selbst Arbeitsschritte ausführen. Du beschreibst auf deine Art, was du erreichen möchtest. Lumen fragt nach, wenn etwas fehlt, und arbeitet mit dir weiter.
 
-Install Git if needed, then clone and run the installer as your normal user:
+Dafür haben wir Lumen direkt in den Desktop gebracht. Im eigenen Dateimanager liegen deine Inhalte und das Gespräch darüber nebeneinander. Aus einer Benachrichtigung kann der nächste Schritt entstehen. Wenn etwas auf deinem Rechner hakt, kann Lumen mit dir nach der Ursache suchen und bei der Behebung helfen. Wenn für deine Arbeit ein Programm fehlt, kann es die Installation übernehmen. Was zusammengehört, bleibt so auch beim Arbeiten zusammen.
+
+Du gibst die Richtung vor und bestimmst, welche Zugriffe und Änderungen du erlaubst. Lumen soll dir den Rücken freihalten und dir helfen, mehr von dem umzusetzen, was dir wichtig ist.
+
+**Das ist Lumen Desktop. Auf deinem Rechner, mit deinen Inhalten, für deine Vorhaben.**
+
+Und wenn du Lumen noch stärker in deinen Alltag einbinden möchtest, verbinde deinen Desktop mit Lumen Server. Deine Notizen, Projekte und Aufgaben kommen zusammen, und Lumen kann wiederkehrende Arbeit für dich übernehmen – auch während du nicht am Rechner sitzt. Mit Lumen Mobile hast du Lumen unterwegs dabei: Gedanken festhalten, auf deine Inhalte zugreifen und später am Computer weiterarbeiten. So wird aus der Hilfe am Desktop ein Begleiter für deinen Alltag.
+
+**Installiere Lumen und bring deine erste Aufgabe mit.**
+
+## Installation
+
+**Aktueller Zugang:** Der Quellstand wird privat auf [GitHub](https://github.com/ativaro/lumen) verteilt. Ein öffentlicher Desktop-Download ist noch nicht freigegeben. Es gelten die [Lumen-EULA](LICENSE) und die [Lizenzen der enthaltenen Komponenten](THIRD_PARTY_NOTICES.md).
+
+### Voraussetzungen
+
+Für den vollständigen Desktop: **Arch Linux oder CachyOS mit KDE Plasma 6**, angemeldet als normaler Benutzer in einer grafischen Sitzung. Der Installer installiert keine Linux-Distribution und keinen Plasma-Desktop. Du brauchst Internet für fehlende Pakete und die Einrichtung; Paketinstallationen können dein Linux-Passwort verlangen.
+
+Für den derzeitigen Download brauchst du Zugriff auf das private Repository [ativaro/lumen auf GitHub](https://github.com/ativaro/lumen) und eine Internetverbindung. Eine Anmeldung im Browser meldet Git im Terminal nicht automatisch an. Verwende deinen eingerichteten Git-Zugang oder die Anmeldeabfrage von Git; schreibe keine Zugangsdaten in Befehle oder Repository-URLs.
+
+### Installieren und einrichten
+
+Öffne ein Terminal in deiner Plasma-Sitzung. Installiere Git, falls es fehlt:
 
 ```bash
 sudo pacman -S --needed git
-git clone --branch main --single-branch https://forge.example.invalid/ativaro/lumen.git && bash lumen/bootstrap.sh
 ```
 
-Git uses your configured credential helper or asks for your Forgejo credentials.
-Use a repository-read token if your Forgejo authentication requires one. Never
-embed a token in the URL, command, documentation or a support message. Keep
-`ativaro` in the URL: it is the repository owner. Only dependency installation
-uses `sudo`; its password belongs to the local Linux account.
-
-The installer prepares missing dependencies, installs Lumen locally and opens
-the graphical wizard for AI, speech and desktop setup. Git authentication is
-handled by your Git credential helper; never put a token in the command or README.
-If authentication fails, confirm repository access in Forgejo and the local Git credential helper.
-Desktop panels, wallpapers and decorations are included; activate them in the
-wizard when ready. See [installation and recovery](INSTALL.md).
-
-## Update → one command
-
-For an existing Lumen installation, run from **any directory as your normal user**.
-No installed Updater or original installation checkout is needed:
+Wechsle in einen Ordner, in dem noch kein Unterordner `lumen` existiert, und starte **ohne sudo**:
 
 ```bash
-(d="$(mktemp -d)" && trap 'rm -rf -- "$d"' EXIT && git clone --depth 1 --branch main --single-branch https://forge.example.invalid/ativaro/lumen.git "$d/lumen" && bash "$d/lumen/bin/lumen-updater")
+git clone --branch main --single-branch https://github.com/ativaro/lumen.git
+bash lumen/bootstrap.sh
 ```
 
-This downloads the latest **Lumen Updater** into a temporary directory and opens it.
-The temporary download is removed when the Updater closes. Review the selection and
-click **Update all / Alles aktualisieren**. It updates installed Lumen apps,
-panels, themes, the compatible engine and installed local extensions without
-reopening the setup wizard. Your data, vault, settings and valid models are retained.
-Git, access to the private Forgejo repository and the existing Lumen Qt/Python
-runtime are required. Run this inside your KDE desktop session, without `sudo`.
+Der Installer richtet die Programme für deinen Benutzer ein und öffnet **Lumen einrichten**. Dort kannst du:
 
-Already have the Updater installed? Run `lumen-updater` from any directory, or open
-**Lumen → Updater** in the top panel, **Lumen Apps → Lumen Updater**, or
-**Settings → Maintenance**. The update source is recorded by the installer; a Forgejo installation follows Forgejo.
-Installations without recorded provenance and installations from the former official GitHub URL
-now follow Forgejo. Explicit custom repositories keep their own update channel and cache.
+1. Deinen KI-Anbieter und ein Modell auswählen. Ein vorhandener Zugang kann weiterverwendet werden; Anbieter können eigene Kosten und Limits haben.
+2. Optionale Spracherkennung und Stimmen vorbereiten.
+3. Ein Erscheinungsbild auswählen und bei Bedarf **Lumen-Desktop aktivieren**. Vor Änderungen an Panels, Hintergrund und Fensterdekoration wird die betroffene Konfiguration gesichert. Du kannst deine vorhandene Desktop-Gestaltung behalten.
+4. Optional einen bereits verfügbaren Lumen Server verbinden. Das ist für den lokalen Einstieg nicht erforderlich.
 
-**Deutsch / English:** choose **Settings → Lumen → Interface language**, or select
-a language in the setup wizard. System language is the default. Reopen apps to
-apply a change; desktop panels pick it up when Plasma starts again.
+Starte anschließend **Lumen** aus dem Anwendungsmenü oder mit `lumen`. Die Einrichtung erreichst du später unter **Einstellungen → Einrichtung** oder über `lumen-setup-wizard`.
 
+Die KI-Einrichtung nutzt die für Lumen passende Engine. Die gewählte Modellverbindung bestimmt, ob Anfragen lokal verarbeitet oder an einen externen Anbieter gesendet werden. Ein als kostenlos angebotenes Modell ist keine Garantie für dauerhafte Verfügbarkeit oder unbegrenzte Nutzung.
 
+Andere Installationsarten, Paketbau, Voraussetzungen und Rückweg: [Installationsanleitung](INSTALL.md).
 
-Lumen is an AI extension for CachyOS, combining conversations, file management,
-durable tasks, selected knowledge, personal file actions and system diagnostics.
-[OpenCode](https://opencode.ai) is the background engine; the product and package
-are **Lumen**. The desktop bar has a system overview on the left, unified search and conversation in the middle, and settings on the right. **Lumen Files**
-(`lumen-files`) opens a separate file-manager window with the same settings and
-AI integrations. The assistant also keeps its integrated Files page.
+### Aktualisieren
 
-[Bedienung, Datenschutz und Migration](LUMEN-GUIDE.md) · [Implementation contract](SPEC-lumen-os.md)
-
-Built for **KDE Plasma 6 on Wayland** (CachyOS/Arch), but written to degrade
-gracefully on other setups.
-
-## Features
-
-| Component | What it does |
-|---|---|
-| **Desktop app** (`lumen`) | One PySide6 window for conversations and tasks; files, system status, projects and model settings open in their own windows |
-| **Lumen Projects** | Group materials, conversations, tasks, analyses and research; link local or server sources and ask questions about their contents |
-| **Durable tasks** | SQLite task history, process leases, interruption recovery, pause/resume/cancel, results and native file undo with conflict checks |
-| **Knowledge** | Explicit folder selection, bounded local text/PDF index, source/page citations and editable memories |
-| **Workflows** | Approved native steps or AI tasks; manual, interval and direct-directory-change triggers; opt-in user timer |
-| **Models & context** | Main/background/local model policies, request timeout, GPU deferral, visible file/image/clipboard context, optional offline dictation and explanation mode |
-| **Shared settings** | Settings button / Ctrl+, in Lumen and Files: app preferences, models, global shortcuts, panels/tray, native KDE appearance editors, services and report schedules |
-| **File actions** | Explain / fix / review show a native result and progress view in Files or a compact standalone window; free chat remains separate |
-| **Global shortcuts** | `Meta+Shift+O` ask · `Meta+Shift+C` explain clipboard · `Meta+Shift+V` vision · `Meta+Shift+E` explain selection |
-| **Screen companion** (`lumen-companion`) | choose one window, review the image, and get the next step by text or local voice; optional guarded change monitoring; [privacy and setup](INSTALL.md#screen-companion) |
-| **Vision** | capture a screen region → opencode analyses the image (`lumen-vision`) |
-| **Selection actions** | explain / translate / fix / summarize selected or copied text (`lumen-sel`) |
-| **Shell integration** | `why` (explain last failed command), `vix`, `sel` — bash & fish (`shell/lumen.{bash,fish}`) |
-| **Git** | `lumen-gitmsg` drafts a Conventional-Commit message from the diff |
-| **KRunner runner** | Type `lumen <question>`, `ai <question>` or `oc <question>` in KRunner |
-| **Plasma applet** | panel widget with agent status + quick actions (`org.lumen.agent`) |
-| **Lumen Files** (`lumen-files`) | file manager with combined local/NAS libraries and visible origins, a personal collection shelf, fast search, previews, tabs, gallery, disk analysis, KIO network folders, native rename/sort with preview and undo, integrated Lumen panel |
-| **Lumen Vault** (`lumen-vault`) | shared server vault in a private, device-bound window. Local restic backups remain in Lumen System; the native credential broker remains a separate capability |
-| **Lumen Audio Studio** (`lumen-meetings`, `lumen-radio`) | shared server Meeting/Radio contents and editors; reviewed local recordings are handed over through Drive |
-| **Lumen Compose** (`lumen-translate`) | text translation, writing styles, spelling correction and PDF layout translation |
-| **Lumen System** (`lumen-system`) | retained System and Sound tabs: live resource usage, hardware and audio |
-| **Lumen Inbox** (`lumen-inbox`) | shared server mail, calendar and tasks, with the existing account and device permissions; no local mail/calendar client installation |
-| **Lumen Reader** (`lumen-reader`) | PDFs, EPUBs and saved articles; reading position, highlights, margin notes and local read-aloud. Modern Office/OpenDocument content uses the shared Lumen Server reader after selecting “Inhalt auf Lumen Server lesen”; a paired server with Drive permission is required. The local original is not stored on the server. |
-| **Sound in Lumen System** (`lumen-sound`) | opens the Sound tab in the existing System window: per-stream volume, mute, outputs, app rules and conversation ducking; [Reader/Sound guide](READER-SOUND.md) |
-| **Lumen Notes** (`lumen-wissen`) | shared server notebook and formatted editor; no separate Notes synchronization. Local Lumen memory remains independent |
-| **Project tools and skill** | paired, AI-authorized server project tools and native reviewed material/question handoffs; no local project replica |
-| **Application designs** | Glas by default, plus Graphit, Atelier and Mitternacht; shared live themes for Lumen, search, Files, the image viewer, desktop panels and their popups, with native previews in settings |
-| **System watchdog** | systemd timer checks failed units, kernel errors, disk, GPU temp; automatic opencode analysis |
-| **App recovery** | Independent crash/hang detection for Lumen, Files and search; private reports and restoration of views and drafts |
-| **Daily digest / nightly report** | scheduled summaries (`lumen-digest`, `lumen-nightly`) |
-| **MCP server `cachyos`** | read tools `systemctl`, `journal`, `pacman`, `disk`, `gpu`, `memory`, `sensors`, `kwin`, guarded `cmd` — plus **opt-in action tools** (`notify`, `restart_unit`, `media`, `wallpaper`, `screenshot`) behind `LUMEN_MCP_ACTIONS=1` |
-| **opencode commands/skill** | `/sync`, `/sysreport`, `/fix` + `lumen-admin` skill |
-
-## Native desktop
-
-First launch offers **Lumen einrichten**, also available from **Einstellungen →
-Einrichtung** and `lumen-setup-wizard`. It checks optional dependencies, reuses
-OpenCode/provider settings, connects API-key providers and prepares offline dictation
-with a verified local speech engine/model and a microphone test. Installs and
-downloads require an explicit selection; the test sends no text to a provider.
-See [installation and setup](INSTALL.md#ai-engine-and-personal-settings).
-
-Files now includes offline NAS working copies with conflict choices, OCR and opt-in
-image-content search, independent file versions, reusable personal actions and a
-PDF page workshop with real redaction. The shared search/chat has continuous voice
-turns with local Whisper and Piper. See [feature details and limits](files/README.md).
-
-Open **Lumen Projects** to group selected materials, conversations and tasks.
-Projects are optional collections, not a global account or storage selector.
-Drive, Photos and Notes belong to the signed-in user and remain accessible without
-a project. The project details separate title/goals from selected sources;
-source changes can be reviewed and cancelled before saving.
-
-History offers guarded undo for native task/file edits, Lumen preferences, panel
-settings and shortcuts. External edits block undo. Untracked AI
-shell commands and actions without a safe inverse are never presented as undoable.
-
-Transfers started by Lumen are shared across windows. Downloads continue after
-closing the overview; HTTP resume requires a matching validator and byte range.
-Copies/moves retry remaining entries without overwriting existing destinations.
-Browser downloads are not intercepted. Stalled workers stop after two minutes
-without progress; original files and staged destination data are preserved.
-Large directory operations beyond 5,000 metadata entries are logged without undo.
-
-The **Panorama Islands** topbar runs as its own Wayland application, `lumen-topbar`.
-Lumen and Files come first, followed by the active application's actual menus.
-Menus stay visible while space allows; an overflow keeps them accessible on small
-screens. Search, system tray, current transfers/recordings, controls, notifications
-and the calendar occupy the right island. Fullscreen applications hide the bar.
-The visible Start button and Meta open a searchable list of installed programs.
-Lumen Apps remains a separate tab in the same launcher. Wide screens show an
-inline question field, send action and microphone; small screens retain direct
-question/microphone buttons. Enter sends a new question in Lumen, preserving
-existing windows and drafts. The field transfers text through stdin, not shell
-arguments. The microphone uses the existing voice workflow.
-The native task dock remains separate. No additional navigation bar is inserted
-inside Lumen applications.
-
-System notification history and its existing actions stay in Plasma through the
-invisible `org.lumen.notificationhost` background component. The bar itself does
-not host Plasma applets or read task history. It reuses the same Lumen app catalogue,
-controls, notification preferences and browser/Reader handoffs.
-
-## Complete desktop installation
-
-The repository includes the native topbar, matching themes, wallpapers and a
-portable dock layout. See [INSTALL.md](INSTALL.md) for setup and recovery.
-`lumen-desktop-setup` installs resources without activating them.
-`lumen-desktop-setup --apply` starts and verifies the native bar before removing
-Lumen's old upper panels. Existing bottom task docks remain intact. The setup
-backs up desktop configuration and the previous topbar service state.
-Unrelated panels are preserved. Meta opens Lumen Apps on the pointer's screen.
-Application-drawn title bars remain controlled by their applications.
-
-Artwork and licenses are in [desktop/CREDITS.md](desktop/CREDITS.md).
-
-## Crash detection and recovery
-
-Lumen, Files and search run with a small independent supervisor. It records abnormal
-exits (including signals), captures Python fault traces and checks the Qt event loop
-through a pipe. After 60 seconds without a response, a desktop notification offers
-waiting or ending and reopening the application. It never kills a slow window on
-its own and never retries an action automatically.
-
-The next normal launch offers restoration of an interrupted view: Files tabs and
-active tab, Lumen page, search/conversation mode and conversation drafts. The last
-20 text messages are retained as a local preview; the engine keeps the full history.
-Restoration does not contact the engine or replay prompts, approvals or file operations.
-Unsaved image edits are not recovered. Each launch restores one interrupted session;
-other unacknowledged sessions remain available on subsequent launches.
-
-**Settings → Stabilität** controls monitoring for newly started apps and opens local
-reports under `$XDG_STATE_HOME/lumen/crashes` (normally `~/.local/state/lumen/crashes`).
-Reports and drafts are private to the user and are never uploaded automatically.
-Normal sessions are removed when closed; old inactive records are pruned on startup
-to leave room for at most 20 retained runs. Diagnostic logs are bounded to about 1 MB.
-Existing windows gain supervision when restarted. No additional system service is needed.
-
-## Requirements
-
-**Required:** `bash`, Python 3, PySide6 with QtSvg, QtQuick and QtDBus, PyGObject/GIO, Pillow. AI features additionally need [OpenCode](https://opencode.ai) with its server API.
-
-The wizard installs a SHA-256-verified **OpenCode 1.18.34** runtime for Lumen
-(Linux x86_64/ARM64, about 61 MB) when setting up the assistant. An existing
-OpenCode installation is initially reused. If “Check connection and load models”
-fails, choose **“Set up compatible engine”** and the wizard retries after installation.
-The runtime lives in `$XDG_DATA_HOME/lumen/engine/1.18.34/` (by default
-`~/.local/share/lumen/engine/1.18.34/`); it takes precedence for Lumen without
-replacing the system/CLI OpenCode or overwriting provider credentials. OpenCode 2's
-changed API is not supported by this client yet. An explicit `LUMEN_OPENCODE_BIN`
-override must be removed before using the managed runtime.
-
-**Optional** (individual features need these):
-- `notify-send` (libnotify) — watchdog notifications
-- `nvidia-smi` — GPU metrics
-- KDE Plasma 6 + Dolphin + KRunner — for the KDE integrations
-
-## Install
-
-### One command → setup wizard (Arch / CachyOS)
-
-For the current private repository, use the authenticated clone command at the
-top of this README. Inside a logged-in Plasma session, an existing clone needs:
+Wenn Lumen bereits installiert ist, öffne **Lumen Updater** oder starte:
 
 ```bash
-bash lumen/bootstrap.sh --local
+lumen-updater
 ```
 
-This uses your local checkout, installs missing Python/Qt dependencies (with sudo when
-needed), copies the applications into `~/.local/share/lumen`, and opens the native
-setup wizard. No build tools are needed for Lumen itself. The wizard completes
-OpenCode/provider setup, optional speech features and desktop activation. Choose
-a theme and **Lumen-Desktop aktivieren** to apply panels, wallpaper and decorations
-after a backup; skipping this step keeps the current desktop. The script needs
-internet access and an existing Plasma desktop. Re-running opens the wizard
-again and preserves personal settings and models. See [INSTALL.md](INSTALL.md).
-
-### Arch / CachyOS — system-wide package
+Fehlt der Updater, kannst du ihn aus dem privaten Repository vorübergehend laden. Git-Zugang und die vorhandene Lumen-Laufzeit werden benötigt. Als normaler Benutzer in der Desktop-Sitzung:
 
 ```bash
-# from a local build
-git clone https://forge.example.invalid/ativaro/lumen.git lumen && cd lumen
-./packaging/arch/build-package.sh --install
-
-# activate the full desktop as your normal user, inside Plasma:
-lumen-desktop-setup --apply
+(d="$(mktemp -d)" && trap 'rm -rf -- "$d"' EXIT && git clone --depth 1 --branch main --single-branch https://github.com/ativaro/lumen.git "$d/lumen" && bash "$d/lumen/bin/lumen-updater")
 ```
 
-The package supports repository or standalone OpenCode installations and installs the desktop integration
-in `/usr/share`. New schedules are opt-in. The build installer preserves legacy
-reports and service preferences when migrating `opencode-lumen`; direct installation over the old package stops
-on file conflicts instead of invoking its destructive uninstaller.
-Known legacy app launchers are backed up and redirected to the current installation,
-so cached screenshot shortcuts and an already-running KRunner use the current UI.
-Custom launchers are preserved.
+Prüfe die Auswahl und wähle **Alles aktualisieren**. Persönliche Inhalte, Einstellungen und vorhandene gültige Modelle bleiben erhalten. Systempakete und Flatpaks sind zusätzliche, ausdrückliche Auswahlen. Öffne Apps anschließend neu; Änderungen an Plasma-Panels werden spätestens nach einer neuen Anmeldung geladen.
 
-### Any distro — per-user install
+**Updatequellen:** Tester beziehen Lumen über GitHub; interne internal-desktop-Installationen über Forgejo. Ab Version 1.2.0-117 behält jede Installation ihre gespeicherte Repository-Adresse. Der Updater wechselt nicht automatisch zwischen diesen Quellen. Ohne gespeicherte Quelle verwendet er GitHub. [Installationsanleitung](INSTALL.md#native-updates).
 
-```bash
-git clone https://forge.example.invalid/ativaro/lumen.git lumen && cd lumen
-./install.sh
-```
+## Was die einzelnen Apps können
 
-Options:
+### Lumen: Gespräche, die dich weiterbringen
 
-```bash
-PREFIX=~/.local/share/lumen ./install.sh   # custom install prefix
-./install.sh --no-timer                             # skip systemd timer
-./install.sh --no-mcp                               # skip opencode MCP/commands/skill
-```
+**Lokal nutzbar; für Antworten ist eine Modellanbindung nötig.**
 
-After installing (either way):
+Beginne mit einer Frage oder einer Idee und bleibe im Gespräch: nachfragen, eine Erklärung vertiefen, eine Antwort überarbeiten oder zum nächsten Schritt wechseln. Vorhandene Gespräche lassen sich wieder öffnen und fortsetzen. Fortschritt, Rückfragen und Ergebnisse sind direkt im Gespräch sichtbar.
 
-1. Register the engine integration (skip if you used `install.sh`):
-   ```bash
-   lumen-setup              # MCP 'cachyos' + /sync,/sysreport,/fix + lumen-admin skill
-   ```
-2. **Restart opencode** so MCP/commands/skill are picked up.
-3. Reload KRunner if the `ai …` trigger is missing: `kquitapp6 krunner`
-4. Open the assistant from the panel/menu (**Lumen**) or run `lumen`.
-   Open the file manager with **Lumen Files** or `lumen-files [folder-or-URL]`.
+Dateien, Bilder, PDF-Seiten, markierter Text oder die Zwischenablage lassen sich bewusst als Kontext verwenden. So kannst du über deine eigenen Inhalte sprechen. Antworten können Quellen und nutzbare Ergebnisdateien enthalten. Die gemeinsame Suche findet außerdem Programme und Dateien; aus einer Frage wird ein Gespräch.
 
-Launching Lumen again from the menu, panel or main shortcut activates its existing
-window and keeps the current conversation and draft. Explicit file actions,
-prompts, selections, pages or working directories still open their own window.
-Activation uses the desktop session bus; without D-Bus the app opens normally.
+Gespräche können zu ausgeführten Aufgaben führen. Du kannst etwa „Installiere diese Anwendung“ sagen, Dateien bearbeiten lassen oder ein Computerproblem untersuchen. Direkte Aufträge werden im laufenden Gespräch bearbeitet; erforderliche Werkzeugfreigaben bleiben dort sichtbar. Für Systemänderungen kann zusätzlich der normale grafische Administrator-Dialog erscheinen. Lumen prüft bei unterstützten Datei-, Paket- und Dienstaktionen das tatsächliche Ergebnis.
 
-Updates rebuild KDE's application cache without deleting live shortcut components.
-If an existing shortcut's `Exec` path changes, KDE may keep the previous path until
-the next login. Existing `plasma_icons/lumen.desktop` panel copies are updated with
-executable permissions so Plasma can launch them.
+Du kannst Vorgänge verfolgen, abbrechen und Ergebnisse später wieder öffnen. Im Analysemodus bleibt der Auftrag lesend. Werkzeugfreigaben bestimmen, welche Änderungen möglich sind; eine ausdrücklich gewählte automatische Freigabe hat weitergehende Wirkung als eine einzelne Bestätigung. Eine Modellantwort ist kein Beweis, dass eine Aktion ausgeführt wurde: Maßgeblich sind der sichtbare Auftragsstatus und das Ergebnis.
 
-## Configuration
+### Lumen Files
 
-All scripts read these environment variables:
+**Dein eigener Dateimanager auf dem Rechner.**
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `LUMEN_OPENCODE_BIN` | managed Lumen engine if installed, else `opencode` in `$PATH` or `~/.opencode/bin/opencode` | explicit OpenCode binary override |
-| `LUMEN_WORKDIR` | `~/Documents/work` | default working directory |
-| `LUMEN_DATA` | `~/.local/state/lumen` | private task/workflow/knowledge database |
-| `LUMEN_STATE` | `~/.cache/lumen` | state/report/cache dir |
-| `LUMEN_WATCH_ANALYZE` | `1` | `0` disables the automatic watchdog analysis |
-| `LUMEN_WATCH_MODEL` | *(provider default)* | model for the watchdog analysis |
-| `LUMEN_MCP_ACTIONS` | `0` | `1` enables the writing MCP action tools |
-| `LUMEN_SEL_LANG` | `Deutsch` | translate target for `lumen-sel translate` |
-| `LUMEN_VISION_PROMPT` | *(built-in)* | override the vision prompt |
-| `LUMEN_GITMSG_STYLE` | Conventional Commits | commit message style |
+Dateien, Ordner und erreichbare Netzlaufwerke durchsuchen, als Tabs öffnen und mit Vorschauen ansehen. Bibliotheken und Sammelfläche helfen, häufig benötigte Inhalte wiederzufinden. Galerie, Dateieigenschaften und Speicheranalyse bieten weitere Ansichten derselben Dateien.
 
-### Shell integration
+Umbenennen und Sortieren lassen sich vor dem Anwenden prüfen. Für unterstützte Vorgänge gibt es Rückgängig-Funktionen mit Konfliktprüfung. Versionen, vorbereitete Offline-Kopien von NAS-Ordnern, Textsuche und optionale OCR helfen bei umfangreichen Sammlungen. Die Dokumentenwerkstatt bearbeitet ausgewählte PDF-Seiten; Bild- und Inhaltssuche benötigen ihre jeweiligen Zusatzkomponenten.
 
-Add to `~/.config/fish/config.fish` (fish) or `~/.bashrc` (bash):
+**Lumen Files ist zugleich dein Zugang zum Inhalt deiner Dateien.** Wähle eine Datei oder mehrere Dateien aus und stelle deine eigene Frage. Lumen kann Dokumente und Daten erklären, Programmcode untersuchen, Konfigurationen verständlich machen und bei Fehlern oder Änderungen helfen. Der Gesprächskontext bleibt sichtbar, während du im Dateimanager weiter navigierst.
 
-```fish
-source /usr/share/lumen/shell/lumen.fish
-```
+Das Kontextmenü bietet **Mit Lumen öffnen**, **Erklären**, **Fehler beheben** und **Git-Diff prüfen**. Dateiaktionen haben eine eigene Ergebnisansicht mit Fortschritt, Rückfragen und Freigaben. Du kannst mehr Details anfordern, einen Vorgang abbrechen und unterstützte Ergebnisse nochmals prüfen lassen.
 
-Then `why` explains the last failed command, `vix` runs vision on a region and
-`sel fix` corrects the selected text.
+Die Dateiauswahl beschränkt sich nicht auf eine feste Liste von Dokumenttypen. Wie Lumen den Inhalt erschließt, hängt vom Format, den verfügbaren Werkzeugen und dem Modell ab; verschlüsselte oder beschädigte Dateien und fehlende Lesewerkzeuge können die Analyse begrenzen. Normale Dateivorgänge funktionieren auch ohne KI-Modell.
 
-## Uninstall
-
-```bash
-lumen-setup --uninstall     # opencode MCP/commands/skill (system package: do first)
-./uninstall.sh              # per-user install
-sudo pacman -R lumen   # system package
-```
-
-## Optional: system-wide sudo helper
-
-opencode's non-TTY tool calls re-prompt for a password unless sudo caches
-credentials user-wide. This is **optional** and needs root:
-
-```bash
-sudo ./install-system.sh      # adds /etc/sudoers.d/20-opencode-sudo-cache
-sudo ./install-system.sh --uninstall
-```
-
-It sets `timestamp_type=global` and `timestamp_timeout=15`, validates the
-sudoers file with `visudo -cf` before installing, and configures a graphical
-askpass (`ksshaskpass`/GNOME/OpenSSH) in `/etc/sudo.conf` if none is set.
-
-## Layout
-
-```
-bin/                      helper scripts + GUI backend (installed to PREFIX/bin)
-agent-app/main.py         Unified native Lumen window
-plasmoid/                 Background system notification access (no topbar UI)
-files/                    Integrated files, tasks, knowledge and assistant (PySide6)
-shell/                    bash + fish integration (why/vix/sel)
-data/                     .desktop / krunner / dbus / autostart templates
-systemd/                  watchdog user units
-system/                   system daemon, watchdog, notify, dbus policy
-etc/sudoers.d/            optional system-wide sudo cache drop-in
-opencode-command/         /sync, /sysreport, /fix
-opencode-skill/           lumen-admin skill
-packaging/arch/           PKGBUILD, build-package.sh
-distro/aur/               AUR tree tooling
-distro/cachyos/           local pacman repo tooling
-install.sh / uninstall.sh
-install-system.sh         optional root-only tweaks
-```
-
-## Notes
-
-- This private Forgejo release stores distributable source and history only.
-  GitHub remains at its previous release. Tests and package builds run locally;
-  see [PUBLISHING.md](PUBLISHING.md) for verification and release limits.
-- Each window owns a password-protected OpenCode server on a random loopback port.
-  Lumen conversations are tagged and listed for the selected working directory;
-  existing terminal conversations are never continued implicitly.
-- The existing OpenCode configuration, provider login, instructions and MCP tools
-  remain in effect. Lumen does not rewrite that configuration.
-- Permission requests offer Allow once / Reject. The visible **Nicht mehr nachfragen**
-  checkbox optionally approves tool permissions automatically, including commands
-  and file changes, for this conversation and its verified child tasks. It defaults
-  off and is remembered for newly opened Lumen windows and Files panels; existing
-  windows keep their visible setting. Explicit engine denials and locked proposal
-  tools remain in force. Questions still use native forms.
-  The composer offers task mode or read-only analysis mode. Closing an active
-  conversation asks before stopping it. Images/PDFs selected as context are sent
-  as attachments; other paths are supplied as text context.
-- The shared panel uses PySide6/Qt 6 Widgets; search uses QtQuick/QML. Terminal launchers and
-  the temporary text-file bridge are no longer used for conversations.
-- `lumen-sel translate|fix|summarize` copies successful answers back to the clipboard.
-  Every answer can also be copied from the panel.
-- Per-user installation writes under the user home. The pacman package installs
-  under `/usr` and keeps the existing system services on upgrade.
-- Tested on KDE Plasma 6.7 on Wayland with `nvidia-open`.
-
-## License
-
-Lumen-owned components are offered under the [Lumen EULA](LICENSE), not MIT.
-Personal and internal business use, local builds and internal customization are
-allowed. Redistribution, resale, commercial forks, OEM editions and hosted
-software offerings require the maintainer's express written permission.
-
-This does not revoke MIT rights already granted for earlier copies. Third-party
-licenses remain in force; Qt/PySide6, vendored libraries and GPL artwork are not
-relicensed by this change. PDF processing uses Lumen’s own engine; the complete
-distribution still needs its dependency and provenance checks. See [third-party notices](THIRD_PARTY_NOTICES.md)
-and [licensing status](LICENSE-PLAN.md). The repository remains private.
-
-## System-wide install (Arch / CachyOS)
-
-For a system package instead of the per-user install:
-
-```bash
-./packaging/arch/build-package.sh            # build lumen-*.pkg.tar.zst
-sudo pacman -U packaging/arch/lumen-*.pkg.tar.zst
-```
-
-or via a local pacman repo:
-
-```bash
-./distro/cachyos/make-repo.sh
-# then add the printed [lumen] block to /etc/pacman.conf
-sudo pacman -Sy && sudo pacman -S lumen
-```
-
-The package installs to `/usr` and **enables its services by default
-(opt-out)** — install and it just works; disable anything you don't want:
-
-```bash
-sudo systemctl disable --now lumen-agentd.service        # D-Bus service
-sudo systemctl disable --now lumen-watch.timer     # system watchdog
-sudo systemctl --global disable lumen-notify.path  # per-user notify
-systemctl --user disable --now lumen-notify.path   # this session
-```
-
-Architecture: the **system watchdog** runs as root and writes findings to
-`/var/lib/lumen/findings.md`; a **per-user path unit** picks that up,
-notifies the desktop and runs the opencode analysis in the user's context.
-A small **D-Bus system service** (`org.lumen.Agent`) exposes read-only
-`GetSummary` / `GetFindings` / `RefreshWatch`.
-
-Upgrades keep your choice: if you disabled a service, `post_upgrade` does not
-re-enable it.
-
-> Note: never `systemctl restart dbus` to apply a policy change — the bus
-> reloads policies itself and a restart tears down the running desktop session.
-
-## Native UI checks
-
-```bash
-QT_QPA_PLATFORM=offscreen /usr/bin/python3 -m unittest discover -s files -v
-./bin/lumen-agent-app
-./bin/lumen-files
-```
-
-`files/test_assistant.py` exercises streaming messages, permission isolation,
-question forms, cancellation and authenticated API requests against a local fake
-server. Existing file/gallery/network tests run alongside it. The implementation
-uses the [OpenCode server API](https://opencode.ai/docs/server/); see
-[NATIVE-LUMEN.md](NATIVE-LUMEN.md) for the scope and runtime checks.
-
-## Eigenständige Werkzeuge
-
-Lumen Meeting & Radio, Lumen Digitaler Haushalt und Lumen Projekte
-werden mit eigenen Startern installiert. Meeting und Radio teilen sich ein Fenster
-mit Tabs; beide bisherigen Startbefehle bleiben verfügbar. Funktionen, Speicherung, Einrichtung
-und Grenzen: [Desktop-Werkzeuge](TOOLS.md).
-
-### Lumen System
-
-A native, local performance overview with CPU/GPU/RAM/storage cards, activity
-charts, current-user processes and device sensors. Open **Lumen System** from
-Lumen Apps, the panel's System controls, or run `lumen-system`. Shared settings
-retain the existing background-work preferences. Session history stays in memory;
-AI analysis only starts when requested. See [measurement details](files/README.md#lumen-system).
-
-
-### Sound in System
-
-`lumen-system` opens one window with **System** and **Sound** tabs.
-The existing `lumen-sound` command opens its Sound tab.
-Switching tabs retains monitoring and mixer controls. Apply/save
-buttons retain their existing behavior; switching a tab changes no system setting.
-Existing audio rules keep using their original local store. The separate Sound
-app-menu entry is hidden.
-
-
-### Lumen Server verbinden
-
-Im Lumen Server unter **Geräte → Auf diesem Desktop verbinden** starten, das Öffnen von Lumen zulassen und Serveradresse/Konto im nativen Dialog bestätigen. Erst danach werden Gerätezugang und Hintergrundabgleich aktiviert. Ablehnen, Ablauf oder Wiedergabe einer alten Anfrage erzeugen keinen weiteren Zugang. Der Server kann den Gerätezugang jederzeit widerrufen. Die bestätigten Server-Erinnerungen werden derzeit separat gespiegelt; automatische Verwendung im Desktop-Modell und die native Vault-Zielauswahl folgen separat.
-
-Die beiden `files/lumen_connect*.py` sind die mitgelieferte Client-Komponente aus dem eigenständigen Lumen-Server-Repository (`desktop/`). Bei Protokolländerungen zusammen aktualisieren; keine zusätzlichen Qt-/PyQt-Pakete benötigt.
-
-### Gespräche über Lumen Server / Server conversations
-
-Nach der Gerätekopplung kann im Gespräch **Dieses Gerät** auf
-**Lumen Server · Textgespräch** umgestellt werden. In Lumen Search liegt die Auswahl
-unter **···**. Das Gespräch bleibt in der nativen Oberfläche; die Ausführung nutzt
-das auf dem Server eingerichtete Modell. Standard bleibt dieses Gerät. Lokale
-Anhänge müssen für diesen ersten Textanschluss entfernt werden; persönliche
-Dateien, lokales Gedächtnis und Tresor werden nicht automatisch hochgeladen.
-
-Bei einer unterbrochenen Verbindung **Serververbindung prüfen** verwenden. Unklare
-Übermittlungen erscheinen nach erneutem Öffnen des Serververlaufs als
-**Übermittlung prüfen**. Es wird kein Auftrag automatisch erneut gesendet.
-Schließen lässt Serveraufträge weiterlaufen; **Abbrechen** beendet den tatsächlichen
-Auftrag. Der native Verlauf zeigt die letzten fünf Gespräche; ältere Gespräche
-und serverseitige Freigaben sind vorerst in der Server-Weboberfläche erreichbar.
-
-After pairing, select **Lumen Server · Text conversation** in the native conversation
-or Search's **···** menu. This uses the server's configured model and permissions;
-local execution remains the default. This first connection sends text only.
-Use **Check server connection** after a connection error; uncertain submissions
-are resolved by receipt instead of resubmitting. Closing a window keeps the server
-task running. **Cancel** cancels it. This does not synchronize notes or vaults.
-
+[Bedienung, Formate und Grenzen von Lumen Files](files/README.md).
 
 ### Lumen Notification
 
-Die Glocke im rechten Panel bündelt KDE- und Lumen-Meldungen. **Alle anzeigen**
-öffnet die vollständige Zentrale; auch in Apps und Einstellungen erreichbar.
-**Mit Lumen besprechen** bereitet aus der gewählten Meldung einen Gesprächsentwurf
-mit Quelle, Titel und Text vor. Erst Senden übermittelt ihn an den KI-Anbieter;
-laufende Gespräche und vorhandene Entwürfe bleiben in ihrem Fenster erhalten.
-Popups sitzen rechts bündig unter der Panel-Insel mit acht Pixeln Abstand;
-schwebende Ränder und die Bildschirmposition werden berücksichtigt.
-Lumen zeigt die Popups; KDE liefert Empfang, Originalaktionen, Ton und die
-bestehenden Ruhe-Einstellungen. Steam-/GameMode-Spiele und Gamescope schalten
-automatisch auf stilles Sammeln (Erkennung spätestens beim nächsten 5-Sekunden-Poll).
-Die KDE-Vollbildregel bleibt wirksam; nach Spielende gibt es keine Popup-Flut.
-Unter Einstellungen → Lumen Notification lassen sich Lumen-Popups und Spielruhe
-abschalten. Systemmeldungen bleiben ausschließlich lokal. Eigene Servermeldungen teilen Lesen/Archivieren/Später über den bestehenden
-Connector mit deinen Geräten. Die lokale Ansicht zeigt maximal 500 Karten;
-archivierte lokale Karten werden nach 30 Tagen entfernt. KDE-Verlauf folgt der
-Plasma-Sitzung. Lokale Erinnerungen benötigen das laufende Panel; verpasste
-Termine erscheinen beim nächsten Start.
+**Meldungen sammeln, wiederfinden und im Gespräch aufgreifen.**
 
-Notification-MCP: `lumen_notification_settings` liest die Popup-/Spielruhe-Optionen;
-`lumen_notification_configure` ändert `native_popups` und/oder `quiet_games` mit
-der vorhandenen Aktionsfreigabe. Nicht angegebene Optionen und manueller Ruhemodus
-bleiben unverändert. `native_popups=false` schaltet Popups aus. Die Meldungen
-bleiben im Mitteilungszentrum. Die bestehenden Werkzeuge lesen eigene Lumen-Meldungen, ändern
-Lesen/Archivieren/Später/Jetzt und legen Erinnerungen an.
+Die Glocke bündelt KDE- und Lumen-Meldungen. Du kannst Meldungen öffnen, später ansehen oder archivieren. **Mit Lumen besprechen** bereitet einen Gesprächsentwurf vor; erst das Senden übermittelt ihn an die Modellanbindung.
 
-**Lumen Projekte** fasst Materialien, Gespräche und Aufgaben zusammen. Quellen
-werden ausdrücklich verknüpft; Dateien bleiben an ihrem Ort und vorhandene
-Zugriffsrechte gelten weiter. **Lumen Projekte → Serveraufträge** zeigt Ergebnisse,
-bestehende Zeitpläne und Mitglieder freigegebener Serverprojekte.
-Projektzugriff benötigt die Gerätefreigaben `projects` und `tasks`; Materialtitel
-zusätzlich `notes` bzw. `drive`. Bearbeitete Zeitpläne werden pausiert und müssen
-wieder aktiviert werden. Es werden die bis zu 100 jüngsten Projektaufträge gezeigt.
+Spielruhe sammelt Meldungen bei erkannten Spielen still. KDE bleibt für Empfang, ursprüngliche Aktionen und Ton zuständig. Lokale Systemmeldungen bleiben auf deinem Rechner. Lokale Erinnerungen brauchen das laufende Panel und erscheinen nach verpassten Terminen beim nächsten Start.
 
-**Lumen System → Server & Geräte** bietet freigegebene Diagnosen, Dienstneustarts
-und eingerichtetes Wake-on-LAN mit Status/Ergebnis. Dafür auf dem Server die neue
-Freigabe **Andere Servergeräte von diesem Desktop verwalten** (`device_control`)
-aktivieren; Wake benötigt zusätzlich `wake`. Bestehende Geräte erhalten diese
-Rechte nicht automatisch. Server-Mitgliedschaft und Zielgerätefreigaben gelten
-weiter. Verbindungen/Freigaben werden über den Link zur vorhandenen Serveransicht
-verwaltet. Alle Aktionen verwenden die bestehende Queue und den Scheduler.
+### Lumen Reader
 
-Desktop app ownership and retired native implementations: [Desktop architecture](docs/desktop-retirement.md).
+**Lokal nutzbar.**
 
-The standalone desktop topbar offers **Settings → Appearance → Topbar → Layout**:
-the existing island bar (default), Key band, Double deck and Context dock. Layouts
-change live on all screens, independently of the four themes. App menus remain
-real application menus; the context drawer sends only explicitly selected files.
-The open Notes entry can be attached explicitly at its saved revision. Notes keep
-their server reference and AI permissions; unsaved changes must be saved first.
+PDFs, EPUBs und gespeicherte Artikel lesen, Leseposition behalten, Text markieren und Randnotizen erfassen. Ausgewählte Passagen lassen sich als Quellen für Lumen verwenden. Lokales Vorlesen benötigt eine installierte Stimme. Nicht jedes Dokument enthält auslesbaren Text; Scans brauchen für Textfunktionen OCR.
 
-Native topbar qualification uses `python3 tests/check-desktop.py`. It builds the
-shipping QML/C++ components and drives real application menus and tray actions in
-a private D-Bus/KWin session with synthetic data and no network. The existing
-`tests/check-install-closure.py` verifies fresh installation, update preservation
-and Arch payloads separately. Theme/size checks can use `--surface-only --theme
-atelier --layout deck`, `--width 840`, or `--width 1920 --scale 1.5`; results and screenshots stay
-under `artifacts/desktop-smoke`. Tests additionally need Bubblewrap, Qt Test,
-Wayland development tools and the installed KDE desktop tools. The test input
-helper is excluded from product builds (`BUILD_TESTING=OFF`).
+[Reader und Vorlesen](READER-SOUND.md).
+
+### Lumen Compose
+
+**Die integrierte Text- und Dokumentenbearbeitung bleibt lokal; KI-Aufträge brauchen ein Modell.**
+
+Texte übersetzen, korrigieren, umformulieren oder auf einen gewünschten Stil bringen. Du prüfst das Ergebnis, bevor du es weiterverwendest. Ausgewählter Text lässt sich auch direkt aus anderen Programmen an Lumen übergeben.
+
+Die lokale Dokumentenbearbeitung bietet zusätzlich PDF-Funktionen, deren Grenzen vom Dokument abhängen. Layout, Schriften, Scans und Tabellen sind anspruchsvoller als einfacher Text; eine originalgetreue Ausgabe ist nicht für jedes PDF zugesichert. Die Server-App Compose ist ein eigener, serverseitiger Textweg und benötigt eine Verbindung.
+
+[Text- und PDF-Funktionen](files/README.md#lumen-compose).
+
+### Lumen Digitaler Haushalt
+
+**Lokal nutzbar.**
+
+Geräte, Verträge, Fristen, Handbücher und Belege zusammenhalten. Du kannst Informationen ergänzen, Belege öffnen und Einträge durchsuchen. Die lokale Haushaltsverwaltung braucht keine KI. Sie kündigt keine Verträge und führt keine Zahlungen aus. Automatische Routinen des Server-Haushalts sind davon getrennt.
+
+### Lumen System
+
+**Deinen Rechner und seine Einstellungen im Blick behalten.**
+
+Lumen hilft dir auch als IT-Support für deinen Rechner. Es kann Systemwerte und Protokolle heranziehen, Fehler erklären und gemeinsam mit dir die Ursache eingrenzen. Erlaubte Maßnahmen lassen sich anschließend ausführen, etwa eine Anwendung installieren oder einen Dienst neu starten und seinen Zustand prüfen. Eine Diagnose startet auf deinen Auftrag; Änderungen folgen den Werkzeugfreigaben und nötigen Administratorrechten.
+
+Die Systemansicht zeigt CPU, GPU, Arbeitsspeicher, Laufwerke, Prozesse und Sensoren. Die verfügbare Hardware bestimmt, welche Werte angezeigt werden. Eine KI-Auswertung startet auf Anfrage.
+
+Im selben Fenster liegen **Sound** mit Ausgängen, Lautstärken und App-Regeln. Unterstützte Änderungen protokolliert Lumen; ein Rückweg wird nur angeboten, wenn er sicher möglich ist.
+
+Lokale Sicherungen nutzen ausgewählte Quellen und Ziele sowie einen getrennt aufzubewahrenden Wiederherstellungsschlüssel. Eine erfolgreiche Wiederherstellungsprobe ist wichtiger als eine reine Erfolgsmeldung beim Sichern.
+
+[Systemfunktionen](files/README.md#lumen-system) · [Audio](READER-SOUND.md).
+
+### Lumen Companion und Bildschirmhilfe
+
+**Lokal gestartet; Bildauswertung braucht ein geeignetes Modell.**
+
+Ein Fenster oder einen Bildschirmausschnitt auswählen, die Vorschau prüfen und Lumen dazu fragen. Die Begleitung kann beim Verständnis einer Oberfläche und beim nächsten Arbeitsschritt helfen. Sie ist kein unbeschränkter Fernzugang zum Desktop.
+
+Optionale Beobachtung von Änderungen ist begrenzt und hängt von der zugänglichen Fensterstruktur ab. Sichtbare Geheimnisse lassen sich nicht in jedem Programm zuverlässig erkennen. Pausiere die Begleitung, bevor du solche Inhalte eingibst. [Ablauf und Schutzgrenzen](INSTALL.md#screen-companion).
+
+### Lumen Einstellungen und Updater
+
+**Lokal nutzbar.**
+
+Modellanbindung, Sprache, Darstellung, optionale Komponenten, Benachrichtigungen und Wartung verwalten. Die Oberfläche bietet Deutsch und Englisch. **Glas**, **Graphit**, **Atelier** und **Mitternacht** sind Themes derselben Panorama-Gestaltung.
+
+Der Updater zeigt verfügbare Komponenten und führt die ausgewählten Schritte aus. Fenster werden bei Problemen nicht ungefragt beendet. Die Wiederanlaufhilfe kann nach einem Absturz Ansichten und Entwürfe anbieten; sie sendet keine alten Anfragen automatisch erneut und stellt nicht jede ungespeicherte Bearbeitung wieder her.
+
+## Gemeinsame Apps mit Lumen Server
+
+**Optionale Erweiterung:** Wenn du einen Lumen Server verbindest, kommen gemeinsame Inhalte und weitere Produktiv-Apps hinzu. Für die oben beschriebenen lokalen Gespräche, Lumen Files und Desktop-Benachrichtigungen ist diese Verbindung nicht erforderlich.
+
+Lumen Server stellt die gemeinsamen Apps und Hintergrundaufgaben bereit; Lumen Mobile macht unterstützte Inhalte unterwegs zugänglich. Beide werden derzeit privat entwickelt und erprobt und sind noch nicht öffentlich gestartet. Preise und künftige Angebote sind nicht festgelegt.
+
+Diese Apps benötigen einen erreichbaren Server, dein Konto und die passenden Gerätefreigaben. Der Desktop zeigt die gemeinsame Serveroberfläche in einem eigenen Fenster. Ihre früheren lokalen Implementierungen sind kein zusätzlicher Offline-Modus. Ohne Verbindung sind die Serverinhalte nicht bearbeitbar; bestehende lokale Dateien und Entwürfe werden dadurch nicht zu Serverdaten.
+
+| App | Was du damit im Desktop erledigst |
+| --- | --- |
+| **Lumen Notes** | Notizen und Sammlungen öffnen, formatiert bearbeiten und gezielt für Lumen freigeben. Das lokale Lumen-Gedächtnis ist davon getrennt. |
+| **Lumen Projekte** | Materialien, Gespräche und Aufgaben zu einem Vorhaben zusammenfassen; Quellen und Ergebnisse im Zusammenhang ansehen. Projekte ändern nicht automatisch Eigentum oder Freigaben ihrer Inhalte. |
+| **Lumen Code** | Code-Vorhaben, zugehörige Aufgaben, Vorschläge und Ergebnisse in der Server-App bearbeiten. Ein Ausführungsauftrag folgt den dortigen Freigaben und verfügbaren Laufzeitmöglichkeiten. |
+| **Lumen Inbox** | Die auf dem Server eingerichteten E-Mail- und Kalenderkonten nutzen, Nachrichten lesen und Entwürfe prüfen. Versand und Änderungen folgen den Serverfreigaben. |
+| **Lumen Audio Studio** | Die gemeinsamen Meeting-/Radio-Inhalte öffnen, Transkripte und Hörskripte bearbeiten. Lokale Aufnahmen werden erst über einen bestätigten Übergabeweg bereitgestellt. |
+| **Lumen Vault** | Den persönlichen oder freigegebenen Servertresor in einer privaten, gerätegebundenen Sitzung verwenden. Entsperren und Secret-Freigabe sind eigene Schritte; der lokale Zugangsdaten-Broker und lokale Sicherungen sind getrennte Funktionen. |
+
+Zusätzlich kannst du auf Lumen Drive zugreifen, Server-Textgespräche führen und den Bearbeitungsstand eigener Servermeldungen zwischen Geräten teilen. Server-Textgespräche übertragen Text; lokale Anhänge, Gedächtnis und Tresor werden dabei nicht automatisch hochgeladen. Die Verbindung gibt dem Server keinen allgemeinen Zugriff auf deinen Rechner. Entfernte Diagnosen, Dienstaktionen und Wake-on-LAN benötigen eigene Gerätefreigaben.
+
+Der Detailumfang richtet sich nach dem verbundenen Server. Die getrennten READMEs beschreiben [Lumen Server](https://forge.example.invalid/ativaro/lumen-server) und [Lumen Mobile](https://forge.example.invalid/ativaro/lumen-mobile); für die privaten Repositories ist Zugriff nötig. Technische Zuordnung: [Gemeinsame Server-Apps und lokale Fähigkeiten](docs/desktop-retirement.md).
+
+### Lumen Server verbinden
+
+1. In einem bereits verfügbaren Lumen Server **Geräte → Gerät hinzufügen** öffnen und eine Verbindungsanfrage für den Desktop erstellen.
+2. Den angebotenen Link im Desktop öffnen lassen.
+3. Im nativen Dialog Serveradresse, Konto und Rechte prüfen und bewusst bestätigen.
+
+Erst die Bestätigung aktiviert den Gerätezugang. Ein Link allein teilt keine lokalen Dateien. Der Server kann den Zugang widerrufen. Welche Inhalte übertragen werden, hängt von der jeweiligen Freigabe und Aktion ab.
+
+Für das optionale Textgespräch wähle im Gespräch **Dieses Gerät → Lumen Server · Textgespräch**; in der Suche liegt die Auswahl unter **···**. Bei einer Unterbrechung verwende **Serververbindung prüfen**. Unklare Übermittlungen werden geprüft, statt denselben Auftrag automatisch erneut zu senden.
+
+## Schnellzugriff und fortgeschrittene Bedienung
+
+| Aktion | Standard |
+| --- | --- |
+| Suchen oder fragen | `lumen-search` oder die Suche im Panel |
+| Fragen | `Meta+Shift+O` |
+| Zwischenablage erklären | `Meta+Shift+C` |
+| Bildschirmausschnitt fragen | `Meta+Shift+V` |
+| Markierten Text erklären | `Meta+Shift+E` |
+| Einstellungen | `Ctrl+,` in Lumen/Files oder `lumen-settings` |
+
+Bestehende KDE-Belegungen können mit Kürzeln kollidieren. Stelle sie bei Bedarf in den Einstellungen um.
+
+Für Terminalnutzer gibt es `lumen-sel`, `lumen-gitmsg` und die optionale Shell-Integration mit `why`, `vix` und `sel`. Der MCP-Zugang stellt Systemabfragen und gesondert aktivierbare Aktionen bereit. Schreibende MCP-Aktionen sind standardmäßig nicht eingeschaltet (`LUMEN_MCP_ACTIONS=0`). Anleitungen: [Bedienung](LUMEN-GUIDE.md), [Engine-Anbindung](NATIVE-LUMEN.md).
+
+<details>
+<summary>Fortgeschrittene Konfiguration</summary>
+
+Diese Variablen gehören zur lokalen Laufzeit, nicht in Chattexte oder öffentliche Supportberichte:
+
+| Variable | Zweck |
+| --- | --- |
+| `LUMEN_OPENCODE_BIN` | Explizite Engine-Auswahl; normalerweise die verwaltete kompatible Laufzeit verwenden. |
+| `LUMEN_WORKDIR` | Standard-Ausführungsverzeichnis. |
+| `LUMEN_DATA` | Privater Zustand für Aufgaben und lokale Wissensfunktionen. |
+| `LUMEN_STATE` | Cache und Berichte. |
+| `LUMEN_WATCH_ANALYZE`, `LUMEN_WATCH_MODEL` | Watchdog-Auswertung und Modellwahl. |
+| `LUMEN_MCP_ACTIONS` | Schreibende Systemwerkzeuge ausdrücklich aktivieren. |
+| `LUMEN_SEL_LANG`, `LUMEN_VISION_PROMPT`, `LUMEN_GITMSG_STYLE` | Vorgaben für Text-, Bild- und Git-Hilfen. |
+
+Eine optionale systemweite Sudo-Konfiguration ist in `install-system.sh` enthalten. Sie verändert unter anderem den Passwort-Cache für privilegierte Befehle und gehört nicht zum normalen Einstieg. Vor Verwendung das Skript und seine Wirkung prüfen; die Einrichtung ist keine Voraussetzung für Lumen.
+
+</details>
+
+## Daten, Rechte und Grenzen
+
+- Dateien bleiben lokal, solange du sie nicht ausdrücklich überträgst oder einer Modellanfrage als Kontext mitgibst. Ein externer KI-Anbieter erhält den Inhalt der an ihn gesendeten Anfragen.
+- Der lokale Suchindex und bestätigte Erinnerungen ersetzen nicht die Berechtigungen von Serverinhalten. Normale Textsuche bleibt ohne ein optionales Bedeutungsmodell möglich.
+- Eigene Modelle, Server oder Anbieter können zusätzliche Hardware, Speicher oder Gebühren benötigen. Die Lumen-Installation garantiert keine kostenlose KI-Rechenleistung.
+- Dateiverständnis ist keine Garantie für jedes Format oder jede Aussage. Dateischutz, verfügbare Lesewerkzeuge, Größenlimits und die Fähigkeiten des gewählten Modells gelten auch bei einer frei gewählten Datei.
+- Bevor du wichtige Änderungen übernimmst, prüfe Vorschau und Ergebnis. Nicht jede Modellantwort ist richtig; nicht jede externe Aktion lässt sich rückgängig machen.
+- Vollständige Einrichtung und Integration sind auf Arch/CachyOS mit Plasma 6 ausgerichtet. Einzelne Funktionen auf anderen Linux-Desktops ersetzen keine geprüfte Unterstützung des gesamten Systems.
+
+## Entfernen und Wiederherstellen
+
+Für eine Benutzerinstallation aus dem vorhandenen Checkout:
+
+```bash
+./uninstall.sh
+```
+
+Für eine Paketinstallation:
+
+```bash
+lumen-setup --uninstall
+sudo pacman -R lumen
+```
+
+Prüfe vor dem Entfernen, welche Installation aktiv ist, und sichere persönliche Daten separat. Die Desktop-Gestaltung lässt sich über die bei der Aktivierung angelegte Sicherung zurücksetzen. [Installation und Wiederherstellung](INSTALL.md#recover-the-previous-desktop).
+
+## Entwicklung, Prüfungen und Lizenz
+
+[Installations- und Bauanleitung](INSTALL.md) · [Funktionsbeschreibung](LUMEN-GUIDE.md) · [Dateimanager](files/README.md) · [Architektur](docs/desktop-retirement.md) · [Veröffentlichung und Prüfgrenzen](PUBLISHING.md).
+
+Der Quellstand allein ist kein Beleg, dass alle optionalen Funktionen auf jeder Hardware geprüft sind. Herkunft und verfügbare Releasebelege stehen in den jeweiligen Veröffentlichungsunterlagen.
+
+Lumen-eigene Bestandteile stehen unter der [Lumen-EULA](LICENSE). Aktuell erlaubt sie persönliche und interne geschäftliche Nutzung sowie die beschriebenen lokalen Anpassungen; Weiterverteilung, Verkauf und kommerzielle Ableitungen benötigen eine ausdrückliche Erlaubnis. Frühere Lizenzgewährungen werden dadurch nicht widerrufen. Abhängigkeiten behalten ihre [eigenen Lizenzen](THIRD_PARTY_NOTICES.md); der Status der Distributionsprüfung steht in [LICENSE-PLAN.md](LICENSE-PLAN.md).
+
+Die [Dokumentationsübersicht](docs/README.md) trennt aktuelle Anleitungen von historischen Entwürfen und Abnahmebelegen.

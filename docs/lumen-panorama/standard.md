@@ -25,7 +25,7 @@ Diese Vorgabe gilt für neue und überarbeitete Oberflächen. Bestehende Ansicht
 
 ## Gestaltung
 
-Desktop-Präzisierung vom 18.10.2026: Panorama wird in den ursprünglichen Ansichten umgesetzt. Parallele App-Stile ersetzen und ungenutzten Gestaltungs-/Navigationscode entfernen; kein zusätzlicher Überzug. Native Kopfzeilen nutzen `files/desktop_design.py`, der offline Notes-Editor erhält dieselben Geometrie- und Schriftwerte über seine bestehende Brücke. Gemeinsame Maße: Titel26px/500, Untertitel12px, Bedienung14px, Rand24px, Abschnitt16px, Navigation224px. Systemschrift/Zoom und Leseschrift-Einstellungen bleiben erhalten. Unterschiedliche Inhaltsaufteilungen folgen der jeweiligen Aufgabe; Menüverhalten, Titelhierarchie und Aktionsgestaltung bleiben konsistent.
+Desktop-Präzisierung vom 18.10.2026: Panorama wird in den ursprünglichen Ansichten umgesetzt. Parallele App-Stile ersetzen und ungenutzten Gestaltungs-/Navigationscode entfernen; kein zusätzlicher Überzug. Native Kopfzeilen nutzen `files/desktop_design.py`, die gemeinsamen Server-Apps werden im gerätegebundenen Host angezeigt; ihre Oberfläche wird auf dem Server gepflegt. Gemeinsame Maße: Titel26px/500, Untertitel12px, Bedienung14px, Rand24px, Abschnitt16px, Navigation224px. Systemschrift/Zoom und Leseschrift-Einstellungen bleiben erhalten. Unterschiedliche Inhaltsaufteilungen folgen der jeweiligen Aufgabe; Menüverhalten, Titelhierarchie und Aktionsgestaltung bleiben konsistent.
 
 - Ruhige zusammenhängende Flächen, klare Hierarchie, sparsame Umrandungen; keine Mischung aus alten Karten-, Menü- und Icon-Stilen. Bestehende freigegebene Lumen-Halo-Assets konsistent verwenden. Referenz-Platzhaltersymbole ersetzen diese Assets nicht.
 - Gemeinsame Abstände: 4, 8, 12, 16, 24 und 32 logische Einheiten. Web-Basistext 14 px mit etwa 22 px Zeilenhöhe, Metadaten 12 px, Haupttitel etwa 26 px. Native Schriftgrößen, Zoom und Dynamic Type haben Vorrang vor starren Pixeln.
@@ -52,7 +52,7 @@ und Bediengeometrie bleiben den vorhandenen semantischen Rollen zugeordnet.
 Desktop-Topbar (05.11.2026): Die Standardleiste folgt dem freigegebenen Entwurf
 `lumen-topbar-alltag.html`: ein zusammenhängendes Panorama-Band mit dauerhafter
 Lumen-Eingabe und Diktat-Einstieg. Links vor dem Lumen-Kreis steht ein eigener
-Programmknopf: Er öffnet direkt die installierten Anwendungen mit Suche. Der
+Programmknopf: Er öffnet die Startansicht mit direkter App-Suche. Der
 Lumen-Kreis öffnet die Lumen-Apps. Beide verwenden dasselbe vorhandene Startmenü.
 Fensterübersicht und letzte Inhalte haben je
 einen kleinen Schnellzugriff. Eine gemeinsame Statusfläche priorisiert Freigaben,
@@ -67,7 +67,7 @@ offene Notes-/App-Inhalte sind über die laufenden Fenster erreichbar. Verläufe
 anderer Serverbindungen werden nicht angeboten. Es werden keine Inhalte kopiert.
 Aktive Systemtray-Apps bleiben bei ausreichend Platz direkt sichtbar; nur bei
 Platzmangel sowie für passive Apps dient das Menü „Hintergrund-Apps“.
-Startmenü-Präzisierung vom 05.11.2026: Der Programmknopf öffnet „Dein Start“
+Startmenü-Präzisierung vom 05.11.2026: Das vollständige Startmenü zeigt „Dein Start“
 nach der freigegebenen Referenz `lumen-start-next.html`: Suche, angeheftete Apps,
 zwei letzte Inhalte unter „Gleich weiter“ und eine ruhige Fußzeile mit Benutzer,
 Einstellungen, Sperren und Sitzungsaktionen. „Alle Apps“ öffnet den nativen,
@@ -95,8 +95,23 @@ Schließen; Verschieben und Größenänderungen bleiben native Fensteraktionen.
 Der technische Einstellungswert `classic` heißt in der Oberfläche nun Panorama;
 die ausdrücklich angebotenen alternativen Layouts bleiben wählbar.
 
-Desktop-Topbar, Netzwerk und Audio (04.11.2026): Die beiden Statussymbole öffnen
-eigenständige Panorama-Menüs. Netzwerk gliedert sich in Übersicht, WLAN,
+Desktop-Topbar, Kurzansichten (06.11.2026): Glocke, Netzwerk und Audio öffnen jeweils eine angedockte, höchstens 390 Pixel breite Ansicht.
+Die Statusmenüs schließen rechts an die Leiste an. Der Lumen-Kreis öffnet links
+direkt den vollständigen Katalog „Lumen Apps“. Seine Suche beginnt leer und hat den Tastaturfokus.
+Auf schmalen Bildschirmen bleibt ein seitlicher Abstand. Ein Eintrag öffnet das
+vollständige Menü mit der gewählten Meldung oder dem Gerätebereich. Programmknopf und Super öffnen direkt das vollständige, links angedockte
+Startmenü „Dein Start“. Die Suche erhält den Tastaturfokus. Angeheftete Apps und
+„Gleich weiter“ sind sofort sichtbar. „Alle Apps“ öffnet den Katalog. Der Reglerknopf rechts und das Zahnrad in „Dein Start“
+öffnen direkt die angedockte Systemsteuerung. Dort sind Netzwerk, Audio und Lumen-Einstellungen erreichbar. Ein zweiter Klick auf denselben
+Menüknopf klappt die Ansicht zu. Beim Wechsel zwischen Menüknöpfen ist nur die
+gewählte Ansicht geöffnet. Eigene App-Fenster behalten ihre Fenstersteuerung.
+Plasma führt den gemeinsamen Mitteilungsverlauf und alle Aktionen. Der erste
+Klick zeigt bis zu drei aktuelle Meldungen. Desktop-Popups erscheinen oben rechts
+auf dem von Plasma priorisierten Monitor. Zugangsdaten, Verbindungswechsel und
+Geräteeinstellungen werden erst im dafür zuständigen vollständigen Menü behandelt.
+
+Die vollständigen Netzwerk- und Audio-Menüs schließen an derselben Kante direkt an die Topbar an wie ihre Kurzansichten.
+Netzwerk gliedert sich in Übersicht, WLAN,
 Kabel/Adapter, VPN/Proxy, Hotspot und Details/Diagnose; Audio in Übersicht,
 Ausgabe, Mikrofon, Apps, Bluetooth und Klang/Technik. Auf schmalen Bildschirmen
 werden diese Bereiche oberhalb des Inhalts angeordnet. Darstellung und Regler

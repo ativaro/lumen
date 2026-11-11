@@ -1,3 +1,5 @@
+> **Datierter Abnahmebeleg.** Quellpin, Screenshots und Laufzahlen gelten für den beschriebenen Kandidaten. Sie sind keine Prüfung einer heutigen Installation. Für aktuelle App-Zuständigkeiten gilt [Desktop-Verantwortlichkeiten](../desktop-retirement.md), für weitere Gestaltung [Panorama](standard.md).
+
 # Panorama: Desktop-Korrektur nach Nutzerfeedback
 
 Stand: 18.10.2026. Die frühere zusätzliche App-Leiste war eine falsche Interpretation. Desktop benötigt konsistente bestehende Ansichten und Menüs. Server-/Mobile-Laufzeiten werden durch diese Korrektur nicht verändert.

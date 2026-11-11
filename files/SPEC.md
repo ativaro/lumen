@@ -1,6 +1,9 @@
-# Lumen — Dateien
+# Lumen Files
 
-Native Linux-Dateiverwaltung mit Schwerpunkt auf schneller Dateinamensuche und brauchbaren Vorschauen. Deutsch, dunkle ruhige Oberfläche, Systemschrift, vorhandenes PySide6 und GIO; keine neuen Pakete.
+Native Linux-Dateiverwaltung mit Schwerpunkt auf schneller Dateinamensuche und brauchbaren Vorschauen. Deutsch/Englisch, gemeinsame Panorama-Themes, Qt 6/PySide6 und GIO.
+Maßgeblich ist der [Panorama-Standard](../docs/lumen-panorama/standard.md); ältere
+rein graphitfarbene Entwurfswerte unten sind historische Ausgangspunkte, keine
+eigene konkurrierende Designsprache.
 
 ## Akzeptanz
 - Gestaltung gemäß freigegebenem Entwurf: Tabs oberhalb einer kompakten Navigation,

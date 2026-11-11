@@ -1,3 +1,5 @@
+> **Historischer Quell- und Prüfbeleg.** Die datierten Revisionen unten bleiben nachvollziehbar, beschreiben aber weder automatisch Forgejo `main` noch eine heute installierte Laufzeit. Aktueller Veröffentlichungsweg: [FORGEJO.md](FORGEJO.md); Installation: [INSTALL.md](INSTALL.md).
+
 # Source publication — 2026-10-13
 
 147 selected Python/Qt tests passed in a disposable user profile, including bootstrap, localization, Notes/memory, pairing, native Vault/MCP, Studio and app routing. All 24 Plasma QML checks passed. Python source syntax and git whitespace checks passed.

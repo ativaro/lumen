@@ -1,3 +1,10 @@
+> **Historischer Entwicklungsverlauf, keine aktuelle Funktionsliste.** Abgehakte
+> Punkte und alte native Apppfade beziehen sich auf ihre damaligen Kandidaten.
+> Notes, Projekte, Code, Audio Studio, Vault und Inbox werden heute als Server-Apps
+> geöffnet. Für Bedienung und Grenzen gelten [README](../README.md) und
+> [Desktop-Verantwortlichkeiten](../docs/desktop-retirement.md). Offene alte Punkte
+> werden hier nicht ohne neue Prüfung als fertig oder erneut beauftragt markiert.
+
 # Ordered implementation
 
 - [x] Einzeiler: HTTPS-Download, Basisabhängigkeiten, Benutzerinstallation und Wizard-Start; Fehlerpfade prüfen.

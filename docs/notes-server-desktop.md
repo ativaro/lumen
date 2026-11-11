@@ -18,5 +18,6 @@ Editor, Cookie und CSRF bleiben erhalten. Die Erneuerung enthält keine
 Inhaltsänderung und wiederholt keine Schreibaufträge. Server, Konto, Gerät,
 App und aktuelle Freigaben werden erneut geprüft. Abmeldung, Sitzungsrotation
 und Widerruf können nicht dadurch rückgängig gemacht werden. Ein unbekannter
-Schreibausgang bleibt gesperrt. Das gilt ebenso für Projekte, Code, Audio Studio,
-Vault, Inbox und den gemeinsamen Compose-Host.
+Schreibausgang bleibt gesperrt. Das gilt ebenso für Projekte, Code, Audio Studio, Vault und Inbox. Der allgemeine
+Compose-Starter bleibt lokal; der isolierte Compose-Text-Pilot ist kein normaler
+Server-App-Einstieg.

@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Diese datierte Abnahme gehört zum damaligen Kandidaten. Enthaltene lokale Notes-/Projekt-/Code-/Audio-Editoren sind inzwischen durch Server-Apps ersetzt; nur die Gestaltungsentscheidung bleibt als Referenz bestehen. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](../desktop-retirement.md).
+
 # Audio Studio · Panorama, 18.10.2026
 
 Audio Studio verwendete unter dem gemeinsamen Kopfbereich noch zwei verschachtelte Reiterleisten, eine dicht gedrängte Aktionszeile und eine leere Transkripttabelle. Die bestehenden nativen Ansichten sind jetzt direkt überarbeitet; es gibt keine zusätzliche globale App-Leiste.

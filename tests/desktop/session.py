@@ -41,9 +41,15 @@ try:
     fixture=start(['python3','/qa/fixture.py','A'],'fixture')
     time.sleep(1)
     script=root/'activate.js';script.write_text('const w=workspace.windowList().find(w=>w.caption.startsWith("Lumen Menütest A"));if(w)workspace.activeWindow=w;')
+    for _ in range(50):
+        probe=subprocess.run(['qdbus6','org.kde.KWin','/Scripting'],capture_output=True,text=True)
+        if 'org.kde.kwin.Scripting.loadScript' in probe.stdout:break
+        if kwin.poll() is not None:raise RuntimeError('Virtual KWin exited: '+str(kwin.returncode))
+        time.sleep(.1)
+    else:raise RuntimeError('Virtual KWin scripting unavailable: '+probe.stdout[:500]+probe.stderr[:500])
     identity=subprocess.check_output(['qdbus6','org.kde.KWin','/Scripting','org.kde.kwin.Scripting.loadScript',str(script)],text=True).strip()
     subprocess.run(['qdbus6','org.kde.KWin','/Scripting/Script'+identity,'org.kde.kwin.Script.run'],check=True,capture_output=True)
-    ui=start(['/build/topbar-ui-test'],'ui-test')
+    ui=start(['/build/topbar-ui-test','realWindowMenusAndLauncher'],'ui-test')
     result=ui.wait(timeout=40)
     assert result==0,(root/'ui-test.log').read_text()[-4000:]
     bar=start(['/build/lumen-topbar'],'topbar');time.sleep(2)
@@ -96,29 +102,68 @@ try:
         for screen in (0,1):
             assert any(row['screen']==screen and row['location']=='bottom' and 'org.kde.plasma.icontasks' in row['widgets'] for row in second_panels),second_panels
         (root/'layout.json').write_text(json.dumps(dict(idempotent=True,original_panels_preserved=True,panels=second_panels)))
-        def popup_count():
+        def popups_on_desktop():
             probe=root/'popups.js';answer=root/'kwin-geometry.json';answer.unlink(missing_ok=True)
-            probe.write_text('callDBus("org.lumen.MenuTestA","/Control","","record",JSON.stringify({count:workspace.windowList().filter(w=>w.caption==="Lumen Notification").length}));')
+            probe.write_text('callDBus("org.lumen.MenuTestA","/Control","","record",JSON.stringify(workspace.windowList().filter(w=>w.caption==="Lumen Notification").map(w=>({output:w.output.name,x:w.frameGeometry.x,y:w.frameGeometry.y,width:w.frameGeometry.width,height:w.frameGeometry.height}))));')
             identity=subprocess.check_output(['qdbus6','org.kde.KWin','/Scripting','org.kde.kwin.Scripting.loadScript',str(probe)],text=True).strip()
             subprocess.run(['qdbus6','org.kde.KWin','/Scripting/Script'+identity,'org.kde.kwin.Script.run'],check=True,capture_output=True)
             for attempt in range(30):
-                if answer.exists():return json.loads(answer.read_text())['count']
+                if answer.exists():return json.loads(answer.read_text())
                 time.sleep(.05)
             raise AssertionError('No popup count from private compositor')
+        screen_checks=[]
+        def check_toast(summary):
+            layout=json.loads(subprocess.check_output(['kscreen-doctor','-j'],text=True))['outputs']
+            primary=next(o for o in layout if o['priority']==1)
+            other=next(o for o in layout if o['name']!=primary['name'])
+            input_device.stdin.write(f"move {other['pos']['x']+50} {other['pos']['y']+50}\n")
+            input_device.stdin.flush()
+            assert input_device.stdout.readline().strip()=='OK'
+            subprocess.run(['notify-send','--app-name=LumenQA',summary,'Exactly one Lumen popup'],check=True)
+            time.sleep(.4)
+            windows=popups_on_desktop()
+            assert len(windows)==1,windows
+            toast=windows[0]
+            geometry=json.loads(evaluate('print(JSON.stringify(screenGeometry(0)));'))
+            assert toast['output']==primary['name'],(toast,primary['name'],geometry)
+            assert abs(toast['x']+toast['width']-(geometry['x']+geometry['width']-24))<=1,(toast,geometry)
+            assert geometry['y']+75<=toast['y']<=geometry['y']+max(76,area['y'])+1,(toast,geometry)
+            screen_checks.append(dict(primary=primary['name'],pointer=other['name'],toast=toast,geometry=geometry))
         time.sleep(1)
-        subprocess.run(['notify-send','--app-name=LumenQA','After cutover','Exactly one Lumen popup'],check=True)
-        time.sleep(.4);assert popup_count()==1,'Expected one native popup'
+        check_toast('After cutover')
         def popups(enabled):
             subprocess.run(['python3','-c','import sys;sys.path.insert(0,"/source/files");from lumen_notifications import notification_options;notification_options({"native_popups":'+str(enabled)+'})'],check=True)
             time.sleep(5.2)
         popups(False)
         subprocess.run(['notify-send','--app-name=LumenQA','Popup disabled','Keep this in the center'],check=True)
-        time.sleep(.3);assert popup_count()==0,'Disabled popups must not switch to another presenter'
+        time.sleep(.3);assert not popups_on_desktop(),'Disabled popups must not switch to another presenter'
         popups(True)
-        assert popup_count()==0,"Re-enabling must not replay notifications received while disabled"
-        subprocess.run(['notify-send','--app-name=LumenQA','Popup enabled again','Exactly one Lumen popup'],check=True)
-        time.sleep(.4);assert popup_count()==1,'Expected one restored popup'
+        assert not popups_on_desktop(),"Re-enabling must not replay notifications received while disabled"
+        original=screen_checks[0]['primary']
+        alternate=screen_checks[0]['pointer']
+        subprocess.run(['kscreen-doctor','output.'+alternate+'.priority.1'],check=True,capture_output=True)
+        try:
+            for _ in range(30):
+                if json.loads(evaluate('print(JSON.stringify(screenGeometry(0)));'))['x']!=screen_checks[0]['geometry']['x']:break
+                time.sleep(.1)
+            check_toast('Popup enabled again')
+            assert screen_checks[-1]['primary']==alternate,screen_checks
+        finally:
+            subprocess.run(['kscreen-doctor','output.'+original+'.priority.1'],check=True,capture_output=True)
+        (root/'notification-screens.json').write_text(json.dumps(screen_checks,indent=2))
         (root/'popup-toggle.json').write_text(json.dumps(dict(enabled=1,disabled=0,reenabled=1)))
+        # Exercise the real Plasma presenter over the same bus as the native bar.
+        bar.terminate();bar.wait(timeout=5)
+        from sys import path
+        path.insert(0,'/source/files')
+        from lumen_notifications import publish, snapshot
+        identity=publish('Lumen Inbox','compact-preview','Agenda für den Workshop','Mara fragt nach dem Ablauf.',popup=False)
+        (root/'preview-id').write_text(identity)
+        toast=publish('Kalender','compact-calendar','Workshop um 10:00','Besprechungsraum 2',popup=False)
+        peek=start(['/build/topbar-ui-test','notificationPreview'],'notification-preview')
+        assert peek.wait(timeout=45)==0,(root/'notification-preview.log').read_text()[-3500:]
+        entries={row['id']:row for row in snapshot(wake=False)['items']}
+        assert entries[identity]['read'] and entries[toast]['read']
         subprocess.run(['python3','/source/files/lumen_notifications.py'],check=True,timeout=10)
         time.sleep(.5)
         assert plasma.poll() is None,(root/'plasma.log').read_text()[-2000:]

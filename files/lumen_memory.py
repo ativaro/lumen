@@ -345,7 +345,9 @@ class Memory:
         notes,remote=knowledge_context.account_memory(config,query)
         hidden=set(self.store.setting('memory/server_hidden',[]))
         # Existing per-device opt-outs still apply; no local replica becomes account consent.
-        notes=[n for n in notes if config['server']+'#'+n['remote_id'] not in hidden]
+        forgotten=self.store.setting('memory/tombstones',{})
+        notes=[n for n in notes if n['remote_id'] not in forgotten
+               and config['server']+'#'+n['remote_id'] not in hidden]
         try:
             shared,bound=knowledge_context.fetch(self,query)
             if shared and not knowledge_context.valid(self.store,bound,shared):shared=[]

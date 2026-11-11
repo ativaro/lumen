@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 #include <QObject>
+#include <QDBusContext>
 #include <QProcess>
 #include <QPointer>
 #include <QVariantMap>
@@ -14,13 +15,14 @@
 class QQuickWindow;
 class QQuickItem;
 class QLabel;
-class PanelData:public QObject {
+class PanelData:public QObject, public QDBusContext {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface","org.lumen.Topbar")
     Q_PROPERTY(QVariantMap snapshot READ snapshot NOTIFY changed)
     Q_PROPERTY(QString error READ error NOTIFY errorChanged)
     Q_PROPERTY(bool controlBusy READ controlBusy NOTIFY controlBusyChanged)
     Q_PROPERTY(QString layout READ layout NOTIFY layoutChanged)
+    Q_PROPERTY(QVariantMap noticePreview READ noticePreview NOTIFY noticePreviewChanged)
     Q_PROPERTY(QVariantMap details READ details NOTIFY detailsChanged)
     Q_PROPERTY(QVariantList players READ players NOTIFY playersChanged)
     Q_PROPERTY(QStringList pinnedApps READ pinnedApps WRITE setPinnedApps NOTIFY pinnedAppsChanged)
@@ -44,6 +46,9 @@ public:
     Q_INVOKABLE void mediaAction(const QString &service,const QString &action);
     Q_INVOKABLE void inspect(const QString &topic);
     Q_INVOKABLE void systemAction(const QString &topic,const QString &action,const QString &target={},int value=0);
+    QVariantMap noticePreview() const {return m_noticePreview;}
+    Q_INVOKABLE void noticeCommand(const QString &action,const QString &key={});
+    Q_INVOKABLE void watchNotices(QQuickWindow *window,bool visible);
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void launch(const QString &action,const QString &value={});
     Q_INVOKABLE void control(const QString &action,int value=0);
@@ -54,10 +59,12 @@ public:
     Q_INVOKABLE void inputMask(QQuickWindow *window,const QVariantList &rectangles,bool popupOpen=false);
 public slots:
     Q_SCRIPTABLE void ShowApps();
+    Q_SCRIPTABLE void SetNoticePreview(const QString &json);
     void refreshMedia();
     void mediaPropertiesChanged(const QString &interface,const QVariantMap &changed,const QStringList &invalidated);
     void mediaOwnerChanged(const QString &name,const QString &oldOwner,const QString &newOwner);
 signals:
+    void noticePreviewChanged();
     void pinnedAppsChanged();
     void playersChanged();
     void controlBusyChanged();
@@ -91,6 +98,9 @@ private:
     QPointer<QProcess> m_control;
     bool m_ignoreRead=false;
     QTimer m_timeout,m_poll;
+    QHash<QQuickWindow*,QMetaObject::Connection> m_noticeWindows;
+    QVariantMap m_noticePreview;
+    void clearNoticePreview();
     QVariantMap m_snapshot;
     QVariantMap m_details;
     QString m_error,m_actionError;

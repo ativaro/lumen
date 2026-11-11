@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Die beschriebenen nativen Notes-/Projekteditoren sind nicht mehr die ausgelieferte App. Für die gemeinsame Oberfläche gilt der Server-Host und Panorama. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](desktop-retirement.md).
+
 > Historischer Stand des entfernten nativen Notes-Editors. Aktuell: [Desktop-Verantwortlichkeiten](desktop-retirement.md).
 
 # Lumen Notes: Platznutzung wie Lumen Projekte

@@ -1,9 +1,7 @@
 """Run the streamed installer with local download/package stand-ins, never sudo."""
-import io
 import os
 from pathlib import Path
 import subprocess
-import tarfile
 import tempfile
 import unittest
 
@@ -14,32 +12,29 @@ class BootstrapTest(unittest.TestCase):
     def test_streamed_install_and_failures_preserve_user_data(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); mock = root / 'bin'; mock.mkdir()
-            fixture = root / 'source.tar.gz'
-            with tarfile.open(fixture, 'w:gz') as archive:
-                for name, content in {
-                    'install.sh': 'set -eu\n[ "${TEST_FAIL:-}" != install ] || exit 1\nmkdir -p "$PREFIX/bin"\ncp "$(dirname "$0")/wizard" "$PREFIX/bin/lumen-setup-wizard"\n',
-                    'wizard': '#!/bin/sh\nprintf "wizard\\n" >> "$TEST_EVENTS"\n',
-                }.items():
-                    info = tarfile.TarInfo('lumen-main/' + name); data = content.encode()
-                    info.size = len(data); info.mode = 0o755; archive.addfile(info, io.BytesIO(data))
+            checkout = root / 'lumen-main'; checkout.mkdir()
+            (checkout / 'install.sh').write_text(
+                'set -eu\n[ "${TEST_FAIL:-}" != install ] || exit 1\nmkdir -p "$PREFIX/bin"\n'
+                'cp "$(dirname "$0")/wizard" "$PREFIX/bin/lumen-setup-wizard"\n')
+            wizard = checkout / 'wizard'
+            wizard.write_text('#!/bin/sh\nprintf "wizard\\n" >> "$TEST_EVENTS"\n')
+            wizard.chmod(0o755)
             helper = '''#!/usr/bin/python3
 import json, os, pathlib, shutil, sys
 name=pathlib.Path(sys.argv[0]).name
 with open(os.environ['TEST_EVENTS'],'a') as log: log.write(json.dumps([name,*sys.argv[1:]])+'\\n')
 if name=='id': print(os.environ.get('TEST_UID','1000'))
-elif name=='curl':
-    if os.environ.get('TEST_FAIL')=='download': sys.exit(22)
-    shutil.copyfile(os.environ['TEST_ARCHIVE'],sys.argv[sys.argv.index('-o')+1])
+elif name=='git':
+    expected=['clone','--depth=1','--branch','main','--single-branch','https://forge.example.invalid/ativaro/lumen.git']
+    if sys.argv[1:-1]!=expected or os.environ.get('TEST_FAIL')=='download': sys.exit(1)
+    shutil.copytree(os.environ['TEST_CHECKOUT'],sys.argv[-1])
 elif name=='pacman': sys.exit(0 if os.environ.get('TEST_PACKAGES')=='ready' else 127)
 elif name=='sudo': sys.exit(1 if os.environ.get('TEST_FAIL')=='packages' else 0)
 elif name=='qdbus6': sys.exit(1 if os.environ.get('TEST_FAIL')=='desktop' else 0)
 '''
-            for name in ('id', 'curl', 'pacman', 'sudo', 'qdbus6'):
+            for name in ('id', 'git', 'pacman', 'sudo', 'qdbus6'):
                 path = mock / name; path.write_text(helper); path.chmod(0o755)
             script = (REPO / 'bootstrap.sh').read_text()
-            with tarfile.open(fixture) as archive:
-                archive.extractall(root, filter='data')
-            checkout = root / 'lumen-main'
             (checkout / 'bootstrap.sh').write_text(script)
             cases = ({}, {'TEST_PACKAGES': 'ready'}, {'TEST_FAIL': 'download'},
                      {'TEST_FAIL': 'packages'}, {'TEST_FAIL': 'desktop'},
@@ -54,7 +49,7 @@ elif name=='qdbus6': sys.exit(1 if os.environ.get('TEST_FAIL')=='desktop' else 0
                     personal = prefix / 'speech/model.bin'; personal.parent.mkdir(); personal.write_bytes(b'personal')
                     events = folder / 'events'
                     env = dict(os.environ, HOME=str(folder), PREFIX=str(prefix), TMPDIR=str(scratch),
-                               PATH=str(mock)+':/usr/bin', TEST_ARCHIVE=str(fixture), TEST_EVENTS=str(events),
+                               PATH=str(mock)+':/usr/bin', TEST_CHECKOUT=str(checkout), TEST_EVENTS=str(events),
                                XDG_CURRENT_DESKTOP='KDE', DISPLAY=':test', WAYLAND_DISPLAY='',
                                DBUS_SESSION_BUS_ADDRESS='unix:path=/test/not-a-real-bus')
                     env.update(overrides)
@@ -70,7 +65,7 @@ elif name=='qdbus6': sys.exit(1 if os.environ.get('TEST_FAIL')=='desktop' else 0
                     self.assertEqual(personal.read_bytes(), b'personal')
                     self.assertEqual(list(scratch.iterdir()), [])
                     if local:
-                        self.assertNotIn('"curl"', log)
+                        self.assertNotIn('["git",', log)
                         self.assertNotIn('"sudo"', log)
                         self.assertTrue((checkout / 'install.sh').is_file())
                     if index == 0:

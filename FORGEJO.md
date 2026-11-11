@@ -1,17 +1,26 @@
-# Private Lumen source publication
+# Lumen Desktop: Quellen und Updates
 
-Source snapshot: 2026-10-13.
+Lumen Desktop wird über zwei getrennte Quellen verteilt:
 
-Desktop Studio, Lumen Notes, system memory and native learning source; Vault service access, pairing/sync, diagnostics and Halo branding.
+- **Intern / internal-desktop:** [Forgejo · ativaro/lumen](https://forge.example.invalid/ativaro/lumen), Branch `main`.
+- **Tester:** [GitHub · ativaro/lumen](https://github.com/ativaro/lumen), Branch `main`.
 
-Only distributable source, tests, documentation and artwork are included. Local
-development history, user data, credentials, device reports, deployment overrides
-and backups are excluded. This source update is not a deployment, binary release
-or full fresh-install qualification.
+Beide Repositories bleiben privat und enthalten denselben geprüften Quellinhalt.
+Tester benötigen Zugriff auf GitHub, aber keinen Zugang zum internen Forgejo.
+Zugangsdaten gehören niemals in Clone-URLs oder Skriptargumente.
 
-Native learning is included as source. Its isolated engine requires a compatible
-host; the current Talos runtime does not meet the Landlock ABI 9 requirement.
-See the memory documentation before enabling or deploying that path.
+Ab Version 1.2.0-117 verwendet der Updater die bei der Installation gespeicherte
+Quelle. Forgejo bleibt Forgejo; GitHub bleibt GitHub. Eigene Repository-Adressen
+bleiben ebenfalls erhalten. Nur wenn keine Quelle gespeichert ist, gilt GitHub
+als Standard. Es erfolgt keine automatische Umleitung zwischen den Kanälen.
+Der Updater prüft vor der Installation, ob der Kandidat die bereits verwendeten
+Server-Apps und die native Topbar mitbringt. Alte Updatepläne werden beim
+Quellenwechsel abgewiesen; Quellcaches bleiben nach Repository getrennt.
 
-Both private GitHub and Forgejo repositories carry the same source tree. Existing
-Git history on each platform is retained. Desktop updates continue to use GitHub.
+Das Repository enthält verteilbare Quellen, Tests, Anleitungen und Assets.
+Private Konfiguration, Modelle, Nutzerdaten, Serverzugänge und Sicherungen
+gehören nicht hinein. Ein Quellpush ist keine Desktop-Installation und kein
+Serverdeployment oder Mobile-Release.
+
+[Installation](INSTALL.md) · [Veröffentlichung und Prüfungen](PUBLISHING.md) ·
+[historische Quellbelege](PUBLICATION.md)

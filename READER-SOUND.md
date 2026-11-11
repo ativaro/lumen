@@ -3,8 +3,8 @@
 Sound ist jetzt ein Tab in **Lumen System**, gemeinsam mit der Systemübersicht.
 `lumen-sound` öffnet weiterhin direkt den Mixer im gemeinsamen Fenster. App-Regeln, automatische Gesprächsabsenkung und Datenpfade bleiben erhalten.
 
-Beide sind eigenständige native Fenster mit den gemeinsamen Lumen-Themes. Sie
-erscheinen im Anwendungsmenü und in der Suche. Der Installer richtet die Starter
+Reader hat ein eigenes lokales Fenster; Sound gehört zum gemeinsamen
+Systemfenster. Beide folgen den Lumen-Themes und bleiben über ihre Starter erreichbar. Der Installer richtet die Starter
 ein; **Einrichtung** prüft die optionalen Abhängigkeiten. Es werden keine
 Dateizuordnungen ersetzt und keine Audioregeln automatisch aktiviert.
 
@@ -26,9 +26,10 @@ als Markdown exportieren.
 
 **Vorlesen** verwendet die vorhandene lokale Piper-Stimme für die Auswahl oder
 die aktuelle Seite (bis 24.000 Zeichen), mit Pause und Stopp. Die Stimme lässt
-sich in der Einrichtung installieren. **Ins Lumen-Wissen** übernimmt nur die
-ausgewählte Stelle beziehungsweise Markierung, mit Titel, Reader-Seite und
-Originalquelle. Der Klick sendet keine Daten an einen KI-Anbieter.
+sich in der Einrichtung installieren. **Als Notiz speichern …** bereitet die ausgewählte Stelle beziehungsweise Markierung
+mit Titel, Reader-Seite und Originalquelle für die gemeinsame Notes-App vor.
+Dafür sind Serverbindung und Notes-Freigabe nötig; den Übergabedialog prüfen.
+Der Klick startet keinen KI-Auftrag. Alte lokale Wissen-Ordner sind nicht das Ziel.
 
 Originale bleiben unverändert; alle Ansichten beziehen sich auf eine Lesekopie.
 Ein geändertes Original wird bei erneutem Import ein neuer Eintrag. PDF-Seiten
@@ -43,7 +44,7 @@ bleibt verschlüsselt; ausdrücklich angelegte Notizen und Wissenseinträge enth
 jedoch den ausgewählten Klartext. Vorlesedateien werden beim Seitenwechsel oder
 normalen Schließen entfernt. Die Bibliothek liegt privat unter
 `$XDG_DATA_HOME/lumen-tools/reader` (standardmäßig `~/.local/share/lumen-tools/reader`),
-das bestehende Lumen-Wissen im Lumen-Datenspeicher. Archiveinträge bleiben in der
+Notes dagegen auf dem verbundenen Server. Archiveinträge bleiben in der
 Bibliothek und können wieder eingeblendet werden.
 
 Der Parser läuft in einem abbrechbaren Unterprozess mit Zeit-, Datei-, Seiten-

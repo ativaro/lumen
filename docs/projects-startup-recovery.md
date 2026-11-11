@@ -1,3 +1,5 @@
+> **Historischer Entwurf oder Abnahmebeleg – keine aktuelle Installationsanleitung.** Der konkrete damalige Offscreen-Prozess ist kein aktueller Störungsnachweis. Keine persönlichen Prozesse anhand dieser alten PID-/Pfadangaben beenden; heutige Projekte laufen im Server-Host. Aktuelle Zuordnung: [Desktop-Verantwortlichkeiten](desktop-retirement.md).
+
 # Lumen Projekte: unsichtbare Testinstanz blockiert den Start
 
 18.10.2026: Der normale Projekte-Starter war korrekt. Eine ältere Offscreen-

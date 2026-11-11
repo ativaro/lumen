@@ -20,7 +20,7 @@ def check(root, applications):
             assert target.read_bytes() == source.read_bytes(), str(target)
             count += 1
     manifest = json.loads((root/'install.json').read_text())
-    assert manifest['source_url'] == 'https://forge.example.invalid/ativaro/lumen.git'
+    assert manifest['source_url'] == 'https://github.com/ativaro/lumen.git'
     assert manifest['revision'] == subprocess.check_output(['git', '-C', str(REPO), 'rev-parse', 'HEAD'], text=True).strip()
     for desktop in applications.glob('*.desktop'):
         result = subprocess.run(['desktop-file-validate', str(desktop)], capture_output=True, text=True)
@@ -42,7 +42,7 @@ with tempfile.TemporaryDirectory(prefix='lumen-install-closure-') as tmp:
                XDG_CACHE_HOME=str(home/'cache'), XDG_STATE_HOME=str(home/'state'),
                XDG_RUNTIME_DIR=str(runtime), DBUS_SESSION_BUS_ADDRESS='unix:path=/nonexistent',
                DBUS_SYSTEM_BUS_ADDRESS='unix:path=/nonexistent',
-               LUMEN_SOURCE_URL='https://forge.example.invalid/ativaro/lumen.git')
+               LUMEN_SOURCE_URL='https://github.com/ativaro/lumen.git')
     command = ['bash', str(REPO/'install.sh'), '--no-mcp', '--no-timer']
     with (home/'installer.log').open('w+') as log:
         def run(args, extra=None):
