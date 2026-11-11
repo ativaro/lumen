@@ -18,8 +18,17 @@ tables and streams, object streams, the stream filters, the page tree, document 
 outline. It prints page count, title, outline and, per page, its box and a checksum of its decoded
 content. The Reader does not use it yet; it still reads PDFs with `files/lumen_pdf*.py`.
 `compare-pdf.py` runs both readers over the same files and requires equal results or the same
-refusal: 40 real files with 1419 pages are equal. Not ported yet: encrypted files (refused with a
-clear message), text and words, rendering.
+refusal: 40 real files with 1419 pages are equal.
+
+`lumen-document pdf-words <file> <first page> <count>` reads the words of pages with their
+positions (`src/text.rs`): fonts with their widths, encodings and ToUnicode maps, the text
+operators, forms, layers and replacement text. `compare-words.py` requires the same words, order
+and lines as the Python engine, with positions within half a pixel: 418 pages of the 40 real files
+are equal. Drawing operators are passed over in this pass, so a page whose drawing the Python
+engine refuses is still read here.
+
+Not ported yet: encrypted files (refused with a clear message), embedded Type 1 font programs,
+glyph names of bare CFF fonts, and rendering.
 
 ## Checks
 
@@ -39,4 +48,5 @@ section were equal for 40 real and 4 synthetic files.
 Only licences that can be used freely without buying or separately licensing them are accepted
 (MIT, Apache-2.0, BSD, Zlib, ISC and the like); `check-licenses.py` fails on anything else.
 A part without such a building block is written in this crate. Direct dependencies: `roxmltree`
-(XML tree) and `zip` (archive, Deflate only).
+(XML tree), `zip` (archive, Deflate only), `flate2` (Deflate for PDF streams) and `ttf-parser`
+(font tables).

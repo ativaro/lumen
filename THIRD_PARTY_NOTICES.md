@@ -86,6 +86,7 @@ contains these packages; each package's licence text is in its folder under `ven
 | `miniz_oxide` | 0.9.1 | MIT OR Zlib OR Apache-2.0 |
 | `roxmltree` | 0.20.0 | MIT OR Apache-2.0 |
 | `simd-adler32` | 0.3.10 | MIT |
+| `ttf-parser` | 0.25.1 | MIT OR Apache-2.0 |
 | `zip` | 2.6.1 | MIT |
 | `zopfli` | 0.8.4 | Apache-2.0 |
 

@@ -61,8 +61,56 @@ fn pdf_info(path: &str) -> Result<String, lumen_document::pdf::Error> {
     ))
 }
 
+/// The words of pages `first .. first + count`, one JSON object per page; a page that cannot be read carries its message.
+fn pdf_words(path: &str, first: usize, count: usize) -> Result<String, lumen_document::pdf::Error> {
+    let document = lumen_document::pdf::Document::open(std::path::Path::new(path))?;
+    let mut pages = Vec::new();
+    for index in first..document.pages.len().min(first + count) {
+        pages.push(match lumen_document::text::Page::words(&document, index) {
+            Ok((width, height, words)) => {
+                let words: Vec<String> = words
+                    .iter()
+                    .map(|w| {
+                        format!(
+                            "[{}, {}, {}, {}, {}, {}]",
+                            w.left,
+                            w.top,
+                            w.right,
+                            w.bottom,
+                            json(&w.text),
+                            w.line
+                        )
+                    })
+                    .collect();
+                format!(
+                    "{{\"width\": {width}, \"height\": {height}, \"words\": [{}]}}",
+                    words.join(", ")
+                )
+            }
+            Err(error) => format!("{{\"error\": {}}}", json(&error.to_string())),
+        });
+    }
+    Ok(format!("[{}]", pages.join(", ")))
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.len() == 4 && args[0] == "pdf-words" {
+        return match pdf_words(
+            &args[1],
+            args[2].parse().unwrap_or(0),
+            args[3].parse().unwrap_or(1),
+        ) {
+            Ok(text) => {
+                println!("{text}");
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     if args.len() == 2 && args[0] == "pdf-info" {
         return match pdf_info(&args[1]) {
             Ok(text) => {

@@ -18,6 +18,7 @@ path = "src/main.rs"
 roxmltree = "0.20"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+ttf-parser = { version = "0.25", default-features = false, features = ["std", "glyph-names"] }
 
 [profile.release]
 panic = "abort"
