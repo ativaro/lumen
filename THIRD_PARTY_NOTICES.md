@@ -63,3 +63,31 @@ license and notice files remain in the downloaded packages. Chromium is installe
 through Playwright and retains its bundled licenses. These components run only in
 separate browser sessions; bubblewrap provides the local filesystem isolation.
 The exact package versions and integrity hashes are in `files/browser-runtime/package-lock.json`.
+
+## Document reader (`lumen-document`)
+
+Lumen's own document core in `native/document-core` is built from the frozen sources in
+`native/document-core/vendor`; the build does not reach the network. Only licences that can be used
+freely are accepted, which `native/document-core/check-licenses.py` enforces. The compiled program
+contains these packages; each package's licence text is in its folder under `vendor/`:
+
+| Package | Version | Licence |
+|---|---|---|
+| `adler2` | 2.0.1 | 0BSD OR MIT OR Apache-2.0 |
+| `bumpalo` | 3.20.3 | MIT OR Apache-2.0 |
+| `cfg-if` | 1.0.5 | MIT OR Apache-2.0 |
+| `crc32fast` | 1.5.5 | MIT OR Apache-2.0 |
+| `equivalent` | 1.0.3 | Apache-2.0 OR MIT |
+| `flate2` | 1.1.11 | MIT OR Apache-2.0 |
+| `hashbrown` | 0.17.1 | MIT OR Apache-2.0 |
+| `indexmap` | 2.14.2 | Apache-2.0 OR MIT |
+| `log` | 0.4.35 | MIT OR Apache-2.0 |
+| `memchr` | 2.8.3 | Unlicense OR MIT |
+| `miniz_oxide` | 0.9.1 | MIT OR Zlib OR Apache-2.0 |
+| `roxmltree` | 0.20.0 | MIT OR Apache-2.0 |
+| `simd-adler32` | 0.3.10 | MIT |
+| `zip` | 2.6.1 | MIT |
+| `zopfli` | 0.8.4 | Apache-2.0 |
+
+The other folders under `vendor/` belong to build tools and to platforms and features that are
+not compiled into the program.

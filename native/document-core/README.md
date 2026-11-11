@@ -1,8 +1,8 @@
 # Lumen document core
 
 Lumen's own document reader in Rust, without Qt, a server or an office suite.
-`PRODUCTION_READY=false`: the crate is built and compared here, but the installer does not
-ship it yet and the Reader still uses `files/lumen_office.py`.
+The installer and the Arch package build it with `native/build-document.sh` from the frozen
+sources in `vendor/`; `files/lumen_office.py` starts it for the Reader.
 
 ## What it does today
 
@@ -22,11 +22,11 @@ python3 check-licenses.py
 cargo fmt --check
 cargo clippy --locked --release --all-targets -- -D warnings
 cargo test --locked --release
-python3 compare.py target/release/lumen-document ../../files <office files>...
 ```
 
-`compare.py` is the acceptance check of the migration: for every file the title and every
-section must equal what the Python reader produces. It prints outcomes and run times only.
+The Reader's behaviour is checked end to end by `files/test_lumen_office.py`. Before the Python
+parser was removed, its output was compared with this crate's file by file: title and every
+section were equal for 40 real and 4 synthetic files.
 
 ## Dependencies
 

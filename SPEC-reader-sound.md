@@ -6,8 +6,9 @@ ToolWindow/Library, Themes, lokale Piper-Stimme und Wissensspeicher verwenden.
 ## Reader
 
 - Office-Dokumente (`.docx .docm .xlsx .xlsm .pptx .pptm .odt .ods .odp`) liest ein
-  eigener Leser lokal aus dem XML der Datei, ohne Server und ohne Office-Programm
-  (`lumen_office.py`). Es ist eine Leseansicht, kein Drucklayout: Überschriften,
+  eigener Leser lokal aus dem XML der Datei, ohne Server und ohne Office-Programm:
+  Lumens Dokument-Kern in Rust (`native/document-core`, Programm `lumen-document`),
+  gestartet von `lumen_office.py`. Es ist eine Leseansicht, kein Drucklayout: Überschriften,
   Hervorhebungen, Listen, Tabellen und Bilder; Tabellenblätter und Folien beginnen je
   auf einer neuen Seite, Überschriften bilden das Inhaltsverzeichnis. Nicht gelesen
   werden Kopf-/Fußzeilen, Fußnoten, Diagramme, Formen, Folienlayout, Makros, verbundene
