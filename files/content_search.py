@@ -105,8 +105,8 @@ def read_content(path, directory_fd=None):
                 return '', True
             with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as errors:
                 # An inherited descriptor pins the checked file, even if its path changes.
-                proc = subprocess.Popen([sys.executable,str(Path(__file__).with_name('lumen_pdf_worker.py')),'text',
-                                         f'/proc/self/fd/{stream.fileno()}', '--limit',str(MAX_TEXT+1)],
+                from lumen_office import pdf_tool
+                proc = subprocess.Popen(pdf_tool('text', f'/proc/self/fd/{stream.fileno()}', '--limit', str(MAX_TEXT+1), beside=__file__),
                                         stdin=subprocess.DEVNULL, stdout=output, stderr=errors,
                                         pass_fds=(stream.fileno(),))
                 deadline = time.monotonic() + 12

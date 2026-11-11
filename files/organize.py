@@ -55,7 +55,8 @@ def proposal_context(items, temp, stopped=lambda: False):
         output = Path(temp) / f"{item['id']}.png"
         try:
             if kind == 'pdf':
-                result=subprocess.run([sys.executable,str(Path(__file__).with_name('lumen_pdf_worker.py')),'text',str(path),'--pages','3','--limit','4096'],capture_output=True,timeout=12,check=True)
+                from lumen_office import pdf_tool
+                result=subprocess.run(pdf_tool('text',str(path),'--pages','3','--limit','4096'),capture_output=True,timeout=12,check=True)
                 record['excerpt']=result.stdout.decode('utf-8',errors='replace')
             elif kind == 'text' or (kind == 'image' and len(attachments) < 12):
                 result = subprocess.run([sys.executable, str(Path(__file__).with_name('preview.py')),

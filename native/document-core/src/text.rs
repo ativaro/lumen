@@ -1429,6 +1429,22 @@ pub struct Word {
     pub line: usize,
 }
 
+/// The words as text: one line per line of the page, its words separated by a space.
+pub fn text(words: &[Word]) -> String {
+    let mut lines: Vec<(usize, Vec<&str>)> = Vec::new();
+    for word in words {
+        match lines.iter_mut().find(|line| line.0 == word.line) {
+            Some(line) => line.1.push(&word.text),
+            None => lines.push((word.line, vec![&word.text])),
+        }
+    }
+    lines
+        .iter()
+        .map(|line| line.1.join(" "))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 struct Character {
     letter: String,
     angle: f64,

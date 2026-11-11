@@ -31,6 +31,16 @@ def program():
     return found
 
 
+def pdf_tool(*arguments, beside=__file__):
+    """The command for text, information or a rendered page of a PDF, with the arguments of lumen_pdf_worker.py.
+
+    The document core answers; what it does not read it hands to the Python worker before writing anything."""
+    import sys
+    worker = [sys.executable, str(Path(beside).with_name('lumen_pdf_worker.py'))]
+    try: return [program(), 'pdf-cli', '--fallback', *worker, *arguments]
+    except PDFError: return [*worker, *arguments]
+
+
 def read(path):
     """Title and one HTML section per document, sheet or slide."""
     command = [program(), 'office', str(path)]

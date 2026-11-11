@@ -172,7 +172,8 @@ class Preview(QWidget):
             self.location.setText(('NAS · ' if remote.scheme() == 'smb' else tr('Netzwerk · ')) + remote.host()
                                   if remote.host() else tr('Dieser PC · ') + self.path.parent.name)
         if kind == 'pdf':
-            self.start(sys.executable,[str(Path(__file__).with_name('lumen_pdf_worker.py')),'info',str(self.path)],self.pdf_info)
+            from lumen_office import pdf_tool
+            command=pdf_tool('info',str(self.path));self.start(command[0],command[1:],self.pdf_info)
         elif kind in {'video', 'audio'}:
             self.start('ffprobe', ['-v', 'error', '-protocol_whitelist', 'file,pipe',
                        '-show_entries', 'format=duration:stream=width,height', '-of', 'json',
@@ -238,7 +239,9 @@ class Preview(QWidget):
         self.note.setText(tr('PDF-Vorschau · Leertaste zum Vergrößern'))
         self.show_message(tr('Seite wird geladen …'))
         output = str(Path(self.temp.path()) / 'pdf')
-        self.start(sys.executable,[str(Path(__file__).with_name('lumen_pdf_worker.py')),'render',str(self.path),'--page',str(self.page-1),'--scale-to','1500','--output',output+'.png'],lambda _proc:self.display_image(output+'.png'))
+        from lumen_office import pdf_tool
+        command=pdf_tool('render',str(self.path),'--page',str(self.page-1),'--scale-to','1500','--output',output+'.png')
+        self.start(command[0],command[1:],lambda _proc:self.display_image(output+'.png'))
 
     def change_page(self, delta):
         self.page = max(1, min(self.pages, self.page + delta))

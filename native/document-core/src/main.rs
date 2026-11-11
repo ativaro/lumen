@@ -173,6 +173,129 @@ fn pdf_reader(path: &str, page: Option<usize>) -> Result<String, lumen_document:
     Ok(out)
 }
 
+/// The command line of `files/lumen_pdf_worker.py` for text, document information and a rendered page:
+/// `pdf-cli [--fallback <program> <script>] text|info|render <file> [--page n] [--pages n] [--scale-to n]
+/// [--output png] [--limit bytes] [--characters n]`. What this core does not read is handed to the
+/// fallback with the same arguments, before anything has been written.
+fn pdf_cli(args: &[String]) -> ExitCode {
+    let (fallback, rest) = match args {
+        [flag, program, script, rest @ ..] if flag == "--fallback" => {
+            (Some((program, script)), rest)
+        }
+        rest => (None, rest),
+    };
+    let [action, path, options @ ..] = rest else {
+        eprintln!(
+            "usage: lumen-document pdf-cli [--fallback <program> <script>] text|info|render <file> [options]"
+        );
+        return ExitCode::from(2);
+    };
+    let option = |name: &str| {
+        options
+            .iter()
+            .position(|o| o == name)
+            .and_then(|at| options.get(at + 1))
+    };
+    let whole = |name: &str, default: i64| {
+        option(name).map_or(Some(default), |value| value.parse::<i64>().ok())
+    };
+    let run = || -> Result<Vec<u8>, String> {
+        use lumen_document::pdf::Document;
+        let invalid = || "Ungültige PDF-Ganzzahl oder überschrittenes Limit.".to_string();
+        let document = Document::open(std::path::Path::new(path), &password())
+            .map_err(|error| error.to_string())?;
+        match action.as_str() {
+            "info" => Ok(format!(
+                "{{\"pages\": {}, \"title\": {}}}\n",
+                document.pages.len(),
+                json(document.metadata.get("title").map_or("", String::as_str))
+            )
+            .into_bytes()),
+            "render" => {
+                let index = whole("--page", 0)
+                    .filter(|index| (0..document.pages.len() as i64).contains(index))
+                    .ok_or_else(invalid)? as usize;
+                let edge = whole("--scale-to", 1500)
+                    .filter(|edge| (1..=6000).contains(edge))
+                    .ok_or_else(invalid)? as f64;
+                let (width, height, _) = lumen_document::text::Page::words(&document, index)
+                    .map_err(|error| error.to_string())?;
+                let picture = lumen_document::render::render(
+                    &document,
+                    index,
+                    f64::min(4.0, edge / width.max(height)),
+                )
+                .map_err(|error| error.to_string())?;
+                let target =
+                    option("--output").ok_or("PDF-Vorschau konnte nicht gespeichert werden.")?;
+                picture
+                    .save_png(target)
+                    .map_err(|_| "PDF-Vorschau konnte nicht gespeichert werden.".to_string())?;
+                Ok(Vec::new())
+            }
+            "text" => {
+                let mut remaining = whole("--limit", 2 * 1024 * 1024)
+                    .filter(|limit| (1..=16 * 1024 * 1024).contains(limit))
+                    .ok_or_else(invalid)? as usize;
+                let pages = whole("--pages", 10000)
+                    .filter(|pages| (1..=10000).contains(pages))
+                    .ok_or_else(invalid)? as usize;
+                let most = match option("--characters") {
+                    Some(value) => Some(
+                        value
+                            .parse::<usize>()
+                            .ok()
+                            .filter(|most| (1..=1_000_000).contains(most))
+                            .ok_or_else(invalid)?,
+                    ),
+                    None => None,
+                };
+                let (mut out, mut characters) = (Vec::new(), 0);
+                for index in 0..document.pages.len().min(pages) {
+                    let (_, _, words) = lumen_document::text::Page::words(&document, index)
+                        .map_err(|error| error.to_string())?;
+                    let value = lumen_document::text::text(&words) + "\u{c}";
+                    characters += value.chars().count();
+                    if let Some(most) = most.filter(|most| characters > *most) {
+                        return Err(format!(
+                            "Mehr als {most} PDF-Textzeichen; bitte einen kürzeren Auszug importieren."
+                        ));
+                    }
+                    out.extend_from_slice(&value.as_bytes()[..value.len().min(remaining)]);
+                    remaining = remaining.saturating_sub(value.len());
+                    if remaining == 0 {
+                        break;
+                    }
+                }
+                Ok(out)
+            }
+            _ => Err("Unbekannte PDF-Aktion.".into()),
+        }
+    };
+    match (run(), fallback) {
+        (Ok(out), _) => {
+            use std::io::Write;
+            if std::io::stdout().write_all(&out).is_err() {
+                return ExitCode::FAILURE;
+            }
+            ExitCode::SUCCESS
+        }
+        (Err(_), Some((program, script))) => {
+            use std::os::unix::process::CommandExt;
+            let error = std::process::Command::new(program)
+                .arg(script)
+                .args(rest)
+                .exec();
+            eprintln!("{error}");
+            ExitCode::FAILURE
+        }
+        (Err(message), None) => {
+            eprintln!("{message}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.len() == 5 && args[0] == "pdf-render" {
@@ -197,6 +320,9 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         };
+    }
+    if args.len() >= 3 && args[0] == "pdf-cli" {
+        return pdf_cli(&args[1..]);
     }
     if (args.len() == 3 || args.len() == 4)
         && args[0] == "pdf-reader"
