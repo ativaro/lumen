@@ -92,11 +92,11 @@ impl Value {
             _ => None,
         }
     }
-    fn is_null(&self) -> bool {
+    pub(crate) fn is_null(&self) -> bool {
         matches!(self, Value::Null)
     }
     /// Python truthiness, for the places where the Python reader says `value or default`.
-    fn truthy(&self) -> bool {
+    pub(crate) fn truthy(&self) -> bool {
         match self {
             Value::Null => false,
             Value::Bool(value) => *value,
@@ -848,6 +848,11 @@ impl Document {
             .read_to_end(&mut data)
             .map_err(|_| Error::Pdf("Lesedatei fehlt oder ist größer als 200 MiB.".into()))?;
         Document::with_password(data, password)
+    }
+
+    /// Whether the file's contents are stored encrypted.
+    pub fn encrypted(&self) -> bool {
+        self.security.is_some()
     }
 
     pub fn new(data: Vec<u8>) -> Outcome<Document> {

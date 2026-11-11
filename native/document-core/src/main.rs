@@ -302,6 +302,69 @@ fn pdf_cli(args: &[String]) -> ExitCode {
     }
 }
 
+/// `pdf-export`: a JSON request `{"pages": [{"path", "page", "rotation", "boxes", "stamp"}], "target", "dpi"}`
+/// on standard input. One line per page reports progress. Exit code 3 means that this core does not
+/// write such a file yet; nothing has been written then.
+fn pdf_export() -> ExitCode {
+    use lumen_document::json::Json;
+    use lumen_document::pdf::Error;
+    use std::io::Read;
+    let request = || -> Option<(Vec<lumen_document::write::Item>, std::path::PathBuf, u32)> {
+        let mut data = Vec::new();
+        std::io::stdin()
+            .take(4 * 1024 * 1024 + 1)
+            .read_to_end(&mut data)
+            .ok()?;
+        let request = lumen_document::json::parse(&data)?;
+        let mut items = Vec::new();
+        for page in request.get("pages")?.list()? {
+            let stamp: Vec<i64> = page
+                .get("stamp")?
+                .list()?
+                .iter()
+                .map(Json::whole)
+                .collect::<Option<_>>()?;
+            let mut boxes = Vec::new();
+            for area in page.get("boxes").and_then(Json::list).unwrap_or(&[]) {
+                let sides: Vec<f64> = area
+                    .list()?
+                    .iter()
+                    .map(Json::number)
+                    .collect::<Option<_>>()?;
+                boxes.push(<[f64; 4]>::try_from(sides).ok()?);
+            }
+            items.push(lumen_document::write::Item {
+                path: page.get("path")?.text()?.into(),
+                page: usize::try_from(page.get("page")?.whole()?).ok()?,
+                rotation: page.get("rotation").map_or(Some(0), Json::whole)?,
+                boxes,
+                stamp: stamp.try_into().ok()?,
+            });
+        }
+        let dpi = request.get("dpi").map_or(Some(200), Json::whole)?;
+        Some((
+            items,
+            request.get("target")?.text()?.into(),
+            u32::try_from(dpi).ok()?,
+        ))
+    };
+    let Some((items, target, dpi)) = request() else {
+        eprintln!("Ungültige Seitenauswahl oder Qualität.");
+        return ExitCode::FAILURE;
+    };
+    let mut progress = |page: usize, pages: usize| println!("Seite {page} von {pages}");
+    match lumen_document::write::export(&items, &target, dpi, &mut progress) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("{error}");
+            match error {
+                Error::Unsupported(_) => ExitCode::from(3),
+                Error::Pdf(_) => ExitCode::FAILURE,
+            }
+        }
+    }
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.len() == 5 && args[0] == "pdf-render" {
@@ -326,6 +389,9 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         };
+    }
+    if args.len() == 1 && args[0] == "pdf-export" {
+        return pdf_export();
     }
     if args.len() >= 3 && args[0] == "pdf-cli" {
         return pdf_cli(&args[1..]);
