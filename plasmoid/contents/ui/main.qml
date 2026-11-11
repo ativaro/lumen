@@ -26,7 +26,10 @@ PlasmoidItem {
         }else host.showAll()
     }
     NotificationHost {id:host;presenter:root;helper:root.helper;uiLanguage:root.uiLanguage
+        seen:Number(Plasmoid.configuration.seen)||0
+        onSeenRequested:stamp=>{Plasmoid.configuration.seen=String(stamp);Plasmoid.configuration.writeConfig()}
         onUnreadChanged:{Plasmoid.configuration.unread=unread;Plasmoid.configuration.writeConfig()}
+        onFreshChanged:{Plasmoid.configuration.fresh=fresh;Plasmoid.configuration.writeConfig()}
     }
     Component.onCompleted:{requestsReady=true;Qt.callLater(updatePresenter);acknowledge();language.connectSource(helper+" --language")}
     P5Support.DataSource {id:language;engine:"executable";connectedSources:[]

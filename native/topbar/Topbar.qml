@@ -60,6 +60,12 @@ Window {
     property double now:Date.now()
     readonly property bool quiet:notificationSettings.notificationsInhibitedUntil.getTime()>now
     readonly property var activity:stateData.activity||({})
+    readonly property bool needsYou:(activity.decisions||[]).length>0
+    // The snapshot is polled, so opening the notifications clears the count at once and it stays cleared until the host confirms.
+    property bool noticesJustSeen:false
+    property int lastFresh:0
+    readonly property int freshNotices:noticesJustSeen?0:Math.max(0,stateData.fresh||0)
+    onStateDataChanged:{const fresh=Math.max(0,stateData.fresh||0);if(fresh<lastFresh||fresh===0)noticesJustSeen=false;lastFresh=fresh}
     readonly property int focusSeconds:activity.focus?.end?Math.max(0,Math.ceil(activity.focus.end-now/1000)):activity.focus?.remaining||0
     readonly property var currentActivity:chooseActivity()
     readonly property string statusSection:currentActivity.section
@@ -275,13 +281,17 @@ Window {
         onInputRequested:{
             bar.closeOtherMenus(bar.layout==="context"?contextDrawer:null)
             if(conversationWindow.visible)bar.openConversation()
+            if(passive)conversationPane.focusInput()
         }
-        visible:bar.expandedComposer;width:bar.classic?Math.max(0,activityButton.x-(bar.twoRows?24:appRow.x+appRow.width+12)-60):266
-        x:bar.classic?(bar.twoRows?24:appRow.x+appRow.width+12):bar.deck?bar.width-310-16:systemRow.x-310-8;y:bar.classic?(bar.twoRows?82:40)-height/2:bar.deck?72:(bar.barSize-height)/2
+        // Wide screens keep a readable field in the middle instead of stretching it across the bar.
+        readonly property real slotStart:bar.twoRows?24:appRow.x+appRow.width+12
+        readonly property real slotWidth:Math.max(0,activityButton.x-slotStart-16)
+        visible:bar.expandedComposer;width:bar.classic?(bar.twoRows?slotWidth:Math.min(slotWidth,720)):300
+        x:bar.classic?Math.max(slotStart,Math.min(slotStart+slotWidth-width,(bar.width-width)/2)):bar.deck?bar.width-300-16:systemRow.x-300-8;y:bar.classic?(bar.twoRows?82:40)-height/2:bar.deck?72:(bar.barSize-height)/2
         colors:bar.colors;translate:bar.t;controller:panelData;keyStyle:!bar.classic
+        showToggle:true;conversationOpen:bar.conversationOpen;onToggleRequested:bar.toggleConversation()
         request:questionState;onInspectAttachment:bar.toggleMenu(contextDrawer);onSent:bar.conversationSent();onVoiceRequested:bar.openConversation()
     }
-    BarButton {objectName:"conversationToggle";visible:inlineComposer.visible;colors:bar.colors;glyph:bar.conversationOpen?"arrow-up":"arrow-down";text:bar.t(bar.conversationOpen?"Gespräch einklappen":"Gespräch aufklappen");iconOnly:true;x:inlineComposer.x+inlineComposer.width+4;y:inlineComposer.y;onClicked:bar.toggleConversation()}
     ConversationState {id:conversationState;model:panelData.conversation;translate:bar.t;colors:bar.colors}
     Connections {target:panelData.conversation;function onChanged(){
         const incoming=conversationState.data.query||""
@@ -340,7 +350,7 @@ Window {
     }
     Connections {target:windowState.windows;function onObjectAdded(){if(conversationWindow.focusPending)Qt.callLater(()=>windowState.activateProcess(panelData.processId))}}
     Shortcut {sequence:"Escape";enabled:bar.conversationOpen||conversationWindow.active;onActivated:bar.closeConversation()}
-    BarButton {id:activityButton;objectName:"activityButton";visible:bar.classic;colors:bar.colors;monochrome:true;text:bar.statusText;glyph:bar.currentActivity.icon
+    BarButton {id:activityButton;objectName:"activityButton";visible:bar.classic;colors:bar.colors;monochrome:true;outlined:true;text:bar.statusText;glyph:bar.currentActivity.icon
         width:bar.width<900?160:190;x:bar.twoRows?bar.width-width-24:systemRow.x-width-12;y:(bar.twoRows?82:40)-height/2
         onClicked:bar.showActivity("status")}
     Row {
@@ -362,9 +372,18 @@ Window {
             BarButton {key:!bar.classic;objectName:"systemErrorButton";colors:bar.colors;text:bar.t(panelData.error);glyph:"dialog-warning";iconOnly:true;visible:!!panelData.error;onClicked:bar.toggleMenu(systemPopup)}
             BarButton {id:networkButton;objectName:"networkButton";key:!bar.classic;colors:bar.colors;text:bar.t("Netzwerk");glyph:"network-wireless";iconOnly:true;visible:bar.showStatus;current:quickMenu.visible && bar.quickTopic==="network";onClicked:bar.quick("network")}
             BarButton {id:volumeButton;key:!bar.classic;objectName:"systemControlsButton";colors:bar.colors;text:bar.t("Audio");glyph:bar.stateData.system?.muted?"audio-volume-muted":"audio-volume-high";iconOnly:true;visible:bar.showStatus;current:quickMenu.visible && bar.quickTopic==="audio";onClicked:bar.quick("audio")}
-            BarButton {objectName:"notificationsButton";key:!bar.classic;colors:bar.colors;text:bar.t("Mitteilungen")+(bar.quiet?" · "+bar.t("Nicht stören"):bar.stateData.unread>0?" · "+bar.stateData.unread:"");glyph:bar.quiet?"notifications-disabled":bar.stateData.unread>0?"notifications-new":"notifications";iconOnly:true;current:quickMenu.visible && bar.quickTopic==="notifications";onClicked:bar.quick("notifications")
-                Rectangle {anchors.right:parent.right;anchors.top:parent.top;anchors.rightMargin:4;anchors.topMargin:4;width:7;height:7;radius:4;color:bar.colors.accent
-                    visible:!bar.quiet && (quickMenu.visible && bar.quickTopic==="notifications" && panelData.noticePreview.items?panelData.noticePreview.unread:bar.stateData.unread)>0}
+            BarButton {objectName:"notificationsButton";key:!bar.classic;colors:bar.colors;text:bar.t("Mitteilungen")+(bar.quiet?" · "+bar.t("Nicht stören")+(bar.freshNotices>0?" · "+bar.freshNotices+" "+bar.t("zurückgehalten"):""):bar.needsYou?" · "+bar.t("Braucht dich"):bar.freshNotices>0?" · "+bar.freshNotices+" "+bar.t("neu"):"");glyph:bar.quiet?"notifications-disabled":bar.freshNotices>0?"notifications-new":"notifications";iconOnly:true;current:quickMenu.visible && bar.quickTopic==="notifications";onClicked:bar.quick("notifications")
+                // A number for what is new since the last look, a mark for what waits on a decision; nothing otherwise.
+                // While notifications are held back the number stays, subdued, so quiet does not look like empty.
+                Rectangle {
+                    objectName:"notificationBadge";readonly property bool held:bar.quiet && !bar.needsYou
+                    visible:bar.needsYou || bar.freshNotices>0
+                    anchors.right:parent.right;anchors.top:parent.top;anchors.rightMargin:1;anchors.topMargin:2
+                    width:Math.max(16,badgeText.implicitWidth+8);height:16;radius:8
+                    color:held?bar.colors.alternate:bar.needsYou?(bar.colors.ring||bar.colors.accent):bar.colors.accent
+                    border.width:held?1:0;border.color:bar.colors.border
+                    Text {id:badgeText;anchors.centerIn:parent;text:bar.needsYou?"!":bar.freshNotices>9?"9+":bar.freshNotices;color:parent.held?bar.colors.text:bar.colors.onAccent;font.pixelSize:11;font.weight:Font.Medium}
+                }
             }
             BarButton {colors:bar.colors;objectName:"clockButton";text:bar.clockText;visible:bar.width>460;onClicked:bar.toggleMenu(calendar)}
             BarButton {id:compactControls;key:!bar.classic;objectName:"compactControlsButton";colors:bar.colors;text:bar.t("Systemsteuerung");glyph:"settings-configure";iconOnly:true;current:systemPopup.visible;onClicked:bar.toggleMenu(systemPopup)}
@@ -396,7 +415,7 @@ Window {
         onVisibleChanged:Qt.callLater(bar.mask)
         onOpened:restoreFocus.stop()
         onClosed:{Qt.callLater(bar.mask);restoreFocus.restart()}
-        background:Rectangle {color:bar.colors.window;radius:13;border.color:bar.colors.border}
+        background:Rectangle {color:bar.colors.window;radius:bar.colors.radius||12;border.color:bar.colors.border}
     }
     component DockedBackground:Rectangle {
         color:bar.colors.window;radius:bar.colors.radius||10;topLeftRadius:0;topRightRadius:0;border.color:bar.colors.border
@@ -411,12 +430,13 @@ Window {
         id:quickMenu;objectName:"quickMenu";padding:12
         width:Math.min(390,Math.max(1,bar.width-36));x:bar.width-width-12
         QuickMenu {width:parent.width;topic:bar.quickTopic;colors:bar.colors;controller:panelData;translate:bar.t;quiet:bar.quiet
+            decisions:bar.activity.decisions||[];onReview:{quickMenu.close();bar.showActivity("decision")}
             onDrill:key=>bar.drillQuick(key)
             onDismiss:quickMenu.close()
             onToggleQuiet:{notificationSettings.notificationsInhibitedUntil=bar.quiet?new Date(0):new Date(Date.now()+3600000);notificationSettings.save();bar.now=Date.now()}
         }
         readonly property bool watchingNotices:visible && bar.quickTopic==="notifications"
-        onWatchingNoticesChanged:panelData.watchNotices(bar,watchingNotices)
+        onWatchingNoticesChanged:{if(watchingNotices)bar.noticesJustSeen=true;panelData.watchNotices(bar,watchingNotices)}
         Timer {interval:5000;repeat:true;running:quickMenu.watchingNotices && !panelData.noticePreview.items;onTriggered:panelData.noticeCommand("preview")}
     }
     DockedPopup {
@@ -559,7 +579,7 @@ Window {
             }
             DayOfWeekRow {locale:bar.uiLocale;Layout.fillWidth:true;palette.text:bar.colors.muted}
             MonthGrid {id:monthGrid;month:calendar.monthDate.getMonth();year:calendar.monthDate.getFullYear();locale:bar.uiLocale;Layout.fillWidth:true;Layout.preferredHeight:230
-                delegate:Rectangle {required property var model;color:model.today?bar.colors.accent:"transparent";radius:8;opacity:model.month===monthGrid.month?1:0.35
+                delegate:Rectangle {required property var model;color:model.today?bar.colors.accent:"transparent";radius:bar.colors.innerRadius||7;opacity:model.month===monthGrid.month?1:0.35
                     Text {anchors.centerIn:parent;text:parent.model.day;color:parent.model.today?bar.colors.onAccent:bar.colors.text;font.pixelSize:14}
                 }
             }

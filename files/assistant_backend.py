@@ -51,6 +51,25 @@ def opencode_database(binary, configured):
     return str(isolated) if populated and not session else configured
 
 
+def session_notes(saved, current):
+    """Every server note this conversation has used, at the revision last sent."""
+    notes = {n['remote_id']: n for n in (saved.get('notes') or [] if isinstance(saved, dict) else [])}
+    notes.update({n['remote_id']: n for n in current.get('notes') or []})
+    return list(notes.values())
+
+
+def session_memory_changed(saved, current):
+    """A conversation continues unless memory it already relied on has changed.
+
+    Each question selects its own server notes, so a different selection alone is
+    not a change; a note used earlier arriving at another revision is.
+    """
+    if not isinstance(saved, dict) or saved.get('local') != current.get('local') or saved.get('account') != current.get('account'):
+        return True
+    known = {n['remote_id']: n['revision'] for n in saved.get('notes') or []}
+    return any(known.get(n['remote_id'], n['revision']) != n['revision'] for n in current.get('notes') or [])
+
+
 class OpenCodeBackend(QObject):
     apiDiagnostic = Signal(dict)
     messagesChanged = Signal(list)
@@ -527,9 +546,9 @@ class OpenCodeBackend(QObject):
                 current_stamp=stamp(store);session_stamp=store.setting('memory/session/'+self.session)
                 current_session=dict(local=current_stamp,account=self.memory_payload.get('remote',{}).get('stamp',''),
                                      notes=self.memory_payload.get('remote_notes',[]))
-                if self.memory_payload.get('stamp')!=current_stamp or (session_stamp is not None and session_stamp!=current_session):
+                if self.memory_payload.get('stamp')!=current_stamp or (session_stamp is not None and session_memory_changed(session_stamp,current_session)):
                     reset_memory();return
-                store.set_setting('memory/session/'+self.session,current_session)
+                store.set_setting('memory/session/'+self.session,dict(current_session,notes=session_notes(session_stamp,current_session)))
             self.prompt_submitted = True
             def accepted(_):
                 self.publish_memory_context(self.memory_payload,'submitted')

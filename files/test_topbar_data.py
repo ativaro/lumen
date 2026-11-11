@@ -39,6 +39,17 @@ class TopbarDataTests(unittest.TestCase):
             self.assertIsNone(result['palette'])
             self.assertEqual(result['labels']['Dateien'],'Files')
 
+    def test_new_notice_count_comes_from_the_host_and_falls_back_to_unread(self):
+        host='[Containments][1][Applets][2]\nplugin=org.lumen.notificationhost\n[Containments][1][Applets][2][Configuration][General]\nunread=7\n'
+        for extra,expected in (('fresh=2\n',2),('',7)):
+            with tempfile.TemporaryDirectory() as directory:
+                (Path(directory)/'plasma-org.kde.plasma.desktop-appletsrc').write_text(host+extra)
+                with patch.dict(os.environ,XDG_CONFIG_HOME=directory),patch('lumen_panel.applications',return_value=[]), \
+                     patch('lumen_controls.snapshot',return_value={}),patch('topbar_context.snapshot',return_value={}), \
+                     patch('lumen_notifications.snapshot',return_value=dict(unread=0)):
+                    result=snapshot()
+                self.assertEqual((result['unread'],result['fresh']),(7,expected))
+
     def test_unavailable_notification_store_does_not_claim_zero_unread(self):
         with patch('lumen_panel.applications', return_value=[]), \
              patch('lumen_controls.snapshot', return_value={}), \
