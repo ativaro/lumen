@@ -275,6 +275,7 @@ Window {
         onInputRequested:{
             bar.closeOtherMenus(bar.layout==="context"?contextDrawer:null)
             if(conversationWindow.visible)bar.openConversation()
+            if(passive)conversationPane.focusInput()
         }
         // Wide screens keep a readable field in the middle instead of stretching it across the bar.
         readonly property real slotStart:bar.twoRows?24:appRow.x+appRow.width+12

@@ -101,7 +101,8 @@ Akzentrahmen; ein Fehler zeigt Warnsymbol, Rahmen in Textfarbe und „Erneut sen
 Bedienelemente verwenden den Innenradius des Themes (`innerRadius`, 65 % des
 Theme-Radius), Flächen und Menüs den Theme-Radius. Keine festen Radien im Topbar-Code.
 Das Feld ist höchstens 720 px breit und sitzt in der Bildschirmmitte. Im angedockten
-Gespräch ist das Feld der Leiste die einzige Eingabe; „Abbrechen“ erscheint dort, solange
+Gespräch ist dessen mehrzeiliges Feld die Eingabe; das Feld der Leiste nennt dann nur das
+Gespräch und behält Diktat und Einklappen. Eingeklappt bietet es „Abbrechen“, solange
 Lumen arbeitet. Ab 1100 px stehen die Arbeitsschritte als schließbare Nebenansicht rechts,
 darunter als aufklappbare Zeile. Das gelöste Gesprächsfenster behält seine eigene Eingabe.
 

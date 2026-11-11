@@ -12,6 +12,8 @@ Item {
     // The inline bar owns the docked conversation; popups have none to toggle.
     property bool showToggle:false
     property bool conversationOpen:false
+    // While the docked conversation is open its multi-line field is the input; this one only names the conversation.
+    readonly property bool passive:showToggle && conversationOpen
     readonly property bool editing:input.activeFocus
     required property var request
     readonly property bool pending:request.pending
@@ -30,7 +32,7 @@ Item {
     Rectangle {
         z:-1;anchors.fill:parent;radius:composer.keyStyle?(composer.colors.radius||8):(composer.colors.innerRadius||7)
         color:composer.keyStyle?(composer.colors.inset||composer.colors.base):composer.colors.base
-        border.width:input.activeFocus || composer.failed?2:1
+        border.width:!composer.passive && (input.activeFocus || composer.failed)?2:1
         border.color:composer.failed?composer.colors.text:input.activeFocus?composer.colors.accent:pointer.hovered?composer.colors.muted:composer.colors.border
     }
     function focusInput(){input.forceActiveFocus()}
@@ -47,7 +49,7 @@ Item {
         BarButton {objectName:"inspectAttachmentButton";compact:true;current:true;visible:!!composer.request.note.reference;colors:composer.colors;glyph:"mail-attachment";text:(composer.request.note.reference?.title || translate("Angehängte Quelle"));Accessible.name:translate("Angehängte Quelle")+": "+(composer.request.note.reference?.title || "");iconOnly:composer.width<420;Layout.maximumWidth:220;onClicked:composer.inspectAttachment()}
         BarButton {objectName:"removeAttachmentButton";compact:true;visible:!!composer.request.note.reference && !composer.pending;colors:composer.colors;glyph:"window-close";text:translate("Notiz entfernen");iconOnly:true;onClicked:composer.request.note=({})}
         TextField {
-            id:input;objectName:"lumenQuestion"
+            id:input;objectName:"lumenQuestion";visible:!composer.passive
             onPressed:composer.inputRequested()
             onTextChanged:if(composer.request.draft!==text)composer.request.draft=text
             Layout.fillWidth:true;Layout.minimumWidth:0
@@ -59,13 +61,18 @@ Item {
             palette.text:composer.pending?composer.colors.muted:composer.colors.text;palette.placeholderText:composer.colors.muted
             background:Item {}
         }
-        Label {visible:composer.pending;text:translate("Wird gesendet …");color:composer.colors.muted;font.pixelSize:12;textFormat:Text.PlainText}
-        BusyIndicator {visible:composer.pending;running:visible;implicitWidth:20;implicitHeight:20}
-        BarButton {objectName:"retryQuestionButton";compact:true;visible:composer.failed && !!input.text.trim();colors:composer.colors;text:translate("Erneut senden");onClicked:composer.submit()}
+        Label {
+            visible:composer.passive;Layout.fillWidth:true;elide:Text.ElideRight;textFormat:Text.PlainText;color:composer.colors.text
+            text:composer.conversation.title||translate("Gespräch mit Lumen")
+            TapHandler {onTapped:composer.inputRequested()}
+        }
+        Label {visible:composer.pending && !composer.passive;text:translate("Wird gesendet …");color:composer.colors.muted;font.pixelSize:12;textFormat:Text.PlainText}
+        BusyIndicator {visible:composer.pending && !composer.passive;running:visible;implicitWidth:20;implicitHeight:20}
+        BarButton {objectName:"retryQuestionButton";compact:true;visible:composer.failed && !composer.passive && !!input.text.trim();colors:composer.colors;text:translate("Erneut senden");onClicked:composer.submit()}
         BarButton {objectName:"dictateButton";compact:true;visible:!composer.pending;colors:composer.colors;glyph:"microphone-sensitivity-high";text:composer.listening?translate("Diktat läuft"):translate("Mit Lumen sprechen");iconOnly:true;primary:composer.listening;onClicked:{composer.voiceRequested();controller.conversation.call("voice")}}
         BarButton {objectName:composer.showToggle?"conversationToggle":"";compact:true;visible:composer.showToggle;colors:composer.colors;current:composer.conversationOpen;glyph:composer.conversationOpen?"arrow-up":"arrow-down";text:translate(composer.conversationOpen?"Gespräch einklappen":"Gespräch aufklappen");iconOnly:true;onClicked:composer.toggleRequested()}
-        BarButton {objectName:"stopQuestionButton";compact:true;visible:composer.busy && !composer.pending;colors:composer.colors;glyph:"media-playback-stop";text:translate("Abbrechen");iconOnly:true;onClicked:controller.conversation.call("stop")}
-        BarButton {objectName:"sendQuestionButton";compact:true;primary:true;colors:composer.colors;glyph:"go-up";text:translate("Frage senden");iconOnly:true;visible:!!input.text.trim() && !composer.pending && !composer.failed;enabled:!composer.busy;onClicked:composer.submit()}
+        BarButton {objectName:"stopQuestionButton";compact:true;visible:composer.busy && !composer.pending && !composer.passive;colors:composer.colors;glyph:"media-playback-stop";text:translate("Abbrechen");iconOnly:true;onClicked:controller.conversation.call("stop")}
+        BarButton {objectName:"sendQuestionButton";compact:true;primary:true;colors:composer.colors;glyph:"go-up";text:translate("Frage senden");iconOnly:true;visible:!!input.text.trim() && !composer.pending && !composer.failed && !composer.passive;enabled:!composer.busy;onClicked:composer.submit()}
     }
     Connections {
         target:composer.controller
