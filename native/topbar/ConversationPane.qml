@@ -107,7 +107,7 @@ Item {
             BarButton {objectName:"conversationLatest";visible:!pane.following;anchors.horizontalCenter:parent.horizontalCenter;anchors.bottom:parent.bottom;colors:pane.colors;text:pane.translate("Zur neuesten Nachricht");glyph:"arrow-down";onClicked:pane.latest()}
         }
         Rectangle {
-            Layout.fillWidth:true;implicitHeight:composerBox.implicitHeight+24;radius:12;color:pane.colors.base;border.color:composer.activeFocus?pane.colors.accent:pane.colors.border
+            Layout.fillWidth:true;implicitHeight:composerBox.implicitHeight+24;radius:pane.colors.innerRadius||7;color:pane.colors.base;border.color:composer.activeFocus?pane.colors.accent:pane.colors.border
             ColumnLayout {id:composerBox;anchors.fill:parent;anchors.margins:12;spacing:8
                 TextArea {id:composer;objectName:"conversationComposer";Layout.fillWidth:true;Layout.maximumHeight:140;wrapMode:TextEdit.Wrap;placeholderText:pane.translate("Weiter mit Lumen besprechen …");Accessible.name:placeholderText;color:pane.colors.text;selectByMouse:true;font.pixelSize:pane.controller.theme.fontSize;background:null;padding:0
                     Binding {target:composer;property:"text";value:pane.request.draft}

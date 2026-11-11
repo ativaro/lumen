@@ -65,7 +65,7 @@ ColumnLayout {
             Accessible.name:[modelData.caption,modelData.title,modelData.detail].filter(Boolean).join(" · ")
             onPressed:pressedKey=modelData.key
             onClicked:if(pressedKey===modelData.key)menu.drill(pressedKey)
-            background:Rectangle {radius:7;color:row.hovered||row.visualFocus?menu.colors.alternate:"transparent";border.width:row.visualFocus?2:0;border.color:menu.colors.accent}
+            background:Rectangle {radius:menu.colors.innerRadius||7;color:row.hovered||row.visualFocus?menu.colors.alternate:"transparent";border.width:row.visualFocus?2:0;border.color:menu.colors.accent}
             contentItem:RowLayout {spacing:10
                 Kirigami.Icon {source:row.modelData.icon||"notifications";implicitWidth:20;implicitHeight:20;color:menu.colors.muted}
                 ColumnLayout {Layout.fillWidth:true;spacing:2

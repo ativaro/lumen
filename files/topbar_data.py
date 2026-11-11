@@ -23,6 +23,8 @@ def snapshot():
     if palette:
         palette.update(zip(('key','inset','highlight','shadow','ring','ink'), TOPBAR_KEYS.get(theme, TOPBAR_KEYS['graphite'])))
         palette['radius'] = RADII.get(theme, 8)
+        # Controls inside a surface use a smaller corner than the surface itself.
+        palette['innerRadius'] = round(palette['radius'] * 0.65)
     try:
         unread = notifications(wake=False)['unread']
         # The background Plasma host publishes the combined system/local count.

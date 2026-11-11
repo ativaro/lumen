@@ -77,7 +77,7 @@ ColumnLayout {
         placeholderText:start.translate("Welche App brauchst du?");Accessible.name:placeholderText;selectByMouse:true
         leftPadding:40;rightPadding:width>=440?68:16
         palette.text:start.colors.text;palette.placeholderText:start.colors.muted
-        background:Rectangle {color:start.colors.base;radius:12;border.color:query.activeFocus?start.colors.accent:start.colors.border}
+        background:Rectangle {color:start.colors.base;radius:start.colors.innerRadius||7;border.color:query.activeFocus?start.colors.accent:start.colors.border}
         Kirigami.Icon {source:"search";isMask:true;color:start.colors.muted;width:18;height:18;x:14;anchors.verticalCenter:parent.verticalCenter}
         Label {visible:query.width>=440;text:start.translate("Strg K");font.pixelSize:12;color:start.colors.muted;anchors.right:parent.right;anchors.rightMargin:14;anchors.verticalCenter:parent.verticalCenter}
         onTextChanged:{grid.currentIndex=0;error.text="";context.close();power.close()}
@@ -96,7 +96,7 @@ ColumnLayout {
                     Layout.fillWidth:true;Layout.preferredWidth:0;Layout.preferredHeight:96
                     text:model.display;Accessible.name:model.display+(start.editing?" · "+start.translate("Entfernen"):"")
                     contentItem:Column {spacing:8
-                        Rectangle {width:44;height:44;radius:12;color:start.colors.base;border.color:start.colors.border;anchors.horizontalCenter:parent.horizontalCenter
+                        Rectangle {width:44;height:44;radius:start.colors.innerRadius||7;color:start.colors.base;border.color:start.colors.border;anchors.horizontalCenter:parent.horizontalCenter
                             Kirigami.Icon {anchors.centerIn:parent;width:26;height:26;source:pin.model.decoration}
                             Kirigami.Icon {visible:start.editing;anchors.right:parent.right;anchors.top:parent.top;width:16;height:16;source:"list-remove";isMask:true;color:start.colors.accent}
                         }
@@ -205,11 +205,11 @@ ColumnLayout {
             Kirigami.Icon {visible:!!action.icon.name;source:action.icon.name;isMask:true;color:action.enabled?start.colors.text:start.colors.muted;Layout.preferredWidth:18;Layout.preferredHeight:18}
             Label {text:action.text;textFormat:Text.PlainText;color:action.enabled?start.colors.text:start.colors.muted;font:action.font;elide:Text.ElideRight;Layout.fillWidth:true}
         }
-        background:Rectangle {color:action.highlighted?start.colors.alternate:start.colors.base;radius:7
+        background:Rectangle {color:action.highlighted?start.colors.alternate:start.colors.base;radius:start.colors.innerRadius||7
             border.color:action.highlighted?start.colors.accent:"transparent"}
     }
     Menu {id:power;objectName:"startPowerMenu";parent:start;x:Math.max(0,start.width-width);y:Math.max(0,start.height-height-60);width:Math.min(230,start.width);padding:6;popupType:Popup.Window
-        background:Rectangle {color:start.colors.base;border.color:start.colors.border;radius:12}
+        background:Rectangle {color:start.colors.base;border.color:start.colors.border;radius:start.colors.radius||12}
         StartAction {text:start.translate("Ruhezustand");icon.name:"system-suspend";enabled:session.canSuspend;onTriggered:{session.suspend();start.launched()}}
         StartAction {text:start.translate("Neu starten");icon.name:"system-reboot";enabled:session.canReboot;onTriggered:{session.requestReboot(Sessions.SessionManagement.ForcePrompt);start.launched()}}
         StartAction {text:start.translate("Abmelden");icon.name:"system-log-out";enabled:session.canLogout;onTriggered:{session.requestLogout(Sessions.SessionManagement.ForcePrompt);start.launched()}}
@@ -227,7 +227,7 @@ ColumnLayout {
             function onRowsRemoved(){context.close()}
             function onRowsMoved(){context.close()}
         }
-        background:Rectangle {color:start.colors.base;border.color:start.colors.border;radius:12}
+        background:Rectangle {color:start.colors.base;border.color:start.colors.border;radius:start.colors.radius||12}
         StartAction {text:context.title;enabled:false}
         StartAction {text:start.translate("Öffnen");icon.name:"go-next";onTriggered:start.run(context.source,context.row)}
         Instantiator {model:context.actions

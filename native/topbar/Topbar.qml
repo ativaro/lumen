@@ -276,12 +276,12 @@ Window {
             bar.closeOtherMenus(bar.layout==="context"?contextDrawer:null)
             if(conversationWindow.visible)bar.openConversation()
         }
-        visible:bar.expandedComposer;width:bar.classic?Math.max(0,activityButton.x-(bar.twoRows?24:appRow.x+appRow.width+12)-60):266
-        x:bar.classic?(bar.twoRows?24:appRow.x+appRow.width+12):bar.deck?bar.width-310-16:systemRow.x-310-8;y:bar.classic?(bar.twoRows?82:40)-height/2:bar.deck?72:(bar.barSize-height)/2
+        visible:bar.expandedComposer;width:bar.classic?Math.max(0,activityButton.x-(bar.twoRows?24:appRow.x+appRow.width+12)-16):300
+        x:bar.classic?(bar.twoRows?24:appRow.x+appRow.width+12):bar.deck?bar.width-300-16:systemRow.x-300-8;y:bar.classic?(bar.twoRows?82:40)-height/2:bar.deck?72:(bar.barSize-height)/2
         colors:bar.colors;translate:bar.t;controller:panelData;keyStyle:!bar.classic
+        showToggle:true;conversationOpen:bar.conversationOpen;onToggleRequested:bar.toggleConversation()
         request:questionState;onInspectAttachment:bar.toggleMenu(contextDrawer);onSent:bar.conversationSent();onVoiceRequested:bar.openConversation()
     }
-    BarButton {objectName:"conversationToggle";visible:inlineComposer.visible;colors:bar.colors;glyph:bar.conversationOpen?"arrow-up":"arrow-down";text:bar.t(bar.conversationOpen?"Gespräch einklappen":"Gespräch aufklappen");iconOnly:true;x:inlineComposer.x+inlineComposer.width+4;y:inlineComposer.y;onClicked:bar.toggleConversation()}
     ConversationState {id:conversationState;model:panelData.conversation;translate:bar.t;colors:bar.colors}
     Connections {target:panelData.conversation;function onChanged(){
         const incoming=conversationState.data.query||""
@@ -396,7 +396,7 @@ Window {
         onVisibleChanged:Qt.callLater(bar.mask)
         onOpened:restoreFocus.stop()
         onClosed:{Qt.callLater(bar.mask);restoreFocus.restart()}
-        background:Rectangle {color:bar.colors.window;radius:13;border.color:bar.colors.border}
+        background:Rectangle {color:bar.colors.window;radius:bar.colors.radius||12;border.color:bar.colors.border}
     }
     component DockedBackground:Rectangle {
         color:bar.colors.window;radius:bar.colors.radius||10;topLeftRadius:0;topRightRadius:0;border.color:bar.colors.border
@@ -559,7 +559,7 @@ Window {
             }
             DayOfWeekRow {locale:bar.uiLocale;Layout.fillWidth:true;palette.text:bar.colors.muted}
             MonthGrid {id:monthGrid;month:calendar.monthDate.getMonth();year:calendar.monthDate.getFullYear();locale:bar.uiLocale;Layout.fillWidth:true;Layout.preferredHeight:230
-                delegate:Rectangle {required property var model;color:model.today?bar.colors.accent:"transparent";radius:8;opacity:model.month===monthGrid.month?1:0.35
+                delegate:Rectangle {required property var model;color:model.today?bar.colors.accent:"transparent";radius:bar.colors.innerRadius||7;opacity:model.month===monthGrid.month?1:0.35
                     Text {anchors.centerIn:parent;text:parent.model.day;color:parent.model.today?bar.colors.onAccent:bar.colors.text;font.pixelSize:14}
                 }
             }

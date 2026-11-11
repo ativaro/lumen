@@ -95,6 +95,12 @@ Schließen; Verschieben und Größenänderungen bleiben native Fensteraktionen.
 Der technische Einstellungswert `classic` heißt in der Oberfläche nun Panorama;
 die ausdrücklich angebotenen alternativen Layouts bleiben wählbar.
 
+Desktop-Topbar, Eingabe (11.11.2026): Mikrofon, „Gespräch aufklappen“ und Senden
+sitzen im Eingabefeld. Senden erscheint erst mit Text. Fokus zeigt ein 2 px starker
+Akzentrahmen; ein Fehler zeigt Warnsymbol, Rahmen in Textfarbe und „Erneut senden“.
+Bedienelemente verwenden den Innenradius des Themes (`innerRadius`, 65 % des
+Theme-Radius), Flächen und Menüs den Theme-Radius. Keine festen Radien im Topbar-Code.
+
 Desktop-Topbar, Kurzansichten (06.11.2026): Glocke, Netzwerk und Audio öffnen jeweils eine angedockte, höchstens 390 Pixel breite Ansicht.
 Die Statusmenüs schließen rechts an die Leiste an. Der Lumen-Kreis öffnet links
 direkt den vollständigen Katalog „Lumen Apps“. Seine Suche beginnt leer und hat den Tastaturfokus.
