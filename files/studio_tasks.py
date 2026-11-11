@@ -1,4 +1,4 @@
-"""Task cards and inspector; actions stay on the existing Workspace controller."""
+"""Task cards and inspector; actions stay on the TaskController."""
 from datetime import datetime
 from PySide6.QtCore import Qt, QSize, QRectF
 from PySide6.QtGui import QPalette, QPainter, QPen, QFont, QDesktopServices
@@ -117,9 +117,8 @@ def build_task_page(w):
     w.task_save = QPushButton(tr('Speichern')); menu = QMenu(w.task_save)
     menu.addAction(tr('Als Datei speichern …'), w.guarded(w.export_task)); menu.addAction(tr('In Lumen Notes speichern'), w.guarded(w.task_to_knowledge))
     w.task_save.setMenu(menu); outputs.addWidget(w.task_save)
-    w.task_reuse = QPushButton(tr('Verwenden')); menu = QMenu(w.task_reuse)
-    menu.addAction(tr('Als Dateiaktion'), w.guarded(w.task_to_file_action)); menu.addAction(tr('Als Ablauf speichern'), w.guarded(w.task_to_flow))
-    w.task_reuse.setMenu(menu); outputs.addWidget(w.task_reuse)
+    w.task_reuse = QPushButton(tr('Als Dateiaktion')); w.task_reuse.clicked.connect(w.guarded(w.task_to_file_action))
+    outputs.addWidget(w.task_reuse)
     extra = QPushButton('···'); extra.setObjectName('taskMore'); extra.setFixedWidth(30); extra.setAccessibleName(tr('Details und weitere Aktionen'))
     menu = QMenu(extra)
     w.task_details = QPushButton(tr('Details zur Ausführung'), inspector); w.task_details.setCheckable(True); w.task_details.hide()

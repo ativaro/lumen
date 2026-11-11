@@ -11,7 +11,7 @@ Die vollständige Installation liefert die Starter, gemeinsame Einstellungen und
 | Lesen | `lumen-reader` | Lokale Lesekopien, Positionen und Markierungen |
 | Text- und Dokumentbearbeitung | `lumen-translate` | Lokales Compose-Fenster; KI-Aufträge verwenden den gewählten Anbieter |
 | Haushalt | `lumen-household` | Lokale Geräte, Verträge, Fristen und Belege |
-| System, Sound, Arbeitsmodi, Sicherungen | `lumen-system`, `lumen-sound` | Lokale Diagnose, Einstellungen und ausdrücklich eingerichtete Sicherungsziele |
+| System, Sound, Sicherungen | `lumen-system`, `lumen-sound` | Lokale Diagnose, Einstellungen und ausdrücklich eingerichtete Sicherungsziele |
 | Gedächtnis | Lumen-Einstellungen; technisch `lumen-wissen --area lumen` | Eigene lokale Erinnerungen und Lernfreigaben |
 | Mitteilungen und Bildschirmhilfe | `lumen-notification`, `lumen-companion` | Lokaler Desktop mit seinen jeweiligen Freigaben |
 

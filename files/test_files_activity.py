@@ -1,4 +1,4 @@
-"""Isolated user-visible contracts for projects, history, modes and transfers."""
+"""Isolated user-visible contracts for history and transfers."""
 import json
 import os
 from pathlib import Path
@@ -6,19 +6,15 @@ import subprocess
 import sys
 import tempfile
 import threading
-import time
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from unittest.mock import patch
 
 from lumen_store import Store
-from file_spaces import Catalog
 import lumen_history as history
-import lumen_modes as modes
 import lumen_transfers as transfers
 
 
-class WorkplaceTest(unittest.TestCase):
+class FilesActivityTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name); self.store = Store(self.root / 'state')
@@ -50,22 +46,12 @@ class WorkplaceTest(unittest.TestCase):
         link = self.root / 'link'; link.symlink_to(folder, target_is_directory=True)
         with self.assertRaises(ValueError): history.fingerprint(link / 'x')
 
-    def test_mode_partial_failure_and_guarded_undo(self):
-        mode = dict(modes.DEFAULTS[0], audio='missing', layout='keep')
-        current = ['old']
-        with patch.object(modes, 'audio_snapshot', side_effect=ValueError('offline')), \
-             patch.object(modes, 'dnd_snapshot', side_effect=lambda: current[0]), \
-             patch.object(modes, 'dnd_write', side_effect=lambda v: current.__setitem__(0, v)):
-            result = modes.apply_mode(self.store, mode)
-            self.assertEqual(result['applied'], ['Benachrichtigungen']); self.assertEqual(len(result['errors']), 1)
-            identity = history.entries(self.store)[0]['id']; after = current[0]
-            current[0] = 'other'
-            with self.assertRaises(ValueError): history.undo_record(self.store, identity)
-            current[0] = after; history.undo_record(self.store, identity)
-            self.assertEqual(current[0], 'old')
-        original = modes.modes(self.store)[0]
-        modes.save_mode(self.store, original, dict(original, name='First'))
-        with self.assertRaises(ValueError): modes.save_mode(self.store, original, dict(original, name='Stale'))
+    def test_retired_mode_entries_remain_history_without_undo(self):
+        identity = history.record(self.store, 'Arbeiten: Fenster', 'mode', {'quiet': 'old'}, {'quiet': 'new'})
+        value = next(v for v in history.entries(self.store) if v['id'] == identity)
+        self.assertFalse(history.can_undo(value))
+        with self.assertRaises(ValueError): history.undo_record(self.store, identity)
+        self.assertEqual(self.store.setting(history.PREFIX + identity)['status'], 'applied')
 
     def test_supervised_copy_shared_ticket_and_no_overwrite(self):
         source = self.root / 'source'; source.write_bytes(b'x' * 900000)
@@ -142,21 +128,6 @@ class WorkplaceTest(unittest.TestCase):
         self.assertTrue(settings.value('preview', type=bool))
         settings.setValue('limit', 100); settings.sync(); history.undo_record(self.store, identity)
         settings.sync(); self.assertFalse(settings.value('preview', type=bool)); self.assertEqual(settings.value('limit', type=int), 50)
-
-
-class NativeWorkplaceTest(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        from app import create_app
-        from PySide6.QtWidgets import QApplication
-        cls.app = QApplication.instance() or create_app()
-
-    def wait(self, condition):
-        from PySide6.QtTest import QTest
-        deadline = time.monotonic() + 10
-        while not condition() and time.monotonic() < deadline: QTest.qWait(20)
-        self.assertTrue(condition())
-
 
 
 if __name__ == '__main__': unittest.main()

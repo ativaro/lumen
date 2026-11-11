@@ -32,10 +32,15 @@ def checksum(origin, path, progress):
         return digest.hexdigest(), before
 
 
+def require_current(value):
+    """Uploads queued before account-based sync are refused; never sent, cancelled or rewritten."""
+    if value.get("drive", {}).get("space"):
+        raise ValueError(tr("Diese Übertragung stammt aus einer älteren Lumen-Version und wird nicht gesendet. Bitte neu starten; lokale Dateien bleiben erhalten."))
+
+
 def upload(store, value, config, sources, progress):
     from lumen_transfers import update, PREFIX
-    from sync_migration import transfer_legacy_target, require_current_upload
-    require_current_upload(transfer_legacy_target(value))
+    require_current(value)
 
     plan = value.get("upload_plan")
     if plan is None:

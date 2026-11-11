@@ -6,13 +6,14 @@ import unittest
 from unittest.mock import patch
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication
 from app import Window, create_app
 import server_availability
 
 
 class ServerVisibilityUI(unittest.TestCase):
     @classmethod
-    def setUpClass(cls): cls.app = create_app()
+    def setUpClass(cls): cls.app = QApplication.instance() or create_app()
 
     def wait(self, check):
         for _ in range(400):

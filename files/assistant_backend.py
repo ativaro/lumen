@@ -489,7 +489,7 @@ class OpenCodeBackend(QObject):
                         '\nFor an immediate action explicitly requested by the user, use the available execution tools '
                         'in this conversation and verify the result. Do not redirect the user to the Tasks page or '
                         'call lumen_propose_task merely to execute their current request. That tool is for an explicitly '
-                        'requested saved draft, reusable workflow or deferred execution. Keep tool permissions and '
+                        'requested saved draft or deferred execution. Keep tool permissions and '
                         'administrator authentication intact; show any required tool permission here in the conversation. '
                         'For package installation, first check the OS/package manager and exact package names. '
                         'Use graphical privilege elevation (pkexec) for the checked command; there is no interactive '

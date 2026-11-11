@@ -19,5 +19,13 @@
   "Hier einfügen": "Paste here",
   "Große Vorschau": "Large preview",
   "PDF-Werkstatt auf dem Server …": "PDF workshop on the server …",
-  "Dokumentwerkzeuge auf dem Server …": "Document tools on the server …"
+  "Dokumentwerkzeuge auf dem Server …": "Document tools on the server …",
+  "Bitte native Schritte oder einen KI-Auftrag verwenden; beide können getrennte Aufträge sein.": "Use native steps or an AI task; they can be separate tasks.",
+  "Dateiaktionen verwenden nur Dateischritte.": "File actions use only file steps.",
+  "Diesen Auftrag über „Ausführen“ starten.": "Start this task using “Run”.",
+  "Eigene Dateiaktion": "Personal file action",
+  "Ein Auftrag benötigt 1 bis 100 Schritte.": "A task needs 1 to 100 steps.",
+  "Eine Aktion, die du lesen kannst.": "An action you can read.",
+  "Jeder hervorgehobene Satzteil ist bearbeitbar. Freigabedetails legst du bei Bedarf fest.": "You can edit each highlighted part. Set permissions when needed.",
+  "Name der Dateiaktion": "File action name"
 }

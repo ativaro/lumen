@@ -184,7 +184,7 @@ class RenderingTest(unittest.TestCase):
             source=Path(tmp)/'input.pdf'; source.write_bytes(plain())
             request=json.dumps({'action':'page','path':str(source),'page':0})
             code="import sys;sys.modules.update({name:None for name in ('pymupdf','fitz','pypdf','pypdfium2','reportlab','PySide6.QtPdf')});import lumen_pdf_worker;sys.exit(lumen_pdf_worker.main())"
-            result=subprocess.run([sys.executable,'-c',code],input=request,text=True,capture_output=True,timeout=30)
+            result=subprocess.run([sys.executable,'-c',code],input=request,text=True,capture_output=True,timeout=30,cwd=Path(__file__).parent)
             self.assertEqual(result.returncode,0,result.stderr); payload=json.loads(result.stdout)
             self.assertEqual(payload['text'],'Hello Lumen'); self.assertEqual(payload['pages'],1); self.assertEqual(payload['backend'],'lumen-pdf')
 

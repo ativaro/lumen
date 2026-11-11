@@ -1,8 +1,7 @@
 # Lumen Reader und Lumen Sound
 
-Sound ist jetzt ein Tab in **Lumen System**, gemeinsam mit der Systemübersicht
-und den Arbeitsmodi. `lumen-sound` öffnet weiterhin direkt den Mixer im gemeinsamen
-Fenster. App-Regeln, automatische Gesprächsabsenkung und Datenpfade bleiben erhalten.
+Sound ist jetzt ein Tab in **Lumen System**, gemeinsam mit der Systemübersicht.
+`lumen-sound` öffnet weiterhin direkt den Mixer im gemeinsamen Fenster. App-Regeln, automatische Gesprächsabsenkung und Datenpfade bleiben erhalten.
 
 Reader hat ein eigenes lokales Fenster; Sound gehört zum gemeinsamen
 Systemfenster. Beide folgen den Lumen-Themes und bleiben über ihre Starter erreichbar. Der Installer richtet die Starter

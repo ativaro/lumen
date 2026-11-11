@@ -109,7 +109,7 @@ updates. Download or package errors are reported before continuing.
 
 The user bundle contains the local Lumen conversation/search interface, Files,
 Compose, Reader, System, Household, Notification and Companion. System also
-contains Sound and Work modes. Themes, decorations, wallpapers and panels are
+contains Sound. Themes, decorations, wallpapers and panels are
 included. OpenCode, speech models and optional tools are prepared through the
 wizard, reusing an existing installation when available.
 

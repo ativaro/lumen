@@ -24,7 +24,7 @@
   "Aktuelle Eingaben als Beispiel speichern": "Save current inputs as an example",
   "Speichere bewusst gewählte Beispieleingaben und einen erwarteten Text. Keine Passwörter oder persönlichen Daten verwenden. Der Test nutzt die angezeigte App-Fassung und verändert ihre Eingabefelder.": "Save deliberately chosen example inputs and expected text. Do not use passwords or personal data. The test uses the displayed app version and changes its input fields.",
   "Erwartet": "Expected",
-  "Noch nicht geprüft": "Not tested yet",
+  "Noch nicht geprüft": "Not checked yet",
   "Fassung geändert · erneut prüfen": "Version changed · test again",
   "Erwartung erfüllt": "Expectation met",
   "Erwarteter Text fehlt": "Expected text missing",

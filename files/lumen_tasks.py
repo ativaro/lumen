@@ -69,7 +69,6 @@ def tick(store):
         try: fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError: return
         store.recover()
-        store.enqueue_due()
         reason = defer_background(store)
         for item in store.rows("SELECT id FROM tasks WHERE status='queued' ORDER BY created LIMIT 20"):
             try:reject_code_task(store,item['id'])

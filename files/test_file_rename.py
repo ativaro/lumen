@@ -113,7 +113,8 @@ class RenameTest(unittest.TestCase):
                 self.assertTrue(observed['navigation'])
                 self.assertTrue(window.settings.value('hidden', False, type=bool))
                 self.assertTrue(window.hidden)
-                self.assertEqual({key: assistant.value(key) for key in assistant.allKeys()}, before)
+                # The dialog remembers its own window size; preferences stay untouched.
+                self.assertEqual({key: assistant.value(key) for key in assistant.allKeys() if not key.startswith('windows/')}, before)
             finally:
                 window.close(); window.deleteLater(); QTest.qWait(50)
 

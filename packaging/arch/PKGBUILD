@@ -41,7 +41,7 @@ optdepends=(
     'dolphin: service menu integration'
     'plasma-workspace: KRunner integration'
     'wireplumber: native volume controls in the Lumen bar'
-    'libpulse: Lumen Sound mixer, app rules and audio outputs in work modes'
+    'libpulse: Lumen Sound mixer, app rules and audio outputs'
     'networkmanager: native network connections, WLAN, VPN and diagnostics in the Lumen bar'
     'bluez-utils: Bluetooth audio connections in the Lumen bar'
     'systemsettings: native network, audio and display settings'

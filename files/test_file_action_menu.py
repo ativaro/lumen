@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 from PySide6.QtCore import QPoint, QSettings, Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QAbstractButton, QMenu, QToolButton, QWidget
+from PySide6.QtWidgets import QAbstractButton, QApplication, QMenu, QToolButton, QWidget
 from app import Window, create_app
 from file_action_menu import ActionMenu, ActionSearch, entries
 from file_spaces import SHELF
@@ -16,7 +16,7 @@ from lumen_i18n import tr,language
 class FileActionMenuTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.app = create_app()
+        cls.app = QApplication.instance() or create_app()
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

@@ -44,6 +44,8 @@ class LumenOSTest(unittest.TestCase):
             original = template.replace('/share/lumen/', '/share/opencode-lumen/')
             old.write_text(original); old.chmod(0o755)
             shutil.copy2(repo / 'bin/lumen-vision', legacy / 'lumen-vision')
+            shutil.copy2(repo / 'bin/lumen-private-capture', legacy / 'lumen-private-capture')
+            (legacy.parent / 'files').mkdir(); shutil.copy2(repo / 'files/vault_privacy.py', legacy.parent / 'files/vault_privacy.py')
             main = current.parent / 'agent-app/main.py'; main.parent.mkdir()
             main.write_text('import sys,json\nfrom pathlib import Path\n'
                             'assert Path(sys.argv[sys.argv.index("--file")+1]).read_bytes()==b"test-image"\n'
@@ -142,29 +144,6 @@ app.exec()
             with self.assertRaises((PermissionError, OSError)):
                 execute(store, task, {'action': 'write', 'path': str(work / 'escape' / 'outside'), 'text': 'x'})
 
-    def test_workflow_due_once_pause_and_restart(self):
-        from lumen_store import Store
-        with tempfile.TemporaryDirectory() as tmp:
-            store = Store(Path(tmp) / 'state')
-            flow = store.save_workflow('Ordner öffnen', [{'action': 'open', 'path': tmp}], [tmp],
-                                      trigger='interval', interval=60, enabled=True, approved=True, now=100)
-            self.assertEqual(store.enqueue_due(now=159), [])
-            tasks = store.enqueue_due(now=160)
-            self.assertEqual(len(tasks), 1)
-            self.assertEqual(store.enqueue_due(now=160), [])
-            self.assertTrue(store.task(tasks[0])['approved'])
-            self.assertEqual(store.enqueue_due(now=220), [])
-            with self.assertRaises(PermissionError):
-                store.save_workflow('Ungeprüft', [{'action':'diagnose'}], [tmp], enabled=True)
-            with self.assertRaises(BlockingIOError):
-                lease = store.acquire(tasks[0])
-                try: store.acquire(tasks[0])
-                finally:
-                    import os
-                    os.close(lease)
-            store.set_workflow_enabled(flow, False)
-            self.assertEqual(Store(Path(tmp) / 'state').enqueue_due(now=300), [])
-
     def test_knowledge_roots_and_memories(self):
         from lumen_store import Store
         from lumen_knowledge import index_root, search
@@ -181,7 +160,7 @@ app.exec()
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]['path'], str(shared / 'invoice.txt'))
             self.assertIn('Rechnung', rows[0]['snippet'])
-            memory = store.save_memory('Arbeitsplatz', 'Monitor links', source='Von mir')
+            memory = store.save_memory('Schreibtisch', 'Monitor links', source='Von mir')
             self.assertEqual(store.memories()[0]['id'], memory)
             store.delete_memory(memory)
             store.remove_root(str(shared / '..' / 'shared'))
@@ -256,14 +235,13 @@ class LumenIntegrationTest(unittest.TestCase):
         from PySide6.QtWidgets import QApplication
         cls.app = QApplication.instance() or create_app()
 
-    def test_native_pages_workflow_result_and_source_context(self):
+    def test_native_pages_workflow_and_result(self):
         import importlib.util
         import os
         import time
         from unittest.mock import patch
         from PySide6.QtCore import QSettings, Qt
         from PySide6.QtTest import QTest
-        from lumen_knowledge import index_root
         spec = importlib.util.spec_from_file_location('lumen_desktop_test', Path(__file__).resolve().parents[1] / 'agent-app/main.py')
         desktop = importlib.util.module_from_spec(spec); spec.loader.exec_module(desktop)
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp + '/state'}), patch('lumen_detail_routes.launch'):
@@ -273,11 +251,12 @@ class LumenIntegrationTest(unittest.TestCase):
             try:
                 window.show()
                 for index in range(8): window.show_page(index); QTest.qWait(15)
-                self.assertEqual(window.file_window.window(), window)
-                space = window.workspace
+                # Files is its own window, hosted by Lumen.
+                self.assertEqual(window.file_window.lumen_host, window)
+                space = window.task_controller
                 space.store.set_setting('modelPolicy', {'gpu_limit': 100, 'pause_on_activity': False})
-                flow = space.store.save_workflow('Bericht', [{'action': 'write', 'path': tmp+'/bericht.md', 'text': 'Prüfung bestanden'}], [tmp], trigger='interval', interval=60, enabled=True, approved=True, now=0)
-                space.tick()
+                space.store.create_task('Bericht', directory=tmp, roots=[tmp], steps=[{'action': 'write', 'path': tmp+'/bericht.md', 'text': 'Prüfung bestanden'}], approved=True, status='queued')
+                space.start_process([str(Path(__file__).with_name('lumen_tasks.py')), '--tick'])
                 deadline = time.monotonic()+10
                 while space.processes and time.monotonic() < deadline: QTest.qWait(20)
                 self.assertFalse(space.processes)
@@ -291,7 +270,6 @@ class LumenIntegrationTest(unittest.TestCase):
                 while space.knowledge_job and time.monotonic()<deadline:QTest.qWait(20)
                 self.assertIsNone(space.knowledge_job)
                 self.assertIn(completed_id,space.store.memories()[0]['source'])
-                self.assertIn(str(space.store.setting('knowledge/notebook')), space.knowledge_status.text())
                 space.close_task.click(); self.assertEqual(space.tasks.count(), 0)
                 self.assertFalse(space.close_task.isEnabled())
                 self.assertEqual(space.store.task(completed_id)['status'], 'completed')
@@ -304,12 +282,6 @@ class LumenIntegrationTest(unittest.TestCase):
                 space.close_task.click(); self.assertEqual(space.tasks.count(), 0)
                 self.assertEqual(space.store.task(cancelled_id)['status'], 'cancelled')
                 self.assertIn('Prüfung bestanden', Path(tmp+'/bericht.md').read_text())
-                index_root(space.store, tmp)
-                space.query.setText('bestanden'); space.search()
-                self.assertEqual(space.results.count(), 1)
-                space.results.setCurrentRow(0); space.use_source()
-                self.assertIn('bericht.md', window.chat.composer.toPlainText())
-                self.assertEqual(window.chat.paths, [tmp+'/bericht.md'])
                 self.assertFalse(window.chat.backend.busy)
             finally:
                 window.close(); window.deleteLater(); QTest.qWait(30)
@@ -320,7 +292,7 @@ class LumenIntegrationTest(unittest.TestCase):
         with patch('lumen_detail_routes.QProcess.startDetached',side_effect=AssertionError('Unexpected detached app')), \
              patch.object(self,'assertEqual',side_effect=AssertionError('Synthetic page assertion')):
             with self.assertRaisesRegex(AssertionError,'Synthetic page assertion'):
-                self.test_native_pages_workflow_result_and_source_context()
+                self.test_native_pages_workflow_and_result()
 
     def test_local_policy_blocks_prompt_before_remote_submission(self):
         import os

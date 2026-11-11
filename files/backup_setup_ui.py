@@ -5,10 +5,11 @@ import secrets
 from PySide6.QtCore import Qt, QTimer, Signal, QSaveFile, QIODevice, QFileDevice
 from PySide6.QtWidgets import (QWidget, QWizard, QWizardPage, QVBoxLayout, QHBoxLayout,
     QFormLayout, QGroupBox, QLineEdit, QCheckBox, QListWidget,
-    QListWidgetItem, QComboBox, QStackedWidget, QFileDialog, QDialog)
+    QListWidgetItem, QComboBox, QStackedWidget, QFileDialog, QDialog, QStyle)
 from lumen_i18n import tr
 from lumen_jobs import Job
 from tools_ui import label, button, row
+from desktop_design import AppHeader
 from vault_service import execute
 
 
@@ -100,8 +101,9 @@ class BackupWizard(QWizard):
                           (QWizard.WizardButton.CancelButton, tr('Abbrechen')), (QWizard.WizardButton.FinishButton, tr('Sicherung starten'))):
             self.setButtonText(key, text)
         def page(title):
-            p = QWizardPage(); p.setTitle(title); self.addPage(p)
-            return QVBoxLayout(p)
+            p = QWizardPage(); self.addPage(p)
+            layout = QVBoxLayout(p); layout.addWidget(AppHeader(title))
+            return layout
         sources = page(tr('1 · Was möchtest du schützen?'))
         sources.addWidget(label(tr('Gespeicherte Daten auswählen. Offene, ungespeicherte Änderungen sind nicht enthalten.')))
         cards = QHBoxLayout(); sources.addLayout(cards); self.groups_ui = {}
@@ -109,8 +111,10 @@ class BackupWizard(QWizard):
             group = QGroupBox(title); group.setCheckable(True); listing = QListWidget()
             listing.setAccessibleName(title); QVBoxLayout(group).addWidget(listing)
             cards.addWidget(group); self.groups_ui[key] = (group, listing)
-        sources.addWidget(row(button(tr('Weiteren Ordner hinzufügen'), self.add_folder),
-                              button(tr('Ordner vom NAS hinzufügen'), self.add_network)))
+        source_actions = row(button(tr('Weiteren Ordner hinzufügen'), self.add_folder),
+                             button(tr('Ordner vom NAS hinzufügen'), self.add_network))
+        self.setMinimumWidth(source_actions.sizeHint().width() + 2*self.style().pixelMetric(QStyle.PM_LayoutLeftMargin))
+        sources.addWidget(source_actions)
         targets = page(tr('2 · Wo soll die Sicherung liegen?'))
         self.kind = QComboBox(); self.kind.setAccessibleName(tr('Art des Sicherungsziels'))
         for title, key in ((tr('Laufwerk / Ordner'), 'local'), (tr('NAS / Netzwerk'), 'network'), ('Lumen Server', 'server')):

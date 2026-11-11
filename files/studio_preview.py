@@ -201,16 +201,15 @@ class StudioSurface(QWidget):
         if self.conversation_focus: self.file_dialog.close()
         self.preview.shutdown()
 
-    def bind_workspace(self, workspace):
-        self.workspace = workspace
-        self.export_answer = self.result_menu.addAction(tr('Als Datei speichern …'), workspace.guarded(lambda: self.use_task(workspace.export_task)))
+    def bind_tasks(self, pages):
+        self.task_controller = pages
+        self.export_answer = self.result_menu.addAction(tr('Als Datei speichern …'), pages.guarded(lambda: self.use_task(pages.export_task)))
         self.reuse_answer = QPushButton(tr('Als Dateiaktion')); self.reuse_answer.setIcon(icon('system-run'))
-        self.reuse_answer.clicked.connect(workspace.guarded(lambda: self.use_task(workspace.task_to_file_action)))
+        self.reuse_answer.clicked.connect(pages.guarded(lambda: self.use_task(pages.task_to_file_action)))
         self.actions.addWidget(self.reuse_answer)
         more = icon_button(tr('Weitere Ergebnisaktionen'), 'view-more-symbolic', lambda: None)
         menu = QMenu(more); menu.addAction(tr('Kopieren'), self.copy_answer.click)
-        menu.addAction(tr('Als Ablauf speichern'), workspace.guarded(lambda: self.use_task(workspace.task_to_flow)))
-        self.task_link = QPushButton(tr('Ausführung prüfen')); self.task_link.clicked.connect(workspace.guarded(self.open_task))
+        self.task_link = QPushButton(tr('Ausführung prüfen')); self.task_link.clicked.connect(pages.guarded(self.open_task))
         self.task_link.hide(); self.task_link.setParent(self)
         self.task_link_action = menu.addAction(tr('Ausführung prüfen'), self.task_link.click)
         more.setMenu(menu); self.actions.addWidget(more)
@@ -286,7 +285,7 @@ class StudioSurface(QWidget):
         if self.conversation_focus:
             self.copy_answer.setEnabled(bool(self.chat.last_answer))
             self.save_answer.setEnabled(bool(self.chat.last_answer) and not self.chat.backend.busy)
-            if hasattr(self, 'workspace'): self.update_task_actions()
+            if hasattr(self, 'task_controller'): self.update_task_actions()
             else: self.update_execution()
             return
         key = getattr(self.chat, '_answer_key', None)
@@ -309,7 +308,7 @@ class StudioSurface(QWidget):
         self.copy_answer.setEnabled(bool(text))
         self.save_answer.setEnabled(bool(text) and not self.chat.backend.busy)
         self.copy_answer.hide(); self.save_answer.setVisible(show_text)
-        if hasattr(self, 'workspace'): self.update_task_actions()
+        if hasattr(self, 'task_controller'): self.update_task_actions()
 
     def set_result(self, result):
         paths = result['paths'] if result else []

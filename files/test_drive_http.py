@@ -99,6 +99,10 @@ class SessionTest(unittest.TestCase):
 
 
 class CleanupTest(unittest.TestCase):
+    def setUp(self):
+        # The assertions name the German source text; do not depend on the language of the test machine.
+        language = patch('lumen_i18n.language', return_value='de'); language.start(); self.addCleanup(language.stop)
+
     def test_current_tickets_cancel_only_unfinished_uploads_and_legacy_stays_intact(self):
         import lumen_transfers
         import drive_transport
@@ -113,7 +117,7 @@ class CleanupTest(unittest.TestCase):
             before=deepcopy(ticket)
             with patch.object(lumen_connect, 'read_config', return_value=config), patch.object(drive_transport, 'request') as request:
                 if legacy:
-                    with self.assertRaisesRegex(ValueError,'Vorschau'):lumen_transfers.cleanup(None,ticket)
+                    with self.assertRaisesRegex(ValueError,'älteren Lumen-Version'):lumen_transfers.cleanup(None,ticket)
                     request.assert_not_called()
                 else:
                     lumen_transfers.cleanup(None, ticket)
@@ -136,7 +140,7 @@ class CleanupTest(unittest.TestCase):
             before=deepcopy(ticket)
             with patch.object(lumen_transfers,'update') as update,patch.object(drive_sync,'request') as request, \
                  patch.object(drive_transport,'upload') as upload:
-                with self.assertRaisesRegex(ValueError,'Vorschau'):drive_transfers.upload(None,ticket,{},[],lambda *_:None)
+                with self.assertRaisesRegex(ValueError,'älteren Lumen-Version'):drive_transfers.upload(None,ticket,{},[],lambda *_:None)
             update.assert_not_called();request.assert_not_called();upload.assert_not_called()
             self.assertEqual(ticket,before)
 
@@ -159,14 +163,6 @@ class UploadStampTest(unittest.TestCase):
         if method=='PUT':return dict(offset=len(body))
         if path.endswith('/finish'):return dict(id=self.key)
         return dict(id=self.key,size=len(self.content),offset=0)
-
-    def test_saved_legacy_targets_stop_before_read_or_network_in_both_upload_paths(self):
-        for upload in (self.transport.upload,self.transport.legacy_upload):
-            with self.subTest(upload=upload.__name__),patch.object(self.local,'source') as source, \
-                 patch.object(self.transport,'request') as request,patch.object(self.transport,'opener') as opener:
-                with self.assertRaisesRegex(ValueError,'Vorschau'):upload(*self.args,legacy_target='saved-source')
-                source.assert_not_called();request.assert_not_called();opener.assert_not_called()
-            self.assertEqual(self.path.read_bytes(),self.content)
 
     def test_cancel_during_slow_fd_read_sends_no_put_or_finish(self):
         from lumen_jobs import Job

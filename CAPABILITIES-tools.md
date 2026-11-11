@@ -9,7 +9,7 @@ Diese Zuordnung beschreibt die aktuelle Quellstruktur. Ein Startername allein sa
 | Reader | Private Lesekopien, PDF/EPUB/Text, Markierungen und Vorlesen | Eigener PDF-Kern; Stimme optional |
 | Compose | Lokale Text-/PDF-Bearbeitung, Übersetzen/Korrigieren | KI-Anbieter für Verarbeitung |
 | Haushalt | Lokale Geräte/Verträge, Fristen und Belege | Lokale Tools-Bibliothek |
-| System / Sound / Sicherungen | Diagnose, Audio, Arbeitsmodi und lokale Backup-Pläne | Lokale Systemfunktionen; Restic/Ziel für Backups |
+| System / Sound / Sicherungen | Diagnose, Audio und lokale Backup-Pläne | Lokale Systemfunktionen; Restic/Ziel für Backups |
 | Gedächtnis | Lokale Erinnerungen und begrenztes Lernen mit Freigaben | Eigene Einstellungen; Modell für Lernen |
 | Notes, Projekte, Code, Inbox, Audio Studio, Vault | Gemeinsame Inhalte und Produktiv-Apps | Lumen Server, Konto und passende Gerätefreigaben |
 | Nativer Vault-Broker | Bestätigte lokale Zugangsdatenoperationen | Separat eingerichtete native Vorabversion, keine allgemeine Freigabe |

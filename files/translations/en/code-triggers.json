@@ -6,7 +6,6 @@
   "Auslöser": "Trigger",
   "Mit diesen Daten": "Using these sources",
   "Quelle auswählen und ihren Inhalt prüfen.": "Choose a source and review its contents.",
-  "Beobachteter Ordner": "Watched folder",
   "Lumen · Beobachteten Ordner auswählen": "Lumen · Choose watched folder",
   "Neue und geänderte Dateien direkt in diesem Ordner, bis 20 MiB. Vorhandene Dateien bleiben beim Aktivieren unberührt. Start nach zwei unveränderten Hintergrundprüfungen; keine Unterordner oder Verknüpfungen.": "New and changed files directly in this folder, up to 20 MiB. Existing files are ignored on activation. Starts after two stable background checks; no subfolders or links.",
   "Liest Projektübersicht, Vorhaben und Aufgaben. Angeheftete Dokumente und Weblinks werden nicht automatisch geöffnet.": "Reads the project overview, initiatives and tasks. Attached documents and web links are not opened automatically.",

@@ -474,18 +474,17 @@ Files-Starter löschen und danach den gesamten gemeinsamen Lumen-Datenordner
 entfernen: Er enthält weitere Apps und möglicherweise Benutzerdaten. Eigene
 Bibliotheken, Einstellungen und Sicherungen vor einer Datenbereinigung prüfen.
 
-## Projekte, Arbeitsmodi und Transferverlauf
+## Übertragungen und Verlauf
 
-**Lumen Projekte** öffnet die gemeinsame Server-App. Es ist keine globale
-Arbeitsraumauswahl und stellt keine gespeicherte Sitzung aller Desktopfenster her.
-Die alten lokalen Room-/Workbench-Oberflächen sind entfernt. Historische
-Speicherschlüssel bleiben für Daten- und Referenzkompatibilität erhalten, ohne
-einen zweiten Projekt-Runner zu aktivieren. [Aktueller Projektweg](../PROJECTS.md).
+Das Menü öffnet **Lumen Projekte** sowie **Verlauf & Rückgängig**. Projekte fassen
+Materialien, Gespräche und Aufgaben zusammen.
 
-Arbeitsmodi für Audio, Benachrichtigungen und lokale Einstellungen bleiben in
-Lumen System. Transferverlauf und Wiederaufnahme unterbrochener Kopien sind
-lokale Files-Funktionen. Vorhandene Ziele werden nicht blind überschrieben;
-Rücknahme prüft den aufgezeichneten Zustand. [Dranbleiben](../docs/transfer-followup.md).
+Transfers und der geprüfte Änderungsverlauf sind mit der Lumen-App geteilt. Downloads werden
+in Lumen gestartet; fremde Browser-Downloads sind nicht eingebunden. Bei Kopien und
+Verschiebungen werden nach einem Fehler verbleibende Einträge erneut versucht.
+Vorhandene Ziele werden nie überschrieben. Native Dateiaktionen lassen sich nur
+zurücknehmen, solange der aufgezeichnete Zustand unverändert ist; Papierkorb-
+Aktionen selbst bleiben reine Verlaufseinträge.
 
 ### Desktop-Suche und Einstellungen
 
@@ -858,7 +857,7 @@ bleibt unabhängig davon verfügbar. [Aktuelle App-Zuständigkeiten](../docs/des
 **Lumen Drive** in der Seitenleiste verwendet dieselbe Listen-/Kachelansicht,
 Tabs, Pfadleiste und Zurück/Vor-Navigation wie andere Verzeichnisse. Die bestehende
 Serverkopplung und aktuelle Drive-Freigabe werden geprüft. Ordner öffnen;
-Suchen filtert den angezeigten Ordner. Es gibt keine globale Arbeitsraumauswahl. Kopieren/Einfügen und Drag-and-drop übertragen Dateien
+Suchen filtert den angezeigten Ordner. Kopieren/Einfügen und Drag-and-drop übertragen Dateien
 und Ordner, Ausschneiden/Einfügen verschiebt innerhalb desselben Serverbereichs.
 Umbenennen, neue Ordner und Papierkorb laufen über die bestehenden Serverrechte.
 Nicht leere Serverordner müssen vor dem Löschen geleert werden.

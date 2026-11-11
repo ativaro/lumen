@@ -104,12 +104,15 @@ class SystemBackupsTest(unittest.TestCase):
         native.parent.mkdir(parents=True); native.write_text('#!/bin/sh\nprintf "native\\n%s\\n" "$@"\n'); native.chmod(0o755)
         def launch(*args):
             return subprocess.check_output([str(folder/'lumen-vault'), *args], env=dict(os.environ, XDG_DATA_HOME=str(data)), text=True).splitlines()
-        self.assertEqual(launch(), ['native', '--laboratory-only'])
-        self.assertEqual(launch('--backups'), [str(files/'tools_app.py').replace('/files/', '/bin/../files/'), 'vault'])
+        system = folder/'lumen-system'; system.write_text('#!/bin/sh\necho system\nprintf "%s\\n" "$@"\n'); system.chmod(0o755)
+        self.assertEqual(launch(), [str(files/'tools_app.py').replace('/files/', '/bin/../files/'), 'vault'])
+        self.assertEqual(launch('--lab'), ['native', '--laboratory-only'])
+        self.assertEqual(launch('--backups'), ['system', '--page', 'backups'])
         self.assertEqual(launch('--ref', 'lumen://example')[-3:], ['vault', '--ref', 'lumen://example'])
         self.assertTrue(launch('--backup-service')[0].endswith('/vault_service.py'))
+        self.assertTrue(launch('--preview')[0].endswith('/vault_preview.py'))
         native.unlink()
-        self.assertTrue(launch()[0].endswith('/vault_preview.py'))
+        with self.assertRaises(subprocess.CalledProcessError): launch('--lab')
 
     def test_real_backup_and_selective_restore_in_system(self):
         import vault_data as vault

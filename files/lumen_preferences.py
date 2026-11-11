@@ -30,7 +30,7 @@ def save_preferences(settings, values, expected):
     for key, value in values.items():
         before = expected.get(key)
         if value != before:
-            current = settings.value(key, before, type=type(before))
+            current = settings.value(key) if before is None else settings.value(key, before, type=type(before))
             if current != before and current != value:
                 raise ValueError(tr('Diese Einstellung wurde in einem anderen Fenster geändert. Bitte die Einstellungen erneut öffnen.'))
             changes[key] = value

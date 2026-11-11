@@ -6,7 +6,7 @@ from unittest.mock import patch, Mock
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QApplication, QPushButton
 from lumen_apps import AppCenter, catalogue, launch, startup_preference
-from lumen_workspace import PlanDialog, StepDialog
+from plan_dialog import PlanDialog, StepDialog
 
 
 class AppCenterTest(unittest.TestCase):
@@ -57,23 +57,20 @@ class AppCenterTest(unittest.TestCase):
             dialog.close()
         center.close()
 
-    def test_workflow_editor_restores_trigger_and_reorders_steps(self):
+    def test_file_action_editor_requires_approval_and_reorders_steps(self):
         with tempfile.TemporaryDirectory() as tmp:
             flow = dict(name='Ordner prüfen', roots=[tmp], steps=[{'action':'open','path':tmp}, {'action':'diagnose'}],
-                        trigger='directory', interval=420, watch=tmp, enabled=True, approved=True)
-            dialog = PlanDialog(None, flow, workflow=True)
-            self.assertEqual(dialog.trigger.currentData(), 'directory')
-            self.assertEqual(dialog.interval.value(), 7)
-            self.assertEqual(dialog.watch.currentText(), tmp)
-            self.assertTrue(dialog.enable.isChecked()); self.assertFalse(dialog.approve.isChecked())
+                        approved=True)
+            dialog = PlanDialog(None, flow, file_action=True)
+            for retired in ('trigger', 'interval', 'watch', 'enable'): self.assertFalse(hasattr(dialog, retired), retired)
+            self.assertFalse(dialog.approve.isChecked())
             dialog.save(); self.assertIsNone(dialog.value)
             dialog.steps.setCurrentRow(1); dialog.move_step(-1)
             self.assertEqual(dialog.steps.item(0).data(Qt.UserRole)['action'], 'diagnose')
             self.assertNotIn('"action"', dialog.step_preview.toPlainText())
             dialog.approve.setChecked(True); dialog.save()
             self.assertEqual(dialog.value['steps'][0]['action'], 'diagnose')
-            self.assertEqual(dialog.value['watch'], tmp)
-            self.assertTrue(dialog.value['enabled'])
+            self.assertEqual(sorted(dialog.value), ['approved', 'name', 'prompt', 'roots', 'steps'])
             edit = StepDialog(None, flow['steps'][0]); self.assertEqual(edit.step(), flow['steps'][0]); edit.close()
             dialog.close()
 
@@ -89,24 +86,6 @@ class AppCenterTest(unittest.TestCase):
         window.engine = None
         Wissen.switch_area(window, 'lumen'); window.save_note.assert_called_once()
         with self.assertRaises(ValueError): Wissen.switch_area(window, 'invalid')
-
-
-    def test_edit_workflow_keeps_identity_and_scope(self):
-        from types import SimpleNamespace
-        from lumen_workspace import Workspace
-        from lumen_store import Store
-        with tempfile.TemporaryDirectory() as tmp:
-            store = Store(Path(tmp)/'state')
-            key = store.save_workflow('Alt', [{'action':'open','path':tmp}], [tmp], approved=True)
-            values = dict(name='Neu', steps=[{'action':'diagnose'}], roots=[tmp], trigger='interval', interval=300, watch='', enabled=True, approved=True)
-            window = SimpleNamespace(chat=SimpleNamespace(backend=SimpleNamespace(directory=tmp)))
-            workspace = SimpleNamespace(window=window, store=store, refresh_flows=Mock())
-            dialog = Mock(value=values); dialog.exec.return_value = True
-            with patch('lumen_workspace.PlanDialog', return_value=dialog):
-                Workspace.flow_dialog(workspace, store.workflows()[0], workflow=key)
-            rows = store.workflows(); self.assertEqual(len(rows), 1)
-            self.assertEqual(rows[0]['id'], key); self.assertEqual(rows[0]['interval'], 300)
-            self.assertEqual(rows[0]['roots'], [tmp]); self.assertTrue(rows[0]['approved'])
 
 
 if __name__ == '__main__': unittest.main()

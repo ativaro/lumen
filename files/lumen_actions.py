@@ -30,7 +30,7 @@ ACTIONS = {
 
 def validate_steps(steps):
     if not isinstance(steps, list) or not 1 <= len(steps) <= 100:
-        raise ValueError(tr('Ein Ablauf benötigt 1 bis 100 Schritte.'))
+        raise ValueError(tr('Ein Auftrag benötigt 1 bis 100 Schritte.'))
     for step in steps:
         if not isinstance(step, dict) or step.get('action') not in ACTIONS:
             raise ValueError(tr('Unbekannte Aktion.'))

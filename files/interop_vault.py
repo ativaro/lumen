@@ -322,7 +322,7 @@ def restored_bundles(directory):
 
 
 def open_restored(bundle, app):
-    """Open the recovered workspace, never replace currently running app data."""
+    """Open the recovered data, never replace currently running app data."""
     import subprocess
     import sys
     if app not in APP_NAMES or app == 'interop': raise ValueError(tr('Diese Lumen-Daten haben kein eigenes Fenster.'))

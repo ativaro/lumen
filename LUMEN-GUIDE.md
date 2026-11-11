@@ -55,7 +55,7 @@ mit den verfügbaren Ausführungswerkzeugen bearbeitet. Lumen soll dafür keinen
 separaten Entwurf anlegen und dich nicht zur Freigabe in die Auftragsansicht
 schicken. Erforderliche Werkzeugfreigaben bleiben im Gespräch; Administratorrechte
 werden über den grafischen Systemdialog angefragt. Ein ausdrücklich gewünschter
-gespeicherter Entwurf oder späterer Ablauf behält seine eigene Freigabe.
+gespeicherter Entwurf behält seine eigene Freigabe.
 Die Paketnamen und das Ergebnis müssen geprüft werden; ein Snapshot setzt eine
 tatsächlich vorhandene und geeignete Snapshot-Konfiguration voraus.
 
@@ -85,36 +85,17 @@ Server-Apps. Ohne Serververbindung oder Gerätefreigabe gibt es keinen stillen
 lokalen Ersatz. Der lokale Gedächtniseinstieg ist davon getrennt.
 [Notes und Gedächtnis](WISSEN.md) · [App-Verantwortlichkeiten](docs/desktop-retirement.md).
 
-## Wissen und Erinnerungen
+## Wissen
 
-Unter **Wissen** ausgewählte Ordner lokal indexieren und durchsuchen. Treffer
-zeigen Datei, Seite und Auszug. Die Suche überspringt versteckte Pfade, Symlinks
-und übliche Geheimnisdateinamen. Sie erkennt nicht jeden beliebigen vertraulichen
-Inhalt; nur bewusst ausgewählte Ordner freigeben. Grenzen: 10.000 Einträge,
-32 MiB extrahierter Text pro Lauf, die Größenlimits des vorhandenen Textlesers
-und 16 MiB für native Änderungen. Geänderte Dateien werden bis zur erneuten
-Indexierung nicht als aktuelle Treffer ausgegeben.
+`lumen_knowledge` kann freigegebene Wissensordner für Anfragen durchsuchen;
+Auszüge gehen dabei an das gewählte Modell. Es gibt kein heimliches Indexieren
+des gesamten persönlichen Ordners.
 
-Freigabe entfernen löscht den Index dieses Ordners. Erinnerungen sind von dir
-angelegte, bearbeitbare Einträge mit Quelle. **Verwenden** legt Kontext sichtbar
-in den Gesprächsentwurf. `lumen_knowledge` kann freigegebene Wissensordner für
-Anfragen durchsuchen; Auszüge gehen dabei an das gewählte Modell. Es gibt kein
-heimliches Indexieren des gesamten persönlichen Ordners.
+## Dateiaktionen
 
-## Abläufe
-
-Einen Auftrag **als Ablauf speichern** oder Schritte neu zusammenstellen.
-Auslöser: manuell, Zeitintervall oder Änderungen an direkten Einträgen eines
-freigegebenen Ordners. Die Beobachtung ist nicht rekursiv. Änderungen werden bei
-der nächsten Prüfung zusammengefasst; verpasste Intervalle werden nicht mehrfach
-nachgeholt. **Hintergrundprüfung aktivieren** schaltet `lumen-jobs.timer` ein.
-Eine Pause des Ablaufs verhindert neue Aufträge; bereits angelegte Aufträge
-werden separat pausiert/abgebrochen.
-
-Datei- und Diagnoseabläufe können mit der gespeicherten Freigabe im Hintergrund
-laufen. KI-Aufträge sowie Desktop- und Systemaktionen werden als **Braucht dich**
-bereitgelegt und im Vordergrund gestartet. So bleiben Werkzeugrückfragen und
-Authentifizierung sichtbar. Neue/angepasste Schritte benötigen erneut Freigabe.
+In der Auftragsansicht einen Auftrag **Als Dateiaktion** speichern. Dateiaktionen
+starten nur auf Knopfdruck. Automationen mit Zeitplan oder Ordnerbeobachtung
+laufen auf Lumen Server, nicht auf dem Desktop.
 
 ## Modelle, Ressourcen und Kontext
 

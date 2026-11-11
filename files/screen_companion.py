@@ -58,8 +58,8 @@ class Companion(QWidget):
         if parent is None: self.setWindowFlag(Qt.WindowStaysOnTopHint)
         self.resize(460, 820); self.setMinimumSize(420, 720)
         # Empty private working directory prevents project instructions from becoming screen context.
-        self.workspace = tempfile.TemporaryDirectory(prefix='lumen-guide-', dir=os.environ.get('XDG_RUNTIME_DIR'))
-        self.backend = OpenCodeBackend(self.workspace.name, self, project_config=False)
+        self.scratch = tempfile.TemporaryDirectory(prefix='lumen-guide-', dir=os.environ.get('XDG_RUNTIME_DIR'))
+        self.backend = OpenCodeBackend(self.scratch.name, self, project_config=False)
         self.backend.screen_guidance = True; self.backend.read_only = True
         self.voice = VoiceSession(self.backend, self.backend.settings, self)
         self.proc = None; self.generation = 0; self.target = None; self.active = False
@@ -296,7 +296,7 @@ class Companion(QWidget):
         super().changeEvent(event)
 
     def closeEvent(self, event):
-        self.closing = True; self.pause(); self.workspace.cleanup(); event.accept()
+        self.closing = True; self.pause(); self.scratch.cleanup(); event.accept()
 
 
 def main():

@@ -237,7 +237,7 @@ def execute(store, value, progress):
         if source in done:
             count += sum(e["stamp"][2] for e in item["entries"] if e["kind"] == "file")
             continue
-        receipt = store.setting("workplace/transfer/" + identity).get("publishing", {})
+        receipt = store.setting("transfer/" + identity).get("publishing", {})
         if source in receipt:
             pending = os.path.lexists(Path(stage_root["path"]) / name)
             info = (

@@ -6,10 +6,51 @@ import re
 from subprocess import SubprocessError
 import tempfile
 from types import SimpleNamespace
+import uuid
 
 from PySide6.QtCore import QObject, Qt, QTimer, ClassInfo, Slot
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtDBus import QDBusConnection, QDBusMessage, QDBus
+
+from lumen_controls import run
+from lumen_i18n import tr
+
+
+def window_script(store, body):
+    """KWin replies over a private D-Bus object; no log scraping or shell."""
+    from PySide6.QtCore import QObject, QCoreApplication, QEventLoop, QTimer, ClassInfo, Slot
+    from PySide6.QtDBus import QDBusConnection
+    app = QCoreApplication.instance() or QCoreApplication([])
+    loop = QEventLoop()
+    @ClassInfo(**{'D-Bus Interface': 'org.lumen.WindowReply'})
+    class Reply(QObject):
+        result = None
+        @Slot(str)
+        def receive(self, value):
+            self.result = json.loads(value); loop.quit()
+    receiver = Reply()
+    bus = QDBusConnection.sessionBus()
+    service = 'org.lumen.Layout.p' + uuid.uuid4().hex
+    if not bus.registerService(service) or not bus.registerObject('/Reply', receiver, QDBusConnection.ExportAllSlots):
+        raise RuntimeError(tr('KWin-Verbindung ist nicht verfügbar.'))
+    script = store.directory / ('windows-' + uuid.uuid4().hex + '.js')
+    script.write_text('try { const value = (() => {' + body + '})(); callDBus(' + json.dumps(service) +
+                      ', "/Reply", "org.lumen.WindowReply", "receive", JSON.stringify({value})); } catch(e) { callDBus(' +
+                      json.dumps(service) + ', "/Reply", "org.lumen.WindowReply", "receive", JSON.stringify({error:String(e)})); }')
+    try:
+        number = run(['qdbus6', 'org.kde.KWin', '/Scripting', 'org.kde.kwin.Scripting.loadScript', str(script), script.stem])
+        if not number.isdigit(): raise RuntimeError(tr('KWin hat die Fensteraktion nicht geladen.'))
+        run(['qdbus6', 'org.kde.KWin', '/Scripting/Script' + number, 'org.kde.kwin.Script.run'])
+        timer = QTimer(); timer.setSingleShot(True); timer.timeout.connect(loop.quit); timer.start(2500)
+        if receiver.result is None: loop.exec()
+        timer.stop()
+        if receiver.result is None: raise RuntimeError(tr('KWin hat nicht rechtzeitig geantwortet.'))
+        if 'error' in receiver.result: raise RuntimeError(receiver.result['error'])
+        return receiver.result['value']
+    finally:
+        try: run(['qdbus6', 'org.kde.KWin', '/Scripting', 'org.kde.kwin.Scripting.unloadScript', script.stem])
+        finally:
+            script.unlink(missing_ok=True); bus.unregisterObject('/Reply'); bus.unregisterService(service)
 
 
 def activate_process(pid, app_id, title=None):
@@ -19,7 +60,6 @@ def activate_process(pid, app_id, title=None):
     interface = QDBusConnection.sessionBus().interface()
     if interface is None or not interface.isServiceRegistered('org.kde.KWin').value():
         return False
-    from lumen_modes import window_script
     script = '''const windows = workspace.windowList().filter(w =>
         Number(w.pid) === PID && (String(w.resourceClass).toLowerCase() === APP ||
                                  String(w.desktopFileName).toLowerCase() === APP));

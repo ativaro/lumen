@@ -142,7 +142,7 @@ Lumen hilft dir auch als IT-Support für deinen Rechner. Es kann Systemwerte und
 
 Die Systemansicht zeigt CPU, GPU, Arbeitsspeicher, Laufwerke, Prozesse und Sensoren. Die verfügbare Hardware bestimmt, welche Werte angezeigt werden. Eine KI-Auswertung startet auf Anfrage.
 
-Im selben Fenster liegen **Sound** mit Ausgängen, Lautstärken und App-Regeln sowie **Arbeitsmodi** für Desktop- und Audioeinstellungen. Unterstützte Änderungen protokolliert Lumen; ein Rückweg wird nur angeboten, wenn er sicher möglich ist.
+Im selben Fenster liegen **Sound** mit Ausgängen, Lautstärken und App-Regeln. Unterstützte Änderungen protokolliert Lumen; ein Rückweg wird nur angeboten, wenn er sicher möglich ist.
 
 Lokale Sicherungen nutzen ausgewählte Quellen und Ziele sowie einen getrennt aufzubewahrenden Wiederherstellungsschlüssel. Eine erfolgreiche Wiederherstellungsprobe ist wichtiger als eine reine Erfolgsmeldung beim Sichern.
 

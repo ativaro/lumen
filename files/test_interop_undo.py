@@ -19,15 +19,6 @@ class UndoTest(unittest.TestCase):
         choice=dict(token='one',title='Incoming',mode='copy',**values)
         return apply(action,self.payload,choice,self.job,self.root,self.store)
 
-    def test_existing_record_restored_only_without_subsequent_edits(self):
-        library=Library('workbench',self.root)
-        key=library.create('Project',notes='Original',questions=[],resources=[])
-        self.transfer('workbench.add',id=key)
-        undo('workbench.add','one',self.job,self.root,self.store)
-        self.assertEqual(library.get(key)['notes'],'Original')
-        undo('workbench.add','one',self.job,self.root,self.store)
-        self.assertEqual(library.get(key)['notes'],'Original')
-
     def test_new_record_archived_and_copied_assets_preserved(self):
         source=self.root/'source.txt';source.write_text('source stays')
         self.payload['paths']=[str(source)]
@@ -36,12 +27,6 @@ class UndoTest(unittest.TestCase):
         record=Library('household',self.root).get(result['id'])
         self.assertTrue(record['_archived']);self.assertEqual(source.read_text(),'source stays')
         self.assertTrue(Library('household',self.root).asset(record['attachments'][0]['asset']).exists())
-
-    def test_modified_result_cannot_be_undone(self):
-        result=self.transfer('workbench.add')
-        library=Library('workbench',self.root);library.update(result['id'],notes='User changes')
-        with self.assertRaises(ValueError):undo('workbench.add','one',self.job,self.root,self.store)
-        self.assertEqual(library.get(result['id'])['notes'],'User changes')
 
     def test_saving_default_widget_fields_does_not_block_undo(self):
         result=self.transfer('household.add')
