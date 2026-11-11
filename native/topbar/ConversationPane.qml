@@ -66,6 +66,8 @@ Item {
         x:(parent.width-width-pane.sideWidth)/2;width:Math.max(0,Math.min(760,parent.width-48-pane.sideWidth));height:parent.height;spacing:16
         RowLayout {
             objectName:"conversationHeader";Layout.fillWidth:true;Layout.minimumHeight:48;Layout.preferredHeight:48;Layout.maximumHeight:48;spacing:12
+            // As a window the header is its title bar: it reaches the window edges while the text column stays centred.
+            Layout.leftMargin:pane.detached?Math.min(0,16-mainColumn.x):0;Layout.rightMargin:Layout.leftMargin
             Item {objectName:"conversationDragArea";Layout.fillWidth:true;Layout.fillHeight:true
                 Label {anchors.verticalCenter:parent.verticalCenter;width:parent.width;text:pane.controller.data.title||pane.translate("Gespräch mit Lumen");color:pane.colors.text;font.pixelSize:18;font.weight:Font.Medium;elide:Text.ElideRight}
                 MouseArea {
