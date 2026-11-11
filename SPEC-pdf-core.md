@@ -91,10 +91,25 @@ Primitiven; PDF-Schlüsselableitung und Sicherheits-Handler R2–R6 sind eigener
 Keine vollständige ISO-32000-Implementierung. Nicht unterstützte Konstrukte
 brechen mit einer konkreten Meldung ab, ohne Fallback auf einen fremden PDF-Kern:
 Type3, komplexe CMaps/CID-CFF-Zuordnungen, Rechts-nach-links-Text, vertikale
-Schriftmetriken, Ebenen, Knockout-Gruppen, nicht isolierte Gruppen mit äußerer
-Transparenz, CMYK-Gruppen und nicht separierbare Mischmodi. Kachelmuster,
+Schriftmetriken, nicht eingebettete CID-Schriften, Ebenenausdrücke (`VE`),
+CMYK-Gruppen und nicht separierbare Mischmodi. Ungefärbte Kachelmuster,
 Mesh-Verläufe, Inline-Bilder, Text-Clipping und zusätzliche Spezialfilter
-(insbesondere CCITT/JBIG2) sind weiterhin offen. Mehrsprachiger Export setzt eine vollständig passende statische
+(insbesondere CCITT/JBIG2) sind weiterhin offen.
+
+Seit dem 11.11.2026 gelesen, mit diesen Grenzen: Knockout-Gruppen (transparente
+Objekte darin kosten je drei Flächen aus dem Transparenzbudget; „Alpha als Form“
+darin wird abgelehnt), nicht isolierte Gruppen mit äußerer Transparenz (ein
+Mischmodus innerhalb wird abgelehnt), gefärbte Kachelmuster bis 4096 px je
+Kachel, Ebenen nach der Standardkonfiguration des Dokuments (keine Umschaltung
+durch den Leser), symbolische TrueType-Schriften über ihre eigene Zeichentabelle,
+nicht eingebettete einfache Schriften über die passende Liberation-Familie mit
+den Breiten aus der Datei, ersetzender Markierungstext (`ActualText`) für die
+Textauswahl, Linienangaben im Grafikzustand und Flate-Daten, denen nur die
+Prüfsumme fehlt. Überdrucken (`OP`, `op`, `OPM`) wird wie am Bildschirm ohne
+Überdruckvorschau dargestellt. Das Kopieren von Seiten mit Ebenen bleibt
+abgelehnt. Wörter, die nur durch Abstand getrennt sind, werden ab einem Zehntel
+der Zeilenhöhe getrennt; dafür trägt der Reader die Kennung `lumen-2` und
+verankert Markierungen über ihr Zitat neu. Mehrsprachiger Export setzt eine vollständig passende statische
 TrueType-Schrift voraus. Formular-/Signatur-PDFs werden nicht übersetzt; EPUB-DRM
 wird nicht verarbeitet. Interne Links auf nicht ausgewählte Exportseiten führen
 zu einer Fehlermeldung. Diese Grenzen sind gegenüber dem früheren umfangreicheren
