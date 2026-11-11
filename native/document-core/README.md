@@ -13,7 +13,13 @@ referenced by their name inside the file; nothing outside the file is read. XML 
 declarations, encrypted parts and oversized archives are refused. Error messages are the German
 source texts, which the caller translates.
 
-PDF follows; see `PLAN-dokument-kern-rust.md` in the working folder of the migration.
+`lumen-document pdf-info <file>` reads a PDF's structure (`src/pdf.rs`): syntax, cross-reference
+tables and streams, object streams, the stream filters, the page tree, document information and the
+outline. It prints page count, title, outline and, per page, its box and a checksum of its decoded
+content. The Reader does not use it yet; it still reads PDFs with `files/lumen_pdf*.py`.
+`compare-pdf.py` runs both readers over the same files and requires equal results or the same
+refusal: 40 real files with 1419 pages are equal. Not ported yet: encrypted files (refused with a
+clear message), text and words, rendering.
 
 ## Checks
 

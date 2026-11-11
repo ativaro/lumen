@@ -17,6 +17,7 @@ path = "src/main.rs"
 [dependencies]
 roxmltree = "0.20"
 zip = { version = "2", default-features = false, features = ["deflate"] }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 
 [profile.release]
 panic = "abort"

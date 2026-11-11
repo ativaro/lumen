@@ -20,8 +20,61 @@ fn json(text: &str) -> String {
     out
 }
 
+/// Page count, title, outline and, per page, its box and a fingerprint of its decoded content.
+fn pdf_info(path: &str) -> Result<String, lumen_document::pdf::Error> {
+    use lumen_document::pdf::{Document, Value};
+    let document = Document::open(std::path::Path::new(path))?;
+    let toc: Vec<String> = document
+        .toc()?
+        .iter()
+        .map(|(level, title, page)| format!("[{level}, {}, {page}]", json(title)))
+        .collect();
+    let mut pages = Vec::new();
+    for (index, page) in document.pages.iter().enumerate() {
+        let content = document.contents(index)?;
+        // A checksum is enough to see that both readers decoded the same bytes.
+        let mut sum = flate2::Crc::new();
+        sum.update(&content);
+        let print = sum.sum();
+        let corners: Vec<String> = page
+            .get("MediaBox")
+            .and_then(Value::array)
+            .map(|b| {
+                b.iter()
+                    .map(|v| v.number().unwrap_or(0.0).to_string())
+                    .collect()
+            })
+            .unwrap_or_default();
+        pages.push(format!(
+            "{{\"box\": [{}], \"length\": {}, \"print\": {print}}}",
+            corners.join(", "),
+            content.len()
+        ));
+    }
+    let title = document.metadata.get("title").cloned().unwrap_or_default();
+    Ok(format!(
+        "{{\"pages\": {}, \"title\": {}, \"toc\": [{}], \"content\": [{}]}}",
+        document.pages.len(),
+        json(&title),
+        toc.join(", "),
+        pages.join(", ")
+    ))
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.len() == 2 && args[0] == "pdf-info" {
+        return match pdf_info(&args[1]) {
+            Ok(text) => {
+                println!("{text}");
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     if args.len() < 2 || args[0] != "office" {
         eprintln!("usage: lumen-document office <file> [--label German=Translation]...");
         return ExitCode::from(2);
