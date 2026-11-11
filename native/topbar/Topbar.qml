@@ -343,7 +343,7 @@ Window {
     }
     Connections {target:windowState.windows;function onObjectAdded(){if(conversationWindow.focusPending)Qt.callLater(()=>windowState.activateProcess(panelData.processId))}}
     Shortcut {sequence:"Escape";enabled:bar.conversationOpen||conversationWindow.active;onActivated:bar.closeConversation()}
-    BarButton {id:activityButton;objectName:"activityButton";visible:bar.classic;colors:bar.colors;monochrome:true;text:bar.statusText;glyph:bar.currentActivity.icon
+    BarButton {id:activityButton;objectName:"activityButton";visible:bar.classic;colors:bar.colors;monochrome:true;outlined:true;text:bar.statusText;glyph:bar.currentActivity.icon
         width:bar.width<900?160:190;x:bar.twoRows?bar.width-width-24:systemRow.x-width-12;y:(bar.twoRows?82:40)-height/2
         onClicked:bar.showActivity("status")}
     Row {

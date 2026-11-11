@@ -44,7 +44,8 @@ Item {
     RowLayout {
         id:row;anchors.fill:parent;anchors.leftMargin:composer.request.note.reference?4:12;anchors.rightMargin:4;spacing:4
         Kirigami.Icon {visible:!composer.request.note.reference;source:composer.failed?"dialog-warning":composer.busy?"qrc:/lumen/icons/lumen-mark.svg":"search";isMask:!composer.failed;color:composer.busy?(composer.colors.ring||composer.colors.accent):composer.colors.muted;implicitWidth:16;implicitHeight:16;Layout.rightMargin:4}
-        BarButton {objectName:"inspectAttachmentButton";compact:true;visible:!!composer.request.note.reference;colors:composer.colors;glyph:"mail-attachment";text:translate("Angehängte Quelle")+": "+(composer.request.note.reference?.title || "");iconOnly:true;onClicked:composer.inspectAttachment()}
+        BarButton {objectName:"inspectAttachmentButton";compact:true;current:true;visible:!!composer.request.note.reference;colors:composer.colors;glyph:"mail-attachment";text:(composer.request.note.reference?.title || translate("Angehängte Quelle"));Accessible.name:translate("Angehängte Quelle")+": "+(composer.request.note.reference?.title || "");iconOnly:composer.width<420;Layout.maximumWidth:220;onClicked:composer.inspectAttachment()}
+        BarButton {objectName:"removeAttachmentButton";compact:true;visible:!!composer.request.note.reference && !composer.pending;colors:composer.colors;glyph:"window-close";text:translate("Notiz entfernen");iconOnly:true;onClicked:composer.request.note=({})}
         TextField {
             id:input;objectName:"lumenQuestion"
             onPressed:composer.inputRequested()
@@ -63,6 +64,7 @@ Item {
         BarButton {objectName:"retryQuestionButton";compact:true;visible:composer.failed && !!input.text.trim();colors:composer.colors;text:translate("Erneut senden");onClicked:composer.submit()}
         BarButton {objectName:"dictateButton";compact:true;visible:!composer.pending;colors:composer.colors;glyph:"microphone-sensitivity-high";text:composer.listening?translate("Diktat läuft"):translate("Mit Lumen sprechen");iconOnly:true;primary:composer.listening;onClicked:{composer.voiceRequested();controller.conversation.call("voice")}}
         BarButton {objectName:composer.showToggle?"conversationToggle":"";compact:true;visible:composer.showToggle;colors:composer.colors;current:composer.conversationOpen;glyph:composer.conversationOpen?"arrow-up":"arrow-down";text:translate(composer.conversationOpen?"Gespräch einklappen":"Gespräch aufklappen");iconOnly:true;onClicked:composer.toggleRequested()}
+        BarButton {objectName:"stopQuestionButton";compact:true;visible:composer.busy && !composer.pending;colors:composer.colors;glyph:"media-playback-stop";text:translate("Abbrechen");iconOnly:true;onClicked:controller.conversation.call("stop")}
         BarButton {objectName:"sendQuestionButton";compact:true;primary:true;colors:composer.colors;glyph:"go-up";text:translate("Frage senden");iconOnly:true;visible:!!input.text.trim() && !composer.pending && !composer.failed;enabled:!composer.busy;onClicked:composer.submit()}
     }
     Connections {

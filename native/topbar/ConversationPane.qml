@@ -27,8 +27,38 @@ Item {
     onVisibleChanged:visible?widthTimer.restart():widthTimer.stop()
     Timer {id:widthTimer;interval:150;onTriggered:if(pane.visible&&pane.width>=168)pane.controller.model.call("width",[Math.min(712,pane.width-48)])}
     Connections {target:pane.controller;function onDataChanged(){if(pane.following)Qt.callLater(pane.followLatest)}}
+    readonly property var steps:controller.data.steps||[]
+    property bool stepsClosed:false
+    function stepStatus(value){const names={completed:"Erledigt",running:"Läuft",pending:"Wartet",error:"Fehlgeschlagen",failed:"Fehlgeschlagen"};return names[value]?translate(names[value]):(value||"")}
+    // Wide docked conversations show the steps beside the answer; otherwise they stay a collapsible line below it.
+    readonly property bool sideSteps:!detached && steps.length>0 && !stepsClosed && width>=1100
+    readonly property real sideWidth:sideSteps?324:0
+    Rectangle {
+        visible:!pane.detached;z:-1;anchors.fill:parent;anchors.leftMargin:1;anchors.rightMargin:1;anchors.bottomMargin:1
+        color:pane.colors.base;radius:(pane.colors.radius||10)+6;topLeftRadius:0;topRightRadius:0
+        Rectangle {width:parent.width;height:1;color:pane.colors.border}
+    }
     ColumnLayout {
-        x:(parent.width-width)/2;width:Math.max(0,Math.min(760,parent.width-48));height:parent.height;spacing:16
+        id:stepsPanel;objectName:"conversationStepsPanel";visible:pane.sideSteps
+        x:mainColumn.x+mainColumn.width+24;y:16;width:300;height:parent.height-32;spacing:12
+        RowLayout {Layout.fillWidth:true
+            Label {text:pane.translate("Arbeitsschritte");color:pane.colors.muted;font.pixelSize:12;font.weight:Font.Medium;Layout.fillWidth:true}
+            BarButton {objectName:"closeConversationSteps";compact:true;colors:pane.colors;glyph:"window-close";text:pane.translate("Arbeitsschritte schließen");iconOnly:true;onClicked:pane.stepsClosed=true}
+        }
+        ScrollView {Layout.fillWidth:true;Layout.fillHeight:true;clip:true;contentWidth:availableWidth;ScrollBar.horizontal.policy:ScrollBar.AlwaysOff
+            ColumnLayout {width:stepsPanel.width;spacing:12
+                Repeater {model:pane.steps.length
+                    ColumnLayout {required property int index;readonly property var step:pane.steps[index]||({});Layout.fillWidth:true;spacing:2
+                        Label {Layout.fillWidth:true;text:parent.step.title||"";textFormat:Text.PlainText;wrapMode:Text.Wrap;color:pane.colors.text}
+                        Label {Layout.fillWidth:true;visible:!!text;text:pane.stepStatus(parent.step.status);textFormat:Text.PlainText;wrapMode:Text.Wrap;color:pane.colors.muted;font.pixelSize:12}
+                    }
+                }
+            }
+        }
+    }
+    ColumnLayout {
+        id:mainColumn
+        x:(parent.width-width-pane.sideWidth)/2;width:Math.max(0,Math.min(760,parent.width-48-pane.sideWidth));height:parent.height;spacing:16
         RowLayout {
             objectName:"conversationHeader";Layout.fillWidth:true;Layout.minimumHeight:48;Layout.preferredHeight:48;Layout.maximumHeight:48;spacing:12
             Item {objectName:"conversationDragArea";Layout.fillWidth:true;Layout.fillHeight:true
@@ -67,12 +97,12 @@ Item {
                             id:message;required property int index
                             readonly property var row:pane.controller.messages[index]||({})
                             readonly property bool user:row.role==="user"
-                            Layout.fillWidth:true;Layout.leftMargin:user?32:0;spacing:12
-                            RowLayout {spacing:8
+                            Layout.fillWidth:true;Layout.maximumWidth:mainColumn.width;spacing:12
+                            RowLayout {spacing:8;Layout.alignment:message.user?Qt.AlignRight:Qt.AlignLeft
                                 Kirigami.Icon {visible:!message.user;source:"qrc:/lumen/symbols/halo.svg";isMask:true;color:pane.colors.accent;Layout.preferredWidth:20;Layout.preferredHeight:20}
                                 Label {text:message.user?pane.translate("Deine Nachricht"):"Lumen";color:pane.colors.muted;font.pixelSize:12}
                             }
-                            TextArea {visible:message.user;Layout.fillWidth:true;text:message.row.body||"";textFormat:TextEdit.RichText;readOnly:true;selectByMouse:true;wrapMode:TextEdit.Wrap;font.pixelSize:pane.controller.theme.fontSize;color:pane.colors.text;background:Rectangle {radius:10;color:pane.colors.base} padding:14;onLinkActivated:link=>pane.controller.open_link(link)}
+                            TextArea {visible:message.user;Layout.alignment:Qt.AlignRight;Layout.maximumWidth:Math.min(620,mainColumn.width-32);text:message.row.body||"";textFormat:TextEdit.RichText;readOnly:true;selectByMouse:true;wrapMode:TextEdit.Wrap;font.pixelSize:pane.controller.theme.fontSize;color:pane.colors.text;background:Rectangle {radius:pane.colors.innerRadius||7;color:pane.detached?pane.colors.base:pane.colors.alternate} padding:14;onLinkActivated:link=>pane.controller.open_link(link)}
                             Search.AnswerBlocks {visible:!message.user;Layout.fillWidth:true;blocks:message.row.blocks||[];theme:pane.controller.theme;controller:pane.controller;messageKey:message.row.key||""}
                             Loader {Layout.fillWidth:true;active:!!message.row.presentation;visible:active
                                 sourceComponent:Search.ResultView {view:pane.controller.richView;theme:pane.controller.theme;onDialogVisibleChanged:pane.dialogVisible=dialogVisible;Component.onDestruction:pane.dialogVisible=false}
@@ -96,7 +126,7 @@ Item {
                     Repeater {model:pane.controller.questions;Search.QuestionCard {required property var modelData;controller:pane.controller;request:modelData;Layout.fillWidth:true}}
                     Label {visible:!!text;Layout.fillWidth:true;text:pane.request.error||pane.controller.error;textFormat:Text.PlainText;wrapMode:Text.Wrap;color:pane.colors.text}
                     BarButton {visible:!!pane.controller.data.voiceSetupRequired;colors:pane.colors;text:pane.translate("Sprache einrichten");onClicked:pane.controller.model.call("voice_setup")}
-                    ColumnLayout {Layout.fillWidth:true;spacing:8;visible:(pane.controller.data.steps||[]).length>0
+                    ColumnLayout {Layout.fillWidth:true;spacing:8;visible:pane.steps.length>0 && !pane.sideSteps
                         property bool expanded:false
                         BarButton {objectName:"conversationSteps";colors:pane.colors;text:(pane.controller.data.steps||[]).length+" "+pane.translate((pane.controller.data.steps||[]).length===1?"Arbeitsschritt":"Arbeitsschritte");glyph:parent.expanded?"arrow-up":"arrow-down";onClicked:{parent.expanded=!parent.expanded;if(parent.expanded)Qt.callLater(pane.latest)}}
                         Label {visible:parent.expanded;Layout.fillWidth:true;text:(pane.controller.data.steps||[]).map(s=>s.title+" · "+s.status).join("\n");textFormat:Text.PlainText;wrapMode:Text.Wrap;color:pane.colors.muted}
@@ -107,6 +137,8 @@ Item {
             BarButton {objectName:"conversationLatest";visible:!pane.following;anchors.horizontalCenter:parent.horizontalCenter;anchors.bottom:parent.bottom;colors:pane.colors;text:pane.translate("Zur neuesten Nachricht");glyph:"arrow-down";onClicked:pane.latest()}
         }
         Rectangle {
+            // Docked, the bar's own field is the input; the detached window has no bar above it.
+            visible:pane.detached
             Layout.fillWidth:true;implicitHeight:composerBox.implicitHeight+24;radius:pane.colors.innerRadius||7;color:pane.colors.base;border.color:composer.activeFocus?pane.colors.accent:pane.colors.border
             ColumnLayout {id:composerBox;anchors.fill:parent;anchors.margins:12;spacing:8
                 TextArea {id:composer;objectName:"conversationComposer";Layout.fillWidth:true;Layout.maximumHeight:140;wrapMode:TextEdit.Wrap;placeholderText:pane.translate("Weiter mit Lumen besprechen …");Accessible.name:placeholderText;color:pane.colors.text;selectByMouse:true;font.pixelSize:pane.controller.theme.fontSize;background:null;padding:0

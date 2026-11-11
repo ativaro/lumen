@@ -100,6 +100,10 @@ sitzen im Eingabefeld. Senden erscheint erst mit Text. Fokus zeigt ein 2 px star
 Akzentrahmen; ein Fehler zeigt Warnsymbol, Rahmen in Textfarbe und „Erneut senden“.
 Bedienelemente verwenden den Innenradius des Themes (`innerRadius`, 65 % des
 Theme-Radius), Flächen und Menüs den Theme-Radius. Keine festen Radien im Topbar-Code.
+Das Feld ist höchstens 720 px breit und sitzt in der Bildschirmmitte. Im angedockten
+Gespräch ist das Feld der Leiste die einzige Eingabe; „Abbrechen“ erscheint dort, solange
+Lumen arbeitet. Ab 1100 px stehen die Arbeitsschritte als schließbare Nebenansicht rechts,
+darunter als aufklappbare Zeile. Das gelöste Gesprächsfenster behält seine eigene Eingabe.
 
 Desktop-Topbar, Kurzansichten (06.11.2026): Glocke, Netzwerk und Audio öffnen jeweils eine angedockte, höchstens 390 Pixel breite Ansicht.
 Die Statusmenüs schließen rechts an die Leiste an. Der Lumen-Kreis öffnet links

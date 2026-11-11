@@ -13,6 +13,7 @@ Button {
     property bool primary: false
     property bool monochrome: false
     property bool compact: false
+    property bool outlined: false
     property string symbol: ""
     hoverEnabled: true
     focusPolicy: Qt.StrongFocus
@@ -29,7 +30,7 @@ Button {
             anchors.fill:parent;anchors.topMargin:control.key && parent.pressed?1:0
             radius:control.key?(control.colors.radius||8):Math.max(3,(control.colors.innerRadius||7)-(control.compact?2:0))
             color:control.primary && control.enabled?control.colors.accent:control.key?(parent.pressed?(control.colors.inset||control.colors.base):(control.colors.key||control.colors.window)):(parent.pressed?control.colors.alternate:"transparent")
-            border.width:control.visualFocus?2:control.key || (control.enabled && control.hovered && !control.down)?1:0
+            border.width:control.visualFocus?2:control.key || control.outlined || (control.enabled && control.hovered && !control.down)?1:0
             border.color:control.visualFocus || (control.enabled && control.hovered && !control.down)?control.colors.accent:control.colors.border
             Behavior on border.color {ColorAnimation {duration:Kirigami.Units.shortDuration}}
             Rectangle {visible:control.key;anchors.top:parent.top;anchors.topMargin:1;anchors.horizontalCenter:parent.horizontalCenter;width:parent.width-12;height:1;color:control.colors.highlight||"#12ffffff"}
