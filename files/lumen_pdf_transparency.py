@@ -15,10 +15,20 @@ def gray_color(color):
     return QColor.fromRgbF(level,level,level,color.alphaF())
 
 
+def luminance(raw):
+    """(30 R + 59 G + 11 B + 50) // 100 for every RGBA pixel, as whole-buffer integer arithmetic instead of a loop."""
+    count=len(raw)//4
+    def lanes(channel):
+        wide=bytearray(count*4);wide[0::4]=channel;return int.from_bytes(wide,'little')
+    # Each pixel has a 32-bit lane; 167773 / 2**24 is 1/100 closely enough to be exact for these sums.
+    total=(30*lanes(raw[0::4])+59*lanes(raw[1::4])+11*lanes(raw[2::4])+50*lanes(b'\1'*count))*167773
+    return total.to_bytes(count*4,'little')[3::4]
+
+
 def gray_image(image):
     source=image.convertToFormat(QImage.Format.Format_RGBA8888);raw=bytes(source.constBits())
     data=bytearray(len(raw))
-    data[0::4]=data[1::4]=data[2::4]=bytes((30*r+59*g+11*b+50)//100 for r,g,b in zip(raw[0::4],raw[1::4],raw[2::4]))
+    data[0::4]=data[1::4]=data[2::4]=luminance(raw)
     data[3::4]=raw[3::4]
     return QImage(bytes(data),image.width(),image.height(),image.width()*4,QImage.Format.Format_RGBA8888).copy()
 
@@ -62,7 +72,7 @@ def soft_mask(page,painter,entry):
     finally:page.collect=collect;output.end()
     rgba=image.convertToFormat(QImage.Format.Format_RGBA8888);raw=bytes(rgba.constBits())
     if subtype=='Alpha':alpha=raw[3::4]
-    else:alpha=bytes((30*r+59*g+11*b+50)//100 for r,g,b in zip(raw[0::4],raw[1::4],raw[2::4]))
+    else:alpha=luminance(raw)
     transfer=document.resolve(attrs.get('TR',Name('Identity')))
     if transfer!='Identity':
         table=bytes(round(max(0,min(1,function(document,transfer,[v/255])[0]))*255) for v in range(256));alpha=alpha.translate(table)

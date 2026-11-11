@@ -263,7 +263,7 @@ class Page:
         self.transform=transforms[self.rotation]*QTransform.fromScale(unit,unit)
         self.width,self.height=(h*unit,w*unit) if self.rotation%180 else (w*unit,h*unit)
         self.fonts={}; self.spans=[]; self.characters=[]; self.operations=0; self.image_count=0; self.image_pixels=0; self.character_units=0
-        self.collect=True;self.effects=False;self.effect_pixels=0;self.effect_depth=0;self.tiles={}
+        self.collect=True;self.effects=False;self.effect_pixels=0;self.effect_depth=0;self.tiles={};self.images={}
         self.picture=QPicture(); painter=QPainter(self.picture)
         try:
             self._draw(painter)
@@ -718,7 +718,10 @@ class Page:
 
     def _image(self,stream,resources=None,fill=None):
         from lumen_pdf_image import image
-        return image(self,stream,resources or {},fill or QColor('black'))
+        # A page is drawn twice when it has transparency; the decoded picture is kept for the second pass.
+        fill=fill or QColor('black');key=(id(stream),fill.rgba() if stream.attrs.get('ImageMask') else 0);found=self.images.get(key)
+        if found is None:found=self.images[key]=image(self,stream,resources or {},fill)
+        return found
 
     def _words(self):
         words=[]; text=''; rect=None; previous=None;last_angle=None

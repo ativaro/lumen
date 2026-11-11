@@ -71,14 +71,26 @@ def image(page,stream,resources,fill,active=None):
             if result.isNull():raise PDFError('PDF-Bildprofil konnte nicht angewendet werden.')
         result=result.convertToFormat(QImage.Format.Format_ARGB32)
     else:
-        pixels=bytearray()
-        for pixel in samples(raw,w,h,channels,bits):
+        def colour(pixel):
             decoded=[decode[2*i]+v/maximum*(decode[2*i+1]-decode[2*i]) for i,v in enumerate(pixel)]
             # Indexed default Decode uses the sample's integer index, regardless
             # of the palette's highest used entry (ISO 32000-1 table 89).
-            if space.lookup is not None and 'Decode' not in attrs:decoded=pixel
-            pixels.extend(round(max(0,min(1,c))*255) for c in space.rgb(decoded))
-        result=QImage(bytes(pixels),w,h,w*3,QImage.Format.Format_RGB888).copy().convertToFormat(QImage.Format.Format_ARGB32)
+            if space.lookup is not None and 'Decode' not in attrs:decoded=list(pixel)
+            return bytes(round(max(0,min(1,c))*255) for c in space.rgb(decoded))
+        if channels==1 and bits in (1,8):
+            # One sample per pixel has at most 256 colours: work each out once and let Qt apply the table.
+            result=QImage(raw,w,h,stride,QImage.Format.Format_Indexed8 if bits==8 else QImage.Format.Format_Mono).copy()
+            result.setColorTable([QColor(*colour((v,))).rgb() for v in range(maximum+1)])
+        else:
+            pixels=bytearray();known={}
+            for pixel in samples(raw,w,h,channels,bits):
+                key=tuple(pixel);value=known.get(key)
+                if value is None:
+                    value=colour(key)
+                    if len(known)<65536:known[key]=value
+                pixels+=value
+            result=QImage(bytes(pixels),w,h,w*3,QImage.Format.Format_RGB888).copy()
+        result=result.convertToFormat(QImage.Format.Format_ARGB32)
     mask=attrs.get('SMask');soft=isinstance(mask,Stream)
     if not soft:mask=attrs.get('Mask')
     if isinstance(mask,Stream):

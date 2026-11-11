@@ -98,6 +98,12 @@ class PDFTransparencyTest(unittest.TestCase):
             (80, 30, (128, 128, 255)), (5, 30, (255, 255, 255)),
         ])
 
+    def test_mask_luminance_matches_the_per_pixel_formula(self):
+        import os
+        from lumen_pdf_transparency import luminance
+        raw = os.urandom(4 * 5000) + bytes([255, 255, 255, 0, 0, 0, 0, 0, 255, 0, 0, 9, 0, 0, 255, 1])
+        self.assertEqual(luminance(raw), bytes((30 * r + 59 * g + 11 * b + 50) // 100 for r, g, b in zip(raw[0::4], raw[1::4], raw[2::4])))
+
     def test_knockout_group_replaces_earlier_objects_with_its_backdrop(self):
         writer = Writer()
         form = writer.stream(b'1 0 0 rg 10 10 50 40 re f /Half gs 0 0 1 rg 40 10 50 40 re f',
