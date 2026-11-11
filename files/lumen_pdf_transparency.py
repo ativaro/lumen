@@ -15,10 +15,20 @@ def gray_color(color):
     return QColor.fromRgbF(level,level,level,color.alphaF())
 
 
+def luminance(raw):
+    """(30 R + 59 G + 11 B + 50) // 100 for every RGBA pixel, as whole-buffer integer arithmetic instead of a loop."""
+    count=len(raw)//4
+    def lanes(channel):
+        wide=bytearray(count*4);wide[0::4]=channel;return int.from_bytes(wide,'little')
+    # Each pixel has a 32-bit lane; 167773 / 2**24 is 1/100 closely enough to be exact for these sums.
+    total=(30*lanes(raw[0::4])+59*lanes(raw[1::4])+11*lanes(raw[2::4])+50*lanes(b'\1'*count))*167773
+    return total.to_bytes(count*4,'little')[3::4]
+
+
 def gray_image(image):
     source=image.convertToFormat(QImage.Format.Format_RGBA8888);raw=bytes(source.constBits())
     data=bytearray(len(raw))
-    data[0::4]=data[1::4]=data[2::4]=bytes((30*r+59*g+11*b+50)//100 for r,g,b in zip(raw[0::4],raw[1::4],raw[2::4]))
+    data[0::4]=data[1::4]=data[2::4]=luminance(raw)
     data[3::4]=raw[3::4]
     return QImage(bytes(data),image.width(),image.height(),image.width()*4,QImage.Format.Format_RGBA8888).copy()
 
@@ -28,7 +38,6 @@ def group(document,reference):
     if attrs is None:return None
     if not isinstance(attrs,dict) or attrs.get('S')!='Transparency':raise PDFError('Ungültige PDF-Transparenzgruppe.')
     if any(type(attrs.get(k,False)) is not bool for k in ('I','K')):raise PDFError('Ungültige PDF-Gruppenattribute.')
-    if attrs.get('K'):raise UnsupportedPDF('PDF-Knockout-Gruppe noch nicht unterstützt.')
     space=document.resolve(attrs.get('CS',Name('DeviceRGB')))
     if space not in (Name('DeviceRGB'),Name('DeviceGray')):raise UnsupportedPDF('PDF-Gruppenfarbraum noch nicht unterstützt: '+str(space))
     return attrs
@@ -49,8 +58,7 @@ def soft_mask(page,painter,entry):
     attrs,transform,resources,inherited=entry;document=page.document
     form=document.resolve(attrs.get('G'))
     if not isinstance(form,Stream) or form.attrs.get('Subtype')!='Form':raise PDFError('PDF-Weichmaskengruppe fehlt.')
-    settings=group(document,form.attrs.get('Group'))
-    if settings is None:raise PDFError('PDF-Weichmaske ohne Transparenzgruppe.')
+    settings=group(document,form.attrs.get('Group')) or {}  # a mask form without its group entry uses the defaults
     subtype=attrs.get('S')
     if subtype not in ('Alpha','Luminosity'):raise PDFError('Ungültige PDF-Weichmaske.')
     space=ColorSpace(document,settings.get('CS',Name('DeviceRGB')),resources)
@@ -64,7 +72,7 @@ def soft_mask(page,painter,entry):
     finally:page.collect=collect;output.end()
     rgba=image.convertToFormat(QImage.Format.Format_RGBA8888);raw=bytes(rgba.constBits())
     if subtype=='Alpha':alpha=raw[3::4]
-    else:alpha=bytes((30*r+59*g+11*b+50)//100 for r,g,b in zip(raw[0::4],raw[1::4],raw[2::4]))
+    else:alpha=luminance(raw)
     transfer=document.resolve(attrs.get('TR',Name('Identity')))
     if transfer!='Identity':
         table=bytes(round(max(0,min(1,function(document,transfer,[v/255])[0]))*255) for v in range(256));alpha=alpha.translate(table)
@@ -72,9 +80,13 @@ def soft_mask(page,painter,entry):
 
 
 def paint(page,painter,state,slot,draw,isolated=False):
+    if page.hidden:return  # content on a layer that is switched off
     opacity=state[slot+'alpha'];blend=state['blend'];mask=state['mask']
-    if mask or isolated:page.effects=True
-    if page.collect or not (mask or isolated):
+    # In a knockout group an opaque object already replaces what lies under it; only a transparent one needs the group's backdrop.
+    knock=state.get('knockout')
+    replacing=knock is not None and (opacity<1 or blend not in ('Normal','Compatible') or bool(mask))
+    if mask or isolated or replacing:page.effects=True
+    if page.collect or not (mask or isolated or replacing):
         painter.save()
         try:painter.setOpacity(opacity);painter.setCompositionMode(BLENDS[blend]);draw(painter)
         finally:painter.restore()
@@ -85,10 +97,31 @@ def paint(page,painter,state,slot,draw,isolated=False):
         image,output=surface(page,painter)
         try:draw(output)
         finally:output.end()
+        shape=image.copy() if replacing and mask else image
         if mask:
             alpha=soft_mask(page,painter,mask)
             # setAlphaChannel multiplies the existing alpha, preserving holes.
             image.setAlphaChannel(alpha)
+        if replacing:
+            # The object is composited with the group's initial backdrop, and that result replaces
+            # everything drawn so far inside the object's shape.
+            page.effect_pixels+=image.width()*image.height()
+            if page.effect_pixels>160_000_000:raise PDFError('PDF-Transparenzbudget überschritten.')
+            Mode=QPainter.CompositionMode
+            result=knock['backdrop'].copy() if knock.get('backdrop') is not None else QImage(image.size(),image.format())
+            if knock.get('backdrop') is None:result.fill(Qt.GlobalColor.transparent)
+            composer=QPainter(result)
+            try:
+                composer.setOpacity(opacity);composer.setCompositionMode(BLENDS[blend]);composer.drawImage(0,0,image)
+                composer.setOpacity(1);composer.setCompositionMode(Mode.CompositionMode_DestinationIn);composer.drawImage(0,0,shape)
+            finally:composer.end()
+            painter.save()
+            try:
+                painter.resetTransform()
+                painter.setCompositionMode(Mode.CompositionMode_DestinationOut);painter.drawImage(0,0,shape)
+                painter.setCompositionMode(Mode.CompositionMode_Plus);painter.drawImage(0,0,result)
+            finally:painter.restore()
+            return
         painter.save()
         try:
             painter.resetTransform();painter.setOpacity(opacity);painter.setCompositionMode(BLENDS[blend]);painter.drawImage(0,0,image)

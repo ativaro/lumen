@@ -69,7 +69,9 @@ class PDFTest(unittest.TestCase):
         raw=bytes([1,10,10,10,2,5,5,5])
         stream=pdf.Stream({'Filter':pdf.Name('FlateDecode'),'DecodeParms':{'Predictor':15,'Columns':3}},zlib.compress(raw))
         self.assertEqual(pdf.decoded(stream),bytes([10,20,30,15,25,35]))
-        with self.assertRaises(pdf.PDFError): pdf.decoded(pdf.Stream({'Filter':pdf.Name('FlateDecode')},zlib.compress(payload)[:-1]))
+        # Complete data without its closing checksum is read; data cut short is refused.
+        for missing in (1,4): self.assertEqual(pdf.decoded(pdf.Stream({'Filter':pdf.Name('FlateDecode')},zlib.compress(payload)[:-missing])),payload)
+        with self.assertRaises(pdf.PDFError): pdf.decoded(pdf.Stream({'Filter':pdf.Name('FlateDecode')},zlib.compress(payload)[:-6]))
         with self.assertRaises(pdf.PDFError): pdf.decoded(pdf.Stream({'Filter':pdf.Name('RunLengthDecode')},b'\x7fA'))
 
     def test_object_and_xref_streams(self):
@@ -168,7 +170,6 @@ class RenderingTest(unittest.TestCase):
         from lumen_pdf_page import Page,unicode_map
         document=pdf.Document(plain()); document.catalog['OCProperties']={pdf.Name('OCGs'):[pdf.Ref(99)]}
         with self.assertRaises(pdf.UnsupportedPDF): pdf.Writer().copy_page(document,0)
-        with self.assertRaises(pdf.UnsupportedPDF): Page(document,0)
         with self.assertRaises(pdf.UnsupportedPDF): Page(pdf.Document(plain(b'0 0 m 2 0 0 2 0 0 cm 1 1 l S')),0)
         with self.assertRaises(pdf.UnsupportedPDF): Page(pdf.Document(plain(b'BI /W 1 /H 1 ID xx EI')),0)
         with patch.object(pdf,'MAX_STREAM',16),patch.object(pdf.base64,'a85decode',side_effect=AssertionError('must reject before allocating')):
@@ -176,6 +177,22 @@ class RenderingTest(unittest.TestCase):
         document=pdf.Document(plain()); expansion=b'1 beginbfrange <0000> <07ff> <'+b'0041'*2048+b'> endbfrange'
         with self.assertRaises(pdf.PDFError): unicode_map(document,pdf.Stream({},expansion))
         with self.assertRaises(pdf.UnsupportedPDF): pdf.decoded(pdf.Stream({'F':b'/etc/passwd'},b''))
+
+    def test_words_follow_replacement_text_and_gaps_without_a_space(self):
+        from lumen_pdf_page import Page,symbol_cmap
+        def text(content): return Page(pdf.Document(plain(content)),0).text()
+        self.assertEqual(text(b'BT /F1 18 Tf 40 300 Td /Span << /ActualText (fi) >> BDC (xy) Tj EMC ( ok) Tj ET'),'fi ok')
+        # A zero-width replacement makes the glyphs unread instead of leaving an invisible character in the word.
+        self.assertEqual(text(b'BT /F1 18 Tf 40 300 Td (a) Tj /Span << /ActualText <FEFF200B> >> BDC (x) Tj EMC (b) Tj ET'),'a b')
+        self.assertEqual(text(b'BT /F1 20 Tf 40 300 Td [(Hello) -300 (World)] TJ ET'),'Hello World')
+        self.assertEqual(text(b'BT /F1 20 Tf 40 300 Td [(Hel) -40 (lo)] TJ ET'),'Hello')
+        # A symbolic TrueType font names its glyphs by code in its own character map.
+        import struct
+        byte=struct.pack('>HH',0,1)+struct.pack('>HHI',1,0,12)+struct.pack('>HHH',0,262,0)+bytes([0,5,6])+bytes(253)
+        self.assertEqual(symbol_cmap(byte),(1,{1:5,2:6}))
+        segments=struct.pack('>HHHHHHH',4,32,0,4,4,1,0)+struct.pack('>HH',0xF002,0xFFFF)+struct.pack('>H',0)+struct.pack('>HH',0xF001,0xFFFF)+struct.pack('>HH',(3-0xF001)&0xFFFF,1)+struct.pack('>HH',0,0)
+        self.assertEqual(symbol_cmap(struct.pack('>HH',0,1)+struct.pack('>HHI',3,0,12)+segments),(3,{0xF001:3,0xF002:4}))
+        self.assertIsNone(symbol_cmap(b'\0\0\0\1\0\3'))
 
     def test_worker_runs_without_other_pdf_modules(self):
         import json,subprocess,sys

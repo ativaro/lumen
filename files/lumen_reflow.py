@@ -91,6 +91,10 @@ class ReflowBook:
                                     if target in starts:self.outline.append([max(1,level),label.text or '',starts[target]+1])
                             walk(child,level+1 if child.tag.endswith(('navMap','navPoint')) else level)
                     walk(ncx)
+            elif path.suffix.lower() in ('.docx','.docm','.xlsx','.xlsm','.pptx','.pptm','.odt','.ods','.odp'):
+                import lumen_office
+                self.archive=lumen_office.open_archive(path);self.metadata['title'],parts=lumen_office.sections(path.suffix.lower(),self.archive)
+                for part in parts:self._add(part,'office',rich=True)
             else:
                 text=path.read_text(encoding='utf-8-sig',errors='replace')
                 if len(text)>2*1024**2: raise PDFError('Textdokument größer als 2 MiB.')
@@ -108,8 +112,15 @@ class ReflowBook:
         elif rich:doc.setHtml(text)
         else:doc.setPlainText(text)
         count=doc.pageCount()
-        if doc.resource_error:raise PDFError('EPUB-Bild konnte nicht geladen werden: '+str(doc.resource_error))
+        if doc.resource_error and name!='office':raise PDFError('EPUB-Bild konnte nicht geladen werden: '+str(doc.resource_error))
         if not 1<=count<=10000 or len(self.pages)+count>10000:raise PDFError('Zu viele EPUB-/Textseiten.')
+        if name=='office':
+            # Office files carry no page targets; the headings become the contents, each with the page it landed on.
+            block=doc.begin()
+            while block.isValid() and len(self.outline)<2000:
+                level=block.blockFormat().headingLevel()
+                if level and block.text().strip():self.outline.append([level,block.text().strip()[:200],len(self.pages)+int(block.layout().position().y()//HEIGHT)+1])
+                block=block.next()
         self.documents.append(doc);self.pages.extend((doc,i) for i in range(count))
         if not self.metadata['title']:self.metadata['title']=doc.metaInformation(QTextDocument.MetaInformation.DocumentTitle)
 
@@ -135,7 +146,7 @@ class ReflowPage:
                 line=layout.lineAt(i);top=position.y()+line.y()
                 if page_top<=top<page_top+HEIGHT:
                     text=blocktext[line.textStart()*2:(line.textStart()+line.textLength())*2].decode('utf-16-le')
-                    for match in re.finditer(r'\S+',text):
+                    for match in re.finditer(r'[^\s\ufffc]+',text):  # U+FFFC stands for an embedded picture, not a word
                         start=line.textStart()+len(text[:match.start()].encode('utf-16-le'))//2;end=line.textStart()+len(text[:match.end()].encode('utf-16-le'))//2
                         left=line.cursorToX(start)[0]+position.x();right=line.cursorToX(end)[0]+position.x()
                         self.words.append([min(left,right),top-page_top,max(left,right),top-page_top+line.height(),match[0],block.blockNumber(),line_number])

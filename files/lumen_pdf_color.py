@@ -35,9 +35,10 @@ def function(document,reference,inputs,depth=0):
         functions=document.resolve(attrs.get('Functions'));bounds=values(document.resolve(attrs.get('Bounds')));encode=values(document.resolve(attrs.get('Encode')))
         if len(source)!=1 or not isinstance(functions,list) or not functions or len(bounds)!=len(functions)-1 or len(encode)!=2*len(functions):raise PDFError('Ungültige zusammengesetzte PDF-Farbfunktion.')
         edges=[domain[0],*bounds,domain[1]]
-        if any(a>=b for a,b in zip(edges,edges[1:])):raise PDFError('Ungültige PDF-Funktionsgrenzen.')
+        # Equal neighbouring bounds are common and leave an interval without width, which is never chosen for a value inside the domain.
+        if any(a>b for a,b in zip(edges,edges[1:])) or edges[0]>=edges[-1]:raise PDFError('Ungültige PDF-Funktionsgrenzen.')
         index=min(sum(source[0]>=b for b in bounds),len(functions)-1);a,b=edges[index:index+2]
-        result=function(document,functions[index],[encode[index*2]+(source[0]-a)/(b-a)*(encode[index*2+1]-encode[index*2])],depth+1)
+        result=function(document,functions[index],[encode[index*2]+((source[0]-a)/(b-a) if b>a else 0)*(encode[index*2+1]-encode[index*2])],depth+1)
     elif kind==0:
         if not isinstance(obj,Stream) or limits is None:raise PDFError('PDF-Abtastfunktion fehlt.')
         sizes=document.resolve(attrs.get('Size'));bits=integer(attrs.get('BitsPerSample'),1,32)

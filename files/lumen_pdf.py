@@ -235,7 +235,13 @@ def decoded(stream, resolve=lambda value:value):
             if name in ('FlateDecode','Fl'):
                 decoder=zlib.decompressobj(); data=decoder.decompress(data,MAX_STREAM+1)
                 _bounded(data)
-                if not decoder.eof or decoder.unconsumed_tail: raise PDFError('Beschädigter oder zu großer Flate-PDF-Stream.')
+                if decoder.unconsumed_tail: raise PDFError('Beschädigter oder zu großer Flate-PDF-Stream.')
+                if not decoder.eof:
+                    # Some writers leave out the closing checksum. The data is then complete exactly when the
+                    # decoder, given any four more bytes, reaches the end and only objects to that checksum.
+                    try: decoder.decompress(bytes(4)); complete=False
+                    except zlib.error as error: complete='incorrect data check' in str(error)
+                    if not complete: raise PDFError('Beschädigter oder zu großer Flate-PDF-Stream.')
                 data=_predict(data,options)
             elif name in ('LZWDecode','LZW'):
                 early=integer(options.get('EarlyChange',1),0,1); bit=0; width=9; table=[bytes([i]) for i in range(256)]+[b'',b'']; result=bytearray(); previous=None; ended=False

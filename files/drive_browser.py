@@ -330,7 +330,7 @@ class Browser(QObject):
         if entry[0] != "file":
             self.window.navigate(path)
             return
-        from reader_server import OFFICE
+        from lumen_office import OFFICE
         if Path(entry[1]['name']).suffix.lower() in OFFICE:
             self.server_tools([path],reader=True)
             return
