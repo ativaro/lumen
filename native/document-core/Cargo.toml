@@ -1,0 +1,26 @@
+[package]
+name = "lumen-document-core"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+publish = false
+license-file = "../../LICENSE"
+description = "Lumen's own document reader: Office files to reading HTML; PDF follows"
+
+[lib]
+name = "lumen_document"
+
+[[bin]]
+name = "lumen-document"
+path = "src/main.rs"
+
+[dependencies]
+roxmltree = "0.20"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[profile.release]
+panic = "abort"
+strip = true
+
+[lints.rust]
+unsafe_code = "forbid"
