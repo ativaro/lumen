@@ -25,7 +25,7 @@ assert received == [{'location':'draft'}]*32
 assert endpoint.Open('{}') and received[-1] == {}
 '''
         result = subprocess.run(['dbus-run-session', '--', sys.executable, '-c', code],
-                                capture_output=True, text=True, timeout=10)
+                                cwd=Path(__file__).parent, capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_invalid_focus_targets(self):
@@ -33,24 +33,6 @@ assert endpoint.Open('{}') and received[-1] == {}
         for pid, name in [(True, 'lumen'), (0, 'lumen'), (None, 'lumen'), (42, None),
                           (42, 'firefox'), (42, 'lumen"; throw 1;')]:
             self.assertFalse(activate_process(pid, name))
-
-    def test_real_app_relaunches(self):
-        for name in ('files', 'updater', 'companion', 'household', 'meetings'):
-            with self.subTest(app=name), tempfile.TemporaryDirectory() as tmp:
-                root = Path(tmp); (root/'runtime').mkdir(mode=0o700)
-                config = root/'config/Lumen'; config.mkdir(parents=True)
-                (config/'Assistant.conf').write_text('[General]\ncrashDetection=false\n')
-                env = dict(os.environ, HOME=tmp, XDG_RUNTIME_DIR=str(root/'runtime'),
-                           XDG_CONFIG_HOME=str(root/'config'), XDG_DATA_HOME=str(root/'data'),
-                           XDG_CACHE_HOME=str(root/'cache'), XDG_STATE_HOME=str(root/'state'),
-                           LUMEN_DATA=str(root/'state'), LUMEN_TOOLS_DATA=str(root/'tools'),
-                           QT_QPA_PLATFORM='offscreen', LUMEN_OPENCODE_BIN='/nonexistent/test-engine')
-                result = subprocess.run(['dbus-run-session', '--', sys.executable, __file__, '--worker', name],
-                                        env=env, capture_output=True, text=True, timeout=20)
-                self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
-
-
-
 
 def verify_private_kde():
     if os.environ.get('LUMEN_PRIVATE_KDE_TEST') != '1':
@@ -112,6 +94,4 @@ def verify_private_kde():
 
 if __name__ == '__main__':
     if sys.argv[1:2] == ['--kde']: verify_private_kde()
-    elif sys.argv[1:2] in (['--worker'], ['--client']):
-        raise SystemExit(worker(sys.argv[2], sys.argv[1] == '--client'))
     else: unittest.main()

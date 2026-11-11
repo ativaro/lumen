@@ -78,7 +78,7 @@
   "Server/Freigabe wählen oder eine Adresse eingeben.": "Select a server/share or enter an address.",
   "Weiteren Ordner hinzufügen": "Add another folder",
   "Ordner vom NAS hinzufügen": "Add folder from NAS",
-  "Auswählen …": "Choose …",
+  "Auswählen …": "Choose…",
   "Schlüssel eingeben und seine unabhängige Aufbewahrung bestätigen.": "Enter the key and confirm that you have kept it separately.",
   "Bestehende Sicherung erkannt. Gib ihren bisherigen Sicherungsschlüssel ein.": "Existing backup found. Enter its original backup key.",
   "Bewahre den Schlüssel getrennt vom Sicherungsziel auf. Der Tresor benötigt weiterhin sein eigenes Master-Passwort.": "Keep the key separately from the backup destination. The vault still requires its own master password.",

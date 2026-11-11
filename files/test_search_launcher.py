@@ -52,9 +52,9 @@ class SearchLauncherTest(unittest.TestCase):
                 if env['BUS_EXIT'] == '1' and name == 'lumen-panel':
                     while 'python:' not in log.read_text() and time.monotonic()<deadline: time.sleep(.01)
                 return log.read_text().splitlines()
-            for name, args, method in [('lumen-search', [], 'Activate'), ('lumen-search', ['--voice'], 'Voice'),
-                                       ('lumen-panel', ['--search'], 'Activate'), ('lumen-panel', ['--voice'], 'Voice')]:
-                self.assertEqual(run(name, *args), ['dbus:org.lumen.Search /Search org.lumen.Search.'+method])
+            for name, args, voice in [('lumen-search', [], 'false'), ('lumen-search', ['--voice'], 'true'),
+                                      ('lumen-panel', ['--search'], 'false'), ('lumen-panel', ['--voice'], 'true')]:
+                self.assertEqual(run(name, *args), ['dbus:org.lumen.Desktop /Lumen org.lumen.Desktop.ActivateSearch '+voice])
             # No service / unavailable bus: preserve --voice for a real first launch.
             env['BUS_EXIT'] = '1'
             calls = run('lumen-panel', '--voice')

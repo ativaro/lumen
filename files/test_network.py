@@ -262,7 +262,10 @@ class NetworkRuntimeTest(unittest.TestCase):
             (shared / 'Sub #1').mkdir()
             (shared / 'Sub #1' / 'report.txt').write_text('Nested network search')
             server = ThreadingHTTPServer(('127.0.0.1', 0), partial(DAV, directory=str(shared)))
-            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            # Serve from another process: the window stats the mount while holding the
+            # interpreter lock, which a server thread in this process would wait for.
+            import multiprocessing
+            thread = multiprocessing.get_context('fork').Process(target=server.serve_forever, daemon=True)
             thread.start()
             address = f'webdav://127.0.0.1:{server.server_port}/'
             settings = QSettings(str(root / 'settings.ini'), QSettings.IniFormat)
@@ -299,22 +302,24 @@ class NetworkRuntimeTest(unittest.TestCase):
                 self.wait_until(lambda: window.connection_request is None)
                 self.assertEqual(window.current_location, address)
                 (root / 'upload.txt').write_text('Upload through Lumen')
-                window.run_operation('copy', [str(root / 'upload.txt')], str(mounted))
-                self.wait_until(lambda: window.file_job is None)
-                self.assertFalse(errors, errors)
+                # Copies run in the shared transfer queue, not as a window file job.
+                def copy(source, target):
+                    import lumen_transfers
+                    from transfer_panel import panel
+                    window.run_operation('copy', [str(source)], str(target))
+                    store = panel(window).store
+                    self.wait_until(lambda: lumen_transfers.tickets(store)[0]['status'] not in lumen_transfers.ACTIVE)
+                    return lumen_transfers.tickets(store)[0]
+                self.assertEqual(copy(root / 'upload.txt', mounted)['status'], 'completed')
                 self.assertEqual((shared / 'upload.txt').read_text(), 'Upload through Lumen')
                 (root / 'upload.txt').write_text('Must not replace the existing remote file')
-                window.run_operation('copy', [str(root / 'upload.txt')], str(mounted))
-                self.wait_until(lambda: window.file_job is None)
-                self.assertEqual(len(errors), 1)
+                conflict = copy(root / 'upload.txt', mounted)
+                self.assertEqual((conflict['status'], len(conflict['errors'])), ('failed', 1))
                 self.assertEqual((shared / 'upload.txt').read_text(), 'Upload through Lumen')
-                errors.clear()
                 tree = root / 'upload-folder'
                 tree.mkdir()
                 (tree / 'child.txt').write_text('Recursive upload')
-                window.run_operation('copy', [str(tree)], str(mounted))
-                self.wait_until(lambda: window.file_job is None)
-                self.assertFalse(errors, errors)
+                self.assertEqual(copy(tree, mounted)['status'], 'completed')
                 self.assertEqual((shared / 'upload-folder/child.txt').read_text(), 'Recursive upload')
                 (root / 'move-me.txt').write_text('Move without loss')
                 window.run_operation('move', [str(root / 'move-me.txt')], str(mounted))
@@ -322,8 +327,7 @@ class NetworkRuntimeTest(unittest.TestCase):
                 self.assertFalse(errors, errors)
                 self.assertEqual((shared / 'move-me.txt').read_text(), 'Move without loss')
                 self.assertFalse((root / 'move-me.txt').exists())
-                window.run_operation('copy', [str(mounted / 'Notes.txt')], tmp)
-                self.wait_until(lambda: window.file_job is None)
+                self.assertEqual(copy(mounted / 'Notes.txt', tmp)['status'], 'completed')
                 self.assertEqual((root / 'Notes.txt').read_text(), 'Read from the network preview.')
                 library = catalog.save_library(None, 'PC und Netz', [
                     {'label': 'PC', 'location': tmp}, {'label': 'Netz', 'location': address}])
@@ -374,7 +378,7 @@ class NetworkRuntimeTest(unittest.TestCase):
                 window.close()
                 window.deleteLater()
                 QTest.qWait(100)
-                server.shutdown()
+                thread.terminate()
                 server.server_close()
                 thread.join(2)
 

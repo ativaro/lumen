@@ -62,7 +62,7 @@ class Probe(Original):
    self.open_search();assert self.search_window.isVisible()
    from lumen_apps import catalogue
    from lumen_panel import applications
-   assert len(catalogue())==8 and 'search' not in [row[0] for row in catalogue()]
+   assert len(catalogue())==9 and 'search' not in [row[0] for row in catalogue()]
    assert 'search' not in [row['id'] for row in applications()]
   except Exception:
    traceback.print_exc();status=1

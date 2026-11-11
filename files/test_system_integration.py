@@ -90,7 +90,7 @@ with open(folder/'child.log','w') as output:
    assert proc.poll() is None
    assert time.monotonic()<deadline
    time.sleep(.05)
-  for module,args in [('system_app.py',['--page','diagnostics']),('system_app.py',[]),('tools_app.py',['sound']),('updater_app.py',[]),('system_app.py',['--page','diagnostics']),('tools_app.py',['vault']),('system_app.py',['--page','system'])]:
+  for module,args in [('system_app.py',['--page','diagnostics']),('system_app.py',[]),('tools_app.py',['sound']),('updater_app.py',[]),('system_app.py',['--page','diagnostics']),('system_app.py',['--page','backups']),('system_app.py',['--page','system'])]:
    result=subprocess.run([sys.executable,str(Path(os.environ['TEST_SOURCE'])/module),*args],stdout=output,stderr=output,timeout=12)
    assert result.returncode==0
   deadline=time.monotonic()+3
@@ -114,7 +114,7 @@ with open(folder/'child.log','w') as output:
                    XDG_DATA_HOME=str(self.root/'data'), XDG_STATE_HOME=str(self.root/'state'),
                    XDG_CACHE_HOME=str(self.root/'cache'), XDG_RUNTIME_DIR=str(runtime),
                    LUMEN_DATA=str(self.root/'state'), LUMEN_TOOLS_DATA=str(self.root/'tools'),
-                   TEST_ROOT=str(self.root), TEST_SOURCE=str(Path(__file__).parent), QT_QUICK_BACKEND='software')
+                   TEST_ROOT=str(self.root), TEST_SOURCE=str(Path(__file__).parent), PYTHONPATH=str(Path(__file__).parent), QT_QUICK_BACKEND='software')
         result = subprocess.run(['dbus-run-session','--',sys.executable,'-c',code], env=env,
                                 capture_output=True, text=True, timeout=50)
         self.assertEqual(result.returncode, 0, result.stderr+(self.root/'child.log').read_text())

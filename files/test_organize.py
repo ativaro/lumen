@@ -212,7 +212,9 @@ assert state['count'] == 50, state['count']
                 body = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or 'null')
                 state['requests'].append((path, body))
                 data = {}
-                if path == '/session':
+                if path == '/config':
+                    data = {'model': 'test/model'}
+                elif path == '/session':
                     data = {'id': 'ses_proposal'} if method == 'POST' else []
                 elif path.endswith('/prompt_async'):
                     answer = json.dumps({'changes': [{'id': 0, 'target': 'Monitor.txt', 'reason': 'Rechnung'},

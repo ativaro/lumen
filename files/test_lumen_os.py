@@ -44,6 +44,8 @@ class LumenOSTest(unittest.TestCase):
             original = template.replace('/share/lumen/', '/share/opencode-lumen/')
             old.write_text(original); old.chmod(0o755)
             shutil.copy2(repo / 'bin/lumen-vision', legacy / 'lumen-vision')
+            shutil.copy2(repo / 'bin/lumen-private-capture', legacy / 'lumen-private-capture')
+            (legacy.parent / 'files').mkdir(); shutil.copy2(repo / 'files/vault_privacy.py', legacy.parent / 'files/vault_privacy.py')
             main = current.parent / 'agent-app/main.py'; main.parent.mkdir()
             main.write_text('import sys,json\nfrom pathlib import Path\n'
                             'assert Path(sys.argv[sys.argv.index("--file")+1]).read_bytes()==b"test-image"\n'
@@ -249,7 +251,8 @@ class LumenIntegrationTest(unittest.TestCase):
             try:
                 window.show()
                 for index in range(8): window.show_page(index); QTest.qWait(15)
-                self.assertEqual(window.file_window.window(), window)
+                # Files is its own window, hosted by Lumen.
+                self.assertEqual(window.file_window.lumen_host, window)
                 space = window.task_controller
                 space.store.set_setting('modelPolicy', {'gpu_limit': 100, 'pause_on_activity': False})
                 space.store.create_task('Bericht', directory=tmp, roots=[tmp], steps=[{'action': 'write', 'path': tmp+'/bericht.md', 'text': 'Prüfung bestanden'}], approved=True, status='queued')

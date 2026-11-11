@@ -16,7 +16,6 @@
   "Der Ordner bleibt verknüpft. Lumen durchsucht aktuelle Textdateien und PDFs bei Bedarf, einschließlich Unterordnern. Lokale Ordner werden nicht automatisch auf den Server übertragen.": "The folder stays linked. Lumen searches current text files and PDFs on demand, including subfolders. Local folders are not automatically transferred to the server.",
   "Originale bleiben an ihrem Ort. Im nächsten Schritt wählst du den Inhalt aus.": "Originals stay in place. Select the content in the next step.",
   "Dauerhafte Verknüpfung: neue und geänderte Textdateien und PDFs werden bei der nächsten Ordnersuche berücksichtigt. Kein automatischer Upload.": "Permanent link: new and changed text files and PDFs are included in the next folder search. No automatic upload.",
-  "Durchsuche verknüpfte lokale Ordner mit lumen_project_search und nenne Suchgrenzen. ": "Search linked local folders using lumen_project_search and state search limits. ",
   "Worum geht es, und was möchtest du erreichen?": "What is this project about, and what do you want to achieve?",
   "Anfängliche Notizen": "Initial notes",
   "Ziele": "Goals",

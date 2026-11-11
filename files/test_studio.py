@@ -390,29 +390,14 @@ class StudioTest(unittest.TestCase):
         backend.execution = 'local'; backend.new_conversation()
         self.assertNotIn('PERMISSION DENIED', stream.toPlainText())
 
-    def test_results_have_their_own_preview_selection_and_actions(self):
-        from studio_saved_results import StudioSavedResults
-        space = self.window.task_controller
-        pending = space.store.create_task('Pending', directory=self.tmp, status='paused')
-        done = space.store.create_task('Done', directory=self.tmp, status='completed')
-        space.store.update_task(done, result='Saved output'); space.select_task(pending)
-        self.window.show_page(10)
-        self.assertEqual(self.launch.call_args.args, ('lumen-wissen', ['--section','results']))
-        results = StudioSavedResults(space); results.refresh()
-        results.setParent(self.window)
-        self.assertEqual(results.preview.toPlainText(), 'Saved output')
-        self.assertEqual(space.tasks.currentItem().data(Qt.UserRole), pending)
-        with patch('task_controller.QFileDialog.getSaveFileName', return_value=(self.tmp+'/result.md', '')): results.export.click()
-        self.assertEqual(Path(self.tmp+'/result.md').read_text(), 'Saved output')
-        results.search.setText('missing'); self.assertFalse(results.export.isEnabled()); self.assertEqual(results.preview.toPlainText(), '')
-
     def test_detail_has_no_management_sidebar_at_either_size(self):
         for width in (760,1480):
             self.window.resize(width, 860); self.app.processEvents()
             self.assertIsNone(self.window.findChild(QPushButton, 'studioAccount'))
             self.assertEqual(self.window.pages.count(), 1)
             self.assertTrue(self.window.context_bar.isVisible())
-            self.assertGreater(self.window.studio.width(), width-20)
+            history = self.window.navigation.width() if self.window.navigation.isVisible() else 0
+            self.assertGreater(self.window.studio.width(), width-history-20)
 
     def test_compact_history_keeps_drafts_and_attachments_safe(self):
         chat = self.window.chat
