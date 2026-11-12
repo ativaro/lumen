@@ -123,3 +123,4 @@ files/lumen_pdf_shading.py
 files/lumen_pdf_text.py
 files/lumen_pdf_transparency.py
 files/lumen_pdf_worker.py
+files/memory-runtime/requirements.txt

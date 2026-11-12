@@ -65,7 +65,7 @@ if ! command -v cargo >/dev/null; then
         say "Richte den Dokumentleser ein" "Preparing the document reader"
         pkexec pacman -S --needed --noconfirm -- rust
     else
-        message "Benötigt: Rust mit cargo (ab 1.89) für den Dokumentleser." "Required: Rust with cargo (1.89 or newer) for the document reader." >&2
+        message "Benötigt: Rust mit cargo (ab 1.91) für Dokumentleser und Bedeutungssuche." "Required: Rust with cargo (1.91 or newer) for the document reader and meaning search." >&2
         exit 1
     fi
 fi
@@ -104,6 +104,7 @@ done
 bash "$REPO/native/build-capture.sh" "$BIN/lumen-window-capture"
 bash "$REPO/native/build-topbar.sh" "$BIN/lumen-topbar"
 bash "$REPO/native/build-document.sh" "$BIN/lumen-document"
+bash "$REPO/native/build-memory.sh" "$BIN/lumen-memory"
 mkdir -p "$PREFIX/agent-app"
 install -m 0644 "$REPO/agent-app/main.py" "$PREFIX/agent-app/"
 mkdir -p "$PREFIX/files"

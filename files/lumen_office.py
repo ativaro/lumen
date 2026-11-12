@@ -25,12 +25,13 @@ MESSAGES = ('Geschützte oder beschädigte Office-Datei.', 'Diese Office-Datei e
             'OpenDocument-Datei ohne Inhalt.', 'XML-Entitäten im EPUB werden nicht geladen.')
 
 
-def program():
+def program(name='lumen-document', crate='document-core'):
+    """One of Lumen's Rust programs: installed beside Lumen, built in the source tree, or on the PATH."""
     here = Path(__file__).resolve().parent
-    for candidate in (Path(os.environ.get('LUMEN_BIN_DIR', here.parent / 'bin')) / 'lumen-document',
-                      here.parent / 'native/document-core/target/release/lumen-document'):
+    for candidate in (Path(os.environ.get('LUMEN_BIN_DIR', here.parent / 'bin')) / name,
+                      here.parent / 'native' / crate / 'target/release' / name):
         if candidate.is_file(): return str(candidate)
-    found = shutil.which('lumen-document')
+    found = shutil.which(name)
     if not found: raise PDFError(tr('Der Dokumentleser fehlt. Bitte die Lumen-Installation prüfen.'))
     return found
 
