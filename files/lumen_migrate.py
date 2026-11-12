@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import shutil
 import shlex
+import subprocess
 
 
 def copy_missing(source, target):
@@ -32,6 +33,22 @@ def migrate_user():
     copy_missing(cache / 'opencode-lumen', cache / 'lumen')
 
 
+def retire_vault_units():
+    """Stop and remove only the retired local backup timer and service units."""
+    units = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'systemd/user'
+    paths = [units / 'lumen-vault.timer', units / 'lumen-vault.service']
+    if not any(path.exists() or path.is_symlink() for path in paths): return []
+    def systemctl(*args):
+        try: subprocess.run(['systemctl', '--user', *args], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30, check=False)
+        except (OSError, subprocess.TimeoutExpired): pass
+    systemctl('disable', '--now', 'lumen-vault.timer')
+    systemctl('stop', 'lumen-vault.service')
+    removed = []
+    for path in paths:
+        if path.exists() or path.is_symlink(): path.unlink(); removed.append(str(path))
+    systemctl('daemon-reload')
+    return removed
+
 
 def migrate_launchers(binary_directory):
     """Update only known Lumen references; preserve custom fields and a backup."""
@@ -58,10 +75,10 @@ def migrate_launchers(binary_directory):
         except UnicodeError: continue
         if path.parent == local_bin and not original.startswith('#!/bin/sh\nexec '): continue
         updated = original.replace(legacy + '/', str(Path(binary_directory)) + '/')
-        if path.name in ('lumen-vault.service', 'lumen-sound.service'):
+        if path.name == 'lumen-sound.service':
             helper = Path(binary_directory).resolve()/'lumen-python'
             if helper.is_file() and not any(c in str(helper) for c in '\n\r%"\\'):
-                module = 'vault_data.py' if path.name == 'lumen-vault.service' else 'sound_data.py'
+                module = 'sound_data.py'
                 for root in (data/'lumen/files', data/'opencode-lumen/files', Path('/usr/share/lumen/files')):
                     old_command = 'ExecStart=/usr/bin/python3 "'+str(root/module)+'" '
                     new_command = 'ExecStart="'+str(helper)+'" "'+str(root/module)+'" '
@@ -96,5 +113,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=tr('Lumen-Benutzerdaten übernehmen'))
     parser.add_argument('--bin')
     args = parser.parse_args(); migrate_user()
+    for path in retire_vault_units(): print(tr('Alte Sicherungseinheit entfernt: ') + path)
     if args.bin:
         for path in migrate_launchers(args.bin): print(tr('Starter aktualisiert: ') + path)

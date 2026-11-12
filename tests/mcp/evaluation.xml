@@ -11,5 +11,4 @@
   <qa_pair><question>In the settings fixture after the preference update, inspect Files settings and compare the saved search delay with the original 250. What value is now saved?</question><answer>400</answer></qa_pair>
   <qa_pair><question>In the enabled Inbox fixture, search Workshop, page the results and read one matching message using all identifiers. What is its body, excluding raw MIME?</question><answer>Message body</answer></qa_pair>
   <qa_pair><question>In the Inbox fixture, inspect the cached Workshop calendar result and its cache flag. Does the tool synchronize the calendar during this call?</question><answer>false</answer></qa_pair>
-  <qa_pair><question>In the Vault fixture, inspect the Backup plan timestamp and its verification flag. What last-backup timestamp is cached, despite the repository being unreachable?</question><answer>123</answer></qa_pair>
 </evaluation>

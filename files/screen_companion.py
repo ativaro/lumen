@@ -16,7 +16,6 @@ from private_input import AssistantInput
 from lumen_i18n import tr, worker_process
 from voice_session import VoiceSession
 from lumen_voice_ui import VoiceActivity
-from vault_privacy import capture_guard
 from desktop_design import PAGE_MARGIN
 
 
@@ -219,13 +218,9 @@ class Companion(QWidget):
 
     def send_image(self):
         if not self.png or not self.pending or self.backend.busy or not self.active: return
-        try:
-            with capture_guard():
-                self.gate.mark(self.image); self.reviewed = True; self.turns += 1
-                self.approve.hide(); self.status.setText(tr('Lumen betrachtet dein freigegebenes Fenster …'))
-                self.backend.send(self.pending, screen_image=self.png, context_data={'goal': self.goal})
-        except OSError:
-            self.pause(tr('Lumen Vault ist geöffnet. Begleitung pausiert.')); return
+        self.gate.mark(self.image); self.reviewed = True; self.turns += 1
+        self.approve.hide(); self.status.setText(tr('Lumen betrachtet dein freigegebenes Fenster …'))
+        self.backend.send(self.pending, screen_image=self.png, context_data={'goal': self.goal})
         self.png = b''; self.pending = ''; self.update_controls()
 
     def completed(self, success, answer):

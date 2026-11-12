@@ -265,7 +265,7 @@ class PairingDialog(QDialog):
             "device_control": t("Andere Servergeräte von diesem Desktop verwalten", "Manage other server devices from this desktop"),
             "manage": t("Lumen-Dienste und Updates verwalten", "Manage Lumen services and updates"),
             "wake": t("Geräte im lokalen Netzwerk aufwecken", "Wake devices on the local network"),
-            "vault_sync": t("Verschlüsselten Tresor abgleichen", "Encrypted vault synchronization"),
+            "vault_sync": t("Lumen Vault verwenden", "Use Lumen Vault"),
             "services": t("Freigegebene Dienstzugänge", "Delegated service access"),
             "inbox": t("Mailkonten lesen und Entwürfe vorschlagen", "Read mail and propose drafts"),
             "household": t("Haushaltseinträge lesen und bearbeiten", "Read and edit household entries"),
@@ -1022,7 +1022,7 @@ class ConnectionDialog(QDialog):
         groups = [
             ({"code", "media", "inbox"}, t("Server-Apps Code, Audio Studio und Inbox", "Code, Audio Studio and Inbox server apps")),
             ({"notes", "memory", "memory_sync", "preferences_sync", "projects", "drive", "vault_sync"},
-             t("Abgleich und Zugriff auf freigegebene Notizen, Gedächtnis, Projekte, Drive, Einstellungen und Tresor", "Synchronization and access to shared notes, memory, projects, Drive, preferences and vault")),
+             t("Abgleich und Zugriff auf freigegebene Notizen, Gedächtnis, Projekte, Drive, Einstellungen und Lumen Vault", "Synchronization and access to shared notes, memory, projects, Drive, preferences and Lumen Vault")),
             ({"backup"}, t("Neue Sicherungen und Zugriff auf bisherige Serversicherungen über diese Verbindung", "New backups and access to previous server backups through this connection")),
             ({"tasks", "artifacts", "notifications", "desktop", "approvals"}, t("Servergespräche, Ergebnisse, Benachrichtigungen und Desktop-Übergaben", "Server conversations, results, notifications and desktop handoffs")),
             ({"manage", "wake", "system_read", "device_control", "services", "inbox", "household"}, t("Geräteverwaltung, Systemabfragen und weitere freigegebene Serverdienste", "Device management, system queries and other granted server services")),
@@ -1033,8 +1033,8 @@ class ConnectionDialog(QDialog):
         dialog.setTextFormat(Qt.PlainText)
         dialog.setText(self.config["server"] + "\n\n" + t("Das fällt für diesen Desktop weg:", "This desktop loses:") + "\n" + lost)
         dialog.setInformativeText(t(
-            "Lokale Originale und dein Tresor bleiben erhalten. Kontodaten und Sicherungen bleiben auf dem Server; das Gerät wird dort als getrennt / verwaist angezeigt. Über die Sicherungen entscheidest du anschließend im Server. Bereits gestartete Serveraufträge und Automationen laufen weiter. Ein neuer Server erhält keine automatische vollständige Datenübernahme.",
-            "Local originals and your vault are preserved. Account data and backups stay on the server; the device remains visible as disconnected / orphaned. Decide what to do with backups on the server afterwards. Existing server jobs and automations continue. Connecting another server does not migrate all your data."))
+            "Lokale Originale bleiben erhalten. Kontodaten und Sicherungen bleiben auf dem Server; das Gerät wird dort als getrennt / verwaist angezeigt. Über die Sicherungen entscheidest du anschließend im Server. Bereits gestartete Serveraufträge und Automationen laufen weiter. Ein neuer Server erhält keine automatische vollständige Datenübernahme.",
+            "Local originals are preserved. Account data and backups stay on the server; the device remains visible as disconnected / orphaned. Decide what to do with backups on the server afterwards. Existing server jobs and automations continue. Connecting another server does not migrate all your data."))
         cancel = dialog.addButton(t("Abbrechen", "Cancel"), QMessageBox.RejectRole)
         proceed = dialog.addButton(t("Trennen und Daten behalten", "Disconnect and keep data"), QMessageBox.AcceptRole)
         dialog.setDefaultButton(cancel)

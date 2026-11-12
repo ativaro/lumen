@@ -101,6 +101,8 @@ install -m 0755 "$REPO/uninstall.sh" "$PREFIX/uninstall.sh"
 for bin_file in "$REPO/bin/"*; do
     [ -f "$bin_file" ] && install -m 0755 "$bin_file" "$BIN/"
 done
+# Retired with the local Vault capture lease.
+rm -f "$BIN/lumen-private-capture"
 bash "$REPO/native/build-capture.sh" "$BIN/lumen-window-capture"
 bash "$REPO/native/build-topbar.sh" "$BIN/lumen-topbar"
 bash "$REPO/native/build-document.sh" "$BIN/lumen-document"
@@ -211,21 +213,23 @@ fi
 mkdir -p "$PREFIX/shell" "$PREFIX/opencode-command" "$PREFIX/opencode-skill/lumen-admin"
 cp "$REPO/shell/"* "$PREFIX/shell/"
 cp "$REPO/opencode-command/"*.md "$PREFIX/opencode-command/"
-for skill in lumen-admin lumen-projects lumen-vault-http; do
+for skill in lumen-admin lumen-projects; do
     mkdir -p "$PREFIX/opencode-skill/$skill"
     cp "$REPO/opencode-skill/$skill/SKILL.md" "$PREFIX/opencode-skill/$skill/"
 done
-# Retired stock skill is replaced by the server catalogue; custom text survives.
-/usr/bin/python3 - "$PREFIX/opencode-skill/lumen-service-access/SKILL.md" <<'PY_SKILL'
+# Retired stock skills (server catalogue, local Vault); custom text survives.
+/usr/bin/python3 - "$PREFIX/opencode-skill" <<'PY_SKILL'
 from pathlib import Path
 from hashlib import sha256
 import sys
-path = Path(sys.argv[1])
-if path.is_file() and not path.is_symlink() and sha256(path.read_bytes()).hexdigest() in (
-        'b49193b08585240dbe8df6b30857d7cfed5c79bbdb94950bbee956fd13c652cc',
-        '821b7405f5c2f434963dc5f79421def9987e20187c894b226e9bb30150269160'):
-    path.unlink()
-    if not any(path.parent.iterdir()): path.parent.rmdir()
+retired = {'lumen-service-access': ('b49193b08585240dbe8df6b30857d7cfed5c79bbdb94950bbee956fd13c652cc',
+                                    '821b7405f5c2f434963dc5f79421def9987e20187c894b226e9bb30150269160'),
+           'lumen-vault-http': ('af872d98e11f563f6cc95f92c4ac758db0cc14270964786748e116448fd5d278',)}
+for name, hashes in retired.items():
+    path = Path(sys.argv[1]) / name / 'SKILL.md'
+    if path.is_file() and not path.is_symlink() and sha256(path.read_bytes()).hexdigest() in hashes:
+        path.unlink()
+        if not any(path.parent.iterdir()): path.parent.rmdir()
 PY_SKILL
 UNITDIR="$CONFIG_HOME/systemd/user"
 mkdir -p "$UNITDIR"

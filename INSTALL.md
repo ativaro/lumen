@@ -119,16 +119,10 @@ connection and the relevant account/device permissions are required. Installing
 these launchers does not install an independent offline copy of those apps.
 See [current app ownership](docs/desktop-retirement.md).
 
-Local backup configuration remains in Lumen System. The backup engine, SMB
-helpers and keyring integration use your own source/target choices and a
-separately stored recovery key. Restic and network dependencies can be added
-through setup. No personal backup job or network password is distributed in Git.
-
-The native credential broker is a separate local capability. Existing native
-binaries and encrypted data are preserved; updating Python files alone does not
-rebuild Rust/C++ binaries. The [native Vault build notes](native/vault-ui/README.md)
-cover a separate development/qualification path, not an additional standalone
-user Vault installed by this bootstrap.
+Local backup plans, the local KeePass vault, its native test version and the
+local credential broker have been removed from Lumen Desktop. Updating removes
+their code and the `lumen-vault.timer`/`lumen-vault.service` user units; existing
+plan data, backup targets and `~/.local/share/lumen-vault-lab` stay untouched.
 
 The Arch package workflow below is an alternative for a system-wide installation.
 
@@ -322,14 +316,11 @@ Updater), run `lumen-desktop-setup --refresh-decoration` as your normal Plasma
 user. Repeating this command preserves an already installed Echo arrangement.
 
 Only installed optional components are offered: compatible OpenCode, Qt runtime,
-dictation, installed voices/models, image search, calendar and backup runtimes.
+dictation, installed voices/models, image search and calendar runtimes.
 These use Lumen's tested/pinned versions, not unrestricted upstream upgrades.
 The first check offers verification of these existing components; subsequent
 checks compare the corresponding installer definitions with the last successful
-run. New extensions still belong in the setup wizard. The native Vault is only
-rebuilt if it was explicitly installed, with its existing license checks, locked
-Rust dependencies and build tests. Its build environment must still be present;
-the existing isolated `lumen-dev` toolchain is reused where available.
+run. New extensions still belong in the setup wizard.
 
 Linux packages (`pacman -Syu`) and Flatpaks are explicit optional selections.
 System changes use Polkit. No AUR packages or unrelated standalone applications
@@ -354,7 +345,7 @@ changed frames, and pauses after 30 requests or 20 minutes. It is available only
 when AT-SPI exposes an unambiguous window tree without visible password fields.
 Unknown protection state falls back to manual image approval; visible secrets in
 unmarked fields cannot be detected reliably. Pause before entering them. Minimize,
-pause or close stops capture and voice. Lumen Vault must be closed.
+pause or close stops capture and voice.
 
 Only the selected KWin window UUID is captured; there is no desktop/active-window
 fallback. KDE Plasma with OpenGL compositing, python-dbus and AT-SPI are used. The

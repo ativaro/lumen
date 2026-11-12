@@ -144,8 +144,6 @@ Die Systemansicht zeigt CPU, GPU, Arbeitsspeicher, Laufwerke, Prozesse und Senso
 
 Im selben Fenster liegen **Sound** mit Ausgängen, Lautstärken und App-Regeln. Unterstützte Änderungen protokolliert Lumen; ein Rückweg wird nur angeboten, wenn er sicher möglich ist.
 
-Lokale Sicherungen nutzen ausgewählte Quellen und Ziele sowie einen getrennt aufzubewahrenden Wiederherstellungsschlüssel. Eine erfolgreiche Wiederherstellungsprobe ist wichtiger als eine reine Erfolgsmeldung beim Sichern.
-
 [Systemfunktionen](files/README.md#lumen-system) · [Audio](READER-SOUND.md).
 
 ### Lumen Companion und Bildschirmhilfe
@@ -179,9 +177,9 @@ Diese Apps benötigen einen erreichbaren Server, dein Konto und die passenden Ge
 | **Lumen Code** | Code-Vorhaben, zugehörige Aufgaben, Vorschläge und Ergebnisse in der Server-App bearbeiten. Ein Ausführungsauftrag folgt den dortigen Freigaben und verfügbaren Laufzeitmöglichkeiten. |
 | **Lumen Inbox** | Die auf dem Server eingerichteten E-Mail- und Kalenderkonten nutzen, Nachrichten lesen und Entwürfe prüfen. Versand und Änderungen folgen den Serverfreigaben. |
 | **Lumen Audio Studio** | Die gemeinsamen Meeting-/Radio-Inhalte öffnen, Transkripte und Hörskripte bearbeiten. Lokale Aufnahmen werden erst über einen bestätigten Übergabeweg bereitgestellt. |
-| **Lumen Vault** | Den persönlichen oder freigegebenen Servertresor in einer privaten, gerätegebundenen Sitzung verwenden. Entsperren und Secret-Freigabe sind eigene Schritte; der lokale Zugangsdaten-Broker und lokale Sicherungen sind getrennte Funktionen. |
+| **Lumen Vault** | Den persönlichen oder freigegebenen Servertresor in einer privaten, gerätegebundenen Sitzung verwenden. Entsperren und Secret-Freigabe sind eigene Schritte. |
 
-Zusätzlich kannst du auf Lumen Drive zugreifen, Server-Textgespräche führen und den Bearbeitungsstand eigener Servermeldungen zwischen Geräten teilen. Server-Textgespräche übertragen Text; lokale Anhänge, Gedächtnis und Tresor werden dabei nicht automatisch hochgeladen. Die Verbindung gibt dem Server keinen allgemeinen Zugriff auf deinen Rechner. Entfernte Diagnosen, Dienstaktionen und Wake-on-LAN benötigen eigene Gerätefreigaben.
+Zusätzlich kannst du auf Lumen Drive zugreifen, Server-Textgespräche führen und den Bearbeitungsstand eigener Servermeldungen zwischen Geräten teilen. Server-Textgespräche übertragen Text; lokale Anhänge und Gedächtnis werden dabei nicht automatisch hochgeladen. Die Verbindung gibt dem Server keinen allgemeinen Zugriff auf deinen Rechner. Entfernte Diagnosen, Dienstaktionen und Wake-on-LAN benötigen eigene Gerätefreigaben.
 
 Der Detailumfang richtet sich nach dem verbundenen Server. Die getrennten READMEs beschreiben [Lumen Server](https://forge.example.invalid/ativaro/lumen-server) und [Lumen Mobile](https://forge.example.invalid/ativaro/lumen-mobile); für die privaten Repositories ist Zugriff nötig. Technische Zuordnung: [Gemeinsame Server-Apps und lokale Fähigkeiten](docs/desktop-retirement.md).
 

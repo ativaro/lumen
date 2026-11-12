@@ -82,8 +82,8 @@ support or service commitment must be separately agreed.
 
 Third-party libraries, tools, fonts, artwork, vendored code and contributions
 which the Licensor is not authorized to relicense retain their own licenses.
-See THIRD_PARTY_NOTICES.md, desktop/CREDITS.md, native/vault-ui/LICENSES.md,
-native/vault-core/THIRD_PARTY.md and the notices accompanying those components.
+See THIRD_PARTY_NOTICES.md, desktop/CREDITS.md and the notices accompanying
+those components.
 Those licenses, not the restrictions in section 3, govern the relevant materials.
 
 Nothing in this agreement limits rights required by the LGPL, GPL, AGPL or other

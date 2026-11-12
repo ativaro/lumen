@@ -41,7 +41,7 @@ class FileActionMenuTest(unittest.TestCase):
             tr('Ausschneiden'), tr('Papierkorb'), tr('Pfad kopieren'), tr('In Ordner kopieren …'),
             tr('Zur Sammelfläche hinzufügen'), tr('Enthaltenden Ordner öffnen'), tr('In neuem Tab öffnen'),
             tr('Mit Lumen Drive synchronisieren …'), tr('Ordnergröße berechnen'), tr('Speicher analysieren'),
-            tr('Verwendet in …'), tr('Lesefortschritt und Sicherungen …'), tr('Versionen in Lumen Vault …'),
+            tr('Verwendet in …'), tr('Lesefortschritt …'),
             tr('Besprechen'), tr('Erklären'), tr('Fehler beheben'), tr('Git-Diff prüfen'),
             tr('Intelligent umbenennen …'), tr('Dateien sortieren …'), tr('Hier einfügen'), tr('Neuer Ordner'),
             tr('Letzte Lumen-Dateiaktion rückgängig …')}
@@ -50,7 +50,7 @@ class FileActionMenuTest(unittest.TestCase):
         self.assertLessEqual(sum(not a.isSeparator() and a.text() != '' for a in menu.actions()), 8)
         dialog = ActionSearch(menu)
         dialog.search.setText('back version' if language()=='en' else 'sichern version')
-        self.assertEqual(dialog.results.count(), 2)
+        self.assertEqual(dialog.results.count(), 1)
         dialog.search.setText('absolutely missing')
         self.assertEqual(dialog.results.count(), 0)
         dialog.search.returnPressed.emit()

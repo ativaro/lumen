@@ -219,10 +219,8 @@ class AssistantTest(unittest.TestCase):
                 panel.composer.setPlainText('Erkläre die Auswahl')
                 panel.send_button.click()
                 self.wait(lambda: bool(backend.permissions and backend.questions))
-                self.assertIsNotNone(backend.vault_sources)
-                self.assertEqual([item[1] for item in backend.vault_sources.sources.values()], ['Erkläre die Auswahl'])
                 submitted = next(body for _, path, body, _ in state['requests'] if path.endswith('/prompt_async'))
-                self.assertIn('Native user-text source for this turn:', submitted['system'])
+                self.assertNotIn('Native user-text source', submitted['system'])
                 self.assertIn('Do not redirect the user to the Tasks page', submitted['system'])
                 self.assertIn('pkexec', submitted['system'])
                 self.assertNotIn('tools', submitted)  # Existing engine permission policy remains in force.
@@ -279,12 +277,10 @@ class AssistantTest(unittest.TestCase):
                 self.assertEqual(backend.messages[-1]['parts'][0]['text'], 'Fertige Antwort')
                 backend.send('Noch eine Frage')
                 self.wait(lambda: len([r for r in state['requests'] if r[1].endswith('/prompt_async')]) == 2)
-                # Both the initial turn and continuation carry the shared Vault
+                # Both the initial turn and continuation carry the shared execution
                 # policy to OpenCode, including when general auto-approve changed.
-                from vault_access import INSTRUCTION as VAULT_INSTRUCTION
                 prompts = [body for _, path, body, _ in state['requests'] if path.endswith('/prompt_async')]
                 for prompt in prompts:
-                    self.assertIn(VAULT_INSTRUCTION, prompt['system'])
                     self.assertIn('Do not redirect the user to the Tasks page', prompt['system'])
                 panel.stop.click()
                 self.wait(lambda: not backend.busy)
@@ -384,8 +380,7 @@ class AssistantTest(unittest.TestCase):
             backend = OpenCodeBackend(tmp)
             calls = []
             backend.refresh_sessions = lambda: None
-            def send(text, files=None, agent='build', title=None,memory_text=None,user_text=None,context_data=None):
-                self.assertIsNone(user_text, 'Generated file-action prompts must not become credential sources')
+            def send(text, files=None, agent='build', title=None,memory_text=None,context_data=None):
                 calls.append((text, agent, title))
                 backend.message_id = 'msg_action'
                 backend.set_busy(True)

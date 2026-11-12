@@ -17,8 +17,8 @@ Der Benutzerinstaller entfernt diese Pfade und alte ausgelieferte Tests/Bytecode
 Arch-Pakete und Standalone-Installer liefern nur verbleibenden Laufzeitcode aus.
 Die eigenen Repositories behalten passende Tests; obsolete UI-Tests wurden entfernt.
 
-Gemeinsam verwendete Notebook-, Sicherungs-, Referenz- und Dateifunktionen bleiben,
-wenn Gedächtnis, Reader, Sicherungen oder native Übergaben sie verwenden. Historische
+Gemeinsam verwendete Notebook-, Referenz- und Dateifunktionen bleiben,
+wenn Gedächtnis, Reader oder native Übergaben sie verwenden. Historische
 Schemafelder und schließende Prüfungen verhindern die Ausführung alter Code-Jobs;
 sie sind kein zweiter Code-Runner. Originaldateien, Datenbanken, Sicherungen,
 Zugangsdaten und bestehende Rechte werden durch diese Codebereinigung nicht geändert.
@@ -26,14 +26,13 @@ Zugangsdaten und bestehende Rechte werden durch diese Codebereinigung nicht geä
 `test_desktop_retirement.py` prüft fehlende Altmodule, fehlende Imports, alle
 Server-Starter, den nativen Haushalt, den verbleibenden Datenhelfer sowie die
 Updatebereinigung einschließlich Symlink-Abbruch und Datenerhalt. Die vorhandenen
-Server-Handoff-, Rechte-, Gedächtnis-, Datei- und Sicherungstests bleiben maßgeblich.
+Server-Handoff-, Rechte-, Gedächtnis- und Dateitests bleiben maßgeblich.
 
 ## Installation, Offline und Kompatibilität
 
-Der [Benutzerinstaller](../INSTALL.md) liefert die aktuellen Starter. Die normale
-Vault-App wird nicht durch eine vorhandene Laborinstallation ersetzt;
-`lumen-vault --lab` bleibt der ausdrückliche Laborweg, `--backups` führt zu
-Lumen System. `lumen-wissen --area lumen` öffnet das lokale Gedächtnis, während
+Der [Benutzerinstaller](../INSTALL.md) liefert die aktuellen Starter.
+`lumen-vault` öffnet nur die Server-App; lokale Sicherungspläne und der lokale
+Tresor sind entfernt. `lumen-wissen --area lumen` öffnet das lokale Gedächtnis, während
 der normale Notes-Aufruf zum Server führt. Compose bleibt lokal; der private
 Compose-Text-Pilot ist kein allgemein freigeschalteter Serverersatz.
 

@@ -360,9 +360,9 @@ class LumenWindow(QMainWindow):
 
     def selection(self, action):
         clipboard = QApplication.clipboard()
-        from vault_privacy import protected_clipboard
+        from clipboard_image import protected_clipboard
         if protected_clipboard(clipboard) or (clipboard.supportsSelection() and protected_clipboard(clipboard, clipboard.Selection)):
-            self.chat.show_error('Protected Vault clipboard content cannot be sent to Lumen.'); return
+            self.chat.show_error('Password manager clipboard content cannot be sent to Lumen.'); return
         text = clipboard.text(clipboard.Selection) if clipboard.supportsSelection() else ''
         text = text or clipboard.text()
         self.show_page(0)
@@ -561,9 +561,9 @@ def main():
             return
         paths = [QUrl(p).toLocalFile() if p.startswith('file:') else p for p in args.context + args.file]
         if args.clipboard_image:
-            from vault_privacy import protected_clipboard
+            from clipboard_image import protected_clipboard
             if protected_clipboard(app.clipboard()):
-                window.chat.show_error('Protected Vault clipboard content cannot be sent to Lumen.'); return
+                window.chat.show_error('Password manager clipboard content cannot be sent to Lumen.'); return
             clip = app.clipboard().mimeData()
             from clipboard_image import has_image, save
             if has_image(clip):

@@ -27,7 +27,6 @@
   "Größe berechnet. Verknüpfungsziele nicht verfolgt.": "Size calculated. Symbolic link targets were not followed.",
   "Hardlinks": "Hard links",
   "Kamera": "Camera",
-  "Kein Sicherungsplan gefunden": "No backup plan found",
   "Keine zusätzlichen ACL-Angaben verfügbar.": "No additional ACL information available.",
   "Kompakte Ansicht": "Compact view",
   "Lesen": "Read",
@@ -37,7 +36,6 @@
   "Name gespeichert; Verknüpfungen konnten nicht aktualisiert werden: {0}": "Name saved; references could not be updated: {0}",
   "Noch nicht berechnet": "Not calculated yet",
   "POSIX-Rechte": "POSIX permissions",
-  "Planstatus; Sicherungsinhalt noch nicht geprüft.": "Plan status; backup contents have not been verified.",
   "Rechte gespeichert; Umbenennen fehlgeschlagen: {0}": "Permissions saved; rename failed: {0}",
   "Rechte werden hier nur angezeigt: Netzwerk, Verknüpfung, ACL oder fehlende Eigentümerrechte.": "Permissions are read-only here: network, symbolic link, ACL or insufficient ownership rights.",
   "Revision": "Revision",
@@ -48,10 +46,6 @@
   "Schreiben": "Write",
   "Seiten": "Pages",
   "Serverrolle": "Server role",
-  "Sicherungen & Verlauf": "Backups & history",
-  "Sicherungen werden vom Server verwaltet.": "Backups are managed by the server.",
-  "Sicherungsplan vorhanden": "Backup plan available",
-  "Sicherungsstatus nicht verfügbar.": "Backup status unavailable.",
   "Sonderrechte bleiben unverändert.": "Special permissions remain unchanged.",
   "Speicher & Inhalt": "Storage & contents",
   "Speicherort": "Location",
@@ -63,9 +57,7 @@
   "Verknüpfungen": "References",
   "Verknüpfungsziel": "Link target",
   "Versionen": "Versions",
-  "Versionen ansehen ›": "View versions ›",
   "Verwendung in anderen Lumen-Apps und vorhandene Verknüpfungen prüfen.": "Check usage in other Lumen apps and existing references.",
-  "Vorhandene Versionen werden über die bestehende lokale Dateihistorie oder Lumen Vault geöffnet.": "Open existing versions through local file history or Lumen Vault.",
   "Zugriff": "Access",
   "Zugriff wird vom Server verwaltet.": "Access is managed by the server.",
   "{0} Dateien, {1} Ordner": "{0} files, {1} folders",
@@ -76,5 +68,5 @@
   "Speicheraufteilung nur für lokale oder eingehängte Ordner.": "Storage breakdown is available for local or mounted folders.",
   "Gerät / Inode": "Device / inode",
   "Eigentümer: {0}\nGruppe: {1}": "Owner: {0}\nGroup: {1}",
-  "Sicherungsstatus pro Eintrag prüfen": "Check backup status for each item"
+  "Vorhandene Versionen werden über die bestehende lokale Dateihistorie geöffnet.": "Existing versions open through the local file history."
 }

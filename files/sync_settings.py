@@ -1,7 +1,6 @@
 """Settings over the existing synchronizers; no model or new data transport."""
 import fcntl
 import json
-import os
 import time
 from pathlib import Path
 
@@ -10,13 +9,9 @@ from lumen_i18n import tr
 from lumen_store import Store
 
 
-def vault_root():
-    return Path(os.environ.get('XDG_DATA_HOME', Path.home()/'.local/share'))/'lumen-vault-lab'
-
-
 def prepare_connection():
     from sync_identity import prepare
-    import memory_sync, drive_sync, vault_sync
+    import memory_sync, drive_sync
     store = Store()
     connector.ROOT.mkdir(parents=True, exist_ok=True, mode=0o700)
     with (connector.ROOT/'pairing.lock').open('a') as lock:
@@ -26,10 +21,6 @@ def prepare_connection():
             return prepare(config, [])
         aliases = [(['memory'], memory_sync.connection_scope(config)),
                    (['drive'], drive_sync.scope(config))]
-        root = vault_root()
-        if root.is_dir() and not root.is_symlink():
-            meta = root.stat()
-            aliases.append((['vault', str(root.absolute()), [meta.st_dev, meta.st_ino]], vault_sync.scope(root, config, meta)))
         prepared = prepare(config, aliases)
         if connector.read_config() != config: raise ValueError("Connection changed during setup")
         connector.save_private(connector.CONFIG, json.dumps(prepared))
@@ -42,18 +33,12 @@ def snapshot():
     memory = store.setting('memory/sync-choice', {})
     memory_state = store.setting('memory/server-sync/'+memory.get('scope', ''), {})
     try:
-        from vault_sync import execute
-        vault = execute(dict(op='auto-status', root=str(vault_root()))) if vault_root().exists() else {}
-    except (OSError, ValueError):
-        vault = dict(enabled=False, reason='error')
-    try:
         config = connector.read_config()
         server = config['server']
     except (OSError, ValueError): server = ''
     rows = dict(
         memory=dict(enabled=bool(memory.get('enabled')), last_sync=memory_state.get('last_sync', 0),
                     conflicts=len(memory_state.get('conflicts', {}))),
-        vault=vault,
         preferences={k:v for k,v in store.setting('sync/preferences', {}).items() if k in ('enabled','last_sync','conflicts','reason')},
     )
     for domain, row in rows.items():
@@ -99,12 +84,6 @@ def configure(domain, enabled):
             for root in state['roots']: root['enabled'] = bool(enabled)
             drive_sync.save(state)
         return
-    if domain == 'vault':
-        from vault_sync import execute
-        if not enabled: return execute(dict(op='auto-disable', root=str(vault_root())))
-        prepare_connection()
-        info = execute(dict(op='info', root=str(vault_root())))
-        return execute(dict(op='auto-enable', root=str(vault_root()), scope=info['scope']))
     if domain == 'preferences':
         import preferences_sync
         return preferences_sync.configure(store, enabled)
@@ -112,12 +91,12 @@ def configure(domain, enabled):
 
 
 def sync_now(progress=lambda text: None, manual=False):
-    import memory_sync, drive_sync, vault_sync
+    import memory_sync, drive_sync
     store = Store()
     try:
         prepare_connection()
     except Exception as error:
-        for name in ('memory','vault','preferences'):
+        for name in ('memory','preferences'):
             store.set_setting('sync/report/'+name, dict(time=time.time(),ok=False,error=type(error).__name__))
         raise
     from preferences_sync import synchronize as preferences
@@ -130,7 +109,6 @@ def sync_now(progress=lambda text: None, manual=False):
         return drive_sync.synchronize()
     operations = dict(memory=lambda: memory_sync.synchronize(store),
                       drive=drive,
-                      vault=lambda: vault_sync.execute(dict(op='auto-poll', root=str(vault_root()))) if vault_root().exists() else {},
                       preferences=lambda: preferences(store))
     results = {}
     for name, operation in operations.items():
@@ -150,7 +128,7 @@ def sync_now(progress=lambda text: None, manual=False):
         store.set_setting('sync/report/'+name, report)
         if name == 'memory':
             store.set_setting('memory/sync-status', report)
-        if name in ('memory','vault'):
+        if name == 'memory':
             from lumen_notifications import report as notify
             outcome=results[name]
             bad=not report['ok'] or bool(outcome.get('conflicts')) or outcome.get('reason') in ('conflict','incoming','uncertain','connection_changed')

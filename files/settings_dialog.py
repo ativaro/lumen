@@ -111,8 +111,6 @@ class SettingsDialog(QDialog):
             try: launch('system', page=page)
             except (OSError, ValueError) as error: self.status.setText(str(error))
         hardware.addWidget(button(tr('Sound öffnen'), lambda: open_system_page('sound')))
-        self.backups_button=button(tr('Lokale Sicherungspläne öffnen'),lambda:open_system_page('backups'))
-        hardware.addWidget(self.backups_button)
         for app_key, preferences in (
             ('system', [('restoreGeometry', tr('Fenstergröße und Position wiederherstellen'))]),
             ('sound', [('restoreGeometry', tr('Fenstergröße und Position wiederherstellen')), ('restoreSelection', tr('Letzten Eintrag wieder öffnen'))]),
@@ -196,7 +194,7 @@ class SettingsDialog(QDialog):
             'search': tr('Suche und Gespräch nutzen das gemeinsame Modell, die Sprache und das Erscheinungsbild von Lumen. Diktieren wird im Einrichtungsassistenten eingerichtet.'),
             'wissen': tr('Notizen, Sammlungen und Quellen liegen auf deinem Lumen Server. Das persönliche Lumen-Gedächtnis bleibt ein eigener Bereich in Lumen Desktop.'),
             'inbox': tr('Mailkonten, Kalender und Inbox-Aufgaben verwaltest du direkt auf deinem Lumen Server. Die Freigaben für den KI-Zugriff gelten auch auf diesem Desktop.'),
-            'vault': tr('Der Server-Tresor verwahrt verschlüsselte Einträge. Entsperrung und Dienstfreigaben bleiben gesondert geschützt. Sicherungspläne für diesen Desktop findest du unter Lumen System → Sicherungen.'),
+            'vault': tr('Der Server-Tresor verwahrt verschlüsselte Einträge. Entsperrung und Dienstfreigaben bleiben gesondert geschützt.'),
             'reader': tr('Stimme und Audioausgabe wählst du im Reader. Bibliothek und Markierungen bleiben lokal gespeichert.'),
             'sound': tr('Ausgabegeräte, Lautstärken und Regeln für Anwendungen verwaltest du in Sound.'),
             'meetings': tr('Aufnahmen, Transkripte und Hörstücke liegen auf deinem Lumen Server. Mikrofon und Dateiauswahl werden lokal bestätigt. Verarbeitung und Sprachmodelle werden auf dem Server eingerichtet.'),
@@ -222,8 +220,6 @@ class SettingsDialog(QDialog):
             if key in SERVER_APPS:
                 panel.addWidget(text(tr('Inhalte und App-Einstellungen liegen auf deinem Lumen Server. Hier stellst du Fenster und Darstellung auf diesem Desktop ein.')))
                 panel.addWidget(button(tr('Gerätefreigaben auf dem Server öffnen'), self.open_server_permissions))
-            if key == 'vault':
-                panel.addWidget(button(tr('Lokale Sicherungspläne öffnen'), lambda: launch('system',page='backups')))
             if key == 'notification':
                 from lumen_notifications import preferences, set_preference, notification_options
                 panel.addWidget(text(tr('Lumen zeigt deine Meldungen. Systemeinstellungen und App-Aktionen bleiben erhalten.')))
@@ -242,7 +238,7 @@ class SettingsDialog(QDialog):
                 self.launcher(panel, tr('Systembenachrichtigungen einstellen'), 'kcmshell6', 'kcm_notifications')
                 modes=preferences()
                 form=QFormLayout();panel.addLayout(form)
-                for source in ('Lumen','Lumen Projekte','Lumen Server','Lumen Drive','Lumen Wissen','Lumen Vault','Lumen Updater','Lumen Notification'):
+                for source in ('Lumen','Lumen Projekte','Lumen Server','Lumen Drive','Lumen Wissen','Lumen Updater','Lumen Notification'):
                     selector=combo([(tr('Popup und Zentrale'),'popup'),(tr('Nur Zentrale'),'center'),(tr('Stumm'),'muted')],modes.get(source,'popup'))
                     selector.currentIndexChanged.connect(lambda _=0,s=source,c=selector:set_preference(s,c.currentData()))
                     form.addRow(tr('Lumen Notes' if source == 'Lumen Wissen' else source),selector)

@@ -22,7 +22,6 @@
   "Bitte zuerst ein Projekt wählen.": "Choose a project first.",
   "Code": "Code",
   "Die Lumen-Anwendung konnte nicht geöffnet werden.": "The Lumen application could not be opened.",
-  "Dieser Zugang ist nur zum Wiederherstellen freigegeben.": "This access is approved for recovery only.",
   "Freigabe nicht bestätigt. Serverstatus erneut prüfen.": "Approval not confirmed. Check the server status again.",
   "Genau so übernehmen": "Apply exactly as shown",
   "Herkunft: ": "Source: ",
@@ -30,6 +29,5 @@
   "Lumen: Das vorhandene Fenster antwortet nicht.": "Lumen: The existing window is not responding.",
   "Sicherung abgeschlossen": "Backup completed",
   "Vorschlag nicht gefunden.": "Suggestion not found.",
-  "Wiederherstellungszugang im Server erneut freigeben.": "Approve recovery access on the server again.",
   "Übertragungen": "Transfers"
 }

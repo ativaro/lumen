@@ -1,7 +1,6 @@
 """Selected-window capture worker. No desktop fallback, text extraction or disk images."""
 import base64
 import json
-import os
 import re
 import subprocess
 import sys
@@ -11,7 +10,6 @@ import uuid
 from PySide6.QtCore import QBuffer, QIODevice, Qt
 from PySide6.QtGui import QImage
 from lumen_i18n import tr
-from vault_privacy import acquire_capture
 
 
 def window_info(bus, identity=None):
@@ -72,34 +70,29 @@ def capture(bus, target, automatic=False):
     state = accessibility_state(current)
     if state == 'password': return dict(protection=state)
     if automatic and state != 'clear': return dict(protection='unknown')
-    lease = acquire_capture()
-    try:
-        from lumen_launch import executable
-        result = subprocess.run([executable('lumen-window-capture'), target['uuid'], str(lease)],
-                                pass_fds=(lease,), capture_output=True, timeout=10)
-        if result.returncode:
-            code = result.stderr.decode(errors='replace').strip()
-            if not re.fullmatch(r'org\.[A-Za-z0-9_.]{1,150}', code): code = str(result.returncode)
-            raise ValueError(tr('KDE hat die Aufnahme nicht freigegeben. Bitte Lumen neu installieren und erneut anmelden.') + ' (' + code + ')')
-        meta = json.loads(result.stderr)
-        width, height, stride = (int(meta[key]) for key in ('width', 'height', 'stride'))
-        if meta.get('type') != 'raw' or not (0 < width <= 16384 and 0 < height <= 16384
-                and width <= stride <= width * 16 and stride * height <= 128 * 1024**2):
-            raise ValueError(tr('Ungültige Fensteraufnahme.'))
-        if len(result.stdout) != stride * height:
-            raise ValueError(tr('Unvollständige Fensteraufnahme.'))
-        image = QImage(result.stdout, width, height, stride, QImage.Format(int(meta['format']))).copy()
-        if image.isNull(): raise ValueError(tr('Ungültige Fensteraufnahme.'))
-        after = window_info(bus, target['uuid'])
-        after_state = accessibility_state(after)
-        if after_state == 'password': return dict(protection='password')
-        state = 'clear' if state == after_state == 'clear' and current == after else 'unknown'
-        if automatic and state != 'clear': return dict(protection='unknown')
-        image = image.scaled(1600, 1200, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        buffer = QBuffer(); buffer.open(QIODevice.WriteOnly); image.save(buffer, 'PNG')
-        return dict(protection=state, png=base64.b64encode(bytes(buffer.data())).decode())
-    finally:
-        os.close(lease)
+    from lumen_launch import executable
+    result = subprocess.run([executable('lumen-window-capture'), target['uuid']], capture_output=True, timeout=10)
+    if result.returncode:
+        code = result.stderr.decode(errors='replace').strip()
+        if not re.fullmatch(r'org\.[A-Za-z0-9_.]{1,150}', code): code = str(result.returncode)
+        raise ValueError(tr('KDE hat die Aufnahme nicht freigegeben. Bitte Lumen neu installieren und erneut anmelden.') + ' (' + code + ')')
+    meta = json.loads(result.stderr)
+    width, height, stride = (int(meta[key]) for key in ('width', 'height', 'stride'))
+    if meta.get('type') != 'raw' or not (0 < width <= 16384 and 0 < height <= 16384
+            and width <= stride <= width * 16 and stride * height <= 128 * 1024**2):
+        raise ValueError(tr('Ungültige Fensteraufnahme.'))
+    if len(result.stdout) != stride * height:
+        raise ValueError(tr('Unvollständige Fensteraufnahme.'))
+    image = QImage(result.stdout, width, height, stride, QImage.Format(int(meta['format']))).copy()
+    if image.isNull(): raise ValueError(tr('Ungültige Fensteraufnahme.'))
+    after = window_info(bus, target['uuid'])
+    after_state = accessibility_state(after)
+    if after_state == 'password': return dict(protection='password')
+    state = 'clear' if state == after_state == 'clear' and current == after else 'unknown'
+    if automatic and state != 'clear': return dict(protection='unknown')
+    image = image.scaled(1600, 1200, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+    buffer = QBuffer(); buffer.open(QIODevice.WriteOnly); image.save(buffer, 'PNG')
+    return dict(protection=state, png=base64.b64encode(bytes(buffer.data())).decode())
 
 
 def main():
@@ -117,7 +110,7 @@ def main():
         print(json.dumps(result))
     except Exception as error:
         # No raw DBus errors (which may contain private window titles).
-        text = str(error) if isinstance(error, (ValueError, TimeoutError)) else tr('Fensterzugriff nicht möglich. KDE Plasma und Bildschirmfreigabe prüfen; Lumen Vault über „Sperren und beenden“ im Infobereich beenden.')
+        text = str(error) if isinstance(error, (ValueError, TimeoutError)) else tr('Fensterzugriff nicht möglich. KDE Plasma und Bildschirmfreigabe prüfen.')
         if isinstance(error, dbus.DBusException): text += ' (' + error.get_dbus_name() + ')'
         else: text += ' (' + type(error).__name__ + ')'
         print(json.dumps(dict(error=text))); sys.exit(1)

@@ -275,7 +275,6 @@ def _change(db, identity, action):
             "app:drive",
             "app:wissen",
             "app:vault",
-            "app:backups",
             "app:updater",
             "app:system",
             "app:settings",
@@ -285,7 +284,6 @@ def _change(db, identity, action):
             name, args = {
                 "app:drive": ("files", ["lumen-drive://"]),
                 "app:settings": ("settings", ["--sync"]),
-                "app:backups": ("vault", ["--backups"]),
             }.get(target, (target[4:], []))
             subprocess.Popen(
                 [executable("lumen-" + name), *args],

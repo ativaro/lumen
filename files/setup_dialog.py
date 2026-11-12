@@ -94,7 +94,6 @@ class SetupDialog(QDialog):
         page = self.page()
         page.addWidget(text(tr('Dateien finden. Fragen stellen. Dinge erledigen.')))
         page.addWidget(text(tr('Wir richten die Grundlagen für dich ein. Vorhandene Einstellungen bleiben erhalten.')))
-        page.addWidget(button(tr('Aus einer Sicherung wiederherstellen …'), lambda: QProcess.startDetached('lumen-vault', ['--backups'])))
         self.recommendation = text(''); page.addWidget(self.recommendation)
         page.addWidget(text(tr('Empfohlen: Assistenz, Datei- und Medienvorschauen sowie Netzwerkordner.')))
         details = Details(tr('Einrichtung anpassen')); self.dependency_details = details
@@ -128,7 +127,6 @@ class SetupDialog(QDialog):
         page.addWidget(button(tr('Lokale Bildsuche einrichten · ca. 2 GB'), lambda: self.start_job('image-search')))
         page.addWidget(text(tr('Mehrsprachige CLIP-Bildsuche inklusive deutscher Suchbegriffe. Modelle werden einmalig '
             'heruntergeladen; Fotos und Suchbegriffe bleiben danach auf diesem Rechner. Kein Administratorpasswort nötig.')))
-        page.addWidget(button(tr('Lokale Sicherungen vorbereiten'), lambda: self.start_job('vault')))
         page.addStretch()
 
     def build_engine(self):

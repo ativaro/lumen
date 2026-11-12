@@ -19,7 +19,7 @@ class SettingsTest(unittest.TestCase):
             store.set_setting('knowledge/background-sync',dict(enabled=True,root=str(root/'missing-old-notebook'),identity=[1,2],scope='old'))
             cfg=dict(server='https://test.invalid',device_id=str(uuid4()),token='synthetic')
             user=dict(id=str(uuid4()),workspace_id=str(uuid4()),device_id=cfg['device_id'])
-            with patch.object(sync,'Store',return_value=store),patch.object(connector,'ROOT',root/'config'),patch.object(connector,'CONFIG',root/'config/connection.json'),patch.object(connector,'read_config',return_value=cfg),patch.object(connector,'request',return_value=user),patch.object(sync,'vault_root',return_value=root/'absent'),patch('wissen_data.Notebook.__init__',side_effect=AssertionError('retired notebook')):
+            with patch.object(sync,'Store',return_value=store),patch.object(connector,'ROOT',root/'config'),patch.object(connector,'CONFIG',root/'config/connection.json'),patch.object(connector,'read_config',return_value=cfg),patch.object(connector,'request',return_value=user),patch('wissen_data.Notebook.__init__',side_effect=AssertionError('retired notebook')):
                 prepared=sync.prepare_connection()
                 aliases=prepared['sync_binding']['aliases']
                 self.assertEqual(len(aliases),2)
@@ -40,10 +40,10 @@ class SettingsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             store=Store(temp);store.set_setting('memory/sync-choice',dict(enabled=True,scope='m'))
             store.set_setting('memory/server-sync/m',dict(last_sync=1))
-            with patch.object(sync,'Store',return_value=store),patch('drive_sync.read',return_value=dict(roots=[])),patch.object(sync,'vault_root',return_value=Path(temp)/'absent'),patch.object(connector,'read_config',side_effect=FileNotFoundError):
+            with patch.object(sync,'Store',return_value=store),patch('drive_sync.read',return_value=dict(roots=[])),patch.object(connector,'read_config',side_effect=FileNotFoundError):
                 result=sync.snapshot()
             self.assertNotIn('notes',result);self.assertNotIn('attachments',result);self.assertTrue(result['memory']['enabled'])
-            self.assertEqual(set(result),{'memory','vault','preferences','drive','server'})
+            self.assertEqual(set(result),{'memory','preferences','drive','server'})
 
     def test_status_never_claims_old_success_is_current(self):
         self.assertEqual(sync.state_label(dict(enabled=True,last_sync=1)), tr('Wartet auf Abgleich'))

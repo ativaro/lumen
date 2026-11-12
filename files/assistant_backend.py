@@ -132,7 +132,6 @@ class OpenCodeBackend(QObject):
         self.memory_context = dict(version=1,message_id='',session_id='',phase='idle',sources=[],retrieval={})
         self.memory_text = ''
         self.memory_previous_answer = {}
-        self.vault_sources = None
         self.deadline = QTimer(self)
         self.deadline.setSingleShot(True)
         self.deadline.timeout.connect(lambda: self.fail(tr('Das Zeitlimit für diesen Auftrag wurde erreicht.')))
@@ -366,7 +365,6 @@ class OpenCodeBackend(QObject):
     def new_conversation(self, directory=None):
         if self.busy:
             return False
-        self.clear_vault_sources()
         self.generation += 1
         self.timer.stop()
         self.polling = False
@@ -406,12 +404,7 @@ class OpenCodeBackend(QObject):
             self.poll()
         self.ensure_server(lambda:self.request('GET', '/session/'+session, callback=selected))
 
-    def clear_vault_sources(self):
-        if self.vault_sources:
-            self.vault_sources.close()
-            self.vault_sources = None
-
-    def send(self, text, files=None, agent='build', title=None, proposal=False, memory_text=None,memory_context=False, context_data=None, user_text=None, project_task=False, web_research=False, screen_image=None):
+    def send(self, text, files=None, agent='build', title=None, proposal=False, memory_text=None,memory_context=False, context_data=None, project_task=False, web_research=False, screen_image=None):
         if not self.check_server_mcp_binding():return False
         if self.busy or not text.strip():
             return
@@ -515,25 +508,10 @@ class OpenCodeBackend(QObject):
                         'terminal for sudo. Never ask for a password in chat. Do not assume snapper, Btrfs or a root '
                         'snapshot configuration exists; inspect available backup support before proposing a snapshot. '
                         'If execution fails, report the actual error and what remains undone, not a successful installation.\n')
-                body['system'] += ('\nLumen Notes, Projects, Code, Audio Studio, Vault, Inbox and account memory are owned by the paired Lumen Server. Discover the available server tools with lumen_server_tools and use their exact schemas. For ordinary memory requests use the connected account; local Desktop memory tools are for deliberately local/offline requests only. Server memory changes require their real server review, not a local copy. Local project libraries and message caches are not the server record. Native Vault tools remain available for explicitly approved local credential handling and connectors. Never invent synchronization or permissions.\n')
-            from vault_access import INSTRUCTION as VAULT_INSTRUCTION
-            body['system'] += VAULT_INSTRUCTION
-            if isinstance(user_text, str) and not self.read_only and not self.background_task:
-                try:
-                    from vault_intake import IntakeSources
-                    if self.vault_sources is None:
-                        self.vault_sources = IntakeSources()
-                    source = self.vault_sources.add(user_text)
-                    if source:
-                        body['system'] += ('\nNative user-text source for this turn: ' + source +
-                            '. It covers only the original user message before appended UI context. '
-                            'Expires in 10 minutes; only for user-requested Vault storage, use numeric field selectors with lumen_vault_store_from_chat.\n')
-                except (OSError, ValueError):
-                    pass  # Manual native intake remains available without a private runtime.
+                body['system'] += ('\nLumen Notes, Projects, Code, Audio Studio, Vault, Inbox and account memory are owned by the paired Lumen Server. Discover the available server tools with lumen_server_tools and use their exact schemas. For ordinary memory requests use the connected account; local Desktop memory tools are for deliberately local/offline requests only. Server memory changes require their real server review, not a local copy. Local project libraries and message caches are not the server record. Never invent synchronization or permissions.\n')
         base_system=body['system']
         profile_context=None
         def reset_memory():
-            if self.vault_sources:self.vault_sources.retain(source)
             self.session='';self.memory_previous_answer={};self.messages=[];self.messagesChanged.emit([]);prepare_memory(prepare_session)
         def submit_current():
             if profile_context:
@@ -691,8 +669,7 @@ class OpenCodeBackend(QObject):
             profile_context=context
             base_system+=instruction(profile);body['system']=base_system
             if self.session and store.setting('persona/context/'+self.session)!=context:
-                if self.vault_sources:self.vault_sources.retain(source)
-                self.session='';self.memory_previous_answer={};self.messages=[];self.messagesChanged.emit([])
+                    self.session='';self.memory_previous_answer={};self.messages=[];self.messagesChanged.emit([])
             continue_turn()
         if not proposal and not project_task and not self.screen_guidance:
             from lumen_persona import prepare
@@ -894,7 +871,6 @@ class OpenCodeBackend(QObject):
         self.fail(message)
 
     def shutdown(self):
-        self.clear_vault_sources()
         if self.memory:self.memory.shutdown()
         for job in list(self.persona_jobs):job.cancelled.set()
         for job in list(self.persona_jobs):job.wait(4000)

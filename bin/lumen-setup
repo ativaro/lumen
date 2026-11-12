@@ -57,11 +57,13 @@ from hashlib import sha256
 from pathlib import Path
 import sys
 root = Path(sys.argv[1])
+retired = {'lumen-service-access': ('b49193b08585240dbe8df6b30857d7cfed5c79bbdb94950bbee956fd13c652cc',
+                                    '821b7405f5c2f434963dc5f79421def9987e20187c894b226e9bb30150269160'),
+           'lumen-vault-http': ('af872d98e11f563f6cc95f92c4ac758db0cc14270964786748e116448fd5d278',)}
 for folder in ('skill', 'skills'):
-    path = root / folder / 'lumen-service-access' / 'SKILL.md'
-    if path.is_file() and not path.is_symlink():
-        if sha256(path.read_bytes()).hexdigest() in ('b49193b08585240dbe8df6b30857d7cfed5c79bbdb94950bbee956fd13c652cc',
-                '821b7405f5c2f434963dc5f79421def9987e20187c894b226e9bb30150269160'):
+    for name, hashes in retired.items():
+        path = root / folder / name / 'SKILL.md'
+        if path.is_file() and not path.is_symlink() and sha256(path.read_bytes()).hexdigest() in hashes:
             path.unlink()
             if not any(path.parent.iterdir()): path.parent.rmdir()
 PY_CLEAN
@@ -96,7 +98,7 @@ mkdir -p "$OPENCODE_HOME/command" "$OPENCODE_HOME/skills"
 if [ -n "$SHARE" ] && [ -d "$SHARE/opencode-command" ]; then
     say "Installiere Commands + Skill nach $OPENCODE_HOME"
     cp "$SHARE/opencode-command/"*.md "$OPENCODE_HOME/command/" 2>/dev/null || true
-    for skill in lumen-admin lumen-projects lumen-vault-http; do
+    for skill in lumen-admin lumen-projects; do
         if [ -d "$SHARE/opencode-skill/$skill" ]; then
             mkdir -p "$OPENCODE_HOME/skills/$skill"
             cp -r "$SHARE/opencode-skill/$skill/." "$OPENCODE_HOME/skills/$skill/"

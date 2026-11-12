@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 """Real cold/warm reviewed handoffs and lumen URI launch in a disposable profile."""
-import hashlib,json,os,subprocess,sys,tempfile,time
+import hashlib,os,subprocess,sys,tempfile,time
 from pathlib import Path
 repo=Path(__file__).resolve().parent.parent;sys.path.insert(0,str(repo/'files'))
 from PySide6.QtCore import QCoreApplication
@@ -42,14 +42,12 @@ with tempfile.TemporaryDirectory(prefix='lumen-interop-launch-') as tmp:
             subprocess.run([str(binaries/'lumen-workbench'),'--handoff',first],env=env,stdout=log,stderr=log,timeout=10,check=True)
             name='lumen-tool-'+str(os.getuid())+'-'+hashlib.sha256(str(library.root.resolve()).encode()).hexdigest()[:20]
             socket=QLocalSocket();socket.connectToServer(name);assert socket.waitForConnected(2000)
-            socket.write(json.dumps(dict(vault_flush='a'*32)).encode()+b'\n');socket.flush()
-            assert socket.waitForReadyRead(10000);reply=json.loads(bytes(socket.readAll()));assert reply['ok'],reply
             socket.disconnectFromServer()
             record=library.get(project)
             assert record['notes'].count('Cold transfer')==1 and record['notes'].count('Warm transfer')==1,record['notes']
             assert (root/'source.txt').read_text()=='Source remains intact'
             assert len(library.all())==1
-            print('cold/warm handoff, URI activation, save acknowledgement and replay passed')
+            print('cold/warm handoff, URI activation, endpoint and replay passed')
         except BaseException:
             log.seek(0);print(log.read().decode(errors='replace')[-5000:],file=sys.stderr);raise
         finally:

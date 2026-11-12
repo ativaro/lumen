@@ -43,7 +43,7 @@ class StartupIsolation(unittest.TestCase):
         root,profile,env=self.pilot_environment();window=QWidget();received=[]
         server=tools_app.listen_window(window,received.append,root=profile/'runtime')
         try:
-            for request in ({'vault_flush':'a'*32},{'path':'/unopened.pdf'},{}):
+            for request in ({'unknown':'a'*32},{'path':'/unopened.pdf'},{}):
                 self.assertTrue(tools_app.forward_window(profile/'runtime',request,private=True))
                 QTest.qWait(30)
             self.assertEqual(received,[{}])

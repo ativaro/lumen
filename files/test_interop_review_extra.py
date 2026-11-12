@@ -102,30 +102,5 @@ class ReviewExtraTest(unittest.TestCase):
         finally:
             release.set(); window.close(); window.deleteLater(); self.app.processEvents()
 
-    def test_vault_controller_retries_failed_registry_finish_without_reapplying(self):
-        from PySide6.QtWidgets import QDialog
-        from tools_vault import Vault
-        from interop_data import Registry
-        from interop_ui import Controller
-        window = Vault(self.root); errors = []; window.error = errors.append
-        registry = Registry(self.root); repository = self.root/'repo'; repository.mkdir()
-        source = self.root/'saved.md'; source.write_text('saved')
-        key = window.library.create('Plan', repository=str(repository), sources=[]); window.focus_record(key)
-        token = registry.enqueue('vault', 'vault.sources', dict(title='Saved', paths=[str(source)], source=dict(app='files', kind='file', id=str(source), path=str(source), title='Saved')))
-        control = Controller(window)
-        try:
-            QTimer.singleShot(0, lambda: QApplication.activeModalWidget().accept())
-            with patch.object(Registry, 'finish', side_effect=OSError('Synthetic registry write failure')):
-                control.deliver({'handoff': token})
-            self.assertTrue(errors); self.assertEqual(registry.request(token)['state'], 'pending')
-            source.unlink()
-            with patch.object(QDialog, 'exec', side_effect=AssertionError('No second review')):
-                control.deliver({'handoff': token})
-            self.assertEqual(registry.request(token)['state'], 'done')
-            self.assertEqual(window.library.get(key)['sources'], [str(source)])
-            self.assertEqual(len(window.library.all()), 1)
-        finally:
-            control.timer.stop(); window.close(); window.deleteLater(); self.app.processEvents()
-
 
 if __name__ == '__main__': unittest.main()

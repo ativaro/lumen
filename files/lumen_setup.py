@@ -9,7 +9,6 @@ import shutil
 import signal
 import subprocess
 import sys
-import sys
 import tarfile
 import tempfile
 import urllib.request
@@ -18,13 +17,12 @@ FEATURES = {
     'translate_pdf': (tr('Compose: PDF-Layoutübersetzung'), (), ()),
     'sound': (tr('Sound: Lautstärke und App-Ausgänge'), ('pactl',), ('libpulse',)),
     'reader': (tr('Reader: PDF- und EPUB-Lesen'), (), ()),
-    'keyring': (tr('System-Schlüsselbund für Vault und Inbox'), ('secret-tool',), ('libsecret',)),
     'hardware': (tr('Hardware-Messwerte'), ('sensors',), ('lm_sensors',)),
     'engine': (tr('Lumen-Assistent'), ('opencode',), ('opencode',)),
     'documents': (tr('PDF-Vorschau und Inhaltsuche'), (), ()),
     'media': (tr('Video- und Audiovorschau'), ('ffmpeg', 'ffprobe'), ('ffmpeg',)),
     'google_drive': (tr('Online-Konten: Cloud-Dateien'), ('rclone', 'fusermount3'), ('rclone', 'fuse3')),
-    'network': (tr('NAS und Netzwerkordner'), ('kio-fuse', 'kioclient', 'kio-smb', 'gvfsd-smb', 'gvfsd-fuse', 'gvfsd-wsdd', 'smbclient'), ('kio-fuse', 'kio-extras', 'kde-cli-tools', 'gvfs', 'gvfs-smb', 'gvfs-wsdd', 'smbclient')),
+    'network': (tr('NAS und Netzwerkordner'), ('kio-fuse', 'kioclient', 'kio-smb'), ('kio-fuse', 'kio-extras', 'kde-cli-tools')),
     'workshop': (tr('PDF-Dokumentenwerkstatt'), (), ()),
     'ocr': (tr('Texterkennung in Bildern und Scans'), ('tesseract', 'tessdata-deu', 'tessdata-eng'), ('tesseract', 'tesseract-data-deu', 'tesseract-data-eng')),
     'capture': (tr('Bildschirmaufnahme'), ('spectacle',), ('spectacle',)),
@@ -65,7 +63,7 @@ def executable(name):
     if name == 'whisper-cli':
         return shutil.which(name) or _executable(speech_root() / f'whisper-{VERSION}')
     return shutil.which(name) or next((_executable(Path(folder) / name) for folder in
-        ('/usr/lib', '/usr/lib/kf6', '/usr/lib/gvfs') if _executable(Path(folder) / name)), '')
+        ('/usr/lib', '/usr/lib/kf6') if _executable(Path(folder) / name)), '')
 
 
 def _executable(path):
@@ -289,31 +287,10 @@ def install_multilingual_voice():
     report(tr('Mehrsprachige Sprachausgabe ist bereit. Deutsch und Englisch werden gemeinsam verarbeitet.'), 100)
 
 
-def install_vault():
-    import bz2
-    import platform
-    archives = {'x86_64': ('amd64', 'f415415624dcc452f2a02b8c33641791a8c6d6d3b65bbb3543fcf9a25151585c', 10107515),
-                'aarch64': ('arm64', 'a5f64aaab53d51e311fa3829124c5b703f2d14cf187d8640b6be3b2b49376465', 9044264)}
-    if platform.machine() not in archives: raise ValueError(tr('Restic bitte über die Paketverwaltung installieren.'))
-    arch, checksum, size = archives[platform.machine()]
-    root = speech_root().parent / 'vault'; root.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(dir=root) as tmp:
-        archive = Path(tmp)/'restic.bz2'; binary = Path(tmp)/'restic'
-        report(tr('Verschlüsselte Sicherungen vorbereiten · Restic 0.19.1'))
-        download(f'https://github.com/restic/restic/releases/download/v0.19.1/restic_0.19.1_linux_{arch}.bz2',archive,checksum,size)
-        with bz2.open(archive,'rb') as src, binary.open('wb') as dst:
-            shutil.copyfileobj(src,dst)
-        binary.chmod(0o755); run([str(binary),'version'],timeout=10)
-        os.replace(binary,root/'restic-0.19.1')
-    report(tr('Lokale Sicherungen bereit. Ziel und Sicherungsschlüssel in Lumen System auswählen.'),100)
-
-
-
-
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=('packages', 'engine', 'dictation', 'dictation-quality', 'voice', 'voice-multilingual', 'desktop', 'image-search', 'memory-search', 'vault'))
+    parser.add_argument('action', choices=('packages', 'engine', 'dictation', 'dictation-quality', 'voice', 'voice-multilingual', 'desktop', 'image-search', 'memory-search'))
     parser.add_argument('groups', nargs='*', choices=tuple(FEATURES))
     parser.add_argument('--existing-model', default='')
     from appearance import DESIGNS
@@ -337,7 +314,6 @@ def main():
             from memory_install import install
             from lumen_memory import search_home
             install(search_home(), run=run, download=download, report=lambda message:report(tr(message)))
-        elif args.action == 'vault': install_vault()
         else:
             if 'engine' in args.groups: install_engine()
             install_packages(missing_packages([group for group in args.groups if group != 'engine']))

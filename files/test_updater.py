@@ -125,10 +125,11 @@ class UpdaterTest(unittest.TestCase):
     def test_optional_components_follow_installed_files(self):
         with tempfile.TemporaryDirectory() as tmp,patch.object(updater,'data_root',return_value=Path(tmp)),patch.object(updater.shutil,'which',return_value=None):
             root=Path(tmp)
-            for rel in ('vision/env-v1/bin/python','speech/qwen-env/bin/python','vault-lab/bin/lumen-vault-lab'):
+            for rel in ('vision/env-v1/bin/python','speech/qwen-env/bin/python','vault-lab/bin/lumen-vault-lab','vault/restic-0.19.1'):
                 p=root/rel;p.parent.mkdir(parents=True,exist_ok=True);p.touch()
             found={row[0] for row in DISCOVER() if row[3]}
-            self.assertTrue({'image-search','voice-multilingual','native-vault'}<=found)
+            self.assertTrue({'image-search','voice-multilingual'}<=found)
+            self.assertFalse({'vault','native-vault'}&{row[0] for row in DISCOVER()})
             self.assertNotIn('voice',found);self.assertNotIn('inbox',found)
 
     def test_bundle_cannot_replace_a_native_topbar_with_an_older_helper(self):

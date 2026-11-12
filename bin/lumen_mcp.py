@@ -264,13 +264,7 @@ def tool_screenshot(args):
     path = args.get("path", "/tmp/opencode-screenshot.png")
     if not path.startswith("/"):
         return ok("Bitte absoluten Zielpfad angeben.")
-    lumen_modules()
-    from vault_privacy import capture_guard, MESSAGE
-    try:
-        with capture_guard():
-            res = run(["spectacle", "-b", "-n", "-o", path], timeout=30)
-    except OSError:
-        return ok(MESSAGE)
+    res = run(["spectacle", "-b", "-n", "-o", path], timeout=30)
     if res["rc"] == 0:
         return ok(f"Screenshot gespeichert: {path}")
     return ok(fmt(res))
@@ -494,23 +488,20 @@ def tool_native(name, args):
         raise ValueError('Lumen Projects uses the paired Server tools; local project tools are retired.')
     if not action_allowed(name):
         raise ValueError('MCP actions are disabled.')
-    intake = name in ('lumen_vault_store', 'lumen_vault_store_from_chat')
-    mutation = name in ('lumen_notes_propose_edit','lumen_notes_propose_connections','lumen_memory_remember','lumen_memory_propose','lumen_memory_forget') or intake or name in ('lumen_vault_web_login','lumen_vault_web_click','lumen_vault_web_fill','lumen_vault_ssh_exec','lumen_vault_http_request') or (name == 'lumen_vault_api_request' and args.get('method') != 'GET') or (name == 'lumen_vault_mcp' and args.get('operation') == 'call')
-    uncertain = ('Vault save outcome is unknown. Check Vault before retrying; do not automatically repeat the save.' if intake else
-                 'The remote operation outcome is unknown. Check remote state before retrying; do not automatically repeat the write.')
+    mutation = name in ('lumen_notes_propose_edit','lumen_notes_propose_connections','lumen_memory_remember','lumen_memory_propose','lumen_memory_forget')
+    uncertain = 'The remote operation outcome is unknown. Check remote state before retrying; do not automatically repeat the write.'
     worker = Path(sys.modules['lumen_mcp_tools'].__file__)
     process = subprocess.Popen([sys.executable, str(worker)], stdin=subprocess.PIPE,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
     try:
-        output, stderr = process.communicate(json.dumps(dict(name=name, arguments=args)), timeout=115 if name.startswith(('lumen_vault_web_', 'lumen_vault_ssh_', 'lumen_vault_http_')) or name in ('lumen_vault_store_from_chat', 'lumen_vault_store', 'lumen_bookstack_read', 'lumen_vault_api_get', 'lumen_vault_api_request', 'lumen_vault_mcp') else 270 if name == 'lumen_translate_pdf' else 165 if name == 'lumen_translate_text' else 45)
+        output, stderr = process.communicate(json.dumps(dict(name=name, arguments=args)), timeout=270 if name == 'lumen_translate_pdf' else 165 if name == 'lumen_translate_text' else 45)
     except subprocess.TimeoutExpired:
         os.killpg(process.pid, signal.SIGKILL)
         process.communicate()
         raise ValueError(uncertain if mutation else 'Native tool timed out. Check the source/desktop connection and retry.') from None
     if process.returncode:
         raise ValueError(uncertain if mutation else 'Native tool failed. Verify the Lumen Qt6 runtime and installation.')
-    output_limit = 2*1024*1024 if name in ('lumen_vault_api_request','lumen_vault_api_get','lumen_vault_mcp','lumen_bookstack_read','lumen_vault_connection','lumen_vault_store') else 1024*1024
-    if len(output) > output_limit: raise ValueError(uncertain if mutation else 'Result too large. Narrow the query or reduce the limit.')
+    if len(output) > 1024*1024: raise ValueError(uncertain if mutation else 'Result too large. Narrow the query or reduce the limit.')
     try:
         response = json.loads(output)
         if not isinstance(response, dict) or not ('data' in response or 'error' in response): raise ValueError()

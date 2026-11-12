@@ -6,7 +6,7 @@
 - [Installation, Update und Wiederherstellung](../INSTALL.md).
 - [Lumen bedienen](../LUMEN-GUIDE.md) und [Files](../files/README.md).
 - [App-Zuständigkeiten](desktop-retirement.md), [Notes und lokales Gedächtnis](../WISSEN.md), [Projekte](../PROJECTS.md).
-- [Vault, lokale Sicherungen und Inbox](../VAULT-INBOX.md), [Reader und Sound](../READER-SOUND.md).
+- [Vault und Inbox](../VAULT-INBOX.md), [Reader und Sound](../READER-SOUND.md).
 - [Übergaben zwischen Apps](interop/USAGE.md), [MCP-Werkzeuge](../MCP.md), [lokales Lernen](memory/LEARNING.md).
 - [Online-Konten](../ONLINE-ACCOUNTS.md), [Quellveröffentlichung](../PUBLISHING.md).
 

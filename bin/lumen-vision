@@ -13,8 +13,8 @@ fi
 img="$(mktemp --suffix=.png /tmp/lumen-vision-XXXXXX)"
 trap 'rm -f "$img"' EXIT
 case "$mode" in
-    region) "$SELF_DIR/lumen-private-capture" spectacle -b -n -r -o "$img" || exit 0 ;;
-    screen) "$SELF_DIR/lumen-private-capture" spectacle -b -n -o "$img" || exit 0 ;;
+    region) spectacle -b -n -r -o "$img" || exit 0 ;;
+    screen) spectacle -b -n -o "$img" || exit 0 ;;
     *) echo "Unbekannter Modus: $mode" >&2; exit 2 ;;
 esac
 [ -s "$img" ] || exit 0

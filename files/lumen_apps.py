@@ -50,7 +50,7 @@ def launch(app, *, area=None, page=None):
         raise ValueError(tr('Unbekannter Bereich.'))
     if app == 'sound': app, page = 'system', 'sound'
     if app == 'updater': app, page = 'system', 'updates'
-    if page is not None and (app != 'system' or page not in ('system', 'sound', 'server', 'updates', 'diagnostics', 'backups')):
+    if page is not None and (app != 'system' or page not in ('system', 'sound', 'server', 'updates', 'diagnostics')):
         raise ValueError(tr('Unbekannter Systembereich.'))
     folder = Path(__file__).resolve().parent
     if app == 'notification':

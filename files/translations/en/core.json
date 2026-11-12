@@ -603,5 +603,6 @@
   "Diese Drive-Synchronisation stammt aus einer älteren Lumen-Version und muss neu eingerichtet werden. Lokale Dateien bleiben erhalten.": "This Drive sync comes from an older Lumen version and must be set up again. Local files are kept.",
   "Diese Übertragung stammt aus einer älteren Lumen-Version und wird nicht gesendet. Bitte neu starten; lokale Dateien bleiben erhalten.": "This transfer comes from an older Lumen version and will not be sent. Please start it again; local files are kept.",
   "Die PDF-Zieldatei existiert bereits.": "The PDF target file already exists.",
-  "PDF-Exportprüfung fehlgeschlagen.": "PDF export check failed."
+  "PDF-Exportprüfung fehlgeschlagen.": "PDF export check failed.",
+  "Alte Sicherungseinheit entfernt: ": "Removed old backup unit: "
 }

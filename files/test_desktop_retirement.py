@@ -52,6 +52,16 @@ class DesktopRetirementTest(unittest.TestCase):
             self.assertEqual((files/'notes_web/custom.txt').read_bytes(),b'custom untouched')
             self.assertEqual(self.installer().retire(root),[])
 
+    def test_upgrade_removes_vault_lab_programs_and_bundled_restic_but_keeps_vault_data(self):
+        with tempfile.TemporaryDirectory() as root:
+            root=Path(root);(root/'files').mkdir()
+            for rel in ('vault-lab/bin/lumen-vault-lab','vault-lab/share/licenses/qt/LGPL.txt','vault/restic-0.19.1'):
+                p=root/rel;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(b'program')
+            plans=root/'vault/plans.json';plans.write_bytes(b'user plans')
+            removed=self.installer().retire(root)
+            self.assertEqual(len(removed),3);self.assertFalse((root/'vault-lab').exists())
+            self.assertEqual(plans.read_bytes(),b'user plans');self.assertEqual(self.installer().retire(root),[])
+
     def test_cleanup_preflights_symlinks_before_any_removal(self):
         with tempfile.TemporaryDirectory() as root:
             root=Path(root);files=root/'files';files.mkdir();target=root/'untouched';target.write_bytes(b'private')

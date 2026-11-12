@@ -2,6 +2,7 @@
 """Separate native entry points, with one window per application and library."""
 from lumen_i18n import tr
 import argparse
+import hashlib
 import json
 import os
 import stat
@@ -40,8 +41,11 @@ def pilot_profile():
     return profile
 
 
+def server_name(library_root):
+    return 'lumen-tool-'+str(os.getuid())+'-'+hashlib.sha256(str(Path(library_root).resolve()).encode()).hexdigest()[:20]
+
+
 def forward_window(root, request, *, private=False):
-    from interop_flush import server_name
     endpoint=str(Path(root)/'open.sock') if private else server_name(root)
     client=QLocalSocket();client.connectToServer(endpoint)
     if not client.waitForConnected(400):return False
@@ -50,8 +54,7 @@ def forward_window(root, request, *, private=False):
 
 
 def listen_window(page, activate, *, root=None, request_keys=()):
-    """Private activation and backup-save endpoint for a retained tool page."""
-    from interop_flush import server_name, serve_flush
+    """Private activation endpoint for a retained tool page."""
     endpoint = server_name(page.library.root) if root is None else str(Path(root)/'open.sock')
     server = QLocalServer(); QLocalServer.removeServer(endpoint)
     server.setSocketOptions(QLocalServer.UserAccessOption)
@@ -73,10 +76,6 @@ def listen_window(page, activate, *, root=None, request_keys=()):
                                 and isinstance(next(iter(request.values())),str)):
                             activate(request)
                         socket.disconnectFromServer();return
-                    if isinstance(request,dict) and 'vault_flush' in request:
-                        timer.stop();socket.readyRead.disconnect(receive)
-                        serve_flush(page,socket,request)
-                        return
                     page.safe(activate, request)
                 except (ValueError,AttributeError):pass
                 socket.disconnectFromServer()
@@ -144,7 +143,7 @@ def main():
     activation={key:value for key,value in [('path',requested),('handoff',args.handoff),('ref',args.ref),('area',args.area),('section',args.section)] if value}
     if args.tool == 'sound':
         from system_app import main as system_main
-        forwarded = ['--page', 'sound' if args.tool == 'sound' else 'backups']
+        forwarded = ['--page', 'sound']
         for key in ('handoff', 'ref'):
             if activation.get(key): forwarded.extend(['--'+key, activation[key]])
         return system_main(forwarded)
@@ -152,7 +151,7 @@ def main():
     app=create_app(); app.setApplicationName('lumen-'+args.tool); app.setDesktopFileName('lumen-'+args.tool)
     if args.clipboard:
         from PySide6.QtWidgets import QApplication
-        from vault_privacy import protected_clipboard
+        from clipboard_image import protected_clipboard
         activation['text'] = '' if protected_clipboard(QApplication.clipboard()) else QApplication.clipboard().text()
         from translate_data import text_segments
         text_segments(activation['text'])
