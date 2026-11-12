@@ -31,6 +31,7 @@ signals:
 private:
     void refresh();
     void releaseClient();
+    void attach(const QString &owner, const QString &service, const QString &path, quint64 generation);
     void watch(_DbusmenuMenuitem *item);
     void populate(QMenu *menu, _DbusmenuMenuitem *item, int depth=0);
     void popup(_DbusmenuMenuitem *item, QQuickItem *anchor);

@@ -51,6 +51,8 @@ Tray::Tray(QObject *parent):QObject(parent),m_menu(this) {
     connect(availability,&QDBusServiceWatcher::serviceOwnerChanged,this,[this]{m_reload.start();});
     bus.connect(watcher,watcherPath,watcher,"StatusNotifierItemRegistered",this,SLOT(itemChanged(QDBusMessage)));
     bus.connect(watcher,watcherPath,watcher,"StatusNotifierItemUnregistered",this,SLOT(itemChanged(QDBusMessage)));
+    // Item signals from any sender: binding to each item's name would ask the bus for its owner and wait.
+    bus.connect(QString(),QString(),itemInterface,QString(),this,SLOT(itemChanged(QDBusMessage)));
     QTimer::singleShot(0,this,&Tray::reload);
 }
 QPair<QString,QString> Tray::endpoint(const QString &identity){
@@ -75,16 +77,9 @@ void Tray::reload(){
             const auto value=reply.value().variant();const auto values=value.canConvert<QStringList>()?value.toStringList():qdbus_cast<QStringList>(value);
             for(const auto &identity:values){const auto [service,path]=endpoint(identity);if(AppMenu::validEndpoint(service,path) && !m_order.contains(identity))m_order.append(identity);}
         }
-        for(const auto &key:previous)if(!m_order.contains(key)){
-            const auto [service,path]=endpoint(key);auto bus=QDBusConnection::sessionBus();
-            bus.disconnect(service,path,itemInterface,QString(),this,SLOT(itemChanged(QDBusMessage)));m_rows.remove(key);m_menu.close();
-        }
+        for(const auto &key:previous)if(!m_order.contains(key)){m_rows.remove(key);m_menu.close();}
         emit changed();
-        for(const auto &identity:m_order){
-            const auto [service,path]=endpoint(identity);
-            if(!previous.contains(identity))QDBusConnection::sessionBus().connect(service,path,itemInterface,QString(),this,SLOT(itemChanged(QDBusMessage)));
-            fetch(identity,generation);
-        }
+        for(const auto &identity:m_order)fetch(identity,generation);
     });
 }
 void Tray::fetch(const QString &identity,quint64 generation){
