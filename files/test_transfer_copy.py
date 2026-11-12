@@ -1,3 +1,4 @@
+import errno
 import os
 from pathlib import Path
 import tempfile
@@ -118,6 +119,23 @@ class CopyTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Zu wenig"):
                 execute(self.store, self.ticket(), lambda *_: None)
         self.assertFalse((self.target / "folder").exists())
+
+    def test_unsupported_kernel_copy_mid_file_falls_back_to_reading(self):
+        real, calls = os.copy_file_range, []
+
+        def partial(*args):
+            calls.append(args)
+            if len(calls) > 1:
+                raise OSError(errno.EXDEV, "cross-device")
+            return real(*args)
+
+        with patch("transfer_copy.os.copy_file_range", partial):
+            execute(self.store, self.ticket(), lambda *_: None)
+        self.assertGreater(len(calls), 1)
+        self.assertEqual(
+            (self.target / "folder/large.bin").read_bytes(),
+            (self.source / "large.bin").read_bytes(),
+        )
 
     def test_local_names_are_not_restricted_to_drive_names(self):
         for name in (" trailing ", "back\\slash", "x" * 240):
