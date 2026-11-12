@@ -118,7 +118,7 @@ class Translate(ToolWindow):
         self.refresh()
 
     def paste(self):
-        from vault_privacy import protected_clipboard
+        from clipboard_image import protected_clipboard
         if not protected_clipboard(QApplication.clipboard()):
             self.input.insertPlainText(QApplication.clipboard().text())
     def copy_result(self):

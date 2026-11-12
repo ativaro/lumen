@@ -405,20 +405,6 @@ def _radio(window, record):
     return _payload(source, text, paths=[] if selected else [_asset(window, record.get('audio'))], items=items)
 
 
-def _vault(window, record):
-    source = _ref('vault', record['id'], record['title'])
-    selected = window.sources.currentItem()
-    if selected and _focused(window, window.sources):
-        path = _path(selected.text())
-        return _payload(source, selected.text(), paths=[path], items=[dict(kind='file', path=path)])
-    snapshot = _item_data(window.snapshots, True)
-    if snapshot:
-        source['position'] = dict(part='snapshot:' + snapshot)
-        return _payload(source, '\n'.join(window.snapshots.currentItem().text(i) for i in range(2)), items=[dict(kind='snapshot', id=snapshot)])
-    items = [dict(kind='backup_source', path=path) for path in record.get('sources', [])]
-    return _payload(source, '\n'.join(record.get('sources', [])), items=items)
-
-
 def _sound(window, record):
     source = _ref('sound', record['id'], record['title'])
     selected = _item_data(window.rules, True)
@@ -460,4 +446,4 @@ def _translate(window, record):
 
 
 _CAPTURES = dict(translate=_translate, reader=_reader, inbox=_inbox, meetings=_meetings, household=_household,
-                 workbench=_workbench, radio=_radio, vault=_vault, sound=_sound)
+                 workbench=_workbench, radio=_radio, sound=_sound)

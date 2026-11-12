@@ -527,7 +527,7 @@ class ChatPanel(QWidget):
         if self.context_tools.learn.isChecked():
             text += tr('\n\nErkläre die wesentlichen Schritte, ihre Wirkung und wie ich sie selbst wiederholen kann.')
         sent = self.backend.send(text, files, self.mode.currentData(), title=title,memory_text=self.last_prompt,
-                          user_text=self.last_prompt if not self.action else None,context_data={**getattr(self,'drive_context',{}),**({'note_reference':self.note_context} if getattr(self,'note_context',None) else {})} or None)
+                          context_data={**getattr(self,'drive_context',{}),**({'note_reference':self.note_context} if getattr(self,'note_context',None) else {})} or None)
         if sent is False:
             return
         if not self.action:

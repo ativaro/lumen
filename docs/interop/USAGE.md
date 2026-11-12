@@ -10,9 +10,9 @@ In Lumen Files eine Datei auswählen und die passende Aktion unter **Mit Lumen b
 
 Benannte Quellen öffnen den gespeicherten Objektverweis. Eine alte lokale Kennung ist jedoch kein gleichnamiger Serverdatensatz; fehlende Herkunft oder Rechte nicht durch einen ähnlichen Titel ersetzen. Unklare Übergaben erst nachlesen, bevor sie wiederholt werden.
 
-## Sicherungen und Grenzen
+## Grenzen
 
-Lokale Sicherungen liegen in **Lumen System → Sicherungen**, nicht mehr hinter dem normalen Server-Vault-Starter. Ein Plan oder ein alter Erfolgszeitpunkt allein beweist keine gesicherte Dateiversion. Eine Wiederherstellung mit dem getrennt aufbewahrten Schlüssel prüfen.
+Lokale Sicherungspläne und die Übergabe „Sicherung einrichten …“ sind aus Lumen Desktop entfernt.
 
 Die frühere Liste von 100 lokalen Verbindungen unter [COVERAGE.md](COVERAGE.md) ist ein historischer Nachweis der damaligen nativen Apps. Sie bestätigt nicht, dass alle Wege nach der Server-Konsolidierung wieder vollständig angeschlossen sind. Insbesondere alte lokale Inbox-Aufgaben/Entwürfe, Projekt-Replikate und direkte Notes-Ordnerabläufe dürfen nicht als aktueller Offline-Weg beworben werden.
 

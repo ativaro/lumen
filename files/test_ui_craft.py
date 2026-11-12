@@ -2,14 +2,11 @@
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 from PySide6.QtCore import QCoreApplication, QEvent, QPoint
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QScrollArea
+from PySide6.QtWidgets import QApplication, QPushButton, QScrollArea
 from app import create_app
-from backup_setup_ui import BackupWizard
 from plan_dialog import PlanDialog
-from tools_data import Library
 
 
 class NativeCraftTest(unittest.TestCase):
@@ -46,19 +43,3 @@ class NativeCraftTest(unittest.TestCase):
     def test_single_folder_uses_the_singular(self):
         d = self.flow()
         self.assertTrue(d.native_sentence.summary.text().startswith('1 freigegebener Ordner ·'))
-
-    def test_backup_page_has_a_readable_native_heading(self):
-        with patch('backup_setup_ui.execute', return_value=dict(files=[], lumen=[], vault=[], servers=[])):
-            d = BackupWizard(Library('vault', self.root)); self.windows.append(d); d.show()
-            for _ in range(100):
-                QTest.qWait(10)
-                if d.job is None: break
-            self.assertIsNone(d.job)
-        heading = next(x for x in d.findChildren(QLabel) if x.text() == '1 · Was möchtest du schützen?')
-        self.assertGreaterEqual(heading.fontMetrics().height(), 24)
-        d.resize(320, 740); self.app.processEvents()
-        for button in d.currentPage().findChildren(QPushButton):
-            if not button.isVisible(): continue
-            self.assertGreaterEqual(button.mapTo(d, QPoint()).x(), 0)
-            self.assertLessEqual(button.mapTo(d, QPoint()).x()+button.width(), d.width())
-

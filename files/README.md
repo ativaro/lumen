@@ -621,8 +621,7 @@ under Settings → Lumen Compose; both German and English UI use the shared them
 Files and Reader can send explicitly selected text or a PDF to local Compose.
 A supported handoff can send a result to Server Notes or Projects after review;
 this requires their connection and permissions. Old local Inbox draft/Notes
-library workflows are not a second offline app. Compose records remain local and
-can participate in the existing local backup workflow.
+library workflows are not a second offline app. Compose records remain local.
 
 PDF is an additional tab, for documents with a text layer, using the built-in Lumen
 PDF engine. Original/result page previews and new-file export preserve the
@@ -826,19 +825,11 @@ cause from correlation alone. The read-only `lumen_system_snapshot` MCP tool giv
 Lumen the same measurement basis without opening the UI.
 
 
-### Vault, Sicherungen und native Zugangsdaten
+### Lumen Vault
 
-`lumen-vault` öffnet die gemeinsame Server-App. **Lumen System → Sicherungen**
-(`lumen-system --page backups` oder der kompatible Aufruf `lumen-vault --backups`)
-bleibt der lokale Weg für Restic-Sicherungen. Beide Funktionen sind getrennt.
-
-`lumen-vault --preview` ist nur eine Ansicht mit Beispieldaten. Die separat
-installierte native Vorabversion wird ausdrücklich über `lumen-vault --lab`
-geöffnet. Ihr Broker ermöglicht bestätigte Zugangsdatenaktionen; die normale
-Installation verspricht dadurch keinen zweiten regulären Offline-Tresor.
-`PRODUCTION_READY=false` und die dokumentierten Prüfgrenzen gelten weiter.
-[Bedienung und Abgrenzung](../VAULT-INBOX.md) ·
-[Native Schutzgrenzen](../native/vault-ui/README.md).
+`lumen-vault` öffnet die gemeinsame Server-App. Lokale Sicherungspläne, der
+lokale KeePass-Tresor und der lokale Zugangsdaten-Broker sind entfernt.
+[Bedienung und Abgrenzung](../VAULT-INBOX.md).
 
 ### Lumen Audio Studio
 
@@ -880,7 +871,7 @@ Notizordner-/Sync-Dialoge sind kein aktueller zweiter Bedienweg.
 
 **Eigenschaften …** im Kontextmenü oder **Alt+Enter** öffnet eine kompakte
 Infokarte. **Mehr Details** erweitert denselben Dialog um Speicheraufteilung,
-Sicherungsstatus, Verknüpfungen und bestehende Versionsansichten; noch nicht
+Verknüpfungen und bestehende Versionsansichten; noch nicht
 übernommene Eingaben bleiben erhalten. Größe, Prüfsumme und Metadaten werden
 im Hintergrund ermittelt. Ordnergrößen folgen keinen symbolischen Links;
 SHA-256 wird nur auf Wunsch berechnet und erkennt währenddessen geänderte Dateien.
@@ -890,7 +881,6 @@ Keine rekursiven Rechteänderungen, kein Überschreiben vorhandener Namen.
 Eigentümer, Gruppen, Sonderrechte und erweiterte ACLs bleiben unverändert;
 NAS-Rechte werden nur angezeigt. Drive verwendet Servermetadaten und bestehende
 Serverrechte, ohne Inhalte dafür herunterzuladen; Umbenennen ist revisionsgebunden.
-Ein passender Sicherungsplan ist ausdrücklich kein Nachweis gesicherter Inhalte.
 
 Gezielte Prüfung: `QT_QPA_PLATFORM=offscreen LUMEN_LANGUAGE=de python -m unittest
 test_file_properties` aus dem Verzeichnis `files`. Die Tests verwenden temporäre

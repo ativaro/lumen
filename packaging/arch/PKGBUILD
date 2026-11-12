@@ -18,17 +18,14 @@ optdepends=(
     'bubblewrap: isolated browser sessions for the connected Lumen server'
     'nodejs: optional Playwright browser automation runtime'
     'npm: install the pinned optional browser automation dependencies'
-    'qt6-webengine: Shared Lumen Server apps and optional native Vault browser'
-    'libssh: SSH access through the optional native Vault'
-    'kidletime: Desktop inactivity locking in the optional native Vault'
+    'qt6-webengine: Shared Lumen Server apps'
     'rclone: Cloud account login and file access in Lumen Files'
     'fuse3: Cloud filesystems in Lumen Files'
     'opencode: AI engine (or existing standalone OpenCode installation)'
     'whisper.cpp: existing offline dictation engine (or use the setup wizard)'
     'pipewire-audio: microphone recording for offline dictation'
     'polkit: native authorization for optional setup packages'
-    'libsecret: credentials for native Vault and network backups in the desktop keyring'
-    'restic: encrypted Vault backups (or use the setup wizard)'
+    'restic: encrypted device backups to the connected Lumen server'
     'cmake: optional user-local speech engine build in the setup wizard'
     'gcc: optional user-local speech engine build in the setup wizard'
     'make: optional user-local speech engine build in the setup wizard'
@@ -49,10 +46,6 @@ optdepends=(
     'tesseract-data-deu: German OCR'
     'tesseract-data-eng: English OCR'
     'ffmpeg: Lumen Files video/audio preview (ffprobe, ffmpeg)'
-    'gvfs: Vault network discovery and reconnectable mounts'
-    'gvfs-wsdd: automatic discovery of modern SMB servers'
-    'gvfs-smb: Vault SMB shares with inline sign-in'
-    'smbclient: validate Vault SMB credentials'
     'kio-fuse: Lumen Files network folders (SMB/SFTP/WebDAV/NFS)'
     'kio-extras: Lumen Files network protocols'
     'kde-cli-tools: file properties, default application settings and native SMB authentication'
@@ -226,7 +219,7 @@ package() {
     # ---- opencode commands / skill (system-wide share) --------------------
     install -d "$pkgdir/usr/share/lumen/opencode-command"
     install -m0644 "$srcroot/opencode-command/"*.md "$pkgdir/usr/share/lumen/opencode-command/" 2>/dev/null || true
-    for skill in lumen-admin lumen-projects lumen-vault-http; do
+    for skill in lumen-admin lumen-projects; do
         install -Dm0644 "$srcroot/opencode-skill/$skill/SKILL.md" "$pkgdir/usr/share/lumen/opencode-skill/$skill/SKILL.md"
     done
 

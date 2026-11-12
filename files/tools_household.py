@@ -63,14 +63,8 @@ class Household(ToolWindow):
         for key,field in self.fields.items(): field.setText(r.get(key,''))
         for key,field in self.dates.items(): field.setDate(QDate.fromString(r[key],'yyyy-MM-dd') if r.get(key) else field.minimumDate())
         self.notes.setPlainText(r.get('notes','')); self.due.setText(deadlines(r)); self.attachments.clear()
-        from interop_vault import coverage
-        statuses=coverage([str(self.library.asset(item['asset'])) for item in r.get('attachments',[])],self.library.root.parent)
-        by_path={item['path']:item for item in statuses}
         for item in r.get('attachments',[]):
             suffix=tr('Text durchsuchbar') if item.get('text') else item.get('error',tr('Datei gespeichert'))
-            status=by_path.get(str(self.library.asset(item['asset']).resolve()),{})
-            if not any(plan.get('last_backup') and not plan.get('changed') for plan in status.get('plans',[])):
-                suffix+=' · '+tr('Noch kein Sicherungslauf seit dieser Änderung')
             widget=QListWidgetItem(item['name']+'\n'+suffix); widget.setData(Qt.UserRole,item); self.attachments.addItem(widget)
         self.status.setText(tr('Belege bleiben lokal · Änderungen werden automatisch gespeichert'))
 

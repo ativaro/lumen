@@ -153,7 +153,7 @@ class SearchController(QObject):
 
     @Slot(result=bool)
     def clipboard_protected(self):
-        from vault_privacy import protected_clipboard
+        from clipboard_image import protected_clipboard
         return protected_clipboard(QGuiApplication.clipboard())
 
     @Slot(result=bool)
@@ -355,7 +355,7 @@ class SearchController(QObject):
                     mime=mimetypes.guess_type(path)[0] or ''
                     if mime.startswith('image/') or mime=='application/pdf':files.append((path,mime))
             context={'context_data':{'note_reference':self.note_context['reference']}} if self.note_context else {}
-            if self.backend.send(prompt, files, agent=self._mode, memory_text=query, user_text=query,**context) is False:
+            if self.backend.send(prompt, files, agent=self._mode, memory_text=query,**context) is False:
                 self.set_query(query)
             else:self.note_context={}
             self.focusRequested.emit(); return

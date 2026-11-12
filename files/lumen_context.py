@@ -2,8 +2,7 @@
 from lumen_i18n import worker_process, tr
 from pathlib import Path
 import shutil
-import os
-from vault_privacy import acquire_capture, protected_clipboard, MESSAGE
+from clipboard_image import protected_clipboard
 import tempfile
 from PySide6.QtCore import QObject, QProcess, QTimer
 from PySide6.QtWidgets import QApplication, QFileDialog, QHBoxLayout, QPushButton, QCheckBox, QMenu
@@ -55,13 +54,7 @@ class ContextTools(QObject):
             self.panel.show_error(tr('Für die Bereichsauswahl wird Spectacle benötigt.')); return
         path, _ = QFileDialog.getSaveFileName(self.panel, tr('Bildschirmkontext speichern'), self.panel.backend.directory + '/lumen-kontext.png', 'PNG (*.png)')
         if not path: return
-        try: lease = acquire_capture()
-        except OSError:
-            self.panel.show_error(MESSAGE); return
-        self.capture_lease = lease
         def captured(code, output):
-            if getattr(self, 'capture_lease', None) is not None:
-                os.close(self.capture_lease); self.capture_lease = None
             if code == 0 and Path(path).is_file():
                 self.panel.paths = list(dict.fromkeys(self.panel.paths + [path])); self.panel.update_context()
             elif code: self.panel.show_error(tr('Bildschirmaufnahme abgebrochen oder fehlgeschlagen.'))
@@ -83,7 +76,7 @@ class ContextTools(QObject):
 
     def clipboard(self):
         if protected_clipboard(QApplication.clipboard()):
-            self.panel.show_error('Protected Vault clipboard content cannot be sent to Lumen.'); return
+            self.panel.show_error('Password manager clipboard content cannot be sent to Lumen.'); return
         if not self.panel.backend.busy: self.panel.composer.paste()
 
     def dictate(self):
@@ -151,6 +144,4 @@ class ContextTools(QObject):
         if self.conversation: self.conversation.stop()
         if self.process:
             proc = self.process; self.process = None; proc.kill(); proc.waitForFinished(1000); proc.deleteLater()
-        if getattr(self, 'capture_lease', None) is not None:
-            os.close(self.capture_lease); self.capture_lease = None
         self.recording = False; self.cleanup()

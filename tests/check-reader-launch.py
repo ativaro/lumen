@@ -26,7 +26,7 @@ with tempfile.TemporaryDirectory(prefix='lumen-reader-sound-launch-') as tmp:
     from wissen_data import activate,Notebook
     store=Store(root/'state/lumen');activate(store);book=Notebook(store)
     notes=[book.create('First note','First thought'),book.create('Second note','Second thought')]
-    for tool in ('reader','sound','wissen','vault','inbox','radio','meetings','workbench','household'):
+    for tool in ('reader','sound','wissen','inbox','radio','meetings','workbench','household'):
         binary=str(binary_dir/('lumen-'+tool));library=Library(tool,root/'tools')
         paths=[str(first),str(second)] if tool=='reader' else [str(book.root/n['path']) for n in notes] if tool=='wissen' else []
         with tempfile.TemporaryFile() as log:

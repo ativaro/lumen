@@ -13,17 +13,35 @@ class LumenOSTest(unittest.TestCase):
             root=Path(tmp); data=root/'data'; config=root/'config'; bins=data/'lumen/bin'
             bins.mkdir(parents=True); (bins/'lumen-python').write_text('#!/bin/sh\n')
             units=config/'systemd/user'; units.mkdir(parents=True)
-            unit=units/'lumen-vault.service'
-            original='[Service]\nExecStart=/usr/bin/python3 "'+str(data/'lumen/files/vault_data.py')+'" --tick\nNice=10\n'
+            unit=units/'lumen-sound.service'
+            original='[Service]\nExecStart=/usr/bin/python3 "'+str(data/'lumen/files/sound_data.py')+'" --tick\nNice=10\n'
             unit.write_text(original)
-            custom=units/'lumen-sound.service'; custom.write_text('[Service]\nExecStart=/custom/worker\n')
+            custom=units/'lumen-jobs.service'; custom.write_text('[Service]\nExecStart=/custom/worker\n')
             with patch.dict(os.environ,{'XDG_DATA_HOME':str(data),'XDG_CONFIG_HOME':str(config)}),patch('pathlib.Path.home',return_value=root):
                 self.assertEqual(migrate_launchers(bins),[str(unit)])
                 self.assertIn('ExecStart="'+str(bins/'lumen-python')+'"',unit.read_text())
                 self.assertIn('Nice=10',unit.read_text())
-                self.assertEqual(unit.with_name('lumen-vault.service.pre-lumen').read_text(),original)
+                self.assertEqual(unit.with_name('lumen-sound.service.pre-lumen').read_text(),original)
                 self.assertEqual(migrate_launchers(bins),[])
                 self.assertIn('/custom/worker',custom.read_text())
+
+    def test_retired_backup_units_are_disabled_and_removed_without_touching_others(self):
+        import os
+        from unittest.mock import patch
+        from lumen_migrate import retire_vault_units
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp); units=root/'config/systemd/user'; units.mkdir(parents=True)
+            wants=units/'timers.target.wants'; wants.mkdir()
+            for name in ('lumen-vault.timer','lumen-vault.service','lumen-jobs.timer','lumen-sound.service'):(units/name).write_text('[Unit]\n')
+            (units/'lumen-vault.service.pre-lumen').write_text('kept')
+            fake=root/'bin'; fake.mkdir(); log=root/'systemctl.log'
+            (fake/'systemctl').write_text('#!/bin/sh\necho "$@" >> '+str(log)+'\n'); (fake/'systemctl').chmod(0o755)
+            with patch.dict(os.environ,{'XDG_CONFIG_HOME':str(root/'config'),'PATH':str(fake)+os.pathsep+os.environ['PATH']}):
+                self.assertEqual(retire_vault_units(),[str(units/'lumen-vault.timer'),str(units/'lumen-vault.service')])
+                self.assertEqual(log.read_text().splitlines(),['--user disable --now lumen-vault.timer','--user stop lumen-vault.service','--user daemon-reload'])
+                self.assertEqual(sorted(p.name for p in units.iterdir()),['lumen-jobs.timer','lumen-sound.service','lumen-vault.service.pre-lumen','timers.target.wants'])
+                self.assertEqual(retire_vault_units(),[])
+                self.assertEqual(len(log.read_text().splitlines()),3)
 
     def test_cached_vision_launcher_reaches_current_app_and_preserves_arguments(self):
         import json
@@ -44,8 +62,6 @@ class LumenOSTest(unittest.TestCase):
             original = template.replace('/share/lumen/', '/share/opencode-lumen/')
             old.write_text(original); old.chmod(0o755)
             shutil.copy2(repo / 'bin/lumen-vision', legacy / 'lumen-vision')
-            shutil.copy2(repo / 'bin/lumen-private-capture', legacy / 'lumen-private-capture')
-            (legacy.parent / 'files').mkdir(); shutil.copy2(repo / 'files/vault_privacy.py', legacy.parent / 'files/vault_privacy.py')
             main = current.parent / 'agent-app/main.py'; main.parent.mkdir()
             main.write_text('import sys,json\nfrom pathlib import Path\n'
                             'assert Path(sys.argv[sys.argv.index("--file")+1]).read_bytes()==b"test-image"\n'

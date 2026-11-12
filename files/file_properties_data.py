@@ -37,7 +37,7 @@ def inspect(paths, job, remote=False):
                          target=os.readlink(path) if kind == 'link' else '', acl=acl,
                          can_mode=not remote and kind in ('file','folder') and st.st_uid == os.geteuid() and acl is False,
                          remote=remote))
-    result = dict(rows=rows, plans=[], metadata={}, acl_text='')
+    result = dict(rows=rows, metadata={}, acl_text='')
     if len(rows) == 1:
         row = rows[0]
         if row['created'] is None:
@@ -80,11 +80,6 @@ def inspect(paths, job, remote=False):
                 result['acl_text'] = job.command(['getfacl','--omit-header','--numeric','--',row['path']], timeout=4, max_output=32768).decode(errors='replace')
             except Exception:
                 job.check()
-        try:
-            from interop_vault import coverage
-            result['plans'] = coverage(paths)[0]['plans']
-        except Exception:
-            job.check(); result['backup_error'] = True
     return result
 
 

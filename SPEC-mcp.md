@@ -36,8 +36,7 @@ Existing tool names and the `cachyos` OpenCode configuration key remain compatib
 - Settings: allowlisted preferences, designs, feature enablement and native desktop
   state. Optional preference/theme/shortcut updates reuse native conflict checks and
   history. No arbitrary config keys, shell commands or credentials.
-- Vault: cached plan/status metadata only, clearly distinguished from a live repository
-  check. Inbox: bounded local message/calendar cache queries, separately enabled in
+- Inbox: bounded local message/calendar cache queries, separately enabled in
   native settings, default off. No network sync, sending or calendar mutation.
 - Write tools require existing `LUMEN_MCP_ACTIONS=1`; read tools cannot turn this on.
   Per-call Inbox and memory permissions are checked afresh. Content is untrusted data.
@@ -51,8 +50,8 @@ Existing tool names and the `cachyos` OpenCode configuration key remain compatib
 
 Isolated fixtures cover source provenance, unavailable network paths, timeout cleanup,
 private/shared/revoked notes, project memory, action gating, settings conflicts/history,
-Inbox opt-in, secret/raw-message exclusion, stable pagination, task details, Vault cache
-semantics and JSON-RPC stdio recovery. No real emails, backups, themes or files modified
+Inbox opt-in, secret/raw-message exclusion, stable pagination, task details
+and JSON-RPC stdio recovery. No real emails, backups, themes or files modified
 by tests. Smoke the installed server using an isolated profile.
 
 Protocol reference: https://modelcontextprotocol.io/specification/2025-06-18/server/tools

@@ -1,12 +1,11 @@
 """Cross-app neighbors for the native notebook graph and its keyboard list."""
 import re
 from interop_data import Registry
-from lumen_i18n import tr
 
 
 def app_title(app):
-    from interop_vault import APP_NAMES
-    return tr(APP_NAMES.get(app, 'Lumen Files' if app == 'files' else 'Lumen'))
+    from interop_ui import app_name
+    return app_name(app)
 
 
 def neighbors(book, note, root=None, area='user'):

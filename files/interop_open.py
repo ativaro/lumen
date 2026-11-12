@@ -175,9 +175,6 @@ def focus_part(window,position):
     if app=='sound' and kind=='rule':
         items=window_parts(window,kind);index=match_part(kind,value,items)
         window.tabs.setCurrentIndex(1);_select_tree(window.rules,items[index]['app']);return
-    if app=='vault' and kind=='snapshot':
-        window.action('snapshots',completed=lambda:_select_tree(window.snapshots,value))
-        return
     if part:raise ValueError(tr('Diese verknüpfte Fundstelle wird nicht unterstützt.'))
 
 

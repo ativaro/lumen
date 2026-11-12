@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-SELF_DIR="$(dirname "$(readlink -f "$0")")"
-for guard in "$SELF_DIR/../files/vault_privacy.py" "$SELF_DIR/../share/lumen/files/vault_privacy.py" /usr/share/lumen/files/vault_privacy.py; do
-    if [[ -f "$guard" ]]; then exec /usr/bin/python3 "$guard" "$@"; fi
-done
-exit 1

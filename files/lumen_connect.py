@@ -895,7 +895,7 @@ def sync_data():
     if not helper.exists():
         helper = Path.home()/".local/share/lumen/files/sync_settings.py"
     if not helper.exists():
-        sync_memory(); sync_drive(); sync_vault()
+        sync_memory(); sync_drive()
         return
     _DATA_PROCESS = subprocess.Popen([sys.executable, str(helper)], stdin=subprocess.PIPE,
                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -903,34 +903,6 @@ def sync_data():
         _DATA_PROCESS.stdin.write(b'{"action":"sync"}')
         _DATA_PROCESS.stdin.close()
     except (BrokenPipeError, OSError): pass
-
-
-def sync_vault():
-    """Ciphertext-only, independently of Vault windows and unlock state."""
-    data = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
-    root = data / "lumen-vault-lab"
-    if not (root / "sync-auto.json").exists():
-        return
-    helper = Path(__file__).with_name("vault_sync.py")
-    if not helper.exists():
-        helper = data / "lumen/files/vault_sync.py"
-    if not helper.exists():
-        return
-    try:
-        result = subprocess.run(
-            [sys.executable, str(helper)],
-            input=json.dumps({"op": "auto-poll", "root": str(root)}),
-            text=True,
-            capture_output=True,
-            timeout=45,
-        )
-        if result.returncode:
-            print(
-                "Tresorabgleich nicht abgeschlossen; Status im nativen Serverabgleich prüfen.",
-                file=sys.stderr,
-            )
-    except (OSError, subprocess.TimeoutExpired):
-        print("Tresorabgleich unterbrochen; nächster Durchlauf prüft den Ausgang.", file=sys.stderr)
 
 
 _NOTES_PROCESSES = {}
@@ -1061,7 +1033,7 @@ def main():
         import threading
         threading.Thread(target=watch_browser, args=(sys.modules[__name__],), daemon=True).start()
         while True:
-            # Custom connector profiles must never sync the default personal vault.
+            # Custom connector profiles must never sync the default personal data.
             if not args.config_dir:
                 sync_data()
             try:

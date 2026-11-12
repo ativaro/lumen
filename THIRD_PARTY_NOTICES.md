@@ -7,8 +7,7 @@ complete application can be distributed under proprietary terms.
 
 - **Qt / PySide6:** applicable LGPL/GPL/commercial licenses remain in force.
   Preserve notices, corresponding-source availability and required replacement,
-  relinking and debugging rights. Native Vault's modules, notices and instructions
-  are documented in [native/vault-ui/LICENSES.md](native/vault-ui/LICENSES.md).
+  relinking and debugging rights.
 - **Native desktop bar:** dynamically links the separately installed
   LayerShellQt (LGPL-2.0-or-later) and libdbusmenu-glib
   (LGPL-2.1-only OR LGPL-3.0-only) libraries. Their upstream/system-package notices
@@ -30,11 +29,6 @@ complete application can be distributed under proprietary terms.
   wallpapers retain GPL-3.0 and editable sources. See
   [desktop/CREDITS.md](desktop/CREDITS.md) and
   [desktop/COPYING.GPL-3.0](desktop/COPYING.GPL-3.0).
-- **Native Vault dependencies:** vendored keepass, including its documented local
-  patches, remains MIT. The exact dependency inventory, license expressions and
-  notice hashes remain in [native/vault-core/THIRD_PARTY.md](native/vault-core/THIRD_PARTY.md)
-  and `native/vault-core/licenses/`. Rust and Qt notices are also shipped by the
-  native installer. Those MIT and other notices must not be replaced by the EULA.
 - **Bundled DM Sans fonts:** copyright the DM Sans Project Authors; distributed
   under the SIL Open Font License 1.1. The complete notice is shipped alongside
   the unchanged font files in [files/fonts/OFL.txt](files/fonts/OFL.txt).

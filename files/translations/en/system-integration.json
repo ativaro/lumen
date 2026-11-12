@@ -13,9 +13,5 @@
   "Wenn ein Auftrag hängen bleibt, findest du hier seinen Verlauf und die verfügbaren Aktionen.": "If a task gets stuck, find its history and available actions here.",
   "Die Aufgaben konnten nicht geöffnet werden. Bitte die Lumen-Installation prüfen.": "Tasks could not be opened. Please check your Lumen installation.",
   "Sicherungen": "Backups",
-  "Passwörter und geschützte Einträge": "Passwords and protected entries",
-  "Bitte den laufenden Vorgang abschließen oder ausdrücklich abbrechen.": "Please finish the current operation or explicitly cancel it.",
-  "Bitte das bisherige Sicherungsfenster schließen und Lumen System erneut öffnen.": "Please close the previous backup window and reopen Lumen System.",
-  "Quellen, Ziele und Zeitpläne verwaltest du unter Lumen System → Sicherungen.": "Manage sources, destinations and schedules in Lumen System → Backups.",
-  "Sicherungspläne in Lumen System": "Backup plans in Lumen System"
+  "Passwörter und geschützte Einträge": "Passwords and protected entries"
 }

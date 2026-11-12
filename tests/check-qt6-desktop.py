@@ -11,7 +11,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--output', type=Path, default=ROOT/'artifacts/qt6/windows')
-parser.add_argument('--child', choices=('lumen','files','settings','setup','search','meetings','household','workbench','radio','vault','inbox','reader','sound','wissen'))
+parser.add_argument('--child', choices=('lumen','files','settings','setup','search','meetings','household','workbench','radio','inbox','reader','sound','wissen'))
 parser.add_argument('--platform', default='offscreen')
 args = parser.parse_args()
 args.output.mkdir(parents=True, exist_ok=True)

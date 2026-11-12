@@ -21,7 +21,7 @@ def add_actions(window, menu, payload=None):
     except ValueError: return
     source = payload.get('source', {})
     options = actions(payload)
-    primary = {'translate.import', 'wissen.import', 'workbench.add', 'vault.sources'}
+    primary = {'translate.import', 'wissen.import', 'workbench.add'}
     extra = None
     for action, title in options:
         if action == 'translate.import' and window.name in ('reader', 'inbox'):
@@ -113,6 +113,6 @@ def receive_drop(window, payload):
             for path in payload['paths']:controller(window).enqueue({'path':path})
             return
     preferred = {'wissen':'wissen.import', 'reader':'reader.import', 'workbench':'workbench.add',
-                 'household':'household.add', 'vault':'vault.sources', 'radio':'radio.add', 'meetings':'meetings.import'}
+                 'household':'household.add', 'radio':'radio.add', 'meetings':'meetings.import'}
     action = preferred.get(name)
     reviewed_send(window, payload, action if action in dict(actions(payload)) else None)

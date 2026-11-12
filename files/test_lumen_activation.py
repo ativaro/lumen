@@ -67,28 +67,6 @@ def verify_private_kde():
     quick = QQuickWindow(); quick.setTitle('Lumen QML window'); quick.resize(600, 400); quick.show(); QTest.qWait(300)
     quick.showMinimized(); QTest.qWait(100); present(quick); QTest.qWait(250)
     assert quick.isActive(); quick.close()
-    binary = Path(__file__).resolve().parents[1]/'native/vault-ui/build/lumen-vault-lab'
-    assert binary.exists(), 'Build the native Vault target first'
-    with tempfile.TemporaryDirectory() as tmp:
-        store = SimpleNamespace(directory=Path(tmp))
-        with open(Path(tmp)/'vault.log', 'w') as output:
-            native = subprocess.Popen([str(binary), '--laboratory-only'], stdout=output, stderr=output)
-            try:
-                target = f'workspace.windowList().find(w => Number(w.pid) === {native.pid} && w.normalWindow)'
-                for _ in range(40):
-                    QTest.qWait(150)
-                    assert native.poll() is None
-                    if window_script(store, f'return Boolean({target});'): break
-                assert window_script(store, f'const w = {target}; w.minimized = true; return w.minimized;')
-                second = subprocess.run([str(binary), '--laboratory-only'], capture_output=True, timeout=5)
-                assert second.returncode == 0, second.stderr.decode()
-                for _ in range(30):
-                    QTest.qWait(150)
-                    if window_script(store, f'return workspace.activeWindow === {target} && !{target}.minimized;'): break
-                else: raise AssertionError('Native Vault relaunch did not activate its existing window')
-                assert native.poll() is None
-            finally:
-                native.terminate(); native.wait(timeout=5)
     print('LUMEN_KDE_FOCUS_OK', flush=True)
 
 

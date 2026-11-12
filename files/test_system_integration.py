@@ -71,13 +71,13 @@ class SystemIntegrationTest(unittest.TestCase):
         self.assertIn('sound', dialog.app_controls); self.assertIn('system', dialog.app_controls)
         dialog.deleteLater()
 
-    def test_real_process_activation_and_backup_endpoint(self):
+    def test_real_process_activation_and_sound_endpoint(self):
         code = r'''
 import json, os, subprocess, sys, time
 from pathlib import Path
 from PySide6.QtCore import QCoreApplication
 from PySide6.QtNetwork import QLocalSocket
-from interop_flush import server_name
+from tools_app import server_name
 app = QCoreApplication([])
 folder = Path(os.environ['TEST_ROOT']); log = folder/'pages'
 runner = folder/'runner.py'
@@ -90,20 +90,17 @@ with open(folder/'child.log','w') as output:
    assert proc.poll() is None
    assert time.monotonic()<deadline
    time.sleep(.05)
-  for module,args in [('system_app.py',['--page','diagnostics']),('system_app.py',[]),('tools_app.py',['sound']),('updater_app.py',[]),('system_app.py',['--page','diagnostics']),('system_app.py',['--page','backups']),('system_app.py',['--page','system'])]:
+  for module,args in [('system_app.py',['--page','diagnostics']),('system_app.py',[]),('tools_app.py',['sound']),('updater_app.py',[]),('system_app.py',['--page','diagnostics']),('system_app.py',['--page','system'])]:
    result=subprocess.run([sys.executable,str(Path(os.environ['TEST_SOURCE'])/module),*args],stdout=output,stderr=output,timeout=12)
    assert result.returncode==0
   deadline=time.monotonic()+3
-  while len(log.read_text().splitlines())<7 and time.monotonic()<deadline: time.sleep(.05)
-  assert log.read_text().splitlines()==['system','diagnostics','sound','updates','diagnostics','backups','system'],log.read_text()
-  assert int((folder/'tools/vault/window.lock').read_text().splitlines()[0])==proc.pid
+  while len(log.read_text().splitlines())<6 and time.monotonic()<deadline: time.sleep(.05)
+  assert log.read_text().splitlines()==['system','diagnostics','sound','updates','diagnostics','system'],log.read_text()
+  assert not (folder/'tools/vault').exists()
   assert int((folder/'tools/sound/window.lock').read_text().splitlines()[0])==proc.pid
   sock=QLocalSocket();sock.connectToServer(server_name(folder/'tools/sound'))
   assert sock.waitForConnected(2000)
-  sock.write(json.dumps({'vault_flush':'b'*32}).encode()+b'\n');sock.waitForBytesWritten(1000)
-  assert sock.waitForReadyRead(2000)
-  response=json.loads(bytes(sock.readAll()));assert response['ok'] and response['app']=='sound',response
-  assert log.read_text().splitlines()[-1]=='system'  # A backup never changes tabs.
+  sock.disconnectFromServer()
  finally:
   proc.terminate();proc.wait(timeout=5)
 '''

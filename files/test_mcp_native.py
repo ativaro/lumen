@@ -3,8 +3,6 @@ import json
 import os
 from pathlib import Path
 import subprocess
-import socket
-import threading
 import sys
 import tempfile
 import unittest
@@ -100,7 +98,7 @@ class NativeMCPTest(unittest.TestCase):
         before['$schema']='https://opencode.ai/config.json'
         self.assertEqual(after,before)
         self.assertEqual(custom.read_text(), 'My own replacement skill')
-        self.assertTrue((config/'skills/lumen-vault-http/SKILL.md').is_file())
+        self.assertFalse((config/'skills/lumen-vault-http').exists())
 
     def test_setup_replaces_only_retired_stock_skill(self):
         repo=Path(mcp.__file__).resolve().parent.parent
@@ -109,11 +107,14 @@ class NativeMCPTest(unittest.TestCase):
         retired.parent.mkdir(parents=True)
         old=(repo/'files/fixtures/retired-service-skill.md').read_bytes()
         retired.write_bytes(old)
+        vault=config/'skills/lumen-vault-http/SKILL.md';vault.parent.mkdir()
+        vault.write_bytes((repo/'files/fixtures/retired-vault-http-skill.md').read_bytes())
+        edited=config/'skill/lumen-vault-http/SKILL.md';edited.parent.mkdir(parents=True);edited.write_text('My own vault notes')
         result=subprocess.run([str(repo/'bin/lumen-setup')],env=dict(os.environ,OPENCODE_HOME=str(config)),
             capture_output=True,text=True,timeout=10)
         self.assertEqual(result.returncode,0,result.stderr)
-        self.assertFalse(retired.exists())
-        self.assertTrue((config/'skills/lumen-vault-http/SKILL.md').is_file())
+        self.assertFalse(retired.exists());self.assertFalse(vault.parent.exists())
+        self.assertEqual(edited.read_text(),'My own vault notes')
 
     def test_shared_notes_links_revocation_and_memory_scope(self):
         from wissen_data import activate, Notebook
@@ -220,15 +221,6 @@ class NativeMCPTest(unittest.TestCase):
         with library.connect() as db:
             self.assertEqual(db.execute('SELECT count(*) FROM messages').fetchone()[0],3)
 
-    def test_vault_status_is_cached_and_does_not_unlock(self):
-        from tools_data import Library
-        Library('vault').create('Backup',repository='/unreachable',sources=['/source'],last_backup=123,password='SECRET',last_error='offline')
-        with patch('tools_secrets.secret',side_effect=AssertionError('must not unlock')):
-            result=invoke('lumen_vault_status',{})
-        self.assertTrue(result['cached']);self.assertFalse(result['repository_checked'])
-        self.assertEqual(result['items'][0]['last_backup'],123)
-        self.assertNotIn('SECRET',json.dumps(result))
-
     def test_invalid_native_arguments_rejected_before_worker(self):
         for name,args in [('lumen_files_search',dict(library='x',source=True,query='a')),
                           ('lumen_memory_list',dict(query='a',limit=1000)),
@@ -238,15 +230,6 @@ class NativeMCPTest(unittest.TestCase):
                 with self.assertRaises(ValueError):mcp.validate_schema(args,DEFINITIONS[name]['schema'])
                 worker.assert_not_called()
 
-    def test_http_plan_schema(self):
-        schema = DEFINITIONS['lumen_vault_http_open']['schema']
-        step = dict(method='POST', path='/session', body={'secret':{'$vault':'password'}})
-        valid = dict(reference='vault:example', requests=[step, dict(method='GET',path='/status')])
-        mcp.validate_schema(valid, schema)
-        for plan in ([], [step]*13, ['bad'], [dict(step, session='override')], [dict(step, headers={})], [dict(path='/status')]):
-            with self.subTest(plan=plan), self.assertRaises(ValueError):
-                mcp.validate_schema(dict(reference='vault:example', requests=plan), schema)
-
     def test_timeout_kills_worker_process_group(self):
         process=unittest.mock.Mock(pid=123)
         process.communicate.side_effect=[subprocess.TimeoutExpired('worker',45),('','')]
@@ -254,49 +237,18 @@ class NativeMCPTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'timed out'):mcp.tool_native('lumen_settings_get',{})
         kill.assert_called_once();self.assertEqual(process.communicate.call_count,2)
 
-    def test_api_write_schema_and_worker_failure_boundary(self):
-        schema = DEFINITIONS['lumen_vault_api_request']['schema']
-        for body in ({'text':'hello'}, [{'op':'replace'}], [0]*1001):
-            mcp.validate_schema({'method':'POST','body':body}, schema)
-        for body in ('text', 1, True, None):
-            with self.assertRaises(ValueError): mcp.validate_schema({'method':'POST','body':body}, schema)
-        for method in ('CONNECT','post','POST\r\nHeader: x'):
-            with self.assertRaises(ValueError): mcp.validate_schema({'method':method}, schema)
-        for name,args in [('lumen_vault_api_request',{'method':'POST'}),('lumen_vault_mcp',{'operation':'call','name':'x','arguments':{}}), ('lumen_vault_ssh_exec',{'reference':'vault:x','command':'uname -a'}), ('lumen_vault_http_request',{'session':'s','method':'GET','path':'/rpc'}), *[(f'lumen_vault_web_{op}', {'session':'opaque','snapshot':'snap','node':'1'}) for op in ('login','click','fill')]]:
+    def test_mutation_worker_failure_reports_unknown_outcome(self):
+        args={'title':'Synthetic','text':'Synthetic fact','kind':'fact'}
+        with patch.dict(os.environ,LUMEN_MCP_ACTIONS='1'):
             process=unittest.mock.Mock(pid=123)
-            process.communicate.side_effect=[subprocess.TimeoutExpired('worker',105),('','')]
+            process.communicate.side_effect=[subprocess.TimeoutExpired('worker',45),('','')]
             with patch.object(mcp.subprocess,'Popen',return_value=process),patch.object(mcp.os,'killpg'):
-                with self.assertRaisesRegex(ValueError,'outcome is unknown'):mcp.tool_native(name,args)
-            for code,output in [(1,''),(0,'invalid'),(0,'[]'),(0,'{}'),(0,'x'*(2*1024*1024+1))]:
+                with self.assertRaisesRegex(ValueError,'outcome is unknown'):mcp.tool_native('lumen_memory_remember',args)
+            for code,output in [(1,''),(0,'invalid'),(0,'[]'),(0,'{}'),(0,'x'*(1024*1024+1))]:
                 process=unittest.mock.Mock(pid=123,returncode=code)
                 process.communicate.return_value=(output,'')
                 with patch.object(mcp.subprocess,'Popen',return_value=process):
-                    with self.assertRaisesRegex(ValueError,'outcome is unknown'):mcp.tool_native(name,args)
-
-    def test_api_near_limit_reply_through_real_worker_and_adapter(self):
-        for char in ('a','ä'):
-            with tempfile.TemporaryDirectory(prefix='lumen-mcp-',dir='/tmp') as directory, patch.dict(os.environ, XDG_RUNTIME_DIR=directory):
-                endpoint=Path(directory)/'lumen-vault-access'
-                service=socket.socket(socket.AF_UNIX);service.bind(str(endpoint));endpoint.chmod(0o600);service.listen(1)
-                service.settimeout(10)
-                body={'text':char*((1024*1024-12)//len(char.encode()))}
-                reply={'untrusted_content':True,'http_status':201,'result':body}
-                data=json.dumps(reply,ensure_ascii=False,separators=(',',':')).encode()+b'\n'
-                self.assertGreater(len(data),1024*1024)
-                received=[]
-                def serve():
-                    with service:
-                        for payload in (b'{"unlocked":true}\n', data):
-                            client,_=service.accept()
-                            with client:
-                                received.append(json.loads(client.recv(65536)))
-                                client.sendall(payload)
-                thread=threading.Thread(target=serve);thread.start()
-                try:
-                    result=mcp.tool_native('lumen_vault_api_request',{'method':'POST','path':'/pages','body':{'name':'Synthetic'}})
-                    self.assertEqual(result,reply)
-                    self.assertEqual(received,[{'operation':'unlock'},{'operation':'api_request','method':'POST','path':'/pages','body':{'name':'Synthetic'}}])
-                finally:thread.join(timeout=12)
+                    with self.assertRaisesRegex(ValueError,'outcome is unknown'):mcp.tool_native('lumen_memory_remember',args)
 
     def test_memory_discovery_has_no_keyword_gate_and_rechecks_scope_and_consent(self):
         from lumen_memory import Memory
@@ -370,16 +322,7 @@ class NativeMCPTest(unittest.TestCase):
         tools={t['name']:t for t in keyed[2]['result']['tools']}
         self.assertFalse(any(name.startswith('lumen_notes_') for name in tools));self.assertNotIn('lumen_theme_set',tools)
         self.assertIn('lumen_notification_settings',tools);self.assertNotIn('lumen_notification_configure',tools)
-        self.assertIn('lumen_vault_store',tools)
-        self.assertIn('lumen_vault_store_from_chat',tools)
-        self.assertIn('lumen_vault_mcp',tools)
-        self.assertIn('lumen_vault_api_get',tools)
-        self.assertIn('lumen_vault_api_request',tools)
-        self.assertFalse(tools['lumen_vault_api_request']['annotations']['readOnlyHint'])
-        self.assertTrue(tools['lumen_vault_api_request']['annotations']['destructiveHint'])
-        self.assertIn('lumen_vault_connection',tools)
-        self.assertFalse(tools['lumen_vault_store']['annotations']['readOnlyHint'])
-        self.assertNotIn('password',tools['lumen_vault_store']['inputSchema']['properties'])
+        self.assertFalse(any(name.startswith(('lumen_vault_','lumen_bookstack_')) for name in tools))
         self.assertTrue(tools['lumen_present_files']['annotations']['readOnlyHint'])
         self.assertEqual(keyed[9]['result']['structuredContent']['paths'], [str(self.root/'result.txt')])
         self.assertEqual(json.loads(keyed[9]['result']['content'][0]['text']), keyed[9]['result']['structuredContent'])

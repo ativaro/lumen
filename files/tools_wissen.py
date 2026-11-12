@@ -39,8 +39,6 @@ class Wissen(ToolWindow):
         self.poll_timer.timeout.connect(self.update_memory_status)
         QShortcut(QKeySequence.Save,self,activated=lambda:self.safe(self.save_note));QShortcut(QKeySequence.New,self,activated=lambda:self.safe(self.create));QShortcut(QKeySequence('Ctrl+F'),self,activated=self.search.setFocus)
         QShortcut(QKeySequence('Ctrl+K'),self,activated=lambda:self.safe(self.quick_open))
-        from wissen_sync_ui import install
-        install(self)
         self.present_area();self.editor.setEnabled(False)
         self.switch_area('lumen')
 
@@ -89,7 +87,6 @@ class Wissen(ToolWindow):
         self.title.setPlaceholderText(tr('Eine Erinnerung festhalten') if area=='lumen' else tr('Deine erste Notiz'))
         for key,b in self.area_buttons.items():b.setChecked(key==area)
         self.folder_action.setVisible(area=='user');self.share_folder_action.setVisible(area=='user');self.share_note.setVisible(True);self.share_note.setEnabled(False);self.memory_options.setVisible(area=='lumen')
-        self.backup_action.setVisible(area=='user');self.backup_info.setVisible(area=='user')
         self.origin.hide()
         self.timestamp.clear();self.timestamp.hide()
         self.collection_button.hide();self.rename_collection_button.hide()
@@ -167,26 +164,6 @@ class Wissen(ToolWindow):
             path,self.pending_file=self.pending_file,'';self.after_job=lambda:self.safe(self.open_file,path)
         else:self.after_job=self.poll
 
-    def backup_notebook(self):
-        from interop_ui import with_saved,reviewed_send
-        def send():
-            if not self.book:return
-            source=dict(app='wissen',kind='collection',id='collection:',title=tr('Meine Notizen'),
-                        locator=dict(root=str(self.book.root),area=self.area))
-            reviewed_send(self,dict(title=source['title'],source=source,paths=[str(self.book.root)]),'vault.sources')
-        with_saved(self,send)
-
-    def backup_status(self):
-        from interop_vault import coverage
-        from datetime import datetime
-        self.backup_action.setEnabled(bool(self.book) and not self.job)
-        plans=coverage([str(self.book.root)],self.library.root.parent)[0]['plans'] if self.book else []
-        lines=[]
-        for plan in plans:
-            rhythm={0:tr('Nur manuell'),86400:tr('Täglich'),604800:tr('Wöchentlich')}.get(plan['interval'],tr('Nur manuell'))
-            state=tr('Letzter Sicherungslauf: {0}',datetime.fromtimestamp(plan['last_backup']).strftime('%d.%m.%Y %H:%M')) if plan['last_backup'] else tr('Noch kein erfolgreicher Sicherungslauf.')
-            lines.append(plan['title']+' · '+rhythm+'\n'+state)
-        self.backup_info.setText('\n'.join(lines) or tr('Noch kein Sicherungsplan für dieses Notizbuch.'))
     def action(self,action,done,**values):
         if self.job and self.writing:
             self.after_job=lambda:self.action(action,done,**values);return
