@@ -2,9 +2,11 @@
 
 ## Auftrag und Grenze
 Der Nutzer verlangt eine eigene Implementierung der PDF-Technik. Kein MuPDF,
-PDFium, Poppler, pypdf, ReportLab oder QtPdf als neuer PDF-Backend. Allgemeine
-Python-Standardbibliothek sowie Qt für Schrift-/Bild-/Vektorzeichnen bleiben
-zulässig. Bestehende Fremdkomponenten-Lizenzen bleiben unverändert.
+PDFium, Poppler, pypdf, ReportLab oder QtPdf als PDF-Backend. Seit dem 12.11.2026
+ist der einzige PDF-Kern Lumens Dokument-Kern in Rust (`native/document-core`,
+Programm `lumen-document`). Allgemeine Bausteine mit frei nutzbarer Lizenz
+(Rasterer, Schrifttabellen, Bilddecoder, Farbverwaltung, Shaping) sind zulässig,
+eine fertige PDF-Engine nicht; `check-licenses.py` erzwingt die Lizenzregel.
 
 Dies ist ein vollständiger Ersatzauftrag, kein Versprechen, den gesamten
 PDF-Standard sofort abzudecken. Nicht unterstützte Konstrukte müssen mit einem
@@ -13,16 +15,17 @@ mit verlorenen Inhalten. Der produktive Backend wird erst nach bestandenen
 Verhaltensprüfungen umgestellt. Die Umstellung betrifft diese Abhängigkeit; sie ist keine pauschale Lizenzfreigabe für Lumen.
 
 ## Aufbau und Reihenfolge
-| Bereich | Verantwortung | Abhängigkeit |
+| Bereich | Verantwortung | Datei |
 | --- | --- | --- |
-| pdf-core | Begrenzte Syntax-/Objekt-/Stream-Verarbeitung, Seitentree, Schreiben | stdlib |
-| pdf-page | Schriftcodes, Textpositionen, Grafikoperatoren, Rasterdarstellung | pdf-core, QtGui |
-| pdf-workflows | Lesen, Kopieren/Drehen, Schwärzen, Übersetzung, OCR-Textschicht | pdf-page |
-| pdf-migration | EPUB/HTML-Ersatz, Notizanker, Vorschau/Suche, Paketbereinigung | pdf-workflows |
+| Objekte | Syntax, Querverweise, Objektstreams, Filter, Seitenbaum, Sicherheit | `src/pdf.rs`, `src/security.rs` |
+| Text | Schriften, Kodierungen, Wortpositionen, Ebenen, Ersatztext | `src/text.rs`, `src/type1.rs` |
+| Zeichnen | Pfade, Bilder, Farbräume, Transparenz, Verläufe, Muster | `src/render.rs`, `src/calculator.rs` |
+| Schreiben | Kopieren/Drehen, Schwärzen, OCR-Textschicht, Übersetzungssatz | `src/write.rs`, `src/translate.rs` |
 
-Dateien unter files/lumen_pdf*.py; Tests unter files/test_lumen_pdf*.py.
-Keine Übernahme fremder Implementierungen. PDF-Syntax nach ISO 32000-1, Qt-API
-nach der offiziellen Dokumentation. Kleine Funktionen, explizite Fehlerklassen.
+Python bindet den Kern nur noch an: `files/lumen_office.py` (Programm, Fehler,
+Helfer), `reader_data.py`, `document_workshop.py`, `translate_pdf.py` und die
+Aufrufer von `pdf_tool`. EPUB, HTML und Text bricht weiterhin `lumen_reflow.py`
+mit Qt um. Tests: `cargo test` im Kern und `files/test_lumen_pdf*.py`.
 
 ## Abnahme
 - Eingaben bleiben unverändert; Export überschreibt keine bestehenden Dateien.
@@ -40,8 +43,10 @@ nach der offiziellen Dokumentation. Kleine Funktionen, explizite Fehlerklassen.
 - Keine Fremd-PDF-Abhängigkeit im endgültigen Laufzeit-/Installationspfad.
 
 ## Prüfungen und Arbeitsgrenzen
-`QT_QPA_PLATFORM=offscreen python3 -m unittest test_lumen_pdf` aus files/.
-Danach gezielte bestehende Reader-/Workshop-/Translate-/Interop-Prüfungen.
+`cargo test --locked --release` in `native/document-core`, dann
+`python3 -m unittest test_lumen_pdf test_lumen_pdf_extended test_lumen_pdf_transparency`
+aus files/ im isolierten Profil nach `PUBLISHING.md`, danach gezielte
+Reader-/Workshop-/Translate-/Interop-Prüfungen.
 Fremde PDF-Programme dürfen ausschließlich als unabhängige Entwicklungsorakel
 genutzt werden; sie sind kein Bestandteil des neuen Kerns.
 Immer: synthetische Dateien, unveränderte Originale, atomarer Export.
@@ -52,8 +57,8 @@ keine eigenen Kryptoprimitiven improvisieren, keine stillen Rendering-Fallbacks.
 
 Reader, Dokumentenwerkstatt, Layoutübersetzung, Files-Vorschau, Inhaltssuche,
 Dokumentenimport und OCR verwenden den eigenen Kern. Setup und Arch-Paket
-benötigen keinen fremden PDF-Backend. OpenSSL 3 liefert allgemeine AES-/RC4-
-Primitiven; PDF-Schlüsselableitung und Sicherheits-Handler R2–R6 sind eigener Code.
+benötigen keinen fremden PDF-Backend. RustCrypto liefert allgemeine MD5-/SHA-/AES-
+Primitiven; RC4, PDF-Schlüsselableitung und Sicherheits-Handler R2–R6 sind eigener Code.
 
 - Syntax, xref-Tabellen/Streams, Objektstreams, inkrementelle Revisionen,
   Seitentree, Flate/LZW/ASCII85/ASCIIHex/RunLength, TIFF-/PNG-Prädiktoren.
@@ -86,27 +91,34 @@ Primitiven; PDF-Schlüsselableitung und Sicherheits-Handler R2–R6 sind eigener
   auf 128 MiB/12 Sekunden und 1 MiB Text pro Datei begrenzt; Volltextimport meldet
   Überschreitung von 120.000 **Zeichen** ausdrücklich, statt UTF-8 zu kürzen.
 
-### Dokument-Kern in Rust (Übergang seit 12.11.2026)
+### Dokument-Kern in Rust als einziger PDF-Kern (seit 12.11.2026)
 
-Der Reader liest PDFs zuerst mit Lumens Dokument-Kern in Rust (`native/document-core`, Programm
-`lumen-document`): Struktur, Wörter mit Position und Seitenbild. Er ist an 418 Seiten aus 40 Dateien
-gegen den Python-Kern geprüft (Wörter gleich, Bild gleich bis auf eine abgelehnte Seite). Lehnt der
-Rust-Kern eine Datei oder Seite ab, übernimmt der Python-Kern. Der Rust-Kern öffnet verschlüsselte
-PDFs (Revision 2 bis 6), liest eingebettete Type-1-Schriften und vierkanalige JPEGs. Er lehnt noch
-ab: Farbprofile außer sRGB, JPEG 2000, Linien mit Muster, radiale Verläufe zwischen zwei versetzten
-Kreisen, graue Transparenzgruppen außerhalb von Masken und Passwörter mit Sonderzeichen bei
-Revision 6. Stand der Prüfung: 78 Dateien, 646 Seiten in Wort und Bild gleich. Alles, was PDFs schreibt (Ordnen, Schwärzen, Export, Übersetzung), sowie Suche und Vorschau
-in Files bleiben beim Python-Kern, bis sie eigens umgestellt sind.
+Reader, Files (Vorschau, Inhaltssuche, Sortiervorschlag), Wissensindex, Texterkennung,
+Dokumentenwerkstatt und Layoutübersetzung lesen, zeichnen und schreiben PDFs nur über
+`lumen-document`. Der Python-Kern (`files/lumen_pdf*.py`) und jeder Rückfall darauf sind
+entfernt; was der Rust-Kern ablehnt, erscheint als übersetzte Meldung.
+
+Vor dem Entfernen wurden beide Kerne an den 78 PDFs des Rechners verglichen: Struktur,
+Wörter und Seitenbild gleich auf allen Seiten, die beide lesen; bei der Übersetzung gleiche
+Textblöcke in allen 32 Dateien, die beide annehmen. Rust setzt übersetzten Text mit den
+Vorschüben der Schrift; bei unverändertem Text liegen die Wörter exakt auf denen des
+Originals, Qt wich wegen gerundeter Vorschübe bis 45 Pixel ab. Seitdem neu im Rust-Kern:
+ICC-Farbverwaltung (`moxcms`), JPEG 2000 (`hayro-jpeg2000`), Linien mit Muster, radiale
+Verläufe zwischen beliebigen Kreisen, graue Transparenzgruppen, Füllen und Umranden als ein
+Objekt, Schreiben aus nur besitzergeschützten Quellen, SASLprep für Passwörter der
+Revision 6 (`stringprep`) und der Übersetzungssatz (`rustybuzz`, `unicode-linebreak`).
 
 ### Bewusste Formatgrenzen
 
 Keine vollständige ISO-32000-Implementierung. Nicht unterstützte Konstrukte
-brechen mit einer konkreten Meldung ab, ohne Fallback auf einen fremden PDF-Kern:
+brechen mit einer konkreten Meldung ab, ohne Fallback auf einen anderen PDF-Kern:
 Type3, komplexe CMaps/CID-CFF-Zuordnungen, Rechts-nach-links-Text, vertikale
 Schriftmetriken, nicht eingebettete CID-Schriften, Ebenenausdrücke (`VE`),
 CMYK-Gruppen und nicht separierbare Mischmodi. Ungefärbte Kachelmuster,
 Mesh-Verläufe, Inline-Bilder, Text-Clipping und zusätzliche Spezialfilter
-(insbesondere CCITT/JBIG2) sind weiterhin offen.
+(insbesondere CCITT/JBIG2) sind weiterhin offen. Ein JPEG-2000-Bild mit eigenem
+Alphakanal (`SMaskInData`) wird ohne diesen Kanal gezeichnet. Radiale Verläufe
+zwischen zwei gleich großen Kreisen werden mit 0,1 % kleinerem Startkreis genähert.
 
 Seit dem 11.11.2026 gelesen, mit diesen Grenzen: Knockout-Gruppen (transparente
 Objekte darin kosten je drei Flächen aus dem Transparenzbudget; „Alpha als Form“
@@ -129,29 +141,23 @@ Backend relevant und müssen bei eigenen Dokumenten geprüft werden.
 
 ### Verifikation
 
-`QT_QPA_PLATFORM=offscreen PYTHONPATH=files python3 -m unittest
- test_lumen_pdf test_lumen_pdf_workflows test_reader test_workshop test_translate
- test_interop_reader test_content_search test_studio` (eine Befehlszeile).
-
-Eigene Formatfixtures und unabhängige verschlüsselte Testdateien decken Parser,
-Ressourcenlimits, xrefs/Objectstreams, Text/Rotation/Bilder, R2–R6 User-/Owner-
-Passwörter, bekannte AES-/RC4-Vektoren, Schwärzung einschließlich gemeinsam
-benutzter Ressourcen, OCR, Unicode/Schriftwechsel, Grafikzustands-Isolation,
-UTF-16-Anker und unveränderte Originale ab. UI-Tests prüfen Reader, Workshop,
-Translate, Files-Vorschau und Suchabbruch einschließlich des Decoder-Kindprozesses.
-Fremde PDF-Module sind in einem zusätzlichen Subprozess-Test absichtlich gesperrt.
-
-Unabhängige Entwicklungsvergleiche prüfen CropBox/Rotationen, eingebettete Fonts,
-Unicode einschließlich Ligaturen und Mathematikzeichen, Annotationen und Passwort-
-PDFs. Diese Testwerkzeuge sind weder Runtime- noch Test-Abhängigkeiten des Projekts.
+`cargo test --locked --release` in `native/document-core` und die Python-Tests
+`test_lumen_pdf test_lumen_pdf_extended test_lumen_pdf_transparency test_reader
+test_workshop test_translate test_interop_reader test_content_search test_studio`
+im isolierten Profil nach `PUBLISHING.md`. Die Python-Tests bauen ihre PDFs mit dem
+kleinen Testschreiber in `test_pdf_fixtures.py` und prüfen Lesen, Zeichnen und Schreiben
+über `lumen-document`.
 
 ### Referenzen
 
 - [ISO 32000-1](https://pdfa.org/resource/iso-32000-1/)
 - [PDF-Sicherheits-Handler und Errata](https://pdf-issues.pdfa.org/32000-2-2020/clause07.html)
-- [Qt QRawFont](https://doc.qt.io/qt-6/qrawfont.html)
-- [Qt QTextLayout](https://doc.qt.io/qt-6/qtextlayout.html)
-- [OpenSSL EVP](https://docs.openssl.org/3.0/man3/EVP_EncryptInit/)
+- [RFC 4013 SASLprep](https://www.rfc-editor.org/rfc/rfc4013)
+
+## Historie: Python-Kern (5.10. bis 12.11.2026)
+
+Die folgenden Abschnitte beschreiben Abnahmen des früheren Python-Kerns. Sie sind
+Belege, kein aktueller Stand; die Dateien, Pfade und Befehle darin gibt es nicht mehr.
 
 ### Lokale Abnahme
 

@@ -1,5 +1,5 @@
 //! PDF standard security handlers (revisions 2 to 6), from ISO 32000 clause 7.6.4. Key derivation,
-//! object decryption and filter selection are Lumen code after `files/lumen_pdf_security.py`;
+//! object decryption and filter selection are Lumen code; SASLprep is the `stringprep` crate;
 //! MD5, SHA-2 and the AES block cipher are general primitives from RustCrypto.
 use std::rc::Rc;
 
@@ -216,14 +216,10 @@ impl Security {
             latin.truncate(32);
             latin
         } else {
-            // ponytail: revision 6 prepares a password with SASLprep. ASCII is unchanged by it; other
-            // passwords are left to the Python engine until the tables are ported.
-            if revision == 6 && !password.is_ascii() {
-                return unsupported(
-                    "PDF-Passwörter mit Sonderzeichen liest der Rust-Kern für diese Verschlüsselung noch nicht.",
-                );
+            match unicode_password(password, revision) {
+                Some(prepared) => prepared,
+                None => return bad("PDF-Passwort ist nicht korrekt."),
             }
-            password.as_bytes()[..password.len().min(127)].to_vec()
         };
         let text = |key: &str, size: usize| -> Option<&[u8]> {
             match attrs.get(key) {
@@ -472,6 +468,17 @@ impl Security {
     }
 }
 
+/// The bytes of a password for AES-256: prepared with SASLprep (RFC 4013) in revision 6, at most 127 bytes.
+/// None when SASLprep forbids it; such a password cannot be the right one.
+fn unicode_password(password: &str, revision: i64) -> Option<Vec<u8>> {
+    let prepared = if revision == 6 {
+        stringprep::saslprep(password).ok()?.into_owned()
+    } else {
+        password.to_string()
+    };
+    Some(prepared.as_bytes()[..prepared.len().min(127)].to_vec())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -480,6 +487,22 @@ mod tests {
         (0..text.len() / 2)
             .map(|i| u8::from_str_radix(&text[2 * i..2 * i + 2], 16).unwrap())
             .collect()
+    }
+
+    #[test]
+    fn revision_six_passwords_are_prepared_with_saslprep() {
+        // RFC 4013, section 3.
+        assert_eq!(unicode_password("I\u{AD}X", 6).unwrap(), b"IX");
+        assert_eq!(unicode_password("user", 6).unwrap(), b"user");
+        assert_eq!(unicode_password("\u{AA}", 6).unwrap(), b"a");
+        assert_eq!(unicode_password("\u{2168}", 6).unwrap(), b"IX");
+        assert!(unicode_password("\u{7}", 6).is_none());
+        // Revision 5 takes the UTF-8 bytes as they are.
+        assert_eq!(
+            unicode_password("\u{2168}", 5).unwrap(),
+            "\u{2168}".as_bytes()
+        );
+        assert_eq!(unicode_password(&"ä".repeat(100), 6).unwrap().len(), 127);
     }
 
     #[test]

@@ -111,8 +111,7 @@ def core_request(root, groups, hidden, max_hits, max_entries, ocr, thumbnail_dir
 def scan(root, groups, hidden=False, max_hits=500, max_entries=100000, ocr=False, thumbnail_dir=None):
     """Walking, reading and matching run in the document core. Pictures it cannot answer from the cache
     come back as `visual` events: recognising them and making previews stays here."""
-    from lumen_office import program
-    from lumen_pdf import PDFError
+    from lumen_office import PDFError, program
     root = Path(root).resolve()
     try: command = [program(), 'search']
     except PDFError as error: raise ValueError(str(error)) from error

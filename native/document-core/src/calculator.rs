@@ -1,5 +1,4 @@
 //! Bounded PDF Type 4 calculator functions: no file system, no loops and no PostScript machine.
-//! It follows `files/lumen_pdf_calculator.py`.
 use crate::pdf::{Error, Outcome};
 
 #[derive(Debug, Clone, PartialEq)]

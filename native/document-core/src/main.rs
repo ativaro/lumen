@@ -179,21 +179,12 @@ fn pdf_reader(path: &str, page: Option<usize>) -> Result<String, lumen_document:
     Ok(out)
 }
 
-/// The command line of `files/lumen_pdf_worker.py` for text, document information and a rendered page:
-/// `pdf-cli [--fallback <program> <script>] text|info|render <file> [--page n] [--rotation degrees] [--max-scale n] [--pages n] [--scale-to n]
-/// [--output png] [--limit bytes] [--characters n]`. What this core does not read is handed to the
-/// fallback with the same arguments, before anything has been written.
+/// Text, document information and a rendered page for Files, search and the workshop:
+/// `pdf-cli text|info|render <file> [--page n] [--rotation degrees] [--max-scale n] [--pages n] [--scale-to n]
+/// [--output png] [--limit bytes] [--characters n]`.
 fn pdf_cli(args: &[String]) -> ExitCode {
-    let (fallback, rest) = match args {
-        [flag, program, script, rest @ ..] if flag == "--fallback" => {
-            (Some((program, script)), rest)
-        }
-        rest => (None, rest),
-    };
-    let [action, path, options @ ..] = rest else {
-        eprintln!(
-            "usage: lumen-document pdf-cli [--fallback <program> <script>] text|info|render <file> [options]"
-        );
+    let [action, path, options @ ..] = args else {
+        eprintln!("usage: lumen-document pdf-cli text|info|render <file> [options]");
         return ExitCode::from(2);
     };
     let option = |name: &str| {
@@ -288,24 +279,15 @@ fn pdf_cli(args: &[String]) -> ExitCode {
             _ => Err("Unbekannte PDF-Aktion.".into()),
         }
     };
-    match (run(), fallback) {
-        (Ok(out), _) => {
+    match run() {
+        Ok(out) => {
             use std::io::Write;
             if std::io::stdout().write_all(&out).is_err() {
                 return ExitCode::FAILURE;
             }
             ExitCode::SUCCESS
         }
-        (Err(_), Some((program, script))) => {
-            use std::os::unix::process::CommandExt;
-            let error = std::process::Command::new(program)
-                .arg(script)
-                .args(rest)
-                .exec();
-            eprintln!("{error}");
-            ExitCode::FAILURE
-        }
-        (Err(message), None) => {
+        Err(message) => {
             eprintln!("{message}");
             ExitCode::FAILURE
         }
@@ -313,11 +295,9 @@ fn pdf_cli(args: &[String]) -> ExitCode {
 }
 
 /// `pdf-export`: a JSON request `{"pages": [{"path", "page", "rotation", "boxes", "stamp"}], "target", "dpi", "ocr"}`
-/// on standard input. One line per page reports progress. Exit code 3 means that this core does not
-/// write such a file yet; nothing has been written then.
+/// on standard input. One line per page reports progress.
 fn pdf_export() -> ExitCode {
     use lumen_document::json::Json;
-    use lumen_document::pdf::Error;
     use std::io::Read;
     let request = || -> Option<(Vec<lumen_document::write::Item>, std::path::PathBuf, u32, Option<String>)> {
         let mut data = Vec::new();
@@ -368,10 +348,72 @@ fn pdf_export() -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("{error}");
-            match error {
-                Error::Unsupported(_) => ExitCode::from(3),
-                Error::Pdf(_) => ExitCode::FAILURE,
-            }
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// `pdf-translate`: `{"action": "inspect", "path"}` prints the blocks to translate;
+/// `{"action": "write", "manifest", "translations", "output"}` writes the translated copy.
+fn pdf_translate() -> ExitCode {
+    use lumen_document::translate;
+    use std::io::Read;
+    let mut data = Vec::new();
+    let request = std::io::stdin()
+        .take(64 * 1024 * 1024 + 1)
+        .read_to_end(&mut data)
+        .ok()
+        .and_then(|_| lumen_document::json::parse(&data));
+    let Some(request) = request else {
+        eprintln!("Ungültiger PDF-Textauftrag.");
+        return ExitCode::FAILURE;
+    };
+    let text = |key: &str| request.get(key).and_then(lumen_document::json::Json::text);
+    let result = match text("action") {
+        Some("inspect") => {
+            let path = std::path::Path::new(text("path").unwrap_or(""));
+            translate::inspect(path).map(|found| translate::inspection_json(path, &found))
+        }
+        Some("write") => {
+            let (Some(manifest), Some(translations), Some(output)) = (
+                request.get("manifest"),
+                request.get("translations"),
+                text("output"),
+            ) else {
+                eprintln!("Ungültiger PDF-Textauftrag.");
+                return ExitCode::FAILURE;
+            };
+            let output = std::path::Path::new(output);
+            translate::write(manifest, translations, output).map(|(pages, reduced)| {
+                let reduced: Vec<String> = reduced
+                    .iter()
+                    .map(|(page, block, scale)| {
+                        format!(
+                            "{{\"page\": {page}, \"block\": {}, \"scale\": {scale}}}",
+                            json(block)
+                        )
+                    })
+                    .collect();
+                format!(
+                    "{{\"path\": {}, \"pages\": {pages}, \"reduced\": [{}]}}",
+                    json(&output.to_string_lossy()),
+                    reduced.join(", ")
+                )
+            })
+        }
+        _ => {
+            eprintln!("Unknown PDF action");
+            return ExitCode::FAILURE;
+        }
+    };
+    match result {
+        Ok(text) => {
+            println!("{text}");
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("{error}");
+            ExitCode::FAILURE
         }
     }
 }
@@ -443,6 +485,9 @@ fn main() -> ExitCode {
     }
     if args.len() == 1 && args[0] == "pdf-export" {
         return pdf_export();
+    }
+    if args.len() == 1 && args[0] == "pdf-translate" {
+        return pdf_translate();
     }
     if args.len() >= 3 && args[0] == "pdf-cli" {
         return pdf_cli(&args[1..]);

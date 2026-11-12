@@ -1,6 +1,5 @@
 //! Lumen's own PDF object reader: syntax, filters and file structure (PDF Reference 1.7, chapter 3).
-//! Unsupported features are errors, never a request to repair or guess the file. The checks and
-//! their messages follow `files/lumen_pdf.py`, so both readers can be compared file by file.
+//! Unsupported features are errors, never a request to repair or guess the file.
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::Rc;
@@ -95,7 +94,7 @@ impl Value {
     pub(crate) fn is_null(&self) -> bool {
         matches!(self, Value::Null)
     }
-    /// Python truthiness, for the places where the Python reader says `value or default`.
+    /// Whether a value counts as given: not null, false, zero or empty.
     pub(crate) fn truthy(&self) -> bool {
         match self {
             Value::Null => false,
@@ -1642,7 +1641,74 @@ mod tests {
     }
 
     #[test]
-    fn filters_decode_and_refuse_what_python_refuses() {
+    fn predictors_code_widths_and_shortened_streams_decode() {
+        use std::io::Write;
+        let packed = |data: &[u8]| {
+            let mut encoder =
+                flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+            encoder.write_all(data).unwrap();
+            encoder.finish().unwrap()
+        };
+        let with = |filter: &str, params: Vec<(&str, Value)>, raw: Vec<u8>| {
+            let mut attrs = Dict::from([("Filter".to_string(), Value::Name(filter.into()))]);
+            if !params.is_empty() {
+                let params: Dict = params
+                    .into_iter()
+                    .map(|(k, v)| (k.to_string(), v))
+                    .collect();
+                attrs.insert("DecodeParms".into(), Value::Dict(Rc::new(params)));
+            }
+            Stream { attrs, raw }
+        };
+        let plain = |value: &Value| Ok(value.clone());
+        // PNG "Up" and "Sub" rows under predictor 15.
+        let rows = with(
+            "FlateDecode",
+            vec![("Predictor", Value::Int(15)), ("Columns", Value::Int(3))],
+            packed(&[1, 10, 10, 10, 2, 5, 5, 5]),
+        );
+        assert_eq!(decoded(&rows, &plain).unwrap(), [10, 20, 30, 15, 25, 35]);
+        // Literal-only LZW crosses every code width, with and without the early change.
+        let expected: Vec<u8> = (0..12).flat_map(|_| 0..=255u8).collect();
+        for early in [0i64, 1] {
+            let (mut bits, mut width) = (String::from("100000000"), 9);
+            for (position, value) in expected.iter().enumerate() {
+                bits += &format!("{value:0width$b}");
+                if position + 1 == (1 << width) - 257 - early as usize && width < 12 {
+                    width += 1;
+                }
+            }
+            bits += &format!("{:0width$b}", 257);
+            while bits.len() % 8 != 0 {
+                bits.push('0');
+            }
+            let code: Vec<u8> = bits
+                .as_bytes()
+                .chunks(8)
+                .map(|byte| u8::from_str_radix(std::str::from_utf8(byte).unwrap(), 2).unwrap())
+                .collect();
+            let stream = with("LZWDecode", vec![("EarlyChange", Value::Int(early))], code);
+            assert_eq!(
+                decoded(&stream, &plain).unwrap(),
+                expected,
+                "early change {early}"
+            );
+        }
+        // Complete data without its checksum is read, also when the missing checksum ends in a zero byte.
+        let zeroed = (0..=255u8)
+            .map(|n| [b"PDF filters\x00\xff".repeat(25), vec![n]].concat())
+            .find(|text| packed(text).last() == Some(&0))
+            .unwrap();
+        let mut short = packed(&zeroed);
+        short.pop();
+        assert_eq!(
+            decoded(&with("FlateDecode", vec![], short), &plain).unwrap(),
+            zeroed
+        );
+    }
+
+    #[test]
+    fn filters_decode_and_refuse_damaged_data() {
         let stream = |filter: &str, raw: &[u8]| Stream {
             attrs: Dict::from([("Filter".to_string(), Value::Name(filter.into()))]),
             raw: raw.to_vec(),

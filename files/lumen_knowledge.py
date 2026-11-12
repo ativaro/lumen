@@ -12,8 +12,7 @@ SUFFIXES = {'.txt', '.md', '.rst', '.pdf', '.csv', '.py', '.js', '.ts', '.html',
 def index_root(store, directory, cancelled=lambda: False, pause=lambda: None):
     """The document core walks and reads the folder; the index keeps one row per page."""
     import json, subprocess
-    from lumen_office import program
-    from lumen_pdf import PDFError
+    from lumen_office import PDFError, program
     root = Path(directory).expanduser().resolve(strict=True)
     try: command = [program(), 'index']
     except PDFError as error: raise ValueError(str(error)) from error

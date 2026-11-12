@@ -1,6 +1,5 @@
 //! Draws a PDF page: paths, text as glyph outlines, pictures, forms, opacity and clipping.
-//! It follows the drawing path of `files/lumen_pdf_page.py`. What is not drawn yet is refused
-//! by name instead of being drawn wrongly: shadings, patterns, soft masks and Type 4 functions.
+//! What is not drawn is refused by name instead of being drawn wrongly.
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -15,10 +14,6 @@ fn bad<T>(text: &str) -> Outcome<T> {
 
 fn unsupported<T>(text: impl Into<String>) -> Outcome<T> {
     Err(Error::Unsupported(text.into()))
-}
-
-fn later<T>(what: &str) -> Outcome<T> {
-    unsupported(format!("Der Rust-Kern zeichnet noch nicht: {what}"))
 }
 
 fn transform(matrix: Matrix) -> Transform {
@@ -254,7 +249,7 @@ fn function(
 
 /// A colour space, reduced to what turns its components into RGB.
 #[derive(Clone)]
-enum Space {
+pub(crate) enum Space {
     Gray,
     Rgb,
     Cmyk,
@@ -273,10 +268,58 @@ enum Space {
         attrs: Rc<Dict>,
     },
     Pattern,
+    /// An ICC profile other than sRGB, converted to sRGB by colour management.
+    Icc {
+        components: usize,
+        convert: Rc<IccConvert>,
+    },
+}
+
+/// The conversions of an ICC profile to sRGB: one for single colours, one for whole images.
+pub(crate) struct IccConvert {
+    colours: std::sync::Arc<moxcms::TransformF32Executor>,
+    pixels: std::sync::Arc<moxcms::Transform8BitExecutor>,
+}
+
+impl IccConvert {
+    /// None when the profile cannot be read or does not have `components` channels.
+    fn new(data: &[u8], components: usize) -> Option<IccConvert> {
+        let profile = moxcms::ColorProfile::new_from_slice(data).ok()?;
+        let layout = match (components, profile.color_space) {
+            (1, moxcms::DataColorSpace::Gray) => moxcms::Layout::Gray,
+            (3, moxcms::DataColorSpace::Rgb | moxcms::DataColorSpace::Lab) => moxcms::Layout::Rgb,
+            (4, moxcms::DataColorSpace::Cmyk) => moxcms::Layout::Rgba,
+            _ => return None,
+        };
+        let srgb = moxcms::ColorProfile::new_srgb();
+        let options = moxcms::TransformOptions::default();
+        Some(IccConvert {
+            colours: profile
+                .create_transform_f32(layout, &srgb, moxcms::Layout::Rgb, options)
+                .ok()?,
+            pixels: profile
+                .create_transform_8bit(layout, &srgb, moxcms::Layout::Rgb, options)
+                .ok()?,
+        })
+    }
 }
 
 impl Space {
-    fn parse(
+    /// The space an ICC profile with 1, 3 or 4 components describes; an unreadable profile stands for the device
+    /// space with as many components.
+    fn profiled(data: &[u8], components: usize) -> Space {
+        match IccConvert::new(data, components) {
+            Some(convert) => Space::Icc {
+                components,
+                convert: Rc::new(convert),
+            },
+            None if components == 1 => Space::Gray,
+            None if components == 4 => Space::Cmyk,
+            None => Space::Rgb,
+        }
+    }
+
+    pub(crate) fn parse(
         document: &Document,
         definition: &Value,
         resources: &Dict,
@@ -320,14 +363,14 @@ impl Space {
                     return bad("PDF-ICC-Profil fehlt.");
                 };
                 // An sRGB profile describes the colours this renderer works in, so its values are used as they are.
-                // Any other profile needs colour management, which is not ported: such a page is left to the Python
-                // engine instead of being drawn with approximate colours.
+                // Any other profile goes through colour management; one that cannot be read stands for the device
+                // space with as many components.
                 let components = integer(profile.attrs.get("N").unwrap_or(&Value::Null), 1, 4)?;
                 let data = document.decode(&profile)?;
                 let standard = data.windows(4).any(|window| window == b"sRGB");
                 match components {
                     3 if standard => Ok(Space::Rgb),
-                    1 | 3 | 4 => later("Farbprofile außer sRGB"),
+                    1 | 3 | 4 => Ok(Space::profiled(&data, components as usize)),
                     _ => bad("Ungültige PDF-ICC-Komponenten."),
                 }
             }
@@ -386,12 +429,12 @@ impl Space {
         }
     }
 
-    fn components(&self) -> usize {
+    pub(crate) fn components(&self) -> usize {
         match self {
             Space::Gray | Space::Indexed { .. } => 1,
             Space::Rgb => 3,
             Space::Cmyk => 4,
-            Space::Tint { components, .. } => *components,
+            Space::Tint { components, .. } | Space::Icc { components, .. } => *components,
             Space::Calibrated { kind, .. } => {
                 if *kind == b'G' {
                     1
@@ -404,7 +447,7 @@ impl Space {
     }
 
     /// The colour a space starts with when it is selected.
-    fn initial(&self) -> Vec<f64> {
+    pub(crate) fn initial(&self) -> Vec<f64> {
         match self {
             Space::Cmyk => vec![0.0, 0.0, 0.0, 1.0],
             Space::Tint { components, .. } => vec![1.0; *components],
@@ -426,7 +469,7 @@ impl Space {
         }
     }
 
-    fn rgb(&self, document: &Document, samples: &[f64]) -> Outcome<[f64; 3]> {
+    pub(crate) fn rgb(&self, document: &Document, samples: &[f64]) -> Outcome<[f64; 3]> {
         if samples.len() != self.components() || samples.iter().any(|v| !v.is_finite()) {
             return bad("Ungültige PDF-Farbwerte.");
         }
@@ -441,6 +484,14 @@ impl Space {
                     (1.0 - unit(samples[1])) * (1.0 - k),
                     (1.0 - unit(samples[2])) * (1.0 - k),
                 ])
+            }
+            Space::Icc { convert, .. } => {
+                let source: Vec<f32> = samples.iter().map(|v| unit(*v) as f32).collect();
+                let mut rgb = [0f32; 3];
+                if convert.colours.transform(&source, &mut rgb).is_err() {
+                    return bad("PDF-Farbprofil konnte nicht angewendet werden.");
+                }
+                Ok(rgb.map(|v| unit(f64::from(v))))
             }
             Space::Indexed { base, high, lookup } => {
                 let index = ((samples[0] + 0.5).floor().max(0.0) as usize).min(*high);
@@ -593,13 +644,83 @@ fn picture(
         Value::Bool(stencil) => stencil,
         _ => return bad("Ungültige PDF-Bildmaske."),
     };
+    let filters = match get("Filter")? {
+        Value::Null => Vec::new(),
+        Value::Name(name) => vec![Value::Name(name)],
+        Value::Array(filters) if filters.len() <= 8 => filters
+            .iter()
+            .map(|filter| document.resolve(filter))
+            .collect::<Outcome<_>>()?,
+        _ => return bad("Ungültige PDF-Bildfilterkette."),
+    };
+    // The encoded picture of a JPEG or JPEG 2000 image: the stream with all but its last filter applied.
+    let leading = || -> Outcome<Vec<u8>> {
+        let params = match get("DecodeParms")? {
+            Value::Array(params) => (*params).clone(),
+            Value::Dict(params) => vec![Value::Dict(params)],
+            _ => Vec::new(),
+        };
+        let mut attrs = stream.attrs.clone();
+        attrs.insert(
+            "Filter".into(),
+            Value::Array(Rc::new(filters[..filters.len() - 1].to_vec())),
+        );
+        attrs.insert(
+            "DecodeParms".into(),
+            Value::Array(Rc::new(params[..params.len().saturating_sub(1)].to_vec())),
+        );
+        document.decode(&Stream {
+            attrs,
+            raw: stream.raw.clone(),
+        })
+    };
+    // JPEG 2000 carries its own depth and colour space; a ColorSpace entry overrides the latter.
+    let mut jpx = if !stencil && filters.last().and_then(Value::name) == Some("JPXDecode") {
+        let encoded = leading()?;
+        let failed = || Error::Pdf("PDF-Bild konnte nicht dekodiert werden.".into());
+        let image =
+            hayro_jpeg2000::Image::new(&encoded, &hayro_jpeg2000::DecodeSettings::default())
+                .map_err(|_| failed())?;
+        if image.width() as usize != w || image.height() as usize != h {
+            return bad("PDF-Bildkopf und Größe stimmen nicht überein.");
+        }
+        use hayro_jpeg2000::ColorSpace as Own;
+        let own = match image.color_space() {
+            Own::Gray => Space::Gray,
+            Own::RGB => Space::Rgb,
+            Own::CMYK => Space::Cmyk,
+            Own::Icc {
+                profile,
+                num_channels,
+            } if matches!(num_channels, 1 | 3 | 4) => {
+                Space::profiled(profile, usize::from(*num_channels))
+            }
+            Own::Unknown { num_channels: 1 } => Space::Gray,
+            Own::Unknown { num_channels: 3 } => Space::Rgb,
+            Own::Unknown { num_channels: 4 } => Space::Cmyk,
+            _ => return bad("Ungültige JPEG-/JPX-Farbkomponenten."),
+        };
+        let colour = usize::from(image.color_space().num_channels());
+        let alpha = image.has_alpha();
+        let mut context = hayro_jpeg2000::DecoderContext::default();
+        let data = image.decode(&mut context).map_err(|_| failed())?.data_u8();
+        Some((own, colour, alpha, data))
+    } else {
+        None
+    };
     let mut bits = match get("BitsPerComponent")? {
         Value::Null if stencil => 1,
+        Value::Null if jpx.is_some() => 8,
         Value::Int(bits @ (1 | 2 | 4 | 8 | 16)) if !stencil || bits == 1 => bits as usize,
         _ => return bad("Ungültige PDF-Bittiefe."),
     };
     let space = if stencil {
         Space::Gray
+    } else if let Some((own, ..)) = jpx
+        .as_ref()
+        .filter(|_| get("ColorSpace").is_ok_and(|v| matches!(v, Value::Null)))
+    {
+        own.clone()
     } else {
         Space::parse(
             document,
@@ -612,42 +733,34 @@ fn picture(
     if channels == 0 {
         return bad("Ungültige PDF-Farbwerte.");
     }
-    let custom = !matches!(get("Decode")?, Value::Null);
+    // A JPEG 2000 image ignores Decode (ISO 32000-1, 8.9.5.1).
+    let custom = jpx.is_none() && !matches!(get("Decode")?, Value::Null);
     let decode = if custom {
         values(&get("Decode")?, Some(2 * channels))?
     } else {
         space.ranges()
     };
-    let filters = match get("Filter")? {
-        Value::Null => Vec::new(),
-        Value::Name(name) => vec![Value::Name(name)],
-        Value::Array(filters) if filters.len() <= 8 => filters
-            .iter()
-            .map(|filter| document.resolve(filter))
-            .collect::<Outcome<_>>()?,
-        _ => return bad("Ungültige PDF-Bildfilterkette."),
-    };
     let raw = match filters.last().and_then(Value::name) {
-        Some("JPXDecode") => return later("JPEG-2000-Bilder"),
-        Some("DCTDecode" | "DCT") => {
-            let params = match get("DecodeParms")? {
-                Value::Array(params) => (*params).clone(),
-                Value::Dict(params) => vec![Value::Dict(params)],
-                _ => Vec::new(),
+        Some("JPXDecode") => {
+            let Some((_, colour, alpha, data)) = jpx.take() else {
+                return bad("PDF-Bild konnte nicht dekodiert werden.");
             };
-            let mut attrs = stream.attrs.clone();
-            attrs.insert(
-                "Filter".into(),
-                Value::Array(Rc::new(filters[..filters.len() - 1].to_vec())),
-            );
-            attrs.insert(
-                "DecodeParms".into(),
-                Value::Array(Rc::new(params[..params.len().saturating_sub(1)].to_vec())),
-            );
-            let encoded = document.decode(&Stream {
-                attrs,
-                raw: stream.raw.clone(),
-            })?;
+            if colour != channels || data.len() != w * h * (colour + usize::from(alpha)) {
+                return bad("Ungültige JPEG-/JPX-Farbkomponenten.");
+            }
+            bits = 8;
+            if alpha {
+                // ponytail: the image's own alpha (SMaskInData) is dropped, honour it when a file needs it.
+                data.chunks_exact(colour + 1)
+                    .flat_map(|pixel| &pixel[..colour])
+                    .copied()
+                    .collect()
+            } else {
+                data
+            }
+        }
+        Some("DCTDecode" | "DCT") => {
+            let encoded = leading()?;
             let pixels = if channels == 4 {
                 // Four channels (CMYK or YCCK) go to the decoder that returns them as CMYK samples.
                 let mut decoder = jpeg_decoder::Decoder::new(&encoded[..]);
@@ -773,6 +886,20 @@ fn picture(
                     }
                 }
             }
+            Space::Icc { convert, .. } if plain => {
+                let mut rgb = vec![0u8; w * h * 3];
+                if convert.pixels.transform(&raw, &mut rgb).is_err() {
+                    return bad("PDF-Bildprofil konnte nicht angewendet werden.");
+                }
+                for (target, source) in rgba
+                    .as_chunks_mut::<4>()
+                    .0
+                    .iter_mut()
+                    .zip(rgb.as_chunks::<3>().0)
+                {
+                    target[..3].copy_from_slice(source);
+                }
+            }
             // One sample per pixel has at most 256 colours: each is worked out once.
             _ if channels == 1 && bits <= 8 => {
                 let table: Vec<[u8; 3]> = (0..1u32 << bits)
@@ -891,6 +1018,32 @@ fn picture(
     })
 }
 
+/// The line settings of a graphics state.
+fn line_style(state: &State) -> Stroke {
+    let mut stroke = Stroke {
+        width: state.width as f32,
+        miter_limit: state.miter as f32,
+        ..Stroke::default()
+    };
+    stroke.line_cap = [
+        tiny_skia::LineCap::Butt,
+        tiny_skia::LineCap::Round,
+        tiny_skia::LineCap::Square,
+    ][state.cap as usize];
+    stroke.line_join = [
+        tiny_skia::LineJoin::Miter,
+        tiny_skia::LineJoin::Round,
+        tiny_skia::LineJoin::Bevel,
+    ][state.join as usize];
+    if !state.dash.is_empty() {
+        stroke.dash = tiny_skia::StrokeDash::new(
+            state.dash.iter().map(|v| *v as f32).collect(),
+            state.phase as f32,
+        );
+    }
+    stroke
+}
+
 #[derive(Clone)]
 struct State {
     ctm: Matrix,
@@ -920,6 +1073,8 @@ struct State {
     knockout: Option<Rc<Option<Pixmap>>>,
     /// What fills when the fill colour space is Pattern.
     filling: Option<Filling>,
+    /// What strokes when the stroke colour space is Pattern.
+    stroking: Option<Filling>,
     /// Stroke adjustment: lines are drawn on whole pixels, without smoothed edges.
     adjust: bool,
     /// The soft mask in force. It is already part of `clip`; `unveiled` keeps the clip without it.
@@ -956,6 +1111,7 @@ impl State {
             mode: 0,
             knockout: None,
             filling: None,
+            stroking: None,
             adjust: false,
             soft: None,
             unveiled: None,
@@ -1155,43 +1311,41 @@ impl Shade {
                 tiny_skia::SpreadMode::Pad,
                 transform(local),
             )
-        } else if c[0] == c[3] && c[1] == c[4] {
-            // Two circles around one centre: colours are placed by their radius.
-            let largest = c[2].max(c[5]);
+        } else {
+            // Two circles span a cone. Its apex, where the radius reaches zero, is the focal point, the larger
+            // circle is the end, and each colour sits at its radius relative to the larger one.
+            let (mut r0, r1) = (c[2], c[5]);
+            if r0 == r1 {
+                // ponytail: equal radii (a cylinder) have no apex; a 0.1 % smaller start circle moves it far
+                // away and keeps the radius error below a thousandth. Exact cylinders need a per-pixel shader.
+                r0 *= 0.999;
+            }
+            let largest = r0.max(r1);
+            if largest <= 0.0 {
+                return bad("Ungültige PDF-Verlaufskreise.");
+            }
+            let apex = -r0 / (r1 - r0);
             let mut placed: Vec<(f64, [f64; 3])> = self
                 .stops
                 .iter()
-                .map(|(t, rgb)| ((c[2] + t * (c[5] - c[2])) / largest, *rgb))
+                .map(|(t, rgb)| ((r0 + t * (r1 - r0)) / largest, *rgb))
                 .collect();
-            placed.sort_by(|a, b| a.0.total_cmp(&b.0));
+            if r1 < r0 {
+                placed.reverse();
+            }
             let stops = placed
                 .iter()
                 .map(|(t, rgb)| tiny_skia::GradientStop::new(*t as f32, colour(rgb)))
                 .collect();
+            let end = if r1 >= r0 { (c[3], c[4]) } else { (c[0], c[1]) };
             tiny_skia::RadialGradient::new(
-                point(c[0], c[1]),
-                point(c[0], c[1]),
+                point(c[0] + apex * (c[3] - c[0]), c[1] + apex * (c[4] - c[1])),
+                point(end.0, end.1),
                 largest as f32,
                 stops,
                 tiny_skia::SpreadMode::Pad,
                 transform(local),
             )
-        } else if c[2] == 0.0 {
-            let stops = self
-                .stops
-                .iter()
-                .map(|(t, rgb)| tiny_skia::GradientStop::new(*t as f32, colour(rgb)))
-                .collect();
-            tiny_skia::RadialGradient::new(
-                point(c[0], c[1]),
-                point(c[3], c[4]),
-                c[5] as f32,
-                stops,
-                tiny_skia::SpreadMode::Pad,
-                transform(local),
-            )
-        } else {
-            return later("radiale Verläufe mit zwei versetzten Kreisen");
         };
         made.ok_or(Error::Pdf("Ungültige PDF-Verlaufsachse.".into()))
     }
@@ -1617,31 +1771,55 @@ impl Renderer<'_> {
         Ok(())
     }
 
+    /// Fills and strokes a path as the operator asks. With `cover`, the stroke replaces what the fill drew beneath it.
+    fn draw_path(
+        &mut self,
+        target: &mut Pixmap,
+        path: &tiny_skia::Path,
+        rule: FillRule,
+        op: &str,
+        state: &State,
+        cover: bool,
+    ) -> Outcome<()> {
+        let mut stroking = state.clone();
+        if cover {
+            stroking.blend = BlendMode::Source;
+        }
+        let stroking = &stroking;
+        let pattern = |space: &Space| matches!(space, Space::Pattern);
+        if matches!(op, "f" | "F" | "f*" | "B" | "B*" | "b" | "b*") {
+            self.fill(target, path, rule, state)?;
+        }
+        if matches!(op, "S" | "s" | "B" | "B*" | "b" | "b*") {
+            if pattern(&state.stroke_space) {
+                // A patterned line is its outline filled with the pattern.
+                let scale = tiny_skia::PathStroker::compute_resolution_scale(&transform(
+                    state.ctm.then(self.base),
+                ));
+                let style = line_style(state);
+                let dashed = match &style.dash {
+                    Some(dash) => path.dash(dash, scale),
+                    None => Some(path.clone()),
+                };
+                if let Some(outline) = dashed.and_then(|dashed| dashed.stroke(&style, scale)) {
+                    let mut filled = stroking.clone();
+                    filled.filling = state.stroking.clone();
+                    filled.fill_space = Space::Pattern;
+                    filled.fill_alpha = state.stroke_alpha;
+                    self.fill(target, &outline, FillRule::Winding, &filled)?;
+                }
+            } else {
+                self.stroke(target, path, stroking)?;
+            }
+        }
+        Ok(())
+    }
+
     fn stroke(&self, target: &mut Pixmap, path: &tiny_skia::Path, state: &State) -> Outcome<()> {
         if self.page.hidden > 0 {
             return Ok(());
         }
-        let mut stroke = Stroke {
-            width: state.width as f32,
-            miter_limit: state.miter as f32,
-            ..Stroke::default()
-        };
-        stroke.line_cap = [
-            tiny_skia::LineCap::Butt,
-            tiny_skia::LineCap::Round,
-            tiny_skia::LineCap::Square,
-        ][state.cap as usize];
-        stroke.line_join = [
-            tiny_skia::LineJoin::Miter,
-            tiny_skia::LineJoin::Round,
-            tiny_skia::LineJoin::Bevel,
-        ][state.join as usize];
-        if !state.dash.is_empty() {
-            stroke.dash = tiny_skia::StrokeDash::new(
-                state.dash.iter().map(|v| *v as f32).collect(),
-                state.phase as f32,
-            );
-        }
+        let stroke = line_style(state);
         let matrix = transform(state.ctm.then(self.base));
         if Self::replacing(state, state.stroke_alpha) {
             let mut object = self.layer(target)?;
@@ -2003,9 +2181,9 @@ impl Renderer<'_> {
                 .resolve(group.get("CS").unwrap_or(&Value::Name("DeviceRGB".into())))?;
             match space.name() {
                 Some("DeviceRGB") => {}
-                // A mask group in grey is drawn in colour; its luminance is the same.
-                Some("DeviceGray") if self.masking > 0 => {}
-                Some("DeviceGray") => return later("Transparenzgruppen in Graustufen"),
+                // Grey only matters for an isolated group: a non-isolated one blends in its parent's space, and a mask
+                // group in grey has the same luminance in colour.
+                Some("DeviceGray") => {}
                 _ => return unsupported("PDF-Gruppenfarbraum noch nicht unterstützt."),
             }
         }
@@ -2069,6 +2247,16 @@ impl Renderer<'_> {
             }
             let mut surface = self.layer(target)?;
             let result = self.interpret(&mut surface, &data, &own, forms, depth + 1, inner);
+            let grey_group = isolated
+                && self.masking == 0
+                && group.as_ref().is_some_and(|group| {
+                    self.document
+                        .resolve(group.get("CS").unwrap_or(&Value::Null))
+                        .is_ok_and(|space| space.name() == Some("DeviceGray"))
+                });
+            if grey_group {
+                grey(&mut surface);
+            }
             if result.is_ok() && self.page.hidden == 0 {
                 if Self::replacing(state, state.fill_alpha) {
                     self.replace(target, state, surface, state.fill_alpha)?;
@@ -2371,15 +2559,39 @@ impl Renderer<'_> {
                     let finished = std::mem::replace(&mut path, PathBuilder::new()).finish();
                     open = false;
                     if let Some(finished) = &finished {
-                        let pattern = |space: &Space| matches!(space, Space::Pattern);
-                        if matches!(op, "f" | "F" | "f*" | "B" | "B*" | "b" | "b*") {
-                            self.fill(target, finished, rule, &state)?;
-                        }
-                        if matches!(op, "S" | "s" | "B" | "B*" | "b" | "b*") {
-                            if pattern(&state.stroke_space) {
-                                return later("Linien mit Muster");
+                        let both = matches!(op, "B" | "B*" | "b" | "b*");
+                        if both
+                            && (state.fill_alpha < 1.0 || state.stroke_alpha < 1.0)
+                            && self.page.hidden == 0
+                        {
+                            // Fill and stroke are one object: where they overlap the stroke covers the fill.
+                            let mut object = self.layer(target)?;
+                            let mut inner = state.clone();
+                            (inner.blend, inner.knockout, inner.soft) =
+                                (BlendMode::SourceOver, None, None);
+                            if let Some(pure) = inner.unveiled.take() {
+                                inner.clip = pure;
                             }
-                            self.stroke(target, finished, &state)?;
+                            self.draw_path(&mut object, finished, rule, op, &inner, true)?;
+                            if Self::replacing(&state, 1.0) {
+                                self.replace(target, &state, object, 1.0)?;
+                            } else {
+                                let paint = tiny_skia::PixmapPaint {
+                                    opacity: 1.0,
+                                    blend_mode: state.blend,
+                                    quality: tiny_skia::FilterQuality::Nearest,
+                                };
+                                target.draw_pixmap(
+                                    0,
+                                    0,
+                                    object.as_ref(),
+                                    &paint,
+                                    Transform::identity(),
+                                    state.soft.as_deref(),
+                                );
+                            }
+                        } else {
+                            self.draw_path(target, finished, rule, op, &state, false)?;
                         }
                         if let Some(rule) = clipping {
                             self.narrow(target, &mut state, Some(finished), rule)?;
@@ -2487,10 +2699,7 @@ impl Renderer<'_> {
                         let (Some(Value::Name(name)), 1) = (a.first(), a.len()) else {
                             return bad("Ungültige PDF-Musterfarbe.");
                         };
-                        if !lower {
-                            return later("Linien mit Muster");
-                        }
-                        state.filling = Some(
+                        let chosen = Some(
                             match self.page.resource(resources, "Pattern", name)? {
                                 Value::Stream(pattern)
                                     if pattern.attrs.get("PatternType").and_then(Value::number)
@@ -2536,6 +2745,11 @@ impl Renderer<'_> {
                                 _ => return bad("Ungültiges PDF-Muster."),
                             },
                         );
+                        if lower {
+                            state.filling = chosen
+                        } else {
+                            state.stroking = chosen
+                        }
                         continue;
                     }
                     let colour = space.rgb(
@@ -2913,6 +3127,16 @@ impl Renderer<'_> {
 pub static LAYERS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 pub static MASKS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
+/// Turns premultiplied colour into grey of the same luminance, as a group in DeviceGray shows it.
+fn grey(pixmap: &mut Pixmap) {
+    for pixel in pixmap.data_mut().as_chunks_mut::<4>().0 {
+        let level =
+            ((30 * u32::from(pixel[0]) + 59 * u32::from(pixel[1]) + 11 * u32::from(pixel[2]) + 50)
+                / 100) as u8;
+        pixel[..3].fill(level);
+    }
+}
+
 /// The page as an opaque picture on white, `scale` output pixels per page pixel.
 pub fn render(document: &Document, index: usize, scale: f64) -> Outcome<Pixmap> {
     rows(document, index, scale, 0, u32::MAX)
@@ -3059,6 +3283,15 @@ fn widened(
         0,
         state.clone(),
     )?;
+    if let Value::Dict(group) =
+        document.resolve(document.pages[index].get("Group").unwrap_or(&Value::Null))?
+        && document
+            .resolve(group.get("CS").unwrap_or(&Value::Null))?
+            .name()
+            == Some("DeviceGray")
+    {
+        grey(&mut surface);
+    }
     renderer.annotations(&mut surface, &state)?;
     let mut paper = Pixmap::new(w as u32, h as u32).ok_or_else(too_large)?;
     paper.fill(tiny_skia::Color::WHITE);

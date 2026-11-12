@@ -97,8 +97,34 @@ def compare_original(library, key, job):
     return dict(path=str(source), changed=_hash(source, job) != _hash(library.asset(record['asset']), job))
 
 
+def _pdf_fingerprints(path, password):
+    """Each page of a PDF as the document core reads and draws it: its words and a small picture."""
+    import os, subprocess
+    from lumen_office import program
+    environment = dict(os.environ, LUMEN_PDF_PASSWORD_STDIN='1')
+    def core(*arguments):
+        result = subprocess.run([program(), *arguments], input=(password + '\n').encode(), capture_output=True, env=environment, timeout=120)
+        if result.returncode:
+            reason = result.stderr.decode(errors='replace').strip()
+            if 'PDF-Passwort' in reason: raise ValueError(tr('Zum Vergleichen das Dokument zuerst entsperren.'))
+            raise ValueError(tr(reason))
+        return result.stdout
+    info = json.loads(core('pdf-reader', str(path), 'metadata'))
+    if info['pages'] > 500: raise ValueError(tr('Zum sicheren Abgleich Dokumente mit höchstens 500 Seiten verwenden.'))
+    values = []
+    with tempfile.TemporaryDirectory(prefix='lumen-compare-') as folder:
+        picture = Path(folder) / 'page.png'
+        for index, page in enumerate(json.loads(core('pdf-words', str(path), '0', str(info['pages'])))):
+            core('pdf-cli', 'render', str(path), '--page', str(index), '--scale-to', '120', '--output', str(picture))
+            digest = hashlib.sha256(json.dumps([[0, 0, page['width'], page['height']], page['words']]).encode()); digest.update(picture.read_bytes())
+            values.append(digest.hexdigest())
+    return dict(fingerprints=values, pages=info['pages'], toc=info['toc'][:2000], locked=False)
+
+
 def _fingerprints(path, password=''):
-    document = reader_data.opened(path, password)
+    if Path(path).suffix.lower() == '.pdf': return _pdf_fingerprints(path, password)
+    from lumen_reflow import png
+    document = reader_data.opened(path)
     if document is None: raise ValueError(tr('Zum Vergleichen das Dokument zuerst entsperren.'))
     with document:
         if len(document) > 500: raise ValueError(tr('Zum sicheren Abgleich Dokumente mit höchstens 500 Seiten verwenden.'))
@@ -106,7 +132,7 @@ def _fingerprints(path, password=''):
         for index in range(len(document)):
             page=document.page(index)
             scale=min(.2,600/page.width,600/page.height);image=page.render(scale)
-            digest=hashlib.sha256(json.dumps([[0,0,page.width,page.height],page.words]).encode());digest.update(__import__('lumen_pdf_page').png(image))
+            digest=hashlib.sha256(json.dumps([[0,0,page.width,page.height],page.words]).encode());digest.update(png(image))
             values.append(digest.hexdigest())
         return dict(fingerprints=values,pages=len(document),toc=document.toc()[:2000],locked=False)
 
@@ -174,7 +200,7 @@ def search_ocr(record, query):
 
 
 if __name__ == '__main__':
-    from lumen_pdf_worker import limits
+    from lumen_office import limits
     limits()
     try:
         request = json.load(sys.stdin)
