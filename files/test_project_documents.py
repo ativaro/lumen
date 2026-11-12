@@ -70,6 +70,21 @@ class ProjectDocumentsTest(unittest.TestCase):
         broken = self.folder/'broken.docx'; broken.write_bytes(b'not an archive')
         with self.assertRaisesRegex(ValueError, 'Office-Datei nicht lesbar'): read_content(broken)
 
+    def test_knowledge_index_reads_office_files_and_names_the_slide(self):
+        from lumen_knowledge import index_root, search
+        from lumen_store import Store
+        def slide(line):
+            return f'<p:sld {SLIDE}><p:cSld><p:spTree><p:sp><p:nvSpPr><p:nvPr><p:ph idx="1"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t>{line}</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>'
+        self.archive('plan.pptx', {
+            '[Content_Types].xml': TYPES,
+            'ppt/presentation.xml': f'<p:presentation {SLIDE}><p:sldIdLst><p:sldId r:id="a"/><p:sldId r:id="b"/></p:sldIdLst></p:presentation>',
+            'ppt/_rels/presentation.xml.rels': relations(('a', 'slides/slide1.xml'), ('b', 'slides/slide2.xml')),
+            'ppt/slides/slide1.xml': slide('Einleitung'), 'ppt/slides/slide2.xml': slide('Quartalsumsatz Nord')})
+        store = Store(self.root/'knowledge')
+        self.assertEqual(index_root(store, str(self.folder))['errors'], 0)
+        rows = search(store, 'Quartalsumsatz')
+        self.assertEqual([(Path(row['path']).name, row['page']) for row in rows], [('plan.pptx', 2)])
+
     def test_pdf_search_preserves_the_actual_reader_failure(self):
         import content_search
         pdf = self.folder/'unsupported.pdf'; pdf.write_bytes(b'%PDF fixture')

@@ -2915,16 +2915,122 @@ pub static MASKS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsiz
 
 /// The page as an opaque picture on white, `scale` output pixels per page pixel.
 pub fn render(document: &Document, index: usize, scale: f64) -> Outcome<Pixmap> {
+    rows(document, index, scale, 0, u32::MAX)
+}
+
+/// The same picture, turned by a further `turn` degrees, drawn as horizontal bands on several processor cores. Each band reads the file
+/// itself, since a document's objects are not shared between threads.
+pub fn render_file(
+    path: &std::path::Path,
+    password: &str,
+    index: usize,
+    scale: f64,
+    turn: i64,
+) -> Outcome<Pixmap> {
+    let mut document = Document::open(path, password)?;
+    document.turn(index, turn)?;
+    let page = Page::prepare(&document, index)?;
+    let (w, h) = ((page.width * scale).ceil(), (page.height * scale).ceil());
+    if !(scale > 0.0 && w > 0.0 && h > 0.0 && w * h <= 40_000_000.0) {
+        return bad("PDF-Vorschaubild zu groß oder ungültig.");
+    }
+    let (w, h) = (w as u32, h as u32);
+    let cores = std::thread::available_parallelism().map_or(1, |n| n.get() as u32);
+    let most = std::env::var("LUMEN_DOCUMENT_BANDS")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(BANDS);
+    let bands = cores.min(most).min(h / 128).max(1);
+    if bands == 1 {
+        return render(&document, index, scale);
+    }
+    let step = h.div_ceil(bands);
+    let drawn: Vec<Outcome<Pixmap>> = std::thread::scope(|scope| {
+        let workers: Vec<_> = (1..bands)
+            .map(|band| {
+                scope.spawn(move || {
+                    let mut document = Document::open(path, password)?;
+                    document.turn(index, turn)?;
+                    rows(
+                        &document,
+                        index,
+                        scale,
+                        band * step,
+                        ((band + 1) * step).min(h),
+                    )
+                })
+            })
+            .collect();
+        let first = rows(&document, index, scale, 0, step.min(h));
+        std::iter::once(first)
+            .chain(workers.into_iter().map(|worker| {
+                worker
+                    .join()
+                    .unwrap_or_else(|_| bad("PDF-Seite konnte nicht gezeichnet werden."))
+            }))
+            .collect()
+    });
+    let mut whole = Pixmap::new(w, h)
+        .ok_or_else(|| Error::Pdf("PDF-Vorschaubild zu groß oder ungültig.".into()))?;
+    let mut at = 0;
+    for band in drawn {
+        let band = band?;
+        let data = band.data();
+        whole.data_mut()[at..at + data.len()].copy_from_slice(data);
+        at += data.len();
+    }
+    Ok(whole)
+}
+
+/// The most bands a page is cut into; beyond this the repeated reading of the page costs more than it
+/// saves. `LUMEN_DOCUMENT_BANDS` overrides it, 1 draws the page in one piece.
+const BANDS: u32 = 8;
+
+/// Rows drawn beyond each side of a band and thrown away: edge smoothing and picture filtering look
+/// at neighbouring rows, which a band cut exactly at its border would not have.
+const MARGIN: u32 = 8;
+
+/// Output rows `top..bottom` of the page picture.
+fn rows(document: &Document, index: usize, scale: f64, top: u32, bottom: u32) -> Outcome<Pixmap> {
+    let (from, to) = (top.saturating_sub(MARGIN), bottom.saturating_add(MARGIN));
+    let wide = widened(document, index, scale, from, to)?;
+    let rows = bottom.min(from + wide.height()) - top;
+    if top == from && rows == wide.height() {
+        return Ok(wide);
+    }
+    let too_large = || Error::Pdf("PDF-Vorschaubild zu groß oder ungültig.".into());
+    let mut exact = Pixmap::new(wide.width(), rows).ok_or_else(too_large)?;
+    let start = ((top - from) * wide.width() * 4) as usize;
+    let length = exact.data().len();
+    exact
+        .data_mut()
+        .copy_from_slice(&wide.data()[start..start + length]);
+    Ok(exact)
+}
+
+fn widened(
+    document: &Document,
+    index: usize,
+    scale: f64,
+    top: u32,
+    bottom: u32,
+) -> Outcome<Pixmap> {
     let page = Page::prepare(document, index)?;
     let (w, h) = ((page.width * scale).ceil(), (page.height * scale).ceil());
     if !(scale > 0.0 && w > 0.0 && h > 0.0 && w * h <= 40_000_000.0) {
         return bad("PDF-Vorschaubild zu groß oder ungültig.");
     }
+    let bottom = bottom.min(h as u32);
+    if top >= bottom {
+        return bad("PDF-Vorschaubild zu groß oder ungültig.");
+    }
+    let h = f64::from(bottom - top);
     let too_large = || Error::Pdf("PDF-Vorschaubild zu groß oder ungültig.".into());
     let mut surface = Pixmap::new(w as u32, h as u32).ok_or_else(too_large)?;
     let base = page
         .transform
-        .then(Matrix::new(&[scale, 0.0, 0.0, scale, 0.0, 0.0]));
+        .then(Matrix::new(&[scale, 0.0, 0.0, scale, 0.0, 0.0]))
+        .then(Matrix::new(&[1.0, 0.0, 0.0, 1.0, 0.0, -f64::from(top)]));
     let resources = match document.resolve(
         document.pages[index]
             .get("Resources")

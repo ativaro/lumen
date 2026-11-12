@@ -149,7 +149,13 @@ fn pdf_reader(path: &str, page: Option<usize>) -> Result<String, lumen_document:
         }
         let (width, height, words) = lumen_document::text::Page::words(&document, index)?;
         let scale = f64::min(2.0, f64::min(1800.0 / width, 2600.0 / height));
-        let picture = lumen_document::render::render(&document, index, scale)?;
+        let picture = lumen_document::render::render_file(
+            std::path::Path::new(path),
+            &password(),
+            index,
+            scale,
+            0,
+        )?;
         let png = picture
             .encode_png()
             .map_err(|_| Error::Pdf("PDF-Vorschaubild zu groß oder ungültig.".into()))?;
@@ -174,7 +180,7 @@ fn pdf_reader(path: &str, page: Option<usize>) -> Result<String, lumen_document:
 }
 
 /// The command line of `files/lumen_pdf_worker.py` for text, document information and a rendered page:
-/// `pdf-cli [--fallback <program> <script>] text|info|render <file> [--page n] [--pages n] [--scale-to n]
+/// `pdf-cli [--fallback <program> <script>] text|info|render <file> [--page n] [--rotation degrees] [--max-scale n] [--pages n] [--scale-to n]
 /// [--output png] [--limit bytes] [--characters n]`. What this core does not read is handed to the
 /// fallback with the same arguments, before anything has been written.
 fn pdf_cli(args: &[String]) -> ExitCode {
@@ -202,13 +208,14 @@ fn pdf_cli(args: &[String]) -> ExitCode {
     let run = || -> Result<Vec<u8>, String> {
         use lumen_document::pdf::Document;
         let invalid = || "Ungültige PDF-Ganzzahl oder überschrittenes Limit.".to_string();
-        let document = Document::open(std::path::Path::new(path), &password())
+        let mut document = Document::open(std::path::Path::new(path), &password())
             .map_err(|error| error.to_string())?;
         match action.as_str() {
             "info" => Ok(format!(
-                "{{\"pages\": {}, \"title\": {}}}\n",
+                "{{\"pages\": {}, \"title\": {}, \"encrypted\": {}}}\n",
                 document.pages.len(),
-                json(document.metadata.get("title").map_or("", String::as_str))
+                json(document.metadata.get("title").map_or("", String::as_str)),
+                document.encrypted()
             )
             .into_bytes()),
             "render" => {
@@ -218,12 +225,21 @@ fn pdf_cli(args: &[String]) -> ExitCode {
                 let edge = whole("--scale-to", 1500)
                     .filter(|edge| (1..=6000).contains(edge))
                     .ok_or_else(invalid)? as f64;
+                let turn = whole("--rotation", 0).ok_or_else(invalid)?;
+                let most = whole("--max-scale", 4)
+                    .filter(|most| (1..=4).contains(most))
+                    .ok_or_else(invalid)? as f64;
+                document
+                    .turn(index, turn)
+                    .map_err(|error| error.to_string())?;
                 let (width, height, _) = lumen_document::text::Page::words(&document, index)
                     .map_err(|error| error.to_string())?;
-                let picture = lumen_document::render::render(
-                    &document,
+                let picture = lumen_document::render::render_file(
+                    std::path::Path::new(path),
+                    &password(),
                     index,
-                    f64::min(4.0, edge / width.max(height)),
+                    f64::min(most, edge / width.max(height)),
+                    turn,
                 )
                 .map_err(|error| error.to_string())?;
                 let target =
@@ -296,6 +312,70 @@ fn pdf_cli(args: &[String]) -> ExitCode {
     }
 }
 
+/// `pdf-export`: a JSON request `{"pages": [{"path", "page", "rotation", "boxes", "stamp"}], "target", "dpi", "ocr"}`
+/// on standard input. One line per page reports progress. Exit code 3 means that this core does not
+/// write such a file yet; nothing has been written then.
+fn pdf_export() -> ExitCode {
+    use lumen_document::json::Json;
+    use lumen_document::pdf::Error;
+    use std::io::Read;
+    let request = || -> Option<(Vec<lumen_document::write::Item>, std::path::PathBuf, u32, Option<String>)> {
+        let mut data = Vec::new();
+        std::io::stdin()
+            .take(4 * 1024 * 1024 + 1)
+            .read_to_end(&mut data)
+            .ok()?;
+        let request = lumen_document::json::parse(&data)?;
+        let mut items = Vec::new();
+        for page in request.get("pages")?.list()? {
+            let stamp: Vec<i64> = page
+                .get("stamp")?
+                .list()?
+                .iter()
+                .map(Json::whole)
+                .collect::<Option<_>>()?;
+            let mut boxes = Vec::new();
+            for area in page.get("boxes").and_then(Json::list).unwrap_or(&[]) {
+                let sides: Vec<f64> = area
+                    .list()?
+                    .iter()
+                    .map(Json::number)
+                    .collect::<Option<_>>()?;
+                boxes.push(<[f64; 4]>::try_from(sides).ok()?);
+            }
+            items.push(lumen_document::write::Item {
+                path: page.get("path")?.text()?.into(),
+                page: usize::try_from(page.get("page")?.whole()?).ok()?,
+                rotation: page.get("rotation").map_or(Some(0), Json::whole)?,
+                boxes,
+                stamp: stamp.try_into().ok()?,
+            });
+        }
+        let dpi = request.get("dpi").map_or(Some(200), Json::whole)?;
+        Some((
+            items,
+            request.get("target")?.text()?.into(),
+            u32::try_from(dpi).ok()?,
+            request.get("ocr").and_then(Json::text).map(str::to_string),
+        ))
+    };
+    let Some((items, target, dpi, ocr)) = request() else {
+        eprintln!("Ungültige Seitenauswahl oder Qualität.");
+        return ExitCode::FAILURE;
+    };
+    let mut progress = |page: usize, pages: usize| println!("Seite {page} von {pages}");
+    match lumen_document::write::export(&items, &target, dpi, ocr.as_deref(), &mut progress) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("{error}");
+            match error {
+                Error::Unsupported(_) => ExitCode::from(3),
+                Error::Pdf(_) => ExitCode::FAILURE,
+            }
+        }
+    }
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.len() == 5 && args[0] == "pdf-render" {
@@ -320,6 +400,9 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         };
+    }
+    if args.len() == 1 && args[0] == "pdf-export" {
+        return pdf_export();
     }
     if args.len() >= 3 && args[0] == "pdf-cli" {
         return pdf_cli(&args[1..]);

@@ -1340,13 +1340,15 @@ fn plain(html: &str) -> String {
         .replace("&amp;", "&")
 }
 
-/// The whole text for a search: every sheet row and column, hidden sheets, and Word's footnotes and
+/// The whole text for a search, one form-feed separated page per sheet or slide: every sheet row and column, hidden sheets, and Word's footnotes and
 /// endnotes, which the reading view leaves out. `kind` is the lower-case suffix, since a searched file may be
 /// opened through a descriptor without a name.
 pub fn text(path: &Path, kind: &str) -> Outcome<String> {
     let mut pack = Pack::open(path, &HashMap::new())?;
     (pack.rows, pack.columns, pack.hidden) = (usize::MAX, usize::MAX, true);
-    let mut out: Vec<String> = parts(&pack, kind)?.iter().map(|part| plain(part)).collect();
+    // A form feed between sheets and slides, as between PDF pages, so that a hit names its page.
+    let sections: Vec<String> = parts(&pack, kind)?.iter().map(|part| plain(part)).collect();
+    let mut out = vec![sections.join("\u{c}")];
     for name in ["word/footnotes.xml", "word/endnotes.xml"] {
         if matches!(kind, ".docx" | ".docm") && pack.names.contains(name) {
             let notes = pack.part(name)?;

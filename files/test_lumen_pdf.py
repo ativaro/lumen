@@ -142,7 +142,9 @@ class RenderingTest(unittest.TestCase):
                 if isinstance(value,pdf.Stream): self.assertNotIn(b'SECRET',document.decode(value))
             self.assertNotIn(b'SECRET',target.read_bytes()); self.assertEqual(source.read_bytes(),secret)
             limited=Path(tmp)/'too-large.pdf'
-            with patch.object(pdf,'MAX_STREAM',4096):
+            # The document core has its own limit; this checks the one of the Python writer behind it.
+            import lumen_pdf_worker
+            with patch.object(pdf,'MAX_STREAM',4096),patch.object(lumen_pdf_worker,'core_export',return_value=None):
                 with self.assertRaises(pdf.PDFError): export([recipe],limited,150)
             self.assertFalse(limited.exists())
             with self.assertRaises(FileExistsError): export([recipe],target)

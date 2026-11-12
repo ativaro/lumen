@@ -17,11 +17,25 @@ def opened(path):
     return document
 
 
+def core(*arguments):
+    """The answer of the document core, or None where it does not read the file; the Python engine reads it then."""
+    import subprocess
+    from lumen_office import program
+    from lumen_pdf import PDFError
+    try:result=subprocess.run([program(),'pdf-cli',*arguments],capture_output=True,stdin=subprocess.DEVNULL,timeout=120)
+    except (PDFError,subprocess.TimeoutExpired):return None
+    return None if result.returncode else result.stdout
+
+
 def inspect(paths):
     pages=[]
     for path in paths:
-        before=signature(path);document=opened(path)
-        pages.extend(dict(path=path,page=i,rotation=0,boxes=[],stamp=before) for i in range(len(document)))
+        before=signature(path);info=core('info',str(path)) if Path(path).is_file() and not Path(path).is_symlink() and Path(path).stat().st_size<=512*1024**2 else None
+        if info:
+            info=json.loads(info);count=info['pages']
+            if info['encrypted'] or not 1<=count<=2000:raise ValueError(tr('Bitte eine unverschlüsselte PDF mit höchstens 2.000 Seiten verwenden.'))
+        else:count=len(opened(path))
+        pages.extend(dict(path=path,page=i,rotation=0,boxes=[],stamp=before) for i in range(count))
         if signature(path)!=before:raise ValueError(tr('Quelldatei während Lesen verändert.'))
     if len(pages)>2000:raise ValueError(tr('Höchstens 2.000 Seiten pro Arbeitsmappe.'))
     return pages
@@ -29,10 +43,12 @@ def inspect(paths):
 
 def render(item,target):
     if signature(item['path'])!=item['stamp']:raise ValueError(tr('Eine Quelldatei wurde verändert. Bitte neu öffnen.'))
-    document=opened(item['path']);page=Page(document,integer(item['page'],0,len(document)-1),item['rotation'])
-    image=page.render(min(2,1400/max(page.width,page.height)))
+    drawn=type(item['page']) is int and type(item['rotation']) is int and core('render',str(item['path']),'--page',str(item['page']),'--rotation',str(item['rotation']),'--scale-to','1400','--max-scale','2','--output',str(target)) is not None
+    if not drawn:
+        document=opened(item['path']);page=Page(document,integer(item['page'],0,len(document)-1),item['rotation'])
+        image=page.render(min(2,1400/max(page.width,page.height)))
     if signature(item['path'])!=item['stamp']:raise ValueError(tr('Quelldatei während Lesen verändert.'))
-    if not image.save(str(target),'PNG'):raise ValueError(tr('Vorschau konnte nicht gespeichert werden.'))
+    if not drawn and not image.save(str(target),'PNG'):raise ValueError(tr('Vorschau konnte nicht gespeichert werden.'))
     return str(target)
 
 
