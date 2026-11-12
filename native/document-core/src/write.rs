@@ -521,10 +521,12 @@ pub struct Item {
 
 /// Copies, reorders and turns pages into the new file `target`. As soon as one page has a redaction,
 /// every page is rasterised at `dpi`: a copied page could still share a resource that holds the hidden text.
+/// With `ocr`, the Tesseract languages, a rasterised page and a page without text get a recognised, invisible text layer.
 pub fn export(
     items: &[Item],
     target: &Path,
     dpi: u32,
+    ocr: Option<&str>,
     progress: &mut dyn FnMut(usize, usize),
 ) -> Outcome<()> {
     if !(1..=2000).contains(&items.len()) || ![150, 200, 300].contains(&dpi) {
@@ -542,6 +544,7 @@ pub fn export(
     }
     let rasterize = items.iter().any(|item| !item.boxes.is_empty());
     let mut writer = Writer::new();
+    let mut font = None;
     let mut sources: Vec<(PathBuf, [i64; 5], Document)> = Vec::new();
     for (position, item) in items.iter().enumerate() {
         progress(position + 1, items.len());
@@ -581,7 +584,7 @@ pub fn export(
         {
             return bad("Ungültiger PDF-Schwärzungsbereich.");
         }
-        if rasterize {
+        if rasterize || ocr.is_some() {
             let document = &mut sources[source].2;
             let before = document.pages[item.page].get("Rotate").cloned();
             let turned = match &before {
@@ -590,12 +593,23 @@ pub fn export(
                 _ => 0,
             };
             document.pages[item.page].insert("Rotate".into(), Value::Int(turned + item.rotation));
-            let drawn = raster(&mut writer, document, item, dpi);
+            // A page that already has text is copied as it is, unless a redaction forces the picture.
+            let empty = if rasterize {
+                Ok(true)
+            } else {
+                crate::text::Page::words(document, item.page).map(|(_, _, words)| words.is_empty())
+            };
+            let drawn = match empty {
+                Ok(true) => raster(&mut writer, document, item, dpi, ocr, &mut font).map(|_| true),
+                other => other,
+            };
             match before {
                 Some(value) => document.pages[item.page].insert("Rotate".into(), value),
                 None => document.pages[item.page].remove("Rotate"),
             };
-            drawn?;
+            if !drawn? {
+                writer.copy_page(source, &sources[source].2, item.page, item.rotation)?;
+            }
         } else {
             writer.copy_page(source, &sources[source].2, item.page, item.rotation)?;
         }
@@ -614,7 +628,14 @@ pub fn export(
 }
 
 /// The page as one picture with its redactions painted black, so that nothing under them remains in the file.
-fn raster(writer: &mut Writer, document: &Document, item: &Item, dpi: u32) -> Outcome<()> {
+fn raster(
+    writer: &mut Writer,
+    document: &Document,
+    item: &Item,
+    dpi: u32,
+    ocr: Option<&str>,
+    font: &mut Option<Ref>,
+) -> Outcome<()> {
     let (width, height) = {
         let page = crate::text::Page::prepare(document, item.page)?;
         (page.width, page.height)
@@ -659,12 +680,297 @@ fn raster(writer: &mut Writer, document: &Document, item: &Item, dpi: u32) -> Ou
     serialize(&mut content, &Value::Real(height), 0)?;
     content.extend_from_slice(b" 0 0 cm /LumenImage Do Q\n");
     let objects = dict(vec![("LumenImage", Value::Ref(image))]);
-    writer.add_page(
-        width,
-        height,
-        &content,
-        dict(vec![("XObject", Value::Dict(Rc::new(objects)))]),
-    )?;
+    let mut resources = dict(vec![("XObject", Value::Dict(Rc::new(objects)))]);
+    if let Some(languages) = ocr {
+        // The picture as it will be written, so that nothing under a redaction is recognised.
+        let mut shown = tiny_skia::Pixmap::new(w as u32, h as u32)
+            .ok_or_else(|| Error::Pdf("OCR-Bild konnte nicht gespeichert werden.".into()))?;
+        for (to, from) in shown
+            .data_mut()
+            .as_chunks_mut::<4>()
+            .0
+            .iter_mut()
+            .zip(pixels.as_chunks::<3>().0)
+        {
+            *to = [from[0], from[1], from[2], 255];
+        }
+        let words = recognise(&shown, languages, dpi)?;
+        if !words.is_empty() {
+            let face = match font {
+                Some(face) => *face,
+                None => *font.insert(text_font(writer)?),
+            };
+            resources.insert(
+                "Font".into(),
+                Value::Dict(Rc::new(dict(vec![("LumenOCR", Value::Ref(face))]))),
+            );
+            text_layer(&mut content, &words, width, height, f64::from(dpi))?;
+        }
+    }
+    writer.add_page(width, height, &content, resources)?;
+    Ok(())
+}
+
+/// A recognised word: its text and its box in picture pixels from the top left.
+struct Seen {
+    text: String,
+    left: f64,
+    top: f64,
+    width: f64,
+    height: f64,
+}
+
+/// Runs Tesseract on the picture. The text never leaves this computer.
+fn recognise(picture: &tiny_skia::Pixmap, languages: &str, dpi: u32) -> Outcome<Vec<Seen>> {
+    use std::io::Read;
+    let failed = || Error::Pdf("Texterkennung fehlgeschlagen.".into());
+    if languages.is_empty()
+        || !languages
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"+_".contains(&b))
+    {
+        return Err(failed());
+    }
+    let png = picture
+        .encode_png()
+        .map_err(|_| Error::Pdf("OCR-Bild konnte nicht gespeichert werden.".into()))?;
+    let mut child = std::process::Command::new("tesseract")
+        .args([
+            "stdin",
+            "stdout",
+            "-l",
+            languages,
+            "--dpi",
+            &dpi.to_string(),
+            "tsv",
+        ])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|_| failed())?;
+    let mut input = child.stdin.take().ok_or_else(failed)?;
+    let feeder = std::thread::spawn(move || input.write_all(&png));
+    let mut table = Vec::new();
+    let read = child
+        .stdout
+        .take()
+        .ok_or_else(failed)?
+        .take(4 * 1024 * 1024 + 1)
+        .read_to_end(&mut table);
+    let fed = feeder.join();
+    if read.is_err() || table.len() > 4 * 1024 * 1024 {
+        let _ = child.kill();
+        let _ = child.wait();
+        return bad("OCR-Ergebnis zu groß.");
+    }
+    if !child.wait().is_ok_and(|status| status.success()) || !matches!(fed, Ok(Ok(()))) {
+        return Err(failed());
+    }
+    let table = String::from_utf8(table).map_err(|_| failed())?;
+    let mut words = Vec::new();
+    // level, page, block, paragraph, line, word, left, top, width, height, confidence, text
+    for row in table.lines().skip(1) {
+        let cells: Vec<&str> = row.splitn(12, '\t').collect();
+        if cells.len() != 12 || cells[0] != "5" || cells[11].trim().is_empty() {
+            continue;
+        }
+        let side = |at: usize| cells[at].parse::<f64>().map_err(|_| failed());
+        words.push(Seen {
+            text: cells[11].to_string(),
+            left: side(6)?,
+            top: side(7)?,
+            width: side(8)?,
+            height: side(9)?,
+        });
+    }
+    Ok(words)
+}
+
+/// A TrueType file whose glyph 1 is empty and half an em wide. Readers ask for an embedded file even where
+/// nothing is painted.
+fn blank_font() -> Vec<u8> {
+    fn words(values: &[i32]) -> Vec<u8> {
+        values
+            .iter()
+            .flat_map(|v| (*v as i16).to_be_bytes())
+            .collect()
+    }
+    fn checksum(data: &[u8]) -> u32 {
+        data.chunks(4).fold(0u32, |sum, chunk| {
+            let mut unit = [0u8; 4];
+            unit[..chunk.len()].copy_from_slice(chunk);
+            sum.wrapping_add(u32::from_be_bytes(unit))
+        })
+    }
+    let mut head = vec![0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0x5F, 0x0F, 0x3C, 0xF5];
+    head.extend(words(&[0x000B, 1000])); // flags, units per em
+    head.extend([0u8; 16]); // created, modified
+    head.extend(words(&[0, -200, 500, 800, 0, 8, 2, 0, 0])); // box, style, smallest size, direction, short offsets, format
+    let mut hhea = vec![0, 1, 0, 0];
+    hhea.extend(words(&[
+        800, -200, 0, 500, 0, 0, 500, 1, 0, 0, 0, 0, 0, 0, 0, 1,
+    ]));
+    let mut maxp = vec![0, 1, 0, 0];
+    maxp.extend(words(&[2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0]));
+    let mut cmap = words(&[0, 1, 3, 1, 0, 12]); // one Windows Unicode table at offset 12
+    cmap.extend(words(&[4, 32, 0, 2, 2, 0, 0, 0xFFFF, 0, 0xFFFF, 1, 0])); // format 4 with only the closing segment
+    let mut post = vec![0, 3, 0, 0];
+    post.extend([0u8; 28]);
+    post[15] = 1; // fixed pitch
+    let mut tables: Vec<(&[u8; 4], Vec<u8>)> = vec![
+        (b"cmap", cmap),
+        (b"glyf", words(&[0; 10])), // the missing-glyph slot and one glyph, both without contours
+        (b"head", head),
+        (b"hhea", hhea),
+        (b"hmtx", words(&[500, 0, 0])),
+        (b"loca", words(&[0, 5, 10])),
+        (b"maxp", maxp),
+        (b"name", words(&[0, 0, 6])),
+        (b"post", post),
+    ];
+    for (_, data) in &mut tables {
+        data.resize(data.len().div_ceil(4) * 4, 0);
+    }
+    let count = tables.len() as u16;
+    let mut file = vec![0, 1, 0, 0];
+    file.extend(
+        [count, 128, 3, count * 16 - 128]
+            .iter()
+            .flat_map(|v| v.to_be_bytes()),
+    );
+    let mut offset = 12 + tables.len() * 16;
+    let mut head_at = 0;
+    for (tag, data) in &tables {
+        if *tag == b"head" {
+            head_at = offset;
+        }
+        file.extend_from_slice(*tag);
+        file.extend(checksum(data).to_be_bytes());
+        file.extend((offset as u32).to_be_bytes());
+        file.extend((data.len() as u32).to_be_bytes());
+        offset += data.len();
+    }
+    for (_, data) in &tables {
+        file.extend_from_slice(data);
+    }
+    let adjustment = 0xB1B0_AFBAu32.wrapping_sub(checksum(&file));
+    file[head_at + 8..head_at + 12].copy_from_slice(&adjustment.to_be_bytes());
+    file
+}
+
+/// A font without outlines for the invisible text: every character is half an em wide, its code is its
+/// UTF-16 unit, and the text is stretched to the width of the word that was seen.
+fn text_font(writer: &mut Writer) -> Outcome<Ref> {
+    let mut map = b"/CIDInit /ProcSet findresource begin 12 dict begin begincmap /CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def /CMapName /LumenUnicode def /CMapType 2 def 1 begincodespacerange <0000> <ffff> endcodespacerange\n".to_vec();
+    // A range may not cross a first byte, so the identity takes one range per first byte. The halves of
+    // a surrogate pair are no characters and stay unmapped.
+    let highs: Vec<u32> = (0..256)
+        .filter(|high| !(0xd8..=0xdf).contains(high))
+        .collect();
+    for batch in highs.chunks(100) {
+        map.extend_from_slice(format!("{} beginbfrange\n", batch.len()).as_bytes());
+        for high in batch {
+            map.extend_from_slice(
+                format!("<{high:02x}00> <{high:02x}ff> <{high:02x}00>\n").as_bytes(),
+            );
+        }
+        map.extend_from_slice(b"endbfrange\n");
+    }
+    map.extend_from_slice(b"endcmap CMapName currentdict /CMap defineresource pop end end");
+    let unicode = writer.stream(&map, Dict::new())?;
+    let whole = |value: i64| Value::Int(value);
+    let file = blank_font();
+    let length = file.len() as i64;
+    let file = writer.stream(&file, dict(vec![("Length1", whole(length))]))?;
+    // Every character code shows the empty glyph 1; glyph 0 would mean that the character is missing.
+    let glyphs = writer.stream(&[0u8, 1].repeat(65536), Dict::new())?;
+    let descriptor = writer.add(Value::Dict(Rc::new(dict(vec![
+        ("Type", name("FontDescriptor")),
+        ("FontName", name("LumenOCR")),
+        ("Flags", whole(4)),
+        (
+            "FontBBox",
+            Value::Array(Rc::new(vec![whole(0), whole(-200), whole(500), whole(800)])),
+        ),
+        ("ItalicAngle", whole(0)),
+        ("Ascent", whole(800)),
+        ("Descent", whole(-200)),
+        ("CapHeight", whole(700)),
+        ("StemV", whole(80)),
+        ("FontFile2", Value::Ref(file)),
+    ]))))?;
+    let system = dict(vec![
+        ("Registry", Value::Text(Rc::new(b"Adobe".to_vec()))),
+        ("Ordering", Value::Text(Rc::new(b"Identity".to_vec()))),
+        ("Supplement", whole(0)),
+    ]);
+    let child = writer.add(Value::Dict(Rc::new(dict(vec![
+        ("Type", name("Font")),
+        ("Subtype", name("CIDFontType2")),
+        ("BaseFont", name("LumenOCR")),
+        ("CIDSystemInfo", Value::Dict(Rc::new(system))),
+        ("FontDescriptor", Value::Ref(descriptor)),
+        ("DW", whole(500)),
+        ("CIDToGIDMap", Value::Ref(glyphs)),
+    ]))))?;
+    writer.add(Value::Dict(Rc::new(dict(vec![
+        ("Type", name("Font")),
+        ("Subtype", name("Type0")),
+        ("BaseFont", name("LumenOCR")),
+        ("Encoding", name("Identity-H")),
+        (
+            "DescendantFonts",
+            Value::Array(Rc::new(vec![Value::Ref(child)])),
+        ),
+        ("ToUnicode", Value::Ref(unicode)),
+    ]))))
+}
+
+/// The words as text that is not painted, each at the place and width it has in the picture.
+fn text_layer(
+    content: &mut Vec<u8>,
+    words: &[Seen],
+    width: f64,
+    height: f64,
+    dpi: f64,
+) -> Outcome<()> {
+    let number = |out: &mut Vec<u8>, value: f64| serialize(out, &Value::Real(value), 0);
+    for word in words {
+        let scale = 72.0 / dpi;
+        let (x, y, w, h) = (
+            word.left * scale,
+            word.top * scale,
+            word.width * scale,
+            word.height * scale,
+        );
+        if x.min(y) < 0.0 || w <= 0.0 || h <= 0.0 || x + w > width + 1.0 || y + h > height + 1.0 {
+            return bad("Ungültige OCR-Textposition.");
+        }
+        // Characters outside the basic plane have no single code in this font and are left out.
+        let units: Vec<u8> = word
+            .text
+            .chars()
+            .filter(|c| (*c as u32) < 0x10000)
+            .flat_map(|c| (c as u16).to_be_bytes())
+            .collect();
+        if units.is_empty() {
+            continue;
+        }
+        let natural = (units.len() / 2) as f64 * 0.5 * h;
+        content.extend_from_slice(b"BT 3 Tr /LumenOCR ");
+        number(content, h)?;
+        content.extend_from_slice(b" Tf ");
+        number(content, 100.0 * w / natural)?;
+        content.extend_from_slice(b" Tz 1 0 0 1 ");
+        number(content, x)?;
+        content.push(b' ');
+        // The font's descent is a fifth of its size, so this puts its box on the word's box.
+        number(content, height - y - 0.8 * h)?;
+        content.extend_from_slice(b" Tm ");
+        serialize(content, &Value::Text(Rc::new(units)), 0)?;
+        content.extend_from_slice(b" Tj ET\n");
+    }
     Ok(())
 }
 
@@ -708,5 +1014,35 @@ mod tests {
         let page = crate::text::Page::prepare(&document, 0).unwrap();
         assert_eq!((page.width, page.height), (200.0, 100.0));
         assert!(Writer::new().bytes().is_err());
+    }
+
+    #[test]
+    fn the_blank_font_is_a_font_and_recognised_words_keep_their_place() {
+        let font = blank_font();
+        let face = ttf_parser::Face::parse(&font, 0).unwrap();
+        assert_eq!(face.number_of_glyphs(), 2);
+        assert_eq!(face.glyph_hor_advance(ttf_parser::GlyphId(1)), Some(500));
+        let word = |text: &str, left| Seen {
+            text: text.into(),
+            left,
+            top: 100.0,
+            width: 200.0,
+            height: 40.0,
+        };
+        let mut content = Vec::new();
+        text_layer(
+            &mut content,
+            &[word("Öl", 100.0), word("😀", 400.0)],
+            400.0,
+            400.0,
+            144.0,
+        )
+        .unwrap();
+        // 20 points high, two characters of 10 points stretched to 100: five times as wide. The emoji is left out.
+        assert_eq!(
+            String::from_utf8(content).unwrap(),
+            "BT 3 Tr /LumenOCR 20 Tf 500 Tz 1 0 0 1 50 334 Tm <00d6006c> Tj ET\n"
+        );
+        assert!(text_layer(&mut Vec::new(), &[word("x", 700.0)], 400.0, 400.0, 144.0).is_err());
     }
 }

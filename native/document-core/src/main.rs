@@ -302,14 +302,14 @@ fn pdf_cli(args: &[String]) -> ExitCode {
     }
 }
 
-/// `pdf-export`: a JSON request `{"pages": [{"path", "page", "rotation", "boxes", "stamp"}], "target", "dpi"}`
+/// `pdf-export`: a JSON request `{"pages": [{"path", "page", "rotation", "boxes", "stamp"}], "target", "dpi", "ocr"}`
 /// on standard input. One line per page reports progress. Exit code 3 means that this core does not
 /// write such a file yet; nothing has been written then.
 fn pdf_export() -> ExitCode {
     use lumen_document::json::Json;
     use lumen_document::pdf::Error;
     use std::io::Read;
-    let request = || -> Option<(Vec<lumen_document::write::Item>, std::path::PathBuf, u32)> {
+    let request = || -> Option<(Vec<lumen_document::write::Item>, std::path::PathBuf, u32, Option<String>)> {
         let mut data = Vec::new();
         std::io::stdin()
             .take(4 * 1024 * 1024 + 1)
@@ -346,14 +346,15 @@ fn pdf_export() -> ExitCode {
             items,
             request.get("target")?.text()?.into(),
             u32::try_from(dpi).ok()?,
+            request.get("ocr").and_then(Json::text).map(str::to_string),
         ))
     };
-    let Some((items, target, dpi)) = request() else {
+    let Some((items, target, dpi, ocr)) = request() else {
         eprintln!("Ungültige Seitenauswahl oder Qualität.");
         return ExitCode::FAILURE;
     };
     let mut progress = |page: usize, pages: usize| println!("Seite {page} von {pages}");
-    match lumen_document::write::export(&items, &target, dpi, &mut progress) {
+    match lumen_document::write::export(&items, &target, dpi, ocr.as_deref(), &mut progress) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("{error}");

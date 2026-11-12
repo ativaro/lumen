@@ -41,13 +41,13 @@ def ocr_text(text_writer,page,image,dpi):
             text_writer.box(page,[x,y,x+w,y+h+2], [row['text']], [dict(size=max(1,h*.85))],min_scale=.1,invisible=True)
 
 
-def core_export(pages,target,dpi,progress):
+def core_export(pages,target,dpi,progress,ocr=False):
     """The export through the document core. None if the core does not write such a file yet; nothing is written then."""
     import subprocess
     from lumen_office import program
     try:command=[program(),'pdf-export']
     except PDFError:return None
-    request=json.dumps(dict(pages=[dict(item,path=str(Path(item['path']).absolute())) for item in pages],target=str(target),dpi=dpi))
+    request=json.dumps(dict(pages=[dict(item,path=str(Path(item['path']).absolute())) for item in pages],target=str(target),dpi=dpi,**({'ocr':__import__('lumen_ocr').languages()} if ocr else {})))
     with subprocess.Popen(command,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True) as process:
         import threading
         errors=[];reader=threading.Thread(target=lambda:errors.append(process.stderr.read()));reader.start()
@@ -67,9 +67,8 @@ def export(pages,target,dpi=200,ocr=False,progress=lambda _:None):
     if not isinstance(pages,list) or not 1<=len(pages)<=2000 or dpi not in (150,200,300): raise PDFError('Ungültige Seitenauswahl oder Qualität.')
     target=Path(target).absolute()
     if os.path.lexists(target): raise FileExistsError('Die PDF-Zieldatei existiert bereits.')
-    if not ocr:
-        done=core_export(pages,target,dpi,progress)
-        if done:return done
+    done=core_export(pages,target,dpi,progress,ocr)
+    if done:return done
     writer=Writer(); documents={}; stamps={}
     from lumen_pdf_text import TextWriter
     text_writer=TextWriter(writer) if ocr else None
