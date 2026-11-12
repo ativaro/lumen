@@ -401,6 +401,46 @@ fn main() -> ExitCode {
             }
         };
     }
+    if args.len() == 1 && args[0] == "index" {
+        // `index`: the text of every file below a folder for the knowledge index, as JSON lines.
+        use std::io::Read;
+        let mut data = Vec::new();
+        let _ = std::io::stdin()
+            .take(4 * 1024 * 1024 + 1)
+            .read_to_end(&mut data);
+        let Some(request) = lumen_document::json::parse(&data)
+            .as_ref()
+            .and_then(lumen_document::search::Index::from_json)
+        else {
+            println!("{{\"type\": \"error\", \"message\": \"Ungültiger Indexauftrag.\"}}");
+            return ExitCode::FAILURE;
+        };
+        let mut out = std::io::BufWriter::new(std::io::stdout().lock());
+        return match lumen_document::search::index(&request, &mut out) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(_) => ExitCode::FAILURE,
+        };
+    }
+    if args.len() == 1 && args[0] == "search" {
+        // `search`: one JSON request on standard input, one JSON line per event on standard output.
+        use std::io::Read;
+        let mut data = Vec::new();
+        let _ = std::io::stdin()
+            .take(4 * 1024 * 1024 + 1)
+            .read_to_end(&mut data);
+        let Some(request) = lumen_document::json::parse(&data)
+            .as_ref()
+            .and_then(lumen_document::search::Request::from_json)
+        else {
+            println!("{{\"type\": \"error\", \"message\": \"Ungültiger Suchauftrag.\"}}");
+            return ExitCode::FAILURE;
+        };
+        let mut out = std::io::BufWriter::new(std::io::stdout().lock());
+        return match lumen_document::search::run(&request, &mut out) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(_) => ExitCode::FAILURE,
+        };
+    }
     if args.len() == 1 && args[0] == "pdf-export" {
         return pdf_export();
     }

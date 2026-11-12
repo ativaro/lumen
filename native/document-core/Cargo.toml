@@ -25,6 +25,7 @@ jpeg-decoder = { version = "0.3", default-features = false }
 md-5 = { version = "0.10", default-features = false }
 sha2 = { version = "0.10", default-features = false }
 aes = { version = "0.8", default-features = false }
+libc = { version = "0.2", default-features = false }
 
 [profile.release]
 panic = "abort"

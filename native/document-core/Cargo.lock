@@ -224,6 +224,7 @@ dependencies = [
  "aes",
  "flate2",
  "jpeg-decoder",
+ "libc",
  "md-5",
  "roxmltree",
  "sha2",
