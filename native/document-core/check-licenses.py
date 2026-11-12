@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Fail when a dependency's licence is not one that can be used freely without buying or separately licensing it."""
+"""Fail when a dependency's licence is not one that can be used freely without buying or separately licensing it.
+
+usage: check-licenses.py [crate folder]; without one, the document core beside this file."""
 import json
 import subprocess
+import sys
 from pathlib import Path
 
-root = Path(__file__).resolve().parent
+root = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path(__file__).resolve().parent
 # Permissive licences only (user decision of 11.11.2026). Copyleft and commercial licences are not accepted;
 # a part without a permissive building block is written in this crate instead.
 allowed = {'MIT', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'Zlib', 'ISC', '0BSD', 'Unicode-3.0', 'Unlicense', 'CC0-1.0', 'MIT-0'}

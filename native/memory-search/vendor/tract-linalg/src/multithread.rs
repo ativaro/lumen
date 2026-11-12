@@ -1,0 +1,777 @@
+use std::cell::RefCell;
+use std::sync::atomic::{AtomicUsize, Ordering};
+#[allow(unused_imports)]
+use std::sync::{Arc, Mutex};
+
+#[cfg(feature = "multithread-mm")]
+use rayon::{ThreadPool, ThreadPoolBuilder};
+
+use tract_data::internal::num_integer::Integer;
+use tract_data::internal::vector_size;
+use tract_data::internal::{Tensor, TensorView, TractResult, ensure};
+
+use crate::BinFn;
+
+#[derive(Debug, Clone, Default)]
+pub enum Executor {
+    #[default]
+    SingleThread,
+    #[cfg(feature = "multithread-mm")]
+    MultiThread(Arc<ThreadPool>),
+    /// Use rayon's GLOBAL thread pool — the one set up by
+    /// `wasm_bindgen_rayon::init_thread_pool` on `wasm32-unknown-unknown`,
+    /// or rayon's auto-initialised default on native.
+    ///
+    /// Exists because `Arc<rayon::ThreadPool>` cannot be constructed on
+    /// `wasm32-unknown-unknown`: rayon's default `spawn_handler` calls
+    /// `std::thread::spawn`, which is unsupported there. The only working
+    /// route is rayon's global pool, accessed via `into_par_iter` directly.
+    #[cfg(feature = "multithread-mm")]
+    RayonGlobal,
+}
+
+impl Executor {
+    #[cfg(feature = "multithread-mm")]
+    pub fn multithread(n: usize) -> Executor {
+        Executor::multithread_with_name(n, "tract-default")
+    }
+
+    /// A private `n`-thread rayon pool.
+    ///
+    /// On wasm targets that cannot spawn threads (`wasm32-wasip1`,
+    /// `wasm32-unknown-unknown`) this quietly returns [`Executor::RayonGlobal`]
+    /// instead: the pool `wasm_bindgen_rayon` set up if there is one, else
+    /// rayon's current-thread fallback, so callers need no wasm special case.
+    #[cfg(feature = "multithread-mm")]
+    pub fn multithread_with_name(n: usize, name: &str) -> Executor {
+        let name = name.to_string();
+        match ThreadPoolBuilder::new()
+            .thread_name(move |n| format!("{name}-{n}"))
+            .num_threads(n)
+            .build()
+        {
+            Ok(pool) => Executor::MultiThread(Arc::new(pool)),
+            Err(_) if cfg!(target_family = "wasm") => Executor::RayonGlobal,
+            Err(e) => panic!("Failed to build a {n}-thread pool: {e}"),
+        }
+    }
+}
+
+static DEFAULT_EXECUTOR: Mutex<Executor> = Mutex::new(Executor::SingleThread);
+
+thread_local! {
+    static TLS_EXECUTOR_OVERRIDE: RefCell<Option<Executor>> = Default::default();
+}
+
+/// Threads in the executor that will run an op. One when tract is single-threaded.
+///
+/// Read at kernel-pick time, which is before the rayon install at dispatch, so
+/// the Apple matrix policy can score a kernel by the pool that will run it.
+/// The policy is macOS-only; other targets compile this and do not call it.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn current_executor_threads() -> usize {
+    match current_tract_executor() {
+        Executor::SingleThread => 1,
+        #[cfg(feature = "multithread-mm")]
+        Executor::MultiThread(pool) => pool.current_num_threads().max(1),
+        #[cfg(feature = "multithread-mm")]
+        Executor::RayonGlobal => rayon::current_num_threads().max(1),
+    }
+}
+
+pub fn current_tract_executor() -> Executor {
+    if let Some(over_ride) = TLS_EXECUTOR_OVERRIDE.with_borrow(|tls| tls.clone()) {
+        over_ride
+    } else {
+        DEFAULT_EXECUTOR.lock().unwrap().clone()
+    }
+}
+
+pub fn set_default_executor(executor: Executor) {
+    *DEFAULT_EXECUTOR.lock().unwrap() = executor;
+}
+
+pub fn multithread_tract_scope<R, F: FnOnce() -> R>(pool: Executor, f: F) -> R {
+    let previous = TLS_EXECUTOR_OVERRIDE.replace(Some(pool));
+    let result = f();
+    TLS_EXECUTOR_OVERRIDE.set(previous);
+    result
+}
+
+/// Threshold (in panels) below which the rayon MMM dispatcher skips
+/// parallelism and runs inline single-threaded. Below this size,
+/// per-call dispatch overhead (~5 µs native, ~50 µs wasm-bindgen-rayon
+/// worker) exceeds the parallel speedup.
+///
+/// Default `64`. Tune higher for many-small-MMM workloads (mobile vision,
+/// streaming RNN) or lower for transformer-class workloads where every MMM
+/// is large. `0` disables the gate entirely (always thread).
+#[cfg(feature = "multithread-mm")]
+static THREADING_PANEL_THRESHOLD: AtomicUsize = AtomicUsize::new(64);
+
+/// Read the current MMM panel-count threshold for the rayon path.
+#[cfg(feature = "multithread-mm")]
+pub fn current_threading_panel_threshold() -> usize {
+    THREADING_PANEL_THRESHOLD.load(Ordering::Relaxed)
+}
+
+/// Set the MMM panel-count threshold for the rayon path. Default is `64`.
+/// Pass `0` to thread regardless of size.
+#[cfg(feature = "multithread-mm")]
+pub fn set_threading_panel_threshold(panels: usize) {
+    THREADING_PANEL_THRESHOLD.store(panels, Ordering::Relaxed);
+}
+
+/// Multiply-accumulate count at or above which the rayon MMM dispatcher
+/// threads a matrix-vector product even when it has fewer panels than
+/// [`current_threading_panel_threshold`]: a long-`k` GEMV over few panels
+/// carries enough work per panel to amortise the dispatch. It only ever adds
+/// threading on top of the panel gate, and leaves matrix-matrix products to
+/// the panel gate alone.
+///
+/// Default `2^21` on native targets; `usize::MAX` (off) on wasm, where the
+/// per-dispatch cost is an order of magnitude higher.
+#[cfg(feature = "multithread-mm")]
+static THREADING_MAC_THRESHOLD: AtomicUsize =
+    AtomicUsize::new(if cfg!(target_family = "wasm") { usize::MAX } else { 1 << 21 });
+
+/// Read the current MMM multiply-accumulate threshold for the rayon path.
+#[cfg(feature = "multithread-mm")]
+pub fn current_threading_mac_threshold() -> usize {
+    THREADING_MAC_THRESHOLD.load(Ordering::Relaxed)
+}
+
+/// Set the MMM multiply-accumulate threshold for the rayon path. Pass
+/// `usize::MAX` to leave the decision to the panel gate alone.
+#[cfg(feature = "multithread-mm")]
+pub fn set_threading_mac_threshold(macs: usize) {
+    THREADING_MAC_THRESHOLD.store(macs, Ordering::Relaxed);
+}
+
+/// Threshold (in tensor elements) below which [`par_chunks_mut`] skips
+/// parallelism and runs its body inline single-threaded. Below this much work,
+/// per-dispatch overhead exceeds the parallel speedup. Distinct from
+/// `THREADING_PANEL_THRESHOLD`: this counts elements of work, not MMM panels.
+///
+/// Default `32768`. `0` disables the gate entirely (always thread).
+static THREADING_ELEMENT_THRESHOLD: AtomicUsize = AtomicUsize::new(32768);
+
+/// Read the current element-count threshold for the row-parallel path.
+pub fn current_threading_element_threshold() -> usize {
+    THREADING_ELEMENT_THRESHOLD.load(Ordering::Relaxed)
+}
+
+/// Set the element-count threshold for the row-parallel path. Default is
+/// `32768`. Pass `0` to thread regardless of size.
+#[cfg(feature = "multithread-mm")]
+pub fn set_threading_element_threshold(elements: usize) {
+    THREADING_ELEMENT_THRESHOLD.store(elements, Ordering::Relaxed);
+}
+
+/// Process `out` in parallel over its outer (row) axis, dispatching across the
+/// executor installed by [`multithread_tract_scope`]. Falls back to a single
+/// inline `f(0, out)` when the executor is single-threaded (including a
+/// one-thread pool), when there are fewer than two rows, or when `total_elems`
+/// is below [`current_threading_element_threshold`].
+///
+/// `out` is viewed as `out.len() / row_len` contiguous rows of `row_len`
+/// elements (`row_len` must divide `out.len()`). Work is split only on row
+/// boundaries, never inside a row, so any per-row reduction the closure runs
+/// keeps its accumulation order and the output is bit-identical to the inline
+/// path regardless of thread count.
+///
+/// The closure receives `(first_row, chunk)`: `chunk` is a contiguous block of
+/// whole rows and `first_row` is the index of its first row within `out`, used
+/// to index sibling buffers captured from the caller (e.g. an out-of-place
+/// reduce whose input row is `reduced_dim` wide while `out` rows are width 1).
+/// For such callers `total_elems` is the size of the data actually read, which
+/// can exceed `out.len()`.
+///
+/// The signature is identical with or without the `multithread-mm` feature so
+/// callers compile unchanged; without the feature the body is just `f(0, out)`.
+///
+/// A launch needs two full [`current_threading_element_threshold`]s of work. A
+/// tensor that only just cleared one used to be cut into `4 * threads` pieces,
+/// and that launch was slower than doing the work on the caller. Once launched,
+/// the split gives every thread a chunk, since the launch is already paid and an
+/// idle core is the larger loss on slow cores, and grows with the work up to
+/// `4 * threads` for load balance.
+pub fn par_chunks_mut<T: Send>(
+    out: &mut [T],
+    row_len: usize,
+    total_elems: usize,
+    f: impl Fn(usize, &mut [T]) -> TractResult<()> + Sync + Send,
+) -> TractResult<()> {
+    #[cfg(feature = "multithread-mm")]
+    {
+        use rayon::prelude::*;
+        debug_assert!(row_len >= 1 && out.len() % row_len == 0);
+        let n_rows = out.len() / row_len;
+        // Checked before the executor lock. Hundreds of nodes sit under the threshold.
+        let threshold = current_threading_element_threshold();
+        if n_rows < 2 || (threshold > 0 && total_elems / threshold < 2) {
+            return f(0, out);
+        }
+        let threads = current_executor_threads().max(1);
+        let n_chunks = total_elems.checked_div(threshold).map_or_else(
+            || n_rows.min(threads),
+            |work| work.max(threads).min(4 * threads).min(n_rows),
+        );
+        if n_chunks < 2 {
+            return f(0, out);
+        }
+        let chunk_rows = n_rows.div_ceil(n_chunks);
+        let run = |out: &mut [T]| -> TractResult<()> {
+            out.par_chunks_mut(chunk_rows * row_len)
+                .enumerate()
+                .try_for_each(|(i, chunk)| f(i * chunk_rows, chunk))
+        };
+        match current_tract_executor() {
+            Executor::MultiThread(pool) if pool.current_num_threads() > 1 => {
+                pool.install(|| run(out))
+            }
+            Executor::RayonGlobal => run(out),
+            // SingleThread, or a one-thread MultiThread pool, runs inline serially.
+            _ => f(0, out),
+        }
+    }
+    #[cfg(not(feature = "multithread-mm"))]
+    {
+        let _ = (row_len, total_elems);
+        f(0, out)
+    }
+}
+
+/// How `b` maps onto the blocks [`par_bin`] splits `a` into.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BShare {
+    /// `b` is one `period`-element row that every block of `a` consumes in
+    /// lockstep, as the unicast kernels do. Requires `b.len() == period`.
+    Lockstep,
+    /// `b` holds one scalar per block of `a`, as the by-scalar kernels do:
+    /// block `i` reads `b[i]`. Requires `b.len() == a.len() / period`.
+    PerBlock,
+}
+
+/// Apply the linalg binary kernel `eval_fn` to `a` in place, splitting the work
+/// across the executor installed by [`multithread_tract_scope`].
+///
+/// `a` is `a.len() / period` blocks of `period` elements, `period` being how many
+/// `a` elements one kernel call covers; `share` says how `b` lines up with those
+/// blocks. A block is the coarsest unit a single call may span, because the
+/// unicast kernels walk `b` in lockstep and index past its end once `a` runs
+/// beyond one period. Inside a block the split lands on `vector_size()`-element
+/// boundaries, which keeps `a`'s and `b`'s offsets congruent modulo the kernel
+/// alignment — `unicast_with_alignment` hard-asserts that congruence.
+/// `OptBinUnicast::check_b_alignement` is what guarantees `period` itself is such
+/// a multiple whenever there is more than one block.
+///
+/// An empty `a` is a no-op: the kernels cannot take one, as `as_slice_mut` would
+/// build a slice from the null data pointer.
+///
+/// Both tensors must have natural C-order strides, which the callers' stride
+/// guards establish, and plain storage, which holds because no linalg binary
+/// kernel is registered for a datum type that lacks it. The byte offsets computed
+/// here are only correct under both.
+///
+/// These kernels are pure elementwise, so no chunk boundary can change a result:
+/// the output is bit-identical to the serial path at any thread count.
+pub fn par_bin(
+    eval_fn: &BinFn,
+    a: &mut Tensor,
+    b: &Tensor,
+    period: usize,
+    share: BShare,
+) -> TractResult<()> {
+    if a.len() == 0 {
+        return Ok(());
+    }
+    ensure!(
+        a.len().is_multiple_of(period),
+        "par_bin: period {period} does not divide a.len() {}",
+        a.len()
+    );
+    let n_blocks = a.len() / period;
+    match share {
+        BShare::Lockstep => ensure!(
+            b.len() == period,
+            "par_bin: Lockstep wants b.len() {} == period {period}",
+            b.len()
+        ),
+        BShare::PerBlock => ensure!(
+            b.len() == n_blocks,
+            "par_bin: PerBlock wants b.len() {} == {n_blocks} blocks",
+            b.len()
+        ),
+    }
+
+    let a_item = a.datum_type().size_of() as isize;
+    let b_item = b.datum_type().size_of() as isize;
+    // The writes below go through views built from a shared reference, so the
+    // storage has to be made exclusive and plain host memory here, while we
+    // still hold `&mut`.
+    a.try_as_plain_ram_mut()?;
+    let a = &*a;
+    // `len` elements of block `block`, starting `offset` elements into it. Both
+    // tensors are naturally strided, so a's flat element index is
+    // `block * period + offset` and b's is `offset` (Lockstep) or `block`
+    // (PerBlock).
+    let call = |block: usize, offset: usize, len: usize| -> TractResult<()> {
+        static STRIDES: [isize; 1] = [1];
+        let a_shape = [len];
+        let (b_offset, b_shape) = match share {
+            BShare::Lockstep => (offset as isize * b_item, [len]),
+            BShare::PerBlock => (block as isize * b_item, [1]),
+        };
+        let a_offset = (block * period + offset) as isize * a_item;
+        // `offset + len <= period` and blocks are disjoint, so the byte range
+        // `[a_offset, a_offset + len * a_item)` is disjoint across every
+        // (block, offset) the dispatch below enumerates. That is what makes the
+        // concurrent writes through these views non-aliasing; keep it true if the
+        // chunk arithmetic changes.
+        unsafe {
+            let mut a_chunk = TensorView::from_bytes(a, a_offset, &a_shape, &STRIDES);
+            let b_chunk = TensorView::from_bytes(b, b_offset, &b_shape, &STRIDES);
+            eval_fn(&mut a_chunk, &b_chunk)
+        }
+    };
+
+    #[cfg(feature = "multithread-mm")]
+    {
+        use rayon::prelude::*;
+        // Threshold first: reading the executor takes a global lock, and a graph
+        // has hundreds of these nodes sitting below the threshold.
+        let threshold = current_threading_element_threshold();
+        // Two full thresholds, or the launch is larger than the work. The old
+        // `4 * threads` split did that to every tensor that merely cleared one.
+        if threshold == 0 || a.len() / threshold >= 2 {
+            let executor = current_tract_executor();
+            let nth = match &executor {
+                Executor::MultiThread(pool) => pool.current_num_threads(),
+                Executor::RayonGlobal => rayon::current_num_threads(),
+                Executor::SingleThread => 1,
+            };
+            if nth > 1 {
+                // Every thread gets a block once launched; more with the work, up to `4 * nth`.
+                let by_work =
+                    a.len().checked_div(threshold).map_or(nth, |w| w.max(nth).min(4 * nth));
+                let per_block = by_work.div_ceil(n_blocks).max(1);
+                let chunk = period.div_ceil(per_block).next_multiple_of(vector_size()).min(period);
+                let per_block = period.div_ceil(chunk);
+                if n_blocks * per_block > 1 {
+                    let run = || {
+                        (0..n_blocks * per_block).into_par_iter().try_for_each(|i| {
+                            let offset = (i % per_block) * chunk;
+                            call(i / per_block, offset, chunk.min(period - offset))
+                        })
+                    };
+                    return match executor {
+                        Executor::MultiThread(pool) => pool.install(run),
+                        _ => run(),
+                    };
+                }
+            }
+        }
+    }
+
+    // A single block is the whole tensor, so hand the kernel the natural view
+    // rather than a rank-1 one: fewer shapes for a future kernel to have to
+    // tolerate on the overwhelmingly common path.
+    if n_blocks == 1 {
+        return eval_fn(&mut a.view(), &b.view());
+    }
+    (0..n_blocks).try_for_each(|block| call(block, 0, period))
+}
+
+/// One kernel application inside a [`par_bin_chain`] walk, with `b`, `period`
+/// and `share` carrying the same contract as the [`par_bin`] arguments.
+pub struct BinChainStep<'a> {
+    pub eval_fn: &'a BinFn,
+    pub b: &'a Tensor,
+    pub period: usize,
+    pub share: BShare,
+}
+
+fn chain_workers(len: usize) -> usize {
+    #[cfg(feature = "multithread-mm")]
+    {
+        // Threshold first: reading the executor takes a global lock.
+        if len < current_threading_element_threshold() {
+            return 1;
+        }
+        match current_tract_executor() {
+            Executor::MultiThread(pool) => pool.current_num_threads(),
+            Executor::RayonGlobal => rayon::current_num_threads(),
+            Executor::SingleThread => 1,
+        }
+    }
+    #[cfg(not(feature = "multithread-mm"))]
+    {
+        let _ = len;
+        1
+    }
+}
+
+/// Apply every step of `steps` to `a` in place, chunk by chunk, so each chunk
+/// of `a` is still cache-hot when the next step's kernel runs over it instead
+/// of streaming the whole tensor once per step. A chunk may not cross a
+/// PerBlock step's block boundary, so its length must divide that step's
+/// period; a Lockstep step whose period is a `vector_size()` multiple may span
+/// several periods per chunk, its kernel then being called once per period
+/// piece without copying `b`. Any `vector_size()` multiple dividing the gcd
+/// of those spans works. The walk
+/// picks the largest such chunk under `CHAIN_CHUNK` elements that still
+/// splits `a` into `4 * threads` pieces — giving the same operand mapping
+/// `par_bin` would produce and a bit-identical result.
+///
+/// Falls back to sequential `par_bin` calls when no usable chunk exists, and
+/// launches like `par_bin` does, so a chain is never less parallel than the
+/// steps it replaces.
+pub fn par_bin_chain(steps: &[BinChainStep], a: &mut Tensor) -> TractResult<()> {
+    /// Largest chunk that keeps `a` plus one operand slice inside L1/L2.
+    const CHAIN_CHUNK: usize = 16384;
+    if steps.is_empty() || a.len() == 0 {
+        return Ok(());
+    }
+    let a_len = a.len();
+    let a_item = a.datum_type().size_of() as isize;
+    for s in steps {
+        ensure!(
+            a_len.is_multiple_of(s.period),
+            "par_bin_chain: period {} does not divide a.len() {}",
+            s.period,
+            a_len
+        );
+        match s.share {
+            BShare::Lockstep => ensure!(
+                s.b.len() == s.period,
+                "par_bin_chain: Lockstep wants b.len() {} == period {}",
+                s.b.len(),
+                s.period
+            ),
+            BShare::PerBlock => ensure!(
+                s.b.len() == a_len / s.period,
+                "par_bin_chain: PerBlock wants b.len() {} == {} blocks",
+                s.b.len(),
+                a_len / s.period
+            ),
+        }
+    }
+    let workers = chain_workers(a_len);
+    let max_chunk = if workers > 1 { CHAIN_CHUNK.min(a_len / (4 * workers)) } else { CHAIN_CHUNK }
+        .max(4 * vector_size());
+    // A short Lockstep period (a per-channel operand over channel-last data)
+    // would cap the chunk at one period; let the chunk span `k` whole periods
+    // instead, the step kernel then running once per period inside it.
+    let span = |s: &BinChainStep| -> usize {
+        if s.share != BShare::Lockstep
+            || s.period * 2 > max_chunk
+            || !s.period.is_multiple_of(vector_size())
+        {
+            return s.period;
+        }
+        let blocks = a_len / s.period;
+        let k = (1..=blocks.min(max_chunk / s.period))
+            .rev()
+            .find(|k| blocks.is_multiple_of(*k))
+            .unwrap_or(1);
+        k * s.period
+    };
+    let unit = steps.iter().fold(a_len, |u, s| u.gcd(&span(s)));
+    if unit % vector_size() != 0 {
+        for s in steps {
+            par_bin(s.eval_fn, a, s.b, s.period, s.share)?;
+        }
+        return Ok(());
+    }
+    let q = unit / vector_size();
+    // Largest `chunk = vector_size() * t` with `t | q` and `chunk <=
+    // max_chunk`.
+    let mut t = 1;
+    let mut d = 1;
+    while d * d <= q {
+        if q % d == 0 {
+            for cand in [d, q / d] {
+                if cand <= max_chunk / vector_size() {
+                    t = t.max(cand);
+                }
+            }
+        }
+        d += 1;
+    }
+    let chunk = t * vector_size();
+    if chunk < 4 * vector_size() {
+        for s in steps {
+            par_bin(s.eval_fn, a, s.b, s.period, s.share)?;
+        }
+        return Ok(());
+    }
+    let n_chunks = a_len / chunk;
+    a.try_as_plain_ram_mut()?;
+    let a = &*a;
+    static STRIDES: [isize; 1] = [1];
+    let a_shape = [chunk];
+    // `chunk` divides every step's span, so a PerBlock step sees one block per
+    // chunk, and a Lockstep step crosses its period boundaries only at
+    // `vector_size()` multiples, where it restarts `b`. The disjoint chunks
+    // partition `a`: concurrent writes through the views do not alias.
+    let call = |ix: usize| -> TractResult<()> {
+        let g = ix * chunk;
+        unsafe {
+            let mut a_chunk = TensorView::from_bytes(a, g as isize * a_item, &a_shape, &STRIDES);
+            for s in steps {
+                let b_item = s.b.datum_type().size_of() as isize;
+                if s.share == BShare::PerBlock {
+                    let b_offset = (g / s.period) as isize * b_item;
+                    let b_chunk = TensorView::from_bytes(s.b, b_offset, &[1], &STRIDES);
+                    (s.eval_fn)(&mut a_chunk, &b_chunk)?;
+                    continue;
+                }
+                let mut pos = 0;
+                while pos < chunk {
+                    let offset = (g + pos) % s.period;
+                    let len = (s.period - offset).min(chunk - pos);
+                    let part_shape = [len];
+                    let mut a_part = TensorView::from_bytes(
+                        a,
+                        (g + pos) as isize * a_item,
+                        &part_shape,
+                        &STRIDES,
+                    );
+                    let b_part = TensorView::from_bytes(
+                        s.b,
+                        offset as isize * b_item,
+                        &part_shape,
+                        &STRIDES,
+                    );
+                    (s.eval_fn)(&mut a_part, &b_part)?;
+                    pos += len;
+                }
+            }
+            Ok(())
+        }
+    };
+
+    #[cfg(feature = "multithread-mm")]
+    {
+        use rayon::prelude::*;
+        if a_len >= current_threading_element_threshold() && n_chunks > 1 {
+            let executor = current_tract_executor();
+            let nth = match &executor {
+                Executor::MultiThread(pool) => pool.current_num_threads(),
+                Executor::RayonGlobal => rayon::current_num_threads(),
+                Executor::SingleThread => 1,
+            };
+            if nth > 1 {
+                let per_worker = n_chunks.div_ceil(nth);
+                let n_workers = n_chunks.div_ceil(per_worker);
+                let run = || {
+                    (0..n_workers).into_par_iter().try_for_each(|w| {
+                        let first = w * per_worker;
+                        (first..(first + per_worker).min(n_chunks)).try_for_each(&call)
+                    })
+                };
+                return match executor {
+                    Executor::MultiThread(pool) => pool.install(run),
+                    _ => run(),
+                };
+            }
+        }
+    }
+    (0..n_chunks).try_for_each(call)
+}
+
+// wasi has no thread spawning at all; other wasm targets run the shared rayon
+// global pool instead of a private ThreadPool.
+#[cfg(all(test, feature = "multithread-mm", not(target_os = "wasi")))]
+mod chain_tests {
+    use super::{BShare, BinChainStep, Executor, multithread_tract_scope, par_bin, par_bin_chain};
+    use crate::BinFn;
+    use tract_data::internal::{Tensor, TensorView, TractResult};
+
+    fn add() -> impl Fn(&mut TensorView, &TensorView) -> TractResult<()> + Send + Sync {
+        |a: &mut TensorView, b: &TensorView| {
+            let av = a.as_slice_mut::<f32>()?;
+            let bv = b.as_slice::<f32>()?;
+            if bv.len() == 1 {
+                av.iter_mut().for_each(|x| *x += bv[0]);
+            } else {
+                av.iter_mut().zip(bv).for_each(|(x, y)| *x += *y);
+            }
+            Ok(())
+        }
+    }
+
+    fn mul() -> impl Fn(&mut TensorView, &TensorView) -> TractResult<()> + Send + Sync {
+        |a: &mut TensorView, b: &TensorView| {
+            let av = a.as_slice_mut::<f32>()?;
+            let bv = b.as_slice::<f32>()?;
+            if bv.len() == 1 {
+                av.iter_mut().for_each(|x| *x *= bv[0]);
+            } else {
+                av.iter_mut().zip(bv).for_each(|(x, y)| *x *= *y);
+            }
+            Ok(())
+        }
+    }
+
+    /// Mixed Lockstep and PerBlock steps must produce the same bytes through
+    /// `par_bin_chain` as through sequential `par_bin` calls, inline or on a
+    /// pool, including a gcd of periods that is not vector-aligned.
+    #[test]
+    fn chain_matches_sequential_par_bin() {
+        let add = add();
+        let mul = mul();
+        let len = 12288usize;
+        for periods in [
+            [768usize, 256, 256],
+            [768, 24, 768],
+            [96, 96, 12288],
+            [192, 192, 12288],
+            [192, 384, 128],
+        ] {
+            let b0 = Tensor::from_shape(
+                &[1, 1, periods[0]],
+                &(0..periods[0]).map(|i| i as f32).collect::<Vec<_>>(),
+            )
+            .unwrap();
+            let b1 = Tensor::from_shape(
+                &[periods[1]],
+                &(0..periods[1]).map(|i| 1.0 + i as f32 / 64.0).collect::<Vec<_>>(),
+            )
+            .unwrap();
+            let b2 =
+                Tensor::from_shape(&[len / periods[2]], &vec![0.5f32; len / periods[2]]).unwrap();
+            let steps = vec![
+                BinChainStep {
+                    eval_fn: &add as &BinFn,
+                    b: &b0,
+                    period: periods[0],
+                    share: BShare::Lockstep,
+                },
+                BinChainStep {
+                    eval_fn: &mul as &BinFn,
+                    b: &b1,
+                    period: periods[1],
+                    share: BShare::Lockstep,
+                },
+                BinChainStep {
+                    eval_fn: &add as &BinFn,
+                    b: &b2,
+                    period: periods[2],
+                    share: BShare::PerBlock,
+                },
+            ];
+            let input = Tensor::from_shape(&[len], &(0..len).map(|i| i as f32).collect::<Vec<_>>())
+                .unwrap();
+            let mut reference = input.clone();
+            for s in &steps {
+                par_bin(s.eval_fn, &mut reference, s.b, s.period, s.share).unwrap();
+            }
+            for nth in [0usize, 4] {
+                let mut a = input.clone();
+                if nth == 0 {
+                    par_bin_chain(&steps, &mut a).unwrap();
+                } else {
+                    #[cfg(target_family = "wasm")]
+                    let pool = Executor::RayonGlobal;
+                    #[cfg(not(target_family = "wasm"))]
+                    let pool = Executor::multithread(nth);
+                    multithread_tract_scope(pool, || par_bin_chain(&steps, &mut a).unwrap());
+                }
+                let got = a.view().as_slice::<f32>().unwrap();
+                let want = reference.view().as_slice::<f32>().unwrap();
+                assert_eq!(got, want, "len={len} periods={periods:?} nth={nth}");
+            }
+        }
+    }
+}
+
+// wasi has no thread spawning at all; other wasm targets run the shared rayon
+// global pool instead of a private ThreadPool.
+#[cfg(all(test, feature = "multithread-mm", not(target_os = "wasi")))]
+mod chunk_tests {
+    use super::{
+        Executor, current_threading_element_threshold, multithread_tract_scope, par_chunks_mut,
+    };
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    fn pool() -> Executor {
+        #[cfg(target_family = "wasm")]
+        return Executor::RayonGlobal;
+        #[cfg(not(target_family = "wasm"))]
+        Executor::multithread(4)
+    }
+
+    /// A tensor that only just clears the element threshold stays one call on
+    /// the caller. Cutting it into `4 * threads` pieces was slower than the work.
+    #[test]
+    fn one_threshold_stays_inline() {
+        let threshold = current_threading_element_threshold();
+        let mut data = vec![0u8; threshold + 1024];
+        let len = data.len();
+        let calls = AtomicUsize::new(0);
+        multithread_tract_scope(pool(), || {
+            par_chunks_mut(&mut data, 1, len, |_first, chunk| {
+                calls.fetch_add(1, Ordering::Relaxed);
+                chunk.fill(1);
+                Ok(())
+            })
+            .unwrap();
+        });
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+        assert!(data.iter().all(|b| *b == 1));
+    }
+
+    /// Two thresholds of work on four threads still gives every thread a chunk.
+    /// Splitting by work alone left half the cores idle once the launch was paid.
+    #[test]
+    fn two_thresholds_fill_every_thread() {
+        let threshold = current_threading_element_threshold();
+        let mut data = vec![0u8; threshold * 2];
+        let len = data.len();
+        let calls = AtomicUsize::new(0);
+        let seen = AtomicUsize::new(0);
+        let executor = pool();
+        let threads = match &executor {
+            Executor::MultiThread(pool) => pool.current_num_threads(),
+            _ => rayon::current_num_threads(),
+        };
+        multithread_tract_scope(executor, || {
+            par_chunks_mut(&mut data, 1, len, |_first, chunk| {
+                calls.fetch_add(1, Ordering::Relaxed);
+                seen.fetch_add(chunk.len(), Ordering::Relaxed);
+                chunk.fill(1);
+                Ok(())
+            })
+            .unwrap();
+        });
+        assert_eq!(calls.load(Ordering::Relaxed), threads.max(2));
+        assert_eq!(seen.load(Ordering::Relaxed), len);
+        assert!(data.iter().all(|b| *b == 1));
+    }
+
+    /// Eight thresholds of work gives eight chunks, and every element is
+    /// visited once. The split is bounded by the work present, not threads.
+    #[test]
+    fn several_thresholds_split_once_per_thread() {
+        let threshold = current_threading_element_threshold();
+        let mut data = vec![0u8; threshold * 8];
+        let len = data.len();
+        let calls = AtomicUsize::new(0);
+        let seen = AtomicUsize::new(0);
+        multithread_tract_scope(pool(), || {
+            par_chunks_mut(&mut data, 1, len, |_first, chunk| {
+                calls.fetch_add(1, Ordering::Relaxed);
+                seen.fetch_add(chunk.len(), Ordering::Relaxed);
+                assert!(chunk.len() >= threshold);
+                chunk.fill(1);
+                Ok(())
+            })
+            .unwrap();
+        });
+        assert_eq!(calls.load(Ordering::Relaxed), 8);
+        assert_eq!(seen.load(Ordering::Relaxed), len);
+        assert!(data.iter().all(|b| *b == 1));
+    }
+}

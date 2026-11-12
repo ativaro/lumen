@@ -1,0 +1,26 @@
+[package]
+name = "lumen-memory-search"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.91"
+publish = false
+license-file = "../../LICENSE"
+description = "Lumen's local meaning search for memory: keeps the model loaded between questions"
+
+[[bin]]
+name = "lumen-memory"
+path = "src/main.rs"
+
+[dependencies]
+tract-onnx = "0.23"
+tokenizers = { version = "0.22", default-features = false, features = ["fancy-regex"] }
+rusqlite = "0.42"
+serde_json = "1"
+sha2 = "0.10"
+
+[profile.release]
+panic = "abort"
+strip = true
+
+[lints.rust]
+unsafe_code = "forbid"

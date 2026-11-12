@@ -1,0 +1,1115 @@
+use crate::internal::*;
+use crate::ops::cnn::Patch;
+use crate::ops::cnn::patches::ZoneScanner;
+use crate::ops::nn::DataShape;
+use num_traits::Zero;
+
+/// Largest zone `process_zone_any` hands to the vectorised kernel; 9x9 is 81 taps and 11x11
+/// is 121. The taps live in stack arrays of this size, two per call.
+const MAX_VECTORISED_TAPS: usize = 128;
+
+#[derive(Debug, Clone, new, Hash, PartialEq, Eq)]
+pub struct DepthWise {
+    patch: Patch,
+    input_shape: DataShape,
+    output_shape: DataShape,
+}
+
+impl Op for DepthWise {
+    fn name(&self) -> StaticName {
+        "DepthWiseConv".into()
+    }
+
+    fn info(&self) -> TractResult<Vec<String>> {
+        Ok(vec![format!("{:?}", self.patch)])
+    }
+
+    fn validation(&self) -> Validation {
+        Validation::Rounding
+    }
+
+    op_as_typed_op!();
+}
+
+impl EvalOp for DepthWise {
+    op_out_of_plan!();
+
+    fn eval(&self, _ctx: &EvalContext, inputs: TVec<TValue>) -> TractResult<TVec<TValue>> {
+        let dt = inputs[0].datum_type();
+        #[cfg(target_arch = "aarch64")]
+        if dt == f16::datum_type() && tract_linalg::arm64::has_fp16() {
+            return unsafe {
+                eval_t_aarch64fp16::<f16>(
+                    self,
+                    inputs,
+                    |a, b| tract_linalg::arm64::add_f16(a, b),
+                    |a, b| tract_linalg::arm64::mul_f16(a, b),
+                )
+            };
+        }
+        dispatch_floatlike!(Self::eval_gen(dt)(self, inputs))
+    }
+}
+
+impl DepthWise {
+    fn eval_gen<T: Datum + Copy + num_traits::Zero + ndarray::LinalgScalar>(
+        &self,
+        inputs: TVec<TValue>,
+    ) -> TractResult<TVec<TValue>> {
+        unsafe { eval_t_generic::<T>(self, inputs, |a, b| a + b, |a, b| a * b) }
+    }
+
+    /// The work `par_chunks_mut` is told about for `outputs` output points. The launch
+    /// decision stays on the output size: weighting small planes by their taps launched
+    /// threads on depthwise ops too short to repay it. Once a plane is large enough to
+    /// launch anyway, each output point counts its whole kernel of multiply-adds, so the
+    /// split is sized by the work rather than the output.
+    fn threading_work(&self, outputs: usize) -> usize {
+        let threshold = tract_linalg::multithread::current_threading_element_threshold();
+        if threshold == 0 || outputs / threshold < 2 {
+            return outputs;
+        }
+        outputs * self.patch.spec.kernel_shape.iter().product::<usize>()
+    }
+
+    fn zone_scanners(&self) -> Vec<ZoneScanner<'_>> {
+        self.patch.zones.iter().map(|zone| ZoneScanner::new(zone, &self.patch)).collect()
+    }
+}
+
+impl TypedOp for DepthWise {
+    fn output_facts(&self, inputs: &[&TypedFact]) -> TractResult<TVec<TypedFact>> {
+        anyhow::ensure!(inputs.len() == 3);
+        anyhow::ensure!(
+            self.input_shape.c() == self.output_shape.c(),
+            "DepthWiseConv must have same input and output channels"
+        );
+        anyhow::ensure!(
+            self.input_shape.c().to_dim() == inputs[2].shape.volume(),
+            "DepthWiseConv data has {} channels, bias has {}",
+            self.input_shape.c(),
+            inputs[2].shape.len()
+        );
+        Ok(tvec!(inputs[0].datum_type.fact(&self.output_shape.shape)))
+    }
+
+    fn cost(&self, inputs: &[&TypedFact]) -> TractResult<TVec<(Cost, TDim)>> {
+        let [_input, kernel, _bias] = inputs else {
+            bail!("Depthwise expects three inputs");
+        };
+        let n_output_points = self.patch.output_shape.iter().cloned().product::<usize>();
+        Ok(tvec!((
+            Cost::FMA(inputs[0].datum_type),
+            kernel.shape.volume() * self.input_shape.n().unwrap_or(&1) * n_output_points
+        )))
+    }
+
+    as_op!();
+}
+
+macro_rules! impl_eval {
+    ($(#[$meta: meta])* $suffix: ident ) => {
+        pastey::paste! {
+            $(#[$meta])*
+            unsafe fn [<eval_t_ $suffix>]<T: Datum + Copy + num_traits::Zero + ndarray::LinalgScalar>(
+                dw: &DepthWise,
+                inputs: TVec<TValue>,
+                add: impl Fn(T, T) -> T + Copy + Send + Sync + 'static,
+                mul: impl Fn(T, T) -> T + Copy + Send + Sync + 'static,
+            ) -> TractResult<TVec<TValue>> {
+                let (img, kernel, bias) = args_3!(inputs);
+                let mut output = unsafe { Tensor::uninitialized::<T>(&dw.output_shape.shape)? };
+                let iptr = img.as_ptr::<T>()?;
+                let optr = output.as_ptr_mut::<T>()?;
+                let k_stride_i = kernel.strides()[1];
+                let n = *dw.input_shape.n().unwrap_or(&1);
+                let n_stride_i = *dw.input_shape.n_stride().unwrap_or(&0) as isize;
+                let n_stride_o = *dw.output_shape.n_stride().unwrap_or(&0) as isize;
+                let c_stride_i = *dw.input_shape.c_stride() as isize;
+                let c_stride_o = *dw.output_shape.c_stride() as isize;
+                let bias = bias.as_ptr::<T>()?;
+                let kptr = kernel.as_ptr::<T>()?;
+                let c = *dw.input_shape.c() as isize;
+                if dw.input_shape.fmt.c_is_last() {
+                    // Every output position holds all channels contiguously, so channel blocks
+                    // are disjoint across the whole image: each chunk of blocks runs the full zone
+                    // walk on its own channel range. A block spans at least one cache line.
+                    let channels = *dw.input_shape.c();
+                    let block = (64 / T::datum_type().size_of()).max(16);
+                    let (i_base, k_base, b_base, o_base) =
+                        (iptr as usize, kptr as usize, bias as usize, optr as usize);
+                    let work = dw.threading_work(output.len());
+                    tract_linalg::multithread::par_chunks_mut(
+                        &mut vec![(); channels.div_ceil(block)],
+                        1,
+                        work,
+                        |first, blocks| {
+                            let c0 = first * block;
+                            let c1 = channels.min((first + blocks.len()) * block);
+                            unsafe {
+                                [<eval_c_inner_ $suffix>](
+                                    dw,
+                                    n,
+                                    n_stride_i,
+                                    n_stride_o,
+                                    k_stride_i,
+                                    i_base as *const T,
+                                    k_base as *const T,
+                                    b_base as *const T,
+                                    o_base as *mut T,
+                                    add,
+                                    mul,
+                                    c0,
+                                    c1,
+                                )
+                            };
+                            Ok(())
+                        },
+                    )?;
+                    return Ok(tvec!(output.into_tvalue()));
+                }
+                // The (n, c) planes are disjoint and each is contiguous, so when the output is
+                // laid out that way the channels split across the executor with no other
+                // change: every output element keeps the arithmetic it has serially, and the
+                // value it has serially. Small planes stay on the inline path -- the
+                // element threshold in `par_chunks_mut` is what decides, not this call site.
+                let total = output.len();
+                let planes = n * c as usize;
+                let plane = if planes > 0 { total / planes } else { 0 };
+                if plane == 0
+                    || total % plane != 0
+                    || *dw.output_shape.w_stride() != 1
+                    || c_stride_o != plane as isize
+                {
+                    unsafe {
+                        let mut scanners = dw.zone_scanners();
+                        for n in 0..n as isize {
+                            let iptr = iptr.offset(n_stride_i * n);
+                            let optr = optr.offset(n_stride_o * n);
+                            for scanner in &mut scanners {
+                                [<process_zone_ $suffix>](
+                                    scanner, c_stride_i, c_stride_o, k_stride_i, iptr, kptr, bias,
+                                    optr, add, mul, 0, c,
+                                )
+                            }
+                        }
+                    }
+                    return Ok(tvec!(output.into_tvalue()));
+                }
+                let i_base = iptr as usize;
+                let k_base = kptr as usize;
+                let b_base = bias as usize;
+                let c_us = c as usize;
+                let work = dw.threading_work(total);
+                tract_linalg::multithread::par_chunks_mut(
+                    unsafe { output.as_slice_mut_unchecked::<T>() },
+                    plane,
+                    work,
+                    |first, chunk| {
+                        // `par_chunks_mut` calls the body inline, with the whole slice, when the
+                        // executor is single-threaded (a one-thread pool included) or the work is
+                        // under its element threshold. Keep the per-zone shape there: the channels
+                        // loop inside it, so one `ZoneScanner` covers a whole zone rather than one
+                        // channel of it -- the difference was a 63% tax on small planes, which is
+                        // a third of the frame on the streaming models.
+                        if first == 0 && chunk.len() == total {
+                            let mut scanners = dw.zone_scanners();
+                            unsafe {
+                                for ni in 0..n as isize {
+                                    let iptr = (i_base as *const T).offset(n_stride_i * ni);
+                                    let optr = chunk.as_mut_ptr().offset(n_stride_o * ni);
+                                    for scanner in &mut scanners {
+                                        [<process_zone_ $suffix>](
+                                            scanner,
+                                            c_stride_i,
+                                            c_stride_o,
+                                            k_stride_i,
+                                            iptr,
+                                            k_base as *const T,
+                                            b_base as *const T,
+                                            optr,
+                                            add,
+                                            mul,
+                                            0,
+                                            c,
+                                        )
+                                    }
+                                }
+                            }
+                            return Ok(());
+                        }
+                        let mut scanners = dw.zone_scanners();
+                        for (ix, out) in chunk.chunks_mut(plane).enumerate() {
+                            let row = first + ix;
+                            let (ni, ci) = (row / c_us, row % c_us);
+                            unsafe {
+                                let iptr = (i_base as *const T)
+                                    .offset(n_stride_i * ni as isize + c_stride_i * ci as isize);
+                                let optr = out.as_mut_ptr();
+                                for scanner in &mut scanners {
+                                    [<process_zone_ $suffix>](
+                                        scanner,
+                                        0,
+                                        0,
+                                        k_stride_i,
+                                        iptr,
+                                        k_base as *const T,
+                                        b_base as *const T,
+                                        optr,
+                                        add,
+                                        mul,
+                                        ci as isize,
+                                        ci as isize + 1,
+                                    )
+                                }
+                            }
+                        }
+                        Ok(())
+                    },
+                )?;
+                Ok(tvec!(output.into_tvalue()))
+            }
+
+            /// Channel-last eval of channels `c0..c1`: the channel is the contiguous dim on both
+            /// input and output, so one output position is a run of channel values and the tap
+            /// offsets of `zone.values_offsets` already step over whole channel vectors. `kptr`
+            /// is a `[1, HW, C]` kernel, `k_stride_i` (`C`) its per-tap stride.
+            #[inline(never)]
+            #[allow(clippy::too_many_arguments)]
+            $(#[$meta])*
+            unsafe fn [<eval_c_inner_ $suffix>]<T: Datum + Copy + Zero>(
+                dw: &DepthWise,
+                n: usize,
+                n_stride_i: isize,
+                n_stride_o: isize,
+                k_stride_i: isize,
+                iptr: *const T,
+                kptr: *const T,
+                bias: *const T,
+                optr: *mut T,
+                add: impl Fn(T, T) -> T + Copy + 'static,
+                mul: impl Fn(T, T) -> T + Copy + 'static,
+                c0: usize,
+                c1: usize,
+                ) { unsafe {
+                let ker = if T::datum_type() == f32::datum_type() {
+                    tract_linalg::routines::depthwise_c_f32()
+                } else {
+                    None
+                };
+                let (iptr, kptr, bias, optr) =
+                    (iptr.add(c0), kptr.add(c0), bias.add(c0), optr.add(c0));
+                let width = c1 - c0;
+                for ni in 0..n as isize {
+                    let iptr = iptr.offset(n_stride_i * ni);
+                    let optr = optr.offset(n_stride_o * ni);
+                    for zone in &dw.patch.zones {
+                        let tap_indices: TVec<usize> =
+                            zone.values_offsets.iter().map(|pair| pair.0).collect();
+                        let offsets: TVec<isize> =
+                            zone.values_offsets.iter().map(|pair| pair.1).collect();
+                        let mut visitor = ZoneScanner::new(zone, &dw.patch);
+                        while !visitor.done {
+                            let iptr = iptr.offset(visitor.input_center_offset);
+                            let optr = optr.offset(visitor.output_offset);
+                            if let Some(ker) = ker {
+                                ker(
+                                    iptr as *const f32,
+                                    optr as *mut f32,
+                                    kptr as *const f32,
+                                    &tap_indices,
+                                    &offsets,
+                                    bias as *const f32,
+                                    width,
+                                    k_stride_i as usize,
+                                    visitor.inner_loop_len,
+                                    visitor.inner_loop_input_full_stride,
+                                    visitor.inner_loop_output_stride,
+                                );
+                            } else {
+                                // Taps outer, channels inner: every inner loop is contiguous.
+                                for i in 0..visitor.inner_loop_len as isize {
+                                    let iptr =
+                                        iptr.offset(visitor.inner_loop_input_full_stride * i);
+                                    let out = std::slice::from_raw_parts_mut(
+                                        optr.offset(visitor.inner_loop_output_stride * i),
+                                        width,
+                                    );
+                                    out.copy_from_slice(std::slice::from_raw_parts(bias, width));
+                                    for (&kix, &off) in tap_indices.iter().zip(&offsets) {
+                                        let k = std::slice::from_raw_parts(
+                                            kptr.offset(k_stride_i * kix as isize),
+                                            width,
+                                        );
+                                        let x = std::slice::from_raw_parts(iptr.offset(off), width);
+                                        for c in 0..width {
+                                            out[c] = add(out[c], mul(k[c], x[c]));
+                                        }
+                                    }
+                                }
+                            }
+                            visitor.next_non_inner_axis()
+                        }
+                    }
+                }
+            }}
+
+            #[inline(never)]
+            #[allow(clippy::too_many_arguments)]
+            $(#[$meta])*
+            unsafe fn [<process_zone_ $suffix>]<T: Datum + Copy + Zero>(
+                visitor: &mut ZoneScanner,
+                c_stride_i: isize,
+                c_stride_o: isize,
+                k_stride_i: isize,
+                iptr: *const T,
+                kptr: *const T,
+                bias: *const T,
+                optr: *mut T,
+                add: impl Fn(T, T) -> T + Copy + 'static,
+                mul: impl Fn(T, T) -> T + Copy + 'static,
+                c_start: isize,
+                c_end: isize,
+                ) { unsafe {
+                /*
+                   if zone.values_offsets.len() == 2 {
+                   self.process_zone_n::<T, 2, 4>(
+                   zone, c_stride_i, c_stride_o, k_stride_i, iptr, kptr, bias, optr,
+                   )
+                   } else if zone.values_offsets.len() == 3 {
+                   dw.process_zone_n::<T, 3, 4>(
+                   zone, c_stride_i, c_stride_o, k_stride_i, iptr, kptr, bias, optr,
+                   )
+                   } else */
+                match visitor.zone.values_offsets.len() {
+                    1 => [<process_zone_n_ $suffix>]::<T, 1, 4>(
+                        visitor, c_stride_i, c_stride_o, k_stride_i, iptr, kptr, bias, optr, add,
+                        mul, c_start, c_end,
+                    ),
+                    2 => [<process_zone_n_ $suffix>]::<T, 2, 4>(
+                        visitor, c_stride_i, c_stride_o, k_stride_i, iptr, kptr, bias, optr, add,
+                        mul, c_start, c_end,
+                    ),
+                    3 => [<process_zone_n_ $suffix>]::<T, 3, 4>(
+                        visitor, c_stride_i, c_stride_o, k_stride_i, iptr, kptr, bias, optr, add,
+                        mul, c_start, c_end,
+                    ),
+                    4 => [<process_zone_n_ $suffix>]::<T, 4, 4>(
+                        visitor, c_stride_i, c_stride_o, k_stride_i, iptr, kptr, bias, optr, add,
+                        mul, c_start, c_end,
+                    ),
+                    // Without a vectorised kernel the zone keeps the plain inline walk:
+                    // routed through `process_zone_any` it runs measurably slower on wasm.
+                    _ if T::datum_type() == f32::datum_type()
+                        && tract_linalg::routines::depthwise_w_f32().is_some()
+                        && c_stride_o != 1 =>
+                    {
+                        [<process_zone_any_ $suffix>](
+                            visitor, c_stride_i, c_stride_o, k_stride_i, iptr, kptr, bias, optr,
+                            add, mul, c_start, c_end,
+                        )
+                    }
+                    // A call covering many channels amortises a fresh scanner. A single-channel
+                    // call (the parallel path, one per plane) reuses the caller's allocation, but
+                    // walks it as a local: through `&mut` the inner loop runs measurably slower.
+                    _ if c_end - c_start > 1 => visitor.zone.visit_output(visitor.patch, |visitor| {
+                        for c in c_start..c_end {
+                            let iptr = iptr.offset(c_stride_i * c);
+                            let optr = optr.offset(c_stride_o * c);
+                            let kptr = kptr.offset(k_stride_i * c);
+                            [<inner_loop_ $suffix>]::<T>(iptr, kptr, bias, optr, c, visitor, add, mul)
+                        }
+                    }),
+                    _ => [<process_zone_one_channel_ $suffix>](
+                        visitor, c_stride_i, c_stride_o, k_stride_i, iptr, kptr, bias, optr, add,
+                        mul, c_start,
+                    ),
+                }
+            }}
+
+            /// One channel of a generic (more than four taps) zone, the parallel path's per-plane
+            /// call. The caller's scanner is walked as a local, its buffer moved out and back:
+            /// through `&mut` the inner loop runs measurably slower.
+            #[inline(never)]
+            #[allow(clippy::too_many_arguments)]
+            $(#[$meta])*
+            unsafe fn [<process_zone_one_channel_ $suffix>]<T: Datum + Copy + Zero>(
+                visitor: &mut ZoneScanner,
+                c_stride_i: isize,
+                c_stride_o: isize,
+                k_stride_i: isize,
+                iptr: *const T,
+                kptr: *const T,
+                bias: *const T,
+                optr: *mut T,
+                add: impl Fn(T, T) -> T + Copy + 'static,
+                mul: impl Fn(T, T) -> T + Copy + 'static,
+                c: isize,
+                ) { unsafe {
+                let mut local = ZoneScanner {
+                    output_coords: std::mem::take(&mut visitor.output_coords),
+                    inner_loop_output_range: visitor.inner_loop_output_range.clone(),
+                    ..*visitor
+                };
+                local.reset();
+                while !local.done() {
+                    let iptr = iptr.offset(c_stride_i * c);
+                    let optr = optr.offset(c_stride_o * c);
+                    let kptr = kptr.offset(k_stride_i * c);
+                    [<inner_loop_ $suffix>]::<T>(iptr, kptr, bias, optr, c, &local, add, mul);
+                    local.next();
+                }
+                visitor.output_coords = local.output_coords;
+            }}
+
+            #[inline(never)]
+            #[allow(clippy::too_many_arguments)]
+            $(#[$meta])*
+            unsafe fn [<process_zone_n_ $suffix>]<T: Datum + Copy + Zero, const N: usize, const UNROLL: usize>(
+                visitor: &mut ZoneScanner,
+                c_stride_i: isize,
+                c_stride_o: isize,
+                k_stride_i: isize,
+                iptr: *const T,
+                kptr: *const T,
+                bias: *const T,
+                optr: *mut T,
+                add: impl Fn(T, T) -> T,
+                mul: impl Fn(T, T) -> T,
+                c_start: isize,
+                c_end: isize,
+                ) { unsafe {
+                let zone = visitor.zone;
+                let mut ioffset = [0isize; N];
+                for i in 0..N {
+                    ioffset[i] = zone.values_offsets[i].1;
+                }
+                let mut k = [T::zero(); N];
+                let ker = if T::datum_type() == f32::datum_type() {
+                    tract_linalg::routines::depthwise_w_f32()
+                } else {
+                    None
+                };
+                for c in c_start..c_end {
+                    visitor.reset();
+                    let iptr = iptr.offset(c_stride_i * c);
+                    let optr = optr.offset(c_stride_o * c);
+                    for n in 0..N {
+                        k[n] = *kptr.offset(k_stride_i * c).add(zone.values_offsets[n].0);
+                    }
+                    let bias = *bias.offset(c);
+                    while !visitor.done {
+                        let iptr = iptr.offset(visitor.input_center_offset);
+                        let optr = optr.offset(visitor.output_offset);
+                        if let Some(ker) = ker
+                            && visitor.inner_loop_output_stride == 1
+                            && visitor.inner_loop_input_full_stride >= 1
+                        {
+                            let k_f32 = *(&k as *const [T; N] as *const [f32; N]);
+                            ker(
+                                iptr as *const f32,
+                                optr as *mut f32,
+                                &k_f32,
+                                &ioffset,
+                                *(&bias as *const T as *const f32),
+                                visitor.inner_loop_len,
+                                visitor.inner_loop_input_full_stride,
+                            );
+                            visitor.next_non_inner_axis();
+                            continue;
+                        }
+                        let mut i = 0isize;
+                        while i + (UNROLL as isize) < visitor.inner_loop_len as isize {
+                            let iptr = iptr.offset(visitor.inner_loop_input_full_stride * i);
+                            let optr = optr.offset(visitor.inner_loop_output_stride * i);
+                            let mut iptrs = [std::ptr::null(); UNROLL];
+                            for u in 0..UNROLL {
+                                iptrs[u] = iptr.offset(visitor.inner_loop_input_full_stride * u as isize);
+                            }
+                            let mut optrs = [std::ptr::null_mut(); UNROLL];
+                            for u in 0..UNROLL {
+                                optrs[u] = optr.offset(visitor.inner_loop_output_stride * u as isize);
+                            }
+                            let mut is = [[T::zero(); N]; UNROLL];
+                            for u in 0..UNROLL {
+                                for n in 0..N {
+                                    is[u][n] = *iptrs[u].offset(ioffset[n]);
+                                }
+                            }
+                            let mut ps = [[T::zero(); N]; UNROLL];
+                            for u in 0..UNROLL {
+                                for n in 0..N {
+                                    ps[u][n] = mul(is[u][n], k[n]);
+                                }
+                            }
+                            for u in 0..UNROLL {
+                                let mut sum = bias;
+                                for n in 0..N {
+                                    sum = add(sum, ps[u][n]);
+                                }
+                                *optrs[u] = sum;
+                            }
+                            i += UNROLL as isize;
+                        }
+                        while i < visitor.inner_loop_len as isize {
+                            let iptr = iptr.offset(visitor.inner_loop_input_full_stride * i);
+                            let optr = optr.offset(visitor.inner_loop_output_stride * i);
+                            let mut is = [T::zero(); N];
+                            for n in 0..N {
+                                is[n] = *iptr.offset(ioffset[n]);
+                            }
+                            let mut p = [T::zero(); N];
+                            for n in 0..N {
+                                p[n] = mul(is[n], k[n]);
+                            }
+                            let mut sum = bias;
+                            for n in 0..N {
+                                sum = add(sum, p[n]);
+                            }
+                            *optr = sum;
+                            i += 1;
+                        }
+                        visitor.next_non_inner_axis()
+                    }
+                }
+            }}
+
+            #[inline(never)]
+            #[allow(clippy::too_many_arguments)]
+            $(#[$meta])*
+            unsafe fn [<process_zone_any_ $suffix>]<T: Datum + Copy + Zero>(
+                scanner: &mut ZoneScanner,
+                c_stride_i: isize,
+                c_stride_o: isize,
+                k_stride_i: isize,
+                iptr: *const T,
+                kptr: *const T,
+                bias: *const T,
+                optr: *mut T,
+                add: impl Fn(T, T) -> T + Copy,
+                mul: impl Fn(T, T) -> T + Copy,
+                c_start: isize,
+                c_end: isize,
+                ) { unsafe {
+                // A zone whose tap count the const-generic paths cannot name -- which is every
+                // 3x3 and 5x5 convolution, at nine and twenty-five taps -- still walks the same
+                // inner loop, so hand it the whole tap list. The kernel takes the count at
+                // runtime; it was the compile-time count that kept this on the scalar path.
+                let ker = if T::datum_type() == f32::datum_type() {
+                    tract_linalg::routines::depthwise_w_f32()
+                } else {
+                    None
+                };
+                let zone = scanner.zone;
+                let taps = zone.values_offsets.len();
+                let Some(ker) = ker.filter(|_| taps <= MAX_VECTORISED_TAPS) else {
+                    zone.visit_output(scanner.patch, |visitor| {
+                        for c in c_start..c_end {
+                            let iptr = iptr.offset(c_stride_i * c);
+                            let optr = optr.offset(c_stride_o * c);
+                            let kptr = kptr.offset(k_stride_i * c);
+                            [<inner_loop_ $suffix>]::<T>(iptr, kptr, bias, optr, c, visitor, add, mul)
+                        }
+                    });
+                    return;
+                };
+                let mut k = [T::zero(); MAX_VECTORISED_TAPS];
+                let mut ioffset = [0isize; MAX_VECTORISED_TAPS];
+                for (ix, (_, offset)) in zone.values_offsets.iter().enumerate() {
+                    ioffset[ix] = *offset;
+                }
+                let ioffset = &ioffset[..taps];
+                // Walked as a local, as in `process_zone`'s single-channel arm.
+                let mut visitor = ZoneScanner {
+                    output_coords: std::mem::take(&mut scanner.output_coords),
+                    inner_loop_output_range: scanner.inner_loop_output_range.clone(),
+                    ..*scanner
+                };
+                for c in c_start..c_end {
+                    let iptr = iptr.offset(c_stride_i * c);
+                    let optr = optr.offset(c_stride_o * c);
+                    let kptr = kptr.offset(k_stride_i * c);
+                    for (ix, (ker_ix, _)) in zone.values_offsets.iter().enumerate() {
+                        k[ix] = *kptr.add(*ker_ix);
+                    }
+                    // `T` is f32 on the only path that gets here, checked above: the kernel reads
+                    // the taps and the bias as f32, so re-read the buffers rather than convert.
+                    let k_f32 = std::slice::from_raw_parts(k.as_ptr() as *const f32, taps);
+                    let bias_t = *bias.offset(c);
+                    let bias_f32 = *(bias as *const T as *const f32).offset(c);
+                    visitor.reset();
+                    while !visitor.done {
+                        let iptr = iptr.offset(visitor.input_center_offset);
+                        let optr = optr.offset(visitor.output_offset);
+                        if visitor.inner_loop_output_stride == 1
+                            && visitor.inner_loop_input_full_stride >= 1
+                        {
+                            ker(
+                                iptr as *const f32,
+                                optr as *mut f32,
+                                k_f32,
+                                ioffset,
+                                bias_f32,
+                                visitor.inner_loop_len,
+                                visitor.inner_loop_input_full_stride,
+                            );
+                            visitor.next_non_inner_axis();
+                            continue;
+                        }
+                        let mut i = 0isize;
+                        while i < visitor.inner_loop_len as isize {
+                            let iptr = iptr.offset(visitor.inner_loop_input_full_stride * i);
+                            let optr = optr.offset(visitor.inner_loop_output_stride * i);
+                            let mut sum = bias_t;
+                            for n in 0..taps {
+                                sum = add(sum, mul(k[n], *iptr.offset(ioffset[n])));
+                            }
+                            *optr = sum;
+                            i += 1;
+                        }
+                        visitor.next_non_inner_axis()
+                    }
+                }
+                scanner.output_coords = visitor.output_coords;
+            }}
+
+            #[inline(never)]
+            #[allow(clippy::too_many_arguments)]
+            $(#[$meta])*
+            unsafe fn [<inner_loop_ $suffix>]<T: Datum + Copy>(
+                iptr: *const T,
+                kptr: *const T,
+                bias: *const T,
+                optr: *mut T,
+                c: isize,
+                visitor: &ZoneScanner,
+                add: impl Fn(T, T) -> T,
+                mul: impl Fn(T, T) -> T,
+                ) { unsafe {
+                let mut sum = *bias.offset(c);
+                let mut iter = visitor.valid_offsets_ker_in();
+                if iter.size_hint() == (3, Some(3)) {
+                    let (ix, v) = iter.next().unwrap();
+                    let k0 = *kptr.add(ix);
+                    let i0 = *iptr.offset(v);
+                    let (ix, v) = iter.next().unwrap();
+                    let k1 = *kptr.add(ix);
+                    let i1 = *iptr.offset(v);
+                    let (ix, v) = iter.next().unwrap();
+                    let k2 = *kptr.add(ix);
+                    let i2 = *iptr.offset(v);
+                    sum = add(add(add(sum, mul(k0, i0)), mul(k1, i1)), mul(k2, i2));
+                } else {
+                    for (ix, v) in iter {
+                        let k = *kptr.add(ix);
+                        let i = *iptr.offset(v);
+                        sum = add(sum, mul(k, i));
+                    }
+                }
+                let optr = optr.offset(visitor.output_offset);
+                *optr = sum;
+            }}
+        }
+    }
+}
+
+impl_eval!(generic);
+impl_eval! {
+#[target_feature(enable = "fp16")]
+#[cfg(target_arch = "aarch64")]
+aarch64fp16
+}
+
+//#[target_feature(enable = "fp16")] impl_eval!(aarch64fp16);
+
+/* partial alternative impl that may be relevant when simd gets better */
+
+/*
+#[inline(never)]
+unsafe fn process_zone_4_f32(
+&self,
+zone: &Zone,
+c_stride_i: isize,
+c_stride_o: isize,
+k_stride_i: isize,
+iptr: *const f32,
+kptr: *const f32,
+bias: *const f32,
+optr: *mut f32,
+) {
+use std::simd::*;
+let mut visitor = ZoneScanner::new(zone, &self.patch);
+let ioffset0 = zone.values_offsets[0].1;
+let ioffset1 = zone.values_offsets[1].1;
+let ioffset2 = zone.values_offsets[2].1;
+let ioffset3 = zone.values_offsets[3].1;
+for c in 0..*self.input_shape.c() as isize {
+visitor.reset();
+let kptr = kptr.offset(k_stride_i * c);
+let iptr = iptr.offset(c_stride_i * c);
+let optr = optr.offset(c_stride_o * c);
+let k0 = *kptr.offset(zone.values_offsets[0].0 as isize);
+let k1 = *kptr.offset(zone.values_offsets[1].0 as isize);
+let k2 = *kptr.offset(zone.values_offsets[2].0 as isize);
+let k3 = *kptr.offset(zone.values_offsets[3].0 as isize);
+let k0 = f32x4::splat(k0);
+let k1 = f32x4::splat(k1);
+let k2 = f32x4::splat(k2);
+let k3 = f32x4::splat(k3);
+let bias = f32x4::splat(*bias.offset(c));
+while !visitor.done {
+let iptr = iptr.offset(visitor.input_center_offset);
+let optr = optr.offset(visitor.output_offset);
+let mut i  = 0;
+while i + 4 <
+for i in 0..visitor.inner_loop_len as isize {
+let iptr = iptr.offset(visitor.inner_loop_input_full_stride * i);
+let optr = optr.offset(visitor.inner_loop_output_stride * i);
+let i0 = *iptr.offset(ioffset0);
+let i1 = *iptr.offset(ioffset1);
+let i2 = *iptr.offset(ioffset2);
+let i3 = *iptr.offset(ioffset3);
+let i = f32x4::from_array([i0, i1, i2, i3]);
+let p = (i * k).reduce_sum();
+let sum = bias + p;
+     *optr = sum
+     }
+     visitor.next_non_inner_axis()
+     }
+     }
+     }
+     */
+
+/*
+#[inline(never)]
+unsafe fn process_zone_4_f32(
+&self,
+zone: &Zone,
+c_stride_i: isize,
+c_stride_o: isize,
+k_stride_i: isize,
+iptr: *const f32,
+kptr: *const f32,
+bias: *const f32,
+optr: *mut f32,
+) {
+use std::simd::*;
+let mut visitor = ZoneScanner::new(zone, &self.patch);
+let ioffset0 = zone.values_offsets[0].1;
+let ioffset1 = zone.values_offsets[1].1;
+let ioffset2 = zone.values_offsets[2].1;
+let ioffset3 = zone.values_offsets[3].1;
+for c in 0..*self.input_shape.c() as isize {
+visitor.reset();
+let kptr = kptr.offset(k_stride_i * c);
+let iptr = iptr.offset(c_stride_i * c);
+let optr = optr.offset(c_stride_o * c);
+let k0 = *kptr.offset(zone.values_offsets[0].0 as isize);
+let k1 = *kptr.offset(zone.values_offsets[1].0 as isize);
+let k2 = *kptr.offset(zone.values_offsets[2].0 as isize);
+let k3 = *kptr.offset(zone.values_offsets[3].0 as isize);
+let k = f32x4::from_array([k0, k1, k2, k3]);
+let bias = *bias.offset(c);
+while !visitor.done {
+let iptr = iptr.offset(visitor.input_center_offset);
+let optr = optr.offset(visitor.output_offset);
+for i in 0..visitor.inner_loop_len as isize {
+let iptr = iptr.offset(visitor.inner_loop_input_full_stride * i);
+let optr = optr.offset(visitor.inner_loop_output_stride * i);
+let i0 = *iptr.offset(ioffset0);
+let i1 = *iptr.offset(ioffset1);
+let i2 = *iptr.offset(ioffset2);
+let i3 = *iptr.offset(ioffset3);
+let i = f32x4::from_array([i0, i1, i2, i3]);
+let p = (i * k).reduce_sum();
+let sum = bias + p;
+     *optr = sum
+     }
+     visitor.next_non_inner_axis()
+     }
+     }
+     }
+     */
+
+/*
+#[inline(never)]
+unsafe fn process_zone_4<T: Datum + Copy + ndarray::LinalgScalar>(
+&self,
+zone: &Zone,
+c_stride_i: isize,
+c_stride_o: isize,
+k_stride_i: isize,
+iptr: *const T,
+kptr: *const T,
+bias: *const T,
+optr: *mut T,
+) {
+let mut visitor = ZoneScanner::new(zone, &self.patch);
+let ioffset0 = zone.values_offsets[0].1;
+let ioffset1 = zone.values_offsets[1].1;
+let ioffset2 = zone.values_offsets[2].1;
+let ioffset3 = zone.values_offsets[3].1;
+for c in 0..*self.input_shape.c() as isize {
+visitor.reset();
+let kptr = kptr.offset(k_stride_i * c);
+let iptr = iptr.offset(c_stride_i * c);
+let optr = optr.offset(c_stride_o * c);
+let k0 = *kptr.offset(zone.values_offsets[0].0 as isize);
+let k1 = *kptr.offset(zone.values_offsets[1].0 as isize);
+let k2 = *kptr.offset(zone.values_offsets[2].0 as isize);
+let k3 = *kptr.offset(zone.values_offsets[3].0 as isize);
+let bias = *bias.offset(c);
+while !visitor.done {
+let iptr = iptr.offset(visitor.input_center_offset);
+let optr = optr.offset(visitor.output_offset);
+for i in 0..visitor.inner_loop_len as isize {
+let iptr = iptr.offset(visitor.inner_loop_input_full_stride * i);
+let optr = optr.offset(visitor.inner_loop_output_stride * i);
+let i0 = *iptr.offset(ioffset0);
+let i1 = *iptr.offset(ioffset1);
+let i2 = *iptr.offset(ioffset2);
+let i3 = *iptr.offset(ioffset3);
+let p0 = i0 * k0;
+let p1 = i1 * k1;
+let p2 = i2 * k2;
+let p3 = i3 * k3;
+let sum = bias + p0 + p1 + p2 + p3;
+     *optr = sum
+     }
+     visitor.next_non_inner_axis()
+     }
+     }
+     }
+     */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ops::cnn::conv::{BlockedConv, Conv, KernelFormat};
+    use crate::ops::cnn::{PaddingSpec, PoolSpec};
+    use crate::ops::nn::DataFormat;
+
+    #[allow(clippy::too_many_arguments)]
+    fn run_dw(
+        fmt: DataFormat,
+        c: usize,
+        h: usize,
+        w: usize,
+        kh: usize,
+        kw: usize,
+        pad: PaddingSpec,
+        stride: (usize, usize),
+    ) {
+        run_dw_dt(f32::datum_type(), fmt, c, h, w, kh, kw, pad, stride)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn run_dw_dt(
+        dt: DatumType,
+        fmt: DataFormat,
+        c: usize,
+        h: usize,
+        w: usize,
+        kh: usize,
+        kw: usize,
+        pad: PaddingSpec,
+        stride: (usize, usize),
+    ) {
+        run_dw_batch(1, dt, fmt, c, h, w, kh, kw, pad, stride)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn run_dw_batch(
+        n: usize,
+        dt: DatumType,
+        fmt: DataFormat,
+        c: usize,
+        h: usize,
+        w: usize,
+        kh: usize,
+        kw: usize,
+        pad: PaddingSpec,
+        stride: (usize, usize),
+    ) {
+        let x: Vec<f32> = (0..n * c * h * w).map(|i| ((i as f32 * 0.137).sin()) * 0.7).collect();
+        let kernel: Vec<f32> = (0..c * kh * kw).map(|i| ((i as f32 * 0.091).cos()) * 0.3).collect();
+        let bias: Vec<f32> = (0..c).map(|i| (i as f32 * 0.05) - 0.1).collect();
+
+        let c_last = fmt.c_is_last();
+        let x_shape = if c_last { [n, h, w, c] } else { [n, c, h, w] };
+        let mut model = TypedModel::default();
+        let xv = model.add_source("x", dt.fact(x_shape)).unwrap();
+        let k = Tensor::from_shape(&[c, 1, kh, kw], &kernel).unwrap();
+        let kv = model.add_const("k", k.cast_to_dt(dt).unwrap().into_owned()).unwrap();
+        let b = Tensor::from_shape(&[c], &bias).unwrap();
+        let bv = model.add_const("b", b.cast_to_dt(dt).unwrap().into_owned()).unwrap();
+        let pool_spec = PoolSpec {
+            data_format: fmt,
+            kernel_shape: tvec!(kh, kw),
+            padding: pad.clone(),
+            dilations: None,
+            strides: Some(tvec!(stride.0, stride.1)),
+            input_channels: c,
+            output_channels: c,
+        };
+        let computed = pool_spec.computed_padding(&[h, w]);
+        let conv = Conv { pool_spec, kernel_fmt: KernelFormat::OIHW, group: c, q_params: None };
+        let out = model.wire_node("dw", conv, &[xv, kv, bv]).unwrap();
+        model.select_output_outlets(&out).unwrap();
+        let model = model.into_decluttered().unwrap().into_optimized().unwrap();
+        if kw == 1 && model.nodes.iter().any(|node| node.op_as::<BlockedConv>().is_some()) {
+            // `BlockedConv` claims kw=1 NCHW f32 wherever it is enabled -- by default on
+            // wasm, opt-in elsewhere -- so this shape does not reach DepthWise there.
+            // `blocked_conv_matches_reference` covers it.
+            return;
+        }
+        assert!(
+            model.nodes.iter().any(|node| node.op_as::<DepthWise>().is_some()),
+            "expected DepthWiseConv, got {}",
+            model.nodes.iter().map(|node| node.op().name()).collect::<Vec<_>>().join(",")
+        );
+        let runnable = model.into_runnable().unwrap();
+        let input = Tensor::from_shape(&x_shape, &x).unwrap();
+        let input = input.cast_to_dt(dt).unwrap().into_owned();
+        let got = runnable.run(tvec![input.into_tvalue()]).unwrap();
+        let got = got[0].cast_to::<f32>().unwrap().into_owned();
+        let got = got.to_plain_array_view::<f32>().unwrap();
+        let oshape = got.shape();
+        let (oh, ow) = if c_last { (oshape[1], oshape[2]) } else { (oshape[2], oshape[3]) };
+        let (ph, pw) = (computed[0].pad_before as isize, computed[1].pad_before as isize);
+        let mut max_abs = 0f32;
+        for b in 0..n {
+            for oc in 0..c {
+                for oy in 0..oh {
+                    for ox in 0..ow {
+                        let mut acc = bias[oc];
+                        for ky in 0..kh {
+                            for kx in 0..kw {
+                                let iy = oy as isize * stride.0 as isize + ky as isize - ph;
+                                let ix = ox as isize * stride.1 as isize + kx as isize - pw;
+                                if iy < 0 || ix < 0 || iy >= h as isize || ix >= w as isize {
+                                    continue;
+                                }
+                                let (iy, ix) = (iy as usize, ix as usize);
+                                let xv = if c_last {
+                                    x[(((b * h + iy) * w) + ix) * c + oc]
+                                } else {
+                                    x[(((b * c + oc) * h + iy) * w) + ix]
+                                };
+                                let kv = kernel[((oc * kh + ky) * kw) + kx];
+                                acc += xv * kv;
+                            }
+                        }
+                        let g = if c_last { got[[b, oy, ox, oc]] } else { got[[b, oc, oy, ox]] };
+                        max_abs = max_abs.max((g - acc).abs());
+                    }
+                }
+            }
+        }
+        // f16 accumulates every tap in f16, so its error grows with the tap count.
+        let tolerance = if dt == f16::datum_type() { 3e-3 * (kh * kw) as f32 } else { 1e-5 };
+        assert!(
+            max_abs < tolerance,
+            "DepthWise {dt:?} {fmt:?} mismatch c={c} {h}x{w} k={kh}x{kw} stride={stride:?} pad={pad:?}: max_abs={max_abs}"
+        );
+    }
+
+    #[test]
+    fn depthwise_multithreaded_matches_reference() {
+        let pool = tract_linalg::multithread::Executor::multithread(4);
+        tract_linalg::multithread::multithread_tract_scope(pool, || {
+            run_dw(DataFormat::NCHW, 32, 64, 80, 3, 3, PaddingSpec::Valid, (1, 1));
+            run_dw(DataFormat::NCHW, 32, 200, 24, 3, 3, PaddingSpec::SameUpper, (1, 1));
+            run_dw(DataFormat::NCHW, 32, 70, 70, 5, 5, PaddingSpec::SameUpper, (1, 1));
+            run_dw(DataFormat::NCHW, 20, 91, 91, 3, 3, PaddingSpec::SameUpper, (2, 2));
+            run_dw(DataFormat::NCHW, 7, 130, 129, 3, 3, PaddingSpec::Valid, (1, 1));
+            run_dw_batch(
+                3,
+                f32::datum_type(),
+                DataFormat::NCHW,
+                11,
+                64,
+                70,
+                3,
+                3,
+                PaddingSpec::SameUpper,
+                (1, 1),
+            );
+            run_dw_batch(
+                2,
+                f32::datum_type(),
+                DataFormat::NCHW,
+                5,
+                120,
+                100,
+                5,
+                5,
+                PaddingSpec::Valid,
+                (1, 1),
+            );
+        });
+    }
+
+    #[test]
+    fn depthwise_contig_w_matches_reference() {
+        // 48 kHz-like: NCHW, H=1, long W, kw=3. Inner loop is W.
+        run_dw(DataFormat::NCHW, 16, 1, 64, 1, 3, PaddingSpec::Valid, (1, 1));
+        run_dw(DataFormat::NCHW, 32, 1, 481, 1, 3, PaddingSpec::Valid, (1, 1));
+        run_dw(DataFormat::NCHW, 8, 1, 17, 1, 3, PaddingSpec::SameUpper, (1, 1));
+        // kw=1: taps a row apart, output still contiguous along W.
+        run_dw(DataFormat::NCHW, 8, 12, 20, 3, 1, PaddingSpec::Valid, (1, 1));
+        run_dw(DataFormat::NCHW, 4, 9, 9, 3, 3, PaddingSpec::Valid, (1, 1));
+        // 5x5 / 5x1 / 3x5: tap counts past the compile-time paths, so the inner loop runs
+        // through the whole-tap-count kernel rather than a fallback.
+        run_dw(DataFormat::NCHW, 16, 40, 40, 5, 5, PaddingSpec::SameUpper, (1, 1));
+        run_dw(DataFormat::NCHW, 64, 20, 20, 5, 5, PaddingSpec::SameUpper, (1, 1));
+        run_dw(DataFormat::NCHW, 8, 24, 24, 5, 5, PaddingSpec::Valid, (1, 1));
+        run_dw(DataFormat::NCHW, 8, 12, 20, 5, 1, PaddingSpec::Valid, (1, 1));
+        run_dw(DataFormat::NCHW, 8, 12, 20, 3, 5, PaddingSpec::Valid, (1, 1));
+        // 49, 81 and 121 taps take the vectorised kernel; 169 is past the limit and stays scalar.
+        run_dw(DataFormat::NCHW, 8, 30, 30, 7, 7, PaddingSpec::SameUpper, (1, 1));
+        run_dw(DataFormat::NCHW, 8, 30, 30, 9, 9, PaddingSpec::SameUpper, (1, 1));
+        run_dw(DataFormat::NCHW, 8, 30, 30, 11, 11, PaddingSpec::SameUpper, (1, 1));
+        run_dw(DataFormat::NCHW, 8, 30, 30, 13, 13, PaddingSpec::SameUpper, (1, 1));
+        // Encoder DW: stride 2 / 3 along W (vld2 / vld3 path).
+        run_dw(DataFormat::NCHW, 64, 1, 481, 1, 3, PaddingSpec::SameUpper, (1, 3));
+        run_dw(DataFormat::NCHW, 64, 1, 161, 1, 3, PaddingSpec::SameUpper, (1, 2));
+        run_dw(DataFormat::NCHW, 16, 1, 64, 1, 3, PaddingSpec::Valid, (1, 2));
+    }
+
+    #[test]
+    fn depthwise_nhwc_f16_matches_reference() {
+        let f16 = f16::datum_type();
+        run_dw_dt(f16, DataFormat::NHWC, 3, 9, 9, 3, 3, PaddingSpec::Valid, (1, 1));
+        run_dw_dt(f16, DataFormat::NHWC, 33, 12, 14, 3, 3, PaddingSpec::SameUpper, (1, 1));
+        run_dw_dt(f16, DataFormat::NHWC, 64, 11, 13, 5, 5, PaddingSpec::SameUpper, (2, 2));
+    }
+
+    #[test]
+    fn depthwise_nhwc_multithreaded_matches_reference() {
+        let pool = tract_linalg::multithread::Executor::multithread(4);
+        tract_linalg::multithread::multithread_tract_scope(pool, || {
+            for dt in [f32::datum_type(), f16::datum_type()] {
+                run_dw_dt(dt, DataFormat::NHWC, 64, 30, 30, 3, 3, PaddingSpec::SameUpper, (1, 1));
+                run_dw_dt(dt, DataFormat::NHWC, 33, 40, 40, 3, 3, PaddingSpec::Valid, (1, 1));
+                run_dw_dt(dt, DataFormat::NHWC, 200, 20, 20, 5, 5, PaddingSpec::SameUpper, (2, 2));
+                run_dw_dt(dt, DataFormat::NHWC, 80, 25, 27, 3, 3, PaddingSpec::SameUpper, (2, 1));
+            }
+        });
+    }
+
+    #[test]
+    fn depthwise_nhwc_matches_reference() {
+        // DFN3-like depthwise convs: 1x3 along a long axis, strided or not.
+        run_dw(DataFormat::NHWC, 3, 9, 9, 3, 3, PaddingSpec::Valid, (1, 1));
+        run_dw(DataFormat::NHWC, 64, 100, 32, 1, 3, PaddingSpec::SameUpper, (1, 2));
+        run_dw(DataFormat::NHWC, 64, 100, 16, 1, 3, PaddingSpec::SameUpper, (1, 2));
+        run_dw(DataFormat::NHWC, 64, 100, 8, 1, 3, PaddingSpec::SameUpper, (1, 1));
+        run_dw(DataFormat::NHWC, 64, 100, 8, 1, 1, PaddingSpec::Valid, (1, 1));
+        run_dw(DataFormat::NHWC, 64, 100, 96, 5, 1, PaddingSpec::SameUpper, (1, 1));
+        // Odd channel counts and small shapes: vector tails, narrow zones.
+        run_dw(DataFormat::NHWC, 17, 12, 20, 3, 3, PaddingSpec::SameUpper, (1, 1));
+        run_dw(DataFormat::NHWC, 8, 1, 64, 1, 3, PaddingSpec::Valid, (1, 3));
+        run_dw(DataFormat::NHWC, 4, 1, 17, 1, 3, PaddingSpec::SameUpper, (1, 1));
+    }
+}

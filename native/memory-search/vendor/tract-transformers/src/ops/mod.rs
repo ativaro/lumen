@@ -1,0 +1,40 @@
+pub mod apply_rope;
+mod cast_f32;
+pub mod causal_conv1d_update;
+pub mod detect_sdpa;
+pub mod diag_gather;
+pub mod dyn_kv_cache;
+pub mod flash_sdpa;
+pub mod gdn_recurrent;
+pub mod inplace_kv_cache;
+pub mod kv_quant;
+pub mod moe_ffn;
+pub mod quant_dyn_kv_cache;
+mod routed_matmul;
+pub mod scaled_masked_softmax;
+pub mod sdpa;
+pub mod streamed_sdpa;
+#[cfg(test)]
+mod test_utils;
+pub mod window_kv_cache;
+
+// Re-export ops that moved to core
+pub mod rms_norm {
+    pub use tract_nnef::tract_core::ops::nn::RmsNorm;
+    pub use tract_nnef::tract_core::ops::nn::rms_norm::*;
+}
+pub mod silu {
+    pub use tract_nnef::tract_core::ops::nn::Silu;
+    pub use tract_nnef::tract_core::ops::nn::silu::*;
+}
+pub mod gelu_approximate {
+    pub use tract_nnef::tract_core::ops::nn::GeluApproximate;
+    pub use tract_nnef::tract_core::ops::nn::gelu_approximate::*;
+}
+
+pub use apply_rope::{apply_rope_rule, rotate_half_rule};
+pub use detect_sdpa::detect_sdpa_rule;
+pub use diag_gather::{DiagGather, detect_diag_gather, diag_gather_rule};
+pub use dyn_kv_cache::{DynKeyValueCache, replace_kv_cache, unfold_kv_cache};
+pub use scaled_masked_softmax::scaled_masked_softmax_rule;
+pub use sdpa::fuse_kv_cache_broadcast_rule;

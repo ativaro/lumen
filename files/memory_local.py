@@ -1,34 +1,83 @@
-"""Optional, isolated local search worker. One model process per installation.
+"""Optional local meaning search through Lumen's Rust service `lumen-memory`.
 
-Indexing never loads a model in the UI/API process. Missing/busy/failed workers
-return a visible text fallback; a bounded background pass fills the vector cache.
+The model never loads in the UI/API process. The service keeps it loaded between questions and ends
+itself after ten minutes without one. A missing, starting or failing service returns a visible text
+fallback; the service goes on filling the vector cache in small steps between questions.
 """
-from dataclasses import asdict
-import fcntl
 import hashlib
 import json
 import os
 from pathlib import Path
-import subprocess
+import socket
 import sqlite3
-import sys
+import subprocess
 import tempfile
 import time
 if __package__:
-    from .memory_core import Entry, eligible
+    from .memory_core import eligible
+    from .memory_embedding import MODEL_FILES
     from .memory_index import Index
 else:
-    from memory_core import Entry, eligible
+    from memory_core import eligible
+    from memory_embedding import MODEL_FILES
     from memory_index import Index
 
-RAM_MIB = 500
-MODEL_BYTES = 127535388
 MAX_INPUT = 16 * 1024 * 1024
+
+
+def program():
+    from lumen_office import program as find
+    return find('lumen-memory', 'memory-search')
 
 
 def availability(home):
     home = Path(home)
-    return all((home / file).is_file() for file in ('env/bin/python', 'model/model.onnx', 'model/tokenizer.json'))
+    if not all((home / 'model' / name).is_file() for name in MODEL_FILES):
+        return False
+    try:
+        program()
+    except ValueError:
+        return False
+    return True
+
+
+def channel(home):
+    """The service's private socket for this model folder."""
+    runtime = Path(os.environ.get('XDG_RUNTIME_DIR') or Path(home) / 'run')
+    key = hashlib.sha256(str(Path(home).resolve()).encode()).hexdigest()[:16]
+    return runtime / 'lumen-memory' / (key + '.sock')
+
+
+def start(home):
+    """Starts the service on its own; a second one would find the model lock taken and leave."""
+    subprocess.Popen([program(), 'serve', str(home), str(channel(home)), MODEL_FILES['model.onnx'],
+                      MODEL_FILES['tokenizer.json']], start_new_session=True,
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def ask(home, request, timeout=3):
+    """One answer from the service, starting it when none listens. TimeoutError when it takes too long."""
+    path, deadline, started = channel(home), time.monotonic() + timeout, False
+    while True:
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+                connection.settimeout(max(.05, deadline - time.monotonic()))
+                connection.connect(str(path))
+                connection.sendall(request)
+                connection.shutdown(socket.SHUT_WR)
+                data = bytearray()
+                while chunk := connection.recv(1 << 16):
+                    data += chunk
+                    if len(data) > 2 * MAX_INPUT:
+                        raise ValueError('Memory search answer too large')
+            return json.loads(data)
+        except (FileNotFoundError, ConnectionRefusedError):
+            if not started:
+                start(home)
+                started = True
+            if time.monotonic() >= deadline:
+                raise TimeoutError('Memory search service did not start') from None
+            time.sleep(.05)
 
 
 def invalidate(cache):
@@ -72,24 +121,18 @@ def _retrieve(entries, query, *, boundary, home, cache, project=''):
         index.prepare(entries, boundary, project)
     finally:
         index.close()
-    payload = json.dumps({'entries': [asdict(e) for e in entries], 'query': query[:6000]}).encode()
-    if len(payload) > MAX_INPUT:
+    request = json.dumps({'path': str(path), 'query': query[:6000],
+                          'entries': [dict(id=e.id, revision=e.revision, title=e.title, text=e.text,
+                                           digest=Index.digest(e)) for e in entries]}).encode()
+    if len(request) > MAX_INPUT:
         return dict(empty, reason='capacity')
-    command = [str(home / 'env/bin/python'), str(Path(__file__).resolve()), str(home), str(path)]
     try:
-        run = subprocess.run(command, input=payload, capture_output=True, timeout=3,
-                             env=dict(os.environ, TOKENIZERS_PARALLELISM='false', OPENBLAS_NUM_THREADS='1'))
-        if run.returncode:
-            return dict(empty, reason='unavailable')
-        result = json.loads(run.stdout)
-        if result.pop('fill', False):
-            fill(command, payload)
+        result = ask(home, request)
         result['scores'] = {(identity, revision): score for identity, revision, score in result['scores']}
-        result['excerpts'] = {(identity, revision): text for identity, revision, text in result.get('excerpts',[])}
+        result['excerpts'] = {(identity, revision): text for identity, revision, text in result.get('excerpts', [])}
         return result
-    except subprocess.TimeoutExpired:
-        # Slow CPUs must still advance the index after the foreground budget expires.
-        fill(command, payload)
+    except TimeoutError:
+        # A loading or busy service indexes on; this question uses the text search.
         index = Index(path)
         try:
             state = index.status()
@@ -100,57 +143,3 @@ def _retrieve(entries, query, *, boundary, home, cache, project=''):
             index.close()
     except (OSError, ValueError, KeyError):
         return dict(empty, reason='unavailable')
-
-
-def fill(command, payload):
-    process = subprocess.Popen(command + ['fill'], stdin=subprocess.PIPE,
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                               start_new_session=True,
-                               env=dict(os.environ, TOKENIZERS_PARALLELISM='false', OPENBLAS_NUM_THREADS='1'))
-    try:
-        process.stdin.write(payload)
-        process.stdin.close()
-    except BrokenPipeError:
-        pass  # another query already started the single model worker
-
-
-def worker():
-    from memory_embedding import Encoder
-    request = json.loads(sys.stdin.buffer.read(MAX_INPUT + 1))
-    home, path = Path(sys.argv[1]), Path(sys.argv[2])
-    descriptor = os.open(home / 'model.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
-    try:
-        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
-        print(json.dumps({'mode': 'text', 'reason': 'busy', 'scores': []}))
-        os.close(descriptor)
-        return
-    index = Index(path)
-    try:
-        entries = [Entry(**row) for row in request['entries']]
-        encoder = Encoder(home / 'model')
-        fill = len(sys.argv) > 3
-        deadline = time.monotonic() + 20
-        while True:
-            processed = index.advance(entries, encoder, chunks=128 if fill else 32)
-            state = index.status()
-            if not fill or not processed or state['ready'] == state['total'] or time.monotonic() >= deadline:
-                break
-        scores, positions = ({}, {}) if fill else index.scores(entries, request['query'], encoder)
-        by_id = {(entry.id, entry.revision): entry for entry in entries}
-        excerpts = []
-        for key in sorted(scores, key=lambda key: (-scores[key],key))[:12]:
-            if scores[key] >= .35:
-                entry = by_id[key]
-                excerpts.append([*key, encoder.excerpt(entry.title+'\n'+entry.text,positions[key])])
-        print(json.dumps(dict(state, reason='', fill=not fill and state['mode'] == 'indexing',
-                              scores=[[identity, revision, value] for (identity, revision), value in scores.items()],
-                              excerpts=excerpts)))
-    finally:
-        index.close()
-        # Keep the model lock until process exit, after native model/library teardown.
-        # Releasing it here permits a second model while the first still occupies RAM.
-
-
-if __name__ == '__main__':
-    worker()
