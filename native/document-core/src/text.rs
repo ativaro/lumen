@@ -1,6 +1,5 @@
 //! The words of a PDF page with their positions: fonts, the text operators of the content
-//! stream, forms, layers and replacement text. It follows the text path of
-//! `files/lumen_pdf_page.py`; drawing operators are passed over here and belong to the renderer.
+//! stream, forms, layers and replacement text. Drawing operators are passed over here and belong to the renderer.
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -926,10 +925,14 @@ fn substitute(family: &str, bold: bool, italic: bool) -> Option<Vec<u8>> {
         (false, true) => "Italic",
         (true, true) => "BoldItalic",
     };
-    let wanted = format!(
+    font_file(&format!(
         "Liberation{}-{style}.ttf",
         family.trim_start_matches("Liberation ").replace(' ', "")
-    );
+    ))
+}
+
+/// An installed font file by its file name, searched in the usual font folders.
+pub(crate) fn font_file(wanted: &str) -> Option<Vec<u8>> {
     let mut folders: Vec<std::path::PathBuf> =
         vec!["/usr/share/fonts".into(), "/usr/local/share/fonts".into()];
     if let Some(home) = std::env::var_os("HOME") {
@@ -942,7 +945,7 @@ fn substitute(family: &str, bold: bool, italic: bool) -> Option<Vec<u8>> {
         for folder in &folders {
             for entry in std::fs::read_dir(folder).into_iter().flatten().flatten() {
                 let path = entry.path();
-                if path.file_name().is_some_and(|name| name == wanted.as_str()) {
+                if path.file_name().is_some_and(|name| name == wanted) {
                     return std::fs::read(path).ok();
                 }
                 if path.is_dir() {
@@ -958,6 +961,8 @@ fn substitute(family: &str, bold: bool, italic: bool) -> Option<Vec<u8>> {
 
 pub struct Font {
     pub(crate) composite: bool,
+    pub(crate) bold: bool,
+    pub(crate) italic: bool,
     widths: HashMap<u32, f64>,
     default_width: Option<Value>,
     differences: HashMap<u32, String>,
@@ -1219,6 +1224,8 @@ impl Font {
             program.names()
         };
         Ok(Font {
+            bold,
+            italic,
             composite,
             widths,
             default_width,
@@ -1451,8 +1458,24 @@ struct Character {
     area: Rect,
 }
 
+/// One text-showing operation: its text, its box in the page turned upright by `angle` (top-left origin at the
+/// MediaBox top), the size the reader sees, the fill colour and the font's style.
+#[derive(Debug, Clone)]
+pub struct Span {
+    pub text: String,
+    pub rect: Rect,
+    pub size: f64,
+    pub colour: u32,
+    pub bold: bool,
+    pub italic: bool,
+    pub angle: f64,
+}
+
 #[derive(Clone)]
 struct State {
+    /// Only tracked while spans are collected.
+    fill: [f64; 3],
+    fill_space: Option<crate::render::Space>,
     ctm: Matrix,
     font: Option<Rc<Font>>,
     size: f64,
@@ -1476,6 +1499,10 @@ pub struct Page<'d> {
     characters: Vec<Character>,
     operations: usize,
     character_units: usize,
+    /// Collected only by `Page::spans`.
+    collecting: bool,
+    spans: Vec<Span>,
+    images: usize,
 }
 
 const KNOWN: &[&str] = &[
@@ -1504,6 +1531,9 @@ impl<'d> Page<'d> {
             characters: Vec::new(),
             operations: 0,
             character_units: 0,
+            collecting: false,
+            spans: Vec::new(),
+            images: 0,
         };
         page.hidden_layers = page.layers()?;
         Ok(page)
@@ -1520,6 +1550,8 @@ impl<'d> Page<'d> {
         };
         let content = document.contents(index)?;
         let state = State {
+            fill: [0.0; 3],
+            fill_space: None,
             ctm: Matrix::IDENTITY,
             font: None,
             size: 0.0,
@@ -1532,6 +1564,45 @@ impl<'d> Page<'d> {
         page.interpret(&content, &resources, &mut Vec::new(), 0, state)?;
         let words = page.build()?;
         Ok((width, height, words))
+    }
+
+    /// The page's text-showing operations with their style, and how many images it draws.
+    pub fn spans(document: &'d Document, index: usize) -> Outcome<(Vec<Span>, usize)> {
+        let mut page = Page::prepare(document, index)?;
+        page.collecting = true;
+        let attrs = &document.pages[index];
+        let resources = match document.resolve(attrs.get("Resources").unwrap_or(&Value::Null))? {
+            Value::Dict(resources) => resources,
+            _ => Rc::new(Dict::new()),
+        };
+        let content = document.contents(index)?;
+        let state = State {
+            fill: [0.0; 3],
+            fill_space: Some(crate::render::Space::Gray),
+            ctm: Matrix::IDENTITY,
+            font: None,
+            size: 0.0,
+            charspace: 0.0,
+            wordspace: 0.0,
+            scale: 1.0,
+            leading: 0.0,
+            rise: 0.0,
+        };
+        page.interpret(&content, &resources, &mut Vec::new(), 0, state)?;
+        Ok((page.spans, page.images))
+    }
+
+    /// The top of the MediaBox, which the upright span boxes count from.
+    fn media_top(&self) -> Outcome<f64> {
+        let corners = self.document.resolve(
+            self.document.pages[self.index]
+                .get("MediaBox")
+                .unwrap_or(&Value::Null),
+        )?;
+        Ok(corners
+            .array()
+            .and_then(|c| numbers(c, Some(4)).ok())
+            .map_or(self.area.bottom(), |c| c[3]))
     }
 
     /// Layer groups that the document's default configuration switches off.
@@ -1676,6 +1747,15 @@ impl<'d> Page<'d> {
             6,
         );
         let straight = Matrix::rotation(-angle);
+        let to_layout = if self.collecting {
+            self.transform
+                .inverted()
+                .then(Matrix::new(&[1.0, 0.0, 0.0, -1.0, 0.0, self.media_top()?]))
+                .then(straight)
+        } else {
+            Matrix::IDENTITY
+        };
+        let (mut layout, mut letters): (Option<Rect>, String) = (None, String::new());
         for glyph in font.glyphs(data)? {
             let advance = (glyph.width / 1000.0 * state.size
                 + state.charspace
@@ -1705,6 +1785,13 @@ impl<'d> Page<'d> {
             if self.character_units > 500_000 {
                 return bad("Zu viele PDF-Textzeichen auf einer Seite.");
             }
+            if self.collecting {
+                let placed = glyph_transform.then(to_layout).map_rect(rect);
+                layout = Some(layout.map_or(placed, |sum| sum.united(placed)));
+                if self.hidden == 0 {
+                    letters.push_str(&glyph.text);
+                }
+            }
             if self.hidden == 0 {
                 self.characters.push(Character {
                     letter: glyph.text,
@@ -1717,7 +1804,61 @@ impl<'d> Page<'d> {
             }
             *matrix = Matrix::new(&[1.0, 0.0, 0.0, 1.0, advance, 0.0]).then(*matrix);
         }
+        if let (Some(rect), false) = (layout, letters.is_empty()) {
+            let [r, g, b] = state
+                .fill
+                .map(|v| (v.clamp(0.0, 1.0) * 255.0).round() as u32);
+            self.spans.push(Span {
+                text: letters,
+                rect,
+                size: state.size * baseline.m21.hypot(baseline.m22),
+                colour: r << 16 | g << 8 | b,
+                bold: font.bold,
+                italic: font.italic,
+                angle,
+            });
+        }
         Ok(())
+    }
+
+    /// The fill colour after a colour operator, None where it cannot be worked out.
+    fn colour(
+        &self,
+        operator: &str,
+        a: &[Value],
+        state: &State,
+        resources: &Dict,
+    ) -> Option<(Option<crate::render::Space>, [f64; 3])> {
+        use crate::render::Space;
+        let given = |space: Space| {
+            let colour = space.rgb(self.document, &numbers(a, None).ok()?).ok()?;
+            Some((Some(space), colour))
+        };
+        match operator {
+            "g" => given(Space::Gray),
+            "rg" => given(Space::Rgb),
+            "k" => given(Space::Cmyk),
+            "cs" => {
+                let name = a.first()?.name()?;
+                if name == "Pattern" {
+                    return Some((None, [0.0; 3]));
+                }
+                let definition = match name {
+                    "DeviceGray" | "DeviceRGB" | "DeviceCMYK" => a[0].clone(),
+                    other => self.resource(resources, "ColorSpace", other).ok()?,
+                };
+                let space = Space::parse(self.document, &definition, resources, 0).ok()?;
+                let colour = space.rgb(self.document, &space.initial()).ok()?;
+                Some((Some(space), colour))
+            }
+            _ => match &state.fill_space {
+                Some(space) => {
+                    let values = numbers(a, Some(space.components())).ok()?;
+                    Some((Some(space.clone()), space.rgb(self.document, &values).ok()?))
+                }
+                None => None,
+            },
+        }
     }
 
     fn form(
@@ -1913,6 +2054,12 @@ impl<'d> Page<'d> {
                         }
                     }
                 }
+                "g" | "rg" | "k" | "cs" | "sc" | "scn" if self.collecting => {
+                    // Best effort: a colour this reader cannot work out keeps the previous one.
+                    if let Some((space, colour)) = self.colour(operator, &a, &state, resources) {
+                        (state.fill_space, state.fill) = (space, colour);
+                    }
+                }
                 "Do" => {
                     let (Some(Value::Name(name)), 1) = (a.first(), a.len()) else {
                         return bad("Ungültiges PDF-XObject.");
@@ -1924,7 +2071,7 @@ impl<'d> Page<'d> {
                         continue;
                     }
                     match object.attrs.get("Subtype").and_then(Value::name) {
-                        Some("Image") => {}
+                        Some("Image") => self.images += 1,
                         Some("Form") => self.form(&object, resources, forms, depth, &state)?,
                         _ => return unsupported("PDF-XObject-Typ noch nicht unterstützt."),
                     }
@@ -2085,13 +2232,13 @@ impl<'d> Page<'d> {
 }
 
 /// Unicode format characters (category Cf), which a replacement text may consist of.
-fn format_mark(c: char) -> bool {
+pub(crate) fn format_mark(c: char) -> bool {
     matches!(c as u32, 0xAD | 0x600..=0x605 | 0x61C | 0x6DD | 0x70F | 0x8E2 | 0x180E | 0x200B..=0x200F | 0x202A..=0x202E | 0x2060..=0x2064 | 0x2066..=0x206F | 0xFEFF | 0xFFF9..=0xFFFB | 0xE0001 | 0xE0020..=0xE007F)
 }
 
 /// ponytail: strong right-to-left characters by block, not the full Unicode bidi table. Such text is
-/// refused as in the Python reader; a missed block would be read in visual order instead.
-fn right_to_left(c: char) -> bool {
+/// refused; a missed block would be read in visual order instead.
+pub(crate) fn right_to_left(c: char) -> bool {
     matches!(c as u32, 0x590..=0x5FF | 0x608 | 0x60B | 0x60D | 0x61B..=0x64A | 0x66D..=0x66F | 0x671..=0x6D5 | 0x6E5..=0x6E6 | 0x6EE..=0x6EF | 0x6FA..=0x8FF | 0x200F | 0x202B | 0x202E | 0x2067 | 0xFB1D..=0xFD3D | 0xFD50..=0xFDFC | 0xFE70..=0xFEFC | 0x10800..=0x10FFF | 0x1E800..=0x1EFFF)
 }
 
@@ -2221,7 +2368,7 @@ mod tests {
     }
 
     #[test]
-    fn code_pages_match_python() {
+    fn code_pages_match_their_tables() {
         assert_eq!(WINDOWS.chars().count(), 32);
         assert_eq!(MACINTOSH.chars().count(), 128);
         assert_eq!(WINDOWS.chars().nth(0x93 - 0x80), Some('“'));

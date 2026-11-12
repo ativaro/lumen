@@ -62,20 +62,16 @@ class PDFTest(unittest.TestCase):
         before=self.source.read_bytes();manifest=pdf.inspect(self.source);output=self.root/'translated.pdf'
         report=pdf.write(manifest,self.translations(manifest),output)
         self.assertEqual(self.source.read_bytes(),before);self.assertEqual(report['pages'],1)
-        from lumen_pdf import Document,Ref,Stream
-        with Document(output) as doc,Document(self.source) as source:
-            page=doc.page(0);original=source.page(0)
-            self.assertIn('Hallo Welt',page.text());self.assertNotIn('Hello world',page.text())
-            self.assertEqual((page.width,page.height),(original.width,original.height));self.assertEqual(page.image_count,1)
-            # Independent geometry/pixel assertions retain the original vector and image contract.
-            self.assertIn(b'0 0 1 RG 35 250 365 150 re S',b' '.join(doc.contents(0).split()))
-            rendered=page.render();before_image=original.render()
-            for x,y in [(35,150),(100,250),(80,350),(180,180)]:self.assertEqual(rendered.pixelColor(x,y),before_image.pixelColor(x,y))
-            self.assertEqual([doc.resolve(a)['A']['URI'] for a in doc.pages[0]['Annots']],[b'https://example.org'])
-            for number in doc.xref:
-                if number:
-                    value=doc.resolve(Ref(number))
-                    if isinstance(value,Stream):self.assertNotIn(b'Hello world',doc.decode(value))
+        from test_pdf_fixtures import pages,render,streams,text
+        found=text(output);self.assertIn('Hallo Welt',found);self.assertNotIn('Hello world',found)
+        page,original=pages(output)[0],pages(self.source)[0]
+        self.assertEqual((page['width'],page['height']),(original['width'],original['height']))
+        # Independent geometry/pixel assertions retain the original vector, image and link contract.
+        self.assertTrue(any(b'0 0 1 RG 35 250 365 150 re S' in b' '.join(data.split()) for data in streams(output)))
+        rendered=render(output);before_image=render(self.source)
+        for x,y in [(35,150),(100,250),(80,350),(180,180)]:self.assertEqual(rendered.pixelColor(x,y),before_image.pixelColor(x,y))
+        data=output.read_bytes();self.assertEqual(data.count(b'(https://example.org)')+data.count(b'<'+b'https://example.org'.hex().encode()+b'>'),1)
+        self.assertFalse(any(b'Hello world' in data for data in streams(output)))
         with self.assertRaises(ValueError):pdf.write(manifest,self.translations(manifest),output)
     def test_missing_output_overflow_and_changed_source_never_publish(self):
         manifest=pdf.inspect(self.source);output=self.root/'new.pdf'
@@ -89,11 +85,11 @@ class PDFTest(unittest.TestCase):
     def test_scans_and_annotations_refused(self):
         scan=self.root/'scan.pdf'
         from test_pdf_fixtures import document,add_image
-        from lumen_pdf import Document,Writer,Name
+        from test_pdf_fixtures import Name
         writer=document();page=writer.objects[writer.page_refs[0].number-1];add_image(writer,page,bytes([90])*12*12*3,12,12,(20,20,200,200));writer.save(scan)
         with self.assertRaises(ValueError):pdf.inspect(scan)
-        annotated=self.root/'annotated.pdf';writer=Writer();page=writer.copy_page(Document(self.source),0)
-        page['Annots'].append(writer.add({'Type':Name('Annot'),'Subtype':Name('Text'),'Rect':[40,40,60,60],'Contents':b'Note'}));writer.save(annotated)
+        annotated=self.root/'annotated.pdf';writer=document(['Hello world']);page=writer.objects[writer.page_refs[0].number-1]
+        page['Annots']=[writer.add({'Type':Name('Annot'),'Subtype':Name('Text'),'Rect':[40,40,60,60],'Contents':b'Note'})];writer.save(annotated)
         with self.assertRaises(ValueError):pdf.inspect(annotated)
 
 
@@ -130,8 +126,7 @@ class NativeTest(unittest.TestCase):
             self.assertFalse(w.engine.busy);self.assertTrue(w.body.isEnabled());self.assertEqual(w.output.toPlainText(),'')
             self.dispose(w)
     def test_pdf_native_import_preview_process_and_export(self):
-        from test_pdf_fixtures import document
-        from lumen_pdf import Document
+        from test_pdf_fixtures import document,text
         from tools_translate import Translate
         source=self.root/'input.pdf'
         document(['Helo world'],position=(40,60)).save(source)
@@ -147,7 +142,7 @@ class NativeTest(unittest.TestCase):
             with patch('tools_translate.QFileDialog.getSaveFileName',return_value=(str(target),'PDF')):
                 w.export_pdf();self.wait(lambda:not w.job)
             self.assertEqual(source.read_bytes(),before)
-            with Document(target) as doc:self.assertIn('Hello world',doc.page(0).text())
+            self.assertIn('Hello world',text(target))
             self.dispose(w)
 
     def test_mcp_processing_is_bounded_and_does_not_make_drafts(self):

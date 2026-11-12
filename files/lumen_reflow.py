@@ -5,12 +5,28 @@ import re
 from urllib.parse import unquote,urlsplit
 import xml.etree.ElementTree as ET
 import zipfile
-from PySide6.QtCore import QByteArray,QRectF,QSizeF,QUrl
-from PySide6.QtGui import QFont,QImage,QPainter,QTextDocument
-from lumen_pdf import PDFError,integer
-from lumen_pdf_page import gui
+import os
+from PySide6.QtCore import QBuffer,QByteArray,QIODevice,QRectF,QSizeF,QUrl
+from PySide6.QtGui import QFont,QGuiApplication,QImage,QPainter,QTextDocument
+from lumen_office import PDFError
 
 WIDTH,HEIGHT=600,850
+_gui=None
+
+
+def gui():
+    """Text layout needs a Qt application; a worker without one gets an offscreen one."""
+    from PySide6.QtWidgets import QApplication
+    global _gui
+    if QGuiApplication.instance() is None:
+        os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
+        _gui=QApplication(['lumen-reader'])
+
+
+def png(image):
+    buffer=QBuffer();buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+    if not image.save(buffer,'PNG'):raise PDFError('PDF-Vorschaubild konnte nicht gespeichert werden.')
+    return bytes(buffer.data())
 
 
 def validate_epub(path):
@@ -128,7 +144,8 @@ class ReflowBook:
     def toc(self):return self.outline
 
     def page(self,index):
-        integer(index,0,len(self.pages)-1);doc,number=self.pages[index];return ReflowPage(doc,number)
+        if type(index) is not int or not 0<=index<len(self.pages):raise PDFError('Ungültige PDF-Ganzzahl oder überschrittenes Limit.')
+        doc,number=self.pages[index];return ReflowPage(doc,number)
     def __len__(self):return len(self.pages)
     def close(self):
         if self.archive:self.archive.close();self.archive=None

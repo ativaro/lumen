@@ -119,9 +119,9 @@ pub fn serialize(out: &mut Vec<u8>, value: &Value, depth: usize) -> Outcome<()> 
 
 /// A new PDF under construction. Sources are told apart by the number the caller gives them.
 pub struct Writer {
-    objects: Vec<Value>,
-    page_refs: Vec<Ref>,
-    imported: HashMap<(usize, Ref), Ref>,
+    pub(crate) objects: Vec<Value>,
+    pub(crate) page_refs: Vec<Ref>,
+    pub(crate) imported: HashMap<(usize, Ref), Ref>,
     pending_pages: HashMap<(usize, Ref), Ref>,
     root: Ref,
     tree: Ref,
@@ -161,7 +161,7 @@ impl Writer {
         }
     }
 
-    fn add(&mut self, value: Value) -> Outcome<Ref> {
+    pub(crate) fn add(&mut self, value: Value) -> Outcome<Ref> {
         if self.objects.len() as i64 >= MAX_OBJECTS {
             return bad("Zu viele PDF-Ausgabeobjekte.");
         }
@@ -172,23 +172,14 @@ impl Writer {
         })
     }
 
-    fn put(&mut self, reference: Ref, value: Value) {
+    pub(crate) fn put(&mut self, reference: Ref, value: Value) {
         self.objects[reference.number as usize - 1] = value;
     }
 
     /// A new compressed stream.
-    pub fn stream(&mut self, data: &[u8], mut attrs: Dict) -> Outcome<Ref> {
-        if data.len() > MAX_STREAM {
-            return bad("PDF-Datenstrom überschreitet das Limit.");
-        }
-        let mut packer =
-            flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
-        let raw = packer
-            .write_all(data)
-            .and_then(|_| packer.finish())
-            .map_err(|_| Error::Pdf("PDF-Datenstrom konnte nicht geschrieben werden.".into()))?;
-        attrs.insert("Filter".into(), name("FlateDecode"));
-        self.add(Value::Stream(Rc::new(Stream { attrs, raw })))
+    pub fn stream(&mut self, data: &[u8], attrs: Dict) -> Outcome<Ref> {
+        let packed = packed(data, attrs)?;
+        self.add(packed)
     }
 
     /// A value of `document` with everything it refers to, each source object copied once.
@@ -470,8 +461,22 @@ impl Writer {
     }
 }
 
+/// A Flate-compressed stream of `data` with `attrs`.
+pub(crate) fn packed(data: &[u8], mut attrs: Dict) -> Outcome<Value> {
+    if data.len() > MAX_STREAM {
+        return bad("PDF-Datenstrom überschreitet das Limit.");
+    }
+    let mut packer = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+    let raw = packer
+        .write_all(data)
+        .and_then(|_| packer.finish())
+        .map_err(|_| Error::Pdf("PDF-Datenstrom konnte nicht geschrieben werden.".into()))?;
+    attrs.insert("Filter".into(), name("FlateDecode"));
+    Ok(Value::Stream(Rc::new(Stream { attrs, raw })))
+}
+
 /// Publishes `data` as `target` in one step. An existing file is never replaced.
-fn publish(data: &[u8], target: &Path) -> Outcome<()> {
+pub(crate) fn publish(data: &[u8], target: &Path) -> Outcome<()> {
     let failed = || Error::Pdf("PDF-Zieldatei konnte nicht geschrieben werden.".into());
     let folder = target.parent().ok_or_else(failed)?;
     let staged = folder.join(format!(".lumen-pdf-{}.pdf", std::process::id()));
@@ -562,10 +567,9 @@ pub fn export(
         let source = match sources.iter().position(|(path, ..)| *path == item.path) {
             Some(known) => known,
             None => {
+                // An encrypted source opens here only without a user password; its pages are read decrypted and
+                // written as a plain copy.
                 let document = Document::open(&item.path, "")?;
-                if document.encrypted() {
-                    return unsupported("Verschlüsselte PDFs werden hier noch nicht geschrieben.");
-                }
                 sources.push((item.path.clone(), stamp, document));
                 sources.len() - 1
             }
@@ -977,6 +981,30 @@ mod tests {
         let mut out = Vec::new();
         serialize(&mut out, value, 0).unwrap();
         String::from_utf8(out).unwrap()
+    }
+
+    #[test]
+    fn malformed_presentation_reals_read_and_reals_survive_a_round_trip() {
+        // A presentation exporter writes "0.00000-9589016" for zero; it reads as 0 and the array stays usable.
+        let mut syntax = crate::pdf::Syntax::new(b"[1 0 0.00000-9589016 22.159212]", 0);
+        let numbers: Vec<f64> = syntax
+            .value()
+            .unwrap()
+            .array()
+            .unwrap()
+            .iter()
+            .map(|v| v.number().unwrap())
+            .collect();
+        assert_eq!(numbers, [1.0, 0.0, 0.0, 22.159212]);
+        for value in [8.3179245e-14, 21.937113, 1.234567891234567, -0.0] {
+            let written = text(&Value::Real(value));
+            let back = crate::pdf::Syntax::new(written.as_bytes(), 0)
+                .value()
+                .unwrap()
+                .number()
+                .unwrap();
+            assert_eq!(back, value, "{written}");
+        }
     }
 
     #[test]

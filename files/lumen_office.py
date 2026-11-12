@@ -1,7 +1,7 @@
-"""Word, Excel, PowerPoint and OpenDocument files as local reading pages; no server and no office suite.
+"""Lumen's document core in Rust (native/document-core): where it is, and how its PDF and Office answers reach the apps.
 
-The reading itself is Lumen's document core in Rust (native/document-core). This module starts it
-and passes on the few words it writes itself, translated.
+The core reads and writes PDFs and reads Word, Excel, PowerPoint and OpenDocument files; no server and no office suite.
+This module starts it and passes on the few words it writes itself, translated.
 """
 import json
 import os
@@ -10,7 +10,11 @@ import shutil
 import subprocess
 
 from lumen_i18n import tr
-from lumen_pdf import PDFError
+
+
+class PDFError(ValueError):
+    """A document the core cannot read or write, with the reason for the user."""
+
 
 OFFICE = {'.docx', '.docm', '.xlsx', '.xlsm', '.pptx', '.pptm', '.odt', '.ods', '.odp'}
 # Translated at use: the core writes the German words unless it is given others.
@@ -31,14 +35,32 @@ def program():
     return found
 
 
-def pdf_tool(*arguments, beside=__file__):
-    """The command for text, information or a rendered page of a PDF, with the arguments of lumen_pdf_worker.py.
+def pdf_tool(*arguments):
+    """The command for text, information or a rendered page of a PDF: `text|info|render <file> [options]`."""
+    return [program(), 'pdf-cli', *arguments]
 
-    The document core answers; what it does not read it hands to the Python worker before writing anything."""
-    import sys
-    worker = [sys.executable, str(Path(beside).with_name('lumen_pdf_worker.py'))]
-    try: return [program(), 'pdf-cli', '--fallback', *worker, *arguments]
-    except PDFError: return [*worker, *arguments]
+
+def signature(path):
+    """Device, inode, size and both change times: what a caller saw when it listed a file."""
+    info = Path(path).stat()
+    return [info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns]
+
+
+def limits():
+    """Caps the memory and processor time of a worker process that reads untrusted files."""
+    import resource
+    for kind, budget in ((resource.RLIMIT_AS, 3*1024**3), (resource.RLIMIT_CPU, 90)):
+        soft, hard = resource.getrlimit(kind)
+        bound = min(budget, hard) if hard != resource.RLIM_INFINITY else budget
+        if soft != resource.RLIM_INFINITY: bound = min(bound, soft)
+        resource.setrlimit(kind, (bound, bound))
+
+
+def message(error):
+    """The core's reason from a failed job command, translated where the catalogue knows it."""
+    text = str(error).strip()
+    if text.startswith('lumen-document:'): text = text[len('lumen-document:'):].strip()
+    return tr(text)
 
 
 def read(path):

@@ -51,6 +51,7 @@ public:
     Q_INVOKABLE void watchNotices(QQuickWindow *window,bool visible);
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void launch(const QString &action,const QString &value={});
+    Q_INVOKABLE bool launchDesktop(const QString &desktopId);
     Q_INVOKABLE void control(const QString &action,int value=0);
     Q_INVOKABLE QString ask(const QString &prompt,const QVariantMap &note={});
     Q_INVOKABLE QString attachNote(int pid);

@@ -113,3 +113,13 @@ files/work_pages.py
 files/workplace_rooms.py
 files/reader_server.py
 files/document_text.py
+files/lumen_pdf.py
+files/lumen_pdf_calculator.py
+files/lumen_pdf_color.py
+files/lumen_pdf_image.py
+files/lumen_pdf_page.py
+files/lumen_pdf_security.py
+files/lumen_pdf_shading.py
+files/lumen_pdf_text.py
+files/lumen_pdf_transparency.py
+files/lumen_pdf_worker.py

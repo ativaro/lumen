@@ -10,6 +10,19 @@ from tools_data import Library
 from test_lumen_office import OPEN, SHEET, SLIDE, TYPES, WORD, relations, setUpModule  # noqa: F401 - builds the document reader once
 
 
+def read_content(path):
+    """The full text the document core reads from one file, or the error it reports for it."""
+    import json, subprocess
+    from content_search import core_request, scan
+    from lumen_office import program
+    request = dict(root=str(path.parent), excluded=[], suffixes=[path.suffix.lower()])
+    lines = subprocess.run([program(), 'index'], input=json.dumps(request), capture_output=True, text=True, check=True).stdout.splitlines()
+    texts = {e['path']: e['text'] for e in map(json.loads, lines) if e['type'] == 'text'}
+    if str(path) in texts: return texts[str(path)]
+    done = list(scan(path.parent, [['zzqx']]))[-1]
+    raise ValueError(' '.join(d['error'] for d in done['error_details'] if d['path'] == str(path)))
+
+
 class ProjectDocumentsTest(unittest.TestCase):
     def setUp(self):
         self.tmp = self.enterContext(tempfile.TemporaryDirectory())
@@ -29,7 +42,6 @@ class ProjectDocumentsTest(unittest.TestCase):
 
 
     def test_office_search_reads_slides_whole_sheets_footnotes_and_open_document(self):
-        from content_search import read_content
         def slide(line):
             return f'<p:sld {SLIDE}><p:cSld><p:spTree><p:sp><p:nvSpPr><p:nvPr><p:ph idx="1"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t>{line}</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>'
         path = self.archive('ordered.pptx', {
@@ -38,10 +50,9 @@ class ProjectDocumentsTest(unittest.TestCase):
                                     '<p:extLst><p:ext><sectionLst><section><sldIdLst><sldId id="256"/></sldIdLst></section></sectionLst></p:ext></p:extLst></p:presentation>',
             'ppt/_rels/presentation.xml.rels': relations(('a', 'slides/slide1.xml'), ('b', 'slides/slide2.xml')),
             'ppt/slides/slide1.xml': slide('Second authored slide'), 'ppt/slides/slide2.xml': slide('VCF first authored slide')})
-        text, partial = read_content(path)
+        text = read_content(path)
         self.assertLess(text.index('VCF first authored slide'), text.index('Second authored slide'))
         self.assertEqual(text.count('Folie '), 2)  # a section list repeats slide IDs without adding slides
-        self.assertFalse(partial)
         rows = ''.join(f'<row r="{n}"><c r="A{n}" t="inlineStr"><is><t>row {n}</t></is></c></row>' for n in range(1, 1501))
         path = self.archive('inline.xlsm', {
             '[Content_Types].xml': TYPES,
@@ -49,7 +60,7 @@ class ProjectDocumentsTest(unittest.TestCase):
             'xl/_rels/workbook.xml.rels': relations(('r', 'worksheets/sheet1.xml')),
             'xl/worksheets/sheet1.xml': f'<worksheet {SHEET}><sheetData>{rows}<row r="1501"><c r="AZ1501" t="inlineStr"><is><t>VCF beyond the reading view</t></is></c></row></sheetData></worksheet>',
             'xl/vbaProject.bin': b'must never execute'})
-        text, partial = read_content(path)
+        text = read_content(path)
         self.assertIn('Decision', text); self.assertIn('row 1500', text)
         self.assertIn('VCF beyond the reading view', text)  # the reading view stops at 1000 rows and 40 columns
         self.assertNotIn('Gekürzt', text); self.assertNotIn('must never execute', text)
@@ -57,16 +68,17 @@ class ProjectDocumentsTest(unittest.TestCase):
             '[Content_Types].xml': TYPES,
             'word/document.xml': f'<w:document {WORD}><w:body><w:p><w:r><w:t>Body &amp; text</w:t></w:r></w:p></w:body></w:document>',
             'word/footnotes.xml': f'<w:footnotes {WORD}><w:footnote><w:p><w:r><w:t>VCF footnote</w:t></w:r></w:p></w:footnote></w:footnotes>'})
-        self.assertEqual(read_content(path), ('Body & text\n\nVCF footnote', False))
+        self.assertEqual(read_content(path), 'Body & text\n\nVCF footnote')
         path = self.archive('minutes.odt', {
             'mimetype': 'application/vnd.oasis.opendocument.text',
             'content.xml': f'<office:document-content {OPEN}><office:body><office:text><text:p>VCF open document</text:p></office:text></office:body></office:document-content>'})
-        self.assertIn('VCF open document', read_content(path)[0])
+        self.assertIn('VCF open document', read_content(path))
         path = self.archive('partial.docx', {
             '[Content_Types].xml': TYPES,
             'word/document.xml': f'<w:document {WORD}><w:body><w:p><w:r><w:t>'+('VCF '*400000)+'</w:t></w:r></w:p></w:body></w:document>'})
-        text, partial = read_content(path)
-        self.assertTrue(partial); self.assertLessEqual(len(text.encode()), 1024*1024)
+        from content_search import scan
+        hit, = [e for e in scan(self.folder, [['vcf']]) if e['type'] == 'hit' and e['path'] == str(path)]
+        self.assertTrue(hit['partial']); self.assertLessEqual(len(read_content(path).encode()), 1024*1024)
         broken = self.folder/'broken.docx'; broken.write_bytes(b'not an archive')
         with self.assertRaisesRegex(ValueError, 'Office-Datei nicht lesbar'): read_content(broken)
 
@@ -86,14 +98,9 @@ class ProjectDocumentsTest(unittest.TestCase):
         self.assertEqual([(Path(row['path']).name, row['page']) for row in rows], [('plan.pptx', 2)])
 
     def test_pdf_search_preserves_the_actual_reader_failure(self):
-        import content_search
         pdf = self.folder/'unsupported.pdf'; pdf.write_bytes(b'%PDF fixture')
-        worker = self.root/'lumen_pdf_worker.py'
-        worker.write_text('import sys\nprint("PDF fixture graphics are unsupported", file=sys.stderr)\nraise SystemExit(1)\n')
-        with patch.object(content_search, '__file__', str(self.root/'content_search.py')):
-            with self.assertRaisesRegex(ValueError, 'fixture graphics are unsupported'):
-                content_search.read_content(pdf)
-
+        with self.assertRaisesRegex(ValueError, 'PDF nicht lesbar. .+'):
+            read_content(pdf)
 
 if __name__ == '__main__':
     unittest.main()

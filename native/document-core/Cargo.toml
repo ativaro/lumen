@@ -2,7 +2,7 @@
 name = "lumen-document-core"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.89"
+rust-version = "1.92"
 publish = false
 license-file = "../../LICENSE"
 description = "Lumen's own document reader: Office files to reading HTML; PDF follows"
@@ -25,6 +25,12 @@ jpeg-decoder = { version = "0.3", default-features = false }
 md-5 = { version = "0.10", default-features = false }
 sha2 = { version = "0.10", default-features = false }
 aes = { version = "0.8", default-features = false }
+libc = { version = "0.2", default-features = false }
+moxcms = "0.9"
+hayro-jpeg2000 = { version = "0.5", default-features = false }
+rustybuzz = { version = "0.20", default-features = false, features = ["std"] }
+unicode-linebreak = "0.1"
+stringprep = "0.1"
 
 [profile.release]
 panic = "abort"

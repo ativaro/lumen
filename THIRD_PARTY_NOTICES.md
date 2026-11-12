@@ -78,11 +78,13 @@ contains these packages; each package's licence text is in its folder under `ven
 | `arrayref` | 0.3.9 | BSD-2-Clause |
 | `arrayvec` | 0.7.8 | MIT OR Apache-2.0 |
 | `bitflags` | 1.3.2 | MIT/Apache-2.0 |
+| `bitflags` | 2.13.2 | MIT OR Apache-2.0 |
 | `block-buffer` | 0.10.4 | MIT OR Apache-2.0 |
 | `bumpalo` | 3.20.3 | MIT OR Apache-2.0 |
 | `bytemuck` | 1.25.2 | Zlib OR Apache-2.0 OR MIT |
 | `cfg-if` | 1.0.5 | MIT OR Apache-2.0 |
 | `cipher` | 0.4.4 | MIT OR Apache-2.0 |
+| `core_maths` | 0.1.1 | MIT |
 | `cpufeatures` | 0.2.17 | MIT OR Apache-2.0 |
 | `crc32fast` | 1.5.5 | MIT OR Apache-2.0 |
 | `crypto-common` | 0.1.7 | MIT OR Apache-2.0 |
@@ -92,23 +94,40 @@ contains these packages; each package's licence text is in its folder under `ven
 | `flate2` | 1.1.11 | MIT OR Apache-2.0 |
 | `generic-array` | 0.14.7 | MIT |
 | `hashbrown` | 0.17.1 | MIT OR Apache-2.0 |
+| `hayro-jpeg2000` | 0.5.0 | Apache-2.0 OR MIT |
 | `indexmap` | 2.14.2 | Apache-2.0 OR MIT |
 | `inout` | 0.1.4 | MIT OR Apache-2.0 |
 | `jpeg-decoder` | 0.3.2 | MIT OR Apache-2.0 |
+| `libc` | 0.2.191 | MIT OR Apache-2.0 |
+| `libm` | 0.2.16 | MIT |
 | `log` | 0.4.35 | MIT OR Apache-2.0 |
 | `md-5` | 0.10.6 | MIT OR Apache-2.0 |
 | `memchr` | 2.8.3 | Unlicense OR MIT |
 | `miniz_oxide` | 0.8.9 | MIT OR Zlib OR Apache-2.0 |
 | `miniz_oxide` | 0.9.1 | MIT OR Zlib OR Apache-2.0 |
+| `moxcms` | 0.9.2 | BSD-3-Clause OR Apache-2.0 |
+| `num-traits` | 0.2.19 | MIT OR Apache-2.0 |
 | `png` | 0.17.16 | MIT OR Apache-2.0 |
+| `pxfm` | 0.1.30 | BSD-3-Clause OR Apache-2.0 |
 | `roxmltree` | 0.20.0 | MIT OR Apache-2.0 |
+| `rustybuzz` | 0.20.1 | MIT |
 | `sha2` | 0.10.9 | MIT OR Apache-2.0 |
 | `simd-adler32` | 0.3.10 | MIT |
+| `smallvec` | 1.16.5 | MIT OR Apache-2.0 |
 | `strict-num` | 0.1.1 | MIT |
+| `stringprep` | 0.1.5 | MIT/Apache-2.0 |
 | `tiny-skia` | 0.11.4 | BSD-3-Clause |
 | `tiny-skia-path` | 0.11.4 | BSD-3-Clause |
+| `tinyvec` | 1.13.3 | Zlib OR Apache-2.0 OR MIT |
 | `ttf-parser` | 0.25.1 | MIT OR Apache-2.0 |
 | `typenum` | 1.20.1 | MIT OR Apache-2.0 |
+| `unicode-bidi` | 0.3.18 | MIT OR Apache-2.0 |
+| `unicode-bidi-mirroring` | 0.4.0 | MIT/Apache-2.0 |
+| `unicode-ccc` | 0.4.0 | MIT/Apache-2.0 |
+| `unicode-linebreak` | 0.1.5 | Apache-2.0 |
+| `unicode-normalization` | 0.1.26 | (MIT OR Apache-2.0) AND Unicode-3.0 |
+| `unicode-properties` | 0.1.5 | (MIT OR Apache-2.0) AND Unicode-3.0 |
+| `unicode-script` | 0.5.9 | MIT OR Apache-2.0 |
 | `zip` | 2.6.1 | MIT |
 | `zopfli` | 0.8.4 | Apache-2.0 |
 | `zune-core` | 0.4.12 | MIT OR Apache-2.0 OR Zlib |

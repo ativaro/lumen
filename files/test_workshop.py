@@ -5,9 +5,7 @@ import tempfile
 import time
 import unittest
 from unittest.mock import patch
-from test_pdf_fixtures import document,add_content
-from lumen_pdf import Document,Name,Stream
-from lumen_pdf_page import Page
+from test_pdf_fixtures import document,add_content,info,render as draw,streams,text
 from document_workshop import inspect, export, render
 
 
@@ -25,19 +23,15 @@ class WorkshopTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); source = self.documents(root); original = source.read_bytes(); pages = inspect([str(source)])
             export([pages[1],pages[0],pages[1]],root/'ordered.pdf')
-            with Document(root/'ordered.pdf') as result:
-                self.assertEqual(len(result),3); self.assertIn('Second page',result.page(0).text()); self.assertNotIn('Names',result.catalog)
+            ordered=root/'ordered.pdf'
+            self.assertEqual(info(ordered)['pages'],3); self.assertIn('Second page',text(ordered)); self.assertNotIn(b'/Names',ordered.read_bytes())
             pages[0]['boxes'] = [[.07,.13,.87,.24]]
             export([pages[0]],root/'redacted.pdf',ocr=True)
-            with Document(root/'redacted.pdf') as result:
-                text = result.page(0).text()
-                self.assertNotIn('SECRET',text); self.assertIn('Visible',text); self.assertNotIn('PRIVATE',str(result.metadata))
-                for ref in result.xref:
-                    if ref==0:continue
-                    from lumen_pdf import Ref
-                    value=result.resolve(Ref(ref))
-                    if isinstance(value,Stream):self.assertNotIn(b'SECRET',result.decode(value))
-                pixel=result.page(0).render().pixelColor(50,70);self.assertTrue(all(v<30 for v in pixel.getRgb()[:3]))
+            redacted=root/'redacted.pdf'
+            found=text(redacted)
+            self.assertNotIn('SECRET',found); self.assertIn('Visible',found); self.assertNotIn(b'PRIVATE',redacted.read_bytes())
+            self.assertFalse(any(b'SECRET' in data or b'PRIVATE' in data for data in streams(redacted)))
+            pixel=draw(redacted).pixelColor(50,70);self.assertTrue(all(v<30 for v in pixel.getRgb()[:3]))
             self.assertEqual(source.read_bytes(),original)
             with self.assertRaises(FileExistsError): export([pages[0]],root/'redacted.pdf')
             with self.assertRaises(FileExistsError): export(pages,source)

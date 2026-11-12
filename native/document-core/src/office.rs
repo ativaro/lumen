@@ -1,6 +1,5 @@
 //! Word, Excel, PowerPoint and OpenDocument files as reading HTML: headings, emphasis, lists,
-//! tables and pictures. A reading view, not the printed layout. The output is the same text the
-//! Python reader (`files/lumen_office.py`) produced, so both can be compared file by file.
+//! tables and pictures. A reading view, not the printed layout.
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::File;
@@ -1439,7 +1438,7 @@ mod tests {
     }
 
     #[test]
-    fn paths_formats_and_titles_are_cleaned_like_the_python_reader() {
+    fn paths_formats_and_titles_are_cleaned() {
         assert_eq!(normal("ppt/slides/../media/a.png"), "ppt/media/a.png");
         assert_eq!(normal("word/./media/b.png"), "word/media/b.png");
         assert_eq!(pattern("[$-407]d.m.yyyy\\ \"h\""), "d.m.yyyy");

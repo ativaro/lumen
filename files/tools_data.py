@@ -264,7 +264,7 @@ def synthesize(text, library, job):
 if __name__ == '__main__':
     # Run existing OCR in a child group so cancelling also stops its decoders.
     if len(sys.argv)!=3 or sys.argv[1]!='ocr': raise SystemExit(tr('Nur interne Texterkennung.'))
-    from lumen_pdf_worker import limits
+    from lumen_office import limits
     limits()
     from lumen_ocr import image_text, visual_content
     source=Path(sys.argv[2])

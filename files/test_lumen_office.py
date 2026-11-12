@@ -7,7 +7,7 @@ import zlib
 from pathlib import Path
 
 import lumen_office
-from lumen_pdf import PDFError
+from lumen_office import PDFError
 from lumen_reflow import ReflowBook
 
 TYPES = '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>'

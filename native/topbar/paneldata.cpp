@@ -172,6 +172,14 @@ void PanelData::tooltip(QQuickItem *anchor,const QString &text){
 void PanelData::start(const QStringList &arguments){
     if(m_helper.isEmpty() || !QProcess::startDetached(m_helper,arguments))fail(tr("Die Aktion konnte nicht gestartet werden."));
 }
+bool PanelData::launchDesktop(const QString &desktopId){
+    // kstart runs KDE's own launcher (KIO) in a separate process; false lets the caller fall back.
+    static const QRegularExpression valid(QStringLiteral("^[A-Za-z0-9_.+-]{1,255}$"));
+    QString id=desktopId;if(id.endsWith(QStringLiteral(".desktop")))id.chop(8);
+    if(!valid.match(id).hasMatch())return false;
+    const auto kstart=QStandardPaths::findExecutable(QStringLiteral("kstart"));
+    return !kstart.isEmpty() && QProcess::startDetached(kstart,{QStringLiteral("--application"),id});
+}
 void PanelData::launch(const QString &action,const QString &value){
     if(action=="search")start({"--search"});
     else if(action=="voice")start({"--voice"});

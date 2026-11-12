@@ -35,11 +35,17 @@ ColumnLayout {
         if(favorites.isFavorite(id))favorites.removeFavorite(id);else favorites.addFavorite(id)
         controller.pinnedApps=favorites.favorites
     }
-    function run(model,row,action="",argument=null) {
+    // An installed program starts in its own process: a launch that waits for anything must never stop the bar.
+    function run(model,row,action="",argument=null,id="") {
+        if(!action && String(id).startsWith("applications:") && controller.launchDesktop(String(id).slice(13))){launched();return}
         if(model && row>=0 && model.trigger(row,action,argument))launched()
         else error.text=translate("Das Programm konnte nicht gestartet werden.")
     }
-    function runFiltered(index) {if(index>=0 && index<filtered.count)run(filtered.sourceModel,filtered.mapToSource(filtered.index(index,0)).row)}
+    function runFiltered(index) {
+        if(index<0 || index>=filtered.count)return
+        const item=grid.itemAtIndex(index)
+        run(filtered.sourceModel,filtered.mapToSource(filtered.index(index,0)).row,"",null,item?item.entry.favoriteId:"")
+    }
     function contextFor(button,model,row,data) {
         context.source=model;context.row=row;context.favoriteId=data.favoriteId||"";context.title=data.display||""
         context.actions=(data.actionList||[]).filter(action=>action.actionId==="_kicker_jumpListAction" && action.text && action.actionArgument!=null)
@@ -102,7 +108,7 @@ ColumnLayout {
                         }
                         Label {text:pin.text;textFormat:Text.PlainText;color:start.colors.text;width:parent.width;horizontalAlignment:Text.AlignHCenter;wrapMode:Text.Wrap;font.pixelSize:12}
                     }
-                    onClicked:if(start.editing)start.togglePin(model.favoriteId);else start.run(favorites,index)
+                    onClicked:if(start.editing)start.togglePin(model.favoriteId);else start.run(favorites,index,"",null,model.favoriteId)
                     TapHandler {acceptedButtons:Qt.RightButton;onTapped:start.contextFor(pin,favorites,pin.index,pin.model)}
                     Keys.onPressed:event=>{if(event.key===Qt.Key_Menu || event.key===Qt.Key_F10&&event.modifiers&Qt.ShiftModifier){start.contextFor(pin,favorites,index,model);event.accepted=true}}
                 }
@@ -229,7 +235,7 @@ ColumnLayout {
         }
         background:Rectangle {color:start.colors.base;border.color:start.colors.border;radius:start.colors.radius||12}
         StartAction {text:context.title;enabled:false}
-        StartAction {text:start.translate("Öffnen");icon.name:"go-next";onTriggered:start.run(context.source,context.row)}
+        StartAction {text:start.translate("Öffnen");icon.name:"go-next";onTriggered:start.run(context.source,context.row,"",null,context.favoriteId)}
         Instantiator {model:context.actions
             delegate:StartAction {required property var modelData;required property int index;objectName:"startNativeAction_"+index;text:modelData.text;icon.name:modelData.icon||"application-x-executable";onTriggered:start.run(context.source,context.row,modelData.actionId,modelData.actionArgument)}
             onObjectAdded:(index,object)=>context.insertItem(index+2,object)
