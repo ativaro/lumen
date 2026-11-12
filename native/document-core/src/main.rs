@@ -154,6 +154,7 @@ fn pdf_reader(path: &str, page: Option<usize>) -> Result<String, lumen_document:
             &password(),
             index,
             scale,
+            0,
         )?;
         let png = picture
             .encode_png()
@@ -179,7 +180,7 @@ fn pdf_reader(path: &str, page: Option<usize>) -> Result<String, lumen_document:
 }
 
 /// The command line of `files/lumen_pdf_worker.py` for text, document information and a rendered page:
-/// `pdf-cli [--fallback <program> <script>] text|info|render <file> [--page n] [--pages n] [--scale-to n]
+/// `pdf-cli [--fallback <program> <script>] text|info|render <file> [--page n] [--rotation degrees] [--max-scale n] [--pages n] [--scale-to n]
 /// [--output png] [--limit bytes] [--characters n]`. What this core does not read is handed to the
 /// fallback with the same arguments, before anything has been written.
 fn pdf_cli(args: &[String]) -> ExitCode {
@@ -207,13 +208,14 @@ fn pdf_cli(args: &[String]) -> ExitCode {
     let run = || -> Result<Vec<u8>, String> {
         use lumen_document::pdf::Document;
         let invalid = || "Ungültige PDF-Ganzzahl oder überschrittenes Limit.".to_string();
-        let document = Document::open(std::path::Path::new(path), &password())
+        let mut document = Document::open(std::path::Path::new(path), &password())
             .map_err(|error| error.to_string())?;
         match action.as_str() {
             "info" => Ok(format!(
-                "{{\"pages\": {}, \"title\": {}}}\n",
+                "{{\"pages\": {}, \"title\": {}, \"encrypted\": {}}}\n",
                 document.pages.len(),
-                json(document.metadata.get("title").map_or("", String::as_str))
+                json(document.metadata.get("title").map_or("", String::as_str)),
+                document.encrypted()
             )
             .into_bytes()),
             "render" => {
@@ -223,13 +225,21 @@ fn pdf_cli(args: &[String]) -> ExitCode {
                 let edge = whole("--scale-to", 1500)
                     .filter(|edge| (1..=6000).contains(edge))
                     .ok_or_else(invalid)? as f64;
+                let turn = whole("--rotation", 0).ok_or_else(invalid)?;
+                let most = whole("--max-scale", 4)
+                    .filter(|most| (1..=4).contains(most))
+                    .ok_or_else(invalid)? as f64;
+                document
+                    .turn(index, turn)
+                    .map_err(|error| error.to_string())?;
                 let (width, height, _) = lumen_document::text::Page::words(&document, index)
                     .map_err(|error| error.to_string())?;
                 let picture = lumen_document::render::render_file(
                     std::path::Path::new(path),
                     &password(),
                     index,
-                    f64::min(4.0, edge / width.max(height)),
+                    f64::min(most, edge / width.max(height)),
+                    turn,
                 )
                 .map_err(|error| error.to_string())?;
                 let target =

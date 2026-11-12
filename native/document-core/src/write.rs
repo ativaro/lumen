@@ -587,12 +587,7 @@ pub fn export(
         if rasterize || ocr.is_some() {
             let document = &mut sources[source].2;
             let before = document.pages[item.page].get("Rotate").cloned();
-            let turned = match &before {
-                Some(Value::Int(value)) => *value,
-                Some(value) if value.truthy() => return bad("Ungültige PDF-Seitendrehung."),
-                _ => 0,
-            };
-            document.pages[item.page].insert("Rotate".into(), Value::Int(turned + item.rotation));
+            document.turn(item.page, item.rotation)?;
             // A page that already has text is copied as it is, unless a redaction forces the picture.
             let empty = if rasterize {
                 Ok(true)

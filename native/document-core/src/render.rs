@@ -2918,15 +2918,17 @@ pub fn render(document: &Document, index: usize, scale: f64) -> Outcome<Pixmap> 
     rows(document, index, scale, 0, u32::MAX)
 }
 
-/// The same picture drawn as horizontal bands on several processor cores. Each band reads the file
+/// The same picture, turned by a further `turn` degrees, drawn as horizontal bands on several processor cores. Each band reads the file
 /// itself, since a document's objects are not shared between threads.
 pub fn render_file(
     path: &std::path::Path,
     password: &str,
     index: usize,
     scale: f64,
+    turn: i64,
 ) -> Outcome<Pixmap> {
-    let document = Document::open(path, password)?;
+    let mut document = Document::open(path, password)?;
+    document.turn(index, turn)?;
     let page = Page::prepare(&document, index)?;
     let (w, h) = ((page.width * scale).ceil(), (page.height * scale).ceil());
     if !(scale > 0.0 && w > 0.0 && h > 0.0 && w * h <= 40_000_000.0) {
@@ -2947,7 +2949,8 @@ pub fn render_file(
         let workers: Vec<_> = (1..bands)
             .map(|band| {
                 scope.spawn(move || {
-                    let document = Document::open(path, password)?;
+                    let mut document = Document::open(path, password)?;
+                    document.turn(index, turn)?;
                     rows(
                         &document,
                         index,

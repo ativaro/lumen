@@ -850,6 +850,23 @@ impl Document {
         Document::with_password(data, password)
     }
 
+    /// Turns page `index` by a further quarter, half or three-quarter turn for everything read after this.
+    pub fn turn(&mut self, index: usize, rotation: i64) -> Outcome<()> {
+        if ![0, 90, 180, 270].contains(&rotation) {
+            return bad("Ungültige PDF-Drehung.");
+        }
+        let Some(page) = self.pages.get_mut(index) else {
+            return bad("Ungültige PDF-Ganzzahl oder überschrittenes Limit.");
+        };
+        let turned = match page.get("Rotate") {
+            Some(Value::Int(value)) => *value,
+            Some(value) if value.truthy() => return bad("Ungültige PDF-Seitendrehung."),
+            _ => 0,
+        };
+        page.insert("Rotate".into(), Value::Int(turned + rotation));
+        Ok(())
+    }
+
     /// Whether the file's contents are stored encrypted.
     pub fn encrypted(&self) -> bool {
         self.security.is_some()
