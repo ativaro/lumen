@@ -179,7 +179,7 @@ subst "$REPO/data/applications/lumen-updater.desktop" > "$DATA_HOME/applications
 subst "$REPO/data/applications/lumen-notification.desktop" > "$DATA_HOME/applications/lumen-notification.desktop"
 subst "$REPO/data/applications/lumen-apps.desktop" > "$DATA_HOME/applications/lumen-apps.desktop"
 subst "$REPO/data/applications/lumen-search-preview.desktop" > "$DATA_HOME/applications/lumen-search-preview.desktop"
-for tool in meetings household workbench radio vault inbox reader sound wissen translate system code; do
+for tool in meetings household workbench radio vault inbox photos reader sound wissen translate system code; do
     subst "$REPO/data/applications/lumen-$tool.desktop" > "$DATA_HOME/applications/lumen-$tool.desktop"
 done
 subst "$REPO/data/krunner-dbusplugins/lumen-runner.desktop" > "$DATA_HOME/krunner/dbusplugins/lumen-runner.desktop"

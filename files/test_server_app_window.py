@@ -111,7 +111,7 @@ class PrivateHostFixture(unittest.TestCase):
                         cls.check_started.set();cls.release_check.wait(timeout=10)
                     status=403 if cls.revoked or 'lumen_session='+'c'*43 not in self.headers.get('Cookie','') else 200
                     data=dict(user=dict(id=USER,device_id=DEVICE,desktop_app=cls.app_kind,device_kind='desktop',
-                                        capabilities=[{'notes':'notes','compose':'translate','projects':'projects','code':'code','audio':'media','vault':'vault_sync','inbox':'inbox'}[cls.app_kind]],admin=False,csrf='fixture'))
+                                        capabilities=[{'notes':'notes','compose':'translate','projects':'projects','code':'code','audio':'media','vault':'vault_sync','inbox':'inbox','photos':'photos'}[cls.app_kind]],admin=False,csrf='fixture'))
                 elif self.path=='/api/note-drafts/tags':data=dict(body=body['body'],tags=[])
                 elif self.path=='/api/translate':
                     if cls.hold_write:
@@ -194,7 +194,7 @@ class PrivateHostFixture(unittest.TestCase):
         return window
 
     def import_window(self,drive=True,*,pilot=False,app='compose'):
-        type(self).native_areas=[{'notes':'notes','compose':'translate','projects':'projects','code':'code','audio':'media','vault':'vault_sync','inbox':'inbox'}[app]]+(['drive'] if drive else [])
+        type(self).native_areas=[{'notes':'notes','compose':'translate','projects':'projects','code':'code','audio':'media','vault':'vault_sync','inbox':'inbox','photos':'photos'}[app]]+(['drive'] if drive else [])
         temp=tempfile.TemporaryDirectory(dir=self.root);self.addCleanup(temp.cleanup)
         self.import_root=Path(temp.name);(self.import_root/'config').mkdir()
         self.config=dict(server=self.origin,device_id=DEVICE,token='native-only-fixture',ca_file=str(self.cert))
@@ -1043,7 +1043,7 @@ class WindowTest(PrivateHostFixture):
     def test_all_apps_renew_expired_session_without_reloading_or_replaying_writes(self):
         for app in ('notes','projects','code','compose','audio','vault','inbox'):
             with self.subTest(app=app):
-                type(self).native_areas=[{'notes':'notes','projects':'projects','code':'code','compose':'translate','audio':'media','vault':'vault_sync','inbox':'inbox'}[app]]
+                type(self).native_areas=[{'notes':'notes','projects':'projects','code':'code','compose':'translate','audio':'media','vault':'vault_sync','inbox':'inbox','photos':'photos'}[app]]
                 window=self.window(app=app);window.timer.stop()
                 self.js(window,"window.ownUnsavedFixture='Eigener ungesendeter Entwurf';document.querySelector('textarea,input').value=window.ownUnsavedFixture")
                 page=window.page;cookie=window.session._cookie

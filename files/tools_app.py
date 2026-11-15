@@ -93,7 +93,7 @@ def main():
         from code_app import main as collection_main
         return collection_main(sys.argv[2:])
     parser=argparse.ArgumentParser(description=tr('Eigenständige Desktop-Werkzeuge'))
-    parser.add_argument('tool',choices=['meetings','household','workbench','radio','vault','inbox','reader','sound','wissen','translate'])
+    parser.add_argument('tool',choices=['meetings','household','workbench','radio','vault','inbox','photos','reader','sound','wissen','translate'])
     parser.add_argument('path',nargs='?')
     parser.add_argument('--clipboard', action='store_true')
     parser.add_argument('--section')
@@ -127,7 +127,7 @@ def main():
         return 0
     if args.tool == 'workbench' and args.section not in (None, 'projects', 'automations'):
         parser.error(tr('Unbekannter Projektbereich.'))
-    if args.tool in ('meetings','radio','inbox','vault','workbench'):
+    if args.tool in ('meetings','radio','inbox','vault','photos','workbench'):
         kind=('code' if args.section == 'automations' else 'projects') if args.tool=='workbench' else 'audio' if args.tool in ('meetings','radio') else args.tool
         if args.path or args.clipboard or args.area:
             parser.error(tr('Diese Lumen-App verwendet Serverinhalte. Dateien über Lumen Files übergeben.'))

@@ -9,7 +9,7 @@ from uuid import UUID
 import drive_references as drive
 from lumen_i18n import tr
 
-ROUTES = {'note':'note', 'projects':'project', 'code':'entry', 'media':'record','inbox':'mail'}
+ROUTES = {'note':'note', 'projects':'project', 'code':'entry', 'media':'record','inbox':'mail','photos':'photo'}
 
 
 def _uuid(value):
@@ -107,6 +107,9 @@ def clicked_reference(value, binding):
         app=query.get('app',[])
         if len(app)!=1:return None
         app='note' if app[0]=='notes' else app[0]
+        if app=='files' and set(query)=={'app','family'} and len(query['family'])==1:
+            return validate_ref(dict(app='files',kind='drive_file',id=query['family'][0],title='Lumen Drive',
+                locator=dict(server=binding.origin,account=binding.account)))
         kind=next((key for key,item in APPS.items() if item[0]==app),None)
         if app not in ROUTES or kind not in APP_NAMES:return None
         calendar=app=='inbox' and 'calendar' in query

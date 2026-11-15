@@ -42,7 +42,7 @@ rm -f "$DATA_HOME/applications/lumen-open.desktop" "$DATA_HOME/applications/lume
 rm -f "$DATA_HOME/applications/lumen-server-connect.desktop"
 rm -f "$DATA_HOME/applications/lumen-notification.desktop"
 rm -f "$DATA_HOME/applications/lumen-search.desktop" "$DATA_HOME/applications/lumen-search-preview.desktop"
-for tool in meetings household workbench radio vault inbox reader sound wissen translate; do
+for tool in meetings household workbench radio vault inbox photos reader sound wissen translate; do
     rm -f "$DATA_HOME/applications/lumen-$tool.desktop" "$DATA_HOME/icons/hicolor/scalable/apps/lumen-$tool.svg"
 done
 rm -f "$DATA_HOME/applications/lumen-ask.desktop"

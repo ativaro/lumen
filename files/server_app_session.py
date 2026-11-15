@@ -17,10 +17,11 @@ import lumen_connect
 
 APPS = {'notes': ('note', 'notes'), 'projects': ('projects', 'projects'),
         'code': ('code', 'code'), 'compose': ('translate', 'translate'), 'audio': ('media', 'media'),
-        'vault': ('vault', 'vault_sync'), 'inbox': ('inbox', 'inbox')}
+        'vault': ('vault', 'vault_sync'), 'inbox': ('inbox', 'inbox'), 'photos': ('photos', 'photos')}
 APP_NAMES = {'notes': ('Lumen Notes', 'lumen-wissen'), 'projects': ('Lumen Projekte', 'lumen-workbench'),
              'code': ('Lumen Code', 'lumen-code'), 'audio': ('Lumen Audio Studio', 'lumen-meetings'),
-             'vault': ('Lumen Vault', 'lumen-vault'), 'inbox': ('Lumen Inbox', 'lumen-inbox')}
+             'vault': ('Lumen Vault', 'lumen-vault'), 'inbox': ('Lumen Inbox', 'lumen-inbox'),
+             'photos': ('Lumen Photos', 'lumen-photos')}
 
 
 class SessionError(ValueError):
@@ -69,7 +70,7 @@ class Binding:
             if not isinstance(value, str) or any(ord(c)<32 or ord(c)==127 or c=='\\' for c in value):return False
             u = urlsplit(value)
             query=parse_qs(u.query, keep_blank_values=True, strict_parsing=True)
-            key={'notes':'note','projects':'project','code':'entry','audio':'record','inbox':'mail'}.get(self.app)
+            key={'notes':'note','projects':'project','code':'entry','audio':'record','inbox':'mail','photos':'photo'}.get(self.app)
             calendar=self.app=='inbox' and 'calendar' in query
             if calendar:key='calendar'
             selected=None

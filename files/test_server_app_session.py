@@ -23,6 +23,17 @@ class Response(io.BytesIO):
 
 
 class SessionTest(unittest.TestCase):
+    def test_photos_is_one_scoped_server_app(self):
+        photo = host.Binding(ORIGIN, USER, DEVICE, 'photos')
+        self.assertEqual(host.APPS['photos'], ('photos', 'photos'))
+        self.assertEqual(host.APP_NAMES['photos'], ('Lumen Photos', 'lumen-photos'))
+        self.assertEqual(photo.url, ORIGIN + '/?app=photos&presentation=desktop')
+        self.assertTrue(photo.navigation(photo.url + '&photo=' + USER))
+        for value in (photo.url + '&app=inbox', photo.url + '&token=secret',
+                      photo.url.replace(ORIGIN, 'https://other.test'), ORIGIN + '/inbox-message.html'):
+            self.assertFalse(photo.navigation(value))
+        self.assertFalse(photo.preview_navigation(ORIGIN + '/inbox-message.html'))
+
     def test_inbox_browser_handoff_only_allows_own_exact_authorization_launch(self):
         inbox = host.Binding(ORIGIN, USER, DEVICE, 'inbox')
         path = ORIGIN + '/api/inbox/oauth/launch/' + 'a' * 43
