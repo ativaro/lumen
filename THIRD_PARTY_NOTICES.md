@@ -16,6 +16,8 @@ inventory and original notices.
 | Pre-existing MIT-marked Lumen source | The native topbar files and desktop input test helper carrying MIT headers retain that permission. [MIT license](packaging/licenses/Lumen-MIT.txt) |
 | KDE fake-input protocol, test sources only | LGPL-2.1-or-later. The XML retains Martin Gräßlin's copyright. [Protocol](tests/desktop/fake-input.xml) · [License](tests/desktop/COPYING.LGPL-2.1) |
 
+Three upstream `jpeg-decoder` tower benchmark JPEGs are supplied with the EXIF metadata removed. Their decoded pixels are unchanged. The vendor file checksums reflect this modification.
+
 ## Separately installed software
 
 Qt, PySide6, KDE libraries, LayerShellQt, libdbusmenu, SQLite and OpenSSL are
