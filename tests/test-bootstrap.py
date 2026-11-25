@@ -14,7 +14,10 @@ class BootstrapTest(unittest.TestCase):
         root = Path(temp)
         source, tools, modules = (root / name for name in ('source', 'bin', 'modules'))
         for folder in (source, tools, modules): folder.mkdir()
-        shutil.copyfile(Path(__file__).resolve().parents[1] / 'bootstrap.sh', source / 'bootstrap.sh')
+        repo = Path(__file__).resolve().parents[1]
+        shutil.copyfile(repo / 'bootstrap.sh', source / 'bootstrap.sh')
+        (source / 'packaging/arch').mkdir(parents=True)
+        shutil.copy(repo / 'packaging/arch/native-build-deps.sh', source / 'packaging/arch')
         # The previous bootstrap dependencies exist; only the Notes' Markdown module is absent.
         qt = modules / 'PySide6'; qt.mkdir(); (qt / '__init__.py').touch()
         for name in ('QtWidgets', 'QtSvg', 'QtQuick', 'QtQuickWidgets', 'QtDBus'):
@@ -63,6 +66,10 @@ chmod +x "$PREFIX/bin/lumen-setup-wizard"
         self.assertIn('python-markdown-it-py', commands[0])
         self.assertTrue(commands[1].startswith('sudo pacman -S --needed --noconfirm -- '))
         self.assertIn('python-markdown-it-py', commands[1])
+        for package in ('gcc', 'pkgconf', 'make', 'cmake', 'qt6-base', 'qt6-declarative',
+                        'layer-shell-qt', 'libdbusmenu-glib'):
+            self.assertIn(package, commands[0].split())
+            self.assertIn(package, commands[1].split())
         self.assertEqual(commands[2:], ['install', 'wizard'])
 
     def test_unavailable_modules_stop_before_installer_and_wizard(self):

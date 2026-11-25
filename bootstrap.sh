@@ -50,15 +50,17 @@ bootstrap() {
         source="$stage/lumen"
         if ! command -v git >/dev/null; then sudo pacman -S --needed --noconfirm -- git; fi
         if ! git clone --depth=1 --branch main --single-branch https://github.com/ativaro/lumen.git "$source"; then
-            message 'Download fehlgeschlagen. Prüfe den Git-Zugriff auf das private GitHub-Repository.' 'Download failed. Check Git access to the private GitHub repository.' >&2
+            message 'Download fehlgeschlagen. Prüfe die Internetverbindung und ob das Lumen-Repository auf GitHub erreichbar ist.' 'Download failed. Check your internet connection and whether the Lumen repository on GitHub is reachable.' >&2
             return 1
         fi
     fi
 
+    local -a native_packages
+    source "$source/packaging/arch/native-build-deps.sh"
     local packages=(git python pyside6 python-gobject python-pillow python-dbus python-markdown-it-py openssl
-        qt6-tools kde-cli-tools breeze-icons polkit gcc pkgconf qt6-base)
+        qt6-tools kde-cli-tools breeze-icons polkit "${native_packages[@]}")
     if ! pacman -T "${packages[@]}" >/dev/null; then
-        message 'Die grafische Basis wird installiert. Dafür ist gegebenenfalls dein Systempasswort nötig.' 'Installing the graphical runtime. Your system password may be required.'
+        message 'Die Pakete für Oberfläche und Build werden installiert. Dafür ist gegebenenfalls dein Systempasswort nötig.' 'Installing the desktop and build dependencies. Your system password may be required.'
         sudo pacman -S --needed --noconfirm -- "${packages[@]}"
     fi
     "${LUMEN_PYTHON:-/usr/bin/python3}" -c 'import PySide6.QtWidgets, PySide6.QtSvg, PySide6.QtQuick, PySide6.QtQuickWidgets, PySide6.QtDBus, gi, PIL, dbus, markdown_it'

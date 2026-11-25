@@ -1,20 +1,20 @@
 # Build and publish Lumen
 
-GitHub stores the tester Desktop release at `ativaro/lumen` on `main`.
-Forgejo serves internal internal-desktop installations. Both repositories remain private;
-publish the same reviewed source tree to both. Each installation keeps its source.
+GitHub is the distribution source for Lumen Desktop (`ativaro/lumen`, branch `main`).
+Forgejo serves internal internal-desktop installations. Publish the same reviewed source
+tree to both. Each installation keeps its recorded source.
 When their histories differ, publish the reviewed source tree on top of each
 remote's existing history without force-pushing or copying private development logs.
 GitHub Actions remain disabled. Personal system inventories, session logs, app data,
 credentials, backups and desktop screenshots do not belong in this repository.
 See [INSTALL.md](INSTALL.md) for installation and recovery.
 
-## Private one-line installer
+## Installation from source
 
-The README starts with the authenticated `main` clone and `bootstrap.sh` command.
-Keep that command and [INSTALL.md](INSTALL.md) aligned. Local bootstrap detects its
+The README and installation guide use the same `main` clone and bootstrap command.
+Keep them aligned when updating [INSTALL.md](INSTALL.md). Local bootstrap detects its
 checkout without another download and always starts the setup wizard after success.
-An unauthenticated curl command cannot install from this private repository. Never embed a token or personal Git/SSH configuration in the installer.
+Keep tokens and personal Git or SSH configuration out of the installer.
 
 Before publishing changes to this path, run the relevant bootstrap/installer
 checks and the fresh-profile desktop check below. Include required Python/QML,
@@ -61,7 +61,7 @@ engine's substitutes), the Breeze icon theme, the AT-SPI typelib and the
 that need them say so when they skip. Run as an
 unprivileged user (Qt WebEngine and the permission tests expect one) and give the
 container a larger `/dev/shm` (e.g. `--shm-size=1g`). `packaging/ci/Dockerfile`
-builds that image (`forge.example.invalid/lumen/desktop-ci`), and
+builds that image (see the pinned image in the workflow), and
 `.forgejo/workflows/desktop-gate.yml` runs the gate in it on the cluster's Forgejo
 runner for every push and pull request. Pulling the private image needs the
 repository secrets `REGISTRY_USERNAME` and `REGISTRY_PASSWORD`. After a rebuild,
@@ -120,7 +120,7 @@ binaries or a successful installation on every distribution.
 
 ## Licenses
 
-The repository remains private. Lumen-owned components are covered by the
+Lumen-owned components are covered by the
 [Lumen EULA](LICENSE), identified as `LicenseRef-Lumen-EULA`. Distribute that
 agreement and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) with the software.
 Do not label the entire project MIT. Prior MIT grants and third-party rights
@@ -128,7 +128,7 @@ remain valid. [LICENSE-PLAN.md](LICENSE-PLAN.md) records the adopted direction
 and the remaining legal/provenance checks.
 
 PDF processing uses Lumen's own engine; no external PDF engine is bundled or
-required. Verify [SPEC-pdf-core.md](SPEC-pdf-core.md), including the documented
+required. Verify [the native document engine guide](native/document-core/README.md), including the documented
 unsupported formats, when releasing changes. Preserve applicable Qt/PySide6 LGPL
 notices, corresponding-source availability, library replacement and debugging
 rights. The EULA expressly preserves those rights.

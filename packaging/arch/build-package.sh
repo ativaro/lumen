@@ -71,7 +71,11 @@ say "Tarball: $(du -h "$ARCHDIR/lumen-$PKGVER.tar.gz" | cut -f1)"
 say "Baue Paket mit makepkg (lokaler Quell-Tarball)"
 cd "$ARCHDIR"
 rm -rf src pkg
-LOCALSRC=1 makepkg -f --noconfirm
+build_args=(-f --noconfirm)
+if [[ "$DO_INSTALL" = 1 ]]; then
+    build_args+=(--syncdeps)
+fi
+LOCALSRC=1 makepkg "${build_args[@]}"
 
 echo
 mapfile -t PACKAGES < <(LOCALSRC=1 makepkg --packagelist)

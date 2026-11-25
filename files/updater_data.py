@@ -112,7 +112,7 @@ def prepare_source():
         run(['git','checkout','--detach', revision], cwd=source)
         return revision
     except (OSError, subprocess.SubprocessError, RuntimeError) as error:
-        raise RuntimeError(tr('Die Update-Quelle ist nicht erreichbar. Internet und Zugriff auf das private Lumen-Repository prüfen.')) from error
+        raise RuntimeError(tr('Die Update-Quelle ist nicht erreichbar. Prüfe die Netzwerkverbindung und den Zugriff auf die eingerichtete Repository-Adresse.')) from error
 
 
 def component_definitions():

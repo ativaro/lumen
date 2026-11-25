@@ -1,6 +1,7 @@
 """Run the streamed installer with local download/package stand-ins, never sudo."""
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -13,6 +14,8 @@ class BootstrapTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); mock = root / 'bin'; mock.mkdir()
             checkout = root / 'lumen-main'; checkout.mkdir()
+            (checkout / 'packaging/arch').mkdir(parents=True)
+            shutil.copy(REPO / 'packaging/arch/native-build-deps.sh', checkout / 'packaging/arch')
             (checkout / 'install.sh').write_text(
                 'set -eu\n[ "${TEST_FAIL:-}" != install ] || exit 1\nmkdir -p "$PREFIX/bin"\n'
                 'cp "$(dirname "$0")/wizard" "$PREFIX/bin/lumen-setup-wizard"\n')

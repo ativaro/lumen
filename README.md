@@ -1,264 +1,67 @@
 # Lumen Desktop
 
-**Wir bauen ein System, das für dich arbeitet.**
+Lumen Desktop is a set of applications for KDE Plasma 6. You can work with files, read and annotate documents, edit text, manage audio and inspect your computer. The assistant works with the material you select. For example, you can ask it to explain a configuration file, find the cause of a failed service or suggest filenames for a batch of scans. You can review its evidence and proposed changes in the conversation.
 
-Wir bauen Lumen, weil wir uns einen Computer wünschen, mit dem sich die eigene Arbeit leichter anfühlt. Einen, dem du erzählen kannst, was du vorhast. Mit dem du einer Idee nachgehst, dich durch ein Problem arbeitest und am Ende etwas geschafft hast.
+Already installed? [Find a guide by task](docs/README.md).
 
-Lumen beginnt mit einem Gespräch. Du kannst laut denken, Fragen stellen, widersprechen und deine Richtung ändern. Dabei kann Lumen mit dem arbeiten, was deine Aufgabe ausmacht: deinen Dateien, deinen Daten, deinen Programmen und deinem Rechner. Es kann Zusammenhänge untersuchen, Dinge verständlich machen und selbst Arbeitsschritte ausführen. Du beschreibst auf deine Art, was du erreichen möchtest. Lumen fragt nach, wenn etwas fehlt, und arbeitet mit dir weiter.
+## Install
 
-Dafür haben wir Lumen direkt in den Desktop gebracht. Im eigenen Dateimanager liegen deine Inhalte und das Gespräch darüber nebeneinander. Aus einer Benachrichtigung kann der nächste Schritt entstehen. Wenn etwas auf deinem Rechner hakt, kann Lumen mit dir nach der Ursache suchen und bei der Behebung helfen. Wenn für deine Arbeit ein Programm fehlt, kann es die Installation übernehmen. Was zusammengehört, bleibt so auch beim Arbeiten zusammen.
-
-Du gibst die Richtung vor und bestimmst, welche Zugriffe und Änderungen du erlaubst. Lumen soll dir den Rücken freihalten und dir helfen, mehr von dem umzusetzen, was dir wichtig ist.
-
-**Das ist Lumen Desktop. Auf deinem Rechner, mit deinen Inhalten, für deine Vorhaben.**
-
-Und wenn du Lumen noch stärker in deinen Alltag einbinden möchtest, verbinde deinen Desktop mit Lumen Server. Deine Notizen, Projekte und Aufgaben kommen zusammen, und Lumen kann wiederkehrende Arbeit für dich übernehmen – auch während du nicht am Rechner sitzt. Mit Lumen Mobile hast du Lumen unterwegs dabei: Gedanken festhalten, auf deine Inhalte zugreifen und später am Computer weiterarbeiten. So wird aus der Hilfe am Desktop ein Begleiter für deinen Alltag.
-
-**Installiere Lumen und bring deine erste Aufgabe mit.**
-
-## Installation
-
-**Aktueller Zugang:** Der Quellstand wird privat auf [GitHub](https://github.com/ativaro/lumen) verteilt. Ein öffentlicher Desktop-Download ist noch nicht freigegeben. Es gelten die [Lumen-EULA](LICENSE) und die [Lizenzen der enthaltenen Komponenten](THIRD_PARTY_NOTICES.md).
-
-### Voraussetzungen
-
-Für den vollständigen Desktop: **Arch Linux oder CachyOS mit KDE Plasma 6**, angemeldet als normaler Benutzer in einer grafischen Sitzung. Der Installer installiert keine Linux-Distribution und keinen Plasma-Desktop. Du brauchst Internet für fehlende Pakete und die Einrichtung; Paketinstallationen können dein Linux-Passwort verlangen.
-
-Für den derzeitigen Download brauchst du Zugriff auf das private Repository [ativaro/lumen auf GitHub](https://github.com/ativaro/lumen) und eine Internetverbindung. Eine Anmeldung im Browser meldet Git im Terminal nicht automatisch an. Verwende deinen eingerichteten Git-Zugang oder die Anmeldeabfrage von Git; schreibe keine Zugangsdaten in Befehle oder Repository-URLs.
-
-### Installieren und einrichten
-
-Öffne ein Terminal in deiner Plasma-Sitzung. Installiere Git, falls es fehlt:
+Use **Arch Linux or CachyOS with KDE Plasma 6**. Open a terminal in your graphical session as your regular user. If Git is missing, install it with `sudo pacman -S --needed git`. From a directory where you want to create a new `lumen` folder, run:
 
 ```bash
-sudo pacman -S --needed git
+git clone --branch main --single-branch https://github.com/ativaro/lumen.git && bash lumen/bootstrap.sh
 ```
 
-Wechsle in einen Ordner, in dem noch kein Unterordner `lumen` existiert, und starte **ohne sudo**:
+The installer builds the native components and opens the setup wizard. Choose English or German, select a model if you want assistant answers, and add dictation or a reading voice if you need them. Applying the Lumen panel and theme is optional. You can keep your existing Plasma layout and open the apps from KDE's application menu. For an existing installation, use **Lumen Updater**. [Installation, updates and recovery](INSTALL.md)
 
-```bash
-git clone --branch main --single-branch https://github.com/ativaro/lumen.git
-bash lumen/bootstrap.sh
-```
+## Conversations and desktop search
 
-Der Installer richtet die Programme für deinen Benutzer ein und öffnet **Lumen einrichten**. Dort kannst du:
+With Lumen's shortcuts active, **Super** opens the start menu and **Alt+Space** opens Lumen. Use Search to launch an installed application or find a file by name. Open a conversation when you want an explanation or an action. Past conversations can be reopened for follow-up questions.
 
-1. Deinen KI-Anbieter und ein Modell auswählen. Ein vorhandener Zugang kann weiterverwendet werden; Anbieter können eigene Kosten und Limits haben.
-2. Optionale Spracherkennung und Stimmen vorbereiten.
-3. Ein Erscheinungsbild auswählen und bei Bedarf **Lumen-Desktop aktivieren**. Vor Änderungen an Panels, Hintergrund und Fensterdekoration wird die betroffene Konfiguration gesichert. Du kannst deine vorhandene Desktop-Gestaltung behalten.
-4. Optional einen bereits verfügbaren Lumen Server verbinden. Das ist für den lokalen Einstieg nicht erforderlich.
+To work from evidence, select a file in **Lumen Files** and choose **Open with Lumen**. For a configuration file, try “Which setting controls where logs are written? Quote the line.” You can also select several files or paste a screenshot into a draft. Review the selection before sending it. Images need a model that can interpret them. With local speech recognition installed, you can dictate a question or have a spoken conversation.
 
-Starte anschließend **Lumen** aus dem Anwendungsmenü oder mit `lumen`. Die Einrichtung erreichst du später unter **Einstellungen → Einrichtung** oder über `lumen-setup-wizard`.
+Use read-only mode to investigate first. If you ask Lumen to make a change, such as installing a package or restarting a service, the conversation shows the tool request, any required approval and the result. Lumen can present structured results such as a table of readings or a chart alongside the explanation.
 
-Die KI-Einrichtung nutzt die für Lumen passende Engine. Die gewählte Modellverbindung bestimmt, ob Anfragen lokal verarbeitet oder an einen externen Anbieter gesendet werden. Ein als kostenlos angebotenes Modell ist keine Garantie für dauerhafte Verfügbarkeit oder unbegrenzte Nutzung.
+The task view keeps the steps, status and errors. You can pause or cancel work, reopen the related conversation and save a result as a file. A completed task can become a reusable file action. Each time you use it, you can review the new selection. [Conversation and task guide](LUMEN-GUIDE.md#ask-lumen)
 
-Andere Installationsarten, Paketbau, Voraussetzungen und Rückweg: [Installationsanleitung](INSTALL.md).
+## Lumen Files
 
-### Aktualisieren
+**Find and inspect.** Open folders in tabs. Use **Ctrl+F** when you know part of a filename and **Ctrl+Shift+F** when you remember a phrase inside a document. Content matches include surrounding text so you can judge their relevance. Press **Space** for a preview or use **Open with** to choose an installed application. File properties can calculate a checksum on request. Disk analysis shows which folders take up the most space.
 
-Wenn Lumen bereits installiert ist, öffne **Lumen Updater** oder starte:
+**Organize across folders.** A library brings several source folders into one view. The **Shelf** collects references to individual files. Use it to gather items from different locations before copying a selection to one destination. For **Smart rename** or **Organize files**, select the files, describe your naming or sorting rule and review the proposed names and destinations. You can edit individual suggestions before applying them. These suggestions use your model and can include text excerpts or image previews from the selected files.
 
-```bash
-lumen-updater
-```
+**Work across drives.** Browse SMB, SFTP or WebDAV locations, or add a Google Drive, OneDrive or Dropbox account. For a NAS folder you need offline, prepare its local copy while connected. Files checks for changes while it is open and preserves conflicts for review. You can also enable version history for selected folders, compare a saved text version with the current file and restore it. For an interrupted copy with a saved transfer state, you can ask Lumen to notify you when it can be resumed. [Files guide](files/README.md) · [Online accounts](ONLINE-ACCOUNTS.md)
 
-Fehlt der Updater, kannst du ihn aus dem privaten Repository vorübergehend laden. Git-Zugang und die vorhandene Lumen-Laufzeit werden benötigt. Als normaler Benutzer in der Desktop-Sitzung:
+### Photos and scanned documents
 
-```bash
-(d="$(mktemp -d)" && trap 'rm -rf -- "$d"' EXIT && git clone --depth 1 --branch main --single-branch https://github.com/ativaro/lumen.git "$d/lumen" && bash "$d/lumen/bin/lumen-updater")
-```
+Browse local photos in the gallery, inspect full-size previews, rotate or mirror an image and save your edit. To search by what a photo shows, install the optional image-search models, choose a folder and describe the subject. The index and similarity search run locally. The cleanup view groups candidates such as bursts, screenshots and low-detail images. You decide which items to move to the trash. [Photo tools](files/README.md#work-with-photos)
 
-Prüfe die Auswahl und wähle **Alles aktualisieren**. Persönliche Inhalte, Einstellungen und vorhandene gültige Modelle bleiben erhalten. Systempakete und Flatpaks sind zusätzliche, ausdrückliche Auswahlen. Öffne Apps anschließend neu; Änderungen an Plasma-Panels werden spätestens nach einer neuen Anmeldung geladen.
+Enable the **document workshop** in Files settings to combine PDFs, extract selected pages, reorder or rotate pages and export the result to a new PDF. For redaction, mark the sensitive area before exporting. The workshop rebuilds the affected page from its visible content. For a scan, optional local OCR can add selectable text. Open the exported file to check the result before sharing it. [PDF workshop](files/README.md#work-with-pdfs)
 
-**Updatequellen:** Tester beziehen Lumen über GitHub; interne internal-desktop-Installationen über Forgejo. Ab Version 1.2.0-117 behält jede Installation ihre gespeicherte Repository-Adresse. Der Updater wechselt nicht automatisch zwischen diesen Quellen. Ohne gespeicherte Quelle verwendet er GitHub. [Installationsanleitung](INSTALL.md#native-updates).
+## Reader and Compose
 
-## Was die einzelnen Apps können
+**Lumen Reader** keeps a reading copy of a PDF, EPUB, text, Markdown, HTML or supported Office document, including DOCX, XLSX, PPTX and OpenDocument files. It can also save the readable text of a web article from its URL. Search within a document, jump through its outline, bookmark a page, highlight a passage or add a margin note. Reader remembers your place. You can export annotations as Markdown or use a local voice to read the selection or current page aloud. Image-only pages need a text layer for highlighting and speech. [Reader guide](READER-SOUND.md#reader)
 
-### Lumen: Gespräche, die dich weiterbringen
+**Lumen Compose** gives you the original and a proposed revision side by side. Paste text or pass a selection from Reader. Choose **Translate** for a different language, **Rewrite** for a different style, or **Correct spelling** for smaller edits. Drafts and results are kept in the local library. For a supported text-based PDF, you can translate the document, compare page previews and export a new file. Check line breaks and font sizes where translated text takes more space. [Compose guide](LUMEN-GUIDE.md#write-with-compose)
 
-**Lokal nutzbar; für Antworten ist eine Modellanbindung nötig.**
+## System diagnostics and audio
 
-Beginne mit einer Frage oder einer Idee und bleibe im Gespräch: nachfragen, eine Erklärung vertiefen, eine Antwort überarbeiten oder zum nächsten Schritt wechseln. Vorhandene Gespräche lassen sich wieder öffnen und fortsetzen. Fortschritt, Rückfragen und Ergebnisse sind direkt im Gespräch sichtbar.
+Open **Lumen System** to inspect processor and memory use, storage, processes and available hardware readings. If something stops working, the **Lumen Troubleshooter** checks the installation, writable storage, selected engine and relevant services locally. It can point you to the setup or update screen even when the model cannot answer. You can copy the diagnostic report and review it before sharing. [Troubleshooting](INSTALL.md#troubleshooting)
 
-Dateien, Bilder, PDF-Seiten, markierter Text oder die Zwischenablage lassen sich bewusst als Kontext verwenden. So kannst du über deine eigenen Inhalte sprechen. Antworten können Quellen und nutzbare Ergebnisdateien enthalten. Die gemeinsame Suche findet außerdem Programme und Dateien; aus einer Frage wird ein Gespräch.
+In **Sound**, start playback in the application you want to adjust. You can change its stream volume, mute it or send it to another output. For example, route a music player to speakers and a call to a headset. Save a per-app rule to reuse the choice. To lower music during calls, assign the music and call roles and enable the automation for one login or future logins. Detection depends on the audio streams the calling app exposes. [Sound controls and rules](READER-SOUND.md#sound)
 
-Gespräche können zu ausgeführten Aufgaben führen. Du kannst etwa „Installiere diese Anwendung“ sagen, Dateien bearbeiten lassen oder ein Computerproblem untersuchen. Direkte Aufträge werden im laufenden Gespräch bearbeitet; erforderliche Werkzeugfreigaben bleiben dort sichtbar. Für Systemänderungen kann zusätzlich der normale grafische Administrator-Dialog erscheinen. Lumen prüft bei unterstützten Datei-, Paket- und Dienstaktionen das tatsächliche Ergebnis.
+## Notifications, household records and screen help
 
-Du kannst Vorgänge verfolgen, abbrechen und Ergebnisse später wieder öffnen. Im Analysemodus bleibt der Auftrag lesend. Werkzeugfreigaben bestimmen, welche Änderungen möglich sind; eine ausdrücklich gewählte automatische Freigabe hat weitergehende Wirkung als eine einzelne Bestätigung. Eine Modellantwort ist kein Beweis, dass eine Aktion ausgeführt wurde: Maßgeblich sind der sichtbare Auftragsstatus und das Ergebnis.
+- **Notifications.** Open the bell to find a recent notification, use the originating app's action or archive an item. You can also ask Lumen to remind you at a specific time. **Discuss with Lumen** prepares a draft from the notification for you to review and send. Game quiet mode can defer interruptions during recognized games. [Notifications guide](LUMEN-GUIDE.md#notifications)
+- **Digital Household.** Keep a device's serial number, purchase receipt, manual and warranty end date in one record. For a contract, record the provider, customer number and cancellation deadline. Search by name, model or indexed receipt text, then export a record overview as Markdown. The household view shows upcoming and overdue dates. For a timed alert, set a separate reminder. [Household guide](LUMEN-GUIDE.md#keep-household-records)
+- **Lumen Companion.** Select one application window, inspect the capture and ask a vision-capable model to explain what is on screen. For example, show an unfamiliar export dialog and ask which setting determines the file format. You operate the window. Optional monitoring can send stable changes during a bounded session. Pausing or minimizing Companion stops capture. [Companion controls](INSTALL.md#screen-companion)
 
-### Lumen Files
+## Model, memory and permissions
 
-**Dein eigener Dateimanager auf dem Rechner.**
+File browsing, reading, PDF editing in the workshop, household records and system checks work without an assistant model. Conversations, Compose revisions and model-assisted file organization use the provider you select in setup. A remote provider receives the submitted prompt and context. Local dictation converts speech to text on the computer. Sending the transcription follows the same provider setting as typing a question.
 
-Dateien, Ordner und erreichbare Netzlaufwerke durchsuchen, als Tabs öffnen und mit Vorschauen ansehen. Bibliotheken und Sammelfläche helfen, häufig benötigte Inhalte wiederzufinden. Galerie, Dateieigenschaften und Speicheranalyse bieten weitere Ansichten derselben Dateien.
+In Settings, you can choose a local-only model connection or allow configured remote providers. Local-only mode requires a service on the same machine. A local service that forwards requests elsewhere has its own routing. You can also choose how Lumen addresses you and preview its conversational style before applying it.
 
-Umbenennen und Sortieren lassen sich vor dem Anwenden prüfen. Für unterstützte Vorgänge gibt es Rückgängig-Funktionen mit Konfliktprüfung. Versionen, vorbereitete Offline-Kopien von NAS-Ordnern, Textsuche und optionale OCR helfen bei umfangreichen Sammlungen. Die Dokumentenwerkstatt bearbeitet ausgewählte PDF-Seiten; Bild- und Inhaltssuche benötigen ihre jeweiligen Zusatzkomponenten.
+Memory has separate controls for recalling stored entries, learning from conversations and accepting suggestions automatically. You can inspect a suggestion and its source, edit a saved preference or forget it. Open **Settings → Capabilities & extensions** to inspect configured tool connections, OpenCode plugins and available skills. Tools that change files or the system follow their configured permissions. [Personal memory](WISSEN.md) · [Desktop tool access](MCP.md)
 
-**Lumen Files ist zugleich dein Zugang zum Inhalt deiner Dateien.** Wähle eine Datei oder mehrere Dateien aus und stelle deine eigene Frage. Lumen kann Dokumente und Daten erklären, Programmcode untersuchen, Konfigurationen verständlich machen und bei Fehlern oder Änderungen helfen. Der Gesprächskontext bleibt sichtbar, während du im Dateimanager weiter navigierst.
-
-Das Kontextmenü bietet **Mit Lumen öffnen**, **Erklären**, **Fehler beheben** und **Git-Diff prüfen**. Dateiaktionen haben eine eigene Ergebnisansicht mit Fortschritt, Rückfragen und Freigaben. Du kannst mehr Details anfordern, einen Vorgang abbrechen und unterstützte Ergebnisse nochmals prüfen lassen.
-
-Die Dateiauswahl beschränkt sich nicht auf eine feste Liste von Dokumenttypen. Wie Lumen den Inhalt erschließt, hängt vom Format, den verfügbaren Werkzeugen und dem Modell ab; verschlüsselte oder beschädigte Dateien und fehlende Lesewerkzeuge können die Analyse begrenzen. Normale Dateivorgänge funktionieren auch ohne KI-Modell.
-
-[Bedienung, Formate und Grenzen von Lumen Files](files/README.md).
-
-### Lumen Notification
-
-**Meldungen sammeln, wiederfinden und im Gespräch aufgreifen.**
-
-Die Glocke bündelt KDE- und Lumen-Meldungen. Du kannst Meldungen öffnen, später ansehen oder archivieren. **Mit Lumen besprechen** bereitet einen Gesprächsentwurf vor; erst das Senden übermittelt ihn an die Modellanbindung.
-
-Spielruhe sammelt Meldungen bei erkannten Spielen still. KDE bleibt für Empfang, ursprüngliche Aktionen und Ton zuständig. Lokale Systemmeldungen bleiben auf deinem Rechner. Lokale Erinnerungen brauchen das laufende Panel und erscheinen nach verpassten Terminen beim nächsten Start.
-
-### Lumen Reader
-
-**Lokal nutzbar.**
-
-PDFs, EPUBs, Office-Dokumente (Word, Excel, PowerPoint, OpenDocument) und gespeicherte Artikel lesen, Leseposition behalten, Text markieren und Randnotizen erfassen. Ausgewählte Passagen lassen sich als Quellen für Lumen verwenden. Lokales Vorlesen benötigt eine installierte Stimme. Nicht jedes Dokument enthält auslesbaren Text; Scans brauchen für Textfunktionen OCR.
-
-[Reader und Vorlesen](READER-SOUND.md).
-
-### Lumen Compose
-
-**Die integrierte Text- und Dokumentenbearbeitung bleibt lokal; KI-Aufträge brauchen ein Modell.**
-
-Texte übersetzen, korrigieren, umformulieren oder auf einen gewünschten Stil bringen. Du prüfst das Ergebnis, bevor du es weiterverwendest. Ausgewählter Text lässt sich auch direkt aus anderen Programmen an Lumen übergeben.
-
-Die lokale Dokumentenbearbeitung bietet zusätzlich PDF-Funktionen, deren Grenzen vom Dokument abhängen. Layout, Schriften, Scans und Tabellen sind anspruchsvoller als einfacher Text; eine originalgetreue Ausgabe ist nicht für jedes PDF zugesichert. Die Server-App Compose ist ein eigener, serverseitiger Textweg und benötigt eine Verbindung.
-
-[Text- und PDF-Funktionen](files/README.md#lumen-compose).
-
-### Lumen Digitaler Haushalt
-
-**Lokal nutzbar.**
-
-Geräte, Verträge, Fristen, Handbücher und Belege zusammenhalten. Du kannst Informationen ergänzen, Belege öffnen und Einträge durchsuchen. Die lokale Haushaltsverwaltung braucht keine KI. Sie kündigt keine Verträge und führt keine Zahlungen aus. Automatische Routinen des Server-Haushalts sind davon getrennt.
-
-### Lumen System
-
-**Deinen Rechner und seine Einstellungen im Blick behalten.**
-
-Lumen hilft dir auch als IT-Support für deinen Rechner. Es kann Systemwerte und Protokolle heranziehen, Fehler erklären und gemeinsam mit dir die Ursache eingrenzen. Erlaubte Maßnahmen lassen sich anschließend ausführen, etwa eine Anwendung installieren oder einen Dienst neu starten und seinen Zustand prüfen. Eine Diagnose startet auf deinen Auftrag; Änderungen folgen den Werkzeugfreigaben und nötigen Administratorrechten.
-
-Die Systemansicht zeigt CPU, GPU, Arbeitsspeicher, Laufwerke, Prozesse und Sensoren. Die verfügbare Hardware bestimmt, welche Werte angezeigt werden. Eine KI-Auswertung startet auf Anfrage.
-
-Im selben Fenster liegen **Sound** mit Ausgängen, Lautstärken und App-Regeln. Unterstützte Änderungen protokolliert Lumen; ein Rückweg wird nur angeboten, wenn er sicher möglich ist.
-
-[Systemfunktionen](files/README.md#lumen-system) · [Audio](READER-SOUND.md).
-
-### Lumen Companion und Bildschirmhilfe
-
-**Lokal gestartet; Bildauswertung braucht ein geeignetes Modell.**
-
-Ein Fenster oder einen Bildschirmausschnitt auswählen, die Vorschau prüfen und Lumen dazu fragen. Die Begleitung kann beim Verständnis einer Oberfläche und beim nächsten Arbeitsschritt helfen. Sie ist kein unbeschränkter Fernzugang zum Desktop.
-
-Optionale Beobachtung von Änderungen ist begrenzt und hängt von der zugänglichen Fensterstruktur ab. Sichtbare Geheimnisse lassen sich nicht in jedem Programm zuverlässig erkennen. Pausiere die Begleitung, bevor du solche Inhalte eingibst. [Ablauf und Schutzgrenzen](INSTALL.md#screen-companion).
-
-### Lumen Einstellungen und Updater
-
-**Lokal nutzbar.**
-
-Modellanbindung, Sprache, Darstellung, optionale Komponenten, Benachrichtigungen und Wartung verwalten. Die Oberfläche bietet Deutsch und Englisch. **Glas**, **Graphit**, **Atelier** und **Mitternacht** sind Themes derselben Panorama-Gestaltung.
-
-Der Updater zeigt verfügbare Komponenten und führt die ausgewählten Schritte aus. Fenster werden bei Problemen nicht ungefragt beendet. Die Wiederanlaufhilfe kann nach einem Absturz Ansichten und Entwürfe anbieten; sie sendet keine alten Anfragen automatisch erneut und stellt nicht jede ungespeicherte Bearbeitung wieder her.
-
-## Gemeinsame Apps mit Lumen Server
-
-**Optionale Erweiterung:** Wenn du einen Lumen Server verbindest, kommen gemeinsame Inhalte und weitere Produktiv-Apps hinzu. Für die oben beschriebenen lokalen Gespräche, Lumen Files und Desktop-Benachrichtigungen ist diese Verbindung nicht erforderlich.
-
-Lumen Server stellt die gemeinsamen Apps und Hintergrundaufgaben bereit; Lumen Mobile macht unterstützte Inhalte unterwegs zugänglich. Beide werden derzeit privat entwickelt und erprobt und sind noch nicht öffentlich gestartet. Preise und künftige Angebote sind nicht festgelegt.
-
-Diese Apps benötigen einen erreichbaren Server, dein Konto und die passenden Gerätefreigaben. Der Desktop zeigt die gemeinsame Serveroberfläche in einem eigenen Fenster. Ihre früheren lokalen Implementierungen sind kein zusätzlicher Offline-Modus. Ohne Verbindung sind die Serverinhalte nicht bearbeitbar; bestehende lokale Dateien und Entwürfe werden dadurch nicht zu Serverdaten.
-
-| App | Was du damit im Desktop erledigst |
-| --- | --- |
-| **Lumen Notes** | Notizen und Sammlungen öffnen, formatiert bearbeiten und gezielt für Lumen freigeben. Das lokale Lumen-Gedächtnis ist davon getrennt. |
-| **Lumen Projekte** | Materialien, Gespräche und Aufgaben zu einem Vorhaben zusammenfassen; Quellen und Ergebnisse im Zusammenhang ansehen. Projekte ändern nicht automatisch Eigentum oder Freigaben ihrer Inhalte. |
-| **Lumen Code** | Code-Vorhaben, zugehörige Aufgaben, Vorschläge und Ergebnisse in der Server-App bearbeiten. Ein Ausführungsauftrag folgt den dortigen Freigaben und verfügbaren Laufzeitmöglichkeiten. |
-| **Lumen Inbox** | Die auf dem Server eingerichteten E-Mail- und Kalenderkonten nutzen, Nachrichten lesen und Entwürfe prüfen. Versand und Änderungen folgen den Serverfreigaben. |
-| **Lumen Audio Studio** | Die gemeinsamen Meeting-/Radio-Inhalte öffnen, Transkripte und Hörskripte bearbeiten. Lokale Aufnahmen werden erst über einen bestätigten Übergabeweg bereitgestellt. |
-| **Lumen Vault** | Den persönlichen oder freigegebenen Servertresor in einer privaten, gerätegebundenen Sitzung verwenden. Entsperren und Secret-Freigabe sind eigene Schritte. |
-
-Zusätzlich kannst du auf Lumen Drive zugreifen, Server-Textgespräche führen und den Bearbeitungsstand eigener Servermeldungen zwischen Geräten teilen. Server-Textgespräche übertragen Text; lokale Anhänge und Gedächtnis werden dabei nicht automatisch hochgeladen. Die Verbindung gibt dem Server keinen allgemeinen Zugriff auf deinen Rechner. Entfernte Diagnosen, Dienstaktionen und Wake-on-LAN benötigen eigene Gerätefreigaben.
-
-Der Detailumfang richtet sich nach dem verbundenen Server. Die getrennten READMEs beschreiben [Lumen Server](https://forge.example.invalid/ativaro/lumen-server) und [Lumen Mobile](https://forge.example.invalid/ativaro/lumen-mobile); für die privaten Repositories ist Zugriff nötig. Technische Zuordnung: [Gemeinsame Server-Apps und lokale Fähigkeiten](docs/desktop-retirement.md).
-
-### Lumen Server verbinden
-
-1. In einem bereits verfügbaren Lumen Server **Geräte → Gerät hinzufügen** öffnen und eine Verbindungsanfrage für den Desktop erstellen.
-2. Den angebotenen Link im Desktop öffnen lassen.
-3. Im nativen Dialog Serveradresse, Konto und Rechte prüfen und bewusst bestätigen.
-
-Erst die Bestätigung aktiviert den Gerätezugang. Ein Link allein teilt keine lokalen Dateien. Der Server kann den Zugang widerrufen. Welche Inhalte übertragen werden, hängt von der jeweiligen Freigabe und Aktion ab.
-
-Für das optionale Textgespräch wähle im Gespräch **Dieses Gerät → Lumen Server · Textgespräch**; in der Suche liegt die Auswahl unter **···**. Bei einer Unterbrechung verwende **Serververbindung prüfen**. Unklare Übermittlungen werden geprüft, statt denselben Auftrag automatisch erneut zu senden.
-
-## Schnellzugriff und fortgeschrittene Bedienung
-
-| Aktion | Standard |
-| --- | --- |
-| Suchen oder fragen | `lumen-search` oder die Suche im Panel |
-| Fragen | `Meta+Shift+O` |
-| Zwischenablage erklären | `Meta+Shift+C` |
-| Bildschirmausschnitt fragen | `Meta+Shift+V` |
-| Markierten Text erklären | `Meta+Shift+E` |
-| Einstellungen | `Ctrl+,` in Lumen/Files oder `lumen-settings` |
-
-Bestehende KDE-Belegungen können mit Kürzeln kollidieren. Stelle sie bei Bedarf in den Einstellungen um.
-
-Für Terminalnutzer gibt es `lumen-sel`, `lumen-gitmsg` und die optionale Shell-Integration mit `why`, `vix` und `sel`. Der MCP-Zugang stellt Systemabfragen und gesondert aktivierbare Aktionen bereit. Schreibende MCP-Aktionen sind standardmäßig nicht eingeschaltet (`LUMEN_MCP_ACTIONS=0`). Anleitungen: [Bedienung](LUMEN-GUIDE.md), [Engine-Anbindung](NATIVE-LUMEN.md).
-
-<details>
-<summary>Fortgeschrittene Konfiguration</summary>
-
-Diese Variablen gehören zur lokalen Laufzeit, nicht in Chattexte oder öffentliche Supportberichte:
-
-| Variable | Zweck |
-| --- | --- |
-| `LUMEN_OPENCODE_BIN` | Explizite Engine-Auswahl; normalerweise die verwaltete kompatible Laufzeit verwenden. |
-| `LUMEN_WORKDIR` | Standard-Ausführungsverzeichnis. |
-| `LUMEN_DATA` | Privater Zustand für Aufgaben und lokale Wissensfunktionen. |
-| `LUMEN_STATE` | Cache und Berichte. |
-| `LUMEN_WATCH_ANALYZE`, `LUMEN_WATCH_MODEL` | Watchdog-Auswertung und Modellwahl. |
-| `LUMEN_MCP_ACTIONS` | Schreibende Systemwerkzeuge ausdrücklich aktivieren. |
-| `LUMEN_SEL_LANG`, `LUMEN_VISION_PROMPT`, `LUMEN_GITMSG_STYLE` | Vorgaben für Text-, Bild- und Git-Hilfen. |
-
-Eine optionale systemweite Sudo-Konfiguration ist in `install-system.sh` enthalten. Sie verändert unter anderem den Passwort-Cache für privilegierte Befehle und gehört nicht zum normalen Einstieg. Vor Verwendung das Skript und seine Wirkung prüfen; die Einrichtung ist keine Voraussetzung für Lumen.
-
-</details>
-
-## Daten, Rechte und Grenzen
-
-- Dateien bleiben lokal, solange du sie nicht ausdrücklich überträgst oder einer Modellanfrage als Kontext mitgibst. Ein externer KI-Anbieter erhält den Inhalt der an ihn gesendeten Anfragen.
-- Der lokale Suchindex und bestätigte Erinnerungen ersetzen nicht die Berechtigungen von Serverinhalten. Normale Textsuche bleibt ohne ein optionales Bedeutungsmodell möglich.
-- Eigene Modelle, Server oder Anbieter können zusätzliche Hardware, Speicher oder Gebühren benötigen. Die Lumen-Installation garantiert keine kostenlose KI-Rechenleistung.
-- Dateiverständnis ist keine Garantie für jedes Format oder jede Aussage. Dateischutz, verfügbare Lesewerkzeuge, Größenlimits und die Fähigkeiten des gewählten Modells gelten auch bei einer frei gewählten Datei.
-- Bevor du wichtige Änderungen übernimmst, prüfe Vorschau und Ergebnis. Nicht jede Modellantwort ist richtig; nicht jede externe Aktion lässt sich rückgängig machen.
-- Vollständige Einrichtung und Integration sind auf Arch/CachyOS mit Plasma 6 ausgerichtet. Einzelne Funktionen auf anderen Linux-Desktops ersetzen keine geprüfte Unterstützung des gesamten Systems.
-
-## Entfernen und Wiederherstellen
-
-Für eine Benutzerinstallation aus dem vorhandenen Checkout:
-
-```bash
-./uninstall.sh
-```
-
-Für eine Paketinstallation:
-
-```bash
-lumen-setup --uninstall
-sudo pacman -R lumen
-```
-
-Prüfe vor dem Entfernen, welche Installation aktiv ist, und sichere persönliche Daten separat. Die Desktop-Gestaltung lässt sich über die bei der Aktivierung angelegte Sicherung zurücksetzen. [Installation und Wiederherstellung](INSTALL.md#recover-the-previous-desktop).
-
-## Entwicklung, Prüfungen und Lizenz
-
-[Installations- und Bauanleitung](INSTALL.md) · [Funktionsbeschreibung](LUMEN-GUIDE.md) · [Dateimanager](files/README.md) · [Architektur](docs/desktop-retirement.md) · [Veröffentlichung und Prüfgrenzen](PUBLISHING.md).
-
-Der Quellstand allein ist kein Beleg, dass alle optionalen Funktionen auf jeder Hardware geprüft sind. Herkunft und verfügbare Releasebelege stehen in den jeweiligen Veröffentlichungsunterlagen.
-
-Lumen-eigene Bestandteile stehen unter der [Lumen-EULA](LICENSE). Aktuell erlaubt sie persönliche und interne geschäftliche Nutzung sowie die beschriebenen lokalen Anpassungen; Weiterverteilung, Verkauf und kommerzielle Ableitungen benötigen eine ausdrückliche Erlaubnis. Frühere Lizenzgewährungen werden dadurch nicht widerrufen. Abhängigkeiten behalten ihre [eigenen Lizenzen](THIRD_PARTY_NOTICES.md); der Status der Distributionsprüfung steht in [LICENSE-PLAN.md](LICENSE-PLAN.md).
-
-Die [Dokumentationsübersicht](docs/README.md) trennt aktuelle Anleitungen von historischen Entwürfen und Abnahmebelegen.
+[All desktop guides](docs/README.md) · [License](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)

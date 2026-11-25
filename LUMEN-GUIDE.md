@@ -1,252 +1,59 @@
-# Lumen benutzen
+# Using Lumen Desktop
 
-Lumen Desktop verbindet Gespräche, Dateien und Systemhilfe auf deinem Linux-Rechner.
-Für tiefe Gespräche, Inhaltsanalyse und genehmigte Systemaktionen genügt der Desktop
-mit einem funktionierenden KI-Anbieter; Lumen Server ist dafür nicht erforderlich. **Lumen** im Panel oder `lumen` öffnet den Assistenten.
-**Lumen Files** beziehungsweise `lumen-files` öffnet den eigenständigen
-Dateimanager, auch direkt mit einem lokalen Ordner oder einer Netzwerkadresse.
-Der Assistent behält zusätzlich den Dateibereich unter `lumen --page files`.
-Beide verwenden dieselben Datei-Einstellungen, Modelle und KI-Funktionen;
-`Strg+,` öffnet den gemeinsamen Einstellungsdialog. OpenCode bleibt die Engine;
-bestehende Anmeldungen und Anbieter werden weiterverwendet.
+## Ask Lumen
 
-Nach einem Absturz bietet der Wiederherstellungsdialog **Mit Lumen prüfen** an.
-Die Schaltfläche öffnet **Fehlerbericht prüfen** in einem eigenen Lumen-Fenster
-und startet die Analyse mit dem eingerichteten Modell. Als Kontext werden nur
-Absturzdaten und Fehlerprotokoll ausgewählt, keine gespeicherten Sitzungen oder
-Entwürfe. Der Auftrag läuft im Planungsmodus: Ursache erklären, Vermutungen
-kennzeichnen und nächste Schritte vorschlagen. Der Bericht bleibt zur späteren
-Wiederherstellung erhalten. **Fehlerbericht** öffnet weiterhin den lokalen Ordner.
+Open **Lumen** from the application menu, or use the conversation field in the Lumen topbar. Start with a concrete question, such as “Which process is using the most memory?” Continue in the same conversation if the next question depends on the answer. Reopen an earlier conversation to pick up its history.
 
-## Aufträge und echte Ergebnisse
+- **Give Lumen the right material.** Attach the file, image or clipboard content you want to discuss. From Files, select one or more items and open the Lumen action from their context menu. Which contents Lumen can read depends on the format, installed tools and model.
+- **Investigate first.** Use the read-only mode to inspect a problem. If you want a change, describe the specific result. For example, ask which package provides a missing command before asking to install it.
+- **Check what happened.** The conversation shows tool requests, progress, requests for input and results. Review the target before granting permission. Installing software or changing a protected service can also open the desktop administrator prompt. Open the resulting file or check the reported service state to verify the outcome.
+- **Speak if you prefer.** Set up local dictation or a voice in the setup wizard. Open the microphone controls in the conversation. Recognition and playback run locally. The transcribed question follows the same model settings as a typed one.
 
-### Lumen-Menü in der Plasma-Leiste
+### Follow a task through to its result
 
-Das Widget **Lumen** öffnet ein kompaktes Menü mit gemeinsamen Aufträgen aus
-Lumen und Lumen Files. „Aktuell“ zeigt bis zu acht offene Aufträge, „Zuletzt“ die
-fünf letzten abgeschlossenen Vorgänge. Klick auf einen Eintrag klappt Ergebnis
-oder Fehler direkt auf; **Auftrag öffnen** zeigt die vollständigen Details.
-Native Schritte zeigen ihren tatsächlichen Fortschritt, KI-Aufträge einen
-laufenden Status. Rückfragen werden als **Braucht dich** gekennzeichnet.
+Open a task from the topbar to see what is running, what needs an answer and what has finished. Open its details for the result or error. If you resume an interrupted task, ask Lumen to check the current state first. A file may already have been copied or a package installed before the interruption.
 
-**Dateien**, **System**, **Alle Aufträge**, **Lumen** und **Einstellungen** bieten
-direkte Einstiege. Vorhandene aktuelle Hauptfenster werden wiederverwendet und
-Entwürfe bleiben erhalten; bei einem noch laufenden älteren Lumen öffnet ein
-Auftragslink ein separates Fenster. Das Menü führt Aufträge nicht automatisch aus.
-Die Liste liest ausschließlich die bestehende lokale Auftragsdatenbank; geöffnete
-Menüs aktualisieren alle zwei Sekunden, geschlossene alle 15 Sekunden.
+For a file operation, review its path and the proposed change. Some native operations offer undo when the target still matches the recorded result. For assistant-generated output, save or open the result file and inspect it. If you paste a screenshot into the conversation, Lumen attaches it to the draft. Press Send when you are ready to share it with the chosen model.
 
-Hinzufügen über Plasma → Bearbeitungsmodus → Miniprogramme → **Lumen**. Der
-Paketinstaller liefert das Applet systemweit, `install.sh` für den aktuellen
-Benutzer. Ein altes persönliches Applet kann die Paketversion überlagern; vor
-dem Entfernen einer solchen Kopie eigene Anpassungen sichern. Die bestehende
-Lebensdauer der Aufträge bleibt unverändert: ein KI-Auftrag gehört weiterhin
-zu seinem Lumen-/Files-Fenster.
+## Find something and open it
 
-Gespräche erzeugen automatisch gespeicherte Aufträge. Unter **Aufträge** stehen
-Status, Ergebnis, Fehler und Verlauf. Pausieren stoppt die Engine; Fortsetzen
-verwendet das gespeicherte Gespräch mit dem Auftrag, den bereits erreichten
-Zustand zuerst zu prüfen. Nach einem Absturz werden verwaiste Ausführungen als
-unterbrochen angezeigt. Es gibt keine automatische Wiederholung eines
-möglicherweise bereits ausgeführten Schritts.
+Open **Lumen Search** to launch an application, find a file by name or start a question. Select the result you want with the keyboard and press **Enter**. To search *inside* documents in a particular folder, open it in Files and press **Ctrl+Shift+F**. See [search and shortcuts](SEARCH-PREVIEW.md).
 
-Ein direkter Auftrag wie „Installiere diese Anwendung“ wird im laufenden Gespräch
-mit den verfügbaren Ausführungswerkzeugen bearbeitet. Lumen soll dafür keinen
-separaten Entwurf anlegen und dich nicht zur Freigabe in die Auftragsansicht
-schicken. Erforderliche Werkzeugfreigaben bleiben im Gespräch; Administratorrechte
-werden über den grafischen Systemdialog angefragt. Ein ausdrücklich gewünschter
-gespeicherter Entwurf behält seine eigene Freigabe.
-Die Paketnamen und das Ergebnis müssen geprüft werden; ein Snapshot setzt eine
-tatsächlich vorhandene und geeignete Snapshot-Konfiguration voraus.
+The Lumen topbar brings together the start menu, search, recent activity, notifications, network and sound. Open a menu with its button and click again to close it. Use the start menu to search installed applications, pin frequently used ones and return to recent items. The available controls depend on your panel layout. With Lumen’s desktop shortcuts active, **Super** opens Start and **Alt+Space** opens Lumen.
 
-**Neuer Auftrag** bereitet native Schritte vor: Anwendungen/Dateien/Webseiten
-öffnen, Fenster anordnen, Textdateien schreiben, Dateien kopieren,
-Systemdiagnose, Dienstneustart mit Zustandsprüfung, Paketinstallation mit
-Paketprüfung oder Snapper-Snapshot. Ordner und Schritte müssen freigegeben
-werden. Ein KI-Vorschlag über `lumen_propose_task` ist immer ein ungeprüfter
-Entwurf. Systemänderungen verwenden die normale Systemauthentifizierung.
+## Write with Compose
 
-Native Dateiänderungen bis 16 MiB speichern den vorherigen Inhalt. **Änderung
-rückgängig** verweigert das Überschreiben späterer Inhalts- oder Rechteänderungen.
-Engine-Werkzeuge haben eigene Freigaben und keine pauschale native Undo-Garantie.
-**Ergebnis speichern** erzeugt eine echte Markdown-/Textdatei, die im Dateibereich
-geöffnet und angesehen werden kann. Desktopstarts bestätigen die Anforderung;
-Datei-, Paket- und Dienstaktionen prüfen das Ergebnis explizit.
+Open **Lumen Compose**, paste some text, then choose **Translate**, **Rewrite** or **Correct spelling**. Translation changes the language. Rewrite lets you change the style. Correction aims to keep the author's wording. Review the original and result side by side before copying the result. You can return to drafts and past results in the local library.
 
-Ein laufender nativer Schritt darf fertig werden; Pause/Abbruch wirkt vor dem
-nächsten Schritt. Währenddessen wird der Auftragsprozess beim Schließen nicht
-abgeschossen. Snapper verwendet die Root-Konfiguration: persönliche Ordner sind
-nicht automatisch enthalten, und ein Snapshot ist kein unabhängiges Backup.
+To translate a supported PDF with a text layer, use the PDF tab, check the page previews and export to a new file. Scans need OCR first. Forms, signatures and rotated text are examples the PDF workflow may refuse. Fonts and line breaks can change in a translation. See [document tools](files/README.md#work-with-pdfs).
 
-## Gemeinsame Apps und lokales Gedächtnis
+## Notifications
 
-Notes, Projekte, Code, Inbox, Audio Studio und Vault öffnen die verbundenen
-Server-Apps. Ohne Serververbindung oder Gerätefreigabe gibt es keinen stillen
-lokalen Ersatz. Der lokale Gedächtniseinstieg ist davon getrennt.
-[Notes und Gedächtnis](WISSEN.md) · [App-Verantwortlichkeiten](docs/desktop-retirement.md).
+Open the bell to inspect recent messages, revisit one later or archive it. The original notification can offer actions supplied by its application. **Discuss with Lumen** opens a conversation draft you can edit before sending. Game quiet mode can hold interruptions while a game is active. Local reminders need the panel running and can appear at the next start after a missed time.
 
-## Wissen
+## Inspect your system
 
-`lumen_knowledge` kann freigegebene Wissensordner für Anfragen durchsuchen;
-Auszüge gehen dabei an das gewählte Modell. Es gibt kein heimliches Indexieren
-des gesamten persönlichen Ordners.
+Open **Lumen System** to see CPU and memory use, processes and drives. GPU, temperature and fan readings depend on the hardware and its drivers. To investigate a symptom, note the affected process and time, then ask Lumen to examine those observations or relevant logs. If the assistant itself is unavailable, open **Lumen Troubleshooter** in Settings and start a check. Its local checks cover core files, free space, the engine and services. Each finding points to a relevant next step. Select the **Sound** tab in Lumen System to manage audio by application. [Sound controls and rules](READER-SOUND.md#sound)
 
-## Dateiaktionen
+## Keep household records
 
-In der Auftragsansicht einen Auftrag **Als Dateiaktion** speichern. Dateiaktionen
-starten nur auf Knopfdruck. Automationen mit Zeitplan oder Ordnerbeobachtung
-laufen auf Lumen Server, nicht auf dem Desktop.
+1. Open **Lumen Digital Household** and choose **Add device / contract**. For a device, enter its model and serial number. For a contract, enter its provider and customer number.
+2. Record the purchase or start date, the warranty or contract end date and any cancellation deadline. The record shows how many days remain or how long a date has been overdue. To receive a timed notification, ask Lumen separately to remind you on a specific date and time.
+3. Choose **Add receipt** to attach a receipt or manual. Household keeps a local copy. When text extraction succeeds, a phrase from the attachment can find the record as well as its name or model.
+4. Choose **Export overview** for a Markdown file with the record details, deadlines, notes and attachment names. The attachments themselves stay in your library.
 
-## Modelle, Ressourcen und Kontext
+## Get help with a window
 
-**Modelle** legt Standardmodell, Modell für wiederkehrende KI-Aufträge,
-Zeitlimit und Hintergrundpause fest. NVIDIA-SMI kann Hintergrundarbeit bei hoher
-GPU-Auslastung zurückstellen. Ohne NVIDIA-SMI gibt es keine GPU-Auslastungsprüfung.
+Open **Lumen Companion**, choose the application window and enter your goal. Inspect the preview before sending it to a vision-capable model. An example question is “Which setting on this screen controls the microphone?” You perform the suggested steps in the application.
 
-**Nur lokaler Dienst** fordert einen konfigurierten Anbieter mit einer wörtlichen
-Loopback-Adresse wie `http://127.0.0.1:11434/v1`. Lumen bindet Haupt-/Hilfsmodelle
-und die Anbieterauswahl der privaten Engine daran, deaktiviert Projektkonfiguration
-in diesem Modus und prüft die effektive Konfiguration vor dem Absenden. Es gibt
-keinen automatischen Cloud-Fallback. Ein lokaler Proxy kann selbst weiterleiten;
-sein Betrieb und dessen Netzwerkregeln bleiben außerhalb dieser Garantie.
-Die Richtlinie gilt auch für native Vorschläge und die Lumen-Berichtshelfer.
-Lumen verändert keine systemweiten Netzwerksperren.
+If you enable change monitoring, it uses a bounded series of window captures. Pause before entering passwords or showing private information. [Companion setup and limits](INSTALL.md#screen-companion)
 
-Dateien/Bilder, ein explizit ausgewählter Bildschirmbereich und eingefügter Text
-sind vor dem Senden sichtbar. **Diktieren** benötigt `whisper-cli` (whisper.cpp),
-`pw-record` und ein selbst ausgewähltes lokales Modell. Aufnahme maximal 60 Sekunden,
-Transkription maximal 120 Sekunden. Audio wird lokal temporär verarbeitet und danach
-entfernt; der Text bleibt ein Entwurf. Lumen lädt kein Modell automatisch herunter.
-**Schritte erklären** ergänzt eine verständliche Anleitung zur ausgeführten Arbeit.
+## Make it yours
 
-## Netzwerkverbindungen sauber beenden
+Open **Lumen Settings** to change the interface language, theme, model and optional tools. Reopen a window to pick up a new language. In the personality settings you can choose a preset, adjust how Lumen addresses you and preview a sample reply locally. For memory, decide independently whether to recall entries, learn from conversations or accept suggestions automatically. [Manage personal memory](WISSEN.md)
 
-Für SMB den Server öffnen und die gewünschte Freigabe als Ordner auswählen.
-Es genügt `smb://nas/`; gespeicherte Verbindungen öffnen ohne zusätzliches
-Adressformular. Geschützte Freigaben fragen bei Bedarf direkt nach Benutzername
-und Passwort. Erst wenn die Ordnerliste gelesen werden kann, meldet Lumen eine
-erfolgreiche Verbindung.
+## Terminal shortcuts
 
-Unter **Dateien → Quellen …** lassen sich lokale und Netzwerkordner zu einer
-Bibliothek verbinden. Die Herkunft steht bei jeder Datei. Die Sammelfläche hält
-Verweise auf Dateien. **Lumen Projekte** bündelt zugehörige Materialien, Gespräche
-und Aufgaben; Quellen werden dort getrennt von Titel, Zielen und initialen
-Notizen verwaltet. Projekte sind keine globale Umgebungsauswahl.
+Run `lumen-gitmsg` in a Git checkout to print a proposed commit message. It uses the staged diff, or the unstaged diff if nothing is staged, and sends a bounded excerpt to the configured model. Review sensitive changes before using it. The default invocation prints the suggestion and leaves the commit to you.
 
-Die vier Produkt-Themes **Glas**, **Graphit**, **Atelier** und **Mitternacht** folgen
-Panorama. Vorhandene System-/Kompatibilitätswerte sind keine zusätzlichen
-Designrichtungen. Die jeweilige Einstellungsaktion bestimmt, ob nur Appfarben
-oder ausdrücklich auch Plasma und Fensterdekoration geändert werden.
-[Verbindlicher Designstandard](docs/lumen-panorama/standard.md).
-
-Lumen beendet Such-/Vorschauzugriffe und löst Dateimodell-Watcher beim Schließen.
-Nach dem Schließen des letzten Netzwerk-Tabs werden unbenutzte lokale
-Verbindungszuordnungen freigegeben. Gespeicherte Server und Tab-Adressen bleiben
-für eine spätere Wiederverbindung erhalten.
-
-Die installierte KIO-FUSE-Schnittstelle hat `mountUrl`/`remoteUrl`, aber keine
-Abmeldung einzelner URLs. Lumen beendet deshalb keinen gemeinsam verwendeten
-KIO-FUSE-Dienst. Ein separater, zeitlich begrenzter Aufräumer berücksichtigt nur
-Mounts, deren Pfade dieses Fenster tatsächlich verwendet hat, mit passendem
-Benutzer und `fuse.kio-fuse`-Typ. Nur ein bestätigtes `ENOTCONN` und unveränderte
-Mount-ID erlauben ein gezieltes, normales Unmount. Kein Lazy-/Force-Unmount,
-keine pauschale Suche mit Unmount aller Treffer. Erreichbare Mounts und Dolphin
-bleiben unberührt. Fremde Dolphin-Tabs werden nicht von Lumen geschlossen.
-
-## Update von opencode-lumen
-
-Im Quellverzeichnis `./packaging/arch/build-package.sh --install` verwenden.
-Der Wrapper sichert `/var/lib/opencode-lumen` und die bestehenden
-Dienstzustände **vor** dem Ersetzen des alten Pakets: dessen alter Uninstaller
-löscht sonst die alten Berichte. Danach werden die Zustände wiederhergestellt.
-Das neue Paket heißt `lumen`; der Installer entfernt das alte Paket ohne dessen
-destruktive Uninstall-Skripte. Der alte Share-Pfad bleibt als Kompatibilitätslink.
-Es gibt bewusst kein automatisches `replaces/conflicts`: eine direkte Installation
-neben dem alten Paket stoppt an Dateikonflikten, statt Berichte zu löschen. Neue Timer bleiben ausgeschaltet.
-
-Bei manueller Paketinstallation zuerst `sudo /usr/bin/python3 files/lumen_upgrade.py before`,
-dann `sudo pacman -Rdd --noscriptlet opencode-lumen`, `sudo pacman -U …`, danach `sudo /usr/bin/python3 files/lumen_upgrade.py after`.
-Anschließend als normaler Benutzer `lumen-setup` ausführen. Vorhandene Qt-Einstellungen
-bleiben bestehen. Alte Benutzerberichte werden nur in fehlende Ziele kopiert;
-Originale und neuere Dateien bleiben erhalten. Die neue Datenbank liegt unter
-`$XDG_STATE_HOME/lumen` (normalerweise `~/.local/state/lumen`) mit privaten Rechten.
-
-## Entwicklung und Prüfung
-
-```sh
-# Tests: der isolierte Lauf aus PUBLISHING.md („Verify locally“), mit eigenem HOME,
-# XDG- und Laufzeitordner; nie im eigenen Profil, sonst ersetzt er den laufenden Lumen-Dienst.
-./packaging/arch/build-package.sh
-```
-
-Der echte WebDAV-Test benötigt den Sitzungsbus und KIO-FUSE/KIO-WebDAV.
-Aus einer Umgebung ohne Desktop-Bus beispielsweise
-`DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus` setzen.
-KWin-Fensteranordnung benötigt Plasma und `qdbus6`; ohne diese Voraussetzungen
-meldet der Auftrag einen konkreten Fehler.
-
-Grundlagen: [OpenCode-Konfiguration](https://opencode.ai/docs/config/),
-[KWin-Scripting](https://develop.kde.org/docs/plasma/kwin/api/),
-[KIO-FUSE](https://github.com/KDE/kio-fuse),
-[CachyOS-Snapshots](https://wiki.cachyos.org/configuration/btrfs_snapshots/).
-
-## Lumen-Leiste: Inseln und Zentrale
-
-Die Erweiterung **Lumen Leiste** (`org.lumen.islands`) bietet drei Rollen:
-**Lumen und Dateien** links, **Suche** in der Mitte und **Lumen Zentrale** rechts.
-Die Rolle lässt sich über die Widget-Einstellungen ändern. Das bisherige
-Lumen-Aufgabenwidget bleibt verfügbar.
-
-Die Suche öffnet die native gemeinsame Datei-/App-Suche mit Gespräch. Das Mikrofon
-rechts in der oberen Suchleiste startet dort das Sprachgespräch (auch über
-`lumen-search --voice`). Sprechpausen senden den erkannten Text, Antworten werden
-lokal vorgelesen. „Beenden“ oder Schließen der Suche schaltet das Mikrofon aus.
-Ein animierter Blob zeigt den Gesprächszustand und reagiert auf den Audiopegel.
-In der breiten Suche ergänzt eine Pegelwelle die Anzeige; im schmalen Files-Panel
-bleibt sie kompakt. „Ich höre zu“, Spracherkennung, Nachdenken, Stimmvorbereitung
-und „Lumen spricht“ sind getrennte Zustände. Die Wiedergabewelle folgt der lokalen
-Audiodatei zeitlich ungefähr; sie misst nicht die Lautsprecherlautstärke.
-Fehlende Sprachkomponenten lassen sich direkt im Einrichtungsassistenten ergänzen.
-Unter **Einstellungen → Einrichtung → Mit deiner Stimme** lässt sich statt des
-kleinen Modells **Whisper Large v3 Turbo Q8** installieren (874 MB). Das alte Modell
-bleibt erhalten und kann über „Vorhandenes Sprachmodell auswählen“ wieder gewählt werden.
-Deutsch ist die Vorgabe für die Erkennung; Englisch und weitere Sprachen sowie
-automatische Spracherkennung sind auswählbar. Eine kurze Liste eigener Namen und
-Fachbegriffe hilft bei Schreibweisen, ersetzt aber keine Prüfung des erkannten Texts.
-Sprache, Begriffsliste und GPU-Nutzung gelten gemeinsam für Diktat, Mikrofontest
-und Sprachgespräch; auch unter „Sprachgespräch einstellen“ erreichbar. Vorhandene
-Vulkan-Bauwerkzeuge werden bei einer neuen lokalen Whisper-Installation genutzt,
-andernfalls wird eine CPU-Version erstellt. CPU-Betrieb ist jederzeit auswählbar.
-KRunner bleibt über sein eigenes Tastenkürzel erreichbar; `lumen <Frage>` nutzt
-dort den bestehenden Lumen-Runner.
-Die Zentrale zeigt gemeinsame Aufgaben und native Systemsteuerungen. Lautstärke
-und Stummschaltung betreffen das Standard-Ausgabegerät; Helligkeit verwendet KDEs
-globale Bildschirmsteuerung. **Audiogeräte** und **Bildschirme** öffnen die
-detaillierten KDE-Einstellungen. Fehlende Dienste ergeben deaktivierte Regler.
-**Nicht stören** lässt sich für eine Stunde einschalten und jederzeit ausschalten.
-Bestehende externe Zeitvorgaben werden beim bloßen Öffnen nicht verändert.
-
-Die obere Anordnung wird über normale Plasma-Leisten hergestellt. Vorhandene
-Systemablage, Uhr und Super-Anwendungsstarter werden übernommen; das Dock bleibt
-bestehen. Die Paketinstallation ändert das persönliche Panel-Layout nicht von selbst.
-
-Der optionale Plasma-Stil **Lumen Inseln** verwendet sichtbare runde Flächen und
-ruhige dunkle Menüs. Bei vorhandenem LumenDark erzeugt
-`python plasmoid/install-island-style.py` die Ableitung im Benutzerprofil;
-`plasma-apply-desktoptheme LumenIslands` aktiviert sie. LumenDark bleibt erhalten,
-die Zeichnungen des unteren Docks und die globalen Schriften werden nicht ersetzt.
-
-
-## Browseraufgaben auf diesem Desktop
-
-In **Lumen Serververbindung** die Option **Browsersteuerung auf diesem Desktop**
-aktivieren. Lumen lädt beim ersten Mal Chromium und die festgelegten Browserwerkzeuge.
-Dafür werden Node.js ab Version 20, npm und bubblewrap benötigt. Anschließend erscheint
-der online verbundene Desktop im Browserdialog auf dem Server; andere eingerichtete
-Rechner bleiben wählbar. Es wird kein eingehender Port geöffnet.
-
-Jede Sitzung verwendet ein eigenes, flüchtiges Browserprofil in einer Dateisystem-
-Isolation. Private Browserprofile und Dateien werden nicht eingebunden. Anmeldungen
-können im Serverdialog über **Übernehmen** selbst eingegeben werden. Ausschalten der
-Option beendet den Zugang; nach einem Verbindungsabbruch werden unbekannte Aktionen
-nicht automatisch wiederholt oder auf einen anderen Rechner verschoben.
+[Guide index](docs/README.md) · [Use a file in another app](docs/interop/USAGE.md) · [Install or update](INSTALL.md)

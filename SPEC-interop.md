@@ -1,9 +1,0 @@
-> **Historischer native App-Vertrag.** Notes, Projekte, Code, Inbox, Audio Studio und Vault verwenden heute den gemeinsamen Server-Host. Die früheren lokalen Empfänger und ihre Sicherungs-/Notizordnerabläufe sind kein zusätzlicher Offline-Modus. Aktuelle Übergaben und offene Anschlussgrenzen: [Interop-Bedienung](docs/interop/USAGE.md).
-
-# Lumen interoperability
-
-Implement the user-approved 100-example proposal plus Wissen-to-Vault and Files-to-Reader. The shared boundary and module map live in docs/interop/CONTRACT.md; numbered acceptance evidence lives in docs/interop/COVERAGE.md. Preserve native desktop interaction, DE/EN naming with Lumen prefix, explicit side effects, local ownership and source backlinks.
-
-Commands: `scripts/test-desktop.sh`; native cold/warm launch checks under tests/. Python modules and tests stay in files/, launchers in bin/, desktop handlers in data/applications/. Follow existing Library/Job/QSettings patterns; interface helpers are isolated from the already large app.py.
-
-Build order: reference and transport contract → Files/Reader and Wissen/Vault vertical flows → destination adapters → selected source actions → cross-app relations/search → backup/restore and audio → native integration/local installation. Changes are additive; original files and uncommitted unrelated README changes are preserved. Never silently send mail, enable audio automation or make model calls. Existing persistence APIs keep their authority; link/copy modes have distinct behavior.

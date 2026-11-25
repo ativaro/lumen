@@ -1,102 +1,24 @@
-# Lumen Reader und Lumen Sound
-
-Sound ist jetzt ein Tab in **Lumen System**, gemeinsam mit der Systemübersicht.
-`lumen-sound` öffnet weiterhin direkt den Mixer im gemeinsamen Fenster. App-Regeln, automatische Gesprächsabsenkung und Datenpfade bleiben erhalten.
-
-Reader hat ein eigenes lokales Fenster; Sound gehört zum gemeinsamen
-Systemfenster. Beide folgen den Lumen-Themes und bleiben über ihre Starter erreichbar. Der Installer richtet die Starter
-ein; **Einrichtung** prüft die optionalen Abhängigkeiten. Es werden keine
-Dateizuordnungen ersetzt und keine Audioregeln automatisch aktiviert.
+# Reader and Sound
 
 ## Reader
 
-**Buch oder Dokument öffnen** importiert PDF, EPUB, TXT, Markdown, HTML oder ein Office-Dokument in
-eine private Bibliothek. Auch **Öffnen mit → Lumen Reader** und
-`lumen-reader "/pfad/buch.pdf"` funktionieren; ein weiteres Dokument erreicht
-das bereits geöffnete Fenster. **Artikel speichern** lädt eine ausdrücklich
-angegebene Webadresse ohne Browserkonto und speichert den lesbaren Text.
+Open **Lumen Reader** or right-click a document in Files and choose **Open with → Lumen Reader**. You can also run `lumen-reader "/path/to/book.epub"`. Reader imports a copy into your private library and remembers your position. Importing a changed original creates a new library entry.
 
-Seitenbreite, Zoom, Textansicht, Inhaltsverzeichnis und Buchsuche helfen bei der
-Navigation. Bild-ab/Bild-auf wechseln die Seite bei fokussierter Leseansicht.
-Leseposition und Randnotizen werden automatisch gespeichert. Text auf der Seite
-ziehen oder in der Textansicht per Tastatur auswählen und **Markieren** klicken.
-**Lesezeichen** hält die aktuelle Seite fest. **Lesemodus** blendet beide
-Seitenleisten aus; ein weiterer Klick bringt sie zurück. Notizen lassen sich
-als Markdown exportieren.
+- **Read and navigate.** Open a PDF, EPUB, text, Markdown, HTML or supported Office document. Use the outline, search, zoom or page-width controls. Reading mode hides the sidebars. A PDF keeps its page layout. An imported web article is saved as readable text.
+- **Mark a passage.** Select text on a page or in text view and choose Highlight. Add a margin note or bookmark the current page. Export notes as Markdown when you want a copy outside the library.
+- **Listen.** Select a passage or open a page and choose Read aloud. Set up a local Piper voice first. Pause or stop playback from Reader.
+- **Read a scan.** Image-only pages can display, but highlighting, text search and speech require readable text. Create a searchable copy in the [Files document workshop](files/README.md#work-with-pdfs).
 
-**Vorlesen** verwendet die vorhandene lokale Piper-Stimme für die Auswahl oder
-die aktuelle Seite (bis 24.000 Zeichen), mit Pause und Stopp. Die Stimme lässt
-sich in der Einrichtung installieren. **Als Notiz speichern …** bereitet die ausgewählte Stelle beziehungsweise Markierung
-mit Titel, Reader-Seite und Originalquelle für die gemeinsame Notes-App vor.
-Dafür sind Serverbindung und Notes-Freigabe nötig; den Übergabedialog prüfen.
-Der Klick startet keinen KI-Auftrag. Alte lokale Wissen-Ordner sind nicht das Ziel.
-
-Originale bleiben unverändert; alle Ansichten beziehen sich auf eine Lesekopie.
-Ein geändertes Original wird bei erneutem Import ein neuer Eintrag. PDF-Seiten
-behalten ihr Layout, EPUB-Seiten verwenden eine feste Einteilung für verlässliche
-Notizpositionen. HTML wird in reinen Artikeltext umgewandelt: Skripte, Bilder,
-Styles und externe Ressourcen werden nicht übernommen. DRM-geschützte EPUBs,
-interaktive PDF-Formulare und OCR für reine Bildseiten gehören nicht zum Reader.
-Bildseiten bleiben sichtbar, haben aber keine auswählbare Textschicht.
-
-PDF-Passwörter bleiben nur für die geöffnete Sitzung im Speicher. Die Lesekopie
-bleibt verschlüsselt; ausdrücklich angelegte Notizen und Wissenseinträge enthalten
-jedoch den ausgewählten Klartext. Vorlesedateien werden beim Seitenwechsel oder
-normalen Schließen entfernt. Die Bibliothek liegt privat unter
-`$XDG_DATA_HOME/lumen-tools/reader` (standardmäßig `~/.local/share/lumen-tools/reader`),
-Notes dagegen auf dem verbundenen Server. Archiveinträge bleiben in der
-Bibliothek und können wieder eingeblendet werden.
-
-Der Parser läuft in einem abbrechbaren Unterprozess mit Zeit-, Datei-, Seiten-
-und Ausgabegrenzen. Dies ist keine Betriebssystem-Sandbox. Die optionalen
-Reader-Pakete sollten wie der Rest des Systems aktuell gehalten werden.
+Reader's library lives under `$XDG_DATA_HOME/lumen-tools/reader`, usually `~/.local/share/lumen-tools/reader`. A password entered for a PDF stays in memory for the open session. The imported copy keeps its encryption. Notes you write about it can contain readable excerpts. Archiving an item keeps it in the library.
 
 ## Sound
 
-**Anwendungen** zeigt die aktiven Wiedergabestreams. Regler, **Stumm** und
-**Ausgabe** betreffen genau diesen Stream. Kanalbalance bleibt erhalten; der
-Regler begrenzt neue Einstellungen auf 0–100 %. Ein fehlendes Zielgerät wird
-gemeldet. Lumen ändert keine Hardwareprofile oder globalen Standardgeräte.
+Open **Lumen System → Sound** or run `lumen-sound`. Start playback in the application you want to adjust so its stream appears.
 
-**Für App merken** speichert Lautstärke, Ausgang, Stummstatus und eine optionale
-Rolle. Unter **Regeln & Gespräche** lassen sich Regeln bearbeiten oder löschen.
-Eine App wird anhand ihrer gemeldeten Kennung beziehungsweise Programmdatei
-zugeordnet; mehrere Browser-Tabs können deshalb dieselbe Regel erhalten.
-Die Ziel-App muss für das erstmalige Hinzufügen einen Audio- oder Aufnahmestrom
-geöffnet haben. Ein fehlendes gespeichertes Ausgabegerät wird abgewartet.
+1. Select the application stream. Change its volume, mute it or choose an available output.
+2. To reuse those choices, save a rule for that app. Several tabs in a browser can share the same application identity.
+3. To lower music during a call, give the player the music role and the calling app the call role, then choose the reduction. Activate and apply the rules for this login or for every login.
 
-Die **Automatik ist standardmäßig aus**. Erst **Für diese Anmeldung aktiv** oder
-**Bei jeder Anmeldung starten** plus **Übernehmen** aktiviert die Regeln.
-Der eigene Benutzer-Dienst `lumen-sound.service` arbeitet auch bei geschlossenem
-Fenster. Das Abschalten stellt temporär abgesenkte Musik wieder her; ausdrücklich
-gesetzte App-Lautstärken und Ausgaben bleiben erhalten. Löschen einer Regel setzt
-eine laufende App ebenfalls nicht auf frühere Einstellungen zurück.
+Automatic rules are off initially. Call detection uses audio-stream metadata such as an active recording stream. It does not record your call. If an app leaves its microphone open, the reduction can last longer than the call. Disabling the automation restores temporarily lowered music. Explicit volume and output changes stay in effect.
 
-Für Gesprächsabsenkung einer App die Rolle **Musik**, der Gesprächs-App die Rolle
-**Gespräch** geben, das Absenken einschalten und speichern. Es greift, wenn die
-Gesprächs-App eine aktive Mikrofonverbindung oder einen als Telefonie gemeldeten
-Wiedergabestrom öffnet. Der Prozentwert bezieht sich auf den vorherigen Musikpegel.
-Erkennung erfolgt ungefähr alle zwei Sekunden anhand von Metadaten; es wird kein
-Audio aufgenommen oder transkribiert. Apps ohne solche Merkmale lösen keine
-Absenkung aus. Eine dauerhaft offene Mikrofonverbindung kann sie länger auslösen.
-
-Manuelle Pegeländerungen haben während des Gesprächs Vorrang. Bei Gesprächsende,
-normalem Dienststopp oder Wiederanlauf werden nur noch unveränderte, von Lumen
-abgesenkte Streams wiederhergestellt. Server-/Stream-Identitäten verhindern eine
-Wiederherstellung auf einem anderen Stream. Bei einem hart beendeten Dienst kann
-die Wiederherstellung erst nach dessen erneutem Start erfolgen.
-
-Regeln und das Wiederherstellungsjournal liegen privat unter
-`$XDG_DATA_HOME/lumen-tools/sound`. PipeWire/WirePlumber werden weder konfiguriert
-noch neu gestartet. Benötigt wird `pactl` aus `libpulse` und ein Pulse-kompatibler
-Audioserver; für die Automatik zusätzlich die systemd-Benutzersitzung.
-
-## Prüfung
-
-Der isolierte Testlauf aus PUBLISHING.md („Verify locally“) prüft Dokumentimport, Notizerhalt,
-Wissenszitate, Audiozustände und Fehlerpfade. `python3 tests/check-sound.py`
-prüft reale Umschaltung und Absenkung in einer privaten PipeWire-Sitzung mit
-stummen virtuellen Geräten und WirePlumbers hardwarefreiem Policy-Profil.
-`python3 tests/check-reader-launch.py` prüft Kalt-/Warmstarts aller Werkzeuge und
-die Dateiübergabe an Reader in einem temporären Benutzerprofil. Ein optionales
-Argument gibt ein anderes Starter-Verzeichnis für die installierte Version an.
+[Guide index](docs/README.md)

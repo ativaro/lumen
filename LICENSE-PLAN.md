@@ -11,7 +11,7 @@ The EULA allows personal and internal business use, local builds and internal
 customization. Redistribution, resale, commercial forks, OEM editions and
 hosted offerings require the maintainer's express written agreement. It sets
 no price or revenue share. Source availability is not an open-source grant.
-The repository remains private. Microsoft is not a party and its terms have
+Microsoft is not a party and its terms have
 not been copied.
 
 ## Boundaries that remain

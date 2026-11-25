@@ -1,34 +1,21 @@
-# Lumen Desktop – Dokumentation
+# Lumen Desktop guides
 
-## Aktuelle Bedienung
+| I want to… | Guide |
+| --- | --- |
+| Install Lumen, choose a model, update or restore my Plasma layout | [Installation and recovery](../INSTALL.md) |
+| Ask a first question, use dictation or check an action | [Using Lumen Desktop](../LUMEN-GUIDE.md) |
+| Launch an application or find a file from the keyboard | [Desktop search](../SEARCH-PREVIEW.md) |
+| Organize files, preview photos, work on PDFs or keep file versions | [Lumen Files](../files/README.md) |
+| Connect cloud storage or use a network folder | [Online accounts](../ONLINE-ACCOUNTS.md) |
+| Read, annotate or listen to a document | [Reader](../READER-SOUND.md#reader) |
+| Translate a PDF or review a rewrite alongside the original text | [Compose](../LUMEN-GUIDE.md#write-with-compose) |
+| Change volume for an application or lower music during calls | [Sound](../READER-SOUND.md#sound) |
+| Diagnose a failed service or check the installation when the assistant is unavailable | [System diagnostics](../LUMEN-GUIDE.md#inspect-your-system) |
+| Find a past notification or ask for a timed reminder | [Notifications](../LUMEN-GUIDE.md#notifications) |
+| Keep a receipt, find a device manual or check a contract deadline | [Digital Household](../LUMEN-GUIDE.md#keep-household-records) |
+| Ask about a control in an application window | [Companion](../LUMEN-GUIDE.md#get-help-with-a-window) |
+| Reuse selected content in another application | [File and text handoffs](interop/USAGE.md) |
+| Review or correct what Lumen remembers | [Personal memory](../WISSEN.md) and [learning controls](memory/LEARNING.md) |
+| Inspect the tools available to my assistant | [Desktop tool access](../MCP.md) |
 
-- [Überblick und Installation](../README.md) – eigenständige Desktop-Funktionen und optionale Servererweiterung.
-- [Installation, Update und Wiederherstellung](../INSTALL.md).
-- [Lumen bedienen](../LUMEN-GUIDE.md) und [Files](../files/README.md).
-- [App-Zuständigkeiten](desktop-retirement.md), [Notes und lokales Gedächtnis](../WISSEN.md), [Projekte](../PROJECTS.md).
-- [Vault und Inbox](../VAULT-INBOX.md), [Reader und Sound](../READER-SOUND.md).
-- [Übergaben zwischen Apps](interop/USAGE.md), [MCP-Werkzeuge](../MCP.md), [lokales Lernen](memory/LEARNING.md).
-- [Online-Konten](../ONLINE-ACCOUNTS.md), [Quellveröffentlichung](../PUBLISHING.md).
-
-## Welche Quelle gilt?
-
-Die Benutzeranleitungen oben beschreiben die aktuellen Wege. Normale Notes-,
-Projekt-, Code-, Inbox-, Audio-Studio- und Vault-Fenster zeigen die gemeinsame
-Server-App. Der lokale Desktop bleibt für Gespräche, Dateien, Systemhilfe,
-Compose, Reader, Haushalt, Gedächtnis und Sicherungen eigenständig nutzbar.
-Es gibt keine globale Arbeitsraumwahl und keinen heimlichen lokalen Ersatz für
-nicht erreichbare Server-Apps. Alte Daten werden nicht durch die Entfernung
-alter Programme gelöscht; ein vollständiger automatischer Import ist damit
-nicht zugesichert.
-
-[Panorama](lumen-panorama/standard.md) ist die verbindliche Gestaltungsreferenz.
-Datierte Abnahmen in diesem Ordner und ursprüngliche `SPEC-*`-/`tasks`-Dokumente
-bewahren Entwicklungsentscheidungen und Prüfbelege. Ihre alten Modulnamen,
-Testzahlen und damaligen Installationszustände sind keine pauschale Zusicherung
-für den heutigen Quellstand. Als historisch markierte lokale App-Anleitungen
-nicht für neue Installationen verwenden.
-
-Eine Quellprüfung ersetzt keinen Test auf einem tatsächlich eingerichteten
-Rechner. Persönliche Geräte, Konten, Sicherungen und Tresore sind keine
-Wegwerf-Testumgebungen. Releasebelege halten geprüfte Quelle, Umfang und
-Rückweg separat fest.
+[Back to Lumen Desktop](../README.md)

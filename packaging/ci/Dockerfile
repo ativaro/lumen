@@ -1,7 +1,7 @@
 # CI image for the desktop gate scripts/test-desktop.sh; PUBLISHING.md ("Verify locally") lists what it
 # needs. The Arch base and a dated Arch Linux Archive snapshot keep a rebuild on the same packages.
-#   docker build -t forge.example.invalid/lumen/desktop-ci:<date> packaging/ci
-#   docker push forge.example.invalid/lumen/desktop-ci:<date>      # then pin the digest in .forgejo/workflows
+#   docker build -t <registry>/lumen/desktop-ci:<date> packaging/ci
+#   docker push <registry>/lumen/desktop-ci:<date>      # then pin the digest in .forgejo/workflows
 FROM docker.io/library/archlinux:base-devel@sha256:fa2d4ce3310ddd90a4208e5168be8ad367da5129af1245f38fd2d803bcbe3239
 
 # The image leaves out locale data; the tests run with de_DE.UTF-8, so glibc is reinstalled with it.

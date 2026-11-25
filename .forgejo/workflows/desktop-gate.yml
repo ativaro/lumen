@@ -2,8 +2,6 @@ name: desktop-gate
 
 # The whole desktop suite (scripts/test-desktop.sh) in the CI image packaging/ci/Dockerfile, on the
 # cluster runner only. PUBLISHING.md ("Verify locally") describes the gate.
-# The runner runs on worker node talos-04 with a memory limit (8 GiB, 7 GiB per job, one job at a time) since
-# 18.11.2026, after a job without a limit drove a control-plane node out of memory. This gate peaks at ~2.4 GiB.
 on:
   push:
   pull_request:

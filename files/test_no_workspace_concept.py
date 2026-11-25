@@ -78,7 +78,7 @@ KWIN_FILES = ('files/lumen_actions.py', 'files/lumen_activation.py',
               'tests/desktop/session.py')
 PLASMA_PKG = r'\bplasma-workspace\b'
 PLASMA_REASON = 'Name of the upstream KDE package and repository "plasma-workspace".'
-PLASMA_FILES = ('INSTALL.md', 'SPEC-appmenu.md', 'packaging/arch/PKGBUILD')
+PLASMA_FILES = ('INSTALL.md', 'packaging/arch/PKGBUILD')
 
 ALLOWED = (
     *(allow(path, KWIN_API, KWIN_REASON) for path in KWIN_FILES),
@@ -94,8 +94,6 @@ ALLOWED = (
           'Cargo manifest syntax ([workspace] table, key inheritance) is fixed by Cargo.', optional=True),
     allow('native/*Cargo.*', r'\brustc-std-workspace-(?:core|alloc|std)\b',
           'Names of crates from the Rust standard library build, fixed upstream.', optional=True),
-    allow('AGENTS.md', None,
-          'The binding rule against workspaces has to name the forbidden terms.'),
     allow('packaging/retired-desktop-files.txt', r'^[\w./-]+$',
           'Lines are old file names that upgrades delete; they must keep the retired names.'),
     allow(SELF, None,

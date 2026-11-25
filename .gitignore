@@ -22,6 +22,13 @@ client_secret_*.json
 /system.md
 /sync.md
 
+# Local assistant configuration and work notes
+/AGENTS.md
+/CLAUDE.md
+/GEMINI.md
+/.codex/
+/.claude/
+
 # Arch package build artifacts
 packaging/arch/pkg/
 packaging/arch/src/

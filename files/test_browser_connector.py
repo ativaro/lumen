@@ -22,7 +22,7 @@ class DesktopBrowserTests(unittest.TestCase):
         self.assertIn('--clearenv',args)
         self.assertIn('--unshare-all',args)
         self.assertIn('--die-with-parent',args)
-        self.assertNotIn('/home/example',args)
+        self.assertNotIn(str(Path.home()), args)
         self.assertIn('/tmp',args)
         self.assertNotIn('--no-sandbox',args)
         self.assertIn('HOME',args)

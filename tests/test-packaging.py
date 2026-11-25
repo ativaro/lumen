@@ -33,15 +33,15 @@ class PackagingTest(unittest.TestCase):
             target = self.repo/name; target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(REPO/name, target)
         self.git('init', '-b', 'main')
-        self.git('remote', 'add', 'origin', 'https://forge.example.invalid/ativaro/lumen.git')
+        self.git('remote', 'add', 'origin', 'https://forgejo.example.invalid/tester/lumen.git')
         self.git('add', '.')
         self.git('-c', 'user.name=Synthetic', '-c', 'user.email=synthetic@example.invalid', 'commit', '-m', 'fixture')
 
     def test_source_identity_survives_archive_and_omits_credentials(self):
         self.initialize()
-        self.git('remote', 'set-url', 'origin', 'https://synthetic:credential@forge.example.invalid/ativaro/lumen.git?token=private#private')
+        self.git('remote', 'set-url', 'origin', 'https://synthetic:credential@forgejo.example.invalid/tester/lumen.git?token=private#private')
         result = identity.identity(self.repo)
-        self.assertEqual(result['source_url'], 'https://forge.example.invalid/ativaro/lumen.git')
+        self.assertEqual(result['source_url'], 'https://forgejo.example.invalid/tester/lumen.git')
         self.assertEqual(result['revision'], self.git('rev-parse', 'HEAD'))
         extracted = Path(self.temp.name)/'extracted'; extracted.mkdir()
         (extracted/'source.json').write_text(json.dumps(result))
@@ -71,7 +71,7 @@ class PackagingTest(unittest.TestCase):
         with tarfile.open(archive) as bundle:
             data = json.load(bundle.extractfile('lumen-1.2.0/source.json'))
         self.assertEqual(data['revision'], self.git('rev-parse', 'HEAD'))
-        self.assertEqual(data['source_url'], 'https://forge.example.invalid/ativaro/lumen.git')
+        self.assertEqual(data['source_url'], 'https://forgejo.example.invalid/tester/lumen.git')
         (self.repo/'uncommitted.py').write_text('new source')
         failed = subprocess.run(command, capture_output=True)
         self.assertNotEqual(failed.returncode, 0)

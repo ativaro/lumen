@@ -100,7 +100,7 @@ class UpdaterTest(unittest.TestCase):
             with self.assertRaises(ValueError): updater.source_url()
 
     def test_official_installations_keep_their_recorded_source(self):
-        for url in ('https://forge.example.invalid/ativaro/lumen.git', 'https://github.com/ativaro/lumen.git'):
+        for url in ('https://forgejo.example.invalid/tester/lumen.git', 'https://github.com/ativaro/lumen.git'):
             with self.subTest(source=url):
                 updater.save_json(self.install/'install.json', dict(source_url=url))
                 with patch.object(updater, 'REMOTE', 'https://github.com/ativaro/lumen.git'):
@@ -109,7 +109,7 @@ class UpdaterTest(unittest.TestCase):
 
     def test_mixed_official_installations_do_not_silently_change_channels(self):
         system = self.root/'system'
-        updater.save_json(self.install/'install.json', dict(source_url='https://forge.example.invalid/ativaro/lumen.git'))
+        updater.save_json(self.install/'install.json', dict(source_url='https://forgejo.example.invalid/tester/lumen.git'))
         updater.save_json(system/'install.json', dict(source_url='https://github.com/ativaro/lumen.git'))
         with patch.object(updater, 'REMOTE', 'https://github.com/ativaro/lumen.git'), \
                 patch.object(updater, 'installations', return_value=[self.install, system]):
@@ -142,8 +142,8 @@ class UpdaterTest(unittest.TestCase):
     def test_official_channel_keeps_prior_cached_checkout_and_old_plans_separate(self):
         previous=Path(os.environ['XDG_CACHE_HOME'])/'lumen/updater/source'
         previous.mkdir(parents=True);(previous/'local-edit').write_text('keep')
-        updater.save_json(self.install/'install.json',dict(source_url='https://forge.example.invalid/ativaro/lumen.git'))
-        self.assertEqual(updater.source_url(),'https://forge.example.invalid/ativaro/lumen.git')
+        updater.save_json(self.install/'install.json',dict(source_url='https://forgejo.example.invalid/tester/lumen.git'))
+        self.assertEqual(updater.source_url(),'https://forgejo.example.invalid/tester/lumen.git')
         source=updater.source_root()
         self.assertNotEqual(previous,source)
         updater.save_json(self.install/'install.json',dict(source_url='https://github.com/ativaro/lumen.git'))

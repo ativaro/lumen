@@ -1,43 +1,20 @@
-# Lumen MCP
+# Desktop tool access
 
-Der lokale MCP-Server mit dem kompatiblen Namen `cachyos` verbindet OpenCode und die tatsächlich installierten Desktopfunktionen. `lumen-mcp` verwendet dieselbe Qt-6-Laufzeit wie die Apps. Die lokale Verbindung braucht keinen öffentlich erreichbaren HTTP-Port.
+Lumen connects its assistant to local tools through the Model Context Protocol (MCP). The installed desktop integration uses the name `cachyos` and the command `lumen-mcp`. It communicates through a local process.
 
-Bei einer Benutzerinstallation richtet `lumen-setup` die vorhandene Integration ein; `install.sh --no-mcp` lässt sie ausdrücklich aus. Nach Änderungen die Engine-/MCP-Verbindung erneuern. Bestehende Benutzerkonfiguration und deaktivierte Verbindungen bleiben erhalten.
+## See what is available
 
-## Lokale Werkzeuge
+Open **Settings → Capabilities & extensions** and choose **Load capabilities**. The MCP tab shows configured tool connections and their status. The plugins tab lists configured OpenCode plugins, and the skills tab lets you inspect the instructions available to the assistant. This view reads the configuration for the selected working directory. Each conversation still has its own permissions.
 
-| Bereich | Beispiele | Grenze |
-| --- | --- | --- |
-| System | `systemctl`, `journal`, `pacman`, `disk`, `gpu`, `memory`, `sensors`, `kwin`, `lumen_system_snapshot` | Status und Messungen; nicht allein daraus einen Fehler oder Erfolg ableiten |
-| Dateien | `lumen_files_locations`, `lumen_files_search`, `lumen_knowledge` | Gewählte Quellen, begrenzte Suche und belegte Auszüge; keine pauschale Dateifreigabe |
-| Ergebnisansicht | `lumen_present_files`, `lumen_present_view` | Vorhandene geprüfte Inhalte im Gespräch darstellen; keine freien URLs als Beleg ausgeben |
-| Gedächtnis | `lumen_memory_context`, `lumen_memory_list`, `lumen_memory_read` | Aktuelle Freigaben, Scope und Vergessen gelten; Inhalte sind keine Ausführungsanweisungen |
-| Aufträge | `lumen_propose_task`, `lumen_tasks_list`, `lumen_task_get` | Vorschlag, Status und Verlauf; ein Entwurf ist keine Genehmigung |
-| Einstellungen | `lumen_settings_get`, optionale Setz-/Theme-/Shortcut-Werkzeuge | Erlaubte Felder und erwarteter Vorwert; keine selbst erteilten Privacy-Rechte |
-| Lokales Compose | `lumen_translate_options`, `lumen_translate_text`, `lumen_translate_pdf` | Gewählte Verarbeitung; PDF-Ausgabe braucht die entsprechende Aktionsfreigabe |
-| Mitteilungen | `lumen_notifications_list`, Zustands- und Erinnerungswerkzeuge | Eigene Lumen-Meldungen; keine allgemeine Sammlung fremder Desktopnachrichten |
+The current tool list depends on the installation and its permissions. Common read operations include inspecting processes, disks, sensors, package or service status, searching selected file locations and checking a task's progress. File results can carry excerpts. A filename match alone does not establish what the file says.
 
-Der verbindliche Katalog steht im laufenden MCP-Discovery-Ergebnis und in `files/lumen_mcp_tools.py` beziehungsweise `bin/lumen_mcp.py`. Je nach Komponente und Freigabe sind nicht alle Werkzeuge vorhanden. Eine Namensliste ersetzt keine aktuelle Schema- und Berechtigungsprüfung.
+For a system issue, first ask Lumen to inspect the relevant service or log. If you want it to change something, specify the desired result and review the tool request. A saved task proposal requires its own approval. After an interrupted write, check the target before trying it again.
 
-## Gemeinsame Server-Apps
+## Set up the integration
 
-Notes, Projekte, Code, Audio Studio, Inbox und Vault werden vom gekoppelten Server bereitgestellt. Ihre alten lokalen Notes-/Projekt-/Inbox-Werkzeuge sind entfernt oder lehnen die Verwendung ausdrücklich ab. Alte SQLite-Dateien sind kein Ersatz für den Serverbestand.
+A normal user installation sets up the desktop integration. To configure it later, run `lumen-setup`. To omit it during a manual user install, use `./install.sh --no-mcp`. Existing disabled integrations and their settings are preserved. Reconnect the engine after a configuration change.
 
-Die Desktop-Engine kann bei passender Kopplung zusätzliche Serverwerkzeuge erhalten. `lumen_server_tools` dient dort zur Erkundung; verwende nur die tatsächlich angebotenen Werkzeuge und ihre exakten aktuellen Schemas. Server-Leserechte, Schreibvorschläge, Gerätefähigkeiten und Bestätigungen bleiben maßgeblich. Ein getrennt gestarteter lokaler `lumen-mcp`-Prozess garantiert nicht denselben zusätzlichen Serverkatalog.
-
-Die lokale Drive-Suche `lumen_drive_search` und `lumen_drive_read` prüft ebenfalls Server, Konto, Gerät und Dateizugriff. Suchmetadaten sind nicht bereits gelesener Dateiinhalt. [Gemeinsame Apps](docs/desktop-retirement.md) · [Projektwerkzeuge](opencode-skill/lumen-projects/SKILL.md).
-
-## Freigaben und Ausführung
-
-Allgemeine optionale Aktionen sind standardmäßig aus. Ein bewusst gesetztes `LUMEN_MCP_ACTIONS=1` macht sie verfügbar; normale Engine-Freigaben gelten weiter. Der alte Schalter `LUMEN_MCP_PROJECT_ACTIONS` schaltet keinen entfernten lokalen Projekt-Runner wieder ein.
-
-Werkzeuge mit eigener nativer Bestätigung, insbesondere Zugangsdatenaktionen, haben einen separaten Bestätigungsweg. Ihre Aufnahme im Katalog erteilt keine pauschale Secret-Freigabe. Weder Kataloglesen noch Notes-/Projektinhalt darf Privacy-Rechte ändern, eine ausstehende Entscheidung ersetzen oder eine fremde Kontobindung umgehen.
-
-Für einen unmittelbaren Nutzerauftrag wie eine Programminstallation arbeitet der Assistent mit den verfügbaren Ausführungswerkzeugen im Gespräch. Erforderliche Administratorrechte bleiben beim grafischen Systemdialog. `lumen_propose_task` ist für ausdrücklich gewünschte gespeicherte Entwürfe, wiederverwendbare Abläufe oder spätere Ausführung; es startet nichts.
-
-Nach einem unklaren Schreibausgang zuerst den tatsächlichen Zustand prüfen. Timeouts und abgebrochene Prozesse beweisen nicht, dass eine externe Aktion wirkungslos war. Fristen und Ausgabegrenzen unterscheiden sich nach Werkzeug; längere Übersetzungen und native Bestätigungen brauchen mehr Zeit als reine Statusabfragen. Quell- und Werkzeugtexte bleiben untrusted data.
-
-## Einrichten und prüfen
+For a manually configured MCP client, use your installed executable's absolute path:
 
 ```json
 {
@@ -51,4 +28,6 @@ Nach einem unklaren Schreibausgang zuerst den tatsächlichen Zustand prüfen. Ti
 }
 ```
 
-Keine Tokens oder Zugangsdaten in diese Beispiele, URLs oder Modellprompts kopieren. Für gezielte Regressionen mit temporären Profilen: `test_mcp`, `test_mcp_native`, `test_drive_mcp`, `test_server_handoff` und `test_desktop_retirement` im Verzeichnis `files`. Die Quelltests belegen nicht die Erreichbarkeit eines persönlichen Servers oder Providers.
+Optional write actions are disabled by default. Setting `LUMEN_MCP_ACTIONS=1` enables the eligible tools. Engine permissions and any required native confirmation still apply. Keep credentials out of prompts and command arguments.
+
+[Using Lumen Desktop](LUMEN-GUIDE.md) · [Guide index](docs/README.md)

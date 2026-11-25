@@ -217,7 +217,6 @@
   "Die installierten Lumen-Versionen stammen aus verschiedenen Quellen. Bitte getrennt aktualisieren.": "The installed Lumen versions come from different sources. Please update them separately.",
   "Ungültige Lumen-Update-Quelle.": "Invalid Lumen update source.",
   "Der Update-Ordner gehört zu einer anderen Quelle. Bitte den vorhandenen Update-Ordner sichern und entfernen.": "The update folder belongs to another source. Please back up and remove the existing update folder.",
-  "Die Update-Quelle ist nicht erreichbar. Internet und Zugriff auf das private Lumen-Repository prüfen.": "The update source cannot be reached. Check your Internet connection and access to the private Lumen repository.",
   "Lumen Notes wird direkt auf dem Lumen Server bearbeitet. Lokale Originale bleiben erhalten.": "Lumen Notes is edited directly on Lumen Server. Local originals are kept.",
   "Lumen Notes wird direkt auf dem Lumen Server bearbeitet. Ein lokaler Notizabgleich ist nicht mehr verfügbar.": "Lumen Notes is edited directly on Lumen Server. Local note sync is no longer available.",
   "Erinnerung öffnen … (Strg+K)": "Open memory … (Ctrl+K)",

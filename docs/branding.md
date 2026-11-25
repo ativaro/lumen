@@ -11,5 +11,3 @@ Source artwork: Lumen Mobile `Assets/AppIcon.png` (approved proposal 1). The tra
 23 aus den freigegebenen Übersichten exportierte Funktionsicons ergänzen das unveränderte Lumen-Hauptlogo. Rasterauflösung 256 px; Desktop-SVGs betten die identischen PNGs mit transparenten Kachelecken ein. Keine Vektororiginale. App-Karten verwenden 40 px (Desktop), 56/72 px (Server), Panel-Menüs 32 px. Sehr kleine 16-px-Icons zeigen vor allem den Halo; Funktionsnamen bleiben deshalb sichtbar.
 
 Desktop: App-Übersicht, Search-Iconprovider ohne Einfärbung, Panel-Appmenü und Launcher. Installer und Arch-Paket kopieren die komplette Icon-Familie. Server: AppCatalog, Suche/Einstellungen/Notification in der Kopfzeile und Drive-Markierung. Symbole für allgemeine Aktionen bleiben unverändert.
-
-Geprüft: Qt-Rendering aller 23 Icons bei 16/24/32/48/64 px, Transparenz, Katalogauflösung, unveränderte Farben im Search-Provider, QML-Paneltests mit Tastaturbedienung und mehreren Breiten, Shell/Python-Syntax, Web-Typecheck/Build. Der Server-Quellstand wurde vor dem Eingriff über sämtliche gebauten Asset-Hashes mit der installierten Oberfläche abgeglichen.

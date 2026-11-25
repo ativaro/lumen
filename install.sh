@@ -51,24 +51,16 @@ for c in bash python3 git; do command -v "$c" >/dev/null 2>&1 || missing+=("$c")
 [ ${#missing[@]} -gt 0 ] && { message "Fehlende Pflicht-Abhängigkeiten: ${missing[*]}" "Missing required dependencies: ${missing[*]}" >&2; exit 1; }
 
 "$REPO/bin/lumen-python" -c "import PySide6.QtWidgets, PySide6.QtSvg, PySide6.QtQuick, PySide6.QtQuickWidgets, gi, PIL, markdown_it" || { message "Benötigt: PySide6 mit QtQuick/QtSvg, PyGObject, Pillow und markdown-it-py" "Required: PySide6 with QtQuick/QtSvg, PyGObject, Pillow and markdown-it-py" >&2; exit 1; }
-if ! command -v g++ >/dev/null || ! command -v pkg-config >/dev/null || ! pkg-config --exists Qt6Core Qt6DBus; then
-    if command -v pacman >/dev/null && command -v pkexec >/dev/null; then
-        say "Richte den nativen Aufnahmehelfer ein" "Preparing the native capture helper"
-        pkexec pacman -S --needed --noconfirm -- gcc pkgconf qt6-base
-    else
-        message "Benötigt: g++, pkg-config und Qt-6-Core/DBus-Entwicklungsdateien." "Required: g++, pkg-config and Qt 6 Core/DBus development files." >&2
-        exit 1
+if command -v pacman >/dev/null; then
+    source "$REPO/packaging/arch/native-build-deps.sh"
+    if ! pacman -T "${native_packages[@]}" >/dev/null; then
+        say "Installiere fehlende Bauabhängigkeiten" "Installing missing build dependencies"
+        pkexec pacman -S --needed --noconfirm -- "${native_packages[@]}"
     fi
 fi
-if ! command -v cargo >/dev/null; then
-    if command -v pacman >/dev/null && command -v pkexec >/dev/null; then
-        say "Richte den Dokumentleser ein" "Preparing the document reader"
-        pkexec pacman -S --needed --noconfirm -- rust
-    else
-        message "Benötigt: Rust mit cargo (ab 1.92) für Dokumentleser und Bedeutungssuche." "Required: Rust with cargo (1.92 or newer) for the document reader and meaning search." >&2
-        exit 1
-    fi
-fi
+for tool in g++ pkg-config cmake make cargo rustc; do
+    command -v "$tool" >/dev/null || { message "Bauwerkzeug fehlt: $tool" "Missing build tool: $tool" >&2; exit 1; }
+done
 if [ "$DESKTOP" = 1 ]; then
     for c in qdbus6 kreadconfig6 kwriteconfig6 plasma-apply-desktoptheme kbuildsycoca6; do
         command -v "$c" >/dev/null || { message "Desktop-Einrichtung benötigt $c und eine KDE-Plasma-6-Sitzung." "Desktop setup requires $c and a KDE Plasma 6 session." >&2; exit 1; }
