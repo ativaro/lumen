@@ -2,7 +2,7 @@
 
 ## Before you begin
 
-Use **Arch Linux or CachyOS, KDE Plasma 6 and a regular user account**. Sign in to a graphical Plasma session. You need internet access for the initial download and any missing packages. Lumen uses your existing desktop session and display manager. Review the [license](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md).
+Use **Arch Linux or CachyOS, KDE Plasma 6 and a regular user account**. Sign in to a graphical Plasma session. You need internet access for the initial download and any missing packages. Lumen uses your existing desktop session and display manager. Lumen Desktop uses GPL-3.0-only. Both installers include the license, an index and the collected third-party notices. A user installation places them in the installation prefix (normally `~/.local/share/lumen/`), and the Arch package uses `/usr/share/licenses/lumen/`. [License](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 Install Git if your terminal does not recognize the `git` command:
 

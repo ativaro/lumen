@@ -64,4 +64,8 @@ In Settings, you can choose a local-only model connection or allow configured re
 
 Memory has separate controls for recalling stored entries, learning from conversations and accepting suggestions automatically. You can inspect a suggestion and its source, edit a saved preference or forget it. Open **Settings → Capabilities & extensions** to inspect configured tool connections, OpenCode plugins and available skills. Tools that change files or the system follow their configured permissions. [Personal memory](WISSEN.md) · [Desktop tool access](MCP.md)
 
-[All desktop guides](docs/README.md) · [License](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+[All desktop guides](docs/README.md)
+
+## License
+
+Lumen Desktop is free software under the GNU General Public License, version 3 only (SPDX: `GPL-3.0-only`). You may use, study, modify and redistribute it under those terms. Bundled libraries, fonts, icons and other third-party materials carry their own notices. [License text](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)

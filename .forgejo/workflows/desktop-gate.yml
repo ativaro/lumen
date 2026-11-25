@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 60
     container:
       # Built from packaging/ci/Dockerfile and pushed to Forgejo's registry; pinned by digest.
-      image: forge.example.invalid/lumen/desktop-ci:20261119@sha256:6083eb95ceb275f206fb66e6dec396a7162c39e38a16fea6e970cca28e2c9b5c
+      image: ${{ vars.DESKTOP_CI_REGISTRY }}/lumen/desktop-ci:20261119@sha256:6083eb95ceb275f206fb66e6dec396a7162c39e38a16fea6e970cca28e2c9b5c
       # The lumen packages are private: a Forgejo user with read access to them and a token of that
       # user with package read permission, as repository secrets (Settings -> Actions -> Secrets).
       credentials:

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.92"
 publish = false
-license-file = "../../LICENSE"
+license = "GPL-3.0-only"
 description = "Lumen's control of the OpenCode engine: one implementation for desktop and server"
 
 [dependencies]

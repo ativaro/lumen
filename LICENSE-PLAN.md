@@ -1,46 +1,18 @@
-# Licensing status and release constraints
+# License scope
 
-## Adopted direction — 5 October 2026
+Lumen Desktop is distributed under the GNU General Public License, version 3
+only (SPDX: `GPL-3.0-only`). Copyright © 2026 Lumen contributors. This grant
+covers the program as a whole and original code, documentation and artwork to
+the extent the rights holders may license them. The complete text is in
+[LICENSE](LICENSE).
 
-The maintainer instructed an immediate change from the project-wide MIT offer
-to the original proprietary [Lumen EULA](LICENSE), identified as
-`LicenseRef-Lumen-EULA`. This supersedes the earlier proposed AGPL/commercial
-model; the proposal was never adopted as Lumen's general license.
+Individual components can carry additional permissions. For example, the
+existing MIT headers on native topbar sources and the desktop test input
+helper are preserved. Modified third-party artwork, fonts, icons and libraries
+keep their attribution and terms. A new version does not revoke existing
+rights in earlier copies, including copies obtained under MIT. Contributor
+attribution alone does not establish ownership.
 
-The EULA allows personal and internal business use, local builds and internal
-customization. Redistribution, resale, commercial forks, OEM editions and
-hosted offerings require the maintainer's express written agreement. It sets
-no price or revenue share. Source availability is not an open-source grant.
-Microsoft is not a party and its terms have
-not been copied.
-
-## Boundaries that remain
-
-- This change cannot withdraw rights already granted for earlier MIT copies.
-  Historical license texts remain in Git. No history rewrite or retroactive
-  restriction is intended.
-- Only code and assets the maintainer owns or is authorized to relicense are
-  covered. Verify authorship and contribution rights before a release; a Git
-  author label does not establish copyright ownership. Third-party notices and
-  separately licensed contributions remain effective.
-- Qt/PySide6 LGPL obligations, including library replacement, corresponding
-  source and debugging/relinking rights, remain mandatory where applicable.
-- The previous external PDF engine has been replaced with Lumen's own format
-  implementation. Runtime and installation no longer require that component.
-  This removes that dependency from the current distribution, without certifying
-  the complete application or changing obligations for earlier releases.
-  System OpenSSL 3, Qt and font licenses still apply.
-- GPL desktop artwork and MIT vendored keepass (including its local patches)
-  retain their notices and rights. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-Before a public/commercial release, confirm the licensor's full legal identity
-and contact details, have qualified counsel review the EULA and acceptance flow
-for the intended jurisdictions, and complete the dependency/contribution audit.
-The repository text and installer notice alone do not certify enforceability,
-user assent or clearance of the complete distribution. Do not publish a
-proprietary binary distribution with unresolved copyleft integrations.
-
-Primary references:
-- [Qt LGPL obligations](https://www.qt.io/development/open-source-lgpl-obligations)
-- [OpenSSL 3 migration and license](https://docs.openssl.org/3.0/man7/migration_guide/)
-- [GNU license FAQ](https://www.gnu.org/licenses/gpl-faq.en.html)
+The [third-party index](THIRD_PARTY_NOTICES.md) identifies the components and
+the [release guide](PUBLISHING.md#licenses-and-corresponding-source) explains
+how to supply matching source with a binary.

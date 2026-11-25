@@ -1,7 +1,7 @@
 # Maintainer: Lumen
 pkgname=lumen
 pkgver=1.2.0
-pkgrel=119
+pkgrel=120
 pkgdesc="Lumen — AI desktop for CachyOS with files, tasks, knowledge and workflows"
 provides=('opencode-lumen')
 # No automatic conflict removal: the legacy package's uninstall script deletes reports.
@@ -11,7 +11,7 @@ arch=('x86_64' 'aarch64')
 # Rust links ring's C objects with a different linker from GCC's LTO plugin.
 options=('!lto')
 url="https://github.com/ativaro/lumen"
-license=('LicenseRef-Lumen-EULA' 'GPL-3.0-only' 'GPL-2.0-or-later')
+license=('GPL-3.0-only' 'MIT' 'Apache-2.0' 'ISC' 'BSD-2-Clause' 'BSD-3-Clause' 'Unicode-3.0' 'Zlib' 'OFL-1.1')
 depends=('bash' 'git' 'python3' 'pyside6' 'python-gobject' 'python-pillow' 'python-markdown-it-py' 'openssl' 'layer-shell-qt' 'libdbusmenu-glib' 'qt6-declarative' 'kirigami' 'plasma-workspace' 'kitemmodels' 'sqlite')
 makedepends=('gcc' 'pkgconf' 'make' 'qt6-base' 'cmake' 'layer-shell-qt' 'libdbusmenu-glib' 'qt6-declarative' 'rust')
 # OpenCode may be installed through its own installer. Native files/tasks remain
@@ -235,5 +235,6 @@ package() {
     # ---- license ----------------------------------------------------------
     install -d "$pkgdir/usr/share/licenses/$pkgname"
     install -m0644 "$srcroot/LICENSE" "$srcroot/THIRD_PARTY_NOTICES.md" "$pkgdir/usr/share/licenses/$pkgname/"
-    install -m0644 "$srcroot/desktop/COPYING.GPL-3.0" "$srcroot/desktop/CREDITS.md" "$pkgdir/usr/share/licenses/$pkgname/"
+    install -m0644 "$srcroot/desktop/COPYING.GPL-3.0" "$srcroot/desktop/CREDITS.md" "$srcroot/desktop/COPYING.LGPL-3.0" "$pkgdir/usr/share/licenses/$pkgname/"
+    /usr/bin/python3 "$srcroot/packaging/third-party.py" "$pkgdir/usr/share/licenses/$pkgname/THIRD_PARTY_LICENSES.txt"
 }

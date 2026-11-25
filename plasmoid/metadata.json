@@ -5,7 +5,7 @@
     "Description": "Background access to the shared system notification history",
     "Icon": "lumen-notification",
     "Version": "1.2.0",
-    "License": "LicenseRef-Lumen-EULA"
+    "License": "GPL-3.0-only"
   },
   "KPackageStructure": "Plasma/Applet",
   "X-Plasma-API-Minimum-Version": "6.0",

@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 PAYLOAD = ('bin', 'files', 'agent-app', 'desktop', 'shell', 'opencode-command',
-           'opencode-skill', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'uninstall.sh', 'install.json')
+           'opencode-skill', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'THIRD_PARTY_LICENSES.txt', 'uninstall.sh', 'install.json')
 
 
 def remove(path):

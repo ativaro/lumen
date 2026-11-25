@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.92"
 publish = false
-license-file = "../../LICENSE"
+license = "GPL-3.0-only"
 description = "Lumen's desktop service: one user process per session for the memory's meaning search, the engine conversations in the user's persona, the connection to the Lumen Server and the notebook core of Lumen Notes"
 
 [dependencies]

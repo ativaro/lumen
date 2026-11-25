@@ -1,21 +1,17 @@
 # Desktop artwork
 
-`plasma/LumenDock` and `aurorae/LumenGraphite` contain modified MacTahoe artwork
-by Vince Liuice, from https://github.com/vinceliuice/MacTahoe-kde.
-The Lumen adaptations change colors, rounded panel slices, task indicators and
-title-bar styling. These assets are distributed under GPL-3.0; the complete
-license is in `COPYING.GPL-3.0`. Their editable SVG/SVGZ sources are included.
-The Fine minimize, maximize, restore and close glyphs are original Lumen artwork,
-also supplied under GPL-3.0; the window frame retains the attribution above.
+The panel theme in `plasma/LumenDock` and the window decoration in
+`aurorae/LumenGraphite` adapt MacTahoe artwork by Vince Liuice. Lumen changes
+panel colors and slices, task indicators and the window frame. The Fine
+window-control glyphs are original Lumen artwork. Both upstream theme
+manifests specify GPL version 3. Their editable SVG/SVGZ files and the
+[GPL text](COPYING.GPL-3.0) are included. The MacTahoe repository also carries a
+[top-level LGPL version 3 text](COPYING.LGPL-3.0).
+[Upstream Plasma theme](https://github.com/vinceliuice/MacTahoe-kde/blob/cbf6a1f71b591d143184855d62f6272ce533e7c3/plasma/desktoptheme/MacTahoe-Dark/metadata.json) ·
+[Upstream decoration](https://github.com/vinceliuice/MacTahoe-kde/blob/cbf6a1f71b591d143184855d62f6272ce533e7c3/aurorae/metadata.json)
 
-The four original Lumen wallpapers (Nacht, Alpen, Nordlicht and Himmel) include
-their editable SVG sources and use GPL-3.0. Seven additional Lumen wallpaper
-illustrations were generated with OpenAI image generation: Alpenlicht,
-Polarlicht, Lichtstrom, Schildmaid, Nachtfahrt, Duenenmeer and Neonhafen.
-These generated illustrations are supplied under the Lumen EULA in `../LICENSE`
-to the extent the licensor holds applicable rights. Earlier MIT grants remain valid.
-The GPL artwork listed above is unaffected.
-They retain their original 1672 × 941 resolution; the desktop scales them.
-
-This directory contains distributable artwork only. It contains no desktop
-configuration export, screenshots of a user's desktop, account data or backups.
+Nacht, Alpen, Nordlicht and Himmel include editable original SVGs. Alpenlicht,
+Polarlicht, Lichtstrom, Schildmaid, Nachtfahrt, Duenenmeer and Neonhafen were
+created with OpenAI image generation and are supplied at their original
+1672 × 941 resolution. Lumen's own artwork is supplied under GPL-3.0-only to
+the extent the licensor holds applicable rights. Earlier MIT grants remain valid.

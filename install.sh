@@ -42,7 +42,7 @@ for arg in "$@"; do
 done
 
 
-say "Lizenz: Lumen-EULA unter $REPO/LICENSE; Fremdlizenzen bleiben gültig." "License: Lumen EULA at $REPO/LICENSE; third-party licenses remain in effect."
+say "Lumen Desktop: GPL-3.0-only. Lizenz und Fremdlizenzen unter $PREFIX." "Lumen Desktop: GPL-3.0-only. License and third-party notices are installed in $PREFIX."
 
 # ---- dependency check ------------------------------------------------------
 say "Prüfe Abhängigkeiten" "Checking dependencies"
@@ -114,6 +114,7 @@ INSTALL_STARTED=1
 say "Installiere Dateien nach $PREFIX" "Installing files into $PREFIX"
 mkdir -p "$BIN"
 install -m 0644 "$REPO/LICENSE" "$REPO/THIRD_PARTY_NOTICES.md" "$PREFIX/"
+/usr/bin/python3 "$REPO/packaging/third-party.py" "$PREFIX/THIRD_PARTY_LICENSES.txt"
 install -m 0755 "$REPO/uninstall.sh" "$PREFIX/uninstall.sh"
 for bin_file in "$REPO/bin/"*; do
     [ -f "$bin_file" ] && install -m 0755 "$bin_file" "$BIN/"

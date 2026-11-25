@@ -21,7 +21,7 @@ class InstallerRollbackTests(unittest.TestCase):
             (source / 'packaging/source-identity.py').write_text('print(\'{"revision":"new"}\')\n')
             (source / 'bin/lumen-python').write_text('#!/bin/sh\nexit 0\n')
             (source / 'bin/lumen-python').chmod(0o755)
-            for name in ('LICENSE', 'THIRD_PARTY_NOTICES.md', 'uninstall.sh', 'agent-app/main.py'):
+            for name in ('LICENSE', 'THIRD_PARTY_NOTICES.md', 'THIRD_PARTY_LICENSES.txt', 'uninstall.sh', 'agent-app/main.py'):
                 (source / name).write_text('new\n')
             for name in ('capture', 'topbar', 'document', 'service'):
                 body = 'exit 31\n' if failure == 'build' and name == 'service' else 'printf new > "$1"\n'

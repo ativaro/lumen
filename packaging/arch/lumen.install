@@ -5,6 +5,7 @@
 post_install() {
     systemctl daemon-reload 2>/dev/null || true
     cat <<'EOF'
+Lumen Desktop · GPL-3.0-only · Lizenz und Fremdlizenzen: /usr/share/licenses/lumen/
 Lumen installiert. Dateien, Aufträge, Wissen und Abläufe sind Bestandteile von Lumen.
 Starter: lumen · Dateien: lumen --page files · Engine-Anbindung: lumen-setup
 Desktop einrichten (als Benutzer in Plasma, ersetzt Panels nach Sicherung):
@@ -16,6 +17,7 @@ EOF
 post_upgrade() {
     # Do NOT re-enable here: a user who opted out must stay opted out.
     cat <<'EOF'
+Lumen Desktop · GPL-3.0-only · /usr/share/licenses/lumen/
 Lumen aktualisiert (bestehender Dienst-Zustand bleibt erhalten).
 Aktives älteres Lumen-Fenstertheme auf Fein aktualisieren (als Benutzer in Plasma):
   lumen-desktop-setup --refresh-decoration
