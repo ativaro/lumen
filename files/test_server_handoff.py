@@ -86,7 +86,7 @@ class ConnectionTests(unittest.TestCase):
               'tasks':[{'title':'Synthetic report','state':'completed','target':'server'}],
               'backup':{'last_backup':'2026-10-06','last_check':None,'last_restore':None,'backup_state':'failed','backup_error':'quota'},
               'memory':{'memory_synced_count':2,'memory_synced_at':'2026-10-06'}}
-        with patch.object(gui.client,'read_config',return_value={'server':'https://synthetic.invalid'}),patch.object(gui.client,'request',return_value=data):
+        with patch.object(gui.client,'read_config',return_value={'server':'https://synthetic.invalid'}),patch.object(gui.client,'request',return_value=data),patch.object(gui.client,'initialize_system_access'):
             dialog=gui.ConnectionDialog();wait(lambda:dialog.refresh_button.isEnabled())
             self.assertIn('Synthetic report',dialog.sections['tasks'].text())
             self.assertIn('2026-10-06',dialog.sections['backup'].text())
@@ -95,7 +95,8 @@ class ConnectionTests(unittest.TestCase):
             with patch.object(gui.client,'request',side_effect=OSError('offline')):
                 dialog.refresh();wait(lambda:dialog.refresh_button.isEnabled())
                 self.assertTrue(all(not section.text() for section in dialog.sections.values()))
-            dialog.close()
+            # Delete now: a later garbage collection of the dialog crashes Qt in the next test.
+            dialog.worker.wait();dialog.close();dialog.deleteLater();app.processEvents()
 
     def test_browser_setup_blocks_competing_connection_changes(self):
         import browser_connector, threading

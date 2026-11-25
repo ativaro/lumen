@@ -5,7 +5,8 @@ import tempfile
 import unittest
 
 from lumen_store import Store
-from wissen_data import Notebook, resolve_link
+from wissen_data import Notebook
+from notes_query import resolve_link
 
 
 class NotesCompatibilityTest(unittest.TestCase):

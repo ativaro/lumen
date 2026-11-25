@@ -1,0 +1,3 @@
+/target/
+# A public key the vendored untrusted crate ships (the root ignores *.key); its checksum list needs it.
+!/vendor/untrusted/mk/llvm-snapshot.gpg.key

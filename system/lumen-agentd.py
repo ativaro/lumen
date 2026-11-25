@@ -22,6 +22,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 
 try:
     import dbus
@@ -36,7 +37,6 @@ BUS_NAME = "org.lumen.Agent"
 OBJ_PATH = "/org/lumen/Agent"
 IFACE = "org.lumen.Agent"
 FINDINGS = "/var/lib/lumen/findings.md"
-WATCH_BIN = "/usr/bin/lumen-watch"
 
 
 def sh(cmd, timeout=15):
@@ -104,6 +104,7 @@ def summary():
 
 class AgentService(dbus.service.Object):
     def __init__(self):
+        self._watch_requested_at = None
         dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
         bus = dbus.SystemBus()
         name = dbus.service.BusName(BUS_NAME, bus)
@@ -123,10 +124,19 @@ class AgentService(dbus.service.Object):
 
     @dbus.service.method(IFACE, out_signature="b")
     def RefreshWatch(self):
-        if os.path.exists(WATCH_BIN):
-            subprocess.Popen([WATCH_BIN])
+        now = time.monotonic()
+        if self._watch_requested_at is not None and now - self._watch_requested_at < 10:
             return True
-        return False
+        try:
+            manager = dbus.Interface(dbus.SystemBus().get_object(
+                "org.freedesktop.systemd1", "/org/freedesktop/systemd1"),
+                "org.freedesktop.systemd1.Manager")
+            # The timer and explicit refresh share one system unit, including while it is running.
+            manager.StartUnit("lumen-watch.service", "replace")
+        except dbus.DBusException:
+            return False
+        self._watch_requested_at = now
+        return True
 
 
 def main():

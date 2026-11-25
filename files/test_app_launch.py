@@ -24,8 +24,8 @@ def observed_exec(self):
         if os.environ['LUMEN_START_TEST'] == 'memory':
             assert window.memory_only and window.area == 'lumen' and window.book
         else:
-            window.select('backups')
-            assert window.tabs.currentWidget() is window.backups
+            window.select('updates')
+            assert window.tabs.currentWidget() is window.updates
         print('LUMEN_START_READY', flush=True)
         def finish():
             window.close()
@@ -64,7 +64,7 @@ class AppLaunchTest(unittest.TestCase):
     def test_memory_launcher_opens_retained_native_memory_and_closes(self):
         self.launch('lumen-wissen','memory')
 
-    def test_system_launcher_opens_backup_page_and_closes(self):
+    def test_system_launcher_opens_updates_page_and_closes(self):
         self.launch('lumen-system','system')
 
 

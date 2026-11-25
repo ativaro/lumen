@@ -75,7 +75,7 @@ class SourcesTest(unittest.TestCase):
             value = self.capture(window)
             self.assertEqual(value['text'], 'visible selection')
             self.assertEqual(value['paths'], [])
-            self.assertEqual(value['source']['position'], dict(page=2, start=0, end=17, engine='lumen-1'))
+            self.assertEqual(value['source']['position'], dict(page=2, start=0, end=17, engine='lumen-2'))
             self.select(window.text, 0, 0)
             window.note_id = 'note'
             window.note.setPlainText('edited unsaved margin')
@@ -111,18 +111,8 @@ class SourcesTest(unittest.TestCase):
 
 
 
-    def test_vault_and_sound_capture_only_useful_settings(self):
-        from tools_vault import Vault
+    def test_sound_captures_only_useful_settings(self):
         from tools_sound import Sound
-        vault = self.window(Vault)
-        key = vault.library.create('Backup', sources=[str(self.root)], repository='/secret/repository', password='secret-password')
-        vault.focus_record(key)
-        value = self.capture(vault)
-        self.assertEqual(value['paths'], [])
-        self.assertNotIn('secret', json.dumps(value))
-        vault.sources.setCurrentRow(0)
-        vault._interop_focus = vault.sources
-        self.assertEqual(self.capture(vault)['paths'], [str(self.root)])
         with patch.object(Sound, 'poll'):
             sound = self.window(Sound)
         sound.timer.stop()

@@ -6,8 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 from lumen_store import Store
 from wissen_data import Notebook
 import wissen_sync as sync
@@ -47,12 +46,6 @@ class NotesRetirementTest(unittest.TestCase):
         info=sync.sync_info(self.book)
         self.assertFalse(info['enabled']);self.assertFalse(info['allowed']);self.assertEqual(info['reason'],'server_owned')
 
-    def test_old_ui_adds_neither_timer_nor_menu_action(self):
-        import wissen_sync_ui
-        window=SimpleNamespace(notebook_menu=Mock(),action=Mock())
-        wissen_sync_ui.install(window);wissen_sync_ui.configure(window);wissen_sync_ui.synchronize(window)
-        window.notebook_menu.addAction.assert_not_called();window.action.assert_not_called();self.assertFalse(hasattr(window,'sync_timer'))
-
     def test_separate_legacy_connector_helper_process_returns_disabled(self):
         env=dict(os.environ,HOME=str(self.root/'home'),XDG_CONFIG_HOME=str(self.root/'config'),LUMEN_DATA=str(self.root/'other-state'))
         run=subprocess.run([sys.executable,str(Path(sync.__file__).resolve())],env=env,capture_output=True,text=True,timeout=10)
@@ -69,14 +62,7 @@ class NotesRetirementTest(unittest.TestCase):
         with patch.object(client,'_DATA_PROCESS',None),patch.object(client,'_DATA_NEXT',0), \
                 patch('pathlib.Path.exists',return_value=False), \
                 patch.object(client,'sync_memory') as memory, \
-                patch.object(client,'sync_drive'),patch.object(client,'sync_vault'), \
+                patch.object(client,'sync_drive'), \
                 patch.object(client.subprocess,'Popen') as spawn:
             client.sync_data();memory.assert_called_once_with();spawn.assert_not_called()
-        self.assertFalse(hasattr(client,'sync_notes'))
-
-    def test_shared_asset_folder_helper_still_verifies_symlinks(self):
-        sync.ensure_folder(self.book,'Folder/Nested')
-        self.assertTrue((self.book.root/'Folder/Nested').is_dir())
-        (self.book.root/'Link').symlink_to(self.root,target_is_directory=True)
-        with self.assertRaises((ValueError,OSError)):sync.ensure_folder(self.book,'Link/Nested')
-        self.assertEqual(self.book.read(self.note['path']),self.before)
+        self.assertFalse(hasattr(client,'sync_notes'));self.assertFalse(hasattr(client,'sync_vault'))

@@ -57,12 +57,13 @@ class MemorySources(QPushButton):
     def open_source(self, source):
         try:
             if source.get('source_kind') in ('server_memory','server_note'):
-                from lumen_connect import memory_stamp, read_config, connection_scope
+                from lumen_connect import read_config, connection_scope
+                from lumen_memory import server_stamp
                 from PySide6.QtCore import QUrl
                 from PySide6.QtGui import QDesktopServices
                 config=read_config()
                 bound=self.snapshot.get('server_connection')
-                if (bound and bound!=connection_scope(config)) or (not bound and self.snapshot.get('server_stamp') != memory_stamp()):
+                if (bound and bound!=connection_scope(config)) or (not bound and self.snapshot.get('server_stamp') != server_stamp(Store())):
                     raise ValueError(tr('Die Serverquelle wurde geändert. Bitte erneut fragen.'))
                 from uuid import UUID
                 identity = str(UUID(source['id'].removeprefix('server:').removeprefix('server-note:')))
@@ -84,13 +85,17 @@ class MemorySources(QPushButton):
                     tr('„{0}“ dauerhaft vergessen? Bei aktiviertem Abgleich gilt dies auch auf verbundenen Geräten.', note['title']),
                     QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel) != QMessageBox.Yes:
                 return
-            from memory_bridge import MemoryBridge
-            if self.backend.memory is None or self.backend.memory.closed:
-                self.backend.memory = MemoryBridge(self.backend)
+            from lumen_jobs import Job
+            from lumen_memory import worker
             def done(_):
                 updated = dict(self.snapshot, sources=[s for s in self.snapshot.get('sources', []) if s['id'] != source['id']])
                 self.receive(updated)
                 self.backend.memoryStatus.emit(tr('Erinnerung vergessen. Die bestehende Antwort bleibt unverändert.'))
-            self.backend.memory.job('forget', done, self.error, path=note['path'], expected=note['hash'])
+            store = Store()
+            job = Job(lambda job: worker(job, store, 'forget', path=note['path'], expected=note['hash']), self)
+            self.forgetting = job
+            job.result.connect(done); job.failed.connect(self.error)
+            job.finished.connect(lambda: (setattr(self, 'forgetting', None), job.deleteLater()))
+            job.start()
         except (OSError, ValueError, KeyError) as error:
             self.error(str(error))

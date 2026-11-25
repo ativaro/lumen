@@ -3,7 +3,8 @@ from pathlib import Path
 import tempfile
 import unittest
 from lumen_store import Store
-from wissen_data import Notebook,activate,search,resolve_link,draft,clear_draft,worker
+from wissen_data import Notebook,activate,draft,clear_draft,worker
+from notes_query import search,resolve_link
 
 
 class WissenTest(unittest.TestCase):
@@ -11,20 +12,16 @@ class WissenTest(unittest.TestCase):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name);self.store=Store(self.root/'state')
 
     def test_notebook_mount_number_change_keeps_identity_but_replacement_fails(self):
-        from unittest.mock import patch
-        from types import SimpleNamespace
-        from wissen_data import directory_identity
         activate(self.store);book=Notebook(self.store)
         note=book.create('Keep','Body')
         fd=os.open(book.root,os.O_RDONLY|os.O_DIRECTORY)
         try:
-            original=os.fstat(fd)
-            with patch('wissen_data.os.fstat',return_value=SimpleNamespace(st_dev=original.st_dev+1,st_ino=original.st_ino)):
-                self.assertEqual(directory_identity(fd),book.identity)
-            with patch('wissen_data.os.fstatvfs',return_value=SimpleNamespace(f_fsid=0)):
-                self.assertNotEqual(directory_identity(fd),book.identity)
+            # The file system's ID, as Python's os.fstatvfs read it into the stored identities.
+            original=os.fstat(fd);fsid=os.fstatvfs(fd).f_fsid
+            self.assertEqual(book.identity,['fsid:'+str(fsid),original.st_ino] if fsid else [original.st_dev,original.st_ino])
         finally:os.close(fd)
         self.assertEqual(len(Notebook(self.store,identity=[original.st_dev,original.st_ino]).scan()['notes']),1)
+        with self.assertRaises(ValueError):Notebook(self.store,identity=[original.st_dev+1,original.st_ino]).scan()
         book.create_collection('Original');book.rename_collection('Original','Renamed')
         self.assertIn('Renamed',book.scan()['folders'])
         renamed=book.root.with_name('old-notebook');book.root.rename(renamed);book.root.mkdir()
@@ -33,10 +30,10 @@ class WissenTest(unittest.TestCase):
 
     def test_timestamps_survive_edits_noop_restore_and_notebook_copy(self):
         import shutil
-        from unittest.mock import patch
+        import time
         activate(self.store);book=Notebook(self.store)
-        with patch('wissen_data.time.time',return_value=1700000000):note=book.create('Timed','First')
-        self.assertEqual(note['created'],1700000000);self.assertGreater(note['modified'],0)
+        before=time.time();note=book.create('Timed','First')
+        self.assertLessEqual(before,note['created']);self.assertLessEqual(note['created'],time.time());self.assertGreater(note['modified'],0)
         same=book.write(note['path'],note['text'],note['hash'])
         self.assertEqual(same['hash'],note['hash']);self.assertEqual(same['modified'],note['modified']);self.assertEqual(book.versions(),[])
         edited=book.write(note['path'],'# Timed\n\nSecond',note['hash'])
@@ -56,7 +53,8 @@ class WissenTest(unittest.TestCase):
         self.assertEqual(updated['created'],0);self.assertTrue(path.read_text().startswith('---\ntopic: example'))
 
     def test_timestamp_labels_distinguish_known_creation_from_legacy_modification(self):
-        from wissen_data import timestamp_text,parse
+        from wissen_data import parse
+        from notes_query import timestamp_text
         from lumen_i18n import tr
         self.assertIn(tr('Erstellt: {0}',''),timestamp_text(dict(created=1700000000,modified=1700000000)))
         self.assertIn(tr('Geändert: {0}',''),timestamp_text(dict(created=0,modified=1700000000)))

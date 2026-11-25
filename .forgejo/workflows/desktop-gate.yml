@@ -1,0 +1,74 @@
+name: desktop-gate
+
+# The whole desktop suite (scripts/test-desktop.sh) in the CI image packaging/ci/Dockerfile, on the
+# cluster runner only. PUBLISHING.md ("Verify locally") describes the gate.
+# The runner runs on worker node talos-04 with a memory limit (8 GiB, 7 GiB per job, one job at a time) since
+# 18.11.2026, after a job without a limit drove a control-plane node out of memory. This gate peaks at ~2.4 GiB.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      # Built from packaging/ci/Dockerfile and pushed to Forgejo's registry; pinned by digest.
+      image: forge.example.invalid/lumen/desktop-ci:20261119@sha256:6083eb95ceb275f206fb66e6dec396a7162c39e38a16fea6e970cca28e2c9b5c
+      # The lumen packages are private: a Forgejo user with read access to them and a token of that
+      # user with package read permission, as repository secrets (Settings -> Actions -> Secrets).
+      credentials:
+        username: ${{ secrets.REGISTRY_USERNAME }}
+        password: ${{ secrets.REGISTRY_PASSWORD }}
+      # Qt WebEngine needs more shared memory than Docker's 64 MB default.
+      options: --shm-size=1g
+    steps:
+      - name: Checkout
+        uses: https://data.forgejo.org/actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      # The native builds' cargo folder between runs. Keyed on the lock files only, so a new cache entry (about
+      # 1 GB on the runner's disk) appears only when dependencies change; Lumen's own crates still build each run.
+      - name: Restore the cargo cache
+        uses: https://data.forgejo.org/actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: .test-desktop/cargo
+          key: desktop-cargo-${{ hashFiles('native/**/Cargo.lock') }}
+
+      - name: Run the desktop gate
+        shell: bash
+        run: |
+          # The checkout belongs to root; Qt WebEngine and the permission tests need an unprivileged user.
+          chown -R lumen: "$GITHUB_WORKSPACE"
+          runuser -u lumen -- env CARGO_TARGET_DIR="$GITHUB_WORKSPACE/.test-desktop/cargo" scripts/test-desktop.sh
+
+      # RustSec advisories of the native lock files (vulnerabilities fail; unmaintained or yanked crates are only
+      # warnings) and npm advisories of high or critical severity in production dependencies. It reads the lock
+      # files only (the builds stay offline); both databases are fetched now. Runs after a failed gate too.
+      - name: Audit the dependencies
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          code=0
+          for lock in $(git -c safe.directory="$PWD" ls-files '*Cargo.lock' ':!:*/vendor/*'); do
+            cargo audit --file "$lock" || code=1
+          done
+          for lock in $(git -c safe.directory="$PWD" ls-files '*package-lock.json'); do
+            echo "npm audit ${lock%/*}"
+            (cd "${lock%/*}" && npm audit --omit=dev --audit-level=high) || code=1
+          done
+          exit $code
+
+      - name: Keep the summary and logs
+        if: always()
+        uses: https://data.forgejo.org/actions/upload-artifact@c6a366c94c3e0affe28c06c8df20a878f24da3cf
+        with:
+          name: desktop-gate
+          path: |
+            .test-desktop/summary.txt
+            .test-desktop/results.txt
+            .test-desktop/logs/

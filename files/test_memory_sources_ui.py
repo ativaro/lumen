@@ -80,7 +80,7 @@ class SourceUITest(unittest.TestCase):
                 with patch.object(QMessageBox,'question',return_value=QMessageBox.Yes):control.forget(current)
                 for _ in range(200):
                     QTest.qWait(20)
-                    if backend.memory and not backend.memory.jobs:break
+                    if not getattr(control,'forgetting',None):break
                 self.assertEqual(memory.scan()['notes'],[])
                 self.assertTrue(control.isHidden())
                 control.receive(dict(snapshot,phase='submitted'));backend.sessionChanged.emit('other')

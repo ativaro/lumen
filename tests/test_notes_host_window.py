@@ -78,8 +78,9 @@ class NotesHostWindowTest(unittest.TestCase):
         self.assertEqual(window.windowTitle(), 'Lumen Compose')
         self.assertEqual(window.copy.text(), 'Entwurf kopieren')
         self.assertEqual(window.page.scripts().find('Lumen Compose draft')[0].sourceCode(), DRAFT_SCRIPT)
+        # Every app of APPS has this host; a name outside it has no session to host.
         with self.assertRaises(SessionError):
-            ServerAppWindow(self.session('projects'), self.root)
+            ServerAppWindow(self.session('drive'), self.root)
 
 
 if __name__ == '__main__':

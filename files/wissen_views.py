@@ -8,7 +8,7 @@ from urllib.parse import quote,unquote
 from PySide6.QtCore import Qt,QUrl,QTimer,QEvent,Signal
 from PySide6.QtGui import QColor,QBrush,QPen,QImage,QTextDocument,QTextCursor,QPainter
 from PySide6.QtWidgets import QTextBrowser,QGraphicsView,QGraphicsScene,QGraphicsEllipseItem,QGraphicsSimpleTextItem
-from wissen_data import resolve_link
+from notes_query import resolve_link
 
 
 class NoteDocument(QTextDocument):

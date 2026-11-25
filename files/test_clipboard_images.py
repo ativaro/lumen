@@ -19,6 +19,25 @@ class ClipboardImagesTest(unittest.TestCase):
                 capture_output=True,text=True,timeout=30)
             self.assertEqual(result.returncode,0,result.stdout+result.stderr)
 
+    def test_password_manager_hint_blocks_clipboard_and_ai_editor_paste(self):
+        from PySide6.QtCore import QMimeData
+        from PySide6.QtGui import QClipboard
+        from PySide6.QtWidgets import QApplication
+        from clipboard_image import protected_clipboard
+        from private_input import AssistantInput
+        app=QApplication.instance() or QApplication([])
+        secret=QMimeData();secret.setText('SYNTHETIC SECRET');secret.setData('x-kde-passwordManagerHint',b'secret')
+        public=QMimeData();public.setText('public note')
+        class Clipboard:
+            def __init__(self,mime):self.mime=mime
+            def mimeData(self,mode=QClipboard.Mode.Clipboard):return self.mime if mode==QClipboard.Mode.Clipboard else None
+        self.assertTrue(protected_clipboard(Clipboard(secret)))
+        self.assertFalse(protected_clipboard(Clipboard(public)))
+        self.assertFalse(protected_clipboard(Clipboard(secret),QClipboard.Mode.Selection))
+        editor=AssistantInput();editor.insertFromMimeData(secret);self.assertEqual(editor.toPlainText(),'')
+        editor.insertFromMimeData(public);self.assertEqual(editor.toPlainText(),'public note')
+        editor.close()
+
 
 PROBE=r'''
 import importlib.util,os,sys

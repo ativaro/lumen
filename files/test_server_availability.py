@@ -37,11 +37,11 @@ class ServerAvailabilityTest(unittest.TestCase):
         with patch.object(available, 'capabilities', return_value=set()):
             names = {r['id'] for r in applications()}
             self.assertTrue({'lumen', 'files', 'system'} <= names)
-            self.assertFalse(names & {'wissen', 'workbench', 'code', 'meetings', 'vault', 'inbox'})
+            self.assertFalse(names & {'wissen', 'workbench', 'code', 'meetings', 'vault', 'inbox', 'photos'})
         with patch.object(available, 'capabilities', return_value={'notes', 'media'}):
             names = {r['id'] for r in applications()}
             self.assertTrue({'wissen', 'meetings'} <= names)
-            self.assertFalse(names & {'workbench', 'code', 'vault', 'inbox'})
+            self.assertFalse(names & {'workbench', 'code', 'vault', 'inbox', 'photos'})
 
 
 if __name__ == '__main__': unittest.main()

@@ -10,6 +10,9 @@ import sys
 import tempfile
 import wave
 
+# ONNX Runtime reads this when the model loads; without it it keeps a device identifier below HOME.
+os.environ['ORT_DISABLE_TELEMETRY'] = '1'
+
 
 def chunks(text, limit=300):
     """Bound generation length without dropping the rest of a long paragraph."""

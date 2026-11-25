@@ -14,7 +14,8 @@ class DesktopRetirementTest(unittest.TestCase):
     def test_all_retired_product_files_are_absent_and_no_live_imports_refer_to_them(self):
         manifest=REPO/'packaging/retired-desktop-files.txt'
         names=[name for name in manifest.read_text().splitlines() if name and not name.startswith('#')]
-        retired={Path(name).stem for name in names if name.endswith('.py')}
+        # PyYAML too: the service reads the Notes' front matter (native/service/src/notebook/yaml.rs).
+        retired={Path(name).stem for name in names if name.endswith('.py')}|{'yaml'}
         for name in names:self.assertFalse((REPO/name).exists(),name)
         for path in (REPO/'files').glob('*.py'):
             if path.name.startswith('test_'):continue
@@ -52,6 +53,34 @@ class DesktopRetirementTest(unittest.TestCase):
             self.assertEqual((files/'notes_web/custom.txt').read_bytes(),b'custom untouched')
             self.assertEqual(self.installer().retire(root),[])
 
+    def test_upgrade_removes_only_the_old_notes_parse_cache_from_the_state_folder(self):
+        with tempfile.TemporaryDirectory() as root:
+            store=Path(root);key='a'*64
+            caches=[store/('notes-index-'+key+suffix) for suffix in ('.sqlite','.sqlite-journal','.sqlite-wal')]
+            for path in caches:path.write_bytes(b'cache')
+            keep={'lumen.sqlite3':b'store','notes-index-short.sqlite':b'not ours','notes-index-'+key+'.sqlite.bak':b'backup'}
+            for name,data in keep.items():(store/name).write_bytes(data)
+            (store/'sub').mkdir();(store/'sub'/('notes-index-'+key+'.sqlite')).write_bytes(b'nested')
+            outside=store/'outside';outside.write_bytes(b'outside')
+            (store/('notes-index-'+'b'*64+'.sqlite')).symlink_to(outside)
+            removed=self.installer().retire_caches(store)
+            self.assertEqual(removed,sorted(p.name for p in caches))
+            for path in caches:self.assertFalse(path.exists())
+            for name,data in keep.items():self.assertEqual((store/name).read_bytes(),data)
+            self.assertTrue((store/'sub'/('notes-index-'+key+'.sqlite')).exists());self.assertEqual(outside.read_bytes(),b'outside')
+            self.assertTrue((store/('notes-index-'+'b'*64+'.sqlite')).is_symlink())
+            self.assertEqual(self.installer().retire_caches(store/'missing'),[])
+
+    def test_upgrade_removes_vault_lab_programs_and_bundled_restic_but_keeps_vault_data(self):
+        with tempfile.TemporaryDirectory() as root:
+            root=Path(root);(root/'files').mkdir()
+            for rel in ('vault-lab/bin/lumen-vault-lab','vault-lab/share/licenses/qt/LGPL.txt','vault/restic-0.19.1'):
+                p=root/rel;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(b'program')
+            plans=root/'vault/plans.json';plans.write_bytes(b'user plans')
+            removed=self.installer().retire(root)
+            self.assertEqual(len(removed),3);self.assertFalse((root/'vault-lab').exists())
+            self.assertEqual(plans.read_bytes(),b'user plans');self.assertEqual(self.installer().retire(root),[])
+
     def test_cleanup_preflights_symlinks_before_any_removal(self):
         with tempfile.TemporaryDirectory() as root:
             root=Path(root);files=root/'files';files.mkdir();target=root/'untouched';target.write_bytes(b'private')
@@ -72,7 +101,6 @@ class DesktopRetirementTest(unittest.TestCase):
         with patch('tools_ui.ToolWindow.__init__',side_effect=AssertionError('No widget or library may be constructed')):
             with self.assertRaisesRegex(ValueError,'Lumen Server'):Wissen(memory_only=False)
 
-    def test_native_device_page_has_no_workspace_or_local_project_view(self):
-        import server_workspace
-        self.assertTrue(hasattr(server_workspace,'ServerDevices'))
-        self.assertFalse(hasattr(server_workspace,'ServerWorkspace'))
+    def test_native_device_page_only_offers_device_management(self):
+        import server_devices
+        self.assertTrue(hasattr(server_devices,'ServerDevices'))

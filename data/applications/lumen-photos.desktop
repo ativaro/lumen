@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen Photos
+Comment=Your Lumen Server photo library, albums and discovery
+Comment[de]=Deine Server-Fotos, Alben und Entdecken
+Exec=%INSTALL_BIN%/lumen-photos
+Icon=lumen-photos
+Terminal=false
+Categories=Graphics;Photography;
+StartupWMClass=lumen-photos
+Keywords=Lumen;photos;Fotos;Alben;

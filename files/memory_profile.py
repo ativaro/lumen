@@ -3,7 +3,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QScrollArea, QPushButton
 from lumen_i18n import tr
 from settings_navigation import label
-from wissen_data import timestamp_text
+from notes_query import timestamp_text
 
 
 class MemoryProfile(QScrollArea):

@@ -1,13 +1,14 @@
 """Previewed notebook moves with source-preserving link edits and restart recovery."""
+import hashlib
 import json
 import os
 from pathlib import Path
 import re
-import uuid
 from urllib.parse import quote,unquote,urlsplit
 from lumen_i18n import tr
 from note_tags import body_mask
-from wissen_data import digest,resolve_link,draft,MAX_NOTE
+from notes_query import resolve_link
+from wissen_data import draft,MAX_NOTE
 
 
 def mapped(path,source,target):
@@ -46,7 +47,7 @@ def rewrite(text,origin,source,target,notes):
     return re.sub(pattern,change,text)
 
 
-def key(book):return 'knowledge/move/'+digest(str(book.root).encode())
+def key(book):return 'knowledge/move/'+hashlib.sha256(str(book.root).encode()).hexdigest()
 
 
 def pending(book):return book.store.setting(key(book),None)
@@ -56,13 +57,10 @@ def plan(book,source,target):
     from drive_local import relative
     source=str(relative(source));target=str(relative(target))
     if source==target or source=='.' or target=='.' or any(p.startswith('.') for p in Path(source).parts+Path(target).parts):raise ValueError(tr('Ungültiges Verschiebeziel.'))
-    with book.directory(Path(target).parent) as parent:
-        try:os.stat(Path(target).name,dir_fd=parent,follow_symlinks=False)
-        except FileNotFoundError:pass
-        else:raise ValueError(tr('Das Ziel ist bereits vorhanden.'))
+    if book.stat(target) is not None:raise ValueError(tr('Das Ziel ist bereits vorhanden.'))
     if Path(source).suffix.lower()=='.md':book.read(source);book.relative(target)
     else:
-        with book.directory(source):pass
+        book.stat(source,folder=True)
         if Path(target).is_relative_to(source):raise ValueError(tr('Eine Sammlung kann nicht in sich selbst verschoben werden.'))
     scan=book.scan()
     if scan['limited'] or scan['errors']:raise ValueError(tr('Zuerst alle Notizen vollständig und fehlerfrei einlesen.'))
@@ -73,12 +71,12 @@ def plan(book,source,target):
             saved=draft(book.store,book.root,path)
             if saved and saved['text']!=note['text']:raise ValueError(tr('Eine betroffene Notiz hat einen lokalen Entwurf. Zuerst speichern oder auflösen.'))
             before=book.raw(path)
-            if digest(before)!=note['hash']:raise ValueError(tr('Notizen wurden geändert. Vorschau erneut öffnen.'))
+            if hashlib.sha256(before).hexdigest()!=note['hash']:raise ValueError(tr('Notizen wurden geändert. Vorschau erneut öffnen.'))
             body=note['text'].encode();raw_after=before[:-len(body)]+after.encode() if body else before+after.encode()
             if len(raw_after)>MAX_NOTE:raise ValueError(tr('Eine Notiz würde durch die Linkänderungen zu groß.'))
             changes.append(dict(path=path,destination=mapped(path,source,target),before=before.decode(),after=raw_after.decode()))
     info=exists(book,source)
-    value=dict(source=source,target=target,identity=book.identity,folder_id=[info.st_dev,info.st_ino] if Path(source).suffix.lower()!='.md' else None,changes=changes,hashes={p:n['hash'] for p,n in notes.items()})
+    value=dict(source=source,target=target,identity=book.identity,folder_id=list(info) if Path(source).suffix.lower()!='.md' else None,changes=changes,hashes={p:n['hash'] for p,n in notes.items()})
     if len(json.dumps(value).encode())>4*1024**2:raise ValueError(tr('Zu viele Änderungen für einen Vorgang. Bitte in kleineren Schritten verschieben.'))
     return value
 
@@ -98,42 +96,24 @@ def share_rules(book,value,rules):
     return result
 
 
-def exists(book,path):
-    with book.directory(Path(path).parent) as parent:
-        try:return os.stat(Path(path).name,dir_fd=parent,follow_symlinks=False)
-        except FileNotFoundError:return None
+def exists(book,path):return book.stat(path)
 
 
 def position(book,value):
     before=exists(book,value['source']);after=exists(book,value['target'])
     if bool(before)==bool(after):raise ValueError(tr('Quelle oder Ziel wurde verändert. Wiederherstellung zuerst prüfen.'))
     present=after or before
-    if value.get('folder_id') and [present.st_dev,present.st_ino]!=value['folder_id']:raise ValueError(tr('Der betroffene Ordner wurde ersetzt.'))
+    if value.get('folder_id') and list(present)!=value['folder_id']:raise ValueError(tr('Der betroffene Ordner wurde ersetzt.'))
     return bool(after)
 
 
-def raw_write(book,path,before,after):
-    if before==after:return
-    if book.raw(path)!=before:raise ValueError(tr('Notizen wurden geändert. Vorschau erneut öffnen.'))
-    book.backup(path,before)
-    with book.directory(Path(path).parent) as parent:
-        temporary='.lumen-move-'+uuid.uuid4().hex
-        fd=os.open(temporary,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600,dir_fd=parent)
-        try:
-            with os.fdopen(fd,'wb') as stream:stream.write(after);stream.flush();os.fsync(stream.fileno())
-            if book.raw(path)!=before:raise ValueError(tr('Notizen wurden während des Verschiebens geändert.'))
-            os.replace(temporary,Path(path).name,src_dir_fd=parent,dst_dir_fd=parent);os.fsync(parent)
-        finally:
-            try:os.unlink(temporary,dir_fd=parent)
-            except FileNotFoundError:pass
 
 
 def set_shares(book,rules):
-    from memory_local import invalidate
+    from lumen_memory import changed
     book.store.set_setting('memory/shares',rules)
-    invalidate(book.store.directory/'memory-index')
-    for name in ('memory/revision','memory/privacy_revision'):
-        book.store.set_setting(name,book.store.setting(name,0)+1)
+    # The memory's revisions and index follow (the caller holds memory-state.lock).
+    changed(book.store, invalidate=True)
 
 
 def execute(book,value=None,rollback=False):
@@ -171,11 +151,10 @@ def execute(book,value=None,rollback=False):
         set_shares(book,value['shares_paused'])
         for change in value['changes']:
             path=change['destination'] if moved else change['path'];raw=book.raw(path)
-            raw_write(book,path,raw,change['before' if rollback else 'after'].encode())
+            book.replace(path,raw,change['before' if rollback else 'after'].encode())
         if moved==rollback:
             source,target=(value['target'],value['source']) if rollback else (value['source'],value['target'])
-            with book.directory() as fd:
-                st=os.fstat(fd);move(dict(path=str(book.root),identity=[st.st_dev,st.st_ino]),source,target)
+            move(dict(path=str(book.root),identity=list(book.stat('.',folder=True))),source,target)
         set_shares(book,value['shares_before' if rollback else 'shares_after'])
         # Keep the last transaction for a guarded undo even after restarting.
         book.store.set_setting(key(book)+'/last',None if rollback else value)

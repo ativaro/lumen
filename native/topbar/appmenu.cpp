@@ -5,8 +5,9 @@
 #include <QAction>
 #include <QApplication>
 #include <QDBusConnection>
-#include <QDBusConnectionInterface>
-#include <QDBusReply>
+#include <QDBusMessage>
+#include <QDBusPendingCallWatcher>
+#include <QDBusPendingReply>
 #include <QDBusServiceWatcher>
 #include <QIcon>
 #include <QMenu>
@@ -72,13 +73,23 @@ void AppMenu::setEndpoint(const QString &service,const QString &path) {
     if(m_ownerWatcher){m_ownerWatcher->deleteLater();m_ownerWatcher=nullptr;}
     m_service=service;m_path=path;m_entries.clear();emit entriesChanged();
     if(!validEndpoint(service,path))return;
+    // The owner is asked without waiting: an application that is still starting must not stop the bar.
     auto bus=QDBusConnection::sessionBus();
-    const auto owner=bus.interface()->serviceOwner(service);
-    if(!owner.isValid() || owner.value().isEmpty())return;
-    m_ownerWatcher=new QDBusServiceWatcher(service,bus,QDBusServiceWatcher::WatchForOwnerChange,this);
+    auto ask=QDBusMessage::createMethodCall(QStringLiteral("org.freedesktop.DBus"),QStringLiteral("/org/freedesktop/DBus"),QStringLiteral("org.freedesktop.DBus"),QStringLiteral("GetNameOwner"));
+    ask<<service;
     const auto generation=m_generation;
+    auto pending=new QDBusPendingCallWatcher(bus.asyncCall(ask,2000),this);
+    connect(pending,&QDBusPendingCallWatcher::finished,this,[this,service,path,generation](QDBusPendingCallWatcher *call){
+        call->deleteLater();const QDBusPendingReply<QString> owner=*call;
+        if(generation==m_generation && !owner.isError() && !owner.value().isEmpty())attach(owner.value(),service,path,generation);
+    });
+}
+
+void AppMenu::attach(const QString &owner,const QString &service,const QString &path,quint64 generation) {
+    auto bus=QDBusConnection::sessionBus();
+    m_ownerWatcher=new QDBusServiceWatcher(service,bus,QDBusServiceWatcher::WatchForOwnerChange,this);
     connect(m_ownerWatcher,&QDBusServiceWatcher::serviceOwnerChanged,this,[this,service,path,generation]{if(generation==m_generation){m_service.clear();setEndpoint(service,path);}});
-    m_client=dbusmenu_client_new(owner.value().toUtf8().constData(),path.toUtf8().constData());
+    m_client=dbusmenu_client_new(owner.toUtf8().constData(),path.toUtf8().constData());
     g_signal_connect(m_client,DBUSMENU_CLIENT_SIGNAL_ROOT_CHANGED,G_CALLBACK(+[](DbusmenuClient *,DbusmenuMenuitem *,gpointer p){static_cast<AppMenu*>(p)->refresh();}),this);
     g_signal_connect(m_client,DBUSMENU_CLIENT_SIGNAL_LAYOUT_UPDATED,G_CALLBACK(+[](DbusmenuClient *,gpointer p){static_cast<AppMenu*>(p)->refresh();}),this);
     g_signal_connect(m_client,DBUSMENU_CLIENT_SIGNAL_NEW_MENUITEM,G_CALLBACK(+[](DbusmenuClient *,DbusmenuMenuitem *item,gpointer p){static_cast<AppMenu*>(p)->watch(item);}),this);
@@ -176,7 +187,11 @@ void AppMenu::show(int index,QQuickItem *anchor) {
         return;
     }}
 }
-void AppMenu::showRoot(QQuickItem *anchor) {if(m_client){auto root=dbusmenu_client_get_root(m_client);if(root)popup(root,anchor);else m_pendingAnchor=anchor;}}
+// Until the menu's owner and root are known, the request waits and refresh() opens it.
+void AppMenu::showRoot(QQuickItem *anchor) {
+    auto root=m_client?dbusmenu_client_get_root(m_client):nullptr;
+    if(root)popup(root,anchor);else m_pendingAnchor=anchor;
+}
 void AppMenu::close() {
     m_pendingAnchor=nullptr;
     if(m_popup)m_popup->close();

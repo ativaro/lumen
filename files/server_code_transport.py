@@ -24,8 +24,7 @@ HOP = {'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
        'te', 'trailer', 'transfer-encoding', 'upgrade', 'content-length'}
 
 
-def clone_git(remote, target, check):
-    """Use the Desktop's normal Git credentials and SSH agent, never the model runtime."""
+def git_remote(remote):
     if not isinstance(remote, str) or not remote or any(ord(c)<32 for c in remote) or remote.startswith('-'):
         raise ValueError('Bitte eine gültige Git-Adresse angeben.')
     url = urlsplit(remote)
@@ -35,9 +34,16 @@ def clone_git(remote, target, check):
         raise ValueError('Für lokale Projekte „Ordner öffnen“ verwenden; zum Klonen eine Git-Netzwerkadresse angeben.')
     if url.password or any(name.lower() in ('access_token','token','password','api_key','key') for name,_ in parse_qsl(url.query)):
         raise ValueError('Zugangsdaten gehören in deine Git-Anmeldung, nicht in die Git-Adresse.')
+    return remote
+
+
+def clone_git(remote, target, check):
+    """Use the Desktop's normal Git credentials and SSH agent, never the model runtime."""
+    remote = git_remote(remote)
     environment = {key:value for key,value in os.environ.items() if not key.startswith('GIT_TRACE') and key!='GIT_CURL_VERBOSE'}
     environment['GIT_TERMINAL_PROMPT'] = '0'
     with tempfile.TemporaryFile() as log:
+        check()
         process = subprocess.Popen(['git','-c','core.hooksPath=/dev/null','-c','core.fsmonitor=false',
             'clone','--',remote,str(target)], stdin=subprocess.DEVNULL, stdout=log, stderr=log,
             env=environment, start_new_session=True)

@@ -27,8 +27,6 @@ def actions(payload):
     source=payload.get('source',{}).get('app')
     result=[(key,tr(ACTIONS[key]['label'])) for key in available(payload)
             if key not in ({'reader.import'} if source=='reader' else {'wissen.import'} if source=='wissen' else set())]
-    if payload.get('paths') or payload.get('source',{}).get('app')!='files':
-        if source!='vault':result.append(('vault.sources',tr('Sicherung einrichten …')))
     return result
 
 
@@ -237,20 +235,6 @@ class Controller(QObject):
         if value['target']!=w.name:raise ValueError(tr('Dieser Verweis gehört zu einer anderen Lumen-Anwendung.'))
         if value['state']=='undone':raise ValueError(tr('Diese Übergabe wurde rückgängig gemacht. Für eine neue Übernahme erneut von der Quelle aus starten.'))
         if value['state']=='done':focus(w,registry.resolve(value['result']));return
-        if value['action']=='vault.sources':
-            from interop_vault import receive_sources
-            registry.claim(token,w.name)
-            def finished(ref):
-                try:
-                    if ref:registry.finish(token,registry.register(ref))
-                    else:registry.release(token)
-                except Exception as exc:
-                    registry.release(token,str(exc)[:4000]);error(w,exc)
-            try:
-                if not receive_sources(w,value['payload'],root=root_for(w),done=finished,token=token):registry.release(token)
-            except Exception:
-                registry.release(token);raise
-            return
         from interop_targets import ACTIONS,apply
         if value['action'] not in ACTIONS or ACTIONS[value['action']]['target']!=w.name:
             raise ValueError(tr('Unbekanntes Übergabeziel.'))
@@ -369,7 +353,6 @@ def browse(window,mode='related',payload=None):
                 if row['action']=='files.drive_import':raise ValueError(tr('Dateien bei Bedarf direkt in Lumen Drive in den Papierkorb legen. Die lokale Quelle bleibt erhalten.'))
                 if row['target']!=getattr(window,'name',''):
                     QMessageBox.information(dialog,tr('Im Ziel rückgängig machen'),tr('In der Zielanwendung „Letzte Aktionen …“ öffnen und dort rückgängig machen.'));return
-                if row['action']=='vault.sources':raise ValueError(tr('Sicherungsquellen im Lumen-Vault-Plan bearbeiten. Vorhandene Sicherungen bleiben erhalten.'))
                 if QMessageBox.question(dialog,tr('Übernahme rückgängig machen'),tr('Nur die unveränderte lokale Übernahme zurücknehmen? Neu angelegte Einträge kommen ins Archiv; die Quelle bleibt erhalten. Bereits gespeicherte Kalendertermine bleiben bestehen.'))!=QMessageBox.Yes:return
                 from interop_undo import undo
                 applied={}
@@ -418,7 +401,7 @@ def files_menu(window,menu,paths,*,safety=None):
     payload=dict(source={'app':'files'},paths=[] if drive else paths)
     if drive:payload['references']=[dict(kind='drive_'+window.drive.entries[p][0],title=window.drive.entries[p][1]['name']) for p in paths]
     targets=menu.addMenu(tr('Verwenden in …'))
-    from reader_server import OFFICE
+    from lumen_office import OFFICE
     if not drive and all(Path(p).suffix.lower() in OFFICE|{'.pdf','.epub','.txt','.md','.html','.htm'} for p in paths):
         def reader():
             from_paths(paths)
@@ -434,10 +417,7 @@ def files_menu(window,menu,paths,*,safety=None):
     targets.addSeparator()
     targets.addAction(tr('Verwendet in …'),lambda:safe_action(window,lambda:browse(window,'related',capture())))
     if not drive:
-        safety.addAction(tr('Lesefortschritt und Sicherungen …'),lambda:file_status(window,paths))
-        if len(paths)==1:
-            from interop_vault import show_file_versions
-            safety.addAction(tr('Versionen in Lumen Vault …'),lambda:safe_action(window,lambda:show_file_versions(window,paths[0],root_for(window))))
+        safety.addAction(tr('Lesefortschritt …'),lambda:file_status(window,paths))
 
 
 def app_name(app):
@@ -448,21 +428,15 @@ def app_name(app):
 
 
 def file_status(window,paths):
-    from datetime import datetime
-    from interop_vault import coverage
     from interop_reader import progress_for_paths
     try:
         reader=progress_for_paths(paths,root_for(window));lines=[]
-        for item in coverage(paths,root_for(window)):
-            lines.append(item['path'])
-            for book in reader.get(item['path'],[]):lines.append(tr('Lumen Reader: Seite {0}/{1}, {2} Markierungen',book['page']+1,book['pages'],book['marks']))
-            if not item['plans']:lines.append(tr('Lumen Vault: in keinem Sicherungsplan.'))
-            for plan in item['plans']:
-                state=tr('Noch kein erfolgreicher Sicherungslauf.') if not plan['last_backup'] else tr('Letzter Sicherungslauf: {0}',datetime.fromtimestamp(plan['last_backup']).strftime('%d.%m.%Y %H:%M'))
-                if plan['changed']:state+=' '+tr('Seitdem geändert.')
-                lines.append(plan['title']+': '+state)
+        for path in (str(Path(path).absolute()) for path in paths):
+            lines.append(path)
+            for book in reader.get(path,[]):lines.append(tr('Lumen Reader: Seite {0}/{1}, {2} Markierungen',book['page']+1,book['pages'],book['marks']))
+            if not reader.get(path):lines.append(tr('Noch kein Lesestand.'))
             lines.append('')
-        QMessageBox.information(window,tr('Lesestand und Sicherungsstatus'),'\n'.join(lines)+tr('Der Planstatus bestätigt keine einzelne Dateiversion. Gesicherte Versionen separat in Lumen Vault prüfen.'))
+        QMessageBox.information(window,tr('Lesestand'),'\n'.join(lines).strip())
     except Exception as exc:error(window,exc)
 
 

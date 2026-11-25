@@ -230,15 +230,13 @@ import sys
 from PySide6.QtCore import QCoreApplication
 app = QCoreApplication([])
 from assistant_backend import OpenCodeBackend
-from memory_bridge import MemoryBridge
 from lumen_jobs import Job
 from lumen_tracking import TaskTracker
 backend = OpenCodeBackend('/tmp')
-bridge = MemoryBridge(backend)
 tracker = TaskTracker(backend)
 assert not any(k.startswith('PyQt5') for k in sys.modules), [k for k in sys.modules if k.startswith('PyQt5')]
 assert backend.new_conversation()
-bridge.shutdown(); backend.shutdown()
+backend.shutdown()
 ''')
 
     def test_search_fresh_input_and_session_recovery(self):
@@ -381,6 +379,7 @@ class Handler(BaseHTTPRequestHandler):
  def do_POST(self):self.handle_request('POST')
  def handle_request(self,method):
   path=self.path.split('?')[0];body=json.loads(self.rfile.read(int(self.headers.get('Content-Length',0))) or 'null')
+  if path=='/event':self.send_error(404);return
   state['calls'].append((method,path,body,self.headers.get('Authorization')));data={}
   if path=='/config':data={'model':'test/model'}
   elif path=='/session' and method=='POST':data={'id':'ses_test'}

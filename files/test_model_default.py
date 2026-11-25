@@ -11,6 +11,44 @@ def catalogue():
         'connected': ['opencode'], 'default': {'opencode': 'paid'}}
 
 
+def engine(test, answer):
+    """A caller's engine that answers like OpenCode: `answer(path)` for the setup routes, a session
+    and a finished reply to every prompt. Returns its address and the requests it saw."""
+    import json, threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    calls, prompts = [], []
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *_): pass
+        def do_GET(self): self.reply()
+        def do_POST(self): self.reply()
+        def reply(self):
+            path = self.path.split('?')[0]
+            body = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or 'null')
+            if path == '/event': self.send_error(404); return
+            calls.append((path, body))
+            data = answer(path)
+            if path == '/session' and self.command == 'POST': data = {'id': 'ses_test'}
+            elif path.endswith('/prompt_async'): prompts.append(body)
+            elif path.endswith('/message'):
+                data = [{'info': {'role': 'assistant', 'parentID': prompts[-1]['messageID'], 'finish': 'stop',
+                                  'time': {'completed': 1}}, 'parts': [{'type': 'text', 'text': '{}'}]}]
+            elif path in ('/permission', '/question'): data = []
+            raw = json.dumps(data if data is not None else {}).encode()
+            self.send_response(200); self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(raw))); self.end_headers(); self.wfile.write(raw)
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    test.addCleanup(server.server_close); test.addCleanup(server.shutdown)
+    return f'http://127.0.0.1:{server.server_port}', calls
+
+
+def settle(backend):
+    import time
+    from PySide6.QtTest import QTest
+    deadline = time.monotonic() + 8
+    while backend.busy and time.monotonic() < deadline: QTest.qWait(10)
+
+
 class ModelDefaultTest(unittest.TestCase):
     def test_first_prompt_preserves_explicit_choices_and_requires_setup_without_a_model(self):
         from app import create_app
@@ -26,23 +64,16 @@ class ModelDefaultTest(unittest.TestCase):
                 ('', 'engine/chosen', 'engine/chosen')):
             with self.subTest(selected=selected, configured=configured), tempfile.TemporaryDirectory() as tmp, \
                     patch.dict('os.environ', {'LUMEN_DATA': tmp+'/data'}):
-                backend = OpenCodeBackend(tmp)
+                # The service chooses the model (native/service: a_local_only_policy_fails_closed).
+                address, calls = engine(self, lambda path: {'model': configured} if path == '/config' else
+                                        catalogue() if path == '/provider' else None)
+                backend = OpenCodeBackend(tmp, server_url=address)
                 backend.settings = QSettings(tmp+'/prefs.ini', QSettings.IniFormat)
                 if selected: backend.settings.setValue('model', selected)
-                calls = []; failures = []
+                failures = []
                 backend.failed.connect(failures.append)
-                backend.ensure_server = lambda callback: callback()
-                backend.poll = lambda: None
-                backend.refresh_sessions = lambda: None
-                def request(method, path, body=None, callback=None, **kwargs):
-                    calls.append((path, body))
-                    if path == '/config': callback({'model': configured})
-                    elif path == '/provider': callback(catalogue())
-                    elif path == '/session': callback({'id': 'ses_test'})
-                    elif callback: callback(None)
-                backend.request = request
                 try:
-                    backend.send('Hello', proposal=True)
+                    backend.send('Hello', proposal=True); settle(backend)
                     prompts = [body for path, body in calls if path.endswith('/prompt_async')]
                     if expected:
                         provider, model = expected.split('/', 1)
@@ -79,23 +110,17 @@ class ModelDefaultTest(unittest.TestCase):
                                            ({'apiKey': 'public'}, 'https://models.example.test/v1', False)):
             with self.subTest(options=options, endpoint=endpoint), tempfile.TemporaryDirectory() as tmp, \
                     patch.dict('os.environ', {'LUMEN_DATA': tmp+'/data'}):
-                backend = OpenCodeBackend(tmp)
+                address, seen = engine(self, lambda path: {'all': [{'id': 'opencode', 'source': 'custom', 'options': options}]}
+                                       if path == '/provider' else {'provider': {'opencode': {'options': {'baseURL': endpoint}}}}
+                                       if path == '/config' else None)
+                backend = OpenCodeBackend(tmp, server_url=address)
                 backend.settings = QSettings(tmp+'/prefs.ini', QSettings.IniFormat)
                 backend.settings.setValue('model', 'opencode/chosen')
-                backend.ensure_server = lambda callback: callback()
-                backend.poll = lambda: None
-                backend.refresh_sessions = lambda: None
-                calls = []; failures = []
+                failures = []
                 backend.failed.connect(failures.append)
-                def request(method, path, body=None, callback=None, **kwargs):
-                    calls.append(path)
-                    if path == '/provider': callback({'all': [{'id': 'opencode', 'source': 'custom', 'options': options}]})
-                    elif path == '/config': callback({'provider': {'opencode': {'options': {'baseURL': endpoint}}}})
-                    elif path == '/session': callback({'id': 'ses_test'})
-                    elif callback: callback(None)
-                backend.request = request
                 try:
-                    backend.send('Hello', proposal=True)
+                    backend.send('Hello', proposal=True); settle(backend)
+                    calls = [path for path, _ in seen]
                     self.assertEqual(backend.settings.value('model'), 'opencode/chosen')
                     self.assertEqual(any(path.endswith('/prompt_async') for path in calls), not blocked)
                     if blocked:

@@ -1,18 +1,58 @@
-"""Paired server tools belong only to the effective private engine profile."""
+"""Paired server tools belong only to the effective private engine profile, which lumen-service builds
+(native/service/src/engine.rs; the pairing checks themselves are its Rust tests). These tests run the
+service with an engine stand-in that records what it was started with and answers like OpenCode."""
+import hashlib
 import json
 import os
 from pathlib import Path
 import sys
 import tempfile
-import threading
 import time
 import unittest
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
 
-from PySide6.QtCore import QSettings, QProcess
+from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 from assistant_backend import OpenCodeBackend
+
+ENGINE = r'''#!{python}
+import json, os, sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlsplit
+base = sys.argv[0]
+open(base + '.env', 'w').write(json.dumps(dict(os.environ)))
+open(base + '.pid', 'w').write(str(os.getpid()))
+sessions = json.load(open(base + '.sessions')) if os.path.exists(base + '.sessions') else {{}}
+prompts = {{}}
+class Engine(BaseHTTPRequestHandler):
+    def log_message(self, *_): pass
+    def do_GET(self): self.answer()
+    def do_POST(self): self.answer()
+    def answer(self):
+        url = urlsplit(self.path); path = url.path
+        body = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or 'null')
+        with open(base + '.log', 'a') as log: log.write(json.dumps([self.command, path, body]) + '\n')
+        if path == '/event': self.send_error(404); return
+        data = {{}}
+        if path == '/session' and self.command == 'POST':
+            data = dict(body, id='ses_new' + str(len(sessions)), directory=parse_qs(url.query)['directory'][0])
+            sessions[data['id']] = data
+        elif path == '/session': data = list(sessions.values())
+        elif path.startswith('/session/') and path.count('/') == 2 and path != '/session/status':
+            data = sessions.get(path.split('/')[2], {{}})
+        elif path.endswith('/prompt_async'): prompts[path.split('/')[2]] = body['messageID']
+        elif path.endswith('/message'):
+            parent = prompts.get(path.split('/')[2])
+            data = [dict(info=dict(id='msg_a', role='assistant', parentID=parent, finish='stop', time=dict(completed=1)),
+                         parts=[dict(type='text', text='Fertig')])] if parent and not os.path.exists(base + '.hold') else []
+        elif path in ('/permission', '/question'): data = []
+        raw = json.dumps(data).encode()
+        self.send_response(200); self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(raw))); self.end_headers(); self.wfile.write(raw)
+server = ThreadingHTTPServer(('127.0.0.1', 0), Engine)
+print('opencode server listening on http://127.0.0.1:%d' % server.server_port, flush=True)
+server.serve_forever()
+'''
 
 
 class ServerMCPBindingTest(unittest.TestCase):
@@ -24,16 +64,13 @@ class ServerMCPBindingTest(unittest.TestCase):
         self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.environment = dict(HOME=str(self.root), XDG_CONFIG_HOME=str(self.root/'config'),
             XDG_DATA_HOME=str(self.root/'data'), XDG_CACHE_HOME=str(self.root/'cache'),
-            XDG_STATE_HOME=str(self.root/'state'), XDG_RUNTIME_DIR=str(self.root/'run'),
-            LUMEN_DATA=str(self.root/'lumen'), OPENCODE_CONFIG_CONTENT='{}')
+            XDG_STATE_HOME=str(self.root/'state'), LUMEN_DATA=str(self.root/'lumen'), OPENCODE_CONFIG_CONTENT='{}')
+        self.engine = self.root/'engine'
+        self.engine.write_text(ENGINE.format(python=sys.executable)); self.engine.chmod(0o700)
+        self.environment['LUMEN_OPENCODE_BIN'] = str(self.engine)
         self.enterContext(patch.dict(os.environ, self.environment))
         self.config = self.root/'config/lumen-server/connection.json'
         self.write_pairing()
-        self.binary = self.root/'engine'
-        self.binary.write_text('#!'+sys.executable+'\nimport time\n'
-            'print("opencode server listening on http://127.0.0.1:54321", flush=True)\ntime.sleep(60)\n')
-        self.binary.chmod(0o700)
-        self.enterContext(patch('assistant_backend.opencode_binary', return_value=str(self.binary)))
 
     def write_pairing(self, **changes):
         value = dict(server='https://staging.invalid', token='synthetic-device-token',
@@ -43,8 +80,13 @@ class ServerMCPBindingTest(unittest.TestCase):
         self.config.write_text(json.dumps(value)); self.config.chmod(0o600)
         return value
 
-    def wait(self, condition):
-        until = time.monotonic()+5
+    def stamp(self, pairing):
+        """The binding as the earlier Python computed it; the service keeps it byte-identical."""
+        fields = {k: pairing.get(k) for k in ('server', 'device_id', 'token', 'account', 'ca_file')}
+        return hashlib.sha256(json.dumps([str(self.root), str(self.root/'config'), fields], sort_keys=True).encode()).hexdigest()
+
+    def wait(self, condition, limit=8):
+        until = time.monotonic()+limit
         while not condition() and time.monotonic() < until:
             self.app.processEvents(); time.sleep(.005)
         self.assertTrue(condition())
@@ -52,286 +94,157 @@ class ServerMCPBindingTest(unittest.TestCase):
     def backend(self, **kwargs):
         backend = OpenCodeBackend(str(self.root), **kwargs)
         backend.settings = QSettings(str(self.root/'assistant.ini'), QSettings.IniFormat)
+        backend.selected_model = 'test/model'
         self.addCleanup(backend.shutdown)
         return backend
 
+    def started(self):
+        return json.loads(Path(str(self.engine)+'.env').read_text())
+
     def start(self, backend):
-        ready=[]
+        for name in ('.env', '.pid'): Path(str(self.engine)+name).unlink(missing_ok=True)
+        ready = []
         backend.ensure_server(lambda: ready.append(True))
         self.wait(lambda: bool(ready))
-        return json.loads(backend.proc.processEnvironment().value('OPENCODE_CONFIG_CONTENT'))
+        return json.loads(self.started()['OPENCODE_CONFIG_CONTENT'])
 
-    def test_private_engine_merges_current_pairing_without_touching_disk_config(self):
-        original = dict(model='provider/model', small_model='provider/small', provider={'provider':{'name':'Test'}},
-            permission={'edit':'ask'}, mcp={'other':{'type':'local','command':['true']},
-                'lumen-server':{'type':'remote','url':'https://stale.invalid/mcp/',
-                                'headers':{'Authorization':'Bearer stale'},'enabled':False}})
-        os.environ['OPENCODE_CONFIG_CONTENT']=json.dumps(original)
-        before=self.config.read_bytes(); files=set(self.root.rglob('*'))
-        backend=self.backend(); result=self.start(backend)
-        expected=dict(type='remote',url='https://staging.invalid/mcp/',
-            headers={'Authorization':'Bearer synthetic-device-token'},enabled=True,oauth=False)
-        self.assertEqual(result['mcp']['lumen-server'],expected)
-        self.assertEqual({k:v for k,v in result.items() if k not in ('mcp','skills','plugin')},
-                         {k:v for k,v in original.items() if k not in ('mcp','skills')})
-        self.assertEqual(result['mcp']['other'],original['mcp']['other'])
-        self.assertEqual(result['skills'], {'urls':['https://staging.invalid/api/skills/']})
-        self.assertEqual(self.config.read_bytes(),before)
-        self.assertEqual(os.environ['OPENCODE_CONFIG_CONTENT'],json.dumps(original))
-        self.assertFalse(any(p.name in ('opencode.json','opencode.jsonc','opencode-mcp.json')
-                             for p in set(self.root.rglob('*'))-files))
+    def requests(self):
+        log = Path(str(self.engine)+'.log')
+        return [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
 
-    def test_compaction_plugin_is_bundled_once_and_preserves_user_plugins(self):
-        asset = Path(__file__).with_name('engine-plugins')/'lumen-continuity.mjs'
-        uri = asset.resolve().as_uri()
-        self.assertTrue(asset.is_file())
-        for own in ([], [uri], [[uri, {'own': 'options'}]]):
-            original = {'plugin': ['@example/owned@1.0.0', *own], 'model': 'chosen/model'}
-            os.environ['OPENCODE_CONFIG_CONTENT'] = json.dumps(original)
-            backend = self.backend()
-            result = self.start(backend)
-            self.assertEqual(result['model'], 'chosen/model')
-            self.assertEqual(result['plugin'][0], '@example/owned@1.0.0')
-            self.assertEqual(sum(row == uri or isinstance(row, list) and row[0] == uri for row in result['plugin']), 1)
-            self.assertEqual(os.environ['OPENCODE_CONFIG_CONTENT'], json.dumps(original))
-            backend.shutdown()
+    def ended(self, pid):
+        # A process reaped between the two looks has ended too.
+        try:
+            os.kill(pid, 0)
+            return Path(f'/proc/{pid}/stat').read_text().rsplit(') ', 1)[1].startswith('Z')
+        except (ProcessLookupError, FileNotFoundError): return True
 
-    def test_shared_skills_merge_without_overriding_user_paths_or_learning(self):
-        from server_mcp_binding import configuration
-        original = {'skills': {'paths': ['/own/skills'], 'urls': ['https://own.invalid/skills/']}}
-        value, _ = configuration(dict(self.environment, OPENCODE_CONFIG_CONTENT=json.dumps(original)))
-        self.assertEqual(json.loads(value)['skills'], dict(paths=['/own/skills'],
-            urls=['https://own.invalid/skills/', 'https://staging.invalid/api/skills/']))
-        self.config.unlink()
-        value, _ = configuration(dict(self.environment, OPENCODE_CONFIG_CONTENT=json.dumps(original)))
-        self.assertEqual(json.loads(value)['skills'], original['skills'])
-
-    def test_missing_pairing_masks_stale_inherited_server_without_altering_other_tools(self):
-        self.config.unlink()
-        os.environ['OPENCODE_CONFIG_CONTENT']=json.dumps(dict(model='p/m',mcp={
-            'other':{'enabled':False},'lumen-server':{'type':'remote','url':'https://old.invalid/mcp/'}}))
-        result=self.start(self.backend())
-        self.assertEqual(result['mcp']['lumen-server'],{'enabled':False})
-        self.assertEqual(result['mcp']['other'],{'enabled':False})
-        self.assertEqual(result['model'],'p/m')
+    def test_private_engine_merges_current_pairing_and_the_crates_plugin_without_touching_disk_config(self):
+        original = dict(model='provider/model', plugin=['@example/owned@1.0.0'], permission={'edit': 'ask'},
+            mcp={'other': {'type': 'local', 'command': ['true']}, 'lumen-server': {'enabled': False}})
+        os.environ['OPENCODE_CONFIG_CONTENT'] = json.dumps(original)
+        before = self.config.read_bytes()
+        result = self.start(self.backend())
+        self.assertEqual(result['mcp']['lumen-server'], dict(type='remote', url='https://staging.invalid/mcp/',
+            headers={'Authorization': 'Bearer synthetic-device-token'}, enabled=True, oauth=False))
+        self.assertEqual(result['mcp']['other'], original['mcp']['other'])
+        self.assertEqual(result['skills'], {'urls': ['https://staging.invalid/api/skills/']})
+        self.assertEqual(result['plugin'][0], '@example/owned@1.0.0')
+        self.assertEqual(len(result['plugin']), 2)
+        plugin = Path(result['plugin'][1].removeprefix('file://'))
+        self.assertEqual(plugin.read_text(), (Path(__file__).parents[1]/'native/engine/src/lumen-continuity.mjs').read_text())
+        self.assertEqual(plugin.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(self.config.read_bytes(), before)
+        self.assertEqual(os.environ['OPENCODE_CONFIG_CONTENT'], json.dumps(original))
+        self.assertEqual(self.started()['OPENCODE_SERVER_USERNAME'], 'opencode')
+        self.assertGreaterEqual(len(self.started()['OPENCODE_SERVER_PASSWORD']), 32)
+        self.assertFalse(any(p.name in ('opencode.json', 'opencode.jsonc') for p in self.root.rglob('*')))
 
     def test_learning_environment_uses_its_effective_profile_without_personal_fallback(self):
-        profile=self.root/'learning'
-        backend=self.backend();backend.learning_environment=dict(HOME=str(profile),
-            XDG_CONFIG_HOME=str(profile/'config'),OPENCODE_CONFIG_CONTENT=json.dumps(dict(
-                model='learning/model',mcp={'lumen_learning':{'type':'local','command':['true']}})))
-        result=self.start(backend)
-        self.assertEqual(result['mcp']['lumen-server'],{'enabled':False})
-        self.assertEqual(result['mcp']['lumen_learning'],{'type':'local','command':['true']})
-        self.assertEqual(result['model'],'learning/model')
-        self.assertEqual(backend.proc.processEnvironment().value('HOME'),str(profile))
-
-    def test_home_fallback_uses_effective_home_even_with_empty_xdg_config(self):
-        from server_mcp_binding import configuration
-        home=self.root/'alternate'; path=home/'.config/lumen-server/connection.json'
-        path.parent.mkdir(parents=True);path.write_bytes(self.config.read_bytes());path.chmod(0o600)
-        result,_=configuration(dict(self.environment,HOME=str(home),XDG_CONFIG_HOME=''))
-        self.assertEqual(json.loads(result)['mcp']['lumen-server']['url'],'https://staging.invalid/mcp/')
-        path.unlink()
-        result,_=configuration(dict(self.environment,HOME=str(home),XDG_CONFIG_HOME=''))
-        self.assertEqual(json.loads(result)['mcp']['lumen-server'],{'enabled':False})
-
-    def test_model_configuration_does_not_change_the_account_history_binding(self):
-        from server_mcp_binding import configuration
-        _,first=configuration(self.environment)
-        _,second=configuration(dict(self.environment,OPENCODE_CONFIG_CONTENT=json.dumps(dict(model='another/model'))))
-        self.assertEqual(first,second)
-        self.write_pairing(token='replacement-token')
-        _,third=configuration(self.environment)
-        self.assertNotEqual(second,third)
+        profile = self.root/'learning'
+        backend = self.backend()
+        # The service's own learning engine (native/service/src/learning.rs) names its profile so.
+        environment = dict(HOME=str(profile), XDG_CONFIG_HOME=str(profile/'config'),
+            OPENCODE_CONFIG_CONTENT=json.dumps(dict(model='learning/model', mcp={'lumen_learning': {'type': 'local', 'command': ['true']}})))
+        engine = backend.engine
+        backend.engine = lambda: dict(engine(), environment=environment)
+        result = self.start(backend)
+        self.assertEqual(result['mcp']['lumen-server'], {'enabled': False})
+        self.assertEqual(result['mcp']['lumen_learning'], {'type': 'local', 'command': ['true']})
+        self.assertEqual(result['model'], 'learning/model')
+        self.assertEqual(self.started()['HOME'], str(profile))
 
     def test_invalid_configuration_never_starts_an_engine_or_exposes_secrets(self):
-        cases=[dict(server='http://host.invalid'),dict(server='https://user@host.invalid'),
-            dict(server='https://host.invalid/path'),dict(server='https://host.invalid:0'),
-            dict(server='https://host.invalid\\@other.invalid'),dict(token='secret\r\nHeader: no'),
-            dict(token='{env:SECRET}'),dict(token=''),dict(device_id='invalid')]
-        for changes in cases:
+        for changes in (dict(server='https://user@host.invalid'), dict(token='secret\r\nHeader: no'), dict(device_id='invalid')):
             with self.subTest(changes=changes):
-                self.write_pairing(**changes);backend=self.backend(); errors=[]; ready=[]
+                self.write_pairing(**changes); backend = self.backend(); errors = []; ready = []
                 backend.failed.connect(errors.append)
-                backend.ensure_server(lambda:ready.append(True))
-                self.assertIsNone(backend.proc);self.assertFalse(ready);self.assertTrue(errors)
-                self.assertNotIn(str(changes),str(errors))
+                backend.ensure_server(lambda: ready.append(True))
+                self.wait(lambda: bool(errors))
+                self.assertFalse(ready); self.assertFalse(Path(str(self.engine)+'.env').exists())
+                self.assertNotIn(str(changes), str(errors))
         self.write_pairing()
-        for raw in ('null','[]','{"mcp": []}','{"mcp": null}','{bad'):
-            with self.subTest(runtime=raw):
-                os.environ['OPENCODE_CONFIG_CONTENT']=raw;backend=self.backend();errors=[]
-                backend.failed.connect(errors.append);backend.ensure_server(lambda:None)
-                self.assertIsNone(backend.proc);self.assertTrue(errors)
+        os.environ['OPENCODE_CONFIG_CONTENT'] = '{"mcp": []}'
+        backend = self.backend(); errors = []
+        backend.failed.connect(errors.append); backend.ensure_server(lambda: None)
+        self.wait(lambda: bool(errors)); self.assertFalse(Path(str(self.engine)+'.env').exists())
 
-    def test_unreadable_oversize_symlink_or_public_pairing_fails_closed(self):
-        from server_mcp_binding import BindingError, configuration
-        for kind in ('malformed','oversize','public','symlink','fifo'):
-            with self.subTest(kind=kind):
-                self.write_pairing()
-                if kind=='malformed':self.config.write_text('null')
-                elif kind=='oversize':self.config.write_text(' '*65537)
-                elif kind=='public':self.config.chmod(0o644)
-                elif kind=='symlink':
-                    self.config.rename(self.config.with_suffix('.target'))
-                    self.config.symlink_to(self.config.with_suffix('.target'))
-                else:
-                    self.config.unlink();os.mkfifo(self.config,0o600)
-                with self.assertRaises(BindingError):configuration(self.environment)
-                self.config.unlink()
-
-    def test_binding_change_fences_ensure_request_send_and_running_poll_then_resets_conversation(self):
-        for operation in ('ensure','request','poll','send'):
+    def test_binding_change_fences_ensure_request_send_and_poll_then_resets_conversation(self):
+        for operation in ('ensure', 'request', 'poll', 'send'):
             with self.subTest(operation=operation):
-                self.write_pairing(); backend=self.backend();self.start(backend)
-                backend.session='old-session';backend.messages=[{'info':{'role':'user'},'parts':[]}]
-                backend.set_busy(True); failures=[];backend.failed.connect(failures.append)
-                proc=backend.proc
-                self.write_pairing(server='https://replacement.invalid',token='replacement-token',
+                self.write_pairing(); backend = self.backend(); self.start(backend)
+                pid = int(Path(str(self.engine)+'.pid').read_text())
+                backend.session = 'ses_old'; backend.messages = [{'info': {'role': 'user'}, 'parts': []}]
+                failures = []; backend.failed.connect(failures.append)
+                self.write_pairing(server='https://replacement.invalid', token='replacement-token',
                     device_id='b5c704e4-c826-479b-bcde-41b2c8dc8efb')
-                with patch.object(backend.network,'sendCustomRequest') as network:
-                    if operation=='ensure':backend.ensure_server(lambda: self.fail('Old callback used'))
-                    elif operation=='request':backend.request('GET','/permission')
-                    elif operation=='poll':backend.poll()
-                    else:self.assertIs(backend.send('Do not attach this to the previous account'),False)
-                    network.assert_not_called()
-                self.assertIsNone(backend.proc);self.assertEqual(backend.session,'')
-                self.assertEqual(backend.messages,[]);self.assertFalse(backend.busy)
-                self.assertTrue(failures);self.assertEqual(proc.state(),QProcess.ProcessState.NotRunning)
-                result=self.start(backend)
-                self.assertEqual(result['mcp']['lumen-server']['url'],'https://replacement.invalid/mcp/')
-                self.assertEqual(result['mcp']['lumen-server']['headers']['Authorization'],'Bearer replacement-token')
+                sent = len(self.requests())
+                if operation == 'ensure': backend.ensure_server(lambda: self.fail('Old callback used'))
+                elif operation == 'request': backend.request('GET', '/config', callback=lambda _: self.fail('Old answer used'))
+                elif operation == 'poll': backend.poll()
+                else: backend.send('Do not attach this to the previous account')
+                self.wait(lambda: bool(failures))
+                self.assertEqual(self.requests()[sent:], [], 'nothing reaches the engine of the old pairing')
+                self.assertEqual(backend.session, ''); self.assertEqual(backend.messages, []); self.assertFalse(backend.busy)
+                self.wait(lambda: self.ended(pid))
+                result = self.start(backend)
+                self.assertEqual(result['mcp']['lumen-server']['url'], 'https://replacement.invalid/mcp/')
+                self.assertEqual(result['mcp']['lumen-server']['headers']['Authorization'], 'Bearer replacement-token')
                 backend.shutdown()
 
-    def test_watcher_stops_waiting_engine_after_disconnect_without_a_new_request(self):
-        backend=self.backend();self.start(backend)
-        backend.session='old-session';backend.set_busy(True);backend.polling=True
+    def test_a_running_turn_stops_when_the_pairing_is_removed(self):
+        backend = self.backend(); self.start(backend)
+        Path(str(self.engine)+'.hold').touch()
+        failures = []; backend.failed.connect(failures.append)
+        backend.send('Wait for the answer', proposal=True)
+        self.wait(lambda: any(path.endswith('/prompt_async') for _, path, _ in self.requests()))
+        self.assertTrue(backend.busy)
         self.config.unlink()
-        self.wait(lambda:backend.proc is None)
-        self.assertEqual(backend.session,'');self.assertFalse(backend.busy)
-        self.assertFalse(backend.binding_timer.isActive())
-
-    def test_after_binding_reset_a_new_send_creates_a_new_session_without_old_context(self):
-        state={'prompt':None,'paths':[],'row':None}
-        class Handler(BaseHTTPRequestHandler):
-            def log_message(self,*_):pass
-            def do_GET(self):self.respond()
-            def do_POST(self):self.respond()
-            def respond(self):
-                path=self.path.split('?')[0];state['paths'].append(path)
-                body=json.loads(self.rfile.read(int(self.headers.get('Content-Length',0))) or 'null')
-                value={}
-                if path=='/config':value={'model':'synthetic/model'}
-                elif path=='/session':
-                    if self.command=='POST':
-                        state['row']=dict(body,id='new-session',directory=str(self_root))
-                        value=state['row']
-                    else:value=[]
-                elif path=='/session/new-session':value=state['row']
-                elif path.endswith('/prompt_async'):state['prompt']=body
-                elif path in ('/permission','/question'):value=[]
-                elif path.endswith('/message'):
-                    value=[{'info':{'role':'assistant','parentID':state['prompt']['messageID'],
-                        'time':{'completed':1}},'parts':[{'type':'text','text':'Synthetic completion'}]}]
-                raw=json.dumps(value).encode();self.send_response(200)
-                self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(raw)))
-                self.end_headers();self.wfile.write(raw)
-        self_root=self.root
-        server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
-        threading.Thread(target=server.serve_forever,daemon=True).start()
-        self.addCleanup(server.server_close);self.addCleanup(server.shutdown)
-        backend=self.backend();self.start(backend)
-        backend.session='old-account-session';backend.messages=[dict(info={'role':'user'},parts=[{'text':'old private context'}])]
-        self.write_pairing(token='new-account-token')
-        self.assertIs(backend.send('First send notices the change'),False)
-        self.assertEqual(backend.session,'');self.assertEqual(backend.messages,[])
-        self.start(backend);backend.url='http://127.0.0.1:'+str(server.server_port)
-        backend.send('New account question',proposal=True)
-        self.wait(lambda:state['prompt'] is not None and not backend.busy)
-        self.assertEqual(backend.session,'new-session')
-        self.assertTrue(all('old-account-session' not in path for path in state['paths']))
-        self.assertNotIn('old private context',json.dumps(state['prompt']))
+        self.wait(lambda: bool(failures))
+        self.assertIn('Serververbindung', failures[-1])
+        self.assertEqual(backend.session, ''); self.assertFalse(backend.busy)
+        self.assertEqual(sum(path.endswith('/prompt_async') for _, path, _ in self.requests()), 1)
 
     def test_history_and_live_selection_cannot_restore_a_different_binding(self):
-        backend=self.backend();self.start(backend)
-        rows=[dict(id='current',directory=str(self.root),metadata=dict(client='lumen',
-                  lumen_server_binding=backend.server_mcp_binding)),
-              dict(id='previous',directory=str(self.root),metadata=dict(client='lumen',lumen_server_binding='old')),
-              dict(id='legacy',directory=str(self.root),metadata=dict(client='lumen'))]
-        captured=[];backend.sessionsChanged.connect(captured.append)
-        def request(method,path,body=None,callback=None,error=None):
-            if path.startswith('/session?'):callback(rows)
-            else:callback(next(row for row in rows if path.endswith('/'+row['id'])))
-        with patch.object(backend,'request',side_effect=request):
-            backend.refresh_sessions()
-            self.assertEqual([r['id'] for r in captured[-1]],['current'])
-            with patch.object(backend,'poll') as poll:
-                backend.select_session('current')
-                self.assertEqual(backend.session,'current');poll.assert_called_once()
-            backend.select_session('previous')
-            self.assertEqual(backend.session,'');self.assertEqual(captured[-1],[])
-        # Nothing in the shared engine database was deleted or rewritten.
-        self.assertEqual([row['id'] for row in rows],['current','previous','legacy'])
+        current = self.stamp(self.write_pairing())
+        rows = {name: dict(id=name, directory=str(self.root), metadata=metadata) for name, metadata in (
+            ('ses_current', dict(client='lumen', lumen_server_binding=current)),
+            ('ses_previous', dict(client='lumen', lumen_server_binding='old')),
+            ('ses_legacy', dict(client='lumen')))}
+        Path(str(self.engine)+'.sessions').write_text(json.dumps(rows))
+        backend = self.backend(); captured = []; backend.sessionsChanged.connect(captured.append)
+        backend.refresh_sessions()
+        self.wait(lambda: bool(captured))
+        self.assertEqual([r['id'] for r in captured[-1]], ['ses_current'])
+        backend.select_session('ses_current')
+        self.wait(lambda: backend.session == 'ses_current')
+        failures = []; backend.failed.connect(failures.append)
+        backend.select_session('ses_previous')
+        self.wait(lambda: bool(failures))
+        self.assertEqual(backend.session, ''); self.assertEqual(captured[-1], [])
+        # Nothing in the engine database was deleted or rewritten.
+        self.assertFalse(any(method != 'GET' for method, _, _ in self.requests()))
 
     def test_recovery_assigned_session_id_is_checked_before_messages_or_prompt(self):
-        requests=[]
-        class Handler(BaseHTTPRequestHandler):
-            def log_message(self,*_):pass
-            def do_GET(self):
-                requests.append(self.path.split('?')[0])
-                raw=json.dumps(dict(id='old-restored-session',directory=str(self_root),
-                    metadata=dict(client='lumen',lumen_server_binding='previous-account'))).encode()
-                self.send_response(200);self.send_header('Content-Type','application/json')
-                self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
-            def do_POST(self):requests.append(self.path);self.send_error(500)
-        self_root=self.root
-        server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
-        threading.Thread(target=server.serve_forever,daemon=True).start()
-        self.addCleanup(server.server_close);self.addCleanup(server.shutdown)
-        backend=self.backend();self.start(backend)
-        backend.url='http://127.0.0.1:'+str(server.server_port)
-        backend.session='old-restored-session';backend.set_busy(True)
-        backend.request('POST','/session/old-restored-session/prompt_async',{'parts':[]})
-        self.wait(lambda:backend.proc is None)
-        self.assertEqual(requests,['/session/old-restored-session']);self.assertEqual(backend.session,'')
-
-    def test_disconnect_or_broken_config_stops_old_engine_and_clears_context(self):
-        for change in ('disconnect','broken','runtime','account'):
-            with self.subTest(change=change):
-                self.write_pairing();os.environ['OPENCODE_CONFIG_CONTENT']='{}'
-                backend=self.backend();self.start(backend);backend.session='old-session';backend.set_busy(True)
-                if change=='disconnect':self.config.unlink()
-                elif change=='broken':self.config.write_text('{bad')
-                elif change=='runtime':os.environ['OPENCODE_CONFIG_CONTENT']='null'
-                else:self.write_pairing(account='replacement-account')
-                with patch.object(backend.network,'sendCustomRequest') as network:backend.poll();network.assert_not_called()
-                self.assertIsNone(backend.proc);self.assertEqual(backend.session,'');self.assertFalse(backend.busy)
-
-    def test_reply_from_old_pairing_cannot_reach_a_callback(self):
-        entered=threading.Event(); release=threading.Event()
-        class Handler(BaseHTTPRequestHandler):
-            def log_message(self,*_):pass
-            def do_GET(self):
-                entered.set();release.wait(3)
-                raw=b'{"private":"old response"}'
-                self.send_response(200);self.send_header('Content-Type','application/json')
-                self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
-        server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
-        threading.Thread(target=server.serve_forever,daemon=True).start()
-        self.addCleanup(server.server_close);self.addCleanup(server.shutdown);self.addCleanup(release.set)
-        backend=self.backend();self.start(backend)
-        backend.url='http://127.0.0.1:'+str(server.server_port);backend.session='old-session'
-        callbacks=[];backend.request('GET','/config',callback=callbacks.append)
-        self.wait(entered.is_set);self.write_pairing(token='replacement-token');release.set()
-        self.wait(lambda:backend.proc is None)
-        self.assertEqual(callbacks,[]);self.assertEqual(backend.session,'')
+        rows = {'ses_restored': dict(id='ses_restored', directory=str(self.root),
+                                     metadata=dict(client='lumen', lumen_server_binding='previous-account'))}
+        Path(str(self.engine)+'.sessions').write_text(json.dumps(rows))
+        backend = self.backend(); failures = []; backend.failed.connect(failures.append)
+        # A companion turn keeps the session and needs no account persona from the paired server.
+        backend.session = 'ses_restored'; backend.screen_guidance = True
+        backend.send('Continue the restored conversation')
+        self.wait(lambda: bool(failures))
+        paths = [path for _, path, _ in self.requests()]
+        self.assertIn('/session/ses_restored', paths)
+        self.assertFalse(any(path.startswith('/session/ses_restored/') for path in paths))
+        self.assertEqual(backend.session, '')
 
     def test_explicit_external_engine_is_not_claimed_or_reconfigured(self):
-        backend=self.backend(server_url='http://127.0.0.1:54321')
+        backend = self.backend(server_url='http://127.0.0.1:54321')
         self.config.write_text('broken pairing must not configure an external engine')
-        ready=[];backend.ensure_server(lambda:ready.append(True))
-        self.assertEqual(ready,[True]);self.assertIsNone(backend.proc)
-        self.assertIsNone(getattr(backend,'server_mcp_binding',None))
+        ready = []; backend.ensure_server(lambda: ready.append(True))
+        self.wait(lambda: bool(ready))
+        self.assertFalse(Path(str(self.engine)+'.env').exists())
 
 
-if __name__=='__main__':unittest.main()
+if __name__ == '__main__': unittest.main()

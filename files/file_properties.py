@@ -63,14 +63,10 @@ class Properties(QDialog):
         separator=QFrame();separator.setFrameShape(QFrame.HLine);main.addWidget(separator)
         self.access_link=QPushButton(tr('Ansehen ›')); self.access_link.setObjectName('quiet'); self.access_link.clicked.connect(lambda:self.tabs.setCurrentIndex(1))
         access_row=QHBoxLayout();access_row.addWidget(label(tr('Zugriff')));access_row.addStretch();access_row.addWidget(self.access_link);main.addLayout(access_row)
-        self.backup = label('', 'muted'); main.addWidget(self.backup)
-        self.vault_button=QPushButton(tr('Versionen ansehen ›'));self.vault_button.setObjectName('quiet');self.vault_button.clicked.connect(self.vault)
-        vault_row=QHBoxLayout();vault_row.addWidget(label('Lumen Vault'));vault_row.addStretch();vault_row.addWidget(self.vault_button);main.addLayout(vault_row)
         main.addStretch(); self.general_layout.addWidget(left,1)
         self.overview = QFrame(); self.overview.setObjectName('propertiesOverview'); right=QVBoxLayout(self.overview)
         right.addWidget(label(tr('Speicher & Inhalt'),'propertiesSection')); self.distribution=QVBoxLayout(); right.addLayout(self.distribution)
         self.counts=label(tr('Die Aufteilung erscheint nach der Größenberechnung.'),'muted'); right.addWidget(self.counts)
-        right.addSpacing(16); right.addWidget(label(tr('Sicherungen & Verlauf'),'propertiesSection')); self.backup_detail=label('', 'muted'); right.addWidget(self.backup_detail)
         right.addStretch(); discuss=QPushButton(tr('Mit Lumen besprechen')); discuss.clicked.connect(self.discuss); discuss.setVisible(not self.drive); right.addWidget(discuss)
         self.general_layout.addWidget(self.overview,1,Qt.AlignTop); self.overview.hide()
         self.tabs.addTab(general,tr('Allgemein'))
@@ -93,9 +89,8 @@ class Properties(QDialog):
         self.tabs.addTab(details,tr('Details'))
         connections=QWidget(); links=QVBoxLayout(connections); links.addWidget(label(tr('Verwendung in anderen Lumen-Apps und vorhandene Verknüpfungen prüfen.')))
         self.related_button=QPushButton(tr('Verwendet in …')); self.related_button.clicked.connect(self.related); links.addWidget(self.related_button); links.addStretch(); self.tabs.addTab(connections,tr('Verknüpfungen'))
-        versions=QWidget(); history=QVBoxLayout(versions); history.addWidget(label(tr('Vorhandene Versionen werden über die bestehende lokale Dateihistorie oder Lumen Vault geöffnet.')))
-        self.local_versions=QPushButton(tr('Lokale Dateiversionen …')); self.local_versions.clicked.connect(lambda:window.show_versions(self.paths[0])); history.addWidget(self.local_versions)
-        self.more_vault=QPushButton(tr('Versionen in Lumen Vault …')); self.more_vault.clicked.connect(self.vault); history.addWidget(self.more_vault); history.addStretch(); self.tabs.addTab(versions,tr('Versionen'))
+        versions=QWidget(); history=QVBoxLayout(versions); history.addWidget(label(tr('Vorhandene Versionen werden über die bestehende lokale Dateihistorie geöffnet.')))
+        self.local_versions=QPushButton(tr('Lokale Dateiversionen …')); self.local_versions.clicked.connect(lambda:window.show_versions(self.paths[0])); history.addWidget(self.local_versions); history.addStretch(); self.tabs.addTab(versions,tr('Versionen'))
         self.tabs.setTabVisible(3,False); self.tabs.setTabVisible(4,False)
         self.status=label(tr('Dateieigenschaften werden geladen …'),'muted'); status_row=QHBoxLayout();status_row.addWidget(self.status,1)
         self.cancel_button=QPushButton(tr('Abbrechen'));self.cancel_button.clicked.connect(self.cancel_read);self.cancel_button.hide();status_row.addWidget(self.cancel_button);outer.addLayout(status_row)
@@ -138,13 +133,13 @@ class Properties(QDialog):
         self.start('inspect',lambda job:data.inspect(paths,job,remote))
 
     def set_busy(self, busy):
-        for widget in (self.name,self.calculate,self.hash_button,self.expand,self.access_link,self.vault_button,self.more_vault,self.local_versions,self.related_button):widget.setEnabled(not busy and self.fact is not None)
+        for widget in (self.name,self.calculate,self.hash_button,self.expand,self.access_link,self.local_versions,self.related_button):widget.setEnabled(not busy and self.fact is not None)
         if not busy and self.fact:
             one=len(self.fact['rows'])==1; row=self.fact['rows'][0]
             self.name.setReadOnly(not one or (not self.drive and Path(row['path']).parent==Path(row['path'])) or (self.drive and row.get('can_write') is not True))
             self.calculate.setEnabled(not self.drive)
             self.hash_button.setEnabled(one and not self.drive and row['kind']=='file')
-            for button in (self.vault_button,self.more_vault,self.local_versions):button.setEnabled(one and not self.drive)
+            self.local_versions.setEnabled(one and not self.drive)
             self.related_button.setEnabled(not self.drive)
         for check,_ in self.bits:check.setEnabled(not busy and bool(self.fact) and len(self.fact['rows'])==1 and self.fact['rows'][0].get('can_mode',False))
         self.dirty()
@@ -205,12 +200,6 @@ class Properties(QDialog):
             check.blockSignals(True);check.setChecked(one and bool(row.get('mode',0)&bit));check.blockSignals(False)
         self.acl.setPlainText(self.fact.get('acl_text') or tr('Keine zusätzlichen ACL-Angaben verfügbar.'))
         self.acl.setVisible(not self.drive)
-        plans=self.fact.get('plans',[])
-        self.backup.setText(tr('Sicherungsstatus pro Eintrag prüfen') if not one else tr('Sicherungsplan vorhanden') if plans else tr('Kein Sicherungsplan gefunden') if not self.drive else tr('Sicherungen werden vom Server verwaltet.'))
-        lines=[]
-        for plan in plans:lines.append(plan['title']+'\n'+tr('Letzter Sicherungslauf: {0}',date(plan.get('last_backup') or None)))
-        self.backup_detail.setText('\n\n'.join(lines)+'\n\n'+tr('Planstatus; Sicherungsinhalt noch nicht geprüft.') if lines else self.backup.text())
-        if self.fact.get('backup_error'):self.backup.setText(tr('Sicherungsstatus nicht verfügbar.'));self.backup_detail.setText(self.backup.text())
         details=[]
         if one:
             for key,title in [('mime',tr('Dateityp (MIME)')),('target',tr('Verknüpfungsziel')),('allocated',tr('Belegter Speicher')),('links',tr('Hardlinks'))]:
@@ -281,10 +270,6 @@ class Properties(QDialog):
         self.expand.setText(tr('Kompakte Ansicht') if self.expanded else tr('Mehr Details'))
         self.resize(960 if self.expanded else 540,680 if self.expanded else 620)
         if self.expanded and self.totals is None and not self.drive:self.count()
-
-    def vault(self):
-        from interop_vault import show_file_versions
-        show_file_versions(self,self.paths[0])
 
     def related(self):
         from interop_ui import browse,safe_action

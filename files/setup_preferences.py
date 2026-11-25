@@ -4,7 +4,6 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QComboBox, QFormLayout, QChe
 from lumen_i18n import tr
 from lumen_memory import Memory, options
 from lumen_store import Store
-from lumen_persona import PRESETS
 from lumen_preferences import save_preferences
 from persona_settings import PersonaEditor
 from settings_navigation import Details, label
@@ -46,7 +45,7 @@ class SetupPreferences(QWidget):
 
     def refresh(self):
         self.summary.setText(tr('Persönlichkeit: {0}\nGedächtnis: {1}',
-            tr(PRESETS[self.persona.preset.currentData()][0]), self.memory.currentText()))
+            self.persona.preset.currentText(), self.memory.currentText()))
 
     def commit(self):
         changed_memory = (self.memory.currentIndex() != self.initial_memory_index

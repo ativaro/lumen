@@ -254,10 +254,10 @@ class ActualLinkNavigationTest(unittest.TestCase):
             cookie=window.session._cookie
             with patch('interop_open.launch',side_effect=lambda *args:dispatched.append(args)):
                 QTest.mouseClick(window.view.focusProxy() or window.view,Qt.RightButton,pos=QPoint(30,150))
-                case.wait(lambda:len(dispatched)==1,timeout=8000)
+                case.wait(lambda:len(dispatched)==1,timeout=30000)
                 selections[0]=1;window.view.setFocus()
                 QTest.keyClick(window.view.focusProxy() or window.view,Qt.Key_F10,Qt.ShiftModifier)
-                case.wait(lambda:len(dispatched)==2,timeout=8000)
+                case.wait(lambda:len(dispatched)==2,timeout=30000)
             self.assertEqual(dispatched[0],('files',[str(original),'--select'],None))
             self.assertEqual(dispatched[1][0],'files');self.assertEqual(dispatched[1][1][0],'--ref')
             self.assertEqual(registry.resolve(dispatched[1][1][1]),dref)

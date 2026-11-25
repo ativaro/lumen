@@ -50,13 +50,22 @@ missing=()
 for c in bash python3 git; do command -v "$c" >/dev/null 2>&1 || missing+=("$c"); done
 [ ${#missing[@]} -gt 0 ] && { message "Fehlende Pflicht-Abhängigkeiten: ${missing[*]}" "Missing required dependencies: ${missing[*]}" >&2; exit 1; }
 
-"$REPO/bin/lumen-python" -c "import PySide6.QtWidgets, PySide6.QtSvg, PySide6.QtQuick, PySide6.QtQuickWidgets, gi, PIL, yaml, markdown_it" || { message "Benötigt: PySide6 mit QtQuick/QtSvg, PyGObject, Pillow, PyYAML und markdown-it-py" "Required: PySide6 with QtQuick/QtSvg, PyGObject, Pillow, PyYAML and markdown-it-py" >&2; exit 1; }
+"$REPO/bin/lumen-python" -c "import PySide6.QtWidgets, PySide6.QtSvg, PySide6.QtQuick, PySide6.QtQuickWidgets, gi, PIL, markdown_it" || { message "Benötigt: PySide6 mit QtQuick/QtSvg, PyGObject, Pillow und markdown-it-py" "Required: PySide6 with QtQuick/QtSvg, PyGObject, Pillow and markdown-it-py" >&2; exit 1; }
 if ! command -v g++ >/dev/null || ! command -v pkg-config >/dev/null || ! pkg-config --exists Qt6Core Qt6DBus; then
     if command -v pacman >/dev/null && command -v pkexec >/dev/null; then
         say "Richte den nativen Aufnahmehelfer ein" "Preparing the native capture helper"
         pkexec pacman -S --needed --noconfirm -- gcc pkgconf qt6-base
     else
         message "Benötigt: g++, pkg-config und Qt-6-Core/DBus-Entwicklungsdateien." "Required: g++, pkg-config and Qt 6 Core/DBus development files." >&2
+        exit 1
+    fi
+fi
+if ! command -v cargo >/dev/null; then
+    if command -v pacman >/dev/null && command -v pkexec >/dev/null; then
+        say "Richte den Dokumentleser ein" "Preparing the document reader"
+        pkexec pacman -S --needed --noconfirm -- rust
+    else
+        message "Benötigt: Rust mit cargo (ab 1.92) für Dokumentleser und Bedeutungssuche." "Required: Rust with cargo (1.92 or newer) for the document reader and meaning search." >&2
         exit 1
     fi
 fi
@@ -80,11 +89,36 @@ fi
 # preserve the existing app identity and all separately stored user tokens.
 GOOGLE_CLIENT="${LUMEN_GOOGLE_OAUTH_CLIENT_FILE:-$REPO/files/google-drive-client.json}"
 GOOGLE_STAGE="$(mktemp -d)"
-trap 'rm -rf "$GOOGLE_STAGE"' EXIT
+INSTALL_STARTED=0
+finish_install() {
+    status=$?
+    trap - EXIT
+    if [[ "$status" != 0 && "$INSTALL_STARTED" == 1 ]]; then
+        if ! /usr/bin/python3 "$REPO/packaging/install-transaction.py" restore "$PREFIX" "$GOOGLE_STAGE/rollback"; then
+            warn "Rücksetzen fehlgeschlagen; Sicherung: $GOOGLE_STAGE/rollback" "Rollback failed; backup: $GOOGLE_STAGE/rollback"
+            exit "$status"
+        fi
+    fi
+    rm -rf "$GOOGLE_STAGE"
+    exit "$status"
+}
+trap finish_install EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM HUP
 /usr/bin/python3 "$REPO/packaging/source-identity.py" "$REPO" --kind user > "$GOOGLE_STAGE/install.json"
 if [[ -n "${LUMEN_GOOGLE_OAUTH_CLIENT_FILE:-}" || -f "$GOOGLE_CLIENT" ]]; then
     /usr/bin/python3 "$REPO/files/google_drive.py" --bundle-client "$GOOGLE_CLIENT" "$GOOGLE_STAGE/client.json"
 fi
+mkdir -p "$GOOGLE_STAGE/bin"
+bash "$REPO/native/build-capture.sh" "$GOOGLE_STAGE/bin/lumen-window-capture"
+bash "$REPO/native/build-topbar.sh" "$GOOGLE_STAGE/bin/lumen-topbar"
+bash "$REPO/native/build-document.sh" "$GOOGLE_STAGE/bin/lumen-document"
+bash "$REPO/native/build-service.sh" "$GOOGLE_STAGE/bin/lumen-service"
+mkdir -p "$PREFIX"
+exec 9>"$PREFIX/.install.lock"
+flock -n 9 || { warn "Eine Installation läuft bereits." "An installation is already running."; exit 1; }
+/usr/bin/python3 "$REPO/packaging/install-transaction.py" snapshot "$PREFIX" "$GOOGLE_STAGE/rollback"
+INSTALL_STARTED=1
 say "Installiere Dateien nach $PREFIX" "Installing files into $PREFIX"
 mkdir -p "$BIN"
 install -m 0644 "$REPO/LICENSE" "$REPO/THIRD_PARTY_NOTICES.md" "$PREFIX/"
@@ -92,12 +126,17 @@ install -m 0755 "$REPO/uninstall.sh" "$PREFIX/uninstall.sh"
 for bin_file in "$REPO/bin/"*; do
     [ -f "$bin_file" ] && install -m 0755 "$bin_file" "$BIN/"
 done
-bash "$REPO/native/build-capture.sh" "$BIN/lumen-window-capture"
-bash "$REPO/native/build-topbar.sh" "$BIN/lumen-topbar"
+# Retired with the local Vault capture lease.
+rm -f "$BIN/lumen-private-capture"
+# Replaced by lumen-service; a running old process ends itself after ten idle minutes.
+rm -f "$BIN/lumen-memory"
+install -m 0755 "$GOOGLE_STAGE/bin/"* "$BIN/"
 mkdir -p "$PREFIX/agent-app"
 install -m 0644 "$REPO/agent-app/main.py" "$PREFIX/agent-app/"
 mkdir -p "$PREFIX/files"
 /usr/bin/python3 "$REPO/packaging/retire-desktop.py" "$PREFIX"
+# Lumen's state folder (lumen_paths.state_path): the old Notes parse cache there is no longer read.
+/usr/bin/python3 "$REPO/packaging/retire-desktop.py" --caches "${LUMEN_DATA:-${XDG_STATE_HOME:-$HOME/.local/state}/lumen}"
 for module in "$REPO/files/"*.py; do
     [[ "$(basename "$module")" == test_* ]] || install -m 0644 "$module" "$PREFIX/files/"
 done
@@ -106,7 +145,7 @@ install -m 0644 "$REPO/files/"*.qss "$REPO/files/"*.svg "$PREFIX/files/"
 if [[ -f "$GOOGLE_STAGE/client.json" ]]; then
     install -m 0644 "$GOOGLE_STAGE/client.json" "$PREFIX/files/google-drive-client.json"
 fi
-for asset in translations qml fonts notes_icons memory-runtime browser-runtime engine-plugins; do
+for asset in translations qml fonts notes_icons memory-runtime browser-runtime; do
     mkdir -p "$PREFIX/files/$asset"
     cp -R "$REPO/files/$asset/." "$PREFIX/files/$asset/"
 done
@@ -166,7 +205,7 @@ subst "$REPO/data/applications/lumen-updater.desktop" > "$DATA_HOME/applications
 subst "$REPO/data/applications/lumen-notification.desktop" > "$DATA_HOME/applications/lumen-notification.desktop"
 subst "$REPO/data/applications/lumen-apps.desktop" > "$DATA_HOME/applications/lumen-apps.desktop"
 subst "$REPO/data/applications/lumen-search-preview.desktop" > "$DATA_HOME/applications/lumen-search-preview.desktop"
-for tool in meetings household workbench radio vault inbox reader sound wissen translate system code; do
+for tool in meetings household workbench radio vault inbox photos reader sound wissen translate system code; do
     subst "$REPO/data/applications/lumen-$tool.desktop" > "$DATA_HOME/applications/lumen-$tool.desktop"
 done
 subst "$REPO/data/krunner-dbusplugins/lumen-runner.desktop" > "$DATA_HOME/krunner/dbusplugins/lumen-runner.desktop"
@@ -200,21 +239,23 @@ fi
 mkdir -p "$PREFIX/shell" "$PREFIX/opencode-command" "$PREFIX/opencode-skill/lumen-admin"
 cp "$REPO/shell/"* "$PREFIX/shell/"
 cp "$REPO/opencode-command/"*.md "$PREFIX/opencode-command/"
-for skill in lumen-admin lumen-projects lumen-vault-http; do
+for skill in lumen-admin lumen-projects; do
     mkdir -p "$PREFIX/opencode-skill/$skill"
     cp "$REPO/opencode-skill/$skill/SKILL.md" "$PREFIX/opencode-skill/$skill/"
 done
-# Retired stock skill is replaced by the server catalogue; custom text survives.
-/usr/bin/python3 - "$PREFIX/opencode-skill/lumen-service-access/SKILL.md" <<'PY_SKILL'
+# Retired stock skills (server catalogue, local Vault); custom text survives.
+/usr/bin/python3 - "$PREFIX/opencode-skill" <<'PY_SKILL'
 from pathlib import Path
 from hashlib import sha256
 import sys
-path = Path(sys.argv[1])
-if path.is_file() and not path.is_symlink() and sha256(path.read_bytes()).hexdigest() in (
-        'b49193b08585240dbe8df6b30857d7cfed5c79bbdb94950bbee956fd13c652cc',
-        '821b7405f5c2f434963dc5f79421def9987e20187c894b226e9bb30150269160'):
-    path.unlink()
-    if not any(path.parent.iterdir()): path.parent.rmdir()
+retired = {'lumen-service-access': ('b49193b08585240dbe8df6b30857d7cfed5c79bbdb94950bbee956fd13c652cc',
+                                    '821b7405f5c2f434963dc5f79421def9987e20187c894b226e9bb30150269160'),
+           'lumen-vault-http': ('af872d98e11f563f6cc95f92c4ac758db0cc14270964786748e116448fd5d278',)}
+for name, hashes in retired.items():
+    path = Path(sys.argv[1]) / name / 'SKILL.md'
+    if path.is_file() and not path.is_symlink() and sha256(path.read_bytes()).hexdigest() in hashes:
+        path.unlink()
+        if not any(path.parent.iterdir()): path.parent.rmdir()
 PY_SKILL
 UNITDIR="$CONFIG_HOME/systemd/user"
 mkdir -p "$UNITDIR"

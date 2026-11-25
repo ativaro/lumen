@@ -55,13 +55,13 @@ bootstrap() {
         fi
     fi
 
-    local packages=(git python pyside6 python-gobject python-pillow python-dbus python-yaml python-markdown-it-py openssl
+    local packages=(git python pyside6 python-gobject python-pillow python-dbus python-markdown-it-py openssl
         qt6-tools kde-cli-tools breeze-icons polkit gcc pkgconf qt6-base)
     if ! pacman -T "${packages[@]}" >/dev/null; then
         message 'Die grafische Basis wird installiert. Dafür ist gegebenenfalls dein Systempasswort nötig.' 'Installing the graphical runtime. Your system password may be required.'
         sudo pacman -S --needed --noconfirm -- "${packages[@]}"
     fi
-    "${LUMEN_PYTHON:-/usr/bin/python3}" -c 'import PySide6.QtWidgets, PySide6.QtSvg, PySide6.QtQuick, PySide6.QtQuickWidgets, PySide6.QtDBus, gi, PIL, dbus, yaml, markdown_it'
+    "${LUMEN_PYTHON:-/usr/bin/python3}" -c 'import PySide6.QtWidgets, PySide6.QtSvg, PySide6.QtQuick, PySide6.QtQuickWidgets, PySide6.QtDBus, gi, PIL, dbus, markdown_it'
     if ! qdbus6 org.kde.plasmashell /PlasmaShell >/dev/null 2>&1; then
         message 'Plasma 6 ist nicht erreichbar. Bitte in deiner Desktop-Sitzung erneut starten.' 'Plasma 6 is unavailable. Try again inside your desktop session.' >&2
         return 1

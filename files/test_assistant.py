@@ -34,7 +34,7 @@ class AssistantTest(unittest.TestCase):
 
     def test_managed_engine_isolates_foreign_database_without_changing_other_environment(self):
         import sqlite3
-        from assistant_backend import managed_opencode
+        from lumen_service import engine_info
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {
                 'XDG_DATA_HOME': tmp, 'XDG_CONFIG_HOME': tmp+'/config',
                 'OPENCODE_DB': 'opencode2.db', 'LUMEN_OPENCODE_BIN': ''}):
@@ -43,8 +43,10 @@ class AssistantTest(unittest.TestCase):
             with closing(sqlite3.connect(foreign)) as db, db:
                 db.execute('CREATE TABLE foreign_session (id TEXT)')
             before = foreign.read_bytes()
-            binary = managed_opencode(); binary.parent.mkdir(parents=True)
-            binary.write_text('#!'+sys.executable+'\nimport time\n'
+            binary = Path(engine_info()['managed']); binary.parent.mkdir(parents=True)
+            # The service starts the engine; this one records what it was given.
+            binary.write_text('#!'+sys.executable+'\nimport json,os,sys,time\n'
+                'open(sys.argv[0]+".env","w").write(json.dumps(dict(os.environ)))\n'
                 'print("opencode server listening on http://127.0.0.1:54321", flush=True)\ntime.sleep(60)\n')
             binary.chmod(0o700)
             backend = OpenCodeBackend(tmp, project_config=False)
@@ -52,10 +54,12 @@ class AssistantTest(unittest.TestCase):
             try:
                 backend.ensure_server(lambda: ready.append(True))
                 self.wait(lambda: bool(ready))
-                environment = backend.proc.processEnvironment()
-                self.assertEqual(environment.value('OPENCODE_DB'), str(data/'lumen-v1.db'))
-                self.assertEqual(environment.value('XDG_DATA_HOME'), tmp)
-                self.assertEqual(environment.value('XDG_CONFIG_HOME'), tmp+'/config')
+                environment = json.loads(Path(str(binary)+'.env').read_text())
+                self.assertEqual(environment['OPENCODE_DB'], str(data/'lumen-v1.db'))
+                self.assertEqual(environment['XDG_DATA_HOME'], tmp)
+                self.assertEqual(environment['XDG_CONFIG_HOME'], tmp+'/config')
+                self.assertEqual(environment['OPENCODE_DISABLE_PROJECT_CONFIG'], 'true')
+                self.assertEqual(environment['ORT_DISABLE_TELEMETRY'], '1')
                 self.assertEqual(backend.database_source, 'lumen')
                 self.assertEqual(os.environ['OPENCODE_DB'], 'opencode2.db')
                 self.assertEqual(foreign.read_bytes(), before)
@@ -74,12 +78,13 @@ class AssistantTest(unittest.TestCase):
                 path = self.path.split('?')[0]
                 body = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or 'null')
                 data = {}
+                if path == '/event': self.send_error(404); return
                 if path == '/config': data = {'model': 'test/model'}
                 elif path == '/session': data = {'id':'ses_diagnosis'} if self.command == 'POST' else []
                 elif path.endswith('/prompt_async'): state['prompt'] = body
                 elif path in ('/permission', '/question'): data = []
                 elif path.endswith('/message'):
-                    data = [{'info':{'role':'assistant', 'parentID':state['prompt']['messageID'], 'time':{'completed':1}},
+                    data = [{'info':{'role':'assistant', 'parentID':state['prompt']['messageID'], 'finish':'stop', 'time':{'completed':1}},
                              'parts':[{'type':'text', 'text':'Diagnostic test completed.'}]}]
                 raw = json.dumps(data).encode()
                 self.send_response(200); self.send_header('Content-Type','application/json')
@@ -158,6 +163,7 @@ class AssistantTest(unittest.TestCase):
             def handle_request(self, method):
                 path = self.path.split('?')[0]
                 body = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or 'null')
+                if path == '/event': self.send_error(404); return
                 state['requests'].append((method, path, body, self.headers.get('Authorization')))
                 data = {}
                 if path == '/config': data = {'model': 'test/model'}
@@ -219,10 +225,8 @@ class AssistantTest(unittest.TestCase):
                 panel.composer.setPlainText('Erkläre die Auswahl')
                 panel.send_button.click()
                 self.wait(lambda: bool(backend.permissions and backend.questions))
-                self.assertIsNotNone(backend.vault_sources)
-                self.assertEqual([item[1] for item in backend.vault_sources.sources.values()], ['Erkläre die Auswahl'])
                 submitted = next(body for _, path, body, _ in state['requests'] if path.endswith('/prompt_async'))
-                self.assertIn('Native user-text source for this turn:', submitted['system'])
+                self.assertNotIn('Native user-text source', submitted['system'])
                 self.assertIn('Do not redirect the user to the Tasks page', submitted['system'])
                 self.assertIn('pkexec', submitted['system'])
                 self.assertNotIn('tools', submitted)  # Existing engine permission policy remains in force.
@@ -264,6 +268,8 @@ class AssistantTest(unittest.TestCase):
                 panel.requests.findChild(QComboBox).setCurrentIndex(1)
                 next(b for b in panel.requests.findChildren(QPushButton) if b.text() == 'Antwort senden').click()
                 self.wait(lambda: not state['question'])
+                # The service has polled since: a request that comes again is asked again.
+                self.wait(lambda: not backend.questions)
                 panel.dont_ask.click()
                 self.assertFalse(settings.value('autoApproveTools', True, type=bool))
                 state['child_permission'] = True
@@ -274,17 +280,16 @@ class AssistantTest(unittest.TestCase):
                 self.assertIn(('POST', '/permission/per_child/reply', {'reply': 'reject'}), [r[:3] for r in state['requests']])
                 state['messages'][-1]['parts'][0]['text'] = 'Fertige Antwort'
                 state['messages'][-1]['info']['time']['completed'] = 123
+                state['messages'][-1]['info']['finish'] = 'stop'
                 state['busy'] = False
                 self.wait(lambda: not backend.busy)
                 self.assertEqual(backend.messages[-1]['parts'][0]['text'], 'Fertige Antwort')
                 backend.send('Noch eine Frage')
                 self.wait(lambda: len([r for r in state['requests'] if r[1].endswith('/prompt_async')]) == 2)
-                # Both the initial turn and continuation carry the shared Vault
+                # Both the initial turn and continuation carry the shared execution
                 # policy to OpenCode, including when general auto-approve changed.
-                from vault_access import INSTRUCTION as VAULT_INSTRUCTION
                 prompts = [body for _, path, body, _ in state['requests'] if path.endswith('/prompt_async')]
                 for prompt in prompts:
-                    self.assertIn(VAULT_INSTRUCTION, prompt['system'])
                     self.assertIn('Do not redirect the user to the Tasks page', prompt['system'])
                 panel.stop.click()
                 self.wait(lambda: not backend.busy)
@@ -299,24 +304,13 @@ class AssistantTest(unittest.TestCase):
                 self.assertFalse(backend.busy)
                 self.assertEqual(panel.composer.toPlainText(), 'Bei Fehler behalten')
                 self.assertTrue(panel.error.isVisible())
+                self.assertIn('Verbindung zur Engine fehlgeschlagen (503)', errors[-1])
                 panel.show_sessions([{'id': 'ses_old', 'title': 'Vorheriger Ordner'}])
                 backend.new_conversation(str(Path(tmp) / 'other'))
                 self.assertEqual(panel.sessions.count(), 1)
                 self.assertEqual(panel.sessions.itemData(0), '')
-                # An accepted request can end before an assistant is created (invalid model).
-                backend.url = f'http://127.0.0.1:{server.server_port}'
-                state['error'] = False
-                backend.session = 'ses_lumen'
-                backend.message_id = 'msg_missing'
-                backend.set_busy(True)
-                backend.idle_since = time.monotonic() - 31
-                state['messages'] = []
-                state['busy'] = False
-                errors.clear()
-                backend.poll()
-                self.wait(lambda: bool(errors))
-                self.assertFalse(backend.busy)
-                self.assertIn('keine abgeschlossene Antwort', errors[-1])
+                # An engine that goes idle without an answer is the service's to time out
+                # (native/service: a_reply_that_never_comes_fails_after_the_idle_limit).
                 self.assertEqual(len(panel.tracker.store.tasks()), 3)
             finally:
                 panel.close()
@@ -337,7 +331,6 @@ class AssistantTest(unittest.TestCase):
                 backend.send('Start prüfen')
                 self.wait(lambda: bool(failures))
             self.assertFalse(backend.busy)
-            self.assertIsNone(backend.proc)
             self.assertEqual(backend.startup_diagnostic['outcome'], 'start_error')
             self.assertEqual(backend.startup_diagnostic['process_error'], 0)
             backend.shutdown()
@@ -384,8 +377,7 @@ class AssistantTest(unittest.TestCase):
             backend = OpenCodeBackend(tmp)
             calls = []
             backend.refresh_sessions = lambda: None
-            def send(text, files=None, agent='build', title=None,memory_text=None,user_text=None,context_data=None):
-                self.assertIsNone(user_text, 'Generated file-action prompts must not become credential sources')
+            def send(text, files=None, agent='build', title=None,memory_text=None,context_data=None):
                 calls.append((text, agent, title))
                 backend.message_id = 'msg_action'
                 backend.set_busy(True)
@@ -462,50 +454,27 @@ class AssistantTest(unittest.TestCase):
     def test_auto_permissions_keep_proposals_locked_and_clear_on_stop(self):
         with tempfile.TemporaryDirectory() as tmp:
             backend = OpenCodeBackend(tmp)
-            calls = []
-            shown = []
-            backend.request = lambda method, path, body=None, callback=None, **kwargs: calls.append((method, path, body))
-            backend.ensure_server = lambda callback: callback()
+            turns, asks, shown = [], [], []
+            backend.begin = turns.append
+            backend.ask = lambda op, *args, **kwargs: asks.append(op)
             backend.requestsChanged.connect(lambda permissions, questions: shown.append((permissions, questions)))
             try:
                 backend.set_auto_approve(True)
                 backend.selected_model = 'test/model'
                 backend.send('Vorschläge erstellen', proposal=True)
-                self.assertEqual(calls[-1][2]['permission'], [{'permission': '*', 'pattern': '*', 'action': 'deny'}])
+                # The service denies every permission of a proposal session and never approves one
+                # (native/service: each_mode_has_its_system_text_and_tools, proposals_lock_their_session).
+                self.assertTrue(turns[-1]['proposal'])
+                self.assertEqual(turns[-1]['model'], 'test/model')
                 backend.permissions = [{'id': 'per_proposal', 'permission': 'edit'}]
                 backend.publish_requests()
-                self.assertEqual(len(calls), 1)
+                self.assertEqual(asks, [])
                 backend.stop()
                 backend.set_auto_approve(True)
-                self.assertEqual(len(calls), 1)
+                self.assertEqual(asks, [])
                 self.assertEqual(shown[-1], ([], []))
             finally:
                 backend.shutdown()
-
-    def test_memory_version_drift_stops_before_creating_empty_sessions(self):
-        from memory_bridge import MemoryBridge
-        from lumen_store import Store
-        Store().set_setting('memory/options', {'enabled': True, 'learn': False})
-        backend = OpenCodeBackend(self.state_directory)
-        backend.selected_model = 'test/model'
-        backend.ensure_server = lambda callback: callback()
-        calls, failures, requests = [], [], []
-        backend.failed.connect(failures.append)
-        backend.request = lambda *args, **kwargs: requests.append(args)
-        def prepared(bridge, text, directory, done):
-            calls.append(text)
-            self.assertLessEqual(len(calls), 3, 'Memory drift must not retry forever')
-            done(dict(stamp=[True, 0, 'new-worker'], context='', notes=[], candidates=[], revision=0))
-        try:
-            with patch('lumen_memory.stamp', return_value=[True, 0]), patch.object(MemoryBridge, 'prepare', prepared):
-                backend.send('Synthetic memory compatibility check')
-            self.assertEqual(len(calls), 3)
-            self.assertFalse(backend.busy)
-            self.assertEqual(len(failures), 1)
-            self.assertIn('neu starten', failures[0])
-            self.assertEqual(requests, [], 'Inconsistent context must not create sessions or send prompts')
-        finally:
-            backend.shutdown()
 
     def test_native_process_closes_during_engine_startup(self):
         import os

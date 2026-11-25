@@ -12,6 +12,7 @@ from PySide6.QtCore import QSettings, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 from online_accounts import AccountPaths, AccountDialog, accounts, webdav_url, AccountsWidget
+from test_google_drive import rclone_callback_lock
 
 
 class AccountsTest(unittest.TestCase):
@@ -28,10 +29,11 @@ class AccountsTest(unittest.TestCase):
         path = self.root/'rclone'; path.write_text('#!/usr/bin/python3\n'+code); path.chmod(0o700)
         return str(path)
 
-    def wait(self, condition):
-        deadline = time.monotonic()+5
+    def wait(self, condition, explain=lambda: None):
+        # Only a bound for a hang: rclone and the dialogs answer within a second, a busy CI node may take longer.
+        deadline = time.monotonic()+30
         while not condition() and time.monotonic()<deadline: QTest.qWait(20)
-        self.assertTrue(condition())
+        self.assertTrue(condition(), explain())
 
     def test_isolated_provider_login_and_onedrive_choice(self):
         helper = self.fake_rclone('''import configparser,json,sys,os
@@ -118,20 +120,28 @@ else:
 
     @unittest.skipUnless(shutil.which('rclone'), 'rclone not installed')
     def test_real_rclone_provider_denials_keep_no_accounts(self):
+        self.addCleanup(rclone_callback_lock().close)
         from urllib.request import urlopen
         from urllib.error import HTTPError
         with patch.dict(os.environ, BROWSER='/bin/false'):
             for index, provider in enumerate(('onedrive', 'dropbox')):
                 paths = AccountPaths(str(index+3)*32, provider)
-                dialog = AccountDialog(None, paths); dialog.connect_account()
-                self.wait(lambda: bool(dialog.login_url) or dialog.job is None)
-                self.assertTrue(dialog.login_url)
+                dialog = AccountDialog(None, paths)
+                # rclone's own output, for the failure message (the dialog forgets it when rclone ends).
+                output, read = [b''], dialog.read_login
+                dialog.read_login = lambda: (read(), output.append(bytes(dialog.output)))
+                explain = lambda: f'{provider}: {output[-1].decode(errors="replace")[-2000:]!r} {dialog.status.text()!r}'
+                dialog.connect_account()
+                self.wait(lambda: bool(dialog.login_url) or dialog.job is None, explain)
+                self.assertTrue(dialog.login_url, explain())
                 state = dialog.login_url.split('state=')[1]
                 try:
-                    with urlopen('http://127.0.0.1:53682/?error=access_denied&state='+state, timeout=2): pass
+                    with urlopen('http://127.0.0.1:53682/?error=access_denied&state='+state, timeout=30): pass
                 except HTTPError as error:
                     self.assertEqual(error.code, 400); error.close()
-                self.wait(lambda: dialog.job is None)
+                except ConnectionResetError:
+                    pass  # rclone took the denial but closed its callback server before its error page was sent
+                self.wait(lambda: dialog.job is None, explain)
                 self.assertNotEqual(dialog.result(), QDialog.Accepted); self.assertFalse(paths.config.exists())
                 dialog.deleteLater(); QTest.qWait(10)
 

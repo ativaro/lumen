@@ -19,12 +19,18 @@ import drive_transport as transport
 from interop_data import Registry
 from interop_sources import from_paths
 import server_file_import as imports
+import lumen_service
 
 NATIVE_REQUEST = drive.lumen_connect.request
 
 
 class FileImportTest(unittest.TestCase):
     def setUp(self):
+        # A runtime folder of its own: the test never reaches or replaces the user's running service, and the
+        # service it starts ends itself once the folder is removed.
+        runtime = self.enterContext(tempfile.TemporaryDirectory(prefix='lumen-run-'))
+        self.enterContext(patch.dict(os.environ, XDG_RUNTIME_DIR=runtime))
+        self.enterContext(patch.object(lumen_service, '_checked', None))
         self.temp=tempfile.TemporaryDirectory(dir=os.environ['LUMEN_IMPORT_FIXTURES'])
         self.addCleanup(self.temp.cleanup)
         self.base=Path(self.temp.name);self.path=self.base/'Selected.pdf'
@@ -91,10 +97,20 @@ class FileImportTest(unittest.TestCase):
     def test_cancel_during_https_target_resolution_or_device_response_stops_followup(self):
         from lumen_jobs import Job
         from tools_data import Cancelled
-        cert=self.base/'target-ca.pem';key=self.base/'target-key.pem'
-        subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-subj','/CN=localhost',
-            '-addext','subjectAltName=IP:127.0.0.1','-days','1','-out',str(cert),'-keyout',str(key)],
-            check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        # A throwaway CA and the server certificate it signed: rustls, like browsers, refuses a CA certificate
+        # as the server's own.
+        cert=self.base/'target-ca.pem';key=self.base/'target-key.pem';leaf=self.base/'target-leaf.pem'
+        (self.base/'target.ext').write_text('basicConstraints=critical,CA:FALSE\nsubjectAltName=IP:127.0.0.1\n'
+                                            'extendedKeyUsage=serverAuth\nauthorityKeyIdentifier=keyid\n')
+        for command in (['req','-x509','-newkey','rsa:2048','-nodes','-subj','/CN=Fixture CA','-days','1',
+                         '-addext','basicConstraints=critical,CA:TRUE','-addext','keyUsage=critical,keyCertSign',
+                         '-out',str(cert),'-keyout',str(self.base/'target-ca.key')],
+                        ['req','-new','-newkey','rsa:2048','-nodes','-subj','/CN=127.0.0.1',
+                         '-out',str(self.base/'target.csr'),'-keyout',str(key)],
+                        ['x509','-req','-days','1','-in',str(self.base/'target.csr'),'-CA',str(cert),
+                         '-CAkey',str(self.base/'target-ca.key'),'-set_serial','2','-extfile',str(self.base/'target.ext'),
+                         '-out',str(leaf)]):
+            subprocess.run(['openssl',*command],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         entered=threading.Event();release=threading.Event();calls=[];gate=[1];owner=self
         class Handler(BaseHTTPRequestHandler):
             def log_message(self,*args):pass
@@ -108,7 +124,7 @@ class FileImportTest(unittest.TestCase):
                 self.send_response(200);self.send_header('Content-Length',str(len(raw)))
                 self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(raw)
         server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
-        context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);context.load_cert_chain(cert,key)
+        context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);context.load_cert_chain(leaf,key)
         server.socket=context.wrap_socket(server.socket,server_side=True)
         thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
         try:

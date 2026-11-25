@@ -25,6 +25,7 @@ import shiboken6
 from server_app_session import AppSession, Binding, SessionError
 from server_app_window import ServerAppWindow, QWebEnginePage, QWebEngineScript, QWebEngineLoadingInfo
 import lumen_connect
+import lumen_service
 
 USER='73000000-0000-4000-8000-000000000001'
 DEVICE='73000000-0000-4000-8000-000000000002'
@@ -36,15 +37,29 @@ class PrivateHostFixture(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         root=Path(os.environ['LUMEN_HOST_TEST_ROOT']);root.mkdir(parents=True,exist_ok=True,mode=0o700)
+        # A runtime folder of its own: the test never reaches or replaces the user's running service, and the
+        # service it starts ends itself once the folder is removed.
+        runtime = cls.enterClassContext(tempfile.TemporaryDirectory(prefix='lumen-run-'))
+        cls.enterClassContext(patch.dict(os.environ, XDG_RUNTIME_DIR=runtime))
+        cls.enterClassContext(patch.object(lumen_service, '_checked', None))
         cls.temp=tempfile.TemporaryDirectory(dir=root);cls.root=Path(cls.temp.name)
         settings=patch('server_app_window.QSettings',side_effect=lambda *args:QSettings(str(cls.root/'window-settings.ini'),QSettings.Format.IniFormat))
         settings.start();cls.addClassCleanup(settings.stop)
         cls.app=QApplication.instance() or QApplication([])
-        cls.cert=cls.root/'ca.pem';cls.wrong_cert=cls.root/'unrelated-ca.pem';key=cls.root/'key.pem'
-        for cert,target_key in ((cls.cert,key),(cls.wrong_cert,cls.root/'unrelated-key.pem')):
-            subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-subj','/CN=localhost',
-                        '-addext','subjectAltName=DNS:localhost,IP:127.0.0.1','-days','1',
-                        '-out',str(cert),'-keyout',str(target_key)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        # Two throwaway CAs; the server presents a certificate the first one signed. rustls, browsers and
+        # Python's strict verification refuse a CA certificate as the server's own.
+        cls.cert=cls.root/'ca.pem';cls.wrong_cert=cls.root/'unrelated-ca.pem';key=cls.root/'key.pem';leaf=cls.root/'leaf.pem'
+        (cls.root/'leaf.ext').write_text('basicConstraints=critical,CA:FALSE\nsubjectAltName=DNS:localhost,IP:127.0.0.1\n'
+                                         'extendedKeyUsage=serverAuth\nauthorityKeyIdentifier=keyid\n')
+        commands=[['req','-x509','-newkey','rsa:2048','-nodes','-subj','/CN=Fixture '+name,'-days','1',
+                   '-addext','basicConstraints=critical,CA:TRUE','-addext','keyUsage=critical,keyCertSign',
+                   '-out',str(cert),'-keyout',str(cert.with_suffix('.key'))]
+                  for name,cert in (('CA',cls.cert),('unrelated CA',cls.wrong_cert))]
+        commands+=[['req','-new','-newkey','rsa:2048','-nodes','-subj','/CN=localhost','-out',str(cls.root/'leaf.csr'),'-keyout',str(key)],
+                   ['x509','-req','-days','1','-in',str(cls.root/'leaf.csr'),'-CA',str(cls.cert),'-CAkey',str(cls.cert.with_suffix('.key')),
+                    '-set_serial','2','-extfile',str(cls.root/'leaf.ext'),'-out',str(leaf)]]
+        for command in commands:
+            subprocess.run(['openssl',*command],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         cls.calls=[];cls.revoked=False;cls.challenge='';cls.hold_write=False
         cls.write_started=threading.Event();cls.release_write=threading.Event()
         cls.upload_started=threading.Event();cls.release_upload=threading.Event()
@@ -111,7 +126,7 @@ class PrivateHostFixture(unittest.TestCase):
                         cls.check_started.set();cls.release_check.wait(timeout=10)
                     status=403 if cls.revoked or 'lumen_session='+'c'*43 not in self.headers.get('Cookie','') else 200
                     data=dict(user=dict(id=USER,device_id=DEVICE,desktop_app=cls.app_kind,device_kind='desktop',
-                                        capabilities=[{'notes':'notes','compose':'translate','projects':'projects','code':'code','audio':'media','vault':'vault_sync','inbox':'inbox'}[cls.app_kind]],admin=False,csrf='fixture'))
+                                        capabilities=[{'notes':'notes','compose':'translate','projects':'projects','code':'code','audio':'media','vault':'vault_sync','inbox':'inbox','photos':'photos'}[cls.app_kind]],admin=False,csrf='fixture'))
                 elif self.path=='/api/note-drafts/tags':data=dict(body=body['body'],tags=[])
                 elif self.path=='/api/translate':
                     if cls.hold_write:
@@ -137,7 +152,7 @@ class PrivateHostFixture(unittest.TestCase):
                 if cookie:self.send_header('Set-Cookie','lumen_session='+'c'*43+'; Path=/; Max-Age=900; Secure; HttpOnly; SameSite=Strict')
                 self.end_headers();self.wfile.write(raw)
         cls.server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
-        context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);context.load_cert_chain(cls.cert,key)
+        context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);context.load_cert_chain(leaf,key)
         cls.server.socket=context.wrap_socket(cls.server.socket,server_side=True)
         cls.origin='https://127.0.0.1:'+str(cls.server.server_port)
         cls.thread=threading.Thread(target=cls.server.serve_forever,daemon=True);cls.thread.start()
@@ -194,7 +209,7 @@ class PrivateHostFixture(unittest.TestCase):
         return window
 
     def import_window(self,drive=True,*,pilot=False,app='compose'):
-        type(self).native_areas=[{'notes':'notes','compose':'translate','projects':'projects','code':'code','audio':'media','vault':'vault_sync','inbox':'inbox'}[app]]+(['drive'] if drive else [])
+        type(self).native_areas=[{'notes':'notes','compose':'translate','projects':'projects','code':'code','audio':'media','vault':'vault_sync','inbox':'inbox','photos':'photos'}[app]]+(['drive'] if drive else [])
         temp=tempfile.TemporaryDirectory(dir=self.root);self.addCleanup(temp.cleanup)
         self.import_root=Path(temp.name);(self.import_root/'config').mkdir()
         self.config=dict(server=self.origin,device_id=DEVICE,token='native-only-fixture',ca_file=str(self.cert))
@@ -1043,7 +1058,7 @@ class WindowTest(PrivateHostFixture):
     def test_all_apps_renew_expired_session_without_reloading_or_replaying_writes(self):
         for app in ('notes','projects','code','compose','audio','vault','inbox'):
             with self.subTest(app=app):
-                type(self).native_areas=[{'notes':'notes','projects':'projects','code':'code','compose':'translate','audio':'media','vault':'vault_sync','inbox':'inbox'}[app]]
+                type(self).native_areas=[{'notes':'notes','projects':'projects','code':'code','compose':'translate','audio':'media','vault':'vault_sync','inbox':'inbox','photos':'photos'}[app]]
                 window=self.window(app=app);window.timer.stop()
                 self.js(window,"window.ownUnsavedFixture='Eigener ungesendeter Entwurf';document.querySelector('textarea,input').value=window.ownUnsavedFixture")
                 page=window.page;cookie=window.session._cookie

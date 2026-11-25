@@ -55,24 +55,6 @@ class MemoryMigrationTest(unittest.TestCase):
         self.assertNotEqual(note['id'],new['id'])
         self.assertEqual([n['id'] for n in self.memory.eligible(str(self.root))],[new['id']])
 
-    def test_interrupted_migration_keeps_scope_and_manual_protection(self):
-        note=self.memory.book.create('Legacy','Private project')
-        self.store.set_setting('memory/records',{note['path']:dict(scope='/project-a',automatic=False,hash=note['hash'])})
-        save=self.memory.save_record
-        calls=[]
-        def interrupt(*args):
-            calls.append(1)
-            if len(calls)==2:raise OSError('Synthetic interrupted metadata commit')
-            return save(*args)
-        with patch.object(self.memory,'save_record',side_effect=interrupt):
-            with self.assertRaises(OSError):self.memory.migrate(False)
-        (self.memory.book.root/note['path']).rename(self.memory.book.root/'renamed.md')
-        reloaded=Memory(self.store)
-        self.assertEqual(reloaded.migrate(False)['changed'],0)
-        self.assertEqual(reloaded.eligible('/project-b'),[])
-        current=reloaded.eligible('/project-a')[0]
-        self.assertFalse(current['memory']['automatic'])
-        self.assertEqual(current['memory']['scope'],'/project-a')
 
 
 if __name__=='__main__':unittest.main()

@@ -14,7 +14,7 @@ MAX_OBJECTS = 5000
 MAX_TEXT = 120000
 MAX_BYTES = 64*1024*1024
 MAX_RECORD = 2*1024*1024
-APPS = ('translate', 'reader', 'workbench', 'household', 'meetings', 'radio', 'inbox', 'vault', 'sound')
+APPS = ('translate', 'reader', 'workbench', 'household', 'meetings', 'radio', 'inbox', 'sound')
 URL = re.compile(r'lumen://object/[a-f0-9]{32}(?:\?[^\s\)\]>\"\']+)?')
 
 
@@ -44,7 +44,7 @@ def _record_text(app, record):
         'household': ('notes', 'manufacturer', 'model', 'serial', 'seller', 'attachments'),
         'meetings': ('summary', 'agenda', 'segments', 'results', 'decisions', 'actions'),
         'radio': ('script', 'sources', 'edition_sources'),
-        'vault': ('sources',), 'sound': ('mode', 'rules'),
+        'sound': ('mode', 'rules'),
     }.get(app, ())
     parts = []
     def add(value):
@@ -172,7 +172,8 @@ class _Index:
                 self.emit(dict(app='inbox', kind='event', id=row['uid']+'|'+(row['start'] or ''), title=row['title'], locator=dict(account=row['account'])), row['description'])
 
     def notebook(self, root):
-        from wissen_data import parse, resolve_link
+        from wissen_data import parse
+        from notes_query import resolve_link
         root = Path(root).expanduser().absolute()
         if not root.is_dir() or not _safe_path(root): return
         notes = {}; urls = {}; scanned = 0
@@ -224,16 +225,9 @@ def index_local(registry, store=None, job=None):
         for app in APPS:
             try: index.app(app)
             except (sqlite3.Error, ValueError, OSError): index.counts['skipped'] += 1
-        notebooks = []
-        if store is not None:
-            notebooks.append(store.directory/'lumen-memory')
-        else:
-            from interop_vault import discover_sources
-            for row in discover_sources(index.root):
-                if row.get('slot') == 'state/lumen-memory': notebooks.append(row['path'])
-        for notebook in dict.fromkeys(str(path) for path in notebooks):
-            try: index.notebook(notebook)
-            except (sqlite3.Error, ValueError, OSError): index.counts['skipped'] += 1
+        from lumen_store import state_path
+        try: index.notebook((store.directory if store is not None else state_path())/'lumen-memory')
+        except (sqlite3.Error, ValueError, OSError): index.counts['skipped'] += 1
     except _Limit: pass
     return index.finish()
 

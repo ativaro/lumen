@@ -77,5 +77,13 @@ class PackagingTest(unittest.TestCase):
         self.assertNotEqual(failed.returncode, 0)
         self.assertEqual(first, archive.read_bytes())
 
+    def test_every_vendored_file_is_committed(self):
+        """A clean checkout builds offline: cargo checks every file a vendored crate's checksum lists."""
+        tracked = set(subprocess.check_output(['git', '-C', str(REPO), 'ls-files', 'native'], text=True).splitlines())
+        listed = [str(checksum.parent.relative_to(REPO)/name) for checksum in REPO.glob('native/*/vendor/*/.cargo-checksum.json')
+                  for name in json.loads(checksum.read_text())['files']]
+        self.assertGreater(len(listed), 1000)
+        self.assertEqual([name for name in listed if name not in tracked], [])
+
 
 if __name__ == '__main__': unittest.main()

@@ -11,6 +11,8 @@ import unittest
 from unittest.mock import patch
 from uuid import uuid4
 
+if 'LUMEN_GUI_PROFILE' not in os.environ:
+    raise unittest.SkipTest('Needs the private GUI fixture container with its HTTPS server.')
 import httpx
 from PySide6.QtCore import QFile, QIODevice, QObject, QThread, QTimer, QUrl, Qt, Slot, QCoreApplication, QEvent
 from PySide6.QtGui import QDesktopServices

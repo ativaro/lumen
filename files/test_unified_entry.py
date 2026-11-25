@@ -44,7 +44,7 @@ class Probe(Original):
    self.search_controller.expand()
    assert self.isVisible() and not self.search_window.isVisible()
    assert self.windowTitle()=='Lumen · Detailansicht'
-   QTest.mouseClick(self.workspace_bar.compact,d.Qt.LeftButton)
+   QTest.mouseClick(self.context_compact,d.Qt.LeftButton)
    assert self.search_window.isVisible() and not self.isVisible()
    for args,compact in [(['--details'],False),([],True),(['--page','apps'],True),(['--search'],True)]:
     child=QProcess();child.start(sys.executable,[program,*args])
@@ -62,7 +62,7 @@ class Probe(Original):
    self.open_search();assert self.search_window.isVisible()
    from lumen_apps import catalogue
    from lumen_panel import applications
-   assert len(catalogue())==8 and 'search' not in [row[0] for row in catalogue()]
+   assert len(catalogue())==10 and 'search' not in [row[0] for row in catalogue()]
    assert 'search' not in [row['id'] for row in applications()]
   except Exception:
    traceback.print_exc();status=1

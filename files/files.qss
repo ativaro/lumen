@@ -1,17 +1,16 @@
 /* Shared native widgets; appearance.py supplies each theme’s shape and glass finish. */
-QWidget#workplace { background: palette(window); }
+QWidget#activity { background: palette(window); }
 QFrame#searchSurface { background: palette(window); border: 1px solid palette(mid); border-radius: 16px; }
 QListWidget#searchResults { background: transparent; color: palette(text); border: none; outline: none; }
 QListWidget#searchResults::item { padding: 12px; margin: 3px 0; border-radius: 8px; }
 QListWidget#searchResults::item:selected { background: palette(midlight); color: palette(text); }
-QWidget#workplace QTabWidget::pane { border: none; background: palette(window); }
-QWidget#workplacePage { background: palette(window); }
-QLabel#workplaceHeading { font-size: 26px; font-weight: 600; letter-spacing: -1px; }
-QFrame#workplaceCard { background: palette(base); border: 1px solid palette(mid); border-radius: 14px; padding: 14px; }
-QFrame#workplaceCard QLabel { border: none; padding: 0; }
-QTableWidget#workplaceTable { background: palette(base); color: palette(text); border: 1px solid palette(mid); border-radius: 10px; outline: none; }
-QTableWidget#workplaceTable::item { padding: 8px; border: none; }
-QTableWidget#workplaceTable::item:selected { background: palette(midlight); color: palette(text); }
+QWidget#activity QTabWidget::pane { border: none; background: palette(window); }
+QWidget#activityPage { background: palette(window); }
+QFrame#activityCard { background: palette(base); border: 1px solid palette(mid); border-radius: 14px; padding: 14px; }
+QFrame#activityCard QLabel { border: none; padding: 0; }
+QTableWidget#activityTable { background: palette(base); color: palette(text); border: 1px solid palette(mid); border-radius: 10px; outline: none; }
+QTableWidget#activityTable::item { padding: 8px; border: none; }
+QTableWidget#activityTable::item:selected { background: palette(midlight); color: palette(text); }
 QProgressBar { background: palette(base); border: 1px solid palette(mid); border-radius: 6px; min-height: 12px; text-align: center; }
 QProgressBar::chunk { background: palette(highlight); border-radius: 5px; }
 QMainWindow, QDialog { background: palette(window); color: palette(window-text); }

@@ -1,52 +1,44 @@
-"""Explicit-root local knowledge search, reusing Lumen's bounded text/PDF reader."""
+"""Explicit-root local knowledge search, reusing Lumen's bounded text, PDF and Office reader."""
 from lumen_i18n import tr
-import os
 from pathlib import Path
 import time
 
-from content_search import folder_fd, read_content, query_groups
+from content_search import OFFICE, query_groups
 
 EXCLUDED = {'node_modules', 'vendor', '__pycache__', 'credentials', 'secrets', 'id_rsa', 'id_ed25519', 'passwords', 'password', 'tokens', 'apikey', 'api_key', 'private_key', 'secret'}
-SUFFIXES = {'.txt', '.md', '.rst', '.pdf', '.csv', '.py', '.js', '.ts', '.html', '.odt.txt', '.log'}
+SUFFIXES = {'.txt', '.md', '.rst', '.pdf', '.csv', '.py', '.js', '.ts', '.html', '.odt.txt', '.log'} | OFFICE
 
 
 def index_root(store, directory, cancelled=lambda: False, pause=lambda: None):
+    """The document core walks and reads the folder; the index keeps one row per page."""
+    import json, subprocess
+    from lumen_office import PDFError, program
     root = Path(directory).expanduser().resolve(strict=True)
-    root_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    queue = [Path('.')]; documents = []; count = size = errors = 0
+    try: command = [program(), 'index']
+    except PDFError as error: raise ValueError(str(error)) from error
+    request = dict(root=str(root), excluded=sorted(EXCLUDED), suffixes=sorted(SUFFIXES), max_entries=10000, max_bytes=32 * 1024 * 1024,
+                   messages={text: tr(text) for text in ('Office-Datei zu groß.', 'Office-Datei nicht lesbar.', 'PDF nicht lesbar.', 'Datei während der Suche verändert.')})
+    documents = []; done = None
+    process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     try:
-        while queue and count < 10000 and size < 32 * 1024 * 1024:
+        process.stdin.write(json.dumps(request).encode()); process.stdin.close()
+        for line in process.stdout:
             pause()
             if cancelled(): raise InterruptedError(tr('Indexierung abgebrochen; bisheriger Index bleibt erhalten.'))
-            relative = queue.pop(); parent = folder_fd(root_fd, relative)
-            try:
-                with os.scandir(parent) as entries:
-                    for entry in entries:
-                        if cancelled(): raise InterruptedError(tr('Indexierung abgebrochen.'))
-                        count += 1
-                        if count % 20 == 0: pause()
-                        if count > 10000 or size >= 32 * 1024 * 1024: break
-                        if entry.name.startswith('.') or (entry.name.lower() in EXCLUDED or Path(entry.name.lower()).stem in EXCLUDED) or entry.is_symlink(): continue
-                        if entry.is_dir(follow_symlinks=False): queue.append(relative / entry.name); continue
-                        path = root / relative / entry.name
-                        if path.suffix.lower() not in SUFFIXES or not entry.is_file(follow_symlinks=False): continue
-                        try:
-                            before = entry.stat(follow_symlinks=False)
-                            text, partial = read_content(path, parent)
-                            if not text: continue
-                            size += len(text.encode('utf-8'))
-                            stamp = f'{before.st_mtime_ns}:{before.st_size}'
-                            for page, content in enumerate(text.split('\f'), 1):
-                                if content.strip(): documents.append((str(root), str(path), page, stamp, content))
-                        except (OSError, ValueError): errors += 1
-            finally: os.close(parent)
-        with store.connect() as db:
-            db.execute('DELETE FROM documents WHERE root=?', (str(root),))
-            db.executemany('INSERT INTO documents VALUES (?,?,?,?,?)', documents)
-            db.execute('INSERT OR REPLACE INTO roots VALUES (?,?)', (str(root), time.time()))
-        return {'documents': len({d[1] for d in documents}), 'pages': len(documents), 'errors': errors,
-                'limited': bool(queue) or count >= 10000 or size >= 32 * 1024 * 1024}
-    finally: os.close(root_fd)
+            event = json.loads(line)
+            if event['type'] == 'error': raise OSError(event['message'])
+            if event['type'] == 'done': done = event; break
+            for page, content in enumerate(event['text'].split('\f'), 1):
+                if content.strip(): documents.append((str(root), event['path'], page, event['stamp'], content))
+    finally:
+        if process.poll() is None: process.kill()
+        process.wait(); process.stdout.close()
+    if done is None: raise OSError(tr('Indexierung abgebrochen.'))
+    with store.connect() as db:
+        db.execute('DELETE FROM documents WHERE root=?', (str(root),))
+        db.executemany('INSERT INTO documents VALUES (?,?,?,?,?)', documents)
+        db.execute('INSERT OR REPLACE INTO roots VALUES (?,?)', (str(root), time.time()))
+    return {'documents': len({d[1] for d in documents}), 'pages': len(documents), 'errors': done['errors'], 'limited': done['limited']}
 
 
 def search(store, query, limit=30):

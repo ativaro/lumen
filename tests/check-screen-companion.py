@@ -71,14 +71,6 @@ def session():
         if guide.proc is None: break
         QTest.qWait(100)
     assert not guide.active and not guide.png
-    import fcntl
-    from lumen_launch import executable
-    lease = os.open(Path(os.environ['XDG_RUNTIME_DIR'])/'lumen-vault-privacy.lock', os.O_RDWR)
-    fcntl.flock(lease, fcntl.LOCK_SH)
-    second = os.open(Path(os.environ['XDG_RUNTIME_DIR'])/'lumen-vault-privacy.lock', os.O_RDWR)
-    result = subprocess.run([executable('lumen-window-capture'), observer.result[0]['uuid'], str(second)], pass_fds=(second,), capture_output=True)
-    assert result.returncode == 2 and not result.stdout, 'Native capture ignored the Vault lease'
-    os.close(second); os.close(lease)
     guide.close(); target.close(); app.processEvents()
     Path(os.environ['HOME'],'passed').touch()
 

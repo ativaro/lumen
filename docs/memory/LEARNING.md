@@ -2,9 +2,10 @@
 
 Der aktuelle Desktop verwendet den begrenzten `lumen-memory-learning`-Skill und
 die zwei internen Werkzeuge `lumen_memory_learning_context` und
-`lumen_memory_learn`. `memory_bridge.py` richtet eine getrennte Sitzung über
-`memory_agent_config.py` ein; `memory_agent_stdio.py` vermittelt nur die für dieses
-Ereignis vorgesehenen Werkzeuge. Es gibt keinen Zugriff auf den gesamten
+`lumen_memory_learn`. Der Desktop-Dienst `lumen-service` richtet nach einem Gespräch
+eine getrennte Sitzung in einem privaten, kurzlebigen Profil ein
+(`native/service/src/learning.rs`); `lumen-service learning-mcp` vermittelt nur die für
+dieses Ereignis vorgesehenen Werkzeuge. Es gibt keinen Zugriff auf den gesamten
 gewöhnlichen Assistenten-Werkzeugkatalog.
 
 ## Freigaben und Übernahme
@@ -29,7 +30,8 @@ keine Erlaubnis zum Ausführen der damaligen Schritte.
 
 ## Lokale Daten und Servergrenze
 
-`lumen_memory.py` verwaltet Speicherung, Freigaben, Vergessen und Abruf. Der
+Der Dienst verwaltet Speicherung, Freigaben, Vergessen und Abruf
+(`native/service/src/recall.rs`, Anbindung `files/lumen_memory.py`). Der
 lokale Editor wird über die Gedächtniseinstellungen beziehungsweise technisch
 `lumen-wissen --area lumen` geöffnet. Der normale Notes-Starter verwendet den
 Servereditor und ist davon getrennt.
@@ -42,15 +44,16 @@ Freigabe oder vollständige Übernahme alter Notizgeschichten zugesichert.
 Der Lernaufruf verwendet das eingerichtete Modell und kann deshalb einen
 Cloud-Anbieter erreichen. Lokale Speicherung bedeutet keine ausschließlich
 lokale Verarbeitung. Bei aktiviertem Nur-lokal-Modellmodus gelten dessen
-geprüfte Anbietergrenzen auch hier. Fehler beim Lernen zerstören die eigentliche
+geprüfte Anbietergrenzen auch hier: Der Anbieter des Modells muss als lokaler Dienst
+mit Loopback-Adresse bestätigt sein, bevor seine Zugangsdaten in das Lernprofil
+gelangen. Fehler beim Lernen zerstören die eigentliche
 Gesprächsantwort nicht und werden nicht blind wiederholt.
 
 ## Prüfung und Quellgrenze
 
-Die maßgeblichen Module sind `files/memory_agent.py`, `memory_agent_config.py`,
-`memory_agent_stdio.py`, `memory_bridge.py`, `memory_learning.py` und
-`lumen_memory.py`. Die Tests `test_memory*` verwenden isolierte Profile und
-synthetische Aussagen. Historische Laufzahlen oder Geräteabnahmen sind keine
+Maßgeblich sind `native/service/src/learning.rs` und `recall.rs` mit ihren Tests
+(darunter die aufgezeichneten Antworten der früheren Python-Module); die Tests
+`test_memory*` verwenden isolierte Profile und synthetische Aussagen. Historische Laufzahlen oder Geräteabnahmen sind keine
 neue Abnahme einer beliebigen Installation.
 
 [Bedienung](../../WISSEN.md) · [MCP](../../MCP.md) ·

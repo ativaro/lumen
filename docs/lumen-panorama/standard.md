@@ -95,6 +95,26 @@ Schließen; Verschieben und Größenänderungen bleiben native Fensteraktionen.
 Der technische Einstellungswert `classic` heißt in der Oberfläche nun Panorama;
 die ausdrücklich angebotenen alternativen Layouts bleiben wählbar.
 
+Desktop-Topbar, Eingabe (11.11.2026): Mikrofon, „Gespräch aufklappen“ und Senden
+sitzen im Eingabefeld. Senden erscheint erst mit Text. Fokus zeigt ein 2 px starker
+Akzentrahmen; ein Fehler zeigt Warnsymbol, Rahmen in Textfarbe und „Erneut senden“.
+Bedienelemente verwenden den Innenradius des Themes (`innerRadius`, 65 % des
+Theme-Radius), Flächen und Menüs den Theme-Radius. Keine festen Radien im Topbar-Code.
+Das Feld ist höchstens 720 px breit und sitzt in der Bildschirmmitte. Im angedockten
+Gespräch ist dessen mehrzeiliges Feld die Eingabe; das Feld der Leiste nennt dann nur das
+Gespräch und behält Diktat und Einklappen. Eingeklappt bietet es „Abbrechen“, solange
+Lumen arbeitet. Ab 1100 px stehen die Arbeitsschritte als schließbare Nebenansicht rechts,
+darunter als aufklappbare Zeile. Das gelöste Gesprächsfenster behält seine eigene Eingabe.
+Nachrichten im Topbar-Gespräch stehen in runden Sprechblasen (Radius 18, die Ecke zur
+sprechenden Seite 6): eigene Nachrichten rechts, Antworten von Lumen links. Nutzerentscheidung
+vom 11.11.2026; die Blasen folgen bewusst nicht dem Theme-Radius.
+
+Desktop-Topbar, Mitteilungen (11.11.2026): Die Glocke zeigt eine Zahl nur für Meldungen, die
+seit dem letzten Öffnen gekommen sind; Öffnen setzt sie zurück. Wartet eine Freigabe, zeigt
+sie ein Ausrufezeichen in der Lumen-Farbe. Ungelesenes allein erzeugt keine Markierung. Die
+Kurzansicht nennt zuerst „Braucht dich“, dann „Neu“ mit mehreren Meldungen einer Quelle in
+einer Zeile, dann frühere Meldungen; bis zu acht Einträge statt drei.
+
 Desktop-Topbar, Kurzansichten (06.11.2026): Glocke, Netzwerk und Audio öffnen jeweils eine angedockte, höchstens 390 Pixel breite Ansicht.
 Die Statusmenüs schließen rechts an die Leiste an. Der Lumen-Kreis öffnet links
 direkt den vollständigen Katalog „Lumen Apps“. Seine Suche beginnt leer und hat den Tastaturfokus.

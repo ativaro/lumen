@@ -358,16 +358,13 @@ class NativeSettingsTest(unittest.TestCase):
             backend = OpenCodeBackend(tmp, server_url='http://127.0.0.1:9')
             backend.settings = QSettings(str(Path(tmp) / 'assistant.ini'), QSettings.IniFormat)
             backend.settings.setValue('model', 'provider/model/version')
-            requests = []
-            def request(method, path, body=None, callback=None, **_):
-                requests.append((method, path, body))
-                if path == '/session':
-                    callback({'id': 'ses_test'})
-            backend.request = request
+            turns = []
+            backend.begin = turns.append
             backend.send('Suggest', proposal=True)
-            body = next(body for _, path, body in requests if path.endswith('/prompt_async'))
-            self.assertEqual(body['model'], {'providerID': 'provider', 'modelID': 'model/version'})
-            self.assertEqual(body['tools'], {'*': False})
+            # The service splits it into {'providerID': 'provider', 'modelID': 'model/version'} and
+            # keeps every tool of a proposal off (native/service: one_prompt_gives_one_run_and_its_answer).
+            self.assertEqual(turns[-1]['model'], 'provider/model/version')
+            self.assertTrue(turns[-1]['proposal'])
             backend.shutdown()
 
     def test_search_limit_applies_to_worker(self):

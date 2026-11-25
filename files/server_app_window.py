@@ -242,6 +242,11 @@ if WEBENGINE:
                     from PySide6.QtGui import QDesktopServices
                     QDesktopServices.openUrl(url)
                     return False
+                if (window._binding.app=='photos' and url.toString()==window._binding.origin+'/?app=files'
+                        and window._pilot_current() and window._cookie_valid()):
+                    from lumen_apps import launch
+                    launch('files')
+                    return False
                 from server_app_links import clicked_reference
                 reference=clicked_reference(url.toString(),window._binding)
                 if reference:
@@ -251,7 +256,7 @@ if WEBENGINE:
 
         def createWindow(self, kind):return None
         def chooseFiles(self, mode, old, types):
-            if self.window._binding.app not in ('audio','vault','inbox'):return []
+            if self.window._binding.app not in ('audio','vault','inbox','photos'):return []
             from server_audio_permissions import choose
             return choose(self.window,mode)
 
@@ -466,7 +471,12 @@ class ServerAppWindow(QMainWindow):
         """Keep the source window and its cookie; the receiver obtains its own session."""
         if self._opening_link or self._pilot_connection is None:return
         from server_app_links import navigation
-        reference=navigation(reference,dict(server=self._binding.origin,account=self._binding.account))['reference']
+        if reference.get('app')=='files':
+            from server_app_links import validate_ref
+            reference=validate_ref(reference)
+            if reference['locator']!=dict(server=self._binding.origin,account=self._binding.account):return
+        else:
+            reference=navigation(reference,dict(server=self._binding.origin,account=self._binding.account))['reference']
         if reference['app']==APPS[self._binding.app][0]:return
         snapshot=(self.page,self.profile,self.view,self.session,self._generation,self.session._generation)
         def current():

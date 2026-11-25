@@ -19,15 +19,13 @@ class DesktopServerSettingsTest(SettingsFixture):
         self.assertIn('restoreSelection',d.app_controls['reader'])
         self.assertNotIn('radio',d.app_controls)
 
-    def test_vault_and_backups_have_distinct_titles_and_real_launch_routes(self):
+    def test_vault_opens_the_server_app_without_local_backup_route(self):
         d=self.dialog;page=d.stack.widget(d.app_pages['vault'])
         self.assertEqual(d.page_info[d.app_pages['vault']]['title'],'Lumen Vault')
+        self.assertNotIn('Lokale Sicherungspläne öffnen',[b.text() for b in page.findChildren(QPushButton)])
         with patch('lumen_apps.QProcess.startDetached',return_value=(True,42)) as launch:
             next(b for b in page.findChildren(QPushButton) if b.text()=='App öffnen').click()
             self.assertTrue(launch.call_args.args[0].endswith('lumen-vault'))
-            next(b for b in page.findChildren(QPushButton) if b.text()=='Lokale Sicherungspläne öffnen').click()
-            self.assertTrue(launch.call_args.args[0].endswith('lumen-system'))
-            self.assertEqual(launch.call_args.args[1],['--page','backups'])
 
     def test_settings_geometry_survives_close_and_files_only_can_close(self):
         from settings_dialog import SettingsDialog

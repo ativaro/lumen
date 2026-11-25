@@ -1,4 +1,4 @@
-"""Native workflow presentation must preserve its typed actions and approval."""
+"""The file action sentence must preserve its typed actions and approval."""
 import tempfile
 import unittest
 from pathlib import Path
@@ -6,7 +6,7 @@ from unittest.mock import patch
 from PySide6.QtCore import QCoreApplication, QEvent, QTimer, Qt
 from PySide6.QtWidgets import QApplication, QDialog, QFrame, QListWidget, QMenu, QMessageBox, QTabWidget
 from PySide6.QtTest import QTest
-from lumen_workspace import PlanDialog, StepDialog
+from plan_dialog import PlanDialog, StepDialog
 from lumen_store import Store
 
 
@@ -24,47 +24,48 @@ class NativeSentenceTest(unittest.TestCase):
         for window in self.windows:window.deleteLater()
         QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete);self.app.processEvents()
 
-    def dialog(self,value=None,workflow=True):
-        d=PlanDialog(None,value,workflow=workflow);self.windows.append(d);return d
+    def dialog(self,value=None,file_action=True):
+        d=PlanDialog(None,value,file_action=file_action);self.windows.append(d);return d
 
     def value(self):
-        return dict(name='Dienst prüfen',roots=[str(self.root)],steps=[dict(action='restart_service',unit='lumen-demo.service',scope='system')],prompt='',trigger='interval',interval=420,watch='',enabled=True,approved=True)
+        return dict(name='Dienst prüfen',roots=[str(self.root)],steps=[dict(action='restart_service',unit='lumen-demo.service',scope='system')],prompt='',approved=True)
 
     def test_empty_sentence_and_unchanged_task_preparation(self):
         d=self.dialog();self.assertEqual(d.steps.count(),0);self.assertEqual(d.prompt.toPlainText(),'')
         self.assertIsNotNone(d.findChild(QFrame,'sentence'));self.assertEqual(d.findChildren(QTabWidget),[])
         d.name.setText('Leer');d.approve.setChecked(True);d.save();self.assertIsNone(d.value)
-        task=self.dialog(self.value(),workflow=False)
+        task=self.dialog(self.value(),file_action=False)
         self.assertEqual(task.findChildren(QTabWidget)[0].count(),3)
         self.assertIsNone(task.findChild(QFrame,'sentence'))
-        with patch('lumen_workspace.QMessageBox.question') as question:task.reject();question.assert_not_called()
+        with patch('code_sentence_native.QMessageBox.question') as question:task.reject();question.assert_not_called()
 
     def test_native_save_reopen_keeps_fields_scope_and_identity(self):
         value=self.value();value['name']='Ein bestehender Automationsname'.ljust(200,'x');d=self.dialog(value)
         self.assertFalse(d.approve.isChecked());d.save();self.assertIsNone(d.value)
         d.approve.setChecked(True);d.show();QTest.qWait(10);d.name.setFocus();QTest.keyClick(d.name,Qt.Key_Return)
         self.assertEqual(d.value,value)
-        store=Store(self.root/'state');identity=store.save_workflow(**d.value)
-        loaded=store.workflows()[0];reopened=self.dialog(loaded)
+        store=Store(self.root/'state');identity=store.save_file_action(**d.value)
+        loaded=store.file_actions()[0];reopened=self.dialog(loaded)
         self.assertFalse(reopened.approve.isChecked());reopened.approve.setChecked(True)
-        reopened.name.setText('Umbenannt');reopened.save();store.save_workflow(**reopened.value,workflow=identity)
-        rows=store.workflows();self.assertEqual(len(rows),1);self.assertEqual(rows[0]['id'],identity)
+        reopened.save();self.assertEqual(reopened.value,value)
+        rows=store.file_actions();self.assertEqual(len(rows),1);self.assertEqual(rows[0]['id'],identity)
         self.assertEqual(rows[0]['steps'],value['steps']);self.assertEqual(rows[0]['roots'],value['roots'])
-        self.assertEqual(rows[0]['interval'],420);self.assertTrue(rows[0]['enabled'])
+        self.assertEqual(rows[0]['trigger'],'manual');self.assertFalse(rows[0]['enabled'])
         self.assertNotIn('nodes',rows[0]['steps'][0]);self.assertEqual(rows[0]['steps'][0]['scope'],'system')
 
     def test_sentence_and_editor_keep_the_same_field_order(self):
         step=dict(action='copy',path=str(self.root/'Ziel.txt'),source=str(self.root/'Quelle.txt'))
         d=self.dialog(dict(self.value(),steps=[step]));d.approve.setChecked(True);d.save()
-        store=Store(self.root/'state');store.save_workflow(**d.value)
-        reopened=self.dialog(store.workflows()[0]);reopened.native_sentence.refresh()
+        store=Store(self.root/'state');store.save_file_action(**d.value)
+        reopened=self.dialog(store.file_actions()[0]);reopened.native_sentence.refresh()
         captions=[part.caption.text() for part in reopened.native_sentence.parts]
-        self.assertEqual(captions[2:4],[step['source'],step['path']])
+        # A long temporary folder elides the middle of a path; its file name stays.
+        self.assertEqual([caption.rsplit('/',1)[-1] for caption in captions[1:3]],['Quelle.txt','Ziel.txt'])
         editor=StepDialog(reopened,step);self.windows.append(editor)
         self.assertEqual(list(editor.controls),['source','path'])
 
     def test_prompt_and_placeholders_remain_literal(self):
-        value=self.value();value.update(steps=[],prompt='Prüfe {{datei}} im Ordner {{ordner}} und frage vor Änderungen.',trigger='manual',enabled=False)
+        value=self.value();value.update(steps=[],prompt='Prüfe {{datei}} im Ordner {{ordner}} und frage vor Änderungen.')
         d=self.dialog(value);d.approve.setChecked(True);d.save()
         self.assertEqual(d.value,value);self.assertNotIn('flow',d.value)
         d=self.dialog(self.value());d.prompt.setPlainText('Zweiter Auftrag');d.approve.setChecked(True);d.save()
@@ -108,30 +109,26 @@ class NativeSentenceTest(unittest.TestCase):
     def test_long_path_is_compact_only_in_the_sentence(self):
         path=str(self.root/('ausführlicher Ordnername/'*12)/'Beleg.pdf')
         d=self.dialog(dict(self.value(),steps=[dict(action='open',path=path)]))
-        part=d.native_sentence.parts[2]
+        part=d.native_sentence.parts[1]
         self.assertIn('…',part.caption.text());self.assertTrue(part.caption.text().endswith('Beleg.pdf'))
         self.assertEqual(part.accessibleDescription(),path);self.assertIn(path,part.toolTip())
         editor=StepDialog(d,dict(action='open',path=path));self.windows.append(editor)
         self.assertEqual(editor.controls['path'].text(),path)
         d.approve.setChecked(True);d.save();self.assertEqual(d.value['steps'][0]['path'],path)
-        directory=str(self.root/('ausführlicher Ordnername/'*12))
-        d=self.dialog(dict(self.value(),roots=[directory],trigger='directory',watch=directory))
-        self.assertIn('…',d.native_sentence.start_part.caption.text())
-        self.assertIn(directory,d.native_sentence.start_part.accessibleDescription())
-        self.assertEqual(d.watch.currentText(),directory)
 
     def test_dirty_close_cancel_discard_and_save(self):
         d=self.dialog(self.value());d.show();QTest.qWait(20);d.name.setText('Geändert')
-        with patch('lumen_workspace.QMessageBox.question',return_value=QMessageBox.Cancel):d.reject()
+        with patch('code_sentence_native.QMessageBox.question',return_value=QMessageBox.Cancel):d.reject()
         self.assertTrue(d.isVisible());self.assertIsNone(d.value)
-        with patch('lumen_workspace.QMessageBox.question',return_value=QMessageBox.Discard):d.reject()
+        with patch('code_sentence_native.QMessageBox.question',return_value=QMessageBox.Discard):d.reject()
         self.assertFalse(d.isVisible());self.assertIsNone(d.value)
         saved=self.dialog(self.value());saved.show();QTest.qWait(20);saved.name.setText('Gespeichert');saved.approve.setChecked(True)
-        with patch('lumen_workspace.QMessageBox.question',return_value=QMessageBox.Save):saved.reject()
+        with patch('code_sentence_native.QMessageBox.question',return_value=QMessageBox.Save):saved.reject()
         self.assertEqual(saved.result(),QDialog.Accepted);self.assertEqual(saved.value['name'],'Gespeichert')
 
-    def test_file_action_manual_lock_remains_effective(self):
-        d=self.dialog(self.value());d.trigger.setCurrentIndex(0);d.trigger.setEnabled(False)
-        d.enable.hide();d.interval.hide();d.watch.hide();d.show();QTest.qWait(20)
-        self.assertFalse(d.native_sentence.start_part.isEnabled())
-        with patch.object(QDialog,'exec') as execute:d.native_sentence.start();execute.assert_not_called()
+    def test_a_file_action_has_no_start_setting(self):
+        d=self.dialog(self.value());d.show();QTest.qWait(20)
+        for retired in ('trigger','interval','watch','enable'):self.assertFalse(hasattr(d,retired),retired)
+        self.assertFalse(hasattr(d.native_sentence,'start_part'));self.assertFalse(hasattr(d.native_sentence,'start'))
+        self.assertEqual(sorted(d.value or {}),[]);d.approve.setChecked(True);d.save()
+        self.assertEqual(sorted(d.value),['approved','name','prompt','roots','steps'])

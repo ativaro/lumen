@@ -153,7 +153,7 @@ class SearchController(QObject):
 
     @Slot(result=bool)
     def clipboard_protected(self):
-        from vault_privacy import protected_clipboard
+        from clipboard_image import protected_clipboard
         return protected_clipboard(QGuiApplication.clipboard())
 
     @Slot(result=bool)
@@ -178,8 +178,10 @@ class SearchController(QObject):
         return tr(source)
 
     def persona_options(self):
-        from lumen_persona import PRESETS
-        return [dict(id='', title=tr('Persönlichkeit · Globale Einstellung'))] + [dict(id=key, title=tr(row[0])) for key, row in PRESETS.items()]
+        import lumen_service
+        try: presets = lumen_service.persona_catalogue()['presets']
+        except (OSError, ValueError): presets = []
+        return [dict(id='', title=tr('Persönlichkeit · Globale Einstellung'))] + [dict(id=row['id'], title=row['title']) for row in presets]
 
     @Slot(str)
     def set_persona(self, choice):
@@ -355,7 +357,7 @@ class SearchController(QObject):
                     mime=mimetypes.guess_type(path)[0] or ''
                     if mime.startswith('image/') or mime=='application/pdf':files.append((path,mime))
             context={'context_data':{'note_reference':self.note_context['reference']}} if self.note_context else {}
-            if self.backend.send(prompt, files, agent=self._mode, memory_text=query, user_text=query,**context) is False:
+            if self.backend.send(prompt, files, agent=self._mode, memory_text=query,**context) is False:
                 self.set_query(query)
             else:self.note_context={}
             self.focusRequested.emit(); return

@@ -94,7 +94,6 @@ class SetupDialog(QDialog):
         page = self.page()
         page.addWidget(text(tr('Dateien finden. Fragen stellen. Dinge erledigen.')))
         page.addWidget(text(tr('Wir richten die Grundlagen für dich ein. Vorhandene Einstellungen bleiben erhalten.')))
-        page.addWidget(button(tr('Aus einer Sicherung wiederherstellen …'), lambda: QProcess.startDetached('lumen-vault', ['--backups'])))
         self.recommendation = text(''); page.addWidget(self.recommendation)
         page.addWidget(text(tr('Empfohlen: Assistenz, Datei- und Medienvorschauen sowie Netzwerkordner.')))
         details = Details(tr('Einrichtung anpassen')); self.dependency_details = details
@@ -128,7 +127,6 @@ class SetupDialog(QDialog):
         page.addWidget(button(tr('Lokale Bildsuche einrichten · ca. 2 GB'), lambda: self.start_job('image-search')))
         page.addWidget(text(tr('Mehrsprachige CLIP-Bildsuche inklusive deutscher Suchbegriffe. Modelle werden einmalig '
             'heruntergeladen; Fotos und Suchbegriffe bleiben danach auf diesem Rechner. Kein Administratorpasswort nötig.')))
-        page.addWidget(button(tr('Lokale Sicherungen vorbereiten'), lambda: self.start_job('vault')))
         page.addStretch()
 
     def build_engine(self):
@@ -337,8 +335,7 @@ class SetupDialog(QDialog):
         self.checking = True; self.set_busy(True); self.status.setText(tr('Vorhandene KI-Anbindung prüfen …'))
         def configured(config):
             if not isinstance(config, dict): raise ValueError('Invalid engine configuration')
-            from lumen_models import configured_opencode_endpoint
-            self.opencode_endpoint_configured = configured_opencode_endpoint(config)
+            self.opencode_endpoint_configured = self.engine.facts.get('opencode_endpoint', False)
             self.configured_model = config.get('model') or ''
             self.diagnostic_stage = 'provider_list'
             self.engine.request('GET', '/provider', callback=self.loaded_providers, error=self.engine_failed)
@@ -354,8 +351,7 @@ class SetupDialog(QDialog):
                not isinstance(p.get('models', {}), dict) for p in data['all']):
             raise ValueError('Invalid provider')
         self.providers = data['all']; connected = set(data['connected'])
-        from lumen_models import anonymous_opencode
-        anonymous = (any(anonymous_opencode(provider) for provider in self.providers)
+        anonymous = (self.engine.facts.get('anonymous_opencode', False)
                      and not getattr(self, 'opencode_endpoint_configured', False))
         self.connected = connected - ({'opencode'} if anonymous else set())
         from lumen_store import Store
@@ -407,7 +403,7 @@ class SetupDialog(QDialog):
 
     def save_auth(self):
         identifier = self.provider.currentData(); key = self.key.text().strip()
-        if not identifier or not key or not self.engine.url:
+        if not identifier or not key or not self.engine.reachable:
             self.status.setText(tr('Bitte einen Anbieter auswählen und einen API-Schlüssel eingeben.')); return
         self.checking = True; self.set_busy(True)
         self.diagnostic_stage = 'save_auth'; self.diagnostic_outcome = 'checking'
@@ -429,7 +425,6 @@ class SetupDialog(QDialog):
 
     def copy_engine_diagnostic(self):
         if self.diagnostic_process: return
-        from assistant_backend import opencode_binary
         from setup_diagnostics import build_report, version_text
         proc = worker_process(self); self.diagnostic_process = proc
         captured = bytearray()
@@ -462,7 +457,8 @@ class SetupDialog(QDialog):
         proc.finished.connect(proc.deleteLater)
         proc.errorOccurred.connect(lambda error: finished(1) if error == QProcess.FailedToStart else None)
         timeout = QTimer(proc); timeout.setSingleShot(True); timeout.timeout.connect(expired); timeout.start(5000)
-        binary = self.engine.proc.program() if self.engine.proc else opencode_binary()
+        try: binary = self.engine.program()
+        except (OSError, ValueError): binary = 'opencode'
         proc.start(binary, ['--version'])
 
     def install_engine(self):

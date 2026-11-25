@@ -127,8 +127,6 @@ def component_definitions():
         ('voice-multilingual', tr('Mehrsprachige Stimme'), tr('Lokale Qwen-Laufzeit und Modell'), (speech/'qwen-env/bin/python').is_file(), ['files/lumen_setup.py','files/speech_model.py']),
         ('image-search', tr('Bildsuche'), tr('Lokale Motivsuche und Modelle'), (root/'vision/env-v1/bin/python').is_file(), ['files/lumen_setup.py','files/photo_tools.py']),
         ('inbox', tr('Kalenderanbindung'), tr('Inbox und CalDAV'), (root/'inbox-env-v1/bin/python').is_file(), ['files/lumen_setup.py']),
-        ('vault', tr('Datensicherung'), tr('Lokale Restic-Laufzeit'), bool(list((root/'vault').glob('restic-*'))), ['files/lumen_setup.py']),
-        ('native-vault', tr('Tresor'), tr('Bereits installierter nativer Passwort-Tresor'), (root/'vault-lab/bin/lumen-vault-lab').is_file(), ['native/vault-ui','native/vault-core']),
     ]
 
 
@@ -222,16 +220,6 @@ def apply(revision, selected):
             elif key == 'system': run(['pkexec','pacman','-Syu','--ignore','lumen','--noconfirm'])
             elif key == 'flatpak': run(['flatpak','update','--noninteractive','--assumeyes'])
             elif key == 'qt': run([python,'--install-runtime'])
-            elif key == 'native-vault':
-                development = data_root().parent/'lumen-dev'
-                environment = {'PATH':str(Path.home()/'.cargo/bin')+os.pathsep+os.environ.get('PATH','')}
-                if (development/'cargo/bin/cargo').is_file():
-                    environment.update(CARGO_HOME=str(development/'cargo'), RUSTUP_HOME=str(development/'rustup'),
-                                       PATH=str(development/'cargo/bin')+os.pathsep+environment['PATH'])
-                if not shutil.which('cargo', path=environment['PATH']):
-                    raise RuntimeError(tr('Für den nativen Tresor fehlt die Rust-Bauumgebung. Bitte die Tresor-Einrichtung vervollständigen.'))
-                run(['bash',str(source/'native/vault-ui/install-laboratory.sh')], cwd=source,
-                    env=environment)
             else:
                 arguments = [python,str(source/'files/lumen_setup.py'),key]
                 if key in ('dictation','voice') and model and Path(model).is_file(): arguments += ['--existing-model',model]

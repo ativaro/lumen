@@ -2,24 +2,8 @@ import os
 import tempfile
 import unittest
 from unittest.mock import patch
-from memory_learning import previous_answer, extraction_prompt
 from lumen_store import Store
 from lumen_memory import Memory, options
-
-class LearningContextTest(unittest.TestCase):
-    def test_only_complete_preceding_answer(self):
-        message = dict(info=dict(id='answer-1',role='assistant',time=dict(completed=1)), parts=[dict(type='text',text='再接続しました。')])
-        self.assertEqual(previous_answer([message]),dict(id='answer-1',answer='再接続しました。'))
-        self.assertFalse(previous_answer([message,dict(message,info=dict(role='assistant',error={'name':'failed'}))]))
-        self.assertFalse(previous_answer([dict(message,info=dict(role='assistant'))]))
-        self.assertNotIn('秘密',str(previous_answer([dict(message,parts=message['parts']+[dict(type='tool',state=dict(output='秘密'))])])))
-
-    def test_prompt_preserves_any_language_and_delegates_semantics(self):
-        for text in ('今後は短く。','من الآن فصاعداً باختصار','以后简短回答','Bitte künftig ohne Tabellen','En adelante, sé breve'):
-            prompt=extraction_prompt(text,[],{})
-            self.assertIn(text,prompt);self.assertIn('ANY language',prompt)
-            self.assertIn('not rely on keywords',prompt)
-
 
 class LearningStorageTest(unittest.TestCase):
     def setUp(self):
@@ -58,47 +42,6 @@ class LearningStorageTest(unittest.TestCase):
         self.assertNotIn('重新连接',self.memory.prepare('连接','/unrelated')['context'])
         changed=self.memory.write(note['path'],'# 连接\n新步骤',note['hash'])
         self.assertEqual(changed['memory']['verification'],'')
-
-class LearningBridgeTest(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        from app import create_app
-        from PySide6.QtWidgets import QApplication
-        cls.app=QApplication.instance() or create_app()
-
-    def test_every_language_reaches_model_without_keyword_gate(self):
-        from assistant_backend import OpenCodeBackend
-        from memory_bridge import MemoryBridge
-        from lumen_memory import stamp
-        from PySide6.QtCore import QCoreApplication,QEvent
-        with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,{'LUMEN_DATA':tmp}):
-            store=Store();memory=Memory(store);memory.configure(True,True)
-            backend=OpenCodeBackend(tmp);bridge=MemoryBridge(backend)
-            prepared=dict(revision=store.setting('memory/revision',0),stamp=stamp(store),candidates=[])
-            try:
-                with patch.object(bridge,'next'):
-                    for text in ('好','نعم','угу','今後は短く。'):
-                        bridge.learn(text,tmp,'Conversation',prepared)
-                    self.assertEqual([item['text'] for item in bridge.queue],['好','نعم','угу','今後は短く。'])
-                    bridge.queue.clear();memory.configure(True,False)
-                    bridge.learn('Anything',tmp,'Conversation',prepared)
-                    self.assertFalse(bridge.queue)
-            finally:
-                bridge.shutdown();backend.shutdown();backend.deleteLater()
-                QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
-
-
-    def test_clearing_a_conversation_clears_answer_context(self):
-        from assistant_backend import OpenCodeBackend
-        from PySide6.QtCore import QCoreApplication,QEvent
-        with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,{'LUMEN_DATA':tmp}):
-            backend=OpenCodeBackend(tmp)
-            try:
-                backend.memory_previous_answer=dict(id='old',answer='Old answer')
-                self.assertTrue(backend.new_conversation())
-                self.assertEqual(backend.memory_previous_answer,{})
-            finally:
-                backend.shutdown();backend.deleteLater();QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete)
 
 class MemoryReviewTest(unittest.TestCase):
     def test_review_mode_manual_edits_and_solution_optout(self):

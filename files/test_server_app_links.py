@@ -10,6 +10,16 @@ import server_app_links as links
 
 
 class ServerAppLinksTest(unittest.TestCase):
+    def test_photos_drive_link_is_bound_metadata_and_rejects_extra_parameters(self):
+        from server_app_session import Binding
+        binding = Binding(self.binding['server'], self.binding['account'], str(uuid4()), 'photos')
+        url = self.binding['server']+'/?app=files&family='+self.drive['id']
+        ref = links.clicked_reference(url, binding)
+        self.assertEqual(ref['id'], self.drive['id'])
+        self.assertEqual(ref['locator'], self.binding)
+        for bad in [url+'&token=x', url.replace('staging.invalid','other.invalid'), url.replace(self.drive['id'],'invalid')]:
+            self.assertIsNone(links.clicked_reference(bad,binding))
+
     def setUp(self):
         self.binding = dict(server='https://staging.invalid', account=str(uuid4()))
         self.ref = dict(version=2, app='projects', id=str(uuid4()), title='Haus',

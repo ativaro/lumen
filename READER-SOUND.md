@@ -1,8 +1,7 @@
 # Lumen Reader und Lumen Sound
 
-Sound ist jetzt ein Tab in **Lumen System**, gemeinsam mit der Systemübersicht
-und den Arbeitsmodi. `lumen-sound` öffnet weiterhin direkt den Mixer im gemeinsamen
-Fenster. App-Regeln, automatische Gesprächsabsenkung und Datenpfade bleiben erhalten.
+Sound ist jetzt ein Tab in **Lumen System**, gemeinsam mit der Systemübersicht.
+`lumen-sound` öffnet weiterhin direkt den Mixer im gemeinsamen Fenster. App-Regeln, automatische Gesprächsabsenkung und Datenpfade bleiben erhalten.
 
 Reader hat ein eigenes lokales Fenster; Sound gehört zum gemeinsamen
 Systemfenster. Beide folgen den Lumen-Themes und bleiben über ihre Starter erreichbar. Der Installer richtet die Starter
@@ -11,7 +10,7 @@ Dateizuordnungen ersetzt und keine Audioregeln automatisch aktiviert.
 
 ## Reader
 
-**Buch oder Dokument öffnen** importiert PDF, EPUB, TXT, Markdown oder HTML in
+**Buch oder Dokument öffnen** importiert PDF, EPUB, TXT, Markdown, HTML oder ein Office-Dokument in
 eine private Bibliothek. Auch **Öffnen mit → Lumen Reader** und
 `lumen-reader "/pfad/buch.pdf"` funktionieren; ein weiteres Dokument erreicht
 das bereits geöffnete Fenster. **Artikel speichern** lädt eine ausdrücklich
@@ -94,7 +93,7 @@ Audioserver; für die Automatik zusätzlich die systemd-Benutzersitzung.
 
 ## Prüfung
 
-`python3 -m unittest discover -s files -v` prüft Dokumentimport, Notizerhalt,
+Der isolierte Testlauf aus PUBLISHING.md („Verify locally“) prüft Dokumentimport, Notizerhalt,
 Wissenszitate, Audiozustände und Fehlerpfade. `python3 tests/check-sound.py`
 prüft reale Umschaltung und Absenkung in einer privaten PipeWire-Sitzung mit
 stummen virtuellen Geräten und WirePlumbers hardwarefreiem Policy-Profil.

@@ -1,8 +1,10 @@
-"""Positions in portable Markdown; offsets refer to the unchanged source text."""
+"""Positions in portable Markdown; offsets refer to the unchanged source text. The headings and block IDs
+come from the service (`notes.targets`)."""
 import re
 import unicodedata
 from urllib.parse import unquote
-from note_tags import body_mask, FRONT
+from note_tags import FRONT
+from wissen_data import _ask
 
 
 def split_target(target):
@@ -10,43 +12,14 @@ def split_target(target):
     return path, unquote(anchor) if separator else ''
 
 
-def heading_name(value):
-    value = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', value)
-    return re.sub(r'[*_`~]', '', value).strip()
-
-
 def slug(value):
     return re.sub(r'\s+', '-', re.sub(r'[^\w\s-]', '', unicodedata.normalize('NFC', value).casefold()).strip())
 
 
 def targets(text):
-    mask = body_mask(text)
-    result = []; offset = 0
-    lines = text.splitlines(keepends=True)
-    offsets = [0]
-    for line in lines: offsets.append(offsets[-1]+len(line))
-    masked = [mask[offsets[i]:offsets[i+1]] for i in range(len(lines))]
-    for index, line in enumerate(lines):
-        visible = masked[index] if index < len(masked) else ''
-        match = re.match(r'^ {0,3}(#{1,6})\s+(.+?)\s*#*\s*$', line.rstrip('\r\n'))
-        if match and visible.strip():
-            title = heading_name(match[2])
-            result.append(dict(title=title, anchor=title, start=offset, level=len(match[1])))
-        elif index+1 < len(lines) and visible.strip() and re.fullmatch(r' {0,3}(?:=+|-+)\s*', masked[index+1]):
-            title = heading_name(line.strip())
-            result.append(dict(title=title, anchor=title, start=offset, level=1 if '=' in lines[index+1] else 2))
-        block = re.search(r'(?:^|\s)\^([\w-]+)\s*$', visible.rstrip('\r\n'))
-        if block:
-            start = offset
-            if not line[:block.start()].strip():
-                previous = index-1
-                # Standalone block IDs refer to the preceding paragraph/list.
-                while previous >= 0 and not lines[previous].strip(): previous -= 1
-                while previous >= 0 and masked[previous].strip():
-                    start = offsets[previous]; previous -= 1
-            result.append(dict(title='^'+block[1], anchor='^'+block[1], start=start, level=0))
-        offset += len(line)
-    return result
+    """Headings (`level` 1 to 6) and block IDs (`^id`, level 0) outside code: `title`, `anchor`, `start`
+    (the code point where they begin) and `level`, from the service (`notes.targets`)."""
+    return _ask('targets', text=text)['targets']
 
 
 def anchor_position(text, anchor):

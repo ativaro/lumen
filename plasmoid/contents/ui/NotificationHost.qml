@@ -55,14 +55,19 @@ Item {
         settings.save(); now=new Date();
     }
     function preferences() { runner.connectSource(helper+" --notification-settings"); }
-    function showAll() { fullWindow.show(); fullWindow.raise(); fullWindow.requestActivate(); messages.lastRead=new Date(); refresh(); rebuild(); }
+    function showAll() { fullWindow.show(); fullWindow.raise(); fullWindow.requestActivate(); messages.lastRead=new Date(); if(!previewActive)seenRequested(Date.now()); refresh(); rebuild(); }
     property bool previewActive:false
+    // "New" means arrived since the reader last opened the notifications, not merely unread.
+    property double seen:0
+    property double previewSeen:0
+    signal seenRequested(double stamp)
+    readonly property int fresh: items.filter(row => !row.read && !row.archived && !row.resolved && row.snoozed*1000<=now.getTime() && row.updated*1000>seen).length
     property bool bulkReadPending:false
     function publishPreview() {
         if (!primary || !previewActive) return;
         const current=locked ? [] : items.filter(row=>!row.archived && !row.resolved && row.snoozed*1000<=Date.now());
-        const rows=current.slice(0,3).map(row=>({key:center.key(row),source:row.source.slice(0,100),title:row.title.slice(0,240),
-            body:row.body.slice(0,180),updated:row.updated,unread:!row.read,icon:row.icon}));
+        const rows=current.slice(0,8).map(row=>({key:center.key(row),source:row.source.slice(0,100),title:row.title.slice(0,240),
+            body:row.body.slice(0,180),updated:row.updated,unread:!row.read,fresh:!row.read && row.updated*1000>previewSeen,icon:row.icon}));
         DBus.SessionBus.asyncCall({service:"org.lumen.Topbar",path:"/Topbar",iface:"org.lumen.Topbar",member:"SetNoticePreview",
             arguments:[JSON.stringify({items:rows,unread:current.filter(row=>!row.read).length,locked:locked})]});
     }
@@ -71,7 +76,11 @@ Item {
     function previewCommand(action,key) {
         if(!primary)return;
         if(action==="stop"){previewActive=false;return;}
-        if(action==="preview"){previewActive=true;publishPreview();refresh();return;}
+        if(action==="preview"){
+            // Looking is what resets the count; the open preview keeps marking what was new.
+            if(!previewActive){previewSeen=seen;seenRequested(Date.now())}
+            previewActive=true;publishPreview();refresh();return;
+        }
         if(locked)return;
         if(action==="open"){
             showAll();center.selectNotice(key);

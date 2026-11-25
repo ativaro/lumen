@@ -8,14 +8,12 @@
   "Anhänge deines synchronisierten Notizbuchs.": "Attachments in your synchronized notebook.",
   "Erinnerungen und Kategorien. Keine zusätzliche KI-Freigabe.": "Memories and categories. No additional AI access.",
   "Eigene Projekte automatisch verbinden. Führt keine Aufgaben aus.": "Connect your projects automatically. Does not execute tasks.",
-  "Auch geschlossen und gesperrt. Erste Zuordnung im Tresor einrichten.": "Even when closed and locked. Set up the first association in Vault.",
   "Sprache und Desktop-Design. Serverfassung wird übernommen; Änderungen gelten beim nächsten App-Start.": "Language and desktop theme. Uses the server profile; changes apply when apps next start.",
   "Noch kein Server verbunden": "No server connected yet",
   "Zuletzt {0}": "Last sync {0}",
   "{0} Ordner · {1} aktiv": "{0} folders · {1} active",
   "Abgleichstatus konnte nicht geladen werden.": "Could not load synchronization status.",
   "Abgleich wird geprüft …": "Checking synchronization …",
-  "Abgleich braucht Aufmerksamkeit. Verbindung und Bereich prüfen; Tresor zuerst zuordnen.": "Synchronization needs attention. Check the connection and area; associate your vault first.",
   "Einstellungen übernommen. Der Hintergrundabgleich läuft für aktive Bereiche.": "Settings saved. Active areas synchronize in the background.",
   "Abgleich konnte nicht gestartet werden.": "Could not start synchronization.",
   "Einrichten / prüfen": "Set up / review",
@@ -35,5 +33,6 @@
   "Ausgewählte Drive-Ordner": "Selected Drive folders",
   "Abgleich braucht Aufmerksamkeit": "Synchronization needs attention",
   "Abgleich wieder in Ordnung": "Synchronization is working again",
-  "Öffne Server & Synchronisation und prüfe den betroffenen Bereich.": "Open Server & synchronization and review the affected area."
+  "Öffne Server & Synchronisation und prüfe den betroffenen Bereich.": "Open Server & synchronization and review the affected area.",
+  "Abgleich braucht Aufmerksamkeit. Verbindung und Bereich prüfen.": "Synchronization needs attention. Check the connection and area."
 }

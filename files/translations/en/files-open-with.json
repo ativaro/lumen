@@ -1,0 +1,21 @@
+{
+  "Öffnen mit": "Open with",
+  "Lumen Files · Öffnen mit": "Lumen Files · Open with",
+  "Andere App …": "Other app …",
+  "App suchen …": "Search apps …",
+  "Installierte Apps durchsuchen": "Search installed apps",
+  "App auswählen": "Choose an app",
+  "Immer für diesen Dateityp verwenden": "Always use for this file type",
+  "Ändert den Systemstandard für alle Dateien dieses Typs.": "Changes the system default for all files of this type.",
+  "Bei gemischten oder unbekannten Dateitypen bleibt der Systemstandard unverändert.": "The system default remains unchanged for mixed or unknown file types.",
+  "Bitte vorhandene Dateien auswählen.": "Please select existing files.",
+  "Eine Standard-App kann nur für einen bekannten Dateityp gesetzt werden.": "A default app can only be set for one known file type.",
+  "Die App konnte nicht gestartet werden.": "The app could not be launched.",
+  "Die App wurde gestartet, die Standard-Zuordnung konnte aber nicht gespeichert werden.": "The app was launched, but the default association could not be saved.",
+  "Keine passende App gefunden.": "No matching app found.",
+  "App-Liste nicht verfügbar.": "App list unavailable.",
+  "Systemstandard": "System default",
+  "Standard": "Default",
+  "Systemweit für: {0}": "System-wide for: {0}",
+  "{0} Dateien": "{0} files"
+}

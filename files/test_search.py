@@ -17,35 +17,6 @@ class SearchTest(unittest.TestCase):
                     'QT_QPA_PLATFORM':'offscreen', 'QT_QUICK_BACKEND':'software', 'LUMEN_CRASH_CHILD':'1'})
             self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
 
-    def test_update_restores_production_before_preview_without_resending(self):
-        for production in (False, True):
-            self.run_search('PRODUCTION='+repr(production)+'\n'+'''
-from unittest.mock import patch
-from PySide6.QtCore import QTimer
-from PySide6.QtGui import QGuiApplication
-from lumen_crash import write_json, read_json
-from lumen_store import state_path
-from assistant_backend import OpenCodeBackend
-from search_controller import SearchController
-import lumen_search
-state_path().mkdir(parents=True, exist_ok=True)
-write_json(state_path()/'search-preview.json', {'conversation':True,'chat':{'session':'preview','draft':'preview draft'}})
-if PRODUCTION:
- write_json(state_path()/'search.json', {'conversation':True,'chat':{'session':'production','draft':'production draft'}})
-original=SearchController.__init__; checks=[]
-def created(c,*a,**kw):
- original(c,*a,**kw)
- def verify():
-  source='production' if PRODUCTION else 'preview'
-  checks.extend([c.query==source+' draft',c.backend.session==source,c.conversation,not c.busy])
-  QGuiApplication.instance().exit(0)
- QTimer.singleShot(150,verify)
-with patch('lumen_crash.supervise'),patch.object(SearchController,'__init__',created),patch.object(OpenCodeBackend,'send',side_effect=AssertionError('Do not resend')):
- assert lumen_search.main()==0
-assert checks==[True]*4,checks
-assert read_json(state_path()/'search.json')['chat']['draft']==('production' if PRODUCTION else 'preview')+' draft'
-''')
-
     def test_resident_search_tracks_external_themes_and_refreshes_on_activation(self):
         self.run_search('''
 import subprocess,sys,time

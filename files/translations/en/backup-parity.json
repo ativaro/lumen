@@ -1,8 +1,0 @@
-{
-  "Sicherungsplan archivieren": "Archive backup plan",
-  "Zeitplan deaktivieren und diesen Plan archivieren? Sicherungsdaten und Schlüssel bleiben erhalten.": "Disable the schedule and archive this plan? Backup data and keys are kept.",
-  "Sicherungsplan wird aktualisiert …": "Updating backup plan …",
-  "Nicht im Plan ausgewählt": "Not selected in this plan",
-  "Gesichert · Wiederherstellungsprobe erfolgreich": "Backed up · restore verification passed",
-  "Ausgewählt · nächste Sicherung ausstehend": "Selected · awaiting next backup"
-}

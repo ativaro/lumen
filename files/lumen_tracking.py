@@ -81,13 +81,13 @@ class TaskTracker(QObject):
     def resume(self, task_id, panel):
         if self.backend.busy: raise ValueError(tr('Bitte den laufenden Auftrag zuerst pausieren.'))
         task = self.store.task(task_id)
-        if task['steps']: raise ValueError(tr('Diesen Ablauf über „Ausführen“ starten.'))
+        if task['steps']: raise ValueError(tr('Diesen Auftrag über „Ausführen“ starten.'))
         if task['status'] == 'completed': raise ValueError(tr('Dieser Auftrag ist bereits abgeschlossen.'))
         if not Path(task['directory']).is_dir(): raise ValueError(tr('Der Arbeitsordner ist nicht mehr erreichbar.'))
         self.backend.new_conversation(task['directory'])
         self.backend.session = task['session']
         self.resume_id = task_id
-        self.backend.background_task = any(e['kind'] == 'workflow' for e in self.store.events(task_id))
+        self.backend.background_task = False
         events = [json.loads(e['detail']) for e in self.store.events(task_id) if e['kind'] == 'input']
         previous = events[-1] if events else {'files': [], 'agent': 'build'}
         prompt = (tr('Setze den unterbrochenen Auftrag fort. Prüfe zuerst, welche Schritte bereits erledigt sind, und wiederhole keine bereits bestätigten Änderungen.\n\n') + task['prompt'])

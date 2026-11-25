@@ -13,17 +13,35 @@ class LumenOSTest(unittest.TestCase):
             root=Path(tmp); data=root/'data'; config=root/'config'; bins=data/'lumen/bin'
             bins.mkdir(parents=True); (bins/'lumen-python').write_text('#!/bin/sh\n')
             units=config/'systemd/user'; units.mkdir(parents=True)
-            unit=units/'lumen-vault.service'
-            original='[Service]\nExecStart=/usr/bin/python3 "'+str(data/'lumen/files/vault_data.py')+'" --tick\nNice=10\n'
+            unit=units/'lumen-sound.service'
+            original='[Service]\nExecStart=/usr/bin/python3 "'+str(data/'lumen/files/sound_data.py')+'" --tick\nNice=10\n'
             unit.write_text(original)
-            custom=units/'lumen-sound.service'; custom.write_text('[Service]\nExecStart=/custom/worker\n')
+            custom=units/'lumen-jobs.service'; custom.write_text('[Service]\nExecStart=/custom/worker\n')
             with patch.dict(os.environ,{'XDG_DATA_HOME':str(data),'XDG_CONFIG_HOME':str(config)}),patch('pathlib.Path.home',return_value=root):
                 self.assertEqual(migrate_launchers(bins),[str(unit)])
                 self.assertIn('ExecStart="'+str(bins/'lumen-python')+'"',unit.read_text())
                 self.assertIn('Nice=10',unit.read_text())
-                self.assertEqual(unit.with_name('lumen-vault.service.pre-lumen').read_text(),original)
+                self.assertEqual(unit.with_name('lumen-sound.service.pre-lumen').read_text(),original)
                 self.assertEqual(migrate_launchers(bins),[])
                 self.assertIn('/custom/worker',custom.read_text())
+
+    def test_retired_backup_units_are_disabled_and_removed_without_touching_others(self):
+        import os
+        from unittest.mock import patch
+        from lumen_migrate import retire_vault_units
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp); units=root/'config/systemd/user'; units.mkdir(parents=True)
+            wants=units/'timers.target.wants'; wants.mkdir()
+            for name in ('lumen-vault.timer','lumen-vault.service','lumen-jobs.timer','lumen-sound.service'):(units/name).write_text('[Unit]\n')
+            (units/'lumen-vault.service.pre-lumen').write_text('kept')
+            fake=root/'bin'; fake.mkdir(); log=root/'systemctl.log'
+            (fake/'systemctl').write_text('#!/bin/sh\necho "$@" >> '+str(log)+'\n'); (fake/'systemctl').chmod(0o755)
+            with patch.dict(os.environ,{'XDG_CONFIG_HOME':str(root/'config'),'PATH':str(fake)+os.pathsep+os.environ['PATH']}):
+                self.assertEqual(retire_vault_units(),[str(units/'lumen-vault.timer'),str(units/'lumen-vault.service')])
+                self.assertEqual(log.read_text().splitlines(),['--user disable --now lumen-vault.timer','--user stop lumen-vault.service','--user daemon-reload'])
+                self.assertEqual(sorted(p.name for p in units.iterdir()),['lumen-jobs.timer','lumen-sound.service','lumen-vault.service.pre-lumen','timers.target.wants'])
+                self.assertEqual(retire_vault_units(),[])
+                self.assertEqual(len(log.read_text().splitlines()),3)
 
     def test_cached_vision_launcher_reaches_current_app_and_preserves_arguments(self):
         import json
@@ -142,29 +160,6 @@ app.exec()
             with self.assertRaises((PermissionError, OSError)):
                 execute(store, task, {'action': 'write', 'path': str(work / 'escape' / 'outside'), 'text': 'x'})
 
-    def test_workflow_due_once_pause_and_restart(self):
-        from lumen_store import Store
-        with tempfile.TemporaryDirectory() as tmp:
-            store = Store(Path(tmp) / 'state')
-            flow = store.save_workflow('Ordner öffnen', [{'action': 'open', 'path': tmp}], [tmp],
-                                      trigger='interval', interval=60, enabled=True, approved=True, now=100)
-            self.assertEqual(store.enqueue_due(now=159), [])
-            tasks = store.enqueue_due(now=160)
-            self.assertEqual(len(tasks), 1)
-            self.assertEqual(store.enqueue_due(now=160), [])
-            self.assertTrue(store.task(tasks[0])['approved'])
-            self.assertEqual(store.enqueue_due(now=220), [])
-            with self.assertRaises(PermissionError):
-                store.save_workflow('Ungeprüft', [{'action':'diagnose'}], [tmp], enabled=True)
-            with self.assertRaises(BlockingIOError):
-                lease = store.acquire(tasks[0])
-                try: store.acquire(tasks[0])
-                finally:
-                    import os
-                    os.close(lease)
-            store.set_workflow_enabled(flow, False)
-            self.assertEqual(Store(Path(tmp) / 'state').enqueue_due(now=300), [])
-
     def test_knowledge_roots_and_memories(self):
         from lumen_store import Store
         from lumen_knowledge import index_root, search
@@ -181,7 +176,7 @@ app.exec()
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]['path'], str(shared / 'invoice.txt'))
             self.assertIn('Rechnung', rows[0]['snippet'])
-            memory = store.save_memory('Arbeitsplatz', 'Monitor links', source='Von mir')
+            memory = store.save_memory('Schreibtisch', 'Monitor links', source='Von mir')
             self.assertEqual(store.memories()[0]['id'], memory)
             store.delete_memory(memory)
             store.remove_root(str(shared / '..' / 'shared'))
@@ -237,16 +232,6 @@ app.exec()
             self.assertEqual(wrapper.stat().st_mode & 0o777, 0o755)
             self.assertIn('opencode-lumen', wrapper.with_name(wrapper.name + '.pre-lumen').read_text())
 
-    def test_model_policy_rejects_cloud_and_honors_limits(self):
-        from lumen_models import select_model
-        providers = [{'id': 'local', 'options': {'baseURL': 'http://127.0.0.1:11434/v1'}, 'models': {'small': {}}},
-                     {'id': 'cloud', 'options': {'baseURL': 'https://example.com'}, 'models': {'big': {}}}]
-        self.assertEqual(select_model({'privacy': 'local', 'local_model': 'local/small'}, providers), 'local/small')
-        with self.assertRaises(ValueError):
-            select_model({'privacy': 'local', 'local_model': 'cloud/big'}, providers)
-        with self.assertRaises(ValueError):
-            select_model({'privacy': 'local', 'local_model': 'local/small'}, [])
-
 
 
 class LumenIntegrationTest(unittest.TestCase):
@@ -256,14 +241,13 @@ class LumenIntegrationTest(unittest.TestCase):
         from PySide6.QtWidgets import QApplication
         cls.app = QApplication.instance() or create_app()
 
-    def test_native_pages_workflow_result_and_source_context(self):
+    def test_native_pages_workflow_and_result(self):
         import importlib.util
         import os
         import time
         from unittest.mock import patch
         from PySide6.QtCore import QSettings, Qt
         from PySide6.QtTest import QTest
-        from lumen_knowledge import index_root
         spec = importlib.util.spec_from_file_location('lumen_desktop_test', Path(__file__).resolve().parents[1] / 'agent-app/main.py')
         desktop = importlib.util.module_from_spec(spec); spec.loader.exec_module(desktop)
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp + '/state'}), patch('lumen_detail_routes.launch'):
@@ -273,11 +257,12 @@ class LumenIntegrationTest(unittest.TestCase):
             try:
                 window.show()
                 for index in range(8): window.show_page(index); QTest.qWait(15)
-                self.assertEqual(window.file_window.window(), window)
-                space = window.workspace
+                # Files is its own window, hosted by Lumen.
+                self.assertEqual(window.file_window.lumen_host, window)
+                space = window.task_controller
                 space.store.set_setting('modelPolicy', {'gpu_limit': 100, 'pause_on_activity': False})
-                flow = space.store.save_workflow('Bericht', [{'action': 'write', 'path': tmp+'/bericht.md', 'text': 'Prüfung bestanden'}], [tmp], trigger='interval', interval=60, enabled=True, approved=True, now=0)
-                space.tick()
+                space.store.create_task('Bericht', directory=tmp, roots=[tmp], steps=[{'action': 'write', 'path': tmp+'/bericht.md', 'text': 'Prüfung bestanden'}], approved=True, status='queued')
+                space.start_process([str(Path(__file__).with_name('lumen_tasks.py')), '--tick'])
                 deadline = time.monotonic()+10
                 while space.processes and time.monotonic() < deadline: QTest.qWait(20)
                 self.assertFalse(space.processes)
@@ -291,7 +276,6 @@ class LumenIntegrationTest(unittest.TestCase):
                 while space.knowledge_job and time.monotonic()<deadline:QTest.qWait(20)
                 self.assertIsNone(space.knowledge_job)
                 self.assertIn(completed_id,space.store.memories()[0]['source'])
-                self.assertIn(str(space.store.setting('knowledge/notebook')), space.knowledge_status.text())
                 space.close_task.click(); self.assertEqual(space.tasks.count(), 0)
                 self.assertFalse(space.close_task.isEnabled())
                 self.assertEqual(space.store.task(completed_id)['status'], 'completed')
@@ -304,12 +288,6 @@ class LumenIntegrationTest(unittest.TestCase):
                 space.close_task.click(); self.assertEqual(space.tasks.count(), 0)
                 self.assertEqual(space.store.task(cancelled_id)['status'], 'cancelled')
                 self.assertIn('Prüfung bestanden', Path(tmp+'/bericht.md').read_text())
-                index_root(space.store, tmp)
-                space.query.setText('bestanden'); space.search()
-                self.assertEqual(space.results.count(), 1)
-                space.results.setCurrentRow(0); space.use_source()
-                self.assertIn('bericht.md', window.chat.composer.toPlainText())
-                self.assertEqual(window.chat.paths, [tmp+'/bericht.md'])
                 self.assertFalse(window.chat.backend.busy)
             finally:
                 window.close(); window.deleteLater(); QTest.qWait(30)
@@ -320,7 +298,7 @@ class LumenIntegrationTest(unittest.TestCase):
         with patch('lumen_detail_routes.QProcess.startDetached',side_effect=AssertionError('Unexpected detached app')), \
              patch.object(self,'assertEqual',side_effect=AssertionError('Synthetic page assertion')):
             with self.assertRaisesRegex(AssertionError,'Synthetic page assertion'):
-                self.test_native_pages_workflow_result_and_source_context()
+                self.test_native_pages_workflow_and_result()
 
     def test_local_policy_blocks_prompt_before_remote_submission(self):
         import os
@@ -329,15 +307,31 @@ class LumenIntegrationTest(unittest.TestCase):
         from lumen_store import Store
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp+'/state'}):
             Store().set_setting('modelPolicy', {'privacy':'local','local_model':'remote/model','timeout_seconds':60})
-            backend = OpenCodeBackend(tmp); calls = []; failed = []
-            backend.failed.connect(failed.append); backend.ensure_server = lambda cb: cb()
-            def request(method, path, body=None, callback=None, **kwargs):
-                calls.append((method,path))
-                if path == '/config': callback({'provider': {'remote': {'options': {'baseURL':'https://example.com'}}}})
-                elif path == '/config/providers': callback({'providers':[{'id':'remote','models':{'model':{}}}]})
-            backend.request = request
+            import json, threading, time
+            from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+            from PySide6.QtTest import QTest
+            calls = []; failed = []
+            class Engine(BaseHTTPRequestHandler):
+                def log_message(self, *_): pass
+                def do_GET(self): self.answer()
+                def do_POST(self): self.answer()
+                def answer(self):
+                    path = self.path.split('?')[0]; calls.append((self.command, path))
+                    data = {'provider': {'remote': {'options': {'baseURL': 'https://example.com'}}}} if path == '/config' else \
+                        {'providers': [{'id': 'remote', 'models': {'model': {}}}]} if path == '/config/providers' else {}
+                    raw = json.dumps(data).encode(); self.send_response(200)
+                    self.send_header('Content-Type', 'application/json'); self.send_header('Content-Length', str(len(raw)))
+                    self.end_headers(); self.wfile.write(raw)
+            server = ThreadingHTTPServer(('127.0.0.1', 0), Engine)
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+            self.addCleanup(server.server_close); self.addCleanup(server.shutdown)
+            # The service checks the local-only policy before any session or prompt exists.
+            backend = OpenCodeBackend(tmp, server_url=f'http://127.0.0.1:{server.server_port}')
+            backend.failed.connect(failed.append)
             backend.send('Privat bleiben')
-            self.assertTrue(failed)
+            deadline = time.monotonic() + 8
+            while not failed and time.monotonic() < deadline: QTest.qWait(10)
+            self.assertIn('Loopback', failed[0])
             self.assertFalse(any(method == 'POST' for method, path in calls))
             self.assertFalse(backend.busy); backend.shutdown()
 

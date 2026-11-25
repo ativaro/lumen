@@ -37,6 +37,13 @@ class FolderStreamTest(unittest.TestCase):
 
 
 class GitCloneTest(unittest.TestCase):
+    def test_cancelled_or_revoked_context_cannot_start_git(self):
+        def denied(): raise PermissionError('Synthetic context revoked')
+        for remote in ('https://git.example.invalid/private.git', 'git@git.example.invalid:private.git'):
+            with self.subTest(remote=remote), patch('server_code_transport.subprocess.Popen') as spawn:
+                with self.assertRaises(PermissionError): clone_git(remote, Path('/unused'), denied)
+                self.assertEqual(spawn.call_count, 0)
+
     def test_private_git_uses_native_credentials_without_saving_them_in_project(self):
         import base64, subprocess, threading, sys
         from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer

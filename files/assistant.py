@@ -77,10 +77,12 @@ class ChatPanel(QWidget):
         self.sessions.addItem(tr('Neues Gespräch'), '')
         self.sessions.activated.connect(self.open_session)
         layout.addWidget(self.sessions)
-        from lumen_persona import PRESETS
+        import lumen_service
         self.persona = QComboBox(); self.persona.setAccessibleName(tr('Persönlichkeit für dieses Gespräch'))
         self.persona.addItem(tr('Persönlichkeit · Globale Einstellung'), '')
-        for identity, (title, _, _) in PRESETS.items(): self.persona.addItem(tr(title), identity)
+        try: presets = lumen_service.persona_catalogue()['presets']
+        except (OSError, ValueError): presets = []
+        for row in presets: self.persona.addItem(row['title'], row['id'])
         self.persona.setToolTip(tr('Nur dieses Gespräch. Neue Gespräche verwenden die globale Einstellung.'))
         self.persona.activated.connect(lambda _: self.backend.set_persona(self.persona.currentData()))
         self.backend.personaChanged.connect(self.refresh_persona)
@@ -527,7 +529,7 @@ class ChatPanel(QWidget):
         if self.context_tools.learn.isChecked():
             text += tr('\n\nErkläre die wesentlichen Schritte, ihre Wirkung und wie ich sie selbst wiederholen kann.')
         sent = self.backend.send(text, files, self.mode.currentData(), title=title,memory_text=self.last_prompt,
-                          user_text=self.last_prompt if not self.action else None,context_data={**getattr(self,'drive_context',{}),**({'note_reference':self.note_context} if getattr(self,'note_context',None) else {})} or None)
+                          context_data={**getattr(self,'drive_context',{}),**({'note_reference':self.note_context} if getattr(self,'note_context',None) else {})} or None)
         if sent is False:
             return
         if not self.action:

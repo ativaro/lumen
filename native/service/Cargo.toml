@@ -1,0 +1,48 @@
+[package]
+name = "lumen-service"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+publish = false
+license-file = "../../LICENSE"
+description = "Lumen's desktop service: one user process per session for the memory's meaning search, the engine conversations in the user's persona, the connection to the Lumen Server and the notebook core of Lumen Notes"
+
+[dependencies]
+# The versions the engine crate pins, so service and crate share one copy.
+base64 = "=0.23.1"
+# Python's case folding and NFC for Notes tags (Unicode 16, as the memory crate pins them).
+caseless = "=0.2.2"
+# The HTTP/1.1 client under reqwest, used directly for the Lumen Server: reqwest's TLS features
+# bring rustls-platform-verifier, whose lockfile entries include webpki-root-certs
+# (CDLA-Permissive-2.0, a licence check-licenses.py does not accept).
+http-body-util = "0.1"
+hyper = { version = "1", features = ["client", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+libc = "0.2"
+lumen-engine = { path = "../engine" }
+lumen-memory = { path = "../memory" }
+lumen-persona = { path = "../persona" }
+lumen-sentence-encoder = { path = "../sentence-encoder" }
+percent-encoding = "=2.3.2"
+regex = "1"
+# SHA-1 for the memory identities `uuid.uuid5` made (the ring rustls already uses).
+ring = { version = "=0.17.14", default-features = false }
+rusqlite = "0.42"
+# Directory-relative file operations for the notebook (openat, renameat, flock, fstatvfs).
+rustix = { version = "=1.1.6", features = ["fs"] }
+# The TLS stack the server uses (rustls with ring), at the versions it locks.
+rustls = { version = "=0.23.46", default-features = false, features = ["std", "tls12", "ring"] }
+rustls-native-certs = "=0.8.5"
+serde_json = "1"
+sha2 = { version = "0.11", default-features = false }
+tokio = { version = "=1.54.1", features = ["fs", "io-util", "macros", "net", "process", "rt", "signal", "sync", "time"] }
+tokio-rustls = { version = "=0.26.6", default-features = false, features = ["ring", "tls12"] }
+unicode-normalization = "=0.1.24"
+
+[profile.release]
+panic = "abort"
+strip = true
+
+[lints.rust]
+# Only `mod sys` in src/main.rs may use it, for the peer check std offers only unstably.
+unsafe_code = "deny"

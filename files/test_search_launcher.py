@@ -14,9 +14,11 @@ class SearchLauncherTest(unittest.TestCase):
             root = Path(tmp); (root/'files').mkdir()
             shutil.copy2(Path(__file__).resolve().parents[1]/'bin/lumen-panel', root/'lumen-panel')
             launcher = root/'lumen-search'
+            # The stand-in also ends when the test's folder is gone, so a missed release never leaves it running.
             launcher.write_text('#!/usr/bin/python3\nimport os, time\nfrom pathlib import Path\n'
                                 'Path(os.environ["STARTED"]).write_text(str(os.getpid()))\n'
-                                'while not Path(os.environ["RELEASE"]).exists(): time.sleep(.02)\n')
+                                'release = Path(os.environ["RELEASE"])\n'
+                                'while not release.exists() and release.parent.exists(): time.sleep(.02)\n')
             launcher.chmod(0o755)
             env = dict(os.environ, STARTED=str(root/'started'), RELEASE=str(root/'release'))
             for action in ('--search', '--voice'):
@@ -29,6 +31,14 @@ class SearchLauncherTest(unittest.TestCase):
                     self.assertTrue((root/'started').exists())
                 finally:
                     (root/'release').touch()
+                    # The panel detached the stand-in; wait until it has seen the release and ended.
+                    try: child = int((root/'started').read_text())
+                    except (OSError, ValueError): child = None
+                    deadline = time.monotonic()+2
+                    while child and time.monotonic()<deadline:
+                        try: os.kill(child, 0)
+                        except ProcessLookupError: break
+                        time.sleep(.02)
 
     def test_warm_routes_and_cold_fallback(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -52,9 +62,9 @@ class SearchLauncherTest(unittest.TestCase):
                 if env['BUS_EXIT'] == '1' and name == 'lumen-panel':
                     while 'python:' not in log.read_text() and time.monotonic()<deadline: time.sleep(.01)
                 return log.read_text().splitlines()
-            for name, args, method in [('lumen-search', [], 'Activate'), ('lumen-search', ['--voice'], 'Voice'),
-                                       ('lumen-panel', ['--search'], 'Activate'), ('lumen-panel', ['--voice'], 'Voice')]:
-                self.assertEqual(run(name, *args), ['dbus:org.lumen.Search /Search org.lumen.Search.'+method])
+            for name, args, voice in [('lumen-search', [], 'false'), ('lumen-search', ['--voice'], 'true'),
+                                      ('lumen-panel', ['--search'], 'false'), ('lumen-panel', ['--voice'], 'true')]:
+                self.assertEqual(run(name, *args), ['dbus:org.lumen.Desktop /Lumen org.lumen.Desktop.ActivateSearch '+voice])
             # No service / unavailable bus: preserve --voice for a real first launch.
             env['BUS_EXIT'] = '1'
             calls = run('lumen-panel', '--voice')

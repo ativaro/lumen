@@ -35,7 +35,7 @@ localized display values remain separate from stored data/selection identities.
 Test locale resolution, templates, catalog coverage/placeholders, native English
 main surfaces and German regressions. Render representative native windows and
 check Plasma texts. Commands:
-`PYTHONPATH=files QT_QPA_PLATFORM=offscreen LUMEN_LANGUAGE=de python3 -m unittest discover -s files -v`
+`scripts/test-desktop.sh`
 `/usr/lib/qt6/bin/qmltestrunner -input plasmoid/tests -platform offscreen`
 `./packaging/arch/build-package.sh`
 The user bundle must include catalogs; compare installed/package resources.

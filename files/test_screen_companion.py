@@ -133,20 +133,17 @@ class CompanionTest(unittest.TestCase):
         backend=OpenCodeBackend(self.root); self.addCleanup(backend.shutdown)
         backend.settings=QSettings(self.root+'/settings.ini',QSettings.IniFormat)
         backend.settings.setValue('model','test/vision'); backend.screen_guidance=True; backend.auto_approve=True
-        requests=[]; started=[]; backend.started.connect(lambda *args:started.append(args))
-        def request(method,path,body=None,callback=None,error=None):
-            requests.append((method,path,body))
-            if callback and path=='/session' and method=='POST': callback({'id':'guide'})
-        with patch.object(backend,'ensure_server',side_effect=lambda ready:ready()), patch.object(backend,'request',side_effect=request), patch.object(backend,'refresh_sessions'), patch('memory_bridge.MemoryBridge') as memory:
+        turns=[]; asks=[]; started=[]; backend.started.connect(lambda *args:started.append(args))
+        # The service denies the session every tool and writes the companion's system text
+        # (native/service: each_mode_has_its_system_text_and_tools, the_window_image_and_selection_are_checked_data).
+        # The service prepares no memory for the companion (native/service/src/turn.rs, `recall`).
+        with patch.object(backend,'begin',side_effect=turns.append), patch.object(backend,'ask',side_effect=lambda op,*a,**k:asks.append(op)):
             backend.send('Help me',screen_image=self.png)
-            session=next(body for method,path,body in requests if path=='/session')
-            prompt=next(body for method,path,body in requests if path.endswith('/prompt_async'))
-            self.assertEqual(session['permission'],[{'permission':'*','pattern':'*','action':'deny'}])
-            self.assertEqual(prompt['tools'],{'*':False}); self.assertIn('untrusted data',prompt['system'])
-            image=next(p for p in prompt['parts'] if p['type']=='file')
-            self.assertEqual(base64.b64decode(image['url'].split(',',1)[1]),self.png)
-            self.assertFalse(started); memory.assert_not_called()
+            turn=turns[-1]
+            self.assertTrue(turn['screen_guidance']); self.assertFalse(turn['memory_context'])
+            self.assertEqual(base64.b64decode(turn['screen_image']),self.png)
+            self.assertFalse(started)
             backend.permissions=[dict(id='permission',permission='bash')]; backend.publish_requests()
-            self.assertFalse(any('/permission/' in path for _,path,_ in requests))
+            self.assertEqual(asks,[])
 
 if __name__=='__main__': unittest.main()

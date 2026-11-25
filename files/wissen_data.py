@@ -1,455 +1,220 @@
-"""Portable Markdown notebooks. Local drafts/history are private recovery data."""
-from lumen_i18n import tr
+"""Lumen Notes' notebook through the desktop service: the notebook core (file format, revisions,
+locks, history, drafts, scans, the import of old memories) is `native/service/src/notebook.rs`;
+this module carries its requests (`notes.*`, native/service/README.md) and keeps no format logic.
+Refusals arrive as the exceptions the earlier Python core raised (ValueError, OSError and its
+subclasses, UnicodeError). Picture work stays here, in a worker process: PIL makes the PNG of an
+imported picture and the previews, the service reads and writes the files."""
+from lumen_i18n import tr, language
 from contextlib import contextmanager
 import base64
 import fcntl
 import gzip
-import hashlib
-import json
 import io
+import json
 import os
 from pathlib import Path
 import re
-import stat
 import sys
-import time
-import uuid
-from urllib.parse import unquote,urlsplit
-from content_search import folder_fd,STOP_WORDS
+from urllib.parse import unquote, urlsplit
+import lumen_service
 from tools_data import Library
-from note_tags import tags as note_tags, matches_tags
 
-MAX_NOTE=1024*1024
-MAX_SCAN_BYTES=128*1024**2
-MAX_SCAN_NOTES=10000
-MAX_SCAN_ENTRIES=30000
-MAX_RESULT=256*1024**2
-META=re.compile(r'^<!-- lumen: (\{[^\n]*\}) -->\n?')
-
-
-def digest(raw):return hashlib.sha256(raw).hexdigest()
+MAX_NOTE = 1024 * 1024
+MAX_RESULT = 256 * 1024 ** 2
+# The answers of a scan and of a context carry note texts: up to 128 MiB, escaped as JSON.
+MAX_ANSWER = 2 * MAX_RESULT
+# Answered by the service; the others run their Python modules in a worker process, as before.
+SERVICE = {'activate', 'scan', 'read', 'write', 'create', 'create_collection', 'remove', 'versions', 'restore', 'capture', 'context'}
 
 
-def timestamp(value):
-    return value if type(value) in (int,float) and 0<value<253402214400 else 0
+def _texts():
+    return dict(language=language(), catalogue=str(Path(__file__).with_name('translations') / 'en'))
 
 
-def timestamp_text(note):
-    from datetime import datetime
-    created=timestamp(note.get('created')) or timestamp(note.get('memory',{}).get('created'))
-    modified=timestamp(note.get('modified')) or timestamp(note.get('memory',{}).get('updated'))
-    def display(value):return datetime.fromtimestamp(value).strftime('%d.%m.%Y %H:%M') if value else ''
-    first,last=display(created),display(modified)
-    parts=[tr('Erstellt: {0}',first)] if first else []
-    if last and last!=first:parts.append(tr('Geändert: {0}',last))
-    return ' · '.join(parts)
+def _place(root):
+    return str(Path(root).expanduser().absolute()) if root else None
 
 
-def parse(path,raw):
-    text=raw.decode('utf-8-sig');meta={};match=META.match(text)
-    if match:
-        try:
-            candidate=json.loads(match[1])
-            if isinstance(candidate,dict):meta=candidate;text=text[match.end():]
-        except ValueError:pass
-    try: note_id=str(uuid.UUID(str(meta.get('note_id',''))))
-    except ValueError: note_id=''
-    from notes_structure import targets
-    headings=[value for value in targets(text) if value['level']==1]
-    title=headings[0]['title'] if headings else Path(path).stem
-    plain=re.sub(r'```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`]*`','',text)
-    tags=note_tags(text)
-    links=re.findall(r'\[\[([^\]\n]+)\]\]',plain)+re.findall(r'(?<!!)\[[^\]\n]*\]\(([^)\n]+)\)',plain)
-    note=dict(id=path,path=path,note_id=note_id,title=title[:300],text=text,source=str(meta.get('source',''))[:2000],legacy=str(meta.get('legacy',''))[:200],created=timestamp(meta.get('created')),tags=tags,links=links,hash=digest(raw),raw_size=len(raw))
-    from notes_properties import for_note
-    for_note(note)
-    return note
+def _ask(op, payload=b'', **values):
+    answer = lumen_service.ask({'op': 'notes.' + op, 'texts': _texts(), **values}, timeout=60, limit=MAX_ANSWER, payload=payload)
+    lumen_service.refused(answer)
+    return answer
 
 
-def encode(text,source='',legacy='',created=0,note_id=''):
-    meta=dict(source=source,legacy=legacy)
-    if note_id:meta['note_id']=str(uuid.UUID(note_id))
-    if timestamp(created):meta['created']=created
-    prefix='<!-- lumen: '+json.dumps(meta,ensure_ascii=False)+' -->\n' if source or legacy or timestamp(created) or note_id else ''
-    raw=(prefix+text).encode()
-    if len(raw)>MAX_NOTE:raise ValueError(tr('Notiz größer als 1 MiB. Bitte aufteilen.'))
-    return raw
+def parse(path, raw):
+    return _ask('parse', path=str(path), raw=base64.b64encode(raw).decode())
 
 
-def link_lookup(notes):
-    lookup={}
-    for path,note in notes.items():
-        for key in {('id',note.get('note_id','')),('stem',Path(path).stem.casefold()),('title',note['title'].casefold())}:
-            lookup[key]=path if key not in lookup else None
-    return lookup
-
-
-def resolve_link(origin,target,notes,lookup=None):
-    target=unquote(target.split('|',1)[0].split('#',1)[0].strip())
-    if not target:return origin
-    if target.startswith('/?document='):
-        identity=target.removeprefix('/?document=')
-        if lookup is not None:return lookup.get(('id',identity))
-        matches=[p for p,n in notes.items() if n.get('note_id')==identity]
-        return matches[0] if len(matches)==1 else None
-    if urlsplit(target).scheme or target.startswith(('/', '\\')):return None
-    if not target.lower().endswith('.md'):target+='.md'
-    local=os.path.normpath(str(Path(origin).parent/target))
-    if local=='..' or local.startswith('../'):return None
-    for candidate in (local,os.path.normpath(target)):
-        if candidate in notes:return candidate
-    if lookup is not None:
-        keys={('stem',Path(target).stem.casefold()),('title',target[:-3].casefold())}
-        matches={lookup[k] for k in keys if k in lookup}
-        return next(iter(matches)) if len(matches)==1 and None not in matches else None
-    matches=[p for p,n in notes.items() if Path(p).stem.casefold()==Path(target).stem.casefold() or n['title'].casefold()==target[:-3].casefold()]
-    return matches[0] if len(matches)==1 else None
-
-
-def connections(notes):
-    lookup=link_lookup(notes);outgoing={};incoming={}
-    for path,note in notes.items():
-        outgoing[path]={target for link in note['links'] if (target:=resolve_link(path,link,notes,lookup)) in notes}
-        for target in outgoing[path]:incoming.setdefault(target,set()).add(path)
-    return outgoing,incoming
-
-
-def search(notes,query,limit=60):
-    from notes_properties import filters,for_note
-    query,properties=filters(query)
-    selected=re.findall(r'(?:^|\s)#([\w/-]+)',query)
-    words=re.sub(r'(?:^|\s)#[\w/-]+',' ',query)
-    terms=[w for w in re.findall(r'\w+',words.casefold()) if w not in STOP_WORDS and len(w)>1][:12]
-    ranked=[]
-    for note in notes:
-        if properties:
-            props=for_note(note)
-            if not all(name in props and props[name]['value'].casefold()==value for name,value in properties):continue
-        try:
-            if selected and not matches_tags(note['tags'],selected):continue
-        except ValueError:continue
-        hay=(note['title']+' '+note['text']+' '+note['source']).casefold() if terms else ''
-        score=sum((4 if t in note['title'].casefold() else 1) for t in terms if t in hay)
-        if not terms or score:ranked.append((score,note))
-    return [n for _,n in sorted(ranked,key=lambda p:(-p[0],p[1]['title'].casefold()))[:limit]]
-
-
-def excerpt(text,query,limit=3000):
-    terms=[w for w in re.findall(r'\w+',query.casefold()) if w not in STOP_WORDS and len(w)>1][:12]
-    positions=[text.casefold().find(t) for t in terms if t in text.casefold()]
-    start=max(0,min(positions)-limit//4) if positions else 0
-    return ('…\n' if start else '')+text[start:start+limit]+('\n…' if start+limit<len(text) else '')
-
-
-def directory_identity(fd):
-    """Filesystem identity survives a remount; st_dev is only a runtime number."""
-    st=os.fstat(fd)
-    fsid=getattr(os.fstatvfs(fd),'f_fsid',0)
-    return ['fsid:'+str(fsid),st.st_ino] if fsid else [st.st_dev,st.st_ino]
-
-
-def root_identity(root):
-    fd=os.open(root,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
-    try:return directory_identity(fd)
-    finally:os.close(fd)
+def excerpt(text, query, limit=3000):
+    return _ask('excerpt', text=text, query=query, limit=limit)['text']
 
 
 class Notebook:
-    def __init__(self,store,root=None,create=False,identity=None):
-        self.store=store
-        chosen=root or store.setting('knowledge/notebook','')
-        if not chosen:raise ValueError(tr('Lumen Notes zuerst öffnen und einen Notizordner wählen.'))
-        self.root=Path(chosen).expanduser()
-        if create:self.root.mkdir(parents=True,exist_ok=True,mode=0o700)
-        self.root=self.root.resolve(strict=True)
-        self.identity=identity or (store.setting('knowledge/identity') if str(self.root)==store.setting('knowledge/notebook') else None) or root_identity(self.root)
-        self.history=Library('wissen-history',store.directory)
+    def __init__(self, store, root=None, create=False, identity=None):
+        self.store = store
+        answer = _ask('open', store=str(store.directory), root=_place(root), create=create, identity=identity)
+        self.root = Path(answer['root'])
+        self.identity = answer['identity']
+        self.history = Library('wissen-history', store.directory)
 
-    def context(self,paths,query):
-        if not 1<=len(paths)<=8:raise ValueError(tr('Eine bis acht Quellen auswählen.'))
-        return [dict(note,text=excerpt(note['text'],query)) for note in (self.read(p) for p in dict.fromkeys(paths))]
+    def _ask(self, op, payload=b'', **values):
+        return _ask(op, payload, store=str(self.store.directory), root=str(self.root), identity=self.identity, **values)
 
     @contextmanager
-    def directory(self,relative='.'):
-        fd=os.open(self.root,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+    def lock(self, name='wissen.lock'):
+        """The lock files the service takes too: wissen.lock for every write, others for longer steps."""
+        fd = os.open(self.store.directory / name, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         try:
-            st=os.fstat(fd)
-            actual=directory_identity(fd) if isinstance(self.identity[0],str) else [st.st_dev,st.st_ino]
-            if actual!=self.identity:raise ValueError(tr('Der Notizordner wurde ersetzt oder getrennt. Erneut auswählen.'))
-            part=Path(relative)
-            if part.is_absolute() or '..' in part.parts:raise ValueError(tr('Pfad außerhalb des Notizordners.'))
-            child=folder_fd(fd,part)
-            try:yield child
-            finally:os.close(child)
-        finally:os.close(fd)
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            yield
+        finally:
+            os.close(fd)
 
-    @contextmanager
-    def lock(self,name='wissen.lock'):
-        fd=os.open(self.store.directory/name,os.O_RDWR|os.O_CREAT|os.O_NOFOLLOW,0o600)
-        try:fcntl.flock(fd,fcntl.LOCK_EX);yield
-        finally:os.close(fd)
+    def relative(self, path):
+        self._ask('relative', path=str(path))
+        return Path(path)
 
-    def relative(self,path):
-        path=Path(path)
-        if path.is_absolute() or '..' in path.parts or not path.parts or any(p.startswith('.') for p in path.parts) or path.suffix.lower()!='.md':raise ValueError(tr('Bitte eine Markdown-Notiz innerhalb des gewählten Ordners wählen.'))
-        return path
+    def stat(self, path, folder=False):
+        """`(st_dev, st_ino)` of a folder below the root, or of an entry without following a link;
+        None when the entry does not exist."""
+        value = self._ask('stat', path=str(path), folder=folder)['stat']
+        return tuple(value) if value else None
 
-    def _read(self,path):
-        path=self.relative(path)
-        with self.directory(path.parent) as parent:
-            fd=os.open(path.name,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=parent)
-            try:
-                if not stat.S_ISREG(os.fstat(fd).st_mode):raise ValueError(tr('Keine reguläre Notizdatei.'))
-                with os.fdopen(os.dup(fd),'rb') as stream:raw=stream.read(MAX_NOTE+1)
-                if len(raw)>MAX_NOTE:raise ValueError(tr('Notiz größer als 1 MiB.'))
-                return raw,os.fstat(fd).st_mtime
-            finally:os.close(fd)
+    def raw(self, path):
+        return base64.b64decode(self._ask('raw', path=str(path))['raw'])
 
-    def raw(self,path):return self._read(path)[0]
+    def read(self, path):
+        return self._ask('read', path=str(path))
 
-    def read(self,path):
-        raw,modified=self._read(path)
-        return dict(parse(str(path),raw),modified=modified)
+    def image(self, path):
+        return base64.b64decode(self._ask('image', path=str(path))['raw'])
 
-    def image(self,path):
-        path=Path(path)
-        if path.is_absolute() or '..' in path.parts or any(p.startswith('.') for p in path.parts) or path.suffix.lower() not in ('.png','.jpg','.jpeg','.webp','.gif'):raise ValueError(tr('Kein lokales Notizbild.'))
-        with self.directory(path.parent) as parent:
-            fd=os.open(path.name,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=parent)
-            with os.fdopen(fd,'rb') as stream:
-                if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):raise ValueError(tr('Kein reguläres Bild.'))
-                raw=stream.read(16*1024**2+1)
-        if len(raw)>16*1024**2:raise ValueError(tr('Bild größer als 16 MiB.'))
-        return raw
+    def context(self, paths, query):
+        return self._ask('context', paths=list(paths), query=query)['notes']
 
-    def add_image(self,path):
-        from PIL import Image,ImageOps
-        source=Path(path)
-        if source.stat().st_size>20*1024**2:raise ValueError(tr('Bild größer als 20 MiB.'))
-        with Image.open(source) as image:
-            if image.width*image.height>36_000_000:raise ValueError(tr('Bild größer als 36 Megapixel.'))
-            image=ImageOps.exif_transpose(image);image.thumbnail((2400,2400));image=image.convert('RGBA')
-            with self.directory() as root:
-                try:os.mkdir('attachments',0o700,dir_fd=root)
-                except FileExistsError:pass
-            name=uuid.uuid4().hex+'.png'
-            with self.directory('attachments') as parent:
-                fd=os.open(name,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600,dir_fd=parent)
-                with os.fdopen(fd,'wb') as stream:image.save(stream,format='PNG');stream.flush();os.fsync(stream.fileno())
-            return 'attachments/'+name
+    def scan(self, known=None, migrate=False):
+        values = {} if known is None else dict(known={p: [v[0], repr(v[1])] for p, v in known.items()})
+        return self._ask('scan', migrate=migrate, **values)
 
-    def preview(self,path,text):
-        from PIL import Image,ImageOps
-        images={};total=0
-        for target in re.findall(r'!\[[^\]\n]*\]\(([^)\n]+)\)',text)[:16]:
-            target=unquote(target)
-            if urlsplit(target).scheme or target.startswith('/'):continue
-            relative=os.path.normpath(str(Path(path).parent/target))
-            try:
-                raw=self.image(relative)
-                with Image.open(io.BytesIO(raw)) as image:
-                    if image.width*image.height>36_000_000:continue
-                    image=ImageOps.exif_transpose(image);image.thumbnail((1600,1600));output=io.BytesIO();image.convert('RGBA').save(output,format='PNG')
-                    encoded=base64.b64encode(output.getvalue()).decode();total+=len(encoded)
-                    if total>16*1024**2:break
-                    images[relative]=encoded
-            except (OSError,ValueError):continue
-        return images
+    def write(self, path, text, expected, source=None, legacy=None, created=None, note_id=None):
+        return self._ask('write', path=str(path), text=text, expected=expected, source=source, legacy=legacy, created=created, note_id=note_id)
 
-    def scan(self):
-        from notes_index import Index
-        with Index(self) as index:
-            result=self._scan(index)
-            if not result['limited']:index.prune()
-            return result
+    def replace(self, path, before, after):
+        """One note's bytes replaced after checking `before`; the earlier bytes go to the history."""
+        self._ask('replace', path=str(path), before=base64.b64encode(before).decode(), after=base64.b64encode(after).decode())
 
-    def _scan(self,index):
-        notes=[];folders=[];queue=[Path('.')];count=size=errors=0;limited=False
-        while queue and not limited:
-            relative=queue.pop()
-            with self.directory(relative) as parent, os.scandir(parent) as entries:
-                for entry in entries:
-                    count+=1
-                    if count>MAX_SCAN_ENTRIES:limited=True;break
-                    if entry.name.startswith('.') or entry.is_symlink():continue
-                    path=relative/entry.name
-                    if entry.is_dir(follow_symlinks=False):
-                        queue.append(path)
-                        if path.parts[0]!='attachments':folders.append(str(path))
-                    elif entry.name.lower().endswith('.md') and entry.is_file(follow_symlinks=False):
-                        try:
-                            length=entry.stat(follow_symlinks=False).st_size
-                            if length>MAX_NOTE:errors+=1;continue
-                            if len(notes)>=MAX_SCAN_NOTES or size+length>MAX_SCAN_BYTES:
-                                limited=True;break
-                            note=index.read(self,path,parse)
-                            if size+note['raw_size']>MAX_SCAN_BYTES:limited=True;break
-                            notes.append(note);size+=note['raw_size']
-                        except (OSError,ValueError,UnicodeError):errors+=1
-        return dict(notes=notes,folders=sorted(folders),errors=errors,limited=limited,root=str(self.root),identity=self.identity)
+    def create(self, title, text='', source='', legacy='', folder='.', note_id=''):
+        return self._ask('create', title=title, text=text, source=source, legacy=legacy, folder=str(folder), note_id=note_id)
 
-    def backup(self,path,raw):
-        asset=uuid.uuid4().hex+'.md';target=self.history.asset(asset)
-        with target.open('xb') as stream:target.chmod(0o600);stream.write(raw)
-        return self.history.create(Path(path).name,root=str(self.root),path=str(path),asset=asset,created=time.time())
+    def create_collection(self, name):
+        return self._ask('create_collection', name=name)['name']
 
-    def write(self,path,text,expected,source=None,legacy=None,created=None,note_id=None):
-        path=self.relative(path)
-        with self.lock():
-            try:before,modified=self._read(path)
-            except FileNotFoundError:before=None;modified=0
-            if (digest(before) if before is not None else '')!=expected:raise ValueError(tr('CONFLICT: Die Datei wurde außerhalb dieses Fensters geändert. Entwurf bleibt erhalten.'))
-            old=parse(str(path),before) if before is not None else {}
-            if before is None:created_at=time.time() if created is None else created
-            else:created_at=old.get('created',0) or timestamp(created)
-            raw=encode(text,old.get('source','') if source is None else source,old.get('legacy','') if legacy is None else legacy,created_at,old.get('note_id','') if note_id is None else note_id)
-            if before==raw:return dict(parse(str(path),raw),modified=modified)
-            if before is not None:self.backup(path,before)
-            with self.directory(path.parent) as parent:
-                temporary='.lumen-'+uuid.uuid4().hex
-                fd=os.open(temporary,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600,dir_fd=parent)
-                try:
-                    with os.fdopen(fd,'wb') as stream:
-                        stream.write(raw);stream.flush();os.fsync(stream.fileno());modified=os.fstat(stream.fileno()).st_mtime
-                    try:latest=self.raw(path)
-                    except FileNotFoundError:latest=None
-                    if latest!=before:raise ValueError(tr('CONFLICT: Die Datei wurde während des Speicherns geändert.'))
-                    os.replace(temporary,path.name,src_dir_fd=parent,dst_dir_fd=parent);os.fsync(parent)
-                finally:
-                    try:os.unlink(temporary,dir_fd=parent)
-                    except FileNotFoundError:pass
-            return dict(parse(str(path),raw),modified=modified)
+    def rename_collection(self, source, target):
+        from notes_move import plan, execute
+        return execute(self, plan(self, source, target))['path']
 
-    def rename_collection(self,source,target):
-        from notes_move import plan,execute
-        return execute(self,plan(self,source,target))['path']
+    def remove(self, path, expected):
+        return self._ask('remove', path=str(path), expected=expected)['key']
 
-    def create_collection(self,name):
-        name=name.strip()
-        if not name or name.startswith('.') or re.search(r'[/\\\x00-\x1f\x7f]',name) or len(name.encode())>200 or name=='attachments':
-            raise ValueError(tr('Bitte einen Sammlungsnamen ohne Schrägstriche eingeben (nicht versteckt oder „attachments“).'))
-        with self.lock(),self.directory() as parent:
-            os.mkdir(name,mode=0o700,dir_fd=parent);os.fsync(parent)
-        return name
+    def versions(self, path=None):
+        return self._ask('versions', path=path)['versions']
 
-    def create(self,title,text='',source='',legacy='',folder='.',note_id=''):
-        title=' '.join(title.split()).strip()[:200]
-        if not title:raise ValueError(tr('Bitte einen Titel eingeben.'))
-        stem=re.sub(r'[^\w .-]','-',title).strip('. ')[:100] or 'Notiz'
-        path=str(Path(folder)/(stem+'-'+uuid.uuid4().hex[:8]+'.md'))
-        return self.write(path,'# '+title+'\n\n'+text,'',source,legacy,note_id=note_id)
+    def restore(self, key, expected):
+        return self._ask('restore', key=key, expected=expected)
 
-    def remove(self,path,expected):
-        with self.lock():
-            raw=self.raw(path)
-            if digest(raw)!=expected:raise ValueError(tr('CONFLICT: Die Notiz wurde geändert. Neu laden, bevor sie entfernt wird.'))
-            key=self.backup(path,raw);path=self.relative(path)
-            with self.directory(path.parent) as parent:os.unlink(path.name,dir_fd=parent)
-            return key
+    def capture(self, title, text, source='', memory=None):
+        return self._ask('capture', title=title, text=text, source=source, memory=memory)['path']
 
-    def versions(self,path=None):
-        return [r for r in self.history.all() if r['root']==str(self.root) and (path is None or r['path']==path)]
-
-    def restore(self,key,expected):
-        row=self.history.get(key)
-        if row['root']!=str(self.root):raise ValueError(tr('Die Sicherung gehört zu einem anderen Ordner.'))
-        note=parse(row['path'],self.history.asset(row['asset']).read_bytes())
-        return self.write(row['path'],note['text'],expected,note['source'],note['legacy'],created=note['created'],note_id=note.get('note_id') or None)
-
-    def capture(self,title,text,source='',memory=None):
-        if not memory:return self.create(title,text,source)['path']
-        memory=self.memory_path(memory)
-        note=self.read(memory)
-        return self.write(memory,'# '+title.strip()+'\n\n'+text,note['hash'],source)['path']
-
-    def memory_path(self,memory):
-        if memory.endswith('.md'):return memory
-        imported=self.store.setting('knowledge/imports',{}).get(memory,{})
-        if imported.get('root')!=str(self.root):raise ValueError(tr('Die alte Erinnerung zuerst im Lumen-Gedächtnis öffnen.'))
-        return imported['path']
+    def memory_path(self, memory):
+        return self._ask('memory_path', memory=memory)['path']
 
     def migrate(self):
-        with self.lock('wissen-import.lock'):return self.import_legacy()
+        return self._ask('migrate')['changed']
 
-    def import_legacy(self):
-        imported=self.store.setting('knowledge/imports',{});changed=0
-        existing=None
-        for row in self.store.rows('SELECT * FROM memories ORDER BY updated'):
-            version=digest(json.dumps(row,sort_keys=True).encode());old=imported.get(row['id'],{})
-            if old.get('version')==version:continue
-            # Never overwrite a Markdown edit with a late legacy-window update.
-            token=row['id']+'@'+version
-            if existing is None:existing={n['legacy']:n for n in self.scan()['notes'] if n['legacy']}
-            note=existing.get(token) or self.create(row['title'],row['text'],row['source'],token)
-            imported[row['id']]=dict(version=version,path=note['path'],root=str(self.root));self.store.set_setting('knowledge/imports',imported);changed+=1
-        return changed
+    def add_image(self, path):
+        from PIL import Image, ImageOps
+        source = Path(path)
+        if source.stat().st_size > 20 * 1024 ** 2: raise ValueError(tr('Bild größer als 20 MiB.'))
+        with Image.open(source) as image:
+            if image.width * image.height > 36_000_000: raise ValueError(tr('Bild größer als 36 Megapixel.'))
+            image = ImageOps.exif_transpose(image); image.thumbnail((2400, 2400)); image = image.convert('RGBA')
+            output = io.BytesIO(); image.save(output, format='PNG')
+        png = output.getvalue()
+        return self._ask('attach', payload=png, size=len(png))['path']
 
-
-def activate(store,root=None):
-    chosen=root or store.setting('knowledge/notebook','') or str(store.directory/'wissen')
-    identity=None
-    if root:
-        identity=root_identity(Path(root).expanduser().resolve(strict=True))
-    book=Notebook(store,chosen,create=not root and not store.setting('knowledge/notebook',''),identity=identity)
-    book.migrate();store.set_setting('knowledge/notebook',str(book.root));store.set_setting('knowledge/identity',book.identity);return str(book.root)
-
-
-def draft(store,root,path,text=None,expected=''):
-    directory=store.directory/'wissen-drafts';directory.mkdir(mode=0o700,exist_ok=True)
-    name=digest((str(root)+'\0'+path).encode());target=directory/(name+'.json')
-    if text is None:return json.loads(target.read_text()) if target.exists() else None
-    data=dict(root=str(root),path=path,text=text,expected=expected)
-    temporary=directory/(name+'.tmp');fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_TRUNC|os.O_NOFOLLOW,0o600)
-    with os.fdopen(fd,'w') as stream:json.dump(data,stream,ensure_ascii=False);stream.flush();os.fsync(stream.fileno())
-    os.replace(temporary,target);return data
+    def preview(self, path, text):
+        from PIL import Image, ImageOps
+        images = {}; total = 0
+        for target in re.findall(r'!\[[^\]\n]*\]\(([^)\n]+)\)', text)[:16]:
+            target = unquote(target)
+            if urlsplit(target).scheme or target.startswith('/'): continue
+            relative = os.path.normpath(str(Path(path).parent / target))
+            try:
+                raw = self.image(relative)
+                with Image.open(io.BytesIO(raw)) as image:
+                    if image.width * image.height > 36_000_000: continue
+                    image = ImageOps.exif_transpose(image); image.thumbnail((1600, 1600)); output = io.BytesIO(); image.convert('RGBA').save(output, format='PNG')
+                    encoded = base64.b64encode(output.getvalue()).decode(); total += len(encoded)
+                    if total > 16 * 1024 ** 2: break
+                    images[relative] = encoded
+            except (OSError, ValueError): continue
+        return images
 
 
-def clear_draft(store,root,path):
-    (store.directory/'wissen-drafts'/(digest((str(root)+'\0'+path).encode())+'.json')).unlink(missing_ok=True)
+def activate(store, root=None):
+    return _ask('activate', store=str(store.directory), root=_place(root))['root']
 
 
-def worker(job,store,action,root=None,**values):
-    request=dict(store=str(store.directory),root=root,action=action,_compressed=True,**values)
-    output=job.command([sys.executable,str(Path(__file__))],data=json.dumps(request).encode(),timeout=60,max_output=40*1024**2)
-    with gzip.GzipFile(fileobj=io.BytesIO(output)) as stream:result=stream.read(MAX_RESULT+1)
-    if len(result)>MAX_RESULT:raise ValueError(tr('Verarbeitungsergebnis zu groß.'))
+def draft(store, root, path, text=None, expected=''):
+    return _ask('draft', store=str(store.directory), root=str(root), path=path, text=text, expected=expected)['draft']
+
+
+def clear_draft(store, root, path):
+    _ask('clear_draft', store=str(store.directory), root=str(root), path=path)
+
+
+def worker(job, store, action, root=None, **values):
+    if action in SERVICE:
+        job.check()
+        if action == 'activate': return activate(store, root)
+        book = Notebook(store, root, identity=values.pop('identity', None))
+        if action == 'scan': return book.scan(values.get('known'), migrate=True)
+        return getattr(book, action)(**values)
+    request = dict(store=str(store.directory), root=root, action=action, _compressed=True, **values)
+    output = job.command([sys.executable, str(Path(__file__))], data=json.dumps(request).encode(), timeout=60, max_output=40 * 1024 ** 2)
+    with gzip.GzipFile(fileobj=io.BytesIO(output)) as stream: result = stream.read(MAX_RESULT + 1)
+    if len(result) > MAX_RESULT: raise ValueError(tr('Verarbeitungsergebnis zu groß.'))
     return json.loads(result)
 
 
 def main():
     from lumen_store import Store
-    request=json.load(sys.stdin);compressed=request.pop('_compressed',False);store=Store(request.pop('store'));action=request.pop('action');root=request.pop('root')
-    if action=='activate':result=activate(store,root)
-    elif action in ('save_memory','memories','delete_memory'):result=getattr(store,action)(**request)
+    request = json.load(sys.stdin); compressed = request.pop('_compressed', False); store = Store(request.pop('store')); action = request.pop('action'); root = request.pop('root')
+    if action in ('save_memory', 'memories', 'delete_memory'): result = getattr(store, action)(**request)
     else:
-        book=Notebook(store,root,identity=request.pop('identity',None))
-        if action=='scan':
-            book.migrate();result=book.scan();known=request.get('known')
-            if known is not None:
-                unchanged=[n['path'] for n in result['notes'] if known.get(n['path'])==[n['hash'],n['modified']]]
-                same=set(unchanged);result['notes']=[n for n in result['notes'] if n['path'] not in same];result['unchanged']=unchanged
-        elif action.startswith('move_'):
+        book = Notebook(store, root, identity=request.pop('identity', None))
+        if action.startswith('move_'):
             import notes_move
-            result={'move_plan':notes_move.plan,'move_apply':notes_move.execute,'move_resume':notes_move.execute,'move_undo':notes_move.undo}[action](book,**request)
-        elif action in ('daily','from_template'):
+            result = {'move_plan': notes_move.plan, 'move_apply': notes_move.execute, 'move_resume': notes_move.execute, 'move_undo': notes_move.undo}[action](book, **request)
+        elif action in ('daily', 'from_template'):
             import notes_capture
-            result=getattr(notes_capture,action)(book,**request)
-        elif action in ('plan_tags','apply_tags'):
+            result = getattr(notes_capture, action)(book, **request)
+        elif action in ('plan_tags', 'apply_tags'):
             import note_tag_actions
-            result=getattr(note_tag_actions,'plan' if action=='plan_tags' else 'apply')(book,**request)
-        elif action in ('sync_info','sync_config','sync'):
+            result = getattr(note_tag_actions, 'plan' if action == 'plan_tags' else 'apply')(book, **request)
+        elif action in ('sync_info', 'sync_config', 'sync'):
             import wissen_sync
-            result=getattr(wissen_sync,action)(book,**request)
-            if action=='sync':result['scan']=book.scan()
-        elif action in ('read','write','create','create_collection','rename_collection','remove','versions','restore','capture','add_image','preview','context'):result=getattr(book,action)(**request)
-        else:raise ValueError(tr('Unbekannte Notizaktion.'))
+            result = getattr(wissen_sync, action)(book, **request)
+            if action == 'sync': result['scan'] = book.scan()
+        elif action in ('rename_collection', 'add_image', 'preview'): result = getattr(book, action)(**request)
+        else: raise ValueError(tr('Unbekannte Notizaktion.'))
     if compressed:
-        with gzip.GzipFile(fileobj=sys.stdout.buffer,mode='wb',compresslevel=1) as stream:
+        with gzip.GzipFile(fileobj=sys.stdout.buffer, mode='wb', compresslevel=1) as stream:
             # ASCII escapes keep the entire transport buffer from widening for one emoji.
-            for chunk in json.JSONEncoder(ensure_ascii=True).iterencode(result):stream.write(chunk.encode())
-    else:print(json.dumps(result,ensure_ascii=False))
+            for chunk in json.JSONEncoder(ensure_ascii=True).iterencode(result): stream.write(chunk.encode())
+    else: print(json.dumps(result, ensure_ascii=False))
 
 
-if __name__=='__main__':
-    try:main()
-    except Exception as error:print(str(error),file=sys.stderr);sys.exit(1)
+if __name__ == '__main__':
+    try: main()
+    except Exception as error: print(str(error), file=sys.stderr); sys.exit(1)

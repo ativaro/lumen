@@ -84,12 +84,17 @@ def recover(kind='notes', error=None):
     dialog.setTextFormat(Qt.PlainText)
     connect = dialog.addButton(tr('Gerätefreigabe öffnen') if permission else tr('Serververbindung öffnen'), QMessageBox.ActionRole)
     retry = dialog.addButton(tr('Erneut prüfen'), QMessageBox.AcceptRole)
+    diagnose = dialog.addButton(tr('Hilfe & Diagnose'), QMessageBox.ActionRole)
     close = dialog.addButton(tr('Schließen'), QMessageBox.RejectRole)
     dialog.setDefaultButton(retry)
     dialog.setEscapeButton(close)
     while True:
         dialog.exec()
         selected = dialog.clickedButton()
+        if selected is diagnose:
+            from diagnostics_ui import show_diagnostics
+            show_diagnostics(dialog)
+            continue
         if selected is not connect:return selected is retry
         if permission:
             try:

@@ -13,6 +13,42 @@
 #include <QQuickWindow>
 #include <QScreen>
 #include <LayerShellQt/Window>
+#include <QTimer>
+#include <atomic>
+#include <chrono>
+#include <csignal>
+#include <execinfo.h>
+#include <pthread.h>
+#include <thread>
+#include <unistd.h>
+
+namespace {
+std::atomic<qint64> heartbeat{0};
+qint64 now(){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
+// Runs on the main thread while it stands still and writes where it waits to the journal.
+void stack(int){
+    static const char header[]="Lumen Topbar steht still; Hauptthread wartet hier:\n";
+    [[maybe_unused]] const auto written=write(STDERR_FILENO,header,sizeof header-1);
+    void *frames[64];backtrace_symbols_fd(frames,backtrace(frames,64),STDERR_FILENO);
+}
+// The bar must never wait: a second thread notices a main thread that has not ticked for two seconds.
+void watchMainThread(){
+    void *warmup[1];backtrace(warmup,1);  // loads the unwinder before it is needed inside the signal handler
+    std::signal(SIGUSR2,stack);
+    const auto main=pthread_self();heartbeat=now();
+    auto tick=new QTimer(QCoreApplication::instance());tick->setInterval(250);
+    QObject::connect(tick,&QTimer::timeout,[]{heartbeat=now();});tick->start();
+    std::thread([main]{
+        bool standing=false;qint64 since=0;
+        for(;;){
+            std::this_thread::sleep_for(std::chrono::milliseconds(250));
+            const auto silent=now()-heartbeat.load();
+            if(!standing && silent>2000){standing=true;since=heartbeat.load();pthread_kill(main,SIGUSR2);}
+            else if(standing && silent<500){standing=false;qWarning("Lumen Topbar stand %lld ms still.",static_cast<long long>(heartbeat.load()-since));}
+        }
+    }).detach();
+}
+}
 
 int main(int argc,char **argv){
     QApplication app(argc,argv);app.setApplicationName("lumen-topbar");app.setApplicationDisplayName("Lumen Topbar");
@@ -46,5 +82,6 @@ int main(int argc,char **argv){
     QObject::connect(&app,&QGuiApplication::screenRemoved,&app,[&](QScreen *screen){if(auto window=windows.take(screen)){window->close();window->deleteLater();}});
     if(windows.isEmpty())return 1;
     if(parser.isSet("apps"))QTimer::singleShot(300,&data,&PanelData::ShowApps);
+    watchMainThread();
     return app.exec();
 }

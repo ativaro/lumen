@@ -1,11 +1,11 @@
 """Notebook-local saved filters and deterministic list ordering."""
+import hashlib
 import uuid
 from lumen_i18n import tr
-from wissen_data import digest
 from notes_properties import for_note
 
 
-def key(book):return 'knowledge/views/'+digest((str(book.root)+repr(book.identity)).encode())
+def key(book):return 'knowledge/views/'+hashlib.sha256((str(book.root)+repr(book.identity)).encode()).hexdigest()
 
 def state(window):return window.store.setting(key(window.book),dict(saved={},active='',sort=''))
 
@@ -24,8 +24,7 @@ def ordered(notes,mode):
 def choose(window,identity):
     if window.dirty:window.save_note(lambda:choose(window,identity));return
     saved=state(window);view=saved['saved'][identity]
-    if view['collection'].startswith('folder:'):
-        with window.book.directory(view['collection'][7:]):pass
+    if view['collection'].startswith('folder:'):window.book.stat(view['collection'][7:],folder=True)
     saved['active']=identity;saved['sort']=view['sort'];window.store.set_setting(key(window.book),saved)
     window.view_sort=view['sort'];window.search.setText(view['query']);window.set_collection(view['collection']);window.views_button.setText(view['name'])
     if view.get('table'):

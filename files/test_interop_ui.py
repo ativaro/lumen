@@ -68,7 +68,7 @@ class InteropUITest(unittest.TestCase):
             menu.actions()[0].menu().actions()[0].trigger()
             launched.assert_called_once_with('reader',[str(file)],None)
         names=[a.text() for a in menu.actions()[0].menu().actions()]
-        self.assertIn(interop_ui.tr('Sicherung einrichten …'),names)
+        self.assertNotIn(interop_ui.tr('Sicherung einrichten …'),names)
         self.assertEqual(names.count(interop_ui.tr('Mit Lumen Reader öffnen')),1)
 
 

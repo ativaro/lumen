@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import socket
 import tempfile
 import time
 import unittest
@@ -14,6 +15,29 @@ from PySide6.QtCore import QSettings
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox
 from google_drive import DriveDialog, DrivePaths, GoogleDrive, oauth_client, bundle_oauth_client
+
+
+def rclone_callback_lock():
+    """rclone's OAuth callback always listens on 127.0.0.1:53682, so the real rclone tests of parallel
+    test files take turns; the abstract socket is released when its holder ends. Another program of
+    the host can hold that port too (even a client's TIME_WAIT on it): then the test cannot run."""
+    lock, deadline = socket.socket(socket.AF_UNIX), time.monotonic() + 120
+    while True:
+        try:
+            lock.bind('\0lumen-test-rclone-callback-53682'); break
+        except OSError:
+            if time.monotonic() > deadline: raise
+            time.sleep(0.1)
+    probe = socket.socket()
+    probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # as rclone (Go) listens
+    try:
+        probe.bind(('127.0.0.1', 53682))
+    except OSError:
+        lock.close()
+        raise unittest.SkipTest("rclone's fixed OAuth callback port 127.0.0.1:53682 is in use on this host")
+    finally:
+        probe.close()
+    return lock
 
 
 class DriveTest(unittest.TestCase):
@@ -31,7 +55,8 @@ class DriveTest(unittest.TestCase):
         client_patch.start(); self.addCleanup(client_patch.stop)
 
     def wait(self, condition):
-        deadline = time.monotonic()+8
+        # Only a bound for a hang: rclone and the dialogs answer within a second, a busy CI node may take longer.
+        deadline = time.monotonic()+30
         while not condition() and time.monotonic()<deadline: QTest.qWait(20)
         self.assertTrue(condition())
 
@@ -142,15 +167,18 @@ print('{"State":"","Error":"","Result":""}')
 
     @unittest.skipUnless(shutil.which('rclone'), 'optional real rclone OAuth cancellation test')
     def test_real_rclone_browser_denial_leaves_no_credentials(self):
+        self.addCleanup(rclone_callback_lock().close)
         with patch.dict(os.environ, {'BROWSER': '/bin/false'}):
             dialog = self.dialog(); dialog.connect_account()
             self.wait(lambda: bool(dialog.login_url) or dialog.job is None)
             self.assertTrue(dialog.login_url)
             state = dialog.login_url.split('state=')[1]
             try:
-                with urlopen('http://127.0.0.1:53682/?error=access_denied&state='+state, timeout=2): pass
+                with urlopen('http://127.0.0.1:53682/?error=access_denied&state='+state, timeout=30): pass
             except HTTPError as error:
                 self.assertEqual(error.code, 400); error.close()
+            except ConnectionResetError:
+                pass  # rclone took the denial but closed its callback server before its error page was sent
             self.wait(lambda: dialog.job is None)
             self.assertNotEqual(dialog.result(), QDialog.Accepted)
             self.assertFalse(self.paths.config.exists())

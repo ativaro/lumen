@@ -1,7 +1,7 @@
 from contextlib import closing
 import hashlib
-import io
 import json
+import os
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -9,16 +9,34 @@ import unittest
 from unittest.mock import patch
 from uuid import uuid4
 import lumen_connect as client
+import lumen_service
+
+try:
+    PROGRAM = lumen_service.program()
+except ValueError:
+    PROGRAM = None
+
+
+def download(content):
+    """A stand-in for the service's download: writes the new file as it would."""
+    def receive(config, path, file, limit, check):
+        with open(os.open(file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'wb') as out:
+            out.write(content)
+        return dict(status=200, size=len(content), sha256=hashlib.sha256(content).hexdigest())
+    return receive
 
 
 class ArtifactTest(unittest.TestCase):
+    def setUp(self):
+        self.config = dict(server='https://lumen.example.test', token='synthetic', device_id=str(uuid4()))
+        saved = patch.object(client, 'read_config', return_value=self.config)
+        saved.start(); self.addCleanup(saved.stop)
     def test_scoped_copy_hash_and_replay(self):
         content=b'Synthetic result'
         action=dict(id=str(uuid4()),file_id=str(uuid4()),revision=1,mime='text/plain',size=len(content),sha256=hashlib.sha256(content).hexdigest())
         config=dict(server='https://lumen.example.test',token='synthetic')
-        with tempfile.TemporaryDirectory() as directory,patch.object(client,'tls_context'):
-            with patch.object(client,'ROOT',Path(directory)),patch.object(client.urllib.request,'build_opener') as opener:
-                opener.return_value.open.side_effect=lambda *a,**k:io.BytesIO(content)
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(client,'ROOT',Path(directory)),patch.object(client,'_receive',side_effect=download(content)):
                 with patch.object(client,'request',side_effect=[dict(revision=2),dict(state='claimed',revision=2)]):
                     result=client.receive_artifact(config,action)
                 self.assertEqual(Path(result['path']).read_bytes(),content)
@@ -33,18 +51,71 @@ class ArtifactTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             identity=str(uuid4());root=Path(directory)
             with patch.object(client,'ROOT',root),patch.object(client,'request',return_value=[{'id':identity}]),patch.object(client.subprocess,'Popen') as launch:
-                client.desktop_requests({});client.desktop_requests({})
+                def child(*_a, **_k):
+                    client.accept_delivery(identity, '--artifact', identity)
+                    return type('Child', (), {'poll': lambda self: 0})()
+                launch.side_effect = child
+                client.desktop_requests(self.config);client.desktop_requests(self.config)
                 self.assertEqual(launch.call_count,1)
                 self.assertEqual(launch.call_args.args[0][-2:],['--artifact',identity])
                 with closing(sqlite3.connect(root/'memory.sqlite3')) as db:
                     self.assertEqual(db.execute('SELECT id FROM desktop_requests').fetchone()[0],identity)
 
+    def test_failed_launch_leaves_a_retryable_intent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); identity = str(uuid4())
+            with patch.object(client, 'ROOT', root), patch.object(client, 'request', return_value=[{'id': identity}]), patch.object(client.subprocess, 'Popen', side_effect=OSError('synthetic launch failure')):
+                with self.assertRaises(OSError): client.desktop_requests(self.config)
+            with closing(sqlite3.connect(root/'memory.sqlite3')) as db:
+                self.assertEqual(db.execute('SELECT count(*) FROM desktop_requests').fetchone()[0], 0)
+                self.assertEqual(db.execute('SELECT count(*) FROM desktop_request_starts').fetchone()[0], 1)
+            with patch.object(client, 'ROOT', root):
+                self.assertFalse(client.accept_delivery(identity, '--launch', identity))
+                self.assertTrue(client.accept_delivery(identity, '--artifact', identity))
+                self.assertFalse(client.accept_delivery(identity, '--artifact', identity))
+
+    def test_parent_restart_does_not_lose_an_unclaimed_start(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); identity = str(uuid4())
+            child = type('Child', (), {'poll': lambda self: None})()
+            with patch.object(client, 'ROOT', root), patch.object(client, 'request', return_value=[{'id': identity}]), patch.object(client.subprocess, 'Popen', return_value=child) as launch, patch.dict(client._delivery_children, {}, clear=True):
+                client.desktop_requests(self.config); client.desktop_requests(self.config)
+                self.assertEqual(launch.call_count, 1)
+                client._delivery_children.clear()
+                client.desktop_requests(self.config)
+                self.assertEqual(launch.call_count, 2)
+                self.assertTrue(client.accept_delivery(identity, '--artifact', identity))
+                self.assertFalse(client.accept_delivery(identity, '--artifact', identity))
+                client.desktop_requests(self.config)
+                self.assertEqual(launch.call_count, 2)
+
+    def test_unclaimed_start_cannot_cross_a_connection_change(self):
+        with tempfile.TemporaryDirectory() as directory:
+            identity = str(uuid4()); root = Path(directory)
+            with patch.object(client, 'ROOT', root), patch.object(client, 'request', return_value=[{'id': identity}]), patch.object(client.subprocess, 'Popen', side_effect=OSError('synthetic')):
+                with self.assertRaises(OSError): client.desktop_requests(self.config)
+            with patch.object(client, 'ROOT', root), patch.object(client, 'read_config', return_value=dict(self.config, server='https://another.example.test')):
+                self.assertFalse(client.accept_delivery(identity, '--artifact', identity))
+
+    def test_historical_receipts_are_not_replayed_or_changed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); identity = str(uuid4())
+            with closing(sqlite3.connect(root/'memory.sqlite3')) as db, db:
+                db.execute('CREATE TABLE desktop_requests(id TEXT PRIMARY KEY)')
+                db.execute('INSERT INTO desktop_requests VALUES (?)', (identity,))
+            with patch.object(client, 'ROOT', root), patch.object(client, 'request', return_value=[{'id': identity}]), patch.object(client.subprocess, 'Popen') as launch:
+                client.desktop_requests(self.config)
+                self.assertEqual(launch.call_count, 0)
+            with closing(sqlite3.connect(root/'memory.sqlite3')) as db:
+                self.assertEqual(db.execute('SELECT id FROM desktop_requests').fetchall(), [(identity,)])
+
 class FixtureCancelled(Exception):
     pass
 
 
+@unittest.skipUnless(PROGRAM, 'lumen-service is not built (LUMEN_BIN_DIR)')
 class ArtifactCancellationTest(unittest.TestCase):
-    """Real SDK/TLS/file I/O against a synthetic protocol fixture, not server auth/RLS."""
+    """Real service, TLS and file I/O against a synthetic protocol fixture, not server auth/RLS."""
 
     @classmethod
     def setUpClass(cls):
@@ -58,7 +129,7 @@ class ArtifactCancellationTest(unittest.TestCase):
             'subjectKeyIdentifier=hash\nauthorityKeyIdentifier=keyid:always\n')
         (root/'server.ext').write_text(
             'basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\n'
-            'extendedKeyUsage=serverAuth\nsubjectAltName=IP:127.0.0.1\n')
+            'extendedKeyUsage=serverAuth\nsubjectAltName=IP:127.0.0.1\nauthorityKeyIdentifier=keyid\n')
         commands = [
             ['req','-x509','-newkey','rsa:2048','-nodes','-days','1','-subj','/CN=SDK Fixture CA',
              '-config','openssl.cnf','-extensions','v3_ca','-keyout','ca.key','-out','ca.pem'],
@@ -74,6 +145,11 @@ class ArtifactCancellationTest(unittest.TestCase):
         import ssl
         import threading
         from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        # A runtime folder of its own: the test never reaches or replaces the user's running service, and the
+        # service it starts ends itself once the folder is removed.
+        runtime = self.enterContext(tempfile.TemporaryDirectory(prefix='lumen-run-'))
+        self.enterContext(patch.dict(os.environ, XDG_RUNTIME_DIR=runtime))
+        self.enterContext(patch.object(lumen_service, '_checked', None))
         self.directory = tempfile.TemporaryDirectory(prefix='artifact-cancel-cache-')
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
@@ -84,13 +160,10 @@ class ArtifactCancellationTest(unittest.TestCase):
         self.mode = 'fresh'
         self.stage = ''
         self.cancelled = threading.Event()
-        self.read_started = threading.Event()
         self.prefix_sent = threading.Event()
         self.release = threading.Event()
         self.requests = []
         self.events = []
-        self.responses = []
-        self.outputs = []
         self.owner = self
         fixture = self
 
@@ -136,6 +209,16 @@ class ArtifactCancellationTest(unittest.TestCase):
                 if self.headers.get('Authorization') != 'Bearer fixture-only':
                     self.send_error(403)
                     return
+                if self.path in ('/bridge/refused','/bridge/moved','/bridge/large'):
+                    fixture.requests.append(self.path)
+                    body = (b' '*(4*1024*1024+1) if self.path == '/bridge/large' else b'{"detail":"nein"}')
+                    self.send_response({'/bridge/refused':403,'/bridge/moved':302}.get(self.path,200))
+                    self.send_header('Content-Length',str(len(body)))
+                    self.send_header('X-Detail','refused')
+                    self.send_header('Location',fixture.config['server']+'/bridge/me')
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
                 if self.path == '/bridge/actions/'+fixture.action['id']:
                     fixture.requests.append('latest')
                     self.reply(dict(state='claimed',revision=3 if fixture.mode=='stale' else 2))
@@ -143,7 +226,6 @@ class ArtifactCancellationTest(unittest.TestCase):
                     fixture.requests.append('artifact')
                     self.send_response(200)
                     self.send_header('Content-Length',str(len(fixture.payload)))
-                    self.send_header('X-SDK-Fixture','artifact')
                     self.end_headers()
                     try:
                         if fixture.stage == 'held-read':
@@ -187,73 +269,21 @@ class ArtifactCancellationTest(unittest.TestCase):
             self.cancelled.set()
 
     def receive(self,*,use_job=True):
-        import http.client
         import inspect
-        import os
-        import urllib.request
         from contextlib import ExitStack
-        fixture = self
         original_request = client.request
-        original_open = urllib.request.OpenerDirector.open
-        original_read = http.client.HTTPResponse.read
-        original_fdopen = os.fdopen
-        original_fsync = os.fsync
+        original_receive = client._receive
         original_replace = os.replace
-        original_hash = hashlib.sha256
 
         def request(*args,**kwargs):
             result = original_request(*args,**kwargs)
             self.trigger('claim' if len(args)>2 else 'latest')
             return result
 
-        def open_response(opener,request,*args,**kwargs):
-            response = original_open(opener,request,*args,**kwargs)
-            if '/bridge/artifacts/' in request.full_url:
-                self.responses.append(response)
-                self.trigger('open')
-            return response
-
-        def read(response,*args,**kwargs):
-            artifact = response.getheader('X-SDK-Fixture') == 'artifact'
-            if artifact:
-                self.read_started.set()
-                self.events.append('read-start')
-            data = original_read(response,*args,**kwargs)
-            if artifact:
-                self.trigger('read' if data else 'eof')
-            return data
-
-        class Output:
-            def __init__(self,file):
-                self.file = file
-                fixture.outputs.append(file)
-            def __enter__(self):
-                self.file.__enter__()
-                return self
-            def __exit__(self,*args):
-                return self.file.__exit__(*args)
-            def write(self,data):
-                result = self.file.write(data)
-                fixture.trigger('write')
-                return result
-            def flush(self):
-                self.file.flush()
-                fixture.trigger('flush')
-            def fileno(self):
-                return self.file.fileno()
-
-        class Digest:
-            def __init__(self,*args,**kwargs):
-                self.digest = original_hash(*args,**kwargs)
-            def update(self,data):
-                self.digest.update(data)
-                fixture.trigger('digest')
-            def hexdigest(self):
-                return self.digest.hexdigest()
-
-        def fsync(fd):
-            original_fsync(fd)
-            self.trigger('fsync')
+        def receive(*args,**kwargs):
+            result = original_receive(*args,**kwargs)
+            self.trigger('received')
+            return result
 
         def replace(*args):
             original_replace(*args)
@@ -261,49 +291,70 @@ class ArtifactCancellationTest(unittest.TestCase):
 
         with ExitStack() as stack:
             for owner,name,value in ((client,'ROOT',self.root),(client,'request',request),
-                    (urllib.request.OpenerDirector,'open',open_response),
-                    (http.client.HTTPResponse,'read',read),
-                    (os,'fdopen',lambda *a,**k:Output(original_fdopen(*a,**k))),
-                    (os,'fsync',fsync),(os,'replace',replace),(hashlib,'sha256',Digest)):
+                    (client,'_receive',receive),(os,'replace',replace)):
                 stack.enter_context(patch.object(owner,name,value))
-            # The unchanged RED driver omits only the unsupported keyword on the old API.
             kwargs = {'job':self.job} if use_job and 'job' in inspect.signature(client.receive_artifact).parameters else {}
             return client.receive_artifact(self.config,self.action,**kwargs)
 
-    def assert_closed_and_clean(self):
-        self.assertTrue(all(response.closed for response in self.responses))
-        self.assertTrue(all(output.closed for output in self.outputs))
+    def assert_clean(self):
         self.assertEqual(list(self.root.glob('received/.receive-*')),[])
 
+    def test_bridge_requests_raise_what_urllib_raised(self):
+        import ssl
+        import urllib.error
+        import urllib.request
+        with self.assertRaises(urllib.error.HTTPError) as refused:
+            client.request(self.config,'/bridge/refused')
+        error = refused.exception
+        self.assertEqual((error.code,error.geturl(),error.headers['x-detail'],json.loads(error.read(4096))),
+                         (403,self.config['server']+'/bridge/refused','refused',{'detail':'nein'}))
+        error.close()
+        # A redirect is refused, not followed.
+        with self.assertRaises(urllib.error.HTTPError) as moved:
+            client.request(self.config,'/bridge/moved')
+        self.assertEqual(moved.exception.code,302)
+        with self.assertRaisesRegex(ValueError,'Serverantwort ist zu groß'):
+            client.request(self.config,'/bridge/large')
+        self.assertEqual(self.requests,['/bridge/refused','/bridge/moved','/bridge/large'])
+        # Without the CA file the throwaway CA is unknown; a closed port refuses.
+        with self.assertRaises(urllib.error.URLError) as unknown:
+            client.request(dict(self.config,ca_file=''),'/bridge/me',timeout=3)
+        self.assertIsInstance(unknown.exception.reason,ssl.SSLCertVerificationError)
+        with self.assertRaises(urllib.error.URLError) as closed:
+            client.request(dict(self.config,server='https://127.0.0.1:1'),'/bridge/me',timeout=3)
+        self.assertIsInstance(closed.exception.reason,ConnectionRefusedError)
+        # The Qt side's own connections trust what the service trusts.
+        opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=client.tls_context(self.config)))
+        reply = opener.open(urllib.request.Request(self.config['server']+'/bridge/actions/'+self.action['id'],
+                                                   headers={'Authorization':'Bearer fixture-only'}),timeout=5)
+        with reply:
+            self.assertEqual(json.loads(reply.read())['state'],'claimed')
+        with self.assertRaises(urllib.error.URLError):
+            urllib.request.build_opener(urllib.request.HTTPSHandler(context=client.tls_context({}))).open(
+                self.config['server']+'/bridge/me',timeout=5)
+
     def test_cancellation_boundaries_stop_following_io(self):
-        limits = {'preclaim':(0,0,0,0),'claim':(0,0,0,0),'open':(0,0,0,0),
-                  'read':(1,0,0,0),'digest':(1,0,0,0),'write':(1,1,0,0),
-                  'eof':(4,3,0,0),'flush':(4,3,1,0),'fsync':(4,3,1,1),
-                  'latest':(4,3,1,1),'replace':(4,3,1,1)}
-        for stage,expected in limits.items():
+        for stage in ('preclaim','claim','received','latest','replace'):
             with self.subTest(stage=stage):
                 self.stage = stage
                 self.cancelled.clear()
                 self.requests.clear()
                 self.events.clear()
-                self.responses.clear()
-                self.outputs.clear()
                 if stage == 'preclaim':
                     self.cancelled.set()
                 with self.assertRaises(FixtureCancelled):
                     self.receive()
-                self.assertEqual(tuple(self.events.count(e) for e in ('read-start','write','flush','fsync')),expected)
                 self.assertEqual(self.events.count('replace'),int(stage=='replace'))
                 self.assertEqual(self.requests.count('failed'),int(stage!='preclaim'))
                 self.assertEqual(self.requests.count('artifact'),int(stage not in ('preclaim','claim')))
+                self.assertEqual(self.requests.count('latest'),int(stage in ('latest','replace')))
                 self.assertNotIn('completed',self.requests)
-                self.assert_closed_and_clean()
+                self.assert_clean()
                 self.assertEqual(self.target.exists(),stage=='replace')
                 if self.target.exists():
                     self.assertEqual(self.target.read_bytes(),self.payload)
                     self.target.unlink()
-                print(json.dumps(dict(boundary=stage,events=self.events,requests=self.requests,
-                                      responses_closed=True,outputs_closed=True,partials=0)),flush=True)
+                print(json.dumps(dict(boundary=stage,events=self.events,requests=self.requests,partials=0)),flush=True)
 
     def test_cancel_during_actual_blocked_https_read(self):
         import threading
@@ -321,30 +372,29 @@ class ArtifactCancellationTest(unittest.TestCase):
         worker.start()
         try:
             self.assertTrue(self.prefix_sent.wait(3))
-            self.assertTrue(self.read_started.wait(3))
             self.assertFalse(done.is_set())
             self.cancelled.set()
+            # The view's cancel ends the transfer while the server still holds the rest of the body.
+            self.assertTrue(done.wait(2))
         finally:
             self.release.set()
             worker.join(5)
         self.assertFalse(worker.is_alive())
         self.assertIsInstance(outcome[0],FixtureCancelled)
-        self.assertEqual(self.events.count('read-start'),1)
-        self.assertNotIn('write',self.events)
         self.assertEqual(self.requests,['claimed','artifact','failed'])
         self.assertFalse(self.target.exists())
-        self.assert_closed_and_clean()
+        self.assert_clean()
 
     def test_existing_verified_cache_survives_cancel(self):
         self.target.parent.mkdir(mode=0o700)
         self.target.write_bytes(self.payload)
         self.target.chmod(0o600)
-        self.stage = 'read'
+        self.stage = 'received'
         with self.assertRaises(FixtureCancelled):
             self.receive()
         self.assertEqual(self.target.read_bytes(),self.payload)
         self.assertEqual(self.target.stat().st_mode&0o777,0o600)
-        self.assert_closed_and_clean()
+        self.assert_clean()
 
     def test_default_caller_keeps_verified_download(self):
         result = self.receive(use_job=False)
@@ -353,7 +403,7 @@ class ArtifactCancellationTest(unittest.TestCase):
         self.assertEqual(self.target.stat().st_mode&0o777,0o600)
         self.assertEqual(self.target.parent.stat().st_mode&0o777,0o700)
         self.assertEqual(self.requests,['claimed','artifact','latest'])
-        self.assert_closed_and_clean()
+        self.assert_clean()
 
     def test_replay_has_no_download_or_failed_receipt(self):
         self.mode = 'replay'
@@ -366,7 +416,7 @@ class ArtifactCancellationTest(unittest.TestCase):
                     self.receive()
                 self.assertEqual(self.requests,['claimed'])
                 self.assertFalse(self.target.exists())
-                self.assert_closed_and_clean()
+                self.assert_clean()
 
     def test_unknown_claim_ack_is_not_retried_or_failed(self):
         self.mode = 'lost-ack'
@@ -375,7 +425,7 @@ class ArtifactCancellationTest(unittest.TestCase):
         self.assertTrue(self.cancelled.is_set())
         self.assertEqual(self.requests,['claimed'])
         self.assertFalse(self.target.exists())
-        self.assert_closed_and_clean()
+        self.assert_clean()
 
     def test_missing_claim_revision_does_not_start_transfer(self):
         self.mode = 'malformed-ack'
@@ -383,7 +433,7 @@ class ArtifactCancellationTest(unittest.TestCase):
             self.receive()
         self.assertEqual(self.requests,['claimed'])
         self.assertFalse(self.target.exists())
-        self.assert_closed_and_clean()
+        self.assert_clean()
 
     def test_stale_revision_does_not_publish(self):
         self.mode = 'stale'
@@ -391,7 +441,7 @@ class ArtifactCancellationTest(unittest.TestCase):
             self.receive()
         self.assertFalse(self.target.exists())
         self.assertEqual(self.requests,['claimed','artifact','latest','failed'])
-        self.assert_closed_and_clean()
+        self.assert_clean()
 
     def claim_ack_revision(self,revision,*,mutate_action_to=None):
         handler_class = self.server.RequestHandlerClass
@@ -412,17 +462,13 @@ class ArtifactCancellationTest(unittest.TestCase):
                     self.cancelled.clear()
                     self.requests.clear()
                     self.events.clear()
-                    self.responses.clear()
-                    self.outputs.clear()
                     self.stage = 'claim' if cancel_after_ack else ''
                     with self.claim_ack_revision(revision):
                         with self.assertRaises((ValueError,FixtureCancelled)):
                             self.receive()
                     self.assertEqual(self.requests,['claimed'])
-                    self.assertEqual(self.responses,[])
-                    self.assertEqual(self.outputs,[])
                     self.assertFalse(self.target.exists())
-                    self.assert_closed_and_clean()
+                    self.assert_clean()
                     print(json.dumps(dict(ack_revision=revision,ack_type=type(revision).__name__,
                                           cancel_after_ack=cancel_after_ack,requests=self.requests,
                                           transfers=0,failed_receipts=0)),flush=True)
@@ -433,7 +479,7 @@ class ArtifactCancellationTest(unittest.TestCase):
         self.assertEqual(result,dict(path=str(self.target),revision=2,id=self.action['id']))
         self.assertEqual(self.target.read_bytes(),self.payload)
         self.assertEqual(self.requests,['claimed','artifact','latest'])
-        self.assert_closed_and_clean()
+        self.assert_clean()
 
     def test_cancel_after_valid_fresh_ack_allows_one_failed_receipt(self):
         self.stage = 'claim'
@@ -442,7 +488,7 @@ class ArtifactCancellationTest(unittest.TestCase):
                 self.receive()
         self.assertEqual(self.requests,['claimed','failed'])
         self.assertFalse(self.target.exists())
-        self.assert_closed_and_clean()
+        self.assert_clean()
 
     def test_claim_successor_uses_revision_captured_before_http(self):
         with self.claim_ack_revision(2,mutate_action_to=10):
@@ -451,7 +497,7 @@ class ArtifactCancellationTest(unittest.TestCase):
         self.assertEqual(result['revision'],2)
         self.assertEqual(self.target.read_bytes(),self.payload)
         self.assertEqual(self.requests,['claimed','artifact','latest'])
-        self.assert_closed_and_clean()
+        self.assert_clean()
 
 
 if __name__=='__main__':unittest.main()

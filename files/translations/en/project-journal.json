@@ -37,7 +37,6 @@
   "Lumen Notes · Notiz zuordnen": "Lumen Notes · Link note",
   "Analyse planen": "Plan analysis",
   "Recherche planen": "Plan research",
-  "Quelle hinzufügen": "Add source",
   "Projektmaterial ansehen": "View project material",
   "Bitte eine Frage mit höchstens 12.000 Zeichen eingeben.": "Enter a question of at most 12,000 characters.",
   "{0} Quellen · {1} Gespräche und Aufträge · {2} Aufgaben": "{0} sources · {1} conversations and jobs · {2} tasks",
@@ -56,7 +55,6 @@
   "Das Gespräch bleibt privat. Es öffnet sich in Lumen Server.": "The conversation stays private and opens in Lumen Server.",
   "Projekt inzwischen geändert. Bitte Quellen neu laden.": "The project has changed. Reload its sources.",
   "Gespräche und Aufträge": "Conversations and jobs",
-  "Ablauf zuordnen": "Link workflow",
   "Lumen Projekte · Ablauf zuordnen": "Lumen Projects · Link workflow",
   "Vorhandener Ablauf": "Existing workflow",
   "Ein gespeichertes Gespräch kann nicht mit einer auszuführenden Aktion kombiniert werden.": "A saved conversation cannot be combined with an action to execute."

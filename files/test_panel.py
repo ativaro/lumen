@@ -100,7 +100,7 @@ class PanelTest(unittest.TestCase):
         from lumen_panel import applications, main
         from lumen_apps import catalogue
         from unittest.mock import patch
-        with patch('server_availability.capabilities', return_value={'notes','projects','code','media','vault_sync','inbox'}):
+        with patch('server_availability.capabilities', return_value={'notes','projects','code','media','vault_sync','inbox','photos'}):
             self.assertEqual({a['id'] for a in applications()}, {a[0] for a in catalogue()})
         for key, *_ in catalogue(include_utilities=True):
             with patch('sys.argv', ['lumen-panel','--open-app',key]), patch('lumen_panel.subprocess.Popen') as start:

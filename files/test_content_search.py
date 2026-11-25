@@ -13,6 +13,21 @@ from content_search import query_groups, parse_groups, find_passage, scan, folde
 
 
 class ContentSearchTest(unittest.TestCase):
+    def test_core_passages_equal_the_python_passages_for_pictures_and_captions(self):
+        # The document core matches files; find_passage still matches recognised pictures and captions.
+        texts = ['Kopf\n\fDie Rechnungen vom März\nfür den Monitorarm',
+                 'ÄPFEL und Birnen' + ' füllen' * 80 + ' am Ende eine Rechnung',
+                 'eine neue  \n rechnung ohne Monitor', 'ab_rechnung und xrechnung', 'Ǆwort Rechnungsbetrag ſonst']
+        groups = [[['rechnung'], ['monitor', 'bildschirm']], [['äpfel'], ['rechnung']], [['neue rechnung']], [['rechnung']], [['ǆwort'], ['rechnung']]]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for number, text in enumerate(texts): (root / f'{number}.txt').write_text(text)
+            for group in groups:
+                found = {Path(e['path']).name: (e['snippet'], e['page'], e['line']) for e in scan(root, group) if e['type'] == 'hit'}
+                for number, text in enumerate(texts):
+                    passage = find_passage(text, group)
+                    self.assertEqual(found.get(f'{number}.txt'), passage and (passage['snippet'], passage['page'], passage['line']), (group, number))
+
     def test_question_terms_alternatives_and_actual_passage(self):
         groups = query_groups('Die Rechnungen für meinen Monitor')
         self.assertEqual(groups, [['rechnung'], ['monitor']])
@@ -79,6 +94,12 @@ class ContentSearchTest(unittest.TestCase):
                 os.close(descriptor)
 
 
+def ended(pid):
+    """The process is gone or a zombie; one reaped between the two looks has ended too."""
+    try: return Path(f'/proc/{pid}/stat').read_text().split()[2] == 'Z'
+    except (FileNotFoundError, ProcessLookupError): return True
+
+
 class ContentSearchUITest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -113,6 +134,8 @@ class ContentSearchUITest(unittest.TestCase):
             def respond(self, method):
                 path = self.path.split('?')[0]
                 body = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or 'null')
+                if path == '/event':
+                    self.send_error(404); return
                 state['requests'].append((path, body))
                 data = {}
                 if path == '/config':
@@ -121,7 +144,7 @@ class ContentSearchUITest(unittest.TestCase):
                     data = {'id': 'ses_search'} if method == 'POST' else []
                 elif path.endswith('/prompt_async'):
                     text = 'invalid' if state['invalid'] else '{"groups":[["rechnung","beleg"],["monitor","bildschirm"]]}'
-                    state['messages'] = [{'info': {'role': 'assistant', 'parentID': body['messageID'], 'time': {'completed': 1}},
+                    state['messages'] = [{'info': {'role': 'assistant', 'parentID': body['messageID'], 'finish': 'stop', 'time': {'completed': 1}},
                                           'parts': [{'type': 'text', 'text': text}]}]
                 elif path.endswith('/message'):
                     data = state['messages']
@@ -200,16 +223,15 @@ class ContentSearchUITest(unittest.TestCase):
             fake_bin = root / 'bin'
             fake_bin.mkdir()
             marker = root / 'decoder.pid'
-            fake = fake_bin / 'lumen_pdf_worker.py'
-            fake.write_text('#!/usr/bin/python3\nimport os,time\nfrom pathlib import Path\n'
-                            'Path(os.environ["LUMEN_TEST_DECODER_PID"]).write_text(str(os.getpid()))\ntime.sleep(30)\n')
-            # A copied scanner resolves its sibling decoder, without a production test hook.
-            (fake_bin/'content_search.py').write_bytes(Path(__file__).with_name('content_search.py').read_bytes())
-            import content_search_dialog
-            fake_dialog=fake_bin/'content_search_dialog.py'
+            # A stand-in document core whose reader child would outlive a scanner that is not killed as a group.
+            fake = fake_bin / 'lumen-document'
+            fake.write_text('#!/usr/bin/python3\nimport os,subprocess,sys,time\n'
+                            'child=subprocess.Popen([sys.executable,"-c","import os,time;from pathlib import Path;'
+                            'Path(os.environ[\'LUMEN_TEST_DECODER_PID\']).write_text(str(os.getpid()));time.sleep(30)"])\n'
+                            'time.sleep(30)\n')
             fake.chmod(0o755)
             (root / 'blocked.pdf').write_bytes(b'PDF test')
-            with patch.object(content_search_dialog,'__file__',str(fake_dialog)), patch.dict(os.environ, {'PYTHONPATH':str(Path(__file__).parent), 'LUMEN_TEST_DECODER_PID': str(marker)}):
+            with patch.dict(os.environ, {'LUMEN_BIN_DIR': str(fake_bin), 'LUMEN_TEST_DECODER_PID': str(marker)}):
                 dialog = ContentSearchDialog(root)
                 dialog.show()
                 try:
@@ -222,8 +244,7 @@ class ContentSearchUITest(unittest.TestCase):
                     self.assertIsNone(dialog.proc)
                     self.assertFalse(dialog.cancel_button.isVisible())
                     QTest.qWait(100)
-                    status = Path(f'/proc/{child_pid}/stat')
-                    self.assertTrue(not status.exists() or status.read_text().split()[2] == 'Z')
+                    self.assertTrue(ended(child_pid))
                     # Callback from a previous process cannot add results to the current query.
                     dialog.read_results(old_proc)
                     self.assertEqual(dialog.results.topLevelItemCount(), 0)
@@ -234,8 +255,7 @@ class ContentSearchUITest(unittest.TestCase):
                     os.kill(int(dialog.proc.processId()), 9)
                     self.wait(lambda: dialog.proc is None and dialog.error.isVisible())
                     QTest.qWait(100)
-                    status = Path(f'/proc/{child_pid}/stat')
-                    self.assertTrue(not status.exists() or status.read_text().split()[2] == 'Z')
+                    self.assertTrue(ended(child_pid))
                 finally:
                     dialog.reject()
 

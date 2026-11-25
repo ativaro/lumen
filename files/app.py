@@ -1419,10 +1419,10 @@ class Window(QMainWindow):
             self.open_path(paths[0])
 
     def reading_view(self):
-        from reader_workspace import ReadingWorkspace
-        if not hasattr(self, 'reading_workspace'):
-            self.reading_workspace = ReadingWorkspace(self)
-        return self.reading_workspace
+        from reader_view import ReadingView
+        if not hasattr(self, 'reader_stack'):
+            self.reader_stack = ReadingView(self)
+        return self.reader_stack
 
     def open_reading_library(self):
         try: self.reading_view().open_library()
@@ -1797,10 +1797,11 @@ class Window(QMainWindow):
 
     def show_menu(self):
         menu = QMenu(self)
-        menu.addAction(tr('Lumen Projekte'), self.show_workplace)
+        from lumen_detail_routes import open_page
+        menu.addAction(tr('Lumen Projekte'), lambda: open_page(8))
         from transfer_panel import panel
         menu.addAction(panel(self).toggleViewAction())
-        menu.addAction(tr('Verlauf & Rückgängig'), lambda: self.show_workplace(2))
+        menu.addAction(tr('Verlauf & Rückgängig'), lambda: self.show_activity(1))
         menu.addAction(tr('Offline verfügbare Ordner …'), self.offline.show)
         menu.addAction(tr('Dateiversionen …'), self.show_versions)
         self.add_workshop_action(menu)
@@ -1825,25 +1826,22 @@ class Window(QMainWindow):
         from versions_ui import VersionsDialog
         dialog = VersionsDialog(self, path if isinstance(path, str) else None); dialog.exec(); dialog.deleteLater()
 
-    def show_workplace(self, tab=0):
-        if int(tab) == 0:
-            from lumen_detail_routes import open_page
-            open_page(8); return
-        if not hasattr(self, 'workplace_dialog'):
-            from lumen_workplace import Workplace
-            class WorkplaceDialog(QDialog):
+    def show_activity(self, tab=0):
+        if not hasattr(self, 'activity_dialog'):
+            from files_activity import FilesActivity
+            class ActivityDialog(QDialog):
                 def reject(dialog):
                     if not dialog.page.can_close(): return
                     if dialog.page.busy:
                         dialog.page.status.setText(tr('Bitte die laufende Systemaktion abschließen lassen.')); return
                     super().reject()
-            self.workplace_dialog = WorkplaceDialog(self)
-            self.workplace_dialog.setWindowTitle(tr('Lumen Files · Übertragungen & Verlauf')); self.workplace_dialog.resize(1120, 800)
-            layout = QVBoxLayout(self.workplace_dialog)
-            self.workplace_dialog.page = Workplace(self.workplace_dialog, files_provider=lambda: self, activity_only=True)
-            layout.addWidget(self.workplace_dialog.page)
-        self.workplace_dialog.page.tabs.setCurrentIndex(int(tab)-1)
-        self.workplace_dialog.show(); self.workplace_dialog.raise_(); self.workplace_dialog.activateWindow()
+            self.activity_dialog = ActivityDialog(self)
+            self.activity_dialog.setWindowTitle(tr('Lumen Files · Übertragungen & Verlauf')); self.activity_dialog.resize(1120, 800)
+            layout = QVBoxLayout(self.activity_dialog)
+            self.activity_dialog.page = FilesActivity(self.activity_dialog, files_provider=lambda: self)
+            layout.addWidget(self.activity_dialog.page)
+        self.activity_dialog.page.tabs.setCurrentIndex(int(tab))
+        self.activity_dialog.show(); self.activity_dialog.raise_(); self.activity_dialog.activateWindow()
 
     def error(self, message, detail=''):
         box = QMessageBox(QMessageBox.Warning, 'Lumen Files', message, QMessageBox.Ok, self)
@@ -1856,15 +1854,15 @@ class Window(QMainWindow):
         if self.server_job is not None and not self.server_job.wait(1500):
             self.activity.setText(tr('Serververbindung wird geprüft. Bitte kurz warten.'))
             event.ignore(); return
-        if hasattr(self, 'reading_workspace') and not self.reading_workspace.can_close():
+        if hasattr(self, 'reader_stack') and not self.reader_stack.can_close():
             event.ignore(); return
         if self.drive.jobs:
             self.activity.setText(tr('Drive-Übertragung läuft noch. Bitte kurz warten.')); event.ignore(); return
         if getattr(getattr(self, 'drive_dialog', None), 'job', None):
             self.error(tr('Drive-Übertragung läuft noch. Bitte kurz warten.')); event.ignore(); return
-        if hasattr(self, 'workplace_dialog') and self.workplace_dialog.page.busy:
+        if hasattr(self, 'activity_dialog') and self.activity_dialog.page.busy:
             self.error(tr('Bitte die laufende Systemaktion zuerst abschließen lassen.')); event.ignore(); return
-        if hasattr(self, 'workplace_dialog') and not self.workplace_dialog.page.can_close():
+        if hasattr(self, 'activity_dialog') and not self.activity_dialog.page.can_close():
             event.ignore(); return
         if getattr(self, '_closed', False):
             event.accept(); return
@@ -1876,7 +1874,7 @@ class Window(QMainWindow):
             event.ignore()
             return
         self.spaces.close()
-        if hasattr(self, 'workplace_dialog'): self.workplace_dialog.page.shutdown()
+        if hasattr(self, 'activity_dialog'): self.activity_dialog.page.shutdown()
         self.cancel_search()
         self.cancel_connection()
         self.preview.cancel()
@@ -1912,7 +1910,9 @@ class Window(QMainWindow):
         if hasattr(self, 'view'):
             self.view.setColumnHidden(3, self.width() < 1180)
         if hasattr(self, 'disk_label'):
+            # Compact windows give this height to the places list.
             self.disk_label.setVisible(self.height() >= 700)
+            self.location_badge.setVisible(self.height() >= 700)
 
 
 class NavigationFilter(QObject):

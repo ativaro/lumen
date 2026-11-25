@@ -215,7 +215,6 @@ def categories(dialog):
             section(1, tr('Dateisuche'), tr('Tipp-Pause und Anzahl der Suchtreffer'), dialog.delay),
             section(1, tr('Orte & Server'), tr('Favoriten, Bibliotheken und NAS · SMB, SFTP, WebDAV'), dialog.places),
             section(dialog.accounts_page),
-            section(dialog.app_pages['system'], tr('Sicherungen'), tr('Lokale Sicherungspläne in Lumen System'), activate=dialog.backups_button.click),
             section(dialog.server_page, tr('Server & Verbindung'), tr('Server-Apps, Gerätefreigaben und lokaler Datenabgleich'))]),
         dict(title=tr('Apps'), description=tr('Eigene Einstellungen für jede Lumen-App.'), sections=[
             section(dialog.app_pages[key], title, description, activate=dialog.open_system if key == 'system' else None) for key, title, description, icon in catalogue(include_utilities=True) if key != 'search']),

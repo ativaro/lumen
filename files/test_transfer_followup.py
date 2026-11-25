@@ -362,11 +362,10 @@ class FollowupTest(unittest.TestCase):
     def test_followup_errors_do_not_block_ordinary_approved_jobs(self):
         from lumen_tasks import tick
         with patch.object(follow, 'tick', side_effect=KeyError('broken followup')), \
-                patch.object(self.store, 'enqueue_due') as enqueue, \
-                patch('code_flow_native.deliver'), \
+                patch.object(self.store, 'recover') as recover, \
                 patch('lumen_tasks.defer_background', return_value='synthetic deferred'):
             tick(self.store)
-        enqueue.assert_called_once()
+        recover.assert_called_once()
 
 
 if __name__ == '__main__':

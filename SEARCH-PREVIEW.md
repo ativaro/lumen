@@ -42,10 +42,11 @@ Dependency licensing is tracked separately in [LICENSE-PLAN.md](LICENSE-PLAN.md)
 
 ## Verification
 
-Use a temporary HOME/XDG profile and a separate D-Bus session:
+Use a temporary HOME/XDG profile, its own runtime folder (`XDG_RUNTIME_DIR`) and a
+separate D-Bus session, as in PUBLISHING.md ("Verify locally"):
 
 ```bash
-bin/lumen-python -m unittest discover -s files -v
+scripts/test-desktop.sh
 dbus-run-session -- bin/lumen-python tests/check-search.py
 bin/lumen-python tests/benchmark-search.py --samples 5
 ```

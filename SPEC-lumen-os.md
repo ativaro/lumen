@@ -14,10 +14,10 @@ This is an extension of the existing PySide6 application.
 | actions | Validated desktop/file/system actions and reversible change history | identity |
 | tasks | Durable task records, pause/resume/cancel, output files and verification | actions |
 | knowledge | Explicitly shared folders, source-backed search, editable memories | identity |
-| workflows | Saved actions, manual/time/directory triggers, persistent scheduling | tasks |
+| file actions | Personal actions saved from finished tasks, started from the file menu | tasks |
 | models | Local/cloud selection, explicit privacy mode and resource budgets | tasks |
 | context | Visible file/text/image context, optional local voice input | models |
-| desktop | One application with conversation, files, tasks, knowledge and workflows | all |
+| desktop | One application with conversation, files, tasks and knowledge | all |
 
 ## Observable acceptance criteria
 
@@ -35,9 +35,10 @@ This is an extension of the existing PySide6 application.
 - Knowledge indexing only traverses selected roots, excludes secrets/hidden paths
   and symlink escapes, searches text/PDF content with file/page citations, and
   supports removal/re-indexing. Memories are editable and deletable.
-- Successful tasks can become reusable workflows. Schedules and directory-change
-  triggers are opt-in, persisted, deduplicated and stoppable. Unattended model
-  operations cannot silently grant new tool permissions.
+- Successful tasks can become personal file actions that start only from the
+  file menu and show the new selection before every run. The desktop has no
+  saved workflows, schedules or directory triggers; automations run on Lumen
+  Server. Unattended model operations cannot silently grant new tool permissions.
 - Local-only model policy never falls back to a remote endpoint. Explicit model
   selection and optional GPU-load limits apply to background work. Resource and
   request limits stop work with a visible reason.
@@ -60,7 +61,7 @@ task exports/logs. Folder authorization is checked again at execution time.
 
 ## Verification
 
-`QT_QPA_PLATFORM=offscreen /usr/bin/python3 -m unittest discover -s files -v`
+`scripts/test-desktop.sh`
 
 Focused tests use temporary directories, isolated settings, a local fake engine
 and mocked system mutation boundaries. Test actual persistence, traversal

@@ -102,9 +102,9 @@ class LaunchTest(unittest.TestCase):
         timer.stop()
         self.assertEqual(self.me['capabilities'], ['notes'])
 
-    def test_retired_rooms_cli_fails_before_app_or_network_start(self):
+    def test_unknown_section_cli_fails_before_app_or_network_start(self):
         import tools_app
-        with patch.object(sys,'argv',['tools_app.py','workbench','--section','rooms']), \
+        with patch.object(sys,'argv',['tools_app.py','workbench','--section','unknown']), \
              patch('lumen_paths.require_test_profile'),patch.object(tools_app,'pilot_profile',return_value=None), \
              patch.object(tools_app,'create_app',side_effect=AssertionError('No app start')):
             with self.assertRaises(SystemExit) as caught:tools_app.main()

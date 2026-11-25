@@ -6,7 +6,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from lumen_store import Store
-from wissen_data import Notebook, activate, resolve_link
+from wissen_data import Notebook, activate
+from notes_query import resolve_link
 from note_reviews import propose, decide, rows
 
 

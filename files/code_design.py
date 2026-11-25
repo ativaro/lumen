@@ -27,7 +27,7 @@ QLabel#codeCardTitle { font-size: 18px; font-weight: 500; }
 QPushButton#codeCard QLabel { background: transparent; border: none; }
 QWidget#codeShell QLineEdit, QWidget#codeShell QPlainTextEdit, QWidget#codeShell QComboBox, QWidget#codeShell QSpinBox { background: palette(base); color: palette(text); border: 1px solid palette(mid); border-radius: 7px; padding: 10px 12px; }
 QWidget#codeShell QTimeEdit, QWidget#codeShell QDateEdit { background: palette(base); color: palette(text); border: 1px solid palette(mid); border-radius: 7px; padding: 8px 10px; min-height: 22px; }
-QWidget#codeShell QLineEdit#codeFlowTitle { font-size:22px; font-weight:500; background:transparent; border:1px solid transparent; padding:4px 0; }
+QWidget#codeShell QLineEdit#codeFlowTitle { font-size:22px; font-weight:500; background:transparent; border:1px solid transparent; padding:4px 8px; }
 QWidget#codeShell QLineEdit#codeFlowTitle:focus { border-color:palette(highlight); }
 QWidget#codeShell QTabWidget::pane { border: none; }
 QWidget#codeShell QTabBar::tab { min-width:0; background:transparent; padding:10px 14px; border:0; border-bottom:2px solid transparent; border-radius:0; }

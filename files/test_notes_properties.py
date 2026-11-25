@@ -25,7 +25,8 @@ class PropertiesTest(unittest.TestCase):
         self.assertFalse(matches(text,selected))
 
     def test_property_and_tag_text_search_are_combined(self):
-        from wissen_data import parse,search
+        from wissen_data import parse
+        from notes_query import search
         notes=[parse('a.md',b'---\nstatus: open\ntags: [project]\n---\n# Report'),parse('b.md',b'---\nstatus: done\ntags: [project]\n---\n# Report')]
         self.assertEqual([n['path'] for n in search(notes,'Report #project [status=open]')],['a.md'])
 

@@ -62,16 +62,20 @@ def visual_content(path, directory_fd=None, text='', ocr=False, thumbnail_dir=No
         if ocr and 'ocr' not in cache:
             with tempfile.TemporaryDirectory(prefix='lumen-ocr-') as tmp:
                 if path.suffix.lower() == '.pdf':
-                    from lumen_pdf import Document
-                    from lumen_pdf_page import Page
-                    document=Document(source.read());pages=text.split('\f')
+                    import json, subprocess
+                    from lumen_office import pdf_tool
+                    # An inherited descriptor pins the checked file, even if its path changes.
+                    pinned=f'/proc/self/fd/{source.fileno()}'
+                    def tool(*arguments):
+                        try:return subprocess.run(pdf_tool(*arguments),capture_output=True,stdin=subprocess.DEVNULL,pass_fds=(source.fileno(),),timeout=120,check=True).stdout
+                        except (subprocess.CalledProcessError,subprocess.TimeoutExpired) as error:raise ValueError(tr('OCR-Vorschau konnte nicht gespeichert werden.')) from error
+                    count=json.loads(tool('info',pinned))['pages'];pages=text.split('\f')
                     if pages and not pages[-1].strip():pages.pop()
-                    pages=(pages+['']*len(document))[:len(document)];partial=len(pages)>80
+                    pages=(pages+['']*count)[:count];partial=len(pages)>80
                     # ponytail: bounded per-file OCR; split larger scans to search all pages.
                     for index in range(min(len(pages),80)):
                         if len(pages[index].strip())>=20:continue
-                        page=Page(document,index);image=page.render(min(4,2200/max(page.width,page.height)));target=Path(tmp)/'page.png'
-                        if not image.save(str(target),'PNG'):raise ValueError(tr('OCR-Vorschau konnte nicht gespeichert werden.'))
+                        target=Path(tmp)/'page.png';tool('render',pinned,'--page',str(index),'--scale-to','2200','--output',str(target))
                         pages[index]=image_text(target)
                     cache['ocr'] = '\f'.join(pages)
                 else:

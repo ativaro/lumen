@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Lumen's outbound-only desktop connector. Uses stdlib; restic is needed only for backups."""
+"""Lumen's outbound-only desktop connector. Its HTTPS requests to the Lumen Server go through the Lumen
+service (native/service, `bridge.*`); restic is needed only for backups."""
 
 from contextlib import closing
 import argparse
+import base64
+import errno
 import fcntl
 import getpass
 import hashlib
+import http.client
+import io
 import json
 import os
 import platform
@@ -27,6 +32,8 @@ from pathlib import Path
 from urllib.parse import urlsplit, parse_qs, urlencode
 from uuid import UUID
 
+import lumen_service
+
 ROOT = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "lumen-server"
 CONFIG = ROOT / "connection.json"
 
@@ -42,19 +49,15 @@ def save_private(path, text):
 
 
 def read_config():
-    config = json.loads(CONFIG.read_text())
-    url = urlsplit(config["server"])
-    if (
-        url.scheme != "https"
-        or not url.hostname
-        or url.username
-        or url.password
-        or url.path
-        or url.query
-        or url.fragment
-    ):
-        raise ValueError("Nur eine reine HTTPS-Serveradresse ist zulässig.")
-    return config
+    """The pairing in CONFIG, read by the service alone (`pairing.read`: the user's own file, 0600, no link,
+    at most 64 KiB, a plain HTTPS address, device ID and token). FileNotFoundError without one, ValueError
+    when it cannot be used."""
+    answer = lumen_service.ask(dict(op="pairing.read", path=str(CONFIG.absolute())))
+    if "failed" in answer:
+        raise ValueError("Die Serververbindung ist nicht lesbar. Bitte neu verbinden.")
+    if answer["pairing"] is None:
+        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), str(CONFIG))
+    return json.loads(answer["pairing"])
 
 
 def disconnect(config):
@@ -79,37 +82,80 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def _connection(config):
+    return dict(server=config["server"], token=config.get("token") or "", ca_file=config.get("ca_file") or "")
+
+
+def _failure(answer, url):
+    """The exception urllib raised for the same outcome of a `bridge.*` request."""
+    if "status" in answer:
+        headers = http.client.HTTPMessage()
+        for name, value in answer["headers"]:
+            headers[name] = value
+        body = io.BytesIO(base64.b64decode(answer["body"]))
+        return urllib.error.HTTPError(url, answer["status"], answer["reason"], headers, body)
+    kind, reason, errno = answer.get("failure"), answer.get("reason", ""), answer.get("errno")
+    cause = OSError(errno, os.strerror(errno)) if errno else OSError(reason)
+    if kind == "connect":
+        return urllib.error.URLError(cause)
+    if kind == "certificate":
+        return urllib.error.URLError(ssl.SSLCertVerificationError(1, reason))
+    if kind == "tls":
+        return urllib.error.URLError(ssl.SSLError(1, reason))
+    if kind == "timeout":
+        return TimeoutError("timed out")
+    if kind == "closed":
+        return http.client.RemoteDisconnected(reason)
+    if kind == "incomplete":
+        return http.client.IncompleteRead(b"")
+    return cause if kind in ("ca", "file") else ValueError(reason)
+
+
 def tls_context(config):
-    context = ssl.create_default_context(cafile=config.get("ca_file"))
-    # Reuse only Lumen CAs the user explicitly trusted, including on this same host.
-    if not config.get("ca_file") and shutil.which("certutil"):
-        legacy = Path.home() / ".pki/nssdb"
-        database = legacy if legacy.exists() else Path.home() / ".local/share/pki/nssdb"
-        if (database / "cert9.db").exists():
-            command = ["certutil", "-d", "sql:" + str(database), "-L"]
-            result = subprocess.run(command, capture_output=True, text=True, timeout=5)
-            for name in re.findall(r"^(Lumen Server Local CA [0-9a-f]{12})\s+C,,\s*$", result.stdout, re.M):
-                cert = subprocess.run(command + ["-n", name, "-a"], capture_output=True, text=True, timeout=5)
-                if cert.returncode == 0:
-                    context.load_verify_locations(cadata=cert.stdout)
+    """For the Qt side's own TLS connections (Drive, apps): what the service's client trusts, the CA file
+    alone, or the system's CAs and the Lumen Server CAs the user trusted in the NSS store."""
+    answer = lumen_service.ask(dict(op="bridge.trust", ca_file=config.get("ca_file") or ""), timeout=15)
+    if "pem" not in answer:
+        raise _failure(answer, config.get("server", ""))
+    if answer["only"]:
+        return ssl.create_default_context(cadata=answer["pem"])
+    context = ssl.create_default_context()
+    if answer["pem"]:
+        context.load_verify_locations(cadata=answer["pem"])
     return context
 
 
 def request(config, path, body=None, *, timeout=15):
-    headers = {"Authorization": "Bearer " + config["token"]} if config.get("token") else {}
-    if body is not None:
-        headers["Content-Type"] = "application/json"
-    req = urllib.request.Request(
-        config["server"] + path, headers=headers, data=json.dumps(body).encode() if body is not None else None
+    """`body` as JSON to the server (POST, or GET without one) through the service's client, and the JSON
+    answer. Raises what urllib raised: HTTPError for a status outside 2xx (a redirect too), URLError when no
+    connection comes about, TimeoutError, and ValueError for an answer above 4 MiB."""
+    answer = lumen_service.ask(
+        dict(op="bridge.request", **_connection(config), path=path,
+             body=None if body is None else json.dumps(body), timeout=timeout),
+        # Every step within `timeout`, the whole within four times it (native/service/README.md).
+        timeout=4 * timeout + 5,
     )
-    opener = urllib.request.build_opener(
-        urllib.request.HTTPSHandler(context=tls_context(config)), NoRedirect()
-    )
-    with opener.open(req, timeout=timeout) as r:
-        data = r.read(4 * 1024 * 1024 + 1)
-        if len(data) > 4 * 1024 * 1024:
-            raise ValueError("Serverantwort ist zu groß.")
-        return json.loads(data)
+    if answer.get("failure") == "too_large":
+        raise ValueError("Serverantwort ist zu groß.")
+    if not 200 <= answer.get("status", 0) < 300:
+        raise _failure(answer, config["server"] + path)
+    return json.loads(base64.b64decode(answer["body"]))
+
+
+def _receive(config, path, file, limit, check, timeout=20):
+    """Streams `path` into the new file `file` through the service (`bridge.receive`); returns its size and
+    SHA-256 once it is complete and synced. An exception of `check` (run at least every 0.1 s) closes the
+    connection, and the service removes the partial file."""
+    request = dict(op="bridge.receive", **_connection(config), path=path, file=file, limit=limit, timeout=timeout)
+    with closing(lumen_service.stream(request, timeout + 5, check)) as lines:
+        for answer in lines:
+            if "received" in answer:
+                continue
+            if answer.get("failure") == "too_large":
+                raise ValueError("Die Datei wurde verändert.")
+            if not 200 <= answer.get("status", 0) < 300:
+                raise _failure(answer, config["server"] + path)
+            return answer
 
 
 def parse_pairing_uri(uri):
@@ -350,7 +396,7 @@ def synchronize(config):
                         for table in ("memories", "handoffs"):
                             if db.execute("SELECT 1 FROM sqlite_master WHERE name=?", (table,)).fetchone():
                                 db.execute("DELETE FROM " + table)
-            if CONFIG.exists() and json.loads(CONFIG.read_text()).get("token") == config.get("token"):
+            if CONFIG.exists() and read_config().get("token") == config.get("token"):
                 # Preserve the old backup coordinates/key; a revoked connection can be paired again in the UI.
                 save_private(
                     ROOT / ("disconnected-" + str(UUID(config["device_id"])) + ".json"), json.dumps(config)
@@ -428,41 +474,8 @@ def synchronize(config):
     return {"memories": len(data["memories"]), "pending_desktop_tasks": len(data["tasks"])}
 
 
-def shared_memories():
-    """Read the confirmed server mirror without copying it into the personal notebook."""
-    try:
-        config = read_config()
-        scope = connection_scope(config)
-        path = ROOT / "memory.sqlite3"
-        if not path.is_file():
-            return []
-        with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)) as db:
-            db.execute("BEGIN")
-            if db.execute("SELECT scope FROM memory_owner").fetchone() != (scope,):
-                return []
-            db.row_factory = sqlite3.Row
-            rows = [
-                dict(row)
-                for row in db.execute(
-                    "SELECT id,title,body,revision,source FROM memories WHERE source=? ORDER BY id LIMIT 500",
-                    (config["server"],),
-                )
-            ]
-        return rows if connection_scope(read_config()) == scope else []
-    except (OSError, ValueError, KeyError, sqlite3.Error):
-        return []
-
-
-def memory_stamp():
-    rows = shared_memories()
-    try:scope=connection_scope(read_config())
-    except (OSError,ValueError,KeyError):scope=''
-    return hashlib.sha256(json.dumps([scope,rows], sort_keys=True).encode()).hexdigest() if scope or rows else ""
-
-
 def receive_artifact(config, action, *, job=None):
     """Claim once and download one authenticated immutable object into a private cache."""
-    import hashlib
 
     def check():
         if job is not None:
@@ -501,39 +514,12 @@ def receive_artifact(config, action, *, job=None):
         folder = ROOT / "received"
         folder.mkdir(mode=0o700, exist_ok=True)
         target = folder / (file_id + extensions[action["mime"]])
-        opener = urllib.request.build_opener(
-            urllib.request.HTTPSHandler(context=tls_context(config)), NoRedirect()
-        )
-        req = urllib.request.Request(
-            config["server"] + "/bridge/artifacts/" + file_id,
-            headers={"Authorization": "Bearer " + config["token"]},
-        )
-        digest = hashlib.sha256()
-        count = 0
         check()
-        fd, temporary = tempfile.mkstemp(dir=folder, prefix=".receive-")
-        with os.fdopen(fd, "wb") as out:
-            check()
-            with opener.open(req, timeout=20) as response:
-                check()
-                while True:
-                    check()
-                    chunk = response.read(128 * 1024)
-                    check()
-                    if not chunk:
-                        break
-                    count += len(chunk)
-                    if count > action["size"]:
-                        raise ValueError("Die Datei wurde verändert.")
-                    digest.update(chunk)
-                    check()
-                    out.write(chunk)
-                check()
-                out.flush()
-                check()
-                os.fsync(out.fileno())
+        # The service creates it (0600), removes it when the download fails or is cancelled.
+        temporary = str(folder / (".receive-" + secrets.token_hex(8)))
+        received = _receive(config, "/bridge/artifacts/" + file_id, temporary, action["size"], check)
         check()
-        if count != action["size"] or digest.hexdigest() != action["sha256"]:
+        if received["size"] != action["size"] or received["sha256"] != action["sha256"]:
             raise ValueError("Die Datei wurde verändert.")
         check()
         latest = request(config, "/bridge/actions/" + identity)
@@ -789,6 +775,21 @@ def management_request(config, identity):
     )
 
 
+_delivery_children = {}
+
+
+def accept_delivery(key, option, identity):
+    """A started child claims its durable intent once, before showing a dialog or acting."""
+    scope = connection_scope(read_config())
+    with closing(sqlite3.connect(ROOT / "memory.sqlite3")) as db, db:
+        row = db.execute("SELECT option, identity FROM desktop_request_starts WHERE id=? AND scope=?", (key, scope)).fetchone()
+        if row != (option, identity):
+            return False
+        accepted = db.execute("INSERT OR IGNORE INTO desktop_requests VALUES (?)", (key,)).rowcount == 1
+        db.execute("DELETE FROM desktop_request_starts WHERE id=?", (key,))
+        return accepted
+
+
 def desktop_requests(config, tasks=()):
     try:
         requests = request(config, "/bridge/actions")
@@ -796,73 +797,50 @@ def desktop_requests(config, tasks=()):
         if error.code == 404:
             return
         raise
+    scope = connection_scope(config)
+    desired = []
+    for action in requests:
+        identity = str(UUID(action["id"]))
+        option = {"management": "--management", "wake": "--wake", "system_snapshot": "--snapshot"}.get(action.get("app"), "--launch" if action.get("app") else "--artifact")
+        desired.append((identity, option, identity))
+    for task in tasks:
+        if task["kind"] == "assistant":
+            identity = str(UUID(task["id"]))
+            desired.append((identity + ":" + str(int(task["generation"])), "--handoff", identity))
+    immediate = []
     with closing(sqlite3.connect(ROOT / "memory.sqlite3")) as db, db:
         db.execute("CREATE TABLE IF NOT EXISTS desktop_requests(id TEXT PRIMARY KEY)")
-        pending = []
-        for action in requests:
-            identity = str(UUID(action["id"]))
-            if db.execute("INSERT OR IGNORE INTO desktop_requests VALUES (?)", (identity,)).rowcount:
-                pending.append(
-                    (
-                        "--management"
-                        if action.get("app") == "management"
-                        else "--wake"
-                        if action.get("app") == "wake"
-                        else "--snapshot"
-                        if action.get("app") == "system_snapshot"
-                        else "--launch"
-                        if action.get("app")
-                        else "--artifact",
-                        identity,
-                    )
-                )
-        for task in tasks:
-            identity = str(UUID(task["id"]))
-            key = identity + ":" + str(int(task["generation"]))
-            if (
-                task["kind"] == "assistant"
-                and db.execute("INSERT OR IGNORE INTO desktop_requests VALUES (?)", (key,)).rowcount
-            ):
-                pending.append(("--handoff", identity))
-    for option, identity in pending:
-        if option == "--snapshot":
-            # No GUI fallback: legacy connections require one explicit consent upgrade.
-            try:
-                snapshot_request(config, identity)
-            except (OSError, ValueError, KeyError, subprocess.SubprocessError):
-                print("Systemabfrage nicht abgeschlossen; Freigabe und Verbindung prüfen.", file=sys.stderr)
+        db.execute("CREATE TABLE IF NOT EXISTS desktop_request_starts(id TEXT PRIMARY KEY, option TEXT NOT NULL, identity TEXT NOT NULL, scope TEXT NOT NULL)")
+        for key, option, identity in desired:
+            if option in ("--wake", "--snapshot"):
+                # These server-claimed operations already expose uncertain execution; never repeat a wake packet.
+                if db.execute("INSERT OR IGNORE INTO desktop_requests VALUES (?)", (key,)).rowcount:
+                    immediate.append((option, identity))
+            else:
+                db.execute("INSERT OR IGNORE INTO desktop_request_starts SELECT ?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM desktop_requests WHERE id=?)", (key, option, identity, scope, key))
+        pending = db.execute("SELECT id,option,identity FROM desktop_request_starts WHERE scope=? ORDER BY rowid", (scope,)).fetchall()
+    (ROOT / "memory.sqlite3").chmod(0o600)
+    for key, option, identity in pending:
+        previous = _delivery_children.get(key)
+        if previous is not None and previous.poll() is None:
             continue
         if option == "--management":
-            subprocess.Popen(
-                [
-                    sys.executable,
-                    str(Path(__file__).resolve()),
-                    "--config-dir",
-                    str(ROOT),
-                    "manage-action",
-                    identity,
-                ],
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            continue
-        if option == "--wake":
-            try:
+            arguments = [sys.executable, str(Path(__file__).resolve()), "--config-dir", str(ROOT), "manage-action", identity, "--delivery", key]
+        else:
+            arguments = [sys.executable, str(Path(__file__).with_name("lumen_connect_gui.py")), "--config-dir", str(ROOT), "--delivery", key, option, identity]
+        # Only the child acknowledges; a crash here leaves a retryable intent, and duplicate children cannot both claim it.
+        _delivery_children[key] = subprocess.Popen(arguments, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    for key in list(_delivery_children):
+        if _delivery_children[key].poll() is not None:
+            del _delivery_children[key]
+    for option, identity in immediate:
+        try:
+            if option == "--snapshot":
+                snapshot_request(config, identity)
+            else:
                 wake_request(config, identity)
-            except (OSError, ValueError, KeyError, subprocess.SubprocessError):
-                print(
-                    "Wake-on-LAN konnte nicht bestätigt werden; kein automatischer Wiederholungsversuch.",
-                    file=sys.stderr,
-                )
-            continue
-        # Record delivery before launching: a crash never silently repeats an opening.
-        subprocess.Popen(
-            [sys.executable, str(Path(__file__).with_name("lumen_connect_gui.py")), option, identity],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        except (OSError, ValueError, KeyError, subprocess.SubprocessError):
+            print("Systemanfrage nicht abgeschlossen; Freigabe und Verbindung prüfen. Kein ungeprüfter Wiederholungsversuch.", file=sys.stderr)
 
 
 def restic(config, args):
@@ -895,7 +873,7 @@ def sync_data():
     if not helper.exists():
         helper = Path.home()/".local/share/lumen/files/sync_settings.py"
     if not helper.exists():
-        sync_memory(); sync_drive(); sync_vault()
+        sync_memory(); sync_drive()
         return
     _DATA_PROCESS = subprocess.Popen([sys.executable, str(helper)], stdin=subprocess.PIPE,
                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -903,34 +881,6 @@ def sync_data():
         _DATA_PROCESS.stdin.write(b'{"action":"sync"}')
         _DATA_PROCESS.stdin.close()
     except (BrokenPipeError, OSError): pass
-
-
-def sync_vault():
-    """Ciphertext-only, independently of Vault windows and unlock state."""
-    data = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
-    root = data / "lumen-vault-lab"
-    if not (root / "sync-auto.json").exists():
-        return
-    helper = Path(__file__).with_name("vault_sync.py")
-    if not helper.exists():
-        helper = data / "lumen/files/vault_sync.py"
-    if not helper.exists():
-        return
-    try:
-        result = subprocess.run(
-            [sys.executable, str(helper)],
-            input=json.dumps({"op": "auto-poll", "root": str(root)}),
-            text=True,
-            capture_output=True,
-            timeout=45,
-        )
-        if result.returncode:
-            print(
-                "Tresorabgleich nicht abgeschlossen; Status im nativen Serverabgleich prüfen.",
-                file=sys.stderr,
-            )
-    except (OSError, subprocess.TimeoutExpired):
-        print("Tresorabgleich unterbrochen; nächster Durchlauf prüft den Ausgang.", file=sys.stderr)
 
 
 _NOTES_PROCESSES = {}
@@ -993,6 +943,7 @@ def main():
     sub.add_parser("sync")
     sub.add_parser("watch")
     management = sub.add_parser("manage-action")
+    management.add_argument("--delivery")
     management.add_argument("id", type=UUID)
     sub.add_parser("mcp-config")
     sub.add_parser("backup-init")
@@ -1053,6 +1004,8 @@ def main():
         return
     cfg = read_config()
     if args.command == "manage-action":
+        if args.delivery and not accept_delivery(args.delivery, "--management", str(args.id)):
+            return
         management_request(cfg, str(args.id))
     elif args.command == "sync":
         print(json.dumps(synchronize(cfg)))
@@ -1061,7 +1014,7 @@ def main():
         import threading
         threading.Thread(target=watch_browser, args=(sys.modules[__name__],), daemon=True).start()
         while True:
-            # Custom connector profiles must never sync the default personal vault.
+            # Custom connector profiles must never sync the default personal data.
             if not args.config_dir:
                 sync_data()
             try:

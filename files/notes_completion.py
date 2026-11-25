@@ -51,7 +51,7 @@ class NoteCompletion:
         notes = list(self.notes())
         if kind == 'link':
             from notes_structure import split_target, targets
-            from wissen_data import resolve_link
+            from notes_query import resolve_link
             if '#' in query:
                 path, anchor = split_target(query)
                 current = {note['path']:note for note in notes}

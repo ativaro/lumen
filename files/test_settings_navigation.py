@@ -189,8 +189,9 @@ class SettingsNavigationTest(SettingsFixture):
         self.assertEqual(self.settings.allKeys(), []); self.assertEqual(self.files.allKeys(), [])
 
     def test_troubleshooter_worker_finishes_and_can_be_cancelled(self):
-        from assistant_backend import ENGINE_VERSION
+        from lumen_service import engine_info
         from PySide6.QtCore import QProcess
+        ENGINE_VERSION = engine_info()['version']
         tool = Path(self.tmp.name)/'opencode'
         tool.write_text('#!/bin/sh\nprintf "%s\\n" "' + ENGINE_VERSION + '"\n'); tool.chmod(0o700)
         t = self.dialog.troubleshooter

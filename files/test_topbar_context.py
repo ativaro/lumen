@@ -21,7 +21,7 @@ class TopbarContextTest(unittest.TestCase):
                     ('drive-upload','completed',99,500,500),('drive-upload','running',0,10,20),
                     ('copy','running',99,10,10)]):
                     row=dict(id=f'{index:032x}',action=action,status=status,updated=updated,bytes=done,total=total)
-                    db.execute('INSERT INTO settings VALUES(?,?)',('workplace/transfer/'+row['id'],json.dumps(row)))
+                    db.execute('INSERT INTO settings VALUES(?,?)',('transfer/'+row['id'],json.dumps(row)))
             before=path.read_bytes()
             self.assertEqual(transfer_snapshot(directory,100),dict(id='0'*32,count=2,percent=47))
             self.assertEqual(path.read_bytes(),before)
@@ -31,7 +31,7 @@ class TopbarContextTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             with sqlite3.connect(Path(directory)/'lumen.sqlite3') as db:
                 db.execute('CREATE TABLE settings(key TEXT,value TEXT)')
-                db.execute('INSERT INTO settings VALUES(?,?)',('workplace/transfer/'+'a'*32,
+                db.execute('INSERT INTO settings VALUES(?,?)',('transfer/'+'a'*32,
                     json.dumps(dict(id='a'*32,action='drive-upload',status='queued',updated=100,total=0,bytes=0))))
             self.assertIsNone(transfer_snapshot(directory,100)['percent'])
 

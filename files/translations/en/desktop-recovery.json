@@ -1,0 +1,22 @@
+{
+  "Lumen · Hilfe & Diagnose": "Lumen · Help & diagnostics",
+  "Hilfe & Diagnose": "Help & diagnostics",
+  "Server & Offline-Hilfe öffnen": "Open server & offline help",
+  "Was funktioniert gerade?": "What is working right now?",
+  "Diese lokale Ansicht bleibt ohne KI und Serveranmeldung verfügbar. Serverinterne Prüfungen übernimmt der unabhängige Diagnosezugang.": "This local view stays available without AI or a server sign-in. Checks inside the server are done by the independent diagnostics access.",
+  "Lumen-Server": "Lumen Server",
+  "Öffentlichen Status prüfen": "Check public status",
+  "Noch nicht geprüft. Es werden keine Anmeldedaten gesendet.": "Not checked yet. No sign-in data is sent.",
+  "Prüfergebnis": "Check result",
+  "Unabhängiger Diagnosezugang · eigene HTTPS-Adresse": "Independent diagnostics access · its own HTTPS address",
+  "Unabhängiger Diagnosezugang": "Independent diagnostics access",
+  "Diagnosezugang im Browser öffnen": "Open diagnostics access in the browser",
+  "Die Adresse und den Betreiberschlüssel erhältst Du bei der Servereinrichtung. Der Schlüssel gehört ausschließlich in die geschützte Diagnoseanmeldung.": "You receive the address and the operator key when the server is set up. Enter the key only in the protected diagnostics sign-in.",
+  "Wenn der ganze Server nicht antwortet: Serveradresse, Internet und VPN prüfen. Als Betreiber Host oder VM über den getrennten Zugang prüfen. Ohne aktuellen Hostbefund bleiben Container und Datenbank unbekannt.": "If the whole server does not respond: check the server address, internet and VPN. As the operator, check the host or VM through the separate access. Without a current host report, containers and database remain unknown.",
+  "Bitte eine HTTPS-Serveradresse ohne Unterseite oder Anmeldedaten angeben.": "Please enter an HTTPS server address without a subpage or sign-in data.",
+  "Öffentlicher Status wird geprüft …": "Checking public status …",
+  "Der öffentliche Lumen-Status antwortet. Anmeldung, Datenbank und KI sind damit noch nicht geprüft.": "The public Lumen status responds. Sign-in, database and AI are not checked by this.",
+  "Keine gültige Lumen-Antwort. Serveradresse, Verbindung und Zertifikat prüfen. Der Zustand von Containern und Datenbank bleibt offen.": "No valid Lumen response. Check the server address, connection and certificate. The state of containers and database remains unknown.",
+  "Der Diagnosezugang braucht eine eigene HTTPS-Adresse, getrennt von der normalen Lumen-App.": "The diagnostics access needs its own HTTPS address, separate from the normal Lumen app.",
+  "Der Browser konnte nicht geöffnet werden.": "The browser could not be opened."
+}

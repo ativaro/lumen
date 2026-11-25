@@ -2,12 +2,149 @@
 import json
 import base64
 import hashlib
+import os
+from pathlib import Path
+from dataclasses import replace
 from unittest.mock import patch
 from types import SimpleNamespace
-from test_server_app_window import PrivateHostFixture, FILE
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication, QMessageBox
+from test_server_app_window import PrivateHostFixture, FILE, USER, FOLDER
 
 
 class NativeProjectHostTest(PrivateHostFixture):
+    def git_review(self, action):
+        from lumen_i18n import tr
+        seen, errors = [], []
+        timer = QTimer(); self.addCleanup(timer.stop)
+        def inspect():
+            dialog = QApplication.activeModalWidget()
+            if not isinstance(dialog, QMessageBox) or dialog.windowTitle() != tr('Lumen Code · Git-Zugriff prüfen'): return
+            timer.stop(); seen.append(dialog)
+            try:
+                self.assertEqual(dialog.textFormat(), Qt.PlainText)
+                self.assertIs(dialog.defaultButton(), dialog.button(QMessageBox.Cancel))
+                action(dialog)
+            except BaseException as error:
+                errors.append(error); dialog.reject()
+        timer.timeout.connect(inspect); timer.start(5)
+        return seen, errors
+
+    @staticmethod
+    def approve_git(dialog):
+        next(button for button in dialog.buttons() if dialog.buttonRole(button) == QMessageBox.AcceptRole).click()
+
+    def test_git_cancel_default_escape_and_close_never_clone_or_upload(self):
+        window = self.import_window(drive=False, pilot=True, app='code')
+        evidence = os.environ.get('LUMEN_CAPTURE_EVIDENCE')
+        self.wait(lambda:self.js(window, 'document.readyState') == 'complete')
+        QTest.qWait(150)
+        if evidence: self.assertTrue(window.grab().save(str(Path(evidence)/'git-window.png')))
+        for action in (lambda d:d.button(QMessageBox.Cancel).click(), lambda d:d.defaultButton().click(),
+                       lambda d:QTest.keyClick(d, Qt.Key_Escape), lambda d:d.close()):
+            seen, errors = self.git_review(action)
+            with patch('server_code_host.clone_git') as clone, patch('server_code_host.import_folder') as upload:
+                window._code_host.cloneGit(FILE, 'https://git.example.invalid/team/private.git')
+            self.assertFalse(errors); self.assertTrue(seen)
+            clone.assert_not_called(); upload.assert_not_called()
+            self.assertFalse(window._code_host.transfers)
+
+    def test_git_bridge_approval_binds_literal_remote_and_destination(self):
+        from appearance import apply_design
+        window = self.import_window(drive=False, pilot=True, app='code')
+        remotes = ('https://git.example.invalid/team/private.git', 'git@git.example.invalid:team/private.git',
+                   'https://git.example.invalid/<b>private</b>.git', 'ssh://git@git.example.invalid/ü\u202eteam.git')
+        for theme, remote in zip(('graphite', 'glass', 'atelier', 'midnight'), remotes):
+            apply_design(self.app, theme)
+            def accept(dialog):
+                for value in (json.dumps(remote, ensure_ascii=True), self.origin, USER, FILE): self.assertIn(value, dialog.text())
+                self.assertEqual(dialog.button(QMessageBox.Cancel).text(), 'Abbrechen')
+                for button in dialog.buttons():
+                    self.assertGreaterEqual(button.width(), button.fontMetrics().horizontalAdvance(button.text()))
+                evidence = os.environ.get('LUMEN_CAPTURE_EVIDENCE')
+                if evidence: self.assertTrue(dialog.grab().save(str(Path(evidence)/('git-review-'+theme+'.png'))))
+                self.approve_git(dialog)
+            seen, errors = self.git_review(accept)
+            self.js(window, "window.gitStates=[];window.addEventListener('lumen-code-host',e=>gitStates.push(e.detail.status),{once:false})")
+            with patch('server_code_host.clone_git') as clone, patch('server_code_host.import_folder', return_value={}) as upload:
+                self.js(window, 'window.lumenCodeHost.cloneGit('+json.dumps(FILE)+','+json.dumps(remote)+')')
+                self.wait(lambda:self.js(window, "gitStates.includes('imported')"))
+            self.assertFalse(errors); self.assertTrue(seen)
+            clone.assert_called_once(); upload.assert_called_once()
+            self.assertEqual(clone.call_args.args[0], remote)
+            self.assertEqual(upload.call_args.args[:3], (self.config, FILE, 1))
+
+    def test_git_consent_explains_credentials_and_full_transfer_in_english(self):
+        from appearance import apply_design
+        apply_design(self.app, 'graphite')
+        window = self.import_window(drive=False, pilot=True, app='code')
+        def cancel(dialog):
+            self.assertEqual(dialog.windowTitle(), 'Lumen Code · Review Git access')
+            self.assertIn('Clone and transfer this Git repository?', dialog.text())
+            self.assertIn('existing Git credentials and SSH agent', dialog.informativeText())
+            self.assertIn('entire cloned project folder', dialog.informativeText())
+            self.assertEqual(dialog.defaultButton().text(), 'Cancel')
+            self.assertIn('Clone and transfer', [b.text() for b in dialog.buttons()])
+            evidence = os.environ.get('LUMEN_CAPTURE_EVIDENCE')
+            if evidence: self.assertTrue(dialog.grab().save(str(Path(evidence)/'git-review-en.png')))
+            dialog.defaultButton().click()
+        with patch('lumen_i18n.language', return_value='en'):
+            seen, errors = self.git_review(cancel)
+            with patch('server_code_host.clone_git') as clone, patch('server_code_host.import_folder') as upload:
+                window._code_host.cloneGit(FILE, 'https://git.example.invalid/team/private.git')
+        self.assertFalse(errors); self.assertTrue(seen)
+        clone.assert_not_called(); upload.assert_not_called()
+
+    def test_git_approval_does_not_survive_identity_or_generation_changes(self):
+        import lumen_connect
+        for mode in ('binding', 'session-binding', 'window', 'session', 'connection'):
+            window = self.import_window(drive=False, pilot=True, app='code')
+            def change(dialog):
+                if mode == 'binding': window._binding = replace(window._binding, account=FOLDER)
+                elif mode == 'session-binding': window.session.binding = replace(window.session.binding, account=FOLDER)
+                elif mode == 'window': window._generation += 1
+                elif mode == 'session': window.session._generation += 1
+                else: lumen_connect.save_private(lumen_connect.CONFIG, json.dumps(self.config))
+                self.approve_git(dialog)
+            seen, errors = self.git_review(change)
+            with patch('server_code_host.clone_git') as clone, patch('server_code_host.import_folder') as upload:
+                window._code_host.cloneGit(FILE, 'https://git.example.invalid/team/private.git')
+            self.assertFalse(errors); self.assertTrue(seen)
+            clone.assert_not_called(); upload.assert_not_called()
+
+    def test_git_reentrant_requests_cannot_replace_approval_or_release_its_guard(self):
+        window = self.import_window(drive=False, pilot=True, app='code'); host = window._code_host
+        remote = 'https://git.example.invalid/team/approved.git'
+        def reenter(dialog):
+            for identity in (FILE, FOLDER):
+                host.cloneGit(identity, 'https://git.example.invalid/other/private.git')
+                self.assertEqual(host.transfers, {FILE})
+            self.approve_git(dialog)
+        seen, errors = self.git_review(reenter)
+        with patch('server_code_host.clone_git') as clone, patch('server_code_host.import_folder', return_value={}):
+            host.cloneGit(FILE, remote)
+        self.assertFalse(errors); self.assertTrue(seen)
+        clone.assert_called_once(); self.assertEqual(clone.call_args.args[0], remote)
+        self.assertFalse(host.transfers)
+
+    def test_git_rechecks_context_after_runtime_info_before_clone_and_upload(self):
+        import lumen_connect
+        original = lumen_connect.request
+        for revoked_after in (1, 2):
+            window = self.import_window(drive=False, pilot=True, app='code'); infos = []
+            def changed(config, path, *args, **kwargs):
+                value = original(config, path, *args, **kwargs)
+                if path.endswith('/runtime/info'):
+                    infos.append(path)
+                    if len(infos) == revoked_after: window._generation += 1
+                return value
+            seen, errors = self.git_review(self.approve_git)
+            with patch('server_code_host.clone_git') as clone, patch('server_code_host.import_folder') as upload, patch.object(lumen_connect, 'request', side_effect=changed):
+                window._code_host.cloneGit(FILE, 'https://git.example.invalid/team/private.git')
+            self.assertFalse(errors); self.assertTrue(seen)
+            self.assertEqual(clone.call_count, revoked_after - 1); upload.assert_not_called()
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

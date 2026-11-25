@@ -23,6 +23,18 @@ class VaultInboxHostTest(PrivateHostFixture):
             opened.assert_not_called()
         self.assertTrue(window._binding.navigation(window.page.url().toString()))
 
+    def test_photos_selects_multiple_files_and_rejects_symlinks(self):
+        window = self.import_window(drive=False, pilot=True, app='photos')
+        first = self.import_root/'one.heic'; first.write_bytes(b'synthetic selection')
+        second = self.import_root/'two.mov'; second.write_bytes(b'synthetic selection')
+        mode = QWebEnginePage.FileSelectionMode.FileSelectOpenMultiple
+        paths = [str(first), str(second)]
+        with patch.object(QFileDialog,'getOpenFileNames',return_value=(paths,'')):
+            self.assertEqual(server_audio_permissions.choose(window,mode),paths)
+        link = self.import_root/'linked.heic'; link.symlink_to(first)
+        with patch.object(QFileDialog,'getOpenFileNames',return_value=([str(link)],'')), patch('server_audio_permissions.QMessageBox.warning'):
+            self.assertEqual(server_audio_permissions.choose(window,mode),[])
+
     def test_inbox_selects_multiple_regular_attachments_without_vault_size_cap(self):
         window = self.import_window(drive=False, pilot=True, app='inbox')
         first=self.import_root/'synthetic-large.bin'
@@ -60,7 +72,7 @@ class VaultInboxHostTest(PrivateHostFixture):
         self.assertTrue(calls[0]['cookie']);self.assertFalse(calls[0]['bearer'])
 
     def test_each_app_opens_only_its_private_bound_page(self):
-        for app in ('vault', 'inbox'):
+        for app in ('vault', 'inbox', 'photos'):
             with self.subTest(app=app):
                 window = self.import_window(drive=False, pilot=True, app=app)
                 self.assertEqual(window.session.binding.app, app)

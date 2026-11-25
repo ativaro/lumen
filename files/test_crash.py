@@ -123,6 +123,18 @@ time.sleep(.05)
             self.assertEqual(crash.recoveries('search'), [])
             self.assertTrue(any('File' in (p/'stderr.log').read_text() for p in crash.directory().iterdir()))
 
+    def test_logging_out_is_a_close_and_offers_no_recovery(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp}), patch.object(crash, 'notify') as notify:
+            script = "import os, signal; os.kill(os.getpid(), signal.SIGTERM)"
+            self.assertEqual(crash.monitor([sys.executable, '-c', script], 'files', poll=.01), -signal.SIGTERM)
+            notify.assert_not_called()
+            self.assertEqual(list(crash.directory().iterdir()), [])
+            run = crash.directory()/'run-earlier'; run.mkdir(); (run/'lock').touch()
+            crash.write_json(run/'report.json', {'app':'files', 'status':'interrupted', 'exit_code':-signal.SIGTERM})
+            self.assertEqual(crash.recoveries('files'), [])
+            crash.write_json(run/'report.json', {'app':'files', 'status':'interrupted', 'exit_code':-signal.SIGTERM, 'hang_detected':1})
+            self.assertEqual(len(crash.recoveries('files')), 1)
+
     def test_restart_drops_action_arguments_and_prompt_environment(self):
         import subprocess
         from unittest.mock import Mock
@@ -170,6 +182,7 @@ from PySide6.QtWidgets import QMessageBox
 app = create_app()
 def forbidden(*args, **kwargs): raise AssertionError('Recovery contacted the engine')
 OpenCodeBackend.ensure_server = forbidden
+OpenCodeBackend.ask = forbidden
 OpenCodeBackend.send = forbidden
 home = Path.home()
 if kind == 'files':

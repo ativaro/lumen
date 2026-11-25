@@ -11,7 +11,7 @@ Die vollständige Installation liefert die Starter, gemeinsame Einstellungen und
 | Lesen | `lumen-reader` | Lokale Lesekopien, Positionen und Markierungen |
 | Text- und Dokumentbearbeitung | `lumen-translate` | Lokales Compose-Fenster; KI-Aufträge verwenden den gewählten Anbieter |
 | Haushalt | `lumen-household` | Lokale Geräte, Verträge, Fristen und Belege |
-| System, Sound, Arbeitsmodi, Sicherungen | `lumen-system`, `lumen-sound` | Lokale Diagnose, Einstellungen und ausdrücklich eingerichtete Sicherungsziele |
+| System und Sound | `lumen-system`, `lumen-sound` | Lokale Diagnose, Updates und Einstellungen |
 | Gedächtnis | Lumen-Einstellungen; technisch `lumen-wissen --area lumen` | Eigene lokale Erinnerungen und Lernfreigaben |
 | Mitteilungen und Bildschirmhilfe | `lumen-notification`, `lumen-companion` | Lokaler Desktop mit seinen jeweiligen Freigaben |
 
@@ -30,11 +30,11 @@ Dateiverwaltung, Haushalt und Systemübersicht benötigen kein Modell. Antworten
 
 Diese Starter öffnen die laufende Serveroberfläche in einem eigenen Desktopfenster. Server, Konto, App-Sitzung und Gerätefreigabe werden geprüft. Ohne Verbindung gibt es keinen zweiten lokalen Editor. Eine App installieren, öffnen oder entsperren erteilt keine neue Daten- oder Ausführungsfreigabe. Die verfügbaren Funktionen bestimmt der verbundene Server.
 
-## Daten, Sicherungen und Altbestände
+## Daten und Altbestände
 
 Lokale Anwendungen behalten ihre privaten Datenverzeichnisse. Frühere Notes-/Projekt-/Inbox-/Audio-Daten werden nicht durch die Entfernung alter Programmdateien gelöscht, aber auch nicht automatisch importiert oder weiter synchronisiert. Der Server ist für seine Appdaten maßgeblich. Nicht das ganze Verzeichnis bei geöffneten Datenbanken kopieren: den vorgesehenen Sicherungs-/Exportweg verwenden und eine Wiederherstellung prüfen.
 
-`lumen-vault --backups` ist ein kompatibler Verweis auf **Lumen System → Sicherungen**. `lumen-vault --lab` ist eine ausdrücklich getrennte native Testversion, kein normaler App-Start und keine öffentliche Passwortmanager-Freigabe. [Tresor und Sicherungen](VAULT-INBOX.md).
+Lokale Sicherungspläne, der lokale KeePass-Tresor und seine native Testversion sind aus Lumen Desktop entfernt. Vorhandene Plandaten, Sicherungsziele und `~/.local/share/lumen-vault-lab` bleiben unverändert erhalten. [Vault und Inbox](VAULT-INBOX.md).
 
 ## Entwicklung und Prüfung
 

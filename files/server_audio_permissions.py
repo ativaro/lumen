@@ -1,4 +1,4 @@
-"""Explicit native inputs for Audio Studio, Vault and Inbox."""
+"""Explicit user-selected files for the shared Server apps."""
 from pathlib import Path
 import os
 import stat
@@ -17,7 +17,7 @@ def context(window):
 def current(window, proof):
     page,profile,session,generation,session_generation=proof
     return bool(not is_deleted(window) and not window._disposed and not window._closing
-        and window._live and window._loaded and window._binding.app in ('audio','code','vault','inbox')
+        and window._live and window._loaded and window._binding.app in ('audio','code','vault','inbox','photos')
         and page is window.page and profile is window.profile and profile is window._bound_profile
         and session is window.session and session.binding==window._binding
         and generation==window._generation and session_generation==session._generation
@@ -36,27 +36,28 @@ def fresh(window, proof):
 
 
 def choose(window, mode):
-    if window._binding.app not in ('audio','vault','inbox'):return []
+    if window._binding.app not in ('audio','vault','inbox','photos'):return []
     audio=window._binding.app=='audio'
     inbox=window._binding.app=='inbox'
+    photos=window._binding.app=='photos'
     multiple=mode==QWebEnginePage.FileSelectionMode.FileSelectOpenMultiple
-    if mode!=QWebEnginePage.FileSelectionMode.FileSelectOpen and not (inbox and multiple):return []
+    if mode!=QWebEnginePage.FileSelectionMode.FileSelectOpen and not ((inbox or photos) and multiple):return []
     proof=context(window)
     if not current(window,proof):return []
     if audio:
         path,_=QFileDialog.getOpenFileName(window,tr('Aufnahme für Lumen Audio Studio auswählen'),'',tr('Audio (*.wav *.mp3 *.ogg *.m4a *.flac *.webm)'))
-    elif inbox:
+    elif inbox or photos:
         if multiple:
-            paths,_=QFileDialog.getOpenFileNames(window,tr('Lumen Inbox · Anhänge auswählen'),'')
+            paths,_=QFileDialog.getOpenFileNames(window,tr('Lumen Photos · Fotos oder Videos auswählen') if photos else tr('Lumen Inbox · Anhänge auswählen'),'')
         else:
-            path,_=QFileDialog.getOpenFileName(window,tr('Lumen Inbox · Anhang auswählen'),'')
+            path,_=QFileDialog.getOpenFileName(window,tr('Lumen Photos · Foto oder Video auswählen') if photos else tr('Lumen Inbox · Anhang auswählen'),'')
             paths=[path] if path else []
         if not paths or not fresh(window,proof):return []
         try:
             if any(not stat.S_ISREG(Path(value).lstat().st_mode) for value in paths):raise ValueError
             return paths if current(window,proof) else []
         except (OSError,ValueError):
-            QMessageBox.warning(window,window._app_title,tr('Bitte reguläre Dateien als Anhänge auswählen.'))
+            QMessageBox.warning(window,window._app_title,tr('Bitte reguläre Dateien auswählen.'))
             return []
     else:
         path,_=QFileDialog.getOpenFileName(window,tr('Lumen Vault · Schlüsseldatei auswählen'),'')

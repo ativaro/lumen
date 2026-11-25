@@ -2,6 +2,7 @@
 import ast
 import collections
 import json
+import re
 import os
 from pathlib import Path
 import string
@@ -13,6 +14,24 @@ from unittest.mock import patch
 import lumen_i18n as i18n
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+RUST_TR = re.compile(r'\btr(_args)?\(\s*"((?:[^"\\]|\\.)*)"', re.S)
+
+
+def rust_literal(text):
+    """The value of a Rust string literal's body: escapes, and a backslash before a line break."""
+    text = re.sub(r'\\\n\s*', '', text)
+    return re.sub(r'\\(u\{([0-9a-fA-F]+)\}|.)', lambda m: chr(int(m[2], 16)) if m[2] else
+                  {'n': '\n', 't': '\t', 'r': '\r', '0': '\0'}.get(m[1], m[1]), text)
+
+
+def rust_messages():
+    """`tr("…")` and `tr_args("…", …)` in the desktop service: (file:line, text, has arguments)."""
+    for path in sorted((ROOT/'native/service/src').rglob('*.rs')):
+        source = path.read_text().split('\n#[cfg(test)]\nmod tests')[0]
+        for match in RUST_TR.finditer(source):
+            yield f'{path.name}:{source.count(chr(10), 0, match.start()) + 1}', rust_literal(match[2]), bool(match[1])
 
 
 def placeholders(text):
@@ -76,6 +95,9 @@ print(tr('Bilder'))
             process = i18n.worker_process(None)
             self.assertEqual(process.processEnvironment().value('LUMEN_LANGUAGE'), 'de')
             self.assertEqual(os.environ['LUMEN_LANGUAGE'], '')
+            # Children that load ONNX Runtime (Piper, Qwen) write no device identifier below HOME.
+            self.assertEqual(i18n.worker_environment()['ORT_DISABLE_TELEMETRY'], '1')
+            self.assertEqual(process.processEnvironment().value('ORT_DISABLE_TELEMETRY'), '1')
             i18n.language.cache_clear()  # A newly launched app sees the changed preference.
             self.assertEqual(i18n.language(), 'en')
 
@@ -102,6 +124,7 @@ print(tr('Bilder'))
                             and (len(node.args) > 1 or node.keywords)
                             and isinstance(node.args[0], ast.Constant)):
                         templates.add(node.args[0].value)
+        templates.update(text for _, text, arguments in rust_messages() if arguments)
         values = {}
         for path in sorted((ROOT/'files/translations/en').glob('*.json')):
             for source, target in json.loads(path.read_text()).items():
@@ -125,6 +148,10 @@ print(tr('Bilder'))
                     if isinstance(source, ast.Constant) and isinstance(source.value, str) and source.value not in values:
                         missing.append(f'{path.name}:{node.lineno}: {source.value}')
         self.assertEqual(assembled, [], 'Format translated templates before inserting user text')
+        # The desktop service translates with the same catalogue (native/service/src/texts.rs).
+        rust = list(rust_messages())
+        self.assertGreater(len(rust), 30)
+        missing += [f'{where}: {text}' for where, text, _ in rust if text not in values]
         self.assertEqual(missing, [])
 
 

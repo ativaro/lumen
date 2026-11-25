@@ -112,6 +112,20 @@ private slots:
         QVERIFY(controlling->controlBusy());elapsed.restart();delete controlling;QVERIFY(elapsed.elapsed()<1500);
         if(previous.isNull())qunsetenv("LUMEN_BIN_DIR");else qputenv("LUMEN_BIN_DIR",previous);
     }
+    void programsStartInTheirOwnProcessThroughKstart(){
+        QTemporaryDir directory;QVERIFY(directory.isValid());
+        QFile kstart(directory.filePath("kstart"));QVERIFY(kstart.open(QIODevice::WriteOnly));
+        kstart.write(QString("#!/bin/sh\nprintf '%s\\n' \"$@\" > '%1'\n").arg(directory.filePath("called")).toUtf8());kstart.close();
+        kstart.setPermissions(kstart.permissions()|QFileDevice::ExeOwner);
+        const auto path=qgetenv("PATH");qputenv("PATH",directory.path().toUtf8()+":"+path);
+        PanelData data;
+        for(const auto &bad:{QString("../steam"),QString("steam desktop"),QString(),QString("a/b.desktop")})QVERIFY2(!data.launchDesktop(bad),qPrintable(bad));
+        QVERIFY(data.launchDesktop("steam.desktop"));
+        QTRY_VERIFY(QFile::exists(directory.filePath("called")));
+        QFile called(directory.filePath("called"));QVERIFY(called.open(QIODevice::ReadOnly));
+        QCOMPARE(QString::fromUtf8(called.readAll()),QString("--application\nsteam\n"));
+        qputenv("PATH",path);
+    }
     void systemTopicsKeepTheirOwnDataAndRejectWrongReplies(){
         QTemporaryDir directory;QVERIFY(directory.isValid());
         QFile helper(directory.filePath("lumen-panel"));QVERIFY(helper.open(QIODevice::WriteOnly));

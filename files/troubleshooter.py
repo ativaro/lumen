@@ -20,9 +20,10 @@ def installation(_settings):
 
 
 def assistant(settings):
-    from assistant_backend import ENGINE_VERSION
+    from lumen_service import engine_info
     from lumen_setup import executable
     from setup_diagnostics import version_text
+    ENGINE_VERSION = engine_info()['version']
     binary = executable('opencode')
     if not binary: return 'warning', tr('Die KI-Engine fehlt. Richte sie im Einrichtungsassistenten ein.')
     result = subprocess.run([binary, '--version'], capture_output=True, timeout=8)

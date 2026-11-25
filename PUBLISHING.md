@@ -20,22 +20,52 @@ Before publishing changes to this path, run the relevant bootstrap/installer
 checks and the fresh-profile desktop check below. Include required Python/QML,
 translations and desktop assets. The manifest `packaging/retired-desktop-files.txt`
 excludes retired local app implementations; do not repackage them to satisfy old
-tests. Preserve native Vault prerelease boundaries described below.
+tests.
 
 ## Verify locally
 
-Use an isolated user profile:
+One command runs the whole desktop suite (`files/test_*.py`, `tests/test_*.py`,
+`tests/test-*.py`) and is the gate for CI:
 
 ```bash
-lumen_test_python="$(bin/lumen-python -c 'import sys; print(sys.executable)')"
-lumen_test_root="$(mktemp -d)"
-HOME="$lumen_test_root" XDG_CONFIG_HOME="$lumen_test_root/config" \
-  XDG_DATA_HOME="$lumen_test_root/data" XDG_STATE_HOME="$lumen_test_root/state" \
-  XDG_CACHE_HOME="$lumen_test_root/cache" LUMEN_DATA="$lumen_test_root/lumen" \
-  LUMEN_TOOLS_DATA="$lumen_test_root/tools" LUMEN_HOST_TEST_ROOT="$lumen_test_root/host" \
-  QT_QPA_PLATFORM=offscreen LUMEN_LANGUAGE=de \
-  LUMEN_PYTHON="$lumen_test_python" dbus-run-session -- "$lumen_test_python" -m unittest discover -s files -v
+scripts/test-desktop.sh            # all test files, 4 at a time
+scripts/test-desktop.sh -j 8 files/test_search.py tests/test_server_notes_app.py
 ```
+
+It builds `lumen-service` and `lumen-document` into `.test-desktop/bin` (or uses
+`LUMEN_BIN_DIR`), runs every test file on its own in a throwaway profile and
+writes `.test-desktop/summary.txt` with every failure and skip; the exit status
+is non-zero on any failure. The script header lists its settings
+(`LUMEN_TEST_PYTHON`, `CARGO_TARGET_DIR`, `LUMEN_TEST_TMP`, …).
+
+Each profile has its own HOME, XDG folders, `TMPDIR`, `LUMEN_DATA`,
+`LUMEN_TOOLS_DATA`, `LUMEN_HOST_TEST_ROOT`, `LUMEN_IMPORT_FIXTURES`, a runtime
+folder and a private session bus (`tests/session-bus.conf`, which activates no
+services of the host desktop). The screen file `tests/offscreen-screen.json` gives
+the offscreen platform a 1920×1200 display; Qt's 800×800 default is smaller than
+the window sizes the tests expect. The runtime folder of its own keeps the tests
+away from the Lumen service of the running session: a test that reached the
+installed service would replace it with the build under test. A service the tests
+start in that folder ends by itself once the folder is removed. Afterwards, any
+process still carrying the profile in its environment or working directory fails
+the test file: the gate reports and kills it.
+
+A CI image needs: Python 3 with pytest 9, PySide6 with Qt WebEngine, PyGObject
+(GLib/Gio typelibs), Pillow, NumPy, dbus-python and markdown-it-py; dbus
+(`dbus-run-session`), git, openssl, ffmpeg, desktop-file-utils, tesseract with
+German and English data, coreutils and `/usr/bin/python3`; Rust with cargo and a
+C toolchain for the two native builds; cargo-audit and npm for the workflow's
+dependency audit (a step of its own, with network access); the Liberation and DejaVu fonts (the PDF
+engine's substitutes), the Breeze icon theme, the AT-SPI typelib and the
+`de_DE.UTF-8` locale. rclone and a desktop with kio-fuse are optional; the tests
+that need them say so when they skip. Run as an
+unprivileged user (Qt WebEngine and the permission tests expect one) and give the
+container a larger `/dev/shm` (e.g. `--shm-size=1g`). `packaging/ci/Dockerfile`
+builds that image (`forge.example.invalid/lumen/desktop-ci`), and
+`.forgejo/workflows/desktop-gate.yml` runs the gate in it on the cluster's Forgejo
+runner for every push and pull request. Pulling the private image needs the
+repository secrets `REGISTRY_USERNAME` and `REGISTRY_PASSWORD`. After a rebuild,
+push the image and pin its new digest in the workflow.
 
 Exercise the native topbar in a disposable virtual Plasma session:
 
@@ -87,16 +117,6 @@ source archive before running `build-package.sh --srcinfo`.
 No AUR release or binary repository is implied by this source repository.
 Source-archive reproducibility does not by itself establish bit-identical native
 binaries or a successful installation on every distribution.
-
-## Native Vault laboratory
-
-The optional native password-vault laboratory is built and installed separately;
-see [native/vault-ui/README.md](native/vault-ui/README.md). It remains restricted
-to synthetic data pending the release gates in its REVIEW.md. The default `lumen-vault` route opens the paired Server app; `--backups` opens
-Lumen System backups and `--lab` explicitly opens an installed native laboratory.
-A native broker may be present for approved credential operations, but this does
-not constitute an independently audited public password manager.
-Native binaries must include the full notice/source bundle produced by its installer.
 
 ## Licenses
 

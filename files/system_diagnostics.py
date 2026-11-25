@@ -6,7 +6,7 @@ from troubleshooter_ui import Troubleshooter, label
 
 
 class DiagnosticsPage(QWidget):
-    def __init__(self, system):
+    def __init__(self, system, store=None):
         super().__init__(system)
         self.system = system
         self.assistant = QSettings('Lumen', 'Assistant')
@@ -24,11 +24,11 @@ class DiagnosticsPage(QWidget):
         self.system_status = SystemStatus(self)
         report = QPushButton(tr('Systemstatus & Wächterbericht')); root.addWidget(report)
         report.clicked.connect(lambda: self.views.setCurrentIndex(2))
-        from lumen_workspace import Workspace
-        self.workspace = Workspace(self, store=system.modes.store, sections=('tasks',))
+        from task_controller import TaskController
+        self.task_controller = TaskController(self, store=store)
         task_view = QWidget(); layout = QVBoxLayout(task_view)
         back = QPushButton(tr('Zurück zur Diagnose')); back.clicked.connect(lambda: self.views.setCurrentIndex(0)); layout.addWidget(back)
-        layout.addWidget(self.workspace.tasks_page); self.views.addWidget(task_view)
+        layout.addWidget(self.task_controller.tasks_page); self.views.addWidget(task_view)
         status_view = QWidget(); status_layout = QVBoxLayout(status_view)
         back = QPushButton(tr('Zurück zur Diagnose')); back.clicked.connect(lambda: self.views.setCurrentIndex(0)); status_layout.addWidget(back)
         status_layout.addWidget(self.system_status); self.views.addWidget(status_view)
@@ -48,6 +48,6 @@ class DiagnosticsPage(QWidget):
         self.assistant.sync()
 
     def open_tasks(self, identity=None):
-        self.workspace.refresh_tasks()
-        if isinstance(identity, str): self.workspace.select_task(identity)
+        self.task_controller.refresh_tasks()
+        if isinstance(identity, str): self.task_controller.select_task(identity)
         self.views.setCurrentIndex(1)

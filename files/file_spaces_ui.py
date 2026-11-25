@@ -128,15 +128,6 @@ class FileSpaces(QObject):
         return library['name'] if library else tr('Bibliothek fehlt')
 
     def edit_library(self, identity=None):
-        if identity and identity.startswith('project-'):
-            from projects_legacy import resolve_project_id
-            from tools_data import Library
-            from interop_open import open_url
-            from interop_data import Registry
-            with Library('workbench').connect() as db:
-                project = resolve_project_id(db, identity[8:])
-            url=Registry().register(dict(app='workbench',kind='record',id=project,title=self.name(LIBRARY+identity)))
-            open_url(url); return
         dialog = LibraryDialog(self.catalog, self.catalog.library(identity) if identity else None, self.window)
         if dialog.exec() == QDialog.Accepted:
             self.window.populate_places()
@@ -146,7 +137,6 @@ class FileSpaces(QObject):
     def library_menu(self, menu, location):
         identity = location[len(LIBRARY):]
         menu.addAction(tr('Quellen bearbeiten …'), lambda: self.edit_library(identity))
-        if identity.startswith('project-'): return
         if identity not in {item[0] for item in DEFAULTS}:
             previous = self.catalog.library(identity)
             def remove():

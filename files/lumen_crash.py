@@ -13,9 +13,12 @@ import sys
 import tempfile
 import time
 
-from lumen_store import state_path
+from lumen_paths import state_path
 
-NAMES = {'lumen': 'Lumen', 'files': 'Lumen Files', 'search': tr('Lumen Suche'), 'system': 'Lumen System'}
+# Translated at use: importing the monitor must not start Qt.
+# Logging out or stopping the app ends it with one of these; that is a close, not a crash.
+ENDED = (-signal.SIGTERM, -signal.SIGINT, -signal.SIGHUP)
+NAMES = {'lumen': 'Lumen', 'files': 'Lumen Files', 'search': 'Lumen Suche', 'system': 'Lumen System'}
 RUN = None
 LOCK = None
 HEARTBEAT = None
@@ -66,6 +69,8 @@ def recoveries(kind):
     for path in inactive_runs():
         report = read_json(path / 'report.json')
         if report.get('app') != kind: continue
+        # Reports from before a requested end counted as a close; a restart out of a hang keeps its offer.
+        if report.get('exit_code') in ENDED and 'hang_detected' not in report: continue
         if report.get('status') in ('running', 'hung'):
             report.update(status='interrupted', ended=time.time())
             write_json(path / 'report.json', report)
@@ -115,7 +120,7 @@ def notify(kind, hung=False):
     try:
         return subprocess.Popen(['notify-send', '--wait', '-a', 'Lumen Wächter', '-i', 'lumen',
             '-A', 'restart=' + (tr('Beenden und neu öffnen') if hung else tr('Erneut öffnen')),
-            '-A', tr('wait=Weiter warten') if hung else tr('wait=Später'), NAMES[kind], text],
+            '-A', tr('wait=Weiter warten') if hung else tr('wait=Später'), tr(NAMES[kind]), text],
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     except OSError:
         return None
@@ -181,7 +186,8 @@ def monitor(command, kind, *, hang_after=60, poll=.5):
         if notice and notice.poll() is None: notice.terminate()
         for signum, handler in previous.items(): signal.signal(signum, handler)
         log.close(); os.close(reader)
-    if code == 0:
+    ended = not restart and (stopping or code in ENDED)
+    if code == 0 or ended:
         if 'hang_detected' in report:
             report.update(status='closed', ended=time.time(), exit_code=code)
             write_json(path / 'report.json', report)
@@ -191,7 +197,7 @@ def monitor(command, kind, *, hang_after=60, poll=.5):
         report.update(status='interrupted' if stopping or restart else 'crashed', ended=time.time(), exit_code=code)
         write_json(path / 'report.json', report)
     lock.close()
-    if code != 0 and not restart and not stopping:
+    if code != 0 and not restart and not ended:
         notice = notify(kind)
         if notice:
             try: restart = notice.communicate(timeout=300)[0].strip() == 'restart'
@@ -252,8 +258,8 @@ def attach(app, window, kind, offer_recovery=True):
                 lock.close(); continue
             box = QMessageBox(window)
             box.setWindowTitle(tr('Sitzung wiederherstellen'))
-            box.setText(NAMES[kind] + tr(' wurde unerwartet beendet.') if report.get('status') == 'crashed'
-                        else tr('Eine vorherige Sitzung von ') + NAMES[kind] + tr(' wurde unterbrochen.'))
+            box.setText(tr(NAMES[kind]) + tr(' wurde unerwartet beendet.') if report.get('status') == 'crashed'
+                        else tr('Eine vorherige Sitzung von ') + tr(NAMES[kind]) + tr(' wurde unterbrochen.'))
             box.setInformativeText(tr('Letzte Ansicht und Entwurf wiederherstellen? Laufende Dateiaktionen und KI-Aufträge werden nicht erneut gestartet.'))
             restore = box.addButton(tr('Wiederherstellen'), QMessageBox.AcceptRole)
             later = box.addButton(tr('Später'), QMessageBox.RejectRole)

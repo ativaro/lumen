@@ -70,7 +70,7 @@
   "Notizbücher: {0}": "Notebooks: {0}",
   "Notizen einrichten": "Set up notes",
   "Nur ausdrücklich ausgewählte Daten werden abgeglichen. Pausieren behält vorhandene Kopien.": "Only explicitly selected data is synchronized. Pausing keeps existing copies.",
-  "Nur lesen": "Read-only",
+  "Nur lesen": "Read only",
   "Offline verfügbar …": "Available offline …",
   "Ordner verbunden. Der Hintergrundabgleich startet automatisch.": "Folder connected. Background sync starts automatically.",
   "Ordnerkonflikte zuerst lösen": "Resolve folder conflicts first",

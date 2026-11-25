@@ -176,7 +176,7 @@ def next_dialog():
         dialog.deleteLater()
         state['count'] += 1
         QTimer.singleShot(0, app.quit if state['count'] == 50 else next_dialog)
-    backend.request('GET', '/health', callback=done)
+    backend.request('GET', '/config', callback=done)
 next_dialog()
 QTimer.singleShot(15000, app.quit)
 app.exec()
@@ -210,14 +210,18 @@ assert state['count'] == 50, state['count']
             def respond(self, method):
                 path = self.path.split('?')[0]
                 body = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or 'null')
+                if path == '/event':
+                    self.send_error(404); return
                 state['requests'].append((path, body))
                 data = {}
-                if path == '/session':
+                if path == '/config':
+                    data = {'model': 'test/model'}
+                elif path == '/session':
                     data = {'id': 'ses_proposal'} if method == 'POST' else []
                 elif path.endswith('/prompt_async'):
                     answer = json.dumps({'changes': [{'id': 0, 'target': 'Monitor.txt', 'reason': 'Rechnung'},
                                                      {'id': 1, 'target': 'Reise.txt', 'reason': 'Notiz'}]})
-                    state['messages'] = [{'info': {'role': 'assistant', 'parentID': body['messageID'], 'time': {'completed': 1}},
+                    state['messages'] = [{'info': {'role': 'assistant', 'parentID': body['messageID'], 'finish': 'stop', 'time': {'completed': 1}},
                                           'parts': [{'type': 'text', 'text': 'invalid' if state['invalid'] else answer}]}]
                 elif path.endswith('/message'):
                     data = state['messages']

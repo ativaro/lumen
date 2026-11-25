@@ -1,7 +1,5 @@
-"""Retired Notes replica entry points; shared memory/asset helpers stay available."""
+"""Retired Notes replica entry points; the server note text helper stays available."""
 import json
-import os
-from pathlib import Path
 from lumen_i18n import tr
 
 
@@ -10,18 +8,6 @@ def remote_text(row):
     from notes_structure import document_parts
     prefix, _old_title, gap, suffix, _found = document_parts(row['body'], title)
     return prefix+'# '+title+gap+suffix
-
-
-
-def ensure_folder(book,path):
-    parent=Path('.')
-    for part in Path(path).parts:
-        if part=='.':continue
-        with book.directory(parent) as fd:
-            try:os.mkdir(part,mode=0o700,dir_fd=fd);os.fsync(fd)
-            except FileExistsError:pass
-        parent=parent/part
-        with book.directory(parent):pass
 
 
 

@@ -14,7 +14,6 @@ from uuid import uuid4, UUID
 import lumen_connect
 import drive_local as local
 from lumen_i18n import tr
-from sync_migration import require_current_upload
 
 
 _active = threading.local()
@@ -54,11 +53,9 @@ def legacy_upload(
     previous=None,
     progress=lambda *_: None,
     filename=None,
-    legacy_target=None,
     *,
     expected_stamp=None,
 ):
-    require_current_upload(legacy_target)
     boundary = "lumen-" + uuid4().hex
     fields = dict(request_id=request_id, sha256=expected_hash)
     if folder:
@@ -123,9 +120,8 @@ def request(config, path, body=None, method="POST", content_type="application/js
 
 
 def upload(config, root, path, folder, request_id, expected_hash,
-           previous=None, progress=lambda *_: None, filename=None, *, legacy_target=None, remember=lambda _: None,
+           previous=None, progress=lambda *_: None, filename=None, *, remember=lambda _: None,
            expected_stamp=None):
-    require_current_upload(legacy_target)
     name = local.relative(filename or path).name
     with local.source(root, path) as stream:
         before = local.signature(os.fstat(stream.fileno()))
@@ -143,7 +139,7 @@ def upload(config, root, path, folder, request_id, expected_hash,
         except HTTPError as error:
             if error.code not in (404, 405): raise
             return legacy_upload(config, root, path, folder, request_id, expected_hash,
-                                 previous, progress, filename, legacy_target, expected_stamp=expected_stamp)
+                                 previous, progress, filename, expected_stamp=expected_stamp)
         key = str(UUID(state["id"]))
         remember(key)
         offset = state["offset"]

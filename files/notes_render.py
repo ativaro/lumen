@@ -6,7 +6,7 @@ from urllib.parse import quote,unquote,urlsplit
 from lumen_i18n import tr
 from note_tags import FRONT,body_mask
 from notes_structure import split_target,targets,anchor_position
-from wissen_data import resolve_link
+from notes_query import resolve_link
 
 
 def literal(value):return re.sub(r'([\\`*_\[\]<>])',r'\\\1',value)

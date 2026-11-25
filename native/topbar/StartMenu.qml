@@ -35,11 +35,17 @@ ColumnLayout {
         if(favorites.isFavorite(id))favorites.removeFavorite(id);else favorites.addFavorite(id)
         controller.pinnedApps=favorites.favorites
     }
-    function run(model,row,action="",argument=null) {
+    // An installed program starts in its own process: a launch that waits for anything must never stop the bar.
+    function run(model,row,action="",argument=null,id="") {
+        if(!action && String(id).startsWith("applications:") && controller.launchDesktop(String(id).slice(13))){launched();return}
         if(model && row>=0 && model.trigger(row,action,argument))launched()
         else error.text=translate("Das Programm konnte nicht gestartet werden.")
     }
-    function runFiltered(index) {if(index>=0 && index<filtered.count)run(filtered.sourceModel,filtered.mapToSource(filtered.index(index,0)).row)}
+    function runFiltered(index) {
+        if(index<0 || index>=filtered.count)return
+        const item=grid.itemAtIndex(index)
+        run(filtered.sourceModel,filtered.mapToSource(filtered.index(index,0)).row,"",null,item?item.entry.favoriteId:"")
+    }
     function contextFor(button,model,row,data) {
         context.source=model;context.row=row;context.favoriteId=data.favoriteId||"";context.title=data.display||""
         context.actions=(data.actionList||[]).filter(action=>action.actionId==="_kicker_jumpListAction" && action.text && action.actionArgument!=null)
@@ -77,7 +83,7 @@ ColumnLayout {
         placeholderText:start.translate("Welche App brauchst du?");Accessible.name:placeholderText;selectByMouse:true
         leftPadding:40;rightPadding:width>=440?68:16
         palette.text:start.colors.text;palette.placeholderText:start.colors.muted
-        background:Rectangle {color:start.colors.base;radius:12;border.color:query.activeFocus?start.colors.accent:start.colors.border}
+        background:Rectangle {color:start.colors.base;radius:start.colors.innerRadius||7;border.color:query.activeFocus?start.colors.accent:start.colors.border}
         Kirigami.Icon {source:"search";isMask:true;color:start.colors.muted;width:18;height:18;x:14;anchors.verticalCenter:parent.verticalCenter}
         Label {visible:query.width>=440;text:start.translate("Strg K");font.pixelSize:12;color:start.colors.muted;anchors.right:parent.right;anchors.rightMargin:14;anchors.verticalCenter:parent.verticalCenter}
         onTextChanged:{grid.currentIndex=0;error.text="";context.close();power.close()}
@@ -96,13 +102,13 @@ ColumnLayout {
                     Layout.fillWidth:true;Layout.preferredWidth:0;Layout.preferredHeight:96
                     text:model.display;Accessible.name:model.display+(start.editing?" · "+start.translate("Entfernen"):"")
                     contentItem:Column {spacing:8
-                        Rectangle {width:44;height:44;radius:12;color:start.colors.base;border.color:start.colors.border;anchors.horizontalCenter:parent.horizontalCenter
+                        Rectangle {width:44;height:44;radius:start.colors.innerRadius||7;color:start.colors.base;border.color:start.colors.border;anchors.horizontalCenter:parent.horizontalCenter
                             Kirigami.Icon {anchors.centerIn:parent;width:26;height:26;source:pin.model.decoration}
                             Kirigami.Icon {visible:start.editing;anchors.right:parent.right;anchors.top:parent.top;width:16;height:16;source:"list-remove";isMask:true;color:start.colors.accent}
                         }
                         Label {text:pin.text;textFormat:Text.PlainText;color:start.colors.text;width:parent.width;horizontalAlignment:Text.AlignHCenter;wrapMode:Text.Wrap;font.pixelSize:12}
                     }
-                    onClicked:if(start.editing)start.togglePin(model.favoriteId);else start.run(favorites,index)
+                    onClicked:if(start.editing)start.togglePin(model.favoriteId);else start.run(favorites,index,"",null,model.favoriteId)
                     TapHandler {acceptedButtons:Qt.RightButton;onTapped:start.contextFor(pin,favorites,pin.index,pin.model)}
                     Keys.onPressed:event=>{if(event.key===Qt.Key_Menu || event.key===Qt.Key_F10&&event.modifiers&Qt.ShiftModifier){start.contextFor(pin,favorites,index,model);event.accepted=true}}
                 }
@@ -205,11 +211,11 @@ ColumnLayout {
             Kirigami.Icon {visible:!!action.icon.name;source:action.icon.name;isMask:true;color:action.enabled?start.colors.text:start.colors.muted;Layout.preferredWidth:18;Layout.preferredHeight:18}
             Label {text:action.text;textFormat:Text.PlainText;color:action.enabled?start.colors.text:start.colors.muted;font:action.font;elide:Text.ElideRight;Layout.fillWidth:true}
         }
-        background:Rectangle {color:action.highlighted?start.colors.alternate:start.colors.base;radius:7
+        background:Rectangle {color:action.highlighted?start.colors.alternate:start.colors.base;radius:start.colors.innerRadius||7
             border.color:action.highlighted?start.colors.accent:"transparent"}
     }
     Menu {id:power;objectName:"startPowerMenu";parent:start;x:Math.max(0,start.width-width);y:Math.max(0,start.height-height-60);width:Math.min(230,start.width);padding:6;popupType:Popup.Window
-        background:Rectangle {color:start.colors.base;border.color:start.colors.border;radius:12}
+        background:Rectangle {color:start.colors.base;border.color:start.colors.border;radius:start.colors.radius||12}
         StartAction {text:start.translate("Ruhezustand");icon.name:"system-suspend";enabled:session.canSuspend;onTriggered:{session.suspend();start.launched()}}
         StartAction {text:start.translate("Neu starten");icon.name:"system-reboot";enabled:session.canReboot;onTriggered:{session.requestReboot(Sessions.SessionManagement.ForcePrompt);start.launched()}}
         StartAction {text:start.translate("Abmelden");icon.name:"system-log-out";enabled:session.canLogout;onTriggered:{session.requestLogout(Sessions.SessionManagement.ForcePrompt);start.launched()}}
@@ -227,9 +233,9 @@ ColumnLayout {
             function onRowsRemoved(){context.close()}
             function onRowsMoved(){context.close()}
         }
-        background:Rectangle {color:start.colors.base;border.color:start.colors.border;radius:12}
+        background:Rectangle {color:start.colors.base;border.color:start.colors.border;radius:start.colors.radius||12}
         StartAction {text:context.title;enabled:false}
-        StartAction {text:start.translate("Öffnen");icon.name:"go-next";onTriggered:start.run(context.source,context.row)}
+        StartAction {text:start.translate("Öffnen");icon.name:"go-next";onTriggered:start.run(context.source,context.row,"",null,context.favoriteId)}
         Instantiator {model:context.actions
             delegate:StartAction {required property var modelData;required property int index;objectName:"startNativeAction_"+index;text:modelData.text;icon.name:modelData.icon||"application-x-executable";onTriggered:start.run(context.source,context.row,modelData.actionId,modelData.actionArgument)}
             onObjectAdded:(index,object)=>context.insertItem(index+2,object)

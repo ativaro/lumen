@@ -4,17 +4,18 @@ import json
 import tempfile
 from pathlib import Path
 from uuid import UUID, uuid4
-from PySide6.QtCore import QFile, QIODevice, QObject, QUrl, Slot, QLockFile
+from PySide6.QtCore import QFile, QIODevice, QObject, QUrl, Slot, QLockFile, Qt
 from PySide6.QtNetwork import QSslCertificate
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineProfileBuilder, QWebEngineScript, QWebEngineSettings, QWebEngineUrlRequestInterceptor
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWidgets import QDialog, QFileDialog, QHBoxLayout, QLineEdit, QPushButton, QVBoxLayout, QLabel
+from PySide6.QtWidgets import QDialog, QFileDialog, QHBoxLayout, QLineEdit, QPushButton, QVBoxLayout, QLabel, QMessageBox
 from interop_dialogs import run_job
 from lumen_qt import is_deleted
+from lumen_i18n import tr
 import lumen_connect
 from server_app_session import SessionError
-from server_code_transport import Preview, import_folder, clone_git
+from server_code_transport import Preview, import_folder, clone_git, git_remote
 
 
 class Host(QObject):
@@ -28,11 +29,13 @@ class Host(QObject):
         from server_app_window import _connection
         w = self.window
         config, stamp = _connection()
+        binding = w._binding
         frozen = (w.page, w.profile, w.session, w._generation, w.session._generation)
         def check():
             current, current_stamp = _connection()
             if (w._disposed or w._closing or not w._live or not w._loaded or not w.session.usable
                     or frozen != (w.page, w.profile, w.session, w._generation, w.session._generation)
+                    or w._binding != binding or w.session.binding != binding
                     or stamp != current_stamp or w._binding.app != 'code'
                     or any(current.get(k) != w.session._config.get(k) for k in ('server', 'device_id', 'token', 'ca_file'))):
                 raise SessionError('context')
@@ -68,20 +71,37 @@ class Host(QObject):
 
     @Slot(str, str)
     def cloneGit(self, identity, remote):
+        if self.transfers: return
         try:
-            identity = str(UUID(identity)); config, check = self.context()
-            if identity in self.transfers: return
+            identity = str(UUID(identity)); remote = git_remote(remote)
+            config, check = self.context(); binding = self.window._binding
             self.transfers.add(identity); self.emit(identity, 'importing')
+            dialog = QMessageBox(self.window); dialog.setWindowTitle(tr('Lumen Code · Git-Zugriff prüfen'))
+            dialog.setTextFormat(Qt.PlainText)
+            dialog.setText(tr('Git-Repository klonen und übertragen?\n\nRepository: {0}\nServer: {1}\nKonto: {2}\nCode-Eintrag: {3}',
+                json.dumps(remote, ensure_ascii=True), binding.origin, binding.account, identity))
+            dialog.setInformativeText(tr('Git darf dafür deine vorhandene Git-Anmeldung und deinen SSH-Agent verwenden. Der gesamte geklonte Projektordner wird an diesen Lumen Server übertragen.'))
+            dialog.setStandardButtons(QMessageBox.Cancel)
+            dialog.button(QMessageBox.Cancel).setText(tr('Abbrechen'))
+            approve = dialog.addButton(tr('Klonen und übertragen'), QMessageBox.AcceptRole)
+            dialog.setDefaultButton(QMessageBox.Cancel); dialog.setEscapeButton(QMessageBox.Cancel)
+            dialog.exec()
+            accepted = dialog.clickedButton() is approve; dialog.deleteLater()
+            if not accepted:
+                self.emit(identity, 'cancelled'); return
+            check()
             def transfer(job):
                 def current(): job.check(); check()
                 current()
                 lumen_connect.request(config, '/bridge/code-library/' + identity + '/runtime/info')
+                current()
                 with tempfile.TemporaryDirectory(prefix='lumen-code-git-', dir=self.root) as temporary:
                     folder = Path(temporary) / 'project'
                     clone_git(remote, folder, current)
                     current()
                     job.progress.emit('Git-Repository geklont. Vollständigen Projektordner übertragen …')
                     entry = lumen_connect.request(config, '/bridge/code-library/' + identity + '/runtime/info')
+                    current()
                     return import_folder(config, identity, entry['revision'], folder, current)
             result = run_job(self.window, 'Lumen Code · Git-Repository klonen und importieren …', transfer)
             check(); self.emit(identity, 'imported' if result is not None else 'cancelled')

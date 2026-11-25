@@ -1,5 +1,6 @@
 """Checked partial local copies, published only after the whole entry is ready."""
 
+import errno
 import os
 from pathlib import Path
 import shutil
@@ -19,6 +20,22 @@ def root(path, native_names=False):
     return dict(
         path=str(path), identity=[info.st_dev, info.st_ino], native_names=native_names
     )
+
+
+def kernel_copy(reader, writer, offset, progress):
+    """Copy in the kernel (reflink on btrfs); return the new offset, stop where unsupported."""
+    writer.flush()
+    while True:
+        try:
+            copied = os.copy_file_range(reader.fileno(), writer.fileno(), 1024**2, offset, offset)
+        except OSError as error:
+            if error.errno in (errno.EXDEV, errno.EINVAL, errno.ENOSYS, errno.EOPNOTSUPP):
+                return offset  # The read/write loop takes over from here.
+            raise
+        if not copied:
+            return offset
+        offset += copied
+        progress(offset)
 
 
 def metadata(item, staged, portable):
@@ -237,7 +254,7 @@ def execute(store, value, progress):
         if source in done:
             count += sum(e["stamp"][2] for e in item["entries"] if e["kind"] == "file")
             continue
-        receipt = store.setting("workplace/transfer/" + identity).get("publishing", {})
+        receipt = store.setting("transfer/" + identity).get("publishing", {})
         if source in receipt:
             pending = os.path.lexists(Path(stage_root["path"]) / name)
             info = (
@@ -297,6 +314,10 @@ def execute(store, value, progress):
                                 checked += len(chunk)
                                 progress(count + checked, total)
                             local.capacity(destination, entry["stamp"][2] - offset)
+                            checked = kernel_copy(reader, writer, checked,
+                                                  lambda done: progress(count + done, total))
+                            reader.seek(checked)
+                            writer.seek(checked)
                             while chunk := reader.read(1024**2):
                                 writer.write(chunk)
                                 checked += len(chunk)

@@ -1,0 +1,21 @@
+[package]
+name = "lumen-memory"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+publish = false
+license-file = "../../LICENSE"
+description = "Lumen's memory search (eligible entries, Unicode 16 terms and folding, ranking, forgetting fingerprint): one implementation for desktop and server"
+
+[dependencies]
+# Unicode 16.0.0, the version of the Python the identities were defined with (checked by the tests).
+caseless = "=0.2.2"
+unicode-normalization = "=0.1.24"
+serde = { version = "1", features = ["derive"] }
+sha2 = { version = "0.11", default-features = false }
+
+[dev-dependencies]
+serde_json = "1"
+
+[lints.rust]
+unsafe_code = "forbid"

@@ -23,7 +23,7 @@ def download(window, request):
         def check():
             if not fresh(window,proof): raise ValueError('App-Sitzung geändert.')
         return save_download(window, request, check)
-    if (window._binding.app not in ('vault', 'inbox') or request.page() is not window.page
+    if (window._binding.app not in ('vault', 'inbox', 'photos') or request.page() is not window.page
             or not current(window, proof)
             or not (window._binding.resource(url) or url.startswith('blob:' + origin + '/'))
             or window._binding.app=='vault' and request.totalBytes() > LIMIT):

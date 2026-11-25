@@ -1,10 +1,19 @@
-"""Native personality editor with local, illustrative preview."""
+"""Native personality editor with local, illustrative preview. The catalogue, the profiles and the preview
+come from the service (`persona.*`, native/service/README.md); the view keeps the QSettings."""
+import json
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QFormLayout, QComboBox, QLineEdit, QPushButton, QCheckBox, QMessageBox
 from lumen_i18n import tr
-from lumen_persona import PRESETS, FIELDS, load, normalize, preview
+from lumen_service import persona_catalogue, persona_preview
 from settings_navigation import Details, label
 from desktop_design import PAGE_SPACING
+
+
+def load(settings):
+    """The profile the stored `personaProfile` stands for."""
+    settings.sync()
+    raw = settings.value('personaProfile', '{}')
+    return persona_preview(raw if isinstance(raw, str) else '')['profile']
 
 
 class PersonaEditor(QWidget):
@@ -13,8 +22,12 @@ class PersonaEditor(QWidget):
     def __init__(self, settings, voice_callback, parent=None):
         super().__init__(parent)
         self.settings = settings
-        self.initial = load(settings)
         self.original = settings.value('personaProfile', '')
+        try:
+            self.catalogue = persona_catalogue()
+            self.initial = load(settings)
+        except (OSError, ValueError):
+            self.unavailable(); return
         self.original_override=settings.value('personaLocalOverride',False,type=bool)
         from lumen_connect import read_config
         connection_error=''
@@ -31,7 +44,7 @@ class PersonaEditor(QWidget):
         self.local_panel=QWidget();outer.addWidget(self.local_panel)
         root=QVBoxLayout(self.local_panel);root.setContentsMargins(0,0,0,0);root.setSpacing(PAGE_SPACING);root.setAlignment(Qt.AlignTop)
         self.preset = QComboBox(); self.preset.setAccessibleName(tr('Persönlichkeitsvorlage'))
-        for identity, (title, _, _) in PRESETS.items(): self.preset.addItem(tr(title), identity)
+        for row in self.catalogue['presets']: self.preset.addItem(row['title'], row['id'])
         form = QFormLayout(); form.addRow(tr('Vorlage'), self.preset); root.addLayout(form)
         self.description = label('', 'settingsDescription'); root.addWidget(self.description)
         self.example_title = label(tr('Beispiel · „Mein NAS ist nicht erreichbar.“'), 'settingsSectionTitle')
@@ -47,10 +60,10 @@ class PersonaEditor(QWidget):
             item = QLineEdit(); item.setMaxLength(60); item.setAccessibleName(tr(title))
             self.fields[key] = item; fields.addRow(tr(title), item)
             item.textChanged.connect(self.refresh)
-        for key, (title, options) in FIELDS.items():
-            item = QComboBox(); item.setAccessibleName(tr(title))
-            for identity, caption in options: item.addItem(tr(caption), identity)
-            fields.addRow(tr(title), item); self.fields[key] = item
+        for field in self.catalogue['fields']:
+            item = QComboBox(); item.setAccessibleName(field['title'])
+            for option in field['options']: item.addItem(option['title'], option['id'])
+            fields.addRow(field['title'], item); self.fields[field['id']] = item
             item.currentIndexChanged.connect(self.refresh)
         root.addWidget(label(tr('Gilt für Lumen, Suche und Files. Gedächtnis und Werkzeugfreigaben bleiben unabhängig. Die Stimme wählst du separat.'), 'settingsDescription'))
         voice = QPushButton(tr('Stimme & Vorlesen').replace('&', '&&')); voice.setAutoDefault(False); voice.setObjectName('quiet')
@@ -60,6 +73,15 @@ class PersonaEditor(QWidget):
         self.set_values(self.initial)
         self.preset.activated.connect(self.choose_preset)
         self.override.toggled.connect(self.scope_changed);self.scope_changed()
+
+    def unavailable(self):
+        """Without the service the page opens with a notice and changes nothing; the stored persona stays."""
+        self.catalogue = self.initial = None
+        outer = QVBoxLayout(self); outer.setContentsMargins(0, 0, 0, 0); outer.setAlignment(Qt.AlignTop)
+        outer.addWidget(label(tr('Die Persönlichkeit ist gerade nicht verfügbar, weil der Lumen-Dienst nicht antwortet. Deine gespeicherte Persona bleibt unverändert. Bitte die Einstellungen später erneut öffnen.'), 'settingsDescription'))
+        # The setup summary reads these; they stay hidden and empty.
+        self.preset, self.apply = QComboBox(self), QPushButton(self)
+        self.preset.hide(); self.apply.hide()
 
     def scope_changed(self):
         local=not self.connection or self.override.isChecked()
@@ -76,11 +98,15 @@ class PersonaEditor(QWidget):
                 raise ValueError(tr('Die Konto-Persona konnte nicht geöffnet werden.'))
         except (OSError,ValueError) as error:QMessageBox.warning(self,tr('Persona'),str(error))
 
-    def value(self):
+    def chosen(self, choice=''):
+        """The profile and preview of the editor's values (with the traits of the preset `choice`)."""
         result = dict(preset=self.preset.currentData())
         for key, item in self.fields.items():
             result[key] = item.text() if isinstance(item, QLineEdit) else item.currentData()
-        return normalize(result)
+        return persona_preview(json.dumps(result), choice)
+
+    def value(self):
+        return self.chosen()['profile'] if self.catalogue else self.initial
 
     def set_values(self, value):
         self.preset.setCurrentIndex(self.preset.findData(value['preset']))
@@ -92,22 +118,20 @@ class PersonaEditor(QWidget):
         self.refresh()
 
     def choose_preset(self, _index):
-        value = self.value(); value.update(PRESETS[value['preset']][2])
-        self.set_values(value)
+        self.set_values(self.chosen(self.preset.currentData())['profile'])
 
     def refresh(self):
-        value = self.value()
-        self.description.setText(tr(PRESETS[value['preset']][1]))
-        self.example.setText(preview(value))
+        answer = self.chosen(); value = answer['profile']
+        self.description.setText(next(row['description'] for row in self.catalogue['presets'] if row['id'] == value['preset']))
+        self.example.setText(answer['preview'])
         parts = [value['name']]
-        for key, (title, options) in FIELDS.items():
-            caption = next(caption for identity, caption in options if identity == value[key])
-            parts.append(tr(title) + ': ' + tr(caption))
+        for field in self.catalogue['fields']:
+            caption = next(option['title'] for option in field['options'] if option['id'] == value[field['id']])
+            parts.append(field['title'] + ': ' + caption)
         self.summary.setText(' · '.join(parts))
 
     def commit(self):
         from lumen_preferences import save_preferences
-        import json
         try:
             from lumen_connect import read_config
             try:current=read_config()

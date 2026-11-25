@@ -11,6 +11,12 @@ from lumen_i18n import tr
 FORMATS = ('image/png', 'image/jpeg', 'image/webp', 'image/bmp')
 
 
+def protected_clipboard(clipboard, mode=None):
+    """True when a password manager marked the clipboard content as secret."""
+    mime = clipboard.mimeData() if mode is None else clipboard.mimeData(mode)
+    return bool(mime and mime.data('x-kde-passwordManagerHint') == b'secret')
+
+
 def has_image(mime):
     return bool(mime and (mime.hasImage() or any(mime.hasFormat(kind) for kind in FORMATS)))
 

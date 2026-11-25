@@ -1,4 +1,4 @@
-"""Selection-aware personal actions stored as ordinary manual Lumen workflows."""
+"""Selection-aware personal file actions; each run becomes an ordinary reviewed Lumen task."""
 from lumen_i18n import worker_environment, tr
 import copy
 import json
@@ -15,7 +15,7 @@ TOKENS = {'datei', 'ordner', 'name', 'stamm', 'endung', 'auswahl'}
 
 def template(task, paths=()):
     if any(s['action'] not in ('open', 'copy', 'write') for s in task['steps']):
-        raise ValueError(tr('Systemschritte als normalen Ablauf speichern; Dateiaktionen verwenden nur Dateischritte.'))
+        raise ValueError(tr('Dateiaktionen verwenden nur Dateischritte.'))
     value = copy.deepcopy(task)
     value['prompt'] = value.get('prompt', '')
     # Tasks keep their original language after the interface language changes.
@@ -59,28 +59,27 @@ def expand(flow, paths):
 
 def save_action(parent, store, task, paths=()):
     if task['status'] != 'completed': raise ValueError(tr('Zuerst die Aufgabe erfolgreich abschließen.'))
-    from lumen_workspace import PlanDialog
+    from plan_dialog import PlanDialog
     from PySide6.QtWidgets import QLabel
-    dialog = PlanDialog(parent, template(task, paths), workflow=True)
+    dialog = PlanDialog(parent, template(task, paths), file_action=True)
     dialog.setWindowTitle(tr('Eigene Dateiaktion speichern'))
     hint = QLabel(tr('Platzhalter: {{datei}}, {{ordner}}, {{name}}, {{stamm}}, {{endung}}, {{auswahl}}.\nDie neue Auswahl wird vor jedem Start angezeigt. KI-Aufträge behalten ihre Werkzeugfreigaben.')); hint.setWordWrap(True)
     dialog.layout().insertWidget(0, hint)
-    dialog.trigger.setCurrentIndex(0); dialog.trigger.setEnabled(False); dialog.enable.hide(); dialog.interval.hide(); dialog.watch.hide()
     if dialog.exec():
-        identity = store.save_workflow(**dialog.value)
+        identity = store.save_file_action(**dialog.value)
         store.set_setting(PREFIX + identity, True)
         return identity
 
 
 def run_action(window, flow, paths):
-    from lumen_workspace import PlanDialog
+    from plan_dialog import PlanDialog
     value = expand(flow, paths); dialog = PlanDialog(window, value)
     dialog.setWindowTitle(tr('Dateiaktion prüfen · ') + flow['name'])
     if not dialog.exec(): return
     config = dialog.value; store = Store()
     if config['steps']:
         identity = store.create_task(config['name'], directory=value['directory'], roots=config['roots'], steps=config['steps'], approved=True)
-        store.event(identity, 'workflow', flow['id'])
+        store.event(identity, 'file-action', flow['id'])
         subprocess.Popen([sys.executable, str(Path(__file__).with_name('lumen_tasks.py')), '--task', identity],
                          env=worker_environment(LUMEN_DATA=str(store.directory)), start_new_session=True,
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -94,7 +93,7 @@ def run_action(window, flow, paths):
 
 def menu(window, menu, paths):
     store = Store(); sub = menu.addMenu(tr('Eigene Aktionen'))
-    flows = [flow for flow in store.workflows() if flow['trigger'] == 'manual' and store.setting(PREFIX + flow['id'], False)]
+    flows = [flow for flow in store.file_actions() if store.setting(PREFIX + flow['id'], False)]
     def run(flow):
         try: run_action(window, flow, paths)
         except (ValueError, OSError) as error: window.error(str(error))

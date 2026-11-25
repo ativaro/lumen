@@ -1,0 +1,6 @@
+# The dependency sources are the ones frozen for the desktop service; the build never reaches the network.
+[source.crates-io]
+replace-with = "vendored-sources"
+
+[source.vendored-sources]
+directory = "../service/vendor"

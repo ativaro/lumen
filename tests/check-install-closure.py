@@ -53,9 +53,9 @@ with tempfile.TemporaryDirectory(prefix='lumen-install-closure-') as tmp:
         prefix = home/'data/lumen'
         count = check(prefix, home/'data/applications')
         check_search_startup(run, prefix)
-        # A normal app update must retain data, native opt-in and disabled timers.
+        # A normal app update must retain data and disabled timers.
         preserved = (home/'data/lumen-tools/workbench/synthetic.md',
-                     home/'config/lumen-server/connection.json', prefix/'vault-lab/bin/lumen-vault-lab')
+                     home/'config/lumen-server/connection.json')
         for path in preserved:
             path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(b'synthetic-preserved')
         before = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in preserved}

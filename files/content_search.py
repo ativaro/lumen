@@ -3,19 +3,13 @@ from lumen_i18n import tr
 import json
 import os
 import re
-import stat
 import subprocess
 import sys
-import tempfile
-import time
-import zipfile
-import zlib
-from xml.etree import ElementTree as ET
-from collections import deque
 from pathlib import Path
 
 
 MAX_TEXT = 1024 * 1024
+OFFICE = {'.docx', '.docm', '.xlsx', '.xlsm', '.pptx', '.pptm', '.odt', '.ods', '.odp'}
 STOP_WORDS = set(('der die das den dem des ein eine einen einem einer eines für fuer von vom zum zur zu '
                   'und oder mit ohne im in auf am an aus bei nach über ueber unter ich du mir mich mein '
                   'meine meinen meinem meiner meines bitte suche suchen finde finden zeige zeigen wo ist '
@@ -82,67 +76,6 @@ def find_passage(text, groups):
             'line': text.count('\n', 0, anchor.start()) + 1}
 
 
-def read_content(path, directory_fd=None):
-    path = Path(path)
-    target = path.name if directory_fd is not None else path
-    fd = os.open(target, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW, dir_fd=directory_fd)
-    with os.fdopen(fd, 'rb') as stream:
-        info = os.fstat(stream.fileno())
-        if not stat.S_ISREG(info.st_mode):
-            return '', False
-        partial = False
-        from document_text import EXTENSIONS, extract
-        if path.suffix.lower() in EXTENSIONS:
-            if info.st_size > 64 * 1024 * 1024:
-                raise ValueError(tr('Office-Datei zu groß.'))
-            try:
-                text, partial = extract(stream, path.suffix.lower(), MAX_TEXT)
-                data = text.encode('utf-8')
-            except (KeyError, IndexError, zipfile.BadZipFile, ET.ParseError, RuntimeError, zlib.error) as error:
-                raise ValueError(tr('Office-Datei nicht lesbar.')) from error
-        elif path.suffix.lower() == '.pdf':
-            if info.st_size > 128 * 1024 * 1024:
-                return '', True
-            with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as errors:
-                # An inherited descriptor pins the checked file, even if its path changes.
-                proc = subprocess.Popen([sys.executable,str(Path(__file__).with_name('lumen_pdf_worker.py')),'text',
-                                         f'/proc/self/fd/{stream.fileno()}', '--limit',str(MAX_TEXT+1)],
-                                        stdin=subprocess.DEVNULL, stdout=output, stderr=errors,
-                                        pass_fds=(stream.fileno(),))
-                deadline = time.monotonic() + 12
-                try:
-                    while proc.poll() is None:
-                        if os.fstat(output.fileno()).st_size > MAX_TEXT or time.monotonic() > deadline:
-                            partial = True
-                            proc.kill()
-                            break
-                        time.sleep(.02)
-                    proc.wait()
-                    if proc.returncode and not partial and os.fstat(output.fileno()).st_size <= MAX_TEXT:
-                        errors.seek(0)
-                        raise ValueError(tr('PDF nicht lesbar.') + ' ' + errors.read(600).decode('utf-8', errors='replace').strip())
-                    output.seek(0)
-                    data = output.read(MAX_TEXT + 1)
-                finally:
-                    if proc.poll() is None:
-                        proc.kill()
-                        proc.wait()
-        else:
-            data = stream.read(MAX_TEXT + 1)
-        def signature(value):
-            return value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns, value.st_ctime_ns
-        current = os.stat(target, dir_fd=directory_fd, follow_symlinks=False)
-        if signature(info) != signature(current) or signature(info) != signature(os.fstat(stream.fileno())):
-            raise ValueError(tr('Datei während der Suche verändert.'))
-        partial = partial or len(data) > MAX_TEXT
-        data = data[:MAX_TEXT]
-        if data.startswith((b'\xff\xfe', b'\xfe\xff')):
-            return data.decode('utf-16', errors='replace'), partial
-        if b'\0' in data or (data and sum(byte < 9 or 13 < byte < 32 for byte in data) / len(data) > .03):
-            return '', partial
-        return data.decode('utf-8-sig', errors='replace'), partial
-
-
 def folder_fd(root_fd, relative):
     """Open every component relative to the pinned root, refusing replaced symlinks."""
     current = os.dup(root_fd)
@@ -157,81 +90,78 @@ def folder_fd(root_fd, relative):
         raise
 
 
+def core_request(root, groups, hidden, max_hits, max_entries, ocr, thumbnail_dir):
+    """The search request for the document core. Types, messages and the cache place stay Lumen's own."""
+    import mimetypes
+    from core import TEXT_EXTENSIONS
+    from lumen_store import state_path
+    mimetypes.init()
+    # The order of core.file_kind: picture, PDF, sound or film, text; Office by its name.
+    groups_of = (('image/', 'image'), ('video/', 'media'), ('audio/', 'media'), ('text/', 'text'))
+    kinds = {suffix.lower(): kind for suffix, mime in mimetypes.types_map.items()
+             for prefix, kind in groups_of if mime.startswith(prefix)}
+    messages = ['Eintragslimit', 'Trefferlimit', 'Office-Datei zu groß.', 'Office-Datei nicht lesbar.',
+                'PDF nicht lesbar.', 'Datei während der Suche verändert.']
+    return dict(root=str(root), groups=groups, hidden=bool(hidden), max_hits=max_hits, max_entries=max_entries,
+                visual=True, ocr=bool(ocr), thumbnails=bool(thumbnail_dir), kinds=kinds, texts=sorted(TEXT_EXTENSIONS),
+                encodings=list(mimetypes.encodings_map), aliases=dict(mimetypes.suffix_map),
+                cache=str(state_path() / 'content-cache'), messages={text: tr(text) for text in messages})
+
+
 def scan(root, groups, hidden=False, max_hits=500, max_entries=100000, ocr=False, thumbnail_dir=None):
+    """Walking, reading and matching run in the document core. Pictures it cannot answer from the cache
+    come back as `visual` events: recognising them and making previews stays here."""
+    from lumen_office import PDFError, program
     root = Path(root).resolve()
+    try: command = [program(), 'search']
+    except PDFError as error: raise ValueError(str(error)) from error
+    extra = dict(scanned=0, hits=0, partial=0, empty=0, errors=0); details = []; images = 0
     root_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     try:
-        yield from scan_tree(root, root_fd, groups, hidden, max_hits, max_entries, ocr, thumbnail_dir)
-    finally:
-        os.close(root_fd)
-
-
-def scan_tree(root, root_fd, groups, hidden, max_hits, max_entries, ocr=False, thumbnail_dir=None, visual=True):
-    from core import file_kind
-    from document_text import EXTENSIONS
-    root = Path(root).resolve()
-    queue = deque([Path('.')])
-    visited = scanned = hits = errors = partial = empty = 0
-    error_details = []
-    limit = ''; images = 0
-    started = last_report = time.monotonic()
-    while queue and not limit:
-        relative = queue.popleft()
-        folder = root / relative
-        descriptor = None
-        try:
-            descriptor = folder_fd(root_fd, relative)
-            with os.scandir(descriptor) as entries:
-                for entry in entries:
-                    path = folder / entry.name
-                    if not hidden and entry.name.startswith('.'):
-                        continue
-                    if visited >= max_entries:
-                        limit = tr('Eintragslimit')
+        process.stdin.write(json.dumps(core_request(root, groups, hidden, max_hits, max_entries, ocr, thumbnail_dir)).encode())
+        process.stdin.close()
+        rust_hits = 0
+        for line in process.stdout:
+            event = json.loads(line)
+            kind = event['type']
+            if kind == 'hit': rust_hits += 1
+            if kind == 'done':
+                for key, value in extra.items(): event[key] += value
+                event['error_details'] = (event['error_details'] + details)[:12]
+                yield event
+                break
+            if kind != 'visual':
+                yield event
+                continue
+            from lumen_ocr import visual_content
+            extra['scanned'] += 1
+            path = Path(event['path']); descriptor = None
+            try:
+                descriptor = folder_fd(root_fd, Path(event['relative']) if event['relative'] else Path('.'))
+                text, cut, image = visual_content(path, descriptor, event['text'], ocr, thumbnail_dir if images < 100 else None)
+                cut = cut or event['partial']
+                if image:
+                    images += 1
+                    yield dict(image, type='image')
+                extra['partial'] += int(cut); extra['empty'] += int(not text.strip())
+                passage = find_passage(text, groups) if text else None
+                if passage:
+                    extra['hits'] += 1
+                    yield dict(passage, type='hit', path=str(path), partial=cut, pdf=event['kind'] == 'pdf', image=event['kind'] == 'image')
+                    if rust_hits + extra['hits'] >= max_hits:
+                        process.kill()
+                        yield {'type': 'done', 'scanned': None, 'visited': None, 'hits': rust_hits + extra['hits'], 'errors': extra['errors'],
+                               'partial': extra['partial'], 'empty': extra['empty'], 'limit': tr('Trefferlimit'), 'error_details': details, 'elapsed': None}
                         break
-                    visited += 1
-                    try:
-                        if entry.is_symlink():
-                            continue
-                        if entry.is_dir(follow_symlinks=False):
-                            queue.append(relative / entry.name)
-                        elif entry.is_file(follow_symlinks=False) and (file_kind(path) in {'text', 'pdf', 'image'} or path.suffix.lower() in EXTENSIONS):
-                            scanned += 1
-                            kind = file_kind(path)
-                            text, incomplete = read_content(path, descriptor) if kind != 'image' else ('', False)
-                            if visual and kind in {'image', 'pdf'}:
-                                from lumen_ocr import visual_content
-                                text, cut, image = visual_content(path, descriptor, text, ocr, thumbnail_dir if images < 100 else None)
-                                incomplete = incomplete or cut
-                                if image:
-                                    images += 1
-                                    yield dict(image, type='image')
-                            partial += int(incomplete)
-                            empty += int(not text.strip())
-                            passage = find_passage(text, groups) if text else None
-                            if passage:
-                                hits += 1
-                                yield dict(passage, type='hit', path=str(path), partial=incomplete,
-                                           pdf=path.suffix.lower() == '.pdf', image=kind == 'image')
-                                if hits >= max_hits:
-                                    limit = tr('Trefferlimit')
-                                    break
-                    except (OSError, ValueError, subprocess.SubprocessError) as error:
-                        errors += 1
-                        if len(error_details) < 12:
-                            error_details.append(dict(path=str(path), error=str(error)[:200]))
-                    if time.monotonic() - last_report > .15:
-                        yield {'type': 'progress', 'scanned': scanned, 'visited': visited, 'hits': hits}
-                        last_report = time.monotonic()
-        except OSError as error:
-            errors += 1
-            if len(error_details) < 12:
-                error_details.append(dict(path=str(folder), error=str(error)[:200]))
-        finally:
-            if descriptor is not None:
-                os.close(descriptor)
-    yield {'type': 'done', 'scanned': scanned, 'visited': visited, 'hits': hits, 'errors': errors,
-           'partial': partial, 'empty': empty, 'limit': limit, 'error_details': error_details, 'elapsed': time.monotonic() - started}
+            except (OSError, ValueError, subprocess.SubprocessError) as error:
+                extra['errors'] += 1
+                if len(details) < 12: details.append(dict(path=str(path), error=str(error)[:200]))
+            finally:
+                if descriptor is not None: os.close(descriptor)
+    finally:
+        if process.poll() is None: process.kill()
+        process.wait(); process.stdout.close(); os.close(root_fd)
 
 
 if __name__ == '__main__' and sys.argv[1:] == ['--scan']:

@@ -7,7 +7,7 @@
   "Tags müssen Text oder eine Liste aus Text sein.": "Tags must be text or a list of text values.",
   "Verankerte Tags zuerst in unabhängige Werte umwandeln.": "Convert anchored tags into independent values first.",
   "Bitte einen anderen Tag außerhalb dieses Untertags wählen.": "Choose a different tag outside this subtag.",
-  "Zuerst alle Notizen vollständig und fehlerfrei einlesen.": "Read all notes completely and without errors first.",
+  "Zuerst alle Notizen vollständig und fehlerfrei einlesen.": "Read the complete notebook without errors first.",
   "CONFLICT: Notizen wurden geändert. Tag-Vorschau erneut öffnen.": "CONFLICT: Notes changed. Open the tag preview again.",
   "{0} Notizen geändert; Vorgang gestoppt. Frühere Fassungen bleiben im Verlauf. {1}": "Changed {0} notes; operation stopped. Previous versions remain in history. {1}",
   "Lumen Notes · Tags bearbeiten": "Lumen Notes · Edit tags",

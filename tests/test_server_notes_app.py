@@ -57,7 +57,8 @@ class ServerNotesEntryTest(unittest.TestCase):
             return notes.context(self.job)
 
     def test_confirmed_private_connection_and_xdg_runtime(self):
-        config, binding, stamp = self.context()
+        config, binding, stamp, revision = self.context()
+        self.assertEqual(revision, 1)
         self.assertEqual((binding.origin, binding.account, binding.device, binding.app),
             ('https://notes.example.invalid', USER, DEVICE, 'notes'))
         root = notes.runtime_root(binding, stamp)
@@ -98,12 +99,11 @@ class ServerNotesEntryTest(unittest.TestCase):
                 patch.object(notes, 'run', return_value=7) as run, \
                 patch('tools_data.Library', side_effect=AssertionError('No local Notes library')):
             self.assertEqual(tools_app.main(), 7)
-        run.assert_called_once_with(self.app)
+        run.assert_called_once_with(self.app, {})
 
     def test_legacy_arguments_explain_gap_and_never_open_local_notes(self):
         import tools_app
-        for arguments in (['file.md'], ['--area', 'user'], ['--section', 'notes'],
-                          ['--handoff', 'synthetic'], ['--ref', 'synthetic'], ['--clipboard']):
+        for arguments in (['file.md'], ['--area', 'user'], ['--section', 'notes'], ['--clipboard']):
             with self.subTest(arguments=arguments), \
                     patch.object(sys, 'argv', ['tools_app.py', 'wissen', *arguments]), \
                     patch.object(tools_app, 'pilot_profile', return_value=None), \
@@ -113,6 +113,19 @@ class ServerNotesEntryTest(unittest.TestCase):
                 self.assertEqual(tools_app.main(), 2)
                 run.assert_not_called()
                 self.assertIn('noch nicht unterstützt', warning.call_args.args[2])
+
+    def test_handoff_and_reference_open_the_server_app_with_that_activation(self):
+        import tools_app
+        for arguments, activation in ((['--handoff', 'synthetic'], dict(handoff='synthetic')),
+                                      (['--ref', 'synthetic'], dict(reference='synthetic'))):
+            with self.subTest(arguments=arguments), \
+                    patch.object(sys, 'argv', ['tools_app.py', 'wissen', *arguments]), \
+                    patch.object(tools_app, 'pilot_profile', return_value=None), \
+                    patch.object(tools_app, 'create_app', return_value=self.app), \
+                    patch.object(notes, 'run', return_value=0) as run, \
+                    patch('tools_data.Library', side_effect=AssertionError('No local Notes library')):
+                self.assertEqual(tools_app.main(), 0)
+                run.assert_called_once_with(self.app, activation)
 
     def test_missing_server_offers_native_recovery_without_launching_host(self):
         self.config.unlink()

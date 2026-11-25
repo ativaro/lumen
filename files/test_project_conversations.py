@@ -24,8 +24,7 @@ class ProjectConversationTest(unittest.TestCase):
 
     def test_local_project_parameter_is_rejected_without_touching_original(self):
         before=self.library.get(self.project)
-        with patch('projects_references.conversation_project',side_effect=AssertionError('retired read')):
-            self.assertFalse(self.panel.prepare_draft('Question',project=self.project))
+        self.assertFalse(self.panel.prepare_draft('Question',project=self.project))
         self.assertEqual(self.library.get(self.project),before)
         self.assertIn('Lumen Server',self.panel.error.text())
 

@@ -46,6 +46,7 @@ class Probe(Original):
  def check(self):
   status=0
   try:
+   assert not sent,sent
    assert self.search_window.isVisible() and not self.isVisible()
    self.chat.composer.setPlainText('Unsent draft');backend=self.chat.backend
    backend.session='keep-session';backend.busy=True
@@ -75,9 +76,14 @@ class Probe(Original):
    activation.Toggle();assert not self.isVisible()
    activation.Toggle();assert self.search_window.isVisible()
    assert backend.busy and self.chat.composer.toPlainText()=='Unsent draft'
+   assert not sent,sent
   except BaseException:traceback.print_exc();status=1
   self.chat.backend.busy=False;self.chat.composer.clear();self.close();QApplication.instance().exit(status)
 d.LumenWindow=Probe
+import assistant_backend
+sent=[];begin=assistant_backend.OpenCodeBackend.begin
+def record(self,turn):sent.append(turn['text']);return begin(self,turn)
+assistant_backend.OpenCodeBackend.begin=record
 with patch('lumen_hardware.activity',return_value=[]),patch('setup_dialog.offer_setup'),patch('lumen_crash.attach'),patch('desktop_backend.DesktopBackend.refresh_sessions'):
  sys.exit(d.main())
 '''

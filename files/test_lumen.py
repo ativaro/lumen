@@ -100,7 +100,7 @@ class NativeTest(unittest.TestCase):
                 self.assertLess(abs(restored.splitter.sizes()[1] - sizes[1]), 5)
             finally:
                 restored.close(); restored.deleteLater()
-            # A requested folder takes precedence over the saved workspace.
+            # A requested folder takes precedence over the saved folder.
             explicit = Window(str(first), settings)
             self.assertEqual(explicit.tabs.count(), 1)
             explicit.close(); explicit.deleteLater()
@@ -500,8 +500,8 @@ class NativeTest(unittest.TestCase):
             self.wait_until(lambda: window.preview.proc is None)
             self.assertEqual(window.preview.text.toPlainText(), text.read_text())
             window.run_operation('copy', [str(text)], tmp)
-            self.wait_until(lambda: window.file_job is None)
-            self.assertEqual((root / text.name).read_text(), text.read_text())
+            # Copies run in the shared transfer queue, not as a window file job.
+            self.wait_until(lambda: (root / text.name).exists() and (root / text.name).read_text() == text.read_text())
             window.run_operation('rename', [str(root / text.name)], str(root / 'Renamed.txt'))
             self.wait_until(lambda: window.file_job is None)
             self.assertEqual((root / 'Renamed.txt').read_text(), text.read_text())

@@ -1,7 +1,8 @@
 """Primary action glyphs retain the text's live palette contrast."""
 import unittest
 from unittest.mock import patch
-from PySide6.QtCore import QCoreApplication, QEvent
+from pathlib import Path
+from PySide6.QtCore import QCoreApplication, QEvent, QStandardPaths
 from PySide6.QtGui import QIcon, QPalette
 from PySide6.QtWidgets import QApplication
 from appearance import apply_design
@@ -13,6 +14,12 @@ class ButtonIconTest(unittest.TestCase):
     def setUpClass(cls):
         from app import create_app
         cls.app = QApplication.instance() or create_app('graphite')
+        # An earlier test may have created a bare application without the icon theme.
+        paths, theme = QIcon.themeSearchPaths(), QIcon.themeName()
+        QIcon.setThemeSearchPaths([str(Path(path) / 'icons') for path in
+                                   QStandardPaths.standardLocations(QStandardPaths.GenericDataLocation)] + paths)
+        QIcon.setThemeName('breeze-dark')
+        cls.addClassCleanup(QIcon.setThemeName, theme); cls.addClassCleanup(QIcon.setThemeSearchPaths, paths)
 
     def colors(self, icon, mode=QIcon.Normal):
         image = icon.pixmap(24, 24, mode).toImage()

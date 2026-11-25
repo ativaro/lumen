@@ -9,7 +9,8 @@ Rückverweisen, optionaler Wissenskarte und Fragen mit ausgewählten Quellen.
 
 ## Aufbau und Reihenfolge
 
-1. `wissen_data.py`: Markdown ist die Quelle der Wahrheit. Private lokale
+1. `wissen_data.py` (seit R10 nur noch die Anbindung; Notizbuch-Kern, Tags, Eigenschaften und Überschriften
+   liegen in `lumen-service`, `native/service/src/notebook.rs`): Markdown ist die Quelle der Wahrheit. Private lokale
    UI-Einstellungen und ein abgeleiteter Suchkatalog dürfen SQLite verwenden.
    Gewählter Ordner wird nicht verschoben; bestehende Dateien bleiben unverändert.
    Atomare Schreibvorgänge, Hash-Konfliktprüfung, Wiederherstellungskopien und

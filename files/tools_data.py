@@ -150,7 +150,8 @@ def transcribe(path, settings, job):
 def document_text(path, job):
     path = Path(path); suffix = path.suffix.lower()
     if suffix == '.pdf':
-        text = job.command([sys.executable,str(Path(__file__).with_name('lumen_pdf_worker.py')),'text',str(path),'--characters','120000'], timeout=90).decode(errors='replace')
+        from lumen_office import pdf_tool
+        text = job.command(pdf_tool('text',str(path),'--characters','120000'), timeout=90).decode(errors='replace')
         if len(text)>120000:raise ValueError(tr('Mehr als 120.000 Zeichen; bitte einen kürzeren Auszug importieren.'))
         pages=text.split('\f'); pages=pages[:-1] if pages[-1]=='' else pages
         if any(len(page.strip())<20 for page in pages):
@@ -263,7 +264,7 @@ def synthesize(text, library, job):
 if __name__ == '__main__':
     # Run existing OCR in a child group so cancelling also stops its decoders.
     if len(sys.argv)!=3 or sys.argv[1]!='ocr': raise SystemExit(tr('Nur interne Texterkennung.'))
-    from lumen_pdf_worker import limits
+    from lumen_office import limits
     limits()
     from lumen_ocr import image_text, visual_content
     source=Path(sys.argv[2])

@@ -54,12 +54,12 @@ class MoveTest(unittest.TestCase):
         from unittest.mock import patch
         import notes_move
         with tempfile.TemporaryDirectory() as root:
-            book=self.make_book(root);value=plan(book,'A','C');write=notes_move.raw_write;calls=[]
+            book=self.make_book(root);value=plan(book,'A','C');write=book.replace;calls=[]
             def fail(*args):
                 calls.append(1)
                 if len(calls)==2:raise OSError('interrupted')
                 return write(*args)
-            with patch.object(notes_move,'raw_write',side_effect=fail),self.assertRaises(OSError):notes_move.execute(book,value)
+            with patch.object(Notebook,'replace',side_effect=fail),self.assertRaises(OSError):notes_move.execute(book,value)
             self.assertTrue(notes_move.pending(book));notes_move.execute(Notebook(book.store,book.root))
             self.assertFalse((book.root/'A').exists());self.assertIn('[[C/One.md#^anchor|alias]]',book.read('Two.md')['text'])
             current=book.read('Two.md');book.write('Two.md',current['text']+'\nNew edit',current['hash'])
@@ -101,7 +101,7 @@ class MoveTest(unittest.TestCase):
             self.assertIsNone(notes_move.pending(book));notes_move.undo(book)
             self.assertEqual(before,{n['path']:book.raw(n['path']) for n in book.scan()['notes']})
             value=plan(book,'A','C')
-            with patch.object(notes_move,'raw_write',side_effect=OSError('before any writes')),self.assertRaises(OSError):notes_move.execute(book,value)
+            with patch.object(Notebook,'replace',side_effect=OSError('before any writes')),self.assertRaises(OSError):notes_move.execute(book,value)
             notes_move.undo(book);self.assertIsNone(notes_move.pending(book))
             self.assertEqual(before,{n['path']:book.raw(n['path']) for n in book.scan()['notes']})
 

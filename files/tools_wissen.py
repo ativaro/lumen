@@ -13,6 +13,7 @@ from tools_ui import ToolWindow,Job,button
 from tools_data import parse_answer
 from lumen_store import Store
 import wissen_data as data
+import notes_query as query
 import lumen_memory as memory
 
 
@@ -39,8 +40,6 @@ class Wissen(ToolWindow):
         self.poll_timer.timeout.connect(self.update_memory_status)
         QShortcut(QKeySequence.Save,self,activated=lambda:self.safe(self.save_note));QShortcut(QKeySequence.New,self,activated=lambda:self.safe(self.create));QShortcut(QKeySequence('Ctrl+F'),self,activated=self.search.setFocus)
         QShortcut(QKeySequence('Ctrl+K'),self,activated=lambda:self.safe(self.quick_open))
-        from wissen_sync_ui import install
-        install(self)
         self.present_area();self.editor.setEnabled(False)
         self.switch_area('lumen')
 
@@ -89,7 +88,6 @@ class Wissen(ToolWindow):
         self.title.setPlaceholderText(tr('Eine Erinnerung festhalten') if area=='lumen' else tr('Deine erste Notiz'))
         for key,b in self.area_buttons.items():b.setChecked(key==area)
         self.folder_action.setVisible(area=='user');self.share_folder_action.setVisible(area=='user');self.share_note.setVisible(True);self.share_note.setEnabled(False);self.memory_options.setVisible(area=='lumen')
-        self.backup_action.setVisible(area=='user');self.backup_info.setVisible(area=='user')
         self.origin.hide()
         self.timestamp.clear();self.timestamp.hide()
         self.collection_button.hide();self.rename_collection_button.hide()
@@ -167,26 +165,6 @@ class Wissen(ToolWindow):
             path,self.pending_file=self.pending_file,'';self.after_job=lambda:self.safe(self.open_file,path)
         else:self.after_job=self.poll
 
-    def backup_notebook(self):
-        from interop_ui import with_saved,reviewed_send
-        def send():
-            if not self.book:return
-            source=dict(app='wissen',kind='collection',id='collection:',title=tr('Meine Notizen'),
-                        locator=dict(root=str(self.book.root),area=self.area))
-            reviewed_send(self,dict(title=source['title'],source=source,paths=[str(self.book.root)]),'vault.sources')
-        with_saved(self,send)
-
-    def backup_status(self):
-        from interop_vault import coverage
-        from datetime import datetime
-        self.backup_action.setEnabled(bool(self.book) and not self.job)
-        plans=coverage([str(self.book.root)],self.library.root.parent)[0]['plans'] if self.book else []
-        lines=[]
-        for plan in plans:
-            rhythm={0:tr('Nur manuell'),86400:tr('Täglich'),604800:tr('Wöchentlich')}.get(plan['interval'],tr('Nur manuell'))
-            state=tr('Letzter Sicherungslauf: {0}',datetime.fromtimestamp(plan['last_backup']).strftime('%d.%m.%Y %H:%M')) if plan['last_backup'] else tr('Noch kein erfolgreicher Sicherungslauf.')
-            lines.append(plan['title']+' · '+rhythm+'\n'+state)
-        self.backup_info.setText('\n'.join(lines) or tr('Noch kein Sicherungsplan für dieses Notizbuch.'))
     def action(self,action,done,**values):
         if self.job and self.writing:
             self.after_job=lambda:self.action(action,done,**values);return
@@ -299,7 +277,7 @@ class Wissen(ToolWindow):
             changed=self.notes.get(note['path'])!=note or not self.in_collection(note)
             note.setdefault('modified',self.notes.get(note['path'],{}).get('modified',0));self.doc=note;self.notes[note['path']]=note;self.load_text(note['text'],note['title']);self.editor.setEnabled(True);self.title.setEnabled(True);self.dirty=False;self.conflict=False
             if not preserve_filter and not self.in_collection(note):self.collection=''
-            if not preserve_filter and self.search.text() and not data.search([note],self.search.text()):self.search.clear();changed=True
+            if not preserve_filter and self.search.text() and not query.search([note],self.search.text()):self.search.clear();changed=True
             self.title.setToolTip(note['path']);self.source.setText(tr('Quelle: ')+note['source'] if note['source'] else tr('Eigene Notiz'));self.banner.clear();self.banner.hide();self.recovery.hide();self.remove_action.setEnabled(True)
             parent=Path(note['path']).parent;self.location.setText((tr('Lumen-Gedächtnis') if self.area=='lumen' else tr('Meine Notizen'))+(' / '+str(parent) if str(parent)!='.' else ''))
             self.library.update(self.current,**({'last_note':note['path']} if self.area=='user' else {'last_memory':note['path']}))
@@ -327,7 +305,7 @@ class Wissen(ToolWindow):
         self.collection='';self.update_collections();self.open_note(path)
 
     def update_source(self,note):
-        self.timestamp.setText(data.timestamp_text(note));self.timestamp.setVisible(bool(self.timestamp.text()))
+        self.timestamp.setText(query.timestamp_text(note));self.timestamp.setVisible(bool(self.timestamp.text()))
         source=tr('Quelle: ')+note['source'] if note['source'] else tr('Eigene Notiz')
         if self.area=='lumen':
             from datetime import datetime
@@ -338,8 +316,7 @@ class Wissen(ToolWindow):
             if updated:details+='\n'+datetime.fromtimestamp(updated).strftime('%d.%m.%Y %H:%M')
             scope=meta.get('scope','')
             if scope.startswith('project:'):
-                from memory_projects import catalog
-                scope=next((r['title'] for r in catalog(self.store) if 'project:'+r['id']==scope),tr('Projekt nicht mehr verfügbar'))
+                scope=next((r['title'] for r in memory.Memory(self.store).project_info()['projects'] if 'project:'+r['id']==scope),tr('Projekt nicht mehr verfügbar'))
             details+='\n'+(tr('Projekt: ')+scope if scope else tr('Übergreifend'))
             if meta.get('evidence'):details+=tr('\n\nDeine Aussage: „')+meta['evidence']+'“'
             source=details+'\n\n'+source
@@ -364,7 +341,7 @@ class Wissen(ToolWindow):
     def follow_editor_link(self,target):
         if not self.doc:return
         from notes_structure import split_target
-        path=data.resolve_link(self.doc['path'],target,self.notes)
+        path=query.resolve_link(self.doc['path'],target,self.notes)
         self.open_note_target(path,split_target(target)[1])
     def focus_anchor(self,anchor):
         if not self.doc:return
@@ -393,7 +370,7 @@ class Wissen(ToolWindow):
         if not hasattr(self,'notes'):return
         rows=[n for n in self.notes.values() if self.in_collection(n)]
         rows.sort(key=lambda n:n.get('modified',0),reverse=True)
-        matches=data.search(rows,self.search.text(),data.MAX_SCAN_NOTES) if self.search.text().strip() else rows
+        matches=query.search(rows,self.search.text(),query.MAX_SCAN_NOTES) if self.search.text().strip() else rows
         if self.area=='user':
             from notes_views import ordered
             matches=ordered(matches,getattr(self,'view_sort',''))
@@ -407,7 +384,7 @@ class Wissen(ToolWindow):
     def in_collection(self,note):
         kind,_,value=self.collection.partition(':')
         if kind=='unfiled':return str(Path(note['path']).parent)=='.'
-        if kind=='tag':return data.matches_tags(note['tags'],[value])
+        if kind=='tag':return query.matches_tags(note['tags'],[value])
         if kind=='folder':return Path(note['path']).is_relative_to(value)
         if kind=='profile':return not note.get('memory',{}).get('scope') and note.get('memory',{}).get('kind','fact') in ('preference','fact','decision')
         if kind=='corrections':return bool(note.get('memory',{}).get('correction'))
@@ -472,7 +449,7 @@ class Wissen(ToolWindow):
             restore = startup_preference('wissen', 'restoreSelection', self.settings)
             last=self.library.get(self.current).get('last_memory' if self.area=='lumen' else 'last_note','')
             visible=[n for n in self.notes.values() if self.in_collection(n)]
-            if self.search.text().strip():visible=data.search(visible,self.search.text(),data.MAX_SCAN_NOTES)
+            if self.search.text().strip():visible=query.search(visible,self.search.text(),query.MAX_SCAN_NOTES)
             if restore and last in {n['path'] for n in visible}:self.show_note(self.notes[last])
             elif restore and visible:self.show_note(max(visible,key=lambda n:n.get('modified',0)))
         self.update_collections()
@@ -496,7 +473,7 @@ class Wissen(ToolWindow):
         if not self.doc:return
         stamp=tuple((p,n['hash']) for p,n in self.notes.items())
         if stamp!=getattr(self,'connections_stamp',None):
-            self.connections_index=data.connections(self.notes);self.connections_stamp=stamp
+            self.connections_index=query.connections(self.notes);self.connections_stamp=stamp
         current=self.doc['path'];outgoing=self.connections_index[0].get(current,set());incoming=self.connections_index[1].get(current,set())
         for paths,prefix in [(outgoing,'→ '),(incoming,'← ')]:
             for path in sorted(p for p in paths if p and p in self.notes and p!=current):
@@ -610,7 +587,7 @@ class Wissen(ToolWindow):
             self.action('add_image',done,path=path)
     def find_sources(self):
         self.candidates.clear()
-        for note in data.search(list(self.notes.values()),self.question.text(),8):
+        for note in query.search(list(self.notes.values()),self.question.text(),8):
             item=QListWidgetItem(note['title']+'\n'+re.sub(r'\s+',' ',data.excerpt(note['text'],self.question.text(),180)));item.setData(Qt.UserRole,note['path']);item.setFlags(item.flags()|Qt.ItemIsUserCheckable);item.setCheckState(Qt.Checked);self.candidates.addItem(item)
     def ask(self):
         if self.dirty:self.save_note(self.ask);return

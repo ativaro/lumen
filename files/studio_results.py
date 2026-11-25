@@ -5,17 +5,7 @@ import uuid
 
 KIND = 'lumen.presentation.v1'
 TOOL = 'lumen_present_files'
-INSTRUCTION = (
-    '\nThis conversation has a native result preview. When the user asks to see files '
-    'or you produce files as the result of their request, call lumen_present_files '
-    '(possibly with the MCP server prefix) with the actual absolute file paths and '
-    'a short title in the user language. Find or create the files first using your '
-    'available tools. Present the specific files, not just their directory. This '
-    'works for images, PDFs, text and other supported files, including mounted '
-    'network files. Attachments are inputs, not preview results. Do not ask the user '
-    'to attach files you can find yourself. Paths in prose do not populate the preview. '
-    'Only claim presentation after the tool succeeds; if unavailable, explain that.'
-)
+# The instruction that offers the preview is the service's (native/service/src/turn.rs).
 
 
 def validate(value):

@@ -21,7 +21,7 @@ def install(repo, data, binaries):
         raise ValueError('Das Starterverzeichnis enthält nicht unterstützte Sonderzeichen.')
     sources = sorted(p for p in (repo/'files').iterdir()
                      if p.suffix in ('.py', '.qss', '.svg') and not p.name.startswith('test_'))
-    for directory in ('translations', 'qml', 'fonts', 'notes_icons', 'memory-runtime', 'engine-plugins'):
+    for directory in ('translations', 'qml', 'fonts', 'notes_icons', 'memory-runtime'):
         sources += sorted(p for p in (repo/'files'/directory).rglob('*')
                           if p.is_file() and '__pycache__' not in p.parts and p.suffix != '.pyc')
     if not (repo/'files/tools_app.py').is_file(): raise ValueError('Anwendungsquellen fehlen.')
@@ -77,8 +77,12 @@ def main():
     parser.add_argument('--data-home', type=Path, default=Path(os.environ.get('XDG_DATA_HOME', str(Path.home()/'.local/share'))))
     parser.add_argument('--bin-dir', type=Path, default=Path.home()/'.local/bin')
     args = parser.parse_args()
-    subprocess.run([str(Path(__file__).parent/'bin/lumen-python'), '-c', 'import PySide6.QtWidgets, PySide6.QtSvg, PySide6.QtQuick, PySide6.QtQuickWidgets, gi, PIL, yaml, markdown_it'], check=True)
-    runtime = install(Path(__file__).resolve().parent, args.data_home, args.bin_dir)
+    subprocess.run([str(Path(__file__).parent/'bin/lumen-python'), '-c', 'import PySide6.QtWidgets, PySide6.QtSvg, PySide6.QtQuick, PySide6.QtQuickWidgets, gi, PIL, markdown_it'], check=True)
+    repo = Path(__file__).resolve().parent
+    runtime = install(repo, args.data_home, args.bin_dir)
+    # The apps' desktop service and document reader, where lumen_office.program finds them beside their runtimes.
+    subprocess.run(['bash', str(repo/'native/build-service.sh'), str(runtime.parent/'bin/lumen-service')], check=True)
+    subprocess.run(['bash', str(repo/'native/build-document.sh'), str(runtime.parent/'bin/lumen-document')], check=True)
     for command in (['update-desktop-database', str(args.data_home/'applications')], ['kbuildsycoca6', '--noincremental']):
         if shutil.which(command[0]):
             try: subprocess.run(command, check=True, timeout=30, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

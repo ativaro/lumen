@@ -17,12 +17,13 @@ def catalogue(*, include_utilities=False):
         ('companion', 'Lumen Companion', tr('Hilfe im gewählten Fenster · Schritt für Schritt'), 'video-display'),
         ('translate', 'Lumen Compose', tr('Übersetzen, umformulieren und korrigieren'), 'preferences-desktop-locale'),
         ('wissen', tr('Lumen Notes'), tr('Deine Notizen, Sammlungen und Quellen'), 'accessories-text-editor'),
+        ('photos', 'Lumen Photos', tr('Deine Fotos, Sammlungen und Entdecken'), 'lumen-photos'),
         ('inbox', 'Lumen Inbox', tr('Nachrichten und Kalender an einem Ort'), 'mail-unread'),
         ('notification', 'Lumen Notification', tr('Meldungen, Ergebnisse und Erinnerungen'), 'notifications'),
         ('vault', 'Lumen Vault', tr('Passwörter und geschützte Einträge'), 'document-encrypt'),
         ('reader', 'Lumen Reader', tr('Lesen, markieren und vorlesen lassen'), 'application-pdf'),
         ('updater', 'Lumen Updater', tr('Lumen, Apps und Erweiterungen aktualisieren'), 'system-software-update'),
-        ('system', 'Lumen System', tr('Geräte, Sound, Arbeitsmodi, Updates und Diagnose'), 'utilities-system-monitor'),
+        ('system', 'Lumen System', tr('Geräte, Sound, Updates und Diagnose'), 'utilities-system-monitor'),
         ('meetings', tr('Lumen Audio Studio'), tr('Aufnahmen, Transkripte und dein persönliches Hörprogramm'), 'audio-input-microphone'),
         ('household', tr('Lumen Digitaler Haushalt'), tr('Dokumente und Fristen im Blick behalten'), 'view-calendar'),
         ('workbench', tr('Lumen Projekte'), tr('Projekte und ihre nächsten Schritte organisieren'), 'folder-development'),
@@ -32,7 +33,7 @@ def catalogue(*, include_utilities=False):
     return apps if include_utilities else [row for row in apps if row[0] not in ('search', 'updater', 'notification', 'companion', 'household', 'reader', 'translate')]
 
 
-COMPANIONS = ('translate', 'wissen', 'inbox', 'vault', 'reader', 'meetings', 'household', 'workbench', 'radio', 'code')
+COMPANIONS = ('translate', 'wissen', 'inbox', 'photos', 'vault', 'reader', 'meetings', 'household', 'workbench', 'radio', 'code')
 from server_app_session import APP_NAMES
 SERVER_APPS = {desktop.removeprefix('lumen-'): kind for kind, (_, desktop) in APP_NAMES.items()}
 
@@ -50,7 +51,7 @@ def launch(app, *, area=None, page=None):
         raise ValueError(tr('Unbekannter Bereich.'))
     if app == 'sound': app, page = 'system', 'sound'
     if app == 'updater': app, page = 'system', 'updates'
-    if page is not None and (app != 'system' or page not in ('system', 'sound', 'modes', 'server', 'updates', 'diagnostics', 'backups')):
+    if page is not None and (app != 'system' or page not in ('system', 'sound', 'server', 'updates', 'diagnostics')):
         raise ValueError(tr('Unbekannter Systembereich.'))
     folder = Path(__file__).resolve().parent
     if app == 'notification':

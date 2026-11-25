@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 from PySide6.QtCore import QPoint, QSettings, Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QAbstractButton, QMenu, QToolButton, QWidget
+from PySide6.QtWidgets import QAbstractButton, QApplication, QMenu, QToolButton, QWidget
 from app import Window, create_app
 from file_action_menu import ActionMenu, ActionSearch, entries
 from file_spaces import SHELF
@@ -16,7 +16,7 @@ from lumen_i18n import tr,language
 class FileActionMenuTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.app = create_app()
+        cls.app = QApplication.instance() or create_app()
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -41,7 +41,7 @@ class FileActionMenuTest(unittest.TestCase):
             tr('Ausschneiden'), tr('Papierkorb'), tr('Pfad kopieren'), tr('In Ordner kopieren …'),
             tr('Zur Sammelfläche hinzufügen'), tr('Enthaltenden Ordner öffnen'), tr('In neuem Tab öffnen'),
             tr('Mit Lumen Drive synchronisieren …'), tr('Ordnergröße berechnen'), tr('Speicher analysieren'),
-            tr('Verwendet in …'), tr('Lesefortschritt und Sicherungen …'), tr('Versionen in Lumen Vault …'),
+            tr('Verwendet in …'), tr('Lesefortschritt …'),
             tr('Besprechen'), tr('Erklären'), tr('Fehler beheben'), tr('Git-Diff prüfen'),
             tr('Intelligent umbenennen …'), tr('Dateien sortieren …'), tr('Hier einfügen'), tr('Neuer Ordner'),
             tr('Letzte Lumen-Dateiaktion rückgängig …')}
@@ -50,7 +50,7 @@ class FileActionMenuTest(unittest.TestCase):
         self.assertLessEqual(sum(not a.isSeparator() and a.text() != '' for a in menu.actions()), 8)
         dialog = ActionSearch(menu)
         dialog.search.setText('back version' if language()=='en' else 'sichern version')
-        self.assertEqual(dialog.results.count(), 2)
+        self.assertEqual(dialog.results.count(), 1)
         dialog.search.setText('absolutely missing')
         self.assertEqual(dialog.results.count(), 0)
         dialog.search.returnPressed.emit()
@@ -74,6 +74,29 @@ class FileActionMenuTest(unittest.TestCase):
         self.assertEqual(self.names(background), {tr('Hier einfügen'), tr('Neuer Ordner'), tr('Letzte Lumen-Dateiaktion rückgängig …')})
         self.window.current_location=str(self.root)
         self.assertIn(tr('Eigenschaften …'),self.names(self.window.build_context_menu([])))
+
+    def test_open_with_is_lazy_keeps_preview_and_fetches_drive_only_after_selection(self):
+        from unittest.mock import Mock
+        pdf=self.root/'Document.pdf';pdf.touch()
+        chosen=Mock();chosen.get_id.return_value='fixture.desktop';chosen.get_display_name.return_value='Viewer'
+        with patch('file_open_with.applications',return_value=([chosen],'fixture.desktop')) as catalog, \
+             patch('file_open_with.launch') as launch:
+            menu=self.window.build_context_menu([str(pdf)])
+            catalog.assert_not_called()
+            submenu=next(a.menu() for a in menu.actions() if a.text()==tr('Öffnen mit'))
+            submenu.aboutToShow.emit();submenu.actions()[0].trigger()
+            launch.assert_called_once_with(chosen,(str(pdf),),('application/pdf',),make_default=False)
+            self.assertIn(tr('Große Vorschau'),self.names(menu))
+            self.assertIn(tr('Andere App …'),self.names(menu))
+            drive='lumen-drive://file/00000000-0000-0000-0000-000000000001'
+            self.window.drive.entries[drive]=('file',dict(name='Document.pdf',can_write=False))
+            with patch.object(self.window.drive,'fetch') as fetch:
+                menu=self.window.build_context_menu([drive]);fetch.assert_not_called()
+                submenu=next(a.menu() for a in menu.actions() if a.text()==tr('Öffnen mit'))
+                submenu.aboutToShow.emit();fetch.assert_not_called();submenu.actions()[0].trigger()
+                fetch.assert_called_once();self.assertEqual(fetch.call_args.args[0],[drive])
+                fetch.call_args.args[1]([str(pdf)])
+                self.assertEqual(launch.call_count,2)
 
     def test_quick_click_and_keyboard_invoke_existing_callback_once(self):
         calls = []

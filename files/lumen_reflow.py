@@ -5,12 +5,28 @@ import re
 from urllib.parse import unquote,urlsplit
 import xml.etree.ElementTree as ET
 import zipfile
-from PySide6.QtCore import QByteArray,QRectF,QSizeF,QUrl
-from PySide6.QtGui import QFont,QImage,QPainter,QTextDocument
-from lumen_pdf import PDFError,integer
-from lumen_pdf_page import gui
+import os
+from PySide6.QtCore import QBuffer,QByteArray,QIODevice,QRectF,QSizeF,QUrl
+from PySide6.QtGui import QFont,QGuiApplication,QImage,QPainter,QTextDocument
+from lumen_office import PDFError
 
 WIDTH,HEIGHT=600,850
+_gui=None
+
+
+def gui():
+    """Text layout needs a Qt application; a worker without one gets an offscreen one."""
+    from PySide6.QtWidgets import QApplication
+    global _gui
+    if QGuiApplication.instance() is None:
+        os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
+        _gui=QApplication(['lumen-reader'])
+
+
+def png(image):
+    buffer=QBuffer();buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+    if not image.save(buffer,'PNG'):raise PDFError('PDF-Vorschaubild konnte nicht gespeichert werden.')
+    return bytes(buffer.data())
 
 
 def validate_epub(path):
@@ -91,6 +107,11 @@ class ReflowBook:
                                     if target in starts:self.outline.append([max(1,level),label.text or '',starts[target]+1])
                             walk(child,level+1 if child.tag.endswith(('navMap','navPoint')) else level)
                     walk(ncx)
+            elif path.suffix.lower() in ('.docx','.docm','.xlsx','.xlsm','.pptx','.pptm','.odt','.ods','.odp'):
+                import lumen_office
+                # The document core has checked the archive; it is opened here only to hand its pictures to the layout.
+                self.metadata['title'],parts=lumen_office.read(path);self.archive=zipfile.ZipFile(path)
+                for part in parts:self._add(part,'office',rich=True)
             else:
                 text=path.read_text(encoding='utf-8-sig',errors='replace')
                 if len(text)>2*1024**2: raise PDFError('Textdokument größer als 2 MiB.')
@@ -108,15 +129,23 @@ class ReflowBook:
         elif rich:doc.setHtml(text)
         else:doc.setPlainText(text)
         count=doc.pageCount()
-        if doc.resource_error:raise PDFError('EPUB-Bild konnte nicht geladen werden: '+str(doc.resource_error))
+        if doc.resource_error and name!='office':raise PDFError('EPUB-Bild konnte nicht geladen werden: '+str(doc.resource_error))
         if not 1<=count<=10000 or len(self.pages)+count>10000:raise PDFError('Zu viele EPUB-/Textseiten.')
+        if name=='office':
+            # Office files carry no page targets; the headings become the contents, each with the page it landed on.
+            block=doc.begin()
+            while block.isValid() and len(self.outline)<2000:
+                level=block.blockFormat().headingLevel()
+                if level and block.text().strip():self.outline.append([level,block.text().strip()[:200],len(self.pages)+int(block.layout().position().y()//HEIGHT)+1])
+                block=block.next()
         self.documents.append(doc);self.pages.extend((doc,i) for i in range(count))
         if not self.metadata['title']:self.metadata['title']=doc.metaInformation(QTextDocument.MetaInformation.DocumentTitle)
 
     def toc(self):return self.outline
 
     def page(self,index):
-        integer(index,0,len(self.pages)-1);doc,number=self.pages[index];return ReflowPage(doc,number)
+        if type(index) is not int or not 0<=index<len(self.pages):raise PDFError('Ungültige PDF-Ganzzahl oder überschrittenes Limit.')
+        doc,number=self.pages[index];return ReflowPage(doc,number)
     def __len__(self):return len(self.pages)
     def close(self):
         if self.archive:self.archive.close();self.archive=None
@@ -135,7 +164,7 @@ class ReflowPage:
                 line=layout.lineAt(i);top=position.y()+line.y()
                 if page_top<=top<page_top+HEIGHT:
                     text=blocktext[line.textStart()*2:(line.textStart()+line.textLength())*2].decode('utf-16-le')
-                    for match in re.finditer(r'\S+',text):
+                    for match in re.finditer(r'[^\s\ufffc]+',text):  # U+FFFC stands for an embedded picture, not a word
                         start=line.textStart()+len(text[:match.start()].encode('utf-16-le'))//2;end=line.textStart()+len(text[:match.end()].encode('utf-16-le'))//2
                         left=line.cursorToX(start)[0]+position.x();right=line.cursorToX(end)[0]+position.x()
                         self.words.append([min(left,right),top-page_top,max(left,right),top-page_top+line.height(),match[0],block.blockNumber(),line_number])

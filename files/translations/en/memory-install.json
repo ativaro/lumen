@@ -5,6 +5,7 @@
   "Vorhandene Suchumgebung ist nicht verwaltet. Bitte ein neues Installationsverzeichnis wählen.": "The existing search environment is unmanaged. Please choose a new installation directory.",
   "Getrennte Suchumgebung einrichten …": "Setting up isolated search environment …",
   "Bedeutungsmodell herunterladen …": "Downloading semantic search model …",
+  "Suchlaufzeit herunterladen …": "Downloading search runtime …",
   "Die Prüfsumme des Suchmodells stimmt nicht.": "The search model checksum does not match.",
   "Bedeutungssuche lokal prüfen …": "Verifying local semantic search …",
   "Bedeutungssuche eingerichtet. Gedächtnisfreigaben bleiben unverändert.": "Semantic search is ready. Memory permissions are unchanged.",

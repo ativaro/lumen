@@ -42,6 +42,7 @@ Ein Ordnerpfad oder eine Netzwerkadresse kann als Argument übergeben werden. Au
 - **Strg+F:** aktueller Ordner einschließlich Unterordner durchsuchen. Alle eingegebenen Wörter müssen im Dateinamen vorkommen, Großschreibung ist egal. Treffer erscheinen laufend; **Esc** beendet die Suche. Typfilter begrenzen die Anzeige.
 - **Rechtes Symbol im Suchfeld / Strg+Umschalt+F:** Text-, Code- und PDF-Inhalte im aktuellen Ordner einschließlich Unterordnern durchsuchen; Treffer zeigen echte Textstellen und eine Vorschau.
 - **Einmal auswählen:** Vorschauleiste. **Leertaste:** große Vorschau. Bilder, SVG, blätterbare PDFs, Text/Code, Video-Standbilder und Audio-Wellenformen. Medienwiedergabe über die Standard-App.
+- **Rechtsklick → Öffnen mit:** passende installierte Apps direkt auswählen oder unter **Andere App …** alle dateifähigen Apps durchsuchen. **Immer für diesen Dateityp verwenden** ändert nur auf ausdrückliche Auswahl den Systemstandard für diesen Typ. Lumens interne Vorschau bleibt erhalten. Bei Drive wird erst nach der App-Auswahl eine lokale Kopie geladen; Änderungen werden nicht automatisch hochgeladen. Bei gemischten oder unbekannten Dateitypen wird kein gemeinsamer Systemstandard gesetzt.
 - **Strg+L:** Pfad eingeben. **Alt+Links/Rechts/Hoch:** Verlauf / übergeordneter Ordner. Die seitlichen **Vor-/Zurück-Tasten der Maus** navigieren ebenfalls im Verlauf, unabhängig davon, über welchem Fensterbereich die Maus steht. Als Browser-Tasten gemeldete Signale werden ebenfalls unterstützt. In der Bildgalerie wechseln sie das Bild. **Strg+T / Strg+W:** Tab öffnen / schließen. **Strg+Tab:** nächster Tab.
 - **Strg+C / X / V:** kopieren / ausschneiden / einfügen. **F2:** umbenennen. **Strg+Umschalt+N:** Ordner erstellen. **Entf:** nach Bestätigung in den Systempapierkorb verschieben.
 - **Langsamer zweiter Klick auf den ausgewählten Dateinamen:** direkt in Liste oder Bildraster umbenennen; die Erweiterung bleibt zunächst unmarkiert. **Enter** bestätigt, **Esc** verwirft. Ein schneller Doppelklick öffnet weiterhin die Datei.
@@ -474,18 +475,17 @@ Files-Starter löschen und danach den gesamten gemeinsamen Lumen-Datenordner
 entfernen: Er enthält weitere Apps und möglicherweise Benutzerdaten. Eigene
 Bibliotheken, Einstellungen und Sicherungen vor einer Datenbereinigung prüfen.
 
-## Projekte, Arbeitsmodi und Transferverlauf
+## Übertragungen und Verlauf
 
-**Lumen Projekte** öffnet die gemeinsame Server-App. Es ist keine globale
-Arbeitsraumauswahl und stellt keine gespeicherte Sitzung aller Desktopfenster her.
-Die alten lokalen Room-/Workbench-Oberflächen sind entfernt. Historische
-Speicherschlüssel bleiben für Daten- und Referenzkompatibilität erhalten, ohne
-einen zweiten Projekt-Runner zu aktivieren. [Aktueller Projektweg](../PROJECTS.md).
+Das Menü öffnet **Lumen Projekte** sowie **Verlauf & Rückgängig**. Projekte fassen
+Materialien, Gespräche und Aufgaben zusammen.
 
-Arbeitsmodi für Audio, Benachrichtigungen und lokale Einstellungen bleiben in
-Lumen System. Transferverlauf und Wiederaufnahme unterbrochener Kopien sind
-lokale Files-Funktionen. Vorhandene Ziele werden nicht blind überschrieben;
-Rücknahme prüft den aufgezeichneten Zustand. [Dranbleiben](../docs/transfer-followup.md).
+Transfers und der geprüfte Änderungsverlauf sind mit der Lumen-App geteilt. Downloads werden
+in Lumen gestartet; fremde Browser-Downloads sind nicht eingebunden. Bei Kopien und
+Verschiebungen werden nach einem Fehler verbleibende Einträge erneut versucht.
+Vorhandene Ziele werden nie überschrieben. Native Dateiaktionen lassen sich nur
+zurücknehmen, solange der aufgezeichnete Zustand unverändert ist; Papierkorb-
+Aktionen selbst bleiben reine Verlaufseinträge.
 
 ### Desktop-Suche und Einstellungen
 
@@ -622,8 +622,7 @@ under Settings → Lumen Compose; both German and English UI use the shared them
 Files and Reader can send explicitly selected text or a PDF to local Compose.
 A supported handoff can send a result to Server Notes or Projects after review;
 this requires their connection and permissions. Old local Inbox draft/Notes
-library workflows are not a second offline app. Compose records remain local and
-can participate in the existing local backup workflow.
+library workflows are not a second offline app. Compose records remain local.
 
 PDF is an additional tab, for documents with a text layer, using the built-in Lumen
 PDF engine. Original/result page previews and new-file export preserve the
@@ -658,11 +657,12 @@ and user names, presentation, form of address, closeness, response length,
 directness, humor and initiative. The illustrative preview is local and makes no
 model call. Voice selection remains separate under Voice & Reading.
 
-The shared OpenCode backend reads the validated `personaProfile` preference at
-submission time. Changes apply from the next message in updated Lumen, Search and
-Files processes. Conversation options can override the style preset for one chat;
-identity remains global. Overrides are stored locally by session ID; new chats use
-the global profile. Recovery preserves a choice made before the first message.
+The desktop service (`lumen-service`, shared crate `native/persona`) builds the persona
+of each message from the `personaProfile` preference the view sends at submission time,
+or from the account persona of a paired server. Changes apply from the next message in
+updated Lumen, Search and Files processes. Conversation options can override the style
+preset for one chat; identity remains global. Overrides are stored locally by session ID;
+new chats use the global profile. Recovery preserves a choice made before the first message.
 
 Personality does not modify tool permissions, memory consent or model selection.
 Initiative is bounded by the user's existing task authorization. Explicit task
@@ -703,6 +703,13 @@ and (when available) the previous answer. Quality depends on the configured mode
 The application validates evidence, bounds, scope, consent and conflicting edits;
 it does not replace semantic understanding with per-language code. Existing memory
 and learning switches remain unchanged by installation.
+
+The memory itself (its notebook, records, shares, project folders, the context of a
+conversation, the learning and its private engine profile) lives in the desktop
+service `lumen-service` (`native/service/src/recall.rs` and `learning.rs`, ranking by
+the shared crate `native/memory`); `lumen_memory.py` is its binding for the views.
+Under a local-only model policy the learning checks that the model's provider is a
+confirmed loopback service before any of its credentials enters the learning profile.
 
 For recall beyond the initial bounded context, the read-only MCP capabilities
 `lumen_memory_list` and `lumen_memory_read` let the agent browse titles/summaries
@@ -827,19 +834,11 @@ cause from correlation alone. The read-only `lumen_system_snapshot` MCP tool giv
 Lumen the same measurement basis without opening the UI.
 
 
-### Vault, Sicherungen und native Zugangsdaten
+### Lumen Vault
 
-`lumen-vault` öffnet die gemeinsame Server-App. **Lumen System → Sicherungen**
-(`lumen-system --page backups` oder der kompatible Aufruf `lumen-vault --backups`)
-bleibt der lokale Weg für Restic-Sicherungen. Beide Funktionen sind getrennt.
-
-`lumen-vault --preview` ist nur eine Ansicht mit Beispieldaten. Die separat
-installierte native Vorabversion wird ausdrücklich über `lumen-vault --lab`
-geöffnet. Ihr Broker ermöglicht bestätigte Zugangsdatenaktionen; die normale
-Installation verspricht dadurch keinen zweiten regulären Offline-Tresor.
-`PRODUCTION_READY=false` und die dokumentierten Prüfgrenzen gelten weiter.
-[Bedienung und Abgrenzung](../VAULT-INBOX.md) ·
-[Native Schutzgrenzen](../native/vault-ui/README.md).
+`lumen-vault` öffnet die gemeinsame Server-App. Lokale Sicherungspläne, der
+lokale KeePass-Tresor und der lokale Zugangsdaten-Broker sind entfernt.
+[Bedienung und Abgrenzung](../VAULT-INBOX.md).
 
 ### Lumen Audio Studio
 
@@ -858,7 +857,7 @@ bleibt unabhängig davon verfügbar. [Aktuelle App-Zuständigkeiten](../docs/des
 **Lumen Drive** in der Seitenleiste verwendet dieselbe Listen-/Kachelansicht,
 Tabs, Pfadleiste und Zurück/Vor-Navigation wie andere Verzeichnisse. Die bestehende
 Serverkopplung und aktuelle Drive-Freigabe werden geprüft. Ordner öffnen;
-Suchen filtert den angezeigten Ordner. Es gibt keine globale Arbeitsraumauswahl. Kopieren/Einfügen und Drag-and-drop übertragen Dateien
+Suchen filtert den angezeigten Ordner. Kopieren/Einfügen und Drag-and-drop übertragen Dateien
 und Ordner, Ausschneiden/Einfügen verschiebt innerhalb desselben Serverbereichs.
 Umbenennen, neue Ordner und Papierkorb laufen über die bestehenden Serverrechte.
 Nicht leere Serverordner müssen vor dem Löschen geleert werden.
@@ -881,7 +880,7 @@ Notizordner-/Sync-Dialoge sind kein aktueller zweiter Bedienweg.
 
 **Eigenschaften …** im Kontextmenü oder **Alt+Enter** öffnet eine kompakte
 Infokarte. **Mehr Details** erweitert denselben Dialog um Speicheraufteilung,
-Sicherungsstatus, Verknüpfungen und bestehende Versionsansichten; noch nicht
+Verknüpfungen und bestehende Versionsansichten; noch nicht
 übernommene Eingaben bleiben erhalten. Größe, Prüfsumme und Metadaten werden
 im Hintergrund ermittelt. Ordnergrößen folgen keinen symbolischen Links;
 SHA-256 wird nur auf Wunsch berechnet und erkennt währenddessen geänderte Dateien.
@@ -891,7 +890,6 @@ Keine rekursiven Rechteänderungen, kein Überschreiben vorhandener Namen.
 Eigentümer, Gruppen, Sonderrechte und erweiterte ACLs bleiben unverändert;
 NAS-Rechte werden nur angezeigt. Drive verwendet Servermetadaten und bestehende
 Serverrechte, ohne Inhalte dafür herunterzuladen; Umbenennen ist revisionsgebunden.
-Ein passender Sicherungsplan ist ausdrücklich kein Nachweis gesicherter Inhalte.
 
 Gezielte Prüfung: `QT_QPA_PLATFORM=offscreen LUMEN_LANGUAGE=de python -m unittest
 test_file_properties` aus dem Verzeichnis `files`. Die Tests verwenden temporäre

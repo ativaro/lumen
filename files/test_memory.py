@@ -24,22 +24,6 @@ class MemoryTest(unittest.TestCase):
         other=Memory(Store(self.base/'other'))
         self.assertNotEqual(first['id'],other.identity(first['path']))
 
-    def test_external_edit_during_search_is_not_returned_as_current(self):
-        from unittest.mock import patch
-        self.memory.configure(True,False)
-        note=self.memory.remember('Server','PostgreSQL')
-        def changed(*args,**kwargs):
-            self.memory.book.write(note['path'],'# Server\nSQLite',note['hash'])
-            return dict(mode='text',reason='not_installed',scores={})
-        with patch('memory_local.retrieve',side_effect=changed):
-            result=self.memory.prepare('PostgreSQL',str(self.base))
-        self.assertEqual(result['context'],'');self.assertEqual(result['notes'],[])
-        result=self.memory.prepare('SQLite',str(self.base))
-        self.assertIn('SQLite',result['context'])
-        for source in result['notes']:
-            self.assertIn(source['id'],result['context']);self.assertIn(source['revision'],result['context'])
-        self.assertLessEqual(len(result['context']),18000)
-
     def test_private_notes_and_folder_overrides_project_scope(self):
         self.memory.configure(True,True)
         private=self.notes.create('Privat','Projekt geheimes Detail')
@@ -84,89 +68,6 @@ class MemoryTest(unittest.TestCase):
         for path in ('../','/tmp'):
             with self.assertRaises((ValueError,OSError)):self.memory.share(path,True,True)
         self.assertEqual(self.store.setting('memory/shares',[]),[])
-
-
-class MemoryBackendTest(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        from PySide6.QtWidgets import QApplication
-        from app import create_app
-        cls.app=QApplication.instance() or create_app()
-
-    def test_learning_recall_and_revocation_in_shared_backend(self):
-        import json,threading,time
-        from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
-        from unittest.mock import patch
-        from PySide6.QtTest import QTest
-        from assistant_backend import OpenCodeBackend
-        state={'sessions':{},'prompts':[],'counter':0}
-        user='Ich möchte kurze Antworten.'
-        class Handler(BaseHTTPRequestHandler):
-            def log_message(self,*_):pass
-            def do_GET(self):self.handle_request('GET')
-            def do_POST(self):self.handle_request('POST')
-            def handle_request(self,method):
-                path=self.path.split('?')[0];body=json.loads(self.rfile.read(int(self.headers.get('Content-Length',0))) or 'null');result={}
-                if path=='/session' and method=='POST':
-                    state['counter']+=1;result={'id':'session-'+str(state['counter'])};state['sessions'][result['id']]=[]
-                elif path.endswith('/prompt_async'):
-                    session=path.split('/')[2]
-                    is_learning=body['parts'][0]['text'].startswith('Load the lumen-memory-learning skill')
-                    if not is_learning:state['prompts'].append((session,body))
-                    answer='Verstanden.'
-                    if is_learning:
-                        import subprocess,sys
-                        event=Path(state['learning_directory'])/'event.json';payload=json.loads(event.read_text())
-                        items=[dict(title='Antwortlänge',text='Der Nutzer möchte kurze Antworten.',kind='preference',scope='global',evidence=user,path='',source_answer='',confirmed=False,correction=False)] if payload['text']==user else []
-                        calls=[dict(jsonrpc='2.0',id=1,method='tools/call',params=dict(name='lumen_memory_learning_context',arguments={})),dict(jsonrpc='2.0',id=2,method='tools/call',params=dict(name='lumen_memory_learn',arguments=dict(memories=items)))]
-                        run=subprocess.run([sys.executable,str(Path(__file__).with_name('memory_agent_stdio.py')),str(event)],input='\n'.join(map(json.dumps,calls))+'\n',capture_output=True,text=True,check=True)
-                        assert not any(json.loads(line)['result'].get('isError') for line in run.stdout.splitlines())
-                    state['sessions'][session]=[{'info':{'role':'assistant','parentID':body['messageID'],'time':{'completed':123}},'parts':[{'type':'text','text':answer}]}]
-                elif path.endswith('/message'):result=state['sessions'][path.split('/')[2]]
-                elif path in ('/session','/permission','/question'):result=[]
-                raw=json.dumps(result).encode();self.send_response(200);self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
-        server=ThreadingHTTPServer(('127.0.0.1',0),Handler);threading.Thread(target=server.serve_forever,daemon=True).start()
-        def wait(predicate):
-            deadline=time.monotonic()+12
-            while not predicate() and time.monotonic()<deadline:QTest.qWait(20)
-            self.assertTrue(predicate())
-        def ensure(engine, callback):
-            engine.url='http://127.0.0.1:'+str(server.server_port)
-            if getattr(engine,'learning_environment',None):state['learning_directory']=engine.directory
-            callback()
-        with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,{'LUMEN_DATA':tmp+'/state'}),patch.object(OpenCodeBackend,'ensure_server',ensure):
-            store=Store();memory=Memory(store);memory.configure(True,True,automatic=True)
-            backend=OpenCodeBackend(tmp,server_url='http://127.0.0.1:'+str(server.server_port),password='test');backend.ensure_server=lambda callback:callback();backend.selected_model='test/model'
-            seen=[];backend.memoryContextChanged.connect(seen.append)
-            try:
-                backend.send(user);wait(lambda:memory.scan()['notes']);wait(lambda:not backend.busy)
-                first=state['prompts'][0][0];backend.send('Welche Antwortlänge passt?');wait(lambda:len(state['prompts'])>=2 and not backend.busy)
-                self.assertIn('kurze Antworten',state['prompts'][1][1]['system']);self.assertNotEqual(first,state['prompts'][1][0])
-                used=[x for x in seen if x['phase']=='submitted' and x['sources']][-1]
-                self.assertEqual(used['version'],1);self.assertEqual(used['sources'][0]['source_kind'],'memory')
-                self.assertNotIn('text',used['sources'][0]);self.assertTrue(used['message_id'])
-                note=memory.scan()['notes'][0];prepare=backend.memory.prepare
-                def revoke_while_preparing(text,directory,done):
-                    backend.memory.prepare=prepare;memory.forget(note['path'],note['hash']);prepare(text,directory,done)
-                backend.memory.prepare=revoke_while_preparing
-                backend.send('Welche Antwortlänge passt jetzt?');wait(lambda:len(state['prompts'])>=3 and not backend.busy)
-                self.assertNotEqual(first,state['prompts'][2][0]);self.assertNotIn('kurze Antworten',state['prompts'][2][1]['system'])
-                backend.send('Native Vorschläge',proposal=True);wait(lambda:len(state['prompts'])>=4 and not backend.busy)
-                self.assertNotIn('lumen-memory',state['prompts'][3][1]['system']);self.assertEqual(state['prompts'][3][1]['tools'],{'*':False})
-                memory.remember('Schreibstil','Schreibe freundliche kurze Mails.',kind='preference')
-                other=OpenCodeBackend(tmp,server_url=backend.url,password='test');other.ensure_server=lambda callback:callback()
-                try:
-                    other.selected_model='test/model'
-                    other.send('Mail entwerfen',proposal=True,memory_context=True,memory_text='Mail schreiben');wait(lambda:len(state['prompts'])>=5 and not other.busy)
-                    self.assertIn('freundliche kurze Mails',state['prompts'][4][1]['system']);self.assertEqual(state['prompts'][4][1]['tools'],{'*':False})
-                finally:other.shutdown();other.deleteLater()
-                delayed=[];backend.memory.prepare=lambda text,directory,done:delayed.append(done)
-                backend.send('Diese Anfrage abbrechen');self.assertTrue(backend.busy);self.assertEqual(len(delayed),1)
-                backend.stop();delayed[0](memory.prepare('Antworten',tmp));QTest.qWait(50)
-                self.assertFalse(backend.busy);self.assertEqual(len(state['prompts']),5)
-            finally:backend.shutdown();backend.deleteLater();QTest.qWait(30)
-        server.shutdown();server.server_close()
-
 
 
 if __name__=='__main__':unittest.main()

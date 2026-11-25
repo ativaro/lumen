@@ -28,6 +28,8 @@ class Troubleshooter(QWidget):
         }
         root = QVBoxLayout(self); root.setContentsMargins(0, 0, 0, 0); root.setSpacing(14)
         root.addWidget(label(tr('Prüfe die Grundlagen von Lumen und erhalte passende nächste Schritte. Die Prüfung ändert keine Einstellungen.')))
+        independent = QPushButton(tr('Server & Offline-Hilfe öffnen')); independent.setAutoDefault(False)
+        independent.clicked.connect(lambda: self.open_independent()); root.addWidget(independent, 0, Qt.AlignLeft)
         controls = QHBoxLayout(); root.addLayout(controls)
         self.start = QPushButton(tr('Prüfung starten')); self.start.setObjectName('primary'); self.start.clicked.connect(self.run)
         self.cancel = QPushButton(tr('Abbrechen')); self.cancel.clicked.connect(self.stop); self.cancel.hide()
@@ -39,6 +41,10 @@ class Troubleshooter(QWidget):
         self.results = QVBoxLayout(); self.results.setSpacing(12); root.addLayout(self.results)
         self.timer = QTimer(self); self.timer.setSingleShot(True)
         self.timer.timeout.connect(lambda: self.stop(tr('Die Prüfung hat zu lange gedauert. Bitte erneut versuchen.')))
+
+    def open_independent(self):
+        from diagnostics_ui import show_diagnostics
+        show_diagnostics(self)
 
     def open_updater(self):
         from lumen_apps import launch

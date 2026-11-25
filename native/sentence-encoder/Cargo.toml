@@ -1,0 +1,16 @@
+[package]
+name = "lumen-sentence-encoder"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+publish = false
+license-file = "../../LICENSE"
+description = "Lumen's sentence encoder for memory search: one implementation for desktop and server"
+
+[dependencies]
+ort = { version = "=2.0.0-rc.15", default-features = false, features = ["std", "load-dynamic", "api-30"] }
+# The server locks 0.23.2, the desktop the 0.22 it has frozen in native/service/vendor.
+tokenizers = { version = ">=0.22, <0.24", default-features = false, features = ["fancy-regex"] }
+
+[lints.rust]
+unsafe_code = "forbid"

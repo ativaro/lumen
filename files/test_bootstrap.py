@@ -25,7 +25,7 @@ name=pathlib.Path(sys.argv[0]).name
 with open(os.environ['TEST_EVENTS'],'a') as log: log.write(json.dumps([name,*sys.argv[1:]])+'\\n')
 if name=='id': print(os.environ.get('TEST_UID','1000'))
 elif name=='git':
-    expected=['clone','--depth=1','--branch','main','--single-branch','https://forge.example.invalid/ativaro/lumen.git']
+    expected=['clone','--depth=1','--branch','main','--single-branch','https://github.com/ativaro/lumen.git']
     if sys.argv[1:-1]!=expected or os.environ.get('TEST_FAIL')=='download': sys.exit(1)
     shutil.copytree(os.environ['TEST_CHECKOUT'],sys.argv[-1])
 elif name=='pacman': sys.exit(0 if os.environ.get('TEST_PACKAGES')=='ready' else 127)

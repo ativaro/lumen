@@ -33,6 +33,10 @@ def entries(menu, prefix=''):
 
 class ActionResultDelegate(QStyledItemDelegate):
     """One command per row, with its category visually secondary."""
+    def __init__(self, parent=None, title_size=13, detail_size=11):
+        super().__init__(parent)
+        self.title_size, self.detail_size = title_size, detail_size
+
     def sizeHint(self, option, index):
         return QSize(0, 58)
 
@@ -52,12 +56,12 @@ class ActionResultDelegate(QStyledItemDelegate):
                        Qt.AlignCenter, QIcon.Normal if enabled else QIcon.Disabled)
         text_rect = rect.adjusted(42, 7, -12, -6)
         font = QFont(option.font)
-        font.setPixelSize(13)
+        font.setPixelSize(self.title_size)
         painter.setFont(font)
         painter.setPen(option.palette.color(QPalette.Text if enabled else QPalette.PlaceholderText))
         painter.drawText(text_rect, Qt.AlignTop | Qt.AlignLeft,
                          QFontMetrics(font).elidedText(title, Qt.ElideRight, text_rect.width()))
-        font.setPixelSize(11)
+        font.setPixelSize(self.detail_size)
         painter.setFont(font)
         painter.setPen(option.palette.color(QPalette.PlaceholderText))
         painter.drawText(text_rect, Qt.AlignBottom | Qt.AlignLeft,
@@ -322,6 +326,9 @@ def build_file_menu(self, paths):
     menu.quick(tr('Umbenennen'), 'edit-rename', self.rename, 'F2', enabled=writable and (not drive or len(paths)==1))
     menu.quick(tr('Papierkorb'), 'user-trash', self.trash, tr('Entf'), enabled=writable)
     menu.addAction(QIcon.fromTheme('document-open'), tr('Öffnen'), self.open_selected)
+    if not directory:
+        from file_open_with import add_to_menu
+        add_to_menu(self, menu, paths, drive=drive)
     if len(paths) == 1:
         preview_action = menu.addAction(QIcon.fromTheme('view-preview'), tr('Große Vorschau'), self.quicklook)
         preview_action.setToolTip(tr('Große Vorschau\tLeertaste').replace('\t', ' · '))

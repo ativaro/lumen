@@ -68,9 +68,14 @@ def tr(source, *args, **values):
         return source.format(*args, **values)
 
 
+# ONNX Runtime (Piper and Qwen speech) otherwise writes a device identifier and an upload queue to
+# ~/.cache/Microsoft/DeveloperTools/.onnxruntime, even with telemetry switched off in code.
+NO_TELEMETRY = {'ORT_DISABLE_TELEMETRY': '1'}
+
+
 def worker_environment(**values):
     """Keep job output in its window's language without changing the global env."""
-    return dict(os.environ, LUMEN_LANGUAGE=language(), **values)
+    return dict(os.environ, LUMEN_LANGUAGE=language(), **NO_TELEMETRY, **values)
 
 
 def worker_process(parent):
@@ -78,6 +83,8 @@ def worker_process(parent):
     process = QProcess(parent)
     environment = QProcessEnvironment.systemEnvironment()
     environment.insert('LUMEN_LANGUAGE', language())
+    for name, value in NO_TELEMETRY.items():
+        environment.insert(name, value)
     process.setProcessEnvironment(environment)
     return process
 

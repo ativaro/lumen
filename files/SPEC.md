@@ -77,7 +77,7 @@ Python, vier Leerzeichen, kleine direkte Funktionen: `def valid_name(name): ...`
 - Sichtbarer Arbeitsordner und alle ausgewählten Pfade; native Antworten, Abbruch, Freigaben und Rückfragen.
 - „Lesen & prüfen“ nutzt den Plan-Agenten, „Aufgaben erledigen“ den Build-Agenten.
 - Bestehende OpenCode-Konfiguration und globale Anweisungen bleiben erhalten; keine Terminal-Fenster oder gemeinsamen temporären Chatdateien.
-- Gemeinsame Implementierung: `assistant.py` und `assistant_backend.py`; API-/Formulartest in `test_assistant.py`.
+- Gemeinsame Implementierung: `assistant.py` und die Anbindung `assistant_backend.py`; Engine, Modellwahl und Turns im Dienst `lumen-service` (`native/service`); API-/Formulartest in `test_assistant.py`.
 
 - „Erklären“, „Fehler beheben“ und „Änderungen prüfen“ wirken als Dateiaktionen:
   Titel, Auswahl, Fortschritt und Ergebnis statt eines vorbereiteten Chat-Auftrags.

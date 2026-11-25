@@ -8,7 +8,7 @@ from tools_ui import button,row,label
 from notes_properties import for_note
 from notes_properties_ui import PropertiesDialog
 import notes_views
-import wissen_data as data
+import notes_query as data
 
 
 class Model(QAbstractTableModel):

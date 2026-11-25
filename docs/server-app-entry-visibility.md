@@ -14,3 +14,11 @@ operations still validate authorization independently; visibility is no grant.
 Admin and project skills use the server catalogue and exact schemas. The admin
 skill describes `lumen_app_diagnose`, its metadata-only results, and the limits
 of configuration/assignment checks. Native credential operations remain local.
+
+Photos uses the same private Server window as Notes and Inbox, with the `photos`
+grant. Its gallery, albums, image tools and imports remain Server features;
+Desktop provides the launcher, theme, reviewed file picker and downloads.
+Folder/source selectors require the existing `drive` grant, background jobs
+require `tasks`, and copies into Notes or Projects require their respective
+additional grants. A new Photos window can read authorized photo results but
+cannot adopt another producing session's request key.

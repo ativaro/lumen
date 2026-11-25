@@ -75,7 +75,12 @@ body="${body%; }"
     echo
     printf '%b' "$detail"
 } > "$FINDINGS.tmp"
-mv "$FINDINGS.tmp" "$FINDINGS"
+# Keep the first observation time until the facts change; heartbeat still records every check.
+if [ -f "$FINDINGS" ] && cmp -s <(tail -n +2 "$FINDINGS") <(tail -n +2 "$FINDINGS.tmp"); then
+    rm -f "$FINDINGS.tmp"
+else
+    mv "$FINDINGS.tmp" "$FINDINGS"
+fi
 chmod 0644 "$FINDINGS"
 echo "$NOW $signature" > "$HEARTBEAT"
 

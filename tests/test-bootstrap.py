@@ -15,7 +15,7 @@ class BootstrapTest(unittest.TestCase):
         source, tools, modules = (root / name for name in ('source', 'bin', 'modules'))
         for folder in (source, tools, modules): folder.mkdir()
         shutil.copyfile(Path(__file__).resolve().parents[1] / 'bootstrap.sh', source / 'bootstrap.sh')
-        # The previous bootstrap dependencies exist; only the new Notes modules are absent.
+        # The previous bootstrap dependencies exist; only the Notes' Markdown module is absent.
         qt = modules / 'PySide6'; qt.mkdir(); (qt / '__init__.py').touch()
         for name in ('QtWidgets', 'QtSvg', 'QtQuick', 'QtQuickWidgets', 'QtDBus'):
             (qt / (name + '.py')).touch()
@@ -27,7 +27,7 @@ class BootstrapTest(unittest.TestCase):
         command('pacman', '''printf 'pacman %s\\n' "$*" >> "$TEST_TRACE"
 if [ "$1" = -T ]; then
     for package in "$@"; do
-        case "$package" in python-yaml|python-markdown-it-py) exit 127;; esac
+        case "$package" in python-markdown-it-py) exit 127;; esac
     done
     exit 0
 fi
@@ -57,18 +57,16 @@ chmod +x "$PREFIX/bin/lumen-setup-wizard"
         return result, (root / 'trace').read_text()
 
     def test_missing_notes_modules_install_before_real_import_check(self):
-        result, trace = self.run_bootstrap('yaml markdown_it')
+        result, trace = self.run_bootstrap('markdown_it')
         self.assertEqual(result.returncode, 0, result.stderr)
         commands = trace.splitlines()
-        self.assertIn('python-yaml', commands[0])
         self.assertIn('python-markdown-it-py', commands[0])
         self.assertTrue(commands[1].startswith('sudo pacman -S --needed --noconfirm -- '))
-        self.assertIn('python-yaml', commands[1])
         self.assertIn('python-markdown-it-py', commands[1])
         self.assertEqual(commands[2:], ['install', 'wizard'])
 
     def test_unavailable_modules_stop_before_installer_and_wizard(self):
-        for available in ('', 'yaml', 'markdown_it'):
+        for available in ('',):
             with self.subTest(available=available):
                 result, trace = self.run_bootstrap(available)
                 self.assertNotEqual(result.returncode, 0)

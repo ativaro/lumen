@@ -15,7 +15,7 @@ import file_properties_data as data
 
 class PropertiesTest(unittest.TestCase):
     @classmethod
-    def setUpClass(cls):cls.app=create_app()
+    def setUpClass(cls):cls.app=QCoreApplication.instance() or create_app()
 
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name)
@@ -85,13 +85,13 @@ class PropertiesTest(unittest.TestCase):
         self.job.cancelled.set()
         with self.assertRaises(Exception):data.folder_totals([str(self.root)],self.job)
 
-    def test_drive_properties_show_server_role_and_checksum_without_download(self):
+    def test_drive_properties_show_server_access_and_checksum_without_download(self):
         address='lumen-drive://00000000-0000-0000-0000-000000000001/file/00000000-0000-0000-0000-000000000002/test.txt'
         self.w.drive.entries[address]=('file',dict(id='v',name='test.txt',size=5,sha256='abcdef',revision=7,mime='text/plain'))
         self.w.drive.config={'server':'https://example.invalid','token':'test'}
         d=Properties(self.w,[address]);d.show();self.addCleanup(lambda:d.reject() if isValid(d) else None);self.wait(lambda:d.fact is not None)
         self.assertTrue(d.name.isReadOnly());self.assertFalse(d.hash_button.isEnabled());self.assertFalse(d.permissions_widget.isVisible())
-        self.assertEqual(d.hash_value.text(),'abcdef');self.assertIn('reader',d.details.toPlainText())
+        self.assertEqual(d.hash_value.text(),'abcdef');self.assertIn('Nur lesen',d.details.toPlainText())
         self.assertFalse(d.apply.isEnabled())
 
     def test_close_during_background_work_cleans_up_worker(self):
@@ -105,9 +105,9 @@ class PropertiesTest(unittest.TestCase):
 
     def test_drive_rename_uses_revision_and_retains_current_connection(self):
         address='lumen-drive://space/file/file-id/test.txt'
-        self.w.drive.entries[address]=('file',dict(id='file-id',folder_id=None,name='test.txt',size=5,revision=7))
+        self.w.drive.entries[address]=('file',dict(id='file-id',folder_id=None,name='test.txt',size=5,revision=7,can_write=True))
         config={'server':'https://example.invalid','token':'test'}
-        self.w.drive.config=config;self.w.drive.space='space';self.w.drive.spaces=[dict(id='space',role='editor')]
+        self.w.drive.config=config;self.w.drive.profile={'can_create':True}
         d=Properties(self.w,[address]);d.show();self.addCleanup(lambda:d.reject() if isValid(d) else None);self.wait(lambda:d.fact is not None)
         with patch('lumen_connect.read_config',return_value=config), patch('drive_sync.request',return_value={'name':'new.txt','revision':8}) as request, patch.object(self.w,'refresh'):
             d.name.setText('new.txt');d.save();self.wait(lambda:d.job is None)

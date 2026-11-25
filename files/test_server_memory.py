@@ -5,58 +5,26 @@ import sqlite3
 import tempfile
 import unittest
 from unittest.mock import patch
-from lumen_store import Store
-from lumen_memory import Memory, stamp
 import lumen_connect as client
 
 
-class SharedMemoryTest(unittest.TestCase):
-    def test_paired_context_uses_live_account_and_honors_device_opt_outs(self):
-        with tempfile.TemporaryDirectory() as temp:
-            root=Path(temp); config=root/'connection.json'
-            settings={'server':'https://lumen.example.test','token':'synthetic'}
-            config.write_text(json.dumps(settings))
-            identity='d8ea07d2-786c-49a5-967b-75d50dab58c7'
-            with closing(sqlite3.connect(root/'memory.sqlite3')) as db, db:
-                db.execute('CREATE TABLE memories(id TEXT PRIMARY KEY,title TEXT,body TEXT,revision INT,source TEXT)')
-                db.execute('CREATE TABLE memory_owner(scope TEXT NOT NULL)')
-                db.execute('INSERT INTO memory_owner VALUES (?)',(client.connection_scope(settings),))
-                db.executemany('INSERT INTO memories VALUES (?,?,?,?,?)',[
-                    (identity,'日本語','Stale cached copy',1,'https://lumen.example.test'),
-                    ('other','Foreign','Must not leak',1,'https://other.example.test')])
-            def request(_config,path,*args,**kwargs):
-                if path=='/bridge/me':
-                    return dict(capabilities=['memory'],sync_features=['memory_context_v1'])
-                if path=='/bridge/memories/context/validate':
-                    return dict(valid=True)
-                if path.startswith('/bridge/memories/context?q='):
-                    items=[dict(id=identity,title='日本語',text='Server preference',revision=1)] if 'Server%20preference' in path else []
-                    return dict(items=items,stamp='1'*64)
-                raise AssertionError(path)
-            with patch.object(client,'ROOT',root),patch.object(client,'CONFIG',config),patch.object(client,'request',side_effect=request):
-                store=Store(root/'state');memory=Memory(store);memory.configure(True,False)
-                personal=memory.remember('Local','Personal note')
-                before=stamp(store)
-                context=memory.prepare('Server preference',str(root))['context']
-                self.assertIn('Server preference',context);self.assertNotIn('Must not leak',context)
-                self.assertNotIn('Stale cached copy',context)
-                self.assertNotIn('Server preference',memory.prepare('unrelated-ZYX',str(root))['context'])
-                self.assertEqual(len(memory.scan()['notes']),1)
-                store.set_setting('memory/server_hidden',[settings['server']+'#'+identity])
-                self.assertNotIn('Server preference',memory.prepare('Server preference',str(root))['context'])
-                store.set_setting('memory/server_hidden',[])
-                store.set_setting('memory/tombstones',{identity:dict(revision='local-forget')})
-                self.assertNotIn('Server preference',memory.prepare('Server preference',str(root))['context'])
-                config.unlink()
-                self.assertNotEqual(before,stamp(store));self.assertEqual(client.shared_memories(),[])
-                self.assertEqual(memory.book.read(personal['path'])['title'],'Local')
+def mirrored(root):
+    """The mirror rows of the current pairing the memory's stamp covers (native/service/src/recall.rs)."""
+    try:
+        config = client.read_config(); scope = client.connection_scope(config)
+        with closing(sqlite3.connect(root/'memory.sqlite3')) as db:
+            if db.execute('SELECT scope FROM memory_owner').fetchone() != (scope,): return []
+            return [dict(zip(('id', 'title', 'body', 'revision', 'source'), row)) for row in db.execute(
+                'SELECT id,title,body,revision,source FROM memories WHERE source=? ORDER BY id LIMIT 500', (config['server'],))]
+    except (OSError, ValueError, KeyError, sqlite3.Error):
+        return []
 
 
 class SyncCommitTest(unittest.TestCase):
     def test_snapshot_changes_and_replays_do_not_replace_newer_memory(self):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp)
-            config={'server':'https://lumen.example.test','token':'synthetic'}
+            config={'server':'https://lumen.example.test','device_id':'a5c704e4-c826-479b-bcde-41b2c8dc8efb','token':'synthetic'}
             def snapshot(version,text='Confirmed'):
                 return dict(memory_version=version,memory_cursor=None,capabilities=["memory"],
                             memories=[dict(id='one',title='A',body=text,revision=1)],tasks=[],notifications=[])
@@ -89,8 +57,9 @@ class SyncCommitTest(unittest.TestCase):
         from urllib.error import HTTPError
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp)
-            old=dict(server='https://same.example.test',device_id='old-device',token='synthetic-old')
-            new=dict(old,device_id='new-device',token='synthetic-new')
+            # Pairings the service reads: device IDs as the server issues them.
+            old=dict(server='https://same.example.test',device_id='0ad1d3a8-0000-4000-8000-000000000001',token='synthetic-old')
+            new=dict(old,device_id='0ad1d3a8-0000-4000-8000-000000000002',token='synthetic-new')
             def snapshot(text,version):
                 return dict(memory_version=version,capabilities=['memory'],
                             memories=[dict(id='same-id',title='A',body=text,revision=1)],tasks=[],notifications=[])
@@ -98,12 +67,12 @@ class SyncCommitTest(unittest.TestCase):
                 client.save_private(client.CONFIG,json.dumps(old))
                 with patch.object(client,'request',return_value=snapshot('Old account','90:2')):
                     client.synchronize(old)
-                self.assertEqual(client.shared_memories()[0]['body'],'Old account')
+                self.assertEqual(mirrored(root)[0]['body'],'Old account')
                 client.save_private(client.CONFIG,json.dumps(new))
-                self.assertEqual(client.shared_memories(),[])
+                self.assertEqual(mirrored(root),[])
                 with patch.object(client,'request',return_value=snapshot('New account','1:1')):
                     client.synchronize(new)
-                self.assertEqual(client.shared_memories()[0]['body'],'New account')
+                self.assertEqual(mirrored(root)[0]['body'],'New account')
                 with self.assertRaises(ValueError):client.synchronize(old)
                 # A request already in flight when the user pairs another account.
                 for rejected in (False,True):
@@ -115,15 +84,15 @@ class SyncCommitTest(unittest.TestCase):
                     with patch.object(client,'request',side_effect=late_response):
                         with self.assertRaises((ValueError,HTTPError)) as error:client.synchronize(old)
                         if isinstance(error.exception,HTTPError):error.exception.close()
-                    self.assertEqual(client.shared_memories()[0]['body'],'New account')
+                    self.assertEqual(mirrored(root)[0]['body'],'New account')
                     self.assertEqual(client.read_config(),new)
                 # Legacy unbound caches require a fresh authenticated sync.
                 with closing(sqlite3.connect(root/'memory.sqlite3')) as db,db:
                     db.execute('DROP TABLE memory_owner')
-                self.assertEqual(client.shared_memories(),[])
+                self.assertEqual(mirrored(root),[])
                 with patch.object(client,'request',return_value=snapshot('New account','2:1')):
                     client.synchronize(new)
-                self.assertEqual(client.shared_memories()[0]['body'],'New account')
+                self.assertEqual(mirrored(root)[0]['body'],'New account')
                 raw=(root/'memory.sqlite3').read_bytes()
                 self.assertNotIn(old['token'].encode(),raw);self.assertNotIn(new['token'].encode(),raw)
 

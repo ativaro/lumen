@@ -15,11 +15,10 @@ def transfer_snapshot(directory, now=None):
     path = Path(directory) / 'lumen.sqlite3'
     now = time.time() if now is None else now
     if not path.is_file(): return None
-    # Existing transfer keys are a storage compatibility boundary, not a workspace model.
     with sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True, timeout=.1) as db:
         rows = db.execute("""SELECT json_extract(value,'$.id'),json_extract(value,'$.action'),
             json_extract(value,'$.status'),json_extract(value,'$.updated'),json_extract(value,'$.bytes'),json_extract(value,'$.total')
-            FROM settings WHERE key >= 'workplace/transfer/' AND key < 'workplace/transfer0' AND json_valid(value)""")
+            FROM settings WHERE key >= 'transfer/' AND key < 'transfer0' AND json_valid(value)""")
         active = []
         for row in rows:
             value = dict(zip(('id','action','status','updated','bytes','total'),row))

@@ -16,66 +16,17 @@ class SetupTest(unittest.TestCase):
         with patch.object(setup,'executable',side_effect=AssertionError('PDF must not probe optional tools')):
             self.assertEqual(setup.missing_packages(['reader','workshop','translate_pdf','documents']),[])
 
-    def test_managed_engine_keeps_compatible_databases_and_isolates_foreign_schema(self):
-        import sqlite3
-        from assistant_backend import managed_opencode, opencode_database
-        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'XDG_DATA_HOME': tmp}):
-            binary = str(managed_opencode())
-            data = Path(tmp)/'opencode'; data.mkdir()
-            private = data/'lumen-v1.db'
-            self.assertEqual(opencode_database(binary, ''), '')
-            self.assertFalse((data/'opencode.db').exists())
-            for configured in ('', 'opencode2.db', str(Path(tmp)/'custom.db')):
-                with self.subTest(configured=configured):
-                    shared = data/(configured or 'opencode.db')
-                    with closing(sqlite3.connect(shared)) as db, db:
-                        db.execute('CREATE TABLE foreign_session (id TEXT)')
-                        db.execute("INSERT INTO foreign_session VALUES ('preserve-me')")
-                    before = shared.read_bytes()
-                    self.assertEqual(opencode_database(binary, configured), str(private))
-                    self.assertEqual(shared.read_bytes(), before)
-                    self.assertFalse(private.exists())  # Only OpenCode initializes its own schema.
-                    with closing(sqlite3.connect(shared)) as db, db:
-                        db.execute('CREATE TABLE session (id TEXT)')
-                    self.assertEqual(opencode_database(binary, configured), configured)
-                    self.assertEqual(opencode_database('/custom/opencode', configured), configured)
-            private.touch()
-            # Once created, reopening Lumen must keep its isolated conversations.
-            self.assertEqual(opencode_database(binary, ''), str(private))
-            self.assertEqual(opencode_database(binary, ':memory:'), ':memory:')
-            self.assertEqual(opencode_database('/custom/opencode', ''), '')
-
-    def test_database_inspection_does_not_reset_empty_corrupt_or_locked_databases(self):
-        import sqlite3
-        from assistant_backend import managed_opencode, opencode_database
-        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'XDG_DATA_HOME': tmp}):
-            binary = str(managed_opencode())
-            data = Path(tmp)/'opencode'; data.mkdir()
-            database = data/'opencode.db'
-            database.touch()
-            self.assertEqual(opencode_database(binary, ''), '')
-            database.write_bytes(b'not a database')
-            self.assertEqual(opencode_database(binary, ''), '')
-            self.assertEqual(database.read_bytes(), b'not a database')
-            database.unlink()
-            with closing(sqlite3.connect(database)) as db, db:
-                db.execute('CREATE TABLE foreign_session (id TEXT)'); db.commit()
-                db.execute('BEGIN EXCLUSIVE')
-                started = time.monotonic()
-                self.assertEqual(opencode_database(binary, ''), '')
-                self.assertLess(time.monotonic()-started, 1)
-            # A committed session table can still be in the WAL of another process.
-            with closing(sqlite3.connect(database)) as db, db:
-                db.execute('PRAGMA journal_mode=WAL')
-                db.execute('CREATE TABLE session (id TEXT)'); db.commit()
-                self.assertEqual(opencode_database(binary, ''), '')
+    # The engine database choice is the service's (native/service/src/engine.rs:
+    # the_managed_engine_keeps_away_from_a_foreign_database_without_changing_it).
 
     def test_managed_engine_install_is_verified_atomic_and_used_by_lumen(self):
         import tarfile
         from types import SimpleNamespace
-        from assistant_backend import ENGINE_VERSION, managed_opencode, opencode_binary
+        from lumen_service import engine_info
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'XDG_DATA_HOME':tmp, 'LUMEN_OPENCODE_BIN':''}):
-            target = managed_opencode(); target.parent.mkdir(parents=True)
+            ENGINE_VERSION = engine_info()['version']
+            opencode_binary = lambda: engine_info()['binary']
+            target = Path(engine_info()['managed']); target.parent.mkdir(parents=True)
             target.write_bytes(b'previous-engine'); target.chmod(0o700)
             def archive(_url, path, checksum, size):
                 self.assertIn('/v'+ENGINE_VERSION+'/', _url)
@@ -104,10 +55,11 @@ class SetupTest(unittest.TestCase):
                 install.assert_called_once(); packages.assert_called_once_with([])
 
     def test_engine_setup_preserves_qualified_same_version_build(self):
-        from assistant_backend import ENGINE_VERSION, managed_opencode
+        from lumen_service import engine_info
         import hashlib
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'XDG_DATA_HOME':tmp, 'LUMEN_OPENCODE_BIN':''}):
-            target=managed_opencode();target.parent.mkdir(parents=True)
+            ENGINE_VERSION = engine_info()['version']
+            target=Path(engine_info()['managed']);target.parent.mkdir(parents=True)
             target.write_bytes(b'qualified-engine')
             with patch.object(setup.platform, 'machine', return_value='x86_64'), \
                     patch.dict(setup.QUALIFIED_ENGINE_SHA256, {(ENGINE_VERSION,'x86_64'):hashlib.sha256(target.read_bytes()).hexdigest()}), \
@@ -228,6 +180,27 @@ class SetupDialogTest(unittest.TestCase):
         from PySide6.QtWidgets import QApplication
         cls.app = QApplication.instance() or create_app()
 
+    def engine(self, answer):
+        """A caller's engine on a loopback port; `answer(path)` is the JSON of each GET."""
+        import json, threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *_): pass
+            def do_GET(self):
+                raw = json.dumps(answer(self.path.split('?')[0])).encode()
+                self.send_response(200); self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Length', str(len(raw))); self.end_headers(); self.wfile.write(raw)
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close); self.addCleanup(server.shutdown)
+        return f'http://127.0.0.1:{server.server_port}'
+
+    def settle(self, dialog):
+        from PySide6.QtTest import QTest
+        deadline = time.monotonic() + 5
+        while dialog.checking and time.monotonic() < deadline: QTest.qWait(10)
+        self.assertFalse(dialog.checking)
+
     def test_wizard_preserves_config_and_only_saves_auth_after_click(self):
         from PySide6.QtCore import QSettings
         from setup_dialog import SetupDialog
@@ -243,7 +216,7 @@ class SetupDialogTest(unittest.TestCase):
                 elif path in ('/config', '/provider/auth'): callback({})
                 elif path == '/auth/ollama-cloud': callback(True)
                 else: self.fail('Unexpected endpoint: ' + path)
-            def ensure(callback): dialog.engine.url = 'http://127.0.0.1:1'; callback()
+            def ensure(callback): dialog.engine.reachable = True; callback()
             with patch.object(dialog.engine, 'ensure_server', side_effect=ensure), patch.object(dialog.engine, 'request', side_effect=request):
                 self.assertEqual(calls, [])
                 dialog.load_engine()
@@ -316,6 +289,9 @@ class SetupDialogTest(unittest.TestCase):
                 self.assertEqual((method, path), ('GET', '/provider/auth'))
                 callback({})
             with patch.object(dialog.engine, 'request', side_effect=request):
+                # The service names the anonymous loader with the provider list (native/service:
+                # the_anonymous_opencode_access_needs_an_explicit_endpoint).
+                dialog.engine.facts = {'anonymous_opencode': True}
                 dialog.loaded_providers(inventory)
                 self.assertEqual(settings.value('model'), 'opencode/free')
                 self.assertFalse(dialog.models.isEnabled())
@@ -324,6 +300,7 @@ class SetupDialogTest(unittest.TestCase):
                 self.assertTrue(dialog.auth_toggle.isChecked())
                 self.assertTrue(dialog.connect_provider.isEnabled())
                 inventory['all'][0]['options'] = {'apiKey': 'synthetic-user-key'}
+                dialog.engine.facts = {'anonymous_opencode': False}
                 dialog.loaded_providers(inventory)
                 self.assertEqual(dialog.models.currentData(), 'opencode/free')
                 self.assertEqual(settings.value('model'), 'opencode/free')
@@ -339,22 +316,21 @@ class SetupDialogTest(unittest.TestCase):
             self.addCleanup(dialog.deleteLater); self.addCleanup(dialog.reject)
             inventory = catalogue()
             inventory['all'][0]['options'] = {'apiKey': 'public', 'baseURL': 'https://unproven.example.test/v1'}
-            config = {}
-            def request(method, path, body=None, callback=None, **kwargs):
-                callback(config if path == '/config' else inventory if path == '/provider' else {})
-            with patch.object(dialog.engine, 'ensure_server', side_effect=lambda callback: callback()), \
-                    patch.object(dialog.engine, 'request', side_effect=request):
-                for endpoint in ('http://127.0.0.1:8080/v1', 'http://model.lan:8080/v1', 'https://models.example.test/v1'):
-                    config = {'provider': {'opencode': {'options': {'baseURL': endpoint}}}}
-                    dialog.load_engine()
-                    self.assertEqual(dialog.models.currentData(), 'opencode/free')
-                    self.assertNotIn('deaktiviert', dialog.model_summary.text())
-                    self.assertEqual(settings.value('model'), 'opencode/free')
-                config = {}
-                dialog.load_engine()
-                self.assertFalse(dialog.models.isEnabled())
-                self.assertIn('deaktiviert', dialog.model_summary.text())
+            state = {'config': {}}
+            # The service reads the engine and judges endpoint and loader itself.
+            dialog.engine.server_url = self.engine(lambda path: state['config'] if path == '/config' else
+                                                   inventory if path == '/provider' else {})
+            for endpoint in ('http://127.0.0.1:8080/v1', 'http://model.lan:8080/v1', 'https://models.example.test/v1'):
+                state['config'] = {'provider': {'opencode': {'options': {'baseURL': endpoint}}}}
+                dialog.load_engine(); self.settle(dialog)
+                self.assertEqual(dialog.models.currentData(), 'opencode/free')
+                self.assertNotIn('deaktiviert', dialog.model_summary.text())
                 self.assertEqual(settings.value('model'), 'opencode/free')
+            state['config'] = {}
+            dialog.load_engine(); self.settle(dialog)
+            self.assertFalse(dialog.models.isEnabled())
+            self.assertIn('deaktiviert', dialog.model_summary.text())
+            self.assertEqual(settings.value('model'), 'opencode/free')
 
     def test_direct_model_setup_loads_automatically_and_keeps_engine_choice(self):
         from PySide6.QtCore import QSettings
@@ -387,7 +363,7 @@ class SetupDialogTest(unittest.TestCase):
         from PySide6.QtWidgets import QApplication
         from PySide6.QtTest import QTest
         from setup_dialog import SetupDialog
-        from setup_diagnostics import response_summary, version_text
+        from setup_diagnostics import version_text
         with tempfile.TemporaryDirectory() as tmp:
             settings=QSettings(tmp+'/prefs.ini',QSettings.IniFormat)
             secret='DO_NOT_SHARE_CREDENTIAL_OR_PRIVATE_PATH'
@@ -397,12 +373,12 @@ class SetupDialogTest(unittest.TestCase):
             dialog.key.setText(secret);dialog.engine.password=secret
             data={'all':[{'id':secret,'name':secret,'models':{'private-model':{'name':secret,'apiKey':secret}}}],
                   'connected':[secret],'default':{secret:secret},'message':secret}
-            event=response_summary('/provider',200,0,'application/json; '+secret,data,123)
-            dialog.record_diagnostic(event)
-            dialog.record_diagnostic(response_summary('/auth/'+secret,401,204,'application/json',{'message':secret},100))
+            # The service sends only counts with an answer (native/service: the_diagnosis_keeps_counts_only).
+            dialog.record_diagnostic(dict(endpoint='/provider',http=200,network_error=0,bytes=123,format='json',json_type='dict'))
+            dialog.record_diagnostic(dict(endpoint='/auth/<provider>',http=401,network_error=0,bytes=100,format='json',json_type='dict'))
             dialog.diagnostic_stage='save_auth';dialog.engine_failed(secret)
             binary=Path(tmp)/'test-engine';binary.write_text('#!/bin/sh\nprintf "2.1.0\\n"\n');binary.chmod(0o755)
-            with patch('assistant_backend.opencode_binary',return_value=str(binary)):
+            with patch.dict(os.environ,{'LUMEN_OPENCODE_BIN':str(binary)}):
                 dialog.copy_diagnostic.click()
                 deadline=time.monotonic()+5
                 while dialog.diagnostic_process and time.monotonic()<deadline:QTest.qWait(10)
@@ -414,7 +390,6 @@ class SetupDialogTest(unittest.TestCase):
             self.assertNotIn(secret,raw);self.assertNotIn(tmp,raw);self.assertNotIn('private-model',raw)
             self.assertEqual(dialog.key.text(),secret)
             self.assertEqual(version_text('2.1.0 '+secret),'unavailable')
-            self.assertIsNone(response_summary('/session/'+secret,200,0,'application/json',data,123))
             QApplication.clipboard().clear()
 
     def test_diagnostic_version_timeout_still_produces_report(self):
@@ -428,7 +403,7 @@ class SetupDialogTest(unittest.TestCase):
             binary.write_text('#!'+sys.executable+'\nimport time\ntime.sleep(60)\n');binary.chmod(0o755)
             dialog=SetupDialog(settings=QSettings(tmp+'/prefs.ini',QSettings.IniFormat))
             self.addCleanup(dialog.deleteLater);self.addCleanup(dialog.reject)
-            with patch('assistant_backend.opencode_binary',return_value=str(binary)):
+            with patch.dict(os.environ,{'LUMEN_OPENCODE_BIN':str(binary)}):
                 dialog.copy_diagnostic.click()
                 self.assertIsNotNone(dialog.diagnostic_process)
                 dialog.diagnostic_process.findChild(QTimer).start(30)
@@ -454,7 +429,7 @@ class SetupDialogTest(unittest.TestCase):
             del dialog.engine.startup_diagnostic
             for unreadable in (False, True):
                 with self.subTest(unreadable=unreadable), \
-                        patch('assistant_backend.opencode_binary', return_value=str(binary)), \
+                        patch.dict(os.environ, {'LUMEN_OPENCODE_BIN': str(binary)}), \
                         patch.object(Path, 'read_bytes', side_effect=OSError('private-path') if unreadable else None,
                                      return_value=b'source'), patch.object(sys, 'excepthook') as errors:
                     QApplication.clipboard().clear()
@@ -483,7 +458,7 @@ class SetupDialogTest(unittest.TestCase):
             self.addCleanup(dialog.deleteLater); self.addCleanup(dialog.reject)
             class DelayedExit(QProcess):
                 def kill(self): pass
-            with patch('assistant_backend.opencode_binary', return_value=str(binary)), \
+            with patch.dict(os.environ, {'LUMEN_OPENCODE_BIN': str(binary)}), \
                     patch('setup_dialog.worker_process', side_effect=DelayedExit):
                 QApplication.clipboard().clear(); dialog.copy_diagnostic.click()
                 proc = dialog.diagnostic_process
@@ -518,7 +493,7 @@ class SetupDialogTest(unittest.TestCase):
                 self.assertIsNone(dialog.diagnostic_process)
                 self.assertTrue(dialog.copy_diagnostic.isEnabled())
                 self.assertNotIn('wird erstellt', dialog.status.text())
-            with patch('assistant_backend.opencode_binary', return_value=str(binary)), \
+            with patch.dict(os.environ, {'LUMEN_OPENCODE_BIN': str(binary)}), \
                     patch.object(sys, 'excepthook') as errors:
                 with patch('setup_diagnostics.build_report', side_effect=RuntimeError('PRIVATE_CREDENTIAL')):
                     copy()
@@ -555,9 +530,8 @@ class SetupDialogTest(unittest.TestCase):
                 deadline = time.monotonic() + 3
                 while dialog.checking and time.monotonic() < deadline: QTest.qWait(10)
                 self.assertFalse(dialog.checking)
-            with patch('assistant_backend.opencode_binary', return_value=str(binary)):
+            with patch.dict(os.environ, {'LUMEN_OPENCODE_BIN': str(binary)}):
                 dialog.load_engine(); wait()
-                self.assertIsNone(dialog.engine.proc)
                 raw = build_report(dialog, '1.18.34'); report = json.loads(raw)
                 self.assertEqual(report['startup']['outcome'], 'exited')
                 self.assertEqual(report['startup']['exit_code'], 23)
@@ -571,27 +545,7 @@ class SetupDialogTest(unittest.TestCase):
                 self.assertEqual(report['startup']['outcome'], 'crashed')
                 self.assertEqual(report['startup']['exit_code'], 9)
                 self.assertEqual(report['startup']['hint'], 'unknown')
-                binary.write_text('#!' + sys.executable + '\nimport time\ntime.sleep(60)\n')
-                dialog.load_engine(); dialog.engine.start_timer.start(30); wait()
-                report = json.loads(build_report(dialog, '1.18.34'))
-                self.assertEqual(report['startup']['outcome'], 'timeout')
-                self.assertNotIn('exit_code', report['startup'])
-                self.assertEqual(report['startup']['hint'], 'unknown')
-            self.assertEqual(dialog.engine.log, b'')
-
-    def test_startup_hints_export_only_fixed_categories(self):
-        import json
-        from setup_diagnostics import startup_summary
-        for hint, raw in [('database', 'SQLiteError: /private/profile'),
-                          ('database_schema', 'Database is not empty and has no session table'),
-                          ('permission_denied', 'EACCES: private-file'),
-                          ('disk_full', 'ENOSPC: secret'),
-                          ('address_in_use', 'EADDRINUSE: private-host'),
-                          ('tls', 'CERTIFICATE_VERIFY_FAILED: secret'),
-                          ('unknown', 'some completely private output')]:
-            summary = startup_summary('exited', raw.encode(), 100, 1)
-            self.assertEqual(summary['hint'], hint)
-            self.assertNotIn(raw, json.dumps(summary))
+                # The 25-second start limit: native/service startup_failures_are_classified_without_their_text.
 
     def test_provider_check_rejects_non_api_responses_and_recovers(self):
         import threading
@@ -617,13 +571,12 @@ class SetupDialogTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             dialog = SetupDialog(settings=QSettings(tmp+'/prefs.ini', QSettings.IniFormat))
             self.addCleanup(dialog.deleteLater); self.addCleanup(dialog.reject)
-            def ensure(callback):
-                dialog.engine.url = f'http://127.0.0.1:{server.server_port}'; callback()
+            dialog.engine.server_url = f'http://127.0.0.1:{server.server_port}'
             def wait():
                 deadline = time.monotonic()+5
                 while dialog.checking and time.monotonic() < deadline: QTest.qWait(10)
                 self.assertFalse(dialog.checking)
-            with patch.object(dialog.engine, 'ensure_server', side_effect=ensure):
+            if True:
                 dialog.key.setText('test-only-secret')
                 for raw in (b'<html>OpenCode</html>', b'null', b'', b'{broken'):
                     state['response'] = raw; dialog.load_engine(); wait()
@@ -739,7 +692,7 @@ class SetupDialogTest(unittest.TestCase):
         from setup_dialog import SetupDialog
         from lumen_store import Store
         from lumen_memory import options
-        from lumen_persona import load
+        from persona_settings import load
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'LUMEN_DATA': tmp + '/data'}):
             settings = QSettings(tmp + '/prefs.ini', QSettings.IniFormat)
             dialog = SetupDialog(settings=settings, page=4)

@@ -20,8 +20,8 @@ def binding(store, config, user):
     connection=connection_scope(config)
     account=str(UUID(user['id']));namespace=str(Memory(store).namespace)
     choice=store.setting('memory/sync-choice',{})
-    from sync_migration import memory_scope
-    previous=memory_scope(choice,connection,account,namespace)
+    # A choice saved with the server's workspace_id keeps its stored scope: pending operations and cursors hang on that key.
+    previous=choice['scope'] if 'workspace_id' in choice and (choice.get('connection'),choice.get('user_id'),choice.get('scope'))==(connection,account,hashlib.sha256(json.dumps([connection,account,choice['workspace_id'],namespace]).encode()).hexdigest()) else None
     if previous is None and choice.get('protocol')==2 and (choice.get('connection'),choice.get('user_id'),choice.get('namespace'))==(connection,account,namespace):
         previous=choice['scope']
     scope=previous or hashlib.sha256(json.dumps([connection,account,namespace]).encode()).hexdigest()

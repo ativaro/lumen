@@ -25,6 +25,9 @@ class PageCanvas(QWidget):
     def load(self,data,marks,zoom):
         self.pixmap.loadFromData(base64.b64decode(data['png']));self.words=data['words'];self.marks=marks
         self.page_width=data['width'];self.page_height=data['height'];self.first=self.last=-1;self.resize_page(zoom);self.changed.emit()
+        # ponytail: with qt6-base 6.12.0-4 on Wayland the first paint of a new page is not always shown until
+        # something else repaints; a second request shortly after is. Remove once a Qt update shows the page without it.
+        QTimer.singleShot(80,self.update)
 
     def resize_page(self,zoom):
         self.zoom=zoom
@@ -66,7 +69,7 @@ class Reader(ToolWindow):
         install_reader(self)
         self.add_button.setText(tr('Buch oder Dokument öffnen'));self.search.setPlaceholderText(tr('In meiner Bibliothek …'))
         self.sidebar.layout().insertWidget(2,button(tr('Artikel speichern'),lambda:self.safe(self.add_article),'internet-web-browser'))
-        self.data=None;self.page_index=0;self.note_id='';self.passwords={};self.pending=[];self.restore_scroll=0;self.audio_asset='';self.pending_position={}
+        self.data=None;self.page_index=0;self.note_id='';self.passwords={};self.pending=[];self.restore_scroll=0;self.audio_asset='';self.pending_position={};self.ahead={};self.ahead_job=None
         self.title=label(tr('Deine nächste gute Lektüre'),'heading');self.content.addWidget(self.title)
         self.origin=label(tr('PDFs, EPUBs und Artikel hinzufügen. Lesestand und Gedanken bleiben lokal.'),'muted');self.content.addWidget(self.origin)
         self.page_number=QSpinBox();self.page_number.setRange(1,1);self.page_number.setAccessibleName(tr('Seite'));self.page_number.editingFinished.connect(lambda:self.goto(self.page_number.value()-1))
@@ -122,11 +125,6 @@ class Reader(ToolWindow):
         if path:self.open_file(path)
 
     def open_file(self,path):
-        from reader_server import OFFICE, ServerDocument
-        if Path(path).suffix.lower() in OFFICE:
-            if self.job:raise ValueError(tr('Bitte den laufenden Vorgang abwarten.'))
-            self.server_document=ServerDocument(self,path);self.server_document.show()
-            return
         if len(self.pending)>=10:raise ValueError(tr('Bitte den laufenden Import abwarten.'))
         if self.job:self.pending.append(path);return
         self.work(tr('Private Lesekopie wird angelegt …'),lambda job:reader.import_file(self.library,path,job),self.open_imported)
@@ -212,7 +210,30 @@ class Reader(ToolWindow):
                     try:self.canvas.first=_index(parts[1],len(self.canvas.words));self.canvas.last=_index(parts[2],len(self.canvas.words));self.canvas.update()
                     except ValueError as error:self.error(str(error))
             value=self.restore_scroll;QTimer.singleShot(0,lambda:self.restore_position(value));self.restore_scroll=0
-        self.work(tr('Seite wird geladen …'),lambda job:reader.worker(job,'page',self.library.asset(record['asset']),page=index,password=self.passwords.get(key,''),stamp=record['stamp'],legacy=record.get('engine')!=reader.ENGINE,notes=record.get('notes',[])),done)
+        ready=self.ahead.pop((key,index,tuple(record['stamp'])),None) if record.get('engine')==reader.ENGINE else None
+        if ready is not None:
+            done(ready);self.read_ahead(key,index);return
+        self.work(tr('Seite wird geladen …'),lambda job:reader.worker(job,'page',self.library.asset(record['asset']),page=index,password=self.passwords.get(key,''),stamp=record['stamp'],legacy=record.get('engine')!=reader.ENGINE,notes=record.get('notes',[])),done,finished=lambda:self.read_ahead(key,index))
+
+    def read_ahead(self,key,index):
+        """Fetch the neighbouring pages quietly, so that turning the page does not wait for the worker."""
+        from lumen_jobs import Job
+        if self.ahead_job or self.current!=key or self.page_index!=index:return
+        record=self.library.get(key);stamp=tuple(record['stamp'])
+        if record.get('engine')!=reader.ENGINE:return
+        target=next((page for page in (index+1,index-1,index+2) if 0<=page<record.get('pages',1) and (key,page,stamp) not in self.ahead),None)
+        if target is None:return
+        asset=self.library.asset(record['asset']);password=self.passwords.get(key,'')
+        job=self.ahead_job=Job(lambda job:reader.worker(job,'page',asset,page=target,password=password,stamp=record['stamp']),self)
+        def store(data):
+            if data.get('locked'):return
+            self.ahead[(key,target,stamp)]=data
+            while len(self.ahead)>4:del self.ahead[next(iter(self.ahead))]
+        def over():
+            job.deleteLater();self.ahead_job=None
+            # A page that could not be fetched is not asked for again in a loop.
+            if (key,target,stamp) in self.ahead:self.read_ahead(key,index)
+        job.result.connect(store);job.finished.connect(over);job.start()
 
     def restore_position(self,value):
         self.loading=True
@@ -389,5 +410,6 @@ class Reader(ToolWindow):
         self.export_text('\n\n'.join(lines),'Lesenotizen.md')
 
     def closeEvent(self,event):
+        if self.ahead_job:self.ahead_job.cancelled.set();self.ahead_job.wait(3000)
         super().closeEvent(event)
         if event.isAccepted():self.clear_audio();self.passwords.clear()
