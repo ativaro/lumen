@@ -148,7 +148,7 @@ def main():
             if activation.get(key): forwarded.extend(['--'+key, activation[key]])
         return system_main(forwarded)
     from interop_ui import controller
-    app=create_app(); app.setApplicationName('lumen-'+args.tool); app.setDesktopFileName('lumen-'+args.tool)
+    app=create_app(reader_display=args.tool == 'reader'); app.setApplicationName('lumen-'+args.tool); app.setDesktopFileName('lumen-'+args.tool)
     if args.clipboard:
         from PySide6.QtWidgets import QApplication
         from clipboard_image import protected_clipboard

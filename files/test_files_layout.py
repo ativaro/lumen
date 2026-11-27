@@ -65,7 +65,7 @@ class FilesLayoutTest(unittest.TestCase):
         from test_pdf_fixtures import Writer
         document = self.root / 'sample.pdf'
         writer = Writer()
-        writer.add_page(120, 120)
+        writer.add_page(120, 120, b'0.8 0 0 rg 0 0 120 120 re f')
         writer.save(document)
         window = self.show(Window(str(self.root), QSettings(str(self.root/'files.ini'), QSettings.IniFormat),
                                   Catalog(Store(self.root/'catalog'))), 1000, 640)
@@ -77,8 +77,17 @@ class FilesLayoutTest(unittest.TestCase):
                 break
             QTest.qWait(20)
         self.assertTrue(index.isValid())
-        window.view.setCurrentIndex(index)
-        window.open_path(str(document))
+        window.view.scrollTo(index)
+        point = window.view.visualRect(index).center()
+        QTest.mouseClick(window.view.viewport(), Qt.LeftButton, Qt.NoModifier, point)
+        for _ in range(250):
+            if window.preview.image.isVisible() and not window.preview.pixmap.isNull():
+                break
+            QTest.qWait(20)
+        self.assertEqual(window.preview.path, document)
+        self.assertTrue(window.preview.image.isVisible())
+        self.assertFalse(window.preview.pixmap.isNull())
+        QTest.mouseDClick(window.view.viewport(), Qt.LeftButton, Qt.NoModifier, point)
         self.assertIs(window.centralWidget(), surface)
         self.assertFalse(files.isVisible())
         reader = surface.reader
@@ -87,7 +96,8 @@ class FilesLayoutTest(unittest.TestCase):
                 break
             QTest.qWait(20)
         self.assertTrue(reader.data, reader.status.text())
-        self.assertFalse(reader.canvas.pixmap.isNull())
+        self.assertTrue(reader.canvas.isVisible())
+        self.assertEqual(reader.canvas.pixmap.toImage().pixelColor(10, 10).name(), '#cc0000')
         surface.back()
         self.assertTrue(files.isVisible())
         self.assertEqual(window.view.currentIndex(), index)

@@ -1,4 +1,7 @@
 {
+  "Files und Reader über XWayland anzeigen": "Display Files and Reader using XWayland",
+  "Bei stehen gebliebenen Bildbereichen. Wirkt nach dem erneuten Öffnen von Files oder Reader.": "For areas that stop repainting. Takes effect when you reopen Files or Reader.",
+  "Grafikkompatibilität": "Graphics compatibility",
   "Zurück zu den Dateien": "Back to files",
   "Lesebibliothek": "Reading library",
   "Bitte eine lesbare Datei auswählen.": "Select a readable file.",

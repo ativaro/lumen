@@ -543,6 +543,11 @@ class SettingsDialog(QDialog):
         self.document_workshop.setChecked(self.field(self.files, 'documentWorkshopEnabled', False, bool))
         self.document_workshop.setToolTip(tr('PDF-Seiten zusammenstellen, drehen, schwärzen und mit Texterkennung exportieren. Standardmäßig ausgeschaltet.'))
         form.addRow(tr('PDF-Bearbeitung'), self.document_workshop)
+        self.reader_display = QCheckBox(tr('Files und Reader über XWayland anzeigen'))
+        self.reader_display.setChecked(self.field(self.files, 'readerXWayland', False, bool))
+        self.reader_display.setToolTip(tr('Bei stehen gebliebenen Bildbereichen. Wirkt nach dem erneuten Öffnen von Files oder Reader.'))
+        form.addRow(tr('Grafikkompatibilität'), self.reader_display)
+        form.setRowVisible(self.reader_display, bool(os.environ.get('XDG_SESSION_TYPE') == 'wayland' and os.environ.get('DISPLAY')))
         page.addLayout(form)
         from settings_navigation import Details
         tuning = Details(tr('Erweitert · Suchverhalten'))
@@ -607,6 +612,7 @@ class SettingsDialog(QDialog):
             values = {'restoreLastFolder': self.resume.isChecked(), 'startFolder': str(folder),
                 'hidden': self.hidden.isChecked(), 'previewVisible': self.preview.isChecked(),
                 'documentWorkshopEnabled': self.document_workshop.isChecked(),
+                'readerXWayland': self.reader_display.isChecked(),
                 'searchDelay': self.delay.value(), 'searchLimit': self.limit.value()}
             for key in ('favorites', 'network_servers'):
                 values[key] = [self.places.item(i).text() for i in range(self.places.count()) if self.places.item(i).data(Qt.UserRole) == key]

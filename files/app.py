@@ -2005,10 +2005,17 @@ def apply_system_appearance(app, path):
         app.setStyleSheet(stylesheet('system'))
 
 
-def create_app(appearance=None):
+def create_app(appearance=None, *, reader_display=False):
     from lumen_paths import require_test_profile
     require_test_profile()
-    app = QApplication(sys.argv)
+    arguments = sys.argv
+    if (reader_display and os.environ.get('XDG_SESSION_TYPE') == 'wayland'
+            and os.environ.get('DISPLAY') and not os.environ.get('QT_QPA_PLATFORM')
+            and '-platform' not in arguments and '--platform' not in arguments
+            and QSettings('Lumen', 'Files').value('readerXWayland', False, type=bool)):
+        # Apply to this GUI only. PDF workers and other launched apps choose their own platform.
+        arguments = [*arguments, '-platform', 'xcb;wayland']
+    app = QApplication(arguments)
     def dispose_windows():
         # Qt processes deferred deletion after all aboutToQuit shutdown slots.
         # Keep QObject owners out of interpreter-exit garbage collection.
@@ -2101,7 +2108,7 @@ def main(argv=None):
         parser.error('--transfer cannot be combined with a location, --select, --ref or --settings')
     from lumen_migrate import migrate_user
     migrate_user()
-    app = create_app()
+    app = create_app(reader_display=True)
     location = args.location
     if location and location.startswith('file:'): location = QUrl(location).toLocalFile()
     if location and not (is_network_address(location) or is_drive(location) or virtual(location)):

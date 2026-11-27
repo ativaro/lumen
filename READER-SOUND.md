@@ -11,6 +11,8 @@ Open **Lumen Reader** or right-click a document in Files and choose **Open with 
 
 Reader's library lives under `$XDG_DATA_HOME/lumen-tools/reader`, usually `~/.local/share/lumen-tools/reader`. A password entered for a PDF stays in memory for the open session. The imported copy keeps its encryption. Notes you write about it can contain readable excerpts. Archiving an item keeps it in the library.
 
+If the file list stays visible over a PDF until you move the mouse on a Wayland desktop, open **Settings → Lumen Files → Graphics compatibility** and enable **Display Files and Reader using XWayland**. Close and reopen Files or Reader. You can switch back in the same place.
+
 ## Sound
 
 Open **Lumen System → Sound** or run `lumen-sound`. Start playback in the application you want to adjust so its stream appears.
