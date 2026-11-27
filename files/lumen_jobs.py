@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 import threading
 import time
-from lumen_qt import QThread, Signal
+from lumen_qt import QThread, Signal, Slot
 from tools_data import Cancelled
 
 
@@ -21,6 +21,10 @@ class Job(QThread):
 
     def check(self):
         if self.cancelled.is_set(): raise Cancelled('Abgebrochen')
+
+    @Slot()
+    def join(self):
+        self.wait()
 
     def command(self, args, data=None, timeout=300, max_output=2*1024**2, env=None):
         self.check()

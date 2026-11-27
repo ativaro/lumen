@@ -466,7 +466,8 @@ class Window(QMainWindow):
     def build_ui(self):
         central = QWidget()
         central.setObjectName('filesSurface')
-        self.setCentralWidget(central)
+        from reader_view import ReadingView
+        self.reader_stack = ReadingView(self, files=central)
         font = QFont(self.font()); font.setPixelSize(14); central.setFont(font)
         layout = QVBoxLayout(central)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -765,12 +766,15 @@ class Window(QMainWindow):
         from lumen_jobs import Job
         from server_availability import capabilities
         self.server_job = Job(lambda _: capabilities(), self)
+        # Closing can hide Files. Join the bounded probe when its owner is actually destroyed.
+        self.destroyed.connect(self.server_job.join)
+        QApplication.instance().aboutToQuit.connect(self.server_job.join)
         self.server_job.result.connect(self.server_checked)
         self.server_job.finished.connect(self.server_check_finished)
+        self.server_job.finished.connect(self.server_job.deleteLater)
         self.server_job.start()
 
     def server_check_finished(self):
-        self.server_job.deleteLater()
         self.server_job = None
 
     def server_checked(self, grants):
@@ -1419,9 +1423,7 @@ class Window(QMainWindow):
             self.open_path(paths[0])
 
     def reading_view(self):
-        from reader_view import ReadingView
-        if not hasattr(self, 'reader_stack'):
-            self.reader_stack = ReadingView(self)
+        self.reader_stack.prepare_reader()
         return self.reader_stack
 
     def open_reading_library(self):
@@ -1851,9 +1853,6 @@ class Window(QMainWindow):
         box.exec()
 
     def closeEvent(self, event):
-        if self.server_job is not None and not self.server_job.wait(1500):
-            self.activity.setText(tr('Serververbindung wird geprüft. Bitte kurz warten.'))
-            event.ignore(); return
         if hasattr(self, 'reader_stack') and not self.reader_stack.can_close():
             event.ignore(); return
         if self.drive.jobs:

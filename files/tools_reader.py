@@ -17,7 +17,7 @@ import reader_data as reader
 class PageCanvas(QWidget):
     changed=Signal()
     def __init__(self):
-        super().__init__();self.setFocusPolicy(Qt.StrongFocus);self.setAccessibleName(tr('Buchseite; für Tastaturauswahl die Textansicht wählen'))
+        super().__init__();self.setAttribute(Qt.WA_OpaquePaintEvent);self.setFocusPolicy(Qt.StrongFocus);self.setAccessibleName(tr('Buchseite; für Tastaturauswahl die Textansicht wählen'))
         self.pixmap=QPixmap();self.words=[];self.marks=[];self.first=self.last=-1;self.zoom=1
         QShortcut(QKeySequence.Copy,self,activated=self.copy,context=Qt.WidgetShortcut)
         QShortcut(QKeySequence.SelectAll,self,activated=self.select_all,context=Qt.WidgetShortcut)
@@ -25,9 +25,18 @@ class PageCanvas(QWidget):
     def load(self,data,marks,zoom):
         self.pixmap.loadFromData(base64.b64decode(data['png']));self.words=data['words'];self.marks=marks
         self.page_width=data['width'];self.page_height=data['height'];self.first=self.last=-1;self.resize_page(zoom);self.changed.emit()
-        # ponytail: with qt6-base 6.12.0-4 on Wayland the first paint of a new page is not always shown until
-        # something else repaints; a second request shortly after is. Remove once a Qt update shows the page without it.
-        QTimer.singleShot(80,self.update)
+
+    def showEvent(self,event):
+        super().showEvent(event)
+        window = self.window().windowHandle()
+        if window is not None:
+            window.installEventFilter(self)
+        self.update()
+
+    def eventFilter(self,window,event):
+        if event.type() == QEvent.Expose and window.isExposed() and self.isVisible():
+            self.update()
+        return super().eventFilter(window,event)
 
     def resize_page(self,zoom):
         self.zoom=zoom
@@ -69,7 +78,7 @@ class Reader(ToolWindow):
         install_reader(self)
         self.add_button.setText(tr('Buch oder Dokument öffnen'));self.search.setPlaceholderText(tr('In meiner Bibliothek …'))
         self.sidebar.layout().insertWidget(2,button(tr('Artikel speichern'),lambda:self.safe(self.add_article),'internet-web-browser'))
-        self.data=None;self.page_index=0;self.note_id='';self.passwords={};self.pending=[];self.restore_scroll=0;self.audio_asset='';self.pending_position={};self.ahead={};self.ahead_job=None
+        self.page_requested=False;self.data=None;self.page_index=0;self.note_id='';self.passwords={};self.pending=[];self.restore_scroll=0;self.audio_asset='';self.pending_position={};self.ahead={};self.ahead_job=None
         self.title=label(tr('Deine nächste gute Lektüre'),'heading');self.content.addWidget(self.title)
         self.origin=label(tr('PDFs, EPUBs und Artikel hinzufügen. Lesestand und Gedanken bleiben lokal.'),'muted');self.content.addWidget(self.origin)
         self.page_number=QSpinBox();self.page_number.setRange(1,1);self.page_number.setAccessibleName(tr('Seite'));self.page_number.editingFinished.connect(lambda:self.goto(self.page_number.value()-1))
@@ -130,13 +139,19 @@ class Reader(ToolWindow):
         self.work(tr('Private Lesekopie wird angelegt …'),lambda job:reader.import_file(self.library,path,job),self.open_imported)
 
     def open_imported(self,key):
-        # Wait for the importer to release the shared job before rendering.
-        self.current=key;QTimer.singleShot(0,lambda:self.focus_record(key))
+        self.focus_record(key)
+
+    def next_request(self):
+        if self.job:
+            return
+        if self.page_requested:
+            self.render_page()
+        elif self.pending:
+            self.safe(self.open_file,self.pending.pop(0))
 
     def job_finished(self):
         super().job_finished()
-        if self.pending:
-            path=self.pending.pop(0);QTimer.singleShot(0,lambda:self.safe(self.open_file,path))
+        QTimer.singleShot(0,self.next_request)
 
     def add_article(self):
         value,ok=QInputDialog.getText(self,tr('Artikel speichern'),tr('Webadresse (Abruf ohne Anmeldung)'))
@@ -148,7 +163,7 @@ class Reader(ToolWindow):
         self.page_index=record.get('page',0);self.restore_scroll=record.get('scroll',0)
         self.mode.blockSignals(True);self.mode.setCurrentIndex(record.get('view',0));self.mode.blockSignals(False);self.views.setCurrentIndex(self.mode.currentIndex())
         self.zoom.blockSignals(True);self.zoom.setCurrentIndex(max(0,self.zoom.findData(record.get('zoom',0))));self.zoom.blockSignals(False)
-        self.refresh_notes();QTimer.singleShot(0,self.render_page)
+        self.refresh_notes();self.page_requested=True;QTimer.singleShot(0,self.next_request)
 
     def goto(self,index):
         if self.job or not self.current:return
@@ -168,6 +183,10 @@ class Reader(ToolWindow):
 
     def render_page(self):
         if not self.current:return
+        if self.job:
+            self.page_requested=True
+            return
+        self.page_requested=False
         key=self.current;record=self.library.get(key);index=self.page_index
         self.data=None;self.canvas.pixmap=QPixmap();self.canvas.words=[];self.canvas.update();self.text.clear()
         def done(data):
@@ -239,6 +258,9 @@ class Reader(ToolWindow):
         self.loading=True
         try:
             view=self.scroll if self.mode.currentIndex()==0 else self.text;view.verticalScrollBar().setValue(value)
+            # Present the complete reading surface after its scroll position and layout settle.
+            view.viewport().update()
+            self.window().update()
         finally:self.loading=False
         self.save()
 
@@ -274,7 +296,7 @@ class Reader(ToolWindow):
 
     def update_reading_layout(self):
         if not hasattr(self,'focus_button') or not self.isWindow():return
-        compact=self.width()<1000 and self.body.isEnabled()
+        compact=self.width()<1000 and (bool(self.current) or self.body.isEnabled())
         if compact==self._compact:return
         self._compact=compact
         if compact:

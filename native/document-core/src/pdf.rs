@@ -897,11 +897,10 @@ pub fn decoded(stream: &Stream, resolve: &dyn Fn(&Value) -> Outcome<Value>) -> O
                 predict(lzw(&data, early)?, &options)?
             }
             Some("ASCIIHexDecode" | "AHx") => {
-                let raw: Vec<u8> = data.iter().copied().filter(|b| !space(*b)).collect();
-                let Some(digits) = raw.strip_suffix(b">") else {
-                    return bad("ASCIIHex-PDF-Ende fehlt.");
-                };
-                hex(digits).ok_or(Error::Pdf("Beschädigter PDF-Stream.".into()))?
+                // Some producers omit the marker at the end of a length-delimited stream.
+                let end = data.iter().position(|b| *b == b'>').unwrap_or(data.len());
+                let digits: Vec<_> = data[..end].iter().copied().filter(|b| !space(*b)).collect();
+                hex(&digits).ok_or(Error::Pdf("Beschädigter PDF-Stream.".into()))?
             }
             Some("ASCII85Decode" | "A85") => {
                 let raw: Vec<u8> = data.iter().copied().filter(|b| !space(*b)).collect();
@@ -2051,6 +2050,10 @@ mod tests {
             decoded(&stream("ASCIIHexDecode", b"48 65 6c6C 6f>"), &plain).unwrap(),
             b"Hello"
         );
+        for bytes in [b"6 1 6".as_slice(), b"61 6 >", b"616>padding", b"616\r\n"] {
+            assert_eq!(decoded(&stream("AHx", bytes), &plain).unwrap(), b"a`");
+        }
+        assert!(decoded(&stream("ASCIIHexDecode", b"61g0"), &plain).is_err());
         assert_eq!(
             decoded(&stream("ASCII85Decode", b"87cURD]i,\"Ebo80~>"), &plain).unwrap(),
             b"Hello World!"

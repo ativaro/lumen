@@ -61,6 +61,37 @@ class FilesLayoutTest(unittest.TestCase):
         self.assertTrue(w.activity.wordWrap())
         self.assertGreater(w.activity.height(), w.activity.fontMetrics().height())
 
+    def test_opening_pdf_keeps_the_same_window_surface_and_file_selection(self):
+        from test_pdf_fixtures import Writer
+        document = self.root / 'sample.pdf'
+        writer = Writer()
+        writer.add_page(120, 120)
+        writer.save(document)
+        window = self.show(Window(str(self.root), QSettings(str(self.root/'files.ini'), QSettings.IniFormat),
+                                  Catalog(Store(self.root/'catalog'))), 1000, 640)
+        surface = window.centralWidget()
+        files = surface.currentWidget()
+        for _ in range(100):
+            index = window.proxy.mapFromSource(window.fs.index(str(document)))
+            if index.isValid():
+                break
+            QTest.qWait(20)
+        self.assertTrue(index.isValid())
+        window.view.setCurrentIndex(index)
+        window.open_path(str(document))
+        self.assertIs(window.centralWidget(), surface)
+        self.assertFalse(files.isVisible())
+        reader = surface.reader
+        for _ in range(250):
+            if reader.data and not reader.job:
+                break
+            QTest.qWait(20)
+        self.assertTrue(reader.data, reader.status.text())
+        self.assertFalse(reader.canvas.pixmap.isNull())
+        surface.back()
+        self.assertTrue(files.isVisible())
+        self.assertEqual(window.view.currentIndex(), index)
+
     def test_drive_secondary_actions_remain_reachable_without_wide_minimum(self):
         with patch.object(Drive, 'reload'), patch.object(Drive, 'refresh_roots'), patch.object(Drive, 'conflicts') as conflicts, patch.object(Drive, 'remove') as remove:
             w = self.show(Drive(), 760, 680)

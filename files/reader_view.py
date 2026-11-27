@@ -1,6 +1,6 @@
 """Retain Files underneath the existing Reader, including its private reading copy."""
 from pathlib import Path
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QAction, QShortcut
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QStackedWidget
 from lumen_i18n import tr
@@ -8,24 +8,41 @@ from tools_ui import button, row
 
 
 class ReadingView(QStackedWidget):
-    def __init__(self, window, root=None):
+    def __init__(self, window, root=None, *, files=None):
         super().__init__(window)
-        from tools_reader import Reader
-        self.window = window
+        self.host_window = window
         self.root = root
+        self.reader = None
         self.translation = None
-        self.file_controls = window.findChildren(QAction) + window.findChildren(QShortcut)
         self.control_state = None
-        self.files = window.takeCentralWidget(); self.addWidget(self.files)
-        self.reader = Reader(root); self.reader.setWindowFlags(Qt.Widget)
+        self.files = files if files is not None else window.takeCentralWidget()
+        self.addWidget(self.files)
+        window.setCentralWidget(self)
+        self.setAutoFillBackground(True)
+        self.currentChanged.connect(self.repaint_visible_page)
+        if files is None:
+            # An already-open Files window may first import the reader after an update.
+            self.prepare_reader()
+
+    @Slot(int)
+    def repaint_visible_page(self, index):
+        if index >= 0:
+            self.widget(index).update()
+            self.host_window.update()
+
+    def prepare_reader(self):
+        if self.reader is not None:
+            return
+        from tools_reader import Reader
+        self.file_controls = self.host_window.findChildren(QAction) + self.host_window.findChildren(QShortcut)
+        self.reader = Reader(self.root); self.reader.setWindowFlags(Qt.Widget)
         self.reader.setMinimumSize(0, 0); self.reader.sidebar.hide()
         self.reader.app_header.hide()
-        page = QWidget(); layout = QVBoxLayout(page); layout.setContentsMargins(0, 0, 0, 0)
+        page = QWidget(); page.setAutoFillBackground(True); layout = QVBoxLayout(page); layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(row(button(tr('Zurück zu den Dateien'), self.back, 'go-previous'),
                              button(tr('Lesebibliothek'), lambda: self.reader.sidebar.setVisible(self.reader.sidebar.isHidden()), 'view-list-details'),
                              button(tr('Leseeinstellungen'), self.reader.open_settings, 'configure')))
         layout.addWidget(self.reader, 1); self.addWidget(page)
-        window.setCentralWidget(self)
 
     def open_file(self, path):
         path = Path(path).expanduser().resolve(strict=True)

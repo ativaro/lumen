@@ -16,8 +16,8 @@ class ReadingViewTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory(); self.root = Path(self.tmp.name)
         self.window = QMainWindow(); self.files = QLineEdit('retained folder and selection')
         self.delete = self.window.menuBar().addMenu('Files').addAction('Delete')
-        self.window.setCentralWidget(self.files)
-        self.view = ReadingView(self.window, self.root/'tools')
+        self.view = ReadingView(self.window, self.root/'tools', files=self.files)
+        self.view.prepare_reader()
         self.window.show()
 
     def tearDown(self):
@@ -44,6 +44,65 @@ class ReadingViewTest(unittest.TestCase):
         self.view.open_file(path); self.wait()
         self.assertEqual(reader.current, key); self.assertEqual(len(reader.library.all()), 1)
         self.assertEqual(path.read_bytes(), before)
+
+    def test_existing_files_window_can_first_open_reader_after_an_update(self):
+        host = QMainWindow()
+        files = QLineEdit('selection')
+        host.setCentralWidget(files)
+        host.show()
+        try:
+            view = ReadingView(host, self.root/'previous-session')
+            view.open_library()
+            self.app.processEvents()
+            self.assertTrue(view.reader.isVisible())
+            view.back()
+            self.assertIs(view.currentWidget(), files)
+            self.assertTrue(files.isVisible())
+        finally:
+            host.close()
+            host.deleteLater()
+
+    def test_pdf_paints_without_input_when_import_job_is_still_finishing(self):
+        import threading
+        from lumen_jobs import Job
+        from tools_reader import PageCanvas
+        from test_pdf_fixtures import Name, Writer
+
+        writer = Writer()
+        content = b'0.8 0 0 rg 0 0 240 240 re f'
+        page = writer.add_page(240, 240)
+        page['Contents'] = writer.stream(content.hex().encode(), Filter=Name('ASCIIHexDecode'))
+        path = self.root/'colored-page.pdf'
+        writer.save(path)
+        release_import = threading.Event()
+        class SlowFinish(Job):
+            def run(self):
+                super().run()
+                release_import.wait(3)
+
+        reader = self.view.reader
+        paints = []
+        paint = PageCanvas.paintEvent
+        def record(canvas, event):
+            paint(canvas, event)
+            if not canvas.pixmap.isNull():
+                paints.append(canvas.pixmap.toImage().pixelColor(10, 10).name())
+
+        with patch.object(PageCanvas, 'paintEvent', record):
+            with patch('tools_ui.Job', SlowFinish):
+                self.view.open_file(path)
+                try:
+                    for _ in range(100):
+                        QTest.qWait(20)
+                        if reader.current:
+                            break
+                    self.assertTrue(reader.current)
+                    QTest.qWait(100)
+                finally:
+                    release_import.set()
+            self.wait()
+            QTest.qWait(50)
+        self.assertIn('#cc0000', paints)
 
     def test_back_and_close_during_job_do_not_destroy_worker(self):
         self.view.setCurrentIndex(1); reader = self.view.reader; reader.job = Mock()
